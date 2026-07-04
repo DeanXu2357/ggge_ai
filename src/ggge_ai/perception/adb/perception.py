@@ -59,8 +59,17 @@ class AdbPerception:
         return {e.id: e for e in self.pipeline.detect_elements(img, element_ids)}
 
     def _capture(self) -> np.ndarray:
-        pil_img = self.device.screenshot()
-        return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+        # atx-agent drops connections occasionally during long sessions;
+        # retry before giving up
+        last_error: Exception | None = None
+        for attempt in range(4):
+            try:
+                pil_img = self.device.screenshot()
+                return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+            except Exception as exc:
+                last_error = exc
+                time.sleep(1.5 * (attempt + 1))
+        raise last_error
 
     def _save(self, img: np.ndarray) -> Path | None:
         if self.screenshot_dir is None:
