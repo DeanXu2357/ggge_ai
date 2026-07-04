@@ -136,6 +136,14 @@ elements:
     - 240
     - 138
     screen: battle_map
+  btn_battle_return:
+    file: elements/btn_battle_return.png
+    search_region:
+    - 1690
+    - 870
+    - 230
+    - 210
+    screen: battle_map
   btn_continue:
     file: elements/btn_continue.png
     search_region:
@@ -152,6 +160,14 @@ elements:
     - 330
     - 155
     screen: unit_setup
+  btn_end_turn:
+    file: elements/btn_end_turn.png
+    search_region:
+    - 130
+    - 110
+    - 290
+    - 145
+    screen: battle_map
   btn_launch:
     file: elements/btn_launch.png
     search_region:
@@ -200,6 +216,22 @@ elements:
     - 520
     - 200
     screen: stage_list
+  btn_standby:
+    file: elements/btn_standby.png
+    search_region:
+    - 1995
+    - 630
+    - 160
+    - 120
+    screen: battle_map
+  btn_start_battle:
+    file: elements/btn_start_battle.png
+    search_region:
+    - 1940
+    - 850
+    - 320
+    - 230
+    screen: battle_map
   btn_story_skip:
     file: elements/btn_story_skip.png
     search_region:
@@ -208,6 +240,22 @@ elements:
     - 280
     - 150
     screen: story
+  btn_switch_target:
+    file: elements/btn_switch_target.png
+    search_region:
+    - 1730
+    - 755
+    - 200
+    - 125
+    screen: battle_map
+  btn_weapon_select:
+    file: elements/btn_weapon_select.png
+    search_region:
+    - 1985
+    - 945
+    - 240
+    - 125
+    screen: battle_map
   hint_dialog:
     file: elements/hint_dialog.png
     search_region:
@@ -215,6 +263,38 @@ elements:
     - 370
     - 280
     - 280
+  label_battle_prep:
+    file: elements/label_battle_prep.png
+    search_region:
+    - 110
+    - 0
+    - 400
+    - 135
+    screen: battle_map
+  label_our_turn:
+    file: elements/label_our_turn.png
+    search_region:
+    - 110
+    - 0
+    - 270
+    - 125
+    screen: battle_map
+  label_unit_move:
+    file: elements/label_unit_move.png
+    search_region:
+    - 110
+    - 0
+    - 300
+    - 135
+    screen: battle_map
+  label_weapon_select:
+    file: elements/label_weapon_select.png
+    search_region:
+    - 110
+    - 0
+    - 310
+    - 135
+    screen: battle_map
   nav_base:
     file: elements/nav_base.png
     search_region:
@@ -272,3 +352,11 @@ elements:
     - 205
     - 220
     screen: series_select
+  switching_unit:
+    file: elements/switching_unit.png
+    search_region:
+    - 140
+    - 970
+    - 320
+    - 110
+    screen: battle_map
