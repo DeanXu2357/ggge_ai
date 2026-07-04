@@ -162,20 +162,70 @@ class ReturnToStageList(Action):
     name = "return_to_stage_list"
     preconditions = {"screen": screens.REWARD}
     effects = {"screen": screens.STAGE_LIST}
-    _done = (screens.STAGE_LIST, screens.MAIN_MENU)
+    # the reward-continue corner coordinate doubles as the 選單 nav button
+    # once a nav screen is back, so an overshoot tap can land us anywhere in
+    # the main navigation - these recovery steps walk back to the stage list
+    # nav_stage's template captures the lit state, so give every nav screen
+    # the fixed bottom-bar coordinate as fallback for the unlit button
+    _NAV_STAGE = ("nav_stage", (1230, 1050))
+    _recovery = {
+        screens.MENU: _NAV_STAGE,
+        screens.MAIN_MENU: _NAV_STAGE,
+        screens.ENHANCE: _NAV_STAGE,
+        screens.DEVELOP: _NAV_STAGE,
+        screens.BASE: _NAV_STAGE,
+        screens.SUPPLY: _NAV_STAGE,
+        screens.STAGE_TYPE_SELECT: ("btn_main_stage", None),
+        screens.SERIES_SELECT: ("series_g_thumb", None),
+        screens.SERIES_CONFIRM: ("btn_select", (1989, 889)),
+    }
+
+    def _tap_floating_series(self, ctx: ExecutionContext) -> None:
+        """The series carousel floats and drifts, so the fixed probe
+        threshold misses. Take the best template location wherever it is;
+        with nothing plausible, tap the screen center (focused series)."""
+        import cv2
+
+        logger.info("overshot to series_select, locating series thumb")
+        frame = ctx.perception.capture()
+        template = cv2.imread("assets/templates/elements/series_g_thumb.png")
+        result = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+        _, score, _, loc = cv2.minMaxLoc(result)
+        if score >= 0.5:
+            h, w = template.shape[:2]
+            ctx.actuator.tap(loc[0] + w // 2, loc[1] + h // 2)
+        else:
+            ctx.actuator.tap(1170, 540)
 
     def execute(self, ctx: ExecutionContext) -> bool:
-        deadline = time.monotonic() + 90
+        deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            screen = ctx.perception.observe().screen
-            if screen in self._done:
+            state = ctx.perception.observe()
+            screen = state.screen
+            if screen == screens.STAGE_LIST:
                 return True
             if screen == screens.STORY:
                 ctx.actuator.tap(*STORY_MENU)
                 time.sleep(1.2)
                 ctx.actuator.tap(*STORY_SKIP)
+            elif screen == screens.SERIES_SELECT and state.screen_confidence >= 0.9:
+                self._tap_floating_series(ctx)
+            elif screen in self._recovery and state.screen_confidence >= 0.9:
+                element_id, fallback = self._recovery[screen]
+                logger.info("overshot to %s, recovering via %s", screen, element_id)
+                found = ctx.perception.probe([element_id])
+                if element_id in found and found[element_id].confidence >= 0.85:
+                    ctx.actuator.tap(*found[element_id].bbox.center)
+                elif fallback:
+                    ctx.actuator.tap(*fallback)
             elif screen in (screens.REWARD, screens.BATTLE_RESULT):
-                ctx.actuator.tap(*REWARD_CONTINUE)
+                # probe right before tapping to shrink the race window in
+                # which the screen changes under a blind corner tap
+                found = ctx.perception.probe(["btn_result_continue"])
+                if "btn_result_continue" in found:
+                    ctx.actuator.tap(*found["btn_result_continue"].bbox.center)
+                else:
+                    ctx.actuator.tap(*REWARD_CONTINUE)
             else:
                 ctx.actuator.tap(*POPUP_NEXT)
             time.sleep(2.5)

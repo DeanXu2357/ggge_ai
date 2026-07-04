@@ -1,3 +1,276 @@
+elements:
+  btn_auto_enemy:
+    file: elements/btn_auto_enemy.png
+    screen: battle_map
+    search_region:
+    - 1700
+    - 0
+    - 240
+    - 138
+  btn_auto_full:
+    file: elements/btn_auto_full.png
+    screen: battle_map
+    search_region:
+    - 1700
+    - 0
+    - 240
+    - 138
+  btn_auto_manual:
+    file: elements/btn_auto_manual.png
+    screen: battle_map
+    search_region:
+    - 1700
+    - 0
+    - 240
+    - 138
+  btn_battle_return:
+    file: elements/btn_battle_return.png
+    screen: battle_map
+    search_region:
+    - 1690
+    - 870
+    - 230
+    - 210
+  btn_continue:
+    file: elements/btn_continue.png
+    screen: battle_result
+    search_region:
+    - 1770
+    - 950
+    - 515
+    - 130
+  btn_download:
+    file: elements/btn_download.png
+    screen: unit_setup
+    search_region:
+    - 1205
+    - 775
+    - 330
+    - 155
+  btn_end_turn:
+    file: elements/btn_end_turn.png
+    screen: battle_map
+    search_region:
+    - 130
+    - 110
+    - 290
+    - 145
+  btn_launch:
+    file: elements/btn_launch.png
+    screen: unit_setup
+    search_region:
+    - 1915
+    - 935
+    - 255
+    - 145
+  btn_main_stage:
+    file: elements/btn_main_stage.png
+    screen: stage_type_select
+    search_region:
+    - 365
+    - 695
+    - 595
+    - 165
+  btn_result_continue:
+    file: elements/btn_result_continue.png
+    screen: battle_result
+    search_region:
+    - 1770
+    - 950
+    - 515
+    - 130
+  btn_select:
+    file: elements/btn_select.png
+    screen: series_confirm
+    search_region:
+    - 1775
+    - 820
+    - 425
+    - 155
+  btn_sortie_main:
+    file: elements/btn_sortie_main.png
+    screen: main_menu
+    search_region:
+    - 1600
+    - 680
+    - 255
+    - 170
+  btn_sortie_prep:
+    file: elements/btn_sortie_prep.png
+    screen: stage_list
+    search_region:
+    - 1775
+    - 780
+    - 520
+    - 200
+  btn_standby:
+    file: elements/btn_standby.png
+    screen: battle_map
+    search_region:
+    - 1995
+    - 630
+    - 160
+    - 120
+  btn_start_battle:
+    file: elements/btn_start_battle.png
+    screen: battle_map
+    search_region:
+    - 1940
+    - 850
+    - 320
+    - 230
+  btn_story_skip:
+    file: elements/btn_story_skip.png
+    screen: story
+    search_region:
+    - 1963
+    - 355
+    - 280
+    - 150
+  btn_switch_target:
+    file: elements/btn_switch_target.png
+    screen: battle_map
+    search_region:
+    - 1730
+    - 755
+    - 200
+    - 125
+  btn_weapon_select:
+    file: elements/btn_weapon_select.png
+    screen: battle_map
+    search_region:
+    - 1985
+    - 945
+    - 240
+    - 125
+  dlg_end_turn:
+    file: elements/dlg_end_turn.png
+    screen: battle_map
+    search_region:
+    - 990
+    - 165
+    - 370
+    - 135
+  hint_dialog:
+    file: elements/hint_dialog.png
+    search_region:
+    - 460
+    - 370
+    - 280
+    - 280
+  label_battle_prep:
+    file: elements/label_battle_prep.png
+    screen: battle_map
+    search_region:
+    - 110
+    - 0
+    - 270
+    - 130
+  label_our_turn:
+    file: elements/label_our_turn.png
+    screen: battle_map
+    search_region:
+    - 110
+    - 0
+    - 270
+    - 125
+  label_skill:
+    file: elements/label_skill.png
+    screen: battle_map
+    search_region:
+    - 110
+    - 0
+    - 190
+    - 130
+  label_unit_move:
+    file: elements/label_unit_move.png
+    screen: battle_map
+    search_region:
+    - 110
+    - 0
+    - 300
+    - 135
+  label_weapon_select:
+    file: elements/label_weapon_select.png
+    screen: battle_map
+    search_region:
+    - 110
+    - 0
+    - 310
+    - 135
+  nav_base:
+    file: elements/nav_base.png
+    search_region:
+    - 1415
+    - 985
+    - 255
+    - 95
+  nav_develop:
+    file: elements/nav_develop.png
+    search_region:
+    - 830
+    - 985
+    - 180
+    - 95
+  nav_enhance:
+    file: elements/nav_enhance.png
+    search_region:
+    - 545
+    - 985
+    - 175
+    - 95
+  nav_main:
+    file: elements/nav_main.png
+    search_region:
+    - 210
+    - 985
+    - 235
+    - 95
+  nav_menu:
+    file: elements/nav_menu.png
+    search_region:
+    - 2120
+    - 985
+    - 200
+    - 95
+  nav_stage:
+    file: elements/nav_stage.png
+    search_region:
+    - 1130
+    - 985
+    - 205
+    - 95
+  nav_supply:
+    file: elements/nav_supply.png
+    search_region:
+    - 1715
+    - 985
+    - 270
+    - 95
+  series_g_thumb:
+    file: elements/series_g_thumb.png
+    screen: series_select
+    search_region:
+    - 150
+    - 350
+    - 700
+    - 450
+  series_msg_thumb:
+    file: elements/series_msg_thumb.png
+    screen: series_select
+    search_region:
+    - 820
+    - 450
+    - 205
+    - 220
+  switching_unit:
+    file: elements/switching_unit.png
+    screen: battle_map
+    search_region:
+    - 140
+    - 970
+    - 320
+    - 110
 screens:
   base:
     file: screens/base.png
@@ -111,268 +384,3 @@ screens:
     - 0
     - 335
     - 140
-elements:
-  btn_auto_enemy:
-    file: elements/btn_auto_enemy.png
-    search_region:
-    - 1700
-    - 0
-    - 240
-    - 138
-    screen: battle_map
-  btn_auto_full:
-    file: elements/btn_auto_full.png
-    search_region:
-    - 1700
-    - 0
-    - 240
-    - 138
-    screen: battle_map
-  btn_auto_manual:
-    file: elements/btn_auto_manual.png
-    search_region:
-    - 1700
-    - 0
-    - 240
-    - 138
-    screen: battle_map
-  btn_battle_return:
-    file: elements/btn_battle_return.png
-    search_region:
-    - 1690
-    - 870
-    - 230
-    - 210
-    screen: battle_map
-  btn_continue:
-    file: elements/btn_continue.png
-    search_region:
-    - 1770
-    - 950
-    - 515
-    - 130
-    screen: battle_result
-  btn_download:
-    file: elements/btn_download.png
-    search_region:
-    - 1205
-    - 775
-    - 330
-    - 155
-    screen: unit_setup
-  btn_end_turn:
-    file: elements/btn_end_turn.png
-    search_region:
-    - 130
-    - 110
-    - 290
-    - 145
-    screen: battle_map
-  btn_launch:
-    file: elements/btn_launch.png
-    search_region:
-    - 1915
-    - 935
-    - 255
-    - 145
-    screen: unit_setup
-  btn_main_stage:
-    file: elements/btn_main_stage.png
-    search_region:
-    - 365
-    - 695
-    - 595
-    - 165
-    screen: stage_type_select
-  btn_result_continue:
-    file: elements/btn_result_continue.png
-    search_region:
-    - 1770
-    - 950
-    - 515
-    - 130
-    screen: battle_result
-  btn_select:
-    file: elements/btn_select.png
-    search_region:
-    - 1775
-    - 820
-    - 425
-    - 155
-    screen: series_confirm
-  btn_sortie_main:
-    file: elements/btn_sortie_main.png
-    search_region:
-    - 1600
-    - 680
-    - 255
-    - 170
-    screen: main_menu
-  btn_sortie_prep:
-    file: elements/btn_sortie_prep.png
-    search_region:
-    - 1775
-    - 780
-    - 520
-    - 200
-    screen: stage_list
-  btn_standby:
-    file: elements/btn_standby.png
-    search_region:
-    - 1995
-    - 630
-    - 160
-    - 120
-    screen: battle_map
-  btn_start_battle:
-    file: elements/btn_start_battle.png
-    search_region:
-    - 1940
-    - 850
-    - 320
-    - 230
-    screen: battle_map
-  btn_story_skip:
-    file: elements/btn_story_skip.png
-    search_region:
-    - 1963
-    - 355
-    - 280
-    - 150
-    screen: story
-  btn_switch_target:
-    file: elements/btn_switch_target.png
-    search_region:
-    - 1730
-    - 755
-    - 200
-    - 125
-    screen: battle_map
-  btn_weapon_select:
-    file: elements/btn_weapon_select.png
-    search_region:
-    - 1985
-    - 945
-    - 240
-    - 125
-    screen: battle_map
-  dlg_end_turn:
-    file: elements/dlg_end_turn.png
-    search_region:
-    - 990
-    - 165
-    - 370
-    - 135
-    screen: battle_map
-  hint_dialog:
-    file: elements/hint_dialog.png
-    search_region:
-    - 460
-    - 370
-    - 280
-    - 280
-  label_battle_prep:
-    file: elements/label_battle_prep.png
-    search_region:
-    - 110
-    - 0
-    - 270
-    - 130
-    screen: battle_map
-  label_our_turn:
-    file: elements/label_our_turn.png
-    search_region:
-    - 110
-    - 0
-    - 270
-    - 125
-    screen: battle_map
-  label_skill:
-    file: elements/label_skill.png
-    search_region:
-    - 110
-    - 0
-    - 190
-    - 130
-    screen: battle_map
-  label_unit_move:
-    file: elements/label_unit_move.png
-    search_region:
-    - 110
-    - 0
-    - 300
-    - 135
-    screen: battle_map
-  label_weapon_select:
-    file: elements/label_weapon_select.png
-    search_region:
-    - 110
-    - 0
-    - 310
-    - 135
-    screen: battle_map
-  nav_base:
-    file: elements/nav_base.png
-    search_region:
-    - 1415
-    - 985
-    - 255
-    - 95
-  nav_develop:
-    file: elements/nav_develop.png
-    search_region:
-    - 830
-    - 985
-    - 180
-    - 95
-  nav_enhance:
-    file: elements/nav_enhance.png
-    search_region:
-    - 545
-    - 985
-    - 175
-    - 95
-  nav_main:
-    file: elements/nav_main.png
-    search_region:
-    - 210
-    - 985
-    - 235
-    - 95
-  nav_menu:
-    file: elements/nav_menu.png
-    search_region:
-    - 2120
-    - 985
-    - 200
-    - 95
-  nav_stage:
-    file: elements/nav_stage.png
-    search_region:
-    - 1130
-    - 985
-    - 205
-    - 95
-  nav_supply:
-    file: elements/nav_supply.png
-    search_region:
-    - 1715
-    - 985
-    - 270
-    - 95
-  series_msg_thumb:
-    file: elements/series_msg_thumb.png
-    search_region:
-    - 820
-    - 450
-    - 205
-    - 220
-    screen: series_select
-  switching_unit:
-    file: elements/switching_unit.png
-    search_region:
-    - 140
-    - 970
-    - 320
-    - 110
-    screen: battle_map
