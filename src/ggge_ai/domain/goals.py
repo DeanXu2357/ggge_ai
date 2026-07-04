@@ -18,7 +18,7 @@ class StageCleared(Goal):
 
 class ClearCurrentStage(Goal):
     """Clear the stage currently selected in the stage list and return there.
-    stage_cleared is latched by AutoBattle on victory; requiring the return to
+    stage_cleared is latched by ManualBattle on victory; requiring the return to
     the stage list makes the loop also drain the post-battle screens."""
 
     name = "clear_current_stage"

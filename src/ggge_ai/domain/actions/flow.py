@@ -6,7 +6,6 @@ from collections.abc import Callable
 
 from ...core.action import Action, ExecutionContext
 from ...perception.base import GameState
-from ...vision.motion import is_static
 from .. import screens
 
 logger = logging.getLogger(__name__)
@@ -122,47 +121,27 @@ class SkipStory(Action):
         return False
 
 
-class AutoBattle(Action):
-    """Wait out the battle until the result screen appears.
+class ManualBattle(Action):
+    """Fight the battle with our own controller instead of the built-in AI.
 
-    The battle sequence interleaves intro/attack animations and mid-battle
-    story events with the controllable turns. This action never acts on an
-    unsettled frame: it skips any story it sees, and only reads/sets the
-    AUTO toggle when the battle map is static (a real, controllable turn),
-    which is how it distinguishes the actual game start from the opening
-    animation that also shows battle-map UI. stage_cleared is latched once
-    the result (victory) screen appears."""
+    Delegates to ManualBattleController: forces the AUTO toggle to
+    colorless full manual on the first controllable frame, then drives
+    every unit with the v1 heuristic (attack in range, otherwise advance
+    toward the enemy force, otherwise stand by) and confirms enemy-turn
+    engagements. stage_cleared is latched once the result screen appears."""
 
-    name = "auto_battle"
+    name = "manual_battle"
     cost = 5.0
     preconditions = {"screen": screens.BATTLE_MAP}
     effects = {"screen": screens.BATTLE_RESULT, "stage_cleared": True}
 
-    def _auto_state(self, ctx: ExecutionContext) -> str | None:
-        found = ctx.perception.probe(AUTO_STATE_IDS)
-        if not found:
-            return None
-        return max(found.values(), key=lambda e: e.confidence).id
-
     def execute(self, ctx: ExecutionContext) -> bool:
-        deadline = time.monotonic() + 540
-        while time.monotonic() < deadline:
-            screen = ctx.perception.observe().screen
-            if screen == screens.BATTLE_RESULT:
-                return True
-            if screen == screens.STORY:
-                logger.info("mid-battle story, skipping")
-                _skip_story_once(ctx)
-                continue
-            if screen == screens.BATTLE_MAP and is_static(ctx.perception.capture):
-                state = self._auto_state(ctx)
-                if state in ("btn_auto_enemy", "btn_auto_manual"):
-                    logger.info("controllable turn, switching AUTO to full (%s)", state)
-                    ctx.actuator.tap(*AUTO_BUTTON)
-                    time.sleep(0.8)
-                    continue
-            time.sleep(3)
-        return False
+        from ...battle.controller import ManualBattleController
+
+        controller = ManualBattleController(
+            perception=ctx.perception, actuator=ctx.actuator
+        )
+        return controller.run() == screens.BATTLE_RESULT
 
 
 class DismissResult(Action):
@@ -207,7 +186,7 @@ CLEAR_STAGE_ACTIONS: list[Action] = [
     EnterSortiePrep(),
     LaunchSortie(),
     SkipStory(),
-    AutoBattle(),
+    ManualBattle(),
     DismissResult(),
     ReturnToStageList(),
 ]

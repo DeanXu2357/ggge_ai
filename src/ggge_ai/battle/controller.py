@@ -30,6 +30,10 @@ END_TURN_BTN = (275, 182)
 WEAPON_SLOTS = ((1176, 965), (1367, 965), (1556, 965))
 STORY_MENU = (2100, 49)
 STORY_SKIP = (2103, 430)
+# end-turn confirmation dialog: standby-and-end option and execute button.
+# never pick the right-hand option, it hands leftover units to the built-in AI
+END_TURN_STANDBY_OPTION = (997, 562)
+END_TURN_EXECUTE = (1365, 850)
 
 AUTO_STATE_IDS = ("btn_auto_full", "btn_auto_enemy", "btn_auto_manual")
 MODE_LABELS = (
@@ -99,6 +103,13 @@ class ManualBattleController:
             if not is_static(self.perception.capture, threshold=0.015, gap_s=0.35):
                 time.sleep(0.5)
                 continue
+            if self.perception.probe(["dlg_end_turn"]):
+                log.info("end-turn dialog: choosing standby-and-end")
+                self.actuator.tap(*END_TURN_STANDBY_OPTION)
+                time.sleep(0.8)
+                self.actuator.tap(*END_TURN_EXECUTE)
+                time.sleep(2.0)
+                continue
             mode = self._current_mode()
             if mode is None:
                 # enemy turn or an animation between phases
@@ -119,10 +130,17 @@ class ManualBattleController:
         return self.perception.capture()
 
     def _on_our_turn(self) -> None:
-        frame = self._frame()
         self._action.reset()
-        if vision.unit_cards_present(frame):
+        if vision.unit_cards_present(self._frame()):
             log.info("selecting next actable unit")
+            self.actuator.tap(*vision.FIRST_UNIT_CARD)
+            time.sleep(1.8)
+            return
+        # the card strip animates in after the hub appears; confirm it is
+        # really empty before ending the turn
+        time.sleep(1.2)
+        if vision.unit_cards_present(self._frame()):
+            log.info("unit cards appeared late, selecting next unit")
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
         else:
             log.info("no actable units left, ending turn")

@@ -256,6 +256,14 @@ elements:
     - 240
     - 125
     screen: battle_map
+  dlg_end_turn:
+    file: elements/dlg_end_turn.png
+    search_region:
+    - 990
+    - 165
+    - 370
+    - 135
+    screen: battle_map
   hint_dialog:
     file: elements/hint_dialog.png
     search_region:
@@ -268,8 +276,8 @@ elements:
     search_region:
     - 110
     - 0
-    - 400
-    - 135
+    - 270
+    - 130
     screen: battle_map
   label_our_turn:
     file: elements/label_our_turn.png
