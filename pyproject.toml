@@ -1,0 +1,34 @@
+[project]
+name = "ggge-ai"
+version = "0.1.0"
+description = "Automated stage clearing for SD Gundam G Generation mobile game using GOAP"
+requires-python = ">=3.12"
+dependencies = [
+    "uiautomator2>=3.7.0",
+    "opencv-python>=4.10",
+    "numpy>=2.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+llm = ["ollama>=0.4"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ggge_ai"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
