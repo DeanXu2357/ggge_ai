@@ -107,12 +107,15 @@ class ManualBattleController:
             if state.screen in TERMINAL_SCREENS and state.screen_confidence >= 0.9:
                 log.info("battle finished: %s", state.screen)
                 return state.screen
-            if state.screen == screens.STORY and state.screen_confidence >= 0.9:
-                log.info("mid-battle story, skipping")
-                menu_x, menu_y = vision.locate_story_menu(self._frame()) or STORY_MENU
-                self.actuator.tap(menu_x, menu_y)
+            # detect stories by the MENU button itself, not the screen
+            # classifier: mid-battle stories shift MENU left of the anchor
+            # position and the frame then classifies as something else
+            menu_pos = vision.locate_story_menu(self._frame(), threshold=0.7)
+            if menu_pos is not None:
+                log.info("mid-battle story (menu at %s), skipping", menu_pos)
+                self.actuator.tap(*menu_pos)
                 time.sleep(0.8)
-                self.actuator.tap(menu_x, STORY_SKIP[1])
+                self.actuator.tap(menu_pos[0], STORY_SKIP[1])
                 time.sleep(1.5)
                 last_activity = time.time()
                 continue
