@@ -6,6 +6,13 @@ screens:
     - 0
     - 340
     - 140
+  battle_map:
+    file: screens/battle_map.png
+    search_region:
+    - 125
+    - 32
+    - 180
+    - 118
   develop:
     file: screens/develop.png
     search_region:
@@ -77,6 +84,30 @@ screens:
     - 340
     - 145
 elements:
+  btn_auto_enemy:
+    file: elements/btn_auto_enemy.png
+    search_region:
+    - 1700
+    - 0
+    - 240
+    - 138
+    screen: battle_map
+  btn_auto_full:
+    file: elements/btn_auto_full.png
+    search_region:
+    - 1700
+    - 0
+    - 240
+    - 138
+    screen: battle_map
+  btn_auto_manual:
+    file: elements/btn_auto_manual.png
+    search_region:
+    - 1700
+    - 0
+    - 240
+    - 138
+    screen: battle_map
   btn_main_stage:
     file: elements/btn_main_stage.png
     search_region:
