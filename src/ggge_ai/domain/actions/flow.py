@@ -160,7 +160,11 @@ class ManualBattle(Action):
         from ...actuation.keyguard import Keyguard
         from ...battle.controller import ManualBattleController
 
-        keyguard = Keyguard(ctx.actuator.device) if hasattr(ctx.actuator, "device") else None
+        keyguard = (
+            Keyguard(ctx.actuator.device, capture=ctx.perception.capture)
+            if hasattr(ctx.actuator, "device")
+            else None
+        )
         controller = ManualBattleController(
             perception=ctx.perception, actuator=ctx.actuator, keyguard=keyguard
         )

@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 
 perception, actuator = connect()
-keyguard = Keyguard(actuator.device)
+keyguard = Keyguard(actuator.device, capture=perception.capture)
 keyguard.ensure_unlocked()
 controller = ManualBattleController(perception=perception, actuator=actuator, keyguard=keyguard)
 result = controller.run()

@@ -22,7 +22,7 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
     perception, actuator = connect(save_shots=True)
-    keyguard = Keyguard(actuator.device)
+    keyguard = Keyguard(actuator.device, capture=perception.capture)
     keyguard.ensure_unlocked()
     loop = AgentLoop(
         perception=perception,
