@@ -83,6 +83,51 @@ def find_move_cells(frame: np.ndarray) -> list[tuple[int, int]]:
     return out
 
 
+def _ring_blobs(mask: np.ndarray) -> list[tuple[int, int]]:
+    """Base rings render as wide flat ellipse arcs at a unit's feet; the
+    aspect filter rejects unit bodies, threat "!" marks and shield icons."""
+    x0, y0 = MAP_REGION[0], MAP_REGION[1]
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+    n, _, stats, cents = cv2.connectedComponentsWithStats(mask)
+    out = []
+    for i in range(1, n):
+        bw = stats[i, cv2.CC_STAT_WIDTH]
+        bh = stats[i, cv2.CC_STAT_HEIGHT]
+        area = stats[i, cv2.CC_STAT_AREA]
+        if 60 <= bw <= 160 and 16 <= bh <= 70 and bw / bh >= 1.8 and area >= 200:
+            out.append((x0 + int(cents[i][0]), y0 + int(cents[i][1])))
+    return out
+
+
+def _dedupe(points: list[tuple[int, int]], radius: int = 70) -> list[tuple[int, int]]:
+    merged: list[tuple[int, int]] = []
+    for p in points:
+        for i, q in enumerate(merged):
+            if (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < radius * radius:
+                merged[i] = ((p[0] + q[0]) // 2, (p[1] + q[1]) // 2)
+                break
+        else:
+            merged.append(p)
+    return merged
+
+
+def find_enemy_units(frame: np.ndarray) -> list[tuple[int, int]]:
+    """Enemy units stand on red-orange base ring arcs. Our own red-bodied
+    units (e.g. Sazabi) stay below the brightness cut and are not matched."""
+    hsv = cv2.cvtColor(_crop(frame, MAP_REGION), cv2.COLOR_BGR2HSV)
+    red = cv2.inRange(hsv, (0, 120, 120), (30, 255, 255)) | cv2.inRange(
+        hsv, (168, 120, 120), (180, 255, 255)
+    )
+    return _dedupe(_ring_blobs(red))
+
+
+def find_ally_units(frame: np.ndarray) -> list[tuple[int, int]]:
+    """Allied units stand on blue base ring arcs."""
+    hsv = cv2.cvtColor(_crop(frame, MAP_REGION), cv2.COLOR_BGR2HSV)
+    blue = cv2.inRange(hsv, (95, 120, 120), (120, 255, 255))
+    return _dedupe(_ring_blobs(blue))
+
+
 def locate_story_menu(frame: np.ndarray, threshold: float = 0.6) -> tuple[int, int] | None:
     """Find the story MENU button wherever it sits: mid-battle stories add
     a ☰ button that shifts MENU left of its pre-battle position."""

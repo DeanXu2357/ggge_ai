@@ -176,12 +176,22 @@ class ManualBattleController:
             return
         if not self._action.moved:
             frame = self._frame()
-            threats = vision.find_threat_cells(frame)
-            target = vision.centroid(threats)
             cells = vision.find_move_cells(frame)
+            target = None
+            enemies = vision.find_enemy_units(frame)
+            if enemies and cells:
+                # the move range surrounds the unit, so its centroid is a
+                # good proxy for the unit's own position
+                origin = vision.centroid(cells)
+                target = vision.nearest_point(enemies, origin)
+                log.info("seeking nearest enemy unit at %s (of %d seen)", target, len(enemies))
+            if target is None:
+                target = vision.centroid(vision.find_threat_cells(frame))
+                if target:
+                    log.info("no enemy rings visible, using threat centroid %s", target)
             if target and cells:
                 cell = vision.nearest_point(cells, target)
-                log.info("moving toward enemies via %s (threat centroid %s)", cell, target)
+                log.info("moving toward enemies via %s", cell)
                 self._action.moved = True
                 self.actuator.tap(*cell)
                 time.sleep(2.0)
