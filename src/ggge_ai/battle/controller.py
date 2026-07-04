@@ -61,8 +61,11 @@ class _ActionState:
 class ManualBattleController:
     perception: object
     actuator: object
+    keyguard: object | None = None
     settle_timeout_s: float = 45.0
-    battle_timeout_s: float = 1800.0
+    battle_timeout_s: float = 3600.0
+    idle_timeout_s: float = 600.0
+    lock_check_interval_s: float = 15.0
     _action: _ActionState = field(default_factory=_ActionState)
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
@@ -89,19 +92,33 @@ class ManualBattleController:
         if not self.ensure_manual_auto():
             log.warning("could not confirm manual AUTO state, continuing anyway")
         deadline = time.time() + self.battle_timeout_s
+        last_activity = time.time()
+        next_lock_check = 0.0
         while time.time() < deadline:
+            if self.keyguard is not None and time.time() >= next_lock_check:
+                next_lock_check = time.time() + self.lock_check_interval_s
+                if not self.keyguard.ensure_unlocked():
+                    time.sleep(5.0)
+                    continue
+            if time.time() - last_activity > self.idle_timeout_s:
+                log.warning("no battle activity for %.0fs, giving up", self.idle_timeout_s)
+                return screens.UNKNOWN
             state = self.perception.observe()
             if state.screen in TERMINAL_SCREENS and state.screen_confidence >= 0.9:
                 log.info("battle finished: %s", state.screen)
                 return state.screen
             if state.screen == screens.STORY and state.screen_confidence >= 0.9:
                 log.info("mid-battle story, skipping")
-                self.actuator.tap(*STORY_MENU)
+                menu_x, menu_y = vision.locate_story_menu(self._frame()) or STORY_MENU
+                self.actuator.tap(menu_x, menu_y)
                 time.sleep(0.8)
-                self.actuator.tap(*STORY_SKIP)
+                self.actuator.tap(menu_x, STORY_SKIP[1])
                 time.sleep(1.5)
+                last_activity = time.time()
                 continue
             if not is_static(self.perception.capture, threshold=0.015, gap_s=0.35):
+                # animations count as activity: the battle is visibly running
+                last_activity = time.time()
                 time.sleep(0.5)
                 continue
             if self.perception.probe(["dlg_end_turn"]):
@@ -110,6 +127,7 @@ class ManualBattleController:
                 time.sleep(0.8)
                 self.actuator.tap(*END_TURN_EXECUTE)
                 time.sleep(2.0)
+                last_activity = time.time()
                 continue
             mode = self._current_mode()
             if mode is None:
@@ -118,6 +136,7 @@ class ManualBattleController:
                 continue
             handler = getattr(self, f"_on_{mode.removeprefix('label_')}")
             handler()
+            last_activity = time.time()
         log.warning("battle timeout reached")
         return screens.UNKNOWN
 

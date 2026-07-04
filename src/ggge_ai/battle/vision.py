@@ -5,8 +5,14 @@ All coordinates are in the 2340x1080 landscape reference frame.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import cv2
 import numpy as np
+
+STORY_MENU_TEMPLATE = (
+    Path(__file__).resolve().parents[3] / "assets" / "templates" / "screens" / "story.png"
+)
 
 ATTACK_BUTTON_BOX = (1990, 900, 240, 160)
 UNIT_CARD_STRIP_BOX = (170, 840, 900, 200)
@@ -75,6 +81,20 @@ def find_move_cells(frame: np.ndarray) -> list[tuple[int, int]]:
         if 55 <= bw <= 130 and 55 <= bh <= 130:
             out.append((x0 + bx + bw // 2, y0 + by + bh // 2))
     return out
+
+
+def locate_story_menu(frame: np.ndarray, threshold: float = 0.6) -> tuple[int, int] | None:
+    """Find the story MENU button wherever it sits: mid-battle stories add
+    a ☰ button that shifts MENU left of its pre-battle position."""
+    template = cv2.imread(str(STORY_MENU_TEMPLATE))
+    if template is None:
+        return None
+    result = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, loc = cv2.minMaxLoc(result)
+    if score < threshold:
+        return None
+    h, w = template.shape[:2]
+    return (loc[0] + w // 2, loc[1] + h // 2)
 
 
 def nearest_point(points: list[tuple[int, int]], target: tuple[int, int]) -> tuple[int, int] | None:

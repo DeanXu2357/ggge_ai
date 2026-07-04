@@ -46,20 +46,9 @@ def _tap_element(ctx: ExecutionContext, element_id: str, fallback: tuple[int, in
 
 
 def _locate_story_menu(ctx: ExecutionContext) -> tuple[int, int] | None:
-    """Find the story MENU button wherever it is. Mid-battle stories add
-    a ☰ button that shifts MENU left of its pre-battle position."""
-    import cv2
+    from ...battle.vision import locate_story_menu
 
-    frame = ctx.perception.capture()
-    template = cv2.imread("assets/templates/screens/story.png")
-    if template is None:
-        return None
-    result = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
-    _, score, _, loc = cv2.minMaxLoc(result)
-    if score < 0.6:
-        return None
-    h, w = template.shape[:2]
-    return (loc[0] + w // 2, loc[1] + h // 2)
+    return locate_story_menu(ctx.perception.capture())
 
 
 def _skip_story_once(ctx: ExecutionContext) -> None:
@@ -168,10 +157,12 @@ class ManualBattle(Action):
     effects = {"screen": screens.BATTLE_RESULT, "stage_cleared": True}
 
     def execute(self, ctx: ExecutionContext) -> bool:
+        from ...actuation.keyguard import Keyguard
         from ...battle.controller import ManualBattleController
 
+        keyguard = Keyguard(ctx.actuator.device) if hasattr(ctx.actuator, "device") else None
         controller = ManualBattleController(
-            perception=ctx.perception, actuator=ctx.actuator
+            perception=ctx.perception, actuator=ctx.actuator, keyguard=keyguard
         )
         return controller.run() == screens.BATTLE_RESULT
 

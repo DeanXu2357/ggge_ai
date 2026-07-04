@@ -49,6 +49,7 @@ class AgentLoop:
         config: LoopConfig | None = None,
         initial_memory: Mapping[str, Value] | None = None,
         unknown_handler: Callable[[ExecutionContext], None] | None = None,
+        keyguard: object | None = None,
     ) -> None:
         self.perception = perception
         self.actuator = actuator
@@ -57,6 +58,7 @@ class AgentLoop:
         self.config = config or LoopConfig()
         self.memory: dict[str, Value] = dict(initial_memory or {})
         self.unknown_handler = unknown_handler
+        self.keyguard = keyguard
 
     def _sense(self) -> tuple[GameState, WorldState, set[str]]:
         game_state = self.perception.observe()
@@ -70,6 +72,8 @@ class AgentLoop:
         unknown_waits = 0
 
         while replans <= self.config.max_replans:
+            if self.keyguard is not None:
+                self.keyguard.ensure_unlocked()
             game_state, state, _ = self._sense()
             if goal.is_satisfied(state):
                 logger.info("goal %s satisfied", goal.name)
