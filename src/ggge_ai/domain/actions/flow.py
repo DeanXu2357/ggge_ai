@@ -1,0 +1,213 @@
+from __future__ import annotations
+
+import logging
+import time
+from collections.abc import Callable
+
+from ...core.action import Action, ExecutionContext
+from ...perception.base import GameState
+from ...vision.motion import is_static
+from .. import screens
+
+logger = logging.getLogger(__name__)
+
+# Reference coordinates (2340x1080) for taps without a dedicated template.
+STORY_MENU = (2100, 49)
+STORY_SKIP = (2103, 430)
+AUTO_BUTTON = (1820, 54)
+REWARD_CONTINUE = (2024, 1024)
+POPUP_NEXT = (1170, 540)
+HINT_ADVANCE = (1275, 590)
+
+AUTO_STATE_IDS = ("btn_auto_full", "btn_auto_enemy", "btn_auto_manual")
+
+
+def _poll(
+    ctx: ExecutionContext,
+    predicate: Callable[[GameState], bool],
+    timeout: float,
+    interval: float = 2.0,
+) -> GameState | None:
+    deadline = time.monotonic() + timeout
+    last: GameState | None = None
+    while time.monotonic() < deadline:
+        last = ctx.perception.observe()
+        if predicate(last):
+            return last
+        time.sleep(interval)
+    return last
+
+
+def _tap_element(ctx: ExecutionContext, element_id: str, fallback: tuple[int, int]) -> None:
+    found = ctx.perception.probe([element_id]).get(element_id)
+    if found is not None and found.confidence >= 0.85:
+        ctx.actuator.tap(*found.bbox.center)
+    else:
+        ctx.actuator.tap(*fallback)
+
+
+def _skip_story_once(ctx: ExecutionContext) -> None:
+    """Open the story MENU and hit SKIP. Safe to call repeatedly."""
+    ctx.actuator.tap(*STORY_MENU)
+    time.sleep(1.2)
+    ctx.actuator.tap(*STORY_SKIP)
+    time.sleep(2.0)
+
+
+def _dismiss_hint(ctx: ExecutionContext) -> None:
+    """Close any coach-mark tutorial dialogue overlaying a menu. Only taps
+    when the hint is actually detected, so it is a no-op on clean screens."""
+    for _ in range(5):
+        if ctx.perception.probe(["hint_dialog"]).get("hint_dialog") is None:
+            return
+        ctx.actuator.tap(*HINT_ADVANCE)
+        time.sleep(1.2)
+
+
+class EnterSortiePrep(Action):
+    name = "enter_sortie_prep"
+    preconditions = {"screen": screens.STAGE_LIST}
+    effects = {"screen": screens.UNIT_SETUP}
+
+    def execute(self, ctx: ExecutionContext) -> bool:
+        _dismiss_hint(ctx)
+        _tap_element(ctx, "btn_sortie_prep", (2035, 880))
+        got = _poll(ctx, lambda g: g.screen == screens.UNIT_SETUP, timeout=15)
+        return got is not None and got.screen == screens.UNIT_SETUP
+
+
+class LaunchSortie(Action):
+    """Tap 出擊, clear the first-time data-download popup if it appears, and
+    wait until the pre-battle story (or the battle itself) is reached."""
+
+    name = "launch_sortie"
+    preconditions = {"screen": screens.UNIT_SETUP}
+    effects = {"screen": screens.STORY}
+
+    def execute(self, ctx: ExecutionContext) -> bool:
+        _tap_element(ctx, "btn_launch", (2042, 1030))
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            if ctx.perception.probe(["btn_download"]).get("btn_download", None) is not None:
+                logger.info("download popup detected, confirming")
+                _tap_element(ctx, "btn_download", (1369, 851))
+                time.sleep(3)
+                continue
+            screen = ctx.perception.observe().screen
+            if screen in (screens.STORY, screens.BATTLE_MAP):
+                return True
+            time.sleep(2)
+        return True
+
+
+class SkipStory(Action):
+    """Drain one or more consecutive pre-battle story dialogues until the
+    battle map (or an already-finished battle) is reached."""
+
+    name = "skip_story"
+    preconditions = {"screen": screens.STORY}
+    effects = {"screen": screens.BATTLE_MAP}
+    _targets = (screens.BATTLE_MAP, screens.BATTLE_RESULT)
+
+    def execute(self, ctx: ExecutionContext) -> bool:
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            screen = ctx.perception.observe().screen
+            if screen in self._targets:
+                return True
+            if screen == screens.STORY:
+                _skip_story_once(ctx)
+            else:
+                time.sleep(2)  # loading / transition
+        return False
+
+
+class AutoBattle(Action):
+    """Wait out the battle until the result screen appears.
+
+    The battle sequence interleaves intro/attack animations and mid-battle
+    story events with the controllable turns. This action never acts on an
+    unsettled frame: it skips any story it sees, and only reads/sets the
+    AUTO toggle when the battle map is static (a real, controllable turn),
+    which is how it distinguishes the actual game start from the opening
+    animation that also shows battle-map UI. stage_cleared is latched once
+    the result (victory) screen appears."""
+
+    name = "auto_battle"
+    cost = 5.0
+    preconditions = {"screen": screens.BATTLE_MAP}
+    effects = {"screen": screens.BATTLE_RESULT, "stage_cleared": True}
+
+    def _auto_state(self, ctx: ExecutionContext) -> str | None:
+        found = ctx.perception.probe(AUTO_STATE_IDS)
+        if not found:
+            return None
+        return max(found.values(), key=lambda e: e.confidence).id
+
+    def execute(self, ctx: ExecutionContext) -> bool:
+        deadline = time.monotonic() + 540
+        while time.monotonic() < deadline:
+            screen = ctx.perception.observe().screen
+            if screen == screens.BATTLE_RESULT:
+                return True
+            if screen == screens.STORY:
+                logger.info("mid-battle story, skipping")
+                _skip_story_once(ctx)
+                continue
+            if screen == screens.BATTLE_MAP and is_static(ctx.perception.capture):
+                state = self._auto_state(ctx)
+                if state in ("btn_auto_enemy", "btn_auto_manual"):
+                    logger.info("controllable turn, switching AUTO to full (%s)", state)
+                    ctx.actuator.tap(*AUTO_BUTTON)
+                    time.sleep(0.8)
+                    continue
+            time.sleep(3)
+        return False
+
+
+class DismissResult(Action):
+    name = "dismiss_result"
+    preconditions = {"screen": screens.BATTLE_RESULT}
+    effects = {"screen": screens.REWARD}
+
+    def execute(self, ctx: ExecutionContext) -> bool:
+        _tap_element(ctx, "btn_result_continue", REWARD_CONTINUE)
+        got = _poll(ctx, lambda g: g.screen == screens.REWARD, timeout=15)
+        return got is not None and got.screen == screens.REWARD
+
+
+class ReturnToStageList(Action):
+    """Drain the whole post-battle tail (reward lists, character-unlock
+    popups, post-battle story, loading) until the stage list returns."""
+
+    name = "return_to_stage_list"
+    preconditions = {"screen": screens.REWARD}
+    effects = {"screen": screens.STAGE_LIST}
+    _done = (screens.STAGE_LIST, screens.MAIN_MENU)
+
+    def execute(self, ctx: ExecutionContext) -> bool:
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            screen = ctx.perception.observe().screen
+            if screen in self._done:
+                return True
+            if screen == screens.STORY:
+                ctx.actuator.tap(*STORY_MENU)
+                time.sleep(1.2)
+                ctx.actuator.tap(*STORY_SKIP)
+            elif screen in (screens.REWARD, screens.BATTLE_RESULT):
+                ctx.actuator.tap(*REWARD_CONTINUE)
+            else:
+                ctx.actuator.tap(*POPUP_NEXT)
+            time.sleep(2.5)
+        return False
+
+
+CLEAR_STAGE_ACTIONS: list[Action] = [
+    EnterSortiePrep(),
+    LaunchSortie(),
+    SkipStory(),
+    AutoBattle(),
+    DismissResult(),
+    ReturnToStageList(),
+]

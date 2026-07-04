@@ -104,6 +104,13 @@ screens:
     - 0
     - 340
     - 145
+  unit_setup:
+    file: screens/unit_setup.png
+    search_region:
+    - 245
+    - 0
+    - 335
+    - 140
 elements:
   btn_auto_enemy:
     file: elements/btn_auto_enemy.png
@@ -137,6 +144,22 @@ elements:
     - 515
     - 130
     screen: battle_result
+  btn_download:
+    file: elements/btn_download.png
+    search_region:
+    - 1205
+    - 775
+    - 330
+    - 155
+    screen: unit_setup
+  btn_launch:
+    file: elements/btn_launch.png
+    search_region:
+    - 1915
+    - 935
+    - 255
+    - 145
+    screen: unit_setup
   btn_main_stage:
     file: elements/btn_main_stage.png
     search_region:
@@ -145,6 +168,14 @@ elements:
     - 595
     - 165
     screen: stage_type_select
+  btn_result_continue:
+    file: elements/btn_result_continue.png
+    search_region:
+    - 1770
+    - 950
+    - 515
+    - 130
+    screen: battle_result
   btn_select:
     file: elements/btn_select.png
     search_region:
@@ -177,6 +208,13 @@ elements:
     - 280
     - 150
     screen: story
+  hint_dialog:
+    file: elements/hint_dialog.png
+    search_region:
+    - 460
+    - 370
+    - 280
+    - 280
   nav_base:
     file: elements/nav_base.png
     search_region:

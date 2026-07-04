@@ -14,3 +14,12 @@ class StageCleared(Goal):
     def __init__(self, stage_id: str) -> None:
         self.name = f"clear:{stage_id}"
         self.conditions = {f"stage_cleared:{stage_id}": True}
+
+
+class ClearCurrentStage(Goal):
+    """Clear the stage currently selected in the stage list and return there.
+    stage_cleared is latched by AutoBattle on victory; requiring the return to
+    the stage list makes the loop also drain the post-battle screens."""
+
+    name = "clear_current_stage"
+    conditions = {"stage_cleared": True, "screen": "stage_list"}

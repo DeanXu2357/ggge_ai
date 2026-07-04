@@ -15,10 +15,11 @@ BASE: ScreenId = "base"
 SUPPLY: ScreenId = "supply"
 MENU: ScreenId = "menu"
 
-# 尚未取得樣板，待實機探索
 UNIT_SETUP: ScreenId = "unit_setup"
+STORY: ScreenId = "story"
 BATTLE_MAP: ScreenId = "battle_map"
 BATTLE_RESULT: ScreenId = "battle_result"
+REWARD: ScreenId = "reward"
 
 ALL_SCREENS = [
     MAIN_MENU,
@@ -32,4 +33,9 @@ ALL_SCREENS = [
     BASE,
     SUPPLY,
     MENU,
+    UNIT_SETUP,
+    STORY,
+    BATTLE_MAP,
+    BATTLE_RESULT,
+    REWARD,
 ]

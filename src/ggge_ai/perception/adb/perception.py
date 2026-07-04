@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from ...vision.pipeline import RecognizerPipeline
-from ..base import UNKNOWN_SCREEN, GameState
+from ..base import UNKNOWN_SCREEN, GameState, UiElement
 
 
 class AdbPerception:
@@ -46,6 +46,17 @@ class AdbPerception:
             elements=elements,
             screenshot_path=screenshot_path,
         )
+
+    def capture(self) -> np.ndarray:
+        """Raw BGR screenshot; used for motion detection between frames."""
+        return self._capture()
+
+    def probe(self, element_ids: Sequence[str]) -> dict[str, UiElement]:
+        """Fresh capture, detect the given elements regardless of current
+        screen. Lets flow actions look for buttons (download popup, AUTO
+        state) that are not tied to a classified screen."""
+        img = self._capture()
+        return {e.id: e for e in self.pipeline.detect_elements(img, element_ids)}
 
     def _capture(self) -> np.ndarray:
         pil_img = self.device.screenshot()
