@@ -12,8 +12,10 @@ ATTACK_BUTTON_BOX = (1990, 900, 240, 160)
 UNIT_CARD_STRIP_BOX = (170, 840, 900, 200)
 FIRST_UNIT_CARD = (300, 930)
 
-# map area free of HUD overlays, used when scanning for cells / units
-MAP_REGION = (150, 250, 1600, 700)
+# map area free of HUD overlays, used when scanning for cells / units.
+# bottom capped above the MP/skill/support button row (y>=880) so their
+# bright circular rims are never mistaken for movable cells
+MAP_REGION = (150, 250, 1600, 620)
 
 
 def _crop(frame: np.ndarray, box: tuple[int, int, int, int]) -> np.ndarray:

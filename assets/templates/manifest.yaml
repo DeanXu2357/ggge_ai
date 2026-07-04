@@ -287,6 +287,14 @@ elements:
     - 270
     - 125
     screen: battle_map
+  label_skill:
+    file: elements/label_skill.png
+    search_region:
+    - 110
+    - 0
+    - 190
+    - 130
+    screen: battle_map
   label_unit_move:
     file: elements/label_unit_move.png
     search_region:

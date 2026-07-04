@@ -41,6 +41,7 @@ MODE_LABELS = (
     "label_unit_move",
     "label_weapon_select",
     "label_battle_prep",
+    "label_skill",
 )
 
 TERMINAL_SCREENS = (screens.BATTLE_RESULT, screens.REWARD)
@@ -194,6 +195,12 @@ class ManualBattleController:
 
     def _can_return(self) -> bool:
         return not self._action.moved
+
+    def _on_skill(self) -> None:
+        # v1 does not use skills yet; leave the accidental skill screen
+        log.info("skill screen open, returning")
+        self.actuator.tap(*RETURN_BTN)
+        time.sleep(1.5)
 
     def _on_battle_prep(self) -> None:
         found = self.perception.probe(["btn_start_battle"])
