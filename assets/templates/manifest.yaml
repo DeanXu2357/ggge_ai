@@ -13,6 +13,13 @@ screens:
     - 32
     - 180
     - 118
+  battle_result:
+    file: screens/battle_result.png
+    search_region:
+    - 160
+    - 300
+    - 290
+    - 125
   develop:
     file: screens/develop.png
     search_region:
@@ -48,6 +55,13 @@ screens:
     - 0
     - 195
     - 140
+  reward:
+    file: screens/reward.png
+    search_region:
+    - 1060
+    - 5
+    - 240
+    - 125
   series_confirm:
     file: screens/series_confirm.png
     search_region:
@@ -76,6 +90,13 @@ screens:
     - 0
     - 210
     - 140
+  story:
+    file: screens/story.png
+    search_region:
+    - 1965
+    - 0
+    - 270
+    - 136
   supply:
     file: screens/supply.png
     search_region:
@@ -108,6 +129,14 @@ elements:
     - 240
     - 138
     screen: battle_map
+  btn_continue:
+    file: elements/btn_continue.png
+    search_region:
+    - 1770
+    - 950
+    - 515
+    - 130
+    screen: battle_result
   btn_main_stage:
     file: elements/btn_main_stage.png
     search_region:
@@ -140,6 +169,14 @@ elements:
     - 520
     - 200
     screen: stage_list
+  btn_story_skip:
+    file: elements/btn_story_skip.png
+    search_region:
+    - 1963
+    - 355
+    - 280
+    - 150
+    screen: story
   nav_base:
     file: elements/nav_base.png
     search_region:

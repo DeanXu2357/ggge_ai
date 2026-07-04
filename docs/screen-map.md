@@ -83,7 +83,24 @@ stage_list ──btn_sortie_prep──▶ unit_setup ──btn_sortie(2042,1030)
 - 手動戰鬥 UI：單位移動格、選擇武裝、待機、返回、回合結束、單位列表、SKILL(SP)
 - 頂部另有 ▶▶ 加速鈕與 ☰ 選單
 
+## 完整通關迴圈（2026-07-04 第 7 關全自動通關實證）
+
+```
+stage_list ─出擊準備─▶ unit_setup ─出擊─▶ [下載彈窗(首次)] ─▶ story ─MENU→SKIP─▶
+battle_map（切 AUTO 全自動，等待結束）─▶ battle_result ─繼續─▶ reward(EXP) ─繼續─▶
+[解放招募等彈窗，TAP TO NEXT] ─▶ reward(清單) ─故事─▶ story ─MENU→SKIP─▶ Loading ─▶
+stage_list（下一關 NEXT，迴圈閉合）
+```
+
+實測結果：TOTAL SCORE 11,466（3 條件全達成）、殲敵 12/12、存活 7/8、受損 19%、耗時約 4 分鐘。
+第 8 關（哀・戰士，建議戰鬥力 21,000，水陸地形）已解鎖為 NEXT。
+
+戰後畫面錨點：`battle_result`（TOTAL SCORE 字樣）、`reward`（REWARD 標題）、`story`（MENU 鈕）。
+戰後鏈的按鈕位置固定：繼續/故事鈕都在右下 (2024,1024)，彈窗 TAP TO NEXT 點畫面中央即可。
+
+備註：story 錨點刻意只框 MENU 鈕——AUTO 鈕有發光脈動動畫，含入會使信心值不穩（1.000 → 0.805）。
+
 ## 待探索畫面
 
-- 戰鬥結算（battle_result）與戰後獎勵彈窗
-- 升級、體力不足等彈窗
+- 升級（RANK UP）、體力不足彈窗
+- 出擊準備畫面的手動編隊操作（替換部隊/變更配屬）
