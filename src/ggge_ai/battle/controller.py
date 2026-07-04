@@ -21,6 +21,11 @@ from ggge_ai.vision.motion import frame_diff, is_static
 log = logging.getLogger(__name__)
 
 AUTO_BUTTON = (1820, 54)
+# panning works on the our-turn hub with no unit selected: dragging an
+# empty map spot shifts the camera. drag opposite to the look direction.
+PAN_CENTER = (1170, 500)
+PAN_DIST = 600
+PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
 WEAPON_SELECT_BTN = (2106, 965)
 ATTACK_BTN = (2085, 977)
 START_BATTLE_BTN = (2085, 988)
@@ -67,6 +72,8 @@ class ManualBattleController:
     idle_timeout_s: float = 600.0
     lock_check_interval_s: float = 15.0
     _action: _ActionState = field(default_factory=_ActionState)
+    _enemy_hint: tuple[int, int] | None = None
+    _turn_scouted: bool = False
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
         """Cycle the AUTO button until it is colorless (full manual)."""
@@ -155,6 +162,7 @@ class ManualBattleController:
     def _on_our_turn(self) -> None:
         self._action.reset()
         if vision.unit_cards_present(self._frame()):
+            self._scout()
             log.info("selecting next actable unit")
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
             time.sleep(1.8)
@@ -168,7 +176,41 @@ class ManualBattleController:
         else:
             log.info("no actable units left, ending turn")
             self.actuator.tap(*END_TURN_BTN)
+            self._turn_scouted = False
         time.sleep(1.8)
+
+    def _scout(self) -> None:
+        """Refresh the enemy direction hint from the hub. When no enemy is
+        on screen, pan around once per turn to find where they are; the
+        camera recenters on the unit as soon as one is selected, so panned
+        views need no undo when the scout ends on a hit."""
+        enemies = vision.find_enemy_units(self._frame(), region=vision.HUB_SCAN_REGION)
+        if enemies:
+            c = vision.centroid(enemies)
+            self._enemy_hint = self._direction_to(c)
+            return
+        if self._turn_scouted:
+            return
+        self._turn_scouted = True
+        cx, cy = PAN_CENTER
+        for name, (dx, dy) in PAN_DIRS:
+            self.actuator.swipe(cx, cy, cx - dx * PAN_DIST, cy - dy * PAN_DIST, 500)
+            time.sleep(1.0)
+            enemies = vision.find_enemy_units(self._frame(), region=vision.HUB_SCAN_REGION)
+            if enemies:
+                log.info("scout: %d enemy unit(s) to the %s", len(enemies), name)
+                self._enemy_hint = (dx, dy)
+                return
+            self.actuator.swipe(cx - dx * PAN_DIST, cy - dy * PAN_DIST, cx, cy, 500)
+            time.sleep(0.8)
+        log.info("scout: no enemies found in any direction")
+
+    @staticmethod
+    def _direction_to(point: tuple[int, int]) -> tuple[int, int]:
+        dx = point[0] - PAN_CENTER[0]
+        dy = point[1] - PAN_CENTER[1]
+        n = max((dx * dx + dy * dy) ** 0.5, 1.0)
+        return (round(dx / n), round(dy / n))
 
     def _on_unit_move(self) -> None:
         if not self._action.tried_in_place:
@@ -191,7 +233,11 @@ class ManualBattleController:
             if target is None:
                 target = vision.centroid(vision.find_threat_cells(frame))
                 if target:
-                    log.info("no enemy rings visible, using threat centroid %s", target)
+                    log.info("no enemy arcs visible, using threat centroid %s", target)
+            if target is None and self._enemy_hint is not None:
+                hx, hy = self._enemy_hint
+                target = (PAN_CENTER[0] + hx * 1200, PAN_CENTER[1] + hy * 1200)
+                log.info("using scouted enemy direction (%d, %d)", hx, hy)
             if target and cells:
                 cell = vision.nearest_point(cells, target)
                 log.info("moving toward enemies via %s", cell)

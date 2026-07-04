@@ -23,6 +23,15 @@ FIRST_UNIT_CARD = (300, 930)
 # bright circular rims are never mistaken for movable cells
 MAP_REGION = (150, 250, 1600, 620)
 
+# wider scan for unit HP arcs: units drift into the strip above MAP_REGION
+# (below the turn banner); the right edge stops short of the unit info
+# panel whose EN bar is a wide flat orange strip
+UNIT_SCAN_REGION = (150, 90, 1510, 780)
+
+# on the our-turn hub the actable-unit card strip (bright portraits with
+# HP bars) fills the bottom, so scouting there must stop above it
+HUB_SCAN_REGION = (150, 90, 1510, 700)
+
 
 def _crop(frame: np.ndarray, box: tuple[int, int, int, int]) -> np.ndarray:
     x, y, w, h = box
@@ -83,10 +92,12 @@ def find_move_cells(frame: np.ndarray) -> list[tuple[int, int]]:
     return out
 
 
-def _ring_blobs(mask: np.ndarray) -> list[tuple[int, int]]:
-    """Base rings render as wide flat ellipse arcs at a unit's feet; the
-    aspect filter rejects unit bodies, threat "!" marks and shield icons."""
-    x0, y0 = MAP_REGION[0], MAP_REGION[1]
+def _ring_blobs(mask: np.ndarray, region: tuple[int, int, int, int]) -> list[tuple[int, int]]:
+    """HP arcs render as wide flat ellipse arcs at a unit's feet; the
+    aspect filter rejects unit bodies, threat "!" marks and shield icons.
+    The lower width bound stays small because the colored part of the arc
+    shrinks as the unit takes damage."""
+    x0, y0 = region[0], region[1]
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
     n, _, stats, cents = cv2.connectedComponentsWithStats(mask)
     out = []
@@ -94,7 +105,7 @@ def _ring_blobs(mask: np.ndarray) -> list[tuple[int, int]]:
         bw = stats[i, cv2.CC_STAT_WIDTH]
         bh = stats[i, cv2.CC_STAT_HEIGHT]
         area = stats[i, cv2.CC_STAT_AREA]
-        if 60 <= bw <= 160 and 16 <= bh <= 70 and bw / bh >= 1.8 and area >= 200:
+        if 35 <= bw <= 160 and 12 <= bh <= 70 and bw / bh >= 1.6 and area >= 120:
             out.append((x0 + int(cents[i][0]), y0 + int(cents[i][1])))
     return out
 
@@ -111,21 +122,34 @@ def _dedupe(points: list[tuple[int, int]], radius: int = 70) -> list[tuple[int, 
     return merged
 
 
-def find_enemy_units(frame: np.ndarray) -> list[tuple[int, int]]:
-    """Enemy units stand on red-orange base ring arcs. Our own red-bodied
-    units (e.g. Sazabi) stay below the brightness cut and are not matched."""
-    hsv = cv2.cvtColor(_crop(frame, MAP_REGION), cv2.COLOR_BGR2HSV)
-    red = cv2.inRange(hsv, (0, 120, 120), (30, 255, 255)) | cv2.inRange(
-        hsv, (168, 120, 120), (180, 255, 255)
+# the arc under every unit is its HP bar and its color encodes the faction:
+# red = enemy, teal = third party (not controllable), blue = our own units.
+# arcs glow but are not fully saturated (S<=210, V>=155), which separates
+# them from unit-body paint (darker) and HUD bars (fully saturated)
+def find_enemy_units(
+    frame: np.ndarray, region: tuple[int, int, int, int] = UNIT_SCAN_REGION
+) -> list[tuple[int, int]]:
+    hsv = cv2.cvtColor(_crop(frame, region), cv2.COLOR_BGR2HSV)
+    red = cv2.inRange(hsv, (0, 100, 155), (25, 210, 255)) | cv2.inRange(
+        hsv, (168, 100, 155), (180, 210, 255)
     )
-    return _dedupe(_ring_blobs(red))
+    return _dedupe(_ring_blobs(red, region))
 
 
-def find_ally_units(frame: np.ndarray) -> list[tuple[int, int]]:
-    """Allied units stand on blue base ring arcs."""
-    hsv = cv2.cvtColor(_crop(frame, MAP_REGION), cv2.COLOR_BGR2HSV)
-    blue = cv2.inRange(hsv, (95, 120, 120), (120, 255, 255))
-    return _dedupe(_ring_blobs(blue))
+def find_ally_units(
+    frame: np.ndarray, region: tuple[int, int, int, int] = UNIT_SCAN_REGION
+) -> list[tuple[int, int]]:
+    hsv = cv2.cvtColor(_crop(frame, region), cv2.COLOR_BGR2HSV)
+    blue = cv2.inRange(hsv, (100, 100, 155), (125, 210, 255))
+    return _dedupe(_ring_blobs(blue, region))
+
+
+def find_third_party_units(
+    frame: np.ndarray, region: tuple[int, int, int, int] = UNIT_SCAN_REGION
+) -> list[tuple[int, int]]:
+    hsv = cv2.cvtColor(_crop(frame, region), cv2.COLOR_BGR2HSV)
+    teal = cv2.inRange(hsv, (78, 100, 155), (97, 210, 255))
+    return _dedupe(_ring_blobs(teal, region))
 
 
 def locate_story_menu(frame: np.ndarray, threshold: float = 0.6) -> tuple[int, int] | None:
