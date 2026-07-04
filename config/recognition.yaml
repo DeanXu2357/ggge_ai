@@ -1,0 +1,15 @@
+# Vision 辨識 pipeline 設定（載入邏輯於 M2 實作）
+screen_classify:
+  - recognizer: template
+    accept_above: 0.90
+  - recognizer: llm
+    model: gemma4:26b
+    accept_above: 0.50
+
+element_detect:
+  - recognizer: template
+    accept_above: 0.85
+
+text_read:
+  - recognizer: ocr
+    accept_above: 0.60
