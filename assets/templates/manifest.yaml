@@ -1,0 +1,168 @@
+screens:
+  base:
+    file: screens/base.png
+    search_region:
+    - 135
+    - 0
+    - 340
+    - 140
+  develop:
+    file: screens/develop.png
+    search_region:
+    - 130
+    - 0
+    - 215
+    - 145
+  enhance:
+    file: screens/enhance.png
+    search_region:
+    - 130
+    - 0
+    - 215
+    - 145
+  main_menu:
+    file: screens/main_menu.png
+    search_region:
+    - 125
+    - 0
+    - 235
+    - 210
+  menu:
+    file: screens/menu.png
+    search_region:
+    - 135
+    - 0
+    - 205
+    - 140
+  mission:
+    file: screens/mission.png
+    search_region:
+    - 310
+    - 0
+    - 195
+    - 140
+  series_confirm:
+    file: screens/series_confirm.png
+    search_region:
+    - 1775
+    - 820
+    - 425
+    - 155
+  series_select:
+    file: screens/series_select.png
+    search_region:
+    - 495
+    - 835
+    - 420
+    - 160
+  stage_list:
+    file: screens/stage_list.png
+    search_region:
+    - 310
+    - 0
+    - 340
+    - 140
+  stage_type_select:
+    file: screens/stage_type_select.png
+    search_region:
+    - 135
+    - 0
+    - 210
+    - 140
+  supply:
+    file: screens/supply.png
+    search_region:
+    - 140
+    - 0
+    - 340
+    - 145
+elements:
+  btn_main_stage:
+    file: elements/btn_main_stage.png
+    search_region:
+    - 365
+    - 695
+    - 595
+    - 165
+    screen: stage_type_select
+  btn_select:
+    file: elements/btn_select.png
+    search_region:
+    - 1775
+    - 820
+    - 425
+    - 155
+    screen: series_confirm
+  btn_sortie_main:
+    file: elements/btn_sortie_main.png
+    search_region:
+    - 1600
+    - 680
+    - 255
+    - 170
+    screen: main_menu
+  btn_sortie_prep:
+    file: elements/btn_sortie_prep.png
+    search_region:
+    - 1775
+    - 780
+    - 520
+    - 200
+    screen: stage_list
+  nav_base:
+    file: elements/nav_base.png
+    search_region:
+    - 1415
+    - 985
+    - 255
+    - 95
+  nav_develop:
+    file: elements/nav_develop.png
+    search_region:
+    - 830
+    - 985
+    - 180
+    - 95
+  nav_enhance:
+    file: elements/nav_enhance.png
+    search_region:
+    - 545
+    - 985
+    - 175
+    - 95
+  nav_main:
+    file: elements/nav_main.png
+    search_region:
+    - 210
+    - 985
+    - 235
+    - 95
+  nav_menu:
+    file: elements/nav_menu.png
+    search_region:
+    - 2120
+    - 985
+    - 200
+    - 95
+  nav_stage:
+    file: elements/nav_stage.png
+    search_region:
+    - 1130
+    - 985
+    - 205
+    - 95
+  nav_supply:
+    file: elements/nav_supply.png
+    search_region:
+    - 1715
+    - 985
+    - 270
+    - 95
+  series_msg_thumb:
+    file: elements/series_msg_thumb.png
+    search_region:
+    - 820
+    - 450
+    - 205
+    - 220
+    screen: series_select
