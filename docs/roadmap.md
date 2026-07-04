@@ -45,6 +45,16 @@
    - 以新的 `ManualBattle` action 取代 `AutoBattle`，效果不變（battle_map → battle_result + stage_cleared），戰術細節封裝在 action 內部（或後續拆成戰鬥層子規劃器）。
 5. **驗收**：第 10 關起用全手動控制器實測通關。
 
+## 鎖屏防護（2026-07-04 完成）
+
+Samsung 閒置約 3 分鐘自動鎖屏會吞掉所有點擊，而模板仍能透過變暗的畫面比對成功，
+造成長時間戰鬥（敵方回合、劇情暫停）中途卡死——第 12 關兩次全流程測試都因此失敗。
+解法（`actuation/keyguard.py`）：
+- 偵測：`dumpsys window policy` 的 `KeyguardStateMonitor mIsShowing`（實機驗證可靠）。
+- 解鎖：KEYCODE_WAKEUP → `wm dismiss-keyguard` → 從鎖頭圖示往上拖曳（raw 座標，不隨遊戲橫向旋轉）。
+- 整合：AgentLoop 每次迭代檢查；ManualBattleController 每 15 秒檢查。
+- 戰鬥逾時改為活動制：總預算 60 分鐘 + 10 分鐘無活動守門（動畫算活動）。
+
 ## 戰鬥控制器 v2 改進項目
 
 （使用者 2026-07-04 實戰觀察提出）
