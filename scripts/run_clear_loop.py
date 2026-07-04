@@ -9,7 +9,7 @@ import logging
 
 from ggge_ai.agent.loop import AgentLoop, LoopConfig
 from ggge_ai.app import connect
-from ggge_ai.domain.actions.flow import CLEAR_STAGE_ACTIONS
+from ggge_ai.domain.actions.flow import CLEAR_STAGE_ACTIONS, try_skip_story
 from ggge_ai.domain.goals import ClearCurrentStage
 from ggge_ai.domain.translate import to_world_state
 
@@ -27,6 +27,7 @@ def main() -> None:
         translator=to_world_state,
         actions=CLEAR_STAGE_ACTIONS,
         config=LoopConfig(settle_delay_s=1.0),
+        unknown_handler=try_skip_story,
     )
     ok = loop.run(ClearCurrentStage())
     logging.getLogger("run").info("clear loop result: %s", "SUCCESS" if ok else "FAILED")

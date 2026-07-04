@@ -21,6 +21,8 @@ class LoopConfig:
     max_replans: int = 40
     max_consecutive_failures: int = 3
     settle_delay_s: float = 0.5
+    max_unknown_waits: int = 90
+    unknown_wait_s: float = 2.0
 
 
 class AgentLoop:
@@ -46,6 +48,7 @@ class AgentLoop:
         actions: Sequence[Action],
         config: LoopConfig | None = None,
         initial_memory: Mapping[str, Value] | None = None,
+        unknown_handler: Callable[[ExecutionContext], None] | None = None,
     ) -> None:
         self.perception = perception
         self.actuator = actuator
@@ -53,6 +56,7 @@ class AgentLoop:
         self.actions = list(actions)
         self.config = config or LoopConfig()
         self.memory: dict[str, Value] = dict(initial_memory or {})
+        self.unknown_handler = unknown_handler
 
     def _sense(self) -> tuple[GameState, WorldState, set[str]]:
         game_state = self.perception.observe()
@@ -63,12 +67,31 @@ class AgentLoop:
     def run(self, goal: Goal) -> bool:
         replans = 0
         failures = 0
+        unknown_waits = 0
 
         while replans <= self.config.max_replans:
             game_state, state, _ = self._sense()
             if goal.is_satisfied(state):
                 logger.info("goal %s satisfied", goal.name)
                 return True
+
+            if state.get("screen") == "unknown":
+                # dark story/animation frame; wait it out instead of
+                # planning from a misread state
+                unknown_waits += 1
+                if unknown_waits > self.config.max_unknown_waits:
+                    logger.error("screen stayed unknown for too long, giving up")
+                    return False
+                if self.unknown_handler and unknown_waits % 3 == 0:
+                    ctx = ExecutionContext(
+                        actuator=self.actuator,
+                        perception=self.perception,
+                        game_state=game_state,
+                    )
+                    self.unknown_handler(ctx)
+                time.sleep(self.config.unknown_wait_s)
+                continue
+            unknown_waits = 0
 
             try:
                 result = plan(state, goal, self.actions)

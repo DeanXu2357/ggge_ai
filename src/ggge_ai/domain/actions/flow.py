@@ -45,12 +45,44 @@ def _tap_element(ctx: ExecutionContext, element_id: str, fallback: tuple[int, in
         ctx.actuator.tap(*fallback)
 
 
+def _locate_story_menu(ctx: ExecutionContext) -> tuple[int, int] | None:
+    """Find the story MENU button wherever it is. Mid-battle stories add
+    a ☰ button that shifts MENU left of its pre-battle position."""
+    import cv2
+
+    frame = ctx.perception.capture()
+    template = cv2.imread("assets/templates/screens/story.png")
+    if template is None:
+        return None
+    result = cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, loc = cv2.minMaxLoc(result)
+    if score < 0.6:
+        return None
+    h, w = template.shape[:2]
+    return (loc[0] + w // 2, loc[1] + h // 2)
+
+
 def _skip_story_once(ctx: ExecutionContext) -> None:
     """Open the story MENU and hit SKIP. Safe to call repeatedly."""
-    ctx.actuator.tap(*STORY_MENU)
+    menu_x, menu_y = _locate_story_menu(ctx) or STORY_MENU
+    ctx.actuator.tap(menu_x, menu_y)
     time.sleep(1.2)
-    ctx.actuator.tap(*STORY_SKIP)
+    ctx.actuator.tap(menu_x, STORY_SKIP[1])
     time.sleep(2.0)
+
+
+def try_skip_story(ctx: ExecutionContext) -> bool:
+    """Skip a story only when the MENU button is really there; safe to
+    fire on unclassified screens (used by the agent's unknown handler)."""
+    located = _locate_story_menu(ctx)
+    if located is None:
+        return False
+    logger.info("story menu found at %s during unknown screen, skipping", located)
+    ctx.actuator.tap(*located)
+    time.sleep(1.2)
+    ctx.actuator.tap(located[0], STORY_SKIP[1])
+    time.sleep(2.0)
+    return True
 
 
 def _dismiss_hint(ctx: ExecutionContext) -> None:
