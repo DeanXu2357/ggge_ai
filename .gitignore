@@ -1,0 +1,14 @@
+secrets/*
+!secrets/README.md
+!secrets/*.example.json
+*.local.json
+*.local.env
+.env
+.env.*
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+*.log
+assets/screenshots/
