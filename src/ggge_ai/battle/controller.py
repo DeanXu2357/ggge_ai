@@ -77,6 +77,8 @@ class ManualBattleController:
     _action: _ActionState = field(default_factory=_ActionState)
     _enemy_hint: tuple[float, float] | None = None
     _turn_scouted: bool = False
+    _none_streak: int = 0
+    _phase_break: bool = False
     tacmap: TacticalMap = field(default_factory=TacticalMap)
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
@@ -140,8 +142,7 @@ class ManualBattleController:
                 continue
             if self.perception.probe(["dlg_end_turn"]):
                 log.info("end-turn dialog: choosing standby-and-end")
-                if self.ledger is not None:
-                    self.ledger.next_turn()
+                self._phase_break = True
                 self.actuator.tap(*END_TURN_STANDBY_OPTION)
                 time.sleep(0.8)
                 self.actuator.tap(*END_TURN_EXECUTE)
@@ -150,9 +151,16 @@ class ManualBattleController:
                 continue
             mode = self._current_mode()
             if mode is None:
-                # enemy turn or an animation between phases
+                # enemy turn or an animation between phases; two static
+                # label-less frames in a row mean we left our own phase
+                # (turns can end automatically once every unit has acted,
+                # so the end-turn dialog is not a reliable turn boundary)
+                self._none_streak += 1
+                if self._none_streak >= 2:
+                    self._phase_break = True
                 time.sleep(0.8)
                 continue
+            self._none_streak = 0
             handler = getattr(self, f"_on_{mode.removeprefix('label_')}")
             handler()
             last_activity = time.time()
@@ -181,6 +189,12 @@ class ManualBattleController:
         self._action.reset()
         frame = self._frame()
         if vision.unit_cards_present(frame):
+            if self._phase_break:
+                self._phase_break = False
+                self._turn_scouted = False
+                if self.ledger is not None:
+                    self.ledger.next_turn()
+                log.info("new turn detected (turn %d)", self.ledger.turn if self.ledger else 0)
             self._snapshot_factions(frame)
             self._scout(frame)
             log.info("selecting next actable unit")
@@ -198,6 +212,7 @@ class ManualBattleController:
         else:
             log.info("no actable units left, ending turn")
             self.actuator.tap(*END_TURN_BTN)
+            self._phase_break = True
             self._turn_scouted = False
         time.sleep(1.8)
 
