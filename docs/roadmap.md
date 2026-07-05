@@ -28,10 +28,24 @@
 **帳號現況**（使用者手動遊玩過）：RANK 9、HARD 1 已通關（探測目標改為
 HARD 2 / 70,000）、Z 系列至 14 關、SEED 解鎖、資金 102,640、體力 161/70。
 
-**恢復順序**：
-1. 重啟 E2（上述指令）：驗證戰術地圖實戰 → 打完收戰敗結算錨點＋流水帳。
-2. 戰後歸因 v1（數值差距 vs 程式缺陷）。
-3. 敵方面板內容 OCR（武裝射程/能力名，接實作順序第 4-5 步）。
+**分工規則（2026-07-05 使用者新增）**：實作一律派 subagent（opus=設計/
+視覺/控制邏輯，sonnet=轉錄/schema/腳本）；Fable 主 session 只做統籌、
+校驗、實機驗證與 commit。詳見 CLAUDE.md 開發紀律。
+
+**工作安排（依實作順序，含執行者）**：
+1. E2 HARD 2 實測（驗證性質→**Fable 主持**）：戰術地圖實戰驗證＋
+   戰敗流程收集＋流水帳分析；實測中若需修碼→派 sonnet 小修，Fable 驗收。
+2. 戰後歸因 v1（**opus**）：吃 E2 流水帳，先分「數值差距 vs 程式缺陷」。
+3. cache 匯入機制（**opus**）＋HARD 2 手抄試點檔（**sonnet** 從
+   `assets/screenshots/20260705-1538*.png`、`-154019.png` 轉錄，
+   Fable 對照截圖核數字）。
+4. 敵方面板 OCR＋數字 OCR（**opus**）：現場讀取→黑板→寫回 cache。
+5. 戰略迴圈（**opus**）：goal + allowed actions、強化與 farming 標定。
+6. cache 建檔腳本（**sonnet**，本地 LLM 只轉錄文字、數字一律 OCR）。
+7. 行動掃描器 v1（**opus**）：SUPPORT/技能鈕、EN 補給。
+8. 1.5-ply 站位安全＋cache 抽查校驗（**opus/sonnet**）。
+每項交付統一驗收：pytest＋ruff 全過、diff 對照紅線、需要實機證據的
+由 Fable 上機驗證後才 commit。
 
 ## 現行計畫
 

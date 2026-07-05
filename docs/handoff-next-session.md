@@ -2,6 +2,11 @@
 
 把下面整段貼給 Claude Code 當第一則訊息即可。
 
+> 分工規則（2026-07-05 使用者定案）：主 session 只做統籌／校驗／實機
+> 驗證與 commit；程式實作一律派 subagent（opus=設計與視覺控制邏輯、
+> sonnet=轉錄/schema/腳本），subagent 不碰實機。各步驟執行者見
+> docs/roadmap.md 工作安排。
+
 ---
 
 任務：恢復 HARD 2 探測（E2），實戰驗證戰術地圖 v1，收集戰敗流程資料。
