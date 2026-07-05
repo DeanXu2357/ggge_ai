@@ -30,10 +30,52 @@ def test_scout_hint_drives_heading_when_anchor_fails():
     assert target[0] > origin[0] + 1000 and abs(target[1] - origin[1]) < 1
 
 
-def test_on_screen_enemy_arc_is_not_a_seek_source(monkeypatch):
-    # a red arc on the current frame must never become the move target;
-    # with an empty map and no scouted heading we stand by instead
-    monkeypatch.setattr(vision, "find_enemy_units", lambda *a, **k: [(1170, 601)])
+def test_on_screen_enemy_picks_nearest_and_excludes_self(monkeypatch):
+    # arcs: one near the unit (its own residual arc) and two real enemies at
+    # different distances -- the nearest real enemy wins, the self arc is
+    # excluded even though it is closest
+    monkeypatch.setattr(
+        vision,
+        "find_enemy_units",
+        lambda *a, **k: [(1180, 590), (900, 400), (300, 300)],
+    )
+    c = _controller(TacticalMap(), hint=None)
+    cells = [(1150, 540), (1200, 540), (1175, 600)]
+
+    target, basis = c._seek_move_target(_blank(), cells)
+
+    assert basis == "enemy_onscreen"
+    assert round(target[0]) == 900 and round(target[1]) == 400
+
+
+def test_on_screen_enemy_preferred_over_scout_hint(monkeypatch):
+    # even with a scouted heading available, a visible enemy takes priority
+    # so each unit steers toward its own closest enemy, not the force heading
+    monkeypatch.setattr(vision, "find_enemy_units", lambda *a, **k: [(600, 300)])
+    c = _controller(TacticalMap(), hint=(1.0, 0.0))
+    cells = [(1150, 540), (1200, 540)]
+
+    target, basis = c._seek_move_target(_blank(), cells)
+
+    assert basis == "enemy_onscreen"
+    assert round(target[0]) == 600 and round(target[1]) == 300
+
+
+def test_only_self_arc_on_screen_falls_back_to_hint(monkeypatch):
+    # if the only red arc is the unit's own (within SELF_ARC_RADIUS), it is
+    # excluded and seeking falls back to the scouted heading
+    monkeypatch.setattr(vision, "find_enemy_units", lambda *a, **k: [(1180, 560)])
+    c = _controller(TacticalMap(), hint=(1.0, 0.0))
+    cells = [(1150, 540), (1200, 540)]
+
+    target, basis = c._seek_move_target(_blank(), cells)
+
+    assert basis == "scout_hint"
+
+
+def test_no_on_screen_enemy_falls_back_to_stand_by(monkeypatch):
+    # with no visible enemy, an empty map and no scouted heading we stand by
+    monkeypatch.setattr(vision, "find_enemy_units", lambda *a, **k: [])
     monkeypatch.setattr(vision, "find_threat_cells", lambda *a, **k: [])
     c = _controller(TacticalMap(), hint=None)
 

@@ -37,6 +37,10 @@ RETURN_BTN = (1804, 977)
 STANDBY_BTN = (2100, 645)
 END_TURN_BTN = (275, 182)
 WEAPON_SLOTS = ((1176, 965), (1367, 965), (1556, 965))
+# selecting a unit recenters the camera on it, so its HP arc lands near frame
+# center. a red arc within this radius of the unit's move-cell centroid is
+# discarded as a residual/overlapping self arc rather than taken as a target
+SELF_ARC_RADIUS = 150
 STORY_MENU = (2100, 49)
 STORY_SKIP = (2103, 430)
 # end-turn confirmation dialog: standby-and-end option and execute button.
@@ -346,24 +350,38 @@ class ManualBattleController:
     def _seek_move_target(
         self, frame, cells: list[tuple[int, int]]
     ) -> tuple[tuple[float, float] | None, str | None]:
-        """Pick where to move, driven by the world-coordinate tactical map
-        rather than by whatever arc happens to sit on screen.
+        """Pick where to move, per unit, aiming at the enemy nearest to
+        *this* unit rather than at a single force-wide heading.
 
-        The on-screen enemy-arc scan is deliberately NOT a seeking source:
-        selecting a unit recenters the camera on it, so its own arc lands at
-        frame center and the nearest-to-center pick used to lock onto the
-        unit's own feet every turn (the phantom ~(1168, 601) target). The
-        attack box confirms arrival instead; here we only decide a heading
-        from what the map says, so a unit walks toward off-screen enemies.
-
-        Priority: (1) anchor the camera against the map and aim at the
-        nearest world enemy; (2) fall back to the scouted world heading from
-        our force toward the enemy mass -- a pure translation, so a world
-        direction is a screen direction regardless of camera offset;
-        (3) last resort, the on-screen threat-cell centroid."""
+        Priority: (1) the on-screen enemy arc nearest this unit -- the
+        camera recenters on the selected unit, so any red arc close to the
+        unit is its own residual arc and is excluded (SELF_ARC_RADIUS); the
+        enemy red band was tightened to hue<=10 in 1ddc407, so the remaining
+        arcs are true enemies and each unit steers toward its own closest
+        one; (2) anchor the camera against the map and aim at the nearest
+        world enemy; (3) fall back to the scouted world heading from our
+        force toward the enemy mass -- a pure translation, so a world
+        direction is a screen direction regardless of camera offset (a
+        single force-wide heading, which walks front-line units away from a
+        side/rear enemy: only reached when no enemy is on screen); (4) last
+        resort, the on-screen threat-cell centroid."""
         if not cells:
             return None, None
         origin = vision.centroid(cells)
+        onscreen = [
+            e
+            for e in vision.find_enemy_units(frame)
+            if (e[0] - origin[0]) ** 2 + (e[1] - origin[1]) ** 2
+            >= SELF_ARC_RADIUS * SELF_ARC_RADIUS
+        ]
+        if onscreen:
+            target = vision.nearest_point(onscreen, origin)
+            log.info(
+                "on-screen enemy at %s nearest this unit (origin %s)",
+                target,
+                origin,
+            )
+            return (float(target[0]), float(target[1])), "enemy_onscreen"
         if self.tacmap.enemies:
             arcs = (
                 vision.find_ally_units(frame)
