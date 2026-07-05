@@ -24,9 +24,11 @@ log = logging.getLogger(__name__)
 
 AUTO_BUTTON = (1820, 54)
 # panning works on the our-turn hub with no unit selected: dragging an
-# empty map spot shifts the camera. drag opposite to the look direction.
+# empty map spot shifts the camera. drag opposite to the look direction,
+# split evenly around the center so both endpoints stay inside the map
+# area (vertical half-travel is shorter to clear the HUD and card strip)
 PAN_CENTER = (1170, 500)
-PAN_DIST = 600
+PAN_HALF = {"x": 300, "y": 200}
 PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
 WEAPON_SELECT_BTN = (2106, 965)
 ATTACK_BTN = (2085, 977)
@@ -239,15 +241,17 @@ class ManualBattleController:
         cx, cy = PAN_CENTER
         prev = frame
         for name, (dx, dy) in PAN_DIRS:
-            self.actuator.swipe(cx, cy, cx - dx * PAN_DIST, cy - dy * PAN_DIST, 500)
+            hx, hy = dx * PAN_HALF["x"], dy * PAN_HALF["y"]
+            travel = (2 * hx, 2 * hy)
+            self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, 500)
             time.sleep(1.0)
             cur = self._frame()
-            camera = self._advance_camera(camera, prev, cur, (dx * PAN_DIST, dy * PAN_DIST))
+            camera = self._advance_camera(camera, prev, cur, travel)
             self._observe_map(cur, camera)
-            self.actuator.swipe(cx - dx * PAN_DIST, cy - dy * PAN_DIST, cx, cy, 500)
+            self.actuator.swipe(cx - hx, cy - hy, cx + hx, cy + hy, 500)
             time.sleep(0.8)
             back = self._frame()
-            camera = self._advance_camera(camera, cur, back, (-dx * PAN_DIST, -dy * PAN_DIST))
+            camera = self._advance_camera(camera, cur, back, (-travel[0], -travel[1]))
             prev = back
         self._enemy_hint = self._hint_from_map()
         self._log(
