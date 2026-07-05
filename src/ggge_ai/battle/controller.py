@@ -316,49 +316,10 @@ class ManualBattleController:
         if not self._action.moved:
             frame = self._frame()
             cells = vision.find_move_cells(frame)
-            target = None
-            basis = None
-            enemies = vision.find_enemy_units(frame)
-            if enemies and cells:
-                # the move range surrounds the unit, so its centroid is a
-                # good proxy for the unit's own position
-                origin = vision.centroid(cells)
-                target = vision.nearest_point(enemies, origin)
-                basis = "enemy_arc"
-                log.info("seeking nearest enemy unit at %s (of %d seen)", target, len(enemies))
-            if target is None and cells and self.tacmap.enemies:
-                origin = vision.centroid(cells)
-                arcs = (
-                    enemies
-                    + vision.find_ally_units(frame)
-                    + vision.find_third_party_units(frame)
-                )
-                t = self.tacmap.anchor(origin, arcs)
-                if t is not None:
-                    world_enemy = self.tacmap.nearest_enemy(
-                        (origin[0] + t[0], origin[1] + t[1])
-                    )
-                    if world_enemy is not None:
-                        target = (world_enemy[0] - t[0], world_enemy[1] - t[1])
-                        basis = "tacmap"
-                        log.info(
-                            "tactical-map enemy at %s (screen), camera offset %s",
-                            (round(target[0]), round(target[1])),
-                            (round(t[0]), round(t[1])),
-                        )
-            if target is None:
-                target = vision.centroid(vision.find_threat_cells(frame))
-                if target:
-                    basis = "threat_centroid"
-                    log.info("no enemy arcs visible, using threat centroid %s", target)
-            if target is None and self._enemy_hint is not None:
-                hx, hy = self._enemy_hint
-                target = (PAN_CENTER[0] + hx * 1200, PAN_CENTER[1] + hy * 1200)
-                basis = "scout_hint"
-                log.info("using scouted enemy direction (%.2f, %.2f)", hx, hy)
+            target, basis = self._seek_move_target(frame, cells)
             if target and cells:
                 cell = vision.nearest_point(cells, target)
-                log.info("moving toward enemies via %s", cell)
+                log.info("moving toward enemies via %s (basis %s)", cell, basis)
                 self._log(
                     "move",
                     basis=basis,
@@ -374,6 +335,54 @@ class ManualBattleController:
             return
         log.info("already moved and still no target, standing by")
         self._standby("moved_no_target")
+
+    def _seek_move_target(
+        self, frame, cells: list[tuple[int, int]]
+    ) -> tuple[tuple[float, float] | None, str | None]:
+        """Pick where to move, driven by the world-coordinate tactical map
+        rather than by whatever arc happens to sit on screen.
+
+        The on-screen enemy-arc scan is deliberately NOT a seeking source:
+        selecting a unit recenters the camera on it, so its own arc lands at
+        frame center and the nearest-to-center pick used to lock onto the
+        unit's own feet every turn (the phantom ~(1168, 601) target). The
+        attack box confirms arrival instead; here we only decide a heading
+        from what the map says, so a unit walks toward off-screen enemies.
+
+        Priority: (1) anchor the camera against the map and aim at the
+        nearest world enemy; (2) fall back to the scouted world heading from
+        our force toward the enemy mass -- a pure translation, so a world
+        direction is a screen direction regardless of camera offset;
+        (3) last resort, the on-screen threat-cell centroid."""
+        if not cells:
+            return None, None
+        origin = vision.centroid(cells)
+        if self.tacmap.enemies:
+            arcs = (
+                vision.find_ally_units(frame)
+                + vision.find_enemy_units(frame)
+                + vision.find_third_party_units(frame)
+            )
+            t = self.tacmap.anchor(origin, arcs)
+            if t is not None:
+                world_enemy = self.tacmap.nearest_enemy((origin[0] + t[0], origin[1] + t[1]))
+                if world_enemy is not None:
+                    target = (world_enemy[0] - t[0], world_enemy[1] - t[1])
+                    log.info(
+                        "tactical-map enemy at %s (screen), camera offset %s",
+                        (round(target[0]), round(target[1])),
+                        (round(t[0]), round(t[1])),
+                    )
+                    return target, "tacmap"
+        if self._enemy_hint is not None:
+            hx, hy = self._enemy_hint
+            log.info("no camera anchor, steering by scouted enemy heading (%.2f, %.2f)", hx, hy)
+            return (origin[0] + hx * 1200, origin[1] + hy * 1200), "scout_hint"
+        threat = vision.centroid(vision.find_threat_cells(frame))
+        if threat:
+            log.info("map empty, falling back to threat centroid %s", threat)
+            return threat, "threat_centroid"
+        return None, None
 
     def _on_weapon_select(self) -> None:
         frame = self._frame()

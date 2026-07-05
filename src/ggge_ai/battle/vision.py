@@ -106,7 +106,14 @@ def _ring_blobs(mask: np.ndarray, region: tuple[int, int, int, int]) -> list[tup
     """HP arcs render as wide flat ellipse arcs at a unit's feet; the
     aspect filter rejects unit bodies, threat "!" marks and shield icons.
     The lower width bound stays small because the colored part of the arc
-    shrinks as the unit takes damage."""
+    shrinks as the unit takes damage.
+
+    Two extra shape gates keep body/shield paint of the matching color out
+    (measured on 20260705 HARD-2 captures): a real arc is a thin band whose
+    height stays in [12, 32] (clean arcs measure bh 16-24; merged body+arc
+    blobs run bh 45-60), and a solid stroke whose filled fraction is >= 0.35
+    (arcs measure 0.39-0.47; sparse body fragments and shields measure
+    0.19-0.33)."""
     x0, y0 = region[0], region[1]
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
     n, _, stats, cents = cv2.connectedComponentsWithStats(mask)
@@ -115,7 +122,13 @@ def _ring_blobs(mask: np.ndarray, region: tuple[int, int, int, int]) -> list[tup
         bw = stats[i, cv2.CC_STAT_WIDTH]
         bh = stats[i, cv2.CC_STAT_HEIGHT]
         area = stats[i, cv2.CC_STAT_AREA]
-        if 35 <= bw <= 160 and 12 <= bh <= 70 and bw / bh >= 1.6 and area >= 120:
+        if (
+            35 <= bw <= 160
+            and 12 <= bh <= 32
+            and bw / bh >= 1.6
+            and area >= 120
+            and area / (bw * bh) >= 0.35
+        ):
             out.append((x0 + int(cents[i][0]), y0 + int(cents[i][1])))
     return out
 
@@ -135,12 +148,19 @@ def _dedupe(points: list[tuple[int, int]], radius: int = 70) -> list[tuple[int, 
 # the arc under every unit is its HP bar and its color encodes the faction:
 # red = enemy, teal = third party (not controllable), blue = our own units.
 # arcs glow but are not fully saturated (S<=210, V>=155), which separates
-# them from unit-body paint (darker) and HUD bars (fully saturated)
+# them from unit-body paint (darker) and HUD bars (fully saturated).
+# every arc, regardless of faction, is a two-tone gradient: a faction-color
+# left half plus a SHARED orange/yellow right half (measured hue ~14 on
+# 20260705-170520.png at orig (1050,607)). the enemy hue must stop below
+# that shared orange or every ally/third-party arc trips as a false enemy:
+# true enemy red measures hue ~8 (same capture, orig (985,600)), so the band
+# ends at 10. widening it back to 25 is what made an all-ally PHASE START
+# frame (20260705-165933.png) report five phantom enemies.
 def find_enemy_units(
     frame: np.ndarray, region: tuple[int, int, int, int] = UNIT_SCAN_REGION
 ) -> list[tuple[int, int]]:
     hsv = cv2.cvtColor(_crop(frame, region), cv2.COLOR_BGR2HSV)
-    red = cv2.inRange(hsv, (0, 100, 155), (25, 210, 255)) | cv2.inRange(
+    red = cv2.inRange(hsv, (0, 100, 155), (10, 210, 255)) | cv2.inRange(
         hsv, (168, 100, 155), (180, 210, 255)
     )
     return _dedupe(_ring_blobs(red, region))
