@@ -6,6 +6,8 @@ usage: uv run python scripts/run_clear_loop.py
 from __future__ import annotations
 
 import logging
+import signal
+import sys
 
 from ggge_ai.actuation.keyguard import Keyguard
 from ggge_ai.agent.blackboard import RunBlackboard
@@ -17,6 +19,7 @@ from ggge_ai.domain.translate import to_world_state
 
 
 def main() -> None:
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import signal
+import sys
 
 from ggge_ai.actuation.keyguard import Keyguard
 from ggge_ai.agent.blackboard import RunBlackboard
@@ -13,6 +15,8 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S"
 )
 
+signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
+
 perception, actuator = connect()
 keyguard = Keyguard(actuator.device, capture=perception.capture)
 keyguard.ensure_unlocked()
@@ -21,6 +25,10 @@ ledger = blackboard.new_ledger()
 controller = ManualBattleController(
     perception=perception, actuator=actuator, keyguard=keyguard, ledger=ledger
 )
-result = controller.run()
-blackboard.archive(ledger)
+try:
+    result = controller.run()
+finally:
+    if ledger.outcome is None:
+        ledger.finish("interrupted")
+    blackboard.archive(ledger)
 print(f"controller finished: {result}")

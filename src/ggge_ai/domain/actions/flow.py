@@ -170,9 +170,13 @@ class ManualBattle(Action):
         controller = ManualBattleController(
             perception=ctx.perception, actuator=ctx.actuator, keyguard=keyguard, ledger=ledger
         )
-        result = controller.run()
-        if blackboard is not None:
-            blackboard.archive(ledger)
+        try:
+            result = controller.run()
+        finally:
+            if blackboard is not None and ledger is not None:
+                if ledger.outcome is None:
+                    ledger.finish("interrupted")
+                blackboard.archive(ledger)
         return result == screens.BATTLE_RESULT
 
 
