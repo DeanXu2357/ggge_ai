@@ -14,6 +14,16 @@ STORY_MENU_TEMPLATE = (
     Path(__file__).resolve().parents[3] / "assets" / "templates" / "screens" / "story.png"
 )
 
+DIALOG_CURSOR_TEMPLATE = (
+    Path(__file__).resolve().parents[3] / "assets" / "templates" / "elements" / "dialog_cursor.png"
+)
+
+# a dying unit pops an inline line of dialogue with a cyan ▼ advance cursor
+# that slides horizontally with the line length, so it must be matched free
+# of a fixed column. it lives in the bottom text band; the right edge runs
+# past x=1900 because a short line parks the cursor near the frame edge
+DIALOG_CURSOR_REGION = (480, 800, 1620, 130)
+
 ATTACK_BUTTON_BOX = (1990, 900, 240, 160)
 UNIT_CARD_STRIP_BOX = (170, 840, 900, 200)
 FIRST_UNIT_CARD = (300, 930)
@@ -180,6 +190,26 @@ def locate_story_menu(frame: np.ndarray, threshold: float = 0.6) -> tuple[int, i
         return None
     h, w = template.shape[:2]
     return (loc[0] + w // 2, loc[1] + h // 2)
+
+
+def locate_dialog_cursor(frame: np.ndarray, threshold: float = 0.85) -> tuple[int, int] | None:
+    """Find the cyan ▼ advance cursor of an in-battle death/defeat line.
+    Free-position match within the bottom text band because the cursor tracks
+    the end of the line; returns its center or None. Threshold picked from the
+    gap between positive frames (>=0.95) and non-dialog frames (<=0.70)."""
+    template = cv2.imread(str(DIALOG_CURSOR_TEMPLATE))
+    if template is None:
+        return None
+    x0, y0, w, h = DIALOG_CURSOR_REGION
+    band = frame[y0 : y0 + h, x0 : x0 + w]
+    if band.shape[0] < h or band.shape[1] < w:
+        return None
+    result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, loc = cv2.minMaxLoc(result)
+    if score < threshold:
+        return None
+    th, tw = template.shape[:2]
+    return (x0 + loc[0] + tw // 2, y0 + loc[1] + th // 2)
 
 
 def nearest_point(points: list[tuple[int, int]], target: tuple[int, int]) -> tuple[int, int] | None:

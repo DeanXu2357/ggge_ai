@@ -153,6 +153,17 @@ class ManualBattleController:
                 continue
             mode = self._current_mode()
             if mode is None:
+                # a dying unit pops a MENU-less inline dialogue line; advance
+                # it before it is mistaken for a phase break and stalls us
+                cursor = vision.locate_dialog_cursor(self._frame())
+                if cursor is not None:
+                    log.info("in-battle dialog (cursor at %s), advancing", cursor)
+                    self._log("story_dialog", cursor=cursor)
+                    self.actuator.tap(*cursor)
+                    time.sleep(0.8)
+                    self._none_streak = 0
+                    last_activity = time.time()
+                    continue
                 # enemy turn or an animation between phases; two static
                 # label-less frames in a row mean we left our own phase
                 # (turns can end automatically once every unit has acted,
