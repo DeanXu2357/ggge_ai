@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 
 from ggge_ai.actuation.keyguard import Keyguard
+from ggge_ai.agent.blackboard import RunBlackboard
 from ggge_ai.agent.loop import AgentLoop, LoopConfig
 from ggge_ai.app import connect
 from ggge_ai.domain.actions.flow import CLEAR_STAGE_ACTIONS, try_skip_story
@@ -24,6 +25,7 @@ def main() -> None:
     perception, actuator = connect(save_shots=True)
     keyguard = Keyguard(actuator.device, capture=perception.capture)
     keyguard.ensure_unlocked()
+    blackboard = RunBlackboard(goal="clear_current_stage")
     loop = AgentLoop(
         perception=perception,
         actuator=actuator,
@@ -32,6 +34,7 @@ def main() -> None:
         config=LoopConfig(settle_delay_s=1.0),
         unknown_handler=try_skip_story,
         keyguard=keyguard,
+        extras={"blackboard": blackboard},
     )
     ok = loop.run(ClearCurrentStage())
     logging.getLogger("run").info("clear loop result: %s", "SUCCESS" if ok else "FAILED")

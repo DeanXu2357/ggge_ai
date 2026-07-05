@@ -165,10 +165,15 @@ class ManualBattle(Action):
             if hasattr(ctx.actuator, "device")
             else None
         )
+        blackboard = ctx.extras.get("blackboard")
+        ledger = blackboard.new_ledger() if blackboard is not None else None
         controller = ManualBattleController(
-            perception=ctx.perception, actuator=ctx.actuator, keyguard=keyguard
+            perception=ctx.perception, actuator=ctx.actuator, keyguard=keyguard, ledger=ledger
         )
-        return controller.run() == screens.BATTLE_RESULT
+        result = controller.run()
+        if blackboard is not None:
+            blackboard.archive(ledger)
+        return result == screens.BATTLE_RESULT
 
 
 class DismissResult(Action):

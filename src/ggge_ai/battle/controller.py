@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass, field
 
 from ggge_ai.battle import vision
+from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.domain import screens
 from ggge_ai.vision.motion import frame_diff, is_static
 
@@ -67,6 +68,7 @@ class ManualBattleController:
     perception: object
     actuator: object
     keyguard: object | None = None
+    ledger: BattleLedger | None = None
     settle_timeout_s: float = 45.0
     battle_timeout_s: float = 3600.0
     idle_timeout_s: float = 600.0
@@ -109,10 +111,12 @@ class ManualBattleController:
                     continue
             if time.time() - last_activity > self.idle_timeout_s:
                 log.warning("no battle activity for %.0fs, giving up", self.idle_timeout_s)
+                self._log_finish("idle_timeout")
                 return screens.UNKNOWN
             state = self.perception.observe()
             if state.screen in TERMINAL_SCREENS and state.screen_confidence >= 0.9:
                 log.info("battle finished: %s", state.screen)
+                self._log_finish(state.screen)
                 return state.screen
             # detect stories by the MENU button itself, not the screen
             # classifier: mid-battle stories shift MENU left of the anchor
@@ -120,6 +124,7 @@ class ManualBattleController:
             menu_pos = vision.locate_story_menu(self._frame(), threshold=0.7)
             if menu_pos is not None:
                 log.info("mid-battle story (menu at %s), skipping", menu_pos)
+                self._log("story_skip", menu=menu_pos)
                 self.actuator.tap(*menu_pos)
                 time.sleep(0.8)
                 self.actuator.tap(menu_pos[0], STORY_SKIP[1])
@@ -133,6 +138,8 @@ class ManualBattleController:
                 continue
             if self.perception.probe(["dlg_end_turn"]):
                 log.info("end-turn dialog: choosing standby-and-end")
+                if self.ledger is not None:
+                    self.ledger.next_turn()
                 self.actuator.tap(*END_TURN_STANDBY_OPTION)
                 time.sleep(0.8)
                 self.actuator.tap(*END_TURN_EXECUTE)
@@ -148,7 +155,16 @@ class ManualBattleController:
             handler()
             last_activity = time.time()
         log.warning("battle timeout reached")
+        self._log_finish("battle_timeout")
         return screens.UNKNOWN
+
+    def _log(self, kind: str, **data) -> None:
+        if self.ledger is not None:
+            self.ledger.record(kind, **data)
+
+    def _log_finish(self, outcome: str) -> None:
+        if self.ledger is not None:
+            self.ledger.finish(outcome)
 
     def _current_mode(self) -> str | None:
         found = self.perception.probe(MODE_LABELS)
@@ -161,9 +177,12 @@ class ManualBattleController:
 
     def _on_our_turn(self) -> None:
         self._action.reset()
-        if vision.unit_cards_present(self._frame()):
-            self._scout()
+        frame = self._frame()
+        if vision.unit_cards_present(frame):
+            self._snapshot_factions(frame)
+            self._scout(frame)
             log.info("selecting next actable unit")
+            self._log("select_unit")
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
             time.sleep(1.8)
             return
@@ -172,6 +191,7 @@ class ManualBattleController:
         time.sleep(1.2)
         if vision.unit_cards_present(self._frame()):
             log.info("unit cards appeared late, selecting next unit")
+            self._log("select_unit")
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
         else:
             log.info("no actable units left, ending turn")
@@ -179,12 +199,21 @@ class ManualBattleController:
             self._turn_scouted = False
         time.sleep(1.8)
 
-    def _scout(self) -> None:
+    def _snapshot_factions(self, frame) -> None:
+        if self.ledger is None:
+            return
+        self.ledger.snapshot(
+            allies=vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION),
+            enemies=vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION),
+            third_party=vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION),
+        )
+
+    def _scout(self, frame) -> None:
         """Refresh the enemy direction hint from the hub. When no enemy is
         on screen, pan around once per turn to find where they are; the
         camera recenters on the unit as soon as one is selected, so panned
         views need no undo when the scout ends on a hit."""
-        enemies = vision.find_enemy_units(self._frame(), region=vision.HUB_SCAN_REGION)
+        enemies = vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
         if enemies:
             c = vision.centroid(enemies)
             self._enemy_hint = self._direction_to(c)
@@ -199,11 +228,13 @@ class ManualBattleController:
             enemies = vision.find_enemy_units(self._frame(), region=vision.HUB_SCAN_REGION)
             if enemies:
                 log.info("scout: %d enemy unit(s) to the %s", len(enemies), name)
+                self._log("scout_hit", direction=name, count=len(enemies))
                 self._enemy_hint = (dx, dy)
                 return
             self.actuator.swipe(cx - dx * PAN_DIST, cy - dy * PAN_DIST, cx, cy, 500)
             time.sleep(0.8)
         log.info("scout: no enemies found in any direction")
+        self._log("scout_none")
 
     @staticmethod
     def _direction_to(point: tuple[int, int]) -> tuple[int, int]:
@@ -223,49 +254,55 @@ class ManualBattleController:
             frame = self._frame()
             cells = vision.find_move_cells(frame)
             target = None
+            basis = None
             enemies = vision.find_enemy_units(frame)
             if enemies and cells:
                 # the move range surrounds the unit, so its centroid is a
                 # good proxy for the unit's own position
                 origin = vision.centroid(cells)
                 target = vision.nearest_point(enemies, origin)
+                basis = "enemy_arc"
                 log.info("seeking nearest enemy unit at %s (of %d seen)", target, len(enemies))
             if target is None:
                 target = vision.centroid(vision.find_threat_cells(frame))
                 if target:
+                    basis = "threat_centroid"
                     log.info("no enemy arcs visible, using threat centroid %s", target)
             if target is None and self._enemy_hint is not None:
                 hx, hy = self._enemy_hint
                 target = (PAN_CENTER[0] + hx * 1200, PAN_CENTER[1] + hy * 1200)
+                basis = "scout_hint"
                 log.info("using scouted enemy direction (%d, %d)", hx, hy)
             if target and cells:
                 cell = vision.nearest_point(cells, target)
                 log.info("moving toward enemies via %s", cell)
+                self._log("move", basis=basis, target=target, cell=cell)
                 self._action.moved = True
                 self.actuator.tap(*cell)
                 time.sleep(2.0)
                 return
             log.info("no enemy direction found, standing by")
-        else:
-            log.info("already moved and still no target, standing by")
-        self._standby()
+            self._standby("no_target")
+            return
+        log.info("already moved and still no target, standing by")
+        self._standby("moved_no_target")
 
     def _on_weapon_select(self) -> None:
         frame = self._frame()
         if vision.attack_enabled(frame):
             log.info("target locked, attacking")
-            self._attack()
+            self._attack(slot=0)
             return
         for i, slot in enumerate(WEAPON_SLOTS):
             self.actuator.tap(*slot)
             time.sleep(1.0)
             if vision.attack_enabled(self._frame()):
                 log.info("weapon slot %d has a target, attacking", i + 1)
-                self._attack()
+                self._attack(slot=i + 1)
                 return
         if self._action.moved or not self._can_return():
             log.info("all weapons out of range, standing by")
-            self._standby()
+            self._standby("out_of_range")
         else:
             log.info("all weapons out of range, going back to move")
             self.actuator.tap(*RETURN_BTN)
@@ -284,15 +321,18 @@ class ManualBattleController:
         found = self.perception.probe(["btn_start_battle"])
         pos = found["btn_start_battle"].bbox.center if found else START_BATTLE_BTN
         log.info("confirming battle start")
+        self._log("engagement_confirm")
         self.actuator.tap(*pos)
         self._wait_animation()
         self._action.reset()
 
-    def _attack(self) -> None:
+    def _attack(self, slot: int) -> None:
+        self._log("attack", slot=slot)
         self.actuator.tap(*ATTACK_BTN)
         time.sleep(2.0)
 
-    def _standby(self) -> None:
+    def _standby(self, reason: str) -> None:
+        self._log("standby", reason=reason)
         self.actuator.tap(*STANDBY_BTN)
         time.sleep(1.8)
         self._action.reset()

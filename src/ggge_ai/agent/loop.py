@@ -50,6 +50,7 @@ class AgentLoop:
         initial_memory: Mapping[str, Value] | None = None,
         unknown_handler: Callable[[ExecutionContext], None] | None = None,
         keyguard: object | None = None,
+        extras: dict | None = None,
     ) -> None:
         self.perception = perception
         self.actuator = actuator
@@ -59,6 +60,7 @@ class AgentLoop:
         self.memory: dict[str, Value] = dict(initial_memory or {})
         self.unknown_handler = unknown_handler
         self.keyguard = keyguard
+        self.extras = extras or {}
 
     def _sense(self) -> tuple[GameState, WorldState, set[str]]:
         game_state = self.perception.observe()
@@ -91,6 +93,7 @@ class AgentLoop:
                         actuator=self.actuator,
                         perception=self.perception,
                         game_state=game_state,
+                        extras=self.extras,
                     )
                     self.unknown_handler(ctx)
                 time.sleep(self.config.unknown_wait_s)
@@ -112,7 +115,10 @@ class AgentLoop:
 
             for action in result.actions:
                 ctx = ExecutionContext(
-                    actuator=self.actuator, perception=self.perception, game_state=game_state
+                    actuator=self.actuator,
+                    perception=self.perception,
+                    game_state=game_state,
+                    extras=self.extras,
                 )
                 logger.info("executing %s", action.name)
                 ok = action.execute(ctx)
