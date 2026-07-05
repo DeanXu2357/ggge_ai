@@ -6,6 +6,13 @@ screens:
     - 0
     - 340
     - 140
+  battle_failed:
+    file: screens/battle_failed.png
+    search_region:
+    - 980
+    - 0
+    - 400
+    - 175
   battle_map:
     file: screens/battle_map.png
     search_region:

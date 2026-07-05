@@ -19,6 +19,7 @@ UNIT_SETUP: ScreenId = "unit_setup"
 STORY: ScreenId = "story"
 BATTLE_MAP: ScreenId = "battle_map"
 BATTLE_RESULT: ScreenId = "battle_result"
+BATTLE_FAILED: ScreenId = "battle_failed"
 REWARD: ScreenId = "reward"
 
 ALL_SCREENS = [
@@ -37,5 +38,6 @@ ALL_SCREENS = [
     STORY,
     BATTLE_MAP,
     BATTLE_RESULT,
+    BATTLE_FAILED,
     REWARD,
 ]

@@ -18,6 +18,14 @@ DIALOG_CURSOR_TEMPLATE = (
     Path(__file__).resolve().parents[3] / "assets" / "templates" / "elements" / "dialog_cursor.png"
 )
 
+DEFEAT_SCREEN_TEMPLATE = (
+    Path(__file__).resolve().parents[3] / "assets" / "templates" / "screens" / "battle_failed.png"
+)
+
+# the FAILED banner sits top-center; restrict the match there so a high
+# TM_CCOEFF response cannot come from a darkened battle overlay elsewhere
+DEFEAT_SCREEN_REGION = (980, 0, 400, 175)
+
 # a dying unit pops an inline line of dialogue with a cyan ▼ advance cursor
 # that slides horizontally with the line length, so it must be matched free
 # of a fixed column. it lives in the bottom text band; the right edge runs
@@ -26,6 +34,9 @@ DIALOG_CURSOR_REGION = (480, 800, 1620, 130)
 
 ATTACK_BUTTON_BOX = (1990, 900, 240, 160)
 UNIT_CARD_STRIP_BOX = (170, 840, 900, 200)
+# one actable-unit card spans roughly a fifth of the strip; scan with a
+# window this wide to score the brightest local card block, not the whole strip
+UNIT_CARD_WINDOW = 180
 FIRST_UNIT_CARD = (300, 930)
 
 # map area free of HUD overlays, used when scanning for cells / units.
@@ -59,10 +70,22 @@ def attack_enabled(frame: np.ndarray) -> bool:
 
 def unit_cards_present(frame: np.ndarray) -> bool:
     """Actable-unit cards render as bright framed portraits above a blue
-    HP bar; an empty strip is dim background."""
+    HP bar. A lone remaining card lights only about a fifth of the strip,
+    so a whole-strip brightness mean sinks under any empty-strip guard and
+    the last unit is never picked (10+ forced-standby turns to death, the
+    20260705 HARD-2 loss). Slide a card-width window across the strip and
+    test the brightest local block instead: measured on those captures a
+    single card peaks at ~0.30 local bright fraction and seven cards at
+    ~0.58, while an idle strip or between-phase animation stays <=0.14."""
     hsv = cv2.cvtColor(_crop(frame, UNIT_CARD_STRIP_BOX), cv2.COLOR_BGR2HSV)
-    bright = hsv[..., 2] > 140
-    return float(bright.mean()) > 0.08
+    bright = (hsv[..., 2] > 140).astype(np.float64)
+    win = UNIT_CARD_WINDOW
+    if bright.shape[1] <= win:
+        return float(bright.mean()) > 0.2
+    prefix = np.concatenate(([0.0], np.cumsum(bright.sum(axis=0))))
+    window_bright = prefix[win:] - prefix[:-win]
+    peak = float(window_bright.max()) / (win * bright.shape[0])
+    return peak > 0.2
 
 
 def find_threat_cells(frame: np.ndarray) -> list[tuple[int, int]]:
@@ -230,6 +253,24 @@ def locate_dialog_cursor(frame: np.ndarray, threshold: float = 0.85) -> tuple[in
         return None
     th, tw = template.shape[:2]
     return (x0 + loc[0] + tw // 2, y0 + loc[1] + th // 2)
+
+
+def is_defeat_screen(frame: np.ndarray, threshold: float = 0.6) -> bool:
+    """True on the post-battle FAILED screen (our whole force wiped out).
+    Matches the top-center FAILED banner within DEFEAT_SCREEN_REGION;
+    measured scores are ~1.0 on the three 20260705 defeat frames and <=0.18
+    on hub / weapon / phase-start / animation frames, so the 0.6 gate sits
+    in a wide empty gap well clear of TM_CCOEFF darkened-overlay matches."""
+    template = cv2.imread(str(DEFEAT_SCREEN_TEMPLATE))
+    if template is None:
+        return False
+    x0, y0, w, h = DEFEAT_SCREEN_REGION
+    band = frame[y0 : y0 + h, x0 : x0 + w]
+    if band.shape[0] < template.shape[0] or band.shape[1] < template.shape[1]:
+        return False
+    result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, _ = cv2.minMaxLoc(result)
+    return score >= threshold
 
 
 def nearest_point(points: list[tuple[int, int]], target: tuple[int, int]) -> tuple[int, int] | None:

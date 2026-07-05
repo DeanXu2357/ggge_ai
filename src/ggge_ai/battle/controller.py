@@ -124,6 +124,13 @@ class ManualBattleController:
                 log.info("battle finished: %s", state.screen)
                 self._log_finish(state.screen)
                 return state.screen
+            # our whole force wiped out: the FAILED screen is a dead end
+            # (its buttons hand off to retry/stage-select). detect it and
+            # finish cleanly so the ledger archives instead of idling out
+            if vision.is_defeat_screen(self._frame()):
+                log.info("battle finished: defeat screen")
+                self._log_finish("defeat")
+                return screens.UNKNOWN
             # detect stories by the MENU button itself, not the screen
             # classifier: mid-battle stories shift MENU left of the anchor
             # position and the frame then classifies as something else
