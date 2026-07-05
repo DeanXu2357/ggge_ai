@@ -1,51 +1,46 @@
 # 進度與規劃
 
-更新日期：2026-07-05（下午暫停快照）
+更新日期：2026-07-05（晚間；HARD 2 含隱藏戰鬥通關）
 
-## 暫停快照（2026-07-05 15:45，恢復點）
+## 暫停快照（2026-07-05 23:46，恢復點）
 
-**裝置現況**：遊戲停在 **HARD 2 戰鬥中 TURN 1**（我方回合掛著，無程式操作，
-省電鎖會自行鎖上）。恢復：`uv run python scripts/run_manual_battle.py`
-（Keyguard 會先解鎖再接手戰鬥）；或手動撤退放棄（該次 10 體力作廢）。
+**裝置現況**：停在**選擇關卡（機動戰士鋼彈 HARD 2，★★☆，SECRET 已奪取）**，
+乾淨狀態、體力 25/80。無程式在跑（tmux e2 已結束）。下次可直接從關卡列表
+出擊或改打其他關。
 
-**今日完成**：
-- 架構定案 `docs/agent-architecture.md`（機制/內容分離、process 黑板、
-  開放行動空間、不做模擬器；黑板=單一 process 內跨嘗試共享、結束即棄）。
-- 戰鬥流水帳＋RunBlackboard（6082620）；E1 first ledger:
-  `data/runs/20260705-151411/battle_01.jsonl`。
-- 戰術地圖 v1（c19b3a7）：平移掃描＋相位相關實測鏡頭位移＋星座錨定，
-  畫面外敵人可當移動目標。回合邊界改相位斷點偵測（50885dc，修 E1 發現的
-  turns=1 bug）；南向掃描負座標 crash 已修（0466892）。**尚未實戰驗證**。
-- **E1 第 12 關回歸 SUCCESS**（15:28）：62bef06 敵我分類實戰確認。
-- **E2 HARD 2 探測進行一半**：敵方資訊面板標定完成（進場截圖樣本
-  `assets/screenshots/20260705-1538*.png`、`-154019.png`）——
-  點敵人→紅色威脅疊加層＋摘要卡（HP/EN/MP/CHANCE STEP）→點卡→
-  單位設置詳情（總戰力／機體六維／武裝 RANGE·POWER·EN·命中·爆擊／
-  能力、OP 分頁）。HARD 2 情報：雜兵鋼彈原型機 HP 51,349 戰力 8,461；
-  阿姆羅鋼彈 HP 44,328 戰力 10,868，能力=最大EN/命中/機動各+5%＋新人類
-  LV2；隱藏條件「2 回合內擊敗阿姆羅」會觸發敵增援。
+**任務改用 GitHub Issues 管理**：repo `git@github.com:DeanXu2357/ggge_ai.git`
+（public、main）、看板 https://github.com/users/DeanXu2357/projects/2 。
+本檔的「工作安排」細節改以 issue #3–#15 追蹤，見 [[github-repo-and-tasks]]。
 
-**帳號現況**（使用者手動遊玩過）：RANK 9、HARD 1 已通關（探測目標改為
-HARD 2 / 70,000）、Z 系列至 14 關、SEED 解鎖、資金 102,640、體力 161/70。
+**今日重大成果**：
+- **HARD 2 含隱藏戰鬥由我們的程式全自動通關**（23:43，TOTAL SCORE 8,525
+  NEW RECORD、破壞 14/14 含增援、6/10 存活、受損 43%）。流水帳
+  `data/runs/20260705-232132/battle_01.jsonl`（outcome battle_result）。
+- 四個戰術修正實機驗證：索敵重構（1ddc407，單位改朝世界座標敵群前進）、
+  死亡台詞對話自動推進（bd6b132，本場自動處理 5 次無需人工救）、
+  殘機單卡辨識（#1）、戰敗畫面辨識（#2，本場贏了未觸發但已上線）。
+- 中斷落地流水帳（8350f60）。
 
-**分工規則（2026-07-05 使用者新增）**：實作一律派 subagent（opus=設計/
-視覺/控制邏輯，sonnet=轉錄/schema/腳本）；Fable 主 session 只做統籌、
-校驗、實機驗證與 commit。詳見 CLAUDE.md 開發紀律。
+**本場暴露、已開 issue 的缺陷**：
+- #14（high）索敵 fallback 過粗：鏡頭錨定每次 miss（#6）→退到全域單一朝向
+  →前排/側翼單位（如 GQuuuuuuX）走離最近敵人。**最該優先修的戰術缺陷。**
+- #12（high）EN 歸零不會用 SKILL/SUPPORT 補能量，直接待機（實戰確認，
+  行動列的 SKILL SP／SUPPORT EN 1/1 鈕被無視）。
+- #15（high）流水帳決策事件要配截圖，方便事後回放診斷（使用者提議）。
+- 隱藏戰鬥「WARNING 不明機體出現」決策彈窗控制器不認得→曾 idle timeout
+  （第一趟主線觸發、由 Fable 手動選「挑戰」）。尚未開 issue，待補。
+- #5 掃描仍低估我方/第三方（我方 10 掃到 2–6、第三方恆 0）。
 
-**工作安排（依實作順序，含執行者）**：
-1. E2 HARD 2 實測（驗證性質→**Fable 主持**）：戰術地圖實戰驗證＋
-   戰敗流程收集＋流水帳分析；實測中若需修碼→派 sonnet 小修，Fable 驗收。
-2. 戰後歸因 v1（**opus**）：吃 E2 流水帳，先分「數值差距 vs 程式缺陷」。
-3. cache 匯入機制（**opus**）＋HARD 2 手抄試點檔（**sonnet** 從
-   `assets/screenshots/20260705-1538*.png`、`-154019.png` 轉錄，
-   Fable 對照截圖核數字）。
-4. 敵方面板 OCR＋數字 OCR（**opus**）：現場讀取→黑板→寫回 cache。
-5. 戰略迴圈（**opus**）：goal + allowed actions、強化與 farming 標定。
-6. cache 建檔腳本（**sonnet**，本地 LLM 只轉錄文字、數字一律 OCR）。
-7. 行動掃描器 v1（**opus**）：SUPPORT/技能鈕、EN 補給。
-8. 1.5-ply 站位安全＋cache 抽查校驗（**opus/sonnet**）。
-每項交付統一驗收：pytest＋ruff 全過、diff 對照紅線、需要實機證據的
-由 Fable 上機驗證後才 commit。
+**帳號現況**：RANK 11、資金 158,380、體力 25/80。隊伍戰鬥力 111,530
+（遠超 HARD 2 建議 70,000——本 session 反覆確認敗因在程式非數值）。
+
+**分工規則（2026-07-05 使用者定案）**：實作一律派 subagent（opus=設計/
+視覺/控制邏輯，sonnet=轉錄/schema/腳本）；主 session 只做統籌、校驗、
+實機驗證與 commit。詳見 CLAUDE.md 開發紀律與 [[subagent-implementation-workflow]]。
+
+**下一步（依 issue 優先序）**：先修戰術三本柱 #14（索敵 fallback）、#12
+（EN/技能行動掃描）、#15（決策截圖）——這三個直接決定戰術品質；再回架構
+主線 #7 歸因、#8 cache、#9 OCR、#10 戰略迴圈。
 
 ## 現行計畫
 
