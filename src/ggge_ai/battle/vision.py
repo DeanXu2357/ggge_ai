@@ -152,6 +152,22 @@ def find_third_party_units(
     return _dedupe(_ring_blobs(teal, region))
 
 
+def measure_camera_shift(
+    prev: np.ndarray,
+    cur: np.ndarray,
+    region: tuple[int, int, int, int] = MAP_REGION,
+) -> tuple[tuple[float, float], float]:
+    """How far the camera moved between two frames, in screen pixels,
+    with the phase-correlation response as confidence (near 0 on
+    featureless views like open space). Camera shift is the negation of
+    the content shift: panning east makes the terrain slide west."""
+    a = cv2.cvtColor(_crop(prev, region), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    b = cv2.cvtColor(_crop(cur, region), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    window = cv2.createHanningWindow((a.shape[1], a.shape[0]), cv2.CV_32F)
+    (sx, sy), response = cv2.phaseCorrelate(a, b, window)
+    return (-sx, -sy), response
+
+
 def locate_story_menu(frame: np.ndarray, threshold: float = 0.6) -> tuple[int, int] | None:
     """Find the story MENU button wherever it sits: mid-battle stories add
     a ☰ button that shifts MENU left of its pre-battle position."""

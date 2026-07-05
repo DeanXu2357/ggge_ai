@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 
 from ggge_ai.battle import vision
 from ggge_ai.battle.ledger import BattleLedger
+from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.domain import screens
 from ggge_ai.vision.motion import frame_diff, is_static
 
@@ -74,8 +75,9 @@ class ManualBattleController:
     idle_timeout_s: float = 600.0
     lock_check_interval_s: float = 15.0
     _action: _ActionState = field(default_factory=_ActionState)
-    _enemy_hint: tuple[int, int] | None = None
+    _enemy_hint: tuple[float, float] | None = None
     _turn_scouted: bool = False
+    tacmap: TacticalMap = field(default_factory=TacticalMap)
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
         """Cycle the AUTO button until it is colorless (full manual)."""
@@ -209,39 +211,70 @@ class ManualBattleController:
         )
 
     def _scout(self, frame) -> None:
-        """Refresh the enemy direction hint from the hub. When no enemy is
-        on screen, pan around once per turn to find where they are; the
-        camera recenters on the unit as soon as one is selected, so panned
-        views need no undo when the scout ends on a hit."""
-        enemies = vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
-        if enemies:
-            c = vision.centroid(enemies)
-            self._enemy_hint = self._direction_to(c)
-            return
+        """Rebuild the tactical map once per turn by pan-scanning the four
+        directions around the hub view. Every pan is measured with phase
+        correlation before world coordinates are assigned, and every leg
+        pans back so all observations share the scan origin."""
         if self._turn_scouted:
             return
         self._turn_scouted = True
+        self.tacmap.reset()
+        camera = (0.0, 0.0)
+        self._observe_map(frame, camera)
         cx, cy = PAN_CENTER
+        prev = frame
         for name, (dx, dy) in PAN_DIRS:
             self.actuator.swipe(cx, cy, cx - dx * PAN_DIST, cy - dy * PAN_DIST, 500)
             time.sleep(1.0)
-            enemies = vision.find_enemy_units(self._frame(), region=vision.HUB_SCAN_REGION)
-            if enemies:
-                log.info("scout: %d enemy unit(s) to the %s", len(enemies), name)
-                self._log("scout_hit", direction=name, count=len(enemies))
-                self._enemy_hint = (dx, dy)
-                return
+            cur = self._frame()
+            camera = self._advance_camera(camera, prev, cur, (dx * PAN_DIST, dy * PAN_DIST))
+            self._observe_map(cur, camera)
             self.actuator.swipe(cx - dx * PAN_DIST, cy - dy * PAN_DIST, cx, cy, 500)
             time.sleep(0.8)
-        log.info("scout: no enemies found in any direction")
-        self._log("scout_none")
+            back = self._frame()
+            camera = self._advance_camera(camera, cur, back, (-dx * PAN_DIST, -dy * PAN_DIST))
+            prev = back
+        self._enemy_hint = self._hint_from_map()
+        self._log(
+            "tactical_map",
+            enemies=[(round(x), round(y)) for x, y in self.tacmap.enemies],
+            allies=[(round(x), round(y)) for x, y in self.tacmap.allies],
+            third_party=[(round(x), round(y)) for x, y in self.tacmap.third_party],
+            camera_drift=(round(camera[0]), round(camera[1])),
+        )
+        log.info(
+            "scout: tactical map has %d enemies / %d allies / %d third-party",
+            len(self.tacmap.enemies),
+            len(self.tacmap.allies),
+            len(self.tacmap.third_party),
+        )
 
     @staticmethod
-    def _direction_to(point: tuple[int, int]) -> tuple[int, int]:
-        dx = point[0] - PAN_CENTER[0]
-        dy = point[1] - PAN_CENTER[1]
+    def _advance_camera(camera, prev, cur, nominal) -> tuple[float, float]:
+        shift, response = vision.measure_camera_shift(prev, cur)
+        if response < 0.05:
+            # featureless view (open space): trust the gesture instead
+            shift = nominal
+        return (camera[0] + shift[0], camera[1] + shift[1])
+
+    def _observe_map(self, frame, camera) -> None:
+        self.tacmap.observe(
+            camera,
+            vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION),
+            vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION),
+            vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION),
+        )
+
+    def _hint_from_map(self) -> tuple[float, float] | None:
+        origin = vision.centroid([(round(x), round(y)) for x, y in self.tacmap.allies])
+        if origin is None:
+            origin = PAN_CENTER
+        enemy = self.tacmap.nearest_enemy(origin)
+        if enemy is None:
+            return None
+        dx, dy = enemy[0] - origin[0], enemy[1] - origin[1]
         n = max((dx * dx + dy * dy) ** 0.5, 1.0)
-        return (round(dx / n), round(dy / n))
+        return (dx / n, dy / n)
 
     def _on_unit_move(self) -> None:
         if not self._action.tried_in_place:
@@ -263,6 +296,26 @@ class ManualBattleController:
                 target = vision.nearest_point(enemies, origin)
                 basis = "enemy_arc"
                 log.info("seeking nearest enemy unit at %s (of %d seen)", target, len(enemies))
+            if target is None and cells and self.tacmap.enemies:
+                origin = vision.centroid(cells)
+                arcs = (
+                    enemies
+                    + vision.find_ally_units(frame)
+                    + vision.find_third_party_units(frame)
+                )
+                t = self.tacmap.anchor(origin, arcs)
+                if t is not None:
+                    world_enemy = self.tacmap.nearest_enemy(
+                        (origin[0] + t[0], origin[1] + t[1])
+                    )
+                    if world_enemy is not None:
+                        target = (world_enemy[0] - t[0], world_enemy[1] - t[1])
+                        basis = "tacmap"
+                        log.info(
+                            "tactical-map enemy at %s (screen), camera offset %s",
+                            (round(target[0]), round(target[1])),
+                            (round(t[0]), round(t[1])),
+                        )
             if target is None:
                 target = vision.centroid(vision.find_threat_cells(frame))
                 if target:
@@ -272,11 +325,16 @@ class ManualBattleController:
                 hx, hy = self._enemy_hint
                 target = (PAN_CENTER[0] + hx * 1200, PAN_CENTER[1] + hy * 1200)
                 basis = "scout_hint"
-                log.info("using scouted enemy direction (%d, %d)", hx, hy)
+                log.info("using scouted enemy direction (%.2f, %.2f)", hx, hy)
             if target and cells:
                 cell = vision.nearest_point(cells, target)
                 log.info("moving toward enemies via %s", cell)
-                self._log("move", basis=basis, target=target, cell=cell)
+                self._log(
+                    "move",
+                    basis=basis,
+                    target=(round(target[0]), round(target[1])),
+                    cell=cell,
+                )
                 self._action.moved = True
                 self.actuator.tap(*cell)
                 time.sleep(2.0)
