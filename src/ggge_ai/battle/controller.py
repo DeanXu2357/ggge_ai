@@ -166,10 +166,11 @@ class ManualBattleController:
             if mode is None:
                 # a dying unit pops a MENU-less inline dialogue line; advance
                 # it before it is mistaken for a phase break and stalls us
-                cursor = vision.locate_dialog_cursor(self._frame())
+                dialog_frame = self._frame()
+                cursor = vision.locate_dialog_cursor(dialog_frame)
                 if cursor is not None:
                     log.info("in-battle dialog (cursor at %s), advancing", cursor)
-                    self._log("story_dialog", cursor=cursor)
+                    self._log("story_dialog", frame=dialog_frame, cursor=cursor)
                     self.actuator.tap(*cursor)
                     time.sleep(0.8)
                     self._none_streak = 0
@@ -192,13 +193,13 @@ class ManualBattleController:
         self._log_finish("battle_timeout")
         return screens.UNKNOWN
 
-    def _log(self, kind: str, **data) -> None:
+    def _log(self, kind: str, frame=None, **data) -> None:
         if self.ledger is not None:
-            self.ledger.record(kind, **data)
+            self.ledger.record(kind, frame=frame, **data)
 
     def _log_finish(self, outcome: str) -> None:
         if self.ledger is not None:
-            self.ledger.finish(outcome)
+            self.ledger.finish(outcome, frame=self._safe_frame())
 
     def _current_mode(self) -> str | None:
         found = self.perception.probe(MODE_LABELS)
@@ -209,6 +210,13 @@ class ManualBattleController:
     def _frame(self):
         return self.perception.capture()
 
+    def _safe_frame(self):
+        try:
+            return self._frame()
+        except Exception:
+            log.warning("frame capture failed, event will record without a frame", exc_info=True)
+            return None
+
     def _on_our_turn(self) -> None:
         self._action.reset()
         frame = self._frame()
@@ -217,21 +225,22 @@ class ManualBattleController:
                 self._phase_break = False
                 self._turn_scouted = False
                 if self.ledger is not None:
-                    self.ledger.next_turn()
+                    self.ledger.next_turn(frame=frame)
                 log.info("new turn detected (turn %d)", self.ledger.turn if self.ledger else 0)
             self._snapshot_factions(frame)
             self._scout(frame)
             log.info("selecting next actable unit")
-            self._log("select_unit")
+            self._log("select_unit", frame=frame)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
             time.sleep(1.8)
             return
         # the card strip animates in after the hub appears; confirm it is
         # really empty before ending the turn
         time.sleep(1.2)
-        if vision.unit_cards_present(self._frame()):
+        late_frame = self._frame()
+        if vision.unit_cards_present(late_frame):
             log.info("unit cards appeared late, selecting next unit")
-            self._log("select_unit")
+            self._log("select_unit", frame=late_frame)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
         else:
             log.info("no actable units left, ending turn")
@@ -278,6 +287,7 @@ class ManualBattleController:
         self._enemy_hint = self._hint_from_map()
         self._log(
             "tactical_map",
+            frame=frame,
             enemies=[(round(x), round(y)) for x, y in self.tacmap.enemies],
             allies=[(round(x), round(y)) for x, y in self.tacmap.allies],
             third_party=[(round(x), round(y)) for x, y in self.tacmap.third_party],
@@ -333,6 +343,7 @@ class ManualBattleController:
                 log.info("moving toward enemies via %s (basis %s)", cell, basis)
                 self._log(
                     "move",
+                    frame=frame,
                     basis=basis,
                     target=(round(target[0]), round(target[1])),
                     cell=cell,
@@ -449,12 +460,12 @@ class ManualBattleController:
         self._action.reset()
 
     def _attack(self, slot: int) -> None:
-        self._log("attack", slot=slot)
+        self._log("attack", frame=self._safe_frame(), slot=slot)
         self.actuator.tap(*ATTACK_BTN)
         time.sleep(2.0)
 
     def _standby(self, reason: str) -> None:
-        self._log("standby", reason=reason)
+        self._log("standby", frame=self._safe_frame(), reason=reason)
         self.actuator.tap(*STANDBY_BTN)
         time.sleep(1.8)
         self._action.reset()

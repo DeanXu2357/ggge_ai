@@ -33,7 +33,11 @@ class RunBlackboard:
     ledgers: list[BattleLedger] = field(default_factory=list)
 
     def new_ledger(self) -> BattleLedger:
-        ledger = BattleLedger()
+        idx = len(self.ledgers) + 1
+        ledger = BattleLedger(
+            frames_dir=self.out_dir / "frames" / f"battle_{idx:02d}",
+            frame_rel_prefix=f"frames/battle_{idx:02d}",
+        )
         self.ledgers.append(ledger)
         return ledger
 

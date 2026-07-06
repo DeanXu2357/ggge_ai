@@ -8,12 +8,36 @@ never seed a future run (docs/agent-architecture.md).
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import cv2
+
+log = logging.getLogger(__name__)
+
 Point = tuple[int, int]
+
+# events worth a screenshot: the decision points a human would need to see
+# to judge whether the move made sense. everything else (animations,
+# faction snapshots, engagement confirms) shares the same screen a nearby
+# decision event already captured.
+FRAME_KINDS = frozenset(
+    {
+        "select_unit",
+        "move",
+        "attack",
+        "standby",
+        "tactical_map",
+        "story_dialog",
+        "end_turn",
+        "finish",
+    }
+)
+FRAME_MAX_EDGE = 1280
+FRAME_JPEG_QUALITY = 85
 
 
 @dataclass
@@ -22,29 +46,54 @@ class BattleLedger:
     events: list[dict[str, Any]] = field(default_factory=list)
     turn: int = 1
     outcome: str | None = None
+    frames_dir: Path | None = None
+    frame_rel_prefix: str = ""
 
-    def record(self, kind: str, **data: Any) -> None:
-        self.events.append(
-            {
-                "t": round(time.time() - self.started_at, 1),
-                "turn": self.turn,
-                "kind": kind,
-                **data,
-            }
-        )
+    def record(self, kind: str, frame: Any = None, **data: Any) -> None:
+        event = {
+            "t": round(time.time() - self.started_at, 1),
+            "turn": self.turn,
+            "kind": kind,
+            **data,
+        }
+        if kind in FRAME_KINDS:
+            event["frame"] = self._save_frame(frame, kind, len(self.events))
+        self.events.append(event)
+
+    def _save_frame(self, frame: Any, kind: str, seq: int) -> str | None:
+        if frame is None or self.frames_dir is None:
+            return None
+        try:
+            h, w = frame.shape[:2]
+            long_edge = max(h, w)
+            if long_edge > FRAME_MAX_EDGE:
+                scale = FRAME_MAX_EDGE / long_edge
+                frame = cv2.resize(frame, (round(w * scale), round(h * scale)))
+            self.frames_dir.mkdir(parents=True, exist_ok=True)
+            name = f"t{seq:04d}_turn{self.turn}_{kind}.jpg"
+            path = self.frames_dir / name
+            ok = cv2.imwrite(
+                str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, FRAME_JPEG_QUALITY]
+            )
+            if not ok:
+                return None
+            return f"{self.frame_rel_prefix}/{name}" if self.frame_rel_prefix else name
+        except Exception:
+            log.warning("failed to save frame for event %r, skipping", kind, exc_info=True)
+            return None
 
     def snapshot(
         self, allies: list[Point], enemies: list[Point], third_party: list[Point]
     ) -> None:
         self.record("factions", allies=allies, enemies=enemies, third_party=third_party)
 
-    def next_turn(self) -> None:
-        self.record("end_turn")
+    def next_turn(self, frame: Any = None) -> None:
+        self.record("end_turn", frame=frame)
         self.turn += 1
 
-    def finish(self, outcome: str) -> None:
+    def finish(self, outcome: str, frame: Any = None) -> None:
         self.outcome = outcome
-        self.record("finish", outcome=outcome)
+        self.record("finish", frame=frame, outcome=outcome)
 
     def summary(self) -> dict[str, Any]:
         counts: dict[str, int] = {}
