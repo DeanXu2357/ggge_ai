@@ -1,0 +1,123 @@
+from ggge_ai.battle.actions import ActionKind
+from ggge_ai.battle.enemy_model import (
+    MinimaxEnemy,
+    NearestTargetPolicy,
+)
+from ggge_ai.battle.sim import (
+    DefenseKind,
+    DefenseResponse,
+    Phase,
+    SimState,
+    SimUnit,
+    SimWeapon,
+    step,
+)
+from ggge_ai.battle.solver import (
+    SolverConfig,
+    default_evaluator,
+    solve,
+)
+from ggge_ai.battle.state import Faction
+
+
+def _weapon(name="rifle", power=5000, rmax=3, en_cost=0, can_counter=True):
+    return SimWeapon(name, power=power, range_min=1, range_max=rmax,
+                     en_cost=en_cost, can_counter=can_counter)
+
+
+def _ally(uid="a", pos=(0, 0), hp=100, weapons=None, **kw):
+    base = dict(unit_id=uid, faction=Faction.ALLY, pos=pos, hp=hp, max_hp=100,
+                en=50, en_max=50, unit_attack=5000, pilot_attack=9000, move_range=3,
+                weapons=weapons if weapons is not None else [])
+    base.update(kw)
+    return SimUnit(**base)
+
+
+def _enemy(uid="e", pos=(2, 0), hp=100, weapons=None, **kw):
+    base = dict(unit_id=uid, faction=Faction.ENEMY, pos=pos, hp=hp, max_hp=100,
+                en=50, en_max=50, unit_attack=5000, pilot_attack=9000, move_range=3,
+                unit_defense=1000, pilot_defense=1000,
+                weapons=weapons if weapons is not None else [])
+    base.update(kw)
+    return SimUnit(**base)
+
+
+def test_reactivation_lets_solver_find_double_kill_chain():
+    ally = _ally(weapons=[_weapon(power=5000)], react_charges=2, react_charges_max=2)
+    e0 = _enemy("e0", pos=(2, 0), hp=5, weapons=[])
+    e1 = _enemy("e1", pos=(3, 0), hp=5, weapons=[])
+    state = SimState(units=[ally, e0, e1])
+    result = solve(state, NearestTargetPolicy(), SolverConfig(time_budget_s=2.0))
+    attack_targets = [d.target_id for d in result.pv if d.kind == ActionKind.ATTACK]
+    assert set(attack_targets) == {"e0", "e1"}
+
+
+def test_enemy_phase_picks_better_defense_response():
+    # counter kills the attacker (good for us) vs merely defending (enemy lives)
+    ally = _ally(uid="a", pos=(0, 0), hp=100000, max_hp=100000,
+                 weapons=[_weapon(power=5000)])
+    boss = _enemy("boss", pos=(1, 0), hp=40, unit_attack=1000, pilot_attack=1000,
+                  weapons=[_weapon(power=200)])
+    state = SimState(units=[ally, boss], phase=Phase.ENEMY)
+    result = solve(state, NearestTargetPolicy(), SolverConfig(time_budget_s=2.0, max_depth=1))
+
+    cfg = SolverConfig(max_depth=1)
+
+    class _Ctx:
+        config = cfg
+        base_allies = 1
+        base_enemies = 1
+
+    counter_state = step(
+        state,
+        _attack(state, "boss", "a", DefenseResponse(DefenseKind.COUNTER)),
+    )
+    defend_state = step(
+        state,
+        _attack(state, "boss", "a", DefenseResponse(DefenseKind.DEFEND)),
+    )
+    v_counter = default_evaluator(counter_state, _Ctx())
+    v_defend = default_evaluator(defend_state, _Ctx())
+    assert v_counter > v_defend
+    assert abs(result.value - v_counter) < 1e-6
+
+
+def test_min_mode_is_more_pessimistic_than_policy():
+    tank = _ally("tank", pos=(1, 0), hp=1_000_000, max_hp=1_000_000, weapons=[])
+    weak = _ally("weak", pos=(3, 0), hp=1, weapons=[])
+    enemy = _enemy("e", pos=(0, 0), hp=100, weapons=[_weapon(power=5000, rmax=4)],
+                   move_range=0)
+    state = SimState(units=[tank, weak, enemy], phase=Phase.ENEMY)
+
+    policy_value = solve(state, NearestTargetPolicy(), SolverConfig(max_depth=1)).value
+    min_value = solve(state, MinimaxEnemy(), SolverConfig(max_depth=1)).value
+    assert min_value < policy_value
+
+
+def test_smoke_4v4_returns_legal_first_step_within_budget():
+    units = []
+    for i in range(4):
+        units.append(_ally(f"a{i}", pos=(0, i), hp=100,
+                           weapons=[_weapon(power=1500, rmax=3)], pilot_attack=3000))
+    for i in range(4):
+        units.append(_enemy(f"e{i}", pos=(5, i), hp=100,
+                            weapons=[_weapon(power=1500, rmax=3)], pilot_attack=3000))
+    state = SimState(units=units)
+    result = solve(state, NearestTargetPolicy(), SolverConfig(time_budget_s=2.0))
+    assert result.decision is not None
+    assert result.stats.depth >= 1
+    assert result.stats.nodes > 0
+    assert result.decision.unit_id in {u.unit_id for u in state.allies()}
+
+
+def _attack(state, attacker_id, target_id, defense):
+    attacker = state.unit(attacker_id)
+    weapon = attacker.weapons[0].name if attacker.weapons else None
+    return _mk_decision(attacker_id, target_id, weapon, defense)
+
+
+def _mk_decision(attacker_id, target_id, weapon, defense):
+    from ggge_ai.battle.sim import Decision
+
+    return Decision(attacker_id, ActionKind.ATTACK, target_id=target_id,
+                    weapon=weapon, hit=True, defense=defense)

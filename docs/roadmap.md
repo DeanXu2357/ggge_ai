@@ -15,8 +15,15 @@
 策略模型、介面保留 min；搜尋＝anytime 迭代加深 expectiminimax（殘局
 自動精確，離線解全關=加大預算）。傷害/命中公式已從社群 wiki 調查入檔
 `docs/combat-formulas.md`（閃避修正等待實機標定）。全文見
-agent-architecture.md「戰鬥模擬器與 expectiminimax」節。下一步＝
-實作順序第 11 項模擬器 v0 骨架（issue 見下）。
+agent-architecture.md「戰鬥模擬器與 expectiminimax」節。**v0 骨架已完成
+（#19）**：`battle/sim.py`（SimState/step/相位輪換/charge 重置）、
+`formulas.py`（公式全參數化）、`enemy_model.py`（policy/min 可插拔）、
+`solver.py`（迭代加深＋置換表＋Star1；Star2 與 TT 界值精修留 TODO）；
+105 測試全過。裁量記錄：切比雪夫距離；`dodge_hit_penalty=20`、
+`support_defend_multiplier=0.5` 為待標定預設；技能尚未接進 solver
+行動生成（step 已支援）。新任務 #18＝視覺回歸測試庫（截圖整理成
+標註案例釘 vision 閾值）。下一步＝#19 的 v1（格子可達性/路徑封鎖、
+敵方回合應對彈窗感知）與 controller 整合。
 
 **架構討論定案（2026-07-06 晚，commits 1dfc800/357bfab/0dccad9，全文見
 agent-architecture.md）**：內層戰鬥 GOAP（#17 主 issue，收編 #12/#13）——
