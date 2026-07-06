@@ -32,6 +32,7 @@ FRAME_KINDS = frozenset(
         "standby",
         "tactical_map",
         "story_dialog",
+        "hidden_battle_warning",
         "end_turn",
         "finish",
     }

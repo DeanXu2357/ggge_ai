@@ -47,6 +47,12 @@ STORY_SKIP = (2103, 430)
 # never pick the right-hand option, it hands leftover units to the built-in AI
 END_TURN_STANDBY_OPTION = (997, 562)
 END_TURN_EXECUTE = (1365, 850)
+# hidden-battle WARNING modal buttons: 不挑戰 (blue, left) declines and skips
+# the secret fight, 挑戰 (orange, right) accepts it. verified on the 20260705
+# popup capture. neither hands units to the built-in AI -- the AUTO chip in
+# this modal's corner is the animation/story toggle, unrelated to control
+DECLINE_HIDDEN_BATTLE = (1018, 977)
+CHALLENGE_HIDDEN_BATTLE = (1404, 977)
 
 AUTO_STATE_IDS = ("btn_auto_full", "btn_auto_enemy", "btn_auto_manual")
 MODE_LABELS = (
@@ -80,6 +86,11 @@ class ManualBattleController:
     battle_timeout_s: float = 3600.0
     idle_timeout_s: float = 600.0
     lock_check_interval_s: float = 15.0
+    # "challenge" or "decline": the hidden-battle modal offers a secret fight.
+    # default "challenge" -- clearing hidden battles is a project goal and our
+    # force is usually over-spec. the OCR power-gap check (建議 vs 我軍戰鬥力)
+    # is a future on-device upgrade; for now we do not read the numbers
+    hidden_battle_policy: str = "challenge"
     _action: _ActionState = field(default_factory=_ActionState)
     _enemy_hint: tuple[float, float] | None = None
     _turn_scouted: bool = False
@@ -135,6 +146,21 @@ class ManualBattleController:
                 log.info("battle finished: defeat screen")
                 self._log_finish("defeat")
                 return screens.UNKNOWN
+            # the hidden-battle WARNING modal is a dead stop the controller
+            # would otherwise idle out on: pick 挑戰/不挑戰 per policy, log the
+            # decision frame (for future OCR power-gap calibration), continue
+            warning_frame = self._frame()
+            if vision.is_hidden_battle_warning(warning_frame):
+                decision = "decline" if self.hidden_battle_policy == "decline" else "challenge"
+                button = (
+                    DECLINE_HIDDEN_BATTLE if decision == "decline" else CHALLENGE_HIDDEN_BATTLE
+                )
+                log.info("hidden-battle warning modal: %s", decision)
+                self._log("hidden_battle_warning", frame=warning_frame, decision=decision)
+                self.actuator.tap(*button)
+                time.sleep(2.0)
+                last_activity = time.time()
+                continue
             # detect stories by the MENU button itself, not the screen
             # classifier: mid-battle stories shift MENU left of the anchor
             # position and the frame then classifies as something else

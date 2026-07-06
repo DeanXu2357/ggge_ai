@@ -41,6 +41,13 @@ screens:
     - 0
     - 215
     - 145
+  hidden_battle_warning:
+    file: screens/hidden_battle_warning.png
+    search_region:
+    - 990
+    - 22
+    - 380
+    - 230
   main_menu:
     file: screens/main_menu.png
     search_region:

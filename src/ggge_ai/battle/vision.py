@@ -26,6 +26,19 @@ DEFEAT_SCREEN_TEMPLATE = (
 # TM_CCOEFF response cannot come from a darkened battle overlay elsewhere
 DEFEAT_SCREEN_REGION = (980, 0, 400, 175)
 
+HIDDEN_BATTLE_WARNING_TEMPLATE = (
+    Path(__file__).resolve().parents[3]
+    / "assets"
+    / "templates"
+    / "screens"
+    / "hidden_battle_warning.png"
+)
+
+# the hidden-battle WARNING banner + 不明機體出現 subtitle sit top-center;
+# restrict the match there so a high TM_CCOEFF response cannot come from the
+# darkened battle overlay the modal dims behind itself
+HIDDEN_BATTLE_WARNING_REGION = (990, 22, 380, 230)
+
 # a dying unit pops an inline line of dialogue with a cyan ▼ advance cursor
 # that slides horizontally with the line length, so it must be matched free
 # of a fixed column. it lives in the bottom text band; the right edge runs
@@ -265,6 +278,25 @@ def is_defeat_screen(frame: np.ndarray, threshold: float = 0.6) -> bool:
     if template is None:
         return False
     x0, y0, w, h = DEFEAT_SCREEN_REGION
+    band = frame[y0 : y0 + h, x0 : x0 + w]
+    if band.shape[0] < template.shape[0] or band.shape[1] < template.shape[1]:
+        return False
+    result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, _ = cv2.minMaxLoc(result)
+    return score >= threshold
+
+
+def is_hidden_battle_warning(frame: np.ndarray, threshold: float = 0.6) -> bool:
+    """True on the hidden-battle WARNING modal (a secret unit appears when a
+    stage clears its hidden condition). Matches the top-center WARNING +
+    不明機體出現 banner within HIDDEN_BATTLE_WARNING_REGION; measured 1.0 on
+    the 20260705 popup frame and <=0.21 on hub / battle-map / phase-start
+    frames, so the 0.6 gate sits in a wide empty gap well clear of
+    TM_CCOEFF darkened-overlay matches."""
+    template = cv2.imread(str(HIDDEN_BATTLE_WARNING_TEMPLATE))
+    if template is None:
+        return False
+    x0, y0, w, h = HIDDEN_BATTLE_WARNING_REGION
     band = frame[y0 : y0 + h, x0 : x0 + w]
     if band.shape[0] < template.shape[0] or band.shape[1] < template.shape[1]:
         return False
