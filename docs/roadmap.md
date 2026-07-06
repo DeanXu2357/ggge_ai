@@ -1,12 +1,24 @@
 # 進度與規劃
 
-更新日期：2026-07-05（晚間；HARD 2 含隱藏戰鬥通關）
+更新日期：2026-07-06（離線批次 #15/#16 收尾，待實機驗證）
 
-## 暫停快照（2026-07-05 23:46，恢復點）
+## 暫停快照（2026-07-06，恢復點）
 
 **裝置現況**：停在**選擇關卡（機動戰士鋼彈 HARD 2，★★☆，SECRET 已奪取）**，
-乾淨狀態、體力 25/80。無程式在跑（tmux e2 已結束）。下次可直接從關卡列表
-出擊或改打其他關。
+乾淨狀態、體力 25/80。無程式在跑。下次可直接從關卡列表出擊或改打其他關。
+
+**離線批次（2026-07-06 完成、已 push、已關 issue）**：
+- **#15 流水帳決策事件配截圖**（da1bed3）：每個決策事件（select_unit/move/
+  attack/standby/tactical_map/story_dialog/hidden_battle_warning/end_turn/
+  finish）存一張縮圖 JPEG（長邊 1280、q85）到 `data/runs/<ts>/frames/
+  battle_NN/`，存幀失敗軟性略過不中斷。61→65 測試。
+- **#16 隱藏戰鬥 WARNING 彈窗辨識**（f3ead6d）：`vision.is_hidden_battle_
+  warning`（彈窗 1.0、他處 ≤0.21、gate 0.6）＋控制器依 `hidden_battle_policy`
+  決策（預設 challenge 挑戰；OCR 戰力門檻留待實機）。彈窗自帶 AUTO 鈕不碰。
+
+**下一步＝實機驗證**（需使用者提供測試機）：跑一場含索敵與（若觸發）隱藏
+戰鬥的戰鬥，驗證 #14 索敵重構（cd89b9f enemy_onscreen）與 #16 彈窗決策，
+並讓 #15 的 frames 自然產生，作為 #5/#6/#12/#3 校準的第一手資料。
 
 **任務改用 GitHub Issues 管理**：repo `git@github.com:DeanXu2357/ggge_ai.git`
 （public、main）、看板 https://github.com/users/DeanXu2357/projects/2 。
@@ -26,10 +38,9 @@
   →前排/側翼單位（如 GQuuuuuuX）走離最近敵人。**最該優先修的戰術缺陷。**
 - #12（high）EN 歸零不會用 SKILL/SUPPORT 補能量，直接待機（實戰確認，
   行動列的 SKILL SP／SUPPORT EN 1/1 鈕被無視）。
-- #15（high）流水帳決策事件要配截圖，方便事後回放診斷（使用者提議）。
-- 隱藏戰鬥「WARNING 不明機體出現」決策彈窗控制器不認得→曾 idle timeout
-  （第一趟主線觸發、由 Fable 手動選「挑戰」）。尚未開 issue，待補。
-- #5 掃描仍低估我方/第三方（我方 10 掃到 2–6、第三方恆 0）。
+- ~~#15 流水帳決策事件配截圖~~（已解，da1bed3）。
+- ~~#16 隱藏戰鬥 WARNING 彈窗辨識與決策~~（已解，f3ead6d）。
+- #5 掃描仍低估我方/第三方（我方 10 掃到 2–6、第三方恆 0）。**#14 的根因。**
 
 **帳號現況**：RANK 11、資金 158,380、體力 25/80。隊伍戰鬥力 111,530
 （遠超 HARD 2 建議 70,000——本 session 反覆確認敗因在程式非數值）。
