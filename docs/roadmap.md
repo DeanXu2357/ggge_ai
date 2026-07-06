@@ -7,6 +7,17 @@
 **裝置現況**：停在**選擇關卡（機動戰士鋼彈 HARD 2，★★☆，SECRET 已奪取）**，
 乾淨狀態、體力 25/80。無程式在跑。下次可直接從關卡列表出擊或改打其他關。
 
+**模擬器/expectiminimax 定案（2026-07-06 深夜，feat/inner-goap 分支）**：
+使用者確認要**求關卡最佳解**，depth-1 不夠、後端模擬必建。已定案收錄
+機制（相位制回合、擊殺再動每回合重置、敵方相位的我方防禦應對
+{閃避/防禦/反擊} 是 max 節點、格子移動與路徑封鎖拆支援防禦網、敵人
+同樣有再動/支援且受特殊能力放大、支援次數每相位重置）；敵方節點預設
+策略模型、介面保留 min；搜尋＝anytime 迭代加深 expectiminimax（殘局
+自動精確，離線解全關=加大預算）。傷害/命中公式已從社群 wiki 調查入檔
+`docs/combat-formulas.md`（閃避修正等待實機標定）。全文見
+agent-architecture.md「戰鬥模擬器與 expectiminimax」節。下一步＝
+實作順序第 11 項模擬器 v0 骨架（issue 見下）。
+
 **架構討論定案（2026-07-06 晚，commits 1dfc800/357bfab/0dccad9，全文見
 agent-architecture.md）**：內層戰鬥 GOAP（#17 主 issue，收編 #12/#13）——
 BattleState 統一盤面、ActionCatalog＝畫面掃描∪能力注入（擊殺再動等編成
