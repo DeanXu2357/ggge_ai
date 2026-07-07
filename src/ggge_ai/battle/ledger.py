@@ -33,6 +33,9 @@ FRAME_KINDS = frozenset(
         "tactical_map",
         "story_dialog",
         "hidden_battle_warning",
+        "unit_detail_modal",
+        "stage_info",
+        "post_select_probe",
         "end_turn",
         "finish",
     }

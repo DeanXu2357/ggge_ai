@@ -90,6 +90,13 @@ screens:
     - 835
     - 420
     - 160
+  stage_info:
+    file: screens/stage_info.png
+    search_region:
+    - 335
+    - 288
+    - 250
+    - 128
   stage_list:
     file: screens/stage_list.png
     search_region:
@@ -400,3 +407,10 @@ elements:
     - 320
     - 110
     screen: battle_map
+  unit_detail_modal:
+    file: elements/unit_detail_modal.png
+    search_region:
+    - 1000
+    - 50
+    - 380
+    - 100

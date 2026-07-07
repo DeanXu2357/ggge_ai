@@ -19,6 +19,9 @@ POPUP_NEXT = (1170, 540)
 HINT_ADVANCE = (1275, 590)
 
 AUTO_STATE_IDS = ("btn_auto_full", "btn_auto_enemy", "btn_auto_manual")
+# the stage-info loading screen advances on a tap; this spot is clear of the
+# top-right AUTO / fast-forward / menu chips and the right-side unit artwork
+STAGE_INFO_TAP = (1170, 975)
 
 
 def _poll(
@@ -114,9 +117,44 @@ class LaunchSortie(Action):
                 time.sleep(3)
                 continue
             screen = ctx.perception.observe().screen
-            if screen in (screens.STORY, screens.BATTLE_MAP):
+            if screen in (screens.STORY, screens.BATTLE_MAP, screens.STAGE_INFO):
                 return True
             time.sleep(2)
+        return True
+
+
+class AdvanceStageInfo(Action):
+    """Handle the pre-battle stage-info loading screen (機動戰士鋼彈 ... STAGE,
+    victory/hidden/defeat conditions, AUTO chip, TAP TO NEXT).
+
+    On this screen we (a) force the AUTO chip to manual with the same helper
+    the battle controller uses, (b) archive the whole frame to the battle
+    ledger as a `stage_info` event so the win conditions can be parsed later
+    (OCR/LLM is a future task; for now we only keep the evidence), and (c) tap
+    to advance. The battle's ledger is opened here and reused by ManualBattle,
+    so the conditions frame and the fight land in one battle_NN.jsonl."""
+
+    name = "advance_stage_info"
+    preconditions = {"screen": screens.STAGE_INFO}
+    effects = {"screen": screens.STORY}
+
+    def execute(self, ctx: ExecutionContext) -> bool:
+        from ...battle.controller import ensure_manual_auto
+
+        if not ensure_manual_auto(ctx.perception, ctx.actuator, timeout_s=30.0):
+            logger.info("could not confirm manual AUTO on stage_info; controller will retry")
+        blackboard = ctx.extras.get("blackboard")
+        ledger = blackboard.open_ledger() if blackboard is not None else None
+        frame = ctx.perception.capture()
+        if ledger is not None:
+            ledger.record("stage_info", frame=frame)
+            logger.info("stage_info frame archived to ledger for later condition parsing")
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            ctx.actuator.tap(*STAGE_INFO_TAP)
+            got = _poll(ctx, lambda g: g.screen != screens.STAGE_INFO, timeout=6, interval=2.0)
+            if got is not None and got.screen != screens.STAGE_INFO:
+                return True
         return True
 
 
@@ -166,7 +204,9 @@ class ManualBattle(Action):
             else None
         )
         blackboard = ctx.extras.get("blackboard")
-        ledger = blackboard.new_ledger() if blackboard is not None else None
+        # reuse the ledger opened at the stage-info screen (if any) so its
+        # conditions frame and this fight share one battle_NN.jsonl
+        ledger = blackboard.take_ledger() if blackboard is not None else None
         controller = ManualBattleController(
             perception=ctx.perception, actuator=ctx.actuator, keyguard=keyguard, ledger=ledger
         )
@@ -271,6 +311,7 @@ class ReturnToStageList(Action):
 CLEAR_STAGE_ACTIONS: list[Action] = [
     EnterSortiePrep(),
     LaunchSortie(),
+    AdvanceStageInfo(),
     SkipStory(),
     ManualBattle(),
     DismissResult(),

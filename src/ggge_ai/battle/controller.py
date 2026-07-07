@@ -53,6 +53,9 @@ END_TURN_EXECUTE = (1365, 850)
 # this modal's corner is the animation/story toggle, unrelated to control
 DECLINE_HIDDEN_BATTLE = (1018, 977)
 CHALLENGE_HIDDEN_BATTLE = (1404, 977)
+# 關閉 button of the 單位設置詳情 modal a stray keyguard drag can open on a map
+# unit; tapping it dismisses the modal and hands control back to the battle
+UNIT_DETAIL_CLOSE = (1176, 992)
 
 AUTO_STATE_IDS = ("btn_auto_full", "btn_auto_enemy", "btn_auto_manual")
 MODE_LABELS = (
@@ -64,6 +67,32 @@ MODE_LABELS = (
 )
 
 TERMINAL_SCREENS = (screens.BATTLE_RESULT, screens.REWARD)
+
+
+def ensure_manual_auto(perception, actuator, timeout_s: float = 60.0) -> bool:
+    """Cycle the AUTO toggle until it reads colorless (full manual).
+
+    Shared by the battle controller and the pre-battle stage-info screen,
+    whose AUTO chip uses the same three-state templates (btn_auto_full at the
+    same corner). Waits for a static frame before each read so the toggle's
+    own transition animation is not misread, and gives up after timeout_s so
+    a screen whose AUTO chip never resolves cannot stall the run."""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if not is_static(perception.capture, threshold=0.02, gap_s=0.3):
+            time.sleep(0.4)
+            continue
+        found = perception.probe(AUTO_STATE_IDS)
+        if not found:
+            time.sleep(0.4)
+            continue
+        state = max(found.values(), key=lambda e: e.confidence).id
+        if state == "btn_auto_manual":
+            return True
+        log.info("AUTO is %s, cycling toward manual", state)
+        actuator.tap(*AUTO_BUTTON)
+        time.sleep(0.9)
+    return False
 
 
 @dataclass
@@ -96,26 +125,12 @@ class ManualBattleController:
     _turn_scouted: bool = False
     _none_streak: int = 0
     _phase_break: bool = False
+    _turn_marker: object | None = None
     tacmap: TacticalMap = field(default_factory=TacticalMap)
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
         """Cycle the AUTO button until it is colorless (full manual)."""
-        deadline = time.time() + timeout_s
-        while time.time() < deadline:
-            if not is_static(self.perception.capture, threshold=0.02, gap_s=0.3):
-                time.sleep(0.4)
-                continue
-            found = self.perception.probe(AUTO_STATE_IDS)
-            if not found:
-                time.sleep(0.4)
-                continue
-            state = max(found.values(), key=lambda e: e.confidence).id
-            if state == "btn_auto_manual":
-                return True
-            log.info("AUTO is %s, cycling toward manual", state)
-            self.actuator.tap(*AUTO_BUTTON)
-            time.sleep(0.9)
-        return False
+        return ensure_manual_auto(self.perception, self.actuator, timeout_s)
 
     def run(self) -> str:
         """Play the battle until a terminal screen. Returns the screen id."""
@@ -159,6 +174,12 @@ class ManualBattleController:
                 self._log("hidden_battle_warning", frame=warning_frame, decision=decision)
                 self.actuator.tap(*button)
                 time.sleep(2.0)
+                last_activity = time.time()
+                continue
+            # a stray keyguard drag or tap can open a modal over the live
+            # battle; it carries no phase label, so close it here before the
+            # label-less path below mistakes it for a phase break and idles out
+            if self._handle_known_modal():
                 last_activity = time.time()
                 continue
             # detect stories by the MENU button itself, not the screen
@@ -227,6 +248,22 @@ class ManualBattleController:
         if self.ledger is not None:
             self.ledger.finish(outcome, frame=self._safe_frame())
 
+    def _handle_known_modal(self) -> bool:
+        """Escape hatch for modals that a stray tap / keyguard drag can open
+        over a live battle. Each carries no phase label, so the main loop would
+        treat it as a phase break and idle out; detect and dismiss it instead.
+        Structured as a table so more modals can be added later."""
+        frame = self._frame()
+        modals = ((vision.is_unit_detail_modal, "unit_detail_modal", UNIT_DETAIL_CLOSE),)
+        for detect, kind, close_btn in modals:
+            if detect(frame):
+                log.warning("%s open mid-battle, closing", kind)
+                self._log(kind, frame=frame)
+                self.actuator.tap(*close_btn)
+                time.sleep(1.5)
+                return True
+        return False
+
     def _current_mode(self) -> str | None:
         found = self.perception.probe(MODE_LABELS)
         if not found:
@@ -247,18 +284,30 @@ class ManualBattleController:
         self._action.reset()
         frame = self._frame()
         if vision.unit_cards_present(frame):
+            marker = vision.crop_turn_marker(frame)
             if self._phase_break:
                 self._phase_break = False
                 self._turn_scouted = False
-                if self.ledger is not None:
-                    self.ledger.next_turn(frame=frame)
-                log.info("new turn detected (turn %d)", self.ledger.turn if self.ledger else 0)
+                # a phase break must be corroborated by the on-screen TURN
+                # number actually changing: a stalled modal used to inflate the
+                # counter while the screen still read the same turn
+                if vision.turn_marker_changed(self._turn_marker, marker):
+                    self._turn_marker = marker
+                    if self.ledger is not None:
+                        self.ledger.next_turn(frame=frame)
+                    log.info(
+                        "new turn detected (turn %d)", self.ledger.turn if self.ledger else 0
+                    )
+                else:
+                    log.warning("phase break without an on-screen TURN change; not advancing")
+            elif self._turn_marker is None:
+                self._turn_marker = marker
             self._snapshot_factions(frame)
             self._scout(frame)
             log.info("selecting next actable unit")
             self._log("select_unit", frame=frame)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
-            time.sleep(1.8)
+            self._probe_after_select()
             return
         # the card strip animates in after the hub appears; confirm it is
         # really empty before ending the turn
@@ -268,12 +317,23 @@ class ManualBattleController:
             log.info("unit cards appeared late, selecting next unit")
             self._log("select_unit", frame=late_frame)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
+            self._probe_after_select()
         else:
             log.info("no actable units left, ending turn")
             self.actuator.tap(*END_TURN_BTN)
             self._phase_break = True
             self._turn_scouted = False
-        time.sleep(1.8)
+            time.sleep(1.8)
+
+    def _probe_after_select(self, count: int = 3, interval_s: float = 1.0) -> None:
+        """Instrument the first-unit-card tap: save a few frames after it so an
+        offline replay can show what the tap opened -- a unit selection, a
+        transition, or a stray modal (the unexplained 20260706 HARD-2 case
+        where a modal appeared ~4s after select with no keyguard event).
+        Doubles as the post-tap settle wait."""
+        for _ in range(count):
+            time.sleep(interval_s)
+            self._log("post_select_probe", frame=self._safe_frame())
 
     def _snapshot_factions(self, frame) -> None:
         if self.ledger is None:

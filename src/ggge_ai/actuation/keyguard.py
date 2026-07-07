@@ -27,6 +27,15 @@ GAME_LOCK_TEMPLATE = (
 )
 GAME_LOCK_REGION = (1040, 320, 260, 230)
 GAME_LOCK_THRESHOLD = 0.75
+# second signal to gate the lock-icon match: TM_CCOEFF_NORMED false-matches the
+# icon on a dark uniform patch of a stalled-but-live battle map (the 20260706
+# HARD-2 stall, where a spurious "lock" drag opened a unit modal on a map unit).
+# the real battery-saver lock dims the *whole* frame (measured grey mean ~12-17
+# on 20260706-231320.png) while an active map -- even a dark one -- stays far
+# brighter (stage_info 47, hub ~73, bright menu 114). require whole-frame mean
+# brightness below this gate before trusting the icon, so a local dark patch on
+# a live map no longer triggers a drag.
+GAME_LOCK_MAX_MEAN = 40.0
 
 
 class Keyguard:
@@ -42,8 +51,14 @@ class Keyguard:
     def is_game_locked(self) -> bool:
         if self.capture is None or self._template is None:
             return False
+        frame = self.capture()
+        # a live battle map is never dim enough to be the battery-saver lock,
+        # so skip the icon match entirely when the frame is bright: it can only
+        # false-match there, never truly lock
+        if float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).mean()) > GAME_LOCK_MAX_MEAN:
+            return False
         x, y, w, h = GAME_LOCK_REGION
-        crop = self.capture()[y : y + h, x : x + w]
+        crop = frame[y : y + h, x : x + w]
         result = cv2.matchTemplate(crop, self._template, cv2.TM_CCOEFF_NORMED)
         _, score, _, _ = cv2.minMaxLoc(result)
         return score >= GAME_LOCK_THRESHOLD

@@ -5,10 +5,19 @@ All coordinates are in the 2340x1080 landscape reference frame.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+
+@lru_cache(maxsize=16)
+def _cached_template(path_str: str) -> np.ndarray | None:
+    """cv2.imread with memoization: templates read on hot controller-loop
+    paths (modal / faction checks) should not touch disk every frame."""
+    return cv2.imread(path_str)
+
 
 STORY_MENU_TEMPLATE = (
     Path(__file__).resolve().parents[3] / "assets" / "templates" / "screens" / "story.png"
@@ -38,6 +47,29 @@ HIDDEN_BATTLE_WARNING_TEMPLATE = (
 # restrict the match there so a high TM_CCOEFF response cannot come from the
 # darkened battle overlay the modal dims behind itself
 HIDDEN_BATTLE_WARNING_REGION = (990, 22, 380, 230)
+
+UNIT_DETAIL_MODAL_TEMPLATE = (
+    Path(__file__).resolve().parents[3]
+    / "assets"
+    / "templates"
+    / "elements"
+    / "unit_detail_modal.png"
+)
+
+# the 單位設置詳情 title sits top-center of the unit-setup detail modal and is
+# identical across its 組合資訊 / 武裝技能 / 能力OP tabs, so it is a stable modal
+# anchor. a stray keyguard drag onto a live map opens this modal on top of an
+# enemy unit; matching the title band (not the dimmed map behind it) detects it
+# so the controller can escape. measured 1.0 on the four 20260706 modal
+# captures and <=0.24 on stage_info / hub / menu frames, so 0.6 is a wide gap.
+UNIT_DETAIL_MODAL_REGION = (1000, 50, 380, 100)
+
+# the our-turn banner prints "TURN <n>" top-left; this box isolates the first
+# digit so its glyph repaint is measurable. the same turn redraws the digit
+# identically (self-correlation ~1.0) while a new turn draws a different glyph,
+# which lets the controller veto phantom turn increments (a stalled modal used
+# to inflate the internal turn counter past the on-screen TURN number).
+TURN_MARKER_REGION = (260, 78, 40, 36)
 
 # a dying unit pops an inline line of dialogue with a cyan ▼ advance cursor
 # that slides horizontally with the line length, so it must be matched free
@@ -89,7 +121,14 @@ def unit_cards_present(frame: np.ndarray) -> bool:
     20260705 HARD-2 loss). Slide a card-width window across the strip and
     test the brightest local block instead: measured on those captures a
     single card peaks at ~0.30 local bright fraction and seven cards at
-    ~0.58, while an idle strip or between-phase animation stays <=0.14."""
+    ~0.58, while an idle strip or between-phase animation stays <=0.14.
+
+    A unit-setup detail modal (opened by a stray keyguard drag) fills the
+    strip band with a bright light-grey panel and trips the brightness gate
+    (measured True on all four 20260706 modal captures). Reject it first so
+    the controller never mistakes an open modal for an actable-unit hub."""
+    if is_unit_detail_modal(frame):
+        return False
     hsv = cv2.cvtColor(_crop(frame, UNIT_CARD_STRIP_BOX), cv2.COLOR_BGR2HSV)
     bright = (hsv[..., 2] > 140).astype(np.float64)
     win = UNIT_CARD_WINDOW
@@ -303,6 +342,44 @@ def is_hidden_battle_warning(frame: np.ndarray, threshold: float = 0.6) -> bool:
     result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
     _, score, _, _ = cv2.minMaxLoc(result)
     return score >= threshold
+
+
+def is_unit_detail_modal(frame: np.ndarray, threshold: float = 0.6) -> bool:
+    """True on the 單位設置詳情 unit-setup detail modal. A stray keyguard drag
+    that lands on a map unit opens it over the live battle; the controller
+    must detect it and tap 關閉 to escape instead of idling out. Matches the
+    top-center title within UNIT_DETAIL_MODAL_REGION so a high TM_CCOEFF
+    response cannot come from the dimmed map the modal draws behind itself."""
+    template = _cached_template(str(UNIT_DETAIL_MODAL_TEMPLATE))
+    if template is None:
+        return False
+    x0, y0, w, h = UNIT_DETAIL_MODAL_REGION
+    band = frame[y0 : y0 + h, x0 : x0 + w]
+    if band.shape[0] < template.shape[0] or band.shape[1] < template.shape[1]:
+        return False
+    result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, _ = cv2.minMaxLoc(result)
+    return score >= threshold
+
+
+def crop_turn_marker(frame: np.ndarray) -> np.ndarray:
+    """Grayscale crop of the on-screen TURN number, for turn-change checks."""
+    x0, y0, w, h = TURN_MARKER_REGION
+    return cv2.cvtColor(frame[y0 : y0 + h, x0 : x0 + w], cv2.COLOR_BGR2GRAY)
+
+
+def turn_marker_changed(
+    prev: np.ndarray | None, cur: np.ndarray | None, threshold: float = 0.85
+) -> bool:
+    """True when the on-screen TURN number visibly differs between two hub
+    frames. The same turn repaints the digit identically (self-correlation
+    ~1.0); a new turn draws a different glyph and scores well under the gate.
+    A missing prior marker counts as changed so the first turn is admitted."""
+    if prev is None or cur is None or prev.shape != cur.shape:
+        return True
+    result = cv2.matchTemplate(cur, prev, cv2.TM_CCOEFF_NORMED)
+    _, score, _, _ = cv2.minMaxLoc(result)
+    return score < threshold
 
 
 def nearest_point(points: list[tuple[int, int]], target: tuple[int, int]) -> tuple[int, int] | None:

@@ -16,6 +16,7 @@ SUPPLY: ScreenId = "supply"
 MENU: ScreenId = "menu"
 
 UNIT_SETUP: ScreenId = "unit_setup"
+STAGE_INFO: ScreenId = "stage_info"
 STORY: ScreenId = "story"
 BATTLE_MAP: ScreenId = "battle_map"
 BATTLE_RESULT: ScreenId = "battle_result"
@@ -35,6 +36,7 @@ ALL_SCREENS = [
     SUPPLY,
     MENU,
     UNIT_SETUP,
+    STAGE_INFO,
     STORY,
     BATTLE_MAP,
     BATTLE_RESULT,
