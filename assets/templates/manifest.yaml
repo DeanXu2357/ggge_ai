@@ -51,10 +51,10 @@ screens:
   main_menu:
     file: screens/main_menu.png
     search_region:
-    - 125
-    - 0
-    - 235
-    - 210
+    - 1596
+    - 676
+    - 394
+    - 192
   menu:
     file: screens/menu.png
     search_region:
