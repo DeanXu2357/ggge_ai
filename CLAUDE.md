@@ -56,12 +56,6 @@
 
 ## 開發紀律
 
-- **分工規則（2026-07-05 使用者定案）**：程式實作一律派給 subagent
-  （Agent 工具，model 指定 `opus` 或 `sonnet`；設計/視覺/控制邏輯等難題
-  用 opus，轉錄、schema、腳本等機械性工作用 sonnet）。主 session（Fable）
-  只做統籌、校驗與驗證：審 subagent 交付的 diff 對照紅線、跑 pytest/ruff、
-  實機驗證、commit。實機操作與長時間實測由主 session 主持，實作 subagent
-  不碰實機。subagent 提示詞必須附紅線摘要與明確驗收標準。
 - 小步提交；`uv run pytest -q` 與 `uv run ruff check src tests scripts`
   全過才 commit。改 `battle/vision.py`、`battle/controller.py` 要附驗證
   證據（實機截圖或流水帳）。
