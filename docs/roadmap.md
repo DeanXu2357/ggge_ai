@@ -1,8 +1,65 @@
 # 進度與規劃
 
-更新日期：2026-07-08（凍結調查收束＋git 修復；修正包仍待實機驗證）
+更新日期：2026-07-08（晚；solver 多層博弈離線批次完成）
 
-## 暫停快照（2026-07-08 凌晨，恢復點）
+## 暫停快照（2026-07-08 晚，恢復點）
+
+**裝置現況**：手機仍拔離。**第四次凍結**：07-08 16:53~16:54（journal 於
+16:53:03 例行訊息後戛然而止，與前三次同簽名）——發生在無裝置、無戰鬥、
+近乎閒置的機器上：session 開始 4 分鐘、`adb devices` 拉起 adb daemon 約
+3 分鐘後。四次凍結的軟體側共同因子收窄為「adb server 常駐」（該 boot
+先前 16.5 小時無 adb 無事）；但 Fedora android-tools 的 adb 無 mDNS，
+閒置 server 只剩 USB bus 掃描，而先前 USB 重度壓測是陰性——機率性硬體
+嫌疑同步上升。詳見 memory `system-freeze-investigation`。**adb server
+已殺掉；開機後可能有東西自動拉起（07-08 20:10 曾見一顆掛在
+systemd --user 下），做無 adb 對照前先 `pgrep adb`。** memtest86+ 過夜
+與 BIOS 更新檢查仍未做。
+
+**本批次成果（離線 solver 主線；151 測試/ruff 全綠）**：
+1. **solver 健全性**（1529e14）：置換表加 exact/lower/upper 界值旗標；
+   Star1 一般化為 n 元期望節點（含敵方 policy 節點）；修掉 fail-soft
+   界值方向寫反的剪枝不健全 bug。回歸手段＝隨機盤面上「剪枝+TT」必須
+   等值於「無剪枝參考」（SolverConfig 的 use_tt/use_star1 開關）。
+2. **行動生成擴充**（a3adbe6）：SimUnit 技能欄（SimSkill：uses/
+   ends_turn）、legal_skills＋reposition_moves（朝各目標推進＋滿移動力
+   後撤）進 _ally_decisions——「補 EN 再打」「欺近畫面外目標」「脫離
+   致死圈」都由搜尋自己發現（各有行為測試）。另修 PV 決策重複前置 bug。
+3. **Sim v1 幾何**（16c52cc）：battle/grid.py BFS 王步可達性——異陣營
+   擋路、我方可穿不可停、SimState 選配地圖邊界；legal_attacks 接 reach
+   集合做繞路落點。測試含「兩機堵咽喉→敵方對後排攻擊消失」端到端案例。
+   支援防禦幾何仍為切比雪夫近似（待辦）。
+4. **Bridge＋Advisor**（52be776）：battle/bridge.py 把 BattleState 量化
+   成 SimState（能力注入→再動/技能/支援欄位；數值權威序＝現場 > spec
+   (OCR/cache) > BridgeDefaults，每個 fallback 記名為假設供歸因）；
+   battle/advisor.py 一呼叫完成 bridge→solve→控制器詞彙（世界座標移動
+   目標/目標 id/武器）＋假設清單＋搜尋統計。
+
+**Issue 分類（完成本分支可解 vs 不可解，2026-07-08 使用者要求）**：
+- 本分支主體：#19（模擬器＋expectiminimax）、#17（內層 GOAP）。
+- 被本分支收編：#13（1.5-ply 站位安全→多層搜尋＋葉評估取代）、#3 的
+  決策端（防禦應對＝solver 的 defender-reaction max 節點；剩敵方回合
+  彈窗感知/handler 是實機部分）。
+- 部分解決（決策端解、感知端待裝置）：#12（ActionCatalog/技能生成已
+  進搜尋；畫面掃描與 execute 接線待 #9/實機）、#14（advisor 以世界座標
+  定移動目標取代全域朝向；輸入品質仍依賴 #5/#6）。
+- 本分支解決不了（正交）：#5（掃描計數失準——solver 輸入品質的根基，
+  最重要的正交依賴）、#6、#1、#4（實機驗證）、#9（OCR——bridge 的
+  UnitSpec 就是它的消費介面）、#8/#11（cache）、#10（戰略迴圈）、
+  #18（視覺回歸庫）。
+
+**恢復步驟（手機接回後）**：① `pgrep adb` 確認對照狀態→接回→截圖
+（可能鎖屏，swipe 1164 430 1164 60 350 解）→ ② 先實機驗證 5b6c811
+修正包（stage_info/keyguard 暗度閘/modal 逃生）→ ③ advisor 影子模式接
+進 controller（每次啟動呼叫 advise() 只記流水帳不執行，離線比對 solver
+vs 現行啟發式的決策差異，controller 接線的實機驗證證據由此而來）→
+④ 敵方回合應對彈窗的感知標定（#3 的實機半）。cell_size 標定：戰術地圖
+格距要從實測畫面量測。
+
+**solver 待辦（不擋接線）**：Star2 probing；支援防禦的路徑感知幾何；
+敵方 policy 模型精化（現為最近目標）；第三方勢力在 solver 中仍為惰性；
+SUPPORT_ATTACK 尚未模擬。
+
+## 舊快照（2026-07-08 凌晨）
 
 **裝置現況**：手機已再次拔離（壓測結束）。遊戲上次確認停在 **HARD 2
 戰鬥中 TURN 1 我方回合 hub**。無程式在跑。注意：手機的
