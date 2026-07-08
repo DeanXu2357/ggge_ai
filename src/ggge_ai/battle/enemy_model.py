@@ -14,9 +14,11 @@ the min node's candidates.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol
 
 from .sim import (
+    Cell,
     Decision,
     MoveValidator,
     SimState,
@@ -28,6 +30,8 @@ from .sim import (
 
 MODE_POLICY = "policy"
 MODE_MIN = "min"
+
+ReachProvider = Callable[[SimState, SimUnit], set[Cell]]
 
 
 class EnemyModel(Protocol):
@@ -48,11 +52,21 @@ class NearestTargetPolicy:
 
     mode = MODE_POLICY
 
-    def __init__(self, move_validator: MoveValidator | None = None) -> None:
+    def __init__(
+        self,
+        move_validator: MoveValidator | None = None,
+        reach_provider: ReachProvider | None = None,
+    ) -> None:
         self._move_validator = move_validator
+        self._reach_provider = reach_provider
 
     def decisions(self, state: SimState, unit: SimUnit) -> list[tuple[Decision, float]]:
-        attacks = legal_attacks(state, unit, move_validator=self._move_validator)
+        attacks = legal_attacks(
+            state,
+            unit,
+            move_validator=self._move_validator,
+            reach=self._reach_provider(state, unit) if self._reach_provider else None,
+        )
         if not attacks:
             return [(standby(unit.unit_id), 1.0)]
         best = min(attacks, key=lambda d: _target_distance(state, unit, d))
@@ -64,11 +78,21 @@ class MinimaxEnemy:
 
     mode = MODE_MIN
 
-    def __init__(self, move_validator: MoveValidator | None = None) -> None:
+    def __init__(
+        self,
+        move_validator: MoveValidator | None = None,
+        reach_provider: ReachProvider | None = None,
+    ) -> None:
         self._move_validator = move_validator
+        self._reach_provider = reach_provider
 
     def decisions(self, state: SimState, unit: SimUnit) -> list[tuple[Decision, float]]:
-        attacks = legal_attacks(state, unit, move_validator=self._move_validator)
+        attacks = legal_attacks(
+            state,
+            unit,
+            move_validator=self._move_validator,
+            reach=self._reach_provider(state, unit) if self._reach_provider else None,
+        )
         candidates = [*attacks, standby(unit.unit_id)]
         weight = 1.0 / len(candidates)
         return [(d, weight) for d in candidates]

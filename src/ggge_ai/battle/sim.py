@@ -180,11 +180,16 @@ class Decision:
 
 @dataclass
 class SimState:
-    """The grid board plus phase/turn, cheap to clone for node expansion."""
+    """The grid board plus phase/turn, cheap to clone for node expansion.
+
+    bounds is ((min_x, min_y), (max_x, max_y)) inclusive, or None for an
+    unbounded board (v0 behaviour); only the grid-aware validators read it.
+    """
 
     units: list[SimUnit] = field(default_factory=list)
     phase: Phase = Phase.ALLY
     turn: int = 1
+    bounds: tuple[Cell, Cell] | None = None
 
     def add_unit(self, unit: SimUnit) -> SimUnit:
         self.units.append(unit)
@@ -212,6 +217,7 @@ class SimState:
             units=[u.clone() for u in self.units],
             phase=self.phase,
             turn=self.turn,
+            bounds=self.bounds,
         )
 
     def phase_index(self) -> int:
@@ -300,8 +306,15 @@ def legal_attacks(
     unit: SimUnit,
     *,
     move_validator: MoveValidator | None = None,
+    reach: set[Cell] | None = None,
 ) -> list[Decision]:
-    """Attack decisions for a unit: each reachable target x usable weapon."""
+    """Attack decisions for a unit: each reachable target x usable weapon.
+
+    `reach` is the unit's path-aware reachable cell set (battle.grid). When
+    given it replaces the validator for destination legality and, if the
+    straight-line approach is blocked, supplies a detour: the closest
+    reachable cell that puts the target inside the weapon band.
+    """
     validate = move_validator or default_move_validator
     out: list[Decision] = []
     for target in targets_of(state, unit):
@@ -311,9 +324,21 @@ def legal_attacks(
             dest = approach(
                 unit.pos, target.pos, unit.move_range, weapon.range_min, weapon.range_max
             )
+            if dest is not None and dest != unit.pos:
+                if reach is not None:
+                    if dest not in reach:
+                        dest = None
+                elif not validate(state, unit, dest):
+                    dest = None
+            if dest is None and reach is not None:
+                band = [
+                    c
+                    for c in reach
+                    if weapon.range_min <= chebyshev(c, target.pos) <= weapon.range_max
+                ]
+                if band:
+                    dest = min(band, key=lambda c: (chebyshev(unit.pos, c), c))
             if dest is None:
-                continue
-            if dest != unit.pos and not validate(state, unit, dest):
                 continue
             out.append(
                 Decision(

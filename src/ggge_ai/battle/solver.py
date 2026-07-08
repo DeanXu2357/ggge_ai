@@ -31,7 +31,7 @@ from dataclasses import dataclass, field, replace
 
 from . import formulas
 from .actions import ActionKind
-from .enemy_model import MODE_MIN, EnemyModel
+from .enemy_model import MODE_MIN, EnemyModel, ReachProvider
 from .sim import (
     DEFAULT_PARAMS,
     Decision,
@@ -84,6 +84,7 @@ class SolverConfig:
     weights: EvalWeights = field(default_factory=EvalWeights)
     params: SimParams = DEFAULT_PARAMS
     move_validator: MoveValidator | None = None
+    reach_provider: ReachProvider | None = None
     use_tt: bool = True
     use_star1: bool = True
 
@@ -157,7 +158,13 @@ def _current_faction(state: SimState) -> Faction:
 
 def _ally_decisions(state: SimState, unit: SimUnit, ctx: SearchContext) -> list[Decision]:
     """Attacks first (best alpha-raisers), then skills, positioning, standby."""
-    decisions = legal_attacks(state, unit, move_validator=ctx.config.move_validator)
+    provider = ctx.config.reach_provider
+    decisions = legal_attacks(
+        state,
+        unit,
+        move_validator=ctx.config.move_validator,
+        reach=provider(state, unit) if provider else None,
+    )
     decisions.extend(legal_skills(unit))
     decisions.extend(
         reposition_moves(state, unit, move_validator=ctx.config.move_validator)
