@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 class ActionKind:
     ATTACK = "attack"
     STANDBY = "standby"
+    MOVE = "move"
     SELECT_UNIT = "select_unit"
     SKILL_EN_REFILL = "skill_en_refill"
     SKILL_HEAL = "skill_heal"

@@ -89,6 +89,22 @@ class SimWeapon:
 
 
 @dataclass
+class SimSkill:
+    """A usable skill in the unit's inventory (EN refill / heal, content).
+
+    `uses` is the remaining charge count the search decrements. `ends_turn`
+    is mechanism: whether firing the skill consumes the activation -- the
+    real value is read from the game per skill; True is the conservative
+    default. `amount` None means "restore to full".
+    """
+
+    kind: str
+    amount: float | None = None
+    uses: int = 1
+    ends_turn: bool = True
+
+
+@dataclass
 class SimUnit:
     """A unit on the grid board with the search's dynamic fields."""
 
@@ -107,6 +123,7 @@ class SimUnit:
     mobility: float = 0.0
     move_range: int = 0
     weapons: list[SimWeapon] = field(default_factory=list)
+    skills: list[SimSkill] = field(default_factory=list)
     acted: bool = False
     react_charges: int = 0
     react_charges_max: int = 0
@@ -126,7 +143,11 @@ class SimUnit:
         return None
 
     def clone(self) -> SimUnit:
-        return replace(self, weapons=list(self.weapons))
+        return replace(
+            self,
+            weapons=list(self.weapons),
+            skills=[replace(s) for s in self.skills],
+        )
 
 
 @dataclass
@@ -210,6 +231,7 @@ class SimState:
                     u.acted,
                     u.react_charges,
                     u.support_charges,
+                    tuple(s.uses for s in u.skills),
                 )
                 for u in self.units
             )
@@ -307,6 +329,78 @@ def legal_attacks(
 
 def standby(unit_id: str) -> Decision:
     return Decision(unit_id=unit_id, kind=ActionKind.STANDBY)
+
+
+def legal_skills(unit: SimUnit) -> list[Decision]:
+    """Skill decisions that would change something right now (self-target v0)."""
+    out: list[Decision] = []
+    for skill in unit.skills:
+        if skill.uses <= 0:
+            continue
+        if skill.kind == ActionKind.SKILL_EN_REFILL and unit.en < unit.en_max:
+            out.append(Decision(unit_id=unit.unit_id, kind=skill.kind, amount=skill.amount))
+        elif skill.kind == ActionKind.SKILL_HEAL and unit.hp < unit.max_hp:
+            out.append(Decision(unit_id=unit.unit_id, kind=skill.kind, amount=skill.amount))
+    return out
+
+
+def _first_valid_step(
+    state: SimState,
+    unit: SimUnit,
+    direction_target: Cell,
+    validate: MoveValidator,
+) -> Cell | None:
+    """Longest valid move along the king-move line toward direction_target."""
+    for steps in range(unit.move_range, 0, -1):
+        dest = move_toward(unit.pos, direction_target, steps)
+        if dest != unit.pos and validate(state, unit, dest):
+            return dest
+    return None
+
+
+def reposition_moves(
+    state: SimState,
+    unit: SimUnit,
+    *,
+    move_validator: MoveValidator | None = None,
+) -> list[Decision]:
+    """Pure positioning candidates: toward each target, away from the nearest.
+
+    These give the search destinations that matter tactically without
+    enumerating every reachable cell: closing distance on out-of-reach
+    targets and opening distance from the nearest threat. Standby covers
+    holding position.
+    """
+    validate = move_validator or default_move_validator
+    if unit.move_range <= 0:
+        return []
+    targets = targets_of(state, unit)
+    cells: list[Cell] = []
+    for target in targets:
+        dest = _first_valid_step(state, unit, target.pos, validate)
+        if dest is not None:
+            cells.append(dest)
+    if targets:
+        nearest = min(targets, key=lambda t: chebyshev(unit.pos, t.pos))
+        sx = (unit.pos[0] > nearest.pos[0]) - (unit.pos[0] < nearest.pos[0])
+        sy = (unit.pos[1] > nearest.pos[1]) - (unit.pos[1] < nearest.pos[1])
+        if sx == 0 and sy == 0:
+            sx = 1
+        away = (
+            unit.pos[0] + sx * unit.move_range,
+            unit.pos[1] + sy * unit.move_range,
+        )
+        dest = _first_valid_step(state, unit, away, validate)
+        if dest is not None:
+            cells.append(dest)
+    out: list[Decision] = []
+    seen: set[Cell] = set()
+    for cell in cells:
+        if cell in seen:
+            continue
+        seen.add(cell)
+        out.append(Decision(unit_id=unit.unit_id, kind=ActionKind.MOVE, move_to=cell))
+    return out
 
 
 def _current_faction(state: SimState) -> Faction:
@@ -461,14 +555,23 @@ def _apply_counter(
         attacker.hp -= compute_damage(defender, attacker, weapon, 1.0, params)
 
 
-def _apply_skill(actor: SimUnit, state: SimState, decision: Decision) -> None:
+def _apply_skill(actor: SimUnit, state: SimState, decision: Decision) -> bool:
+    """Fire a skill from the actor's inventory; return whether it ends the turn."""
+    skill = next(
+        (s for s in actor.skills if s.kind == decision.kind and s.uses > 0), None
+    )
+    if skill is None:
+        return True
+    skill.uses -= 1
     target = state.unit(decision.target_id) or actor
+    amount = decision.amount if decision.amount is not None else skill.amount
     if decision.kind == ActionKind.SKILL_EN_REFILL:
-        amount = decision.amount if decision.amount is not None else target.en_max
-        target.en = min(target.en_max, target.en + int(amount))
+        gain = int(amount) if amount is not None else target.en_max
+        target.en = min(target.en_max, target.en + gain)
     elif decision.kind == ActionKind.SKILL_HEAL:
-        amount = decision.amount if decision.amount is not None else target.max_hp
-        target.hp = min(target.max_hp, target.hp + int(amount))
+        gain = int(amount) if amount is not None else target.max_hp
+        target.hp = min(target.max_hp, target.hp + gain)
+    return skill.ends_turn
 
 
 def step(
@@ -491,16 +594,17 @@ def step(
             actor.pos = decision.move_to
 
     killed = False
+    ends_turn = True
     if decision.kind == ActionKind.ATTACK:
         killed = _apply_attack(s, actor, decision, params)
     elif decision.kind in (ActionKind.SKILL_EN_REFILL, ActionKind.SKILL_HEAL):
-        _apply_skill(actor, s, decision)
+        ends_turn = _apply_skill(actor, s, decision)
 
     if killed and actor.alive and actor.react_charges > 0:
         actor.react_charges -= 1
         actor.acted = False
     else:
-        actor.acted = True
+        actor.acted = ends_turn
 
     _remove_dead(s)
     _advance_until_pending(s)

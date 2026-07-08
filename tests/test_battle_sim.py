@@ -175,3 +175,52 @@ def test_legal_attacks_enumerates_reachable_targets():
     hit_ids = {d.target_id for d in decisions}
     assert "near" in hit_ids
     assert "far" not in hit_ids
+
+
+def test_skill_en_refill_consumes_inventory_and_activation():
+    from ggge_ai.battle.sim import SimSkill
+
+    ally = _ally(en=0, weapons=[_rifle(en_cost=10)],
+                 skills=[SimSkill(ActionKind.SKILL_EN_REFILL)])
+    s = SimState(units=[ally, _enemy()])
+    s2 = step(s, Decision("a", ActionKind.SKILL_EN_REFILL))
+    u = s2.unit("a")
+    assert u.en == 20
+    assert u.skills[0].uses == 0
+    assert u.acted is True
+    assert s2.phase is Phase.ENEMY
+
+
+def test_skill_without_inventory_is_a_wasted_activation():
+    ally = _ally(en=0, weapons=[_rifle(en_cost=10)])
+    s = SimState(units=[ally, _enemy()])
+    s2 = step(s, Decision("a", ActionKind.SKILL_EN_REFILL))
+    u = s2.unit("a")
+    assert u.en == 0
+    assert u.acted is True
+
+
+def test_non_turn_ending_skill_keeps_unit_pending():
+    from ggge_ai.battle.sim import SimSkill
+
+    ally = _ally(en=0, weapons=[_rifle(en_cost=10)],
+                 skills=[SimSkill(ActionKind.SKILL_EN_REFILL, ends_turn=False)])
+    s = SimState(units=[ally, _enemy()])
+    s2 = step(s, Decision("a", ActionKind.SKILL_EN_REFILL))
+    u = s2.unit("a")
+    assert u.en == 20
+    assert u.acted is False
+    assert s2.phase is Phase.ALLY
+
+
+def test_reposition_moves_offer_advance_and_retreat():
+    from ggge_ai.battle.sim import chebyshev, reposition_moves
+
+    ally = _ally(pos=(0, 0), move_range=2, weapons=[])
+    enemy = _enemy(pos=(5, 0))
+    s = SimState(units=[ally, enemy])
+    moves = reposition_moves(s, ally)
+    dests = {d.move_to for d in moves}
+    assert (2, 0) in dests
+    assert any(chebyshev(c, enemy.pos) > 5 for c in dests)
+    assert all(d.kind == ActionKind.MOVE for d in moves)

@@ -43,6 +43,8 @@ from .sim import (
     SimState,
     SimUnit,
     legal_attacks,
+    legal_skills,
+    reposition_moves,
     standby,
     step,
 )
@@ -154,7 +156,12 @@ def _current_faction(state: SimState) -> Faction:
 
 
 def _ally_decisions(state: SimState, unit: SimUnit, ctx: SearchContext) -> list[Decision]:
+    """Attacks first (best alpha-raisers), then skills, positioning, standby."""
     decisions = legal_attacks(state, unit, move_validator=ctx.config.move_validator)
+    decisions.extend(legal_skills(unit))
+    decisions.extend(
+        reposition_moves(state, unit, move_validator=ctx.config.move_validator)
+    )
     decisions.append(standby(unit.unit_id))
     return decisions
 
@@ -245,7 +252,7 @@ def _max_node(
     for decision in _ally_decisions(state, actor, ctx):
         value, pv = _decision_value(state, decision, depth, alpha, beta, ctx)
         if value > best:
-            best, best_pv = value, [decision, *pv]
+            best, best_pv = value, pv
         alpha = max(alpha, best)
         if alpha >= beta:
             break
@@ -262,7 +269,7 @@ def _enemy_node(
         for decision, _prob in candidates:
             value, pv = _decision_value(state, decision, depth, alpha, beta, ctx)
             if value < best:
-                best, best_pv = value, [decision, *pv]
+                best, best_pv = value, pv
             beta = min(beta, best)
             if alpha >= beta:
                 break
@@ -329,7 +336,11 @@ def _expectation(
 def _decision_value(
     state: SimState, decision: Decision, depth: int, alpha: float, beta: float, ctx: SearchContext
 ) -> tuple[float, list[Decision]]:
-    """Route a decision through the defender-reaction max and the chance node."""
+    """Route a decision through the defender-reaction max and the chance node.
+
+    This is the single place that prefixes the decision onto the pv, so the
+    line records the defence response actually chosen.
+    """
     actor = state.unit(decision.unit_id)
     target = state.unit(decision.target_id)
     if (
@@ -346,12 +357,13 @@ def _decision_value(
             responded = replace(decision, defense=response)
             value, pv = _chance_value(state, responded, depth, alpha, beta, ctx)
             if value > best:
-                best, best_pv = value, pv
+                best, best_pv = value, [responded, *pv]
             alpha = max(alpha, best)
             if alpha >= beta:
                 break
         return best, best_pv
-    return _chance_value(state, decision, depth, alpha, beta, ctx)
+    value, pv = _chance_value(state, decision, depth, alpha, beta, ctx)
+    return value, [decision, *pv]
 
 
 def _chance_value(
@@ -359,18 +371,15 @@ def _chance_value(
 ) -> tuple[float, list[Decision]]:
     if decision.kind != ActionKind.ATTACK:
         nxt = _step(state, decision, ctx)
-        value, pv = _search(nxt, _depth_after(state, nxt, depth), alpha, beta, ctx)
-        return value, [decision, *pv]
+        return _search(nxt, _depth_after(state, nxt, depth), alpha, beta, ctx)
 
     prob = _hit_probability(state, decision, ctx)
     if prob >= 1.0:
         nxt = _step(state, replace(decision, hit=True), ctx)
-        value, pv = _search(nxt, _depth_after(state, nxt, depth), alpha, beta, ctx)
-        return value, [decision, *pv]
+        return _search(nxt, _depth_after(state, nxt, depth), alpha, beta, ctx)
     if prob <= 0.0:
         nxt = _step(state, replace(decision, hit=False), ctx)
-        value, pv = _search(nxt, _depth_after(state, nxt, depth), alpha, beta, ctx)
-        return value, [decision, *pv]
+        return _search(nxt, _depth_after(state, nxt, depth), alpha, beta, ctx)
 
     def make_resolver(hit: bool):
         def resolve(ax: float, bx: float) -> tuple[float, list[Decision]]:
@@ -380,8 +389,7 @@ def _chance_value(
         return resolve
 
     branches = [(prob, make_resolver(True)), (1.0 - prob, make_resolver(False))]
-    value, pv = _expectation(branches, alpha, beta, ctx)
-    return value, [decision, *pv]
+    return _expectation(branches, alpha, beta, ctx)
 
 
 def solve(
