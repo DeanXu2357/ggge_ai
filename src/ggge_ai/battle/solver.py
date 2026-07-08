@@ -1,8 +1,11 @@
-"""Expectiminimax solver skeleton over the battle simulator.
+"""Expectiminimax solver over the battle simulator.
 
 Anytime iterative deepening (depth unit = one phase) with a time budget, a
-transposition table keyed on SimState.key(), and Star1 pruning at chance
-nodes (Star2 is left as a TODO). Node type follows *who decides now*
+transposition table keyed on SimState.key() carrying exact/lower/upper bound
+flags, and Star1 pruning generalised to every expectation node -- both the
+hit/miss chance node and the enemy policy node get interval-narrowed child
+windows, and a cutoff propagates the guaranteed bound (fail-soft). Star2
+probing is still a TODO. Node type follows *who decides now*
 (docs/agent-architecture.md), not the phase:
 
   - our unit acting in the ally phase -> max node;
@@ -79,6 +82,13 @@ class SolverConfig:
     weights: EvalWeights = field(default_factory=EvalWeights)
     params: SimParams = DEFAULT_PARAMS
     move_validator: MoveValidator | None = None
+    use_tt: bool = True
+    use_star1: bool = True
+
+
+_FLAG_EXACT = 0
+_FLAG_LOWER = 1
+_FLAG_UPPER = 2
 
 
 class _Timeout(Exception):
@@ -190,23 +200,41 @@ def _search(
         return ctx.evaluator(state, ctx), []
 
     key = (state.key(), depth)
-    cached = ctx.tt.get(key)
-    if cached is not None:
-        return cached
+    if ctx.config.use_tt:
+        cached = ctx.tt.get(key)
+        if cached is not None:
+            flag, value, pv = cached
+            if flag == _FLAG_EXACT:
+                return value, pv
+            if flag == _FLAG_LOWER:
+                if value >= beta:
+                    return value, pv
+                alpha = max(alpha, value)
+            else:
+                if value <= alpha:
+                    return value, pv
+                beta = min(beta, value)
 
     actor = _next_actor(state)
     if actor is None:
         return ctx.evaluator(state, ctx), []
 
     if actor.faction is Faction.ALLY:
-        result = _max_node(state, actor, depth, alpha, beta, ctx)
+        value, pv = _max_node(state, actor, depth, alpha, beta, ctx)
     elif actor.faction is Faction.ENEMY:
-        result = _enemy_node(state, actor, depth, alpha, beta, ctx)
+        value, pv = _enemy_node(state, actor, depth, alpha, beta, ctx)
     else:
-        result = ctx.evaluator(state, ctx), []
+        value, pv = ctx.evaluator(state, ctx), []
 
-    ctx.tt[key] = result
-    return result
+    if ctx.config.use_tt:
+        if value <= alpha:
+            flag = _FLAG_UPPER
+        elif value >= beta:
+            flag = _FLAG_LOWER
+        else:
+            flag = _FLAG_EXACT
+        ctx.tt[key] = (flag, value, pv)
+    return value, pv
 
 
 def _max_node(
@@ -240,17 +268,62 @@ def _enemy_node(
                 break
         return best, best_pv
 
-    total = 0.0
-    norm = 0.0
+    if not candidates:
+        return ctx.evaluator(state, ctx), []
+
+    def make_resolver(decision: Decision):
+        def resolve(ax: float, bx: float) -> tuple[float, list[Decision]]:
+            return _decision_value(state, decision, depth, ax, bx, ctx)
+
+        return resolve
+
+    branches = [(prob, make_resolver(decision)) for decision, prob in candidates]
+    return _expectation(branches, alpha, beta, ctx)
+
+
+def _expectation(
+    branches: list[tuple[float, Callable[[float, float], tuple[float, list[Decision]]]]],
+    alpha: float,
+    beta: float,
+    ctx: SearchContext,
+) -> tuple[float, list[Decision]]:
+    """Exact probability-weighted expectation with Star1 child windows.
+
+    Each branch resolver is called with its own (ax, bx) window derived from
+    the exact mass accumulated so far and the [vmin, vmax] envelope of the
+    remaining mass. A child value at or beyond its window proves the node
+    fails the parent window, so the guaranteed bound is returned fail-soft:
+    the remaining mass is priced at vmin on a fail-high and vmax on a
+    fail-low. With use_star1 off, children get the full window and the sum
+    is exact. The pv reported is the highest-probability branch's.
+    """
+    total = sum(prob for prob, _ in branches)
+    if total <= 0.0:
+        raise ValueError("expectation node needs positive probability mass")
+    vmin, vmax = ctx.vmin, ctx.vmax
+    acc = 0.0
+    rest = total
     best_prob = -1.0
-    best_pv = []
-    for decision, prob in candidates:
-        value, pv = _decision_value(state, decision, depth, alpha, beta, ctx)
-        total += prob * value
-        norm += prob
+    best_pv: list[Decision] = []
+    for prob, resolve in branches:
+        rest -= prob
+        if prob <= 0.0:
+            continue
+        if ctx.config.use_star1:
+            ax = (alpha * total - acc - rest * vmax) / prob
+            bx = (beta * total - acc - rest * vmin) / prob
+        else:
+            ax, bx = -_INF, _INF
+        value, pv = resolve(ax, bx)
         if prob > best_prob:
-            best_prob, best_pv = prob, [decision, *pv]
-    return (total / norm if norm else ctx.evaluator(state, ctx)), best_pv
+            best_prob, best_pv = prob, pv
+        if ctx.config.use_star1:
+            if value >= bx:
+                return (acc + prob * value + rest * vmin) / total, best_pv
+            if value <= ax:
+                return (acc + prob * value + rest * vmax) / total, best_pv
+        acc += prob * value
+    return acc / total, best_pv
 
 
 def _decision_value(
@@ -274,6 +347,9 @@ def _decision_value(
             value, pv = _chance_value(state, responded, depth, alpha, beta, ctx)
             if value > best:
                 best, best_pv = value, pv
+            alpha = max(alpha, best)
+            if alpha >= beta:
+                break
         return best, best_pv
     return _chance_value(state, decision, depth, alpha, beta, ctx)
 
@@ -296,21 +372,16 @@ def _chance_value(
         value, pv = _search(nxt, _depth_after(state, nxt, depth), alpha, beta, ctx)
         return value, [decision, *pv]
 
-    vmin, vmax = ctx.vmin, ctx.vmax
-    ax = max(vmin, (alpha - (1.0 - prob) * vmax) / prob)
-    bx = min(vmax, (beta - (1.0 - prob) * vmin) / prob)
-    hit_state = _step(state, replace(decision, hit=True), ctx)
-    v_hit, pv_hit = _search(hit_state, _depth_after(state, hit_state, depth), ax, bx, ctx)
-    if v_hit >= bx:
-        return prob * v_hit + (1.0 - prob) * vmax, [decision, *pv_hit]
-    if v_hit <= ax:
-        return prob * v_hit + (1.0 - prob) * vmin, [decision, *pv_hit]
+    def make_resolver(hit: bool):
+        def resolve(ax: float, bx: float) -> tuple[float, list[Decision]]:
+            nxt = _step(state, replace(decision, hit=hit), ctx)
+            return _search(nxt, _depth_after(state, nxt, depth), ax, bx, ctx)
 
-    ay = max(vmin, (alpha - prob * v_hit) / (1.0 - prob))
-    by = min(vmax, (beta - prob * v_hit) / (1.0 - prob))
-    miss_state = _step(state, replace(decision, hit=False), ctx)
-    v_miss, _ = _search(miss_state, _depth_after(state, miss_state, depth), ay, by, ctx)
-    return prob * v_hit + (1.0 - prob) * v_miss, [decision, *pv_hit]
+        return resolve
+
+    branches = [(prob, make_resolver(True)), (1.0 - prob, make_resolver(False))]
+    value, pv = _expectation(branches, alpha, beta, ctx)
+    return value, [decision, *pv]
 
 
 def solve(

@@ -1,3 +1,7 @@
+import random
+
+import pytest
+
 from ggge_ai.battle.actions import ActionKind
 from ggge_ai.battle.enemy_model import (
     MinimaxEnemy,
@@ -108,6 +112,52 @@ def test_smoke_4v4_returns_legal_first_step_within_budget():
     assert result.stats.depth >= 1
     assert result.stats.nodes > 0
     assert result.decision.unit_id in {u.unit_id for u in state.allies()}
+
+
+def _random_state(rng):
+    cells = rng.sample([(x, y) for x in range(5) for y in range(5)], 4)
+    units = []
+    for i in range(2):
+        units.append(SimUnit(
+            unit_id=f"a{i}", faction=Faction.ALLY, pos=cells[i],
+            hp=rng.randrange(20, 121), max_hp=120,
+            en=rng.randrange(0, 31), en_max=30,
+            unit_attack=4000, pilot_attack=rng.randrange(800, 1400),
+            unit_defense=800, pilot_defense=600,
+            reaction=rng.randrange(1500, 3200), mobility=rng.randrange(0, 2000),
+            move_range=rng.randrange(1, 4),
+            weapons=[SimWeapon("w", power=rng.randrange(1500, 6000), range_min=1,
+                               range_max=rng.randrange(1, 4),
+                               en_cost=rng.choice([0, 5, 10]))],
+            react_charges=rng.randrange(0, 2), react_charges_max=1,
+            support_charges=rng.randrange(0, 2), support_charges_max=1,
+        ))
+    for i in range(2):
+        units.append(SimUnit(
+            unit_id=f"e{i}", faction=Faction.ENEMY, pos=cells[2 + i],
+            hp=rng.randrange(20, 121), max_hp=120,
+            en=rng.randrange(0, 31), en_max=30,
+            unit_attack=4000, pilot_attack=rng.randrange(800, 1400),
+            unit_defense=800, pilot_defense=600,
+            reaction=rng.randrange(1500, 3200), mobility=rng.randrange(0, 2000),
+            move_range=rng.randrange(1, 4),
+            weapons=[SimWeapon("w", power=rng.randrange(1500, 6000), range_min=1,
+                               range_max=rng.randrange(1, 4),
+                               en_cost=rng.choice([0, 5, 10]))],
+        ))
+    return SimState(units=units)
+
+
+def test_pruning_and_tt_match_unpruned_reference():
+    for seed in range(8):
+        state = _random_state(random.Random(seed))
+        for model in (NearestTargetPolicy(), MinimaxEnemy()):
+            fast = solve(state, model, SolverConfig(time_budget_s=60.0, max_depth=3))
+            slow = solve(state, model, SolverConfig(time_budget_s=60.0, max_depth=3,
+                                                    use_tt=False, use_star1=False))
+            assert fast.stats.depth == slow.stats.depth == 3
+            assert fast.value == pytest.approx(slow.value, abs=1e-6)
+            assert fast.stats.nodes <= slow.stats.nodes
 
 
 def _attack(state, attacker_id, target_id, defense):
