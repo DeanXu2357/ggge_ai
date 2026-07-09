@@ -1,8 +1,56 @@
 # 進度與規劃
 
-更新日期：2026-07-09（GitHub issue 同步＋任務排序定案，開始 #18）
+更新日期：2026-07-09（晚；#18 首批＋#5 根因線索＋roster_calibration 設計）
 
-## 暫停快照（2026-07-09，恢復點）
+## 暫停快照（2026-07-09 晚，恢復點）
+
+**裝置現況**：跟上一快照相同（`adb devices` 顯示實體連接但 `no
+permissions`，未處理，本次工作全程沒再碰 adb/裝置）。
+
+**本批次成果（163 測試/1 xfail、ruff 全綠，commits 46a5a70/8c21883）**：
+
+1. **#5 根因新線索（重大）**：用 #18 取樣時發現，`20260706-233847.png`
+   （真實「我軍回合、選單位」hub 畫面）上 `find_ally_units` 誤判 0、
+   `find_enemy_units` 誤判 9 個假陽性。深查後：現行 HSV 閾值的敵方紅
+   校準來源（`20260705-170520.png`）其實是**敵方回合**畫面，跟控制器
+   實際掃描發生的**我方回合單位選取 hub**畫面是不同 UI 狀態；hub 狀態
+   下未行動我方單位的弧線色相跟敵方紅幾乎同色相（2026-07-09 量測皆
+   中位數 hue 3-8）。也就是「閾值對錯了畫面狀態校準」，不是漏了一個
+   色域，補帶反而會讓真敵方一起被 `find_ally_units` 誤收。副觀察：
+   同一張圖裡已行動/未行動單位弧色不同（一藍一紅相鄰），暗示紅色
+   可能是「本回合待行動」高亮而非純陣營色，待更多樣本驗證。**沒有
+   修 `vision.py`**——證據不足以安全重新校準，只把此圖存成 #18 的
+   xfail 回歸案例釘住現象，詳見 CLAUDE.md 視覺辨識避坑節與
+   `tests/fixtures/vision/hp_arc/our_turn_hub_pink_bug.json`。
+2. **#18 視覺回歸測試庫首批**（46a5a70）：`scripts/curate_fixture.py`
+   （真實截圖裁切→`tests/fixtures/vision/<類別>/<案例>.{jpg,png}+json`）
+   ＋ `tests/test_vision_regression.py`（回歸掃描語料庫，xfail 支援）。
+   首批 10 案例涵蓋 hp_arc／unit_cards／unit_detail_modal／
+   hidden_battle_warning／defeat_screen 五類，全部來自真實截圖（戰敗
+   用真模板疊真背景合成，因語料庫目前沒有真正輸掉的截圖）。hp_arc 類
+   改存 PNG 無損——JPEG q85/90/95 對這種像素級色彩/形狀判斷會非單調地
+   翻轉 blob 分類（實測證據見 commit）。**尚缺**：screen_mode、
+   template_locate（MENU 漂移/結束回合對話框）、keyguard 暗幀負例
+   三類，留待下次擴充。
+3. **roster_calibration 設計骨架**（8c21883）：回應使用者對顏色判斵
+   可靠度的質疑，提出「單位列表點擊＋鏡頭跳轉量測」取代弧色判斷我方
+   身分/位置的方案——單位列表天然只列可操控單位（含未來換邊劇情也
+   成立），點擊造成的鏡頭跳轉用既有 `vision.measure_camera_shift`
+   （純地形相位相關，不碰單位顏色）量測、串接成 slot→世界座標表。
+   `battle/roster_calibration.py` 只含串接運算，裝置相關常數（列表鈕
+   座標、列表列間距、選取單位鏡頭歸位錨點）全部注入，未硬編造值——
+   這些待裝置接回才能實測校準，目前用假 capture/tap/shift 測試純運算
+   邏輯（`tests/test_roster_calibration.py`）。**尚未接進
+   controller.py**，屬 track 1（裝置門檻）工作。
+
+**GitHub 同步**：#5 留言記錄根因新線索；#18 留言記錄首批完成與缺口。
+
+**下一步（沿用 2026-07-09 稍早定案的排序，見下方舊快照）**：軌道 0
+剩餘部分（#18 補三類）可以再擠一點，但主要卡點還是裝置——`no
+permissions` 沒解決之前，軌道 1（驗證 5b6c811、#5/#6、advisor 影子
+模式、roster_calibration 裝置常數標定）都動不了。
+
+## 舊快照（2026-07-09 早）
 
 **裝置現況**：`adb devices` 顯示 R5CRC37JBYJ 已實體連接但 `no permissions`
 （與上一快照「手機仍拔離」不符，可能使用者已插回但尚未在裝置上重新授權
