@@ -1,0 +1,28 @@
+{
+  "check": "hp_arc_counts",
+  "expect": {
+    "enemies": {
+      "max": 0
+    },
+    "allies": {
+      "min": 10
+    },
+    "third_party": {
+      "max": 0
+    }
+  },
+  "box": [
+    150,
+    90,
+    1510,
+    780
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "our_turn_hub_pink_bug.png",
+  "source": "assets/screenshots/20260706-233847.png",
+  "note": "我方回合、單位選取hub畫面：未行動我方單位弧線色相偏紅，與敵方紅band幾乎同色相(2026-07-09量測皆中位數hue3-8)。find_ally_units誤判0、find_enemy_units誤判9個假陽性。閾值校準來源(20260705-170520.png)是敵方回合畫面，跟這個hub狀態的弧線渲染不同狀態，尚無足夠hub樣本重新校準，見#5對話紀錄。",
+  "xfail_reason": "known false-negative(ally)/false-positive(enemy) on our-turn unit-select hub state; see issue #5"
+}

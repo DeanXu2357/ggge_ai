@@ -1,0 +1,17 @@
+{
+  "check": "unit_detail_modal",
+  "expect": true,
+  "box": [
+    1000,
+    50,
+    380,
+    100
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "modal_positive.jpg",
+  "source": "assets/screenshots/20260706-233709.png",
+  "note": "單位設置詳情modal標題帶正例。"
+}

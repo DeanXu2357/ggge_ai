@@ -1,0 +1,17 @@
+{
+  "check": "unit_cards_present",
+  "expect": true,
+  "box": [
+    170,
+    50,
+    1210,
+    990
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_has_cards.jpg",
+  "source": "assets/screenshots/20260706-233847.png",
+  "note": "正常我方回合hub，卡片可見，無modal。"
+}

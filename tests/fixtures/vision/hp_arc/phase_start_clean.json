@@ -1,0 +1,27 @@
+{
+  "check": "hp_arc_counts",
+  "expect": {
+    "enemies": {
+      "max": 0
+    },
+    "allies": {
+      "min": 4
+    },
+    "third_party": {
+      "max": 0
+    }
+  },
+  "box": [
+    150,
+    90,
+    1510,
+    780
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "phase_start_clean.png",
+  "source": "assets/screenshots/20260705-165933.png",
+  "note": "PHASE START過場幀：弧線正常呈藍色，find_ally_units在此狀態正確運作，作為對照組釘住不要退步。視覺數5、偵測4為既知密集blob合併限制(#5)。JPEG壓縮在此類像素級色彩判斷會翻轉blob分類(2026-07-09實測非單調)，故用PNG無損存檔。"
+}

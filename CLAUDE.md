@@ -46,9 +46,21 @@
 
 - 敵我判斷=單位腳下 HP 弧顏色：紅=敵、藍綠=第三方、藍=我方。
   `battle/vision.py` 的 HSV 帶域（S 100-210、V 155-255）是用實測截圖
-  調出來的，**沒有新截圖證據不要動閾值**。
+  調出來的，**沒有新截圖證據不要動閾值**；動閾值的 PR 必須讓
+  `tests/test_vision_regression.py` 全庫通過，且新增至少一個暴露該回歸的
+  fixture（`scripts/curate_fixture.py`，見 #18）。
+- 已知反例（2026-07-09 實測，見 `tests/fixtures/vision/hp_arc/
+  our_turn_hub_pink_bug.*`）：閾值的敵方紅校準來源是「敵方回合」畫面，
+  但控制器實際掃描發生在「我方回合、選單位」的 hub 畫面——這個畫面下
+  未行動我方單位的弧線色相跟敵方紅幾乎相同，`find_ally_units`/
+  `find_enemy_units` 在此狀態系統性誤判（0 我方、多個假敵方）。尚無足夠
+  hub 畫面樣本重新校準，修前先讀 fixture 的 note 欄位。
 - TM_CCOEFF_NORMED 兩個坑：會透過變暗的覆蓋層比對成功（鎖屏時模板照樣
   match）；在深色均勻區域會亂匹配高分。
+- 幫 hp_arc 這類像素級色彩/形狀判斷建 fixture 時用 PNG 不要用 JPEG：
+  JPEG 壓縮在色相/形狀 gate 的邊界會翻轉 blob 分類，且對品質不單調
+  （q85/90/95 都會出現壓縮偽影誤判，q92/98 又乾淨，2026-07-09 實測）。
+  模板比對類 fixture（分數差距通常 0.6 以上）JPEG q85 沒問題。
 - 回合會**自動推進**（全單位行動完就進敵方回合，結束回合對話框不會出現），
   回合邊界用相位斷點偵測（controller 的 `_phase_break`），別依賴對話框。
 - 戰鬥中劇情會把 MENU 鈕左移，用 `vision.locate_story_menu` 自由位置比對，

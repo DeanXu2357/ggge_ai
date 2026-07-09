@@ -1,0 +1,17 @@
+{
+  "check": "unit_detail_modal",
+  "expect": false,
+  "box": [
+    1000,
+    50,
+    380,
+    100
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_negative.jpg",
+  "source": "assets/screenshots/20260706-233847.png",
+  "note": "正常hub，同區域不可誤判成modal。"
+}

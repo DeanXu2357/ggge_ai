@@ -1,0 +1,17 @@
+{
+  "check": "hidden_battle_warning",
+  "expect": true,
+  "box": [
+    990,
+    22,
+    380,
+    230
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "warning_positive.jpg",
+  "source": "assets/screenshots/20260705-230720.png",
+  "note": "隱藏戰鬥WARNING彈窗正例(#16素材)。"
+}

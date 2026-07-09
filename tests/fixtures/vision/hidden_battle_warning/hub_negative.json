@@ -1,0 +1,17 @@
+{
+  "check": "hidden_battle_warning",
+  "expect": false,
+  "box": [
+    990,
+    22,
+    380,
+    230
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_negative.jpg",
+  "source": "assets/screenshots/20260706-233847.png",
+  "note": "正常hub，同區域不可誤判成隱藏戰鬥彈窗。"
+}

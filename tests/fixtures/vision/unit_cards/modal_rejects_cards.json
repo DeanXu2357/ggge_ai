@@ -1,0 +1,17 @@
+{
+  "check": "unit_cards_present",
+  "expect": false,
+  "box": [
+    170,
+    50,
+    1210,
+    990
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "modal_rejects_cards.jpg",
+  "source": "assets/screenshots/20260706-233709.png",
+  "note": "單位設置詳情modal開著時，unit_cards_present必須回False(否則會誤把modal當成actable hub，見test_unit_detail_modal.py同源bug)。"
+}

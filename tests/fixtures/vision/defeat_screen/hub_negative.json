@@ -1,0 +1,17 @@
+{
+  "check": "defeat_screen",
+  "expect": false,
+  "box": [
+    980,
+    0,
+    400,
+    175
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_negative.jpg",
+  "source": "assets/screenshots/20260706-233847.png",
+  "note": "正常hub，同區域不可誤判成戰敗畫面。"
+}

@@ -1,0 +1,17 @@
+{
+  "check": "defeat_screen",
+  "expect": true,
+  "box": [
+    980,
+    0,
+    400,
+    175
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "composite_positive.jpg",
+  "source": "/home/poyu/.claude/jobs/07dc75a0/tmp/composite_defeat.png",
+  "note": "真實FAILED橫幅模板(assets/templates/screens/battle_failed.png裁切而來)貼在真實背景截圖上合成，因語料庫目前沒有真正的戰敗截圖(HARD2目前都是贏)；模板與貼上座標(1020,40)皆為既有test_defeat_screen.py驗證過的真實素材，非憑空杜撰數值。等有真的FAILED實拍後應補上取代。"
+}
