@@ -1,8 +1,35 @@
 # 進度與規劃
 
-更新日期：2026-07-09（晚；#18 首批＋#5 根因線索＋roster_calibration 設計）
+更新日期：2026-07-09（更晚；戰鬥生命週期定案並落地 NOT_ACTIONABLE 重構）
 
-## 暫停快照（2026-07-09 晚，恢復點）
+## 暫停快照（2026-07-09 更晚，恢復點）
+
+**裝置現況**：跟上一快照相同，`no permissions` 未處理，本批次全程沒碰
+裝置。
+
+**本批次成果（commits a07b05f/ecddb4f/516987e/8bba4d6，167 測試/1
+xfail、ruff 全綠）**：
+
+1. `docs/battle-phase-states.md` 從一份畫面狀態分類學（被使用者指出
+   「相當空泛」）改寫成使用者定案的生命週期模型：**ACTIONABLE／
+   NOT_ACTIONABLE 二元判斷**，不分敵方/第三方回合；可控第三方會自然
+   出現在單位列表走 ACTIONABLE 路徑，不可控的自然落 NOT_ACTIONABLE，
+   不需要額外探測第三方可控性。敵我互打降低難度這類內容細節刻意不理。
+2. **落地進 `controller.py`**（516987e）：`run()` 的 `mode is None`
+   fallback 從匿名分支改成有名字的 `_on_not_actionable()`，是應戰彈窗
+   （#3）未來的掛載點。**沒有**照文件原稿用 `unit_cards_present` 當
+   頂層判斷——落地前發現沒有實機證據能證明卡片列在 unit_move/
+   weapon_select 子畫面底下還可見，貿然假設違反紅線；改用
+   `mode is not None`（既有 handler 已經在用、已驗證的訊號），
+   純重構、行為零改變（回歸測試釘住等價性）。文件已回頭同步這個落差
+   （8bba4d6）。
+3. `unit_cards_present` 用途不變——還是 `_on_our_turn()` 判斷「選下一個
+   還是結束回合」，這是它本來就驗證過的場景。
+
+**尚缺、待裝置**：ENEMY_REACTION_POPUP（應戰彈窗）畫面錨點標定與
+handler，是生命週期模型剩下唯一的實質缺口。
+
+## 舊快照（2026-07-09 晚）
 
 **裝置現況**：跟上一快照相同（`adb devices` 顯示實體連接但 `no
 permissions`，未處理，本次工作全程沒再碰 adb/裝置）。
