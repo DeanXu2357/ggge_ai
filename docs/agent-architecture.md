@@ -256,7 +256,9 @@ precondition/effect/cost 描述、execute 綁既有 handler（handler 從
     收編為 solver 我方相位內的行動排序。
 13. 模擬器 v1：格子可達性＋路徑封鎖＋支援防禦網幾何（拆支援站位）、
     敵方回合應對彈窗感知與 handler、公式實機標定
-    （combat-formulas.md 待標定清單）。
+    （combat-formulas.md 待標定清單）。**敵方回合應對彈窗這半的前置
+    缺口是「敵方回合本身沒有正面偵測訊號」，盤點見
+    docs/battle-phase-states.md（2026-07-09）。**
 14. 1.5-ply 站位安全評估（作為 ActionCatalog 的 cost 項＋solver 葉節點
     評估項）；cache 校驗機制（抽查摘要卡 HP）。
 15. 戰役目標介面（「通關到 HARD X」，戰役進度現場讀關卡列表）；
