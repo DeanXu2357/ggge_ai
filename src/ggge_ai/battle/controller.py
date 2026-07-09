@@ -1,11 +1,18 @@
 """Manual battle controller: drives combat ourselves instead of the
 built-in AUTO AI.
 
+Lifecycle (docs/battle-phase-states.md): every iteration is either
+ACTIONABLE (a MODE_LABELS template matched -- we have something to do,
+dispatched to the matching `_on_*` handler) or NOT_ACTIONABLE (`_on_
+not_actionable`; enemy turn, third-party turn, or a transition, none of
+which we need to tell apart -- just wait, or answer the one popup that
+needs us). Interrupts (keyguard, modals, story, the end-turn dialog) are
+checked ahead of both and can fire regardless of phase.
+
 v1 heuristic per confirmed direction: every actable unit attacks if a
 target is in range (trying each weapon), otherwise moves toward the
 enemy force (threat-cell centroid) and attacks if possible, else stands
-by. Enemy turns play out on their own; we simply wait for our turn hub
-to return.
+by.
 """
 
 from __future__ import annotations
@@ -211,31 +218,13 @@ class ManualBattleController:
                 continue
             mode = self._current_mode()
             if mode is None:
-                # a dying unit pops a MENU-less inline dialogue line; advance
-                # it before it is mistaken for a phase break and stalls us
-                dialog_frame = self._frame()
-                cursor = vision.locate_dialog_cursor(dialog_frame)
-                if cursor is not None:
-                    log.info("in-battle dialog (cursor at %s), advancing", cursor)
-                    self._log("story_dialog", frame=dialog_frame, cursor=cursor)
-                    self.actuator.tap(*cursor)
-                    time.sleep(0.8)
-                    self._none_streak = 0
+                if self._on_not_actionable():
                     last_activity = time.time()
-                    continue
-                # enemy turn or an animation between phases; two static
-                # label-less frames in a row mean we left our own phase
-                # (turns can end automatically once every unit has acted,
-                # so the end-turn dialog is not a reliable turn boundary)
-                self._none_streak += 1
-                if self._none_streak >= 2:
-                    self._phase_break = True
-                time.sleep(0.8)
-                continue
-            self._none_streak = 0
-            handler = getattr(self, f"_on_{mode.removeprefix('label_')}")
-            handler()
-            last_activity = time.time()
+            else:
+                self._none_streak = 0
+                handler = getattr(self, f"_on_{mode.removeprefix('label_')}")
+                handler()
+                last_activity = time.time()
         log.warning("battle timeout reached")
         self._log_finish("battle_timeout")
         return screens.UNKNOWN
@@ -279,6 +268,37 @@ class ManualBattleController:
         except Exception:
             log.warning("frame capture failed, event will record without a frame", exc_info=True)
             return None
+
+    def _on_not_actionable(self) -> bool:
+        """No MODE_LABELS matched: we cannot act right now (docs/
+        battle-phase-states.md's NOT_ACTIONABLE) -- enemy turn, third-party
+        turn, or an unlabeled transition, none of which the controller needs
+        to tell apart. There is exactly one thing here that needs our input:
+        the enemy defense-reaction popup (#3, 應戰決策). Its screen anchor
+        has not been calibrated on a live device yet, so it is not detected
+        below; this is the method to extend once it is.
+
+        Returns whether this counts as activity (an idle-timeout should not
+        fire while we're actively responding to something)."""
+        # a dying unit pops a MENU-less inline dialogue line; advance it
+        # before it is mistaken for a phase break and stalls us
+        dialog_frame = self._frame()
+        cursor = vision.locate_dialog_cursor(dialog_frame)
+        if cursor is not None:
+            log.info("in-battle dialog (cursor at %s), advancing", cursor)
+            self._log("story_dialog", frame=dialog_frame, cursor=cursor)
+            self.actuator.tap(*cursor)
+            time.sleep(0.8)
+            self._none_streak = 0
+            return True
+        # two static label-less frames in a row mean we left our own phase
+        # (turns can end automatically once every unit has acted, so the
+        # end-turn dialog is not a reliable turn boundary)
+        self._none_streak += 1
+        if self._none_streak >= 2:
+            self._phase_break = True
+        time.sleep(0.8)
+        return False
 
     def _on_our_turn(self) -> None:
         self._action.reset()
