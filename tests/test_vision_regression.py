@@ -80,6 +80,7 @@ CHECKS = {
     "unit_detail_modal": _check_bool(vision.is_unit_detail_modal),
     "hidden_battle_warning": _check_bool(vision.is_hidden_battle_warning),
     "defeat_screen": _check_bool(vision.is_defeat_screen),
+    "dialog_cursor_present": _check_bool(lambda f: vision.locate_dialog_cursor(f) is not None),
     "hp_arc_counts": _check_hp_arc_counts,
     "keyguard_locked": _check_keyguard_locked,
     "mode_label": _check_mode_label,

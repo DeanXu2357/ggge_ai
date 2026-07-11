@@ -1,0 +1,17 @@
+{
+  "check": "dialog_cursor_present",
+  "expect": true,
+  "box": [
+    480,
+    800,
+    1620,
+    170
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "story_dialog_two_rows.png",
+  "source": "assets/screenshots/20260711-224634.png",
+  "note": "Two-row story dialog (portrait + speaker banner): cursor parks at y~905-925, below the old 130px band calibrated on the single-row death line; stalled the controller live on 2026-07-11 until the band was widened to 170px."
+}

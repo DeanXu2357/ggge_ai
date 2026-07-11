@@ -74,8 +74,13 @@ TURN_MARKER_REGION = (260, 78, 40, 36)
 # a dying unit pops an inline line of dialogue with a cyan ▼ advance cursor
 # that slides horizontally with the line length, so it must be matched free
 # of a fixed column. it lives in the bottom text band; the right edge runs
-# past x=1900 because a short line parks the cursor near the frame edge
-DIALOG_CURSOR_REGION = (480, 800, 1620, 130)
+# past x=1900 because a short line parks the cursor near the frame edge.
+# band is tall enough for both layouts: the inline death line parks the
+# cursor around y 840-870, the two-row story dialog (portrait + speaker
+# banner) around y 905-925 -- the old 130px band ended at y=930 and the
+# 38px template could not reach a cursor starting at 905 (2026-07-11
+# live stall, whole-frame score 0.945)
+DIALOG_CURSOR_REGION = (480, 800, 1620, 170)
 
 ATTACK_BUTTON_BOX = (1990, 900, 240, 160)
 UNIT_CARD_STRIP_BOX = (170, 840, 900, 200)

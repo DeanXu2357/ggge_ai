@@ -63,6 +63,14 @@ CHALLENGE_HIDDEN_BATTLE = (1404, 977)
 # 關閉 button of the 單位設置詳情 modal a stray keyguard drag can open on a map
 # unit; tapping it dismisses the modal and hands control back to the battle
 UNIT_DETAIL_CLOSE = (1176, 992)
+# nudge spot for scenes nothing recognizes: top-center hosts no interactive
+# element on any battle screen (AUTO/MENU sit right of x1780, 回合結束 left of
+# x400, objective text is not tappable), while dialog-style scenes advance on
+# a tap anywhere -- so an unrecognized NOT_ACTIONABLE stretch gets nudged here
+# instead of stalling forever (user direction 2026-07-11). also resets the
+# game's 3-minute idle power-save timer as a side effect
+NEUTRAL_TAP = (1170, 90)
+NEUTRAL_TAP_AFTER_MISSES = 3
 
 AUTO_STATE_IDS = ("btn_auto_full", "btn_auto_enemy", "btn_auto_manual")
 MODE_LABELS = (
@@ -152,6 +160,7 @@ class ManualBattleController:
     _enemy_hint: tuple[float, float] | None = None
     _turn_scouted: bool = False
     _turn_marker: object | None = None
+    _miss_streak: int = 0
     tacmap: TacticalMap = field(default_factory=TacticalMap)
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
@@ -240,6 +249,7 @@ class ManualBattleController:
                 if self._on_not_actionable():
                     last_activity = time.time()
             else:
+                self._miss_streak = 0
                 handler = getattr(self, f"_on_{mode.removeprefix('label_')}")
                 handler()
                 last_activity = time.time()
@@ -323,7 +333,19 @@ class ManualBattleController:
             self._log("story_dialog", frame=dialog_frame, cursor=cursor)
             self.actuator.tap(*cursor)
             time.sleep(0.8)
+            self._miss_streak = 0
             return True
+        # nothing recognized this scene at all: after a few misses, nudge a
+        # non-button spot -- dialog-style scenes advance on any tap, and
+        # anything else safely ignores it. an unrecognized variant of a known
+        # scene (e.g. a dialog whose cursor sits outside the calibrated band)
+        # then advances instead of stalling until the idle timeout
+        self._miss_streak += 1
+        if self._miss_streak >= NEUTRAL_TAP_AFTER_MISSES:
+            self._miss_streak = 0
+            log.info("scene unrecognized for %d checks, neutral tap", NEUTRAL_TAP_AFTER_MISSES)
+            self._log("neutral_tap", frame=dialog_frame)
+            self.actuator.tap(*NEUTRAL_TAP)
         time.sleep(0.8)
         return False
 

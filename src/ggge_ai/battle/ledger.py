@@ -32,6 +32,7 @@ FRAME_KINDS = frozenset(
         "standby",
         "tactical_map",
         "story_dialog",
+        "neutral_tap",
         "hidden_battle_warning",
         "unit_detail_modal",
         "stage_info",
