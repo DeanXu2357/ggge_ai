@@ -1,9 +1,98 @@
 # 進度與規劃
 
-更新日期：2026-07-10（裝置接回，實機驗證嘗試中斷，發現 stage_info 修正包
-其實從未真正跑過）
+更新日期：2026-07-11（找到未過的 HARD 關卡出擊驗證，過程中連續踩到四個
+獨立問題，卡在 controller 主迴圈的 is_static 卡死上，中斷回報）
 
-## 暫停快照（2026-07-10，恢復點）
+## 暫停快照（2026-07-11，恢復點）
+
+**裝置現況**：手機停在「機動新世紀鋼彈X HARD STAGE 1」戰鬥中，我軍回合
+TURN 1，破壞數 4/14，畫面在鋼彈F90 的「單位移動／選擇武裝」子畫面，AUTO
+已確認為關閉（灰色、非高亮）。這場戰鬥沒有結束、沒有撤退，就是單純停在
+原地——`run_manual_battle.py` 已被我手動 SIGTERM 中止（`data/runs/
+20260711-214453/battle_01.jsonl` 只有一筆 `finish/interrupted`，全程
+437 秒零行動）。下次接手前**先截圖確認畫面沒有被系統動作（省電鎖等）
+影響過**，再決定要繼續手動這場、還是撤退重打。
+
+**本批次成果（找到 HARD 關卡並出擊，過程中發現四個獨立問題，沒有新
+commit——這批純粹是實機驗證嘗試 + 即時除錯，程式碼未變動）**：
+
+1. **確認並進入「機動新世紀鋼彈X HARD STAGE 1」**：透過關卡選單→
+   MAIN STAGE→鋼彈X 系列→選擇，確認 HARD 0/1 未過，建議戰鬥力
+   160,000，首次獎勵 LV50 SECRET 機體＋可奪取敵方機體。隱藏條件「2回合
+   內擊敗夏基亞·佛羅斯特、歐爾巴·佛羅斯特」達成時敵方會增援。出擊準備
+   帶自動編制隊伍（LV81/LV45/LV50/LV45/LV45 主力＋LV22 支援），增幅
+   +4,646。
+
+2. **重大發現①：AUTO 殘留全自動狀態，內建 AI 在人為介入前已自動出手**。
+   出擊進場後 stage_info 畫面的 AUTO 開關已呈高亮（全自動）狀態，我手動
+   點擊試圖切換時意外同時觸發了畫面推進，直接跳進戰鬥；戰鬥開場動畫
+   期間內建 AI 已自動打死 4 隻敵人（破壞數 4/14）才被我發現並手動關閉
+   AUTO。**這違反了「戰鬥必須由我們的程式操作、絕不能讓內建 AI 接手」
+   的紅線**，雖然是裝置殘留狀態造成、非我方主動選擇，且已即時補救，但
+   這場戰鬈的開場已被內建 AI 汙染，不能當作 controller 的乾淨驗證證據。
+   根因跟先前 stage_info 修正包驗證中斷時發現的 AUTO 競態同源（出擊前
+   沒有先確認/強制 AUTO 為手動）。
+
+3. **重大發現②：主機再次硬凍機（第 5 次），這次伴隨主動 adb 操作**。
+   `run_manual_battle.py` 於 21:29:51 啟動、21:30:00 左右仍在正常跑
+   （log 顯示「AUTO is btn_auto_enemy, cycling toward manual」），
+   `journalctl -b -1` 卻在 21:30:24 戛然而止——只有一行例行的
+   `freeze-blackbox` 心跳 log，沒有任何 `systemd-shutdown` 序列，跟過去
+   四次凍機同簽名。**新線索**：這次凍機發生在腳本啟動後僅 ~36 秒、且
+   正值密集 adb shell／uiautomator2 呼叫期間，跟先前「adb server 常駐
+   閒置三分鐘後當機」的假說不同方向，暗示主動的 USB／adb I/O 也可能是
+   誘因之一，而不只是常駐本身。`system-freeze-investigation` 需要納入
+   這個新資料點。
+
+4. **重大發現③：`no permissions` 根因首次查清**。凍機重開機後
+   `adb devices` 顯示 `R5CRC37JBYJ no permissions`，`getfacl` 一查發現
+   USB 裝置節點的 ACL 只授權給 `gdm-greeter`（`rw-`），poyu 只有 other
+   權限（`r--`，無寫入）。`loginctl seat-status seat0` 確認：重開機後
+   seat0 預設由 `gdm-greeter`（登入畫面）持有，systemd-logind 把本機
+   USB 裝置的 ACL 動態綁在目前持有 seat0 的 session 上；只有使用者**
+   實際在實體機器登入桌面**、seat0 轉移給 poyu 的 session 後，adb 權限
+   才會恢復——這正是先前快照「no permissions 已解除、原因不明」的真正
+   機制。本次使用者中途實體登入後，權限確實立即恢復，驗證了這個推論。
+   沒有 sudo 免密碼可以繞過，純系統層限制，不需要也不該動 udev 規則。
+
+5. **重大發現④（本次卡住的直接原因）：`vision/motion.py` 的
+   `is_static(threshold=0.015)` 在 HARD STAGE 1 這張雪地地圖上完全無法
+   收斂**。即時對現場畫面連續量測 5 次，全部回傳 `False`（背景飄雪
+   粒子特效／移動範圍格「!」圖示的脈動動畫／選中單位的紅圈光效，任一或
+   合力造成連續幀差異持續超過閾值）。`ManualBattleController.run()`
+   主迴圈在 `is_static` 為 `False` 時會直接 `continue`（視為戰鬥仍在
+   播動畫），完全不會進到 mode 偵測／`_on_unit_move`／`_on_weapon_
+   select` 等行動分支。結果整場戰鬈從 21:44:53 跑到我 21:52:10 手動
+   SIGTERM 中止，437 秒內零行動、零有意義 log。**這是全新發現的
+   controller 卡死模式，跟先前任何已知問題（AUTO 競態、hp_arc 誤判、
+   ENEMY_REACTION_POPUP 缺口）都不同源**，且很可能不是這張地圖獨有——
+   任何有持續動畫背景（雨、雪、粒子特效）的戰場都可能觸發同樣的卡死。
+
+**尚缺、待裝置（更新後排序見下方「下一步」）**：
+1. **`is_static` 卡死問題需要修法方向**——本次最大的技術阻礙，且動
+   `vision.py`／`motion.py` 需要使用者拍板方向（遮罩掉飄雪等已知動畫
+   區域再比較？放寬 threshold？連續 N 次 False 後改用備援判斷強制
+   評估 mode？）＋照專案紀律走 fixture 回歸測試流程，不能貿然調閾值。
+2. **AUTO 開關出擊前防呆**——這次又中招，是人眼即時攔截、不是自動化
+   把關。需要在 controller 或 stage_info handler 加上出擊後第一時間
+   強制檢查/確保 AUTO 為手動，而不是靠人在旁邊盯。
+3. Gundam X HARD STAGE 1 本身還沒清完，卡在 Turn 1 中途（破壞數
+   4/14），前段已被內建 AI 汙染，就算修完 is_static 問題後續打完，這場
+   也不能當作乾淨的「全程我方 controller 操作」驗證證據——大概率需要
+   放棄重打。
+4. stage_info 修正包（5b6c811）——仍然是「完全未驗證」，這次也沒機會
+   推進。
+5. 生命週期 ACTIONABLE/NOT_ACTIONABLE 重構（516987e）的實機行為——同上，
+   沒有取得完整一輪戰鬥的即時觀察證據。
+6. ENEMY_REACTION_POPUP（#3）畫面錨點標定與 handler——仍未動工。
+7. roster_calibration 裝置常數標定——仍未接進 controller.py。
+
+**下一步**：跟使用者討論 `is_static` 卡死的修法方向並取得共識；方案
+定案、有 fixture 證據後才動 `vision.py`／`motion.py`；同時把「出擊後
+強制確認 AUTO 為手動」做成自動化防呆而非人眼盯場。兩個修好後，放棄
+現在這場已被汙染的 HARD STAGE 1，重新出擊乾淨驗證一輪。
+
+## 舊快照（2026-07-10，恢復點）
 
 **裝置現況**：手機已接回，`adb devices` 顯示 `R5CRC37JBYJ device`（上一
 快照的 `no permissions` 已解除，原因不明，未深究）。截圖確認畫面在
