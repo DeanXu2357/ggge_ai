@@ -1,15 +1,21 @@
 # 進度與規劃
 
 更新日期：2026-07-11 深夜（is_static 卡死修畢：actionable-first 重構＋
-highpass 匹配＋敵軍回合干擾模板＋對話帶加寬＋neutral-tap fallback，
-全部在 HARD STAGE 1 活戰場上驗證，戰鬥結果待補）
+highpass 匹配＋敵軍回合干擾模板＋對話帶加寬＋neutral-tap fallback＋
+狀態轉換 log，全部在 HARD STAGE 1 活戰場驗證；戰鬥於 turn 4 戰敗、
+ledger 乾淨歸檔）
 
 ## 暫停快照（2026-07-11 深夜，恢復點）
 
-**裝置現況**：戰鬥結果見下方補記（收工時補）。本批次結束時
-`run_manual_battle.py` 由 tmux session `hard_battle` 驅動，log 在
-`/home/poyu/.claude/jobs/8d3a892b/tmp/hard_battle.log`（舊 run 依序改名
-`hard_battle_run1.log`／`hard_battle_run2.log`）。
+**裝置現況**：HARD STAGE 1 於 turn 4 **戰敗**（己方單位全滅——隊伍
+低於建議戰鬥力＋單位待機不推進，屬預期結果；這場開頭本來就被殘留
+AUTO 汙染，定位是活體測試場不是通關嘗試）。`is_defeat_screen` 首次
+實機命中、controller 乾淨退出、ledger 歸檔 outcome=defeat（
+`data/runs/20260711-225442/battle_01.jsonl`，1195 秒、四回合、13 種
+事件：15 對話/13 選單位/9 待機/5 攻擊/27 應戰確認/5 neutral_tap/1
+隱藏戰鬥彈窗/1 劇情跳過/4 戰術掃描/3 end_turn）。FAILED 畫面已手動
+點「選擇關卡」收回，**裝置現停在鋼彈X 選擇關卡畫面（HARD 1 節點）**，
+體力充足。tmux session 已清、adb server 已關（收工紀律）。
 
 **本批次成果（commits 1cd5f38→cef76bb，179 測試/1 xfail、ruff 全綠，
 全部附實機驗證證據）**：
@@ -38,14 +44,20 @@ highpass 匹配＋敵軍回合干擾模板＋對話帶加寬＋neutral-tap fallb
    點哪都會前進，其他畫面安全忽略。每次記 `neutral_tap` ledger 事件
    ＋存幀，未知場景自動留校準素材；副作用防 3 分鐘省電鎖。（cef76bb）
 6. **實機煙霧測試（HARD STAGE 1 活戰場，run 1-3）驗證清單**：雪地
-   label 偵測（probe 0.86-0.87 穩定）、marker 回合邊界（turn 2 正確
+   label 偵測（probe 0.86-0.87 穩定）、marker 回合邊界（turn 2-4 正確
    觸發、modal 不誤進位）、完整攻擊鏈（選單位→武裝→鎖定→確認 ×5+）、
    **#3 應戰決策彈窗首次實機捕捉**（標題「戰鬥準備 -應戰-」被
    `label_battle_prep` 以 0.948 承接，`_on_battle_prep` 的開始戰鬥
    tap 能推進不卡死；最佳應戰選項的決策是未來工作）、死亡對話推進、
-   劇情對話變體推進、省電鎖 mid-run 自解、unit_detail modal 逃脫。
-   run 1 首次產出含真實戰鬥事件的完整 jsonl（93 事件：5 攻擊、13 選
-   單位、2 戰術掃描、2 對話、1 modal、1 standby、1 end_turn）。
+   劇情對話變體推進、省電鎖 mid-run 自解、unit_detail modal 逃脫、
+   隱藏戰鬥 WARNING 彈窗（policy=challenge）、MENU 左移劇情跳過、
+   **`is_defeat_screen` 首次實機命中＋乾淨歸檔退出**。run 1 首次產出
+   含真實戰鬥事件的完整 jsonl；run 3 打完整場（見上方裝置現況）。
+7. **狀態轉換 log（使用者建議）**：主迴圈感知裁決改變時記一行
+   「state: 舊 (held N checks) -> 新」含 label/信心證據，四種裁決
+   （ACTIONABLE／NOT_ACTIONABLE 干擾模板／NOT_ACTIONABLE 無 label／
+   TRANSITION 兩讀不一致）；standby 補記決策脈絡（move cells 數、
+   tacmap 敵數、scout hint）；`GGGE_DEBUG=1` 切 DEBUG 級。（a9cd9d7）
 
 **本批次觀察到、尚未處理**：
 1. **戰術缺口（既有 v1 弱點實錄）**：武器超程時「no enemy direction
