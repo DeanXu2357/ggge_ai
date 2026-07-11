@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import signal
 import sys
 
@@ -12,7 +13,9 @@ from ggge_ai.app import connect
 from ggge_ai.battle.controller import ManualBattleController
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S"
+    level=logging.DEBUG if os.environ.get("GGGE_DEBUG") else logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
 )
 
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))

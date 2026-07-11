@@ -6,6 +6,7 @@ usage: uv run python scripts/run_clear_loop.py
 from __future__ import annotations
 
 import logging
+import os
 import signal
 import sys
 
@@ -21,7 +22,7 @@ from ggge_ai.domain.translate import to_world_state
 def main() -> None:
     signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG if os.environ.get("GGGE_DEBUG") else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )

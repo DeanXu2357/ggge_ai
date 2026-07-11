@@ -161,6 +161,10 @@ class ManualBattleController:
     _turn_scouted: bool = False
     _turn_marker: object | None = None
     _miss_streak: int = 0
+    _last_probe: dict = field(default_factory=dict)
+    _mode_flicker: tuple | None = None
+    _state_desc: str | None = None
+    _state_checks: int = 0
     tacmap: TacticalMap = field(default_factory=TacticalMap)
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
@@ -245,6 +249,7 @@ class ManualBattleController:
                 last_activity = time.time()
                 continue
             mode = self._confirmed_mode()
+            self._log_state(mode)
             if mode is None:
                 if self._on_not_actionable():
                     last_activity = time.time()
@@ -283,17 +288,50 @@ class ManualBattleController:
 
     def _current_mode(self) -> str | None:
         found = self.perception.probe(MODE_LABELS + DISTRACTOR_LABELS)
-        return resolve_mode({eid: e.confidence for eid, e in found.items()})
+        self._last_probe = {eid: e.confidence for eid, e in found.items()}
+        return resolve_mode(self._last_probe)
 
     def _confirmed_mode(self, settle_s: float = 0.35) -> str | None:
         """Two agreeing label reads ~settle_s apart. A transition that briefly
         shows (or leaves behind) a label reads inconsistently and lands in the
         NOT_ACTIONABLE branch, which is exactly where a transition belongs."""
+        self._mode_flicker = None
         first = self._current_mode()
         if first is None:
             return None
         time.sleep(settle_s)
-        return first if self._current_mode() == first else None
+        second = self._current_mode()
+        if second == first:
+            return first
+        self._mode_flicker = (first, second)
+        return None
+
+    def _describe_state(self, mode: str | None) -> str:
+        """One-line answer to "what does the controller think it is looking
+        at right now", with the probe evidence that produced the verdict."""
+        if mode is not None:
+            conf = self._last_probe.get(mode)
+            tail = f" ({conf:.2f})" if conf is not None else ""
+            return f"ACTIONABLE {mode.removeprefix('label_')}{tail}"
+        if self._mode_flicker is not None:
+            a, b = self._mode_flicker
+            return f"TRANSITION ({a} -> {b})"
+        if self._last_probe:
+            best, conf = max(self._last_probe.items(), key=lambda kv: kv[1])
+            return f"NOT_ACTIONABLE {best.removeprefix('label_')} ({conf:.2f})"
+        return "NOT_ACTIONABLE no-label"
+
+    def _log_state(self, mode: str | None) -> None:
+        desc = self._describe_state(mode)
+        if desc == self._state_desc:
+            self._state_checks += 1
+            return
+        if self._state_desc is not None:
+            log.info("state: %s (held %d checks) -> %s", self._state_desc, self._state_checks, desc)
+        else:
+            log.info("state: %s", desc)
+        self._state_desc = desc
+        self._state_checks = 1
 
     def _confirmed_probe(self, element_id: str, settle_s: float = 0.3) -> bool:
         """Two agreeing probes ~settle_s apart, for dialogs that must not be
@@ -502,7 +540,12 @@ class ManualBattleController:
                 self.actuator.tap(*cell)
                 time.sleep(2.0)
                 return
-            log.info("no enemy direction found, standing by")
+            log.info(
+                "no enemy direction found (move cells %d, tacmap enemies %d, scout hint %s), standing by",
+                len(cells),
+                len(self.tacmap.enemies),
+                self._enemy_hint,
+            )
             self._standby("no_target")
             return
         log.info("already moved and still no target, standing by")
@@ -583,6 +626,7 @@ class ManualBattleController:
                 log.info("weapon slot %d has a target, attacking", i + 1)
                 self._attack(slot=i + 1)
                 return
+            log.debug("weapon slot %d: no target in range", i + 1)
         if self._action.moved or not self._can_return():
             log.info("all weapons out of range, standing by")
             self._standby("out_of_range")

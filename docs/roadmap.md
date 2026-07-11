@@ -1,9 +1,75 @@
 # 進度與規劃
 
-更新日期：2026-07-11（找到未過的 HARD 關卡出擊驗證，過程中連續踩到四個
-獨立問題，卡在 controller 主迴圈的 is_static 卡死上，中斷回報）
+更新日期：2026-07-11 深夜（is_static 卡死修畢：actionable-first 重構＋
+highpass 匹配＋敵軍回合干擾模板＋對話帶加寬＋neutral-tap fallback，
+全部在 HARD STAGE 1 活戰場上驗證，戰鬥結果待補）
 
-## 暫停快照（2026-07-11，恢復點）
+## 暫停快照（2026-07-11 深夜，恢復點）
+
+**裝置現況**：戰鬥結果見下方補記（收工時補）。本批次結束時
+`run_manual_battle.py` 由 tmux session `hard_battle` 驅動，log 在
+`/home/poyu/.claude/jobs/8d3a892b/tmp/hard_battle.log`（舊 run 依序改名
+`hard_battle_run1.log`／`hard_battle_run2.log`）。
+
+**本批次成果（commits 1cd5f38→cef76bb，179 測試/1 xfail、ruff 全綠，
+全部附實機驗證證據）**：
+
+1. **is_static 卡死正式修畢，方向為使用者定案的「可操作性優先」**：
+   不再判斷「畫面是否靜止」，直接 probe 相位 label 判斷 ACTIONABLE，
+   連續兩次一致才 dispatch；回合邊界改用 TURN 數字變化（`_turn_marker`
+   比對），刪掉 `_phase_break`/`_none_streak` streak 邏輯；
+   `ensure_manual_auto` 改雙讀一致；`_wait_animation` 改「靜止或 label
+   回來」雙出口。（bd11a67）
+2. **highpass 匹配修好亮背景 label 失效**：TM_CCOEFF_NORMED 對「暗圖
+   校準的模板 vs 亮雪地」會掉到 gate 以下（實測 0.764 < 0.80）；模板
+   可在 manifest 開 `preprocess: highpass`（減 31×31 高斯局部平均），
+   雪地 0.893、暗圖 0.964+、負樣本反而更低。只開給五個相位 label。
+   （b750af2，fixture 語料 mode_label/ 七案釘住）
+3. **敵軍回合橫幅干擾模板**：「敵軍回合」與「我軍回合」四字共三字，
+   cross-match 0.81/0.83 超過 gate——舊迴圈被 is_static 意外遮住、新
+   迴圈立刻踩到（敵方回合全程狂點單位卡）。修法不是調閾值：新增
+   `label_enemy_turn` 模板一起 probe，`resolve_mode()` argmax，干擾
+   模板贏＝NOT_ACTIONABLE。實測 0.991 vs 0.831 分離。（3c2ada4）
+4. **對話 cursor 搜尋帶加寬 130→170px**：劇情對話（立繪＋說話者橫幅
+   雙行版面）的 ▼ cursor 停在 y~905-925，舊帶搆不到（帶內 0.571 vs
+   全幀 0.945），run 2 因此停擺 10 分鐘。（cef76bb）
+5. **neutral-tap fallback（使用者建議）**：NOT_ACTIONABLE 連續 3 輪
+   什麼都認不出→頂部中央（無按鈕區）輕點一下嘗試推進；對話類畫面
+   點哪都會前進，其他畫面安全忽略。每次記 `neutral_tap` ledger 事件
+   ＋存幀，未知場景自動留校準素材；副作用防 3 分鐘省電鎖。（cef76bb）
+6. **實機煙霧測試（HARD STAGE 1 活戰場，run 1-3）驗證清單**：雪地
+   label 偵測（probe 0.86-0.87 穩定）、marker 回合邊界（turn 2 正確
+   觸發、modal 不誤進位）、完整攻擊鏈（選單位→武裝→鎖定→確認 ×5+）、
+   **#3 應戰決策彈窗首次實機捕捉**（標題「戰鬥準備 -應戰-」被
+   `label_battle_prep` 以 0.948 承接，`_on_battle_prep` 的開始戰鬥
+   tap 能推進不卡死；最佳應戰選項的決策是未來工作）、死亡對話推進、
+   劇情對話變體推進、省電鎖 mid-run 自解、unit_detail modal 逃脫。
+   run 1 首次產出含真實戰鬥事件的完整 jsonl（93 事件：5 攻擊、13 選
+   單位、2 戰術掃描、2 對話、1 modal、1 standby、1 end_turn）。
+
+**本批次觀察到、尚未處理**：
+1. **戰術缺口（既有 v1 弱點實錄）**：武器超程時「no enemy direction
+   found, standing by」頻繁出現——scout 有敵人座標但移動目標選擇失敗，
+   單位原地待機不推進。對應 battle-skills-improvement 既有記憶，
+   屬戰術品質非生命週期問題。
+2. **keyguard 疑似誤報**：22:56:15 對話推進中（每 5 秒有輸入）觸發
+   「game battery-saver lock engaged」——3 分鐘閒置條件不可能成立，
+   疑似劇情畫面調暗＋中央區誤匹配鎖頭圖示；解鎖 swipe 對對話無害
+   （等於推進一行）。需要抓到現場幀才能釘 fixture。
+3. **ensure_manual_auto 在無 AUTO 鈕畫面燒滿 60 秒 timeout**（對話
+   畫面開場時）。可考慮縮短 timeout 或加「畫面有對話 cursor 就跳過」。
+4. 期望轉移驗證（act → verify → retry）尚未動工——todo #3，是下一個
+   結構性投資。
+
+**尚缺、待裝置**：
+1. HARD STAGE 1 乾淨場重打（本場開頭被殘留 AUTO 汙染，見上一快照）。
+2. 出擊前 AUTO 防呆自動化（stage_info 畫面上強制 AUTO 手動）——這次
+   又是靠人眼攔截。
+3. stage_info 修正包（5b6c811）驗證——仍未真正跑到。
+4. 應戰決策的選項優化（現在照預設確認）。
+5. roster_calibration 接線。
+
+## 舊快照（2026-07-11，恢復點）
 
 **裝置現況**：手機停在「機動新世紀鋼彈X HARD STAGE 1」戰鬥中，我軍回合
 TURN 1，破壞數 4/14，畫面在鋼彈F90 的「單位移動／選擇武裝」子畫面，AUTO

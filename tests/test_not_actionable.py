@@ -79,6 +79,40 @@ def test_neutral_tap_after_consecutive_unrecognized_scenes(monkeypatch):
     assert c.actuator.taps == [controller_mod.NEUTRAL_TAP]
 
 
+def test_describe_state_covers_the_four_verdicts():
+    c = _controller()
+
+    c._last_probe = {"label_unit_move": 0.87}
+    assert c._describe_state("label_unit_move") == "ACTIONABLE unit_move (0.87)"
+
+    c._mode_flicker = ("label_unit_move", None)
+    assert c._describe_state(None) == "TRANSITION (label_unit_move -> None)"
+
+    c._mode_flicker = None
+    c._last_probe = {"label_enemy_turn": 0.99, "label_our_turn": 0.83}
+    assert c._describe_state(None) == "NOT_ACTIONABLE enemy_turn (0.99)"
+
+    c._last_probe = {}
+    assert c._describe_state(None) == "NOT_ACTIONABLE no-label"
+
+
+def test_log_state_logs_only_on_transition(caplog):
+    import logging
+
+    c = _controller()
+    c._last_probe = {"label_unit_move": 0.87}
+    with caplog.at_level(logging.INFO, logger="ggge_ai.battle.controller"):
+        c._log_state("label_unit_move")
+        c._log_state("label_unit_move")
+        c._log_state("label_unit_move")
+        c._last_probe = {"label_enemy_turn": 0.99}
+        c._log_state(None)
+    state_lines = [r.message for r in caplog.records if r.message.startswith("state")]
+    assert len(state_lines) == 2
+    assert "held 3 checks" in state_lines[1]
+    assert "NOT_ACTIONABLE enemy_turn" in state_lines[1]
+
+
 def test_dialog_resets_the_miss_streak(monkeypatch):
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     cursors = iter([None, None, (500, 900)])
