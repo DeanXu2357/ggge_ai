@@ -5,9 +5,24 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from ..perception.base import Bbox, ScreenId, UiElement
 from .base import Image, ScreenCandidate, TextResult
+
+
+def _highpass(img: Image) -> Image:
+    """Local-mean removal: keeps glyph strokes, drops the background
+    brightness offset. Fixes TM_CCOEFF_NORMED degrading when a template
+    captured on a dark map is matched over a bright one (snowfield labels
+    measured 0.764 raw vs 0.893 highpass, dark maps stay 0.96+); do not
+    enable it on templates whose meaning depends on brightness (keyguard)."""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    blur = cv2.GaussianBlur(gray, (31, 31), 0)
+    return np.clip(gray - blur + 128, 0, 255).astype(np.uint8)
+
+
+PREPROCESSORS = {"highpass": _highpass}
 
 
 @dataclass
@@ -15,13 +30,21 @@ class Template:
     id: str
     image: Image
     search_region: Bbox | None = None
+    preprocess: str | None = None
 
 
-def load_template(id: str, path: Path, search_region: Bbox | None = None) -> Template:
+def load_template(
+    id: str,
+    path: Path,
+    search_region: Bbox | None = None,
+    preprocess: str | None = None,
+) -> Template:
     img = cv2.imread(str(path))
     if img is None:
         raise FileNotFoundError(f"template image not readable: {path}")
-    return Template(id=id, image=img, search_region=search_region)
+    if preprocess is not None and preprocess not in PREPROCESSORS:
+        raise ValueError(f"unknown preprocess {preprocess!r} for template {id}")
+    return Template(id=id, image=img, search_region=search_region, preprocess=preprocess)
 
 
 class TemplateRecognizer:
@@ -69,7 +92,12 @@ class TemplateRecognizer:
         if region is not None:
             haystack = img[region.y : region.y + region.h, region.x : region.x + region.w]
             offset_x, offset_y = region.x, region.y
-        result = cv2.matchTemplate(haystack, template.image, cv2.TM_CCOEFF_NORMED)
+        needle = template.image
+        if template.preprocess is not None:
+            preprocess = PREPROCESSORS[template.preprocess]
+            haystack = preprocess(haystack)
+            needle = preprocess(needle)
+        result = cv2.matchTemplate(haystack, needle, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
         th, tw = template.image.shape[:2]
         bbox = Bbox(x=max_loc[0] + offset_x, y=max_loc[1] + offset_y, w=tw, h=th)

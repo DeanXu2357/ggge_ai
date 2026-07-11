@@ -296,6 +296,7 @@ elements:
     - 280
   label_battle_prep:
     file: elements/label_battle_prep.png
+    preprocess: highpass
     search_region:
     - 110
     - 0
@@ -304,6 +305,7 @@ elements:
     screen: battle_map
   label_our_turn:
     file: elements/label_our_turn.png
+    preprocess: highpass
     search_region:
     - 110
     - 0
@@ -312,6 +314,7 @@ elements:
     screen: battle_map
   label_skill:
     file: elements/label_skill.png
+    preprocess: highpass
     search_region:
     - 110
     - 0
@@ -320,6 +323,7 @@ elements:
     screen: battle_map
   label_unit_move:
     file: elements/label_unit_move.png
+    preprocess: highpass
     search_region:
     - 110
     - 0
@@ -328,6 +332,7 @@ elements:
     screen: battle_map
   label_weapon_select:
     file: elements/label_weapon_select.png
+    preprocess: highpass
     search_region:
     - 110
     - 0

@@ -17,6 +17,7 @@ class TemplateEntry:
     file: str
     search_region: tuple[int, int, int, int] | None = None
     screen: ScreenId | None = None
+    preprocess: str | None = None
 
     def to_dict(self) -> dict:
         data: dict = {"file": self.file}
@@ -24,6 +25,8 @@ class TemplateEntry:
             data["search_region"] = list(self.search_region)
         if self.screen is not None:
             data["screen"] = self.screen
+        if self.preprocess is not None:
+            data["preprocess"] = self.preprocess
         return data
 
 
@@ -73,7 +76,7 @@ class TemplateManifest:
 
     def _load(self, entry: TemplateEntry) -> Template:
         region = Bbox(*entry.search_region) if entry.search_region else None
-        return load_template(entry.id, self.root / entry.file, region)
+        return load_template(entry.id, self.root / entry.file, region, entry.preprocess)
 
 
 def _entry(id: str, raw: dict) -> TemplateEntry:
@@ -83,4 +86,5 @@ def _entry(id: str, raw: dict) -> TemplateEntry:
         file=raw["file"],
         search_region=tuple(region) if region else None,
         screen=raw.get("screen"),
+        preprocess=raw.get("preprocess"),
     )

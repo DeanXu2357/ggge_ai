@@ -15,6 +15,5 @@
   ],
   "image": "snow_bright_unit_move.png",
   "source": "assets/screenshots/20260711-hard1-snow-unit-move.png",
-  "note": "HARD STAGE 1 snowfield: white 單位移動 label on a bright background scores 0.764 raw TM_CCOEFF_NORMED, under the 0.80 element gate, so the controller reads the screen as NOT_ACTIONABLE forever. Template was captured on a dark map (mean ~118) vs this map's ~188.",
-  "xfail_reason": "raw matching under-scores white-on-bright labels; pending per-template highpass preprocessing"
+  "note": "HARD STAGE 1 snowfield: white 單位移動 label on a bright background scores 0.764 raw TM_CCOEFF_NORMED, under the 0.80 element gate, so the controller read the screen as NOT_ACTIONABLE forever (2026-07-11 deadlock). Template was captured on a dark map (mean ~118) vs this map's ~188; fixed by the per-template highpass preprocess flag (0.893 highpass), which this case now pins."
 }
