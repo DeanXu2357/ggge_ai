@@ -1,6 +1,8 @@
 """NOT_ACTIONABLE phase (docs/battle-phase-states.md): no MODE_LABELS
-matched, so the controller either advances a death dialogue or just waits
-and tracks the none-streak used to corroborate a real phase break."""
+matched, so the controller either advances a death dialogue or just waits.
+Turn boundaries are detected by the on-screen TURN marker in _on_our_turn,
+not by counting label-less iterations (which also occur mid-turn during
+attack animations now that no static gate runs)."""
 
 from types import SimpleNamespace
 
@@ -38,17 +40,14 @@ def test_dialog_cursor_found_counts_as_activity_and_taps(monkeypatch):
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     monkeypatch.setattr(vision, "locate_dialog_cursor", lambda frame: (500, 900))
     c = _controller()
-    c._none_streak = 1
 
     activity = c._on_not_actionable()
 
     assert activity is True
     assert (500, 900) in c.actuator.taps
-    assert c._none_streak == 0
-    assert c._phase_break is False
 
 
-def test_no_dialog_first_miss_is_not_activity_and_no_phase_break(monkeypatch):
+def test_no_dialog_is_not_activity(monkeypatch):
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     monkeypatch.setattr(vision, "locate_dialog_cursor", lambda frame: None)
     c = _controller()
@@ -56,21 +55,7 @@ def test_no_dialog_first_miss_is_not_activity_and_no_phase_break(monkeypatch):
     activity = c._on_not_actionable()
 
     assert activity is False
-    assert c._none_streak == 1
-    assert c._phase_break is False
-
-
-def test_second_consecutive_miss_sets_phase_break(monkeypatch):
-    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
-    monkeypatch.setattr(vision, "locate_dialog_cursor", lambda frame: None)
-    c = _controller()
-
-    c._on_not_actionable()
-    activity = c._on_not_actionable()
-
-    assert activity is False
-    assert c._none_streak == 2
-    assert c._phase_break is True
+    assert c.actuator.taps == []
 
 
 def test_run_updates_last_activity_only_when_not_actionable_returns_true(monkeypatch):
@@ -83,7 +68,6 @@ def test_run_updates_last_activity_only_when_not_actionable_returns_true(monkeyp
     monkeypatch.setattr(vision, "is_hidden_battle_warning", lambda *a, **k: False)
     monkeypatch.setattr(vision, "is_unit_detail_modal", lambda *a, **k: False)
     monkeypatch.setattr(vision, "locate_story_menu", lambda *a, **k: None)
-    monkeypatch.setattr(controller_mod, "is_static", lambda *a, **k: True)
 
     class _P(_Perception):
         def observe(self):

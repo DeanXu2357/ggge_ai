@@ -51,19 +51,20 @@ def _controller(**kw):
     return c
 
 
-def test_modal_escape_taps_close_and_does_not_break_phase(monkeypatch):
+def test_modal_escape_taps_close_and_does_not_advance_turn(monkeypatch):
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     monkeypatch.setattr(vision, "is_defeat_screen", lambda *a, **k: False)
     monkeypatch.setattr(vision, "is_hidden_battle_warning", lambda *a, **k: False)
     monkeypatch.setattr(vision, "is_unit_detail_modal", lambda *a, **k: True)
 
     c = _controller()
+    start = c.ledger.turn
     result = c.run()
 
     assert result == screens.BATTLE_RESULT
     assert UNIT_DETAIL_CLOSE in c.actuator.taps
-    # a modal must never be mistaken for a phase break
-    assert c._phase_break is False
+    # a modal must never be mistaken for a turn boundary
+    assert c.ledger.turn == start
     kinds = [e["kind"] for e in c.ledger.events]
     assert "unit_detail_modal" in kinds
 
@@ -93,21 +94,31 @@ def _prime_our_turn(monkeypatch, changed: bool):
     c._scout = lambda frame: None
     c._snapshot_factions = lambda frame: None
     c._probe_after_select = lambda *a, **k: None
-    c._phase_break = True
     c._turn_marker = np.zeros((36, 40), np.uint8)
     return c
 
 
-def test_phase_break_without_turn_change_does_not_advance(monkeypatch):
+def test_hub_visit_without_turn_change_does_not_advance(monkeypatch):
     c = _prime_our_turn(monkeypatch, changed=False)
     start = c.ledger.turn
     c._on_our_turn()
     assert c.ledger.turn == start
-    assert c._phase_break is False
 
 
-def test_phase_break_with_turn_change_advances(monkeypatch):
+def test_hub_visit_with_turn_change_advances_and_rescouts(monkeypatch):
     c = _prime_our_turn(monkeypatch, changed=True)
+    c._turn_scouted = True
     start = c.ledger.turn
     c._on_our_turn()
     assert c.ledger.turn == start + 1
+    # the reset re-arms the once-per-turn scout (the stub does not re-set it)
+    assert c._turn_scouted is False
+
+
+def test_first_hub_visit_sets_baseline_without_advancing(monkeypatch):
+    c = _prime_our_turn(monkeypatch, changed=True)
+    c._turn_marker = None
+    start = c.ledger.turn
+    c._on_our_turn()
+    assert c.ledger.turn == start
+    assert c._turn_marker is not None

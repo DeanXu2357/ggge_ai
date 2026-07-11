@@ -25,7 +25,7 @@ from ggge_ai.battle import vision
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.domain import screens
-from ggge_ai.vision.motion import frame_diff, is_static
+from ggge_ai.vision.motion import frame_diff
 
 log = logging.getLogger(__name__)
 
@@ -81,23 +81,29 @@ def ensure_manual_auto(perception, actuator, timeout_s: float = 60.0) -> bool:
 
     Shared by the battle controller and the pre-battle stage-info screen,
     whose AUTO chip uses the same three-state templates (btn_auto_full at the
-    same corner). Waits for a static frame before each read so the toggle's
-    own transition animation is not misread, and gives up after timeout_s so
-    a screen whose AUTO chip never resolves cannot stall the run."""
+    same corner). Trusts a state only after two consecutive agreeing reads so
+    the toggle's own transition animation is not misread -- a global
+    wait-for-static cannot work here, ambient map animation (snowfall) keeps
+    frames changing forever. Gives up after timeout_s so a screen whose AUTO
+    chip never resolves cannot stall the run."""
     deadline = time.time() + timeout_s
+    pending = None
     while time.time() < deadline:
-        if not is_static(perception.capture, threshold=0.02, gap_s=0.3):
-            time.sleep(0.4)
-            continue
         found = perception.probe(AUTO_STATE_IDS)
         if not found:
+            pending = None
             time.sleep(0.4)
             continue
         state = max(found.values(), key=lambda e: e.confidence).id
+        if state != pending:
+            pending = state
+            time.sleep(0.4)
+            continue
         if state == "btn_auto_manual":
             return True
         log.info("AUTO is %s, cycling toward manual", state)
         actuator.tap(*AUTO_BUTTON)
+        pending = None
         time.sleep(0.9)
     return False
 
@@ -130,8 +136,6 @@ class ManualBattleController:
     _action: _ActionState = field(default_factory=_ActionState)
     _enemy_hint: tuple[float, float] | None = None
     _turn_scouted: bool = False
-    _none_streak: int = 0
-    _phase_break: bool = False
     _turn_marker: object | None = None
     tacmap: TacticalMap = field(default_factory=TacticalMap)
 
@@ -202,26 +206,25 @@ class ManualBattleController:
                 time.sleep(1.5)
                 last_activity = time.time()
                 continue
-            if not is_static(self.perception.capture, threshold=0.015, gap_s=0.35):
-                # animations count as activity: the battle is visibly running
-                last_activity = time.time()
-                time.sleep(0.5)
-                continue
-            if self.perception.probe(["dlg_end_turn"]):
+            # no wait-for-static gate here: ambient map animation (snowfall,
+            # pulsing range markers) keeps frames changing forever on some
+            # maps, which starved this loop of any action for a whole battle
+            # (2026-07-11). ACTIONABLE is decided by the phase-label probe
+            # alone; one-frame template flukes on animated frames are screened
+            # by requiring two agreeing reads before anything is trusted
+            if self._confirmed_probe("dlg_end_turn"):
                 log.info("end-turn dialog: choosing standby-and-end")
-                self._phase_break = True
                 self.actuator.tap(*END_TURN_STANDBY_OPTION)
                 time.sleep(0.8)
                 self.actuator.tap(*END_TURN_EXECUTE)
                 time.sleep(2.0)
                 last_activity = time.time()
                 continue
-            mode = self._current_mode()
+            mode = self._confirmed_mode()
             if mode is None:
                 if self._on_not_actionable():
                     last_activity = time.time()
             else:
-                self._none_streak = 0
                 handler = getattr(self, f"_on_{mode.removeprefix('label_')}")
                 handler()
                 last_activity = time.time()
@@ -259,6 +262,24 @@ class ManualBattleController:
             return None
         return max(found.values(), key=lambda e: e.confidence).id
 
+    def _confirmed_mode(self, settle_s: float = 0.35) -> str | None:
+        """Two agreeing label reads ~settle_s apart. A transition that briefly
+        shows (or leaves behind) a label reads inconsistently and lands in the
+        NOT_ACTIONABLE branch, which is exactly where a transition belongs."""
+        first = self._current_mode()
+        if first is None:
+            return None
+        time.sleep(settle_s)
+        return first if self._current_mode() == first else None
+
+    def _confirmed_probe(self, element_id: str, settle_s: float = 0.3) -> bool:
+        """Two agreeing probes ~settle_s apart, for dialogs that must not be
+        answered off a one-frame fluke now that no static gate runs."""
+        if not self.perception.probe([element_id]):
+            return False
+        time.sleep(settle_s)
+        return bool(self.perception.probe([element_id]))
+
     def _frame(self):
         return self.perception.capture()
 
@@ -281,7 +302,7 @@ class ManualBattleController:
         Returns whether this counts as activity (an idle-timeout should not
         fire while we're actively responding to something)."""
         # a dying unit pops a MENU-less inline dialogue line; advance it
-        # before it is mistaken for a phase break and stalls us
+        # before it stalls us
         dialog_frame = self._frame()
         cursor = vision.locate_dialog_cursor(dialog_frame)
         if cursor is not None:
@@ -289,14 +310,7 @@ class ManualBattleController:
             self._log("story_dialog", frame=dialog_frame, cursor=cursor)
             self.actuator.tap(*cursor)
             time.sleep(0.8)
-            self._none_streak = 0
             return True
-        # two static label-less frames in a row mean we left our own phase
-        # (turns can end automatically once every unit has acted, so the
-        # end-turn dialog is not a reliable turn boundary)
-        self._none_streak += 1
-        if self._none_streak >= 2:
-            self._phase_break = True
         time.sleep(0.8)
         return False
 
@@ -305,23 +319,19 @@ class ManualBattleController:
         frame = self._frame()
         if vision.unit_cards_present(frame):
             marker = vision.crop_turn_marker(frame)
-            if self._phase_break:
-                self._phase_break = False
-                self._turn_scouted = False
-                # a phase break must be corroborated by the on-screen TURN
-                # number actually changing: a stalled modal used to inflate the
-                # counter while the screen still read the same turn
-                if vision.turn_marker_changed(self._turn_marker, marker):
-                    self._turn_marker = marker
-                    if self.ledger is not None:
-                        self.ledger.next_turn(frame=frame)
-                    log.info(
-                        "new turn detected (turn %d)", self.ledger.turn if self.ledger else 0
-                    )
-                else:
-                    log.warning("phase break without an on-screen TURN change; not advancing")
-            elif self._turn_marker is None:
+            # the turn boundary is the on-screen TURN number changing between
+            # hub visits: turns auto-advance once every unit has acted, so the
+            # end-turn dialog is not reliable, and quiet label-less stretches
+            # (the old phase-break streak) also occur mid-turn during attack
+            # animations
+            if self._turn_marker is None:
                 self._turn_marker = marker
+            elif vision.turn_marker_changed(self._turn_marker, marker):
+                self._turn_marker = marker
+                self._turn_scouted = False
+                if self.ledger is not None:
+                    self.ledger.next_turn(frame=frame)
+                log.info("new turn detected (turn %d)", self.ledger.turn if self.ledger else 0)
             self._snapshot_factions(frame)
             self._scout(frame)
             log.info("selecting next actable unit")
@@ -341,7 +351,6 @@ class ManualBattleController:
         else:
             log.info("no actable units left, ending turn")
             self.actuator.tap(*END_TURN_BTN)
-            self._phase_break = True
             self._turn_scouted = False
             time.sleep(1.8)
 
@@ -577,13 +586,18 @@ class ManualBattleController:
         self._action.reset()
 
     def _wait_animation(self) -> None:
-        """Wait out the combat cut-in animation until frames settle."""
+        """Wait out the combat cut-in animation. Two exits: frames settling
+        (terminal screens, calm maps) or the phase label coming back (maps
+        whose ambient animation never lets frames settle)."""
         t0 = time.time()
         prev = None
         while time.time() - t0 < self.settle_timeout_s:
             frame = self._frame()
             d = frame_diff(prev, frame) if prev is not None else 1.0
             prev = frame
-            if time.time() - t0 > 5 and d < 0.008:
-                return
+            if time.time() - t0 > 5:
+                if d < 0.008:
+                    return
+                if self._current_mode() is not None:
+                    return
             time.sleep(0.5)
