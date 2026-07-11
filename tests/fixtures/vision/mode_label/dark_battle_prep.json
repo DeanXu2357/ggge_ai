@@ -1,0 +1,19 @@
+{
+  "check": "mode_label",
+  "expect": {
+    "id": "label_battle_prep"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "dark_battle_prep.png",
+  "source": "assets/screenshots/20260705-180119.png",
+  "note": "battle-prep label on a dark map (raw 0.994)"
+}

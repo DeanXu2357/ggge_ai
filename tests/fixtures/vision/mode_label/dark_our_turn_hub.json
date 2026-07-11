@@ -1,0 +1,19 @@
+{
+  "check": "mode_label",
+  "expect": {
+    "id": "label_our_turn"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "dark_our_turn_hub.png",
+  "source": "assets/screenshots/20260706-233847.png",
+  "note": "our-turn hub on the original dark-map calibration background (raw 0.990); pins that any matching change keeps dark maps working"
+}

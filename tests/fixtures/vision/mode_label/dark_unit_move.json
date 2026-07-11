@@ -1,0 +1,19 @@
+{
+  "check": "mode_label",
+  "expect": {
+    "id": "label_unit_move"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "dark_unit_move.png",
+  "source": "assets/screenshots/20260705-233420.png",
+  "note": "unit-move label on a dark map (raw 0.979)"
+}

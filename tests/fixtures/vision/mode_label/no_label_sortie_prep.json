@@ -1,0 +1,19 @@
+{
+  "check": "mode_label",
+  "expect": {
+    "id": null
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "no_label_sortie_prep.png",
+  "source": "assets/screenshots/20260711-212609.png",
+  "note": "sortie-prep screen, no phase label present; probe must stay silent (raw top score 0.270)"
+}

@@ -14,6 +14,7 @@ at which point pytest reports it as XPASS and the marker should come off.
 
 from __future__ import annotations
 
+import functools
 import json
 from pathlib import Path
 from typing import Any
@@ -23,9 +24,14 @@ import numpy as np
 import pytest
 
 from ggge_ai.battle import vision
+from ggge_ai.battle.controller import MODE_LABELS
 from ggge_ai.actuation.keyguard import Keyguard
+from ggge_ai.vision.manifest import TemplateManifest
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "vision"
+TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "assets" / "templates"
+# mirrors the element-stage acceptance gate wired in app.py
+ELEMENT_ACCEPT = 0.80
 
 
 def _check_bool(fn):
@@ -54,6 +60,21 @@ def _check_keyguard_locked(frame: np.ndarray, expect: bool) -> None:
     assert kg.is_game_locked() is expect
 
 
+@functools.cache
+def _recognizer():
+    return TemplateManifest.load(TEMPLATE_ROOT).build_recognizer()
+
+
+def _check_mode_label(frame: np.ndarray, expect: dict[str, Any]) -> None:
+    """The controller's ACTIONABLE probe: best MODE_LABELS match above the
+    element gate, or none. expect: {"id": "label_unit_move"} / {"id": null}."""
+    best_id, best_conf = None, 0.0
+    for element in _recognizer().detect_elements(frame, MODE_LABELS):
+        if element.confidence >= ELEMENT_ACCEPT and element.confidence > best_conf:
+            best_id, best_conf = element.id, element.confidence
+    assert best_id == expect["id"], f"got {best_id} ({best_conf:.3f}), want {expect['id']}"
+
+
 CHECKS = {
     "unit_cards_present": _check_bool(vision.unit_cards_present),
     "unit_detail_modal": _check_bool(vision.is_unit_detail_modal),
@@ -61,6 +82,7 @@ CHECKS = {
     "defeat_screen": _check_bool(vision.is_defeat_screen),
     "hp_arc_counts": _check_hp_arc_counts,
     "keyguard_locked": _check_keyguard_locked,
+    "mode_label": _check_mode_label,
 }
 
 
