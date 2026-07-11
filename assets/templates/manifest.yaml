@@ -303,6 +303,15 @@ elements:
     - 270
     - 130
     screen: battle_map
+  label_enemy_turn:
+    file: elements/label_enemy_turn.png
+    preprocess: highpass
+    search_region:
+    - 110
+    - 0
+    - 270
+    - 125
+    screen: battle_map
   label_our_turn:
     file: elements/label_our_turn.png
     preprocess: highpass

@@ -1,0 +1,19 @@
+{
+  "check": "mode_label",
+  "expect": {
+    "id": "label_battle_prep"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_popup_battle_prep.png",
+  "source": "assets/screenshots/20260711-223704.png",
+  "note": "應戰決策 popup (#3): its title 戰鬥準備 -應戰- matches label_battle_prep (0.948 highpass), so _on_battle_prep's 開始戰鬥 tap advances it instead of stalling. First on-device capture of this screen (2026-07-11). Deliberate: reaction choice optimization is future work; this pins the no-stall behavior."
+}

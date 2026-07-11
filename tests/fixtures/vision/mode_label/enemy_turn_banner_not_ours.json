@@ -1,0 +1,19 @@
+{
+  "check": "mode_label",
+  "expect": {
+    "id": null
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "enemy_turn_banner_not_ours.png",
+  "source": "assets/screenshots/20260711-223757.png",
+  "note": "敵軍回合 banner shares three of four glyphs with 我軍回合 and cross-matches label_our_turn above the gate (0.81 raw / 0.83 highpass); pinned so the label_enemy_turn distractor keeps winning the argmax and the controller stays NOT_ACTIONABLE during enemy turns. Live consequence before the fix: the controller tapped unit cards all through the enemy phase (2026-07-11)."
+}

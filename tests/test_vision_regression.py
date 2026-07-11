@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 
 from ggge_ai.battle import vision
-from ggge_ai.battle.controller import MODE_LABELS
+from ggge_ai.battle.controller import DISTRACTOR_LABELS, MODE_LABELS, resolve_mode
 from ggge_ai.actuation.keyguard import Keyguard
 from ggge_ai.vision.manifest import TemplateManifest
 
@@ -66,13 +66,13 @@ def _recognizer():
 
 
 def _check_mode_label(frame: np.ndarray, expect: dict[str, Any]) -> None:
-    """The controller's ACTIONABLE probe: best MODE_LABELS match above the
-    element gate, or none. expect: {"id": "label_unit_move"} / {"id": null}."""
-    best_id, best_conf = None, 0.0
-    for element in _recognizer().detect_elements(frame, MODE_LABELS):
-        if element.confidence >= ELEMENT_ACCEPT and element.confidence > best_conf:
-            best_id, best_conf = element.id, element.confidence
-    assert best_id == expect["id"], f"got {best_id} ({best_conf:.3f}), want {expect['id']}"
+    """The controller's ACTIONABLE probe: labels and distractors above the
+    element gate resolved by argmax, exactly as _current_mode() runs it.
+    expect: {"id": "label_unit_move"} / {"id": null}."""
+    elements = _recognizer().detect_elements(frame, MODE_LABELS + DISTRACTOR_LABELS)
+    confidences = {e.id: e.confidence for e in elements if e.confidence >= ELEMENT_ACCEPT}
+    mode = resolve_mode(confidences)
+    assert mode == expect["id"], f"got {mode} ({confidences}), want {expect['id']}"
 
 
 CHECKS = {

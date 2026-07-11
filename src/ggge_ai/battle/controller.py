@@ -72,6 +72,21 @@ MODE_LABELS = (
     "label_battle_prep",
     "label_skill",
 )
+# confusable banners probed alongside MODE_LABELS: the enemy-turn banner
+# shares three of four glyphs with 我軍回合 and cross-matches label_our_turn
+# above the element gate (0.81 raw / 0.83 highpass, 2026-07-11 on-device),
+# so a distractor winning the argmax means NOT_ACTIONABLE, not a threshold
+DISTRACTOR_LABELS = ("label_enemy_turn",)
+
+
+def resolve_mode(confidences: dict[str, float]) -> str | None:
+    """Best label among phase labels and distractors; None unless a real
+    phase label wins. Shared with the fixture harness so tests exercise the
+    same decision the controller runs."""
+    if not confidences:
+        return None
+    best = max(confidences, key=lambda k: confidences[k])
+    return best if best in MODE_LABELS else None
 
 TERMINAL_SCREENS = (screens.BATTLE_RESULT, screens.REWARD)
 
@@ -257,10 +272,8 @@ class ManualBattleController:
         return False
 
     def _current_mode(self) -> str | None:
-        found = self.perception.probe(MODE_LABELS)
-        if not found:
-            return None
-        return max(found.values(), key=lambda e: e.confidence).id
+        found = self.perception.probe(MODE_LABELS + DISTRACTOR_LABELS)
+        return resolve_mode({eid: e.confidence for eid, e in found.items()})
 
     def _confirmed_mode(self, settle_s: float = 0.35) -> str | None:
         """Two agreeing label reads ~settle_s apart. A transition that briefly
