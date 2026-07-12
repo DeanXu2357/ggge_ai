@@ -1,11 +1,60 @@
 # 進度與規劃
 
-更新日期：2026-07-11 深夜（is_static 卡死修畢：actionable-first 重構＋
-highpass 匹配＋敵軍回合干擾模板＋對話帶加寬＋neutral-tap fallback＋
-狀態轉換 log，全部在 HARD STAGE 1 活戰場驗證；戰鬥於 turn 4 戰敗、
-ledger 乾淨歸檔）
+更新日期：2026-07-12 晚間（LLM 讀圖＋AUTO 防呆 act→verify→retry 實戰
+驗證通過；期望轉移驗證機制與戰術感知修復已落地，**等使用者下實機測試
+指令**）
 
-## 暫停快照（2026-07-11 深夜，恢復點）
+## 暫停快照（2026-07-12 晚間，恢復點）
+
+**裝置現況**：手機停在「機動新世紀鋼彈X HARD STAGE 1」選關畫面（出擊
+準備鈕），體力 25/104 自然回復中。驗證局用戰鬥選單收場——**放棄戰鬥
+不消耗體力／挑戰次數（確認框明文實證），出擊 10 點已退回**，之後可
+低成本反覆實測。adb server 已關、tmux 已清。
+
+**本批次成果（commits 99035e1 + 後續，213 測試/1 xfail、ruff 全綠）**：
+
+1. **LLM 讀圖輔助**（`perception/llm.py`）：ollama 讀截圖協助未知畫面
+   判別，預設 gemma4:latest（實測 8B 暖機 3.6s 且輸出比 26B 乾淨）；
+   接線於 controller 未知場景（neutral tap 前）、AUTO 防呆失敗診斷、
+   clear-loop unknown handler。rate limit 60s、任何失敗都退化為原行為。
+   **實戰命中**：載入畫面被正確讀出（5.8s）。
+2. **AUTO 防呆 act→verify→retry**（`force_manual_auto`）：tap 後要求
+   chip 狀態在 6s 內真的轉移，否則視為被吞重試；回傳 manual/absent/
+   unconfirmed 三態。stage_info 硬閘門（unconfirmed 拒絕推進出擊）、
+   controller 開頭 15s 短預算（修 60s 空燒）、hub 每次訪問複檢。
+   **實戰驗證**：使用者遊玩殘留的真實全自動被閘門攔截，full→enemy→
+   manual 每步驗證後才出擊，7/11 汙染場景完整重演並被擋下。
+3. **期望轉移驗證機制**（使用者定案方向）：`Expectation` 契約（來源
+   相位→合法目標集合），met/eaten（on_eaten 回滾 handler 旗標）/miss
+   （畫面權威，只記帳）/expired（檢查次數計時）四種裁決，v1 掛在
+   選單位/開武裝/攻擊/開始戰鬥/待機。見 docs/battle-phase-states.md。
+4. **戰術感知修復（對「往敵人反方向」的診斷回應）**：
+   - 診斷實據：兩場戰鬥 0 個 move 事件（單位從沒被下移動指令，全程
+     站樁）；`find_move_cells` 白框假設在雪地歸零（白遮罩飽和成一大塊，
+     9 張全解析度幀離線重現）；scout hint 指西而敵軍在北（tacmap 22 敵
+     vs 實際 14——hub 弧線誤判餵毒＋雪地無特徵相位相關飄移）。
+   - 修法（不動任何 HSV 閾值）：威脅格「!」不受敵我誤判污染，升為
+     `_seek_move_target` 第 2 優先與 `_hint_from_map` 首選（tacmap 加
+     threats 層）；抽不到格子但有方向時改「方向性點擊」fallback
+     （PAN_CENTER 朝目標 260px，撞到弧線退 150px，`directional_*`
+     basis 記帳）。頂帽/亮度掃描/窄飽和度萃取格子皆試過不可分，
+     結論記在此，別重走。
+5. 放棄戰鬥流程標定：戰鬥中右上 ☰ → 放棄 (456,850) → 確認 (1346,850)，
+   回到選關畫面。已寫入 CLAUDE.md 鐵則。
+
+**尚缺、待使用者下實機測試指令**：
+1. 期望轉移驗證＋方向性移動＋威脅格導向的實戰資料（放棄免費，可多輪）。
+2. hub guard 故障注入測試（戰鬥中手動撥 AUTO，驗證 hub 複檢抓回）。
+3. SIGTERM 中斷時 ledger 未歸檔（20260712-182115 只有 frames 目錄，
+   jsonl 沒寫出）——中斷路徑要查，或改 ledger 逐事件 append。
+4. 雪地 move-cell 真正的抽取（目前用方向性點擊繞過；圓角/缺口特徵
+   模板是下一個候選，需要更多樣本）。
+5. hub 弧線 HSV 重校準仍缺全解析度 hub 語料（目前用威脅格繞過）。
+6. （承前批次）keyguard 疑似誤報、應戰決策選項優化、roster_calibration
+   接線。ensure_manual_auto 60s 空燒已由 2 修掉；stage_info 修正包的
+   AdvanceStageInfo 路徑今日已實戰走通。
+
+## 舊快照（2026-07-11 深夜，恢復點）
 
 **裝置現況**：HARD STAGE 1 於 turn 4 **戰敗**（己方單位全滅——隊伍
 低於建議戰鬥力＋單位待機不推進，屬預期結果；這場開頭本來就被殘留

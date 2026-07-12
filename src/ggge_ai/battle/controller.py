@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from ggge_ai.battle import vision
@@ -71,6 +72,9 @@ UNIT_DETAIL_CLOSE = (1176, 992)
 # game's 3-minute idle power-save timer as a side effect
 NEUTRAL_TAP = (1170, 90)
 NEUTRAL_TAP_AFTER_MISSES = 3
+# directional-step move (no extractable cells): one grid cell is ~90-100px
+MOVE_STEP_PX = 260
+MOVE_STEP_NEAR_PX = 150
 
 AUTO_STATE_IDS = ("btn_auto_full", "btn_auto_enemy", "btn_auto_manual")
 MODE_LABELS = (
@@ -170,6 +174,32 @@ class _ActionState:
 
 
 @dataclass
+class Expectation:
+    """One act -> verify contract: after `action` (fired while `source` was
+    on screen) the next confirmed mode should land in `targets`.
+
+    Verdicts, checked against every confirmed mode read:
+    - observed in targets: transition verified.
+    - observed == source: the tap was eaten (power-save lock, mid-animation
+      UI) -- on_eaten repairs any handler flag that assumed success, so the
+      reactive dispatch retries the action instead of walking a wrong branch.
+    - observed is some other real mode: a miss. The screen is authoritative,
+      so reality wins and the miss is only recorded (ledger + log) as
+      evidence that our transition model of the game is wrong somewhere.
+    - no label at all: neutral (animations and interrupts look like this);
+      only `checks_left` label-less reads are budgeted before the contract
+      expires as unverifiable -- counted in reads, not wall time, so story
+      skips and long animations do not burn it."""
+
+    action: str
+    source: str | None
+    targets: frozenset[str]
+    checks_left: int
+    on_eaten: Callable[[], None] | None = None
+    retries_left: int = 1
+
+
+@dataclass
 class ManualBattleController:
     perception: object
     actuator: object
@@ -194,6 +224,8 @@ class ManualBattleController:
     _mode_flicker: tuple | None = None
     _state_desc: str | None = None
     _state_checks: int = 0
+    _expectation: Expectation | None = None
+    _dispatched_mode: str | None = None
     tacmap: TacticalMap = field(default_factory=TacticalMap)
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
@@ -292,11 +324,13 @@ class ManualBattleController:
                 continue
             mode = self._confirmed_mode()
             self._log_state(mode)
+            self._check_expectation(mode)
             if mode is None:
                 if self._on_not_actionable():
                     last_activity = time.time()
             else:
                 self._miss_streak = 0
+                self._dispatched_mode = mode
                 handler = getattr(self, f"_on_{mode.removeprefix('label_')}")
                 handler()
                 last_activity = time.time()
@@ -374,6 +408,79 @@ class ManualBattleController:
             log.info("state: %s", desc)
         self._state_desc = desc
         self._state_checks = 1
+
+    def _expect(
+        self,
+        action: str,
+        targets: tuple[str, ...],
+        checks: int = 8,
+        on_eaten: Callable[[], None] | None = None,
+        retries: int = 1,
+    ) -> None:
+        """Register the transition contract for an action just fired from the
+        currently dispatched mode. One at a time: a newer action supersedes
+        whatever contract was still open."""
+        self._expectation = Expectation(
+            action=action,
+            source=self._dispatched_mode,
+            targets=frozenset(targets),
+            checks_left=checks,
+            on_eaten=on_eaten,
+            retries_left=retries,
+        )
+
+    def _check_expectation(self, mode: str | None) -> None:
+        exp = self._expectation
+        if exp is None:
+            return
+        if mode is None:
+            exp.checks_left -= 1
+            if exp.checks_left <= 0:
+                log.warning(
+                    "transition after %s unverifiable (no phase label for too long)", exp.action
+                )
+                self._log(
+                    "expectation_expired",
+                    frame=self._safe_frame(),
+                    action=exp.action,
+                    expected=sorted(exp.targets),
+                )
+                self._expectation = None
+            return
+        if mode in exp.targets:
+            log.info("transition verified: %s -> %s", exp.action, mode)
+            self._log("expectation_met", action=exp.action, observed=mode)
+        elif mode == exp.source and exp.retries_left > 0:
+            exp.retries_left -= 1
+            log.warning("%s left the screen unchanged (tap eaten?), retrying", exp.action)
+            self._log("expectation_retry", action=exp.action, observed=mode)
+            if exp.on_eaten is not None:
+                exp.on_eaten()
+            return
+        elif mode == exp.source:
+            log.warning("%s still stuck on %s after retrying, giving up on it", exp.action, mode)
+            self._log(
+                "expectation_expired",
+                frame=self._safe_frame(),
+                action=exp.action,
+                expected=sorted(exp.targets),
+                observed=mode,
+            )
+        else:
+            log.warning(
+                "expected one of %s after %s, observed %s -- accepting the screen",
+                sorted(exp.targets),
+                exp.action,
+                mode,
+            )
+            self._log(
+                "expectation_miss",
+                frame=self._safe_frame(),
+                action=exp.action,
+                expected=sorted(exp.targets),
+                observed=mode,
+            )
+        self._expectation = None
 
     def _confirmed_probe(self, element_id: str, settle_s: float = 0.3) -> bool:
         """Two agreeing probes ~settle_s apart, for dialogs that must not be
@@ -485,6 +592,7 @@ class ManualBattleController:
             log.info("selecting next actable unit")
             self._log("select_unit", frame=frame)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
+            self._expect("select_unit", ("label_unit_move", "label_weapon_select"))
             self._probe_after_select()
             return
         # the card strip animates in after the hub appears; confirm it is
@@ -495,6 +603,7 @@ class ManualBattleController:
             log.info("unit cards appeared late, selecting next unit")
             self._log("select_unit", frame=late_frame)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
+            self._expect("select_unit", ("label_unit_move", "label_weapon_select"))
             self._probe_after_select()
         else:
             log.info("no actable units left, ending turn")
@@ -577,16 +686,24 @@ class ManualBattleController:
             vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION),
             vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION),
             vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION),
+            threats=vision.find_threat_cells(frame),
         )
 
     def _hint_from_map(self) -> tuple[float, float] | None:
+        """Heading from our force toward the enemy mass. Threat cells first:
+        HP-arc faction colors misread on the our-turn hub (the pinned hp_arc
+        bug fed 22 phantom enemies into a 14-enemy map and steered the hint
+        west while the enemy force sat north, 20260712 run), while the "!"
+        overlay only ever renders around real enemies."""
         origin = vision.centroid([(round(x), round(y)) for x, y in self.tacmap.allies])
         if origin is None:
             origin = PAN_CENTER
-        enemy = self.tacmap.nearest_enemy(origin)
-        if enemy is None:
+        toward = self.tacmap.threat_centroid()
+        if toward is None:
+            toward = self.tacmap.nearest_enemy(origin)
+        if toward is None:
             return None
-        dx, dy = enemy[0] - origin[0], enemy[1] - origin[1]
+        dx, dy = toward[0] - origin[0], toward[1] - origin[1]
         n = max((dx * dx + dy * dy) ** 0.5, 1.0)
         return (dx / n, dy / n)
 
@@ -595,13 +712,20 @@ class ManualBattleController:
             log.info("opening weapon select in place")
             self._action.tried_in_place = True
             self.actuator.tap(*WEAPON_SELECT_BTN)
+            # an eaten tap must clear the flag, or the next visit walks the
+            # move branch believing weapon select was already tried
+            self._expect(
+                "open_weapon_select",
+                ("label_weapon_select",),
+                on_eaten=lambda: setattr(self._action, "tried_in_place", False),
+            )
             time.sleep(1.8)
             return
         if not self._action.moved:
             frame = self._frame()
             cells = vision.find_move_cells(frame)
             target, basis = self._seek_move_target(frame, cells)
-            if target and cells:
+            if target is not None and cells:
                 cell = vision.nearest_point(cells, target)
                 log.info("moving toward enemies via %s (basis %s)", cell, basis)
                 self._log(
@@ -613,6 +737,25 @@ class ManualBattleController:
                 )
                 self._action.moved = True
                 self.actuator.tap(*cell)
+                time.sleep(2.0)
+                return
+            if target is not None:
+                # cell extraction failed (bright maps: the outline mask
+                # saturates on snow ground, 20260712 analysis) but we do know
+                # the direction -- step the selected unit (screen center
+                # after the recenter) toward it and let the follow-up weapon
+                # try / standby flow judge the result
+                point = self._directional_step(frame, target)
+                log.info("no cells extracted, directional step to %s (basis %s)", point, basis)
+                self._log(
+                    "move",
+                    frame=frame,
+                    basis=f"directional_{basis}",
+                    target=(round(target[0]), round(target[1])),
+                    cell=point,
+                )
+                self._action.moved = True
+                self.actuator.tap(*point)
                 time.sleep(2.0)
                 return
             log.info(
@@ -637,16 +780,16 @@ class ManualBattleController:
         unit is its own residual arc and is excluded (SELF_ARC_RADIUS); the
         enemy red band was tightened to hue<=10 in 1ddc407, so the remaining
         arcs are true enemies and each unit steers toward its own closest
-        one; (2) anchor the camera against the map and aim at the nearest
-        world enemy; (3) fall back to the scouted world heading from our
-        force toward the enemy mass -- a pure translation, so a world
-        direction is a screen direction regardless of camera offset (a
-        single force-wide heading, which walks front-line units away from a
-        side/rear enemy: only reached when no enemy is on screen); (4) last
-        resort, the on-screen threat-cell centroid."""
-        if not cells:
-            return None, None
-        origin = vision.centroid(cells)
+        one; (2) the on-screen threat-cell centroid -- the "!" overlay only
+        renders around real enemies, so it survives the arc-color
+        misclassification that poisons the tacmap and scout hint (20260712:
+        the hint pointed west while the enemy force sat due north); (3)
+        anchor the camera against the map and aim at the nearest world
+        enemy; (4) fall back to the scouted world heading from our force
+        toward the enemy mass -- a pure translation, so a world direction is
+        a screen direction regardless of camera offset (a single force-wide
+        heading, which walks front-line units away from a side/rear enemy)."""
+        origin = vision.centroid(cells) if cells else PAN_CENTER
         onscreen = [
             e
             for e in vision.find_enemy_units(frame)
@@ -661,6 +804,10 @@ class ManualBattleController:
                 origin,
             )
             return (float(target[0]), float(target[1])), "enemy_onscreen"
+        threat = vision.centroid(vision.find_threat_cells(frame))
+        if threat:
+            log.info("steering by on-screen threat centroid %s", threat)
+            return (float(threat[0]), float(threat[1])), "threat_centroid"
         if self.tacmap.enemies:
             arcs = (
                 vision.find_ally_units(frame)
@@ -682,11 +829,31 @@ class ManualBattleController:
             hx, hy = self._enemy_hint
             log.info("no camera anchor, steering by scouted enemy heading (%.2f, %.2f)", hx, hy)
             return (origin[0] + hx * 1200, origin[1] + hy * 1200), "scout_hint"
-        threat = vision.centroid(vision.find_threat_cells(frame))
-        if threat:
-            log.info("map empty, falling back to threat centroid %s", threat)
-            return threat, "threat_centroid"
         return None, None
+
+    @staticmethod
+    def _directional_step(frame, target: tuple[float, float]) -> tuple[int, int]:
+        """A map tap stepping the selected unit toward `target` when no move
+        cells could be extracted. The unit sits near screen center after the
+        selection recenter; step ~2.5 cells out (clamped to the map region),
+        pulling back to ~1.5 cells if the spot lands on a detected unit arc
+        so the tap orders a move instead of inspecting someone."""
+        ox, oy = PAN_CENTER
+        dx, dy = target[0] - ox, target[1] - oy
+        n = max((dx * dx + dy * dy) ** 0.5, 1.0)
+        arcs = (
+            vision.find_enemy_units(frame)
+            + vision.find_ally_units(frame)
+            + vision.find_third_party_units(frame)
+        )
+        x0, y0, w, h = vision.MAP_REGION
+        for step in (MOVE_STEP_PX, MOVE_STEP_NEAR_PX):
+            px = min(max(ox + dx / n * step, x0 + 30), x0 + w - 30)
+            py = min(max(oy + dy / n * step, y0 + 30), y0 + h - 30)
+            point = (round(px), round(py))
+            if not any((a[0] - px) ** 2 + (a[1] - py) ** 2 < 70 * 70 for a in arcs):
+                return point
+        return point
 
     def _on_weapon_select(self) -> None:
         frame = self._frame()
@@ -725,17 +892,27 @@ class ManualBattleController:
         log.info("confirming battle start")
         self._log("engagement_confirm")
         self.actuator.tap(*pos)
+        # generous budget: the battle animation is long, and for a reaction
+        # popup (#3) the enemy turn continues afterwards -- an expiry here is
+        # informative ledger noise, not a failure
+        self._expect(
+            "battle_execute",
+            ("label_our_turn", "label_unit_move", "label_weapon_select"),
+            checks=20,
+        )
         self._wait_animation()
         self._action.reset()
 
     def _attack(self, slot: int) -> None:
         self._log("attack", frame=self._safe_frame(), slot=slot)
         self.actuator.tap(*ATTACK_BTN)
+        self._expect("attack", ("label_battle_prep",))
         time.sleep(2.0)
 
     def _standby(self, reason: str) -> None:
         self._log("standby", frame=self._safe_frame(), reason=reason)
         self.actuator.tap(*STANDBY_BTN)
+        self._expect("standby", ("label_our_turn",), checks=12)
         time.sleep(1.8)
         self._action.reset()
 

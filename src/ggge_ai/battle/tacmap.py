@@ -31,11 +31,17 @@ class TacticalMap:
     enemies: list[Point] = field(default_factory=list)
     allies: list[Point] = field(default_factory=list)
     third_party: list[Point] = field(default_factory=list)
+    # threat cells ("!" overlay) projected to world coordinates: they only
+    # render around the enemy force, and unlike HP arcs they cannot be
+    # poisoned by ally/enemy color misclassification -- so they double as a
+    # classification-independent bearing toward the enemy mass
+    threats: list[Point] = field(default_factory=list)
 
     def reset(self) -> None:
         self.enemies.clear()
         self.allies.clear()
         self.third_party.clear()
+        self.threats.clear()
 
     def observe(
         self,
@@ -43,11 +49,13 @@ class TacticalMap:
         enemies: list[tuple[int, int]],
         allies: list[tuple[int, int]],
         third_party: list[tuple[int, int]] = (),
+        threats: list[tuple[int, int]] = (),
     ) -> None:
         for screen, world in (
             (enemies, self.enemies),
             (allies, self.allies),
             (third_party, self.third_party),
+            (threats, self.threats),
         ):
             for p in screen:
                 _merge(world, (p[0] + camera[0], p[1] + camera[1]))
@@ -59,6 +67,12 @@ class TacticalMap:
             self.enemies,
             key=lambda e: (e[0] - world_pos[0]) ** 2 + (e[1] - world_pos[1]) ** 2,
         )
+
+    def threat_centroid(self) -> Point | None:
+        if not self.threats:
+            return None
+        n = len(self.threats)
+        return (sum(p[0] for p in self.threats) / n, sum(p[1] for p in self.threats) / n)
 
     def anchor(
         self, unit_screen: Point, visible_arcs: list[tuple[int, int]]

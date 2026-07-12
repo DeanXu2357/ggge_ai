@@ -35,6 +35,8 @@ FRAME_KINDS = frozenset(
         "neutral_tap",
         "llm_read",
         "auto_guard",
+        "expectation_miss",
+        "expectation_expired",
         "hidden_battle_warning",
         "unit_detail_modal",
         "stage_info",
