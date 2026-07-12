@@ -94,7 +94,7 @@ class LlmScreenReader:
     timeout_s: float = 120.0
     min_interval_s: float = 60.0
     transport: Callable[[str, dict, float], str] = _http_transport
-    _last_read_ts: float = field(default=0.0, repr=False)
+    _last_read_ts: float | None = field(default=None, repr=False)
 
     @classmethod
     def from_env(cls) -> LlmScreenReader | None:
@@ -116,7 +116,11 @@ class LlmScreenReader:
         """Describe one frame. Returns None on rate limit, transport failure,
         or unparseable output -- never raises into a control loop."""
         now = time.monotonic()
-        if not force and now - self._last_read_ts < self.min_interval_s:
+        if (
+            not force
+            and self._last_read_ts is not None
+            and now - self._last_read_ts < self.min_interval_s
+        ):
             log.debug("LLM read skipped (rate limit, %.0fs interval)", self.min_interval_s)
             return None
         self._last_read_ts = now
