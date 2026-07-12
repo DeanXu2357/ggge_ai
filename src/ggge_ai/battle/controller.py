@@ -38,6 +38,12 @@ AUTO_BUTTON = (1820, 54)
 PAN_CENTER = (1170, 500)
 PAN_HALF = {"x": 300, "y": 200}
 PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
+# serpentine full-map scan (turn 1): a pan whose measured travel is under
+# this fraction of the gesture means the camera hit the map edge; leg
+# budgets bound worst-case scan time on huge maps
+SCAN_EDGE_RATIO = 0.3
+SCAN_CORNER_MAX_LEGS = 8
+SCAN_MAX_LEGS = 28
 WEAPON_SELECT_BTN = (2106, 965)
 ATTACK_BTN = (2085, 977)
 START_BATTLE_BTN = (2085, 988)
@@ -241,6 +247,7 @@ class ManualBattleController:
     advisor_enabled: bool = False
     advisor_time_budget_s: float = 3.0
     _intel_done: bool = False
+    _full_scan_done: bool = False
     _turn_advised: bool = False
     _proposal: object | None = None
     _sig_positions: dict = field(default_factory=dict)
@@ -768,16 +775,47 @@ class ManualBattleController:
         )
 
     def _scout(self, frame) -> None:
-        """Rebuild the tactical map once per turn by pan-scanning the four
-        directions around the hub view. Every pan is measured with phase
-        correlation before world coordinates are assigned, and every leg
-        pans back so all observations share the scan origin."""
+        """Rebuild the tactical map once per turn. The first scan of a
+        battle is a corner-start serpentine sweep of the whole map (the
+        user's 2026-07-12 direction: sync every unit into the backend
+        simulation, partial views miss whole forces); later turns refresh
+        with the cheap four-direction local scan around the hub view.
+        Every pan is measured with phase correlation before world
+        coordinates are assigned."""
         if self._turn_scouted:
             return
         self._turn_scouted = True
         self.tacmap.reset()
         camera = (0.0, 0.0)
         self._observe_map(frame, camera)
+        if not self._full_scan_done:
+            self._full_scan_done = True
+            camera, legs = self._scout_serpentine(frame, camera)
+            scan = f"serpentine({legs} legs)"
+        else:
+            camera = self._scout_local(frame, camera)
+            scan = "local"
+        self._enemy_hint = self._hint_from_map()
+        self._log(
+            "tactical_map",
+            frame=frame,
+            scan=scan,
+            enemies=[(round(x), round(y)) for x, y in self.tacmap.enemies],
+            allies=[(round(x), round(y)) for x, y in self.tacmap.allies],
+            third_party=[(round(x), round(y)) for x, y in self.tacmap.third_party],
+            camera_drift=(round(camera[0]), round(camera[1])),
+        )
+        log.info(
+            "scout (%s): tactical map has %d enemies / %d allies / %d third-party",
+            scan,
+            len(self.tacmap.enemies),
+            len(self.tacmap.allies),
+            len(self.tacmap.third_party),
+        )
+
+    def _scout_local(self, frame, camera) -> tuple[float, float]:
+        """Four out-and-back legs around the current view; all observations
+        share the scan origin."""
         cx, cy = PAN_CENTER
         prev = frame
         for name, (dx, dy) in PAN_DIRS:
@@ -793,21 +831,65 @@ class ManualBattleController:
             back = self._frame()
             camera = self._advance_camera(camera, cur, back, (-travel[0], -travel[1]))
             prev = back
-        self._enemy_hint = self._hint_from_map()
-        self._log(
-            "tactical_map",
-            frame=frame,
-            enemies=[(round(x), round(y)) for x, y in self.tacmap.enemies],
-            allies=[(round(x), round(y)) for x, y in self.tacmap.allies],
-            third_party=[(round(x), round(y)) for x, y in self.tacmap.third_party],
-            camera_drift=(round(camera[0]), round(camera[1])),
-        )
-        log.info(
-            "scout: tactical map has %d enemies / %d allies / %d third-party",
-            len(self.tacmap.enemies),
-            len(self.tacmap.allies),
-            len(self.tacmap.third_party),
-        )
+        return camera
+
+    def _pan_leg(self, camera, prev, direction):
+        """One measured pan. Returns (camera, frame, actual, requested);
+        actual << requested means the camera hit the map edge -- at an edge
+        the two frames are identical, so phase correlation reads ~0 with a
+        strong response (the featureless-view fallback only fires on weak
+        response and cannot mask an edge)."""
+        dx, dy = direction
+        hx, hy = dx * PAN_HALF["x"], dy * PAN_HALF["y"]
+        cx, cy = PAN_CENTER
+        self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, 500)
+        time.sleep(1.0)
+        cur = self._frame()
+        requested = (2 * hx, 2 * hy)
+        new_camera = self._advance_camera(camera, prev, cur, requested)
+        actual = (new_camera[0] - camera[0], new_camera[1] - camera[1])
+        return new_camera, cur, actual, requested
+
+    @staticmethod
+    def _at_edge(actual, requested, axis: int) -> bool:
+        return abs(actual[axis]) < abs(requested[axis]) * SCAN_EDGE_RATIO
+
+    def _scout_serpentine(self, frame, camera) -> tuple[tuple[float, float], int]:
+        """Corner-start full-map sweep: pan to the northwest corner (a leg
+        saturates when the map stops moving), then snake east/west with
+        south steps until the bottom edge, observing at every stop. The
+        leg budget bounds worst-case scan time on huge maps."""
+        prev = frame
+        legs = 0
+        pending = {"west": (-1, 0), "north": (0, -1)}
+        while pending and legs < SCAN_CORNER_MAX_LEGS:
+            for name in list(pending):
+                camera, prev, actual, requested = self._pan_leg(camera, prev, pending[name])
+                legs += 1
+                self._observe_map(prev, camera)
+                axis = 0 if name == "west" else 1
+                if self._at_edge(actual, requested, axis):
+                    del pending[name]
+                if legs >= SCAN_CORNER_MAX_LEGS:
+                    break
+        heading = (1, 0)
+        bottom_row = False
+        while legs < SCAN_MAX_LEGS:
+            camera, prev, actual, requested = self._pan_leg(camera, prev, heading)
+            legs += 1
+            self._observe_map(prev, camera)
+            if self._at_edge(actual, requested, 0):
+                if bottom_row:
+                    break
+                camera, prev, actual, requested = self._pan_leg(camera, prev, (0, 1))
+                legs += 1
+                self._observe_map(prev, camera)
+                if self._at_edge(actual, requested, 1):
+                    # bottom edge: one last row still needs walking, or the
+                    # far bottom corner is never observed
+                    bottom_row = True
+                heading = (-heading[0], 0)
+        return camera, legs
 
     @staticmethod
     def _advance_camera(camera, prev, cur, nominal) -> tuple[float, float]:
