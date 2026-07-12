@@ -1,0 +1,29 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      410,
+      72,
+      100,
+      36
+    ],
+    "digit_height": 23,
+    "kind": "fraction",
+    "value": [
+      8,
+      10
+    ]
+  },
+  "box": [
+    410,
+    72,
+    100,
+    36
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "battle_prep_kill_counter_8_10.png",
+  "source": "assets/screenshots/20260705-180119.png"
+}

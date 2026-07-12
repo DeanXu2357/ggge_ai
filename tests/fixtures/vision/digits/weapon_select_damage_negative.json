@@ -1,0 +1,27 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      590,
+      228,
+      160,
+      44
+    ],
+    "digit_height": 32,
+    "kind": "number",
+    "value": -65358
+  },
+  "box": [
+    590,
+    228,
+    160,
+    44
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "weapon_select_damage_negative.png",
+  "source": "assets/screenshots/20260712-182654.png",
+  "note": "Predicted damage -65358 overlapping the white HP bar (why detection slides gray CCOEFF instead of segmenting a white mask). Source of the native-h32 6_b template; leading minus must survive."
+}

@@ -1,0 +1,26 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      1420,
+      238,
+      175,
+      36
+    ],
+    "digit_height": 30,
+    "kind": "number",
+    "value": -2626
+  },
+  "box": [
+    1420,
+    238,
+    175,
+    36
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "battle_prep_hp_delta_negative.png",
+  "source": "assets/screenshots/20260705-180119.png"
+}

@@ -1,0 +1,28 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      100,
+      500,
+      130,
+      40
+    ],
+    "digit_height": 30,
+    "kind": "number",
+    "allow_minus": false,
+    "value": null
+  },
+  "box": [
+    100,
+    500,
+    130,
+    40
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "no_digits_reads_none.png",
+  "source": "assets/screenshots/20260712-182654.png",
+  "note": "A digit-free map crop must read None -- the reader never guesses. Note dark uniform texture CAN push a stray glyph over the CCOEFF gate elsewhere; panel anchoring is the caller's job."
+}

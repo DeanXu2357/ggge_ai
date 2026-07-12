@@ -1,0 +1,27 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      846,
+      812,
+      90,
+      44
+    ],
+    "digit_height": 23,
+    "kind": "percent",
+    "value": 62
+  },
+  "box": [
+    846,
+    812,
+    90,
+    44
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "battle_prep_hit_percent.png",
+  "source": "assets/screenshots/20260705-180119.png",
+  "note": "Hit chance 62% -- read_percent requires the trailing % glyph, a bare number must not pass."
+}

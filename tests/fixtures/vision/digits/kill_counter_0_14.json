@@ -1,0 +1,30 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      384,
+      72,
+      104,
+      38
+    ],
+    "digit_height": 22,
+    "kind": "fraction",
+    "value": [
+      0,
+      14
+    ]
+  },
+  "box": [
+    384,
+    72,
+    104,
+    38
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "kill_counter_0_14.png",
+  "source": "assets/screenshots/20260712-182654.png",
+  "note": "破壞數 kill counter 0/14 on weapon-select, smallest digit height in the corpus (22px)."
+}

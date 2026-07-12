@@ -1,0 +1,28 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      1700,
+      175,
+      90,
+      40
+    ],
+    "digit_height": 26,
+    "kind": "number",
+    "allow_minus": false,
+    "value": 271
+  },
+  "box": [
+    1700,
+    175,
+    90,
+    40
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "snow_panel_en_small.png",
+  "source": "assets/screenshots/20260711-214425.png",
+  "note": "Own EN row renders at 26px on the same panel where the HP row is 32px -- digit_height is per-region, not per-panel."
+}

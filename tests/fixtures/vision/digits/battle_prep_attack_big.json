@@ -1,0 +1,28 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      1124,
+      100,
+      120,
+      58
+    ],
+    "digit_height": 48,
+    "kind": "number",
+    "allow_minus": false,
+    "value": 2626
+  },
+  "box": [
+    1124,
+    100,
+    120,
+    58
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "battle_prep_attack_big.png",
+  "source": "assets/screenshots/20260705-180119.png",
+  "note": "Battle-prep big attack number, largest digit height in the corpus (48px) -- exercises the row rescale to CANON_H."
+}

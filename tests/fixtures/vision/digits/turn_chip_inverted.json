@@ -1,0 +1,29 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      248,
+      64,
+      64,
+      36
+    ],
+    "digit_height": 28,
+    "kind": "number",
+    "invert": true,
+    "allow_minus": false,
+    "value": 22
+  },
+  "box": [
+    248,
+    64,
+    64,
+    36
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "turn_chip_inverted.png",
+  "source": "assets/screenshots/20260705-180119.png",
+  "note": "TURN chip is black-on-white (invert=True). Pins the rerank margin rule on inverted bands: absolute SQDIFF runs high there (~0.23) and without the margin both 2s flip to 7 (0.2320 vs 0.2462)."
+}

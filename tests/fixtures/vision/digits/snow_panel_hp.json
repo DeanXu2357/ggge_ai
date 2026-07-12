@@ -1,0 +1,28 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      1500,
+      170,
+      160,
+      50
+    ],
+    "digit_height": 32,
+    "kind": "number",
+    "allow_minus": false,
+    "value": 93836
+  },
+  "box": [
+    1500,
+    170,
+    160,
+    50
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "snow_panel_hp.png",
+  "source": "assets/screenshots/20260711-214425.png",
+  "note": "Own HP on the snow-map unit_move panel: bright ambient background, the case that broke early white-mask segmentation."
+}

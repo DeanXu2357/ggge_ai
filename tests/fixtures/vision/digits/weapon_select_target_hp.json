@@ -1,0 +1,28 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      660,
+      183,
+      130,
+      40
+    ],
+    "digit_height": 30,
+    "kind": "number",
+    "allow_minus": false,
+    "value": 87732
+  },
+  "box": [
+    660,
+    183,
+    130,
+    40
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "weapon_select_target_hp.png",
+  "source": "assets/screenshots/20260712-182654.png",
+  "note": "Weapon-select target HP. Pins the SQDIFF rerank margin rule: without _RERANK_MARGIN the masked-SQDIFF rerank flips the leading 8 to 6 by a razor-thin 0.0411-vs-0.0421 margin."
+}

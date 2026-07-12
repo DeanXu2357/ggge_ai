@@ -26,6 +26,7 @@ import pytest
 from ggge_ai.battle import vision
 from ggge_ai.battle.controller import DISTRACTOR_LABELS, MODE_LABELS, resolve_mode
 from ggge_ai.actuation.keyguard import Keyguard
+from ggge_ai.vision import digits
 from ggge_ai.vision.manifest import TemplateManifest
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "vision"
@@ -75,6 +76,33 @@ def _check_mode_label(frame: np.ndarray, expect: dict[str, Any]) -> None:
     assert mode == expect["id"], f"got {mode} ({confidences}), want {expect['id']}"
 
 
+def _check_digit_read(frame: np.ndarray, expect: dict[str, Any]) -> None:
+    """Template-digit OCR over a HUD region. expect:
+    {"region": [x,y,w,h], "digit_height": 30, "kind": "number|fraction|percent|text",
+     "value": ..., "invert"?: bool, "allow_minus"?: bool}. kind=fraction expects
+    a [k, m] pair; a null value pins that the region must NOT read (the
+    reader never guesses)."""
+    region = tuple(expect["region"])
+    kwargs: dict[str, Any] = {"digit_height": expect["digit_height"]}
+    if "invert" in expect:
+        kwargs["invert"] = expect["invert"]
+    kind = expect["kind"]
+    if kind == "number":
+        if "allow_minus" in expect:
+            kwargs["allow_minus"] = expect["allow_minus"]
+        actual: Any = digits.read_number(frame, region, **kwargs)
+    elif kind == "fraction":
+        pair = digits.read_fraction(frame, region, **kwargs)
+        actual = list(pair) if pair is not None else None
+    elif kind == "percent":
+        actual = digits.read_percent(frame, region, **kwargs)
+    else:
+        if "allow_minus" in expect:
+            kwargs["allow_minus"] = expect["allow_minus"]
+        actual = digits.read_text(frame, region, **kwargs).text
+    assert actual == expect["value"], f"got {actual!r}, want {expect['value']!r}"
+
+
 CHECKS = {
     "unit_cards_present": _check_bool(vision.unit_cards_present),
     "unit_detail_modal": _check_bool(vision.is_unit_detail_modal),
@@ -84,6 +112,7 @@ CHECKS = {
     "hp_arc_counts": _check_hp_arc_counts,
     "keyguard_locked": _check_keyguard_locked,
     "mode_label": _check_mode_label,
+    "digit_read": _check_digit_read,
 }
 
 
