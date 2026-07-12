@@ -1,10 +1,78 @@
 # 進度與規劃
 
-更新日期：2026-07-12 深夜（**HARD STAGE 1 首次通關**：期望轉移驗證＋
-方向性移動＋威脅格導向的實測局直接打贏，含隱藏戰鬥 SECRET CLEAR、
-獲得鋼彈X Divider——工程基準 E4「HARD 1 通關、零手工關卡資料」達成）
+更新日期：2026-07-13（**三層對帳鏈 M1-M4b 全部離線落地**：模板數字
+OCR、遊戲預測讀取、詳情面板解析、敵情採集＋stage cache、對帳接線、
+advisor 提案；另修回合計數回歸、落地角落蛇形全圖掃描）
 
-## 暫停快照（2026-07-12 深夜，恢復點）
+## 暫停快照（2026-07-13，恢復點）
+
+**裝置現況**：本日未碰實機（純離線開發），沿用 7/12 深夜狀態——手機
+停在鋼彈X 選關畫面，HARD 1 已通關，adb server 已關、tmux 已清。
+
+**本批次成果（commits 5acb129..50dddd4，305 測試/1 xfail、ruff 全綠）**，
+回應使用者 7/12 的歸因需求（「內建 AI 也能通關且評價更好——我要知道
+贏是演算法期望所致，還是隊伍太強隨便打都贏」）：
+
+1. **M1 `vision/digits.py` 模板數字 OCR**：確定性、絕不亂猜（低於門檻
+   回 None）。HUD 白字＋modal 深字雙字形庫（全裁自全解析度 PNG）；
+   語料 15/15＋modal 24/24。關鍵規則：SQDIFF 再確認需決定性差距才准
+   翻案（修 8→6、2→7 回歸）、最長連續字形串（擋表頭亮邊假 '4'）、
+   斜線豁免小字形加成（半透明表頭上 '/' 只剩 0.75）。
+2. **M2 遊戲預測讀取器（battle/vision.py）**：read_weapon_select_
+   forecast／read_battle_prep_forecast（-應戰- 旗標、命中%）／
+   read_enemy_summary／read_kill_counter（破壞數標籤錨定，TURN 章
+   自動寬度會讓它浮動）＋name_signature 單位圖像簽名（tight-bbox
+   dHash，位移 ±4px 距離 0、異單位 25+ bits）。v1 stub（皆有 fixture
+   釘住）：武裝選擇命中%（🎯浮動在目標頭上且語料被裁切）、
+   support_defense 圖示（無語料）、亮背景破壞數（回 None 重試）。
+3. **M3a `battle/panels.py` 詳情面板解析**：左欄 12 數值（跨三分頁
+   不變）＋武裝卡列（LV/RANGE/POWER/EN/命中/爆擊＋格鬥/射擊徽章）；
+   藍色▲強化數值 12/12 直讀。to_unit_spec＋assumptions；UnitSpec 增
+   pilot_shooting/pilot_melee；pilot_attack_for 依徽章選射擊值/格鬥值。
+4. **M3b 敵情採集＋stage cache（離線半場）**：scout_intel 點敵→摘要
+   卡（sig 去重、幻影點容忍）→開 modal→武裝分頁→解析→cache；
+   IntelBudget(6 面板/90s)。stage_cache=data/cache/stages/，只存身分
+   與基礎 kit（現 HP 永遠讀畫面），sig 普查不符→cache_stale→現場
+   重讀。**GGGE_INTEL=1 才啟用，等實機標定**（SUMMARY_CARD_TAP／
+   WEAPONS_TAB_TAP 座標、settle 時間）。
+5. **M4a 對帳鏈接線**：每次攻擊先 compute_expectation（formulas 代入
+   面板 spec，缺值記 assumption；quality=grounded/assumed/none）→
+   讀武裝選擇 forecast 對帳→battle_prep 抓支援防禦塌陷＋命中%→
+   破壞數 delta 裁決。分類：[SIM-DIVERGE damage/kill_flip/support_
+   defense]、[RNG-BRANCH]（命中<100 的預期擊殺落空＝骰子問題）、
+   [MODEL-DIVERGE]（命中=100 沒死＝模型錯）、[SIM-SKIP]（無 grounded
+   期望＝永不記功）。attribution 新增 algorithm_credit＝grounded 且
+   擊殺確認 / 出手次數，勝場 0 grounded→明示「勝利不可歸因演算法」。
+   順修：battle_prep→battle_prep 列為合法轉移（消 12 筆假 retry）。
+6. **M4b advisor 提案（GGGE_ADVISOR=1）**：observe.py 把 tacmap＋
+   sig 位置投影成 BattleState（敵單位以 sig 為 id），每回合諮詢
+   advisor.advise(3s) 記 decision 事件——只提案不執行；實際目標 ≠
+   提案目標→[SIM-DIVERGE] proposal_target。
+7. **回合計數修復（原任務 #9）**：TURN 數字 OCR 直讀為主（HARD 1
+   的 19 張存檔幀重放：前 12 張讀 1、後 7 張讀 2，半解析度 JPEG 也
+   乾淨），marker 比對降為後備；+3 以上跳躍視為誤讀拒收。
+8. **tacmap v2 角落蛇形全圖掃描（原任務 #7，使用者指示）**：首回合
+   相機開到西北角再蛇行到底（邊緣=相位相關量測位移趨零），南緣飽和
+   後補走最後一列；模擬世界測試證明任意起點全角落覆蓋＋全單位同步；
+   28 腿預算；次回合起用便宜的四向局部刷新。
+9. 附帶修復：LLM reader 開機後首讀被限流吞掉（monotonic 從開機起算
+   ＋預設 0.0 的組合 bug）；新增 LlmScreenReader.transcribe（名牌
+   轉錄，共用限流）——首見 sig 會存名牌裁切＋LLM 轉錄人類可讀名。
+
+**下一步（需實機／使用者在場）**：
+1. **M3b 實機驗證**（免費棄局）：`GGGE_INTEL=1` 出擊 HARD 1→turn 1
+   採集→棄局→驗 ledger unit_intel/cache_stale 與 data/cache/stages/；
+   重跑同關驗零開面板；毀 cache 驗回退。需標定摘要卡/分頁 tap 座標。
+2. **對帳鏈實戰**：一場完整 decision→forecast→kill_check jsonl，設法
+   誘發支援防禦；`GGGE_ADVISOR=1` 看提案與 proposal_target。
+3. 蛇形掃描實機計時（28 腿預算是否過長）；武裝選擇命中%（🎯錨定模板
+   需一張未裁切語料）；support_defense 圖示語料；我方單位 modal 開法
+   標定（roster 完整數值）。
+
+**遺留缺口（7/12 快照繼承）**：勝利尾巴 unknown 卡死（SECRET CLEAR
+演出）、假移動格（殘留紅框）、敵方相位 AUTO chip 撥不動（不影響防護）。
+
+## 舊快照（2026-07-12 深夜，恢復點）
 
 **裝置現況**：手機停在鋼彈X 選關畫面（stage_list 0.95），HARD 1 已通關
 （首次獎勵已領：鑽石×50、SECRET 機體、鋼彈X Divider 入手演出走完，
