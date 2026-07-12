@@ -14,7 +14,15 @@ Reading pipeline, tuned on a 15-case corpus sweep (2026-07-12):
    cannot separate glyph from background;
 2. score-priority NMS on horizontal overlap;
 3. small glyphs (minus/percent) must sit on the digit line -- their tiny
-   templates otherwise fire on edge noise and label strokes;
+   templates otherwise fire on edge noise and label strokes. The slash is
+   exempt from their raised gate: read_fraction's digit/digit format
+   already constrains it, and the translucent header dims it to 0.75 on
+   busy map backgrounds;
+3b. only the longest contiguous glyph run survives: one number's glyphs
+   advance by 20-30px at CANON_H, while stray hits on screen furniture
+   (the header bar's bright edge line matches '4' at 0.757) sit far from
+   the digit run, so a start-to-start gap above 1.25*CANON_H splits them
+   off;
 4. each digit position is re-checked by masked TM_SQDIFF_NORMED over a
    small alignment neighborhood: correlation confuses round digits (6/8)
    across background contexts, but background pixels are masked out of
@@ -51,6 +59,7 @@ _SMALL_GLYPH_BOOST = 0.08
 _LINE_TOLERANCE = 0.25
 _ALIGN_SEARCH = 3
 _RERANK_MARGIN = 0.75
+_GAP_LIMIT = int(CANON_H * 1.25)
 
 
 @dataclass(frozen=True)
@@ -149,7 +158,7 @@ def read_text(
         if band.shape[0] < th or band.shape[1] < tw:
             continue
         result = cv2.matchTemplate(band, glyph.image, cv2.TM_CCOEFF_NORMED)
-        gate = min_score + (_SMALL_GLYPH_BOOST if glyph.char in "-%/" else 0.0)
+        gate = min_score + (_SMALL_GLYPH_BOOST if glyph.char in "-%" else 0.0)
         ys, xs = np.where(result >= gate)
         for yy, xx in zip(ys, xs):
             candidates.append((float(result[yy, xx]), glyph.char, int(xx), int(yy), tw, th))
@@ -164,6 +173,14 @@ def read_text(
         ):
             kept.append((score, char, cx, cy, tw, th))
     kept.sort(key=lambda c: c[2])
+
+    if kept:
+        runs: list[list[tuple[float, str, int, int, int, int]]] = [[kept[0]]]
+        for item in kept[1:]:
+            if item[2] - runs[-1][-1][2] > _GAP_LIMIT:
+                runs.append([])
+            runs[-1].append(item)
+        kept = max(runs, key=len)
 
     digit_centers = [yy + th / 2 for _, ch, _, yy, _, th in kept if ch.isdigit()]
     if digit_centers:

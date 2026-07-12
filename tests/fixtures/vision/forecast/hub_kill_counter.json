@@ -1,0 +1,22 @@
+{
+  "check": "kill_counter",
+  "expect": {
+    "value": [
+      0,
+      10
+    ]
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    300
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_summary_top.png",
+  "source": "assets/screenshots/20260705-153755.png",
+  "note": "The '/' dims to 0.75 over the jungle behind the translucent header -- pins the slash exemption from the small-glyph gate boost."
+}

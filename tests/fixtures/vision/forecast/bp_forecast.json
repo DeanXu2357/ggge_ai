@@ -1,0 +1,41 @@
+{
+  "check": "battle_prep_forecast",
+  "expect": {
+    "is_reaction": true,
+    "attack_value": 2626,
+    "defense_value": 0,
+    "hit_pct": 62,
+    "attacker_name_sig": "357175757535794e",
+    "attacker_hp": 15721,
+    "attacker_en": 402,
+    "defender_name_sig": "3b3b7b737393a387",
+    "defender_hp": 9045,
+    "defender_en": 241,
+    "defender_hp_delta": 2626,
+    "support_defense": null
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    300
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "bp_reaction_top.png",
+  "extra_crops": [
+    {
+      "image": "bp_reaction_hit.png",
+      "box": [
+        800,
+        790,
+        220,
+        90
+      ]
+    }
+  ],
+  "source": "assets/screenshots/20260705-180119.png",
+  "note": "戰鬥準備 -應戰- (enemy 鋼加農 attacks our GQuuuuuuX). extra_crops carries the hit% strip near the attacker avatar. support_defense pins the v1 stub (None = unknown, never False)."
+}

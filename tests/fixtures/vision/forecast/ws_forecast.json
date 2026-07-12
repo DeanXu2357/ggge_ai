@@ -1,0 +1,26 @@
+{
+  "check": "weapon_select_forecast",
+  "expect": {
+    "target_name_sig": "da4b6be9d8982929",
+    "target_hp": 87732,
+    "target_en": 435,
+    "predicted_damage": 65358,
+    "hit_pct": null,
+    "our_name_sig": "8d0d294da92d2d31",
+    "our_hp": 113204,
+    "our_en": 366
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    300
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "ws_snow_top.png",
+  "source": "assets/screenshots/20260712-182654.png",
+  "note": "選擇武裝 on the snow map, target locked (火鼠, 齊射EX). hit_pct pins the v1 stub: the reticle readout floats over the target and is clipped here. Name sigs pin hash stability, not ground truth."
+}

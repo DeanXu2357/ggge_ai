@@ -5,11 +5,17 @@ All coordinates are in the 2340x1080 landscape reference frame.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+from ..vision import digits
+from ..vision.template import PREPROCESSORS
+
+_highpass = PREPROCESSORS["highpass"]
 
 
 @lru_cache(maxsize=16)
@@ -399,3 +405,299 @@ def centroid(points: list[tuple[int, int]]) -> tuple[int, int] | None:
         return None
     xs, ys = zip(*points)
     return (sum(xs) // len(points), sum(ys) // len(points))
+
+
+# --- game-forecast readers (reconciliation chain, M2) -----------------------
+#
+# Field regions below were calibrated on full-resolution PNG captures
+# (20260712-182654 weapon select, 20260705-180119 battle prep 應戰,
+# 20260711-214425 unit_move) by measuring white-text component boxes.
+# The right-hand panel (our unit on weapon select, the defender on battle
+# prep) lays out identically on both screens, so those regions are shared;
+# the left panel does not (weapon select puts HP left of EN, battle prep
+# the reverse).
+
+_ELEMENTS = Path(__file__).resolve().parents[3] / "assets" / "templates" / "elements"
+
+WEAPON_SELECT_HEADER_TEMPLATE = _ELEMENTS / "label_weapon_select.png"
+BATTLE_PREP_HEADER_TEMPLATE = _ELEMENTS / "label_battle_prep.png"
+PREP_REACTION_TEMPLATE = _ELEMENTS / "label_prep_reaction.png"
+KILL_COUNTER_LABEL_TEMPLATE = _ELEMENTS / "label_kill_counter.png"
+
+# both screen headers live top-left; highpass because a template captured
+# over a dark map degrades on snowfields (0.674 raw vs 0.823 highpass for
+# 選擇武裝, negatives stay <=0.46)
+FORECAST_HEADER_REGION = (110, 0, 320, 135)
+FORECAST_HEADER_THRESHOLD = 0.7
+# the -應戰- suffix follows 戰鬥準備 in the header; its leading/trailing
+# dashes keep it from matching the header's own 戰 (1.000 vs 0.253)
+PREP_REACTION_REGION = (250, 0, 450, 100)
+PREP_REACTION_THRESHOLD = 0.6
+
+# the 破壞數 label floats right of the auto-sized TURN chip (measured x=296
+# with "TURN 1", x=329 with "TURN 22"), so the counter digits are anchored
+# to the matched label, not to fixed coordinates
+KILL_LABEL_SEARCH_REGION = (250, 50, 350, 80)
+KILL_LABEL_THRESHOLD = 0.75
+
+WS_TARGET_HP_REGION = (660, 183, 130, 40)
+WS_TARGET_EN_REGION = (855, 183, 80, 40)
+WS_DAMAGE_REGION = (590, 228, 160, 44)
+BP_ATTACKER_EN_REGION = (630, 184, 90, 36)
+BP_ATTACKER_HP_REGION = (790, 180, 180, 40)
+FORECAST_RIGHT_HP_REGION = (1500, 180, 145, 44)
+FORECAST_RIGHT_EN_REGION = (1700, 180, 92, 44)
+BP_ATTACK_REGION = (1090, 98, 190, 62)
+BP_DEFENSE_REGION = (1090, 213, 190, 62)
+BP_HP_DELTA_REGION = (1420, 238, 175, 36)
+BP_HIT_REGION = (846, 812, 90, 44)
+
+# name bars end before each panel's bright edge line (x=938 left, x=1790
+# right on the weapon-select capture) so the tight-bbox normalization in
+# name_signature is driven by the glyphs, not by fixed panel furniture
+FORECAST_LEFT_NAME_REGION = (555, 126, 375, 46)
+FORECAST_RIGHT_NAME_REGION = (1420, 126, 365, 46)
+
+# tap-enemy summary card (hub): name bar shares the forecast left band;
+# digits measured on the single 20260705-153755 capture (dh30 confirmed by
+# read confidence 0.87/0.92 -- component heights underestimate by 1-2px
+# because anti-aliased stroke edges fall below the white threshold).
+# threshold 0.88: battle-prep's attacker panel scores 0.798 on this anchor
+# (EN label lookalike), everything else stays under 0.42
+ENEMY_SUMMARY_ANCHOR_TEMPLATE = _ELEMENTS / "label_summary_hp.png"
+ENEMY_SUMMARY_ANCHOR_REGION = (570, 175, 100, 65)
+ENEMY_SUMMARY_ANCHOR_THRESHOLD = 0.88
+ENEMY_SUMMARY_HP_REGION = (680, 182, 140, 44)
+ENEMY_SUMMARY_EN_REGION = (865, 182, 100, 44)
+
+
+@dataclass(frozen=True)
+class WeaponSelectForecast:
+    """The game's own prediction on the 選擇武裝 screen. None fields were
+    not readable (panel occluded, animation frame) -- never guessed."""
+
+    target_name_sig: str | None
+    target_hp: int | None
+    target_en: int | None
+    predicted_damage: int | None
+    hit_pct: int | None
+    our_name_sig: str | None
+    our_hp: int | None
+    our_en: int | None
+
+
+@dataclass(frozen=True)
+class EnemySummary:
+    """The tap-enemy summary card on the hub (scouting)."""
+
+    name_sig: str | None
+    hp: int | None
+    en: int | None
+
+
+@dataclass(frozen=True)
+class BattlePrepForecast:
+    """The game's prediction on the 戰鬥準備 confirmation. Attacker is
+    always the left panel: our unit on our attacks, the enemy on -應戰-
+    reactions -- is_reaction carries the direction."""
+
+    is_reaction: bool
+    attack_value: int | None
+    defense_value: int | None
+    hit_pct: int | None
+    attacker_name_sig: str | None
+    attacker_hp: int | None
+    attacker_en: int | None
+    defender_name_sig: str | None
+    defender_hp: int | None
+    defender_en: int | None
+    defender_hp_delta: int | None
+    support_defense: bool | None
+
+
+def _anchor_score(
+    frame: np.ndarray, template_path: Path, region: tuple[int, int, int, int]
+) -> float:
+    template = _cached_template(str(template_path))
+    if template is None:
+        return 0.0
+    crop = _crop(frame, region)
+    if crop.shape[0] < template.shape[0] or crop.shape[1] < template.shape[1]:
+        return 0.0
+    result = cv2.matchTemplate(_highpass(crop), _highpass(template), cv2.TM_CCOEFF_NORMED)
+    return float(result.max())
+
+
+def name_signature(
+    frame: np.ndarray, region: tuple[int, int, int, int], threshold: int = 160
+) -> str | None:
+    """64-bit dHash of the white name text inside `region`, or None when no
+    text is present. The glyph mask is tight-bbox-normalized first because
+    the name's start position floats a few tens of pixels between screens
+    (icon width, panel variant); the hash must identify the unit, not the
+    layout. Icons inside the band are hashed along with the text: if a
+    status icon changes, the signature changes and downstream caches
+    re-read -- noisy but safe. Components under 8px tall are ignored so a
+    panel border line drifting into the band cannot stretch the bbox."""
+    band = cv2.cvtColor(_crop(frame, region), cv2.COLOR_BGR2GRAY)
+    if band.size == 0:
+        return None
+    mask = (band >= threshold).astype(np.uint8)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    keep = [i for i in range(1, n) if stats[i][4] >= 15 and stats[i][3] >= 8]
+    if not keep:
+        return None
+    x0 = min(stats[i][0] for i in keep)
+    y0 = min(stats[i][1] for i in keep)
+    x1 = max(stats[i][0] + stats[i][2] for i in keep)
+    y1 = max(stats[i][1] + stats[i][3] for i in keep)
+    tight = band[y0:y1, x0:x1]
+    small = cv2.resize(tight, (9, 8), interpolation=cv2.INTER_AREA)
+    bits = (small[:, 1:] > small[:, :-1]).flatten()
+    return f"{int(''.join('1' if b else '0' for b in bits), 2):016x}"
+
+
+def signature_distance(a: str | None, b: str | None) -> int:
+    """Hamming distance between two name signatures; unknowns are maximally
+    distant so a None never aliases a real unit."""
+    if a is None or b is None:
+        return 64
+    return (int(a, 16) ^ int(b, 16)).bit_count()
+
+
+def read_kill_counter(frame: np.ndarray) -> tuple[int, int] | None:
+    """The 破壞數 k/m counter shown on hub / unit-move / weapon-select /
+    battle-prep headers. None when the label anchor is absent or the digits
+    do not read as a clean fraction -- the header strip is translucent, and
+    white digits over a bright busy map (snowfield with a sprite behind)
+    can fall below the match gate; callers retry on a later frame."""
+    template = _cached_template(str(KILL_COUNTER_LABEL_TEMPLATE))
+    if template is None:
+        return None
+    gray = cv2.cvtColor(_crop(frame, KILL_LABEL_SEARCH_REGION), cv2.COLOR_BGR2GRAY)
+    tgray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    result = cv2.matchTemplate(gray, tgray, cv2.TM_CCOEFF_NORMED)
+    _, score, _, loc = cv2.minMaxLoc(result)
+    if score < KILL_LABEL_THRESHOLD:
+        return None
+    x0, y0, _, _ = KILL_LABEL_SEARCH_REGION
+    band = (
+        x0 + loc[0] + tgray.shape[1] - 4,
+        y0 + loc[1] - 10,
+        140,
+        44,
+    )
+    return digits.read_fraction(frame, band, digit_height=23)
+
+
+def is_battle_prep_reaction(frame: np.ndarray) -> bool:
+    """True when the battle-prep header carries the -應戰- suffix (the enemy
+    initiated; left panel is theirs)."""
+    template = _cached_template(str(PREP_REACTION_TEMPLATE))
+    if template is None:
+        return False
+    gray = cv2.cvtColor(_crop(frame, PREP_REACTION_REGION), cv2.COLOR_BGR2GRAY)
+    tgray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    result = cv2.matchTemplate(gray, tgray, cv2.TM_CCOEFF_NORMED)
+    _, score, _, _ = cv2.minMaxLoc(result)
+    return score >= PREP_REACTION_THRESHOLD
+
+
+def _magnitude(value: int | None) -> int | None:
+    return None if value is None else abs(value)
+
+
+def read_enemy_summary(frame: np.ndarray) -> EnemySummary | None:
+    """The summary card that pops after tapping an enemy on the hub, or
+    None when its HP-label anchor is not on screen. Callers should only
+    consult this in hub context: the battle-prep attacker panel scores
+    within 0.09 of the anchor gate."""
+    template = _cached_template(str(ENEMY_SUMMARY_ANCHOR_TEMPLATE))
+    if template is None:
+        return None
+    gray = cv2.cvtColor(_crop(frame, ENEMY_SUMMARY_ANCHOR_REGION), cv2.COLOR_BGR2GRAY)
+    tgray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    result = cv2.matchTemplate(gray, tgray, cv2.TM_CCOEFF_NORMED)
+    _, score, _, _ = cv2.minMaxLoc(result)
+    if score < ENEMY_SUMMARY_ANCHOR_THRESHOLD:
+        return None
+    return EnemySummary(
+        name_sig=name_signature(frame, FORECAST_LEFT_NAME_REGION),
+        hp=digits.read_number(
+            frame, ENEMY_SUMMARY_HP_REGION, digit_height=30, allow_minus=False
+        ),
+        en=digits.read_number(
+            frame, ENEMY_SUMMARY_EN_REGION, digit_height=30, allow_minus=False
+        ),
+    )
+
+
+def read_weapon_select_forecast(frame: np.ndarray) -> WeaponSelectForecast | None:
+    """Game forecast off the 選擇武裝 screen, or None when its header is not
+    on screen. hit_pct is a v1 stub (always None): the 🎯NN% readout floats
+    over the targeted unit on the map instead of sitting at a fixed region,
+    and the only capture on hand has it clipped by the screen edge --
+    battle-prep carries the authoritative hit number for reconciliation."""
+    if _anchor_score(frame, WEAPON_SELECT_HEADER_TEMPLATE, FORECAST_HEADER_REGION) < (
+        FORECAST_HEADER_THRESHOLD
+    ):
+        return None
+    return WeaponSelectForecast(
+        target_name_sig=name_signature(frame, FORECAST_LEFT_NAME_REGION),
+        target_hp=digits.read_number(
+            frame, WS_TARGET_HP_REGION, digit_height=30, allow_minus=False
+        ),
+        target_en=digits.read_number(
+            frame, WS_TARGET_EN_REGION, digit_height=30, allow_minus=False
+        ),
+        predicted_damage=_magnitude(
+            digits.read_number(frame, WS_DAMAGE_REGION, digit_height=32)
+        ),
+        hit_pct=None,
+        our_name_sig=name_signature(frame, FORECAST_RIGHT_NAME_REGION),
+        our_hp=digits.read_number(
+            frame, FORECAST_RIGHT_HP_REGION, digit_height=32, allow_minus=False
+        ),
+        our_en=digits.read_number(
+            frame, FORECAST_RIGHT_EN_REGION, digit_height=30, allow_minus=False
+        ),
+    )
+
+
+def read_battle_prep_forecast(frame: np.ndarray) -> BattlePrepForecast | None:
+    """Game forecast off the 戰鬥準備 confirmation, or None when its header
+    is not on screen. support_defense is a v1 stub (always None = unknown,
+    never False): no capture of the support-defense icon exists yet to crop
+    a template from."""
+    if _anchor_score(frame, BATTLE_PREP_HEADER_TEMPLATE, FORECAST_HEADER_REGION) < (
+        FORECAST_HEADER_THRESHOLD
+    ):
+        return None
+    return BattlePrepForecast(
+        is_reaction=is_battle_prep_reaction(frame),
+        attack_value=digits.read_number(
+            frame, BP_ATTACK_REGION, digit_height=48, allow_minus=False
+        ),
+        defense_value=digits.read_number(
+            frame, BP_DEFENSE_REGION, digit_height=48, allow_minus=False
+        ),
+        hit_pct=digits.read_percent(frame, BP_HIT_REGION, digit_height=23),
+        attacker_name_sig=name_signature(frame, FORECAST_LEFT_NAME_REGION),
+        attacker_hp=digits.read_number(
+            frame, BP_ATTACKER_HP_REGION, digit_height=32, allow_minus=False
+        ),
+        attacker_en=digits.read_number(
+            frame, BP_ATTACKER_EN_REGION, digit_height=30, allow_minus=False
+        ),
+        defender_name_sig=name_signature(frame, FORECAST_RIGHT_NAME_REGION),
+        defender_hp=digits.read_number(
+            frame, FORECAST_RIGHT_HP_REGION, digit_height=32, allow_minus=False
+        ),
+        defender_en=digits.read_number(
+            frame, FORECAST_RIGHT_EN_REGION, digit_height=30, allow_minus=False
+        ),
+        defender_hp_delta=_magnitude(
+            digits.read_number(frame, BP_HP_DELTA_REGION, digit_height=30)
+        ),
+        support_defense=None,
+    )

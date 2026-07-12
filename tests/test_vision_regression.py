@@ -76,6 +76,30 @@ def _check_mode_label(frame: np.ndarray, expect: dict[str, Any]) -> None:
     assert mode == expect["id"], f"got {mode} ({confidences}), want {expect['id']}"
 
 
+def _check_kill_counter(frame: np.ndarray, expect: dict[str, Any]) -> None:
+    got = vision.read_kill_counter(frame)
+    want = tuple(expect["value"]) if expect["value"] is not None else None
+    assert got == want, f"got {got}, want {want}"
+
+
+def _forecast_check(fn):
+    """Reader checks compare only the keys the fixture pins, so a fixture
+    can assert the fields its crop covers without freezing the whole
+    dataclass shape. expect=null pins that the reader must decline."""
+
+    def run(frame: np.ndarray, expect: dict[str, Any] | None) -> None:
+        got = fn(frame)
+        if expect is None:
+            assert got is None, f"expected no reading, got {got}"
+            return
+        assert got is not None, "reader returned None on its own screen"
+        for key, want in expect.items():
+            actual = getattr(got, key)
+            assert actual == want, f"{key}: got {actual!r}, want {want!r} ({got})"
+
+    return run
+
+
 def _check_digit_read(frame: np.ndarray, expect: dict[str, Any]) -> None:
     """Template-digit OCR over a HUD region. expect:
     {"region": [x,y,w,h], "digit_height": 30, "kind": "number|fraction|percent|text",
@@ -113,6 +137,10 @@ CHECKS = {
     "keyguard_locked": _check_keyguard_locked,
     "mode_label": _check_mode_label,
     "digit_read": _check_digit_read,
+    "kill_counter": _check_kill_counter,
+    "weapon_select_forecast": _forecast_check(vision.read_weapon_select_forecast),
+    "battle_prep_forecast": _forecast_check(vision.read_battle_prep_forecast),
+    "enemy_summary": _forecast_check(vision.read_enemy_summary),
 }
 
 
@@ -156,6 +184,12 @@ def test_vision_fixture(json_path: Path | None) -> None:
     x, y, w, h = annotation["box"]
     canvas = np.zeros((canvas_h, canvas_w, 3), np.uint8)
     canvas[y : y + h, x : x + w] = crop
+
+    for extra in annotation.get("extra_crops", []):
+        extra_img = cv2.imread(str(json_path.parent / extra["image"]))
+        assert extra_img is not None, f"cannot read extra crop {extra['image']}"
+        ex, ey, ew, eh = extra["box"]
+        canvas[ey : ey + eh, ex : ex + ew] = extra_img
 
     check = CHECKS[annotation["check"]]
     check(canvas, annotation["expect"])

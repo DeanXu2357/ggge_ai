@@ -22,16 +22,17 @@ def _glyph_image(name: str) -> np.ndarray:
     return img
 
 
-def _compose(names: list[str]) -> np.ndarray:
+def _compose(names: list[str], gaps: list[int] | None = None) -> np.ndarray:
     images = [_glyph_image(n) for n in names]
+    gaps = gaps if gaps is not None else [8] * (len(images) - 1)
     h = digits.CANON_H + 16
-    w = sum(i.shape[1] for i in images) + 8 * (len(images) + 1)
+    w = sum(i.shape[1] for i in images) + sum(gaps) + 16
     canvas = np.full((h, w), BACKGROUND, np.uint8)
     x = 8
-    for img in images:
+    for i, img in enumerate(images):
         y = (h - img.shape[0]) // 2
         canvas[y : y + img.shape[0], x : x + img.shape[1]] = img
-        x += img.shape[1] + 8
+        x += img.shape[1] + (gaps[i] if i < len(gaps) else 0)
     return cv2.cvtColor(canvas, cv2.COLOR_GRAY2BGR)
 
 
@@ -83,6 +84,12 @@ def test_percent_requires_trailing_glyph() -> None:
     assert (
         digits.read_percent(suffixed, _full_region(suffixed), digit_height=digits.CANON_H) == 62
     )
+
+
+def test_distant_stray_glyph_is_dropped() -> None:
+    frame = _compose(["4", "2", "7"], gaps=[8, 60])
+    reading = digits.read_text(frame, _full_region(frame), digit_height=digits.CANON_H)
+    assert reading.text == "42"
 
 
 def test_fraction_requires_slash() -> None:

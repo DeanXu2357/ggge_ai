@@ -1,0 +1,19 @@
+{
+  "check": "kill_counter",
+  "expect": {
+    "value": null
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    300
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "um_busy_top.png",
+  "source": "assets/screenshots/20260711-214425.png",
+  "note": "Known limitation, pinned: 4/14 is on screen but a bright mech sprite behind the translucent header drops '/14' below every gate (raw and highpass both fail). The reader must return None here, never a partial guess; callers retry on a later frame."
+}

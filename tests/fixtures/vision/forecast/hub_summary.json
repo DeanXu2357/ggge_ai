@@ -1,0 +1,21 @@
+{
+  "check": "enemy_summary",
+  "expect": {
+    "name_sig": "5155555757554555",
+    "hp": 51349,
+    "en": 377
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    300
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_summary_top.png",
+  "source": "assets/screenshots/20260705-153755.png",
+  "note": "Tap-enemy summary card on the our-turn hub (鋼彈原型機). Single-capture calibration; digit_height 30 confirmed by read confidence, not component heights."
+}

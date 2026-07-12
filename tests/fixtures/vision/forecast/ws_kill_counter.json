@@ -1,0 +1,22 @@
+{
+  "check": "kill_counter",
+  "expect": {
+    "value": [
+      0,
+      14
+    ]
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    300
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "ws_snow_top.png",
+  "source": "assets/screenshots/20260712-182654.png",
+  "note": "Counter digits sit left of the header bar's bright edge line, which matches '4' at 0.757 -- pins the longest-run gap rule."
+}

@@ -1,0 +1,17 @@
+{
+  "check": "enemy_summary",
+  "expect": null,
+  "box": [
+    0,
+    0,
+    2340,
+    300
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "bp_reaction_top.png",
+  "source": "assets/screenshots/20260705-180119.png",
+  "note": "The battle-prep attacker panel scores 0.798 on the summary HP-label anchor -- the closest negative to the 0.88 gate. A threshold cut below 0.80 must turn this red."
+}
