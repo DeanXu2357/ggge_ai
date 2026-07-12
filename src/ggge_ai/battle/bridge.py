@@ -46,6 +46,8 @@ class UnitSpec:
     unit_attack: float | None = None
     unit_defense: float | None = None
     pilot_attack: float | None = None
+    pilot_shooting: float | None = None
+    pilot_melee: float | None = None
     pilot_defense: float | None = None
     reaction: float | None = None
     mobility: float | None = None

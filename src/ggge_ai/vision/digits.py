@@ -131,11 +131,14 @@ def read_text(
     min_score: float = _MIN_SCORE,
     invert: bool = False,
     allow_minus: bool = True,
+    interior_minus: bool = False,
 ) -> DigitReading:
     """Read the glyph string in `region`. digit_height is the on-screen
     pixel height of the digits there; invert reads dark-on-light text
-    (the TURN chip); allow_minus=False is for fields that can never be
-    negative (HP/EN/counters), where a stray dash hit must not survive."""
+    (the TURN chip, detail-modal fields); allow_minus=False is for fields
+    that can never be negative (HP/EN/counters), where a stray dash hit
+    must not survive; interior_minus keeps non-leading dashes for reach
+    bands like RANGE 1-2."""
     x, y, w, h = region
     crop = frame[y : y + h, x : x + w]
     if crop.size == 0:
@@ -204,14 +207,15 @@ def read_text(
                 value = _sqdiff_at(band, center_y, center_x, glyph)
                 if value < by_char.get(glyph.char, np.inf):
                     by_char[glyph.char] = value
-            incumbent = by_char.get(char, np.inf)
-            challenger, challenger_value = min(by_char.items(), key=lambda kv: kv[1])
-            if challenger != char and challenger_value < incumbent * _RERANK_MARGIN:
-                char = challenger
+            if by_char:
+                incumbent = by_char.get(char, np.inf)
+                challenger, challenger_value = min(by_char.items(), key=lambda kv: kv[1])
+                if challenger != char and challenger_value < incumbent * _RERANK_MARGIN:
+                    char = challenger
         matches.append(GlyphMatch(char=char, x=cx, score=score))
 
     chars = [m.char for m in matches]
-    while "-" in chars[1:]:
+    while not interior_minus and "-" in chars[1:]:
         index = chars.index("-", 1)
         chars.pop(index)
         matches.pop(index)
@@ -272,6 +276,35 @@ def read_fraction(
         allow_minus=False,
     )
     parts = reading.text.split("/")
+    if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+        return None
+    return int(parts[0]), int(parts[1])
+
+
+def read_span(
+    frame: np.ndarray,
+    region: tuple[int, int, int, int],
+    *,
+    digit_height: int,
+    font: str = "hud",
+    min_score: float = _MIN_SCORE,
+    invert: bool = False,
+) -> tuple[int, int] | None:
+    """A `k-m` reach band (weapon RANGE), or None. A single number n reads
+    as (n, n)."""
+    reading = read_text(
+        frame,
+        region,
+        digit_height=digit_height,
+        font=font,
+        min_score=min_score,
+        invert=invert,
+        interior_minus=True,
+    )
+    if reading.text.isdigit():
+        value = int(reading.text)
+        return value, value
+    parts = reading.text.split("-")
     if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
         return None
     return int(parts[0]), int(parts[1])

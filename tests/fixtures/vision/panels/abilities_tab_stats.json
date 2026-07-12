@@ -1,0 +1,30 @@
+{
+  "check": "unit_stats",
+  "expect": {
+    "hp": 44328,
+    "en": 502,
+    "move_range": 4,
+    "unit_attack": 4032,
+    "unit_defense": 3644,
+    "unit_mobility": 4453,
+    "pilot_shooting": 310,
+    "pilot_melee": 286,
+    "pilot_awakening": 322,
+    "pilot_defense": 341,
+    "pilot_reaction": 397,
+    "sp": 15
+  },
+  "box": [
+    250,
+    40,
+    1840,
+    980
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "abilities_tab.png",
+  "source": "assets/screenshots/20260705-154019.png",
+  "note": "能力、OP tab (Amuro's 鋼彈): the stat column is tab-invariant, and EN/機動力/覺醒值/反應值 are ability-buffed -- blue digits with ▲▲ arrows must read like plain ones."
+}

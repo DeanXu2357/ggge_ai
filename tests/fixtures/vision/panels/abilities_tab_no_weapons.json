@@ -1,0 +1,17 @@
+{
+  "check": "weapon_rows",
+  "expect": [],
+  "box": [
+    250,
+    40,
+    1840,
+    980
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "abilities_tab.png",
+  "source": "assets/screenshots/20260705-154019.png",
+  "note": "Ability cards look like weapon cards but have no LV/RANGE header strip -- the row probe must find zero rows on this tab."
+}

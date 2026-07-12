@@ -1,0 +1,30 @@
+{
+  "check": "unit_stats",
+  "expect": {
+    "hp": 51349,
+    "en": 377,
+    "move_range": 4,
+    "unit_attack": 3586,
+    "unit_defense": 3939,
+    "unit_mobility": 3219,
+    "pilot_shooting": 168,
+    "pilot_melee": 168,
+    "pilot_awakening": 179,
+    "pilot_defense": 204,
+    "pilot_reaction": 223,
+    "sp": 15
+  },
+  "box": [
+    250,
+    40,
+    1840,
+    980
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "weapons_tab.png",
+  "source": "assets/screenshots/20260705-153830.png",
+  "note": "單位設置詳情 武裝、技能 tab (鋼彈原型機/地球聯邦士兵). Left column, modal font, invert read."
+}

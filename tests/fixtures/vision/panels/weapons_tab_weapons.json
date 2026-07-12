@@ -1,0 +1,38 @@
+{
+  "check": "weapon_rows",
+  "expect": [
+    {
+      "kind": "melee",
+      "level": 1,
+      "range_min": 1,
+      "range_max": 2,
+      "power": 3500,
+      "en_cost": 27,
+      "hit_pct": 100,
+      "crit_pct": 5
+    },
+    {
+      "kind": "shooting",
+      "level": 1,
+      "range_min": 1,
+      "range_max": 3,
+      "power": 3200,
+      "en_cost": 24,
+      "hit_pct": 100,
+      "crit_pct": 0
+    }
+  ],
+  "box": [
+    250,
+    40,
+    1840,
+    980
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "weapons_tab.png",
+  "source": "assets/screenshots/20260705-153830.png",
+  "note": "Two weapon cards: 超絕流星鎚 (格鬥 badge) and 光束步槍 (射擊 badge). Pins card pitch, badge classification, span/percent reads."
+}

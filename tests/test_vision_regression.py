@@ -23,7 +23,7 @@ import cv2
 import numpy as np
 import pytest
 
-from ggge_ai.battle import vision
+from ggge_ai.battle import panels, vision
 from ggge_ai.battle.controller import DISTRACTOR_LABELS, MODE_LABELS, resolve_mode
 from ggge_ai.actuation.keyguard import Keyguard
 from ggge_ai.vision import digits
@@ -100,6 +100,15 @@ def _forecast_check(fn):
     return run
 
 
+def _check_weapon_rows(frame: np.ndarray, expect: list[dict[str, Any]]) -> None:
+    got = panels.parse_weapon_rows(frame)
+    assert len(got) == len(expect), f"got {len(got)} rows, want {len(expect)}: {got}"
+    for i, (row, want) in enumerate(zip(got, expect)):
+        for key, value in want.items():
+            actual = getattr(row, key)
+            assert actual == value, f"row {i} {key}: got {actual!r}, want {value!r}"
+
+
 def _check_digit_read(frame: np.ndarray, expect: dict[str, Any]) -> None:
     """Template-digit OCR over a HUD region. expect:
     {"region": [x,y,w,h], "digit_height": 30, "kind": "number|fraction|percent|text",
@@ -141,6 +150,8 @@ CHECKS = {
     "weapon_select_forecast": _forecast_check(vision.read_weapon_select_forecast),
     "battle_prep_forecast": _forecast_check(vision.read_battle_prep_forecast),
     "enemy_summary": _forecast_check(vision.read_enemy_summary),
+    "unit_stats": _forecast_check(panels.parse_unit_stats),
+    "weapon_rows": _check_weapon_rows,
 }
 
 
