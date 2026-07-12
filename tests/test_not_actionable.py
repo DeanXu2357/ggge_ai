@@ -148,7 +148,7 @@ def test_run_updates_last_activity_only_when_not_actionable_returns_true(monkeyp
     c = ManualBattleController(
         perception=_P(), actuator=_Actuator(), ledger=BattleLedger(), idle_timeout_s=0.0
     )
-    c.ensure_manual_auto = lambda *a, **k: True
+    c.force_manual_auto = lambda *a, **k: "manual"
     result = c.run()
 
     assert result == "unknown"

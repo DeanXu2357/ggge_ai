@@ -17,6 +17,21 @@ from ggge_ai.app import connect
 from ggge_ai.domain.actions.flow import CLEAR_STAGE_ACTIONS, try_skip_story
 from ggge_ai.domain.goals import ClearCurrentStage
 from ggge_ai.domain.translate import to_world_state
+from ggge_ai.perception.llm import LlmScreenReader
+
+
+def unknown_screen_handler(ctx) -> bool:
+    """Story skip first (deterministic), then an advisory LLM description of
+    whatever the classifier cannot name -- logged for the operator, no
+    control authority."""
+    if try_skip_story(ctx):
+        return True
+    llm = ctx.extras.get("llm")
+    if llm is not None:
+        reading = llm.read(ctx.perception.capture())
+        if reading is not None:
+            logging.getLogger("run").info("llm read (unknown screen): %s", reading.summary())
+    return False
 
 
 def main() -> None:
@@ -36,9 +51,9 @@ def main() -> None:
         translator=to_world_state,
         actions=CLEAR_STAGE_ACTIONS,
         config=LoopConfig(settle_delay_s=1.0),
-        unknown_handler=try_skip_story,
+        unknown_handler=unknown_screen_handler,
         keyguard=keyguard,
-        extras={"blackboard": blackboard},
+        extras={"blackboard": blackboard, "llm": LlmScreenReader.from_env()},
     )
     ok = loop.run(ClearCurrentStage())
     logging.getLogger("run").info("clear loop result: %s", "SUCCESS" if ok else "FAILED")

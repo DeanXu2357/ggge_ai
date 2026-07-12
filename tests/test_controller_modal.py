@@ -47,7 +47,7 @@ def _controller(**kw):
     c = ManualBattleController(
         perception=_Perception(), actuator=_Actuator(), ledger=BattleLedger(), **kw
     )
-    c.ensure_manual_auto = lambda *a, **k: True
+    c.force_manual_auto = lambda *a, **k: "manual"
     return c
 
 

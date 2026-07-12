@@ -139,16 +139,37 @@ class AdvanceStageInfo(Action):
     effects = {"screen": screens.STORY}
 
     def execute(self, ctx: ExecutionContext) -> bool:
-        from ...battle.controller import ensure_manual_auto
+        from ...battle.controller import force_manual_auto
 
-        if not ensure_manual_auto(ctx.perception, ctx.actuator, timeout_s=30.0):
-            logger.info("could not confirm manual AUTO on stage_info; controller will retry")
         blackboard = ctx.extras.get("blackboard")
         ledger = blackboard.open_ledger() if blackboard is not None else None
+        status = force_manual_auto(ctx.perception, ctx.actuator, timeout_s=30.0)
         frame = ctx.perception.capture()
         if ledger is not None:
-            ledger.record("stage_info", frame=frame)
+            ledger.record("stage_info", frame=frame, auto_guard=status)
             logger.info("stage_info frame archived to ledger for later condition parsing")
+        if status == "unconfirmed":
+            # the AUTO chip is visible here but never confirmed manual: do NOT
+            # advance into the battle -- sortieing would hand the fight to the
+            # built-in AI (the 20260711 tainted battle). Returning False makes
+            # the agent loop retry this action and abort the run if it keeps
+            # failing, which is the correct outcome for a stuck chip.
+            logger.error("AUTO on stage_info never confirmed manual; refusing to advance")
+            llm = ctx.extras.get("llm")
+            if llm is not None:
+                reading = llm.read(frame, force=True)
+                if reading is not None:
+                    logger.info("llm read (stage_info auto guard): %s", reading.summary())
+                    if ledger is not None:
+                        ledger.record(
+                            "llm_read",
+                            frame=frame,
+                            reason="stage_info_auto_unconfirmed",
+                            **reading.to_event(),
+                        )
+            return False
+        if status == "absent":
+            logger.warning("no AUTO chip found on stage_info; battle hub guard is the backstop")
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             ctx.actuator.tap(*STAGE_INFO_TAP)
@@ -208,7 +229,11 @@ class ManualBattle(Action):
         # conditions frame and this fight share one battle_NN.jsonl
         ledger = blackboard.take_ledger() if blackboard is not None else None
         controller = ManualBattleController(
-            perception=ctx.perception, actuator=ctx.actuator, keyguard=keyguard, ledger=ledger
+            perception=ctx.perception,
+            actuator=ctx.actuator,
+            keyguard=keyguard,
+            ledger=ledger,
+            llm=ctx.extras.get("llm"),
         )
         try:
             result = controller.run()

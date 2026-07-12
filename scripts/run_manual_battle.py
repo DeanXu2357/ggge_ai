@@ -11,6 +11,7 @@ from ggge_ai.actuation.keyguard import Keyguard
 from ggge_ai.agent.blackboard import RunBlackboard
 from ggge_ai.app import connect
 from ggge_ai.battle.controller import ManualBattleController
+from ggge_ai.perception.llm import LlmScreenReader
 
 logging.basicConfig(
     level=logging.DEBUG if os.environ.get("GGGE_DEBUG") else logging.INFO,
@@ -26,7 +27,11 @@ keyguard.ensure_unlocked()
 blackboard = RunBlackboard(goal="manual_battle")
 ledger = blackboard.new_ledger()
 controller = ManualBattleController(
-    perception=perception, actuator=actuator, keyguard=keyguard, ledger=ledger
+    perception=perception,
+    actuator=actuator,
+    keyguard=keyguard,
+    ledger=ledger,
+    llm=LlmScreenReader.from_env(),
 )
 try:
     result = controller.run()

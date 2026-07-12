@@ -99,36 +99,64 @@ def resolve_mode(confidences: dict[str, float]) -> str | None:
 TERMINAL_SCREENS = (screens.BATTLE_RESULT, screens.REWARD)
 
 
-def ensure_manual_auto(perception, actuator, timeout_s: float = 60.0) -> bool:
-    """Cycle the AUTO toggle until it reads colorless (full manual).
+# after tapping AUTO the chip must visibly change state within this window,
+# otherwise the tap is treated as eaten (power-save lock, mid-animation) and
+# retried -- the 20260711 battle sortied with a residual full-auto chip
+# because the old guard gave up silently and "continued anyway"
+AUTO_CYCLE_VERIFY_S = 6.0
 
-    Shared by the battle controller and the pre-battle stage-info screen,
-    whose AUTO chip uses the same three-state templates (btn_auto_full at the
-    same corner). Trusts a state only after two consecutive agreeing reads so
-    the toggle's own transition animation is not misread -- a global
-    wait-for-static cannot work here, ambient map animation (snowfall) keeps
-    frames changing forever. Gives up after timeout_s so a screen whose AUTO
-    chip never resolves cannot stall the run."""
-    deadline = time.time() + timeout_s
-    pending = None
-    while time.time() < deadline:
-        found = perception.probe(AUTO_STATE_IDS)
-        if not found:
-            pending = None
-            time.sleep(0.4)
+
+def _best_auto_state(found: dict) -> str | None:
+    if not found:
+        return None
+    return max(found.values(), key=lambda e: e.confidence).id
+
+
+def read_auto_chip(perception, settle_s: float = 0.4) -> str | None:
+    """Confirmed AUTO-chip state: two agreeing reads settle_s apart, None
+    when the chip is absent or mid-animation. A global wait-for-static cannot
+    work here, ambient map animation keeps frames changing forever."""
+    first = _best_auto_state(perception.probe(AUTO_STATE_IDS))
+    time.sleep(settle_s)
+    second = _best_auto_state(perception.probe(AUTO_STATE_IDS))
+    return first if first == second else None
+
+
+def force_manual_auto(perception, actuator, timeout_s: float = 30.0) -> str:
+    """Drive the AUTO toggle to colorless full manual, verifying every
+    transition: tap, then require the chip to actually change state within
+    AUTO_CYCLE_VERIFY_S before the next decision (act -> verify -> retry).
+
+    Returns "manual" (confirmed), "absent" (chip never seen -- normal on
+    story/loading screens; callers decide whether that blocks), or
+    "unconfirmed" (chip seen but never confirmed manual within timeout_s --
+    the dangerous outcome, callers must not sortie on it)."""
+    deadline = time.monotonic() + timeout_s
+    seen_chip = False
+    while time.monotonic() < deadline:
+        state = read_auto_chip(perception)
+        if state is None:
             continue
-        state = max(found.values(), key=lambda e: e.confidence).id
-        if state != pending:
-            pending = state
-            time.sleep(0.4)
-            continue
+        seen_chip = True
         if state == "btn_auto_manual":
-            return True
+            return "manual"
         log.info("AUTO is %s, cycling toward manual", state)
         actuator.tap(*AUTO_BUTTON)
-        pending = None
-        time.sleep(0.9)
-    return False
+        verify_deadline = time.monotonic() + AUTO_CYCLE_VERIFY_S
+        while time.monotonic() < verify_deadline:
+            time.sleep(0.5)
+            after = read_auto_chip(perception)
+            if after is not None and after != state:
+                break
+        else:
+            log.warning("AUTO tap did not change the chip (still %s), retrying", state)
+    return "unconfirmed" if seen_chip else "absent"
+
+
+def ensure_manual_auto(perception, actuator, timeout_s: float = 60.0) -> bool:
+    """Bool adapter over force_manual_auto for callers that only need
+    "is it confirmed manual"."""
+    return force_manual_auto(perception, actuator, timeout_s) == "manual"
 
 
 @dataclass
@@ -147,6 +175,7 @@ class ManualBattleController:
     actuator: object
     keyguard: object | None = None
     ledger: BattleLedger | None = None
+    llm: object | None = None
     settle_timeout_s: float = 45.0
     battle_timeout_s: float = 3600.0
     idle_timeout_s: float = 600.0
@@ -171,10 +200,23 @@ class ManualBattleController:
         """Cycle the AUTO button until it is colorless (full manual)."""
         return ensure_manual_auto(self.perception, self.actuator, timeout_s)
 
+    def force_manual_auto(self, timeout_s: float = 30.0) -> str:
+        return force_manual_auto(self.perception, self.actuator, timeout_s)
+
     def run(self) -> str:
         """Play the battle until a terminal screen. Returns the screen id."""
-        if not self.ensure_manual_auto():
-            log.warning("could not confirm manual AUTO state, continuing anyway")
+        # short budget on purpose: the opening screen is often a story or
+        # loading frame without the chip, and burning a long timeout there
+        # (the old 60s) delays the battle for nothing -- the hub guard
+        # re-verifies on every our-turn visit, where the chip is guaranteed
+        status = self.force_manual_auto(timeout_s=15.0)
+        if status == "absent":
+            log.info("AUTO chip not on screen yet, hub guard will enforce manual")
+        elif status == "unconfirmed":
+            frame = self._safe_frame()
+            log.error("AUTO chip visible but never confirmed manual, guard stays armed")
+            self._log("auto_guard", frame=frame, where="battle_start", result=status)
+            self._llm_read(frame, reason="auto_guard_unconfirmed", force=True)
         deadline = time.time() + self.battle_timeout_s
         last_activity = time.time()
         next_lock_check = 0.0
@@ -382,13 +424,46 @@ class ManualBattleController:
         if self._miss_streak >= NEUTRAL_TAP_AFTER_MISSES:
             self._miss_streak = 0
             log.info("scene unrecognized for %d checks, neutral tap", NEUTRAL_TAP_AFTER_MISSES)
+            # ask the LLM what this is before nudging (rate-limited inside the
+            # reader); skip when a distractor label already names the scene
+            if not self._last_probe:
+                self._llm_read(dialog_frame, reason="unrecognized_scene")
             self._log("neutral_tap", frame=dialog_frame)
             self.actuator.tap(*NEUTRAL_TAP)
         time.sleep(0.8)
         return False
 
+    def _guard_auto(self) -> None:
+        """Re-verify the control red line on every our-turn hub visit, where
+        the AUTO chip is guaranteed on screen: a residual or stray full/enemy
+        state hands units to the built-in AI mid-battle, so it is forced back
+        to manual the moment it is seen. Trigger is one cheap probe; the
+        enforcement itself re-reads with confirmation, so a one-frame fluke
+        costs one force_manual_auto call that returns immediately."""
+        state = _best_auto_state(self.perception.probe(AUTO_STATE_IDS))
+        if state in (None, "btn_auto_manual"):
+            return
+        log.error("AUTO left on %s at the hub, forcing manual", state)
+        frame = self._safe_frame()
+        status = self.force_manual_auto(timeout_s=20.0)
+        self._log("auto_guard", frame=frame, where="hub", state=state, result=status)
+        if status != "manual":
+            self._llm_read(frame, reason="auto_guard_unconfirmed", force=True)
+
+    def _llm_read(self, frame, reason: str, force: bool = False) -> None:
+        """Advisory LLM description of a frame nothing else recognized: one
+        log line plus a ledger event, never control authority."""
+        if self.llm is None or frame is None:
+            return
+        reading = self.llm.read(frame, force=force)
+        if reading is None:
+            return
+        log.info("llm read (%s): %s", reason, reading.summary())
+        self._log("llm_read", frame=frame, reason=reason, **reading.to_event())
+
     def _on_our_turn(self) -> None:
         self._action.reset()
+        self._guard_auto()
         frame = self._frame()
         if vision.unit_cards_present(frame):
             marker = vision.crop_turn_marker(frame)
