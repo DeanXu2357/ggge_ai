@@ -596,21 +596,47 @@ class ManualBattleController:
         self._guard_auto()
         frame = self._frame()
         if vision.unit_cards_present(frame):
-            marker = vision.crop_turn_marker(frame)
             # the turn boundary is the on-screen TURN number changing between
             # hub visits: turns auto-advance once every unit has acted, so the
             # end-turn dialog is not reliable, and quiet label-less stretches
             # (the old phase-break streak) also occur mid-turn during attack
-            # animations
-            if self._turn_marker is None:
-                self._turn_marker = marker
-            elif vision.turn_marker_changed(self._turn_marker, marker):
-                self._turn_marker = marker
-                self._turn_scouted = False
-                self._turn_advised = False
-                if self.ledger is not None:
-                    self.ledger.next_turn(frame=frame)
-                log.info("new turn detected (turn %d)", self.ledger.turn if self.ledger else 0)
+            # animations. primary read is digit OCR of the number itself (the
+            # HARD 1 ledger sat on turn=1 all battle because the marker-diff
+            # compare never fired); the marker compare stays as the fallback
+            # for frames where the chip does not read
+            turn_number = vision.read_turn_number(frame)
+            if turn_number is not None:
+                current = self.ledger.turn if self.ledger is not None else 0
+                if turn_number - current > 3:
+                    # a single bad read must not poison the counter forever
+                    # (every later true value would compare lower); jumps
+                    # this size are misreads, real skips are 1-2 turns
+                    log.warning(
+                        "TURN read %d jumps too far from %d, ignoring as a misread",
+                        turn_number,
+                        current,
+                    )
+                elif turn_number > current:
+                    self._turn_scouted = False
+                    self._turn_advised = False
+                    if self.ledger is not None:
+                        self.ledger.next_turn(frame=frame, turn=turn_number)
+                    log.info("new turn detected (TURN %d on screen)", turn_number)
+                self._turn_marker = vision.crop_turn_marker(frame)
+            else:
+                marker = vision.crop_turn_marker(frame)
+                if self._turn_marker is None:
+                    self._turn_marker = marker
+                elif vision.turn_marker_changed(self._turn_marker, marker):
+                    self._turn_marker = marker
+                    self._turn_scouted = False
+                    self._turn_advised = False
+                    if self.ledger is not None:
+                        self.ledger.next_turn(frame=frame)
+                    log.info(
+                        "new turn detected (marker change, turn %d)",
+                        self.ledger.turn if self.ledger else 0,
+                    )
             self._snapshot_factions(frame)
             self._scout(frame)
             self._acquire_intel_once(frame)

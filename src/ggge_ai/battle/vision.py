@@ -77,6 +77,12 @@ UNIT_DETAIL_MODAL_REGION = (1000, 50, 380, 100)
 # to inflate the internal turn counter past the on-screen TURN number).
 TURN_MARKER_REGION = (260, 78, 40, 36)
 
+# the full TURN number (digits after the TURN label, black on the white
+# chip): read via template-digit OCR. wide enough for two digits; the
+# label text ends around x=230 on every calibrated capture
+TURN_NUMBER_REGION = (234, 62, 96, 42)
+TURN_DIGIT_HEIGHT = 28
+
 # a dying unit pops an inline line of dialogue with a cyan ▼ advance cursor
 # that slides horizontally with the line length, so it must be matched free
 # of a fixed column. it lives in the bottom text band; the right edge runs
@@ -371,6 +377,20 @@ def is_unit_detail_modal(frame: np.ndarray, threshold: float = 0.6) -> bool:
     result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
     _, score, _, _ = cv2.minMaxLoc(result)
     return score >= threshold
+
+
+def read_turn_number(frame: np.ndarray) -> int | None:
+    """The on-screen TURN number, or None when the chip is absent or
+    unreadable. Verified 4/4 on the calibrated captures and 19/19 on the
+    HARD 1 run's archived half-scale JPEG frames (turn 1 -> 2 boundary
+    the marker-diff compare missed live)."""
+    return digits.read_number(
+        frame,
+        TURN_NUMBER_REGION,
+        digit_height=TURN_DIGIT_HEIGHT,
+        invert=True,
+        allow_minus=False,
+    )
 
 
 def crop_turn_marker(frame: np.ndarray) -> np.ndarray:

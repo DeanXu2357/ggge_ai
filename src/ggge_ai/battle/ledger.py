@@ -105,9 +105,12 @@ class BattleLedger:
     ) -> None:
         self.record("factions", allies=allies, enemies=enemies, third_party=third_party)
 
-    def next_turn(self, frame: Any = None) -> None:
+    def next_turn(self, frame: Any = None, turn: int | None = None) -> None:
+        """Advance the turn counter; `turn` pins it to the on-screen TURN
+        number when the caller read one (turns can slip past an increment
+        when hub visits are missed)."""
         self.record("end_turn", frame=frame)
-        self.turn += 1
+        self.turn = turn if turn is not None else self.turn + 1
 
     def finish(self, outcome: str, frame: Any = None) -> None:
         self.outcome = outcome

@@ -1,0 +1,29 @@
+{
+  "check": "digit_read",
+  "expect": {
+    "region": [
+      234,
+      62,
+      96,
+      42
+    ],
+    "digit_height": 28,
+    "kind": "number",
+    "invert": true,
+    "allow_minus": false,
+    "value": 22
+  },
+  "box": [
+    234,
+    62,
+    96,
+    42
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "turn_number_two_digits.png",
+  "source": "assets/screenshots/20260705-180119.png",
+  "note": "read_turn_number region (TURN 22, battle prep). Wide band covering 1-2 digits after the TURN label; drives the turn counter that sat on 1 all of HARD 1."
+}
