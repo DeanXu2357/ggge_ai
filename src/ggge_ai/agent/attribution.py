@@ -115,6 +115,16 @@ class AttributionReport:
             f"被動 {m.get('passive_activations', 0)}，"
             f"被動占比 {m.get('passive_share', 0):.0%}）"
         )
+        if m.get("decisions"):
+            lines.append(
+                "  對帳鏈："
+                f"決策 {m['decisions']}（grounded {m['grounded_decisions']}）、"
+                f"擊殺驗證 {m.get('kill_confirmed', 0)}/{m.get('kill_checks', 0)} 確認、"
+                f"模擬脫軌 {m.get('sim_diverges', 0)}、"
+                f"機率分支 {m.get('rng_branches', 0)}、"
+                f"模型錯誤 {m.get('model_diverges', 0)}、"
+                f"演算法歸功比 {m.get('algorithm_credit', 0):.0%}"
+            )
         if not self.findings:
             lines.append("  無異常發現。")
         for f in self.findings:
@@ -192,7 +202,24 @@ def _compute_metrics(events: list[Event]) -> dict[str, Any]:
 
     damages = [d for e in events if (d := _num(e, _DAMAGE_FIELDS)) is not None]
 
+    decisions = [e for e in events if e["kind"] == "decision"]
+    grounded = [e for e in decisions if e.get("quality") == "grounded"]
+    kill_checks = [e for e in events if e["kind"] == "kill_check"]
+    confirmed = [e for e in kill_checks if e.get("result") == "confirmed"]
+    confirmed_grounded = [e for e in confirmed if e.get("quality") == "grounded"]
+    offensive_n = len(offensive)
+
     return {
+        "decisions": len(decisions),
+        "grounded_decisions": len(grounded),
+        "kill_checks": len(kill_checks),
+        "kill_confirmed": len(confirmed),
+        "kill_confirmed_grounded": len(confirmed_grounded),
+        "rng_branches": sum(1 for e in events if e["kind"] == "rng_branch"),
+        "model_diverges": sum(1 for e in events if e["kind"] == "model_diverge"),
+        "sim_diverges": sum(1 for e in events if e["kind"] == "sim_diverge"),
+        "sim_skips": sum(1 for e in events if e["kind"] == "sim_skip"),
+        "algorithm_credit": (len(confirmed_grounded) / offensive_n) if offensive_n else 0.0,
         "outcome": outcome,
         "duration_s": duration,
         "idle_gap_s": idle_gap,
@@ -339,6 +366,22 @@ def _note_growth_coverage(report: AttributionReport, m: dict[str, Any]) -> None:
     if not m["ko_events"]:
         report.coverage_notes.append(
             "陣亡歸因（→養成）與編成短板無法判定：流水帳未帶我方陣亡事件與單位身分。"
+        )
+    resolved = m["outcome"] in RESOLVED_OUTCOMES
+    if not m.get("decisions"):
+        if resolved:
+            report.coverage_notes.append(
+                "勝利歸因無法判定：流水帳沒有 decision 事件（對帳鏈未運作）。"
+            )
+        return
+    if resolved and not m.get("grounded_decisions"):
+        report.coverage_notes.append(
+            "勝利不可歸因演算法：所有攻擊決策都缺乏 grounded 模擬期望"
+            "（[SIM-SKIP]）——這場贏的是隊伍數值，不是演算法。"
+        )
+    elif resolved and m.get("algorithm_credit", 0) == 0:
+        report.coverage_notes.append(
+            "勝利不可歸因演算法：沒有任何 grounded 決策通過擊殺驗證。"
         )
 
 

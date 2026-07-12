@@ -142,6 +142,42 @@ class LlmScreenReader:
             return None
         return self._parse(content, latency)
 
+    def transcribe(self, frame: np.ndarray, instruction: str, force: bool = False) -> str | None:
+        """One-line text transcription of a crop (unit name plates), sharing
+        the reader's rate limit. Advisory, like read(): the deterministic
+        image signature stays the identity; this only makes logs readable."""
+        now = time.monotonic()
+        if (
+            not force
+            and self._last_read_ts is not None
+            and now - self._last_read_ts < self.min_interval_s
+        ):
+            log.debug("LLM transcribe skipped (rate limit)")
+            return None
+        self._last_read_ts = now
+        try:
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": instruction + ' Reply JSON: {"text": "..."}',
+                        "images": [self._encode(frame)],
+                    }
+                ],
+                "stream": False,
+                "format": "json",
+                "options": {"temperature": 0},
+            }
+            content = self.transport(self.url, payload, self.timeout_s)
+            data = json.loads(content)
+        except Exception:
+            log.warning("LLM transcribe failed, continuing without it", exc_info=True)
+            return None
+        if not isinstance(data, dict) or not data.get("text"):
+            return None
+        return str(data["text"]).strip() or None
+
     @staticmethod
     def _encode(frame: np.ndarray) -> str:
         h, w = frame.shape[:2]

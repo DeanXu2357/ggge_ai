@@ -22,7 +22,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from ggge_ai.battle import vision
+from ggge_ai.battle import reconcile, vision
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.domain import screens
@@ -226,6 +226,12 @@ class ManualBattleController:
     _state_checks: int = 0
     _expectation: Expectation | None = None
     _dispatched_mode: str | None = None
+    # reconciliation chain (M4a): specs_by_sig is filled by stage intel
+    # (M3b); until then expectations are ungrounded and say so
+    specs_by_sig: dict = field(default_factory=dict)
+    _pending: reconcile.PendingOutcome | None = None
+    _seen_sigs: set = field(default_factory=set)
+    _sig_names: dict = field(default_factory=dict)
     tacmap: TacticalMap = field(default_factory=TacticalMap)
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
@@ -325,6 +331,8 @@ class ManualBattleController:
             mode = self._confirmed_mode()
             self._log_state(mode)
             self._check_expectation(mode)
+            if mode is not None:
+                self._judge_pending(mode)
             if mode is None:
                 if self._on_not_actionable():
                     last_activity = time.time()
@@ -859,13 +867,16 @@ class ManualBattleController:
         frame = self._frame()
         if vision.attack_enabled(frame):
             log.info("target locked, attacking")
+            self._register_attack_decision(frame, slot=0)
             self._attack(slot=0)
             return
         for i, slot in enumerate(WEAPON_SLOTS):
             self.actuator.tap(*slot)
             time.sleep(1.0)
-            if vision.attack_enabled(self._frame()):
+            slot_frame = self._frame()
+            if vision.attack_enabled(slot_frame):
                 log.info("weapon slot %d has a target, attacking", i + 1)
+                self._register_attack_decision(slot_frame, slot=i + 1)
                 self._attack(slot=i + 1)
                 return
             log.debug("weapon slot %d: no target in range", i + 1)
@@ -886,7 +897,180 @@ class ManualBattleController:
         self.actuator.tap(*RETURN_BTN)
         time.sleep(1.5)
 
+    def _register_attack_decision(self, frame, slot: int) -> None:
+        """The reconciliation chain's layer-1/2 handshake, run just before
+        the attack tap: ground a simulator expectation, read the game's own
+        weapon-select forecast, and log both plus their divergences. The
+        pending outcome then waits for battle-prep and the 破壞數 verdict."""
+        forecast = vision.read_weapon_select_forecast(frame)
+        if forecast is None:
+            log.debug("weapon-select forecast unreadable, attack proceeds unreconciled")
+            return
+        counter = vision.read_kill_counter(frame)
+        self._note_sig(forecast.our_name_sig, frame, vision.FORECAST_RIGHT_NAME_REGION, "ours")
+        self._note_sig(forecast.target_name_sig, frame, vision.FORECAST_LEFT_NAME_REGION, "enemy")
+        expectation = reconcile.compute_expectation(
+            attacker_spec=self.specs_by_sig.get(forecast.our_name_sig),
+            target_spec=self.specs_by_sig.get(forecast.target_name_sig),
+            forecast=forecast,
+            slot=slot,
+        )
+        self._log(
+            "forecast_weapon_select",
+            frame=frame,
+            our_sig=forecast.our_name_sig,
+            our_hp=forecast.our_hp,
+            our_en=forecast.our_en,
+            target_sig=forecast.target_name_sig,
+            target_hp=forecast.target_hp,
+            target_en=forecast.target_en,
+            predicted_damage=forecast.predicted_damage,
+            counter=list(counter) if counter else None,
+        )
+        if self._pending is not None and self._pending.armed:
+            log.debug("previous attack outcome never verified, superseding it")
+            self._log("kill_check", result="superseded")
+        pending, divergences = reconcile.reconcile_weapon_select(expectation, forecast, counter)
+        self._pending = pending
+        for d in divergences:
+            log.warning(d.message)
+            self._log(d.tag, frame=frame, divergence=d.kind, **d.detail)
+        self._log(
+            "decision",
+            action="attack",
+            slot=slot,
+            attacker=self._describe_sig(expectation.attacker_sig),
+            target=self._describe_sig(expectation.target_sig),
+            expected_damage=(
+                round(expectation.expected_damage)
+                if expectation.expected_damage is not None
+                else None
+            ),
+            target_hp=expectation.target_hp_believed,
+            expect_kill=expectation.expect_kill,
+            hit_probability=(
+                round(expectation.hit_probability, 3)
+                if expectation.hit_probability is not None
+                else None
+            ),
+            source=expectation.source,
+            quality=expectation.quality,
+            assumptions=list(expectation.assumptions),
+        )
+        log.info(
+            "decision: %s attacks %s with slot %d, sim expects %s damage on %s HP -> %s [%s]",
+            self._describe_sig(expectation.attacker_sig),
+            self._describe_sig(expectation.target_sig),
+            slot,
+            "?" if expectation.expected_damage is None else round(expectation.expected_damage),
+            expectation.target_hp_believed,
+            {True: "kill", False: "no kill", None: "no call"}[expectation.expect_kill],
+            expectation.quality,
+        )
+
+    def _describe_sig(self, sig: str | None) -> str | None:
+        if sig is None:
+            return None
+        name = self._sig_names.get(sig)
+        return f"{name} (sig {sig[:6]})" if name else f"sig {sig[:6]}"
+
+    def _note_sig(self, sig: str | None, frame, region: tuple[int, int, int, int], role: str) -> None:
+        """First sighting of a unit signature: archive its name-plate crop
+        and ask the LLM (rate-limited, advisory) for a human-readable name
+        so logs can say 鋼彈F90 instead of a hash."""
+        if sig is None or sig in self._seen_sigs:
+            return
+        self._seen_sigs.add(sig)
+        x, y, w, h = region
+        crop = frame[y : y + h, x : x + w]
+        name = None
+        if self.llm is not None:
+            name = self.llm.transcribe(
+                crop,
+                "Transcribe the unit name on this game UI name plate "
+                "(Traditional Chinese / Japanese, single line).",
+            )
+        if name:
+            self._sig_names[sig] = name
+        self._log("unit_intel", frame=crop, sig=sig, role=role, name=name)
+        log.info("new unit signature %s (%s)%s", sig, role, f" -> {name}" if name else "")
+
+    def _judge_pending(self, mode: str) -> None:
+        """Layer 3: once the engagement resolved (any actionable mode after
+        battle-prep), the 破壞數 delta is the verdict on the expected kill."""
+        pending = self._pending
+        if pending is None or not pending.armed or mode == "label_battle_prep":
+            return
+        counter = vision.read_kill_counter(self._frame())
+        if counter is None:
+            pending.checks_left -= 1
+            if pending.checks_left <= 0:
+                log.warning("kill counter stayed unreadable, attack outcome unverified")
+                self._log("kill_check", result="unverified_counter_unreadable")
+                self._pending = None
+            return
+        result, divergences = reconcile.judge_outcome(pending, counter)
+        for d in divergences:
+            log.warning(d.message)
+            self._log(d.tag, frame=self._safe_frame(), divergence=d.kind, **d.detail)
+        log.info(
+            "kill check: %s (破壞數 %s -> %s)",
+            result,
+            pending.counter_before,
+            counter,
+        )
+        self._log(
+            "kill_check",
+            result=result,
+            counter_before=list(pending.counter_before) if pending.counter_before else None,
+            counter_after=list(counter),
+            expect_kill=pending.expectation.expect_kill,
+            game_expect_kill=pending.game_expect_kill,
+            hit_pct=pending.hit_pct,
+            quality=pending.expectation.quality,
+        )
+        self._pending = None
+
     def _on_battle_prep(self) -> None:
+        frame = self._frame()
+        prep = vision.read_battle_prep_forecast(frame)
+        if prep is not None:
+            self._log(
+                "forecast_battle_prep",
+                frame=frame,
+                is_reaction=prep.is_reaction,
+                attack_value=prep.attack_value,
+                defense_value=prep.defense_value,
+                hit_pct=prep.hit_pct,
+                attacker_sig=prep.attacker_name_sig,
+                attacker_hp=prep.attacker_hp,
+                attacker_en=prep.attacker_en,
+                defender_sig=prep.defender_name_sig,
+                defender_hp=prep.defender_hp,
+                defender_en=prep.defender_en,
+                defender_hp_delta=prep.defender_hp_delta,
+            )
+            if prep.is_reaction:
+                self._note_sig(
+                    prep.attacker_name_sig, frame, vision.FORECAST_LEFT_NAME_REGION, "enemy"
+                )
+                log.info(
+                    "incoming attack: %s hits %s for %s (hit %s%%)",
+                    self._describe_sig(prep.attacker_name_sig),
+                    self._describe_sig(prep.defender_name_sig),
+                    prep.attack_value,
+                    prep.hit_pct,
+                )
+        if self._pending is not None and not self._pending.armed:
+            if prep is None or not prep.is_reaction:
+                if prep is not None:
+                    self._pending, divergences = reconcile.reconcile_battle_prep(
+                        self._pending, prep
+                    )
+                    for d in divergences:
+                        log.warning(d.message)
+                        self._log(d.tag, frame=frame, divergence=d.kind, **d.detail)
+                self._pending.armed = True
         found = self.perception.probe(["btn_start_battle"])
         pos = found["btn_start_battle"].bbox.center if found else START_BATTLE_BTN
         log.info("confirming battle start")
@@ -894,22 +1078,41 @@ class ManualBattleController:
         self.actuator.tap(*pos)
         # generous budget: the battle animation is long, and for a reaction
         # popup (#3) the enemy turn continues afterwards -- an expiry here is
-        # informative ledger noise, not a failure
+        # informative ledger noise, not a failure. label_battle_prep is a
+        # legal target: consecutive reaction popups re-enter this screen
         self._expect(
             "battle_execute",
-            ("label_our_turn", "label_unit_move", "label_weapon_select"),
+            ("label_our_turn", "label_unit_move", "label_weapon_select", "label_battle_prep"),
             checks=20,
         )
         self._wait_animation()
         self._action.reset()
 
     def _attack(self, slot: int) -> None:
-        self._log("attack", frame=self._safe_frame(), slot=slot)
+        extras: dict = {}
+        if self._pending is not None:
+            e = self._pending.expectation
+            extras = {
+                "attacker_sig": e.attacker_sig,
+                "target_sig": e.target_sig,
+                "predicted_damage_game": self._pending.game_damage,
+                "expected_damage_sim": (
+                    round(e.expected_damage) if e.expected_damage is not None else None
+                ),
+                "expect_kill": (
+                    e.expect_kill if e.expect_kill is not None else self._pending.game_expect_kill
+                ),
+                "quality": e.quality,
+            }
+        self._log("attack", frame=self._safe_frame(), slot=slot, **extras)
         self.actuator.tap(*ATTACK_BTN)
         self._expect("attack", ("label_battle_prep",))
         time.sleep(2.0)
 
     def _standby(self, reason: str) -> None:
+        if self._pending is not None and not self._pending.armed:
+            log.debug("attack decision abandoned before engagement, dropping its outcome")
+            self._pending = None
         self._log("standby", frame=self._safe_frame(), reason=reason)
         self.actuator.tap(*STANDBY_BTN)
         self._expect("standby", ("label_our_turn",), checks=12)
