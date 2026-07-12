@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections.abc import Callable
 
@@ -228,12 +229,19 @@ class ManualBattle(Action):
         # reuse the ledger opened at the stage-info screen (if any) so its
         # conditions frame and this fight share one battle_NN.jsonl
         ledger = blackboard.take_ledger() if blackboard is not None else None
+        intel_budget = None
+        if os.environ.get("GGGE_INTEL", "").lower() in ("1", "on", "yes"):
+            from ...battle.scout_intel import IntelBudget
+
+            intel_budget = IntelBudget()
         controller = ManualBattleController(
             perception=ctx.perception,
             actuator=ctx.actuator,
             keyguard=keyguard,
             ledger=ledger,
             llm=ctx.extras.get("llm"),
+            intel_budget=intel_budget,
+            stage_id=blackboard.intel.get("stage_id") if blackboard is not None else None,
         )
         try:
             result = controller.run()

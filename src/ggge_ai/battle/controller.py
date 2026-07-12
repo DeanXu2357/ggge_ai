@@ -229,6 +229,13 @@ class ManualBattleController:
     # reconciliation chain (M4a): specs_by_sig is filled by stage intel
     # (M3b); until then expectations are ungrounded and say so
     specs_by_sig: dict = field(default_factory=dict)
+    # M3b enemy-intel acquisition, run once on the first our-turn hub.
+    # None disables it (the default until the flow is live-validated);
+    # flow.py arms it via GGGE_INTEL=1
+    intel_budget: object | None = None
+    stage_id: str | None = None
+    intel_cache_root: object | None = None
+    _intel_done: bool = False
     _pending: reconcile.PendingOutcome | None = None
     _seen_sigs: set = field(default_factory=set)
     _sig_names: dict = field(default_factory=dict)
@@ -597,6 +604,7 @@ class ManualBattleController:
                 log.info("new turn detected (turn %d)", self.ledger.turn if self.ledger else 0)
             self._snapshot_factions(frame)
             self._scout(frame)
+            self._acquire_intel_once(frame)
             log.info("selecting next actable unit")
             self._log("select_unit", frame=frame)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
@@ -618,6 +626,43 @@ class ManualBattleController:
             self.actuator.tap(*END_TURN_BTN)
             self._turn_scouted = False
             time.sleep(1.8)
+
+    def _acquire_intel_once(self, frame) -> None:
+        """M3b: one enemy-intel sweep per battle on the first our-turn hub.
+        Enemy points come from the hub HP-arc scan, which is known to
+        produce phantoms there (pinned hub-state bug) -- a phantom tap
+        simply yields no summary card and is skipped, so the sweep is
+        phantom-tolerant by construction."""
+        if self.intel_budget is None or self._intel_done:
+            return
+        self._intel_done = True
+        from .scout_intel import acquire_stage_intel
+
+        enemies = vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
+        if not enemies:
+            log.info("intel sweep: no enemy candidates on the hub frame")
+            return
+        log.info("intel sweep: probing %d enemy candidates", len(enemies))
+        intel = acquire_stage_intel(
+            capture=self._frame,
+            tap=self.actuator.tap,
+            enemy_points=enemies,
+            stage_id=self.stage_id,
+            cache_root=self.intel_cache_root,
+            llm=self.llm,
+            budget=self.intel_budget,
+            ledger_log=self._log,
+        )
+        self.specs_by_sig.update(intel.specs_by_sig)
+        self._sig_names.update(intel.names)
+        self._seen_sigs.update(intel.specs_by_sig)
+        log.info(
+            "intel sweep done: %d specs (%d from cache, %d panels opened)%s",
+            len(intel.specs_by_sig),
+            intel.cache_hits,
+            intel.panels_opened,
+            ", cache was stale" if intel.cache_stale else "",
+        )
 
     def _probe_after_select(self, count: int = 3, interval_s: float = 1.0) -> None:
         """Instrument the first-unit-card tap: save a few frames after it so an
