@@ -235,7 +235,15 @@ class ManualBattleController:
     intel_budget: object | None = None
     stage_id: str | None = None
     intel_cache_root: object | None = None
+    # M4b advisor consultation (GGGE_ADVISOR=1): proposals are logged and
+    # reconciled against what actually happens, never executed -- v1 still
+    # picks the first card
+    advisor_enabled: bool = False
+    advisor_time_budget_s: float = 3.0
     _intel_done: bool = False
+    _turn_advised: bool = False
+    _proposal: object | None = None
+    _sig_positions: dict = field(default_factory=dict)
     _pending: reconcile.PendingOutcome | None = None
     _seen_sigs: set = field(default_factory=set)
     _sig_names: dict = field(default_factory=dict)
@@ -599,12 +607,14 @@ class ManualBattleController:
             elif vision.turn_marker_changed(self._turn_marker, marker):
                 self._turn_marker = marker
                 self._turn_scouted = False
+                self._turn_advised = False
                 if self.ledger is not None:
                     self.ledger.next_turn(frame=frame)
                 log.info("new turn detected (turn %d)", self.ledger.turn if self.ledger else 0)
             self._snapshot_factions(frame)
             self._scout(frame)
             self._acquire_intel_once(frame)
+            self._consult_advisor()
             log.info("selecting next actable unit")
             self._log("select_unit", frame=frame)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
@@ -655,6 +665,7 @@ class ManualBattleController:
         )
         self.specs_by_sig.update(intel.specs_by_sig)
         self._sig_names.update(intel.names)
+        self._sig_positions.update(intel.positions)
         self._seen_sigs.update(intel.specs_by_sig)
         log.info(
             "intel sweep done: %d specs (%d from cache, %d panels opened)%s",
@@ -662,6 +673,53 @@ class ManualBattleController:
             intel.cache_hits,
             intel.panels_opened,
             ", cache was stale" if intel.cache_stale else "",
+        )
+
+    def _consult_advisor(self) -> None:
+        """M4b: ask the simulator's advisor for its best first decision,
+        once per turn -- logged as a proposal, never executed. When the
+        weapon-select forecast later names a different target than the
+        proposal, that lands as [SIM-DIVERGE] proposal_target evidence."""
+        if not self.advisor_enabled or self._turn_advised:
+            return
+        self._turn_advised = True
+        self._proposal = None
+        from . import advisor as advisor_mod
+        from .observe import build_battle_state
+
+        battle = build_battle_state(
+            self.tacmap,
+            specs_by_sig=self.specs_by_sig,
+            sig_positions=self._sig_positions,
+            turn=self.ledger.turn if self.ledger is not None else 1,
+        )
+        advice = advisor_mod.advise(
+            battle,
+            self.specs_by_sig,
+            advisor_mod.AdvisorConfig(time_budget_s=self.advisor_time_budget_s, cell_size=95.0),
+        )
+        if advice is None:
+            log.info("advisor: nothing to propose on this board")
+            return
+        self._proposal = advice
+        self._log(
+            "decision",
+            action="proposal",
+            unit=advice.unit_id,
+            proposal_kind=advice.kind,
+            target=advice.target_id,
+            weapon=advice.weapon,
+            value=round(advice.value, 1),
+            pv_kinds=advice.pv_kinds[:8],
+            assumptions=advice.assumptions[:8],
+        )
+        log.info(
+            "advisor proposal: %s %s -> %s (value %.0f, %d assumptions) -- not executed, v1 compares only",
+            advice.unit_id,
+            advice.kind,
+            self._describe_sig(advice.target_id) or advice.target_id,
+            advice.value,
+            len(advice.assumptions),
         )
 
     def _probe_after_select(self, count: int = 3, interval_s: float = 1.0) -> None:
@@ -980,6 +1038,27 @@ class ManualBattleController:
         for d in divergences:
             log.warning(d.message)
             self._log(d.tag, frame=frame, divergence=d.kind, **d.detail)
+        proposal = self._proposal
+        if (
+            proposal is not None
+            and getattr(proposal, "target_id", None) is not None
+            and expectation.target_sig is not None
+            and proposal.target_id in self._sig_positions
+            and proposal.target_id != expectation.target_sig
+        ):
+            log.warning(
+                "[SIM-DIVERGE] proposal_target: advisor proposed attacking %s, "
+                "actual target is %s",
+                self._describe_sig(proposal.target_id),
+                self._describe_sig(expectation.target_sig),
+            )
+            self._log(
+                "sim_diverge",
+                divergence="proposal_target",
+                proposal_unit=proposal.unit_id,
+                proposal_target=proposal.target_id,
+                actual_target=expectation.target_sig,
+            )
         self._log(
             "decision",
             action="attack",

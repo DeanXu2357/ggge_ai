@@ -52,6 +52,7 @@ class StageIntel:
     names: dict[str, str] = field(default_factory=dict)
     assumptions: dict[str, list[str]] = field(default_factory=dict)
     summaries: dict[str, vision.EnemySummary] = field(default_factory=dict)
+    positions: dict[str, tuple[int, int]] = field(default_factory=dict)
     panels_opened: int = 0
     cache_hits: int = 0
     cache_stale: bool = False
@@ -94,6 +95,7 @@ def acquire_stage_intel(
         if sig in intel.summaries:
             continue
         intel.summaries[sig] = summary
+        intel.positions[sig] = point
 
         hit = stage_cache.find(cached, sig)
         if hit is not None:

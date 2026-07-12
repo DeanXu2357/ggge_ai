@@ -1,0 +1,171 @@
+"""Tactical map -> BattleState, and the advisor-proposal wiring (M4b)."""
+
+import numpy as np
+
+from ggge_ai.battle import controller as controller_mod
+from ggge_ai.battle import vision
+from ggge_ai.battle.bridge import UnitSpec
+from ggge_ai.battle.controller import ManualBattleController
+from ggge_ai.battle.ledger import BattleLedger
+from ggge_ai.battle.observe import build_battle_state
+from ggge_ai.battle.sim import SimWeapon
+from ggge_ai.battle.state import Faction
+from ggge_ai.battle.tacmap import TacticalMap
+from ggge_ai.battle.vision import WeaponSelectForecast
+
+
+def _tacmap():
+    t = TacticalMap()
+    t.allies.append((0.0, 0.0))
+    t.allies.append((95.0, 0.0))
+    t.enemies.append((400.0, 0.0))
+    t.enemies.append((800.0, 300.0))
+    t.third_party.append((100.0, 500.0))
+    return t
+
+
+def test_build_battle_state_assigns_factions_and_positions():
+    battle = build_battle_state(_tacmap(), turn=3)
+    assert battle.turn == 3
+    assert len(battle.allies()) == 2
+    assert len(battle.enemies()) == 2
+    assert len(battle.by_faction(Faction.THIRD_PARTY)) == 1
+    assert battle.enemies()[0].unit_id == "enemy_1"
+
+
+def test_enemy_near_intel_tap_adopts_the_signature():
+    sig = "a" * 16
+    spec = UnitSpec(max_hp=51349)
+    battle = build_battle_state(
+        _tacmap(),
+        specs_by_sig={sig: spec},
+        sig_positions={sig: (420.0, 30.0)},
+    )
+    matched = battle.unit(sig)
+    assert matched is not None
+    assert matched.faction is Faction.ENEMY
+    assert matched.max_hp == 51349
+    other = battle.enemies()[1]
+    assert other.unit_id == "enemy_2"
+
+
+def test_far_signature_is_not_adopted():
+    sig = "a" * 16
+    battle = build_battle_state(_tacmap(), sig_positions={sig: (2000.0, 2000.0)})
+    assert battle.unit(sig) is None
+
+
+class _Perception:
+    def capture(self):
+        return np.zeros((1080, 2340, 3), np.uint8)
+
+    def probe(self, ids):
+        return {}
+
+
+class _Actuator:
+    def tap(self, x, y):
+        pass
+
+    def swipe(self, *args):
+        pass
+
+
+def _armed_controller():
+    c = ManualBattleController(
+        perception=_Perception(),
+        actuator=_Actuator(),
+        ledger=BattleLedger(),
+        advisor_enabled=True,
+        advisor_time_budget_s=0.2,
+    )
+    sig = "a" * 16
+    c.tacmap.allies.append((0.0, 0.0))
+    c.tacmap.enemies.append((400.0, 0.0))
+    c.specs_by_sig[sig] = UnitSpec(
+        max_hp=8000,
+        en_max=300,
+        unit_attack=3000.0,
+        unit_defense=1000.0,
+        pilot_defense=100.0,
+        reaction=100.0,
+        mobility=1000.0,
+        move_range=5,
+        weapons=(SimWeapon(name="weapon_1_shooting", power=3000.0, range_max=5, en_cost=10),),
+    )
+    c._sig_positions[sig] = (400.0, 0.0)
+    return c, sig
+
+
+def test_consult_advisor_logs_a_proposal_once_per_turn():
+    c, sig = _armed_controller()
+    c._consult_advisor()
+    proposals = [e for e in c.ledger.events if e["kind"] == "decision"]
+    assert len(proposals) == 1
+    assert proposals[0]["action"] == "proposal"
+    assert c._proposal is not None
+
+    c._consult_advisor()
+    assert len([e for e in c.ledger.events if e["kind"] == "decision"]) == 1
+
+
+def test_proposal_target_mismatch_is_flagged(monkeypatch):
+    c, sig = _armed_controller()
+    c._consult_advisor()
+    assert c._proposal is not None
+    c._proposal.target_id = sig
+
+    other_sig = "b" * 16
+    forecast = WeaponSelectForecast(
+        target_name_sig=other_sig,
+        target_hp=8000,
+        target_en=300,
+        predicted_damage=9000,
+        hit_pct=None,
+        our_name_sig="c" * 16,
+        our_hp=50000,
+        our_en=400,
+    )
+    monkeypatch.setattr(vision, "read_weapon_select_forecast", lambda f: forecast)
+    monkeypatch.setattr(vision, "read_kill_counter", lambda f: (0, 14))
+    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
+    c._dispatched_mode = "label_weapon_select"
+
+    c._register_attack_decision(c.perception.capture(), slot=1)
+
+    mismatches = [
+        e
+        for e in c.ledger.events
+        if e["kind"] == "sim_diverge" and e.get("divergence") == "proposal_target"
+    ]
+    assert len(mismatches) == 1
+    assert mismatches[0]["proposal_target"] == sig
+    assert mismatches[0]["actual_target"] == other_sig
+
+
+def test_matching_target_is_silent(monkeypatch):
+    c, sig = _armed_controller()
+    c._consult_advisor()
+    c._proposal.target_id = sig
+    forecast = WeaponSelectForecast(
+        target_name_sig=sig,
+        target_hp=8000,
+        target_en=300,
+        predicted_damage=9000,
+        hit_pct=None,
+        our_name_sig="c" * 16,
+        our_hp=50000,
+        our_en=400,
+    )
+    monkeypatch.setattr(vision, "read_weapon_select_forecast", lambda f: forecast)
+    monkeypatch.setattr(vision, "read_kill_counter", lambda f: (0, 14))
+    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
+    c._dispatched_mode = "label_weapon_select"
+
+    c._register_attack_decision(c.perception.capture(), slot=1)
+
+    assert not [
+        e
+        for e in c.ledger.events
+        if e["kind"] == "sim_diverge" and e.get("divergence") == "proposal_target"
+    ]
