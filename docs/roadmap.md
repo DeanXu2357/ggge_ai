@@ -1,10 +1,59 @@
 # 進度與規劃
 
-更新日期：2026-07-12 晚間（LLM 讀圖＋AUTO 防呆 act→verify→retry 實戰
-驗證通過；期望轉移驗證機制與戰術感知修復已落地，**等使用者下實機測試
-指令**）
+更新日期：2026-07-12 深夜（**HARD STAGE 1 首次通關**：期望轉移驗證＋
+方向性移動＋威脅格導向的實測局直接打贏，含隱藏戰鬥 SECRET CLEAR、
+獲得鋼彈X Divider——工程基準 E4「HARD 1 通關、零手工關卡資料」達成）
 
-## 暫停快照（2026-07-12 晚間，恢復點）
+## 暫停快照（2026-07-12 深夜，恢復點）
+
+**裝置現況**：手機停在鋼彈X 選關畫面（stage_list 0.95），HARD 1 已通關
+（首次獎勵已領：鑽石×50、SECRET 機體、鋼彈X Divider 入手演出走完，
+獎勵尾巴以手動 tap 收回選關）。adb server 已關、tmux 已清。
+
+**實測局結果（data/runs/20260712-192608/battle_01.jsonl，245 事件，
+1044 秒，破壞數 17/17 敵軍全滅）**：
+
+1. **勝利**：19 次選單位、12 攻擊、25 交戰確認、**11 個 move（10 個
+   directional_*、7 個以威脅格導向）**——史上第一次單位真的推進，
+   方向全部正確（對比前日 hint 指西）。5 standby（3 超程 2 已移動）。
+   隱藏戰鬥照 policy=challenge 接下並打贏。
+2. **期望轉移驗證實戰帳**：65 met / 13 retry / 1 miss / 1 expired。
+   12 個 retry 全是敵方相位連續應戰彈窗（battle_prep→battle_prep，
+   模型當 tap 被吞而重按開始戰鬥——重按恰好是正確處置，功能無害，
+   但 log 有噪音）；1 miss＝standby 後被應戰彈窗插隊（合法轉移，
+   模型未列）；1 expired＝終局動畫。**改進項：battle_prep→battle_prep
+   應列為合法轉移（連續應戰）**。
+3. **hub guard 故障注入成功**：戰鬥中手動把 AUTO 撥到全自動（多次
+   注入，敵方相位撥不動、hub 相位其一落地），下一次 hub 訪問即
+   `AUTO left on btn_auto_full at the hub, forcing manual`＋ledger
+   auto_guard 事件＋LLM 診斷讀圖。force 回 absent 是因為終局動畫把
+   HUD 收掉，行為正確。
+4. **LLM 讀圖 6 次實戰命中**：載入畫面、戰中未知畫面（甚至建議了
+   正確的武器鈕）、AUTO 診斷、勝利後 SECRET CLEAR 畫面×3（正確建議
+   TAP TO NEXT，但 unknown handler 無控制權——見缺口 2）。
+5. 出擊後直接進戰鬥（放棄過的關卡重出擊會跳過 stage_info 與開場
+   劇情）——stage_info 閘門這次沒被經過，controller 開頭 15s 探測
+   承接，AUTO 本來就是 manual。
+
+**本場暴露的缺口（依痛度排序）**：
+1. **回合計數回歸（任務 #9）**：實際 TURN 5、ledger 全程 turn=1，
+   marker 比對沒觸發（7/11 同圖是好的）；_turn_scouted 因此不重置、
+   偵察只跑一次。有 19 張 select_unit 幀可離線重播。
+2. **勝利尾巴 unknown 卡死**：SECRET BATTLE CLEAR／機體入手演出不在
+   畫面庫，agent loop 等滿 90×2s 收 FAILED（戰鬥其實已贏、ledger 已
+   歸檔）。候選解：unknown handler 在 LLM 建議「tap to advance」類
+   場景給受限的 neutral tap 權限，或補模板。
+3. **假移動格**：t=104.8 的 cell 移動（1720,604）與目標（786,137）
+   反向——weapon_select 返回後殘留的紅色攻擊範圍外框被白框遮罩誤抓
+   （同因 20260712-182654 驗出 38 假格）。幀已存 ledger。
+4. 敵方相位 AUTO chip 撥不動（注入實測），probe 高分照樣匹配不到
+   ——chip 在該相位可能鎖定，不影響防護但注入測試要挑 hub 時機。
+
+**新語料**：`assets/screenshots/20260712-hub-corpus-01.png`（我方
+hub、全解析度 PNG，hp_arc 重校準用）、`20260712-enemy-turn-marching-
+fullres.png`（敵方回合行軍、全解析度）。
+
+## 舊快照（2026-07-12 晚間，恢復點）
 
 **裝置現況**：手機停在「機動新世紀鋼彈X HARD STAGE 1」選關畫面（出擊
 準備鈕），體力 25/104 自然回復中。驗證局用戰鬥選單收場——**放棄戰鬥
