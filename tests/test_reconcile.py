@@ -169,6 +169,9 @@ def test_battle_prep_collapse_flags_support_defense():
     assert updated.game_damage == 4500
     assert updated.game_expect_kill is False
     assert updated.hit_pct == 85
+    detail = next(d for d in divergences if d.kind == "support_defense").detail
+    assert detail["weapon_select_damage"] == 9000
+    assert detail["battle_prep_damage"] == 4500
 
 
 def test_battle_prep_matching_damage_is_silent():

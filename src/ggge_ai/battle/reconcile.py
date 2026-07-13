@@ -272,10 +272,15 @@ def reconcile_battle_prep(
     updated = pending
     if prep.hit_pct is not None:
         updated.hit_pct = prep.hit_pct
+    # capture before the mutation below: updated aliases pending, and the
+    # first live run (20260713-225448) logged weapon_select_damage ==
+    # battle_prep_damage on every collapse because the detail was built
+    # after game_damage had been overwritten
+    weapon_select_damage = pending.game_damage
     collapsed = (
-        pending.game_damage is not None
+        weapon_select_damage is not None
         and prep.attack_value is not None
-        and prep.attack_value < pending.game_damage * SUPPORT_DEFENSE_RATIO
+        and prep.attack_value < weapon_select_damage * SUPPORT_DEFENSE_RATIO
     )
     if collapsed or prep.support_defense:
         was_kill = pending.game_expect_kill
@@ -293,7 +298,7 @@ def reconcile_battle_prep(
                 message=(
                     f"[SIM-DIVERGE] support_defense: battle-prep attack "
                     f"{prep.attack_value} collapsed below weapon-select forecast "
-                    f"{pending.game_damage}"
+                    f"{weapon_select_damage}"
                     + (
                         " -- expected kill no longer lethal"
                         if was_kill and now_kill is False
@@ -301,7 +306,7 @@ def reconcile_battle_prep(
                     )
                 ),
                 detail={
-                    "weapon_select_damage": pending.game_damage,
+                    "weapon_select_damage": weapon_select_damage,
                     "battle_prep_damage": prep.attack_value,
                     "support_defense_flag": prep.support_defense,
                 },
