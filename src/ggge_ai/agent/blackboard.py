@@ -41,6 +41,7 @@ class RunBlackboard:
         ledger = BattleLedger(
             frames_dir=self.out_dir / "frames" / f"battle_{idx:02d}",
             frame_rel_prefix=f"frames/battle_{idx:02d}",
+            stream_path=self.out_dir / f"battle_{idx:02d}.jsonl",
         )
         self.ledgers.append(ledger)
         self.pending_ledger = ledger

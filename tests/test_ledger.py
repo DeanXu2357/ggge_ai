@@ -140,3 +140,18 @@ def test_new_ledger_assigns_incrementing_frames_dir(tmp_path):
     assert first.frame_rel_prefix == "frames/battle_01"
     assert second.frames_dir == tmp_path / "frames" / "battle_02"
     assert second.frame_rel_prefix == "frames/battle_02"
+
+
+def test_stream_path_persists_events_before_dump(tmp_path):
+    stream = tmp_path / "battle_01.jsonl"
+    ledger = BattleLedger(stream_path=stream)
+    ledger.record("decision", action="attack")
+    ledger.record("standby")
+    lines = stream.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 2
+    assert json.loads(lines[0])["kind"] == "decision"
+    ledger.finish("victory")
+    ledger.dump(stream)
+    lines = stream.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 3
+    assert json.loads(lines[-1])["kind"] == "finish"

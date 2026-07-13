@@ -66,6 +66,11 @@ class BattleLedger:
     outcome: str | None = None
     frames_dir: Path | None = None
     frame_rel_prefix: str = ""
+    # write-through stream: every event is appended here the moment it is
+    # recorded, so a host crash mid-battle (freeze #8 cost the first live
+    # reconciliation run this way) still leaves the ledger on disk; dump()
+    # rewrites the same file as the clean final version
+    stream_path: Path | None = None
 
     def record(self, kind: str, frame: Any = None, **data: Any) -> None:
         event = {
@@ -77,6 +82,17 @@ class BattleLedger:
         if kind in FRAME_KINDS:
             event["frame"] = self._save_frame(frame, kind, len(self.events))
         self.events.append(event)
+        self._stream(event)
+
+    def _stream(self, event: dict[str, Any]) -> None:
+        if self.stream_path is None:
+            return
+        try:
+            self.stream_path.parent.mkdir(parents=True, exist_ok=True)
+            with self.stream_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(event, ensure_ascii=False) + "\n")
+        except Exception:
+            log.exception("ledger stream write failed (battle continues)")
 
     def _save_frame(self, frame: Any, kind: str, seq: int) -> str | None:
         if frame is None or self.frames_dir is None:
