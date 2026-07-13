@@ -63,12 +63,13 @@ volley rides Decision.support and the solver enumerates both settings when
 a teammate holds a charge. Mechanism landed ahead of its content feeds
 (fields default off until panels/abilities supply them): attack_shield
 (issue #22), interception_reduction (issue #20), has_shield, MAP weapons
-(SimWeapon.map_weapon + per-unit weapon_ammo), and the confirmed 10%
-per-phase EN regen. Not yet modelled: support-attack debuffs (~one full
-round, crossing from the enemy phase into ours; only their resolution
-order is modelled) and per-strike support hit% (readable on the forecast;
-treated as landing). Committed strikes not retargeting a mid-volley kill
-remains an assumption.
+(SimWeapon.map_weapon + per-unit weapon_ammo), weapon debuffs (SimDebuff:
+applied on a landed strike, one full round crossing from the enemy phase
+into ours, larger same-kind magnitude overwrites -- a damage-taken
+multiplier channel in v0), and the confirmed 10% per-phase EN regen. Not
+yet modelled: per-strike support hit% (readable on the forecast; treated
+as landing). Committed strikes not retargeting a mid-volley kill remains
+an assumption.
 
 step(state, decision) returns a fresh SimState and never mutates the input --
 clone() is cheap enough to expand a node per call. A decision covers one
@@ -174,6 +175,8 @@ class SimWeapon:
     can_counter: bool = True
     map_weapon: bool = False
     blast: int = 0
+    debuff_kind: str | None = None
+    debuff_magnitude: float = 0.0
 
 
 @dataclass
@@ -190,6 +193,21 @@ class SimSkill:
     amount: float | None = None
     uses: int = 1
     ends_turn: bool = True
+
+
+@dataclass(frozen=True)
+class SimDebuff:
+    """An active debuff on a unit: content magnitude, mechanism lifetime.
+
+    Lives one full round (settled 2026-07-13): applied during phase P it
+    stays through every other phase and expires when a phase of P's kind
+    next begins. Same kind: the larger magnitude overwrites; different
+    kinds coexist. v0 channel: a damage-taken multiplier (formula slot 9).
+    """
+
+    kind: str
+    magnitude: float
+    applied_index: int
 
 
 @dataclass
@@ -223,6 +241,7 @@ class SimUnit:
     attack_shield: bool = False
     interception_reduction: float = 0.0
     weapon_ammo: dict[str, int] = field(default_factory=dict)
+    debuffs: list[SimDebuff] = field(default_factory=list)
 
     @property
     def alive(self) -> bool:
@@ -242,6 +261,7 @@ class SimUnit:
             weapons=list(self.weapons),
             skills=[replace(s) for s in self.skills],
             weapon_ammo=dict(self.weapon_ammo),
+            debuffs=list(self.debuffs),
         )
 
 
@@ -348,6 +368,7 @@ class SimState:
                     u.support_defend_charges,
                     u.support_attack_charges,
                     tuple(sorted(u.weapon_ammo.items())),
+                    tuple(sorted((d.kind, d.magnitude, d.applied_index) for d in u.debuffs)),
                     tuple(s.uses for s in u.skills),
                 )
                 for u in self.units
@@ -586,7 +607,28 @@ def _rotate_one(state: SimState, params: SimParams) -> None:
     if nxt is Phase.ALLY:
         state.turn += 1
     state.phase = nxt
+    _expire_debuffs(state)
     _begin_phase(state, _PHASE_FACTION[nxt], params)
+
+
+def _expire_debuffs(state: SimState) -> None:
+    now = state.phase_index()
+    for u in state.units:
+        if u.debuffs:
+            u.debuffs = [d for d in u.debuffs if now - d.applied_index < len(PHASE_ORDER)]
+
+
+def _apply_debuff(state: SimState, weapon: SimWeapon, victim: SimUnit) -> None:
+    if weapon.debuff_kind is None:
+        return
+    existing = next((d for d in victim.debuffs if d.kind == weapon.debuff_kind), None)
+    if existing is not None:
+        if existing.magnitude >= weapon.debuff_magnitude:
+            return
+        victim.debuffs.remove(existing)
+    victim.debuffs.append(
+        SimDebuff(weapon.debuff_kind, weapon.debuff_magnitude, state.phase_index())
+    )
 
 
 def _advance_until_pending(state: SimState, params: SimParams) -> None:
@@ -663,7 +705,8 @@ def compute_damage(
         terrain=params.terrain,
         defense_multiplier=defense_multiplier,
     )
-    return int(round(dmg))
+    taken = 1.0 + sum(d.magnitude for d in defender.debuffs)
+    return int(round(dmg * taken))
 
 
 def _counter_weapon(
@@ -720,6 +763,7 @@ def _apply_attack(
             interceptor.support_defend_charges -= 1
             charge_pending = False
         struck.hp -= compute_damage(shooter, struck, shot, mult, params)
+        _apply_debuff(state, shot, struck)
 
     if decision.support:
         volley = find_support_attackers(state, actor, target)
@@ -772,6 +816,7 @@ def _apply_map_attack(
             victim.hp -= compute_damage(
                 actor, victim, weapon, formulas.NO_DEFENSE_MULTIPLIER, params
             )
+            _apply_debuff(state, weapon, victim)
 
 
 def _apply_counter(
@@ -796,6 +841,7 @@ def _apply_counter(
         struck = shield_bearer
         mult = _interception_multiplier(shield_bearer, params)
     struck.hp -= compute_damage(defender, struck, weapon, mult, params)
+    _apply_debuff(state, weapon, struck)
 
 
 def _apply_support_volley(
@@ -813,6 +859,7 @@ def _apply_support_volley(
         supporter.en -= weapon.en_cost
         if hit:
             attacker.hp -= compute_damage(supporter, attacker, weapon, 1.0, params)
+            _apply_debuff(state, weapon, attacker)
 
 
 def _apply_skill(actor: SimUnit, state: SimState, decision: Decision) -> bool:

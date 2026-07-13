@@ -600,6 +600,64 @@ def test_interception_reduction_trait_shrinks_the_hit():
     assert dealt == expected
 
 
+def test_support_debuff_lands_before_and_amplifies_the_main_strike():
+    m, a = _m(), _a()
+    n = _mech("n", Faction.ALLY, (0, 1), HUGE, move_range=3,
+              support_attack_charges=1, support_attack_charges_max=1,
+              weapons=[SimWeapon("zapper", power=5000, range_min=1, range_max=3,
+                                 debuff_kind="armor_down", debuff_magnitude=0.5)])
+    from ggge_ai.battle.sim import SimDebuff
+
+    dmg_support = compute_damage(n, a, n.weapons[0], 1.0, DEFAULT_PARAMS)
+    probe = _a()
+    probe.debuffs = [SimDebuff("armor_down", 0.5, 0)]
+    dmg_main_debuffed = compute_damage(m, probe, m.weapons[0], 1.0, DEFAULT_PARAMS)
+    dmg_main_clean = compute_damage(m, a, m.weapons[0], 1.0, DEFAULT_PARAMS)
+    assert dmg_main_debuffed > dmg_main_clean
+    s = _engagement(m, n, a)
+    s2 = step(
+        s,
+        Decision("m", ActionKind.ATTACK, target_id="a_t", weapon="rifle", hit=True,
+                 defense=DefenseResponse(DefenseKind.NONE)),
+    )
+    dealt = HUGE - s2.unit("a_t").hp
+    assert dealt == dmg_support + dmg_main_debuffed
+    assert [d.kind for d in s2.unit("a_t").debuffs] == ["armor_down"]
+
+
+def test_debuff_expires_when_its_phase_kind_comes_back():
+    ally = _ally(weapons=[_rifle(power=1500)])
+    debuffed = _enemy("e0", pos=(1, 0), hp=10**9)
+    debuffed.max_hp = 10**9
+    debuffed.weapons = []
+    ally.weapons[0] = SimWeapon("rifle", power=1500, range_min=1, range_max=3,
+                                debuff_kind="armor_down", debuff_magnitude=0.3)
+    s = SimState(units=[ally, debuffed])
+    s = step(s, Decision("a", ActionKind.ATTACK, target_id="e0", weapon="rifle", hit=True))
+    assert s.phase is Phase.ENEMY
+    assert len(s.unit("e0").debuffs) == 1
+    s = step(s, standby("e0"))
+    assert s.phase is Phase.ALLY and s.turn == 2
+    assert s.unit("e0").debuffs == []
+
+
+def test_debuff_same_kind_keeps_the_larger_magnitude():
+    m, a = _m(), _a()
+    weak = SimWeapon("weak", power=100, range_min=1, range_max=3,
+                     debuff_kind="armor_down", debuff_magnitude=0.5)
+    strong = SimWeapon("strong", power=100, range_min=1, range_max=3,
+                       debuff_kind="armor_down", debuff_magnitude=0.2)
+    m.weapons = [weak, strong]
+    s = _engagement(m, a)
+    s = step(s, Decision("m", ActionKind.ATTACK, target_id="a_t", weapon="weak", hit=True,
+                         defense=DefenseResponse(DefenseKind.NONE)))
+    s = step(s, Decision("m", ActionKind.ATTACK, target_id="a_t", weapon="strong", hit=True,
+                         defense=DefenseResponse(DefenseKind.NONE)))
+    debuffs = s.unit("a_t").debuffs
+    assert len(debuffs) == 1
+    assert debuffs[0].magnitude == 0.5
+
+
 def test_reposition_moves_offer_advance_and_retreat():
     from ggge_ai.battle.sim import chebyshev, reposition_moves
 
