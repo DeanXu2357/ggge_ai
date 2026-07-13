@@ -48,6 +48,14 @@ is a pilot trait, and the protected/assisted ally must sit within the
 supporter's own movement range; the weapon must reach the foe. Volleys cap
 at max_support_attackers (live limit 3 or 4, web check pending).
 
+Q&A round three confirmed more of the model as-is: an engagement kill
+grants the main attacker's re-activation no matter whose strike landed the
+blow; re-activation is a full activation reset (move, attack, skill, MAP
+weapon alike -- acted=False is faithful); counters are unlimited within a
+phase (EN and survival are the only gates, which makes counter-bait lines
+legitimate); the counter only ever targets the main attacker; and counters
+and support fire pay their weapon's EN with cheaper weapons as fallback.
+
 Defender-side decisions (stance, interception, support fire and its weapon)
 are all player choices in the live game -- the popup merely pre-fills
 defaults -- so the solver optimising over them is faithful; the offense
@@ -56,9 +64,10 @@ volleying into an interceptor wastes overkill). Not yet modelled:
 support-attack debuffs (~one round duration; only their resolution order
 is modelled), per-strike support hit% (readable on the forecast; treated
 as landing), the "attack shield" trait letting special units intercept
-counterattacks (issue #22), and the per-unit interception damage-reduction
-trait (issue #20). Kill credit inside a volley going to the main attacker
-and committed strikes not retargeting a mid-volley kill remain assumptions.
+counterattacks (issue #22), the per-unit interception damage-reduction
+trait (issue #20), MAP weapons, and a suspected per-round passive EN regen
+(web check pending -- multi-turn EN economics run pessimistic without it).
+Committed strikes not retargeting a mid-volley kill remains an assumption.
 
 step(state, decision) returns a fresh SimState and never mutates the input --
 clone() is cheap enough to expand a node per call. A decision covers one

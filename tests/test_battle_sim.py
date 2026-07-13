@@ -403,6 +403,33 @@ def test_missed_strike_spares_the_interceptor_charge():
     assert s2.unit("m").hp < HUGE
 
 
+def test_counters_are_unlimited_within_a_phase():
+    m1 = _m()
+    m2 = _mech("m2", Faction.ALLY, (0, 1), HUGE, weapons=[_rifle(power=5000)])
+    a = _a()
+    a.weapons = [_rifle(power=5000, en_cost=10)]
+    s = _engagement(m1, m2, a)
+    s = step(s, Decision("m", ActionKind.ATTACK, target_id="a_t", weapon="rifle",
+                         hit=True, defense=DefenseResponse(DefenseKind.COUNTER)))
+    s = step(s, Decision("m2", ActionKind.ATTACK, target_id="a_t", weapon="rifle",
+                         hit=True, defense=DefenseResponse(DefenseKind.COUNTER)))
+    assert s.unit("m").hp < HUGE
+    assert s.unit("m2").hp < HUGE
+    assert s.unit("a_t").en == 30
+
+
+def test_counter_falls_back_to_a_weapon_the_en_can_pay():
+    m, a = _m(), _a()
+    a.weapons = [
+        SimWeapon("cannon", power=9000, range_min=1, range_max=3, en_cost=60),
+        _rifle(power=5000, en_cost=10),
+    ]
+    s = _engagement(m, a)
+    s2 = _strike(s, support_defend=False)
+    assert s2.unit("m").hp < HUGE
+    assert s2.unit("a_t").en == 40
+
+
 def test_defender_kill_cancels_our_support_fire_in_the_enemy_phase():
     boss = _mech("boss", Faction.ENEMY, (2, 0), HUGE, weapons=[_rifle(power=5000)])
     m = _mech("m", Faction.ALLY, (0, 0), 1, weapons=[_rifle(power=5000)])
