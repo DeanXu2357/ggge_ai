@@ -31,8 +31,15 @@ from .bridge import UnitSpec
 
 log = logging.getLogger(__name__)
 
-SUMMARY_CARD_TAP = (760, 180)
+# live-calibrated 2026-07-14 on HARD 1 (Sazabi EX sample, free abandon):
+# the enemy summary card docks at the TOP-RIGHT of the battle map -- the
+# old (760, 180) guess pointed at empty map. Tapping the card opens the
+# unit-detail modal, which lands on the weapons tab directly; the tab tap
+# is kept as an idempotent safety. ABILITY_TAB_TAP reaches the 能力、OP
+# page (trait corpus for issues #21/#22).
+SUMMARY_CARD_TAP = (1510, 205)
 WEAPONS_TAB_TAP = (1381, 173)
+ABILITY_TAB_TAP = (1813, 176)
 UNIT_DETAIL_CLOSE = (1176, 992)
 SUMMARY_SETTLE_S = 1.2
 MODAL_SETTLE_S = 1.5
