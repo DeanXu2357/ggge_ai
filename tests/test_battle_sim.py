@@ -303,14 +303,65 @@ def test_case3_interceptor_death_cancels_nothing_else():
     assert s2.unit("c").support_attack_charges == 0
 
 
-def test_counter_kill_stops_support_fire():
-    m, a = _m(), _a()
-    dmg_a = compute_damage(a, m, a.weapons[0], 1.0, DEFAULT_PARAMS)
-    m.hp = m.max_hp = dmg_a
-    s = _engagement(m, a, _c())
+def test_support_volley_resolves_before_the_counter():
+    m, a, c = _m(), _a(), _c()
+    dmg_c = compute_damage(c, m, c.weapons[0], 1.0, DEFAULT_PARAMS)
+    m.hp = m.max_hp = dmg_c
+    a.weapons = [_rifle(power=5000, en_cost=10)]
+    s = _engagement(m, a, c)
     s2 = _strike(s, support_defend=False)
     assert s2.unit("m") is None
-    assert s2.unit("c").support_attack_charges == 1
+    assert s2.unit("c").support_attack_charges == 0
+    assert s2.unit("a_t").en == 50
+
+
+def test_multiple_support_attackers_fire_together():
+    m, a = _m(), _a()
+    c1 = _c()
+    c2 = _mech("c2", Faction.ENEMY, (3, 1), HUGE, move_range=3,
+               support_attack_charges=1, support_attack_charges_max=1,
+               weapons=[_rifle(power=5000)])
+    dmg = compute_damage(c1, m, c1.weapons[0], 1.0, DEFAULT_PARAMS)
+    s = _engagement(m, a, c1, c2)
+    s2 = step(
+        s,
+        Decision("m", ActionKind.ATTACK, target_id="a_t", weapon="rifle", hit=True,
+                 defense=DefenseResponse(DefenseKind.NONE)),
+    )
+    assert s2.unit("m").hp == HUGE - 2 * dmg
+    assert s2.unit("c").support_attack_charges == 0
+    assert s2.unit("c2").support_attack_charges == 0
+
+
+def test_support_volley_respects_the_cap():
+    m, a = _m(), _a()
+    cs = [_mech(f"c{i}", Faction.ENEMY, pos, HUGE, move_range=3,
+                support_attack_charges=1, support_attack_charges_max=1,
+                weapons=[_rifle(power=5000)])
+          for i, pos in enumerate([(2, 1), (3, 1), (1, 1), (1, 2)])]
+    dmg = compute_damage(cs[0], m, cs[0].weapons[0], 1.0, DEFAULT_PARAMS)
+    s = _engagement(m, a, *cs)
+    s2 = step(
+        s,
+        Decision("m", ActionKind.ATTACK, target_id="a_t", weapon="rifle", hit=True,
+                 defense=DefenseResponse(DefenseKind.NONE)),
+    )
+    assert s2.unit("m").hp == HUGE - 3 * dmg
+    remaining = sum(s2.unit(f"c{i}").support_attack_charges for i in range(4))
+    assert remaining == 1
+
+
+def test_missed_strike_spares_the_interceptor_charge():
+    s = _engagement(_m(), _a(), _b(hp=HUGE))
+    s2 = step(
+        s,
+        Decision("m", ActionKind.ATTACK, target_id="a_t", weapon="rifle", hit=False,
+                 defense=DefenseResponse(DefenseKind.COUNTER, support_defend=True)),
+    )
+    assert s2.unit("b").hp == HUGE
+    assert s2.unit("b").support_defend_charges == 1
+    assert s2.unit("a_t").hp == HUGE
+    assert s2.unit("m").hp < HUGE
 
 
 def test_defender_kill_cancels_our_support_fire_in_the_enemy_phase():

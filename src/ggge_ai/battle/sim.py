@@ -18,27 +18,37 @@ blocking is deferred to v1: movement legality is funnelled through a single
 replaceable MoveValidator so a collision-aware version can drop in without
 touching step.
 
-Engagement resolution follows the live game's order (user-observed cases,
-2026-07-13 with the case-2 correction, recorded in docs/combat-formulas.md):
+Engagement resolution follows the live game's order (user-observed cases and
+the case-by-case Q&A, 2026-07-13, recorded in docs/combat-formulas.md):
 
   1. the attacker's strike lands on the interceptor -- the support defender
      when the response asks for it and an eligible one exists, the target
-     otherwise; damage is computed against the struck unit's own stats
-     (every live observation shows an eligible supporter intercepting);
+     otherwise; damage is computed against the struck unit's own stats. A
+     miss spares the interceptor's charge; a landed hit spends it.
   2. the struck unit's death resolves immediately; a destroyed interceptor
-     cancels nothing that follows;
-  3. the counter phase fires only while the *target* is alive: the target's
-     counter (stance COUNTER), then one support attacker, and the strikes
-     stop early once the attacker is destroyed. A target killed in step 2
-     cancels the whole counter phase including the support attacker --
-     user-confirmed in both directions (their C stands down when we kill A;
-     our N stands down when the enemy kills M).
+     cancels nothing that follows, and killing the interceptor grants the
+     same re-activation as killing the target (provided the attacker
+     survives the counter phase and has charges left -- step() already
+     checks both).
+  3. the counter phase fires only while the *target* is alive: first the
+     support-attack volley (every eligible supporter up to
+     max_support_attackers, resolved before the counter because support
+     units carry debuffs the target's own strike must benefit from), then
+     the target's counter (stance COUNTER); strikes stop once the attacker
+     is destroyed. Support fire only needs the attacker inside the
+     supporter's weapon reach and a remaining charge -- it does not care
+     whether the target itself can counter. A target killed in step 2
+     cancels the whole counter phase, confirmed in both directions.
 
-Unverified details are conservative defaults, not observations: the
-interceptor's charge is spent even on a miss, killing the interceptor grants
-the same re-activation as killing the target, one interceptor and one support
-attacker per engagement, and the support attacker fires regardless of the
-target's own stance.
+Defender-side decisions (stance, interception, support fire and its weapon)
+are all player choices in the live game -- the popup merely pre-fills
+defaults -- so the solver optimising over them is faithful. Not yet
+modelled: support-attack debuffs (only their resolution order is), the
+"attack shield" trait letting special units intercept counterattacks (issue
+#22), the per-unit interception damage-reduction trait (issue #20), and the
+simultaneous-support cap of 3 vs 4 (web check pending; default 3). One
+interceptor per engagement and board order within the volley remain
+conservative defaults.
 
 step(state, decision) returns a fresh SimState and never mutates the input --
 clone() is cheap enough to expand a node per call. A decision covers one
@@ -97,10 +107,14 @@ class SimParams:
     """Mechanism multipliers, defaulting to the formulas.py constants.
 
     support_defend_multiplier is a doubted placeholder with no measurement
-    behind it (user-flagged 2026-07-13, issue #20): the interceptor may take
-    reduced, full, or differently-computed damage. Calibrate from the game
-    forecast on an intercepted attack before trusting kill maths against a
-    support defender.
+    behind it (user-flagged 2026-07-13, issue #20): the reduction is a
+    per-unit ability trait in the live game, not a global constant, so the
+    interceptor may take reduced, full, or differently-computed damage.
+    Calibrate from the game forecast on an intercepted attack before
+    trusting kill maths against a support defender.
+
+    max_support_attackers caps the simultaneous support-attack volley; the
+    live limit is 3 or 4 (user unsure, web check pending).
     """
 
     defend_multiplier: float = formulas.DEFEND_MULTIPLIER
@@ -108,6 +122,7 @@ class SimParams:
     support_defend_multiplier: float = 0.5
     dodge_hit_penalty: float = 20.0
     terrain: float = 1.0
+    max_support_attackers: int = 3
 
 
 DEFAULT_PARAMS = SimParams()
@@ -537,9 +552,10 @@ def find_support_defender(state: SimState, defender: SimUnit) -> SimUnit | None:
     return None
 
 
-def find_support_attacker(
+def find_support_attackers(
     state: SimState, defender: SimUnit, attacker: SimUnit
-) -> tuple[SimUnit, SimWeapon] | None:
+) -> list[tuple[SimUnit, SimWeapon]]:
+    out: list[tuple[SimUnit, SimWeapon]] = []
     for u in state.units:
         if u is defender or not u.alive or u.faction is not defender.faction:
             continue
@@ -550,8 +566,9 @@ def find_support_attacker(
         dist = chebyshev(u.pos, attacker.pos)
         for w in u.weapons:
             if u.en >= w.en_cost and w.range_min <= dist <= w.range_max:
-                return u, w
-    return None
+                out.append((u, w))
+                break
+    return out
 
 
 def compute_damage(
@@ -610,24 +627,26 @@ def _apply_attack(
     response = decision.defense
     struck = target
     mult = _stance_multiplier(response, params)
+    interceptor = None
     if response is not None and response.support_defend:
         interceptor = find_support_defender(state, target)
         if interceptor is not None:
-            interceptor.support_defend_charges -= 1
             struck = interceptor
             mult = params.support_defend_multiplier
 
     hit = True if decision.hit is None else decision.hit
     killed = False
     if hit:
+        if interceptor is not None:
+            interceptor.support_defend_charges -= 1
         struck.hp -= compute_damage(actor, struck, weapon, mult, params)
         killed = not struck.alive
 
     if response is not None and target.alive:
+        if response.support_attack and actor.alive:
+            _apply_support_volley(state, target, actor, decision, params)
         if response.kind == DefenseKind.COUNTER and actor.alive:
             _apply_counter(state, target, actor, decision, params)
-        if response.support_attack and actor.alive:
-            _apply_support_attack(state, target, actor, decision, params)
 
     return killed
 
@@ -648,22 +667,21 @@ def _apply_counter(
         attacker.hp -= compute_damage(defender, attacker, weapon, 1.0, params)
 
 
-def _apply_support_attack(
+def _apply_support_volley(
     state: SimState,
     defender: SimUnit,
     attacker: SimUnit,
     decision: Decision,
     params: SimParams,
 ) -> None:
-    found = find_support_attacker(state, defender, attacker)
-    if found is None:
-        return
-    supporter, weapon = found
-    supporter.support_attack_charges -= 1
-    supporter.en -= weapon.en_cost
+    volley = find_support_attackers(state, defender, attacker)
+    volley = volley[: max(0, params.max_support_attackers)]
     hit = True if decision.support_hit is None else decision.support_hit
-    if hit:
-        attacker.hp -= compute_damage(supporter, attacker, weapon, 1.0, params)
+    for supporter, weapon in volley:
+        supporter.support_attack_charges -= 1
+        supporter.en -= weapon.en_cost
+        if hit:
+            attacker.hp -= compute_damage(supporter, attacker, weapon, 1.0, params)
 
 
 def _apply_skill(actor: SimUnit, state: SimState, decision: Decision) -> bool:
