@@ -94,7 +94,14 @@ DEFENSE_STANCES: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class SimParams:
-    """Mechanism multipliers, defaulting to the formulas.py constants."""
+    """Mechanism multipliers, defaulting to the formulas.py constants.
+
+    support_defend_multiplier is a doubted placeholder with no measurement
+    behind it (user-flagged 2026-07-13, issue #20): the interceptor may take
+    reduced, full, or differently-computed damage. Calibrate from the game
+    forecast on an intercepted attack before trusting kill maths against a
+    support defender.
+    """
 
     defend_multiplier: float = formulas.DEFEND_MULTIPLIER
     shield_multiplier: float = formulas.SHIELD_MULTIPLIER
