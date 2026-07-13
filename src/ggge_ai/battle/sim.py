@@ -18,24 +18,27 @@ blocking is deferred to v1: movement legality is funnelled through a single
 replaceable MoveValidator so a collision-aware version can drop in without
 touching step.
 
-Engagement resolution follows the live game's order (three user-observed
-cases, 2026-07-13, recorded in docs/combat-formulas.md):
+Engagement resolution follows the live game's order (user-observed cases,
+2026-07-13 with the case-2 correction, recorded in docs/combat-formulas.md):
 
   1. the attacker's strike lands on the interceptor -- the support defender
      when the response asks for it and an eligible one exists, the target
-     otherwise; damage is computed against the struck unit's own stats;
+     otherwise; damage is computed against the struck unit's own stats
+     (every live observation shows an eligible supporter intercepting);
   2. the struck unit's death resolves immediately; a destroyed interceptor
      cancels nothing that follows;
   3. the counter phase fires only while the *target* is alive: the target's
-     counter (stance COUNTER), then one support attacker. A target killed in
-     step 2 means no counter and no support attack at all, and the strikes
+     counter (stance COUNTER), then one support attacker, and the strikes
      stop early once the attacker is destroyed.
 
-Unverified details are conservative defaults, not observations: the
-interceptor's charge is spent even on a miss, killing the interceptor grants
-the same re-activation as killing the target, one interceptor and one support
-attacker per engagement, and the support attacker fires regardless of the
-target's own stance.
+Unverified details are conservative defaults, not observations: a target
+killed in step 2 cancels the whole counter phase (its own counter is
+mechanically forced off; the support attacker standing down too is assumed
+-- the original case-2 evidence was retracted), the interceptor's charge is
+spent even on a miss, killing the interceptor grants the same re-activation
+as killing the target, one interceptor and one support attacker per
+engagement, and the support attacker fires regardless of the target's own
+stance.
 
 step(state, decision) returns a fresh SimState and never mutates the input --
 clone() is cheap enough to expand a node per call. A decision covers one

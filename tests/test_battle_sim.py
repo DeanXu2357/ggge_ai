@@ -217,9 +217,12 @@ def test_non_turn_ending_skill_keeps_unit_pending():
     assert s2.phase is Phase.ALLY
 
 
-# Engagement-order cases observed live by the user (2026-07-13), recorded in
-# docs/combat-formulas.md: M is our attacker, A the target, B the support
-# defender, C the support attacker.
+# Engagement-order cases observed live by the user (2026-07-13, with the
+# case-2 correction), recorded in docs/combat-formulas.md: M is our attacker,
+# A the target, B the support defender, C the support attacker. Cases 1 and 3
+# are observations; the corrected case 2 is the same family as case 1. The
+# target-kill test pins a conservative assumption whose original evidence was
+# retracted by that correction.
 
 HUGE = 10**9
 
@@ -277,7 +280,7 @@ def test_case1_interceptor_dies_and_target_still_counters():
     assert s2.unit("m").hp < HUGE
 
 
-def test_case2_target_kill_cancels_counter_and_support_fire():
+def test_target_kill_cancels_counter_and_support_fire():
     s = _engagement(_m(hp=1), _a(hp=1), _b(hp=HUGE), _c())
     s2 = _strike(s, support_defend=False)
     assert s2.unit("a_t") is None

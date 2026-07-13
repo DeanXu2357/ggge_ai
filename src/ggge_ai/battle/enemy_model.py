@@ -12,12 +12,12 @@ else stand by); MinimaxEnemy enumerates every legal attack plus standby as
 the min node's candidates.
 
 reactions() covers the other half of the enemy's agency: the defence response
-when *we* attack. The policy baseline is "counter, intercept, join" -- the
-live game's enemies always fight back when able (user cases 2026-07-13) and
-step() degrades each ineligible part to a no-op. The game's actual
-support-defence trigger is unobserved (one live case showed an eligible-
-looking supporter *not* intercepting), so the min model enumerates every
-stance with and without interception instead of guessing a rule.
+when *we* attack. The policy baseline is "counter, intercept, join" -- every
+live observation (user cases 2026-07-13, incl. the case-2 correction) shows
+enemies fighting back and eligible supporters intercepting; step() degrades
+each ineligible part to a no-op. The trigger rule has few samples and no
+reconciliation evidence yet, so the min model still enumerates every stance
+with and without interception for a worst-case bound.
 """
 
 from __future__ import annotations
