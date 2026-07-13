@@ -86,6 +86,33 @@ def test_enemy_phase_picks_better_defense_response():
     assert abs(result.value - v_counter) < 1e-6
 
 
+def test_solver_prices_enemy_counter_on_our_attacks():
+    # the strike barely scratches, the counter destroys us: stand by instead
+    m = _ally("m", pos=(0, 0), hp=10, max_hp=10, move_range=0,
+              unit_attack=1000, pilot_attack=1000,
+              weapons=[_weapon("saber", power=200, rmax=1)])
+    e = _enemy("e", pos=(1, 0), hp=100_000, max_hp=100_000, move_range=0,
+               weapons=[_weapon(power=9000, rmax=1)])
+    state = SimState(units=[m, e])
+    result = solve(state, NearestTargetPolicy(), SolverConfig(max_depth=1))
+    assert result.decision.kind == ActionKind.STANDBY
+
+
+def test_solver_takes_the_kill_that_silences_return_fire():
+    # killing the target first cancels its counter and the support fire
+    m = _ally("m", pos=(0, 0), hp=10, max_hp=10, move_range=0,
+              weapons=[_weapon(power=9000, rmax=2)])
+    e = _enemy("e", pos=(1, 0), hp=5, move_range=0,
+               weapons=[_weapon(power=9000, rmax=1)])
+    guard = _enemy("g", pos=(2, 0), hp=10**9, max_hp=10**9, move_range=3,
+                   weapons=[_weapon(power=9000, rmax=3)],
+                   support_attack_charges=1, support_attack_charges_max=1)
+    state = SimState(units=[m, e, guard])
+    result = solve(state, NearestTargetPolicy(), SolverConfig(max_depth=1))
+    assert result.decision.kind == ActionKind.ATTACK
+    assert result.decision.target_id == "e"
+
+
 def test_min_mode_is_more_pessimistic_than_policy():
     tank = _ally("tank", pos=(1, 0), hp=1_000_000, max_hp=1_000_000, weapons=[])
     weak = _ally("weak", pos=(3, 0), hp=1, weapons=[])
@@ -130,7 +157,8 @@ def _random_state(rng):
                                range_max=rng.randrange(1, 4),
                                en_cost=rng.choice([0, 5, 10]))],
             react_charges=rng.randrange(0, 2), react_charges_max=1,
-            support_charges=rng.randrange(0, 2), support_charges_max=1,
+            support_defend_charges=rng.randrange(0, 2), support_defend_charges_max=1,
+            support_attack_charges=rng.randrange(0, 2), support_attack_charges_max=1,
         ))
     for i in range(2):
         units.append(SimUnit(
@@ -144,6 +172,8 @@ def _random_state(rng):
             weapons=[SimWeapon("w", power=rng.randrange(1500, 6000), range_min=1,
                                range_max=rng.randrange(1, 4),
                                en_cost=rng.choice([0, 5, 10]))],
+            support_defend_charges=rng.randrange(0, 2), support_defend_charges_max=1,
+            support_attack_charges=rng.randrange(0, 2), support_attack_charges_max=1,
         ))
     return SimState(units=units)
 

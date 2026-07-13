@@ -12,10 +12,14 @@ probing is still a TODO. Node type follows *who decides now*
   - an enemy unit in the enemy phase -> policy expectation or min, per the
     injected EnemyModel's mode;
   - the hit/miss of an attack -> chance node weighted by the hit probability
-    (from formulas.py); and
+    (from formulas.py);
   - the defender's reaction to an incoming enemy attack -> a nested max over
-    {no defence, dodge, defend, shield, counter}, because that reaction is
-    our decision even though it happens in the enemy phase.
+    every stance, doubled with support interception when an eligible
+    supporter stands by, because that reaction is our decision even though
+    it happens in the enemy phase; and
+  - the enemy defender's reaction to our attack -> the enemy model's
+    reactions(), resolved as an expectation (policy) or a min (worst case),
+    so the tree prices counters and support fire against our own strikes.
 
 The leaf evaluator is injectable; the default is a weighted sum of our
 remaining HP ratio minus the enemy's, plus a kill/loss count term. It returns
@@ -34,6 +38,7 @@ from .actions import ActionKind
 from .enemy_model import MODE_MIN, EnemyModel, ReachProvider
 from .sim import (
     DEFAULT_PARAMS,
+    DEFENSE_STANCES,
     Decision,
     DefenseKind,
     DefenseResponse,
@@ -42,6 +47,7 @@ from .sim import (
     SimParams,
     SimState,
     SimUnit,
+    find_support_defender,
     legal_attacks,
     legal_skills,
     reposition_moves,
@@ -98,13 +104,11 @@ class _Timeout(Exception):
     pass
 
 
-DEFENSE_RESPONSES: tuple[DefenseResponse, ...] = (
-    DefenseResponse(DefenseKind.NONE),
-    DefenseResponse(DefenseKind.DODGE),
-    DefenseResponse(DefenseKind.DEFEND),
-    DefenseResponse(DefenseKind.SHIELD),
-    DefenseResponse(DefenseKind.COUNTER),
-)
+def _defense_candidates(state: SimState, target: SimUnit) -> list[DefenseResponse]:
+    out = [DefenseResponse(kind=k) for k in DEFENSE_STANCES]
+    if find_support_defender(state, target) is not None:
+        out.extend(DefenseResponse(kind=k, support_defend=True) for k in DEFENSE_STANCES)
+    return out
 
 
 @dataclass
@@ -343,7 +347,7 @@ def _expectation(
 def _decision_value(
     state: SimState, decision: Decision, depth: int, alpha: float, beta: float, ctx: SearchContext
 ) -> tuple[float, list[Decision]]:
-    """Route a decision through the defender-reaction max and the chance node.
+    """Route a decision through the defender-reaction node and the chance node.
 
     This is the single place that prefixes the decision onto the pv, so the
     line records the defence response actually chosen.
@@ -353,24 +357,76 @@ def _decision_value(
     if (
         decision.kind == ActionKind.ATTACK
         and actor is not None
-        and actor.faction is Faction.ENEMY
         and target is not None
-        and target.faction is Faction.ALLY
         and decision.defense is None
     ):
-        best = -_INF
+        if actor.faction is Faction.ENEMY and target.faction is Faction.ALLY:
+            return _our_defense_node(state, decision, target, depth, alpha, beta, ctx)
+        if actor.faction is Faction.ALLY and target.faction is Faction.ENEMY:
+            return _enemy_reaction_node(state, decision, depth, alpha, beta, ctx)
+    value, pv = _chance_value(state, decision, depth, alpha, beta, ctx)
+    return value, [decision, *pv]
+
+
+def _our_defense_node(
+    state: SimState,
+    decision: Decision,
+    target: SimUnit,
+    depth: int,
+    alpha: float,
+    beta: float,
+    ctx: SearchContext,
+) -> tuple[float, list[Decision]]:
+    best = -_INF
+    best_pv: list[Decision] = []
+    for response in _defense_candidates(state, target):
+        responded = replace(decision, defense=response)
+        value, pv = _chance_value(state, responded, depth, alpha, beta, ctx)
+        if value > best:
+            best, best_pv = value, [responded, *pv]
+        alpha = max(alpha, best)
+        if alpha >= beta:
+            break
+    return best, best_pv
+
+
+def _enemy_reaction_node(
+    state: SimState,
+    decision: Decision,
+    depth: int,
+    alpha: float,
+    beta: float,
+    ctx: SearchContext,
+) -> tuple[float, list[Decision]]:
+    candidates = ctx.enemy_model.reactions(state, decision)
+    if not candidates:
+        value, pv = _chance_value(state, decision, depth, alpha, beta, ctx)
+        return value, [decision, *pv]
+    if ctx.enemy_model.mode == MODE_MIN:
+        best = _INF
         best_pv: list[Decision] = []
-        for response in DEFENSE_RESPONSES:
+        for response, _prob in candidates:
             responded = replace(decision, defense=response)
             value, pv = _chance_value(state, responded, depth, alpha, beta, ctx)
-            if value > best:
+            if value < best:
                 best, best_pv = value, [responded, *pv]
-            alpha = max(alpha, best)
+            beta = min(beta, best)
             if alpha >= beta:
                 break
         return best, best_pv
-    value, pv = _chance_value(state, decision, depth, alpha, beta, ctx)
-    return value, [decision, *pv]
+
+    def make_resolver(responded: Decision):
+        def resolve(ax: float, bx: float) -> tuple[float, list[Decision]]:
+            value, pv = _chance_value(state, responded, depth, ax, bx, ctx)
+            return value, [responded, *pv]
+
+        return resolve
+
+    branches = [
+        (prob, make_resolver(replace(decision, defense=response)))
+        for response, prob in candidates
+    ]
+    return _expectation(branches, alpha, beta, ctx)
 
 
 def _chance_value(

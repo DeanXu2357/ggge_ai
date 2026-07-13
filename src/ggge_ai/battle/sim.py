@@ -12,10 +12,30 @@ multipliers, which default to the constants in formulas.py.
 Geometry (v0): cells are integer (col, row) tuples and distance is the
 Chebyshev metric (king moves; a diagonal step costs the same as an orthogonal
 one). Weapon reach is a [range_min, range_max] band on that distance. Support
-defence is approximated as "a same-faction ally with an unused support charge
-sits within its own movement range of the defender". Path blocking is
-deferred to v1: movement legality is funnelled through a single replaceable
-MoveValidator so a collision-aware version can drop in without touching step.
+eligibility is approximated as "a same-faction ally with an unused charge of
+the matching kind sits within its own movement range of the defender". Path
+blocking is deferred to v1: movement legality is funnelled through a single
+replaceable MoveValidator so a collision-aware version can drop in without
+touching step.
+
+Engagement resolution follows the live game's order (three user-observed
+cases, 2026-07-13, recorded in docs/combat-formulas.md):
+
+  1. the attacker's strike lands on the interceptor -- the support defender
+     when the response asks for it and an eligible one exists, the target
+     otherwise; damage is computed against the struck unit's own stats;
+  2. the struck unit's death resolves immediately; a destroyed interceptor
+     cancels nothing that follows;
+  3. the counter phase fires only while the *target* is alive: the target's
+     counter (stance COUNTER), then one support attacker. A target killed in
+     step 2 means no counter and no support attack at all, and the strikes
+     stop early once the attacker is destroyed.
+
+Unverified details are conservative defaults, not observations: the
+interceptor's charge is spent even on a miss, killing the interceptor grants
+the same re-activation as killing the target, one interceptor and one support
+attacker per engagement, and the support attacker fires regardless of the
+target's own stance.
 
 step(state, decision) returns a fresh SimState and never mutates the input --
 clone() is cheap enough to expand a node per call. A decision covers one
@@ -58,7 +78,15 @@ class DefenseKind:
     DEFEND = "defend"
     SHIELD = "shield"
     COUNTER = "counter"
-    SUPPORT_DEFEND = "support_defend"
+
+
+DEFENSE_STANCES: tuple[str, ...] = (
+    DefenseKind.NONE,
+    DefenseKind.DODGE,
+    DefenseKind.DEFEND,
+    DefenseKind.SHIELD,
+    DefenseKind.COUNTER,
+)
 
 
 @dataclass(frozen=True)
@@ -127,8 +155,10 @@ class SimUnit:
     acted: bool = False
     react_charges: int = 0
     react_charges_max: int = 0
-    support_charges: int = 0
-    support_charges_max: int = 0
+    support_defend_charges: int = 0
+    support_defend_charges_max: int = 0
+    support_attack_charges: int = 0
+    support_attack_charges_max: int = 0
 
     @property
     def alive(self) -> bool:
@@ -152,19 +182,28 @@ class SimUnit:
 
 @dataclass
 class DefenseResponse:
-    """The defender's reaction to an incoming attack (a decision point)."""
+    """The defender's reaction to an incoming attack (a decision point).
+
+    kind is the target's own stance. support_defend asks an eligible support
+    defender to intercept the strike (independent of the stance: the target
+    still counters from behind the interceptor). support_attack lets an
+    eligible support attacker join the counter phase; it defaults on because
+    the live game fires it without a choice.
+    """
 
     kind: str = DefenseKind.NONE
     weapon: str | None = None
+    support_defend: bool = False
+    support_attack: bool = True
 
 
 @dataclass
 class Decision:
     """One unit's activation, or (with defense set) a defence reaction.
 
-    hit / counter_hit carry the chance outcome the solver branches on: None
-    means "no roll / treated as landing"; the solver sets them explicitly to
-    expand a chance node's hit and miss children.
+    hit / counter_hit / support_hit carry the chance outcome the solver
+    branches on: None means "no roll / treated as landing"; the solver sets
+    them explicitly to expand a chance node's hit and miss children.
     """
 
     unit_id: str
@@ -176,6 +215,7 @@ class Decision:
     defense: DefenseResponse | None = None
     hit: bool | None = None
     counter_hit: bool | None = None
+    support_hit: bool | None = None
 
 
 @dataclass
@@ -236,7 +276,8 @@ class SimState:
                     u.en,
                     u.acted,
                     u.react_charges,
-                    u.support_charges,
+                    u.support_defend_charges,
+                    u.support_attack_charges,
                     tuple(s.uses for s in u.skills),
                 )
                 for u in self.units
@@ -441,7 +482,8 @@ def _begin_phase(state: SimState, faction: Faction) -> None:
         if u.faction is faction:
             u.acted = False
             u.react_charges = u.react_charges_max
-            u.support_charges = u.support_charges_max
+            u.support_defend_charges = u.support_defend_charges_max
+            u.support_attack_charges = u.support_attack_charges_max
 
 
 def _rotate_one(state: SimState) -> None:
@@ -464,36 +506,41 @@ def _remove_dead(state: SimState) -> None:
     state.units = [u for u in state.units if u.alive]
 
 
-def _defense_multiplier(
-    state: SimState,
-    defender: SimUnit,
-    response: DefenseResponse | None,
-    params: SimParams,
-) -> float:
+def _stance_multiplier(response: DefenseResponse | None, params: SimParams) -> float:
     if response is None:
         return formulas.NO_DEFENSE_MULTIPLIER
-    kind = response.kind
-    if kind == DefenseKind.DEFEND:
+    if response.kind == DefenseKind.DEFEND:
         return params.defend_multiplier
-    if kind == DefenseKind.SHIELD:
+    if response.kind == DefenseKind.SHIELD:
         return params.shield_multiplier
-    if kind == DefenseKind.SUPPORT_DEFEND:
-        supporter = _find_supporter(state, defender)
-        if supporter is None:
-            return formulas.NO_DEFENSE_MULTIPLIER
-        supporter.support_charges -= 1
-        return params.support_defend_multiplier
     return formulas.NO_DEFENSE_MULTIPLIER
 
 
-def _find_supporter(state: SimState, defender: SimUnit) -> SimUnit | None:
+def find_support_defender(state: SimState, defender: SimUnit) -> SimUnit | None:
     for u in state.units:
         if u is defender or not u.alive or u.faction is not defender.faction:
             continue
-        if u.support_charges <= 0:
+        if u.support_defend_charges <= 0:
             continue
         if chebyshev(u.pos, defender.pos) <= u.move_range:
             return u
+    return None
+
+
+def find_support_attacker(
+    state: SimState, defender: SimUnit, attacker: SimUnit
+) -> tuple[SimUnit, SimWeapon] | None:
+    for u in state.units:
+        if u is defender or not u.alive or u.faction is not defender.faction:
+            continue
+        if u.support_attack_charges <= 0:
+            continue
+        if chebyshev(u.pos, defender.pos) > u.move_range:
+            continue
+        dist = chebyshev(u.pos, attacker.pos)
+        for w in u.weapons:
+            if u.en >= w.en_cost and w.range_min <= dist <= w.range_max:
+                return u, w
     return None
 
 
@@ -534,7 +581,11 @@ def _counter_weapon(
 def _apply_attack(
     state: SimState, actor: SimUnit, decision: Decision, params: SimParams
 ) -> bool:
-    """Resolve an attack; return True if it killed the target (grants re-act)."""
+    """Resolve one engagement in the live game's order (module docstring).
+
+    Returns True when the attacker's strike destroyed the struck unit --
+    target or interceptor alike -- which grants re-activation.
+    """
     target = state.unit(decision.target_id)
     if target is None or not target.alive:
         return False
@@ -546,20 +597,27 @@ def _apply_attack(
         return False
 
     actor.en -= weapon.en_cost
+    response = decision.defense
+    struck = target
+    mult = _stance_multiplier(response, params)
+    if response is not None and response.support_defend:
+        interceptor = find_support_defender(state, target)
+        if interceptor is not None:
+            interceptor.support_defend_charges -= 1
+            struck = interceptor
+            mult = params.support_defend_multiplier
+
     hit = True if decision.hit is None else decision.hit
     killed = False
     if hit:
-        mult = _defense_multiplier(state, target, decision.defense, params)
-        target.hp -= compute_damage(actor, target, weapon, mult, params)
-        if not target.alive:
-            killed = True
+        struck.hp -= compute_damage(actor, struck, weapon, mult, params)
+        killed = not struck.alive
 
-    if (
-        decision.defense is not None
-        and decision.defense.kind == DefenseKind.COUNTER
-        and target.alive
-    ):
-        _apply_counter(state, target, actor, decision, params)
+    if response is not None and target.alive:
+        if response.kind == DefenseKind.COUNTER and actor.alive:
+            _apply_counter(state, target, actor, decision, params)
+        if response.support_attack and actor.alive:
+            _apply_support_attack(state, target, actor, decision, params)
 
     return killed
 
@@ -578,6 +636,24 @@ def _apply_counter(
     hit = True if decision.counter_hit is None else decision.counter_hit
     if hit:
         attacker.hp -= compute_damage(defender, attacker, weapon, 1.0, params)
+
+
+def _apply_support_attack(
+    state: SimState,
+    defender: SimUnit,
+    attacker: SimUnit,
+    decision: Decision,
+    params: SimParams,
+) -> None:
+    found = find_support_attacker(state, defender, attacker)
+    if found is None:
+        return
+    supporter, weapon = found
+    supporter.support_attack_charges -= 1
+    supporter.en -= weapon.en_cost
+    hit = True if decision.support_hit is None else decision.support_hit
+    if hit:
+        attacker.hp -= compute_damage(supporter, attacker, weapon, 1.0, params)
 
 
 def _apply_skill(actor: SimUnit, state: SimState, decision: Decision) -> bool:

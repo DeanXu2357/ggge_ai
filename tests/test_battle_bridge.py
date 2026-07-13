@@ -32,6 +32,7 @@ def test_bridge_quantizes_positions_and_injects_capabilities():
         UnitCapability(CapabilityType.KILL_REMOVE, charges=2),
         UnitCapability(CapabilityType.SKILL_EN_REFILL),
         UnitCapability(CapabilityType.SUPPORT_DEFEND),
+        UnitCapability(CapabilityType.SUPPORT_ATTACK, charges=2),
         UnitCapability.unknown("mystery aura"),
     ]
     result = build_sim_state(battle, {"a": _spec(), "e": _spec()}, cell_size=48.0)
@@ -40,7 +41,8 @@ def test_bridge_quantizes_positions_and_injects_capabilities():
     assert sim_ally.pos == (0, 0)
     assert sim_enemy.pos == (2, 0)
     assert sim_ally.react_charges == 2
-    assert sim_ally.support_charges == 1
+    assert sim_ally.support_defend_charges == 1
+    assert sim_ally.support_attack_charges == 2
     assert [s.kind for s in sim_ally.skills] == [ActionKind.SKILL_EN_REFILL]
     assert sim_ally.hp == 100
     assert result.to_world((2, 0)) == (96.0, 0.0)

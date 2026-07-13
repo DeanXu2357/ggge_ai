@@ -4,7 +4,8 @@ The unified board (battle.state) speaks world pixels and optional numbers;
 the simulator speaks grid cells and required numbers. This module quantizes
 world positions onto the cell grid, injects roster capabilities as the
 simulator's dynamic fields (KILL_REMOVE -> re-activation charges, skill
-capabilities -> the skill inventory, SUPPORT_DEFEND -> support charges) and
+capabilities -> the skill inventory, SUPPORT_DEFEND / SUPPORT_ATTACK -> the
+matching support-charge pools) and
 fills every number the search needs from, in order of authority: the live
 BattleState, the per-unit spec (panel OCR or content cache, issues #9/#8),
 then the caller-tunable BridgeDefaults. Every fallback to a default is
@@ -168,13 +169,16 @@ def build_sim_state(
             assumptions.append(f"{u.unit_id}: no weapons known, inert in the simulation")
 
         reacts = 0
-        supports = 0
+        support_defends = 0
+        support_attacks = 0
         skills: list[SimSkill] = []
         for cap in u.capabilities:
             if cap.type is CapabilityType.KILL_REMOVE:
                 reacts += cap.charges if cap.charges is not None else 1
             elif cap.type is CapabilityType.SUPPORT_DEFEND:
-                supports += cap.charges if cap.charges is not None else 1
+                support_defends += cap.charges if cap.charges is not None else 1
+            elif cap.type is CapabilityType.SUPPORT_ATTACK:
+                support_attacks += cap.charges if cap.charges is not None else 1
             elif cap.type in _CAPABILITY_SKILL_KIND:
                 skills.append(
                     SimSkill(
@@ -204,8 +208,10 @@ def build_sim_state(
                 acted=u.acted,
                 react_charges=reacts,
                 react_charges_max=reacts,
-                support_charges=supports,
-                support_charges_max=supports,
+                support_defend_charges=support_defends,
+                support_defend_charges_max=support_defends,
+                support_attack_charges=support_attacks,
+                support_attack_charges_max=support_attacks,
             )
         )
     return BridgeResult(

@@ -44,7 +44,8 @@ def test_phase_rotates_when_faction_finishes_and_skips_empty_third_party():
 
 def test_charges_reset_at_own_phase_start():
     ally = _ally(weapons=[], react_charges=0, react_charges_max=2,
-                 support_charges=0, support_charges_max=1)
+                 support_defend_charges=0, support_defend_charges_max=1,
+                 support_attack_charges=0, support_attack_charges_max=1)
     enemy = _enemy()
     enemy.weapons = []
     s = SimState(units=[ally, enemy])
@@ -54,7 +55,8 @@ def test_charges_reset_at_own_phase_start():
     assert s.turn == 2
     a = s.unit("a")
     assert a.react_charges == 2
-    assert a.support_charges == 1
+    assert a.support_defend_charges == 1
+    assert a.support_attack_charges == 1
 
 
 def test_kill_grants_reactivation_and_consumes_charge():
@@ -138,24 +140,26 @@ def test_counter_response_damages_attacker():
     assert s2.unit("boss") is None
 
 
-def test_support_defend_consumes_supporter_charge():
+def test_support_defend_redirects_the_hit_and_consumes_supporter_charge():
     attacker = _enemy("boss", pos=(1, 0), unit_attack=5000, pilot_attack=5000,
                       weapons=[_rifle(power=1500)])
     defender = _ally(unit_id="a", pos=(3, 0), hp=100000, max_hp=100000, unit_defense=2000,
                      pilot_defense=2000, weapons=[])
-    supporter = _ally(unit_id="s", pos=(4, 0), hp=100, move_range=3,
-                      support_charges=1, support_charges_max=1, weapons=[])
+    supporter = _ally(unit_id="s", pos=(4, 0), hp=100000, max_hp=100000, move_range=3,
+                      support_defend_charges=1, support_defend_charges_max=1, weapons=[])
     lingering = _enemy("boss2", pos=(9, 9), hp=100)
     lingering.weapons = []
     s = SimState(units=[defender, supporter, attacker, lingering], phase=Phase.ENEMY)
     s2 = step(
         s,
         Decision("boss", ActionKind.ATTACK, target_id="a", hit=True,
-                 defense=DefenseResponse(DefenseKind.SUPPORT_DEFEND)),
+                 defense=DefenseResponse(support_defend=True)),
     )
     # a second enemy keeps the phase in ENEMY so the ally charge is not reset yet
     assert s2.phase is Phase.ENEMY
-    assert s2.unit("s").support_charges == 0
+    assert s2.unit("s").support_defend_charges == 0
+    assert s2.unit("s").hp < 100000
+    assert s2.unit("a").hp == 100000
 
 
 def test_missed_attack_deals_no_damage():
@@ -211,6 +215,134 @@ def test_non_turn_ending_skill_keeps_unit_pending():
     assert u.en == 20
     assert u.acted is False
     assert s2.phase is Phase.ALLY
+
+
+# Engagement-order cases observed live by the user (2026-07-13), recorded in
+# docs/combat-formulas.md: M is our attacker, A the target, B the support
+# defender, C the support attacker.
+
+HUGE = 10**9
+
+
+def _mech(uid, faction, pos, hp, **kw):
+    base = dict(unit_id=uid, faction=faction, pos=pos, hp=hp, max_hp=hp,
+                en=50, en_max=50, unit_attack=5000, pilot_attack=5000,
+                unit_defense=1000, pilot_defense=1000, move_range=0)
+    base.update(kw)
+    return SimUnit(**base)
+
+
+def _m(hp=HUGE, **kw):
+    return _mech("m", Faction.ALLY, (0, 0), hp, weapons=[_rifle(power=5000)], **kw)
+
+
+def _a(hp=HUGE):
+    return _mech("a_t", Faction.ENEMY, (2, 0), hp, weapons=[_rifle(power=5000)])
+
+
+def _b(hp=1, charges=1):
+    return _mech("b", Faction.ENEMY, (3, 0), hp, move_range=3,
+                 support_defend_charges=charges, support_defend_charges_max=1)
+
+
+def _c(rmax=3, charges=1):
+    return _mech("c", Faction.ENEMY, (2, 1), HUGE, move_range=3,
+                 support_attack_charges=charges, support_attack_charges_max=1,
+                 weapons=[_rifle(power=5000, rmax=rmax)])
+
+
+def _idle():
+    # keeps the ally phase pending so _begin_phase does not refill the
+    # enemy support charges the assertions below inspect
+    return _mech("idle", Faction.ALLY, (9, 9), HUGE)
+
+
+def _engagement(*units):
+    return SimState(units=[*units, _idle()])
+
+
+def _strike(state, support_defend):
+    return step(
+        state,
+        Decision("m", ActionKind.ATTACK, target_id="a_t", weapon="rifle", hit=True,
+                 defense=DefenseResponse(DefenseKind.COUNTER, support_defend=support_defend)),
+    )
+
+
+def test_case1_interceptor_dies_and_target_still_counters():
+    s = _engagement(_m(), _a(), _b())
+    s2 = _strike(s, support_defend=True)
+    assert s2.unit("b") is None
+    assert s2.unit("a_t").hp == HUGE
+    assert s2.unit("m").hp < HUGE
+
+
+def test_case2_target_kill_cancels_counter_and_support_fire():
+    s = _engagement(_m(hp=1), _a(hp=1), _b(hp=HUGE), _c())
+    s2 = _strike(s, support_defend=False)
+    assert s2.unit("a_t") is None
+    assert s2.unit("m").hp == 1
+    assert s2.unit("c").support_attack_charges == 1
+    assert s2.unit("b").support_defend_charges == 1
+
+
+def test_case3_interceptor_death_cancels_nothing_else():
+    m, a, c = _m(), _a(), _c()
+    dmg_a = compute_damage(a, m, a.weapons[0], 1.0, DEFAULT_PARAMS)
+    dmg_c = compute_damage(c, m, c.weapons[0], 1.0, DEFAULT_PARAMS)
+    assert dmg_a >= 1 and dmg_c >= 1
+    m.hp = m.max_hp = dmg_a + 1
+    s = _engagement(m, a, _b(), c)
+    s2 = _strike(s, support_defend=True)
+    assert s2.unit("b") is None
+    assert s2.unit("m") is None
+    assert s2.unit("a_t").hp == HUGE
+    assert s2.unit("c").support_attack_charges == 0
+
+
+def test_counter_kill_stops_support_fire():
+    m, a = _m(), _a()
+    dmg_a = compute_damage(a, m, a.weapons[0], 1.0, DEFAULT_PARAMS)
+    m.hp = m.max_hp = dmg_a
+    s = _engagement(m, a, _c())
+    s2 = _strike(s, support_defend=False)
+    assert s2.unit("m") is None
+    assert s2.unit("c").support_attack_charges == 1
+
+
+def test_interceptor_kill_grants_reactivation():
+    s = _engagement(_m(react_charges=1, react_charges_max=1), _a(), _b())
+    s2 = _strike(s, support_defend=True)
+    m = s2.unit("m")
+    assert m.acted is False
+    assert m.react_charges == 0
+
+
+def test_support_defend_without_eligible_supporter_falls_through_to_target():
+    s = _engagement(_m(), _a(hp=1), _b(hp=HUGE, charges=0))
+    s2 = _strike(s, support_defend=True)
+    assert s2.unit("a_t") is None
+    assert s2.unit("b").hp == HUGE
+
+
+def test_support_fire_joins_even_without_target_counter():
+    m, a, c = _m(), _a(), _c()
+    dmg_c = compute_damage(c, m, c.weapons[0], 1.0, DEFAULT_PARAMS)
+    s = _engagement(m, a, c)
+    s2 = step(
+        s,
+        Decision("m", ActionKind.ATTACK, target_id="a_t", weapon="rifle", hit=True,
+                 defense=DefenseResponse(DefenseKind.DEFEND)),
+    )
+    assert s2.unit("m").hp == HUGE - dmg_c
+    assert s2.unit("c").support_attack_charges == 0
+
+
+def test_support_attacker_out_of_weapon_reach_holds_fire():
+    s = _engagement(_m(), _a(), _c(rmax=1))
+    s2 = _strike(s, support_defend=False)
+    assert s2.unit("m").hp < HUGE
+    assert s2.unit("c").support_attack_charges == 1
 
 
 def test_reposition_moves_offer_advance_and_retreat():
