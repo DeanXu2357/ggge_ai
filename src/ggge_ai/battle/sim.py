@@ -125,23 +125,27 @@ DEFENSE_STANCES: tuple[str, ...] = (
 class SimParams:
     """Mechanism multipliers, defaulting to the formulas.py constants.
 
-    support_defend_multiplier is a doubted placeholder with no measurement
-    behind it (user-flagged 2026-07-13, issue #20): the reduction is a
-    per-unit ability trait in the live game, not a global constant, so the
-    interceptor may take reduced, full, or differently-computed damage.
-    Calibrate from the game forecast on an intercepted attack before
-    trusting kill maths against a support defender.
+    Interception damage follows community sources (2026-07-13 web research,
+    issue #20): the interceptor takes the hit in its defend stance --
+    support_defend_multiplier (0.8) normally, shield_multiplier when the
+    interceptor has_shield. Whether the two stack (0.48, one "separate
+    slots" claim) is the remaining live calibration; per-unit reduction
+    traits are content read from panels.
 
-    max_support_attackers caps the simultaneous support-attack volley; the
-    live limit is 3 or 4 (user unsure, web check pending).
+    max_support_attackers caps the simultaneous support-attack volley; no
+    community source states the live limit (user recalls 3 or 4), count the
+    on-map support marks to settle it. en_regen_fraction is the confirmed
+    passive regen: every faction recovers 10% of max EN at the start of its
+    own phase (rounding rule unverified; round-half-up assumed).
     """
 
     defend_multiplier: float = formulas.DEFEND_MULTIPLIER
     shield_multiplier: float = formulas.SHIELD_MULTIPLIER
-    support_defend_multiplier: float = 0.5
+    support_defend_multiplier: float = formulas.DEFEND_MULTIPLIER
     dodge_hit_penalty: float = 20.0
     terrain: float = 1.0
     max_support_attackers: int = 3
+    en_regen_fraction: float = 0.10
 
 
 DEFAULT_PARAMS = SimParams()
@@ -203,6 +207,8 @@ class SimUnit:
     support_defend_charges_max: int = 0
     support_attack_charges: int = 0
     support_attack_charges_max: int = 0
+    has_shield: bool = False
+    attack_shield: bool = False
 
     @property
     def alive(self) -> bool:
@@ -524,28 +530,30 @@ def _pending(state: SimState, faction: Faction) -> list[SimUnit]:
     return [u for u in state.units if u.faction is faction and u.alive and not u.acted]
 
 
-def _begin_phase(state: SimState, faction: Faction) -> None:
+def _begin_phase(state: SimState, faction: Faction, params: SimParams) -> None:
     for u in state.units:
         if u.faction is faction:
             u.acted = False
             u.react_charges = u.react_charges_max
             u.support_defend_charges = u.support_defend_charges_max
             u.support_attack_charges = u.support_attack_charges_max
+            regen = int(round(u.en_max * params.en_regen_fraction))
+            u.en = min(u.en_max, u.en + regen)
 
 
-def _rotate_one(state: SimState) -> None:
+def _rotate_one(state: SimState, params: SimParams) -> None:
     idx = PHASE_ORDER.index(state.phase)
     nxt = PHASE_ORDER[(idx + 1) % len(PHASE_ORDER)]
     if nxt is Phase.ALLY:
         state.turn += 1
     state.phase = nxt
-    _begin_phase(state, _PHASE_FACTION[nxt])
+    _begin_phase(state, _PHASE_FACTION[nxt], params)
 
 
-def _advance_until_pending(state: SimState) -> None:
+def _advance_until_pending(state: SimState, params: SimParams) -> None:
     guard = 0
     while not _pending(state, _current_faction(state)) and guard <= len(PHASE_ORDER):
-        _rotate_one(state)
+        _rotate_one(state, params)
         guard += 1
 
 
@@ -561,6 +569,12 @@ def _stance_multiplier(response: DefenseResponse | None, params: SimParams) -> f
     if response.kind == DefenseKind.SHIELD:
         return params.shield_multiplier
     return formulas.NO_DEFENSE_MULTIPLIER
+
+
+def _interception_multiplier(interceptor: SimUnit, params: SimParams) -> float:
+    if interceptor.has_shield:
+        return params.shield_multiplier
+    return params.support_defend_multiplier
 
 
 def find_support_defender(state: SimState, defender: SimUnit) -> SimUnit | None:
@@ -654,7 +668,7 @@ def _apply_attack(
         interceptor = find_support_defender(state, target)
         if interceptor is not None:
             struck = interceptor
-            mult = params.support_defend_multiplier
+            mult = _interception_multiplier(interceptor, params)
 
     charge_pending = interceptor is not None
 
@@ -689,6 +703,17 @@ def _apply_attack(
     return killed
 
 
+def _find_attack_shield(state: SimState, attacker: SimUnit) -> SimUnit | None:
+    for u in state.units:
+        if u is attacker or not u.alive or u.faction is not attacker.faction:
+            continue
+        if not u.attack_shield or u.support_defend_charges <= 0:
+            continue
+        if chebyshev(u.pos, attacker.pos) <= u.move_range:
+            return u
+    return None
+
+
 def _apply_counter(
     state: SimState,
     defender: SimUnit,
@@ -701,8 +726,16 @@ def _apply_counter(
         return
     defender.en -= weapon.en_cost
     hit = True if decision.counter_hit is None else decision.counter_hit
-    if hit:
-        attacker.hp -= compute_damage(defender, attacker, weapon, 1.0, params)
+    if not hit:
+        return
+    struck = attacker
+    mult = formulas.NO_DEFENSE_MULTIPLIER
+    shield_bearer = _find_attack_shield(state, attacker)
+    if shield_bearer is not None:
+        shield_bearer.support_defend_charges -= 1
+        struck = shield_bearer
+        mult = _interception_multiplier(shield_bearer, params)
+    struck.hp -= compute_damage(defender, struck, weapon, mult, params)
 
 
 def _apply_support_volley(
@@ -752,7 +785,7 @@ def step(
     s = state.clone()
     actor = s.unit(decision.unit_id)
     if actor is None or not actor.alive:
-        _advance_until_pending(s)
+        _advance_until_pending(s, params)
         return s
 
     if decision.move_to is not None:
@@ -774,5 +807,5 @@ def step(
         actor.acted = ends_turn
 
     _remove_dead(s)
-    _advance_until_pending(s)
+    _advance_until_pending(s, params)
     return s

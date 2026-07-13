@@ -483,6 +483,60 @@ def test_support_attacker_out_of_weapon_reach_holds_fire():
     assert s2.unit("c").support_attack_charges == 1
 
 
+def test_en_regenerates_at_own_phase_start():
+    ally = _ally(en=0, en_max=20, weapons=[])
+    topped = _ally(unit_id="a2", pos=(0, 5), en=19, en_max=20, weapons=[])
+    enemy = _enemy(en=0, en_max=30)
+    enemy.weapons = []
+    s = SimState(units=[ally, topped, enemy])
+    s = step(s, standby("a"))
+    s = step(s, standby("a2"))
+    assert s.unit("e").en == 3
+    assert s.unit("a").en == 0
+    s = step(s, standby("e"))
+    assert s.phase is Phase.ALLY
+    assert s.unit("a").en == 2
+    assert s.unit("a2").en == 20
+
+
+def test_shielded_interceptor_takes_shield_stance_damage():
+    m, b = _m(), _b(hp=HUGE)
+    dmg_defend = compute_damage(m, b, m.weapons[0],
+                                DEFAULT_PARAMS.support_defend_multiplier, DEFAULT_PARAMS)
+    dmg_shield = compute_damage(m, b, m.weapons[0],
+                                DEFAULT_PARAMS.shield_multiplier, DEFAULT_PARAMS)
+    assert dmg_shield < dmg_defend
+    plain = _strike(_engagement(m, _a(), _b(hp=HUGE)), support_defend=True)
+    assert HUGE - plain.unit("b").hp == dmg_defend
+    shielded_b = _b(hp=HUGE)
+    shielded_b.has_shield = True
+    shielded = _strike(_engagement(_m(), _a(), shielded_b), support_defend=True)
+    assert HUGE - shielded.unit("b").hp == dmg_shield
+
+
+def test_attack_shield_intercepts_the_counter():
+    m = _m()
+    g = _mech("g", Faction.ALLY, (0, 1), HUGE, move_range=3,
+              support_defend_charges=1, support_defend_charges_max=1,
+              attack_shield=True)
+    s = _engagement(m, g, _a())
+    s2 = _strike(s, support_defend=False)
+    assert s2.unit("m").hp == HUGE
+    assert s2.unit("g").hp < HUGE
+    assert s2.unit("g").support_defend_charges == 0
+
+
+def test_plain_support_defender_does_not_intercept_the_counter():
+    m = _m()
+    g = _mech("g", Faction.ALLY, (0, 1), HUGE, move_range=3,
+              support_defend_charges=1, support_defend_charges_max=1)
+    s = _engagement(m, g, _a())
+    s2 = _strike(s, support_defend=False)
+    assert s2.unit("m").hp < HUGE
+    assert s2.unit("g").hp == HUGE
+    assert s2.unit("g").support_defend_charges == 1
+
+
 def test_reposition_moves_offer_advance_and_retreat():
     from ggge_ai.battle.sim import chebyshev, reposition_moves
 

@@ -161,7 +161,13 @@ def _current_faction(state: SimState) -> Faction:
 
 
 def _ally_decisions(state: SimState, unit: SimUnit, ctx: SearchContext) -> list[Decision]:
-    """Attacks first (best alpha-raisers), then skills, positioning, standby."""
+    """Attacks first (best alpha-raisers), then skills, positioning, standby.
+
+    When a teammate holds an unused support-attack charge, every attack is
+    doubled with a support=False variant: keeping the volley home matters
+    (an interceptor swallows it as overkill, and a spent charge is one a
+    re-activated follow-up or the defensive phase no longer has).
+    """
     provider = ctx.config.reach_provider
     decisions = legal_attacks(
         state,
@@ -169,12 +175,24 @@ def _ally_decisions(state: SimState, unit: SimUnit, ctx: SearchContext) -> list[
         move_validator=ctx.config.move_validator,
         reach=provider(state, unit) if provider else None,
     )
+    if _teammate_has_support_charge(state, unit):
+        decisions.extend(replace(d, support=False) for d in list(decisions))
     decisions.extend(legal_skills(unit))
     decisions.extend(
         reposition_moves(state, unit, move_validator=ctx.config.move_validator)
     )
     decisions.append(standby(unit.unit_id))
     return decisions
+
+
+def _teammate_has_support_charge(state: SimState, unit: SimUnit) -> bool:
+    return any(
+        u is not unit
+        and u.alive
+        and u.faction is unit.faction
+        and u.support_attack_charges > 0
+        for u in state.units
+    )
 
 
 def _hit_probability(state: SimState, decision: Decision, ctx: SearchContext) -> float:

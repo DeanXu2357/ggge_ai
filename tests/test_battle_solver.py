@@ -8,12 +8,14 @@ from ggge_ai.battle.enemy_model import (
     NearestTargetPolicy,
 )
 from ggge_ai.battle.sim import (
+    DEFAULT_PARAMS,
     DefenseKind,
     DefenseResponse,
     Phase,
     SimState,
     SimUnit,
     SimWeapon,
+    compute_damage,
     step,
 )
 from ggge_ai.battle.solver import (
@@ -111,6 +113,27 @@ def test_solver_takes_the_kill_that_silences_return_fire():
     result = solve(state, NearestTargetPolicy(), SolverConfig(max_depth=1))
     assert result.decision.kind == ActionKind.ATTACK
     assert result.decision.target_id == "e"
+
+
+def test_solver_keeps_the_volley_for_the_kill_that_needs_it():
+    # winning line: solo-kill b (saving n's charge), re-act, volley a, n attacks a
+    m = _ally("m", pos=(0, 0), hp=10**9, max_hp=10**9, move_range=0,
+              weapons=[_weapon(power=5000)], react_charges=1, react_charges_max=1)
+    n = _ally("n", pos=(1, 0), hp=10**9, max_hp=10**9, move_range=1,
+              weapons=[_weapon(power=5000)],
+              support_attack_charges=1, support_attack_charges_max=1)
+    b = _enemy("b", pos=(1, 1), hp=1, move_range=0, weapons=[])
+    a = _enemy("a", pos=(2, 0), hp=100, move_range=0, weapons=[_weapon(power=5000)])
+    dmg = compute_damage(m, a, m.weapons[0], 1.0, DEFAULT_PARAMS)
+    a.hp = a.max_hp = int(dmg * 2.5)
+    state = SimState(units=[m, n, b, a])
+    result = solve(state, NearestTargetPolicy(),
+                   SolverConfig(time_budget_s=10.0, max_depth=1))
+    end = state
+    for d in result.pv:
+        end = step(end, d)
+    assert not end.enemies()
+    assert any(d.kind == ActionKind.ATTACK and d.support is False for d in result.pv)
 
 
 def test_min_mode_is_more_pessimistic_than_policy():
