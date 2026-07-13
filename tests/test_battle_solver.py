@@ -136,6 +136,20 @@ def test_solver_keeps_the_volley_for_the_kill_that_needs_it():
     assert any(d.kind == ActionKind.ATTACK and d.support is False for d in result.pv)
 
 
+def test_solver_finds_the_map_shot_that_normal_attacks_cannot_match():
+    m = _ally("m", pos=(0, 0), hp=10**9, max_hp=10**9, move_range=0,
+              weapons=[SimWeapon("mapgun", power=9000, range_min=1, range_max=4,
+                                 map_weapon=True, blast=1)])
+    m.weapon_ammo = {"mapgun": 1}
+    e0 = _enemy("e0", pos=(2, 0), hp=5, move_range=0, weapons=[])
+    e1 = _enemy("e1", pos=(2, 1), hp=5, move_range=0, weapons=[])
+    state = SimState(units=[m, e0, e1])
+    result = solve(state, NearestTargetPolicy(), SolverConfig(max_depth=1))
+    assert result.decision.kind == ActionKind.MAP_ATTACK
+    end = step(state, result.decision)
+    assert not end.enemies()
+
+
 def test_min_mode_is_more_pessimistic_than_policy():
     tank = _ally("tank", pos=(1, 0), hp=1_000_000, max_hp=1_000_000, weapons=[])
     weak = _ally("weak", pos=(3, 0), hp=1, weapons=[])

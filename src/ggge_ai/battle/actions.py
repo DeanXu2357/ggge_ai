@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
 class ActionKind:
     ATTACK = "attack"
+    MAP_ATTACK = "map_attack"
     STANDBY = "standby"
     MOVE = "move"
     SELECT_UNIT = "select_unit"

@@ -59,15 +59,16 @@ and support fire pay their weapon's EN with cheaper weapons as fallback.
 Defender-side decisions (stance, interception, support fire and its weapon)
 are all player choices in the live game -- the popup merely pre-fills
 defaults -- so the solver optimising over them is faithful; the offense
-volley rides Decision.support (default on, enumeration is a solver TODO --
-volleying into an interceptor wastes overkill). Not yet modelled:
-support-attack debuffs (~one round duration; only their resolution order
-is modelled), per-strike support hit% (readable on the forecast; treated
-as landing), the "attack shield" trait letting special units intercept
-counterattacks (issue #22), the per-unit interception damage-reduction
-trait (issue #20), MAP weapons, and a suspected per-round passive EN regen
-(web check pending -- multi-turn EN economics run pessimistic without it).
-Committed strikes not retargeting a mid-volley kill remains an assumption.
+volley rides Decision.support and the solver enumerates both settings when
+a teammate holds a charge. Mechanism landed ahead of its content feeds
+(fields default off until panels/abilities supply them): attack_shield
+(issue #22), interception_reduction (issue #20), has_shield, MAP weapons
+(SimWeapon.map_weapon + per-unit weapon_ammo), and the confirmed 10%
+per-phase EN regen. Not yet modelled: support-attack debuffs (~one full
+round, crossing from the enemy phase into ours; only their resolution
+order is modelled) and per-strike support hit% (readable on the forecast;
+treated as landing). Committed strikes not retargeting a mid-volley kill
+remains an assumption.
 
 step(state, decision) returns a fresh SimState and never mutates the input --
 clone() is cheap enough to expand a node per call. A decision covers one
@@ -153,7 +154,16 @@ DEFAULT_PARAMS = SimParams()
 
 @dataclass(frozen=True)
 class SimWeapon:
-    """One weapon: reach band, cost and combat numbers, all content."""
+    """One weapon: reach band, cost and combat numbers, all content.
+
+    map_weapon marks a MAP weapon (settled rules 2026-07-13): aimed at a
+    cell inside the reach band, hits every enemy within `blast` Chebyshev
+    distance of the aim, always lands, allows no reaction of any kind,
+    never hits friendlies, grants no re-activation and force-ends the
+    activation. It feeds on the unit's per-weapon ammo (weapon_ammo), which
+    EN refills cannot restock. Blast shape per weapon is content; the
+    radius is a v0 approximation.
+    """
 
     name: str
     power: float
@@ -162,6 +172,8 @@ class SimWeapon:
     en_cost: int = 0
     accuracy: float = 0.0
     can_counter: bool = True
+    map_weapon: bool = False
+    blast: int = 0
 
 
 @dataclass
@@ -209,6 +221,8 @@ class SimUnit:
     support_attack_charges_max: int = 0
     has_shield: bool = False
     attack_shield: bool = False
+    interception_reduction: float = 0.0
+    weapon_ammo: dict[str, int] = field(default_factory=dict)
 
     @property
     def alive(self) -> bool:
@@ -227,6 +241,7 @@ class SimUnit:
             self,
             weapons=list(self.weapons),
             skills=[replace(s) for s in self.skills],
+            weapon_ammo=dict(self.weapon_ammo),
         )
 
 
@@ -266,6 +281,7 @@ class Decision:
     amount: float | None = None
     defense: DefenseResponse | None = None
     support: bool = True
+    aim: Cell | None = None
     hit: bool | None = None
     counter_hit: bool | None = None
     support_hit: bool | None = None
@@ -331,6 +347,7 @@ class SimState:
                     u.react_charges,
                     u.support_defend_charges,
                     u.support_attack_charges,
+                    tuple(sorted(u.weapon_ammo.items())),
                     tuple(s.uses for s in u.skills),
                 )
                 for u in self.units
@@ -395,6 +412,28 @@ def targets_of(state: SimState, unit: SimUnit) -> list[SimUnit]:
     return state.by_faction(opposing_faction(unit.faction))
 
 
+def legal_map_attacks(state: SimState, unit: SimUnit) -> list[Decision]:
+    """MAP-weapon decisions: pre-move only, aimed at each foe's cell in reach."""
+    out: list[Decision] = []
+    for weapon in unit.weapons:
+        if not weapon.map_weapon:
+            continue
+        if unit.weapon_ammo.get(weapon.name, 0) <= 0 or unit.en < weapon.en_cost:
+            continue
+        for target in targets_of(state, unit):
+            dist = chebyshev(unit.pos, target.pos)
+            if weapon.range_min <= dist <= weapon.range_max:
+                out.append(
+                    Decision(
+                        unit_id=unit.unit_id,
+                        kind=ActionKind.MAP_ATTACK,
+                        weapon=weapon.name,
+                        aim=target.pos,
+                    )
+                )
+    return out
+
+
 def legal_attacks(
     state: SimState,
     unit: SimUnit,
@@ -413,7 +452,7 @@ def legal_attacks(
     out: list[Decision] = []
     for target in targets_of(state, unit):
         for weapon in unit.weapons:
-            if unit.en < weapon.en_cost:
+            if weapon.map_weapon or unit.en < weapon.en_cost:
                 continue
             dest = approach(
                 unit.pos, target.pos, unit.move_range, weapon.range_min, weapon.range_max
@@ -572,9 +611,8 @@ def _stance_multiplier(response: DefenseResponse | None, params: SimParams) -> f
 
 
 def _interception_multiplier(interceptor: SimUnit, params: SimParams) -> float:
-    if interceptor.has_shield:
-        return params.shield_multiplier
-    return params.support_defend_multiplier
+    base = params.shield_multiplier if interceptor.has_shield else params.support_defend_multiplier
+    return base * (1.0 - interceptor.interception_reduction)
 
 
 def find_support_defender(state: SimState, defender: SimUnit) -> SimUnit | None:
@@ -601,6 +639,8 @@ def find_support_attackers(
             continue
         dist = chebyshev(u.pos, foe.pos)
         for w in u.weapons:
+            if w.map_weapon:
+                continue
             if u.en >= w.en_cost and w.range_min <= dist <= w.range_max:
                 out.append((u, w))
                 break
@@ -632,7 +672,7 @@ def _counter_weapon(
     dist = chebyshev(defender.pos, attacker.pos)
     candidates = defender.weapons if name is None else [w for w in defender.weapons if w.name == name]
     for w in candidates:
-        if not w.can_counter:
+        if w.map_weapon or not w.can_counter:
             continue
         if defender.en < w.en_cost:
             continue
@@ -653,7 +693,7 @@ def _apply_attack(
     if target is None or not target.alive:
         return False
     weapon = actor.weapon(decision.weapon)
-    if weapon is None or actor.en < weapon.en_cost:
+    if weapon is None or weapon.map_weapon or actor.en < weapon.en_cost:
         return False
     dist = chebyshev(actor.pos, target.pos)
     if not (weapon.range_min <= dist <= weapon.range_max):
@@ -712,6 +752,26 @@ def _find_attack_shield(state: SimState, attacker: SimUnit) -> SimUnit | None:
         if chebyshev(u.pos, attacker.pos) <= u.move_range:
             return u
     return None
+
+
+def _apply_map_attack(
+    state: SimState, actor: SimUnit, decision: Decision, params: SimParams
+) -> None:
+    weapon = actor.weapon(decision.weapon)
+    if weapon is None or not weapon.map_weapon or decision.aim is None:
+        return
+    if actor.weapon_ammo.get(weapon.name, 0) <= 0 or actor.en < weapon.en_cost:
+        return
+    dist = chebyshev(actor.pos, decision.aim)
+    if not (weapon.range_min <= dist <= weapon.range_max):
+        return
+    actor.weapon_ammo[weapon.name] -= 1
+    actor.en -= weapon.en_cost
+    for victim in targets_of(state, actor):
+        if chebyshev(victim.pos, decision.aim) <= weapon.blast:
+            victim.hp -= compute_damage(
+                actor, victim, weapon, formulas.NO_DEFENSE_MULTIPLIER, params
+            )
 
 
 def _apply_counter(
@@ -788,7 +848,7 @@ def step(
         _advance_until_pending(s, params)
         return s
 
-    if decision.move_to is not None:
+    if decision.move_to is not None and decision.kind != ActionKind.MAP_ATTACK:
         validate = move_validator or default_move_validator
         if validate(s, actor, decision.move_to):
             actor.pos = decision.move_to
@@ -797,6 +857,8 @@ def step(
     ends_turn = True
     if decision.kind == ActionKind.ATTACK:
         killed = _apply_attack(s, actor, decision, params)
+    elif decision.kind == ActionKind.MAP_ATTACK:
+        _apply_map_attack(s, actor, decision, params)
     elif decision.kind in (ActionKind.SKILL_EN_REFILL, ActionKind.SKILL_HEAL):
         ends_turn = _apply_skill(actor, s, decision)
 

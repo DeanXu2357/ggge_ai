@@ -537,6 +537,69 @@ def test_plain_support_defender_does_not_intercept_the_counter():
     assert s2.unit("g").support_defend_charges == 1
 
 
+def _map_gun(blast=1, en_cost=0):
+    return SimWeapon("mapgun", power=5000, range_min=1, range_max=4,
+                     en_cost=en_cost, map_weapon=True, blast=blast)
+
+
+def test_map_attack_hits_every_enemy_in_blast_and_nothing_reacts():
+    m = _m()
+    m.weapons = [_map_gun()]
+    m.weapon_ammo = {"mapgun": 1}
+    a, c = _a(), _c()
+    s = _engagement(m, a, c)
+    s2 = step(
+        s,
+        Decision("m", ActionKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0),
+                 defense=DefenseResponse(DefenseKind.COUNTER)),
+    )
+    assert s2.unit("a_t").hp < HUGE
+    assert s2.unit("c").hp < HUGE
+    assert s2.unit("m").hp == HUGE
+    assert s2.unit("c").support_attack_charges == 1
+    assert s2.unit("m").weapon_ammo["mapgun"] == 0
+
+
+def test_map_attack_spares_friendlies_and_grants_no_react():
+    m = _m(react_charges=1, react_charges_max=1)
+    m.weapons = [_map_gun()]
+    m.weapon_ammo = {"mapgun": 1}
+    buddy = _mech("buddy", Faction.ALLY, (2, 1), HUGE)
+    a = _a(hp=1)
+    s = _engagement(m, buddy, a)
+    s2 = step(s, Decision("m", ActionKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0)))
+    assert s2.unit("a_t") is None
+    assert s2.unit("buddy").hp == HUGE
+    m2 = s2.unit("m")
+    assert m2.acted is True
+    assert m2.react_charges == 1
+
+
+def test_map_attack_without_ammo_is_a_no_op():
+    m = _m()
+    m.weapons = [_map_gun()]
+    m.weapon_ammo = {"mapgun": 0}
+    a = _a(hp=1)
+    s = _engagement(m, a)
+    s2 = step(s, Decision("m", ActionKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0)))
+    assert s2.unit("a_t").hp == 1
+
+
+def test_interception_reduction_trait_shrinks_the_hit():
+    m, b = _m(), _b(hp=HUGE)
+    base = compute_damage(m, b, m.weapons[0],
+                          DEFAULT_PARAMS.support_defend_multiplier, DEFAULT_PARAMS)
+    reduced_b = _b(hp=HUGE)
+    reduced_b.interception_reduction = 0.5
+    s2 = _strike(_engagement(_m(), _a(), reduced_b), support_defend=True)
+    dealt = HUGE - s2.unit("b").hp
+    assert dealt < base
+    expected = compute_damage(m, b, m.weapons[0],
+                              DEFAULT_PARAMS.support_defend_multiplier * 0.5,
+                              DEFAULT_PARAMS)
+    assert dealt == expected
+
+
 def test_reposition_moves_offer_advance_and_retreat():
     from ggge_ai.battle.sim import chebyshev, reposition_moves
 

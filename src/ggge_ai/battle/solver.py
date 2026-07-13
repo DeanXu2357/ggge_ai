@@ -49,6 +49,7 @@ from .sim import (
     SimUnit,
     find_support_defender,
     legal_attacks,
+    legal_map_attacks,
     legal_skills,
     reposition_moves,
     standby,
@@ -177,6 +178,7 @@ def _ally_decisions(state: SimState, unit: SimUnit, ctx: SearchContext) -> list[
     )
     if _teammate_has_support_charge(state, unit):
         decisions.extend(replace(d, support=False) for d in list(decisions))
+    decisions.extend(legal_map_attacks(state, unit))
     decisions.extend(legal_skills(unit))
     decisions.extend(
         reposition_moves(state, unit, move_validator=ctx.config.move_validator)
