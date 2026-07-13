@@ -33,7 +33,11 @@ from .vision import WeaponSelectForecast, BattlePrepForecast
 
 DAMAGE_TOLERANCE = 0.15
 # battle-prep attack below this fraction of the weapon-select prediction is
-# read as a support defender absorbing the hit (halving is the common case)
+# read as a support defender absorbing the hit. Detection heuristic only:
+# the interceptor takes stance-reduced damage (0.8/0.6) computed against its
+# OWN stats, so the ratio can land anywhere -- a tanky interceptor collapses
+# far below this, a squishy one may even exceed it. The battle-prep support
+# flag, once its icon corpus exists, is the real signal.
 SUPPORT_DEFENSE_RATIO = 0.85
 KILL_CHECK_BUDGET = 12
 
