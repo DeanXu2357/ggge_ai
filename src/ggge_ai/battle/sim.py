@@ -21,34 +21,44 @@ touching step.
 Engagement resolution follows the live game's order (user-observed cases and
 the case-by-case Q&A, 2026-07-13, recorded in docs/combat-formulas.md):
 
-  1. the attacker's strike lands on the interceptor -- the support defender
-     when the response asks for it and an eligible one exists, the target
-     otherwise; damage is computed against the struck unit's own stats. A
-     miss spares the interceptor's charge; a landed hit spends it.
+  1. the attacking side strikes, support volley first, then the main
+     attacker (support units carry debuffs the later strikes must benefit
+     from). When the response asks for interception and an eligible support
+     defender exists, *every* strike of the volley lands on the interceptor
+     -- a first strike destroying it does not let the rest punch through to
+     the target. Damage is computed against the struck unit's own stats. At
+     most one interceptor per engagement (which one is the game AI's pick;
+     board order stands in here), one interception charge per engagement,
+     and only a landed hit spends it -- an all-miss volley spares it.
   2. the struck unit's death resolves immediately; a destroyed interceptor
-     cancels nothing that follows, and killing the interceptor grants the
-     same re-activation as killing the target (provided the attacker
-     survives the counter phase and has charges left -- step() already
-     checks both).
-  3. the counter phase fires only while the *target* is alive: first the
-     support-attack volley (every eligible supporter up to
-     max_support_attackers, resolved before the counter because support
-     units carry debuffs the target's own strike must benefit from), then
-     the target's counter (stance COUNTER); strikes stop once the attacker
-     is destroyed. Support fire only needs the attacker inside the
-     supporter's weapon reach and a remaining charge -- it does not care
-     whether the target itself can counter. A target killed in step 2
-     cancels the whole counter phase, confirmed in both directions.
+     cancels nothing that follows, and an engagement kill grants the main
+     attacker's re-activation whether target or interceptor fell (provided
+     the attacker survives the counter phase and has charges left -- step()
+     already checks both).
+  3. the counter phase fires only while the *target* is alive: the
+     defender-side support volley first, then the target's counter (stance
+     COUNTER); strikes stop once the attacker is destroyed. Support fire
+     only needs the foe inside the supporter's weapon reach and a remaining
+     charge -- it does not care whether the target itself can counter. A
+     target killed in step 2 cancels the whole counter phase, confirmed in
+     both directions.
+
+Support eligibility is confirmed mechanism, not approximation: the ability
+is a pilot trait, and the protected/assisted ally must sit within the
+supporter's own movement range; the weapon must reach the foe. Volleys cap
+at max_support_attackers (live limit 3 or 4, web check pending).
 
 Defender-side decisions (stance, interception, support fire and its weapon)
 are all player choices in the live game -- the popup merely pre-fills
-defaults -- so the solver optimising over them is faithful. Not yet
-modelled: support-attack debuffs (only their resolution order is), the
-"attack shield" trait letting special units intercept counterattacks (issue
-#22), the per-unit interception damage-reduction trait (issue #20), and the
-simultaneous-support cap of 3 vs 4 (web check pending; default 3). One
-interceptor per engagement and board order within the volley remain
-conservative defaults.
+defaults -- so the solver optimising over them is faithful; the offense
+volley rides Decision.support (default on, enumeration is a solver TODO --
+volleying into an interceptor wastes overkill). Not yet modelled:
+support-attack debuffs (~one round duration; only their resolution order
+is modelled), per-strike support hit% (readable on the forecast; treated
+as landing), the "attack shield" trait letting special units intercept
+counterattacks (issue #22), and the per-unit interception damage-reduction
+trait (issue #20). Kill credit inside a volley going to the main attacker
+and committed strikes not retargeting a mid-volley kill remain assumptions.
 
 step(state, decision) returns a fresh SimState and never mutates the input --
 clone() is cheap enough to expand a node per call. A decision covers one
@@ -226,9 +236,11 @@ class DefenseResponse:
 class Decision:
     """One unit's activation, or (with defense set) a defence reaction.
 
-    hit / counter_hit / support_hit carry the chance outcome the solver
-    branches on: None means "no roll / treated as landing"; the solver sets
-    them explicitly to expand a chance node's hit and miss children.
+    support brings eligible own-side support attackers along on an attack
+    (offense volley). hit / counter_hit / support_hit carry the chance
+    outcome the solver branches on: None means "no roll / treated as
+    landing"; the solver sets them explicitly to expand a chance node's hit
+    and miss children. support_hit covers both sides' volleys.
     """
 
     unit_id: str
@@ -238,6 +250,7 @@ class Decision:
     weapon: str | None = None
     amount: float | None = None
     defense: DefenseResponse | None = None
+    support: bool = True
     hit: bool | None = None
     counter_hit: bool | None = None
     support_hit: bool | None = None
@@ -553,17 +566,17 @@ def find_support_defender(state: SimState, defender: SimUnit) -> SimUnit | None:
 
 
 def find_support_attackers(
-    state: SimState, defender: SimUnit, attacker: SimUnit
+    state: SimState, supported: SimUnit, foe: SimUnit
 ) -> list[tuple[SimUnit, SimWeapon]]:
     out: list[tuple[SimUnit, SimWeapon]] = []
     for u in state.units:
-        if u is defender or not u.alive or u.faction is not defender.faction:
+        if u is supported or not u.alive or u.faction is not supported.faction:
             continue
         if u.support_attack_charges <= 0:
             continue
-        if chebyshev(u.pos, defender.pos) > u.move_range:
+        if chebyshev(u.pos, supported.pos) > u.move_range:
             continue
-        dist = chebyshev(u.pos, attacker.pos)
+        dist = chebyshev(u.pos, foe.pos)
         for w in u.weapons:
             if u.en >= w.en_cost and w.range_min <= dist <= w.range_max:
                 out.append((u, w))
@@ -634,13 +647,29 @@ def _apply_attack(
             struck = interceptor
             mult = params.support_defend_multiplier
 
-    hit = True if decision.hit is None else decision.hit
-    killed = False
-    if hit:
-        if interceptor is not None:
+    charge_pending = interceptor is not None
+
+    def land(shooter: SimUnit, shot: SimWeapon, landed: bool) -> None:
+        nonlocal charge_pending
+        if not landed:
+            return
+        if charge_pending:
             interceptor.support_defend_charges -= 1
-        struck.hp -= compute_damage(actor, struck, weapon, mult, params)
-        killed = not struck.alive
+            charge_pending = False
+        struck.hp -= compute_damage(shooter, struck, shot, mult, params)
+
+    if decision.support:
+        volley = find_support_attackers(state, actor, target)
+        volley = volley[: max(0, params.max_support_attackers)]
+        support_hit = True if decision.support_hit is None else decision.support_hit
+        for supporter, support_weapon in volley:
+            supporter.support_attack_charges -= 1
+            supporter.en -= support_weapon.en_cost
+            land(supporter, support_weapon, support_hit)
+
+    hit = True if decision.hit is None else decision.hit
+    land(actor, weapon, hit)
+    killed = not struck.alive
 
     if response is not None and target.alive:
         if response.support_attack and actor.alive:

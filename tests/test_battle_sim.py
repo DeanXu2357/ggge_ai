@@ -351,6 +351,45 @@ def test_support_volley_respects_the_cap():
     assert remaining == 1
 
 
+def test_offense_volley_all_lands_on_the_interceptor():
+    m = _m()
+    n = _mech("n", Faction.ALLY, (0, 1), HUGE, move_range=3,
+              support_attack_charges=1, support_attack_charges_max=1,
+              weapons=[_rifle(power=5000)])
+    s = _engagement(m, n, _a(), _b(hp=1))
+    s2 = _strike(s, support_defend=True)
+    assert s2.unit("b") is None
+    assert s2.unit("a_t").hp == HUGE
+    assert s2.unit("m").hp < HUGE
+    assert s2.unit("n").support_attack_charges == 0
+
+
+def test_interception_charge_spent_once_for_the_whole_volley():
+    m = _m()
+    n = _mech("n", Faction.ALLY, (0, 1), HUGE, move_range=3,
+              support_attack_charges=1, support_attack_charges_max=1,
+              weapons=[_rifle(power=5000)])
+    b = _b(hp=HUGE)
+    dmg = compute_damage(m, b, m.weapons[0], DEFAULT_PARAMS.support_defend_multiplier,
+                         DEFAULT_PARAMS)
+    s = _engagement(m, n, _a(), b)
+    s2 = _strike(s, support_defend=True)
+    assert s2.unit("b").hp == HUGE - 2 * dmg
+    assert s2.unit("b").support_defend_charges == 0
+
+
+def test_offense_volley_kill_still_cancels_return_fire():
+    m = _m(hp=1)
+    n = _mech("n", Faction.ALLY, (0, 1), HUGE, move_range=3,
+              support_attack_charges=1, support_attack_charges_max=1,
+              weapons=[_rifle(power=5000)])
+    s = _engagement(m, n, _a(hp=1), _c())
+    s2 = _strike(s, support_defend=False)
+    assert s2.unit("a_t") is None
+    assert s2.unit("m").hp == 1
+    assert s2.unit("c").support_attack_charges == 1
+
+
 def test_missed_strike_spares_the_interceptor_charge():
     s = _engagement(_m(), _a(), _b(hp=HUGE))
     s2 = step(
