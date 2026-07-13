@@ -29,16 +29,16 @@ Engagement resolution follows the live game's order (user-observed cases,
      cancels nothing that follows;
   3. the counter phase fires only while the *target* is alive: the target's
      counter (stance COUNTER), then one support attacker, and the strikes
-     stop early once the attacker is destroyed.
+     stop early once the attacker is destroyed. A target killed in step 2
+     cancels the whole counter phase including the support attacker --
+     user-confirmed in both directions (their C stands down when we kill A;
+     our N stands down when the enemy kills M).
 
-Unverified details are conservative defaults, not observations: a target
-killed in step 2 cancels the whole counter phase (its own counter is
-mechanically forced off; the support attacker standing down too is assumed
--- the original case-2 evidence was retracted), the interceptor's charge is
-spent even on a miss, killing the interceptor grants the same re-activation
-as killing the target, one interceptor and one support attacker per
-engagement, and the support attacker fires regardless of the target's own
-stance.
+Unverified details are conservative defaults, not observations: the
+interceptor's charge is spent even on a miss, killing the interceptor grants
+the same re-activation as killing the target, one interceptor and one support
+attacker per engagement, and the support attacker fires regardless of the
+target's own stance.
 
 step(state, decision) returns a fresh SimState and never mutates the input --
 clone() is cheap enough to expand a node per call. A decision covers one

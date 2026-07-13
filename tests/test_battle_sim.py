@@ -217,12 +217,12 @@ def test_non_turn_ending_skill_keeps_unit_pending():
     assert s2.phase is Phase.ALLY
 
 
-# Engagement-order cases observed live by the user (2026-07-13, with the
-# case-2 correction), recorded in docs/combat-formulas.md: M is our attacker,
-# A the target, B the support defender, C the support attacker. Cases 1 and 3
-# are observations; the corrected case 2 is the same family as case 1. The
-# target-kill test pins a conservative assumption whose original evidence was
-# retracted by that correction.
+# Engagement-order cases from the user's live observations (2026-07-13, with
+# the case-2 correction), recorded in docs/combat-formulas.md: M is our
+# attacker, A the target, B the support defender, C the support attacker.
+# Killing the target cancels the whole counter phase including the support
+# attacker, user-confirmed in both directions (the enemy-phase mirror is
+# pinned below with our own units defending).
 
 HUGE = 10**9
 
@@ -311,6 +311,24 @@ def test_counter_kill_stops_support_fire():
     s2 = _strike(s, support_defend=False)
     assert s2.unit("m") is None
     assert s2.unit("c").support_attack_charges == 1
+
+
+def test_defender_kill_cancels_our_support_fire_in_the_enemy_phase():
+    boss = _mech("boss", Faction.ENEMY, (2, 0), HUGE, weapons=[_rifle(power=5000)])
+    m = _mech("m", Faction.ALLY, (0, 0), 1, weapons=[_rifle(power=5000)])
+    n = _mech("n", Faction.ALLY, (0, 1), HUGE, move_range=3,
+              support_attack_charges=1, support_attack_charges_max=1,
+              weapons=[_rifle(power=5000)])
+    lingering = _mech("boss2", Faction.ENEMY, (9, 9), HUGE)
+    s = SimState(units=[boss, m, n, lingering], phase=Phase.ENEMY)
+    s2 = step(
+        s,
+        Decision("boss", ActionKind.ATTACK, target_id="m", weapon="rifle", hit=True,
+                 defense=DefenseResponse(DefenseKind.COUNTER)),
+    )
+    assert s2.unit("m") is None
+    assert s2.unit("boss").hp == HUGE
+    assert s2.unit("n").support_attack_charges == 1
 
 
 def test_interceptor_kill_grants_reactivation():
