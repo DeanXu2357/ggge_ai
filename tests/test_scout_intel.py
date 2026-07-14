@@ -175,6 +175,14 @@ def test_phantom_tap_without_card_is_skipped():
     assert intel.panels_opened == 0
 
 
+def test_dynamic_budget_follows_candidate_count():
+    dynamic = IntelBudget()
+    assert dynamic.resolve(3) == (3, 15.0 * 3 + 30.0)
+    assert dynamic.resolve(20)[0] == 12
+    fixed = IntelBudget(max_panels=6, max_seconds=90.0)
+    assert fixed.resolve(20) == (6, 90.0)
+
+
 def test_refresh_unambiguous_match_taps_nothing():
     script = _Script([HUB])
     refresh = refresh_sig_positions(

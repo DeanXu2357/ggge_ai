@@ -117,6 +117,16 @@ def _armed_controller():
     return c, sig
 
 
+def test_build_board_drops_unconfirmed_hub_enemies():
+    c, sig = _armed_controller()
+    c.tacmap.enemies.append((900.0, 500.0))
+
+    battle, notes = c._build_board()
+
+    assert [u.unit_id for u in battle.enemies()] == [sig]
+    assert any("dropped" in n for n in notes)
+
+
 def test_refresh_sig_positions_quiet_update_once_per_turn(monkeypatch):
     c, sig = _armed_controller()
     c.tracker.on_sig_position(sig, (400.0, 0.0))

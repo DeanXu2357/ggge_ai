@@ -50,8 +50,29 @@ MODAL_POLL_TRIES = 6
 
 @dataclass
 class IntelBudget:
-    max_panels: int = 6
-    max_seconds: float = 90.0
+    """None means dynamic (user's 2026-07-14 call): follow the number of
+    enemy candidates on the board, capped, so no stage loses enemies to a
+    fixed panel count; explicit values stay fixed for tests and probes."""
+
+    max_panels: int | None = None
+    max_seconds: float | None = None
+
+    DYNAMIC_PANEL_CAP = 12
+    SECONDS_PER_PANEL = 15.0
+    SECONDS_SLACK = 30.0
+
+    def resolve(self, candidates: int) -> tuple[int, float]:
+        panels = (
+            self.max_panels
+            if self.max_panels is not None
+            else min(self.DYNAMIC_PANEL_CAP, candidates)
+        )
+        seconds = (
+            self.max_seconds
+            if self.max_seconds is not None
+            else self.SECONDS_PER_PANEL * panels + self.SECONDS_SLACK
+        )
+        return panels, seconds
 
 
 @dataclass
@@ -79,10 +100,11 @@ def acquire_stage_intel(
     sleep: Callable[[float], None] = time.sleep,
 ) -> StageIntel:
     budget = budget or IntelBudget()
+    max_panels, max_seconds = budget.resolve(len(enemy_points))
     intel = StageIntel()
     cached = stage_cache.load_stage(stage_id, cache_root) if stage_id else {}
     updated: dict[str, stage_cache.CachedUnit] = dict(cached)
-    deadline = time.monotonic() + budget.max_seconds
+    deadline = time.monotonic() + max_seconds
 
     def record(kind: str, **data) -> None:
         if ledger_log is not None:
@@ -121,7 +143,7 @@ def acquire_stage_intel(
             log.warning("signature %s not in the stage cache -- cache stale, re-reading live", sig)
             record("cache_stale", sig=sig, stage_id=stage_id)
 
-        if intel.panels_opened >= budget.max_panels:
+        if intel.panels_opened >= max_panels:
             log.info("intel budget (panels) exhausted, %s stays spec-less", sig[:6])
             continue
 

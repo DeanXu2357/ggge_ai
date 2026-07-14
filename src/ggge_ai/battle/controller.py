@@ -756,6 +756,11 @@ class ManualBattleController:
             sig_positions=positions,
             ally_sig_positions=self.tracker.sig_positions(Faction.ALLY),
             turn=self.ledger.turn if self.ledger is not None else self.tracker.turn,
+            # the tacmap is scouted on our-turn hub frames, where the pinned
+            # pink-ally bug makes enemy arcs untrustworthy; per the settled
+            # M4 verdict (H/S/V identical on the mixed-faction fixture) only
+            # sig-confirmed enemies enter the simulation
+            hub_poisoned=True,
             notes=notes,
         )
         notes += self.tracker.apply(battle)
