@@ -117,6 +117,23 @@ def _armed_controller():
     return c, sig
 
 
+def test_refresh_sig_positions_quiet_update_once_per_turn(monkeypatch):
+    c, sig = _armed_controller()
+    c.tracker.on_sig_position(sig, (400.0, 0.0))
+    monkeypatch.setattr(vision, "find_enemy_units", lambda f, region=None: [(410, 10)])
+
+    c._refresh_sig_positions(c.perception.capture())
+
+    assert c._sig_positions[sig] == (410.0, 10.0)
+    assert c.tracker.beliefs[sig].world_pos == (410.0, 10.0)
+    summaries = [e for e in c.ledger.events if e["kind"] == "sig_refresh_summary"]
+    assert len(summaries) == 1
+    assert summaries[0]["quiet"] == 1 and summaries[0]["taps"] == 0
+
+    c._refresh_sig_positions(c.perception.capture())
+    assert len([e for e in c.ledger.events if e["kind"] == "sig_refresh_summary"]) == 1
+
+
 def test_consult_advisor_logs_a_proposal_once_per_turn():
     c, sig = _armed_controller()
     c._consult_advisor()

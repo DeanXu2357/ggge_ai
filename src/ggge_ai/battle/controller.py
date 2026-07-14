@@ -250,6 +250,7 @@ class ManualBattleController:
     _intel_done: bool = False
     _full_scan_done: bool = False
     _turn_advised: bool = False
+    _turn_sig_refreshed: bool = False
     _proposal: object | None = None
     _sig_positions: dict = field(default_factory=dict)
     _pending: reconcile.PendingOutcome | None = None
@@ -630,6 +631,7 @@ class ManualBattleController:
                 elif turn_number > current:
                     self._turn_scouted = False
                     self._turn_advised = False
+                    self._turn_sig_refreshed = False
                     self.tracker.on_turn(turn_number)
                     if self.ledger is not None:
                         self.ledger.next_turn(frame=frame, turn=turn_number)
@@ -643,6 +645,7 @@ class ManualBattleController:
                     self._turn_marker = marker
                     self._turn_scouted = False
                     self._turn_advised = False
+                    self._turn_sig_refreshed = False
                     self.tracker.on_turn(self.tracker.turn + 1)
                     if self.ledger is not None:
                         self.ledger.next_turn(frame=frame)
@@ -653,6 +656,7 @@ class ManualBattleController:
             self._snapshot_factions(frame)
             self._scout(frame)
             self._acquire_intel_once(frame)
+            self._refresh_sig_positions(frame)
             self._consult_advisor()
             log.info("selecting next actable unit")
             self._log("select_unit", frame=frame)
@@ -713,6 +717,46 @@ class ManualBattleController:
             intel.cache_hits,
             intel.panels_opened,
             ", cache was stale" if intel.cache_stale else "",
+        )
+
+    def _refresh_sig_positions(self, frame) -> None:
+        """M5: once per turn, re-anchor tracked enemy identities to the
+        fresh scan so the sig match does not decay as enemies move.
+        Quiet nearest-neighbour updates when unambiguous; budgeted
+        summary-card taps only for contested candidates."""
+        if self._turn_sig_refreshed:
+            return
+        self._turn_sig_refreshed = True
+        known = self.tracker.sig_positions()
+        if not known:
+            return
+        candidates = vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
+        if not candidates:
+            return
+        from .scout_intel import refresh_sig_positions
+
+        refresh = refresh_sig_positions(
+            self._frame,
+            self.actuator.tap,
+            [(float(x), float(y)) for x, y in candidates],
+            known,
+            ledger_log=self._log,
+        )
+        for sig, pos in refresh.positions.items():
+            self._sig_positions[sig] = pos
+            self.tracker.on_sig_position(sig, pos)
+        self._log(
+            "sig_refresh_summary",
+            quiet=refresh.matched_quietly,
+            taps=refresh.taps,
+            updated=len(refresh.positions),
+            unresolved=refresh.unresolved[:8],
+        )
+        log.info(
+            "sig refresh: %d quiet, %d taps, %d unresolved",
+            refresh.matched_quietly,
+            refresh.taps,
+            len(refresh.unresolved),
         )
 
     def _consult_advisor(self) -> None:

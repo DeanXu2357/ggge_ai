@@ -9,7 +9,12 @@ import cv2
 import numpy as np
 
 from ggge_ai.battle import scout_intel, stage_cache, vision
-from ggge_ai.battle.scout_intel import IntelBudget, acquire_stage_intel
+from ggge_ai.battle.scout_intel import (
+    IntelBudget,
+    RefreshBudget,
+    acquire_stage_intel,
+    refresh_sig_positions,
+)
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "vision"
 
@@ -168,3 +173,70 @@ def test_phantom_tap_without_card_is_skipped():
     )
     assert intel.summaries == {}
     assert intel.panels_opened == 0
+
+
+def test_refresh_unambiguous_match_taps_nothing():
+    script = _Script([HUB])
+    refresh = refresh_sig_positions(
+        script.capture,
+        script.tap,
+        [(900.0, 150.0), (400.0, 600.0)],
+        {"a" * 16: (890.0, 140.0), "b" * 16: (390.0, 590.0)},
+        sleep=lambda s: None,
+    )
+    assert script.taps == []
+    assert refresh.positions == {"a" * 16: (900.0, 150.0), "b" * 16: (400.0, 600.0)}
+    assert refresh.matched_quietly == 2
+    assert refresh.unresolved == []
+
+
+def test_refresh_contested_candidates_get_tapped_nearest_first():
+    script = _Script([HUB])
+    events, log = _events()
+    refresh = refresh_sig_positions(
+        script.capture,
+        script.tap,
+        [(900.0, 150.0), (1000.0, 150.0)],
+        {SIG: (920.0, 150.0)},
+        ledger_log=log,
+        sleep=lambda s: None,
+    )
+    assert script.taps == [(900, 150)]
+    assert refresh.positions[SIG] == (900.0, 150.0)
+    assert refresh.taps == 1
+    assert any(e["kind"] == "sig_refresh" and e["result"] == "ok" for e in events)
+
+
+def test_refresh_phantom_and_stale_reads_do_not_update():
+    blank = np.zeros((1080, 2340, 3), np.uint8)
+    script = _Script([blank, HUB, HUB])
+    other = "f" * 16
+    events, log = _events()
+    refresh = refresh_sig_positions(
+        script.capture,
+        script.tap,
+        [(900.0, 150.0), (1000.0, 150.0), (1100.0, 150.0)],
+        {SIG: (950.0, 150.0), other: (1050.0, 150.0)},
+        ledger_log=log,
+        sleep=lambda s: None,
+    )
+    assert refresh.taps == 3
+    assert refresh.positions == {SIG: (1000.0, 150.0)}
+    assert refresh.unresolved == [other]
+    results = [e["result"] for e in events if e["kind"] == "sig_refresh"]
+    assert results == ["no_card", "ok", "stale_card"]
+
+
+def test_refresh_tap_budget_is_honored():
+    blank = np.zeros((1080, 2340, 3), np.uint8)
+    script = _Script([blank])
+    refresh = refresh_sig_positions(
+        script.capture,
+        script.tap,
+        [(900.0, 150.0), (1000.0, 150.0), (1100.0, 150.0)],
+        {SIG: (1000.0, 150.0)},
+        budget=RefreshBudget(max_taps=1),
+        sleep=lambda s: None,
+    )
+    assert refresh.taps == 1
+    assert refresh.unresolved == [SIG]

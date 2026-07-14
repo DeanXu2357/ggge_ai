@@ -28,6 +28,7 @@ from pathlib import Path
 
 from . import panels, stage_cache, vision
 from .bridge import UnitSpec
+from .observe import SIG_MATCH_RADIUS
 
 log = logging.getLogger(__name__)
 
@@ -184,3 +185,94 @@ def _await_modal(capture: Callable, sleep: Callable[[float], None]):
             return frame
         sleep(MODAL_POLL_S)
     return None
+
+
+@dataclass
+class RefreshBudget:
+    max_taps: int = 6
+    max_seconds: float = 25.0
+
+
+@dataclass
+class SigRefresh:
+    positions: dict[str, tuple[float, float]] = field(default_factory=dict)
+    matched_quietly: int = 0
+    taps: int = 0
+    unresolved: list[str] = field(default_factory=list)
+
+
+def refresh_sig_positions(
+    capture: Callable,
+    tap: Callable[[int, int], None],
+    candidates: list[tuple[float, float]],
+    known: dict[str, tuple[float, float]],
+    *,
+    budget: RefreshBudget | None = None,
+    ledger_log: Callable[..., None] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> SigRefresh:
+    """Re-anchor tracked enemy identities to a fresh arc scan so the sig
+    match does not decay as enemies move. When a sig and a candidate are
+    each other's unique in-radius neighbour the position updates without
+    touching the device; contested candidates are confirmed by budgeted
+    summary-card taps (phantom-tolerant: no card means no update, and a
+    stale card re-reading an already-placed sig is ignored)."""
+    budget = budget or RefreshBudget()
+    result = SigRefresh()
+
+    def record(kind: str, **data) -> None:
+        if ledger_log is not None:
+            ledger_log(kind, **data)
+
+    def _dist2(a: tuple[float, float], b: tuple[float, float]) -> float:
+        return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
+
+    radius2 = SIG_MATCH_RADIUS**2
+    near_sigs = {
+        i: [sig for sig, pos in known.items() if _dist2(point, pos) <= radius2]
+        for i, point in enumerate(candidates)
+    }
+    near_cands = {
+        sig: [i for i, point in enumerate(candidates) if _dist2(point, pos) <= radius2]
+        for sig, pos in known.items()
+    }
+    claimed: set[int] = set()
+    for sig, cands in near_cands.items():
+        if len(cands) == 1 and near_sigs[cands[0]] == [sig]:
+            result.positions[sig] = candidates[cands[0]]
+            result.matched_quietly += 1
+            claimed.add(cands[0])
+
+    unresolved = [sig for sig in known if sig not in result.positions]
+    if unresolved:
+        contested = [i for i in range(len(candidates)) if i not in claimed]
+
+        def _closeness(i: int) -> float:
+            return min(_dist2(candidates[i], known[sig]) for sig in unresolved)
+
+        deadline = time.monotonic() + budget.max_seconds
+        for i in sorted(contested, key=_closeness):
+            if not unresolved or result.taps >= budget.max_taps:
+                break
+            if time.monotonic() >= deadline:
+                log.info("sig refresh budget (time) exhausted")
+                break
+            point = candidates[i]
+            tap(int(point[0]), int(point[1]))
+            result.taps += 1
+            sleep(SUMMARY_SETTLE_S)
+            summary = vision.read_enemy_summary(capture())
+            sig = summary.name_sig if summary is not None else None
+            if sig is None:
+                record("sig_refresh", point=list(point), result="no_card")
+                continue
+            if sig in result.positions:
+                record("sig_refresh", sig=sig, point=list(point), result="stale_card")
+                continue
+            result.positions[sig] = point
+            record("sig_refresh", sig=sig, point=list(point), result="ok")
+            if sig in unresolved:
+                unresolved.remove(sig)
+
+    result.unresolved = [sig for sig in known if sig not in result.positions]
+    return result
