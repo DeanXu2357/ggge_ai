@@ -186,26 +186,16 @@ precondition/effect/cost 描述、execute 綁既有 handler（handler 從
 前用「可見 HP 弧星座 vs 黑板世界座標」的平移匹配找回鏡頭偏移，
 畫面外的敵人因此也能成為移動目標。
 
-## 內容 cache（感知記憶化，2026-07-05 使用者新增）
+## 內容 cache → 關卡定義檔（2026-07-14 演進）
 
-目的：免去每次開局逐一點開敵方/我方資訊面板的時間。三個機制，
-重要度 1 ≫ 2 > 3：
-
-1. **cache 匯入**（核心）：
-   - `data/cache/stages/<系列>/<關卡>.json`：該關敵方各機的完整數值、
-     武裝（射程/威力/EN/命中/爆擊）、能力。關卡內容遊戲寫死，可全量 cache。
-   - `data/cache/roster/*.json`：可取得機體/角色圖鑑——只記身分、基礎
-     素質、武裝構成；**我方實數受養成影響，開戰時一律現場同步**。
-   - 同步流程：戰術地圖掃位置（永遠現場）→ 敵方詳情查 cache，命中即
-     匯入黑板；未命中→現場讀面板→寫回 cache。「建 cache」與「現場讀取」
-     共用同一條解析路徑。
-2. **建檔腳本**（無它則手動建/手動修）：驅動同一條讀取路徑窮舉掃描，或
-   離線處理面板截圖。數字一律 OCR（確定性），本地 LLM（Ollama 多模態）
-   只轉錄武裝名/能力名與描述；輸出過 JSON schema 驗證＋數字交叉核對，
-   人工 diff 後入庫。cache 檔記遊戲版號。
-3. **校驗機制**（最後做，錦上添花）：開局抽查——點敵人看摘要卡 HP
-   （不開面板）與 cache 比對；機種/數量不符→該關 cache 標記過期、
-   整關退回現場讀取並記 log 提醒重建。
+感知記憶化 cache（2026-07-05 定案的 sig-keyed kit 快取）已定案演進為
+**關卡定義檔**：layout（uid/格位/機種/駕駛/數值）＋conditions（勝利/
+失敗條件）＋events（觸發→盤面變化），後端 uid 為唯一身分、名牌 sig
+降為關聯證據。需求全文見
+[stage-definition-requirements.md](stage-definition-requirements.md)；
+舊三機制設計全文見 [archive.md](archive.md)。不變的原則：**畫面永遠
+是權威**（開局校驗、不符整關過期退回現場全讀）、我方實數受養成影響
+一律現場同步、cache 檔記遊戲版號。
 
 ## 戰後歸因（觀測式，非模擬式）
 
@@ -221,48 +211,23 @@ precondition/effect/cost 描述、execute 綁既有 handler（handler 從
 | 回合耗盡未分勝負 | 機動/索敵問題 | 改程式 |
 | 有再動能力卻未串出擊殺鏈 | 戰術缺陷 | planner 能力運用（改程式） |
 
-## 工程評估基準（先實作、以檢核點迭代）
+## 實作進度
 
-- **E1**：第 12 關重播，零關卡專屬資料通關（現況回歸基準，順帶驗證
-  62bef06 的敵我分類與平移偵察）。
-- **E2**：HARD 1 探測帶流水帳出戰，產出第一份戰敗歸因報告與戰敗畫面錨點。
-- **E3**：戰略迴圈在單次執行內走完 farm → 強化 → 再挑戰。
-- **E4**：HARD 1 通關，全程無任何手工關卡資料。
+原 16 項實作順序清單（2026-07-05/06 版）多數已完成或已被演進取代，
+全文與逐項狀態見 [archive.md](archive.md)「agent-architecture 實作
+順序清單」；工程評估基準 E1/E2/E4 已達成（E4＝2026-07-12 Gundam X
+HARD 1 零關卡專屬資料首戰通關）、E3（戰略迴圈 farm→強化→再挑戰）
+未達。現行進度與下一步一律以 [roadmap.md](roadmap.md) 暫停快照為準；
+待規劃的下一個架構動作見
+[stage-definition-requirements.md](stage-definition-requirements.md)。
 
-## 實作順序
+尚未實現的既定方向（仍有效）：
 
-1. 戰鬥流水帳 + run-scoped 黑板（機制層基礎，同時是歸因證據與未來
-   模型的訓練資料格式）。〔完成 2026-07-05〕
-2. 戰術地圖 v1：平移掃描＋相位相關量測＋星座錨定，畫面外敵人可成為
-   移動目標。〔完成 2026-07-05，待實戰驗證〕
-3. HARD 探測（E1 第 12 關回歸 → E2 HARD 2 收戰敗流程；HARD 1 已由
-   使用者手動通關）。
-4. 戰後歸因 v1：先分「數值差距 vs 程式缺陷」兩大類。
-5. **cache 匯入機制**：schema＋載入器＋黑板匯入＋未命中回退。試點用
-   HARD 2 手抄檔（面板截圖已齊）。
-6. 敵方資訊面板 OCR（結構已標定 2026-07-05）：現場讀取→黑板→寫回
-   cache 的完整路徑；OCR 數字讀取（戰力/資金/預期傷害）共用同一機制。
-7. 戰略迴圈：goal + allowed actions 輸入介面，強化與 farming 流程標定。
-8. cache 建檔腳本（本地 LLM 輔助轉錄文字欄位）。
-9. 行動掃描器 v1：發現並使用 SUPPORT/技能鈕（EN 補給、回血）——
-   即 ActionCatalog 的畫面來源。
-10. 內層 GOAP：BattleState 整併＋ActionCatalog＋能力注入（編成讀取
-    同步→黑板）＋開戰 roster 驗證＋第三方可控性探測＋啟動內鏈式規劃
-    （擊殺再動；判死用實際數值 HP，依賴 6 的 OCR）。
-11. 戰鬥模擬器 v0：格子盤面 SimState＋`step()`＋公式模組
-    （docs/combat-formulas.md）＋EnemyModel 介面＋expectiminimax
-    solver 骨架（迭代加深/置換表/Star1），離線假資料測試。
-12. 跨機啟動順序規劃（削血→收頭協調；10 的鏈式規劃驗證後）——
-    收編為 solver 我方相位內的行動排序。
-13. 模擬器 v1：格子可達性＋路徑封鎖＋支援防禦網幾何（拆支援站位）、
-    敵方回合應對彈窗感知與 handler、公式實機標定
-    （combat-formulas.md 待標定清單）。**戰鬥生命週期定案為
-    ACTIONABLE／NOT_ACTIONABLE 二元相位（靠 `unit_cards_present` 判斷，
-    不分敵方/第三方回合），應對彈窗是 NOT_ACTIONABLE 期間唯一還缺的
-    偵測機制，見 docs/battle-phase-states.md（2026-07-09）。**
-14. 1.5-ply 站位安全評估（作為 ActionCatalog 的 cost 項＋solver 葉節點
-    評估項）；cache 校驗機制（抽查摘要卡 HP）。
-15. 戰役目標介面（「通關到 HARD X」，戰役進度現場讀關卡列表）；
-    主動編成（歸因出現編成短板證據後）。
-16. LLM 整合：無現成資料時推斷 action 前置條件等啟發式判斷
-    （與 8 的本地 LLM 轉錄共用基礎設施）。
+- 行動掃描器（SUPPORT/技能鈕＝ActionCatalog 的畫面來源，issue #12）。
+- 應戰彈窗偵測與 handler（#3，NOT_ACTIONABLE 唯一還缺的偵測機制，
+  見 battle-phase-states.md）。
+- 跨機啟動順序規劃（pilot v1 維持第一張卡，之後收編為 solver 我方
+  相位內的行動排序）。
+- 戰役目標介面（「通關到 HARD X」）；主動編成（等歸因出現編成短板
+  證據）。
+- LLM 整合：無現成資料時推斷 action 前置條件等啟發式判斷。
