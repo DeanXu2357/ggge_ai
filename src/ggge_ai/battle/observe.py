@@ -36,7 +36,13 @@ def build_battle_state(
     specs_by_sig: dict | None = None,
     sig_positions: dict[str, Point] | None = None,
     turn: int = 1,
+    hub_poisoned: bool = False,
+    notes: list[str] | None = None,
 ) -> BattleState:
+    """hub_poisoned marks a scan taken in the known-bad our-turn hub state
+    (pinned hp_arc bug): enemy arcs there are phantom-prone, so only
+    sig-confirmed points survive; the rest are dropped and reported via
+    `notes` instead of entering the sim as default-stat ghosts."""
     specs_by_sig = specs_by_sig or {}
     sig_positions = sig_positions or {}
     battle = BattleState(turn=turn)
@@ -47,6 +53,13 @@ def build_battle_state(
     taken: set[str] = set()
     for i, point in enumerate(tacmap.enemies, start=1):
         sig = _nearest_sig(point, sig_positions, taken)
+        if sig is None and hub_poisoned:
+            if notes is not None:
+                notes.append(
+                    f"enemy arc at ({point[0]:.0f}, {point[1]:.0f}) dropped: "
+                    "no sig confirmation on a poisoned hub scan"
+                )
+            continue
         unit_id = sig if sig is not None else f"enemy_{i}"
         max_hp = None
         if sig is not None:

@@ -55,6 +55,26 @@ def test_far_signature_is_not_adopted():
     assert battle.unit(sig) is None
 
 
+def test_hub_poisoned_drops_unconfirmed_enemies():
+    sig = "a" * 16
+    notes: list[str] = []
+    battle = build_battle_state(
+        _tacmap(),
+        sig_positions={sig: (420.0, 30.0)},
+        hub_poisoned=True,
+        notes=notes,
+    )
+    assert [u.unit_id for u in battle.enemies()] == [sig]
+    assert len(notes) == 1
+    assert "dropped" in notes[0]
+
+
+def test_hub_poisoned_without_sigs_yields_no_enemies():
+    battle = build_battle_state(_tacmap(), hub_poisoned=True)
+    assert battle.enemies() == []
+    assert len(battle.allies()) == 2
+
+
 class _Perception:
     def capture(self):
         return np.zeros((1080, 2340, 3), np.uint8)
