@@ -40,10 +40,16 @@ def build_battle_state(
     hub_poisoned: bool = False,
     notes: list[str] | None = None,
 ) -> BattleState:
-    """hub_poisoned marks a scan taken in the known-bad our-turn hub state
-    (pinned hp_arc bug): enemy arcs there are phantom-prone, so only
-    sig-confirmed points survive; the rest are dropped and reported via
-    `notes` instead of entering the sim as default-stat ghosts.
+    """Arc color is a first-layer heuristic, never a faction verdict on its
+    own (user-settled 2026-07-14): blue/teal arcs have no known
+    counterexample and pass through, but a red-band arc on an our-turn hub
+    scan is "enemy OR un-acted ally" (the pinned pink-arc bug, per-pixel
+    inseparable). hub_poisoned marks such a scan; each red-band point is
+    then resolved by evidence -- an enemy sig position first (intel taps,
+    per-turn refresh), a tracked ally position second (positions learned
+    from card-driven activations: tap card -> camera centers -> anchor),
+    and dropped with a note when neither claims it, instead of entering
+    the sim as a default-stat ghost.
 
     ally_sig_positions lets allies adopt their name signature the same way
     enemies do (learned incrementally as units act, tracker-fed) -- a
@@ -73,6 +79,25 @@ def build_battle_state(
     for i, point in enumerate(tacmap.enemies, start=1):
         sig = _nearest_sig(point, sig_positions, taken)
         if sig is None and hub_poisoned:
+            ally_sig = _nearest_sig(point, ally_sig_positions, taken_allies)
+            if ally_sig is not None:
+                taken_allies.add(ally_sig)
+                spec = specs_by_sig.get(ally_sig)
+                battle.add_unit(
+                    UnitState(
+                        unit_id=ally_sig,
+                        faction=Faction.ALLY,
+                        world_pos=point,
+                        max_hp=spec.max_hp if spec is not None else None,
+                    )
+                )
+                if notes is not None:
+                    notes.append(
+                        f"red-band arc at ({point[0]:.0f}, {point[1]:.0f}) "
+                        f"resolved as un-acted ally {ally_sig[:6]} "
+                        "(tracked position)"
+                    )
+                continue
             if notes is not None:
                 notes.append(
                     f"enemy arc at ({point[0]:.0f}, {point[1]:.0f}) dropped: "

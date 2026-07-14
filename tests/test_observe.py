@@ -75,6 +75,72 @@ def test_hub_poisoned_without_sigs_yields_no_enemies():
     assert len(battle.allies()) == 2
 
 
+def test_poisoned_red_arc_near_tracked_ally_rejoins_allies():
+    ally_sig = "b" * 16
+    spec = UnitSpec(max_hp=48000)
+    notes: list[str] = []
+    battle = build_battle_state(
+        _tacmap(),
+        specs_by_sig={ally_sig: spec},
+        ally_sig_positions={ally_sig: (420.0, 30.0)},
+        hub_poisoned=True,
+        notes=notes,
+    )
+    recovered = battle.unit(ally_sig)
+    assert recovered is not None
+    assert recovered.faction is Faction.ALLY
+    assert recovered.world_pos == (400.0, 0.0)
+    assert recovered.max_hp == 48000
+    assert battle.enemies() == []
+    assert len(battle.allies()) == 3
+    assert any("resolved as un-acted ally" in n for n in notes)
+    assert any("dropped" in n for n in notes)
+
+
+def test_ally_sig_taken_by_blue_arc_is_not_reused_for_recovery():
+    ally_sig = "b" * 16
+    t = TacticalMap()
+    t.allies.append((400.0, 100.0))
+    t.enemies.append((400.0, 0.0))
+    notes: list[str] = []
+    battle = build_battle_state(
+        t,
+        ally_sig_positions={ally_sig: (400.0, 50.0)},
+        hub_poisoned=True,
+        notes=notes,
+    )
+    assert battle.enemies() == []
+    assert [u.unit_id for u in battle.allies()] == [ally_sig]
+    assert any("dropped" in n for n in notes)
+
+
+def test_enemy_sig_wins_over_ally_recovery():
+    enemy_sig = "a" * 16
+    ally_sig = "b" * 16
+    battle = build_battle_state(
+        _tacmap(),
+        sig_positions={enemy_sig: (420.0, 30.0)},
+        ally_sig_positions={ally_sig: (420.0, 30.0)},
+        hub_poisoned=True,
+    )
+    matched = battle.unit(enemy_sig)
+    assert matched is not None
+    assert matched.faction is Faction.ENEMY
+    assert battle.unit(ally_sig) is None
+
+
+def test_clean_scan_keeps_red_arcs_as_enemies():
+    ally_sig = "b" * 16
+    battle = build_battle_state(
+        _tacmap(),
+        ally_sig_positions={ally_sig: (420.0, 30.0)},
+        hub_poisoned=False,
+    )
+    assert battle.unit(ally_sig) is None
+    assert len(battle.enemies()) == 2
+    assert len(battle.allies()) == 2
+
+
 class _Perception:
     def capture(self):
         return np.zeros((1080, 2340, 3), np.uint8)
