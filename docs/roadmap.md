@@ -53,6 +53,16 @@ hub 粉紅弧 HSV 判決＝不可分，sig-confirmation 成為正式盤面過濾
 支援有無）回饋 solver；③演出階段辨識（事件插入/新敵機登場＝等待）；
 ④關卡事件可資料插入（純模擬版預備）。
 
+**7/14 晚追加定案（需求全文 docs/stage-definition-requirements.md，
+與 M8 合併重新規劃；使用者將清理對話後另開規劃 session）**：關卡
+定義檔（layout＋conditions＋events）＝solver 的賽局完整描述；後端
+uid 身分制取代 sig 主鍵（同機種不同駕駛數值不同，sig 降關聯證據、
+建檔每台開面板）；冷掃全量（掃不完＝報錯，minimax 要完整賽局）／
+溫 cache 開局校驗（畫面權威）；**intel 動態預算上限 12（b587fe2）
+確定拿掉**；solver 條件驅動 terminal/evaluator＋step() 套 events
+（斬首/護衛/限時關目標函數不同）；紅線邊界＝腳本事件可入檔、敵 AI
+傾向不可（另簽核）。
+
 **已知風險（實機驗證要盯）**：① intel 掃描會 tap 到粉紅我方弧——
 tap 自己單位可能開自機摘要卡（讀進敵方 intel＝污染）或選中單位，
 7/13 實戰沒炸但未系統驗證；② 實機 sig 抖動鏈式漂移（見上）；
