@@ -287,3 +287,33 @@ def test_solver_retreats_out_of_lethal_reach():
     assert result.decision is not None
     assert result.decision.kind == ActionKind.MOVE
     assert chebyshev(result.decision.move_to, enemy.pos) > 2
+
+
+def test_solver_defers_the_trigger_kill_past_its_reinforcement_window():
+    # HARD-2 pattern: killing the marked enemy inside the window summons
+    # an unbeatable reinforcement. The winning line kills the other
+    # grunt first and takes the marked one only after the window expired
+    # -- the solver must price the spawn inside the tree and defer.
+    from ggge_ai.battle.sim import SimEvent
+
+    ally = _ally(weapons=[_weapon(power=5000)])
+    marked = _enemy("marked", pos=(2, 0), hp=5, weapons=[])
+    grunt = _enemy("grunt", pos=(3, 0), hp=5, weapons=[])
+    boss = _enemy("boss", pos=(1, 0), hp=99999, max_hp=99999,
+                  unit_attack=90000, pilot_attack=90000,
+                  weapons=[_weapon("mega", power=90000, rmax=3)])
+    events = {
+        "ev1": SimEvent(
+            event_id="ev1",
+            trigger={"type": "kill", "uid": "marked", "within_turn": 1},
+            effect={"type": "spawn", "units": [boss]},
+        )
+    }
+    state = SimState(units=[ally, marked, grunt], pending_events=("ev1",))
+    result = solve(
+        state,
+        NearestTargetPolicy(),
+        SolverConfig(time_budget_s=8.0, max_depth=4, events=events),
+    )
+    attacks = [d.target_id for d in result.pv if d.kind == ActionKind.ATTACK]
+    assert attacks and attacks[0] == "grunt"

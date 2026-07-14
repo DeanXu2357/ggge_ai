@@ -121,6 +121,7 @@ def build_sim_state(
     *,
     cell_size: float,
     defaults: BridgeDefaults | None = None,
+    pending_events: tuple[str, ...] = (),
 ) -> BridgeResult:
     defaults = defaults or BridgeDefaults()
     assumptions: list[str] = []
@@ -136,7 +137,7 @@ def build_sim_state(
     else:
         origin = (0.0, 0.0)
 
-    state = SimState(turn=battle.turn)
+    state = SimState(turn=battle.turn, pending_events=pending_events)
     taken: set[Cell] = set()
     for u in placed:
         cell = _quantize(u.world_pos, origin, cell_size)

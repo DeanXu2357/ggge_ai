@@ -42,6 +42,7 @@ from .sim import (
     Decision,
     DefenseKind,
     DefenseResponse,
+    EventTable,
     MoveValidator,
     Phase,
     SimParams,
@@ -118,6 +119,7 @@ class SolverConfig:
     use_tt: bool = True
     use_star1: bool = True
     objective: Objective | None = None
+    events: EventTable | None = None
 
 
 _FLAG_EXACT = 0
@@ -250,6 +252,7 @@ def _step(state: SimState, decision: Decision, ctx: SearchContext) -> SimState:
         decision,
         move_validator=ctx.config.move_validator,
         params=ctx.config.params,
+        events=ctx.config.events,
     )
 
 

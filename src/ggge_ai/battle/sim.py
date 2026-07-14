@@ -307,18 +307,45 @@ class Decision:
     support_hit: bool | None = None
 
 
+@dataclass(frozen=True)
+class SimEvent:
+    """A scripted stage event: trigger -> board change, from the stage
+    definition file. trigger v1: {"type": "kill", "uid", "within_turn"?}
+    or {"type": "turn_start", "turn"}; effect v1: {"type": "spawn",
+    "units": [SimUnit templates]} or {"type": "weaken", "uids",
+    "attack_multiplier"?, "defense_multiplier"?}. Unknown effect types
+    are inert no-ops (validated and noted upstream, never here -- step()
+    runs per node). The table itself is static; only which events are
+    still pending / already fired lives on SimState."""
+
+    event_id: str
+    trigger: dict
+    effect: dict
+
+
+EventTable = dict[str, SimEvent]
+
+
 @dataclass
 class SimState:
     """The grid board plus phase/turn, cheap to clone for node expansion.
 
     bounds is ((min_x, min_y), (max_x, max_y)) inclusive, or None for an
     unbounded board (v0 behaviour); only the grid-aware validators read it.
-    """
+
+    pending_events/fired_events both enter key(): a kill event with a
+    within_turn window can *expire* (leave pending without firing), so
+    pending alone cannot distinguish "fired" from "expired" -- and a
+    fired weaken changes unit statics that key() deliberately omits.
+    With both tuples in the key, equal keys imply the same event history
+    and therefore the same statics, keeping the TT sound."""
 
     units: list[SimUnit] = field(default_factory=list)
     phase: Phase = Phase.ALLY
     turn: int = 1
     bounds: tuple[Cell, Cell] | None = None
+    pending_events: tuple[str, ...] = ()
+    fired_events: tuple[str, ...] = ()
 
     def add_unit(self, unit: SimUnit) -> SimUnit:
         self.units.append(unit)
@@ -347,6 +374,8 @@ class SimState:
             phase=self.phase,
             turn=self.turn,
             bounds=self.bounds,
+            pending_events=self.pending_events,
+            fired_events=self.fired_events,
         )
 
     def phase_index(self) -> int:
@@ -374,7 +403,7 @@ class SimState:
                 for u in self.units
             )
         )
-        return (self.phase.value, self.turn, units)
+        return (self.phase.value, self.turn, self.pending_events, self.fired_events, units)
 
 
 # A move is legal when the destination is reachable. v0 default: within the
@@ -601,11 +630,12 @@ def _begin_phase(state: SimState, faction: Faction, params: SimParams) -> None:
             u.en = min(u.en_max, u.en + regen)
 
 
-def _rotate_one(state: SimState, params: SimParams) -> None:
+def _rotate_one(state: SimState, params: SimParams, events: EventTable | None = None) -> None:
     idx = PHASE_ORDER.index(state.phase)
     nxt = PHASE_ORDER[(idx + 1) % len(PHASE_ORDER)]
     if nxt is Phase.ALLY:
         state.turn += 1
+        _events_on_new_turn(state, events)
     state.phase = nxt
     _expire_debuffs(state)
     _begin_phase(state, _PHASE_FACTION[nxt], params)
@@ -631,15 +661,78 @@ def _apply_debuff(state: SimState, weapon: SimWeapon, victim: SimUnit) -> None:
     )
 
 
-def _advance_until_pending(state: SimState, params: SimParams) -> None:
+def _advance_until_pending(
+    state: SimState, params: SimParams, events: EventTable | None = None
+) -> None:
     guard = 0
     while not _pending(state, _current_faction(state)) and guard <= len(PHASE_ORDER):
-        _rotate_one(state, params)
+        _rotate_one(state, params, events)
         guard += 1
 
 
 def _remove_dead(state: SimState) -> None:
     state.units = [u for u in state.units if u.alive]
+
+
+def _apply_event_effect(state: SimState, event: SimEvent) -> None:
+    effect = event.effect
+    if effect.get("type") == "spawn":
+        for template in effect.get("units", ()):
+            if state.unit(template.unit_id) is None:
+                state.units.append(template.clone())
+    elif effect.get("type") == "weaken":
+        for uid in effect.get("uids", ()):
+            unit = state.unit(uid)
+            if unit is not None:
+                unit.unit_attack *= effect.get("attack_multiplier", 1.0)
+                unit.unit_defense *= effect.get("defense_multiplier", 1.0)
+
+
+def _fire_event(state: SimState, event: SimEvent) -> None:
+    _apply_event_effect(state, event)
+    state.pending_events = tuple(e for e in state.pending_events if e != event.event_id)
+    state.fired_events = (*state.fired_events, event.event_id)
+
+
+def _events_after_step(state: SimState, events: EventTable | None) -> None:
+    """Kill triggers: a pending event whose uid is dead or gone fires now
+    (dead units are removed from the board, and stage uids are unique, so
+    absence means death). A within_turn window past its deadline never
+    fires -- expiry happens at turn rotation."""
+    if not events:
+        return
+    for event_id in state.pending_events:
+        event = events.get(event_id)
+        if event is None or event.trigger.get("type") != "kill":
+            continue
+        within = event.trigger.get("within_turn")
+        if within is not None and state.turn > int(within):
+            continue
+        victim = state.unit(event.trigger.get("uid"))
+        if victim is None or not victim.alive:
+            _fire_event(state, event)
+
+
+def _events_on_new_turn(state: SimState, events: EventTable | None) -> None:
+    """At rotation into a new turn: fire turn_start triggers and expire
+    kill windows the new turn has passed. Expired events leave pending
+    without entering fired -- that difference is exactly why both tuples
+    sit in SimState.key()."""
+    if not events:
+        return
+    for event_id in tuple(state.pending_events):
+        event = events.get(event_id)
+        if event is None:
+            continue
+        trigger = event.trigger
+        if trigger.get("type") == "turn_start" and state.turn >= int(trigger.get("turn", 0)):
+            _fire_event(state, event)
+        elif trigger.get("type") == "kill":
+            within = trigger.get("within_turn")
+            if within is not None and state.turn > int(within):
+                state.pending_events = tuple(
+                    e for e in state.pending_events if e != event_id
+                )
 
 
 def _stance_multiplier(response: DefenseResponse | None, params: SimParams) -> float:
@@ -887,12 +980,13 @@ def step(
     *,
     move_validator: MoveValidator | None = None,
     params: SimParams = DEFAULT_PARAMS,
+    events: EventTable | None = None,
 ) -> SimState:
     """Apply one decision to a copy of state and return the new state."""
     s = state.clone()
     actor = s.unit(decision.unit_id)
     if actor is None or not actor.alive:
-        _advance_until_pending(s, params)
+        _advance_until_pending(s, params, events)
         return s
 
     if decision.move_to is not None and decision.kind != ActionKind.MAP_ATTACK:
@@ -916,5 +1010,6 @@ def step(
         actor.acted = ends_turn
 
     _remove_dead(s)
-    _advance_until_pending(s, params)
+    _events_after_step(s, events)
+    _advance_until_pending(s, params, events)
     return s
