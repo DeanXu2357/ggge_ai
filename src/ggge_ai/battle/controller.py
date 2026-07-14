@@ -266,6 +266,7 @@ class ManualBattleController:
     _turn_advised: bool = False
     _turn_sig_refreshed: bool = False
     _proposal: object | None = None
+    _card_count: int | None = None
     _sig_positions: dict = field(default_factory=dict)
     _pending: reconcile.PendingOutcome | None = None
     _seen_sigs: set = field(default_factory=set)
@@ -672,13 +673,14 @@ class ManualBattleController:
                         "new turn detected (marker change, turn %d)",
                         self.ledger.turn if self.ledger else 0,
                     )
+            self._card_count = vision.count_unit_cards(frame)
             self._snapshot_factions(frame)
             self._scout(frame)
             self._acquire_intel_once(frame)
             self._refresh_sig_positions(frame)
             self._consult_advisor()
             log.info("selecting next actable unit")
-            self._log("select_unit", frame=frame)
+            self._log("select_unit", frame=frame, cards=self._card_count)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
             self._expect("select_unit", ("label_unit_move", "label_weapon_select"))
             self._probe_after_select()
@@ -689,7 +691,8 @@ class ManualBattleController:
         late_frame = self._frame()
         if vision.unit_cards_present(late_frame):
             log.info("unit cards appeared late, selecting next unit")
-            self._log("select_unit", frame=late_frame)
+            self._card_count = vision.count_unit_cards(late_frame)
+            self._log("select_unit", frame=late_frame, cards=self._card_count)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
             self._expect("select_unit", ("label_unit_move", "label_weapon_select"))
             self._probe_after_select()
@@ -764,6 +767,11 @@ class ManualBattleController:
             notes=notes,
         )
         notes += self.tracker.apply(battle)
+        if self._card_count is not None and self._card_count > len(battle.allies()):
+            notes.append(
+                f"unit cards visible {self._card_count} > allies on board "
+                f"{len(battle.allies())}: board is missing allies"
+            )
         return battle, notes
 
     def _refresh_sig_positions(self, frame) -> None:

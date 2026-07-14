@@ -1,0 +1,19 @@
+{
+  "check": "unit_card_count",
+  "expect": {
+    "count": 0
+  },
+  "box": [
+    170,
+    840,
+    2000,
+    200
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "phase_start_banner.png",
+  "source": "assets/screenshots/20260705-165933.png",
+  "note": "PHASE START過場：亮藍光束橫貫整條（836px+巨run、bar row 143在帶內）＝count_unit_cards寬度帶域[12,170]必須擋下的反例；subagent確認0張卡、整條被過場蓋住。"
+}

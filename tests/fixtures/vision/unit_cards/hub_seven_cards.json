@@ -1,0 +1,19 @@
+{
+  "check": "unit_card_count",
+  "expect": {
+    "count": 7
+  },
+  "box": [
+    170,
+    840,
+    2000,
+    200
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_seven_cards.png",
+  "source": "assets/screenshots/20260705-171040.png",
+  "note": "我方回合hub、TURN 2（與hp_arc決定性幀同源）：7張可操作單位卡，藍HP條pitch 175px、寬154px、bar row abs 999。2026-07-14 subagent目視確認7張（第3卡彩虹高亮框不影響藍條）。count_unit_cards的計數權威來源是卡底藍HP條，非條帶亮度（亮地形會淹沒亮度剖面）。"
+}

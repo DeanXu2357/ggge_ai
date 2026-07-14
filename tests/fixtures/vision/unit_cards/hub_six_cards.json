@@ -1,0 +1,19 @@
+{
+  "check": "unit_card_count",
+  "expect": {
+    "count": 6
+  },
+  "box": [
+    170,
+    840,
+    2000,
+    200
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_six_cards.png",
+  "source": "assets/screenshots/20260706-233847.png",
+  "note": "our_turn_hub_pink_bug 同源幀：6張卡（subagent目視確認）。"
+}

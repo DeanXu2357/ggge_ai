@@ -157,6 +157,56 @@ def unit_cards_present(frame: np.ndarray) -> bool:
     return peak > 0.2
 
 
+UNIT_CARD_COUNT_REGION = (170, 840, 2000, 200)
+UNIT_CARD_BAR_ROW_BAND = (140, 186)
+UNIT_CARD_BAR_WIDTH = (12, 170)
+
+
+def count_unit_cards(frame: np.ndarray) -> int:
+    """How many actable-unit cards the strip shows (the user-settled
+    authority for "which units are ours and can act": at turn start the
+    count equals living allies, then it drops as units act and can bump
+    back up when a kill re-activation returns a card).
+
+    Counting keys on the blue HP bar at each card's foot, not on strip
+    brightness: bright map terrain behind the band defeats any brightness
+    profile (all-bright strip on the 20260713-225448 corpus), while the
+    bars sit on a fixed ~175px pitch at a stable row (measured 159 on
+    20260705/06 PNG hubs, 163-167 on corpus JPEGs). A bar's width is the
+    unit's HP fraction -- damaged units measured 92/66/18px -- so bars are
+    counted by presence above a 12px floor, not by full width; a nearly
+    dead unit under that floor undercounts by one until the next read.
+    The [12, 170] width band rejects the PHASE START banner (an 836px+
+    blue beam through the same rows), and the row band rejects blue UI
+    outside the bar line. Ground truth: subagent visual count 7/6/10/0
+    on the four fixture sources (2026-07-14)."""
+    x0, y0, w, h = UNIT_CARD_COUNT_REGION
+    hsv = cv2.cvtColor(_crop(frame, UNIT_CARD_COUNT_REGION), cv2.COLOR_BGR2HSV)
+    hue, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    blue = (hue > 95) & (hue < 130) & (s > 100) & (v > 120)
+    if not blue.any():
+        return 0
+    bar_row = int(blue.sum(axis=1).argmax())
+    lo, hi = UNIT_CARD_BAR_ROW_BAND
+    if not lo <= bar_row <= hi:
+        return 0
+    band = blue[max(0, bar_row - 6) : bar_row + 7]
+    cols = band.mean(axis=0) > 0.5
+    min_w, max_w = UNIT_CARD_BAR_WIDTH
+    count = 0
+    run = 0
+    for on in cols:
+        if on:
+            run += 1
+        else:
+            if min_w <= run <= max_w:
+                count += 1
+            run = 0
+    if min_w <= run <= max_w:
+        count += 1
+    return count
+
+
 def find_threat_cells(frame: np.ndarray) -> list[tuple[int, int]]:
     """Movable cells inside enemy attack range carry a translucent red fill
     with a red "!" marker. Their centroid points toward the enemy force."""

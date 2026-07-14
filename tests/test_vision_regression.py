@@ -56,6 +56,46 @@ def _check_hp_arc_counts(frame: np.ndarray, expect: dict[str, dict[str, int]]) -
             assert n <= bounds["max"], f"{key}: got {n}, want <= {bounds['max']} ({actual})"
 
 
+def _check_unit_card_count(frame: np.ndarray, expect: dict[str, int]) -> None:
+    actual = vision.count_unit_cards(frame)
+    assert actual == expect["count"], f"got {actual}, want {expect['count']}"
+
+
+def _check_observer_board(frame: np.ndarray, expect: dict) -> None:
+    """End-to-end observer case on a real screenshot: arc scan feeds
+    build_battle_state with the annotated priors (tracker ally beliefs,
+    intel sig positions), and the resolved board must match the bounds.
+    Screen coordinates double as world coordinates (zero camera offset)."""
+    from ggge_ai.battle.observe import build_battle_state
+    from ggge_ai.battle.state import Faction
+    from ggge_ai.battle.tacmap import TacticalMap
+
+    tacmap = TacticalMap()
+    tacmap.allies.extend(vision.find_ally_units(frame))
+    tacmap.enemies.extend(vision.find_enemy_units(frame))
+    tacmap.third_party.extend(vision.find_third_party_units(frame))
+    inputs = expect["inputs"]
+    battle = build_battle_state(
+        tacmap,
+        sig_positions={k: tuple(v) for k, v in inputs.get("sig_positions", {}).items()},
+        ally_sig_positions={
+            k: tuple(v) for k, v in inputs.get("ally_sig_positions", {}).items()
+        },
+        hub_poisoned=inputs.get("hub_poisoned", True),
+    )
+    actual = {
+        "allies": len(battle.allies()),
+        "enemies": len(battle.enemies()),
+        "third_party": len(battle.by_faction(Faction.THIRD_PARTY)),
+    }
+    for key, bounds in expect["board"].items():
+        n = actual[key]
+        if "min" in bounds:
+            assert n >= bounds["min"], f"{key}: got {n}, want >= {bounds['min']} ({actual})"
+        if "max" in bounds:
+            assert n <= bounds["max"], f"{key}: got {n}, want <= {bounds['max']} ({actual})"
+
+
 def _check_keyguard_locked(frame: np.ndarray, expect: bool) -> None:
     kg = Keyguard(device=None, capture=lambda: frame)
     assert kg.is_game_locked() is expect
@@ -143,6 +183,8 @@ CHECKS = {
     "defeat_screen": _check_bool(vision.is_defeat_screen),
     "dialog_cursor_present": _check_bool(lambda f: vision.locate_dialog_cursor(f) is not None),
     "hp_arc_counts": _check_hp_arc_counts,
+    "unit_card_count": _check_unit_card_count,
+    "observer_board": _check_observer_board,
     "keyguard_locked": _check_keyguard_locked,
     "mode_label": _check_mode_label,
     "digit_read": _check_digit_read,

@@ -168,6 +168,8 @@ def replay_readers(run_dir: Path, events: list[dict]) -> tuple[Tally, int, int]:
                 _diff_event(event, vision.read_battle_prep_forecast(frame), PREP_FIELDS, tally)
             elif kind == "select_unit":
                 tally.add(kind, "unit_cards_present", vision.unit_cards_present(frame))
+                if "cards" in event:
+                    tally.add(kind, "cards", event["cards"] == vision.count_unit_cards(frame))
         except Exception as exc:  # noqa: BLE001 -- a reader crash is itself a finding
             errors += 1
             print(f"  reader error on {rel}: {exc!r}")

@@ -1,0 +1,19 @@
+{
+  "check": "unit_card_count",
+  "expect": {
+    "count": 10
+  },
+  "box": [
+    170,
+    840,
+    2000,
+    200
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "deployment_ten_cards.png",
+  "source": "assets/screenshots/20260705-153716.png",
+  "note": "部署階段hub：10張卡延伸到x≈1949（subagent目視確認）——舊UNIT_CARD_STRIP_BOX(w=900)只蓋到第5張，計數區域必須用w=2000。"
+}
