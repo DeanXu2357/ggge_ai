@@ -174,6 +174,40 @@ def test_unreadable_counter_burns_budget_then_unverified(monkeypatch):
     assert _event(c, "kill_check")["result"] == "unverified_counter_unreadable"
 
 
+def test_tracker_follows_the_full_chain(monkeypatch):
+    c = _controller()
+    _wire(monkeypatch, c, [(3, 14), (4, 14)])
+    c._dispatched_mode = "label_weapon_select"
+
+    c._register_attack_decision(c.perception.capture(), slot=1)
+    assert c.tracker.beliefs["t" * 16].hp == 8000
+    assert c.tracker.beliefs["a" * 16].hp == 50000
+
+    c._attack(slot=1)
+    c._dispatched_mode = "label_battle_prep"
+    c._on_battle_prep()
+    c._judge_pending("label_our_turn")
+
+    assert c.tracker.beliefs["t" * 16].alive is False
+    assert ("t" * 16) not in c.tracker.sig_positions()
+
+
+def test_tracker_keeps_hp_on_a_missed_kill(monkeypatch):
+    c = _controller()
+    _wire(monkeypatch, c, [(3, 14), (3, 14)])
+    c._dispatched_mode = "label_weapon_select"
+
+    c._register_attack_decision(c.perception.capture(), slot=1)
+    c._attack(slot=1)
+    c._dispatched_mode = "label_battle_prep"
+    c._on_battle_prep()
+    c._judge_pending("label_our_turn")
+
+    belief = c.tracker.beliefs["t" * 16]
+    assert belief.alive is True
+    assert belief.hp == 8000
+
+
 def test_reaction_prep_records_without_touching_pending(monkeypatch):
     c = _controller()
     reaction = BattlePrepForecast(

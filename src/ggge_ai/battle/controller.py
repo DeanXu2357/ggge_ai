@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from ggge_ai.battle import reconcile, vision
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.tacmap import TacticalMap
+from ggge_ai.battle.tracker import BoardTracker
 from ggge_ai.domain import screens
 from ggge_ai.vision.motion import frame_diff
 
@@ -255,6 +256,9 @@ class ManualBattleController:
     _seen_sigs: set = field(default_factory=set)
     _sig_names: dict = field(default_factory=dict)
     tacmap: TacticalMap = field(default_factory=TacticalMap)
+    # running board beliefs fed by the read-back hooks (forecast, prep,
+    # kill counter, turn boundary); process-scoped, never persisted
+    tracker: BoardTracker = field(default_factory=BoardTracker)
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
         """Cycle the AUTO button until it is colorless (full manual)."""
@@ -626,6 +630,7 @@ class ManualBattleController:
                 elif turn_number > current:
                     self._turn_scouted = False
                     self._turn_advised = False
+                    self.tracker.on_turn(turn_number)
                     if self.ledger is not None:
                         self.ledger.next_turn(frame=frame, turn=turn_number)
                     log.info("new turn detected (TURN %d on screen)", turn_number)
@@ -638,6 +643,7 @@ class ManualBattleController:
                     self._turn_marker = marker
                     self._turn_scouted = False
                     self._turn_advised = False
+                    self.tracker.on_turn(self.tracker.turn + 1)
                     if self.ledger is not None:
                         self.ledger.next_turn(frame=frame)
                     log.info(
@@ -700,6 +706,7 @@ class ManualBattleController:
         self._sig_names.update(intel.names)
         self._sig_positions.update(intel.positions)
         self._seen_sigs.update(intel.specs_by_sig)
+        self.tracker.on_intel(intel)
         log.info(
             "intel sweep done: %d specs (%d from cache, %d panels opened)%s",
             len(intel.specs_by_sig),
@@ -720,12 +727,18 @@ class ManualBattleController:
         from . import advisor as advisor_mod
         from .observe import build_battle_state
 
+        positions = {
+            sig: pos
+            for sig, pos in self._sig_positions.items()
+            if sig not in self.tracker.beliefs or self.tracker.beliefs[sig].alive
+        }
         battle = build_battle_state(
             self.tacmap,
             specs_by_sig=self.specs_by_sig,
-            sig_positions=self._sig_positions,
+            sig_positions=positions,
             turn=self.ledger.turn if self.ledger is not None else 1,
         )
+        belief_notes = self.tracker.apply(battle)
         advice = advisor_mod.advise(
             battle,
             self.specs_by_sig,
@@ -745,6 +758,7 @@ class ManualBattleController:
             value=round(advice.value, 1),
             pv_kinds=advice.pv_kinds[:8],
             assumptions=advice.assumptions[:8],
+            beliefs=belief_notes[:8],
         )
         log.info(
             "advisor proposal: %s %s -> %s (value %.0f, %d assumptions) -- not executed, v1 compares only",
@@ -1120,6 +1134,7 @@ class ManualBattleController:
         counter = vision.read_kill_counter(frame)
         self._note_sig(forecast.our_name_sig, frame, vision.FORECAST_RIGHT_NAME_REGION, "ours")
         self._note_sig(forecast.target_name_sig, frame, vision.FORECAST_LEFT_NAME_REGION, "enemy")
+        self.tracker.on_weapon_select(forecast)
         expectation = reconcile.compute_expectation(
             attacker_spec=self.specs_by_sig.get(forecast.our_name_sig),
             target_spec=self.specs_by_sig.get(forecast.target_name_sig),
@@ -1242,6 +1257,8 @@ class ManualBattleController:
                 self._pending = None
             return
         result, divergences = reconcile.judge_outcome(pending, counter)
+        delta = counter[0] - pending.counter_before[0] if pending.counter_before else None
+        self.tracker.on_outcome(pending, result, delta=delta)
         for d in divergences:
             log.warning(d.message)
             self._log(d.tag, frame=self._safe_frame(), divergence=d.kind, **d.detail)
@@ -1267,6 +1284,7 @@ class ManualBattleController:
         frame = self._frame()
         prep = vision.read_battle_prep_forecast(frame)
         if prep is not None:
+            self.tracker.on_battle_prep(prep)
             self._log(
                 "forecast_battle_prep",
                 frame=frame,
