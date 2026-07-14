@@ -1,10 +1,57 @@
 # 進度與規劃
 
-更新日期：2026-07-14（**Pilot 離線批次 M1-M7 全落地**：solver 接管
-駕駛的 executor/observer/tracker 鏈完成、預設關閉在 GGGE_PILOT 後面；
-hub 粉紅弧 HSV 判決＝不可分，sig-confirmation 成為正式盤面過濾）
+更新日期：2026-07-14 深夜（**S 批次規劃定稿＋S0 observer 元件除錯落地**：
+關卡定義檔＋uid＋M8 合併為 S0-S10 計畫；弧色降為第一層啟發式，
+卡條成為我方權威、tracker 信念回收粉紅弧）
 
-## 暫停快照（2026-07-14 pilot 離線批次，恢復點）
+## 暫停快照（2026-07-14 深夜 S 批次，恢復點）
+
+**裝置現況**：不變（本批次純離線）——遊戲停在主畫面、體力 ~96、
+adb server 關；WiFi adb 已配對（重連 `adb connect 192.168.50.28:<port>`，
+port 每次重開會變）。凍機硬體檢查（memtest86+/BIOS）仍最優先。
+
+**規劃定稿**：stage-definition＋uid 身分制＋M8 雙行為 observer 合併為
+**S0-S10 批次**（計畫全文 `~/.claude/plans/nifty-forging-sonnet.md`；
+需求 docs/stage-definition-requirements.md）。使用者三個修正定調：
+①hub 誤判歸根究底是 observer 元件缺陷→**S0 元件除錯先行**，
+「敵人存不存在由定義檔決定」的補償性設計拿掉（定義檔只當 turn-1
+開局先驗與身分描述）；②**弧色只當第一層啟發式**，我方可控單位權威=
+hub 下方可操作單位卡條；③指定截圖當 observer 端到端實測案例
+（observer_board fixture 機制）。舊 Stage B/C 收編 S9/S10（B0 作廢）；
+執行節奏=S1 完成後停下給使用者過目 schema。
+
+**S0 成果（413 測試/3 xfail、ruff 綠、replay 閘門與基準一致）**：
+
+1. **d32430f observe 證據分層**：poisoned 掃描上無敵方 sig 對位的
+   紅帶弧，先對位 tracker ally 信念（卡條驅動的 activation 錨定鏈）
+   →回收為未行動我方；對不上才丟棄。敵方 sig 優先權、乾淨掃描路徑
+   不變。
+2. **3676323 vision.count_unit_cards**：卡底藍 HP 條計數（pitch
+   175px；藍條寬=剩餘 HP 比例，實測 92/66/18px 受傷條，12px 下限；
+   亮度剖面會被亮地形淹沒不可用；卡條實延伸至 x≈1949，舊 900px box
+   只見 5 張）。select_unit ledger 事件帶 cards 欄位；`_build_board`
+   缺額 note（cards>盤面我方＝未來 M8-① resync 觸發訊號）；replay
+   增 cards 對比；4 張 PNG fixture（7/6/10/0，subagent 目視 ground
+   truth）＋合成測試釘閘門。
+3. **ec72087 observer_board check**：真實截圖＋標注先驗（tracker
+   信念/intel 位置）→斷言解析後盤面陣營數；mixed_factions（3 粉紅
+   回收＋敵恰 1）與 pink_bug（9 假敵→4 回收 0 敵）兩案例釘住修復。
+
+**S0 判定紀錄**：弧結構差異（敵弧維持紅左＋橙右雙色調 vs 未行動我方
+全寬粉紅＋黃上線，`yellow_only` 欄 32 vs 0）只有 n=1 敵樣本→僅當
+啟發式不當權威；相位邊界快照離線證據足（phase_start_clean 乾淨、
+位置攜帶由遊戲規則保證），捕捉時機歸 S9；卡條語義實測=未行動可操作
+列表（回合起點=存活數、隨啟動遞減、擊殺再動會補卡回升→單調性僅
+advisory）。
+
+**S0 未竟（歸 S9 實機）**：自機卡/敵機卡判別（已知風險①的關閉條件）、
+相位邊界快照的捕捉時機標定。
+
+**下一步**：S1 schema v2＋`battle/stage_def.py`（load/save/uid 發號/
+sig 候選/to_spec）→ **停下給使用者過目 schema** → S2∥S3∥S4
+（objectives／sim events／IdentityResolver 可並行）。
+
+## 本日稍早批次（2026-07-14 pilot 離線 M1-M7）
 
 **裝置現況**（本批次純離線未碰實機）：遊戲停在主畫面（棄局後遇日期
 變更彈窗已收）、體力 ~96、adb server 關。WiFi adb 已配對（poyu@fedora；
@@ -49,31 +96,14 @@ system-freeze-investigation。
    True`（盤面只收 sig 確認敵）；intel 預算動態跟隨敵機種類數（上限
    12、每面板 ~15s），顯式預算維持固定供測試。
 
-**使用者新定案（雙行為 observer，待規劃＝M8）**：①完整同步模式——
-我方 phase 盤面空/缺敵時 observer 自行重掃補齊（pilot 空盤先 resync
-再判對齊失敗）；②反應動作模式——從截圖辨識當下可操作項（應戰選項、
-支援有無）回饋 solver；③演出階段辨識（事件插入/新敵機登場＝等待）；
-④關卡事件可資料插入（純模擬版預備）。
+（本批次尾聲的 M8 雙行為 observer 定案與 7/14 晚關卡定義檔定案，
+已全部併入上方 S 批次計畫與 docs/stage-definition-requirements.md。）
 
-**7/14 晚追加定案（需求全文 docs/stage-definition-requirements.md，
-與 M8 合併重新規劃；使用者將清理對話後另開規劃 session）**：關卡
-定義檔（layout＋conditions＋events）＝solver 的賽局完整描述；後端
-uid 身分制取代 sig 主鍵（同機種不同駕駛數值不同，sig 降關聯證據、
-建檔每台開面板）；冷掃全量（掃不完＝報錯，minimax 要完整賽局）／
-溫 cache 開局校驗（畫面權威）；**intel 動態預算上限 12（b587fe2）
-確定拿掉**；solver 條件驅動 terminal/evaluator＋step() 套 events
-（斬首/護衛/限時關目標函數不同）；紅線邊界＝腳本事件可入檔、敵 AI
-傾向不可（另簽核）。
-
-**已知風險（實機驗證要盯）**：① intel 掃描會 tap 到粉紅我方弧——
-tap 自己單位可能開自機摘要卡（讀進敵方 intel＝污染）或選中單位，
-7/13 實戰沒炸但未系統驗證；② 實機 sig 抖動鏈式漂移（見上）；
-③ anchor 單解錯位風險（fail-fast 會抓後果）。
-
-**下一步**：M8 雙行為 observer 規劃；實機批次＝計畫 Stage B 探測
-B0-B5（identify 探測、btn_switch_target 標定、sig 刷新、per-activation
-影子、應戰彈窗捕捉）→ Stage C 整合戰（GGGE_PILOT=1 GGGE_INTEL=1，
-已通關低難度關卡免費棄局）。凍機硬體檢查先行。
+**已知風險（實機驗證要盯，S9 對應）**：① intel 掃描會 tap 到粉紅
+我方弧——tap 自己單位可能開自機摘要卡（讀進敵方 intel＝污染）或
+選中單位，7/13 實戰沒炸但未系統驗證（S9 自機卡判別關閉此風險）；
+② 實機 sig 抖動鏈式漂移（見上）；③ anchor 單解錯位風險（fail-fast
+會抓後果）。
 
 ## 歷史
 
