@@ -1,0 +1,28 @@
+{
+  "check": "hp_arc_counts",
+  "expect": {
+    "enemies": {
+      "max": 2
+    },
+    "allies": {
+      "min": 5
+    },
+    "third_party": {
+      "max": 0
+    }
+  },
+  "box": [
+    150,
+    90,
+    1510,
+    780
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "our_turn_hub_mixed_factions.png",
+  "source": "assets/screenshots/20260705-171040.png",
+  "note": "同幀混編的決定性證據(2026-07-14目視確認+HSV量測)：我方回合hub、TURN 2。左側3台未行動我方(373,605)(503,605)(633,605)粉紅弧 H中位7-8/S中位135/V中位202-203；中央1台敵機(880,606)真敵紅弧 H中位8/S中位136/V中位204——同一幀上兩者的blob HSV統計完全重疊，逐像素色彩無法分離(人眼差異來自血條黑色缺損段與黃內線，不在中位統計裡)。右側2台已行動我方為乾淨藍弧。敵方回合校準源(20260705-170520)的真敵紅同樣S~135。結論：hub狀態的敵我分類需sig-confirmation過濾(observe.build_battle_state hub_poisoned=True)，不是閾值問題。",
+  "xfail_reason": "H/S/V/shape statistically identical between unacted-ally pink and enemy red on the same hub frame; per-pixel color separation impossible, see issue #5"
+}

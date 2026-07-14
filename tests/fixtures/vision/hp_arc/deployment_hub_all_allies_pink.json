@@ -1,0 +1,28 @@
+{
+  "check": "hp_arc_counts",
+  "expect": {
+    "enemies": {
+      "max": 0
+    },
+    "allies": {
+      "min": 10
+    },
+    "third_party": {
+      "max": 0
+    }
+  },
+  "box": [
+    150,
+    90,
+    1510,
+    780
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "deployment_hub_all_allies_pink.png",
+  "source": "assets/screenshots/20260705-153716.png",
+  "note": "初期配置階段的our-turn hub(變更初期配置鈕在畫面上)：全部~12台皆我方，未行動粉紅弧5台被find_enemy_units誤判為敵(H中位7-11/S中位135-138)。2026-07-14目視確認全為我方(綠薩克狙擊/RX-78紅盾/鋼坦克)。與our_turn_hub_pink_bug同病灶，增加hub狀態樣本數。",
+  "xfail_reason": "same hub-state pink-ally misclassification as our_turn_hub_pink_bug; see issue #5"
+}
