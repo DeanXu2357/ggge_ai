@@ -18,8 +18,9 @@ from dataclasses import dataclass, field
 from .bridge import BridgeDefaults, UnitSpec, build_sim_state
 from .enemy_model import MODE_MIN, MODE_POLICY, MinimaxEnemy, NearestTargetPolicy
 from .grid import grid_move_validator, reach_provider
+from .sim import SimState
 from .solver import SearchStats, SolverConfig, solve
-from .state import BattleState, Point
+from .state import BattleState, Faction, Point
 
 
 @dataclass
@@ -47,18 +48,39 @@ class Advice:
     stats: SearchStats
 
 
+def _promote_actor(state: SimState, unit_id: str) -> bool:
+    """Move the unit to the front of the list so the simulator activates it
+    first (allies act in list order; the solver never branches over that
+    order). False when the unit is not an eligible actor right now."""
+    unit = state.unit(unit_id)
+    if unit is None or unit.faction is not Faction.ALLY or unit.acted or not unit.alive:
+        return False
+    state.units.remove(unit)
+    state.units.insert(0, unit)
+    return True
+
+
 def advise(
     battle: BattleState,
     specs: Mapping[str, UnitSpec],
     config: AdvisorConfig | None = None,
+    *,
+    unit_id: str | None = None,
 ) -> Advice | None:
-    """Bridge, solve, translate; None when there is nothing to decide."""
+    """Bridge, solve, translate; None when there is nothing to decide.
+
+    unit_id pins the root actor for pilot execution: the game has already
+    selected that unit, so the search must optimise its activation rather
+    than the default list-order one. None when the unit cannot act -- the
+    caller decides whether that is a fallback or an abort."""
     config = config or AdvisorConfig()
     bridged = build_sim_state(
         battle, specs, cell_size=config.cell_size, defaults=config.defaults
     )
     state = bridged.state
     if not state.allies() or not state.enemies():
+        return None
+    if unit_id is not None and not _promote_actor(state, unit_id):
         return None
 
     validator = grid_move_validator if config.use_grid else None
