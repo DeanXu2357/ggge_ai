@@ -47,9 +47,9 @@ advisory）。
 **S0 未竟（歸 S9 實機）**：自機卡/敵機卡判別（已知風險①的關閉條件）、
 相位邊界快照的捕捉時機標定。
 
-**下一步**：S1 schema v2＋`battle/stage_def.py`（load/save/uid 發號/
-sig 候選/to_spec）→ **停下給使用者過目 schema** → S2∥S3∥S4
-（objectives／sim events／IdentityResolver 可並行）。
+**下一步**：S1 已落地（e9d4064 `battle/stage_def.py`＋test_stage_def
+11 測試；424 passed/3 xfail）——**正停下給使用者過目 schema**；
+核可後 S2∥S3∥S4（objectives／sim events／IdentityResolver 可並行）。
 
 ## 本日稍早批次（2026-07-14 pilot 離線 M1-M7）
 
