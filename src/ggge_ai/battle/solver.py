@@ -58,8 +58,18 @@ from .sim import (
 from .state import Faction
 
 Evaluator = Callable[[SimState, "SearchContext"], float]
+# None = not terminal; a float is the position's terminal value and must
+# lie inside the objective's bounds or Star1 pruning turns unsound
+TerminalFn = Callable[[SimState, "SearchContext"], "float | None"]
 
 _INF = float("inf")
+
+
+def _annihilation_terminal(state: SimState, ctx: SearchContext) -> float | None:
+    """The pre-objective behavior: one side wiped out ends the search and
+    the leaf evaluator prices the wipeout. Kept as the default so a
+    config without an objective stays bit-for-bit equivalent."""
+    return ctx.evaluator(state, ctx) if _terminal(state) else None
 
 
 @dataclass(frozen=True)
@@ -84,6 +94,19 @@ class SolverResult:
     stats: SearchStats
 
 
+@dataclass(frozen=True)
+class Objective:
+    """What the search is optimizing: stage-condition-driven terminal
+    test, leaf evaluator, and the value bounds Star1 prunes against.
+    `bounds` None falls back to _eval_bounds; a condition objective whose
+    terminal returns win/loss rewards must supply bounds that contain
+    them. Built from a stage definition by objectives.make_objective."""
+
+    terminal: TerminalFn
+    evaluator: Evaluator
+    bounds: tuple[float, float] | None = None
+
+
 @dataclass
 class SolverConfig:
     time_budget_s: float = 2.0
@@ -94,6 +117,7 @@ class SolverConfig:
     reach_provider: ReachProvider | None = None
     use_tt: bool = True
     use_star1: bool = True
+    objective: Objective | None = None
 
 
 _FLAG_EXACT = 0
@@ -123,6 +147,7 @@ class SearchContext:
     base_enemies: int
     vmin: float
     vmax: float
+    terminal: TerminalFn = _annihilation_terminal
     tt: dict = field(default_factory=dict)
 
 
@@ -234,7 +259,10 @@ def _search(
     ctx.stats.nodes += 1
     if time.monotonic() > ctx.deadline:
         raise _Timeout
-    if _terminal(state) or depth <= 0:
+    terminal_value = ctx.terminal(state, ctx)
+    if terminal_value is not None:
+        return terminal_value, []
+    if depth <= 0:
         return ctx.evaluator(state, ctx), []
 
     key = (state.key(), depth)
@@ -482,12 +510,21 @@ def solve(
     *,
     evaluator: Evaluator | None = None,
 ) -> SolverResult:
-    """Iterative deepening expectiminimax; returns the best first decision."""
+    """Iterative deepening expectiminimax; returns the best first decision.
+    config.objective takes precedence over the evaluator argument; with
+    neither, the annihilation default reproduces the pre-objective
+    behavior exactly."""
     config = config or SolverConfig()
-    evaluator = evaluator or default_evaluator
+    objective = config.objective or Objective(
+        terminal=_annihilation_terminal,
+        evaluator=evaluator or default_evaluator,
+    )
     base_allies = len(state.allies())
     base_enemies = len(state.enemies())
-    vmin, vmax = _eval_bounds(base_allies, base_enemies, config.weights)
+    if objective.bounds is not None:
+        vmin, vmax = objective.bounds
+    else:
+        vmin, vmax = _eval_bounds(base_allies, base_enemies, config.weights)
     stats = SearchStats()
 
     best = SolverResult(decision=None, pv=[], value=0.0, stats=stats)
@@ -497,13 +534,14 @@ def solve(
         ctx = SearchContext(
             enemy_model=enemy_model,
             config=config,
-            evaluator=evaluator,
+            evaluator=objective.evaluator,
             deadline=deadline,
             stats=stats,
             base_allies=base_allies,
             base_enemies=base_enemies,
             vmin=vmin,
             vmax=vmax,
+            terminal=objective.terminal,
         )
         try:
             value, pv = _search(state, depth, -_INF, _INF, ctx)
@@ -516,7 +554,7 @@ def solve(
             value=value,
             stats=stats,
         )
-        if _terminal(state):
+        if objective.terminal(state, ctx) is not None:
             break
     return best
 
@@ -534,7 +572,10 @@ def solve_reaction(
     The root is the same _our_defense_node the in-tree search uses; the
     returned decision is the attack with the chosen defense attached."""
     config = config or SolverConfig()
-    evaluator = evaluator or default_evaluator
+    objective = config.objective or Objective(
+        terminal=_annihilation_terminal,
+        evaluator=evaluator or default_evaluator,
+    )
     stats = SearchStats()
     best = SolverResult(decision=None, pv=[], value=0.0, stats=stats)
     target = state.unit(attack.target_id)
@@ -542,20 +583,24 @@ def solve_reaction(
         return best
     base_allies = len(state.allies())
     base_enemies = len(state.enemies())
-    vmin, vmax = _eval_bounds(base_allies, base_enemies, config.weights)
+    if objective.bounds is not None:
+        vmin, vmax = objective.bounds
+    else:
+        vmin, vmax = _eval_bounds(base_allies, base_enemies, config.weights)
     deadline = time.monotonic() + config.time_budget_s
 
     for depth in range(1, config.max_depth + 1):
         ctx = SearchContext(
             enemy_model=enemy_model,
             config=config,
-            evaluator=evaluator,
+            evaluator=objective.evaluator,
             deadline=deadline,
             stats=stats,
             base_allies=base_allies,
             base_enemies=base_enemies,
             vmin=vmin,
             vmax=vmax,
+            terminal=objective.terminal,
         )
         try:
             value, pv = _our_defense_node(state, attack, target, depth, -_INF, _INF, ctx)
