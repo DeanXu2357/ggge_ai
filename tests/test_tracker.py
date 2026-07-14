@@ -161,6 +161,25 @@ def test_apply_never_overwrites_a_scan_value():
     assert battle.unit(ENEMY_SIG).en == 120
 
 
+def test_jittered_sig_resolves_to_the_same_belief():
+    # live corpus 20260713-225448: one unit's sig differs by 3-5 bits
+    # between the weapon-select and battle-prep panels
+    t = BoardTracker()
+    t.on_weapon_select(_forecast(our_name_sig="9115599951d15595", our_hp=89311))
+    t.on_battle_prep(_prep(is_reaction=True, attacker_name_sig=None,
+                           defender_name_sig="9119599551d155d5", defender_hp=74000))
+    assert "9119599551d155d5" not in t.beliefs
+    assert t.beliefs["9115599951d15595"].hp == 74000
+
+
+def test_distant_sig_creates_a_new_belief():
+    t = BoardTracker()
+    t.on_weapon_select(_forecast())
+    t.on_weapon_select(_forecast(target_name_sig="0" * 16, target_hp=123))
+    assert t.beliefs["0" * 16].hp == 123
+    assert t.beliefs[ENEMY_SIG].hp == 8000
+
+
 def test_apply_skips_far_ally_beliefs():
     t = BoardTracker()
     t.on_weapon_select(_forecast(), our_world=(10.0, 20.0))

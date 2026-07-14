@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 from .observe import SIG_MATCH_RADIUS
 from .state import BattleState, Faction, Point
+from .vision import signature_distance
 
 if TYPE_CHECKING:
     from .reconcile import PendingOutcome
@@ -29,6 +30,11 @@ if TYPE_CHECKING:
 
 _KILLED_RESULTS = frozenset({"unexpected_kill"})
 _NOT_KILLED_RESULTS = frozenset({"model_diverge", "rng_branch", "unverified_hit_unknown"})
+
+# the same unit's name signature jitters a few bits between panels (live
+# corpus 20260713-225448: weapon-select vs battle-prep sigs of one unit
+# differ by 3-5 bits); same tolerance as stage_cache.SIG_MATCH_MAX_DISTANCE
+SIG_ALIAS_MAX_DISTANCE = 6
 
 
 @dataclass
@@ -51,9 +57,24 @@ class BoardTracker:
     def _belief(self, sig: str, faction: Faction) -> UnitBelief:
         belief = self.beliefs.get(sig)
         if belief is None:
+            canon = self._canonical(sig, faction)
+            if canon is not None:
+                return self.beliefs[canon]
             belief = UnitBelief(sig=sig, faction=faction)
             self.beliefs[sig] = belief
         return belief
+
+    def _canonical(self, sig: str, faction: Faction) -> str | None:
+        """The existing belief key this jittered signature really is, if
+        any -- keeps one unit from splitting into several beliefs."""
+        best, best_distance = None, SIG_ALIAS_MAX_DISTANCE + 1
+        for existing, belief in self.beliefs.items():
+            if belief.faction is not faction:
+                continue
+            distance = signature_distance(sig, existing)
+            if distance < best_distance:
+                best, best_distance = existing, distance
+        return best
 
     def _place(self, belief: UnitBelief, world: Point | None) -> None:
         if world is not None:

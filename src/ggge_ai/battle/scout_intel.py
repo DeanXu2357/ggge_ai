@@ -187,6 +187,19 @@ def _await_modal(capture: Callable, sleep: Callable[[float], None]):
     return None
 
 
+def _canonical_sig(sig: str, known: dict[str, tuple[float, float]]) -> str:
+    """Resolve a freshly read signature to the tracked key it jitters
+    around (same tolerance as the stage cache); unknown sigs pass through."""
+    if sig in known:
+        return sig
+    best, best_distance = None, stage_cache.SIG_MATCH_MAX_DISTANCE + 1
+    for candidate in known:
+        distance = vision.signature_distance(sig, candidate)
+        if distance < best_distance:
+            best, best_distance = candidate, distance
+    return best if best is not None else sig
+
+
 @dataclass
 class RefreshBudget:
     max_taps: int = 6
@@ -266,6 +279,7 @@ def refresh_sig_positions(
             if sig is None:
                 record("sig_refresh", point=list(point), result="no_card")
                 continue
+            sig = _canonical_sig(sig, known)
             if sig in result.positions:
                 record("sig_refresh", sig=sig, point=list(point), result="stale_card")
                 continue

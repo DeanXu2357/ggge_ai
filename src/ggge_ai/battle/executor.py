@@ -19,6 +19,7 @@ from .bridge import UnitSpec
 from .observe import SIG_MATCH_RADIUS
 from .state import BattleState, Point
 from .tacmap import TacticalMap
+from .tracker import SIG_ALIAS_MAX_DISTANCE
 
 
 @dataclass
@@ -91,6 +92,18 @@ def move_tap(
     return "direct", (round(desired[0]), round(desired[1]))
 
 
+def verifiable_target(target_id: str | None) -> bool:
+    """Only a signature-named target can pass the forecast check; a
+    positional id (unconfirmed arc) leaves the attack unverifiable."""
+    if target_id is None:
+        return False
+    try:
+        int(target_id, 16)
+    except ValueError:
+        return False
+    return True
+
+
 def slot_for(advice: Advice, spec: UnitSpec | None) -> int | None:
     """Weapon slot for advice.weapon via the slot i <-> spec.weapons[i-1]
     convention (reconcile.py); None when the spec cannot name it."""
@@ -103,8 +116,13 @@ def slot_for(advice: Advice, spec: UnitSpec | None) -> int | None:
 
 
 def target_ok(forecast, advice: Advice) -> bool:
-    return (
-        forecast is not None
-        and forecast.target_name_sig is not None
-        and forecast.target_name_sig == advice.target_id
-    )
+    """The locked target is the advised one, up to the few bits of
+    signature jitter one unit shows across different panels. A positional
+    target id (enemy_N, no signature to compare) can never be verified."""
+    if forecast is None or forecast.target_name_sig is None or advice.target_id is None:
+        return False
+    try:
+        distance = vision.signature_distance(forecast.target_name_sig, advice.target_id)
+    except ValueError:
+        return False
+    return distance <= SIG_ALIAS_MAX_DISTANCE

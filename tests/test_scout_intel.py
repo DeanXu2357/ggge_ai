@@ -227,6 +227,20 @@ def test_refresh_phantom_and_stale_reads_do_not_update():
     assert results == ["no_card", "ok", "stale_card"]
 
 
+def test_refresh_canonicalizes_jittered_card_sigs():
+    script = _Script([HUB])
+    jittered = hex(int(SIG, 16) ^ 0b101)[2:].zfill(len(SIG))
+    refresh = refresh_sig_positions(
+        script.capture,
+        script.tap,
+        [(900.0, 150.0), (1000.0, 150.0)],
+        {jittered: (920.0, 150.0)},
+        sleep=lambda s: None,
+    )
+    assert refresh.positions == {jittered: (900.0, 150.0)}
+    assert refresh.unresolved == []
+
+
 def test_refresh_tap_budget_is_honored():
     blank = np.zeros((1080, 2340, 3), np.uint8)
     script = _Script([blank])

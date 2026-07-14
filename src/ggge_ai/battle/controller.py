@@ -1064,6 +1064,12 @@ class ManualBattleController:
             return False
         slot = None
         if advice.kind == ActionKind.ATTACK:
+            if not executor.verifiable_target(advice.target_id):
+                self._log(
+                    "pilot_fallback", reason="unverifiable_target",
+                    unit=ally_id, target=advice.target_id,
+                )
+                return False
             slot = executor.slot_for(advice, self.specs_by_sig.get(ally_id))
             if slot is None:
                 self._pilot_abort(

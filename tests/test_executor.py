@@ -57,9 +57,33 @@ def test_slot_for_maps_weapon_name_to_slot():
 
 def test_target_ok_requires_a_readable_matching_sig():
     assert executor.target_ok(_forecast(), _advice())
-    assert not executor.target_ok(_forecast(target_name_sig="x" * 16), _advice())
+    assert not executor.target_ok(_forecast(target_name_sig="0" * 16), _advice())
     assert not executor.target_ok(_forecast(target_name_sig=None), _advice())
     assert not executor.target_ok(None, _advice())
+
+
+def test_target_ok_tolerates_panel_sig_jitter():
+    advice = _advice(target_id="9115599951d15595")
+    assert executor.target_ok(
+        _forecast(target_name_sig="9119599551d155d5"), advice
+    )
+
+
+def test_verifiable_target_rejects_positional_ids():
+    assert executor.verifiable_target(ENEMY_SIG)
+    assert not executor.verifiable_target("enemy_3")
+    assert not executor.verifiable_target(None)
+
+
+def test_pilot_positional_target_demotes_to_greedy(monkeypatch):
+    advice = _advice(kind="attack", target_id="enemy_3")
+    c = _pilot_controller(monkeypatch, advice, specs={"ally_1": _spec()})
+
+    c._on_unit_move()
+
+    fallbacks = [e for e in c.ledger.events if e["kind"] == "pilot_fallback"]
+    assert len(fallbacks) == 1 and fallbacks[0]["reason"] == "unverifiable_target"
+    assert controller_mod.WEAPON_SELECT_BTN in c.actuator.taps
 
 
 def test_move_tap_snaps_to_the_nearest_cell():
@@ -253,7 +277,7 @@ def test_pilot_target_mismatch_without_switch_button_aborts(monkeypatch):
     monkeypatch.setattr(vision, "attack_enabled", lambda f: True)
     monkeypatch.setattr(
         vision, "read_weapon_select_forecast",
-        lambda f: _forecast(target_name_sig="x" * 16),
+        lambda f: _forecast(target_name_sig="0" * 16),
     )
     c._dispatched_mode = "label_weapon_select"
 
@@ -261,7 +285,7 @@ def test_pilot_target_mismatch_without_switch_button_aborts(monkeypatch):
         c._on_weapon_select()
     aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
     assert aborts[0]["reason"] == "target_mismatch"
-    assert aborts[0]["seen"] == "x" * 16
+    assert aborts[0]["seen"] == "0" * 16
 
 
 def test_pilot_weapon_not_lit_aborts(monkeypatch):
