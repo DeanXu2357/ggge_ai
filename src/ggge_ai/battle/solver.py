@@ -519,3 +519,53 @@ def solve(
         if _terminal(state):
             break
     return best
+
+
+def solve_reaction(
+    state: SimState,
+    attack: Decision,
+    enemy_model: EnemyModel,
+    config: SolverConfig | None = None,
+    *,
+    evaluator: Evaluator | None = None,
+) -> SolverResult:
+    """Iterative-deepening max over OUR defense responses to `attack` --
+    the enemy decision the reaction popup has already shown on screen.
+    The root is the same _our_defense_node the in-tree search uses; the
+    returned decision is the attack with the chosen defense attached."""
+    config = config or SolverConfig()
+    evaluator = evaluator or default_evaluator
+    stats = SearchStats()
+    best = SolverResult(decision=None, pv=[], value=0.0, stats=stats)
+    target = state.unit(attack.target_id)
+    if target is None:
+        return best
+    base_allies = len(state.allies())
+    base_enemies = len(state.enemies())
+    vmin, vmax = _eval_bounds(base_allies, base_enemies, config.weights)
+    deadline = time.monotonic() + config.time_budget_s
+
+    for depth in range(1, config.max_depth + 1):
+        ctx = SearchContext(
+            enemy_model=enemy_model,
+            config=config,
+            evaluator=evaluator,
+            deadline=deadline,
+            stats=stats,
+            base_allies=base_allies,
+            base_enemies=base_enemies,
+            vmin=vmin,
+            vmax=vmax,
+        )
+        try:
+            value, pv = _our_defense_node(state, attack, target, depth, -_INF, _INF, ctx)
+        except _Timeout:
+            break
+        stats.depth = depth
+        best = SolverResult(
+            decision=pv[0] if pv else None,
+            pv=pv,
+            value=value,
+            stats=stats,
+        )
+    return best

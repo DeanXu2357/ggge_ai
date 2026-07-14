@@ -1,10 +1,11 @@
 import random
 
 from ggge_ai.battle.actions import ActionKind
-from ggge_ai.battle.advisor import AdvisorConfig, advise
+from ggge_ai.battle.advisor import AdvisorConfig, advise, advise_reaction
 from ggge_ai.battle.bridge import UnitSpec
-from ggge_ai.battle.sim import SimState, SimUnit, SimWeapon
+from ggge_ai.battle.sim import DefenseKind, SimState, SimUnit, SimWeapon
 from ggge_ai.battle.state import BattleState, Faction, UnitState
+from ggge_ai.domain.roster import CapabilityType, UnitCapability
 
 
 def _weapon(rmax=3, power=5000, en_cost=0):
@@ -110,6 +111,79 @@ def test_unit_id_acted_or_dead_returns_none():
     assert advise(acted, _two_ally_specs(), _config(), unit_id="b") is None
     dead = _two_ally_board(hp=0)
     assert advise(dead, _two_ally_specs(), _config(), unit_id="b") is None
+
+
+def test_reaction_counter_kill_is_preferred():
+    # depth 1: the kill is only reachable through the counter, and the
+    # incoming peashooter hit costs nothing -- countering strictly wins
+    battle = BattleState()
+    battle.add_unit(UnitState("d", Faction.ALLY, world_pos=(0.0, 0.0), hp=100, en=50))
+    battle.add_unit(UnitState("e", Faction.ENEMY, world_pos=(48.0, 0.0), hp=5, en=50))
+    pea = SimWeapon("pea", power=1, range_min=1, range_max=3)
+    specs = {
+        "d": _spec(),
+        "e": _spec(unit_attack=100, pilot_attack=100, weapons=(pea,)),
+    }
+    advice = advise_reaction(
+        battle, specs, defender_id="d", attacker_id="e", config=_config(max_depth=1)
+    )
+    assert advice is not None
+    assert advice.stance == DefenseKind.COUNTER
+
+
+def test_reaction_support_defender_saves_a_lethal_hit():
+    # the fragile defender dies to the certain hit under every stance; the
+    # heavily armored interceptor takes it for free -- support defend wins
+    battle = BattleState()
+    fragile = UnitState("d", Faction.ALLY, world_pos=(0.0, 0.0), hp=10, en=50)
+    tank = UnitState("t", Faction.ALLY, world_pos=(48.0, 48.0), hp=100, en=50)
+    tank.capabilities = [UnitCapability(CapabilityType.SUPPORT_DEFEND, charges=1)]
+    battle.add_unit(fragile)
+    battle.add_unit(tank)
+    battle.add_unit(UnitState("e", Faction.ENEMY, world_pos=(48.0, 0.0), hp=100, en=50))
+    specs = {
+        "d": _spec(),
+        "t": _spec(unit_defense=999999, pilot_defense=99999),
+        "e": _spec(),
+    }
+    advice = advise_reaction(
+        battle, specs, defender_id="d", attacker_id="e", config=_config(max_depth=1)
+    )
+    assert advice is not None
+    assert advice.support_defend is True
+
+
+def test_reaction_specless_attacker_returns_none():
+    battle = BattleState()
+    battle.add_unit(UnitState("d", Faction.ALLY, world_pos=(0.0, 0.0), hp=100, en=50))
+    battle.add_unit(UnitState("e", Faction.ENEMY, world_pos=(48.0, 0.0), hp=100, en=50))
+    advice = advise_reaction(
+        battle, {"d": _spec()}, defender_id="d", attacker_id="e", config=_config()
+    )
+    assert advice is None
+
+
+def test_reaction_wrong_factions_return_none():
+    battle = _two_ally_board()
+    specs = _two_ally_specs()
+    assert advise_reaction(
+        battle, specs, defender_id="e", attacker_id="a", config=_config()
+    ) is None
+    assert advise_reaction(
+        battle, specs, defender_id="a", attacker_id="zzz", config=_config()
+    ) is None
+
+
+def test_reaction_out_of_range_attack_is_flagged_not_refused():
+    battle = BattleState()
+    battle.add_unit(UnitState("d", Faction.ALLY, world_pos=(0.0, 0.0), hp=100, en=50))
+    battle.add_unit(UnitState("e", Faction.ENEMY, world_pos=(480.0, 0.0), hp=100, en=50))
+    specs = {"d": _spec(), "e": _spec()}
+    advice = advise_reaction(
+        battle, specs, defender_id="d", attacker_id="e", config=_config(max_depth=2)
+    )
+    assert advice is not None
+    assert any("out of range" in a for a in advice.assumptions)
 
 
 def test_simstate_key_is_insensitive_to_unit_list_order():
