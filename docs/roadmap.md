@@ -47,9 +47,22 @@ advisory）。
 **S0 未竟（歸 S9 實機）**：自機卡/敵機卡判別（已知風險①的關閉條件）、
 相位邊界快照的捕捉時機標定。
 
-**下一步**：S1 已落地（e9d4064 `battle/stage_def.py`＋test_stage_def
-11 測試；424 passed/3 xfail）——**正停下給使用者過目 schema**；
-核可後 S2∥S3∥S4（objectives／sim events／IdentityResolver 可並行）。
+**S1-S4 已落地（461 passed/3 xfail、ruff 綠）**：S1 schema v2
+（e9d4064，使用者已過目放行）；S2 條件驅動 Objective（34ddcf4——
+terminal 回終局值、bounds 隨附否則 Star1 不健全、預設路徑與現行為
+等值有多 seed 守衛、depth-1 斬首盤打指揮官/素設定打雜兵對照）；
+S3 sim events（8d88c70——**pending_events＋fired_events 兩個 tuple
+都進 key()**：within_turn 視窗會「過期不觸發」，只放 pending 會讓
+已觸發/已過期在 weaken 靜態值不進 key 下碰撞；拆增援口案例=solver
+先殺別隻、等視窗過期再殺標記敵）；S4 IdentityResolver（ce2855f——
+seed 貪婪雙射＋refresh 互斥唯一鄰居兩套配對、sig 只當候選過濾、
+passthrough 模式供 replay）。
+
+**下一步**：S5 身分翻轉（最大單步，五檔聯動：observe/tracker/
+reconcile/executor/controller＋replay 腳本）——S6 之前無定義檔載入，
+翻轉須在 passthrough 下行為中立（tracker `_canonical` 抖動歸併移入
+resolver 後語義要保留），replay 20260713-225448 命中率不降＋tracker
+一致性為閘門；交付時回報同 sig 同 HP 歧義率預估（諮詢點 2）。
 
 ## 本日稍早批次（2026-07-14 pilot 離線 M1-M7）
 
