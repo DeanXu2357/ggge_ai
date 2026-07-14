@@ -1,0 +1,26 @@
+{
+  "check": "observer_board",
+  "expect": {
+    "inputs": {
+      "hub_poisoned": true,
+      "sig_positions": {
+        "eeeeeeeeeeeeeeee": [873, 607]
+      },
+      "ally_sig_positions": {
+        "a1a1a1a1a1a1a1a1": [373, 607],
+        "a2a2a2a2a2a2a2a2": [504, 607],
+        "a3a3a3a3a3a3a3a3": [634, 607]
+      }
+    },
+    "board": {
+      "allies": { "min": 4 },
+      "enemies": { "min": 1, "max": 1 },
+      "third_party": { "max": 0 }
+    }
+  },
+  "box": [150, 90, 1510, 780],
+  "canvas_size": [2340, 1080],
+  "image": "../hp_arc/our_turn_hub_mixed_factions.png",
+  "source": "assets/screenshots/20260705-171040.png",
+  "note": "observer 端到端案例（使用者建議：指定截圖當 observer 實測案例，2026-07-14）。決定性混編 hub 幀：find_enemy 掃出 6 個紅帶 blob（3 個粉紅我方 373/504/634、真敵 873、另兩個無先驗 blob 1004/656,865），find_ally 只見 1 藍（右側 2 台已行動因密集合併偵測 1）。給 tracker ally 先驗（3 粉紅）＋intel sig 先驗（真敵）後，解析盤面必須=我方≥4（3 回收＋1 藍）、敵恰 1、無先驗紅 blob 丟棄。這是 S0 證據分層修復（d32430f）的真實幀回歸閘。"
+}

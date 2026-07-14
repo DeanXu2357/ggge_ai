@@ -1,0 +1,25 @@
+{
+  "check": "observer_board",
+  "expect": {
+    "inputs": {
+      "hub_poisoned": true,
+      "sig_positions": {},
+      "ally_sig_positions": {
+        "b1b1b1b1b1b1b1b1": [1076, 404],
+        "b2b2b2b2b2b2b2b2": [1583, 422],
+        "b3b3b3b3b3b3b3b3": [1248, 421],
+        "b4b4b4b4b4b4b4b4": [1511, 502]
+      }
+    },
+    "board": {
+      "allies": { "min": 4, "max": 4 },
+      "enemies": { "max": 0 },
+      "third_party": { "max": 0 }
+    }
+  },
+  "box": [150, 90, 1510, 780],
+  "canvas_size": [2340, 1080],
+  "image": "../hp_arc/our_turn_hub_pink_bug.png",
+  "source": "assets/screenshots/20260706-233847.png",
+  "note": "observer 端到端案例：pink_bug hub 幀 find_enemy 掃出 9 個假敵 blob（全為我方，目視 ground truth 0 敵）。給其中 4 個 tracker ally 先驗 → 回收為我方恰 4、敵 0、其餘 5 個無先驗丟棄（寧缺勿錯）。無 intel 先驗時盤面永無幻影敵。"
+}
