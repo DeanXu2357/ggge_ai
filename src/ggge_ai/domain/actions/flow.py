@@ -243,6 +243,7 @@ class ManualBattle(Action):
             intel_budget=intel_budget,
             stage_id=blackboard.intel.get("stage_id") if blackboard is not None else None,
             advisor_enabled=os.environ.get("GGGE_ADVISOR", "").lower() in ("1", "on", "yes"),
+            pilot_enabled=os.environ.get("GGGE_PILOT", "").lower() in ("1", "on", "yes"),
         )
         try:
             result = controller.run()

@@ -22,8 +22,10 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from ggge_ai.battle import reconcile, vision
+from ggge_ai.battle import executor, reconcile, vision
+from ggge_ai.battle.actions import ActionKind
 from ggge_ai.battle.ledger import BattleLedger
+from ggge_ai.battle.state import Faction
 from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.battle.tracker import BoardTracker
 from ggge_ai.domain import screens
@@ -170,14 +172,21 @@ def ensure_manual_auto(perception, actuator, timeout_s: float = 60.0) -> bool:
     return force_manual_auto(perception, actuator, timeout_s) == "manual"
 
 
+class PilotAbort(Exception):
+    """An alignment failure between executor, observer and game: per the
+    user's fail-fast call the battle ends immediately, screen left as-is."""
+
+
 @dataclass
 class _ActionState:
     tried_in_place: bool = False
     moved: bool = False
+    plan: executor.ActivationPlan | None = None
 
     def reset(self) -> None:
         self.tried_in_place = False
         self.moved = False
+        self.plan = None
 
 
 @dataclass
@@ -247,6 +256,11 @@ class ManualBattleController:
     # picks the first card
     advisor_enabled: bool = False
     advisor_time_budget_s: float = 3.0
+    # pilot execution (GGGE_PILOT=1): the solver drives each activation;
+    # "no opinion" demotes one activation to greedy, an alignment failure
+    # aborts the battle (fail-fast, user's 2026-07-14 call)
+    pilot_enabled: bool = False
+    pilot_time_budget_s: float = 3.0
     _intel_done: bool = False
     _full_scan_done: bool = False
     _turn_advised: bool = False
@@ -367,7 +381,12 @@ class ManualBattleController:
                 self._miss_streak = 0
                 self._dispatched_mode = mode
                 handler = getattr(self, f"_on_{mode.removeprefix('label_')}")
-                handler()
+                try:
+                    handler()
+                except PilotAbort as exc:
+                    log.error("pilot abort ends the battle: %s", exc)
+                    self._log_finish("pilot_abort")
+                    return screens.UNKNOWN
                 last_activity = time.time()
         log.warning("battle timeout reached")
         self._log_finish("battle_timeout")
@@ -719,6 +738,29 @@ class ManualBattleController:
             ", cache was stale" if intel.cache_stale else "",
         )
 
+    def _build_board(self):
+        """Perceived board for the solver: fresh scan positions, tracked
+        identities (dead sigs excluded), carried beliefs applied on top.
+        Returns (battle, notes) where notes report every carried value."""
+        from .observe import build_battle_state
+
+        positions = {
+            sig: pos
+            for sig, pos in self._sig_positions.items()
+            if sig not in self.tracker.beliefs or self.tracker.beliefs[sig].alive
+        }
+        notes: list[str] = []
+        battle = build_battle_state(
+            self.tacmap,
+            specs_by_sig=self.specs_by_sig,
+            sig_positions=positions,
+            ally_sig_positions=self.tracker.sig_positions(Faction.ALLY),
+            turn=self.ledger.turn if self.ledger is not None else self.tracker.turn,
+            notes=notes,
+        )
+        notes += self.tracker.apply(battle)
+        return battle, notes
+
     def _refresh_sig_positions(self, frame) -> None:
         """M5: once per turn, re-anchor tracked enemy identities to the
         fresh scan so the sig match does not decay as enemies move.
@@ -769,20 +811,8 @@ class ManualBattleController:
         self._turn_advised = True
         self._proposal = None
         from . import advisor as advisor_mod
-        from .observe import build_battle_state
 
-        positions = {
-            sig: pos
-            for sig, pos in self._sig_positions.items()
-            if sig not in self.tracker.beliefs or self.tracker.beliefs[sig].alive
-        }
-        battle = build_battle_state(
-            self.tacmap,
-            specs_by_sig=self.specs_by_sig,
-            sig_positions=positions,
-            turn=self.ledger.turn if self.ledger is not None else 1,
-        )
-        belief_notes = self.tracker.apply(battle)
+        battle, belief_notes = self._build_board()
         advice = advisor_mod.advise(
             battle,
             self.specs_by_sig,
@@ -984,7 +1014,190 @@ class ManualBattleController:
         n = max((dx * dx + dy * dy) ** 0.5, 1.0)
         return (dx / n, dy / n)
 
+    def _pilot_abort(self, reason: str, frame=None, **detail) -> None:
+        log.error("pilot abort: %s %s", reason, detail)
+        self._log(
+            "pilot_abort",
+            frame=frame if frame is not None else self._safe_frame(),
+            reason=reason,
+            **detail,
+        )
+        raise PilotAbort(reason)
+
+    def _pilot_begin(self) -> bool:
+        """Identify the selected unit, ask the solver for its activation,
+        and pin the plan. False = no opinion, the greedy body takes this
+        activation; alignment failures raise instead of returning."""
+        frame = self._frame()
+        cells = vision.find_move_cells(frame)
+        origin = vision.centroid(cells) if cells else None
+        if origin is None:
+            origin = PAN_CENTER
+        found = executor.identify(frame, self.tacmap, origin)
+        if found is None:
+            self._pilot_abort("anchor_failed", frame=frame, origin=list(origin))
+        unit_world, camera = found
+        battle, notes = self._build_board()
+        ally_id = executor.resolve_ally(battle, unit_world)
+        if ally_id is None:
+            self._pilot_abort(
+                "identify_ambiguous",
+                frame=frame,
+                unit_world=[round(unit_world[0]), round(unit_world[1])],
+            )
+        from . import advisor as advisor_mod
+
+        advice = advisor_mod.advise(
+            battle,
+            self.specs_by_sig,
+            advisor_mod.AdvisorConfig(time_budget_s=self.pilot_time_budget_s, cell_size=95.0),
+            unit_id=ally_id,
+        )
+        if advice is None:
+            self._log("pilot_fallback", reason="no_advice", unit=ally_id)
+            return False
+        if advice.kind not in (ActionKind.ATTACK, ActionKind.MOVE, ActionKind.STANDBY):
+            self._log(
+                "pilot_fallback", reason="unsupported_kind",
+                advice_kind=advice.kind, unit=ally_id,
+            )
+            return False
+        slot = None
+        if advice.kind == ActionKind.ATTACK:
+            slot = executor.slot_for(advice, self.specs_by_sig.get(ally_id))
+            if slot is None:
+                self._pilot_abort(
+                    "weapon_unresolved", frame=frame, unit=ally_id, weapon=advice.weapon
+                )
+        self._action.plan = executor.ActivationPlan(
+            advice=advice,
+            ally_id=ally_id,
+            unit_world=unit_world,
+            camera=camera,
+            weapon_slot=slot,
+        )
+        self._log(
+            "pilot_plan",
+            frame=frame,
+            unit=ally_id,
+            advice_kind=advice.kind,
+            target=advice.target_id,
+            weapon=advice.weapon,
+            slot=slot,
+            move_world=(
+                [round(advice.move_world[0]), round(advice.move_world[1])]
+                if advice.move_world is not None
+                else None
+            ),
+            value=round(advice.value, 1),
+            assumptions=advice.assumptions[:8],
+            beliefs=notes[:8],
+        )
+        log.info(
+            "pilot plan: %s %s -> %s (weapon %s, move %s)",
+            ally_id,
+            advice.kind,
+            self._describe_sig(advice.target_id) or advice.target_id,
+            advice.weapon,
+            advice.move_world,
+        )
+        return True
+
+    def _pilot_unit_move(self) -> bool:
+        """True when the pilot handled this unit-move visit; False demotes
+        the activation to the greedy body."""
+        if self._action.plan is None:
+            if self._action.tried_in_place or self._action.moved:
+                return False
+            if not self._pilot_begin():
+                return False
+        plan = self._action.plan
+        advice = plan.advice
+        if advice.kind == ActionKind.STANDBY:
+            self._log("pilot_step", step="standby", unit=plan.ally_id)
+            self._standby("pilot_standby")
+            return True
+        if advice.move_world is not None and not plan.move_done:
+            frame = self._frame()
+            cells = vision.find_move_cells(frame)
+            mv = executor.move_tap(advice, plan.camera, cells)
+            if mv is None:
+                self._pilot_abort(
+                    "move_unreachable",
+                    frame=frame,
+                    unit=plan.ally_id,
+                    move_world=[round(advice.move_world[0]), round(advice.move_world[1])],
+                    cells=len(cells),
+                )
+            basis, point = mv
+            plan.move_done = True
+            self._action.moved = True
+            self._log(
+                "pilot_step", step="move", frame=frame,
+                unit=plan.ally_id, basis=basis, cell=list(point),
+            )
+            self.actuator.tap(*point)
+            time.sleep(2.0)
+            return True
+        if advice.kind == ActionKind.MOVE:
+            self._log("pilot_step", step="standby_after_move", unit=plan.ally_id)
+            self._standby("pilot_move_done")
+            return True
+        self._action.tried_in_place = True
+        self._log("pilot_step", step="open_weapon_select", unit=plan.ally_id)
+        self.actuator.tap(*WEAPON_SELECT_BTN)
+        self._expect(
+            "open_weapon_select",
+            ("label_weapon_select",),
+            on_eaten=lambda: setattr(self._action, "tried_in_place", False),
+        )
+        time.sleep(1.8)
+        return True
+
+    def _pilot_weapon_select(self, plan: executor.ActivationPlan) -> None:
+        slot = plan.weapon_slot
+        self.actuator.tap(*WEAPON_SLOTS[slot - 1])
+        time.sleep(1.0)
+        frame = self._frame()
+        if not vision.attack_enabled(frame):
+            self._pilot_abort(
+                "weapon_not_lit", frame=frame, slot=slot, weapon=plan.advice.weapon
+            )
+        forecast = vision.read_weapon_select_forecast(frame)
+        while not executor.target_ok(forecast, plan.advice) and plan.switch_budget > 0:
+            found = self.perception.probe(["btn_switch_target"])
+            if not found:
+                break
+            plan.switch_budget -= 1
+            self._log(
+                "pilot_step",
+                step="switch_target",
+                seen=forecast.target_name_sig if forecast is not None else None,
+                want=plan.advice.target_id,
+            )
+            self.actuator.tap(*found["btn_switch_target"].bbox.center)
+            time.sleep(1.0)
+            frame = self._frame()
+            forecast = vision.read_weapon_select_forecast(frame)
+        if not executor.target_ok(forecast, plan.advice):
+            self._pilot_abort(
+                "target_mismatch",
+                frame=frame,
+                want=plan.advice.target_id,
+                seen=forecast.target_name_sig if forecast is not None else None,
+            )
+        if forecast.our_name_sig is not None:
+            self.tracker.on_sig_position(forecast.our_name_sig, plan.unit_world, Faction.ALLY)
+        self._log(
+            "pilot_step", step="attack", unit=plan.ally_id, slot=slot,
+            target=plan.advice.target_id,
+        )
+        self._register_attack_decision(frame, slot=slot)
+        self._attack(slot=slot)
+
     def _on_unit_move(self) -> None:
+        if self.pilot_enabled and self._pilot_unit_move():
+            return
         if not self._action.tried_in_place:
             log.info("opening weapon select in place")
             self._action.tried_in_place = True
@@ -1133,6 +1346,10 @@ class ManualBattleController:
         return point
 
     def _on_weapon_select(self) -> None:
+        plan = self._action.plan
+        if self.pilot_enabled and plan is not None and plan.advice.kind == ActionKind.ATTACK:
+            self._pilot_weapon_select(plan)
+            return
         frame = self._frame()
         if vision.attack_enabled(frame):
             log.info("target locked, attacking")

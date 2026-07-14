@@ -21,17 +21,30 @@ logging.basicConfig(
 
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
+def _flag(name: str) -> bool:
+    return os.environ.get(name, "").lower() in ("1", "on", "yes")
+
+
 perception, actuator = connect()
 keyguard = Keyguard(actuator.device, capture=perception.capture)
 keyguard.ensure_unlocked()
 blackboard = RunBlackboard(goal="manual_battle")
 ledger = blackboard.new_ledger()
+intel_budget = None
+if _flag("GGGE_INTEL"):
+    from ggge_ai.battle.scout_intel import IntelBudget
+
+    intel_budget = IntelBudget()
 controller = ManualBattleController(
     perception=perception,
     actuator=actuator,
     keyguard=keyguard,
     ledger=ledger,
     llm=LlmScreenReader.from_env(),
+    intel_budget=intel_budget,
+    stage_id=os.environ.get("GGGE_STAGE_ID") or None,
+    advisor_enabled=_flag("GGGE_ADVISOR"),
+    pilot_enabled=_flag("GGGE_PILOT"),
 )
 try:
     result = controller.run()
