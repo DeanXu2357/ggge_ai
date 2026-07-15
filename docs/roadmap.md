@@ -1,8 +1,9 @@
 # 進度與規劃
 
-更新日期：2026-07-14 深夜（**S 批次規劃定稿＋S0 observer 元件除錯落地**：
-關卡定義檔＋uid＋M8 合併為 S0-S10 計畫；弧色降為第一層啟發式，
-卡條成為我方權威、tracker 信念回收粉紅弧）
+更新日期：2026-07-15 凌晨（**S 批次離線段 S0-S8 全落地**：observer
+證據分層＋schema v2＋條件 objective＋sim events＋uid 身分翻轉＋
+fail-loud 冷掃/校驗＋resync/事件觀測/離線解關＋應戰介面離線半；
+482 tests/3 xfail 全綠。剩 S9 實機標定＋S10 整合戰，凍機檢查先行）
 
 ## 暫停快照（2026-07-14 深夜 S 批次，恢復點）
 
@@ -78,9 +79,30 @@ survey_abort 與 pilot_abort 同軌）；`tacmap.locate()`＋`_bring_to_view`
 pan 導航（S9b 實機驗證）；GGGE_INTEL 必附 stage_id、GGGE_PILOT 必開
 INTEL；IntelBudget 與 stage_cache.py 退役。
 
-**下一步**：S7（M8-①③④：_resync_board、pilot 空盤兩段語義、事件
-觀測→增量 survey→寫檔、to_sim_state＋離線解關 smoke）→ S8（M8-②
-離線半：ReactionPopup 介面＋advise_reaction(allowed)＋handler 骨架）。
+**S7 已落地（f11cec4）**：M8-①`_board_with_resync`（expected_alive
+當分母、缺敵一回合一次局部重掃；pilot 空盤先 resync 再問、仍空=
+`board_empty_after_resync` abort；擊殺在破壞數判決處 `register_death`
+讓分母跟著降）；M8-③ 盈餘無主紅弧（已解析敵=expected 才算，缺額歸
+resync、我方缺額歸卡條，避免 tap 粉紅我方）→`stage_event_observed`
+＋軟性增量 survey＋發 uid 寫回定義檔 events（保守 turn_start 觸發、
+原始觀測隨檔）；M8-④ `stage_sim.to_sim_state`（layout＋增援同格網
+量化、增援模板留在 EventTable 不上開局盤、conditions 編譯 objective）
+＋斬首關離線解到終局 smoke。
+
+**S8 已落地（e0eccb7）**：M8-② 離線半——`vision.ReactionPopup`＋
+`read_reaction_popup`（S9d 模板落地前回 None）；`solve_reaction`
+**根節點枚舉限制在彈窗實際提供的選項**（樹內防禦節點不受限；空集=
+無決策）；`advise_reaction(allowed_stances, allow_support_defend)`；
+controller `_maybe_handle_reaction` 在 NOT_ACTIONABLE 最優先（雙名牌
+ground 到 uid 否則 `reaction_ungrounded` abort；stance 座標未標定=
+`reaction_taps_uncalibrated` abort，座標表 `REACTION_OPTION_TAPS`
+留給 S9d；貪婪模式只記 ledger 不動手）。
+
+**下一步（離線段完結，進實機段）**：S9 實機標定批次（memtest86+/
+BIOS 凍機檢查先行）——a) stage-info 條件樣本＋片語 parser（諮詢點）
+b) 冷掃全量實跑一關（`_bring_to_view` 驗證）c) pilot 對齊探測（收編
+舊 B1/B2/B3，uid 語義）d) 應戰彈窗捕捉（模板＋選項座標＋可讀欄位）
+e) 登場演出樣本 → S10 整合戰（驗收指標見計畫；翻預設要使用者簽核）。
 
 ## 本日稍早批次（2026-07-14 pilot 離線 M1-M7）
 
