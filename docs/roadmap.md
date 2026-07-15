@@ -58,11 +58,20 @@ S3 sim events（8d88c70——**pending_events＋fired_events 兩個 tuple
 seed 貪婪雙射＋refresh 互斥唯一鄰居兩套配對、sig 只當候選過濾、
 passthrough 模式供 replay）。
 
-**下一步**：S5 身分翻轉（最大單步，五檔聯動：observe/tracker/
-reconcile/executor/controller＋replay 腳本）——S6 之前無定義檔載入，
-翻轉須在 passthrough 下行為中立（tracker `_canonical` 抖動歸併移入
-resolver 後語義要保留），replay 20260713-225448 命中率不降＋tracker
-一致性為閘門；交付時回報同 sig 同 HP 歧義率預估（諮詢點 2）。
+**S5 身分翻轉已落地（fdd847f，465 passed/3 xfail、ruff 綠）**：盤面
+unit_id/tracker 信念鍵/SimExpectation id/executor 目標驗證全講 uid，
+sig 降純證據；controller 與 tracker 共用單一 resolver（canonical 登錄
+序一致）；我方永遠走 "sig:<hex>" 降級 uid（我方身分不進定義檔）；
+`target_ok` 複合驗證（預期 sig 容差＋共享 sig 時 HP 信念交叉）。
+replay 閘門：reader 命中率不動、tracker 一致性同基準（33 信念/1 死）；
+dead-sig advisory 變多＝舊 kill_check 精確查 key 漏登記擊殺的修正。
+**殘餘風險（S10 要量測）**：同機種雙機開局同滿血→HP 交叉檢查無法
+分辨雙胞胎，錯鎖對象可通過驗證直到血量分歧；緩解案（錨定目標世界
+位置）留 S10 實測後定。
+
+**下一步**：S6 冷掃/校驗重造（survey_stage fail-loud、每台開面板、
+IntelBudget 刪除、`_ensure_stage_definition`、旗標語義、刪
+stage_cache.py）→ S7（M8-①③④）→ S8（M8-② 離線半）。
 
 ## 本日稍早批次（2026-07-14 pilot 離線 M1-M7）
 
