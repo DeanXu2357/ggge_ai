@@ -7,7 +7,6 @@
 
 1. 讀 `docs/roadmap.md` 最上方的暫停快照——那裡有裝置現況與恢復點。
 2. 讀 `docs/agent-architecture.md`——架構紅線都在裡面。
-3. `adb devices` 確認連線，`uv run python scripts/capture.py` 截圖確認遊戲畫面。
 
 ## 架構紅線（使用者定案，違反=返工）
 
@@ -21,36 +20,14 @@
 - **戰鬥必須由我們的程式操作**：結束回合對話框永遠選左邊「待機並結束」
   (997,562)＋執行 (1365,850)；**絕不選右邊自動戰鬥選項**（會把單位交給
   內建 AI）。
-- **模擬器/MCTS 非禁令**（2026-07-06 使用者澄清：先前對話只是探討
-  「不建模擬器能否實現複雜策略模型」的可行性，不是禁止）。戰術投資
-  順序不變：貪婪預期傷害 → 站位安全 → 戰後歸因證明需要才上深搜尋。
 - 手機的圖形鎖是使用者刻意保留的，**不要嘗試關閉**。
-
-## 實機操作鐵則
-
-- **每個實機動作後必須截圖並看圖驗證**，再做下一步。點擊可能被省電鎖
-  吞掉——畫面沒變就先懷疑鎖，不是重點一次。
-- 兩種鎖，都用 `adb shell input swipe 1164 430 1164 60 350` 解：
-  系統鎖（dumpsys 可見）與遊戲省電鎖（約 3 分鐘閒置觸發，dumpsys 不可見，
-  暗置狀態下鎖頭圖示不渲染，要先隨便點一下喚亮才能模板偵測）。
-  程式內用 `actuation/keyguard.py` 的 `ensure_unlocked()`。
-- 長時間執行（戰鬥、通關迴圈）一律 tmux + tee log + 背景 watcher：
-  ```
-  tmux new-session -d -s run "uv run python scripts/run_manual_battle.py 2>&1 | tee /tmp/run.log"
-  # watcher: 每 30 秒 grep log 的結束訊號與 Traceback，tmux 死掉也要偵測
-  ```
-- uiautomator2 的 tap/swipe 座標必須在螢幕內（負值直接 assert crash）。
-- 出擊消耗體力（一般 10 點）；「略過」掃蕩每關每日 3 次。
-- 驗證型戰局快速收場：戰鬥中右上 ☰ 戰鬥選單 → 放棄 → 確認。**放棄不會
-  消耗體力／挑戰次數**（確認框明文，2026-07-12 實證，出擊的 10 點退回），
-  階段性驗證完就棄局，別打完整場浪費時間。
-- 本地 LLM 讀圖輔助（perception/llm.py）：預設 gemma4:latest @
-  localhost:11434，`GGGE_LLM=0` 關閉、`GGGE_LLM_URL`/`GGGE_LLM_MODEL`
-  覆寫。只在未知畫面與驗證失敗時諮詢，輸出永遠是建議（log＋ledger），
-  不給控制權。
 
 ## 視覺辨識避坑
 
+- **主對話絕不用 Read 直接讀截圖/圖片**：圖片不得進入主對話上下文（token
+  貴且污染後續每一輪）。需要目視判讀時一律開 subagent 讀圖，subagent
+  只回傳文字描述，圖片留在子代理上下文。驗證優先用模板/像素探針/分類器，
+  親看只留給新畫面與異常診斷（見 memory screenshot-cost-discipline）。
 - 敵我判斷=單位腳下 HP 弧顏色：紅=敵、藍綠=第三方、藍=我方。
   `battle/vision.py` 的 HSV 帶域（S 100-210、V 155-255）是用實測截圖
   調出來的，**沒有新截圖證據不要動閾值**；動閾值的 PR 必須讓
