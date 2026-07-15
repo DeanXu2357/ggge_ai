@@ -330,72 +330,81 @@ def test_pilot_disabled_leaves_greedy_untouched(monkeypatch):
     assert controller_mod.WEAPON_SELECT_BTN in c.actuator.taps
     assert "pilot_plan" not in _kinds(c)
 
-def _popup(**kw):
+def _reaction_prep(**kw):
+    """A 戰鬥準備 -應戰- forecast with the stance set calibrated (what S9d
+    will populate); available_stances=None models the current uncalibrated
+    state."""
     base = dict(
-        attacker_name_sig=ENEMY_SIG,
-        defender_name_sig=OUR_SIG,
-        available=("dodge", "defend"),
-        support_defend_available=False,
+        is_reaction=True,
+        attack_value=25000, defense_value=0, hit_pct=63,
+        attacker_name_sig=ENEMY_SIG, attacker_hp=90000, attacker_en=400,
+        defender_name_sig=OUR_SIG, defender_hp=11000, defender_en=157,
+        defender_hp_delta=25000, support_defense=False,
+        available_stances=("dodge", "defend"),
     )
     base.update(kw)
-    return vision.ReactionPopup(**base)
+    return vision.BattlePrepForecast(**base)
 
 
-def test_reaction_popup_choice_taps_the_calibrated_option(monkeypatch):
+def _reaction_advice(stance="dodge"):
+    return type("R", (), {"stance": stance, "weapon": None,
+                          "support_defend": False, "value": 1.0})()
+
+
+def test_reaction_stance_taps_the_calibrated_option(monkeypatch):
     c = _pilot_controller(monkeypatch, None)
-    monkeypatch.setattr(vision, "read_reaction_popup", lambda f: _popup())
-    monkeypatch.setattr(
-        advisor_mod,
-        "advise_reaction",
-        lambda *a, **k: type("R", (), {"stance": "dodge", "weapon": None,
-                                       "support_defend": False, "value": 1.0})(),
-    )
+    monkeypatch.setattr(advisor_mod, "advise_reaction", lambda *a, **k: _reaction_advice())
     monkeypatch.setitem(controller_mod.REACTION_OPTION_TAPS, "dodge", (500, 700))
 
-    handled = c._maybe_handle_reaction(c.perception.capture())
+    c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
 
-    assert handled is True
     assert (500, 700) in c.actuator.taps
     choices = [e for e in c.ledger.events if e["kind"] == "reaction_choice"]
     assert choices and choices[0]["stance"] == "dodge"
 
 
-def test_reaction_popup_without_calibrated_tap_aborts(monkeypatch):
+def test_reaction_stance_without_calibrated_tap_aborts(monkeypatch):
     c = _pilot_controller(monkeypatch, None)
-    monkeypatch.setattr(vision, "read_reaction_popup", lambda f: _popup())
-    monkeypatch.setattr(
-        advisor_mod,
-        "advise_reaction",
-        lambda *a, **k: type("R", (), {"stance": "dodge", "weapon": None,
-                                       "support_defend": False, "value": 1.0})(),
-    )
+    monkeypatch.setattr(advisor_mod, "advise_reaction", lambda *a, **k: _reaction_advice())
 
     with pytest.raises(PilotAbort):
-        c._maybe_handle_reaction(c.perception.capture())
+        c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
 
     aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
     assert aborts and aborts[0]["reason"] == "reaction_taps_uncalibrated"
 
 
-def test_reaction_popup_ungrounded_names_abort(monkeypatch):
+def test_reaction_stance_ungrounded_names_abort(monkeypatch):
     c = _pilot_controller(monkeypatch, None)
-    monkeypatch.setattr(
-        vision, "read_reaction_popup", lambda f: _popup(attacker_name_sig=None)
-    )
 
     with pytest.raises(PilotAbort):
-        c._maybe_handle_reaction(c.perception.capture())
+        c._choose_reaction_stance(
+            c.perception.capture(), _reaction_prep(attacker_name_sig=None)
+        )
 
     aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
     assert aborts and aborts[0]["reason"] == "reaction_ungrounded"
 
 
-def test_reaction_popup_in_greedy_mode_is_logged_not_handled(monkeypatch):
+def test_reaction_stance_dormant_until_stances_calibrated(monkeypatch):
+    # available_stances=None = S9d has not located the -應戰- stance UI yet;
+    # the executor must no-op so _on_battle_prep's 開始戰鬥 confirm accepts
+    # the game's default stance unchanged (behavior-preserving).
+    c = _pilot_controller(monkeypatch, None)
+
+    c._choose_reaction_stance(
+        c.perception.capture(), _reaction_prep(available_stances=None)
+    )
+
+    assert c.actuator.taps == []
+    assert not any(e["kind"] == "pilot_abort" for e in c.ledger.events)
+
+
+def test_reaction_stance_no_op_in_greedy_mode(monkeypatch):
     c = _pilot_controller(monkeypatch, None)
     c.pilot_enabled = False
-    monkeypatch.setattr(vision, "read_reaction_popup", lambda f: _popup())
 
-    handled = c._maybe_handle_reaction(c.perception.capture())
+    c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
 
-    assert handled is False
-    assert any(e["kind"] == "reaction_popup" for e in c.ledger.events)
+    assert c.actuator.taps == []
+    assert not any(e["kind"] == "pilot_abort" for e in c.ledger.events)

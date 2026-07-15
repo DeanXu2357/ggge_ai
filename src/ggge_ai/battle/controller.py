@@ -34,7 +34,10 @@ from ggge_ai.battle.tracker import BoardTracker
 from ggge_ai.domain import screens
 from ggge_ai.vision.motion import frame_diff
 
-# 應戰彈窗選項座標（S9d 實機標定後填入；空表=偵測到彈窗也只能 abort）
+# 戰鬥準備 -應戰- 畫面上各防禦 stance 的切換座標（DefenseKind→tap）。
+# S9d 實機標定後填入；空表＝stance 切換 UI 尚未定位，選到非預設 stance 只能
+# abort（reaction_taps_uncalibrated），預設 stance 走 _on_battle_prep 的開始戰鬥
+# 直接確認。
 REACTION_OPTION_TAPS: dict[str, tuple[int, int]] = {}
 
 log = logging.getLogger(__name__)
@@ -576,34 +579,30 @@ class ManualBattleController:
             log.warning("frame capture failed, event will record without a frame", exc_info=True)
             return None
 
-    def _maybe_handle_reaction(self, frame) -> bool:
-        """M8-2 offline half: the defense popup is the one NOT_ACTIONABLE
-        scene that needs our input. Detection returns None until S9d
-        calibrates the template; everything behind it -- grounding both
-        name plates to uids, restricting the solver to the offered
-        options, tapping the chosen stance -- is wired and tested here.
-        Ungroundable popups abort per the M7 settlement."""
-        popup = vision.read_reaction_popup(frame)
-        if popup is None:
-            return False
-        self._log(
-            "reaction_popup",
-            frame=frame,
-            attacker_sig=popup.attacker_name_sig,
-            defender_sig=popup.defender_name_sig,
-            available=list(popup.available),
-            support=popup.support_defend_available,
-        )
-        if not self.pilot_enabled:
-            return False
+    def _choose_reaction_stance(self, frame, prep) -> None:
+        """Reaction (#3, 應戰決策) executor. The reaction is the 戰鬥準備
+        screen in its -應戰- variant, so it arrives through _on_battle_prep,
+        not the NOT_ACTIONABLE path. Pure orchestration: perception is
+        read_battle_prep_forecast, the decision is advise_reaction (the
+        user's call -- the solver picks the stance, no static default), and
+        this only grounds the plates, taps the chosen stance option, and
+        aborts when the incoming attack cannot be grounded or its stance
+        tap is uncalibrated.
+
+        Dormant until S9d lands prep.available_stances (the offered set):
+        with it None there is no calibrated stance UI to drive, so this
+        no-ops and _on_battle_prep's shared 開始戰鬥 confirm accepts the
+        game's default stance unchanged."""
+        if not self.pilot_enabled or prep.available_stances is None:
+            return
         attacker_id = (
-            self.resolver.uid_for(popup.attacker_name_sig)
-            if popup.attacker_name_sig is not None
+            self.resolver.uid_for(prep.attacker_name_sig)
+            if prep.attacker_name_sig is not None
             else None
         )
         defender_id = (
-            self.resolver.uid_for(popup.defender_name_sig, "ally")
-            if popup.defender_name_sig is not None
+            self.resolver.uid_for(prep.defender_name_sig, "ally")
+            if prep.defender_name_sig is not None
             else None
         )
         if attacker_id is None or defender_id is None:
@@ -624,8 +623,10 @@ class ManualBattleController:
             config=advisor_mod.AdvisorConfig(
                 time_budget_s=self.pilot_time_budget_s, cell_size=95.0
             ),
-            allowed_stances=popup.available or None,
-            allow_support_defend=popup.support_defend_available,
+            allowed_stances=prep.available_stances or None,
+            allow_support_defend=(
+                prep.support_defense if prep.support_defense is not None else True
+            ),
         )
         if advice is None:
             self._pilot_abort("reaction_ungrounded", frame=frame, attacker=attacker_id)
@@ -646,25 +647,19 @@ class ManualBattleController:
         )
         self.actuator.tap(*point)
         time.sleep(1.0)
-        self._miss_streak = 0
-        return True
 
     def _on_not_actionable(self) -> bool:
         """No MODE_LABELS matched: we cannot act right now (docs/
         battle-phase-states.md's NOT_ACTIONABLE) -- enemy turn, third-party
         turn, or an unlabeled transition, none of which the controller needs
-        to tell apart. There is exactly one thing here that needs our input:
-        the enemy defense-reaction popup (#3, 應戰決策). Its screen anchor
-        has not been calibrated on a live device yet, so it is not detected
-        below; this is the method to extend once it is.
+        to tell apart. The enemy defense-reaction (#3, 應戰決策) is NOT here:
+        it is the 戰鬥準備 -應戰- screen, which matches label_battle_prep and
+        so dispatches to _on_battle_prep (ACTIONABLE) -- see
+        _choose_reaction_stance.
 
         Returns whether this counts as activity (an idle-timeout should not
         fire while we're actively responding to something)."""
-        # the defense popup outranks everything else here: it blocks the
-        # enemy phase until answered
         dialog_frame = self._frame()
-        if self._maybe_handle_reaction(dialog_frame):
-            return True
         # a dying unit pops a MENU-less inline dialogue line; advance it
         # before it stalls us
         cursor = vision.locate_dialog_cursor(dialog_frame)
@@ -1955,6 +1950,12 @@ class ManualBattleController:
                 defender_hp=prep.defender_hp,
                 defender_en=prep.defender_en,
                 defender_hp_delta=prep.defender_hp_delta,
+                support=prep.support_defense,
+                available=(
+                    list(prep.available_stances)
+                    if prep.available_stances is not None
+                    else None
+                ),
             )
             if prep.is_reaction:
                 self._note_sig(
@@ -1967,6 +1968,10 @@ class ManualBattleController:
                     prep.attack_value,
                     prep.hit_pct,
                 )
+                # the solver picks the defense stance before we confirm;
+                # dormant until S9d calibrates the -應戰- stance UI, then the
+                # shared 開始戰鬥 tap below confirms the selection
+                self._choose_reaction_stance(frame, prep)
         if self._pending is not None and not self._pending.armed:
             if prep is None or not prep.is_reaction:
                 if prep is not None:

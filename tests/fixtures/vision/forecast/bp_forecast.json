@@ -12,7 +12,8 @@
     "defender_hp": 9045,
     "defender_en": 241,
     "defender_hp_delta": 2626,
-    "support_defense": null
+    "support_defense": null,
+    "available_stances": null
   },
   "box": [
     0,
@@ -37,5 +38,5 @@
     }
   ],
   "source": "assets/screenshots/20260705-180119.png",
-  "note": "戰鬥準備 -應戰- (enemy 鋼加農 attacks our GQuuuuuuX). extra_crops carries the hit% strip near the attacker avatar. support_defense pins the v1 stub (None = unknown, never False)."
+  "note": "戰鬥準備 -應戰- (enemy 鋼加農 attacks our GQuuuuuuX). extra_crops carries the hit% strip near the attacker avatar. support_defense and available_stances pin the v1 reaction stubs (None = uncalibrated, never False/()): the reaction is this same battle-prep screen, read by read_battle_prep_forecast; the -應戰- stance-switch UI is not located yet (S9d)."
 }

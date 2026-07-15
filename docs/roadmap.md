@@ -1,15 +1,37 @@
 # 進度與規劃
 
-更新日期：2026-07-15 凌晨（**S 批次離線段 S0-S8 全落地**：observer
-證據分層＋schema v2＋條件 objective＋sim events＋uid 身分翻轉＋
-fail-loud 冷掃/校驗＋resync/事件觀測/離線解關＋應戰介面離線半；
-482 tests/3 xfail 全綠。剩 S9 實機標定＋S10 整合戰，凍機檢查先行）
+更新日期：2026-07-15（**S9d 應戰路徑整併落地**：確認應戰彈窗＝戰鬥準備
+-應戰- 變體，感知單一來源化到 `BattlePrepForecast`、廢 `ReactionPopup`、
+執行器 `_choose_reaction_stance` 接進 `_on_battle_prep`；行為保持、
+483 tests/3 xfail 全綠、replay 閘門同基準。stance 切換 UI 仍待實機標定。
+前情：S 批次離線段 S0-S8 全落地）
 
-## 暫停快照（2026-07-14 深夜 S 批次，恢復點）
+## 暫停快照（2026-07-15 S9d 應戰整併，恢復點）
 
-**裝置現況**：不變（本批次純離線）——遊戲停在主畫面、體力 ~96、
-adb server 關；WiFi adb 已配對（重連 `adb connect 192.168.50.28:<port>`，
-port 每次重開會變）。凍機硬體檢查（memtest86+/BIOS）仍最優先。
+**裝置現況**：本 session USB 連上（`R5CRC37JBYJ device`）做了回應探測——
+螢幕 Awake、無凍機，遊戲停在主畫面（RANK 21、體力 101/106、STAGE 18）。
+未進任何戰鬥（S9d 這半是純碼面整併）。凍機硬體檢查（memtest86+/BIOS）
+仍最優先。WiFi adb 亦已配對（`adb connect 192.168.50.28:<port>`，port 每次
+重開會變）。
+
+**S9d 進度（本 session）**：
+- **關鍵釐清**：應戰決策（#3）在本作不是獨立彈窗，而是敵攻我方時的
+  「戰鬥準備 -應戰-」畫面（match `label_battle_prep` 0.948）。所以它走
+  `_on_battle_prep`（ACTIONABLE），S8 建在 `_on_not_actionable` 的
+  `read_reaction_popup` 路徑永遠到不了＝放錯位置。
+- **碼面整併（行為保持，2c2… 見 git）**：感知留 vision 層——`ReactionPopup`
+  是 `BattlePrepForecast(is_reaction)` 的重複抽象，已廢除；stance 感知改為
+  `BattlePrepForecast.available_stances` stub（同 `support_defense`，未標定
+  回 None）。執行器 `_choose_reaction_stance`（純編排：ground→advise_reaction
+  →tap stance→拋錯）接進 `_on_battle_prep` 的 is_reaction 分支，`available_stances`
+  為 None 時 no-op、落回既有「按開始戰鬥接受預設」＝零行為改變。
+- **stance UI 未知數（留給實機）**：2026-07-11 全螢幕捕捉（`assets/screenshots/
+  20260711-223704.png`，貝爾汀格攻 GQuuuuuuX、KILL 局）經 subagent 判讀，
+  畫面**未見明確的防禦方式切換按鈕**；當前選定 stance 顯示為「閃避」（非
+  screen-map 說的預設反擊）、反擊傷害 0。可能切換入口＝我機頭頂動作小圖示
+  (~1120,420) 或底部 ☰ 清單鈕 (~702,921)，只能實機點擊驗證。→ S9d-live 要
+  標定 `REACTION_OPTION_TAPS`（DefenseKind→tap，controller.py:37 空表待填）
+  ＋ vision 讀 `available_stances`/`support_defense`。
 
 **規劃定稿**：stage-definition＋uid 身分制＋M8 雙行為 observer 合併為
 **S0-S10 批次**（計畫全文 `~/.claude/plans/nifty-forging-sonnet.md`；
@@ -96,13 +118,19 @@ resync、我方缺額歸卡條，避免 tap 粉紅我方）→`stage_event_obser
 controller `_maybe_handle_reaction` 在 NOT_ACTIONABLE 最優先（雙名牌
 ground 到 uid 否則 `reaction_ungrounded` abort；stance 座標未標定=
 `reaction_taps_uncalibrated` abort，座標表 `REACTION_OPTION_TAPS`
-留給 S9d；貪婪模式只記 ledger 不動手）。
+留給 S9d；貪婪模式只記 ledger 不動手）。**（S9d 已修正接線）**：上述
+`ReactionPopup`/`read_reaction_popup`/`_maybe_handle_reaction`（NOT_ACTIONABLE
+路徑）已廢——應戰＝battle_prep -應戰- 變體，感知併入 `BattlePrepForecast`、
+執行器改 `_choose_reaction_stance` 接進 `_on_battle_prep`。`solve_reaction`
+根節點限制與 `advise_reaction` 介面不變。
 
-**下一步（離線段完結，進實機段）**：S9 實機標定批次（memtest86+/
-BIOS 凍機檢查先行）——a) stage-info 條件樣本＋片語 parser（諮詢點）
-b) 冷掃全量實跑一關（`_bring_to_view` 驗證）c) pilot 對齊探測（收編
-舊 B1/B2/B3，uid 語義）d) 應戰彈窗捕捉（模板＋選項座標＋可讀欄位）
-e) 登場演出樣本 → S10 整合戰（驗收指標見計畫；翻預設要使用者簽核）。
+**下一步（實機段進行中）**：S9 實機標定批次（memtest86+/BIOS 凍機檢查
+先行）——a) stage-info 條件樣本＋片語 parser（諮詢點）b) 冷掃全量實跑
+一關（`_bring_to_view` 驗證）c) pilot 對齊探測（收編舊 B1/B2/B3，uid
+語義）**d) 應戰彈窗：碼面接線已整併完成（本 session），剩 stance 切換
+UI 實機標定＝`REACTION_OPTION_TAPS`＋vision 讀 `available_stances`/
+`support_defense`（參考幀 20260711-223704）** e) 登場演出樣本 → S10
+整合戰（驗收指標見計畫；翻預設要使用者簽核）。
 
 ## 本日稍早批次（2026-07-14 pilot 離線 M1-M7）
 

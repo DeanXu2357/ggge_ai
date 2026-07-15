@@ -534,35 +534,6 @@ FORECAST_RIGHT_NAME_REGION = (1420, 126, 365, 46)
 # because anti-aliased stroke edges fall below the white threshold).
 # threshold 0.88: battle-prep's attacker panel scores 0.798 on this anchor
 # (EN label lookalike), everything else stays under 0.42
-REACTION_POPUP_TEMPLATE = _ELEMENTS / "label_reaction_choice.png"
-
-
-@dataclass(frozen=True)
-class ReactionPopup:
-    """The enemy-attack defense popup (#3, 應戰決策): who is attacking
-    whom, which stances the screen actually offers, and whether support
-    defense is on the table. The solver's root enumeration is restricted
-    to exactly this option set -- the screen is authoritative about what
-    can be chosen."""
-
-    attacker_name_sig: str | None
-    defender_name_sig: str | None
-    available: tuple[str, ...]
-    support_defend_available: bool
-
-
-def read_reaction_popup(frame: np.ndarray) -> ReactionPopup | None:
-    """None until the S9d live calibration lands the anchor template and
-    the name/option regions: the popup has never been captured at rest
-    (it appears mid enemy phase), so its geometry cannot be guessed
-    offline. The handler chain above this reader is fully wired and
-    tested against injected popups; dropping label_reaction_choice.png
-    plus the region constants here activates detection."""
-    if not REACTION_POPUP_TEMPLATE.exists():
-        return None
-    return None
-
-
 ENEMY_SUMMARY_ANCHOR_TEMPLATE = _ELEMENTS / "label_summary_hp.png"
 ENEMY_SUMMARY_ANCHOR_REGION = (570, 175, 100, 65)
 ENEMY_SUMMARY_ANCHOR_THRESHOLD = 0.88
@@ -598,7 +569,14 @@ class EnemySummary:
 class BattlePrepForecast:
     """The game's prediction on the 戰鬥準備 confirmation. Attacker is
     always the left panel: our unit on our attacks, the enemy on -應戰-
-    reactions -- is_reaction carries the direction."""
+    reactions -- is_reaction carries the direction.
+
+    The reaction (#3, 應戰決策) is this same screen in its -應戰- variant,
+    not a separate popup: when is_reaction is set, support_defense and
+    available_stances are the defense-choice perception the controller
+    feeds to advise_reaction. Both are v1 stubs (None = uncalibrated,
+    never a guessed value): the stance-switch UI on this screen has not
+    been located on a live device yet (S9d)."""
 
     is_reaction: bool
     attack_value: int | None
@@ -612,6 +590,7 @@ class BattlePrepForecast:
     defender_en: int | None
     defender_hp_delta: int | None
     support_defense: bool | None
+    available_stances: tuple[str, ...] | None = None
 
 
 def _anchor_score(
@@ -765,9 +744,10 @@ def read_weapon_select_forecast(frame: np.ndarray) -> WeaponSelectForecast | Non
 
 def read_battle_prep_forecast(frame: np.ndarray) -> BattlePrepForecast | None:
     """Game forecast off the 戰鬥準備 confirmation, or None when its header
-    is not on screen. support_defense is a v1 stub (always None = unknown,
-    never False): no capture of the support-defense icon exists yet to crop
-    a template from."""
+    is not on screen. support_defense and available_stances are v1 stubs
+    (always None = unknown, never False/()): the support-defense icon and
+    the -應戰- stance-switch UI have not been captured on a live device yet
+    (S9d), so there is nothing to crop a template or a region from."""
     if _anchor_score(frame, BATTLE_PREP_HEADER_TEMPLATE, FORECAST_HEADER_REGION) < (
         FORECAST_HEADER_THRESHOLD
     ):
@@ -799,4 +779,5 @@ def read_battle_prep_forecast(frame: np.ndarray) -> BattlePrepForecast | None:
             digits.read_number(frame, BP_HP_DELTA_REGION, digit_height=30)
         ),
         support_defense=None,
+        available_stances=None,
     )
