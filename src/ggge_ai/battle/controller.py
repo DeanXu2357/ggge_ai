@@ -268,6 +268,9 @@ class ManualBattleController:
     _full_scan_done: bool = False
     _turn_advised: bool = False
     _turn_sig_refreshed: bool = False
+    _turn_resynced: bool = False
+    _kills: list = field(default_factory=list)
+    _defn: object | None = None
     _proposal: object | None = None
     _card_count: int | None = None
     _id_positions: dict = field(default_factory=dict)
@@ -667,6 +670,7 @@ class ManualBattleController:
                     self._turn_scouted = False
                     self._turn_advised = False
                     self._turn_sig_refreshed = False
+                    self._turn_resynced = False
                     self.tracker.on_turn(turn_number)
                     if self.ledger is not None:
                         self.ledger.next_turn(frame=frame, turn=turn_number)
@@ -681,6 +685,7 @@ class ManualBattleController:
                     self._turn_scouted = False
                     self._turn_advised = False
                     self._turn_sig_refreshed = False
+                    self._turn_resynced = False
                     self.tracker.on_turn(self.tracker.turn + 1)
                     if self.ledger is not None:
                         self.ledger.next_turn(frame=frame)
@@ -785,22 +790,9 @@ class ManualBattleController:
         reports every carried value as an assumption)."""
         self.resolver = resolver
         self.tracker.resolver = resolver
+        self._defn = defn
         for unit in defn.layout:
-            if unit.stats:
-                try:
-                    spec, assumptions = unit.to_spec()
-                except TypeError:
-                    self._log(
-                        "definition_assumptions",
-                        uid=unit.uid,
-                        assumptions=["stats incomplete, unit stays spec-less"],
-                    )
-                else:
-                    self.specs_by_id[unit.uid] = spec
-                    if assumptions:
-                        self._log(
-                            "definition_assumptions", uid=unit.uid, assumptions=assumptions
-                        )
+            self._adopt_unit_spec(unit)
             if unit.sig is not None and unit.name_text:
                 self._sig_names[unit.sig] = unit.name_text
         for uid, pos in resolver.positions().items():
@@ -819,6 +811,104 @@ class ManualBattleController:
             len(defn.layout),
             len(self.specs_by_id),
         )
+
+    def _adopt_unit_spec(self, unit) -> None:
+        if not unit.stats:
+            return
+        try:
+            spec, assumptions = unit.to_spec()
+        except TypeError:
+            self._log(
+                "definition_assumptions",
+                uid=unit.uid,
+                assumptions=["stats incomplete, unit stays spec-less"],
+            )
+        else:
+            self.specs_by_id[unit.uid] = spec
+            if assumptions:
+                self._log("definition_assumptions", uid=unit.uid, assumptions=assumptions)
+
+    def _observe_new_units(self, frame, battle) -> None:
+        """M8-3 offline half: with every expected enemy already resolved,
+        a red-band arc that claims nobody -- not an enemy uid, not near a
+        tracked ally -- is a reinforcement candidate. Record the raw
+        observation, survey its kit (softly: an unreadable panel stays a
+        spec-less identity), issue the uid and write the spawn event back
+        into the definition file. Missing-enemy shortfalls belong to
+        _resync_board, missing allies to the card-count note; only the
+        surplus reaches here, which keeps pink-ally arcs out of the taps."""
+        if self.resolver.passthrough or self._defn is None:
+            return
+        expected = self.resolver.expected_alive()
+        if expected is None or len(battle.enemies()) < expected:
+            return
+        from .identity import MATCH_RADIUS
+        from .scout_intel import _survey_point
+        from .stage_def import StageUnit
+
+        ally_positions = list(self.tracker.id_positions(Faction.ALLY).values())
+
+        def _claimed(point) -> bool:
+            if self.resolver.resolve(point) is not None:
+                return True
+            return any(
+                (point[0] - a[0]) ** 2 + (point[1] - a[1]) ** 2 <= MATCH_RADIUS**2
+                for a in ally_positions
+            )
+
+        new_points = [
+            (float(p[0]), float(p[1])) for p in self.tacmap.enemies if not _claimed((float(p[0]), float(p[1])))
+        ]
+        if not new_points:
+            return
+        turn = self.ledger.turn if self.ledger is not None else self.tracker.turn
+        observation = {
+            "turn": turn,
+            "phase_context": "ally",
+            "kills_so_far": list(self._kills),
+            "new_units": [
+                {"world": [round(p[0]), round(p[1])], "cell": self.resolver.world_to_cell(p)}
+                for p in new_points
+            ],
+        }
+        self._log("stage_event_observed", frame=frame, **observation)
+        units = []
+        for point in new_points:
+            uid = stage_def_mod.next_uid(self._defn)
+            sig, name, stats, weapons = None, None, {}, []
+            try:
+                screen = self._bring_to_view(point)
+                if screen is None:
+                    raise SurveyIncomplete(f"{point} cannot be brought into view")
+                sig, name, stats, weapons = _survey_point(
+                    self._frame, self.actuator.tap, screen, llm=self.llm, sleep=time.sleep
+                )
+            except SurveyIncomplete as exc:
+                self._log(
+                    "survey_note", uid=uid, note=f"reinforcement kit unread: {exc}"
+                )
+            unit = StageUnit(
+                uid=uid,
+                cell=self.resolver.world_to_cell(point) or (0, 0),
+                faction="enemy",
+                sig=sig,
+                name_text=name,
+                pilot_hint={k: v for k, v in stats.items() if k.startswith("pilot_")},
+                stats=stats,
+                weapons=weapons,
+            )
+            units.append(unit)
+            # append before issuing the next uid so a two-unit batch
+            # cannot collide on the same number
+            event = stage_def_mod.append_observed_spawn(
+                self._defn, [unit], turn=turn, observations=[observation]
+            )
+            self.resolver.register_spawn(uid, point)
+            self._id_positions[uid] = point
+            self.tracker.on_position(uid, point)
+            self._adopt_unit_spec(unit)
+            self._log("stage_event_recorded", event_id=event.event_id, uid=uid)
+        stage_def_mod.save_stage_def(self._defn, self.intel_cache_root)
 
     def _bring_to_view(self, world) -> tuple[float, float] | None:
         """Pan until a world point sits inside the tappable map area and
@@ -889,6 +979,40 @@ class ManualBattleController:
             )
         return battle, notes
 
+    def _resync_board(self, frame, reason: str) -> None:
+        """M8-1 full-sync mode: one extra local rescan per turn when the
+        board is missing units -- fewer live enemies than the definition
+        expects, or an empty board at pilot time. Rebuilds the scan
+        skeleton and re-anchors tracked positions."""
+        self._turn_resynced = True
+        self._log("board_resync", reason=reason, frame=frame)
+        self._turn_scouted = False
+        self._scout(frame)
+        scan = [tuple(p) for p in self.tacmap.enemies + self.tacmap.third_party]
+        if not self.resolver.passthrough and scan:
+            report = self.resolver.refresh(scan)
+            for uid, pos in report.updated.items():
+                self._id_positions[uid] = pos
+                self.tracker.on_position(uid, pos)
+
+    def _board_with_resync(self, frame):
+        """Board build with the missing-enemy check: the definition (via
+        expected_alive) is the denominator, a short board triggers one
+        resync and a rebuild."""
+        battle, notes = self._build_board()
+        expected = self.resolver.expected_alive()
+        if (
+            expected is not None
+            and len(battle.enemies()) < expected
+            and not self._turn_resynced
+        ):
+            self._resync_board(
+                frame, f"enemies on board {len(battle.enemies())} < expected {expected}"
+            )
+            battle, notes = self._build_board()
+        self._observe_new_units(frame, battle)
+        return battle, notes
+
     def _refresh_sig_positions(self, frame) -> None:
         """M5: once per turn, re-anchor tracked enemy identities to the
         fresh scan so the sig match does not decay as enemies move.
@@ -941,7 +1065,7 @@ class ManualBattleController:
         self._proposal = None
         from . import advisor as advisor_mod
 
-        battle, belief_notes = self._build_board()
+        battle, belief_notes = self._board_with_resync(self._frame())
         advice = advisor_mod.advise(
             battle,
             self.specs_by_id,
@@ -1166,7 +1290,7 @@ class ManualBattleController:
         if found is None:
             self._pilot_abort("anchor_failed", frame=frame, origin=list(origin))
         unit_world, camera = found
-        battle, notes = self._build_board()
+        battle, notes = self._board_with_resync(frame)
         ally_id = executor.resolve_ally(battle, unit_world)
         if ally_id is None:
             self._pilot_abort(
@@ -1182,6 +1306,24 @@ class ManualBattleController:
             advisor_mod.AdvisorConfig(time_budget_s=self.pilot_time_budget_s, cell_size=95.0),
             unit_id=ally_id,
         )
+        if advice is None and not battle.enemies() and not self._turn_resynced:
+            # the user-settled two-stage semantics: an empty board gets
+            # one resync and one more consultation before any verdict
+            self._resync_board(frame, "pilot_empty_board")
+            battle, notes = self._build_board()
+            resolved = executor.resolve_ally(battle, unit_world)
+            if resolved is not None:
+                ally_id = resolved
+                advice = advisor_mod.advise(
+                    battle,
+                    self.specs_by_id,
+                    advisor_mod.AdvisorConfig(
+                        time_budget_s=self.pilot_time_budget_s, cell_size=95.0
+                    ),
+                    unit_id=ally_id,
+                )
+        if advice is None and not battle.enemies():
+            self._pilot_abort("board_empty_after_resync", frame=frame, unit=ally_id)
         if advice is None:
             self._log("pilot_fallback", reason="no_advice", unit=ally_id)
             return False
@@ -1683,6 +1825,16 @@ class ManualBattleController:
         result, divergences = reconcile.judge_outcome(pending, counter)
         delta = counter[0] - pending.counter_before[0] if pending.counter_before else None
         self.tracker.on_outcome(pending, result, delta=delta)
+        if delta is not None and delta > 0 and pending.expectation.target_id is not None:
+            # the definition denominator must follow the kill, or the
+            # missing-enemy resync would fire on every later turn
+            self.resolver.register_death(pending.expectation.target_id)
+            self._kills.append(
+                {
+                    "uid": pending.expectation.target_id,
+                    "turn": self.ledger.turn if self.ledger is not None else self.tracker.turn,
+                }
+            )
         for d in divergences:
             log.warning(d.message)
             self._log(d.tag, frame=self._safe_frame(), divergence=d.kind, **d.detail)

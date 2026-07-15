@@ -113,6 +113,7 @@ class IdentityResolver:
         self._dead: set[str] = set()
         self._spawned: set[str] = set()
         self._sig_registry: dict[str, list[str]] = {}
+        self._grid: tuple[Point, tuple[int, int]] | None = None
 
     @property
     def passthrough(self) -> bool:
@@ -135,6 +136,7 @@ class IdentityResolver:
         cell = self.defn.cell_size
         origin = (min(p[0] for p in scan_points), min(p[1] for p in scan_points))
         cmin = (min(u.cell[0] for u in layout), min(u.cell[1] for u in layout))
+        self._grid = (origin, cmin)
         expected = {
             u.uid: (
                 origin[0] + (u.cell[0] - cmin[0]) * cell,
@@ -262,6 +264,18 @@ class IdentityResolver:
                 if unit.uid == uid:
                     return unit.sig
         return None
+
+    def world_to_cell(self, world: Point) -> tuple[int, int] | None:
+        """Invert the seed transform: a world point back onto the stage
+        grid the layout cells were recorded in. None before seeding."""
+        if self._grid is None or self.defn is None:
+            return None
+        origin, cmin = self._grid
+        size = self.defn.cell_size
+        return (
+            cmin[0] + round((world[0] - origin[0]) / size),
+            cmin[1] + round((world[1] - origin[1]) / size),
+        )
 
     def register_death(self, uid: str) -> None:
         self._dead.add(uid)

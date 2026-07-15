@@ -160,3 +160,11 @@ def test_expected_sig_round_trips():
     assert resolver.expected_sig("e03") == SIG_B
     assert resolver.expected_sig(f"sig:{SIG_A}") == SIG_A
     assert resolver.expected_sig("e99") is None
+
+
+def test_world_to_cell_inverts_the_seed_transform():
+    resolver = _seeded()
+    assert resolver.world_to_cell((1000.0, 500.0)) == (0, 0)
+    assert resolver.world_to_cell((1285.0, 500.0)) == (3, 0)
+    assert resolver.world_to_cell((1385.0, 505.0)) == (4, 0)
+    assert IdentityResolver().world_to_cell((0.0, 0.0)) is None

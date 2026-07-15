@@ -139,6 +139,46 @@ def assign_uids(units: list[StageUnit]) -> list[StageUnit]:
     return out
 
 
+def next_uid(defn: StageDefinition, prefix: str = "e") -> str:
+    """The next free uid for an observed reinforcement -- pre-issued at
+    first observation so the second playthrough already knows it."""
+    taken = [u.uid for u in defn.layout]
+    for event in defn.events:
+        taken.extend(u.uid for u in event.spawn_units())
+    highest = 0
+    for uid in taken:
+        if uid.startswith(prefix) and uid[len(prefix) :].isdigit():
+            highest = max(highest, int(uid[len(prefix) :]))
+    return f"{prefix}{highest + 1:02d}"
+
+
+def append_observed_spawn(
+    defn: StageDefinition,
+    units: list[StageUnit],
+    *,
+    turn: int,
+    observations: list[dict],
+) -> StageEvent:
+    """First-blind-run event recording: v1 infers the conservative
+    turn_start trigger at the observed turn; the raw observations stay in
+    the file so a contradicting second playthrough is reported to the
+    user, never auto-rewritten."""
+    highest = 0
+    for event in defn.events:
+        tail = event.event_id.removeprefix("ev")
+        if tail.isdigit():
+            highest = max(highest, int(tail))
+    event = StageEvent(
+        event_id=f"ev{highest + 1}",
+        trigger={"type": "turn_start", "turn": turn},
+        effect={"type": "spawn", "units": [asdict(u) for u in units]},
+        source="observed",
+        observations=observations,
+    )
+    defn.events.append(event)
+    return event
+
+
 def find_by_sig(defn: StageDefinition, sig: str | None) -> list[StageUnit]:
     """All units whose recorded sig sits within rendering-jitter
     tolerance -- a candidate set, not an identity: several uids sharing

@@ -94,6 +94,50 @@ def _read_summary_at(
     return None
 
 
+def _survey_point(
+    capture: Callable,
+    tap: Callable[[int, int], None],
+    screen: tuple[float, float],
+    *,
+    llm,
+    sleep: Callable[[float], None],
+) -> tuple[str, str | None, dict, list[dict]]:
+    """One unit's full read at a screen point: summary card -> detail
+    panel -> stats/weapons (+ LLM name). Raises SurveyIncomplete on any
+    unreadable step; the caller decides whether that is fatal (opening
+    survey) or a soft note (mid-battle reinforcement)."""
+    summary = _read_summary_at(capture, tap, screen, sleep)
+    if summary is None:
+        raise SurveyIncomplete(f"no summary card at {screen}")
+    tap(*SUMMARY_CARD_TAP)
+    sleep(MODAL_SETTLE_S)
+    modal = _await_modal(capture, sleep)
+    if modal is None:
+        raise SurveyIncomplete(f"detail modal did not open at {screen}")
+    tap(*WEAPONS_TAB_TAP)
+    sleep(MODAL_SETTLE_S)
+    modal = capture()
+    stats = panels.parse_unit_stats(modal)
+    rows = panels.parse_weapon_rows(modal)
+    if stats is None:
+        tap(*UNIT_DETAIL_CLOSE)
+        sleep(MODAL_SETTLE_S)
+        raise SurveyIncomplete(f"stat column unreadable at {screen}")
+    name = None
+    if llm is not None:
+        x, y, w, h = vision.FORECAST_LEFT_NAME_REGION
+        name = llm.transcribe(
+            modal[y : y + h, x : x + w],
+            "Transcribe the unit name on this game UI name plate "
+            "(Traditional Chinese / Japanese, single line).",
+        )
+    tap(*UNIT_DETAIL_CLOSE)
+    sleep(MODAL_SETTLE_S)
+    stats_dict = {k: getattr(stats, k) for k in stats.__dataclass_fields__}
+    weapons = [{k: getattr(r, k) for k in r.__dataclass_fields__} for r in rows]
+    return summary.name_sig, name, stats_dict, weapons
+
+
 def survey_stage(
     capture: Callable,
     tap: Callable[[int, int], None],
@@ -132,30 +176,9 @@ def survey_stage(
         screen = bring_to_view(point)
         if screen is None:
             raise SurveyIncomplete(f"unit {i} at {point} cannot be brought into view")
-        summary = _read_summary_at(capture, tap, screen, sleep)
-        if summary is None:
-            raise SurveyIncomplete(f"no summary card for unit {i} at {point}")
-        tap(*SUMMARY_CARD_TAP)
-        sleep(MODAL_SETTLE_S)
-        modal = _await_modal(capture, sleep)
-        if modal is None:
-            raise SurveyIncomplete(f"detail modal did not open for unit {i}")
-        tap(*WEAPONS_TAB_TAP)
-        sleep(MODAL_SETTLE_S)
-        modal = capture()
-        stats = panels.parse_unit_stats(modal)
-        rows = panels.parse_weapon_rows(modal)
-        if stats is None:
-            raise SurveyIncomplete(f"stat column unreadable for unit {i}")
-        name = None
-        if llm is not None:
-            x, y, w, h = vision.FORECAST_LEFT_NAME_REGION
-            name = llm.transcribe(
-                modal[y : y + h, x : x + w],
-                "Transcribe the unit name on this game UI name plate "
-                "(Traditional Chinese / Japanese, single line).",
-            )
-        stats_dict = {k: getattr(stats, k) for k in stats.__dataclass_fields__}
+        sig, name, stats_dict, weapons = _survey_point(
+            capture, tap, screen, llm=llm, sleep=sleep
+        )
         cell = (
             round((point[0] - origin[0]) / cell_size),
             round((point[1] - origin[1]) / cell_size),
@@ -165,28 +188,16 @@ def survey_stage(
                 uid="",
                 cell=cell,
                 faction=faction,
-                sig=summary.name_sig,
+                sig=sig,
                 name_text=name,
                 pilot_hint={
                     k: v for k, v in stats_dict.items() if k.startswith("pilot_")
                 },
                 stats=stats_dict,
-                weapons=[
-                    {k: getattr(r, k) for k in r.__dataclass_fields__} for r in rows
-                ],
+                weapons=weapons,
             )
         )
-        record(
-            "survey_unit",
-            frame=modal,
-            index=i,
-            sig=summary.name_sig,
-            name=name,
-            hp=summary.hp,
-            en=summary.en,
-        )
-        tap(*UNIT_DETAIL_CLOSE)
-        sleep(MODAL_SETTLE_S)
+        record("survey_unit", index=i, sig=sig, name=name)
 
     defn = StageDefinition(
         stage_id=stage_id,

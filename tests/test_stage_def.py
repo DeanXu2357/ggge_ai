@@ -170,3 +170,26 @@ def test_stale_status_round_trips(tmp_path):
     loaded = stage_def.load_stage_def("g/hard_2", root=tmp_path)
     assert loaded is not None
     assert loaded.status == "stale"
+
+
+def test_next_uid_scans_layout_and_spawns():
+    defn = _defn()
+    assert stage_def.next_uid(defn) == "e10"
+    bare = StageDefinition(stage_id="t/0")
+    assert stage_def.next_uid(bare) == "e01"
+
+
+def test_append_observed_spawn_round_trips(tmp_path):
+    defn = _defn()
+    unit = StageUnit(uid="e10", cell=(9, 9), sig=SIG_B)
+    event = stage_def.append_observed_spawn(
+        defn, [unit], turn=3, observations=[{"turn": 3, "new_units": [{"cell": [9, 9]}]}]
+    )
+    assert event.event_id == "ev2"
+    assert event.trigger == {"type": "turn_start", "turn": 3}
+    assert event.source == "observed"
+    stage_def.save_stage_def(defn, root=tmp_path)
+    loaded = stage_def.load_stage_def("g/hard_2", root=tmp_path)
+    spawned = loaded.events[1].spawn_units()
+    assert spawned[0].uid == "e10"
+    assert loaded.events[1].observations[0]["turn"] == 3

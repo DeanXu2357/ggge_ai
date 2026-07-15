@@ -378,3 +378,34 @@ def test_ensure_definition_stale_file_falls_back_to_survey(tmp_path, monkeypatch
     marked = stage_def.load_stage_def("g/hard_2", root=tmp_path)
     assert marked is not None and marked.status == "stale"
     assert set(c._id_positions) == {"e01", "e02", "e03"}
+
+
+def test_surplus_arc_becomes_a_recorded_reinforcement(tmp_path, monkeypatch):
+    defn = _defn_for_validation(en=SUMMARY_EN)
+    stage_def.save_stage_def(defn, root=tmp_path)
+    c = _stage_controller(tmp_path, SCAN)
+    monkeypatch.setattr(c, "_bring_to_view", lambda world: world)
+    monkeypatch.setattr(scout_intel.time, "sleep", lambda s: None)
+    monkeypatch.setattr(c.perception, "capture", lambda: HUB)
+    c._ensure_stage_definition(None)
+    assert c.resolver.expected_alive() == 3
+
+    surplus = (1600.0, 900.0)
+    c.tacmap.enemies.append(surplus)
+    monkeypatch.setattr(c, "_bring_to_view", lambda world: None)
+    battle, _ = c._board_with_resync(None)
+
+    events = {e["kind"] for e in c.ledger.events}
+    assert "stage_event_observed" in events
+    assert "stage_event_recorded" in events
+    saved = stage_def.load_stage_def("g/hard_2", root=tmp_path)
+    assert saved.events, "spawn event must be written back"
+    spawned = saved.events[0].spawn_units()
+    assert spawned[0].uid == "e04"
+    assert c.resolver.resolve(surplus) == "e04"
+    assert c.resolver.expected_alive() == 4
+
+    c.tacmap.enemies.append((1600.0, 901.0))
+    c._observe_new_units(None, battle)
+    saved_again = stage_def.load_stage_def("g/hard_2", root=tmp_path)
+    assert len(saved_again.events) == 1

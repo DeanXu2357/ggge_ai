@@ -262,14 +262,29 @@ def test_pilot_anchor_failure_aborts(monkeypatch):
 
 
 def test_pilot_no_advice_demotes_to_greedy(monkeypatch):
+    # a non-empty board with no opinion is a greedy demotion, not an abort
     c = _pilot_controller(monkeypatch, None)
+    c._id_positions[ENEMY_UID] = (400.0, 0.0)
+    monkeypatch.setattr(vision, "unit_cards_present", lambda f: False)
 
     c._on_unit_move()
 
-    assert controller_mod.WEAPON_SELECT_BTN in c.actuator.taps
     fallbacks = [e for e in c.ledger.events if e["kind"] == "pilot_fallback"]
     assert len(fallbacks) == 1 and fallbacks[0]["reason"] == "no_advice"
-    assert "pilot_plan" not in _kinds(c)
+    assert controller_mod.WEAPON_SELECT_BTN in c.actuator.taps
+
+
+def test_pilot_empty_board_resyncs_once_then_aborts(monkeypatch):
+    c = _pilot_controller(monkeypatch, None)
+    monkeypatch.setattr(vision, "unit_cards_present", lambda f: False)
+
+    with pytest.raises(PilotAbort):
+        c._on_unit_move()
+
+    kinds = [e["kind"] for e in c.ledger.events]
+    assert "board_resync" in kinds
+    aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
+    assert aborts and aborts[0]["reason"] == "board_empty_after_resync"
 
 
 def test_pilot_target_mismatch_without_switch_button_aborts(monkeypatch):
