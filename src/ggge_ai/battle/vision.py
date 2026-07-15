@@ -534,6 +534,35 @@ FORECAST_RIGHT_NAME_REGION = (1420, 126, 365, 46)
 # because anti-aliased stroke edges fall below the white threshold).
 # threshold 0.88: battle-prep's attacker panel scores 0.798 on this anchor
 # (EN label lookalike), everything else stays under 0.42
+REACTION_POPUP_TEMPLATE = _ELEMENTS / "label_reaction_choice.png"
+
+
+@dataclass(frozen=True)
+class ReactionPopup:
+    """The enemy-attack defense popup (#3, 應戰決策): who is attacking
+    whom, which stances the screen actually offers, and whether support
+    defense is on the table. The solver's root enumeration is restricted
+    to exactly this option set -- the screen is authoritative about what
+    can be chosen."""
+
+    attacker_name_sig: str | None
+    defender_name_sig: str | None
+    available: tuple[str, ...]
+    support_defend_available: bool
+
+
+def read_reaction_popup(frame: np.ndarray) -> ReactionPopup | None:
+    """None until the S9d live calibration lands the anchor template and
+    the name/option regions: the popup has never been captured at rest
+    (it appears mid enemy phase), so its geometry cannot be guessed
+    offline. The handler chain above this reader is fully wired and
+    tested against injected popups; dropping label_reaction_choice.png
+    plus the region constants here activates detection."""
+    if not REACTION_POPUP_TEMPLATE.exists():
+        return None
+    return None
+
+
 ENEMY_SUMMARY_ANCHOR_TEMPLATE = _ELEMENTS / "label_summary_hp.png"
 ENEMY_SUMMARY_ANCHOR_REGION = (570, 175, 100, 65)
 ENEMY_SUMMARY_ANCHOR_THRESHOLD = 0.88

@@ -34,6 +34,9 @@ from ggge_ai.battle.tracker import BoardTracker
 from ggge_ai.domain import screens
 from ggge_ai.vision.motion import frame_diff
 
+# 應戰彈窗選項座標（S9d 實機標定後填入；空表=偵測到彈窗也只能 abort）
+REACTION_OPTION_TAPS: dict[str, tuple[int, int]] = {}
+
 log = logging.getLogger(__name__)
 
 AUTO_BUTTON = (1820, 54)
@@ -573,6 +576,79 @@ class ManualBattleController:
             log.warning("frame capture failed, event will record without a frame", exc_info=True)
             return None
 
+    def _maybe_handle_reaction(self, frame) -> bool:
+        """M8-2 offline half: the defense popup is the one NOT_ACTIONABLE
+        scene that needs our input. Detection returns None until S9d
+        calibrates the template; everything behind it -- grounding both
+        name plates to uids, restricting the solver to the offered
+        options, tapping the chosen stance -- is wired and tested here.
+        Ungroundable popups abort per the M7 settlement."""
+        popup = vision.read_reaction_popup(frame)
+        if popup is None:
+            return False
+        self._log(
+            "reaction_popup",
+            frame=frame,
+            attacker_sig=popup.attacker_name_sig,
+            defender_sig=popup.defender_name_sig,
+            available=list(popup.available),
+            support=popup.support_defend_available,
+        )
+        if not self.pilot_enabled:
+            return False
+        attacker_id = (
+            self.resolver.uid_for(popup.attacker_name_sig)
+            if popup.attacker_name_sig is not None
+            else None
+        )
+        defender_id = (
+            self.resolver.uid_for(popup.defender_name_sig, "ally")
+            if popup.defender_name_sig is not None
+            else None
+        )
+        if attacker_id is None or defender_id is None:
+            self._pilot_abort(
+                "reaction_ungrounded",
+                frame=frame,
+                attacker=attacker_id,
+                defender=defender_id,
+            )
+        from . import advisor as advisor_mod
+
+        battle, _ = self._build_board()
+        advice = advisor_mod.advise_reaction(
+            battle,
+            self.specs_by_id,
+            defender_id=defender_id,
+            attacker_id=attacker_id,
+            config=advisor_mod.AdvisorConfig(
+                time_budget_s=self.pilot_time_budget_s, cell_size=95.0
+            ),
+            allowed_stances=popup.available or None,
+            allow_support_defend=popup.support_defend_available,
+        )
+        if advice is None:
+            self._pilot_abort("reaction_ungrounded", frame=frame, attacker=attacker_id)
+        point = REACTION_OPTION_TAPS.get(advice.stance)
+        if point is None:
+            self._pilot_abort(
+                "reaction_taps_uncalibrated", frame=frame, stance=advice.stance
+            )
+        self._log(
+            "reaction_choice",
+            frame=frame,
+            stance=advice.stance,
+            weapon=advice.weapon,
+            support=advice.support_defend,
+            value=round(advice.value, 1),
+            attacker=attacker_id,
+            defender=defender_id,
+        )
+        self.actuator.tap(*point)
+        time.sleep(1.0)
+        self._miss_streak = 0
+        return True
+
     def _on_not_actionable(self) -> bool:
         """No MODE_LABELS matched: we cannot act right now (docs/
         battle-phase-states.md's NOT_ACTIONABLE) -- enemy turn, third-party
@@ -584,9 +660,13 @@ class ManualBattleController:
 
         Returns whether this counts as activity (an idle-timeout should not
         fire while we're actively responding to something)."""
+        # the defense popup outranks everything else here: it blocks the
+        # enemy phase until answered
+        dialog_frame = self._frame()
+        if self._maybe_handle_reaction(dialog_frame):
+            return True
         # a dying unit pops a MENU-less inline dialogue line; advance it
         # before it stalls us
-        dialog_frame = self._frame()
         cursor = vision.locate_dialog_cursor(dialog_frame)
         if cursor is not None:
             log.info("in-battle dialog (cursor at %s), advancing", cursor)

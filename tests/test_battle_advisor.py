@@ -196,3 +196,34 @@ def test_simstate_key_is_insensitive_to_unit_list_order():
     forward = SimState(units=units())
     reordered = SimState(units=list(reversed(units())))
     assert forward.key() == reordered.key()
+
+
+def test_reaction_allowed_stances_exclude_the_counter():
+    # same board where countering strictly wins: with the popup offering
+    # no counter option, the tree must not contain the counter branch
+    battle = BattleState()
+    battle.add_unit(UnitState("d", Faction.ALLY, world_pos=(0.0, 0.0), hp=100, en=50))
+    battle.add_unit(UnitState("e", Faction.ENEMY, world_pos=(48.0, 0.0), hp=5, en=50))
+    pea = SimWeapon("pea", power=1, range_min=1, range_max=3)
+    specs = {
+        "d": _spec(),
+        "e": _spec(unit_attack=100, pilot_attack=100, weapons=(pea,)),
+    }
+    advice = advise_reaction(
+        battle, specs, defender_id="d", attacker_id="e", config=_config(max_depth=1),
+        allowed_stances=(DefenseKind.DODGE, DefenseKind.DEFEND),
+    )
+    assert advice is not None
+    assert advice.stance in (DefenseKind.DODGE, DefenseKind.DEFEND)
+
+
+def test_reaction_empty_allowed_set_returns_none():
+    battle = BattleState()
+    battle.add_unit(UnitState("d", Faction.ALLY, world_pos=(0.0, 0.0), hp=100, en=50))
+    battle.add_unit(UnitState("e", Faction.ENEMY, world_pos=(48.0, 0.0), hp=5, en=50))
+    specs = {"d": _spec(), "e": _spec(weapons=(SimWeapon("pea", power=1, range_min=1, range_max=3),))}
+    advice = advise_reaction(
+        battle, specs, defender_id="d", attacker_id="e", config=_config(max_depth=1),
+        allowed_stances=(),
+    )
+    assert advice is None

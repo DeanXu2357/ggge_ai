@@ -427,10 +427,11 @@ def _our_defense_node(
     alpha: float,
     beta: float,
     ctx: SearchContext,
+    candidates: list[DefenseResponse] | None = None,
 ) -> tuple[float, list[Decision]]:
     best = -_INF
     best_pv: list[Decision] = []
-    for response in _defense_candidates(state, target):
+    for response in (candidates if candidates is not None else _defense_candidates(state, target)):
         responded = replace(decision, defense=response)
         value, pv = _chance_value(state, responded, depth, alpha, beta, ctx)
         if value > best:
@@ -569,11 +570,17 @@ def solve_reaction(
     config: SolverConfig | None = None,
     *,
     evaluator: Evaluator | None = None,
+    allowed_stances: tuple[str, ...] | None = None,
+    allow_support_defend: bool = True,
 ) -> SolverResult:
     """Iterative-deepening max over OUR defense responses to `attack` --
     the enemy decision the reaction popup has already shown on screen.
     The root is the same _our_defense_node the in-tree search uses; the
-    returned decision is the attack with the chosen defense attached."""
+    returned decision is the attack with the chosen defense attached.
+    allowed_stances / allow_support_defend restrict the ROOT enumeration
+    to what the popup actually offers (the screen is authoritative about
+    the option set); the in-tree defense nodes stay unrestricted. An
+    empty restricted set returns decision None."""
     config = config or SolverConfig()
     objective = config.objective or Objective(
         terminal=_annihilation_terminal,
@@ -592,6 +599,14 @@ def solve_reaction(
         vmin, vmax = _eval_bounds(base_allies, base_enemies, config.weights)
     deadline = time.monotonic() + config.time_budget_s
 
+    candidates = _defense_candidates(state, target)
+    if allowed_stances is not None:
+        candidates = [r for r in candidates if r.kind in allowed_stances]
+    if not allow_support_defend:
+        candidates = [r for r in candidates if not r.support_defend]
+    if not candidates:
+        return best
+
     for depth in range(1, config.max_depth + 1):
         ctx = SearchContext(
             enemy_model=enemy_model,
@@ -606,7 +621,9 @@ def solve_reaction(
             terminal=objective.terminal,
         )
         try:
-            value, pv = _our_defense_node(state, attack, target, depth, -_INF, _INF, ctx)
+            value, pv = _our_defense_node(
+                state, attack, target, depth, -_INF, _INF, ctx, candidates=candidates
+            )
         except _Timeout:
             break
         stats.depth = depth

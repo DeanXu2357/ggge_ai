@@ -329,3 +329,73 @@ def test_pilot_disabled_leaves_greedy_untouched(monkeypatch):
 
     assert controller_mod.WEAPON_SELECT_BTN in c.actuator.taps
     assert "pilot_plan" not in _kinds(c)
+
+def _popup(**kw):
+    base = dict(
+        attacker_name_sig=ENEMY_SIG,
+        defender_name_sig=OUR_SIG,
+        available=("dodge", "defend"),
+        support_defend_available=False,
+    )
+    base.update(kw)
+    return vision.ReactionPopup(**base)
+
+
+def test_reaction_popup_choice_taps_the_calibrated_option(monkeypatch):
+    c = _pilot_controller(monkeypatch, None)
+    monkeypatch.setattr(vision, "read_reaction_popup", lambda f: _popup())
+    monkeypatch.setattr(
+        advisor_mod,
+        "advise_reaction",
+        lambda *a, **k: type("R", (), {"stance": "dodge", "weapon": None,
+                                       "support_defend": False, "value": 1.0})(),
+    )
+    monkeypatch.setitem(controller_mod.REACTION_OPTION_TAPS, "dodge", (500, 700))
+
+    handled = c._maybe_handle_reaction(c.perception.capture())
+
+    assert handled is True
+    assert (500, 700) in c.actuator.taps
+    choices = [e for e in c.ledger.events if e["kind"] == "reaction_choice"]
+    assert choices and choices[0]["stance"] == "dodge"
+
+
+def test_reaction_popup_without_calibrated_tap_aborts(monkeypatch):
+    c = _pilot_controller(monkeypatch, None)
+    monkeypatch.setattr(vision, "read_reaction_popup", lambda f: _popup())
+    monkeypatch.setattr(
+        advisor_mod,
+        "advise_reaction",
+        lambda *a, **k: type("R", (), {"stance": "dodge", "weapon": None,
+                                       "support_defend": False, "value": 1.0})(),
+    )
+
+    with pytest.raises(PilotAbort):
+        c._maybe_handle_reaction(c.perception.capture())
+
+    aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
+    assert aborts and aborts[0]["reason"] == "reaction_taps_uncalibrated"
+
+
+def test_reaction_popup_ungrounded_names_abort(monkeypatch):
+    c = _pilot_controller(monkeypatch, None)
+    monkeypatch.setattr(
+        vision, "read_reaction_popup", lambda f: _popup(attacker_name_sig=None)
+    )
+
+    with pytest.raises(PilotAbort):
+        c._maybe_handle_reaction(c.perception.capture())
+
+    aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
+    assert aborts and aborts[0]["reason"] == "reaction_ungrounded"
+
+
+def test_reaction_popup_in_greedy_mode_is_logged_not_handled(monkeypatch):
+    c = _pilot_controller(monkeypatch, None)
+    c.pilot_enabled = False
+    monkeypatch.setattr(vision, "read_reaction_popup", lambda f: _popup())
+
+    handled = c._maybe_handle_reaction(c.perception.capture())
+
+    assert handled is False
+    assert any(e["kind"] == "reaction_popup" for e in c.ledger.events)

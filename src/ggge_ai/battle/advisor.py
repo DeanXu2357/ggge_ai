@@ -84,6 +84,8 @@ def advise_reaction(
     attacker_id: str,
     config: AdvisorConfig | None = None,
     weapon: str | None = None,
+    allowed_stances: tuple[str, ...] | None = None,
+    allow_support_defend: bool = True,
 ) -> ReactionAdvice | None:
     """Best defense response for the reaction popup (the user's call: the
     solver decides reactions, no static default). None when the incoming
@@ -133,6 +135,8 @@ def advise_reaction(
             move_validator=validator,
             reach_provider=reach,
         ),
+        allowed_stances=allowed_stances,
+        allow_support_defend=allow_support_defend,
     )
     if result.decision is None or result.decision.defense is None:
         return None
