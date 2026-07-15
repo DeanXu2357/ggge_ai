@@ -8,11 +8,22 @@
 
 ## 暫停快照（2026-07-15 S9d 應戰整併，恢復點）
 
-**裝置現況**：本 session USB 連上（`R5CRC37JBYJ device`）做了回應探測——
-螢幕 Awake、無凍機，遊戲停在主畫面（RANK 21、體力 101/106、STAGE 18）。
-未進任何戰鬥（S9d 這半是純碼面整併）。凍機硬體檢查（memtest86+/BIOS）
-仍最優先。WiFi adb 亦已配對（`adb connect 192.168.50.28:<port>`，port 每次
-重開會變）。
+**裝置現況**：本 session 前半 USB 連上（`R5CRC37JBYJ device`）做了回應探測
+——螢幕 Awake、無凍機，遊戲停在主畫面（RANK 21、體力 101/106、STAGE 18）。
+**後半要跑實機探測時 adb 掉權限**：`no permissions`——seat0 目前是
+`gdm-greeter`（桌面退回登入畫面、idle 1h+），poyu 不在 active seat →
+USB uaccess ACL 沒給 poyu（見 [[adb-permissions-seat0]]）。sudo 要密碼
+（無免密）、手機無線偵錯已關（5555 拒連），使用者外出無法實體接觸→
+**live S9d 探測擋住,等桌面登入或手機開無線偵錯**。凍機硬體檢查
+（memtest86+/BIOS）仍最優先。
+
+**恢復點（回到桌面後）**：① `loginctl` 確認 poyu 在 seat0 active（實體登入
+桌面即可，必要時重插 USB）→ `adb devices` 應回 `device`。② 探測法已備妥
+（子類 `ManualBattleController`、override `_on_battle_prep`：`is_reaction`
+時存幀＋raise 停住，把遊戲泊在 -應戰- 畫面不確認；greedy 驅動、entry 用
+flow actions 從主畫面 nav_stage 1230,1050 進關）。③ 泊住後手動點候選
+stance 切換入口（機頭動作圖示 ~1120,420 或底部 ☰ ~702,921），subagent
+判讀每步→標 `REACTION_OPTION_TAPS`＋vision 讀 `available_stances`。
 
 **S9d 進度（本 session）**：
 - **關鍵釐清**：應戰決策（#3）在本作不是獨立彈窗，而是敵攻我方時的
