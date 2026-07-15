@@ -33,9 +33,9 @@ def _nearest_sig(
 def build_battle_state(
     tacmap: TacticalMap,
     *,
-    specs_by_sig: dict | None = None,
-    sig_positions: dict[str, Point] | None = None,
-    ally_sig_positions: dict[str, Point] | None = None,
+    specs_by_id: dict | None = None,
+    id_positions: dict[str, Point] | None = None,
+    ally_id_positions: dict[str, Point] | None = None,
     turn: int = 1,
     hub_poisoned: bool = False,
     notes: list[str] | None = None,
@@ -51,20 +51,20 @@ def build_battle_state(
     and dropped with a note when neither claims it, instead of entering
     the sim as a default-stat ghost.
 
-    ally_sig_positions lets allies adopt their name signature the same way
+    ally_id_positions lets allies adopt their name signature the same way
     enemies do (learned incrementally as units act, tracker-fed) -- a
     sig-named ally keeps its identity across turns and can carry a spec."""
-    specs_by_sig = specs_by_sig or {}
-    sig_positions = sig_positions or {}
-    ally_sig_positions = ally_sig_positions or {}
+    specs_by_id = specs_by_id or {}
+    id_positions = id_positions or {}
+    ally_id_positions = ally_id_positions or {}
     battle = BattleState(turn=turn)
     taken_allies: set[str] = set()
     for i, point in enumerate(tacmap.allies, start=1):
-        sig = _nearest_sig(point, ally_sig_positions, taken_allies)
+        sig = _nearest_sig(point, ally_id_positions, taken_allies)
         max_hp = None
         if sig is not None:
             taken_allies.add(sig)
-            spec = specs_by_sig.get(sig)
+            spec = specs_by_id.get(sig)
             if spec is not None:
                 max_hp = spec.max_hp
         battle.add_unit(
@@ -77,12 +77,12 @@ def build_battle_state(
         )
     taken: set[str] = set()
     for i, point in enumerate(tacmap.enemies, start=1):
-        sig = _nearest_sig(point, sig_positions, taken)
+        sig = _nearest_sig(point, id_positions, taken)
         if sig is None and hub_poisoned:
-            ally_sig = _nearest_sig(point, ally_sig_positions, taken_allies)
+            ally_sig = _nearest_sig(point, ally_id_positions, taken_allies)
             if ally_sig is not None:
                 taken_allies.add(ally_sig)
-                spec = specs_by_sig.get(ally_sig)
+                spec = specs_by_id.get(ally_sig)
                 battle.add_unit(
                     UnitState(
                         unit_id=ally_sig,
@@ -108,7 +108,7 @@ def build_battle_state(
         max_hp = None
         if sig is not None:
             taken.add(sig)
-            spec = specs_by_sig.get(sig)
+            spec = specs_by_id.get(sig)
             if spec is not None:
                 max_hp = spec.max_hp
         battle.add_unit(

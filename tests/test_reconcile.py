@@ -190,8 +190,9 @@ def test_battle_prep_matching_damage_is_silent():
 
 def _pending(expect_kill, hit_pct, quality="grounded"):
     exp = reconcile.SimExpectation(
-        attacker_sig="a" * 16,
-        target_sig="t" * 16,
+        attacker_id="sig:" + "a" * 16,
+        target_id="sig:" + "t" * 16,
+        target_sig_seen="t" * 16,
         weapon_slot=1,
         expected_damage=9000.0,
         target_hp_believed=8000,

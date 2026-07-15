@@ -129,3 +129,34 @@ def test_passthrough_degrades_uids_to_sig_strings():
     assert resolver.resolve((0.0, 0.0)) is None
     assert resolver.expected_alive() is None
     assert resolver.candidates(SIG_A) == [f"sig:{SIG_A}"]
+
+
+def test_sig_uid_merges_jitter_per_namespace():
+    resolver = IdentityResolver()
+    jittered = SIG_A[:-1] + "b"
+    assert resolver.sig_uid(SIG_A) == f"sig:{SIG_A}"
+    assert resolver.sig_uid(jittered) == f"sig:{SIG_A}"
+    assert resolver.sig_uid(SIG_A, namespace="ally") == f"sig:{SIG_A}"
+    far = "0" * 16
+    assert resolver.sig_uid(far) == f"sig:{far}"
+
+
+def test_uid_for_ally_always_degrades_even_when_seeded():
+    resolver = _seeded()
+    assert resolver.uid_for(SIG_A, namespace="ally") == f"sig:{SIG_A}"
+
+
+def test_uid_for_shared_sig_arbitrates_by_position():
+    resolver = _seeded()
+    assert resolver.uid_for(SIG_A, world=(1010.0, 505.0)) == "e01"
+    assert resolver.uid_for(SIG_A, world=(1290.0, 495.0)) == "e02"
+    assert resolver.uid_for(SIG_A) is None
+    assert resolver.uid_for(SIG_B) == "e03"
+
+
+def test_expected_sig_round_trips():
+    resolver = _seeded()
+    assert resolver.expected_sig("e01") == SIG_A
+    assert resolver.expected_sig("e03") == SIG_B
+    assert resolver.expected_sig(f"sig:{SIG_A}") == SIG_A
+    assert resolver.expected_sig("e99") is None

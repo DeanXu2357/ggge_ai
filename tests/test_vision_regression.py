@@ -77,8 +77,8 @@ def _check_observer_board(frame: np.ndarray, expect: dict) -> None:
     inputs = expect["inputs"]
     battle = build_battle_state(
         tacmap,
-        sig_positions={k: tuple(v) for k, v in inputs.get("sig_positions", {}).items()},
-        ally_sig_positions={
+        id_positions={k: tuple(v) for k, v in inputs.get("sig_positions", {}).items()},
+        ally_id_positions={
             k: tuple(v) for k, v in inputs.get("ally_sig_positions", {}).items()
         },
         hub_poisoned=inputs.get("hub_poisoned", True),

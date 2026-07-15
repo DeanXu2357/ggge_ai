@@ -185,16 +185,16 @@ def replay_tracker(events: list[dict]) -> str:
         if kind == "forecast_weapon_select":
             sig = event.get("target_sig")
             if sig is not None:
-                for dead_sig, belief in tracker.beliefs.items():
+                for belief in tracker.beliefs.values():
                     if belief.alive or belief.faction is not Faction.ENEMY:
                         continue
-                    if signature_distance(sig, dead_sig) <= SIG_ALIAS_MAX_DISTANCE:
+                    if belief.sig and signature_distance(sig, belief.sig) <= SIG_ALIAS_MAX_DISTANCE:
                         reappearances.append(
-                            f"turn {event.get('turn')}: dead sig {dead_sig[:6]} "
+                            f"turn {event.get('turn')}: dead sig {belief.sig[:6]} "
                             f"reappears as forecast target"
                         )
             tracker.on_weapon_select(_forecast_from_event(event))
-            last_target = sig
+            last_target = tracker.resolver.sig_uid(sig) if sig is not None else None
         elif kind == "forecast_battle_prep":
             tracker.on_battle_prep(_prep_from_event(event))
         elif kind == "kill_check":

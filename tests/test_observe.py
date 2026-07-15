@@ -38,8 +38,8 @@ def test_enemy_near_intel_tap_adopts_the_signature():
     spec = UnitSpec(max_hp=51349)
     battle = build_battle_state(
         _tacmap(),
-        specs_by_sig={sig: spec},
-        sig_positions={sig: (420.0, 30.0)},
+        specs_by_id={sig: spec},
+        id_positions={sig: (420.0, 30.0)},
     )
     matched = battle.unit(sig)
     assert matched is not None
@@ -51,7 +51,7 @@ def test_enemy_near_intel_tap_adopts_the_signature():
 
 def test_far_signature_is_not_adopted():
     sig = "a" * 16
-    battle = build_battle_state(_tacmap(), sig_positions={sig: (2000.0, 2000.0)})
+    battle = build_battle_state(_tacmap(), id_positions={sig: (2000.0, 2000.0)})
     assert battle.unit(sig) is None
 
 
@@ -60,7 +60,7 @@ def test_hub_poisoned_drops_unconfirmed_enemies():
     notes: list[str] = []
     battle = build_battle_state(
         _tacmap(),
-        sig_positions={sig: (420.0, 30.0)},
+        id_positions={sig: (420.0, 30.0)},
         hub_poisoned=True,
         notes=notes,
     )
@@ -81,8 +81,8 @@ def test_poisoned_red_arc_near_tracked_ally_rejoins_allies():
     notes: list[str] = []
     battle = build_battle_state(
         _tacmap(),
-        specs_by_sig={ally_sig: spec},
-        ally_sig_positions={ally_sig: (420.0, 30.0)},
+        specs_by_id={ally_sig: spec},
+        ally_id_positions={ally_sig: (420.0, 30.0)},
         hub_poisoned=True,
         notes=notes,
     )
@@ -105,7 +105,7 @@ def test_ally_sig_taken_by_blue_arc_is_not_reused_for_recovery():
     notes: list[str] = []
     battle = build_battle_state(
         t,
-        ally_sig_positions={ally_sig: (400.0, 50.0)},
+        ally_id_positions={ally_sig: (400.0, 50.0)},
         hub_poisoned=True,
         notes=notes,
     )
@@ -119,8 +119,8 @@ def test_enemy_sig_wins_over_ally_recovery():
     ally_sig = "b" * 16
     battle = build_battle_state(
         _tacmap(),
-        sig_positions={enemy_sig: (420.0, 30.0)},
-        ally_sig_positions={ally_sig: (420.0, 30.0)},
+        id_positions={enemy_sig: (420.0, 30.0)},
+        ally_id_positions={ally_sig: (420.0, 30.0)},
         hub_poisoned=True,
     )
     matched = battle.unit(enemy_sig)
@@ -133,7 +133,7 @@ def test_clean_scan_keeps_red_arcs_as_enemies():
     ally_sig = "b" * 16
     battle = build_battle_state(
         _tacmap(),
-        ally_sig_positions={ally_sig: (420.0, 30.0)},
+        ally_id_positions={ally_sig: (420.0, 30.0)},
         hub_poisoned=False,
     )
     assert battle.unit(ally_sig) is None
@@ -166,9 +166,10 @@ def _armed_controller():
         advisor_time_budget_s=0.2,
     )
     sig = "a" * 16
+    uid = f"sig:{sig}"
     c.tacmap.allies.append((0.0, 0.0))
     c.tacmap.enemies.append((400.0, 0.0))
-    c.specs_by_sig[sig] = UnitSpec(
+    c.specs_by_id[uid] = UnitSpec(
         max_hp=8000,
         en_max=300,
         unit_attack=3000.0,
@@ -179,8 +180,8 @@ def _armed_controller():
         move_range=5,
         weapons=(SimWeapon(name="weapon_1_shooting", power=3000.0, range_max=5, en_cost=10),),
     )
-    c._sig_positions[sig] = (400.0, 0.0)
-    return c, sig
+    c._id_positions[uid] = (400.0, 0.0)
+    return c, uid
 
 
 def test_build_board_drops_unconfirmed_hub_enemies():
@@ -193,15 +194,34 @@ def test_build_board_drops_unconfirmed_hub_enemies():
     assert any("dropped" in n for n in notes)
 
 
+def test_build_board_notes_missing_allies_against_card_count():
+    c, _ = _armed_controller()
+    c._card_count = 5
+
+    battle, notes = c._build_board()
+
+    assert len(battle.allies()) == 1
+    assert any("missing allies" in n for n in notes)
+
+
+def test_build_board_stays_quiet_when_cards_do_not_exceed_allies():
+    c, _ = _armed_controller()
+    c._card_count = 1
+
+    _, notes = c._build_board()
+
+    assert not any("missing allies" in n for n in notes)
+
+
 def test_refresh_sig_positions_quiet_update_once_per_turn(monkeypatch):
-    c, sig = _armed_controller()
-    c.tracker.on_sig_position(sig, (400.0, 0.0))
+    c, uid = _armed_controller()
+    c.tracker.on_sig_position(uid[len("sig:"):], (400.0, 0.0))
     monkeypatch.setattr(vision, "find_enemy_units", lambda f, region=None: [(410, 10)])
 
     c._refresh_sig_positions(c.perception.capture())
 
-    assert c._sig_positions[sig] == (410.0, 10.0)
-    assert c.tracker.beliefs[sig].world_pos == (410.0, 10.0)
+    assert c._id_positions[uid] == (410.0, 10.0)
+    assert c.tracker.beliefs[uid].world_pos == (410.0, 10.0)
     summaries = [e for e in c.ledger.events if e["kind"] == "sig_refresh_summary"]
     assert len(summaries) == 1
     assert summaries[0]["quiet"] == 1 and summaries[0]["taps"] == 0
@@ -253,7 +273,7 @@ def test_proposal_target_mismatch_is_flagged(monkeypatch):
     ]
     assert len(mismatches) == 1
     assert mismatches[0]["proposal_target"] == sig
-    assert mismatches[0]["actual_target"] == other_sig
+    assert mismatches[0]["actual_target"] == f"sig:{other_sig}"
 
 
 def test_matching_target_is_silent(monkeypatch):
@@ -261,7 +281,7 @@ def test_matching_target_is_silent(monkeypatch):
     c._consult_advisor()
     c._proposal.target_id = sig
     forecast = WeaponSelectForecast(
-        target_name_sig=sig,
+        target_name_sig=sig[len("sig:"):],
         target_hp=8000,
         target_en=300,
         predicted_damage=9000,

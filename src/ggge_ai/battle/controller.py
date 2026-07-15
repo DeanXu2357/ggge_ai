@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 
 from ggge_ai.battle import executor, reconcile, vision
 from ggge_ai.battle.actions import ActionKind
+from ggge_ai.battle.identity import IdentityResolver
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.state import Faction
 from ggge_ai.battle.tacmap import TacticalMap
@@ -242,9 +243,9 @@ class ManualBattleController:
     _state_checks: int = 0
     _expectation: Expectation | None = None
     _dispatched_mode: str | None = None
-    # reconciliation chain (M4a): specs_by_sig is filled by stage intel
+    # reconciliation chain (M4a): specs_by_id is filled by stage intel
     # (M3b); until then expectations are ungrounded and say so
-    specs_by_sig: dict = field(default_factory=dict)
+    specs_by_id: dict = field(default_factory=dict)
     # M3b enemy-intel acquisition, run once on the first our-turn hub.
     # None disables it (the default until the flow is live-validated);
     # flow.py arms it via GGGE_INTEL=1
@@ -267,7 +268,7 @@ class ManualBattleController:
     _turn_sig_refreshed: bool = False
     _proposal: object | None = None
     _card_count: int | None = None
-    _sig_positions: dict = field(default_factory=dict)
+    _id_positions: dict = field(default_factory=dict)
     _pending: reconcile.PendingOutcome | None = None
     _seen_sigs: set = field(default_factory=set)
     _sig_names: dict = field(default_factory=dict)
@@ -275,6 +276,13 @@ class ManualBattleController:
     # running board beliefs fed by the read-back hooks (forecast, prep,
     # kill counter, turn boundary); process-scoped, never persisted
     tracker: BoardTracker = field(default_factory=BoardTracker)
+    # observations -> uids; passthrough (sig-degraded) until a stage
+    # definition seeds it. Shared with the tracker so both canonicalize
+    # jittered signatures against the same first-seen registry.
+    resolver: IdentityResolver = field(default_factory=IdentityResolver)
+
+    def __post_init__(self) -> None:
+        self.tracker.resolver = self.resolver
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
         """Cycle the AUTO button until it is colorless (full manual)."""
@@ -728,9 +736,17 @@ class ManualBattleController:
             budget=self.intel_budget,
             ledger_log=self._log,
         )
-        self.specs_by_sig.update(intel.specs_by_sig)
+        for sig, spec in intel.specs_by_sig.items():
+            uid = self.resolver.uid_for(sig, world=intel.positions.get(sig))
+            if uid is None:
+                self._log("intel_unresolved", sig=sig)
+                continue
+            self.specs_by_id[uid] = spec
         self._sig_names.update(intel.names)
-        self._sig_positions.update(intel.positions)
+        for sig, pos in intel.positions.items():
+            uid = self.resolver.uid_for(sig, world=pos)
+            if uid is not None:
+                self._id_positions[uid] = pos
         self._seen_sigs.update(intel.specs_by_sig)
         self.tracker.on_intel(intel)
         log.info(
@@ -748,16 +764,16 @@ class ManualBattleController:
         from .observe import build_battle_state
 
         positions = {
-            sig: pos
-            for sig, pos in self._sig_positions.items()
-            if sig not in self.tracker.beliefs or self.tracker.beliefs[sig].alive
+            uid: pos
+            for uid, pos in self._id_positions.items()
+            if uid not in self.tracker.beliefs or self.tracker.beliefs[uid].alive
         }
         notes: list[str] = []
         battle = build_battle_state(
             self.tacmap,
-            specs_by_sig=self.specs_by_sig,
-            sig_positions=positions,
-            ally_sig_positions=self.tracker.sig_positions(Faction.ALLY),
+            specs_by_id=self.specs_by_id,
+            id_positions=positions,
+            ally_id_positions=self.tracker.id_positions(Faction.ALLY),
             turn=self.ledger.turn if self.ledger is not None else self.tracker.turn,
             # the tacmap is scouted on our-turn hub frames, where the pinned
             # pink-ally bug makes enemy arcs untrustworthy; per the settled
@@ -782,7 +798,7 @@ class ManualBattleController:
         if self._turn_sig_refreshed:
             return
         self._turn_sig_refreshed = True
-        known = self.tracker.sig_positions()
+        known = self.tracker.id_positions()
         if not known:
             return
         candidates = vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
@@ -796,10 +812,11 @@ class ManualBattleController:
             [(float(x), float(y)) for x, y in candidates],
             known,
             ledger_log=self._log,
+            resolve=lambda sig, point: self.resolver.uid_for(sig, world=point),
         )
-        for sig, pos in refresh.positions.items():
-            self._sig_positions[sig] = pos
-            self.tracker.on_sig_position(sig, pos)
+        for uid, pos in refresh.positions.items():
+            self._id_positions[uid] = pos
+            self.tracker.on_position(uid, pos)
         self._log(
             "sig_refresh_summary",
             quiet=refresh.matched_quietly,
@@ -828,7 +845,7 @@ class ManualBattleController:
         battle, belief_notes = self._build_board()
         advice = advisor_mod.advise(
             battle,
-            self.specs_by_sig,
+            self.specs_by_id,
             advisor_mod.AdvisorConfig(time_budget_s=self.advisor_time_budget_s, cell_size=95.0),
         )
         if advice is None:
@@ -851,7 +868,7 @@ class ManualBattleController:
             "advisor proposal: %s %s -> %s (value %.0f, %d assumptions) -- not executed, v1 compares only",
             advice.unit_id,
             advice.kind,
-            self._describe_sig(advice.target_id) or advice.target_id,
+            self._describe_id(advice.target_id) or advice.target_id,
             advice.value,
             len(advice.assumptions),
         )
@@ -1062,7 +1079,7 @@ class ManualBattleController:
 
         advice = advisor_mod.advise(
             battle,
-            self.specs_by_sig,
+            self.specs_by_id,
             advisor_mod.AdvisorConfig(time_budget_s=self.pilot_time_budget_s, cell_size=95.0),
             unit_id=ally_id,
         )
@@ -1077,13 +1094,13 @@ class ManualBattleController:
             return False
         slot = None
         if advice.kind == ActionKind.ATTACK:
-            if not executor.verifiable_target(advice.target_id):
+            if not executor.verifiable_target(advice.target_id, self.resolver):
                 self._log(
                     "pilot_fallback", reason="unverifiable_target",
                     unit=ally_id, target=advice.target_id,
                 )
                 return False
-            slot = executor.slot_for(advice, self.specs_by_sig.get(ally_id))
+            slot = executor.slot_for(advice, self.specs_by_id.get(ally_id))
             if slot is None:
                 self._pilot_abort(
                     "weapon_unresolved", frame=frame, unit=ally_id, weapon=advice.weapon
@@ -1116,7 +1133,7 @@ class ManualBattleController:
             "pilot plan: %s %s -> %s (weapon %s, move %s)",
             ally_id,
             advice.kind,
-            self._describe_sig(advice.target_id) or advice.target_id,
+            self._describe_id(advice.target_id) or advice.target_id,
             advice.weapon,
             advice.move_world,
         )
@@ -1183,7 +1200,9 @@ class ManualBattleController:
                 "weapon_not_lit", frame=frame, slot=slot, weapon=plan.advice.weapon
             )
         forecast = vision.read_weapon_select_forecast(frame)
-        while not executor.target_ok(forecast, plan.advice) and plan.switch_budget > 0:
+        while (
+            not self._pilot_target_ok(forecast, plan.advice) and plan.switch_budget > 0
+        ):
             found = self.perception.probe(["btn_switch_target"])
             if not found:
                 break
@@ -1198,7 +1217,7 @@ class ManualBattleController:
             time.sleep(1.0)
             frame = self._frame()
             forecast = vision.read_weapon_select_forecast(frame)
-        if not executor.target_ok(forecast, plan.advice):
+        if not self._pilot_target_ok(forecast, plan.advice):
             self._pilot_abort(
                 "target_mismatch",
                 frame=frame,
@@ -1415,11 +1434,23 @@ class ManualBattleController:
         self._note_sig(forecast.our_name_sig, frame, vision.FORECAST_RIGHT_NAME_REGION, "ours")
         self._note_sig(forecast.target_name_sig, frame, vision.FORECAST_LEFT_NAME_REGION, "enemy")
         self.tracker.on_weapon_select(forecast)
+        attacker_id = (
+            self.resolver.uid_for(forecast.our_name_sig, "ally")
+            if forecast.our_name_sig is not None
+            else None
+        )
+        target_id = (
+            self.resolver.uid_for(forecast.target_name_sig)
+            if forecast.target_name_sig is not None
+            else None
+        )
         expectation = reconcile.compute_expectation(
-            attacker_spec=self.specs_by_sig.get(forecast.our_name_sig),
-            target_spec=self.specs_by_sig.get(forecast.target_name_sig),
+            attacker_spec=self.specs_by_id.get(attacker_id),
+            target_spec=self.specs_by_id.get(target_id),
             forecast=forecast,
             slot=slot,
+            attacker_id=attacker_id,
+            target_id=target_id,
         )
         self._log(
             "forecast_weapon_select",
@@ -1445,29 +1476,29 @@ class ManualBattleController:
         if (
             proposal is not None
             and getattr(proposal, "target_id", None) is not None
-            and expectation.target_sig is not None
-            and proposal.target_id in self._sig_positions
-            and proposal.target_id != expectation.target_sig
+            and expectation.target_id is not None
+            and proposal.target_id in self._id_positions
+            and proposal.target_id != expectation.target_id
         ):
             log.warning(
                 "[SIM-DIVERGE] proposal_target: advisor proposed attacking %s, "
                 "actual target is %s",
-                self._describe_sig(proposal.target_id),
-                self._describe_sig(expectation.target_sig),
+                self._describe_id(proposal.target_id),
+                self._describe_id(expectation.target_id),
             )
             self._log(
                 "sim_diverge",
                 divergence="proposal_target",
                 proposal_unit=proposal.unit_id,
                 proposal_target=proposal.target_id,
-                actual_target=expectation.target_sig,
+                actual_target=expectation.target_id,
             )
         self._log(
             "decision",
             action="attack",
             slot=slot,
-            attacker=self._describe_sig(expectation.attacker_sig),
-            target=self._describe_sig(expectation.target_sig),
+            attacker=self._describe_id(expectation.attacker_id),
+            target=self._describe_id(expectation.target_id),
             expected_damage=(
                 round(expectation.expected_damage)
                 if expectation.expected_damage is not None
@@ -1486,13 +1517,27 @@ class ManualBattleController:
         )
         log.info(
             "decision: %s attacks %s with slot %d, sim expects %s damage on %s HP -> %s [%s]",
-            self._describe_sig(expectation.attacker_sig),
-            self._describe_sig(expectation.target_sig),
+            self._describe_id(expectation.attacker_id),
+            self._describe_id(expectation.target_id),
             slot,
             "?" if expectation.expected_damage is None else round(expectation.expected_damage),
             expectation.target_hp_believed,
             {True: "kill", False: "no kill", None: "no call"}[expectation.expect_kill],
             expectation.quality,
+        )
+
+    def _describe_id(self, uid: str | None) -> str | None:
+        if uid is None:
+            return None
+        return self._describe_sig(self.resolver.expected_sig(uid)) or uid
+
+    def _pilot_target_ok(self, forecast, advice) -> bool:
+        belief = self.tracker.beliefs.get(advice.target_id)
+        return executor.target_ok(
+            forecast,
+            advice,
+            self.resolver,
+            believed_hp=belief.hp if belief is not None else None,
         )
 
     def _describe_sig(self, sig: str | None) -> str | None:
@@ -1623,8 +1668,9 @@ class ManualBattleController:
         if self._pending is not None:
             e = self._pending.expectation
             extras = {
-                "attacker_sig": e.attacker_sig,
-                "target_sig": e.target_sig,
+                "attacker": e.attacker_id,
+                "target": e.target_id,
+                "target_sig_seen": e.target_sig_seen,
                 "predicted_damage_game": self._pending.game_damage,
                 "expected_damage_sim": (
                     round(e.expected_damage) if e.expected_damage is not None else None

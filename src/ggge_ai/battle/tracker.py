@@ -1,11 +1,17 @@
-"""Process-scoped running board beliefs, keyed by name signature.
+"""Process-scoped running board beliefs, keyed by unit uid.
 
 The controller already reads authoritative numbers per action -- the
 weapon-select forecast, the battle-prep confirmation, the 破壞數 verdict,
 the turn boundary -- but until now they fed reconcile/ledger and were
-discarded. BoardTracker retains them as sig-keyed beliefs (HP/EN, alive,
+discarded. BoardTracker retains them as uid-keyed beliefs (HP/EN, alive,
 last-confirmed position) so the next advisor consultation starts from what
 the screen already told us instead of bridge defaults.
+
+Identity goes through the shared IdentityResolver: screen hooks hand in
+the raw signature evidence, the resolver answers with the uid (canonical
+"sig:<hex>" in passthrough and always for allies; a stage-definition uid
+when seeded). A seeded resolution that stays ambiguous skips the write --
+a belief under a guessed identity is worse than none.
 
 Blackboard discipline applies: the tracker lives and dies with one battle
 inside one process, is never persisted, and is never a prior for the next
@@ -19,9 +25,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from .identity import IdentityResolver
 from .observe import SIG_MATCH_RADIUS
 from .state import BattleState, Faction, Point
-from .vision import signature_distance
 
 if TYPE_CHECKING:
     from .reconcile import PendingOutcome
@@ -33,8 +39,14 @@ _NOT_KILLED_RESULTS = frozenset({"model_diverge", "rng_branch", "unverified_hit_
 
 # the same unit's name signature jitters a few bits between panels (live
 # corpus 20260713-225448: weapon-select vs battle-prep sigs of one unit
-# differ by 3-5 bits); same tolerance as stage_cache.SIG_MATCH_MAX_DISTANCE
+# differ by 3-5 bits); same tolerance as stage_def.SIG_CANDIDATE_MAX_DISTANCE
 SIG_ALIAS_MAX_DISTANCE = 6
+
+_NAMESPACE = {
+    Faction.ALLY: "ally",
+    Faction.ENEMY: "enemy",
+    Faction.THIRD_PARTY: "third_party",
+}
 
 
 @dataclass
@@ -53,28 +65,20 @@ class UnitBelief:
 class BoardTracker:
     beliefs: dict[str, UnitBelief] = field(default_factory=dict)
     turn: int = 1
+    resolver: IdentityResolver = field(default_factory=IdentityResolver)
 
-    def _belief(self, sig: str, faction: Faction) -> UnitBelief:
-        belief = self.beliefs.get(sig)
+    def _belief(
+        self, sig: str, faction: Faction, world: Point | None = None
+    ) -> UnitBelief | None:
+        uid = self.resolver.uid_for(sig, _NAMESPACE[faction], world=world)
+        if uid is None:
+            return None
+        belief = self.beliefs.get(uid)
         if belief is None:
-            canon = self._canonical(sig, faction)
-            if canon is not None:
-                return self.beliefs[canon]
             belief = UnitBelief(sig=sig, faction=faction)
-            self.beliefs[sig] = belief
+            self.beliefs[uid] = belief
+        belief.sig = sig
         return belief
-
-    def _canonical(self, sig: str, faction: Faction) -> str | None:
-        """The existing belief key this jittered signature really is, if
-        any -- keeps one unit from splitting into several beliefs."""
-        best, best_distance = None, SIG_ALIAS_MAX_DISTANCE + 1
-        for existing, belief in self.beliefs.items():
-            if belief.faction is not faction:
-                continue
-            distance = signature_distance(sig, existing)
-            if distance < best_distance:
-                best, best_distance = existing, distance
-        return best
 
     def _place(self, belief: UnitBelief, world: Point | None) -> None:
         if world is not None:
@@ -86,7 +90,9 @@ class BoardTracker:
 
     def on_intel(self, intel: StageIntel) -> None:
         for sig, summary in intel.summaries.items():
-            belief = self._belief(sig, Faction.ENEMY)
+            belief = self._belief(sig, Faction.ENEMY, world=intel.positions.get(sig))
+            if belief is None:
+                continue
             if summary.hp is not None:
                 belief.hp = summary.hp
             if summary.en is not None:
@@ -97,7 +103,17 @@ class BoardTracker:
     def on_sig_position(
         self, sig: str, world: Point, faction: Faction = Faction.ENEMY
     ) -> None:
-        belief = self._belief(sig, faction)
+        belief = self._belief(sig, faction, world=world)
+        if belief is not None:
+            self._place(belief, world)
+
+    def on_position(self, uid: str, world: Point, faction: Faction = Faction.ENEMY) -> None:
+        """Position update for an already-resolved identity (per-turn
+        refresh hands back uid-keyed positions; no sig resolution here)."""
+        belief = self.beliefs.get(uid)
+        if belief is None:
+            belief = UnitBelief(sig=self.resolver.expected_sig(uid) or "", faction=faction)
+            self.beliefs[uid] = belief
         self._place(belief, world)
 
     def on_weapon_select(
@@ -108,21 +124,23 @@ class BoardTracker:
         target_world: Point | None = None,
     ) -> None:
         if forecast.our_name_sig is not None:
-            ours = self._belief(forecast.our_name_sig, Faction.ALLY)
-            if forecast.our_hp is not None:
-                ours.hp = forecast.our_hp
-            if forecast.our_en is not None:
-                ours.en = forecast.our_en
-            self._place(ours, our_world)
-            ours.source = "forecast"
+            ours = self._belief(forecast.our_name_sig, Faction.ALLY, world=our_world)
+            if ours is not None:
+                if forecast.our_hp is not None:
+                    ours.hp = forecast.our_hp
+                if forecast.our_en is not None:
+                    ours.en = forecast.our_en
+                self._place(ours, our_world)
+                ours.source = "forecast"
         if forecast.target_name_sig is not None:
-            target = self._belief(forecast.target_name_sig, Faction.ENEMY)
-            if forecast.target_hp is not None:
-                target.hp = forecast.target_hp
-            if forecast.target_en is not None:
-                target.en = forecast.target_en
-            self._place(target, target_world)
-            target.source = "forecast"
+            target = self._belief(forecast.target_name_sig, Faction.ENEMY, world=target_world)
+            if target is not None:
+                if forecast.target_hp is not None:
+                    target.hp = forecast.target_hp
+                if forecast.target_en is not None:
+                    target.en = forecast.target_en
+                self._place(target, target_world)
+                target.source = "forecast"
 
     def on_battle_prep(self, prep: BattlePrepForecast) -> None:
         attacker_faction = Faction.ENEMY if prep.is_reaction else Faction.ALLY
@@ -135,6 +153,8 @@ class BoardTracker:
             if sig is None:
                 continue
             belief = self._belief(sig, faction)
+            if belief is None:
+                continue
             if hp is not None:
                 belief.hp = hp
             if en is not None:
@@ -144,10 +164,14 @@ class BoardTracker:
     def on_outcome(
         self, pending: PendingOutcome, result: str, *, delta: int | None = None
     ) -> None:
-        sig = pending.expectation.target_sig
-        if sig is None:
+        uid = pending.expectation.target_id
+        if uid is None:
             return
-        belief = self._belief(sig, Faction.ENEMY)
+        belief = self.beliefs.get(uid)
+        if belief is None:
+            sig = self.resolver.expected_sig(uid) or pending.expectation.target_sig_seen
+            belief = UnitBelief(sig=sig or "", faction=Faction.ENEMY)
+            self.beliefs[uid] = belief
         killed = self._killed(pending, result, delta)
         if killed is True:
             belief.alive = False
@@ -179,10 +203,10 @@ class BoardTracker:
     def _certain_hit(pending: PendingOutcome) -> bool:
         return pending.hit_pct is None or pending.hit_pct >= 100
 
-    def sig_positions(self, faction: Faction = Faction.ENEMY) -> dict[str, Point]:
+    def id_positions(self, faction: Faction = Faction.ENEMY) -> dict[str, Point]:
         return {
-            sig: belief.world_pos
-            for sig, belief in self.beliefs.items()
+            uid: belief.world_pos
+            for uid, belief in self.beliefs.items()
             if belief.faction is faction and belief.alive and belief.world_pos is not None
         }
 

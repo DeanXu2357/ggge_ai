@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from . import vision
 from .advisor import Advice
 from .bridge import UnitSpec
+from .identity import IdentityResolver
 from .observe import SIG_MATCH_RADIUS
 from .state import BattleState, Point
 from .tacmap import TacticalMap
@@ -92,16 +93,13 @@ def move_tap(
     return "direct", (round(desired[0]), round(desired[1]))
 
 
-def verifiable_target(target_id: str | None) -> bool:
-    """Only a signature-named target can pass the forecast check; a
-    positional id (unconfirmed arc) leaves the attack unverifiable."""
+def verifiable_target(target_id: str | None, resolver: IdentityResolver) -> bool:
+    """Only a target whose uid maps to an expected name signature can
+    pass the forecast check; a positional id (unconfirmed arc) leaves
+    the attack unverifiable."""
     if target_id is None:
         return False
-    try:
-        int(target_id, 16)
-    except ValueError:
-        return False
-    return True
+    return resolver.expected_sig(target_id) is not None
 
 
 def slot_for(advice: Advice, spec: UnitSpec | None) -> int | None:
@@ -115,14 +113,36 @@ def slot_for(advice: Advice, spec: UnitSpec | None) -> int | None:
     return None
 
 
-def target_ok(forecast, advice: Advice) -> bool:
-    """The locked target is the advised one, up to the few bits of
-    signature jitter one unit shows across different panels. A positional
-    target id (enemy_N, no signature to compare) can never be verified."""
+def target_ok(
+    forecast,
+    advice: Advice,
+    resolver: IdentityResolver,
+    *,
+    believed_hp: int | None = None,
+) -> bool:
+    """Composite verification that the locked target is the advised uid:
+    the forecast signature must sit within jitter tolerance of the uid's
+    expected signature (necessary), and when several uids share that
+    machine signature the forecast HP must agree with the tracked belief
+    (compared only when both sides are known) -- same machine, different
+    pilot, different HP history. A positional id (unconfirmed arc, no
+    expected signature) can never be verified."""
     if forecast is None or forecast.target_name_sig is None or advice.target_id is None:
         return False
+    expected = resolver.expected_sig(advice.target_id)
+    if expected is None:
+        return False
     try:
-        distance = vision.signature_distance(forecast.target_name_sig, advice.target_id)
+        distance = vision.signature_distance(forecast.target_name_sig, expected)
     except ValueError:
         return False
-    return distance <= SIG_ALIAS_MAX_DISTANCE
+    if distance > SIG_ALIAS_MAX_DISTANCE:
+        return False
+    if len(resolver.candidates(forecast.target_name_sig)) > 1:
+        if (
+            believed_hp is not None
+            and forecast.target_hp is not None
+            and forecast.target_hp != believed_hp
+        ):
+            return False
+    return True

@@ -52,8 +52,11 @@ class Divergence:
 
 @dataclass(frozen=True)
 class SimExpectation:
-    attacker_sig: str | None
-    target_sig: str | None
+    """attacker_id/target_id are resolver uids (the board identity);
+    target_sig_seen keeps the raw forecast signature as evidence."""
+
+    attacker_id: str | None
+    target_id: str | None
     weapon_slot: int
     expected_damage: float | None
     target_hp_believed: int | None
@@ -62,6 +65,7 @@ class SimExpectation:
     source: str
     quality: str
     assumptions: tuple[str, ...] = ()
+    target_sig_seen: str | None = None
 
 
 @dataclass
@@ -86,11 +90,17 @@ def compute_expectation(
     forecast: WeaponSelectForecast,
     slot: int,
     weapon: SimWeapon | None = None,
+    attacker_id: str | None = None,
+    target_id: str | None = None,
 ) -> SimExpectation:
     """Ground a damage/kill expectation in formulas.py, recording every
     input that had to be assumed. target_hp comes from the screen (always
     authoritative for current HP); specs supply the combat stats."""
     assumptions: list[str] = []
+    if attacker_id is None:
+        attacker_id = forecast.our_name_sig
+    if target_id is None:
+        target_id = forecast.target_name_sig
     target_hp = forecast.target_hp
     if target_hp is None and target_spec is not None and target_spec.max_hp is not None:
         target_hp = target_spec.max_hp
@@ -103,8 +113,9 @@ def compute_expectation(
             if spec is None
         )
         return SimExpectation(
-            attacker_sig=forecast.our_name_sig,
-            target_sig=forecast.target_name_sig,
+            attacker_id=attacker_id,
+            target_id=target_id,
+            target_sig_seen=forecast.target_name_sig,
             weapon_slot=slot,
             expected_damage=None,
             target_hp_believed=target_hp,
@@ -122,8 +133,9 @@ def compute_expectation(
             assumptions.append("pre-locked slot, assuming first known weapon")
     if weapon is None:
         return SimExpectation(
-            attacker_sig=forecast.our_name_sig,
-            target_sig=forecast.target_name_sig,
+            attacker_id=attacker_id,
+            target_id=target_id,
+            target_sig_seen=forecast.target_name_sig,
             weapon_slot=slot,
             expected_damage=None,
             target_hp_believed=target_hp,
@@ -167,8 +179,9 @@ def compute_expectation(
     if target_hp is None:
         assumptions.append("target HP unknown, kill call impossible")
     return SimExpectation(
-        attacker_sig=forecast.our_name_sig,
-        target_sig=forecast.target_name_sig,
+        attacker_id=attacker_id,
+        target_id=target_id,
+        target_sig_seen=forecast.target_name_sig,
         weapon_slot=slot,
         expected_damage=damage,
         target_hp_believed=target_hp,

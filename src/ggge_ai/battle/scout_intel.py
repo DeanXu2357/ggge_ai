@@ -245,6 +245,7 @@ def refresh_sig_positions(
     budget: RefreshBudget | None = None,
     ledger_log: Callable[..., None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    resolve: Callable[[str, tuple[float, float]], str | None] | None = None,
 ) -> SigRefresh:
     """Re-anchor tracked enemy identities to a fresh arc scan so the sig
     match does not decay as enemies move. When a sig and a candidate are
@@ -301,7 +302,16 @@ def refresh_sig_positions(
             if sig is None:
                 record("sig_refresh", point=list(point), result="no_card")
                 continue
-            sig = _canonical_sig(sig, known)
+            # known is keyed by identity (uid when a resolver is wired in,
+            # raw sig otherwise); map the card's raw sig onto that keyspace
+            if resolve is not None:
+                resolved = resolve(sig, point)
+                if resolved is None:
+                    record("sig_refresh", sig=sig, point=list(point), result="unresolved")
+                    continue
+                sig = resolved
+            else:
+                sig = _canonical_sig(sig, known)
             if sig in result.positions:
                 record("sig_refresh", sig=sig, point=list(point), result="stale_card")
                 continue

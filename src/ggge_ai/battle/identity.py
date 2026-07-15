@@ -26,7 +26,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .stage_def import StageDefinition, find_by_sig
+from .stage_def import SIG_CANDIDATE_MAX_DISTANCE, StageDefinition, find_by_sig
+from .vision import signature_distance
 
 Point = tuple[float, float]
 
@@ -111,6 +112,7 @@ class IdentityResolver:
         self._positions: dict[str, Point] = {}
         self._dead: set[str] = set()
         self._spawned: set[str] = set()
+        self._sig_registry: dict[str, list[str]] = {}
 
     @property
     def passthrough(self) -> bool:
@@ -202,6 +204,63 @@ class IdentityResolver:
             pool = [uid for uid in pool if uid in sig_pool]
         if len(pool) == 1:
             return pool[0]
+        return None
+
+    def sig_uid(self, sig: str, namespace: str = "enemy") -> str:
+        """Degraded sig-keyed uid with jitter merging (the old tracker
+        _canonical rule): the first signature seen within tolerance is
+        the canonical representative for its namespace. Allies always
+        take this path -- ally identity is learned incrementally and
+        never lives in the stage definition -- and so does everything in
+        passthrough mode."""
+        registry = self._sig_registry.setdefault(namespace, [])
+        for existing in registry:
+            try:
+                if signature_distance(sig, existing) <= SIG_CANDIDATE_MAX_DISTANCE:
+                    return f"sig:{existing}"
+            except ValueError:
+                continue
+        registry.append(sig)
+        return f"sig:{sig}"
+
+    def uid_for(
+        self, sig: str, namespace: str = "enemy", world: Point | None = None
+    ) -> str | None:
+        """Sig-first resolution for the screen-read hooks (forecasts,
+        intel, panels). Ally and passthrough identities degrade to
+        canonical sig uids; a seeded enemy sig narrows to its candidate
+        set, position arbitrating when the sig is shared. None means the
+        hook should skip with a note rather than guess."""
+        if self.defn is None or namespace == "ally":
+            return self.sig_uid(sig, namespace)
+        pool = self.candidates(sig)
+        if world is not None and len(pool) > 1:
+            near = {
+                uid
+                for uid, pos in self.positions().items()
+                if _d2(pos, world) <= MATCH_RADIUS**2
+            }
+            narrowed = [uid for uid in pool if uid in near]
+            if narrowed:
+                pool = narrowed
+        if len(pool) == 1:
+            return pool[0]
+        return None
+
+    def expected_sig(self, uid: str) -> str | None:
+        """The signature this uid should show on a name plate -- the
+        executor's composite target verification reads it."""
+        if uid.startswith("sig:"):
+            return uid[len("sig:") :]
+        if self.defn is None:
+            return None
+        for unit in self.defn.layout:
+            if unit.uid == uid:
+                return unit.sig
+        for event in self.defn.events:
+            for unit in event.spawn_units():
+                if unit.uid == uid:
+                    return unit.sig
         return None
 
     def register_death(self, uid: str) -> None:

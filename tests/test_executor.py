@@ -10,6 +10,7 @@ from ggge_ai.battle import executor, vision
 from ggge_ai.battle.advisor import Advice
 from ggge_ai.battle.bridge import UnitSpec
 from ggge_ai.battle.controller import ManualBattleController, PilotAbort
+from ggge_ai.battle.identity import IdentityResolver
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.sim import SimWeapon
 from ggge_ai.battle.state import BattleState, Faction, UnitState
@@ -18,11 +19,13 @@ from ggge_ai.battle.vision import WeaponSelectForecast
 
 ENEMY_SIG = "e" * 16
 OUR_SIG = "c" * 16
+ENEMY_UID = f"sig:{ENEMY_SIG}"
+_RESOLVER = IdentityResolver()
 
 
 def _advice(**kw):
     base = dict(
-        unit_id="ally_1", kind="attack", move_world=None, target_id=ENEMY_SIG,
+        unit_id="ally_1", kind="attack", move_world=None, target_id=ENEMY_UID,
         weapon="rifle", value=100.0, pv_kinds=[], assumptions=[], stats=None,
     )
     base.update(kw)
@@ -56,23 +59,23 @@ def test_slot_for_maps_weapon_name_to_slot():
 
 
 def test_target_ok_requires_a_readable_matching_sig():
-    assert executor.target_ok(_forecast(), _advice())
-    assert not executor.target_ok(_forecast(target_name_sig="0" * 16), _advice())
-    assert not executor.target_ok(_forecast(target_name_sig=None), _advice())
-    assert not executor.target_ok(None, _advice())
+    assert executor.target_ok(_forecast(), _advice(), _RESOLVER)
+    assert not executor.target_ok(_forecast(target_name_sig="0" * 16), _advice(), _RESOLVER)
+    assert not executor.target_ok(_forecast(target_name_sig=None), _advice(), _RESOLVER)
+    assert not executor.target_ok(None, _advice(), _RESOLVER)
 
 
 def test_target_ok_tolerates_panel_sig_jitter():
-    advice = _advice(target_id="9115599951d15595")
+    advice = _advice(target_id="sig:9115599951d15595")
     assert executor.target_ok(
-        _forecast(target_name_sig="9119599551d155d5"), advice
+        _forecast(target_name_sig="9119599551d155d5"), advice, _RESOLVER
     )
 
 
 def test_verifiable_target_rejects_positional_ids():
-    assert executor.verifiable_target(ENEMY_SIG)
-    assert not executor.verifiable_target("enemy_3")
-    assert not executor.verifiable_target(None)
+    assert executor.verifiable_target(ENEMY_UID, _RESOLVER)
+    assert not executor.verifiable_target("enemy_3", _RESOLVER)
+    assert not executor.verifiable_target(None, _RESOLVER)
 
 
 def test_pilot_positional_target_demotes_to_greedy(monkeypatch):
@@ -161,7 +164,7 @@ def _pilot_controller(monkeypatch, advice, *, specs=None):
     c.tacmap.allies.append((0.0, 0.0))
     c.tacmap.enemies.append((400.0, 0.0))
     if specs:
-        c.specs_by_sig.update(specs)
+        c.specs_by_id.update(specs)
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     monkeypatch.setattr(vision, "find_move_cells", lambda f: [])
     monkeypatch.setattr(
@@ -187,7 +190,7 @@ def test_pilot_standby_advice_stands_by(monkeypatch):
 
 
 def test_pilot_attack_in_place_selects_slot_and_attacks(monkeypatch):
-    advice = _advice(kind="attack", weapon="rifle", target_id=ENEMY_SIG)
+    advice = _advice(kind="attack", weapon="rifle", target_id=ENEMY_UID)
     c = _pilot_controller(monkeypatch, advice, specs={"ally_1": _spec()})
 
     c._on_unit_move()
@@ -204,7 +207,7 @@ def test_pilot_attack_in_place_selects_slot_and_attacks(monkeypatch):
     assert controller_mod.ATTACK_BTN in c.actuator.taps
     steps = [e for e in c.ledger.events if e["kind"] == "pilot_step"]
     assert [s["step"] for s in steps] == ["open_weapon_select", "attack"]
-    assert c.tracker.beliefs[OUR_SIG].world_pos == (0.0, 0.0)
+    assert c.tracker.beliefs[f"sig:{OUR_SIG}"].world_pos == (0.0, 0.0)
 
 
 def test_pilot_move_then_attack(monkeypatch):
@@ -270,7 +273,7 @@ def test_pilot_no_advice_demotes_to_greedy(monkeypatch):
 
 
 def test_pilot_target_mismatch_without_switch_button_aborts(monkeypatch):
-    advice = _advice(kind="attack", weapon="rifle", target_id=ENEMY_SIG)
+    advice = _advice(kind="attack", weapon="rifle", target_id=ENEMY_UID)
     c = _pilot_controller(monkeypatch, advice, specs={"ally_1": _spec()})
     c._on_unit_move()
 
@@ -289,7 +292,7 @@ def test_pilot_target_mismatch_without_switch_button_aborts(monkeypatch):
 
 
 def test_pilot_weapon_not_lit_aborts(monkeypatch):
-    advice = _advice(kind="attack", weapon="rifle", target_id=ENEMY_SIG)
+    advice = _advice(kind="attack", weapon="rifle", target_id=ENEMY_UID)
     c = _pilot_controller(monkeypatch, advice, specs={"ally_1": _spec()})
     c._on_unit_move()
 
