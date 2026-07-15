@@ -69,9 +69,18 @@ dead-sig advisory 變多＝舊 kill_check 精確查 key 漏登記擊殺的修正
 分辨雙胞胎，錯鎖對象可通過驗證直到血量分歧；緩解案（錨定目標世界
 位置）留 S10 實測後定。
 
-**下一步**：S6 冷掃/校驗重造（survey_stage fail-loud、每台開面板、
-IntelBudget 刪除、`_ensure_stage_definition`、旗標語義、刪
-stage_cache.py）→ S7（M8-①③④）→ S8（M8-② 離線半）。
+**S6 已落地（f021ef1，466 passed/3 xfail）**：`survey_stage` 全量
+fail-loud（每台開面板無 sig 去重、pilot_hint 快照、SurveyIncomplete
+不寫部分檔）＋`validate_stage`（幾何普查免費＋共享 sig 組優先抽查）；
+controller `_ensure_stage_definition` 取代 `_acquire_intel_once`（溫啟
+採用=seeded resolver 換入 tracker＋uid specs＋開局信念；否則冷掃；
+survey_abort 與 pilot_abort 同軌）；`tacmap.locate()`＋`_bring_to_view`
+pan 導航（S9b 實機驗證）；GGGE_INTEL 必附 stage_id、GGGE_PILOT 必開
+INTEL；IntelBudget 與 stage_cache.py 退役。
+
+**下一步**：S7（M8-①③④：_resync_board、pilot 空盤兩段語義、事件
+觀測→增量 survey→寫檔、to_sim_state＋離線解關 smoke）→ S8（M8-②
+離線半：ReactionPopup 介面＋advise_reaction(allowed)＋handler 骨架）。
 
 ## 本日稍早批次（2026-07-14 pilot 離線 M1-M7）
 
