@@ -26,6 +26,8 @@ from ggge_ai.battle import executor, reconcile, vision
 from ggge_ai.battle.actions import ActionKind
 from ggge_ai.battle.identity import IdentityResolver
 from ggge_ai.battle.ledger import BattleLedger
+from ggge_ai.battle.scout_intel import SurveyIncomplete
+from ggge_ai.battle import stage_def as stage_def_mod
 from ggge_ai.battle.state import Faction
 from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.battle.tracker import BoardTracker
@@ -249,7 +251,7 @@ class ManualBattleController:
     # M3b enemy-intel acquisition, run once on the first our-turn hub.
     # None disables it (the default until the flow is live-validated);
     # flow.py arms it via GGGE_INTEL=1
-    intel_budget: object | None = None
+    intel_enabled: bool = False
     stage_id: str | None = None
     intel_cache_root: object | None = None
     # M4b advisor consultation (GGGE_ADVISOR=1): proposals are logged and
@@ -395,6 +397,11 @@ class ManualBattleController:
                 except PilotAbort as exc:
                     log.error("pilot abort ends the battle: %s", exc)
                     self._log_finish("pilot_abort")
+                    return screens.UNKNOWN
+                except SurveyIncomplete as exc:
+                    log.error("stage survey incomplete, aborting the battle: %s", exc)
+                    self._log("survey_abort", reason=str(exc), frame=self._safe_frame())
+                    self._log_finish("survey_abort")
                     return screens.UNKNOWN
                 last_activity = time.time()
         log.warning("battle timeout reached")
@@ -684,7 +691,7 @@ class ManualBattleController:
             self._card_count = vision.count_unit_cards(frame)
             self._snapshot_factions(frame)
             self._scout(frame)
-            self._acquire_intel_once(frame)
+            self._ensure_stage_definition(frame)
             self._refresh_sig_positions(frame)
             self._consult_advisor()
             log.info("selecting next actable unit")
@@ -710,52 +717,144 @@ class ManualBattleController:
             self._turn_scouted = False
             time.sleep(1.8)
 
-    def _acquire_intel_once(self, frame) -> None:
-        """M3b: one enemy-intel sweep per battle on the first our-turn hub.
-        Enemy points come from the hub HP-arc scan, which is known to
-        produce phantoms there (pinned hub-state bug) -- a phantom tap
-        simply yields no summary card and is skipped, so the sweep is
-        phantom-tolerant by construction."""
-        if self.intel_budget is None or self._intel_done:
+    def _ensure_stage_definition(self, frame) -> None:
+        """S6: the stage definition is the solver's game description.
+        Warm start: load + census-validate against this turn's sweep,
+        adopt on success. Anything else -- no file, old schema, failed
+        validation -- falls back to a full fail-loud survey (cold start),
+        which writes the definition for every later entry. Runs once per
+        battle on the first our-turn hub."""
+        if not self.intel_enabled or self._intel_done:
             return
         self._intel_done = True
-        from .scout_intel import acquire_stage_intel
+        if self.stage_id is None:
+            raise SurveyIncomplete("intel enabled but no stage_id given")
+        from .scout_intel import survey_stage, validate_stage
 
-        enemies = vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
-        if not enemies:
-            log.info("intel sweep: no enemy candidates on the hub frame")
-            return
-        log.info("intel sweep: probing %d enemy candidates", len(enemies))
-        intel = acquire_stage_intel(
-            capture=self._frame,
-            tap=self.actuator.tap,
-            enemy_points=enemies,
+        scan = [tuple(p) for p in self.tacmap.enemies + self.tacmap.third_party]
+        factions = ["enemy"] * len(self.tacmap.enemies) + ["third_party"] * len(
+            self.tacmap.third_party
+        )
+        defn = stage_def_mod.load_stage_def(self.stage_id, self.intel_cache_root)
+        if defn is not None and defn.status == "complete":
+            report = validate_stage(
+                defn,
+                scan,
+                capture=self._frame,
+                tap=self.actuator.tap,
+                bring_to_view=self._bring_to_view,
+                ledger_log=self._log,
+            )
+            self._log(
+                "stage_validation",
+                ok=report.ok,
+                taps=report.taps,
+                mismatches=report.mismatches[:8],
+            )
+            if report.ok and report.resolver is not None:
+                log.info("stage definition validated, warm start")
+                self._adopt_definition(defn, report.resolver)
+                return
+            defn.status = "stale"
+            stage_def_mod.save_stage_def(defn, self.intel_cache_root)
+            log.warning("stage definition stale, falling back to a live survey")
+        defn = survey_stage(
+            self._frame,
+            self.actuator.tap,
+            scan,
             stage_id=self.stage_id,
-            cache_root=self.intel_cache_root,
+            bring_to_view=self._bring_to_view,
+            factions=factions,
             llm=self.llm,
-            budget=self.intel_budget,
             ledger_log=self._log,
+            root=self.intel_cache_root,
         )
-        for sig, spec in intel.specs_by_sig.items():
-            uid = self.resolver.uid_for(sig, world=intel.positions.get(sig))
-            if uid is None:
-                self._log("intel_unresolved", sig=sig)
-                continue
-            self.specs_by_id[uid] = spec
-        self._sig_names.update(intel.names)
-        for sig, pos in intel.positions.items():
-            uid = self.resolver.uid_for(sig, world=pos)
-            if uid is not None:
-                self._id_positions[uid] = pos
-        self._seen_sigs.update(intel.specs_by_sig)
-        self.tracker.on_intel(intel)
+        resolver = IdentityResolver(defn)
+        seed = resolver.seed(scan)
+        if not seed.ok:
+            raise SurveyIncomplete(
+                f"fresh definition failed its own census: {len(seed.unmatched_uids)} "
+                "layout units unmatched"
+            )
+        self._adopt_definition(defn, resolver)
+
+    def _adopt_definition(self, defn, resolver: IdentityResolver) -> None:
+        """Swap the shared resolver to the seeded one and load the game
+        description: specs per uid, positions from the census, opening
+        HP/EN beliefs from the file (spot-validated; apply() still
+        reports every carried value as an assumption)."""
+        self.resolver = resolver
+        self.tracker.resolver = resolver
+        for unit in defn.layout:
+            if unit.stats:
+                try:
+                    spec, assumptions = unit.to_spec()
+                except TypeError:
+                    self._log(
+                        "definition_assumptions",
+                        uid=unit.uid,
+                        assumptions=["stats incomplete, unit stays spec-less"],
+                    )
+                else:
+                    self.specs_by_id[unit.uid] = spec
+                    if assumptions:
+                        self._log(
+                            "definition_assumptions", uid=unit.uid, assumptions=assumptions
+                        )
+            if unit.sig is not None and unit.name_text:
+                self._sig_names[unit.sig] = unit.name_text
+        for uid, pos in resolver.positions().items():
+            self._id_positions[uid] = pos
+            self.tracker.on_position(uid, pos)
+            belief = self.tracker.beliefs.get(uid)
+            unit = next((u for u in defn.layout if u.uid == uid), None)
+            if belief is not None and unit is not None:
+                if belief.hp is None:
+                    belief.hp = unit.stats.get("hp")
+                if belief.en is None:
+                    belief.en = unit.stats.get("en")
+                belief.source = "definition"
         log.info(
-            "intel sweep done: %d specs (%d from cache, %d panels opened)%s",
-            len(intel.specs_by_sig),
-            intel.cache_hits,
-            intel.panels_opened,
-            ", cache was stale" if intel.cache_stale else "",
+            "definition adopted: %d units, %d specs",
+            len(defn.layout),
+            len(self.specs_by_id),
         )
+
+    def _bring_to_view(self, world) -> tuple[float, float] | None:
+        """Pan until a world point sits inside the tappable map area and
+        return its screen point. Constellation locate() recovers the
+        camera before each leg, so pan drift cannot accumulate; edge
+        saturation with the target still outside means the board and the
+        map disagree -- the caller treats None as fail-loud evidence.
+        Live validation is the S9b probe."""
+        x0, y0, w, h = vision.HUB_SCAN_REGION
+        margin = 60
+        for _ in range(8):
+            frame = self._frame()
+            arcs = (
+                vision.find_ally_units(frame)
+                + vision.find_enemy_units(frame)
+                + vision.find_third_party_units(frame)
+            )
+            camera = self.tacmap.locate(arcs)
+            if camera is None:
+                return None
+            screen = (world[0] - camera[0], world[1] - camera[1])
+            if (
+                x0 + margin <= screen[0] <= x0 + w - margin
+                and y0 + margin <= screen[1] <= y0 + h - margin
+            ):
+                return screen
+            direction = (
+                (screen[0] > x0 + w - margin) - (screen[0] < x0 + margin),
+                (screen[1] > y0 + h - margin) - (screen[1] < y0 + margin),
+            )
+            new_camera, _, actual, requested = self._pan_leg(camera, frame, direction)
+            if abs(actual[0]) + abs(actual[1]) < (
+                abs(requested[0]) + abs(requested[1])
+            ) * SCAN_EDGE_RATIO:
+                return None
+        return None
 
     def _build_board(self):
         """Perceived board for the solver: fresh scan positions, tracked

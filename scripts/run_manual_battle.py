@@ -30,21 +30,23 @@ keyguard = Keyguard(actuator.device, capture=perception.capture)
 keyguard.ensure_unlocked()
 blackboard = RunBlackboard(goal="manual_battle")
 ledger = blackboard.new_ledger()
-intel_budget = None
-if _flag("GGGE_INTEL"):
-    from ggge_ai.battle.scout_intel import IntelBudget
-
-    intel_budget = IntelBudget()
+intel_enabled = _flag("GGGE_INTEL")
+pilot_enabled = _flag("GGGE_PILOT")
+stage_id = os.environ.get("GGGE_STAGE_ID") or None
+if pilot_enabled and not intel_enabled:
+    raise SystemExit("GGGE_PILOT=1 requires GGGE_INTEL=1 (uid chain needs the stage definition)")
+if intel_enabled and stage_id is None:
+    raise SystemExit("GGGE_INTEL=1 requires GGGE_STAGE_ID (definition file path key)")
 controller = ManualBattleController(
     perception=perception,
     actuator=actuator,
     keyguard=keyguard,
     ledger=ledger,
     llm=LlmScreenReader.from_env(),
-    intel_budget=intel_budget,
-    stage_id=os.environ.get("GGGE_STAGE_ID") or None,
+    intel_enabled=intel_enabled,
+    stage_id=stage_id,
     advisor_enabled=_flag("GGGE_ADVISOR"),
-    pilot_enabled=_flag("GGGE_PILOT"),
+    pilot_enabled=pilot_enabled,
 )
 try:
     result = controller.run()

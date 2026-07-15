@@ -1,20 +1,24 @@
-"""Enemy-intel acquisition flow, driven by the real capture sequence the
-20260705 corpus recorded (tap enemy -> summary card -> detail modal), with
-frames reconstructed from the committed fixtures so every read runs the
+"""Stage survey / validation (S6 fail-loud) and the per-turn sig
+refresh, driven by the real capture sequence the 20260705 corpus
+recorded (tap enemy -> summary card -> detail modal), with frames
+reconstructed from the committed fixtures so every read runs the
 production recognition path."""
 
 from pathlib import Path
 
 import cv2
 import numpy as np
+import pytest
 
-from ggge_ai.battle import scout_intel, stage_cache, vision
+from ggge_ai.battle import scout_intel, stage_def, vision
 from ggge_ai.battle.scout_intel import (
-    IntelBudget,
     RefreshBudget,
-    acquire_stage_intel,
+    SurveyIncomplete,
     refresh_sig_positions,
+    survey_stage,
+    validate_stage,
 )
+from ggge_ai.battle.stage_def import StageDefinition, StageUnit, assign_uids
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "vision"
 
@@ -31,6 +35,7 @@ def _canvas(rel: str, box: tuple[int, int, int, int]) -> np.ndarray:
 HUB = _canvas("forecast/hub_summary_top.png", (0, 0, 2340, 300))
 MODAL = _canvas("panels/weapons_tab.png", (250, 40, 1840, 980))
 SIG = vision.read_enemy_summary(HUB).name_sig
+SUMMARY_EN = vision.read_enemy_summary(HUB).en
 
 
 class _Script:
@@ -57,130 +62,143 @@ def _events():
     return events, log
 
 
-def test_cold_cache_opens_panel_and_writes_cache(tmp_path):
-    script = _Script([HUB, MODAL, MODAL, HUB])
+def _identity_view(world):
+    return world
+
+
+def test_survey_reads_every_unit_and_writes_the_definition(tmp_path):
+    script = _Script([HUB, MODAL, MODAL, HUB, MODAL, MODAL, HUB])
     events, log = _events()
-    intel = acquire_stage_intel(
+    defn = survey_stage(
         script.capture,
         script.tap,
-        [(900, 150)],
-        stage_id="g/hard_1",
-        cache_root=tmp_path,
+        [(900.0, 150.0), (1185.0, 625.0)],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
         ledger_log=log,
         sleep=lambda s: None,
-    )
-    assert intel.panels_opened == 1
-    assert intel.cache_hits == 0
-    assert not intel.cache_stale
-    spec = intel.specs_by_sig[SIG]
-    assert spec.max_hp == 51349
-    assert len(spec.weapons) == 2
-    assert intel.summaries[SIG].hp == 51349
-    assert scout_intel.SUMMARY_CARD_TAP in script.taps
-    assert scout_intel.UNIT_DETAIL_CLOSE in script.taps
-    cached = stage_cache.load_stage("g/hard_1", root=tmp_path)
-    assert SIG in cached
-    assert any(e["kind"] == "unit_intel" and e["source"] == "panel" for e in events)
-
-
-def test_warm_cache_skips_the_panel(tmp_path):
-    script = _Script([HUB, MODAL, MODAL, HUB])
-    acquire_stage_intel(
-        script.capture,
-        script.tap,
-        [(900, 150)],
-        stage_id="g/hard_1",
-        cache_root=tmp_path,
-        sleep=lambda s: None,
-    )
-    warm = _Script([HUB])
-    events, log = _events()
-    intel = acquire_stage_intel(
-        warm.capture,
-        warm.tap,
-        [(900, 150)],
-        stage_id="g/hard_1",
-        cache_root=tmp_path,
-        ledger_log=log,
-        sleep=lambda s: None,
-    )
-    assert intel.cache_hits == 1
-    assert intel.panels_opened == 0
-    assert intel.specs_by_sig[SIG].max_hp == 51349
-    assert scout_intel.SUMMARY_CARD_TAP not in warm.taps
-    assert any(e["kind"] == "unit_intel" and e["source"] == "cache" for e in events)
-
-
-def test_unknown_sig_marks_cache_stale_and_rereads(tmp_path):
-    stage_cache.save_stage(
-        "g/hard_1",
-        {"f" * 16: stage_cache.CachedUnit(sig="f" * 16, stats={}, weapons=[])},
         root=tmp_path,
     )
-    script = _Script([HUB, MODAL, MODAL, HUB])
-    events, log = _events()
-    intel = acquire_stage_intel(
-        script.capture,
-        script.tap,
-        [(900, 150)],
-        stage_id="g/hard_1",
-        cache_root=tmp_path,
-        ledger_log=log,
-        sleep=lambda s: None,
-    )
-    assert intel.cache_stale
-    assert any(e["kind"] == "cache_stale" for e in events)
-    assert intel.specs_by_sig[SIG].max_hp == 51349
-    assert SIG in stage_cache.load_stage("g/hard_1", root=tmp_path)
+    assert [u.uid for u in defn.layout] == ["e01", "e02"]
+    assert all(u.sig == SIG for u in defn.layout)
+    assert defn.layout[0].stats["hp"] == 51349
+    assert len(defn.layout[0].weapons) == 2
+    assert defn.layout[0].pilot_hint
+    # same machine sig twice, and still one panel per unit -- no dedup
+    assert script.taps.count(scout_intel.SUMMARY_CARD_TAP) == 2
+    by_cell = {u.cell: u.uid for u in defn.layout}
+    assert by_cell[(0, 0)] == "e01"
+    assert by_cell[(3, 5)] == "e02"
+    saved = stage_def.load_stage_def("g/hard_2", root=tmp_path)
+    assert saved is not None and saved.status == "complete"
+    assert any(e["kind"] == "survey_complete" for e in events)
 
 
-def test_panel_budget_leaves_units_specless(tmp_path):
-    script = _Script([HUB])
-    intel = acquire_stage_intel(
-        script.capture,
-        script.tap,
-        [(900, 150)],
-        stage_id="g/hard_1",
-        cache_root=tmp_path,
-        budget=IntelBudget(max_panels=0),
-        sleep=lambda s: None,
-    )
-    assert intel.panels_opened == 0
-    assert intel.specs_by_sig == {}
-    assert SIG in intel.summaries
-
-
-def test_same_unit_tapped_twice_reads_once():
-    script = _Script([HUB, MODAL, MODAL, HUB, HUB])
-    intel = acquire_stage_intel(
-        script.capture,
-        script.tap,
-        [(900, 150), (905, 152)],
-        sleep=lambda s: None,
-    )
-    assert intel.panels_opened == 1
-    assert len(intel.summaries) == 1
-
-
-def test_phantom_tap_without_card_is_skipped():
+def test_survey_missing_card_raises_and_writes_nothing(tmp_path):
     blank = np.zeros((1080, 2340, 3), np.uint8)
     script = _Script([blank])
-    intel = acquire_stage_intel(
-        script.capture,
-        script.tap,
-        [(900, 150)],
+    with pytest.raises(SurveyIncomplete):
+        survey_stage(
+            script.capture,
+            script.tap,
+            [(900.0, 150.0)],
+            stage_id="g/hard_2",
+            bring_to_view=_identity_view,
+            sleep=lambda s: None,
+            root=tmp_path,
+        )
+    assert stage_def.load_stage_def("g/hard_2", root=tmp_path) is None
+
+
+def test_survey_wall_clock_guard_raises(tmp_path):
+    script = _Script([HUB])
+    with pytest.raises(SurveyIncomplete):
+        survey_stage(
+            script.capture,
+            script.tap,
+            [(900.0, 150.0)],
+            stage_id="g/hard_2",
+            bring_to_view=_identity_view,
+            sleep=lambda s: None,
+            wall_clock_s=0.0,
+            root=tmp_path,
+        )
+
+
+def test_survey_unreachable_point_raises(tmp_path):
+    script = _Script([HUB])
+    with pytest.raises(SurveyIncomplete):
+        survey_stage(
+            script.capture,
+            script.tap,
+            [(900.0, 150.0)],
+            stage_id="g/hard_2",
+            bring_to_view=lambda world: None,
+            sleep=lambda s: None,
+            root=tmp_path,
+        )
+
+
+def _defn_for_validation(hp=51349, en=None):
+    stats = {"hp": hp}
+    if en is not None:
+        stats["en"] = en
+    layout = assign_uids(
+        [
+            StageUnit(uid="", cell=(0, 0), sig=SIG, stats=dict(stats)),
+            StageUnit(uid="", cell=(3, 0), sig=SIG, stats=dict(stats)),
+            StageUnit(uid="", cell=(1, 2), sig=SIG, stats=dict(stats)),
+        ]
+    )
+    return StageDefinition(stage_id="g/hard_2", layout=layout)
+
+
+SCAN = [(900.0, 150.0), (1185.0, 150.0), (995.0, 340.0)]
+
+
+def test_validate_ok_seeds_the_resolver():
+    script = _Script([HUB])
+    report = validate_stage(
+        _defn_for_validation(en=SUMMARY_EN),
+        SCAN,
+        capture=script.capture,
+        tap=script.tap,
+        bring_to_view=_identity_view,
         sleep=lambda s: None,
     )
-    assert intel.summaries == {}
-    assert intel.panels_opened == 0
+    assert report.ok, report.mismatches
+    assert report.taps == 2
+    assert report.resolver is not None
+    assert set(report.resolver.positions()) == {"e01", "e02", "e03"}
 
 
-def test_dynamic_budget_follows_candidate_count():
-    dynamic = IntelBudget()
-    assert dynamic.resolve(3) == (3, 15.0 * 3 + 30.0)
-    assert dynamic.resolve(20)[0] == 12
-    fixed = IntelBudget(max_panels=6, max_seconds=90.0)
-    assert fixed.resolve(20) == (6, 90.0)
+def test_validate_geometry_mismatch_skips_taps():
+    script = _Script([HUB])
+    report = validate_stage(
+        _defn_for_validation(),
+        SCAN[:2],
+        capture=script.capture,
+        tap=script.tap,
+        bring_to_view=_identity_view,
+        sleep=lambda s: None,
+    )
+    assert not report.ok
+    assert report.taps == 0
+    assert any("geometry census failed" in m for m in report.mismatches)
+
+
+def test_validate_hp_mismatch_marks_stale():
+    script = _Script([HUB])
+    report = validate_stage(
+        _defn_for_validation(hp=99999),
+        SCAN,
+        capture=script.capture,
+        tap=script.tap,
+        bring_to_view=_identity_view,
+        sleep=lambda s: None,
+    )
+    assert not report.ok
+    assert any("opening HP" in m for m in report.mismatches)
 
 
 def test_refresh_unambiguous_match_taps_nothing():
@@ -262,3 +280,101 @@ def test_refresh_tap_budget_is_honored():
     )
     assert refresh.taps == 1
     assert refresh.unresolved == [SIG]
+
+
+def _stage_controller(tmp_path, tacmap_enemies):
+    from ggge_ai.battle.controller import ManualBattleController
+    from ggge_ai.battle.ledger import BattleLedger
+
+    class _Perception:
+        def capture(self):
+            return np.zeros((1080, 2340, 3), np.uint8)
+
+        def probe(self, ids):
+            return {}
+
+    class _Actuator:
+        def tap(self, x, y):
+            pass
+
+        def swipe(self, *a):
+            pass
+
+    c = ManualBattleController(
+        perception=_Perception(),
+        actuator=_Actuator(),
+        ledger=BattleLedger(),
+        intel_enabled=True,
+        stage_id="g/hard_2",
+        intel_cache_root=tmp_path,
+    )
+    for p in tacmap_enemies:
+        c.tacmap.enemies.append(p)
+    return c
+
+
+def test_ensure_definition_cold_start_surveys_and_adopts(tmp_path, monkeypatch):
+    c = _stage_controller(tmp_path, SCAN)
+    defn = _defn_for_validation(en=SUMMARY_EN)
+    monkeypatch.setattr(
+        scout_intel, "survey_stage", lambda *a, **k: defn
+    )
+    monkeypatch.setattr(
+        scout_intel,
+        "validate_stage",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no file, no validation")),
+    )
+
+    c._ensure_stage_definition(None)
+
+    assert not c.resolver.passthrough
+    assert c.tracker.resolver is c.resolver
+    assert set(c._id_positions) == {"e01", "e02", "e03"}
+    assert c.tracker.beliefs["e01"].hp == 51349
+    assert c.tracker.beliefs["e01"].source == "definition"
+
+
+def test_ensure_definition_warm_start_validates_and_adopts(tmp_path, monkeypatch):
+    defn = _defn_for_validation(en=SUMMARY_EN)
+    stage_def.save_stage_def(defn, root=tmp_path)
+    c = _stage_controller(tmp_path, SCAN)
+    monkeypatch.setattr(
+        scout_intel,
+        "survey_stage",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("warm start must not survey")),
+    )
+    monkeypatch.setattr(c, "_bring_to_view", lambda world: world)
+    monkeypatch.setattr(scout_intel.time, "sleep", lambda s: None)
+    monkeypatch.setattr(
+        c.perception, "capture", lambda: HUB
+    )
+
+    c._ensure_stage_definition(None)
+
+    assert not c.resolver.passthrough
+    assert "e01" in c.specs_by_id or c.specs_by_id == {}
+    assert set(c._id_positions) == {"e01", "e02", "e03"}
+
+
+def test_ensure_definition_requires_stage_id(tmp_path):
+    c = _stage_controller(tmp_path, SCAN)
+    c.stage_id = None
+    with pytest.raises(SurveyIncomplete):
+        c._ensure_stage_definition(None)
+
+
+def test_ensure_definition_stale_file_falls_back_to_survey(tmp_path, monkeypatch):
+    defn = _defn_for_validation(hp=99999)
+    stage_def.save_stage_def(defn, root=tmp_path)
+    fresh = _defn_for_validation(en=SUMMARY_EN)
+    c = _stage_controller(tmp_path, SCAN)
+    monkeypatch.setattr(scout_intel, "survey_stage", lambda *a, **k: fresh)
+    monkeypatch.setattr(c, "_bring_to_view", lambda world: world)
+    monkeypatch.setattr(scout_intel.time, "sleep", lambda s: None)
+    monkeypatch.setattr(c.perception, "capture", lambda: HUB)
+
+    c._ensure_stage_definition(None)
+
+    marked = stage_def.load_stage_def("g/hard_2", root=tmp_path)
+    assert marked is not None and marked.status == "stale"
+    assert set(c._id_positions) == {"e01", "e02", "e03"}

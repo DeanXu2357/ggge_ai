@@ -50,3 +50,24 @@ def test_anchor_refuses_ambiguous_single_arc():
     tm.observe((0, 0), enemies=[], allies=[(100, 100), (900, 100)])
 
     assert tm.anchor((50, 50), [(50, 50)]) is None
+
+
+def test_locate_recovers_camera_without_a_selection():
+    tm = TacticalMap()
+    tm.observe(
+        (0, 0),
+        enemies=[(300, 400), (600, 400)],
+        allies=[(100, 100)],
+    )
+
+    t = tm.locate([(250, 350), (550, 350), (50, 50)])
+
+    assert t is not None
+    assert round(t[0]) == 50 and round(t[1]) == 50
+
+
+def test_locate_refuses_a_single_coincidence():
+    tm = TacticalMap()
+    tm.observe((0, 0), enemies=[(300, 400)], allies=[(100, 100)])
+
+    assert tm.locate([(250, 350)]) is None

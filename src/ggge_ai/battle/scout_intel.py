@@ -1,34 +1,38 @@
-"""Turn-1 enemy intel acquisition: tap enemies, read their panels, fill
-specs_by_sig for the reconciliation chain.
+"""Stage survey and warm-start validation (S6, fail-loud).
 
-Flow per enemy point (until the budget runs out): tap the unit -> the
-summary card pops (sig + current HP/EN) -> known sig? record position
-only. New sig with a cache entry? take the cached kit ([cache] hit). New
-sig without one? open the detail modal, switch to the weapons tab, parse
-stats and rows, cache the result, close the modal.
+Cold path (no definition on disk): survey_stage walks EVERY enemy and
+third-party point of the full-map sweep, brings each into view, taps it,
+opens the detail panel (no sig dedup -- two units of one machine share a
+sig while their pilots differ, so every unit pays its panel), and writes
+the schema-2 stage definition with row-major uids. Anything unreadable
+raises SurveyIncomplete: an incomplete game description would make the
+solver optimize the wrong game, so the battle aborts loudly instead
+(the wall-clock cap is a freeze guard with the same semantics).
 
-The screen is authoritative: a summary card whose signature has no
-plausible cache match marks the cache stale for this stage (ledger
-`cache_stale`) and everything is re-read live. Budget exhaustion is not
-an error -- unscouted enemies simply stay spec-less and the bridge's
-assumption machinery reports them.
+Warm path: validate_stage seeds an IdentityResolver from the definition
+(free geometry census over the same sweep) and spot-taps a small sample
+-- shared-sig groups first, the pilot-difference risk -- comparing the
+card's sig and opening HP/EN against the file. Any mismatch expires the
+whole stage back to a live survey. The screen stays authoritative.
 
 Interaction constants (tab tap point, settle times) are calibrated from
-the 20260705 capture sequence; they get one live confirmation pass in the
-M3b validation battle before this flow is trusted in the clear loop.
+the 20260705 capture sequence and confirmed live 2026-07-14 (HARD 1).
 """
 
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import panels, stage_cache, vision
+from . import panels, stage_def, vision
 from .bridge import UnitSpec
+from .identity import IdentityResolver, SeedReport
 from .observe import SIG_MATCH_RADIUS
+from .stage_def import StageDefinition, StageUnit
 
 log = logging.getLogger(__name__)
 
@@ -47,32 +51,14 @@ MODAL_SETTLE_S = 1.5
 MODAL_POLL_S = 0.5
 MODAL_POLL_TRIES = 6
 
+SURVEY_WALL_CLOCK_S = 1200.0
+SURVEY_TAP_RETRIES = 3
+VALIDATE_SAMPLE_CAP = 4
 
-@dataclass
-class IntelBudget:
-    """None means dynamic (user's 2026-07-14 call): follow the number of
-    enemy candidates on the board, capped, so no stage loses enemies to a
-    fixed panel count; explicit values stay fixed for tests and probes."""
 
-    max_panels: int | None = None
-    max_seconds: float | None = None
-
-    DYNAMIC_PANEL_CAP = 12
-    SECONDS_PER_PANEL = 15.0
-    SECONDS_SLACK = 30.0
-
-    def resolve(self, candidates: int) -> tuple[int, float]:
-        panels = (
-            self.max_panels
-            if self.max_panels is not None
-            else min(self.DYNAMIC_PANEL_CAP, candidates)
-        )
-        seconds = (
-            self.max_seconds
-            if self.max_seconds is not None
-            else self.SECONDS_PER_PANEL * panels + self.SECONDS_SLACK
-        )
-        return panels, seconds
+class SurveyIncomplete(RuntimeError):
+    """The stage could not be read to completion; the caller must stop
+    loudly (survey_abort), never proceed on a partial game description."""
 
 
 @dataclass
@@ -87,117 +73,203 @@ class StageIntel:
     cache_stale: bool = False
 
 
-def acquire_stage_intel(
+@dataclass
+class ValidationReport:
+    ok: bool
+    seed: SeedReport | None = None
+    resolver: IdentityResolver | None = None
+    mismatches: list[str] = field(default_factory=list)
+    taps: int = 0
+
+
+def _read_summary_at(
+    capture, tap, screen, sleep, *, retries: int = SURVEY_TAP_RETRIES
+):
+    for _ in range(retries):
+        tap(int(screen[0]), int(screen[1]))
+        sleep(SUMMARY_SETTLE_S)
+        summary = vision.read_enemy_summary(capture())
+        if summary is not None and summary.name_sig is not None:
+            return summary
+    return None
+
+
+def survey_stage(
     capture: Callable,
     tap: Callable[[int, int], None],
-    enemy_points: list[tuple[int, int]],
+    points: list[tuple[float, float]],
     *,
-    stage_id: str | None = None,
-    cache_root: Path | None = None,
+    stage_id: str,
+    bring_to_view: Callable[[tuple[float, float]], tuple[float, float] | None],
+    factions: list[str] | None = None,
     llm=None,
-    budget: IntelBudget | None = None,
     ledger_log: Callable[..., None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
-) -> StageIntel:
-    budget = budget or IntelBudget()
-    max_panels, max_seconds = budget.resolve(len(enemy_points))
-    intel = StageIntel()
-    cached = stage_cache.load_stage(stage_id, cache_root) if stage_id else {}
-    updated: dict[str, stage_cache.CachedUnit] = dict(cached)
-    deadline = time.monotonic() + max_seconds
+    wall_clock_s: float = SURVEY_WALL_CLOCK_S,
+    cell_size: float = 95.0,
+    root: Path | None = None,
+) -> StageDefinition:
+    """Full survey of every non-ally point (world coordinates from the
+    serpentine sweep) into a saved schema-2 definition. Raises
+    SurveyIncomplete on the first unreadable unit or on the wall-clock
+    guard -- partial definitions are never written."""
+    if not points:
+        raise SurveyIncomplete("no enemy points to survey")
+    factions = factions or ["enemy"] * len(points)
+    deadline = time.monotonic() + wall_clock_s
 
     def record(kind: str, **data) -> None:
         if ledger_log is not None:
             ledger_log(kind, **data)
 
-    for point in enemy_points:
+    surveyed: list[StageUnit] = []
+    origin = (min(p[0] for p in points), min(p[1] for p in points))
+    for i, (point, faction) in enumerate(zip(points, factions)):
         if time.monotonic() >= deadline:
-            log.info("intel budget (time) exhausted, %d enemies unscouted", 0)
-            break
-        tap(*point)
-        sleep(SUMMARY_SETTLE_S)
-        frame = capture()
-        summary = vision.read_enemy_summary(frame)
-        if summary is None or summary.name_sig is None:
-            log.debug("no summary card at %s, skipping", point)
-            continue
-        sig = summary.name_sig
-        if sig in intel.summaries:
-            continue
-        intel.summaries[sig] = summary
-        intel.positions[sig] = point
-
-        hit = stage_cache.find(cached, sig)
-        if hit is not None:
-            spec, assumptions = hit.to_spec()
-            intel.specs_by_sig[sig] = spec
-            intel.assumptions[sig] = assumptions
-            if hit.name_text:
-                intel.names[sig] = hit.name_text
-            intel.cache_hits += 1
-            record("unit_intel", sig=sig, source="cache", name=hit.name_text)
-            continue
-
-        if cached and not intel.cache_stale:
-            intel.cache_stale = True
-            log.warning("signature %s not in the stage cache -- cache stale, re-reading live", sig)
-            record("cache_stale", sig=sig, stage_id=stage_id)
-
-        if intel.panels_opened >= max_panels:
-            log.info("intel budget (panels) exhausted, %s stays spec-less", sig[:6])
-            continue
-
+            raise SurveyIncomplete(
+                f"wall clock exhausted after {len(surveyed)}/{len(points)} units"
+            )
+        screen = bring_to_view(point)
+        if screen is None:
+            raise SurveyIncomplete(f"unit {i} at {point} cannot be brought into view")
+        summary = _read_summary_at(capture, tap, screen, sleep)
+        if summary is None:
+            raise SurveyIncomplete(f"no summary card for unit {i} at {point}")
         tap(*SUMMARY_CARD_TAP)
         sleep(MODAL_SETTLE_S)
         modal = _await_modal(capture, sleep)
         if modal is None:
-            log.warning("detail modal did not open for %s, skipping", sig[:6])
-            continue
-        intel.panels_opened += 1
+            raise SurveyIncomplete(f"detail modal did not open for unit {i}")
         tap(*WEAPONS_TAB_TAP)
         sleep(MODAL_SETTLE_S)
         modal = capture()
         stats = panels.parse_unit_stats(modal)
         rows = panels.parse_weapon_rows(modal)
+        if stats is None:
+            raise SurveyIncomplete(f"stat column unreadable for unit {i}")
         name = None
         if llm is not None:
             x, y, w, h = vision.FORECAST_LEFT_NAME_REGION
             name = llm.transcribe(
-                frame[y : y + h, x : x + w],
+                modal[y : y + h, x : x + w],
                 "Transcribe the unit name on this game UI name plate "
                 "(Traditional Chinese / Japanese, single line).",
             )
-        if stats is None:
-            log.warning("stat column unreadable for %s", sig[:6])
-        else:
-            spec, assumptions = panels.to_unit_spec(stats, rows)
-            if not rows:
-                assumptions = [*assumptions, "no weapon rows read (wrong tab or scrolled)"]
-            intel.specs_by_sig[sig] = spec
-            intel.assumptions[sig] = assumptions
-            if name:
-                intel.names[sig] = name
-            updated[sig] = stage_cache.CachedUnit(
-                sig=sig,
+        stats_dict = {k: getattr(stats, k) for k in stats.__dataclass_fields__}
+        cell = (
+            round((point[0] - origin[0]) / cell_size),
+            round((point[1] - origin[1]) / cell_size),
+        )
+        surveyed.append(
+            StageUnit(
+                uid="",
+                cell=cell,
+                faction=faction,
+                sig=summary.name_sig,
                 name_text=name,
-                stats={k: getattr(stats, k) for k in stats.__dataclass_fields__},
-                weapons=[{k: getattr(r, k) for k in r.__dataclass_fields__} for r in rows],
+                pilot_hint={
+                    k: v for k, v in stats_dict.items() if k.startswith("pilot_")
+                },
+                stats=stats_dict,
+                weapons=[
+                    {k: getattr(r, k) for k in r.__dataclass_fields__} for r in rows
+                ],
             )
-            record(
-                "unit_intel",
-                frame=modal,
-                sig=sig,
-                source="panel",
-                name=name,
-                assumptions=intel.assumptions[sig],
-            )
+        )
+        record(
+            "survey_unit",
+            frame=modal,
+            index=i,
+            sig=summary.name_sig,
+            name=name,
+            hp=summary.hp,
+            en=summary.en,
+        )
         tap(*UNIT_DETAIL_CLOSE)
         sleep(MODAL_SETTLE_S)
 
-    if stage_id and updated != cached:
-        path = stage_cache.save_stage(stage_id, updated, cache_root)
-        log.info("stage cache updated: %s (%d units)", path, len(updated))
-    return intel
+    defn = StageDefinition(
+        stage_id=stage_id,
+        layout=stage_def.assign_uids(surveyed),
+        cell_size=cell_size,
+    )
+    path = stage_def.save_stage_def(defn, root)
+    log.info("stage definition written: %s (%d units)", path, len(defn.layout))
+    record("survey_complete", units=len(defn.layout), stage_id=stage_id)
+    return defn
+
+
+def _spot_sample(defn: StageDefinition, cap: int = VALIDATE_SAMPLE_CAP) -> list[StageUnit]:
+    """Spot-check targets: shared-sig groups first (the pilot-difference
+    risk this schema exists for), then layout order; deterministic."""
+    n = len(defn.layout)
+    want = min(cap, max(2, math.ceil(n / 4)))
+    shared = [
+        u for u in defn.layout if u.sig and len(stage_def.find_by_sig(defn, u.sig)) > 1
+    ]
+    rest = [u for u in defn.layout if u not in shared]
+    return (shared + rest)[:want]
+
+
+def validate_stage(
+    defn: StageDefinition,
+    scan_points: list[tuple[float, float]],
+    *,
+    capture: Callable,
+    tap: Callable[[int, int], None],
+    bring_to_view: Callable[[tuple[float, float]], tuple[float, float] | None],
+    ledger_log: Callable[..., None] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> ValidationReport:
+    """Warm-start census: free geometry check (the sweep already
+    happened) plus a few summary-card spot taps against the file. Any
+    mismatch marks the whole stage stale -- the caller falls back to a
+    live survey; the screen is authoritative."""
+    resolver = IdentityResolver(defn)
+    seed = resolver.seed(scan_points)
+    report = ValidationReport(ok=False, seed=seed, resolver=resolver)
+    if not seed.ok:
+        report.mismatches.append(
+            f"geometry census failed: {len(seed.unmatched_uids)} layout units "
+            f"unmatched, {len(seed.unmatched_points)} scan points unclaimed"
+        )
+        return report
+
+    def record(kind: str, **data) -> None:
+        if ledger_log is not None:
+            ledger_log(kind, **data)
+
+    for unit in _spot_sample(defn):
+        world = seed.matched[unit.uid]
+        screen = bring_to_view(world)
+        if screen is None:
+            report.mismatches.append(f"{unit.uid}: cannot be brought into view")
+            break
+        summary = _read_summary_at(capture, tap, screen, sleep)
+        report.taps += 1
+        if summary is None:
+            report.mismatches.append(f"{unit.uid}: no summary card at {world}")
+            continue
+        try:
+            sig_off = vision.signature_distance(summary.name_sig, unit.sig)
+        except ValueError:
+            sig_off = 64
+        if sig_off > stage_def.SIG_CANDIDATE_MAX_DISTANCE:
+            report.mismatches.append(
+                f"{unit.uid}: sig off by {sig_off} bits vs the definition"
+            )
+        if summary.hp is not None and unit.stats.get("hp") not in (None, summary.hp):
+            report.mismatches.append(
+                f"{unit.uid}: opening HP {summary.hp} != definition {unit.stats.get('hp')}"
+            )
+        if summary.en is not None and unit.stats.get("en") not in (None, summary.en):
+            report.mismatches.append(
+                f"{unit.uid}: opening EN {summary.en} != definition {unit.stats.get('en')}"
+            )
+        record("validate_unit", uid=unit.uid, mismatches=report.mismatches[-2:])
+
+    report.ok = not report.mismatches
+    return report
 
 
 def _await_modal(capture: Callable, sleep: Callable[[float], None]):
@@ -214,7 +286,7 @@ def _canonical_sig(sig: str, known: dict[str, tuple[float, float]]) -> str:
     around (same tolerance as the stage cache); unknown sigs pass through."""
     if sig in known:
         return sig
-    best, best_distance = None, stage_cache.SIG_MATCH_MAX_DISTANCE + 1
+    best, best_distance = None, stage_def.SIG_CANDIDATE_MAX_DISTANCE + 1
     for candidate in known:
         distance = vision.signature_distance(sig, candidate)
         if distance < best_distance:

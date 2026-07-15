@@ -229,21 +229,26 @@ class ManualBattle(Action):
         # reuse the ledger opened at the stage-info screen (if any) so its
         # conditions frame and this fight share one battle_NN.jsonl
         ledger = blackboard.take_ledger() if blackboard is not None else None
-        intel_budget = None
-        if os.environ.get("GGGE_INTEL", "").lower() in ("1", "on", "yes"):
-            from ...battle.scout_intel import IntelBudget
-
-            intel_budget = IntelBudget()
+        intel_enabled = os.environ.get("GGGE_INTEL", "").lower() in ("1", "on", "yes")
+        pilot_enabled = os.environ.get("GGGE_PILOT", "").lower() in ("1", "on", "yes")
+        stage_id = blackboard.intel.get("stage_id") if blackboard is not None else None
+        if pilot_enabled and not intel_enabled:
+            raise RuntimeError(
+                "GGGE_PILOT=1 requires GGGE_INTEL=1: the pilot's uid chain "
+                "depends on the stage definition"
+            )
+        if intel_enabled and stage_id is None:
+            raise RuntimeError("GGGE_INTEL=1 requires a stage_id on the blackboard")
         controller = ManualBattleController(
             perception=ctx.perception,
             actuator=ctx.actuator,
             keyguard=keyguard,
             ledger=ledger,
             llm=ctx.extras.get("llm"),
-            intel_budget=intel_budget,
-            stage_id=blackboard.intel.get("stage_id") if blackboard is not None else None,
+            intel_enabled=intel_enabled,
+            stage_id=stage_id,
             advisor_enabled=os.environ.get("GGGE_ADVISOR", "").lower() in ("1", "on", "yes"),
-            pilot_enabled=os.environ.get("GGGE_PILOT", "").lower() in ("1", "on", "yes"),
+            pilot_enabled=pilot_enabled,
         )
         try:
             result = controller.run()

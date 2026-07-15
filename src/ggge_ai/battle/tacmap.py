@@ -74,6 +74,34 @@ class TacticalMap:
         n = len(self.threats)
         return (sum(p[0] for p in self.threats) / n, sum(p[1] for p in self.threats) / n)
 
+    def locate(self, visible_arcs: list[tuple[int, int]]) -> Point | None:
+        """Camera offset of an arbitrary view (no selection assumption):
+        every (visible arc, world point) pairing proposes a translation,
+        the one most arcs agree with wins, two coincidences minimum --
+        the survey's bring-to-view navigation re-anchors with this
+        between pans."""
+        world_points = self.enemies + self.allies + self.third_party
+        if not world_points or not visible_arcs:
+            return None
+        best: tuple[int, Point] | None = None
+        for a in visible_arcs:
+            for w in world_points:
+                t = (w[0] - a[0], w[1] - a[1])
+                score = 0
+                for b in visible_arcs:
+                    p = (b[0] + t[0], b[1] + t[1])
+                    if any(
+                        (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
+                        < ANCHOR_MATCH_RADIUS * ANCHOR_MATCH_RADIUS
+                        for q in world_points
+                    ):
+                        score += 1
+                if best is None or score > best[0]:
+                    best = (score, t)
+        if best is None or best[0] < 2:
+            return None
+        return best[1]
+
     def anchor(
         self, unit_screen: Point, visible_arcs: list[tuple[int, int]]
     ) -> Point | None:
