@@ -1,6 +1,7 @@
 # 進度與規劃
 
-更新日期：2026-07-17（工程重構批次見下段；最新里程碑＝07-15
+更新日期：2026-07-18（router middleware 見 07-18 段；工程重構批次見
+07-17 段；最新里程碑＝07-15
 **S9d 應戰路徑整併落地**：確認應戰彈窗＝戰鬥準備
 -應戰- 變體，感知單一來源化到 `BattlePrepForecast`、廢 `ReactionPopup`、
 執行器 `_choose_reaction_stance` 接進 `_on_battle_prep`；行為保持、
@@ -34,6 +35,19 @@ SpecDefaults、grounding＝數值落地＋假設回報、stage_def（含 sig 距
 objectives、stage_sim 直建定義檔座標不經 BattleState）；`core/`→`goap/`
 改名；死碼 battle/planner.py（plan_activation，production 零引用）連測試
 刪除。行為不變、477 tests（483−6 刪除的 planner 測試）/3 xfail、ruff 全綠。
+**裝置現況與 S9 恢復點不變，見下。**
+
+**2026-07-18 router middleware（行為近似不變、非里程碑）**：controller 兩層
+路由的 log 收成 middleware（使用者提案「既然走 router 就加 middleware 記部份
+handler 的 log」）。① 中斷路由：`_handle_*` 改回傳宣告式意圖
+（`LoopStep.log=(kind, extras)`／`finish=outcome`），`_dispatch_interrupt`
+統一補共用幀＋執行，handler 不再直接碰 ledger；格式一致、沒 handler 能默默
+漏記——`end_turn` 以前整段沒進 ledger，現自動補上。② 相位路由：抽
+`_dispatch_phase`，正常結束記一筆信封 `phase`（名字＋`outcome=ok`＋
+`elapsed_ms`），domain log 仍留 `_on_*` 內；兩個終止例外（PilotAbort／
+SurveyIncomplete）沿用原記錄並轉 `LoopStep(done=True)` 走同一離場接縫。
+純機制、流水帳只供工程分析不當先驗故改格式安全。484 tests（+7 middleware）
+/3 xfail、ruff 全綠；文件見 battle-phase-states.md「路由與 middleware」。
 **裝置現況與 S9 恢復點不變，見下。**
 
 ## 暫停快照（2026-07-15 S9d 應戰整併，恢復點）

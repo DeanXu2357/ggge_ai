@@ -229,10 +229,18 @@ class Expectation:
 class LoopStep:
     """A router handler's instruction back to the run loop: end the battle,
     returning `screen`, or (the default) keep looping. A handled interrupt
-    always counts as activity, so the loop resets its idle watchdog on it."""
+    always counts as activity, so the loop resets its idle watchdog on it.
+
+    `log`/`finish` are the handler's ledger intent, executed by the dispatch
+    middleware (`_dispatch_interrupt`): `log=(kind, extras)` records one event
+    against the shared router frame, `finish=outcome` archives the ledger. A
+    handler declares what to record and never touches the ledger itself, so no
+    interrupt can silently skip its log line (end_turn used to)."""
 
     done: bool = False
     screen: str | None = None
+    log: tuple[str, dict] | None = None
+    finish: str | None = None
 
 
 @dataclass
@@ -375,18 +383,9 @@ class ManualBattleController:
             else:
                 self._miss_streak = 0
                 self._dispatched_mode = mode
-                handler = getattr(self, f"_on_{mode.removeprefix('label_')}")
-                try:
-                    handler()
-                except PilotAbort as exc:
-                    log.error("pilot abort ends the battle: %s", exc)
-                    self._log_finish("pilot_abort")
-                    return screens.UNKNOWN
-                except SurveyIncomplete as exc:
-                    log.error("stage survey incomplete, aborting the battle: %s", exc)
-                    self._log("survey_abort", reason=str(exc), frame=self._safe_frame())
-                    self._log_finish("survey_abort")
-                    return screens.UNKNOWN
+                step = self._dispatch_phase(mode)
+                if step is not None and step.done:
+                    return step.screen
                 last_activity = time.time()
         log.warning("battle timeout reached")
         self._log_finish("battle_timeout")
@@ -399,6 +398,46 @@ class ManualBattleController:
     def _log_finish(self, outcome: str) -> None:
         if self.ledger is not None:
             self.ledger.finish(outcome, frame=self._safe_frame())
+
+    def _dispatch_phase(self, mode: str) -> LoopStep | None:
+        """Lifecycle middleware for the phase router: resolve the _on_* handler
+        for an ACTIONABLE mode, time it, and record one envelope event (which
+        phase ran and how long) once it returns cleanly. The handler keeps its
+        own domain logging (attack/standby/pilot_step ...); the two
+        battle-ending aborts keep their existing records and become a terminal
+        LoopStep so the run loop exits through the same seam as an interrupt."""
+        phase = mode.removeprefix("label_")
+        handler = getattr(self, f"_on_{phase}")
+        started = time.time()
+        try:
+            handler()
+        except PilotAbort as exc:
+            log.error("pilot abort ends the battle: %s", exc)
+            self._log_finish("pilot_abort")
+            return LoopStep(done=True, screen=screens.UNKNOWN)
+        except SurveyIncomplete as exc:
+            log.error("stage survey incomplete, aborting the battle: %s", exc)
+            self._log("survey_abort", reason=str(exc), frame=self._safe_frame())
+            self._log_finish("survey_abort")
+            return LoopStep(done=True, screen=screens.UNKNOWN)
+        self._log(
+            "phase", phase=phase, outcome="ok",
+            elapsed_ms=round((time.time() - started) * 1000),
+        )
+        return None
+
+    def _dispatch_interrupt(self, handle, frame, payload) -> LoopStep:
+        """Logging middleware for the interrupt router: run the handler, then
+        execute its declared ledger intent against the shared frame. Keeping
+        the ledger out of the handlers is what makes the log uniform and lets
+        a silent handler (end_turn) be spotted -- it just returns no intent."""
+        step = handle(frame, payload)
+        if step.log is not None:
+            kind, extras = step.log
+            self._log(kind, frame=frame, **extras)
+        if step.finish is not None:
+            self._log_finish(step.finish)
+        return step
 
     def _route_interrupts(self, frame) -> LoopStep | None:
         """Priority-ordered interrupt/overlay detectors over the shared frame;
@@ -419,7 +458,7 @@ class ManualBattleController:
         for detect, handle in pipeline:
             payload = detect(frame)
             if payload:
-                return handle(frame, payload)
+                return self._dispatch_interrupt(handle, frame, payload)
         return None
 
     def _detect_terminal(self, frame):
@@ -432,8 +471,7 @@ class ManualBattleController:
 
     def _handle_terminal(self, frame, screen) -> LoopStep:
         log.info("battle finished: %s", screen)
-        self._log_finish(screen)
-        return LoopStep(done=True, screen=screen)
+        return LoopStep(done=True, screen=screen, finish=screen)
 
     def _detect_defeat(self, frame):
         # our whole force wiped out: the FAILED screen is a dead end (its
@@ -443,8 +481,7 @@ class ManualBattleController:
 
     def _handle_defeat(self, frame, _payload) -> LoopStep:
         log.info("battle finished: defeat screen")
-        self._log_finish("defeat")
-        return LoopStep(done=True, screen=screens.UNKNOWN)
+        return LoopStep(done=True, screen=screens.UNKNOWN, finish="defeat")
 
     def _detect_hidden(self, frame):
         return vision.is_hidden_battle_warning(frame)
@@ -456,10 +493,9 @@ class ManualBattleController:
         decision = "decline" if self.hidden_battle_policy == "decline" else "challenge"
         button = DECLINE_HIDDEN_BATTLE if decision == "decline" else CHALLENGE_HIDDEN_BATTLE
         log.info("hidden-battle warning modal: %s", decision)
-        self._log("hidden_battle_warning", frame=frame, decision=decision)
         self.actuator.tap(*button)
         time.sleep(2.0)
-        return LoopStep()
+        return LoopStep(log=("hidden_battle_warning", {"decision": decision}))
 
     def _detect_known_modal(self, frame):
         # a stray keyguard drag or tap can open a modal over the live battle; it
@@ -474,10 +510,9 @@ class ManualBattleController:
     def _handle_known_modal(self, frame, payload) -> LoopStep:
         kind, close_btn = payload
         log.warning("%s open mid-battle, closing", kind)
-        self._log(kind, frame=frame)
         self.actuator.tap(*close_btn)
         time.sleep(1.5)
-        return LoopStep()
+        return LoopStep(log=(kind, {}))
 
     def _detect_story(self, frame):
         # detect stories by the MENU button itself, not the screen classifier:
@@ -487,12 +522,11 @@ class ManualBattleController:
 
     def _handle_story(self, frame, menu_pos) -> LoopStep:
         log.info("mid-battle story (menu at %s), skipping", menu_pos)
-        self._log("story_skip", menu=menu_pos)
         self.actuator.tap(*menu_pos)
         time.sleep(0.8)
         self.actuator.tap(menu_pos[0], STORY_SKIP[1])
         time.sleep(1.5)
-        return LoopStep()
+        return LoopStep(log=("story_skip", {"menu": menu_pos}))
 
     def _detect_end_turn(self, frame):
         return self._confirmed_probe("dlg_end_turn", frame=frame)
@@ -503,7 +537,7 @@ class ManualBattleController:
         time.sleep(0.8)
         self.actuator.tap(*END_TURN_EXECUTE)
         time.sleep(2.0)
-        return LoopStep()
+        return LoopStep(log=("end_turn", {}))
 
     def _current_mode(self, frame=None) -> str | None:
         found = self.perception.probe(MODE_LABELS + DISTRACTOR_LABELS, frame=frame)
