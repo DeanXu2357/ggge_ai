@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from . import vision
 from .advisor import Advice
-from .bridge import UnitSpec
+from ..content.kit import UnitSpec
 from .identity import IdentityResolver
 from .observe import SIG_MATCH_RADIUS
 from .state import BattleState, Point

@@ -11,15 +11,13 @@ render blue with ▲▲ arrows and read identically (measured 12/12 on the
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
 import numpy as np
 
+from ..content.kit import UnitStats, WeaponRow
 from ..vision import digits
-from .bridge import UnitSpec
-from ..sim import SimWeapon
 from .vision import _cached_template, _crop, is_unit_detail_modal
 
 _ELEMENTS = Path(__file__).resolve().parents[3] / "assets" / "templates" / "elements"
@@ -56,34 +54,6 @@ BADGE_OFFSET_Y = -74
 BADGE_REGION_X = (1840, 170)
 BADGE_H = 52
 BADGE_THRESHOLD = 0.75
-
-
-@dataclass(frozen=True)
-class UnitStats:
-    hp: int | None
-    en: int | None
-    move_range: int | None
-    unit_attack: int | None
-    unit_defense: int | None
-    unit_mobility: int | None
-    pilot_shooting: int | None
-    pilot_melee: int | None
-    pilot_awakening: int | None
-    pilot_defense: int | None
-    pilot_reaction: int | None
-    sp: int | None
-
-
-@dataclass(frozen=True)
-class WeaponRow:
-    kind: str | None
-    level: int | None
-    range_min: int | None
-    range_max: int | None
-    power: int | None
-    en_cost: int | None
-    hit_pct: int | None
-    crit_pct: int | None
 
 
 def _read_stat(frame: np.ndarray, row_y: int) -> int | None:
@@ -180,52 +150,3 @@ def parse_weapon_rows(frame: np.ndarray) -> list[WeaponRow]:
     return rows
 
 
-def to_unit_spec(stats: UnitStats, rows: list[WeaponRow]) -> tuple[UnitSpec, list[str]]:
-    """Panel readings -> UnitSpec plus the assumptions the conversion made.
-    Unreadable weapon rows are dropped (an inert weapon would poison damage
-    search); every drop is reported."""
-    assumptions: list[str] = []
-    weapons: list[SimWeapon] = []
-    for i, row in enumerate(rows, start=1):
-        if row.power is None:
-            assumptions.append(f"weapon {i}: power unreadable, row dropped")
-            continue
-        if row.range_min is None or row.range_max is None:
-            assumptions.append(f"weapon {i}: range unreadable, assuming 1-1")
-        weapons.append(
-            SimWeapon(
-                name=f"weapon_{i}" + (f"_{row.kind}" if row.kind else ""),
-                power=float(row.power),
-                range_min=row.range_min if row.range_min is not None else 1,
-                range_max=row.range_max if row.range_max is not None else 1,
-                en_cost=row.en_cost if row.en_cost is not None else 0,
-            )
-        )
-    return (
-        UnitSpec(
-            max_hp=stats.hp,
-            en_max=stats.en,
-            unit_attack=float(stats.unit_attack) if stats.unit_attack is not None else None,
-            unit_defense=float(stats.unit_defense) if stats.unit_defense is not None else None,
-            pilot_defense=float(stats.pilot_defense) if stats.pilot_defense is not None else None,
-            reaction=float(stats.pilot_reaction) if stats.pilot_reaction is not None else None,
-            mobility=float(stats.unit_mobility) if stats.unit_mobility is not None else None,
-            move_range=stats.move_range,
-            pilot_shooting=float(stats.pilot_shooting)
-            if stats.pilot_shooting is not None
-            else None,
-            pilot_melee=float(stats.pilot_melee) if stats.pilot_melee is not None else None,
-            weapons=tuple(weapons),
-        ),
-        assumptions,
-    )
-
-
-def pilot_attack_for(spec: UnitSpec, kind: str | None) -> float | None:
-    """The pilot stat a weapon of `kind` attacks with; falls back to the
-    generic pilot_attack when the kind is unknown or the stat unread."""
-    if kind == "shooting" and spec.pilot_shooting is not None:
-        return spec.pilot_shooting
-    if kind == "melee" and spec.pilot_melee is not None:
-        return spec.pilot_melee
-    return spec.pilot_attack

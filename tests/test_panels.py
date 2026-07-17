@@ -9,7 +9,8 @@ from __future__ import annotations
 import numpy as np
 
 from ggge_ai.battle import panels
-from ggge_ai.battle.panels import UnitStats, WeaponRow
+from ggge_ai.content import kit
+from ggge_ai.content.kit import UnitStats, WeaponRow
 
 
 def _stats(**overrides):
@@ -53,7 +54,7 @@ def test_parsers_decline_without_modal() -> None:
 
 
 def test_to_unit_spec_maps_fields() -> None:
-    spec, assumptions = panels.to_unit_spec(_stats(), [_row()])
+    spec, assumptions = kit.to_unit_spec(_stats(), [_row()])
     assert assumptions == []
     assert spec.max_hp == 51349
     assert spec.en_max == 377
@@ -72,25 +73,25 @@ def test_to_unit_spec_maps_fields() -> None:
 
 
 def test_to_unit_spec_drops_unreadable_weapon_with_assumption() -> None:
-    spec, assumptions = panels.to_unit_spec(_stats(), [_row(power=None), _row(power=3200)])
+    spec, assumptions = kit.to_unit_spec(_stats(), [_row(power=None), _row(power=3200)])
     assert len(spec.weapons) == 1
     assert spec.weapons[0].power == 3200.0
     assert any("row dropped" in a for a in assumptions)
 
 
 def test_to_unit_spec_assumes_range_when_unread() -> None:
-    spec, assumptions = panels.to_unit_spec(_stats(), [_row(range_min=None, range_max=None)])
+    spec, assumptions = kit.to_unit_spec(_stats(), [_row(range_min=None, range_max=None)])
     assert (spec.weapons[0].range_min, spec.weapons[0].range_max) == (1, 1)
     assert any("assuming 1-1" in a for a in assumptions)
 
 
 def test_pilot_attack_for_kind_selection() -> None:
-    spec, _ = panels.to_unit_spec(_stats(), [])
-    assert panels.pilot_attack_for(spec, "shooting") == 168.0
-    assert panels.pilot_attack_for(spec, "melee") == 170.0
-    assert panels.pilot_attack_for(spec, None) is None
+    spec, _ = kit.to_unit_spec(_stats(), [])
+    assert kit.pilot_attack_for(spec, "shooting") == 168.0
+    assert kit.pilot_attack_for(spec, "melee") == 170.0
+    assert kit.pilot_attack_for(spec, None) is None
 
 
 def test_pilot_attack_for_falls_back_when_stat_unread() -> None:
-    spec, _ = panels.to_unit_spec(_stats(pilot_shooting=None), [])
-    assert panels.pilot_attack_for(spec, "shooting") is None
+    spec, _ = kit.to_unit_spec(_stats(pilot_shooting=None), [])
+    assert kit.pilot_attack_for(spec, "shooting") is None

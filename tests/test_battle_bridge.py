@@ -1,6 +1,7 @@
 from ggge_ai.battle.actions import ActionKind
 from ggge_ai.battle.advisor import AdvisorConfig, advise
-from ggge_ai.battle.bridge import UnitSpec, build_sim_state
+from ggge_ai.battle.bridge import build_sim_state
+from ggge_ai.content.kit import UnitSpec
 from ggge_ai.sim import SimWeapon
 from ggge_ai.battle.state import BattleState, Faction, UnitState
 from ggge_ai.domain.roster import CapabilityType, UnitCapability

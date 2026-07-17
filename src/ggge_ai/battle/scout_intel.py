@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import panels, stage_def, vision
-from .bridge import UnitSpec
+from ..content.kit import UnitSpec
 from .identity import IdentityResolver, SeedReport
 from .observe import SIG_MATCH_RADIUS
 from .stage_def import StageDefinition, StageUnit

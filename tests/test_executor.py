@@ -8,7 +8,7 @@ from ggge_ai.battle import advisor as advisor_mod
 from ggge_ai.battle import controller as controller_mod
 from ggge_ai.battle import executor, vision
 from ggge_ai.battle.advisor import Advice
-from ggge_ai.battle.bridge import UnitSpec
+from ggge_ai.content.kit import UnitSpec
 from ggge_ai.battle.controller import ManualBattleController, PilotAbort
 from ggge_ai.battle.identity import IdentityResolver
 from ggge_ai.battle.ledger import BattleLedger

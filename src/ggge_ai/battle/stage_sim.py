@@ -11,7 +11,8 @@ carrier for the events/objective machinery.
 
 from __future__ import annotations
 
-from .bridge import BridgeDefaults, UnitSpec, build_sim_state
+from ..content.kit import SpecDefaults, UnitSpec
+from .bridge import build_sim_state
 from .objectives import make_objective
 from ..sim import EventTable, SimEvent, SimState, SimUnit
 from ..sim import EvalWeights, Objective
@@ -26,7 +27,7 @@ def to_sim_state(
     our_units: list[SimUnit],
     *,
     weights: EvalWeights | None = None,
-    defaults: BridgeDefaults | None = None,
+    defaults: SpecDefaults | None = None,
     fired_events: tuple[str, ...] = (),
 ) -> tuple[SimState, EventTable, Objective, list[str]]:
     """Open the stage offline. our_units are caller-built SimUnits on the

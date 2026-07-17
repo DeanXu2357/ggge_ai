@@ -54,6 +54,7 @@ from .core import (
 from .grid import (
     blocking_cells,
     grid_move_validator,
+    nearest_free_cell,
     occupied_cells,
     reach_provider,
     reachable_cells,
@@ -111,6 +112,7 @@ __all__ = [
     # grid
     "blocking_cells",
     "grid_move_validator",
+    "nearest_free_cell",
     "occupied_cells",
     "reach_provider",
     "reachable_cells",

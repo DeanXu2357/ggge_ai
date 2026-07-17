@@ -29,7 +29,8 @@ from ..planner import (
 from ..sim import Decision, Phase, SimState, SimUnit, chebyshev
 from ..sim import grid_move_validator, reach_provider
 from .actions import ActionKind
-from .bridge import BridgeDefaults, UnitSpec, build_sim_state
+from ..content.kit import SpecDefaults, UnitSpec
+from .bridge import build_sim_state
 from .state import BattleState, Faction, Point
 
 
@@ -40,7 +41,7 @@ class AdvisorConfig:
     max_depth: int = 16
     enemy_mode: str = MODE_POLICY
     use_grid: bool = True
-    defaults: BridgeDefaults = field(default_factory=BridgeDefaults)
+    defaults: SpecDefaults = field(default_factory=SpecDefaults)
 
 
 @dataclass

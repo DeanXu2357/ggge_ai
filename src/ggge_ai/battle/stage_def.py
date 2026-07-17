@@ -21,8 +21,8 @@ import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .bridge import UnitSpec
-from .panels import UnitStats, WeaponRow, to_unit_spec
+from ..content.kit import UnitSpec
+from ..content.kit import UnitStats, WeaponRow, to_unit_spec
 from .vision import signature_distance
 
 log = logging.getLogger(__name__)

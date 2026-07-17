@@ -2,7 +2,7 @@
 
 from ggge_ai.battle import reconcile
 from ggge_ai.sim import formulas
-from ggge_ai.battle.bridge import UnitSpec
+from ggge_ai.content.kit import UnitSpec
 from ggge_ai.sim import SimWeapon
 from ggge_ai.battle.vision import BattlePrepForecast, WeaponSelectForecast
 

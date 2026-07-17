@@ -77,3 +77,20 @@ def grid_move_validator(state: SimState, unit: SimUnit, dest: Cell) -> bool:
 def reach_provider(state: SimState, unit: SimUnit) -> set[Cell]:
     """ReachProvider drop-in for SolverConfig and the enemy models."""
     return reachable_cells(state, unit)
+
+
+def nearest_free_cell(cell: Cell, taken: set[Cell]) -> Cell:
+    """The closest unoccupied cell by king-move BFS; the cell itself when
+    free. Builders use this to resolve two units landing on one cell."""
+    seen = {cell}
+    frontier = deque([cell])
+    while frontier:
+        pos = frontier.popleft()
+        if pos not in taken:
+            return pos
+        for dx, dy in _KING_STEPS:
+            nxt = (pos[0] + dx, pos[1] + dy)
+            if nxt not in seen:
+                seen.add(nxt)
+                frontier.append(nxt)
+    return cell
