@@ -2,9 +2,9 @@
 
 from ggge_ai.battle import stage_sim
 from ggge_ai.battle.actions import ActionKind
-from ggge_ai.battle.sim.enemy_model import NearestTargetPolicy
-from ggge_ai.battle.sim import SimUnit, SimWeapon, step
-from ggge_ai.battle.sim.solver import SolverConfig, solve
+from ggge_ai.sim.enemy_model import NearestTargetPolicy
+from ggge_ai.sim import SimUnit, SimWeapon, step
+from ggge_ai.sim.solver import SolverConfig, solve
 from ggge_ai.battle.stage_def import (
     Condition,
     StageConditions,
@@ -98,7 +98,7 @@ def test_spawn_template_lands_on_the_layout_grid():
 
 def test_kill_inside_window_spawns_the_reinforcement():
     state, table, _, _ = stage_sim.to_sim_state(_defn(), [_ally(pos=(3, 0))])
-    from ggge_ai.battle.sim import Decision
+    from ggge_ai.sim import Decision
 
     after = step(
         state,

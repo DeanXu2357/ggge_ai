@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
 from ..domain.roster import CapabilityType, UnitCapability
+from ..sim.vocab import DecisionKind
 
 if TYPE_CHECKING:
     from ..goap.action import ExecutionContext
@@ -29,13 +30,18 @@ if TYPE_CHECKING:
 
 
 class ActionKind:
-    ATTACK = "attack"
-    MAP_ATTACK = "map_attack"
-    STANDBY = "standby"
-    MOVE = "move"
+    """The execution layer's action vocabulary: the sim-owned DecisionKind
+    subset plus the kinds that only exist on screen (selection, support
+    buttons, raw taps). Values are aliases, never copies, so the two layers
+    cannot drift."""
+
+    ATTACK = DecisionKind.ATTACK
+    MAP_ATTACK = DecisionKind.MAP_ATTACK
+    STANDBY = DecisionKind.STANDBY
+    MOVE = DecisionKind.MOVE
     SELECT_UNIT = "select_unit"
-    SKILL_EN_REFILL = "skill_en_refill"
-    SKILL_HEAL = "skill_heal"
+    SKILL_EN_REFILL = DecisionKind.SKILL_EN_REFILL
+    SKILL_HEAL = DecisionKind.SKILL_HEAL
     SUPPORT_ATTACK = "support_attack"
     SUPPORT_DEFEND = "support_defend"
     RAW = "raw"

@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from ..domain.roster import CapabilityType
-from .sim import Cell, SimSkill, SimState, SimUnit, SimWeapon
+from ..sim import Cell, SimSkill, SimState, SimUnit, SimWeapon
 from .actions import ActionKind
 from .state import BattleState, Point
 

@@ -25,10 +25,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .sim import formulas
+from ..sim import formulas
 from .bridge import UnitSpec
 from .panels import pilot_attack_for
-from .sim import SimWeapon
+from ..sim import SimWeapon
 from .vision import WeaponSelectForecast, BattlePrepForecast
 
 DAMAGE_TOLERANCE = 0.15

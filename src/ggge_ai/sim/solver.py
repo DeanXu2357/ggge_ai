@@ -34,7 +34,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
 from . import formulas
-from ..actions import ActionKind
+from .vocab import DecisionKind, Faction
 from .enemy_model import MODE_MIN, EnemyModel, ReachProvider
 from .core import (
     DEFAULT_PARAMS,
@@ -56,7 +56,6 @@ from .core import (
     standby,
     step,
 )
-from ..state import Faction
 
 Evaluator = Callable[[SimState, "SearchContext"], float]
 # None = not terminal; a float is the position's terminal value and must
@@ -406,7 +405,7 @@ def _decision_value(
     actor = state.unit(decision.unit_id)
     target = state.unit(decision.target_id)
     if (
-        decision.kind == ActionKind.ATTACK
+        decision.kind == DecisionKind.ATTACK
         and actor is not None
         and target is not None
         and decision.defense is None
@@ -484,7 +483,7 @@ def _enemy_reaction_node(
 def _chance_value(
     state: SimState, decision: Decision, depth: int, alpha: float, beta: float, ctx: SearchContext
 ) -> tuple[float, list[Decision]]:
-    if decision.kind != ActionKind.ATTACK:
+    if decision.kind != DecisionKind.ATTACK:
         nxt = _step(state, decision, ctx)
         return _search(nxt, _depth_after(state, nxt, depth), alpha, beta, ctx)
 

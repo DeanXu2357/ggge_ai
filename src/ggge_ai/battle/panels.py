@@ -19,7 +19,7 @@ import numpy as np
 
 from ..vision import digits
 from .bridge import UnitSpec
-from .sim import SimWeapon
+from ..sim import SimWeapon
 from .vision import _cached_template, _crop, is_unit_detail_modal
 
 _ELEMENTS = Path(__file__).resolve().parents[3] / "assets" / "templates" / "elements"

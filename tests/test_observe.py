@@ -8,7 +8,7 @@ from ggge_ai.battle.bridge import UnitSpec
 from ggge_ai.battle.controller import ManualBattleController
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.observe import build_battle_state
-from ggge_ai.battle.sim import SimWeapon
+from ggge_ai.sim import SimWeapon
 from ggge_ai.battle.state import Faction
 from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.battle.vision import WeaponSelectForecast

@@ -1,5 +1,5 @@
-from ggge_ai.battle.sim.grid import grid_move_validator, reachable_cells
-from ggge_ai.battle.sim import SimState, SimUnit, SimWeapon, legal_attacks
+from ggge_ai.sim.grid import grid_move_validator, reachable_cells
+from ggge_ai.sim import SimState, SimUnit, SimWeapon, legal_attacks
 from ggge_ai.battle.state import Faction
 
 

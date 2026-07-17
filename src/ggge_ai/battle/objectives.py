@@ -24,8 +24,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from .sim import SimState
-from .sim.solver import (
+from ..sim import SimState
+from ..sim.solver import (
     EvalWeights,
     Objective,
     SearchContext,

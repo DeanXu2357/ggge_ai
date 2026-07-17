@@ -85,8 +85,7 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 
 from . import formulas
-from ..actions import ActionKind
-from ..state import Faction
+from .vocab import DecisionKind, Faction
 
 Cell = tuple[int, int]
 
@@ -476,7 +475,7 @@ def legal_map_attacks(state: SimState, unit: SimUnit) -> list[Decision]:
                 out.append(
                     Decision(
                         unit_id=unit.unit_id,
-                        kind=ActionKind.MAP_ATTACK,
+                        kind=DecisionKind.MAP_ATTACK,
                         weapon=weapon.name,
                         aim=target.pos,
                     )
@@ -526,7 +525,7 @@ def legal_attacks(
             out.append(
                 Decision(
                     unit_id=unit.unit_id,
-                    kind=ActionKind.ATTACK,
+                    kind=DecisionKind.ATTACK,
                     move_to=None if dest == unit.pos else dest,
                     target_id=target.unit_id,
                     weapon=weapon.name,
@@ -536,7 +535,7 @@ def legal_attacks(
 
 
 def standby(unit_id: str) -> Decision:
-    return Decision(unit_id=unit_id, kind=ActionKind.STANDBY)
+    return Decision(unit_id=unit_id, kind=DecisionKind.STANDBY)
 
 
 def legal_skills(unit: SimUnit) -> list[Decision]:
@@ -545,9 +544,9 @@ def legal_skills(unit: SimUnit) -> list[Decision]:
     for skill in unit.skills:
         if skill.uses <= 0:
             continue
-        if skill.kind == ActionKind.SKILL_EN_REFILL and unit.en < unit.en_max:
+        if skill.kind == DecisionKind.SKILL_EN_REFILL and unit.en < unit.en_max:
             out.append(Decision(unit_id=unit.unit_id, kind=skill.kind, amount=skill.amount))
-        elif skill.kind == ActionKind.SKILL_HEAL and unit.hp < unit.max_hp:
+        elif skill.kind == DecisionKind.SKILL_HEAL and unit.hp < unit.max_hp:
             out.append(Decision(unit_id=unit.unit_id, kind=skill.kind, amount=skill.amount))
     return out
 
@@ -607,7 +606,7 @@ def reposition_moves(
         if cell in seen:
             continue
         seen.add(cell)
-        out.append(Decision(unit_id=unit.unit_id, kind=ActionKind.MOVE, move_to=cell))
+        out.append(Decision(unit_id=unit.unit_id, kind=DecisionKind.MOVE, move_to=cell))
     return out
 
 
@@ -965,10 +964,10 @@ def _apply_skill(actor: SimUnit, state: SimState, decision: Decision) -> bool:
     skill.uses -= 1
     target = state.unit(decision.target_id) or actor
     amount = decision.amount if decision.amount is not None else skill.amount
-    if decision.kind == ActionKind.SKILL_EN_REFILL:
+    if decision.kind == DecisionKind.SKILL_EN_REFILL:
         gain = int(amount) if amount is not None else target.en_max
         target.en = min(target.en_max, target.en + gain)
-    elif decision.kind == ActionKind.SKILL_HEAL:
+    elif decision.kind == DecisionKind.SKILL_HEAL:
         gain = int(amount) if amount is not None else target.max_hp
         target.hp = min(target.max_hp, target.hp + gain)
     return skill.ends_turn
@@ -989,18 +988,18 @@ def step(
         _advance_until_pending(s, params, events)
         return s
 
-    if decision.move_to is not None and decision.kind != ActionKind.MAP_ATTACK:
+    if decision.move_to is not None and decision.kind != DecisionKind.MAP_ATTACK:
         validate = move_validator or default_move_validator
         if validate(s, actor, decision.move_to):
             actor.pos = decision.move_to
 
     killed = False
     ends_turn = True
-    if decision.kind == ActionKind.ATTACK:
+    if decision.kind == DecisionKind.ATTACK:
         killed = _apply_attack(s, actor, decision, params)
-    elif decision.kind == ActionKind.MAP_ATTACK:
+    elif decision.kind == DecisionKind.MAP_ATTACK:
         _apply_map_attack(s, actor, decision, params)
-    elif decision.kind in (ActionKind.SKILL_EN_REFILL, ActionKind.SKILL_HEAL):
+    elif decision.kind in (DecisionKind.SKILL_EN_REFILL, DecisionKind.SKILL_HEAL):
         ends_turn = _apply_skill(actor, s, decision)
 
     if killed and actor.alive and actor.react_charges > 0:

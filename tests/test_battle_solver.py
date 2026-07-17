@@ -3,11 +3,11 @@ import random
 import pytest
 
 from ggge_ai.battle.actions import ActionKind
-from ggge_ai.battle.sim.enemy_model import (
+from ggge_ai.sim.enemy_model import (
     MinimaxEnemy,
     NearestTargetPolicy,
 )
-from ggge_ai.battle.sim import (
+from ggge_ai.sim import (
     DEFAULT_PARAMS,
     DefenseKind,
     DefenseResponse,
@@ -18,7 +18,7 @@ from ggge_ai.battle.sim import (
     compute_damage,
     step,
 )
-from ggge_ai.battle.sim.solver import (
+from ggge_ai.sim.solver import (
     SolverConfig,
     default_evaluator,
     solve,
@@ -234,14 +234,14 @@ def _attack(state, attacker_id, target_id, defense):
 
 
 def _mk_decision(attacker_id, target_id, weapon, defense):
-    from ggge_ai.battle.sim import Decision
+    from ggge_ai.sim import Decision
 
     return Decision(attacker_id, ActionKind.ATTACK, target_id=target_id,
                     weapon=weapon, hit=True, defense=defense)
 
 
 def test_solver_refills_en_then_attacks_in_same_activation():
-    from ggge_ai.battle.sim import SimSkill
+    from ggge_ai.sim import SimSkill
 
     ally = _ally(weapons=[_weapon(power=5000, en_cost=10)], en=0, en_max=20)
     ally.skills = [SimSkill(ActionKind.SKILL_EN_REFILL, ends_turn=False)]
@@ -253,7 +253,7 @@ def test_solver_refills_en_then_attacks_in_same_activation():
 
 
 def test_solver_refill_beats_standby_when_it_ends_the_turn():
-    from ggge_ai.battle.sim import SimSkill
+    from ggge_ai.sim import SimSkill
 
     ally = _ally(weapons=[_weapon(power=5000, en_cost=10)], en=0, en_max=20)
     ally.skills = [SimSkill(ActionKind.SKILL_EN_REFILL)]
@@ -265,7 +265,7 @@ def test_solver_refill_beats_standby_when_it_ends_the_turn():
 
 
 def test_solver_advances_on_out_of_reach_enemy():
-    from ggge_ai.battle.sim import chebyshev
+    from ggge_ai.sim import chebyshev
 
     ally = _ally(pos=(0, 0), weapons=[_weapon(power=5000, rmax=1)], move_range=3)
     enemy = _enemy("e0", pos=(5, 0), hp=5, weapons=[], move_range=0)
@@ -277,7 +277,7 @@ def test_solver_advances_on_out_of_reach_enemy():
 
 
 def test_solver_retreats_out_of_lethal_reach():
-    from ggge_ai.battle.sim import chebyshev
+    from ggge_ai.sim import chebyshev
 
     ally = _ally(pos=(0, 0), hp=10, max_hp=10, weapons=[], move_range=2)
     enemy = _enemy("e0", pos=(2, 0), hp=1000, max_hp=1000, move_range=1,
@@ -294,7 +294,7 @@ def test_solver_defers_the_trigger_kill_past_its_reinforcement_window():
     # an unbeatable reinforcement. The winning line kills the other
     # grunt first and takes the marked one only after the window expired
     # -- the solver must price the spawn inside the tree and defer.
-    from ggge_ai.battle.sim import SimEvent
+    from ggge_ai.sim import SimEvent
 
     ally = _ally(weapons=[_weapon(power=5000)])
     marked = _enemy("marked", pos=(2, 0), hp=5, weapons=[])

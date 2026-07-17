@@ -1,22 +1,22 @@
-"""Battle simulator: the pure, mechanism-only search back end.
+"""Battle simulator: the pure, mechanism-only world model and search back end.
 
 This package is the offline forward model for the expectiminimax solver
 (docs/agent-architecture.md, "battle simulator and expectiminimax"). It holds
 no I/O -- no adb, no vision, no controller state. Everything is parametrised:
 callers build SimUnit / SimWeapon from perception or cache and pass a SimParams
-for the mechanism multipliers. It depends only on the shared battle vocabulary
-(``..state`` Faction/BattleState, ``..actions`` ActionKind) plus the stdlib;
-it must never import perception, actuation, vision or the controller.
+for the mechanism multipliers. It depends on nothing but the stdlib: the world
+vocabulary (Faction, DecisionKind) is owned here in ``vocab`` and the battle
+layer builds on top of it, never the other way around.
 
-The public surface is re-exported here so callers keep writing
-``from ggge_ai.battle.sim import SimState`` unchanged after the split out of
-the flat battle/ package. Submodules (core, formulas, solver, enemy_model,
-grid) stay importable directly for callers that want a namespace.
+The public surface is re-exported here; submodules (vocab, core, formulas,
+solver, enemy_model, grid) stay importable directly for callers that want a
+namespace.
 """
 
 from __future__ import annotations
 
 from . import formulas
+from .vocab import DecisionKind, Faction
 from .core import (
     DEFAULT_PARAMS,
     DEFENSE_STANCES,
@@ -82,6 +82,9 @@ from .solver import (
 
 __all__ = [
     "formulas",
+    # vocab
+    "DecisionKind",
+    "Faction",
     # core
     "DEFAULT_PARAMS",
     "DEFENSE_STANCES",

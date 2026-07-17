@@ -1,5 +1,5 @@
 from ggge_ai.battle.actions import ActionKind
-from ggge_ai.battle.sim import (
+from ggge_ai.sim import (
     DEFAULT_PARAMS,
     Decision,
     DefenseKind,
@@ -183,7 +183,7 @@ def test_legal_attacks_enumerates_reachable_targets():
 
 
 def test_skill_en_refill_consumes_inventory_and_activation():
-    from ggge_ai.battle.sim import SimSkill
+    from ggge_ai.sim import SimSkill
 
     ally = _ally(en=0, weapons=[_rifle(en_cost=10)],
                  skills=[SimSkill(ActionKind.SKILL_EN_REFILL)])
@@ -206,7 +206,7 @@ def test_skill_without_inventory_is_a_wasted_activation():
 
 
 def test_non_turn_ending_skill_keeps_unit_pending():
-    from ggge_ai.battle.sim import SimSkill
+    from ggge_ai.sim import SimSkill
 
     ally = _ally(en=0, weapons=[_rifle(en_cost=10)],
                  skills=[SimSkill(ActionKind.SKILL_EN_REFILL, ends_turn=False)])
@@ -607,7 +607,7 @@ def test_support_debuff_lands_before_and_amplifies_the_main_strike():
               support_attack_charges=1, support_attack_charges_max=1,
               weapons=[SimWeapon("zapper", power=5000, range_min=1, range_max=3,
                                  debuff_kind="armor_down", debuff_magnitude=0.5)])
-    from ggge_ai.battle.sim import SimDebuff
+    from ggge_ai.sim import SimDebuff
 
     dmg_support = compute_damage(n, a, n.weapons[0], 1.0, DEFAULT_PARAMS)
     probe = _a()
@@ -660,7 +660,7 @@ def test_debuff_same_kind_keeps_the_larger_magnitude():
 
 
 def test_reposition_moves_offer_advance_and_retreat():
-    from ggge_ai.battle.sim import chebyshev, reposition_moves
+    from ggge_ai.sim import chebyshev, reposition_moves
 
     ally = _ally(pos=(0, 0), move_range=2, weapons=[])
     enemy = _enemy(pos=(5, 0))

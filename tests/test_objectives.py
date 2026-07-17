@@ -5,9 +5,9 @@ import random
 
 from ggge_ai.battle import objectives
 from ggge_ai.battle.actions import ActionKind
-from ggge_ai.battle.sim.enemy_model import NearestTargetPolicy
-from ggge_ai.battle.sim import SimState, SimUnit, SimWeapon
-from ggge_ai.battle.sim.solver import (
+from ggge_ai.sim.enemy_model import NearestTargetPolicy
+from ggge_ai.sim import SimState, SimUnit, SimWeapon
+from ggge_ai.sim.solver import (
     Objective,
     SolverConfig,
     _annihilation_terminal,

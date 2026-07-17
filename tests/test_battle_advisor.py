@@ -3,7 +3,7 @@ import random
 from ggge_ai.battle.actions import ActionKind
 from ggge_ai.battle.advisor import AdvisorConfig, advise, advise_reaction
 from ggge_ai.battle.bridge import UnitSpec
-from ggge_ai.battle.sim import DefenseKind, SimState, SimUnit, SimWeapon
+from ggge_ai.sim import DefenseKind, SimState, SimUnit, SimWeapon
 from ggge_ai.battle.state import BattleState, Faction, UnitState
 from ggge_ai.domain.roster import CapabilityType, UnitCapability
 
