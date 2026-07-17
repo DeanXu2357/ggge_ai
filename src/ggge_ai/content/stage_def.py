@@ -21,9 +21,7 @@ import logging
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from ..content.kit import UnitSpec
-from ..content.kit import UnitStats, WeaponRow, to_unit_spec
-from .vision import signature_distance
+from .kit import UnitSpec, UnitStats, WeaponRow, to_unit_spec
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +32,14 @@ DEFAULT_STAGE_ROOT = Path("data") / "cache" / "stages"
 SIG_CANDIDATE_MAX_DISTANCE = 6
 
 UID_PREFIX = {"enemy": "e", "third_party": "t"}
+
+
+def signature_distance(a: str | None, b: str | None) -> int:
+    """Hamming distance between two name signatures; unknowns are maximally
+    distant so a None never aliases a real unit."""
+    if a is None or b is None:
+        return 64
+    return (int(a, 16) ^ int(b, 16)).bit_count()
 
 
 @dataclass

@@ -4,7 +4,7 @@ candidate filter, and the passthrough degradation for replay."""
 import pytest
 
 from ggge_ai.battle.identity import IdentityResolver
-from ggge_ai.battle.stage_def import StageDefinition, StageEvent, StageUnit, assign_uids
+from ggge_ai.content.stage_def import StageDefinition, StageEvent, StageUnit, assign_uids
 
 SIG_A = "a" * 16
 SIG_B = "b" * 16

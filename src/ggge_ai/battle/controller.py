@@ -28,7 +28,7 @@ from ggge_ai.battle.advisor import AdvisorConfig, DefaultAdvisor, SimAdvisor
 from ggge_ai.battle.identity import IdentityResolver
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.scout_intel import SurveyIncomplete
-from ggge_ai.battle import stage_def as stage_def_mod
+from ggge_ai.content import stage_def as stage_def_mod
 from ggge_ai.battle.state import Faction
 from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.battle.tracker import BoardTracker
@@ -986,7 +986,7 @@ class ManualBattleController:
             return
         from .identity import MATCH_RADIUS
         from .scout_intel import _survey_point
-        from .stage_def import StageUnit
+        from ..content.stage_def import StageUnit
 
         ally_positions = list(self.tracker.id_positions(Faction.ALLY).values())
 

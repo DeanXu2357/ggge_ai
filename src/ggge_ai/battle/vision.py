@@ -635,14 +635,6 @@ def name_signature(
     return f"{int(''.join('1' if b else '0' for b in bits), 2):016x}"
 
 
-def signature_distance(a: str | None, b: str | None) -> int:
-    """Hamming distance between two name signatures; unknowns are maximally
-    distant so a None never aliases a real unit."""
-    if a is None or b is None:
-        return 64
-    return (int(a, 16) ^ int(b, 16)).bit_count()
-
-
 def read_kill_counter(frame: np.ndarray) -> tuple[int, int] | None:
     """The 破壞數 k/m counter shown on hub / unit-move / weapon-select /
     battle-prep headers. None when the label anchor is absent or the digits

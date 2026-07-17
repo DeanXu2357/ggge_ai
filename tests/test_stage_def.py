@@ -3,8 +3,8 @@ load semantics."""
 
 import json
 
-from ggge_ai.battle import stage_def
-from ggge_ai.battle.stage_def import (
+from ggge_ai.content import stage_def
+from ggge_ai.content.stage_def import (
     Condition,
     StageConditions,
     StageDefinition,

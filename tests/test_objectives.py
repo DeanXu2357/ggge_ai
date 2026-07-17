@@ -9,7 +9,7 @@ from ggge_ai.planner.enemy_model import NearestTargetPolicy
 from ggge_ai.sim import SimState, SimUnit, SimWeapon
 from ggge_ai.sim.objective import annihilation_objective
 from ggge_ai.planner.solver import SolverConfig, solve
-from ggge_ai.battle.stage_def import Condition, StageConditions, default_conditions
+from ggge_ai.content.stage_def import Condition, StageConditions, default_conditions
 from ggge_ai.battle.state import Faction
 
 

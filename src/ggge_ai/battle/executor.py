@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from . import vision
 from .advisor import Advice
 from ..content.kit import UnitSpec
+from ..content.stage_def import signature_distance
 from .identity import IdentityResolver
 from .observe import SIG_MATCH_RADIUS
 from .state import BattleState, Point
@@ -133,7 +134,7 @@ def target_ok(
     if expected is None:
         return False
     try:
-        distance = vision.signature_distance(forecast.target_name_sig, expected)
+        distance = signature_distance(forecast.target_name_sig, expected)
     except ValueError:
         return False
     if distance > SIG_ALIAS_MAX_DISTANCE:

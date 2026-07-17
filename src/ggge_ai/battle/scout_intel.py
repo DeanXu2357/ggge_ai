@@ -28,11 +28,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import panels, stage_def, vision
+from . import panels, vision
+from ..content import stage_def
 from ..content.kit import UnitSpec
 from .identity import IdentityResolver, SeedReport
 from .observe import SIG_MATCH_RADIUS
-from .stage_def import StageDefinition, StageUnit
+from ..content.stage_def import StageDefinition, StageUnit, signature_distance
 
 log = logging.getLogger(__name__)
 
@@ -262,7 +263,7 @@ def validate_stage(
             report.mismatches.append(f"{unit.uid}: no summary card at {world}")
             continue
         try:
-            sig_off = vision.signature_distance(summary.name_sig, unit.sig)
+            sig_off = signature_distance(summary.name_sig, unit.sig)
         except ValueError:
             sig_off = 64
         if sig_off > stage_def.SIG_CANDIDATE_MAX_DISTANCE:
@@ -299,7 +300,7 @@ def _canonical_sig(sig: str, known: dict[str, tuple[float, float]]) -> str:
         return sig
     best, best_distance = None, stage_def.SIG_CANDIDATE_MAX_DISTANCE + 1
     for candidate in known:
-        distance = vision.signature_distance(sig, candidate)
+        distance = signature_distance(sig, candidate)
         if distance < best_distance:
             best, best_distance = candidate, distance
     return best if best is not None else sig

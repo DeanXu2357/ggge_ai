@@ -10,7 +10,8 @@ import cv2
 import numpy as np
 import pytest
 
-from ggge_ai.battle import scout_intel, stage_def, vision
+from ggge_ai.battle import scout_intel, vision
+from ggge_ai.content import stage_def
 from ggge_ai.battle.scout_intel import (
     RefreshBudget,
     SurveyIncomplete,
@@ -18,7 +19,7 @@ from ggge_ai.battle.scout_intel import (
     survey_stage,
     validate_stage,
 )
-from ggge_ai.battle.stage_def import StageDefinition, StageUnit, assign_uids
+from ggge_ai.content.stage_def import StageDefinition, StageUnit, assign_uids
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "vision"
 

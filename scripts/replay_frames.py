@@ -36,8 +36,8 @@ from ggge_ai.battle.tracker import SIG_ALIAS_MAX_DISTANCE, BoardTracker  # noqa:
 from ggge_ai.battle.vision import (  # noqa: E402
     BattlePrepForecast,
     WeaponSelectForecast,
-    signature_distance,
 )
+from ggge_ai.content.stage_def import signature_distance  # noqa: E402
 
 CANVAS = (2340, 1080)
 

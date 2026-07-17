@@ -16,7 +16,7 @@ from .bridge import build_sim_state
 from .objectives import make_objective
 from ..sim import EventTable, SimEvent, SimState, SimUnit
 from ..sim import EvalWeights, Objective
-from .stage_def import StageDefinition
+from ..content.stage_def import StageDefinition
 from .state import BattleState, Faction, UnitState
 
 _FACTION = {"enemy": Faction.ENEMY, "third_party": Faction.THIRD_PARTY}

@@ -26,8 +26,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .stage_def import SIG_CANDIDATE_MAX_DISTANCE, StageDefinition, find_by_sig
-from .vision import signature_distance
+from ..content.stage_def import (
+    SIG_CANDIDATE_MAX_DISTANCE,
+    StageDefinition,
+    find_by_sig,
+    signature_distance,
+)
 
 Point = tuple[float, float]
 
