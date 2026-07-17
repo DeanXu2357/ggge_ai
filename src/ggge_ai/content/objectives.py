@@ -32,8 +32,8 @@ from ..sim.objective import (
     default_evaluator,
     eval_bounds,
 )
-from ..content.stage_def import Condition, StageConditions
-from .state import Faction
+from .stage_def import Condition, StageConditions
+from ..sim.vocab import Faction
 
 log = logging.getLogger(__name__)
 

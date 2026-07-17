@@ -1,6 +1,6 @@
 """Definition file -> offline battle: the pure-simulation entry (M8-4)."""
 
-from ggge_ai.battle import stage_sim
+from ggge_ai.content import stage_sim
 from ggge_ai.battle.actions import ActionKind
 from ggge_ai.planner.enemy_model import NearestTargetPolicy
 from ggge_ai.sim import SimUnit, SimWeapon, step

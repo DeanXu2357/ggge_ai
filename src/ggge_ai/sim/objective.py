@@ -44,7 +44,7 @@ class Objective:
     bounds Star1 prunes against. `bounds` None falls back to eval_bounds;
     a condition objective whose terminal returns win/loss rewards must
     supply bounds that contain them. Built from a stage definition by
-    battle.objectives.make_objective."""
+    content.objectives.make_objective."""
 
     terminal: TerminalFn
     evaluator: Evaluator
