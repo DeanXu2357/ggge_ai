@@ -7,13 +7,8 @@ from ggge_ai.battle import objectives
 from ggge_ai.battle.actions import ActionKind
 from ggge_ai.sim.enemy_model import NearestTargetPolicy
 from ggge_ai.sim import SimState, SimUnit, SimWeapon
-from ggge_ai.sim.solver import (
-    Objective,
-    SolverConfig,
-    _annihilation_terminal,
-    default_evaluator,
-    solve,
-)
+from ggge_ai.sim.objective import annihilation_objective
+from ggge_ai.sim.solver import SolverConfig, solve
 from ggge_ai.battle.stage_def import Condition, StageConditions, default_conditions
 from ggge_ai.battle.state import Faction
 
@@ -218,9 +213,7 @@ def test_default_config_matches_wrapped_annihilation_objective():
             SolverConfig(
                 time_budget_s=3.0,
                 max_depth=2,
-                objective=Objective(
-                    terminal=_annihilation_terminal, evaluator=default_evaluator
-                ),
+                objective=annihilation_objective(),
             ),
         )
         assert plain.value == wrapped.value

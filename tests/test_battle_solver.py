@@ -18,9 +18,9 @@ from ggge_ai.sim import (
     compute_damage,
     step,
 )
+from ggge_ai.sim.objective import EvalContext, EvalWeights, default_evaluator
 from ggge_ai.sim.solver import (
     SolverConfig,
-    default_evaluator,
     solve,
 )
 from ggge_ai.battle.state import Faction
@@ -67,12 +67,7 @@ def test_enemy_phase_picks_better_defense_response():
     state = SimState(units=[ally, boss], phase=Phase.ENEMY)
     result = solve(state, NearestTargetPolicy(), SolverConfig(time_budget_s=2.0, max_depth=1))
 
-    cfg = SolverConfig(max_depth=1)
-
-    class _Ctx:
-        config = cfg
-        base_allies = 1
-        base_enemies = 1
+    ctx = EvalContext(weights=EvalWeights(), base_allies=1, base_enemies=1)
 
     counter_state = step(
         state,
@@ -82,8 +77,8 @@ def test_enemy_phase_picks_better_defense_response():
         state,
         _attack(state, "boss", "a", DefenseResponse(DefenseKind.DEFEND)),
     )
-    v_counter = default_evaluator(counter_state, _Ctx())
-    v_defend = default_evaluator(defend_state, _Ctx())
+    v_counter = default_evaluator(counter_state, ctx)
+    v_defend = default_evaluator(defend_state, ctx)
     assert v_counter > v_defend
     assert abs(result.value - v_counter) < 1e-6
 

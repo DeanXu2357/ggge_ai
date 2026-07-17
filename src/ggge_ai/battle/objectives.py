@@ -25,12 +25,12 @@ import logging
 from collections.abc import Callable
 
 from ..sim import SimState
-from ..sim.solver import (
+from ..sim.objective import (
+    EvalContext,
     EvalWeights,
     Objective,
-    SearchContext,
-    _eval_bounds,
     default_evaluator,
+    eval_bounds,
 )
 from .stage_def import Condition, StageConditions
 from .state import Faction
@@ -137,12 +137,12 @@ def make_objective(
         if cond.type == "ward_lost":
             wards += tuple(cond.params.get("wards", ()))
 
-    vmin, vmax = _eval_bounds(base_allies, base_enemies, weights)
+    vmin, vmax = eval_bounds(base_allies, base_enemies, weights)
     vmin -= weights.enemy_hp * len(decap_targets)
     vmax += weights.ally_hp * len(wards)
     terminal_value = TERMINAL_MARGIN * max(abs(vmin), abs(vmax), 1.0)
 
-    def terminal(state: SimState, ctx: SearchContext) -> float | None:
+    def terminal(state: SimState, ctx: EvalContext) -> float | None:
         for check in defeat:
             if check(state):
                 return -terminal_value
@@ -151,9 +151,9 @@ def make_objective(
                 return terminal_value
         return None
 
-    def evaluator(state: SimState, ctx: SearchContext) -> float:
+    def evaluator(state: SimState, ctx: EvalContext) -> float:
         value = default_evaluator(state, ctx)
-        w = ctx.config.weights
+        w = ctx.weights
         for uid in decap_targets:
             unit = state.unit(uid)
             if unit is not None and unit.alive and unit.faction is Faction.ENEMY:

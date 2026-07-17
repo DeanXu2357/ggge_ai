@@ -66,16 +66,22 @@ from .grid import (
     reach_provider,
     reachable_cells,
 )
-from .solver import (
-    Evaluator,
+from .objective import (
+    EvalContext,
     EvalWeights,
+    Evaluator,
     Objective,
+    TerminalFn,
+    annihilation_objective,
+    default_evaluator,
+    eval_bounds,
+    wiped_out,
+)
+from .solver import (
     SearchContext,
     SearchStats,
     SolverConfig,
     SolverResult,
-    TerminalFn,
-    default_evaluator,
     solve,
     solve_reaction,
 )
@@ -131,16 +137,21 @@ __all__ = [
     "occupied_cells",
     "reach_provider",
     "reachable_cells",
-    # solver
-    "Evaluator",
+    # objective
+    "EvalContext",
     "EvalWeights",
+    "Evaluator",
     "Objective",
+    "TerminalFn",
+    "annihilation_objective",
+    "default_evaluator",
+    "eval_bounds",
+    "wiped_out",
+    # solver
     "SearchContext",
     "SearchStats",
     "SolverConfig",
     "SolverResult",
-    "TerminalFn",
-    "default_evaluator",
     "solve",
     "solve_reaction",
 ]

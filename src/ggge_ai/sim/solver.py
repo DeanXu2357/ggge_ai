@@ -36,6 +36,15 @@ from dataclasses import dataclass, field, replace
 from . import formulas
 from .vocab import DecisionKind, Faction
 from .enemy_model import MODE_MIN, EnemyModel, ReachProvider
+from .objective import (
+    EvalContext,
+    EvalWeights,
+    Evaluator,
+    Objective,
+    TerminalFn,
+    annihilation_objective,
+    eval_bounds,
+)
 from .core import (
     DEFAULT_PARAMS,
     DEFENSE_STANCES,
@@ -57,27 +66,7 @@ from .core import (
     step,
 )
 
-Evaluator = Callable[[SimState, "SearchContext"], float]
-# None = not terminal; a float is the position's terminal value and must
-# lie inside the objective's bounds or Star1 pruning turns unsound
-TerminalFn = Callable[[SimState, "SearchContext"], "float | None"]
-
 _INF = float("inf")
-
-
-def _annihilation_terminal(state: SimState, ctx: SearchContext) -> float | None:
-    """The pre-objective behavior: one side wiped out ends the search and
-    the leaf evaluator prices the wipeout. Kept as the default so a
-    config without an objective stays bit-for-bit equivalent."""
-    return ctx.evaluator(state, ctx) if _terminal(state) else None
-
-
-@dataclass(frozen=True)
-class EvalWeights:
-    ally_hp: float = 1.0
-    enemy_hp: float = 1.0
-    kill: float = 5.0
-    loss: float = 5.0
 
 
 @dataclass
@@ -92,19 +81,6 @@ class SolverResult:
     pv: list[Decision]
     value: float
     stats: SearchStats
-
-
-@dataclass(frozen=True)
-class Objective:
-    """What the search is optimizing: stage-condition-driven terminal
-    test, leaf evaluator, and the value bounds Star1 prunes against.
-    `bounds` None falls back to _eval_bounds; a condition objective whose
-    terminal returns win/loss rewards must supply bounds that contain
-    them. Built from a stage definition by objectives.make_objective."""
-
-    terminal: TerminalFn
-    evaluator: Evaluator
-    bounds: tuple[float, float] | None = None
 
 
 @dataclass
@@ -142,35 +118,13 @@ class SearchContext:
     enemy_model: EnemyModel
     config: SolverConfig
     evaluator: Evaluator
+    terminal: TerminalFn
+    eval_ctx: EvalContext
     deadline: float
     stats: SearchStats
-    base_allies: int
-    base_enemies: int
     vmin: float
     vmax: float
-    terminal: TerminalFn = _annihilation_terminal
     tt: dict = field(default_factory=dict)
-
-
-def default_evaluator(state: SimState, ctx: SearchContext) -> float:
-    w = ctx.config.weights
-    allies = state.allies()
-    enemies = state.enemies()
-    ally_hp = sum(u.hp / u.max_hp for u in allies)
-    enemy_hp = sum(u.hp / u.max_hp for u in enemies)
-    kills = ctx.base_enemies - len(enemies)
-    losses = ctx.base_allies - len(allies)
-    return w.ally_hp * ally_hp - w.enemy_hp * enemy_hp + w.kill * kills - w.loss * losses
-
-
-def _eval_bounds(base_allies: int, base_enemies: int, w: EvalWeights) -> tuple[float, float]:
-    vmax = w.ally_hp * base_allies + w.kill * base_enemies
-    vmin = -(w.enemy_hp * base_enemies + w.loss * base_allies)
-    return vmin, vmax
-
-
-def _terminal(state: SimState) -> bool:
-    return not state.allies() or not state.enemies()
 
 
 def _next_actor(state: SimState) -> SimUnit | None:
@@ -261,11 +215,11 @@ def _search(
     ctx.stats.nodes += 1
     if time.monotonic() > ctx.deadline:
         raise _Timeout
-    terminal_value = ctx.terminal(state, ctx)
+    terminal_value = ctx.terminal(state, ctx.eval_ctx)
     if terminal_value is not None:
         return terminal_value, []
     if depth <= 0:
-        return ctx.evaluator(state, ctx), []
+        return ctx.evaluator(state, ctx.eval_ctx), []
 
     key = (state.key(), depth)
     if ctx.config.use_tt:
@@ -285,14 +239,14 @@ def _search(
 
     actor = _next_actor(state)
     if actor is None:
-        return ctx.evaluator(state, ctx), []
+        return ctx.evaluator(state, ctx.eval_ctx), []
 
     if actor.faction is Faction.ALLY:
         value, pv = _max_node(state, actor, depth, alpha, beta, ctx)
     elif actor.faction is Faction.ENEMY:
         value, pv = _enemy_node(state, actor, depth, alpha, beta, ctx)
     else:
-        value, pv = ctx.evaluator(state, ctx), []
+        value, pv = ctx.evaluator(state, ctx.eval_ctx), []
 
     if ctx.config.use_tt:
         if value <= alpha:
@@ -337,7 +291,7 @@ def _enemy_node(
         return best, best_pv
 
     if not candidates:
-        return ctx.evaluator(state, ctx), []
+        return ctx.evaluator(state, ctx.eval_ctx), []
 
     def make_resolver(decision: Decision):
         def resolve(ax: float, bx: float) -> tuple[float, list[Decision]]:
@@ -518,16 +472,16 @@ def solve(
     neither, the annihilation default reproduces the pre-objective
     behavior exactly."""
     config = config or SolverConfig()
-    objective = config.objective or Objective(
-        terminal=_annihilation_terminal,
-        evaluator=evaluator or default_evaluator,
-    )
+    objective = config.objective or annihilation_objective(evaluator)
     base_allies = len(state.allies())
     base_enemies = len(state.enemies())
     if objective.bounds is not None:
         vmin, vmax = objective.bounds
     else:
-        vmin, vmax = _eval_bounds(base_allies, base_enemies, config.weights)
+        vmin, vmax = eval_bounds(base_allies, base_enemies, config.weights)
+    eval_ctx = EvalContext(
+        weights=config.weights, base_allies=base_allies, base_enemies=base_enemies
+    )
     stats = SearchStats()
 
     best = SolverResult(decision=None, pv=[], value=0.0, stats=stats)
@@ -538,13 +492,12 @@ def solve(
             enemy_model=enemy_model,
             config=config,
             evaluator=objective.evaluator,
+            terminal=objective.terminal,
+            eval_ctx=eval_ctx,
             deadline=deadline,
             stats=stats,
-            base_allies=base_allies,
-            base_enemies=base_enemies,
             vmin=vmin,
             vmax=vmax,
-            terminal=objective.terminal,
         )
         try:
             value, pv = _search(state, depth, -_INF, _INF, ctx)
@@ -557,7 +510,7 @@ def solve(
             value=value,
             stats=stats,
         )
-        if objective.terminal(state, ctx) is not None:
+        if objective.terminal(state, eval_ctx) is not None:
             break
     return best
 
@@ -581,10 +534,7 @@ def solve_reaction(
     the option set); the in-tree defense nodes stay unrestricted. An
     empty restricted set returns decision None."""
     config = config or SolverConfig()
-    objective = config.objective or Objective(
-        terminal=_annihilation_terminal,
-        evaluator=evaluator or default_evaluator,
-    )
+    objective = config.objective or annihilation_objective(evaluator)
     stats = SearchStats()
     best = SolverResult(decision=None, pv=[], value=0.0, stats=stats)
     target = state.unit(attack.target_id)
@@ -595,7 +545,10 @@ def solve_reaction(
     if objective.bounds is not None:
         vmin, vmax = objective.bounds
     else:
-        vmin, vmax = _eval_bounds(base_allies, base_enemies, config.weights)
+        vmin, vmax = eval_bounds(base_allies, base_enemies, config.weights)
+    eval_ctx = EvalContext(
+        weights=config.weights, base_allies=base_allies, base_enemies=base_enemies
+    )
     deadline = time.monotonic() + config.time_budget_s
 
     candidates = _defense_candidates(state, target)
@@ -611,13 +564,12 @@ def solve_reaction(
             enemy_model=enemy_model,
             config=config,
             evaluator=objective.evaluator,
+            terminal=objective.terminal,
+            eval_ctx=eval_ctx,
             deadline=deadline,
             stats=stats,
-            base_allies=base_allies,
-            base_enemies=base_enemies,
             vmin=vmin,
             vmax=vmax,
-            terminal=objective.terminal,
         )
         try:
             value, pv = _our_defense_node(
