@@ -2,9 +2,9 @@
 
 from ggge_ai.battle import stage_sim
 from ggge_ai.battle.actions import ActionKind
-from ggge_ai.battle.enemy_model import NearestTargetPolicy
+from ggge_ai.battle.sim.enemy_model import NearestTargetPolicy
 from ggge_ai.battle.sim import SimUnit, SimWeapon, step
-from ggge_ai.battle.solver import SolverConfig, solve
+from ggge_ai.battle.sim.solver import SolverConfig, solve
 from ggge_ai.battle.stage_def import (
     Condition,
     StageConditions,

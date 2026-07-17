@@ -25,7 +25,7 @@ import logging
 from collections.abc import Callable
 
 from .sim import SimState
-from .solver import (
+from .sim.solver import (
     EvalWeights,
     Objective,
     SearchContext,

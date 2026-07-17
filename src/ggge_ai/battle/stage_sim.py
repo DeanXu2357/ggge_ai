@@ -14,7 +14,7 @@ from __future__ import annotations
 from .bridge import BridgeDefaults, UnitSpec, build_sim_state
 from .objectives import make_objective
 from .sim import EventTable, SimEvent, SimState, SimUnit
-from .solver import EvalWeights, Objective
+from .sim import EvalWeights, Objective
 from .stage_def import StageDefinition
 from .state import BattleState, Faction, UnitState
 

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from collections import deque
 
-from .sim import Cell, SimState, SimUnit
+from .core import Cell, SimState, SimUnit
 
 _KING_STEPS: tuple[Cell, ...] = (
     (-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1),

@@ -1,6 +1,6 @@
 import math
 
-from ggge_ai.battle import formulas
+from ggge_ai.battle.sim import formulas
 
 
 def _manual_expected_damage(power, pl_atk, pl_def, un_atk, un_def):

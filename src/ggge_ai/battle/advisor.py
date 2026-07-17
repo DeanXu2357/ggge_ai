@@ -17,10 +17,10 @@ from dataclasses import dataclass, field
 
 from .actions import ActionKind
 from .bridge import BridgeDefaults, UnitSpec, build_sim_state
-from .enemy_model import MODE_MIN, MODE_POLICY, MinimaxEnemy, NearestTargetPolicy
-from .grid import grid_move_validator, reach_provider
+from .sim import MODE_MIN, MODE_POLICY, MinimaxEnemy, NearestTargetPolicy
+from .sim import grid_move_validator, reach_provider
 from .sim import Decision, Phase, SimState, SimUnit, chebyshev
-from .solver import SearchStats, SolverConfig, solve, solve_reaction
+from .sim import SearchStats, SolverConfig, solve, solve_reaction
 from .state import BattleState, Faction, Point
 
 

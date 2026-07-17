@@ -85,8 +85,8 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 
 from . import formulas
-from .actions import ActionKind
-from .state import Faction
+from ..actions import ActionKind
+from ..state import Faction
 
 Cell = tuple[int, int]
 

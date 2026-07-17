@@ -1,6 +1,7 @@
 """Reconciliation logic: sim expectation vs game forecast vs 破壞數 verdict."""
 
-from ggge_ai.battle import formulas, reconcile
+from ggge_ai.battle import reconcile
+from ggge_ai.battle.sim import formulas
 from ggge_ai.battle.bridge import UnitSpec
 from ggge_ai.battle.sim import SimWeapon
 from ggge_ai.battle.vision import BattlePrepForecast, WeaponSelectForecast
