@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 
 from ggge_ai.battle import executor, reconcile, vision
 from ggge_ai.battle.actions import ActionKind
+from ggge_ai.battle.advisor import AdvisorConfig, DefaultAdvisor, SimAdvisor
 from ggge_ai.battle.identity import IdentityResolver
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.scout_intel import SurveyIncomplete
@@ -275,6 +276,11 @@ class ManualBattleController:
     # picks the first card
     advisor_enabled: bool = False
     advisor_time_budget_s: float = 3.0
+    # the sim back end the controller operates through, dependency-inverted to
+    # the SimAdvisor interface: advise()/advise_reaction() over the perceived
+    # board, never SimState or the solver directly. swappable (fake in tests,
+    # alternative solver later); default is the production solver pipeline
+    advisor: SimAdvisor = field(default_factory=DefaultAdvisor)
     # pilot execution (GGGE_PILOT=1): the solver drives each activation;
     # "no opinion" demotes one activation to greedy, an alignment failure
     # aborts the battle (fail-fast, user's 2026-07-14 call)
@@ -675,15 +681,13 @@ class ManualBattleController:
                 attacker=attacker_id,
                 defender=defender_id,
             )
-        from . import advisor as advisor_mod
-
         battle, _ = self._build_board()
-        advice = advisor_mod.advise_reaction(
+        advice = self.advisor.advise_reaction(
             battle,
             self.specs_by_id,
             defender_id=defender_id,
             attacker_id=attacker_id,
-            config=advisor_mod.AdvisorConfig(
+            config=AdvisorConfig(
                 time_budget_s=self.pilot_time_budget_s, cell_size=95.0
             ),
             allowed_stances=prep.available_stances or None,
@@ -1201,13 +1205,11 @@ class ManualBattleController:
             return
         self._turn_advised = True
         self._proposal = None
-        from . import advisor as advisor_mod
-
         battle, belief_notes = self._board_with_resync(self._frame())
-        advice = advisor_mod.advise(
+        advice = self.advisor.advise(
             battle,
             self.specs_by_id,
-            advisor_mod.AdvisorConfig(time_budget_s=self.advisor_time_budget_s, cell_size=95.0),
+            AdvisorConfig(time_budget_s=self.advisor_time_budget_s, cell_size=95.0),
         )
         if advice is None:
             log.info("advisor: nothing to propose on this board")
@@ -1436,12 +1438,10 @@ class ManualBattleController:
                 frame=frame,
                 unit_world=[round(unit_world[0]), round(unit_world[1])],
             )
-        from . import advisor as advisor_mod
-
-        advice = advisor_mod.advise(
+        advice = self.advisor.advise(
             battle,
             self.specs_by_id,
-            advisor_mod.AdvisorConfig(time_budget_s=self.pilot_time_budget_s, cell_size=95.0),
+            AdvisorConfig(time_budget_s=self.pilot_time_budget_s, cell_size=95.0),
             unit_id=ally_id,
         )
         if advice is None and not battle.enemies() and not self._turn_resynced:
@@ -1452,10 +1452,10 @@ class ManualBattleController:
             resolved = executor.resolve_ally(battle, unit_world)
             if resolved is not None:
                 ally_id = resolved
-                advice = advisor_mod.advise(
+                advice = self.advisor.advise(
                     battle,
                     self.specs_by_id,
-                    advisor_mod.AdvisorConfig(
+                    AdvisorConfig(
                         time_budget_s=self.pilot_time_budget_s, cell_size=95.0
                     ),
                     unit_id=ally_id,

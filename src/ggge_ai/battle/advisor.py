@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from .actions import ActionKind
 from .bridge import BridgeDefaults, UnitSpec, build_sim_state
@@ -59,6 +60,36 @@ class ReactionAdvice:
     value: float
     assumptions: list[str]
     stats: SearchStats
+
+
+class SimAdvisor(Protocol):
+    """The sim-side interface ManualBattleController operates through: it hands
+    over the perceived board plus unit specs and gets a decision back in
+    controller vocabulary, never touching SimState or the solver directly.
+    Injected into the controller so the simulation back end stays swappable
+    (a fake in tests, an alternative solver later) behind one typed contract."""
+
+    def advise(
+        self,
+        battle: BattleState,
+        specs: Mapping[str, UnitSpec],
+        config: AdvisorConfig | None = None,
+        *,
+        unit_id: str | None = None,
+    ) -> Advice | None: ...
+
+    def advise_reaction(
+        self,
+        battle: BattleState,
+        specs: Mapping[str, UnitSpec],
+        *,
+        defender_id: str,
+        attacker_id: str,
+        config: AdvisorConfig | None = None,
+        weapon: str | None = None,
+        allowed_stances: tuple[str, ...] | None = None,
+        allow_support_defend: bool = True,
+    ) -> ReactionAdvice | None: ...
 
 
 def _incoming_weapon(attacker: SimUnit, defender: SimUnit) -> tuple[str, bool] | None:
@@ -219,3 +250,41 @@ def advise(
         assumptions=bridged.assumptions,
         stats=result.stats,
     )
+
+
+class DefaultAdvisor:
+    """The production SimAdvisor: delegates to the module-level solver
+    pipeline. Stateless, so one instance is shared for a battle."""
+
+    def advise(
+        self,
+        battle: BattleState,
+        specs: Mapping[str, UnitSpec],
+        config: AdvisorConfig | None = None,
+        *,
+        unit_id: str | None = None,
+    ) -> Advice | None:
+        return advise(battle, specs, config, unit_id=unit_id)
+
+    def advise_reaction(
+        self,
+        battle: BattleState,
+        specs: Mapping[str, UnitSpec],
+        *,
+        defender_id: str,
+        attacker_id: str,
+        config: AdvisorConfig | None = None,
+        weapon: str | None = None,
+        allowed_stances: tuple[str, ...] | None = None,
+        allow_support_defend: bool = True,
+    ) -> ReactionAdvice | None:
+        return advise_reaction(
+            battle,
+            specs,
+            defender_id=defender_id,
+            attacker_id=attacker_id,
+            config=config,
+            weapon=weapon,
+            allowed_stances=allowed_stances,
+            allow_support_defend=allow_support_defend,
+        )
