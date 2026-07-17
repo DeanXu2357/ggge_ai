@@ -13,7 +13,16 @@
 加選參 `frame=`，預設 None 照舊自截（flow.py/AgentLoop 不受影響）。② 中斷
 cascade（一串 `if vision.is_*()`）收成優先序偵測表 router（`_route_interrupts`
 ＋`LoopStep`），相位 ACTIONABLE/NOT_ACTIONABLE 分支維持明確 fall-through。
-483 tests/3 xfail、ruff 全綠；commit 13e336f。**裝置現況與 S9 恢復點不變，見下。**
+483 tests/3 xfail、ruff 全綠；commit 13e336f。③ **sim 子套件抽取**
+（a51a2b1）：純機制引擎 `sim.py→sim/core.py`＋`solver/formulas/enemy_model/
+grid` 移入 `battle/sim/`（相依驗證：只 import `..state`/`..actions`+stdlib，
+不碰 perception/vision/controller），`__init__` re-export 保舊路徑；
+`bridge/objectives/stage_sim/advisor` 留 battle/ 當 adapter/client 層。
+④ **SimAdvisor 介面型態**（b462c03）：controller 對 sim 的操作面收斂成
+`SimAdvisor` Protocol（`advise`/`advise_reaction`），`DefaultAdvisor` 為預設
+實作、以 `advisor: SimAdvisor` 欄位依賴反轉注入（可換 fake/替代 solver），
+移除 `advisor_mod.*` 直呼。全部行為不變、483 tests/3 xfail、ruff 全綠。
+**裝置現況與 S9 恢復點不變，見下。**
 
 ## 暫停快照（2026-07-15 S9d 應戰整併，恢復點）
 
