@@ -55,9 +55,9 @@ class BattleAction:
     """A battle-layer operator described by precondition/effect/cost, with an
     executable hook bound to an existing handler.
 
-    The offline chain planner reads the structured fields (kind, target_id,
-    expected_damage) plus the estimator; precondition filters applicability.
-    The execute hook stays None until issue #12 wires the real handler.
+    Consumers read the structured fields (kind, target_id, expected_damage);
+    precondition filters applicability. The execute hook stays None until
+    issue #12 wires the real handler.
     """
 
     action_id: str
@@ -80,14 +80,6 @@ class ScanProvider(Protocol):
     """Screen-scan source of the catalog (real implementation: issue #12)."""
 
     def scan(self, state: BattleState, unit: UnitState) -> list[BattleAction]: ...
-
-
-def make_standby_action(unit_id: str) -> BattleAction:
-    return BattleAction(
-        action_id=f"{ActionKind.STANDBY}:{unit_id}",
-        kind=ActionKind.STANDBY,
-        cost=0.0,
-    )
 
 
 def _target_alive(target_id: str) -> Precondition:
