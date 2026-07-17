@@ -6,6 +6,15 @@
 483 tests/3 xfail 全綠、replay 閘門同基準。stance 切換 UI 仍待實機標定。
 前情：S 批次離線段 S0-S8 全落地）
 
+**2026-07-17 離線工程重構（行為不變、非里程碑）**：`ManualBattleController.run()`
+兩項結構整理——① 每圈單次截圖：中斷偵測器（終局/敗北/隱藏關/modal/劇情）
+共用一張 frame，相位/對話框兩讀複用為第一讀、第二讀才重截（防抖不變），
+約 8→2 adb 截圖/idle tick，正對凍機嫌疑的截圖 I/O；`perception.observe/probe`
+加選參 `frame=`，預設 None 照舊自截（flow.py/AgentLoop 不受影響）。② 中斷
+cascade（一串 `if vision.is_*()`）收成優先序偵測表 router（`_route_interrupts`
+＋`LoopStep`），相位 ACTIONABLE/NOT_ACTIONABLE 分支維持明確 fall-through。
+483 tests/3 xfail、ruff 全綠；commit 13e336f。**裝置現況與 S9 恢復點不變，見下。**
+
 ## 暫停快照（2026-07-15 S9d 應戰整併，恢復點）
 
 **裝置現況**：本 session 前半 USB 連上（`R5CRC37JBYJ device`）做了回應探測
