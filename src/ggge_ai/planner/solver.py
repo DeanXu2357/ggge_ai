@@ -33,10 +33,10 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 
-from . import formulas
-from .vocab import DecisionKind, Faction
+from ..sim import formulas
+from ..sim.vocab import DecisionKind, Faction
 from .enemy_model import MODE_MIN, EnemyModel, ReachProvider
-from .objective import (
+from ..sim.objective import (
     EvalContext,
     EvalWeights,
     Evaluator,
@@ -45,7 +45,7 @@ from .objective import (
     annihilation_objective,
     eval_bounds,
 )
-from .core import (
+from ..sim.core import (
     DEFAULT_PARAMS,
     DEFENSE_STANCES,
     Decision,

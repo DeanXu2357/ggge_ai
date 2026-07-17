@@ -25,7 +25,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Protocol
 
-from .core import (
+from ..sim.core import (
     DEFENSE_STANCES,
     Cell,
     Decision,

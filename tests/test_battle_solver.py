@@ -3,7 +3,7 @@ import random
 import pytest
 
 from ggge_ai.battle.actions import ActionKind
-from ggge_ai.sim.enemy_model import (
+from ggge_ai.planner.enemy_model import (
     MinimaxEnemy,
     NearestTargetPolicy,
 )
@@ -19,7 +19,7 @@ from ggge_ai.sim import (
     step,
 )
 from ggge_ai.sim.objective import EvalContext, EvalWeights, default_evaluator
-from ggge_ai.sim.solver import (
+from ggge_ai.planner.solver import (
     SolverConfig,
     solve,
 )

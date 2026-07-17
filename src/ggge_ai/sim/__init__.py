@@ -1,16 +1,16 @@
-"""Battle simulator: the pure, mechanism-only world model and search back end.
+"""Battle simulator: the pure, mechanism-only world model.
 
-This package is the offline forward model for the expectiminimax solver
-(docs/agent-architecture.md, "battle simulator and expectiminimax"). It holds
-no I/O -- no adb, no vision, no controller state. Everything is parametrised:
-callers build SimUnit / SimWeapon from perception or cache and pass a SimParams
-for the mechanism multipliers. It depends on nothing but the stdlib: the world
-vocabulary (Faction, DecisionKind) is owned here in ``vocab`` and the battle
-layer builds on top of it, never the other way around.
+This package is the offline forward model the search layer (ggge_ai.planner)
+runs on (docs/agent-architecture.md, "battle simulator and expectiminimax").
+It holds no I/O -- no adb, no vision, no controller state. Everything is
+parametrised: callers build SimUnit / SimWeapon from perception or cache and
+pass a SimParams for the mechanism multipliers. It depends on nothing but the
+stdlib: the world vocabulary (Faction, DecisionKind) is owned here in
+``vocab`` and the battle layer builds on top of it, never the other way
+around.
 
 The public surface is re-exported here; submodules (vocab, core, formulas,
-solver, enemy_model, grid) stay importable directly for callers that want a
-namespace.
+objective, grid) stay importable directly for callers that want a namespace.
 """
 
 from __future__ import annotations
@@ -51,14 +51,6 @@ from .core import (
     step,
     targets_of,
 )
-from .enemy_model import (
-    MODE_MIN,
-    MODE_POLICY,
-    EnemyModel,
-    MinimaxEnemy,
-    NearestTargetPolicy,
-    ReachProvider,
-)
 from .grid import (
     blocking_cells,
     grid_move_validator,
@@ -76,14 +68,6 @@ from .objective import (
     default_evaluator,
     eval_bounds,
     wiped_out,
-)
-from .solver import (
-    SearchContext,
-    SearchStats,
-    SolverConfig,
-    SolverResult,
-    solve,
-    solve_reaction,
 )
 
 __all__ = [
@@ -124,13 +108,6 @@ __all__ = [
     "standby",
     "step",
     "targets_of",
-    # enemy_model
-    "MODE_MIN",
-    "MODE_POLICY",
-    "EnemyModel",
-    "MinimaxEnemy",
-    "NearestTargetPolicy",
-    "ReachProvider",
     # grid
     "blocking_cells",
     "grid_move_validator",
@@ -147,11 +124,4 @@ __all__ = [
     "default_evaluator",
     "eval_bounds",
     "wiped_out",
-    # solver
-    "SearchContext",
-    "SearchStats",
-    "SolverConfig",
-    "SolverResult",
-    "solve",
-    "solve_reaction",
 ]
