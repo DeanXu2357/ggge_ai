@@ -28,8 +28,8 @@ class AdbPerception:
         self.element_ids_by_screen = element_ids_by_screen or {}
         self.screenshot_dir = screenshot_dir
 
-    def observe(self) -> GameState:
-        img = self._capture()
+    def observe(self, frame: np.ndarray | None = None) -> GameState:
+        img = self._capture() if frame is None else frame
         screenshot_path = self._save(img)
 
         candidate = self.pipeline.classify_screen(img)
@@ -51,11 +51,15 @@ class AdbPerception:
         """Raw BGR screenshot; used for motion detection between frames."""
         return self._capture()
 
-    def probe(self, element_ids: Sequence[str]) -> dict[str, UiElement]:
-        """Fresh capture, detect the given elements regardless of current
-        screen. Lets flow actions look for buttons (download popup, AUTO
-        state) that are not tied to a classified screen."""
-        img = self._capture()
+    def probe(
+        self, element_ids: Sequence[str], frame: np.ndarray | None = None
+    ) -> dict[str, UiElement]:
+        """Detect the given elements regardless of current screen; captures a
+        fresh frame unless the caller passes one to reuse (the run loop shares
+        one capture across its per-iteration detectors). Lets flow actions look
+        for buttons (download popup, AUTO state) not tied to a classified
+        screen."""
+        img = self._capture() if frame is None else frame
         return {e.id: e for e in self.pipeline.detect_elements(img, element_ids)}
 
     def _capture(self) -> np.ndarray:

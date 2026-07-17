@@ -224,6 +224,16 @@ class Expectation:
     retries_left: int = 1
 
 
+@dataclass(frozen=True)
+class LoopStep:
+    """A router handler's instruction back to the run loop: end the battle,
+    returning `screen`, or (the default) keep looping. A handled interrupt
+    always counts as activity, so the loop resets its idle watchdog on it."""
+
+    done: bool = False
+    screen: str | None = None
+
+
 @dataclass
 class ManualBattleController:
     perception: object
@@ -329,67 +339,26 @@ class ManualBattleController:
                 log.warning("no battle activity for %.0fs, giving up", self.idle_timeout_s)
                 self._log_finish("idle_timeout")
                 return screens.UNKNOWN
-            state = self.perception.observe()
-            if state.screen in TERMINAL_SCREENS and state.screen_confidence >= 0.9:
-                log.info("battle finished: %s", state.screen)
-                self._log_finish(state.screen)
-                return state.screen
-            # our whole force wiped out: the FAILED screen is a dead end
-            # (its buttons hand off to retry/stage-select). detect it and
-            # finish cleanly so the ledger archives instead of idling out
-            if vision.is_defeat_screen(self._frame()):
-                log.info("battle finished: defeat screen")
-                self._log_finish("defeat")
-                return screens.UNKNOWN
-            # the hidden-battle WARNING modal is a dead stop the controller
-            # would otherwise idle out on: pick 挑戰/不挑戰 per policy, log the
-            # decision frame (for future OCR power-gap calibration), continue
-            warning_frame = self._frame()
-            if vision.is_hidden_battle_warning(warning_frame):
-                decision = "decline" if self.hidden_battle_policy == "decline" else "challenge"
-                button = (
-                    DECLINE_HIDDEN_BATTLE if decision == "decline" else CHALLENGE_HIDDEN_BATTLE
-                )
-                log.info("hidden-battle warning modal: %s", decision)
-                self._log("hidden_battle_warning", frame=warning_frame, decision=decision)
-                self.actuator.tap(*button)
-                time.sleep(2.0)
+            # one adb capture per iteration, shared by every interrupt/overlay
+            # detector the router runs -- terminal, defeat, hidden-battle, modal
+            # and story all judge the same frozen moment, and the phase/dialog
+            # confirmers reuse it as the first of their two reads. the _on_*
+            # dispatch handlers still capture their own fresh frames: they are
+            # multi-tap sequences whose screen changes as they run
+            frame = self._frame()
+            step = self._route_interrupts(frame)
+            if step is not None:
+                if step.done:
+                    return step.screen
                 last_activity = time.time()
                 continue
-            # a stray keyguard drag or tap can open a modal over the live
-            # battle; it carries no phase label, so close it here before the
-            # label-less path below mistakes it for a phase break and idles out
-            if self._handle_known_modal():
-                last_activity = time.time()
-                continue
-            # detect stories by the MENU button itself, not the screen
-            # classifier: mid-battle stories shift MENU left of the anchor
-            # position and the frame then classifies as something else
-            menu_pos = vision.locate_story_menu(self._frame(), threshold=0.7)
-            if menu_pos is not None:
-                log.info("mid-battle story (menu at %s), skipping", menu_pos)
-                self._log("story_skip", menu=menu_pos)
-                self.actuator.tap(*menu_pos)
-                time.sleep(0.8)
-                self.actuator.tap(menu_pos[0], STORY_SKIP[1])
-                time.sleep(1.5)
-                last_activity = time.time()
-                continue
-            # no wait-for-static gate here: ambient map animation (snowfall,
-            # pulsing range markers) keeps frames changing forever on some
-            # maps, which starved this loop of any action for a whole battle
-            # (2026-07-11). ACTIONABLE is decided by the phase-label probe
-            # alone; one-frame template flukes on animated frames are screened
-            # by requiring two agreeing reads before anything is trusted
-            if self._confirmed_probe("dlg_end_turn"):
-                log.info("end-turn dialog: choosing standby-and-end")
-                self.actuator.tap(*END_TURN_STANDBY_OPTION)
-                time.sleep(0.8)
-                self.actuator.tap(*END_TURN_EXECUTE)
-                time.sleep(2.0)
-                last_activity = time.time()
-                continue
-            mode = self._confirmed_mode()
+            # no interrupt claimed the frame: decide actability from the phase
+            # label. no wait-for-static gate here -- ambient map animation
+            # (snowfall, pulsing range markers) keeps frames changing forever on
+            # some maps, which once starved this loop for a whole battle
+            # (2026-07-11); one-frame template flukes are screened instead by
+            # requiring two agreeing reads before anything is trusted
+            mode = self._confirmed_mode(frame=frame)
             self._log_state(mode)
             self._check_expectation(mode)
             if mode is not None:
@@ -425,33 +394,125 @@ class ManualBattleController:
         if self.ledger is not None:
             self.ledger.finish(outcome, frame=self._safe_frame())
 
-    def _handle_known_modal(self) -> bool:
-        """Escape hatch for modals that a stray tap / keyguard drag can open
-        over a live battle. Each carries no phase label, so the main loop would
-        treat it as a phase break and idle out; detect and dismiss it instead.
-        Structured as a table so more modals can be added later."""
-        frame = self._frame()
+    def _route_interrupts(self, frame) -> LoopStep | None:
+        """Priority-ordered interrupt/overlay detectors over the shared frame;
+        the first to claim it handles it and returns a LoopStep. None means no
+        interrupt fired and the caller falls through to the phase
+        (ACTIONABLE/NOT_ACTIONABLE) branch. Order is priority AND cost: the
+        cheap boolean detectors short-circuit before the two-read end-turn
+        probe pays its settle sleep (docs/battle-phase-states.md). Every
+        detector reads the one shared frame; the taps live in the handlers."""
+        pipeline = (
+            (self._detect_terminal, self._handle_terminal),
+            (self._detect_defeat, self._handle_defeat),
+            (self._detect_hidden, self._handle_hidden),
+            (self._detect_known_modal, self._handle_known_modal),
+            (self._detect_story, self._handle_story),
+            (self._detect_end_turn, self._handle_end_turn),
+        )
+        for detect, handle in pipeline:
+            payload = detect(frame)
+            if payload:
+                return handle(frame, payload)
+        return None
+
+    def _detect_terminal(self, frame):
+        # the classify pass also writes the per-tick screenshot (observe ->
+        # _save), so it runs every iteration as the first detector
+        state = self.perception.observe(frame)
+        if state.screen in TERMINAL_SCREENS and state.screen_confidence >= 0.9:
+            return state.screen
+        return None
+
+    def _handle_terminal(self, frame, screen) -> LoopStep:
+        log.info("battle finished: %s", screen)
+        self._log_finish(screen)
+        return LoopStep(done=True, screen=screen)
+
+    def _detect_defeat(self, frame):
+        # our whole force wiped out: the FAILED screen is a dead end (its
+        # buttons hand off to retry/stage-select), so finish cleanly and let
+        # the ledger archive instead of idling out
+        return vision.is_defeat_screen(frame)
+
+    def _handle_defeat(self, frame, _payload) -> LoopStep:
+        log.info("battle finished: defeat screen")
+        self._log_finish("defeat")
+        return LoopStep(done=True, screen=screens.UNKNOWN)
+
+    def _detect_hidden(self, frame):
+        return vision.is_hidden_battle_warning(frame)
+
+    def _handle_hidden(self, frame, _payload) -> LoopStep:
+        # the hidden-battle WARNING modal is a dead stop the controller would
+        # otherwise idle out on: pick 挑戰/不挑戰 per policy and log the decision
+        # frame for future OCR power-gap calibration
+        decision = "decline" if self.hidden_battle_policy == "decline" else "challenge"
+        button = DECLINE_HIDDEN_BATTLE if decision == "decline" else CHALLENGE_HIDDEN_BATTLE
+        log.info("hidden-battle warning modal: %s", decision)
+        self._log("hidden_battle_warning", frame=frame, decision=decision)
+        self.actuator.tap(*button)
+        time.sleep(2.0)
+        return LoopStep()
+
+    def _detect_known_modal(self, frame):
+        # a stray keyguard drag or tap can open a modal over the live battle; it
+        # carries no phase label, so the phase branch would mistake it for a
+        # break and idle out. table-driven so more modals can be added later
         modals = ((vision.is_unit_detail_modal, "unit_detail_modal", UNIT_DETAIL_CLOSE),)
         for detect, kind, close_btn in modals:
             if detect(frame):
-                log.warning("%s open mid-battle, closing", kind)
-                self._log(kind, frame=frame)
-                self.actuator.tap(*close_btn)
-                time.sleep(1.5)
-                return True
-        return False
+                return (kind, close_btn)
+        return None
 
-    def _current_mode(self) -> str | None:
-        found = self.perception.probe(MODE_LABELS + DISTRACTOR_LABELS)
+    def _handle_known_modal(self, frame, payload) -> LoopStep:
+        kind, close_btn = payload
+        log.warning("%s open mid-battle, closing", kind)
+        self._log(kind, frame=frame)
+        self.actuator.tap(*close_btn)
+        time.sleep(1.5)
+        return LoopStep()
+
+    def _detect_story(self, frame):
+        # detect stories by the MENU button itself, not the screen classifier:
+        # mid-battle stories shift MENU left of the anchor and the frame then
+        # classifies as something else
+        return vision.locate_story_menu(frame, threshold=0.7)
+
+    def _handle_story(self, frame, menu_pos) -> LoopStep:
+        log.info("mid-battle story (menu at %s), skipping", menu_pos)
+        self._log("story_skip", menu=menu_pos)
+        self.actuator.tap(*menu_pos)
+        time.sleep(0.8)
+        self.actuator.tap(menu_pos[0], STORY_SKIP[1])
+        time.sleep(1.5)
+        return LoopStep()
+
+    def _detect_end_turn(self, frame):
+        return self._confirmed_probe("dlg_end_turn", frame=frame)
+
+    def _handle_end_turn(self, frame, _payload) -> LoopStep:
+        log.info("end-turn dialog: choosing standby-and-end")
+        self.actuator.tap(*END_TURN_STANDBY_OPTION)
+        time.sleep(0.8)
+        self.actuator.tap(*END_TURN_EXECUTE)
+        time.sleep(2.0)
+        return LoopStep()
+
+    def _current_mode(self, frame=None) -> str | None:
+        found = self.perception.probe(MODE_LABELS + DISTRACTOR_LABELS, frame=frame)
         self._last_probe = {eid: e.confidence for eid, e in found.items()}
         return resolve_mode(self._last_probe)
 
-    def _confirmed_mode(self, settle_s: float = 0.35) -> str | None:
+    def _confirmed_mode(self, settle_s: float = 0.35, frame=None) -> str | None:
         """Two agreeing label reads ~settle_s apart. A transition that briefly
         shows (or leaves behind) a label reads inconsistently and lands in the
-        NOT_ACTIONABLE branch, which is exactly where a transition belongs."""
+        NOT_ACTIONABLE branch, which is exactly where a transition belongs.
+        The first read reuses the iteration's shared frame when given; the
+        second is always a fresh capture, keeping the two-capture anti-flake
+        guard intact."""
         self._mode_flicker = None
-        first = self._current_mode()
+        first = self._current_mode(frame)
         if first is None:
             return None
         time.sleep(settle_s)
@@ -561,10 +622,12 @@ class ManualBattleController:
             )
         self._expectation = None
 
-    def _confirmed_probe(self, element_id: str, settle_s: float = 0.3) -> bool:
+    def _confirmed_probe(self, element_id: str, settle_s: float = 0.3, frame=None) -> bool:
         """Two agreeing probes ~settle_s apart, for dialogs that must not be
-        answered off a one-frame fluke now that no static gate runs."""
-        if not self.perception.probe([element_id]):
+        answered off a one-frame fluke now that no static gate runs. The first
+        probe reuses the iteration's shared frame when given; the second always
+        recaptures."""
+        if not self.perception.probe([element_id], frame=frame):
             return False
         time.sleep(settle_s)
         return bool(self.perception.probe([element_id]))

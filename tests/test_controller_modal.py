@@ -19,7 +19,7 @@ class _Perception:
     def __init__(self):
         self.calls = 0
 
-    def observe(self):
+    def observe(self, frame=None):
         self.calls += 1
         if self.calls >= 2:
             return SimpleNamespace(screen=screens.BATTLE_RESULT, screen_confidence=0.95)
@@ -28,7 +28,7 @@ class _Perception:
     def capture(self):
         return np.zeros((1080, 2340, 3), np.uint8)
 
-    def probe(self, ids):
+    def probe(self, ids, frame=None):
         return {}
 
 
