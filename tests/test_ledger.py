@@ -6,7 +6,7 @@ import pytest
 from ggge_ai.agent.blackboard import RunBlackboard
 from ggge_ai.battle.controller import ManualBattleController
 from ggge_ai.battle.ledger import BattleLedger
-from ggge_ai.core.action import ExecutionContext
+from ggge_ai.goap.action import ExecutionContext
 from ggge_ai.domain.actions.flow import ManualBattle
 
 

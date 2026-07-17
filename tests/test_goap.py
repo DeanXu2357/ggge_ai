@@ -1,8 +1,8 @@
 import pytest
 
-from ggge_ai.core.action import Action, Goal
-from ggge_ai.core.planner import PlanNotFound, plan
-from ggge_ai.core.state import WorldState
+from ggge_ai.goap.action import Action, Goal
+from ggge_ai.goap.planner import PlanNotFound, plan
+from ggge_ai.goap.state import WorldState
 
 
 def nav(name, from_screen, to_screen, cost=1.0):

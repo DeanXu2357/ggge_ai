@@ -1,4 +1,4 @@
-from ggge_ai.core.state import WorldState
+from ggge_ai.goap.state import WorldState
 
 
 def test_with_updates_is_immutable():

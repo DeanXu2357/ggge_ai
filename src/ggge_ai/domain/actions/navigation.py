@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ...core.action import Action, ExecutionContext
+from ...goap.action import Action, ExecutionContext
 from ...perception.base import ScreenId
 
 

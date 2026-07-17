@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..core.action import Goal
+from ..goap.action import Goal
 from ..perception.base import ScreenId
 
 

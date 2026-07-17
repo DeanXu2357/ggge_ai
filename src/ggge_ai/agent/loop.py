@@ -6,9 +6,9 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from ..actuation.base import Actuator
-from ..core.action import Action, ExecutionContext, Goal
-from ..core.planner import PlanNotFound, plan
-from ..core.state import Value, WorldState
+from ..goap.action import Action, ExecutionContext, Goal
+from ..goap.planner import PlanNotFound, plan
+from ..goap.state import Value, WorldState
 from ..perception.base import GameState, Perception
 
 logger = logging.getLogger(__name__)

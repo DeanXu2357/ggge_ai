@@ -8,7 +8,7 @@ import numpy as np
 
 from ggge_ai.agent.blackboard import RunBlackboard
 from ggge_ai.battle import controller as controller_mod
-from ggge_ai.core.action import ExecutionContext
+from ggge_ai.goap.action import ExecutionContext
 from ggge_ai.domain import screens
 from ggge_ai.domain.actions import flow
 from ggge_ai.domain.actions.flow import AdvanceStageInfo, CLEAR_STAGE_ACTIONS

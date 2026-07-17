@@ -5,7 +5,7 @@ import os
 import time
 from collections.abc import Callable
 
-from ...core.action import Action, ExecutionContext
+from ...goap.action import Action, ExecutionContext
 from ...perception.base import GameState
 from .. import screens
 

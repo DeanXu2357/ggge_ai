@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..core.state import WorldState
+from ..goap.state import WorldState
 from ..perception.base import GameState
 
 

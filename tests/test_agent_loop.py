@@ -1,5 +1,5 @@
 from ggge_ai.agent.loop import AgentLoop, LoopConfig
-from ggge_ai.core.action import Action, ExecutionContext
+from ggge_ai.goap.action import Action, ExecutionContext
 from ggge_ai.domain.goals import ReachScreen
 from ggge_ai.domain.translate import to_world_state
 from ggge_ai.perception.base import GameState

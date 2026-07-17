@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from ..domain.roster import CapabilityType, UnitCapability
 
 if TYPE_CHECKING:
-    from ..core.action import ExecutionContext
+    from ..goap.action import ExecutionContext
     from .state import BattleState, UnitState
 
 

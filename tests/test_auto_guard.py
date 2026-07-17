@@ -14,7 +14,7 @@ from ggge_ai.battle.controller import (
     read_auto_chip,
 )
 from ggge_ai.battle.ledger import BattleLedger
-from ggge_ai.core.action import ExecutionContext
+from ggge_ai.goap.action import ExecutionContext
 from ggge_ai.domain.actions.flow import STAGE_INFO_TAP, AdvanceStageInfo
 from ggge_ai.perception.base import Bbox, UiElement
 
