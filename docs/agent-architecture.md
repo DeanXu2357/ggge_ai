@@ -48,6 +48,39 @@
 執行腳本 process。process 內因無法通關而重複挑戰時，該關難點記憶在黑板中
 並隨重複過程更新；process 結束後，下次執行的黑板從零重建。
 
+## 套件分層（2026-07-17 重構定案）
+
+程式碼以單向依賴的分層落實機制/內容分離；依賴方向一律由上往下，
+反向 import 即違規：
+
+```
+battle/   感知＋執行 adapter：BattleState、vision、panels、tracker、
+          identity、scout_intel、reconcile、controller、executor、
+          bridge（BattleState→SimState 幾何量化）、advisor（SimAdvisor 管線）
+   │
+content/  資料綁定層：kit（UnitStats/WeaponRow/UnitSpec/SpecDefaults）、
+          grounding（spec→SimUnit 數值落地＋假設回報）、stage_def
+          （定義檔＋sig 距離）、objectives（條件→Objective 編譯）、
+          stage_sim（離線開局，定義檔座標直建、不經 BattleState）
+   │
+planner/  搜尋層：expectiminimax solver＋可插拔敵方節點模型；
+          未來 MCTS 等替代後端與此並列
+   │
+sim/      世界模型：vocab（Faction/DecisionKind 詞彙擁有者）、core
+          （SimState/step/合法動作）、formulas、grid、objective
+          （Objective/EvalWeights/EvalContext 評估詞彙）；stdlib-only
+```
+
+- **詞彙反轉**：Faction 與 DecisionKind 由 sim 擁有；battle.state
+  re-export Faction，battle.actions.ActionKind 以別名疊加執行域專屬
+  kind（select_unit、support 鈕、raw），字串值兩層共用、不得分歧。
+- `goap/`（原 `core/`）＝外層戰略 GOAP 的泛用機制（WorldState/Action/
+  A*），與內層搜尋 `planner/` 無關。
+- `domain/roster` 是共享詞彙葉節點，content 可依賴；domain 其餘
+  （flow/navigation）屬戰略層 adapter。
+- 啟動內鏈式 planner（原 battle/planner.py）已刪除：其功能是 solver
+  「單一啟動子樹」的特例（見下節評估策略分級 2）。
+
 ## 雙層 GOAP
 
 ### 戰略層

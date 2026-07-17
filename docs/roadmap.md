@@ -1,6 +1,7 @@
 # 進度與規劃
 
-更新日期：2026-07-15（**S9d 應戰路徑整併落地**：確認應戰彈窗＝戰鬥準備
+更新日期：2026-07-17（工程重構批次見下段；最新里程碑＝07-15
+**S9d 應戰路徑整併落地**：確認應戰彈窗＝戰鬥準備
 -應戰- 變體，感知單一來源化到 `BattlePrepForecast`、廢 `ReactionPopup`、
 執行器 `_choose_reaction_stance` 接進 `_on_battle_prep`；行為保持、
 483 tests/3 xfail 全綠、replay 閘門同基準。stance 切換 UI 仍待實機標定。
@@ -21,7 +22,18 @@ grid` 移入 `battle/sim/`（相依驗證：只 import `..state`/`..actions`+std
 ④ **SimAdvisor 介面型態**（b462c03）：controller 對 sim 的操作面收斂成
 `SimAdvisor` Protocol（`advise`/`advise_reaction`），`DefaultAdvisor` 為預設
 實作、以 `advisor: SimAdvisor` 欄位依賴反轉注入（可換 fake/替代 solver），
-移除 `advisor_mod.*` 直呼。全部行為不變、483 tests/3 xfail、ruff 全綠。
+移除 `advisor_mod.*` 直呼。⑤ **邊界重構定案（使用者拍板三決策：升頂層／
+刪 battle/planner.py／action 執行域留 battle）**，七小步 commit
+（ca58ba9…8599f5a）落地四層單向依賴 `battle → content → planner → sim`
+（全圖見 agent-architecture.md「套件分層」）：sim 升頂層＋擁有詞彙
+（`sim/vocab.py` Faction/DecisionKind，battle 反向 re-export/別名）；
+評估詞彙下沉 `sim/objective.py`（Objective/EvalWeights/EvalContext，
+solver 不再被 objectives 編譯器穿透）；搜尋層抽 `planner/`（solver＋
+enemy_model）；`content/` 資料綁定層（kit＝UnitSpec/UnitStats/WeaponRow/
+SpecDefaults、grounding＝數值落地＋假設回報、stage_def（含 sig 距離）、
+objectives、stage_sim 直建定義檔座標不經 BattleState）；`core/`→`goap/`
+改名；死碼 battle/planner.py（plan_activation，production 零引用）連測試
+刪除。行為不變、477 tests（483−6 刪除的 planner 測試）/3 xfail、ruff 全綠。
 **裝置現況與 S9 恢復點不變，見下。**
 
 ## 暫停快照（2026-07-15 S9d 應戰整併，恢復點）
