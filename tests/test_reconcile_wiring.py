@@ -82,17 +82,17 @@ def _wire(monkeypatch, c, counters):
 def test_full_chain_confirmed_kill(monkeypatch):
     c = _controller()
     _wire(monkeypatch, c, [(3, 14), (4, 14)])
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
 
     frame = c.perception.capture()
     c._register_attack_decision(frame, slot=1)
     c._attack(slot=1)
-    c._check_expectation("label_battle_prep")
-    c._dispatched_mode = "label_battle_prep"
+    c.timeline.observe("battle_prep")
+    c.timeline.phase = "battle_prep"
     c._on_battle_prep()
     assert c._pending is not None and c._pending.armed
 
-    c._judge_pending("label_our_turn")
+    c._judge_pending("our_turn")
     assert c._pending is None
 
     kinds = _kinds(c)
@@ -123,13 +123,13 @@ def test_full_chain_confirmed_kill(monkeypatch):
 def test_expected_kill_missed_at_partial_hit_is_rng_branch(monkeypatch):
     c = _controller()
     _wire(monkeypatch, c, [(3, 14), (3, 14)])
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
 
     c._register_attack_decision(c.perception.capture(), slot=1)
     c._attack(slot=1)
-    c._dispatched_mode = "label_battle_prep"
+    c.timeline.phase = "battle_prep"
     c._on_battle_prep()
-    c._judge_pending("label_our_turn")
+    c._judge_pending("our_turn")
 
     assert _event(c, "kill_check")["result"] == "rng_branch"
     assert "rng_branch" in _kinds(c)
@@ -138,11 +138,11 @@ def test_expected_kill_missed_at_partial_hit_is_rng_branch(monkeypatch):
 def test_pending_not_judged_before_engagement(monkeypatch):
     c = _controller()
     _wire(monkeypatch, c, [(3, 14)])
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
 
     c._register_attack_decision(c.perception.capture(), slot=1)
     c._attack(slot=1)
-    c._judge_pending("label_weapon_select")
+    c._judge_pending("weapon_select")
 
     assert c._pending is not None
     assert "kill_check" not in _kinds(c)
@@ -152,7 +152,7 @@ def test_standby_drops_unarmed_pending(monkeypatch):
     c = _controller()
     _wire(monkeypatch, c, [(3, 14)])
     monkeypatch.setattr(vision, "unit_cards_present", lambda f: False)
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
 
     c._register_attack_decision(c.perception.capture(), slot=1)
     c._standby("out_of_range")
@@ -163,13 +163,13 @@ def test_standby_drops_unarmed_pending(monkeypatch):
 def test_unreadable_counter_burns_budget_then_unverified(monkeypatch):
     c = _controller()
     _wire(monkeypatch, c, [(3, 14)] + [None] * 20)
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
 
     c._register_attack_decision(c.perception.capture(), slot=1)
-    c._dispatched_mode = "label_battle_prep"
+    c.timeline.phase = "battle_prep"
     c._on_battle_prep()
     for _ in range(controller_mod.reconcile.KILL_CHECK_BUDGET):
-        c._judge_pending("label_our_turn")
+        c._judge_pending("our_turn")
 
     assert c._pending is None
     assert _event(c, "kill_check")["result"] == "unverified_counter_unreadable"
@@ -178,16 +178,16 @@ def test_unreadable_counter_burns_budget_then_unverified(monkeypatch):
 def test_tracker_follows_the_full_chain(monkeypatch):
     c = _controller()
     _wire(monkeypatch, c, [(3, 14), (4, 14)])
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
 
     c._register_attack_decision(c.perception.capture(), slot=1)
     assert c.tracker.beliefs["sig:" + "t" * 16].hp == 8000
     assert c.tracker.beliefs["sig:" + "a" * 16].hp == 50000
 
     c._attack(slot=1)
-    c._dispatched_mode = "label_battle_prep"
+    c.timeline.phase = "battle_prep"
     c._on_battle_prep()
-    c._judge_pending("label_our_turn")
+    c._judge_pending("our_turn")
 
     assert c.tracker.beliefs["sig:" + "t" * 16].alive is False
     assert ("sig:" + "t" * 16) not in c.tracker.id_positions()
@@ -196,13 +196,13 @@ def test_tracker_follows_the_full_chain(monkeypatch):
 def test_tracker_keeps_hp_on_a_missed_kill(monkeypatch):
     c = _controller()
     _wire(monkeypatch, c, [(3, 14), (3, 14)])
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
 
     c._register_attack_decision(c.perception.capture(), slot=1)
     c._attack(slot=1)
-    c._dispatched_mode = "label_battle_prep"
+    c.timeline.phase = "battle_prep"
     c._on_battle_prep()
-    c._judge_pending("label_our_turn")
+    c._judge_pending("our_turn")
 
     belief = c.tracker.beliefs["sig:" + "t" * 16]
     assert belief.alive is True
@@ -227,7 +227,7 @@ def test_reaction_prep_records_without_touching_pending(monkeypatch):
     )
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     monkeypatch.setattr(vision, "read_battle_prep_forecast", lambda f: reaction)
-    c._dispatched_mode = "label_battle_prep"
+    c.timeline.phase = "battle_prep"
 
     c._on_battle_prep()
 
@@ -235,4 +235,4 @@ def test_reaction_prep_records_without_touching_pending(monkeypatch):
     prep = _event(c, "forecast_battle_prep")
     assert prep["is_reaction"] is True
     assert prep["attack_value"] == 2626
-    assert "label_battle_prep" in c._expectation.targets
+    assert "battle_prep" in c.timeline._expectation.targets

@@ -189,14 +189,31 @@ def test_overlay_ticks_never_burn_expectation_budget(monkeypatch):
     _quiet_overlays(monkeypatch)
     p = _ScenePerception(screen=screens.BATTLE_RESULT)
     c = ManualBattleController(perception=p, actuator=_Actuator(), ledger=BattleLedger())
-    c._expect("attack", ("label_battle_prep",), checks=3)
+    c.timeline.acted("attack")
+    budget = c.timeline._expectation.checks_left
 
     c._classify(p.capture())
-    assert c._expectation.checks_left == 3
+    assert c.timeline._expectation.checks_left == budget
 
     p.screen = "unknown"
     c._classify(p.capture())
-    assert c._expectation.checks_left == 2
+    assert c.timeline._expectation.checks_left == budget - 1
+
+
+def test_classify_records_timeline_events_in_the_ledger(monkeypatch):
+    """observe() returns ledger intents; _classify executes them -- a miss
+    lands as an expectation_miss event with the stripped phase names."""
+    _quiet_overlays(monkeypatch)
+    p = _ScenePerception(labels={"label_skill": 0.9})
+    c = ManualBattleController(perception=p, actuator=_Actuator(), ledger=BattleLedger())
+    c.timeline.phase = "weapon_select"
+    c.timeline.acted("attack")
+
+    c._classify(p.capture())
+
+    miss = next(e for e in c.ledger.events if e["kind"] == "expectation_miss")
+    assert miss["expected"] == ["battle_prep"]
+    assert miss["observed"] == "skill"
 
 
 def test_dispatch_routes_an_overlay_state_through_the_intent_middleware(monkeypatch):
@@ -223,16 +240,15 @@ def test_dispatch_wraps_the_not_actionable_verdict_into_activity():
     assert c._dispatch("not_actionable", None, None).activity is True
 
 
-def test_dispatch_arms_the_phase_bookkeeping_before_the_handler():
+def test_dispatch_resets_the_miss_streak_before_the_handler():
     c = ManualBattleController(
         perception=_Perception(), actuator=_Actuator(), ledger=BattleLedger()
     )
     seen = {}
-    c._on_probe = lambda: seen.setdefault("mode", c._dispatched_mode)
+    c._on_probe = lambda: seen.setdefault("streak", c._miss_streak)
     c._miss_streak = 2
 
     step = c._dispatch("probe", None, None)
 
     assert step == LoopStep()
-    assert seen["mode"] == "label_probe"
-    assert c._miss_streak == 0
+    assert seen["streak"] == 0

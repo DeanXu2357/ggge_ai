@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from ggge_ai.battle import executor, reconcile, vision
@@ -34,6 +33,7 @@ from ggge_ai.battle.scout_intel import SurveyIncomplete
 from ggge_ai.content import stage_def as stage_def_mod
 from ggge_ai.battle.state import Faction
 from ggge_ai.battle.tacmap import TacticalMap
+from ggge_ai.battle.timeline import BattleTimeline
 from ggge_ai.battle.tracker import BoardTracker
 from ggge_ai.domain import screens
 from ggge_ai.vision.motion import frame_diff
@@ -202,32 +202,6 @@ class _ActionState:
         self.plan = None
 
 
-@dataclass
-class Expectation:
-    """One act -> verify contract: after `action` (fired while `source` was
-    on screen) the next confirmed mode should land in `targets`.
-
-    Verdicts, checked against every confirmed mode read:
-    - observed in targets: transition verified.
-    - observed == source: the tap was eaten (power-save lock, mid-animation
-      UI) -- on_eaten repairs any handler flag that assumed success, so the
-      reactive dispatch retries the action instead of walking a wrong branch.
-    - observed is some other real mode: a miss. The screen is authoritative,
-      so reality wins and the miss is only recorded (ledger + log) as
-      evidence that our transition model of the game is wrong somewhere.
-    - no label at all: neutral (animations and interrupts look like this);
-      only `checks_left` label-less reads are budgeted before the contract
-      expires as unverifiable -- counted in reads, not wall time, so story
-      skips and long animations do not burn it."""
-
-    action: str
-    source: str | None
-    targets: frozenset[str]
-    checks_left: int
-    on_eaten: Callable[[], None] | None = None
-    retries_left: int = 1
-
-
 @dataclass(frozen=True)
 class LoopStep:
     """A handler's report back to the run loop: end the battle, returning
@@ -275,8 +249,6 @@ class ManualBattleController:
     _mode_flicker: tuple | None = None
     _state_desc: str | None = None
     _state_checks: int = 0
-    _expectation: Expectation | None = None
-    _dispatched_mode: str | None = None
     # reconciliation chain (M4a): specs_by_id is filled by stage intel
     # (M3b); until then expectations are ungrounded and say so
     specs_by_id: dict = field(default_factory=dict)
@@ -315,6 +287,10 @@ class ManualBattleController:
     _seen_sigs: set = field(default_factory=set)
     _sig_names: dict = field(default_factory=dict)
     tacmap: TacticalMap = field(default_factory=TacticalMap)
+    # control-flow memory: last confirmed phase and the act -> verify
+    # contracts (timeline.TRANSITIONS); fed once per tick by _classify,
+    # queried and reported to by the handlers. process-scoped
+    timeline: BattleTimeline = field(default_factory=BattleTimeline)
     # running board beliefs fed by the read-back hooks (forecast, prep,
     # kill counter, turn boundary); process-scoped, never persisted
     tracker: BoardTracker = field(default_factory=BoardTracker)
@@ -463,10 +439,12 @@ class ManualBattleController:
                 return state, payload
         mode = self._confirmed_mode(frame=frame)
         self._log_state(mode)
-        self._check_expectation(mode)
-        if mode is not None:
-            self._judge_pending(mode)
-        return (mode.removeprefix("label_") if mode else "not_actionable"), None
+        phase = mode.removeprefix("label_") if mode else None
+        for ev in self.timeline.observe(phase):
+            self._log(ev.kind, frame=self._safe_frame() if ev.with_frame else None, **ev.data)
+        if phase is not None:
+            self._judge_pending(phase)
+        return (phase or "not_actionable"), None
 
     def _dispatch(self, state: str, payload, frame) -> LoopStep:
         """The tick's single dispatch seam: route the classified state to its
@@ -480,7 +458,6 @@ class ManualBattleController:
         if state == "not_actionable":
             return LoopStep(activity=self._on_not_actionable())
         self._miss_streak = 0
-        self._dispatched_mode = f"label_{state}"
         return self._dispatch_phase(state) or LoopStep()
 
     def _detect_terminal(self, frame):
@@ -610,79 +587,6 @@ class ManualBattleController:
             log.info("state: %s", desc)
         self._state_desc = desc
         self._state_checks = 1
-
-    def _expect(
-        self,
-        action: str,
-        targets: tuple[str, ...],
-        checks: int = 8,
-        on_eaten: Callable[[], None] | None = None,
-        retries: int = 1,
-    ) -> None:
-        """Register the transition contract for an action just fired from the
-        currently dispatched mode. One at a time: a newer action supersedes
-        whatever contract was still open."""
-        self._expectation = Expectation(
-            action=action,
-            source=self._dispatched_mode,
-            targets=frozenset(targets),
-            checks_left=checks,
-            on_eaten=on_eaten,
-            retries_left=retries,
-        )
-
-    def _check_expectation(self, mode: str | None) -> None:
-        exp = self._expectation
-        if exp is None:
-            return
-        if mode is None:
-            exp.checks_left -= 1
-            if exp.checks_left <= 0:
-                log.warning(
-                    "transition after %s unverifiable (no phase label for too long)", exp.action
-                )
-                self._log(
-                    "expectation_expired",
-                    frame=self._safe_frame(),
-                    action=exp.action,
-                    expected=sorted(exp.targets),
-                )
-                self._expectation = None
-            return
-        if mode in exp.targets:
-            log.info("transition verified: %s -> %s", exp.action, mode)
-            self._log("expectation_met", action=exp.action, observed=mode)
-        elif mode == exp.source and exp.retries_left > 0:
-            exp.retries_left -= 1
-            log.warning("%s left the screen unchanged (tap eaten?), retrying", exp.action)
-            self._log("expectation_retry", action=exp.action, observed=mode)
-            if exp.on_eaten is not None:
-                exp.on_eaten()
-            return
-        elif mode == exp.source:
-            log.warning("%s still stuck on %s after retrying, giving up on it", exp.action, mode)
-            self._log(
-                "expectation_expired",
-                frame=self._safe_frame(),
-                action=exp.action,
-                expected=sorted(exp.targets),
-                observed=mode,
-            )
-        else:
-            log.warning(
-                "expected one of %s after %s, observed %s -- accepting the screen",
-                sorted(exp.targets),
-                exp.action,
-                mode,
-            )
-            self._log(
-                "expectation_miss",
-                frame=self._safe_frame(),
-                action=exp.action,
-                expected=sorted(exp.targets),
-                observed=mode,
-            )
-        self._expectation = None
 
     def _confirmed_probe(self, element_id: str, settle_s: float = 0.3, frame=None) -> bool:
         """Two agreeing probes ~settle_s apart, for dialogs that must not be
@@ -900,7 +804,7 @@ class ManualBattleController:
             log.info("selecting next actable unit")
             self._log("select_unit", frame=frame, cards=self._card_count)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
-            self._expect("select_unit", ("label_unit_move", "label_weapon_select"))
+            self.timeline.acted("select_unit")
             self._probe_after_select()
             return
         # the card strip animates in after the hub appears; confirm it is
@@ -912,7 +816,7 @@ class ManualBattleController:
             self._card_count = vision.count_unit_cards(late_frame)
             self._log("select_unit", frame=late_frame, cards=self._card_count)
             self.actuator.tap(*vision.FIRST_UNIT_CARD)
-            self._expect("select_unit", ("label_unit_move", "label_weapon_select"))
+            self.timeline.acted("select_unit")
             self._probe_after_select()
         else:
             log.info("no actable units left, ending turn")
@@ -1617,9 +1521,8 @@ class ManualBattleController:
         self._action.tried_in_place = True
         self._log("pilot_step", step="open_weapon_select", unit=plan.ally_id)
         self.actuator.tap(*WEAPON_SELECT_BTN)
-        self._expect(
+        self.timeline.acted(
             "open_weapon_select",
-            ("label_weapon_select",),
             on_eaten=lambda: setattr(self._action, "tried_in_place", False),
         )
         time.sleep(1.8)
@@ -1677,9 +1580,8 @@ class ManualBattleController:
             self.actuator.tap(*WEAPON_SELECT_BTN)
             # an eaten tap must clear the flag, or the next visit walks the
             # move branch believing weapon select was already tried
-            self._expect(
+            self.timeline.acted(
                 "open_weapon_select",
-                ("label_weapon_select",),
                 on_eaten=lambda: setattr(self._action, "tried_in_place", False),
             )
             time.sleep(1.8)
@@ -2002,11 +1904,11 @@ class ManualBattleController:
         self._log("unit_intel", frame=crop, sig=sig, role=role, name=name)
         log.info("new unit signature %s (%s)%s", sig, role, f" -> {name}" if name else "")
 
-    def _judge_pending(self, mode: str) -> None:
-        """Layer 3: once the engagement resolved (any actionable mode after
+    def _judge_pending(self, phase: str) -> None:
+        """Layer 3: once the engagement resolved (any actionable phase after
         battle-prep), the 破壞數 delta is the verdict on the expected kill."""
         pending = self._pending
-        if pending is None or not pending.armed or mode == "label_battle_prep":
+        if pending is None or not pending.armed or phase == "battle_prep":
             return
         counter = vision.read_kill_counter(self._frame())
         if counter is None:
@@ -2106,15 +2008,7 @@ class ManualBattleController:
         log.info("confirming battle start")
         self._log("engagement_confirm")
         self.actuator.tap(*pos)
-        # generous budget: the battle animation is long, and for a reaction
-        # popup (#3) the enemy turn continues afterwards -- an expiry here is
-        # informative ledger noise, not a failure. label_battle_prep is a
-        # legal target: consecutive reaction popups re-enter this screen
-        self._expect(
-            "battle_execute",
-            ("label_our_turn", "label_unit_move", "label_weapon_select", "label_battle_prep"),
-            checks=20,
-        )
+        self.timeline.acted("battle_execute")
         self._wait_animation()
         self._action.reset()
 
@@ -2137,7 +2031,7 @@ class ManualBattleController:
             }
         self._log("attack", frame=self._safe_frame(), slot=slot, **extras)
         self.actuator.tap(*ATTACK_BTN)
-        self._expect("attack", ("label_battle_prep",))
+        self.timeline.acted("attack")
         time.sleep(2.0)
 
     def _standby(self, reason: str) -> None:
@@ -2146,7 +2040,7 @@ class ManualBattleController:
             self._pending = None
         self._log("standby", frame=self._safe_frame(), reason=reason)
         self.actuator.tap(*STANDBY_BTN)
-        self._expect("standby", ("label_our_turn",), checks=12)
+        self.timeline.acted("standby")
         time.sleep(1.8)
         self._action.reset()
 
