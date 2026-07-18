@@ -1,13 +1,16 @@
 """Manual battle controller: drives combat ourselves instead of the
 built-in AUTO AI.
 
-Lifecycle (docs/battle-phase-states.md): every iteration is either
-ACTIONABLE (a MODE_LABELS template matched -- we have something to do,
-dispatched to the matching `_on_*` handler) or NOT_ACTIONABLE (`_on_
-not_actionable`; enemy turn, third-party turn, or a transition, none of
-which we need to tell apart -- just wait, or answer the one popup that
-needs us). Interrupts (keyguard, modals, story, the end-turn dialog) are
-checked ahead of both and can fire regardless of phase.
+Lifecycle (docs/battle-phase-states.md): every tick is one
+classification then one dispatch. `_classify` reads the frame in screen
+z-order -- overlay states first (terminal, defeat, modals, story, the
+end-turn dialog: asynchronous popups that own tap semantics while
+present), then the phase label (a MODE_LABELS template matched -- we
+have something to do, dispatched to the matching `_on_*` handler), else
+NOT_ACTIONABLE (`_on_not_actionable`; enemy turn, third-party turn, or
+a transition, none of which we need to tell apart -- just wait, or
+answer the one popup that needs us). The keyguard stays a pre-tick
+gate ahead of it all.
 
 v1 heuristic per confirmed direction: every actable unit attacks if a
 target is in range (trying each weapon), otherwise moves toward the
@@ -227,18 +230,22 @@ class Expectation:
 
 @dataclass(frozen=True)
 class LoopStep:
-    """A router handler's instruction back to the run loop: end the battle,
-    returning `screen`, or (the default) keep looping. A handled interrupt
-    always counts as activity, so the loop resets its idle watchdog on it.
+    """A handler's report back to the run loop: end the battle, returning
+    `screen`, or (the default) keep looping. `activity` feeds the idle
+    watchdog -- True (the default) marks real progress (a handled overlay, a
+    dispatched phase, an advanced dialog); False is the NOT_ACTIONABLE
+    wait/neutral-tap path, whose blind nudges must not keep resetting the
+    watchdog on a scene nothing recognizes.
 
     `log`/`finish` are the handler's ledger intent, executed by the dispatch
     middleware (`_dispatch_interrupt`): `log=(kind, extras)` records one event
-    against the shared router frame, `finish=outcome` archives the ledger. A
+    against the shared tick frame, `finish=outcome` archives the ledger. A
     handler declares what to record and never touches the ledger itself, so no
     interrupt can silently skip its log line (end_turn used to)."""
 
     done: bool = False
     screen: str | None = None
+    activity: bool = True
     log: tuple[str, dict] | None = None
     finish: str | None = None
 
@@ -353,39 +360,18 @@ class ManualBattleController:
                 log.warning("no battle activity for %.0fs, giving up", self.idle_timeout_s)
                 self._log_finish("idle_timeout")
                 return screens.UNKNOWN
-            # one adb capture per iteration, shared by every interrupt/overlay
-            # detector the router runs -- terminal, defeat, hidden-battle, modal
-            # and story all judge the same frozen moment, and the phase/dialog
-            # confirmers reuse it as the first of their two reads. the _on_*
-            # dispatch handlers still capture their own fresh frames: they are
-            # multi-tap sequences whose screen changes as they run
+            # one adb capture per tick, shared by every detector _classify
+            # runs -- overlays and the phase/dialog confirmers all judge the
+            # same frozen moment (the confirmers reuse it as the first of
+            # their two reads). the _on_* dispatch handlers still capture
+            # their own fresh frames: they are multi-tap sequences whose
+            # screen changes as they run
             frame = self._frame()
-            step = self._route_interrupts(frame)
-            if step is not None:
-                if step.done:
-                    return step.screen
-                last_activity = time.time()
-                continue
-            # no interrupt claimed the frame: decide actability from the phase
-            # label. no wait-for-static gate here -- ambient map animation
-            # (snowfall, pulsing range markers) keeps frames changing forever on
-            # some maps, which once starved this loop for a whole battle
-            # (2026-07-11); one-frame template flukes are screened instead by
-            # requiring two agreeing reads before anything is trusted
-            mode = self._confirmed_mode(frame=frame)
-            self._log_state(mode)
-            self._check_expectation(mode)
-            if mode is not None:
-                self._judge_pending(mode)
-            if mode is None:
-                if self._on_not_actionable():
-                    last_activity = time.time()
-            else:
-                self._miss_streak = 0
-                self._dispatched_mode = mode
-                step = self._dispatch_phase(mode)
-                if step is not None and step.done:
-                    return step.screen
+            state, payload = self._classify(frame)
+            step = self._dispatch(state, payload, frame)
+            if step.done:
+                return step.screen
+            if step.activity:
                 last_activity = time.time()
         log.warning("battle timeout reached")
         self._log_finish("battle_timeout")
@@ -399,14 +385,13 @@ class ManualBattleController:
         if self.ledger is not None:
             self.ledger.finish(outcome, frame=self._safe_frame())
 
-    def _dispatch_phase(self, mode: str) -> LoopStep | None:
-        """Lifecycle middleware for the phase router: resolve the _on_* handler
-        for an ACTIONABLE mode, time it, and record one envelope event (which
+    def _dispatch_phase(self, phase: str) -> LoopStep | None:
+        """Lifecycle middleware for the phase states: resolve the _on_* handler
+        for an ACTIONABLE phase, time it, and record one envelope event (which
         phase ran and how long) once it returns cleanly. The handler keeps its
         own domain logging (attack/standby/pilot_step ...); the two
         battle-ending aborts keep their existing records and become a terminal
-        LoopStep so the run loop exits through the same seam as an interrupt."""
-        phase = mode.removeprefix("label_")
+        LoopStep so the run loop exits through the same seam as an overlay."""
         handler = getattr(self, f"_on_{phase}")
         started = time.time()
         try:
@@ -439,27 +424,64 @@ class ManualBattleController:
             self._log_finish(step.finish)
         return step
 
-    def _route_interrupts(self, frame) -> LoopStep | None:
-        """Priority-ordered interrupt/overlay detectors over the shared frame;
-        the first to claim it handles it and returns a LoopStep. None means no
-        interrupt fired and the caller falls through to the phase
-        (ACTIONABLE/NOT_ACTIONABLE) branch. Order is priority AND cost: the
-        cheap boolean detectors short-circuit before the two-read end-turn
-        probe pays its settle sleep (docs/battle-phase-states.md). Every
-        detector reads the one shared frame; the taps live in the handlers."""
-        pipeline = (
-            (self._detect_terminal, self._handle_terminal),
-            (self._detect_defeat, self._handle_defeat),
-            (self._detect_hidden, self._handle_hidden),
-            (self._detect_known_modal, self._handle_known_modal),
-            (self._detect_story, self._handle_story),
-            (self._detect_end_turn, self._handle_end_turn),
+    def _overlay_pipeline(self):
+        """The overlay states of _classify in screen z-order -- full-screen
+        replacements first, then the popups stacked on the battle UI -- one
+        table so the scan order and the state->handler pairing cannot drift
+        apart. Order is z-order AND cost: the cheap boolean detectors
+        short-circuit before the two-read end-turn probe pays its settle
+        sleep (docs/battle-phase-states.md)."""
+        return (
+            ("terminal", self._detect_terminal, self._handle_terminal),
+            ("defeat", self._detect_defeat, self._handle_defeat),
+            ("hidden_battle", self._detect_hidden, self._handle_hidden),
+            ("modal", self._detect_known_modal, self._handle_known_modal),
+            ("story", self._detect_story, self._handle_story),
+            ("end_turn", self._detect_end_turn, self._handle_end_turn),
         )
-        for detect, handle in pipeline:
+
+    def _classify(self, frame) -> tuple[str, object | None]:
+        """The tick's single "where are we" verdict over the shared frame.
+        Evidence is read in screen z-order, top layer first: tap semantics
+        belong to the topmost element, and template matches punch through
+        dimming overlays (a phase label can read confidently under a dialog,
+        never the reverse), so the phase label is only trusted after every
+        overlay detector declines. The taps all live in the handlers.
+
+        Returns (state, payload): an overlay state with its detector payload,
+        a phase state (label prefix stripped), or "not_actionable" when no
+        label confirms. No wait-for-static gate anywhere -- ambient map
+        animation (snowfall, pulsing range markers) keeps frames changing
+        forever on some maps, which once starved this loop for a whole battle
+        (2026-07-11); one-frame template flukes are screened by the two-read
+        confirmers instead. The label bookkeeping (state log, expectation
+        check, pending-kill verdict) rides the mode read, so overlay ticks
+        never burn expectation budget."""
+        for state, detect, _handle in self._overlay_pipeline():
             payload = detect(frame)
             if payload:
+                return state, payload
+        mode = self._confirmed_mode(frame=frame)
+        self._log_state(mode)
+        self._check_expectation(mode)
+        if mode is not None:
+            self._judge_pending(mode)
+        return (mode.removeprefix("label_") if mode else "not_actionable"), None
+
+    def _dispatch(self, state: str, payload, frame) -> LoopStep:
+        """The tick's single dispatch seam: route the classified state to its
+        handler through the matching middleware -- declared ledger intent for
+        overlays (_dispatch_interrupt), exception translation plus envelope
+        for phases (_dispatch_phase) -- and normalize every outcome to one
+        LoopStep for the run loop to consume."""
+        for overlay, _detect, handle in self._overlay_pipeline():
+            if overlay == state:
                 return self._dispatch_interrupt(handle, frame, payload)
-        return None
+        if state == "not_actionable":
+            return LoopStep(activity=self._on_not_actionable())
+        self._miss_streak = 0
+        self._dispatched_mode = f"label_{state}"
+        return self._dispatch_phase(state) or LoopStep()
 
     def _detect_terminal(self, frame):
         # the classify pass also writes the per-tick screenshot (observe ->
