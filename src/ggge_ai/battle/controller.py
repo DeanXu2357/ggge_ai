@@ -36,7 +36,6 @@ from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.battle.timeline import BattleTimeline
 from ggge_ai.battle.tracker import BoardTracker
 from ggge_ai.domain import screens
-from ggge_ai.vision.motion import frame_diff
 
 # 戰鬥準備 -應戰- 畫面上各防禦 stance 的切換座標（DefenseKind→tap）。
 # S9d 實機標定後填入；空表＝stance 切換 UI 尚未定位，選到非預設 stance 只能
@@ -219,7 +218,6 @@ class ManualBattleController:
     keyguard: object | None = None
     ledger: BattleLedger | None = None
     llm: object | None = None
-    settle_timeout_s: float = 45.0
     battle_timeout_s: float = 3600.0
     idle_timeout_s: float = 600.0
     lock_check_interval_s: float = 15.0
@@ -1950,7 +1948,12 @@ class ManualBattleController:
         self._log("engagement_confirm")
         self.actuator.tap(*pos)
         self.timeline.acted("battle_execute")
-        self._wait_animation()
+        # short settle only, so a lingering battle_prep frame cannot confirm
+        # twice: the cut-in animation itself is consumed by the main loop's
+        # NOT_ACTIONABLE ticks (quiet while the contract is open) and
+        # terminal screens by the per-tick overlay scan -- the old blocking
+        # _wait_animation's two exits, both native to the loop now
+        time.sleep(2.0)
 
     def _attack(self, slot: int) -> None:
         extras: dict = {}
@@ -1983,19 +1986,3 @@ class ManualBattleController:
         self.timeline.acted("standby")
         time.sleep(1.8)
 
-    def _wait_animation(self) -> None:
-        """Wait out the combat cut-in animation. Two exits: frames settling
-        (terminal screens, calm maps) or the phase label coming back (maps
-        whose ambient animation never lets frames settle)."""
-        t0 = time.time()
-        prev = None
-        while time.time() - t0 < self.settle_timeout_s:
-            frame = self._frame()
-            d = frame_diff(prev, frame) if prev is not None else 1.0
-            prev = frame
-            if time.time() - t0 > 5:
-                if d < 0.008:
-                    return
-                if self._current_mode() is not None:
-                    return
-            time.sleep(0.5)

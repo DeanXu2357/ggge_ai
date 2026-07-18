@@ -78,11 +78,16 @@ ledger 期望事件改記去前綴相位名（流水帳僅工程分析，格式�
 intel_done/full_scan_done）收成 `due()`/`mark_*` 工作閘門（turn scope 翻頁
 自動重上膛）。③ `_ActionState`→`timeline.activation`，被吞回滾從 on_eaten
 lambda 內化成表上 `repair` 欄，`ends_activation` 取代散落的 reset。timeline
-只記帳回報 divergence 永不否決分派（畫面權威紅線）；批次 4（刪
-`_wait_animation` 阻塞等待）與批次 5（not_actionable 依 expectation_open
-分層抑制 nudge/LLM，保留敵方回合 keep-alive tap）已設計未實作，屬行為
-變更待使用者驗收。500 tests/3 xfail、ruff 全綠；文件 battle-phase-states.md
-「期望轉移驗證」。**裝置現況與 S9 恢復點不變，見下。**
+只記帳回報 divergence 永不否決分派（畫面權威紅線）；④⑤（使用者批准的
+行為變更，落地順序抑制先行避免過渡態亂 nudge）：not_actionable 在契約
+開啟時安靜等（不累 miss、不 nudge、不燒 LLM；垂死對話游標照答，敵方
+回合無契約保留 keep-alive tap），然後刪除 `_wait_animation` 45 秒阻塞
+——確認開戰後短 settle 即 return，動畫由主迴圈 NOT_ACTIONABLE tick
+消化、終局由每 tick 的覆蓋層掃描接住（舊兩出口都是迴圈原生功能），
+`settle_timeout_s`／`frame_diff` 依賴一併移除，全系統只剩一個迴圈
+（測試套件 130s→100s，reconcile_wiring 不再空轉即為切除證據）。
+503 tests/3 xfail、ruff 全綠；文件 battle-phase-states.md「期望轉移驗證」。
+**裝置現況與 S9 恢復點不變，見下。**
 
 ## 暫停快照（2026-07-15 S9d 應戰整併，恢復點）
 
