@@ -668,7 +668,8 @@ class ManualBattleController:
         fire while we're actively responding to something)."""
         dialog_frame = self._frame()
         # a dying unit pops a MENU-less inline dialogue line; advance it
-        # before it stalls us
+        # before it stalls us -- checked even during an open contract, the
+        # line can appear mid battle-execute animation
         cursor = vision.locate_dialog_cursor(dialog_frame)
         if cursor is not None:
             log.info("in-battle dialog (cursor at %s), advancing", cursor)
@@ -677,6 +678,14 @@ class ManualBattleController:
             time.sleep(0.8)
             self._miss_streak = 0
             return True
+        if self.timeline.expectation_open:
+            # our own action's animation: the open contract explains the
+            # label-less screen, so wait quietly -- no miss streak, no nudge,
+            # no LLM spend. the contract's checks budget still expires it if
+            # the label never comes back, and the enemy turn (no contract)
+            # keeps the periodic nudge as its power-save keep-alive
+            time.sleep(0.8)
+            return False
         # nothing recognized this scene at all: after a few misses, nudge a
         # non-button spot -- dialog-style scenes advance on any tap, and
         # anything else safely ignores it. an unrecognized variant of a known

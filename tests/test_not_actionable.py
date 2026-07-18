@@ -113,6 +113,50 @@ def test_log_state_logs_only_on_transition(caplog):
     assert "NOT_ACTIONABLE enemy_turn" in state_lines[1]
 
 
+def test_open_contract_suppresses_the_miss_streak_and_nudge(monkeypatch):
+    """During our own action's animation (an open act->verify contract) the
+    label-less stretch is expected: no miss streak, no neutral tap, no LLM.
+    The contract's checks budget remains the only clock on it."""
+    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
+    monkeypatch.setattr(vision, "locate_dialog_cursor", lambda frame: None)
+    c = _controller()
+    c.timeline.phase = "battle_prep"
+    c.timeline.acted("battle_execute")
+
+    for _ in range(controller_mod.NEUTRAL_TAP_AFTER_MISSES + 1):
+        assert c._on_not_actionable() is False
+
+    assert c.actuator.taps == []
+    assert c._miss_streak == 0
+    assert not any(e["kind"] == "neutral_tap" for e in c.ledger.events)
+
+
+def test_contract_expiry_reopens_the_nudge_path(monkeypatch):
+    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
+    monkeypatch.setattr(vision, "locate_dialog_cursor", lambda frame: None)
+    c = _controller()
+    c.timeline.phase = "battle_prep"
+    c.timeline.acted("battle_execute")
+    while c.timeline.expectation_open:
+        c.timeline.observe(None)
+
+    for _ in range(controller_mod.NEUTRAL_TAP_AFTER_MISSES):
+        c._on_not_actionable()
+
+    assert c.actuator.taps == [controller_mod.NEUTRAL_TAP]
+
+
+def test_dialog_cursor_still_advances_during_an_open_contract(monkeypatch):
+    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
+    monkeypatch.setattr(vision, "locate_dialog_cursor", lambda frame: (500, 900))
+    c = _controller()
+    c.timeline.phase = "battle_prep"
+    c.timeline.acted("battle_execute")
+
+    assert c._on_not_actionable() is True
+    assert (500, 900) in c.actuator.taps
+
+
 def test_dialog_resets_the_miss_streak(monkeypatch):
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     cursors = iter([None, None, (500, 900)])
