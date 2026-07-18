@@ -116,7 +116,7 @@ def test_second_turn_uses_the_cheap_local_scan(monkeypatch):
     c = _run_scan(monkeypatch, world)
     legs_full = len(world.moves)
 
-    c._turn_scouted = False
+    c.timeline.mark_pending("scout")
     world.moves.clear()
     c._scout(c.perception.capture())
 

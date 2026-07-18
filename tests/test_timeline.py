@@ -97,3 +97,49 @@ def test_newer_action_supersedes_the_open_contract():
 
     assert [e.kind for e in events] == ["expectation_met"]
     assert events[0].data["action"] == "open_weapon_select"
+
+
+def test_turn_ocr_advances_and_rearms_turn_jobs():
+    t = BattleTimeline()
+    assert t.due("scout") is True
+    assert t.due("scout") is False
+    assert t.due("full_scan", scope="battle") is True
+
+    assert t.on_turn_read(2, marker=None) is True
+    assert t.turn == 2
+    assert t.due("scout") is True  # turn scope re-armed
+    assert t.due("full_scan", scope="battle") is False  # battle scope survives
+
+
+def test_turn_ocr_same_or_lower_number_does_not_advance():
+    t = BattleTimeline(turn=3)
+    assert t.on_turn_read(3, marker=None) is False
+    assert t.on_turn_read(2, marker=None) is False
+    assert t.turn == 3
+
+
+def test_absurd_turn_jump_is_rejected_as_misread():
+    t = BattleTimeline()
+    assert t.on_turn_read(77, marker=None) is False
+    assert t.turn == 1
+
+
+def test_unreadable_chip_falls_back_to_marker_compare():
+    import numpy as np
+
+    one = np.zeros((36, 40), np.uint8)
+    one[:, :20] = 255
+    two = np.zeros((36, 40), np.uint8)
+    two[:, 20:] = 255
+
+    t = BattleTimeline()
+    assert t.on_turn_read(None, marker=one) is False  # baseline stored
+    assert t.on_turn_read(None, marker=two) is True
+    assert t.turn == 2
+
+
+def test_mark_pending_rearms_a_consumed_job():
+    t = BattleTimeline()
+    assert t.due("scout") is True
+    t.mark_pending("scout")
+    assert t.due("scout") is True

@@ -69,10 +69,73 @@ class TimelineEvent:
     with_frame: bool = False
 
 
+# a TURN read jumping further than this from the current turn is a misread:
+# a single bad OCR must not poison the counter forever (every later true
+# value would compare lower); real skips are 1-2 turns
+TURN_JUMP_MAX = 3
+
+
 @dataclass
 class BattleTimeline:
     phase: str | None = None
+    # aligned with BattleLedger.turn / BoardTracker.turn, both 1-based
+    turn: int = 1
     _expectation: Expectation | None = field(default=None, repr=False)
+    _marker: object | None = field(default=None, repr=False)
+    _done_jobs: set[str] = field(default_factory=set, repr=False)
+
+    def on_turn_read(self, number: int | None, marker) -> bool:
+        """Turn-boundary decision from the hub's TURN chip: digit OCR is the
+        primary read (the HARD 1 ledger sat on turn=1 all battle because the
+        marker-diff compare never fired), the marker crop compare stays as
+        the fallback for frames where the chip does not read. Returns True
+        when a new turn begins; turn-scoped jobs re-arm on it."""
+        from ggge_ai.battle import vision
+
+        if number is not None:
+            advanced = False
+            if number - self.turn > TURN_JUMP_MAX:
+                log.warning(
+                    "TURN read %d jumps too far from %d, ignoring as a misread",
+                    number,
+                    self.turn,
+                )
+            elif number > self.turn:
+                self._new_turn(number)
+                log.info("new turn detected (TURN %d on screen)", number)
+                advanced = True
+            self._marker = marker
+            return advanced
+        if self._marker is None:
+            self._marker = marker
+            return False
+        if vision.turn_marker_changed(self._marker, marker):
+            self._marker = marker
+            self._new_turn(self.turn + 1)
+            log.info("new turn detected (marker change, turn %d)", self.turn)
+            return True
+        return False
+
+    def _new_turn(self, turn: int) -> None:
+        self.turn = turn
+        self._done_jobs = {k for k in self._done_jobs if not k.startswith("turn:")}
+
+    def due(self, job: str, scope: str = "turn") -> bool:
+        """Once-per-scope work gate: the first ask per turn (or per battle)
+        returns True and claims the job; later asks say no. Consuming on the
+        ask keeps the call sites to one line -- pair every True with actually
+        doing the work."""
+        key = f"{scope}:{job}"
+        if key in self._done_jobs:
+            return False
+        self._done_jobs.add(key)
+        return True
+
+    def mark_done(self, job: str, scope: str = "turn") -> None:
+        self._done_jobs.add(f"{scope}:{job}")
+
+    def mark_pending(self, job: str, scope: str = "turn") -> None:
+        self._done_jobs.discard(f"{scope}:{job}")
 
     def acted(self, action: str, on_eaten: Callable[[], None] | None = None) -> None:
         """A handler reports the action it just fired; the transition

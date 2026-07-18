@@ -94,7 +94,7 @@ def _prime_our_turn(monkeypatch, changed: bool):
     c._scout = lambda frame: None
     c._snapshot_factions = lambda frame: None
     c._probe_after_select = lambda *a, **k: None
-    c._turn_marker = np.zeros((36, 40), np.uint8)
+    c.timeline._marker = np.zeros((36, 40), np.uint8)
     return c
 
 
@@ -107,18 +107,18 @@ def test_hub_visit_without_turn_change_does_not_advance(monkeypatch):
 
 def test_hub_visit_with_turn_change_advances_and_rescouts(monkeypatch):
     c = _prime_our_turn(monkeypatch, changed=True)
-    c._turn_scouted = True
+    c.timeline.mark_done("scout")
     start = c.ledger.turn
     c._on_our_turn()
     assert c.ledger.turn == start + 1
     # the reset re-arms the once-per-turn scout (the stub does not re-set it)
-    assert c._turn_scouted is False
+    assert "turn:scout" not in c.timeline._done_jobs
 
 
 def test_first_hub_visit_sets_baseline_without_advancing(monkeypatch):
     c = _prime_our_turn(monkeypatch, changed=True)
-    c._turn_marker = None
+    c.timeline._marker = None
     start = c.ledger.turn
     c._on_our_turn()
     assert c.ledger.turn == start
-    assert c._turn_marker is not None
+    assert c.timeline._marker is not None

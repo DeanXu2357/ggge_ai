@@ -242,8 +242,6 @@ class ManualBattleController:
     hidden_battle_policy: str = "challenge"
     _action: _ActionState = field(default_factory=_ActionState)
     _enemy_hint: tuple[float, float] | None = None
-    _turn_scouted: bool = False
-    _turn_marker: object | None = None
     _miss_streak: int = 0
     _last_probe: dict = field(default_factory=dict)
     _mode_flicker: tuple | None = None
@@ -273,11 +271,6 @@ class ManualBattleController:
     # aborts the battle (fail-fast, user's 2026-07-14 call)
     pilot_enabled: bool = False
     pilot_time_budget_s: float = 3.0
-    _intel_done: bool = False
-    _full_scan_done: bool = False
-    _turn_advised: bool = False
-    _turn_sig_refreshed: bool = False
-    _turn_resynced: bool = False
     _kills: list = field(default_factory=list)
     _defn: object | None = None
     _proposal: object | None = None
@@ -751,50 +744,15 @@ class ManualBattleController:
             # the turn boundary is the on-screen TURN number changing between
             # hub visits: turns auto-advance once every unit has acted, so the
             # end-turn dialog is not reliable, and quiet label-less stretches
-            # (the old phase-break streak) also occur mid-turn during attack
-            # animations. primary read is digit OCR of the number itself (the
-            # HARD 1 ledger sat on turn=1 all battle because the marker-diff
-            # compare never fired); the marker compare stays as the fallback
-            # for frames where the chip does not read
-            turn_number = vision.read_turn_number(frame)
-            if turn_number is not None:
-                current = self.ledger.turn if self.ledger is not None else 0
-                if turn_number - current > 3:
-                    # a single bad read must not poison the counter forever
-                    # (every later true value would compare lower); jumps
-                    # this size are misreads, real skips are 1-2 turns
-                    log.warning(
-                        "TURN read %d jumps too far from %d, ignoring as a misread",
-                        turn_number,
-                        current,
-                    )
-                elif turn_number > current:
-                    self._turn_scouted = False
-                    self._turn_advised = False
-                    self._turn_sig_refreshed = False
-                    self._turn_resynced = False
-                    self.tracker.on_turn(turn_number)
-                    if self.ledger is not None:
-                        self.ledger.next_turn(frame=frame, turn=turn_number)
-                    log.info("new turn detected (TURN %d on screen)", turn_number)
-                self._turn_marker = vision.crop_turn_marker(frame)
-            else:
-                marker = vision.crop_turn_marker(frame)
-                if self._turn_marker is None:
-                    self._turn_marker = marker
-                elif vision.turn_marker_changed(self._turn_marker, marker):
-                    self._turn_marker = marker
-                    self._turn_scouted = False
-                    self._turn_advised = False
-                    self._turn_sig_refreshed = False
-                    self._turn_resynced = False
-                    self.tracker.on_turn(self.tracker.turn + 1)
-                    if self.ledger is not None:
-                        self.ledger.next_turn(frame=frame)
-                    log.info(
-                        "new turn detected (marker change, turn %d)",
-                        self.ledger.turn if self.ledger else 0,
-                    )
+            # also occur mid-turn during attack animations. the OCR/marker
+            # decision (jump guard, marker fallback, per-turn job re-arm)
+            # lives in timeline.on_turn_read
+            if self.timeline.on_turn_read(
+                vision.read_turn_number(frame), vision.crop_turn_marker(frame)
+            ):
+                self.tracker.on_turn(self.timeline.turn)
+                if self.ledger is not None:
+                    self.ledger.next_turn(frame=frame, turn=self.timeline.turn)
             self._card_count = vision.count_unit_cards(frame)
             self._snapshot_factions(frame)
             self._scout(frame)
@@ -821,7 +779,7 @@ class ManualBattleController:
         else:
             log.info("no actable units left, ending turn")
             self.actuator.tap(*END_TURN_BTN)
-            self._turn_scouted = False
+            self.timeline.mark_pending("scout")
             time.sleep(1.8)
 
     def _ensure_stage_definition(self, frame) -> None:
@@ -831,9 +789,8 @@ class ManualBattleController:
         validation -- falls back to a full fail-loud survey (cold start),
         which writes the definition for every later entry. Runs once per
         battle on the first our-turn hub."""
-        if not self.intel_enabled or self._intel_done:
+        if not self.intel_enabled or not self.timeline.due("intel", scope="battle"):
             return
-        self._intel_done = True
         if self.stage_id is None:
             raise SurveyIncomplete("intel enabled but no stage_id given")
         from .scout_intel import survey_stage, validate_stage
@@ -1086,9 +1043,9 @@ class ManualBattleController:
         board is missing units -- fewer live enemies than the definition
         expects, or an empty board at pilot time. Rebuilds the scan
         skeleton and re-anchors tracked positions."""
-        self._turn_resynced = True
+        self.timeline.mark_done("resync")
         self._log("board_resync", reason=reason, frame=frame)
-        self._turn_scouted = False
+        self.timeline.mark_pending("scout")
         self._scout(frame)
         scan = [tuple(p) for p in self.tacmap.enemies + self.tacmap.third_party]
         if not self.resolver.passthrough and scan:
@@ -1106,7 +1063,7 @@ class ManualBattleController:
         if (
             expected is not None
             and len(battle.enemies()) < expected
-            and not self._turn_resynced
+            and self.timeline.due("resync")
         ):
             self._resync_board(
                 frame, f"enemies on board {len(battle.enemies())} < expected {expected}"
@@ -1120,9 +1077,8 @@ class ManualBattleController:
         fresh scan so the sig match does not decay as enemies move.
         Quiet nearest-neighbour updates when unambiguous; budgeted
         summary-card taps only for contested candidates."""
-        if self._turn_sig_refreshed:
+        if not self.timeline.due("sig_refresh"):
             return
-        self._turn_sig_refreshed = True
         known = self.tracker.id_positions()
         if not known:
             return
@@ -1161,9 +1117,8 @@ class ManualBattleController:
         once per turn -- logged as a proposal, never executed. When the
         weapon-select forecast later names a different target than the
         proposal, that lands as [SIM-DIVERGE] proposal_target evidence."""
-        if not self.advisor_enabled or self._turn_advised:
+        if not self.advisor_enabled or not self.timeline.due("advise"):
             return
-        self._turn_advised = True
         self._proposal = None
         battle, belief_notes = self._board_with_resync(self._frame())
         advice = self.advisor.advise(
@@ -1223,14 +1178,12 @@ class ManualBattleController:
         with the cheap four-direction local scan around the hub view.
         Every pan is measured with phase correlation before world
         coordinates are assigned."""
-        if self._turn_scouted:
+        if not self.timeline.due("scout"):
             return
-        self._turn_scouted = True
         self.tacmap.reset()
         camera = (0.0, 0.0)
         self._observe_map(frame, camera)
-        if not self._full_scan_done:
-            self._full_scan_done = True
+        if self.timeline.due("full_scan", scope="battle"):
             camera, legs = self._scout_serpentine(frame, camera)
             scan = f"serpentine({legs} legs)"
         else:
@@ -1404,7 +1357,7 @@ class ManualBattleController:
             AdvisorConfig(time_budget_s=self.pilot_time_budget_s, cell_size=95.0),
             unit_id=ally_id,
         )
-        if advice is None and not battle.enemies() and not self._turn_resynced:
+        if advice is None and not battle.enemies() and self.timeline.due("resync"):
             # the user-settled two-stage semantics: an empty board gets
             # one resync and one more consultation before any verdict
             self._resync_board(frame, "pilot_empty_board")

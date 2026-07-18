@@ -33,7 +33,7 @@ def _hub_visit(c, monkeypatch, turn_read):
     monkeypatch.setattr(vision, "find_ally_units", lambda f, region=None: [])
     monkeypatch.setattr(vision, "find_enemy_units", lambda f, region=None: [])
     monkeypatch.setattr(vision, "find_third_party_units", lambda f, region=None: [])
-    c._turn_scouted = True
+    c.timeline.mark_done("scout")
     c._on_our_turn()
 
 
@@ -56,7 +56,7 @@ def test_same_turn_number_does_not_advance(monkeypatch):
 def test_new_turn_number_advances_and_rescouts(monkeypatch):
     c = _controller()
     scouts = []
-    c._scout = lambda frame: scouts.append(c._turn_scouted)
+    c._scout = lambda frame: scouts.append("turn:scout" in c.timeline._done_jobs)
     _hub_visit(c, monkeypatch, 1)
     _hub_visit(c, monkeypatch, 2)
     assert c.ledger.turn == 2
