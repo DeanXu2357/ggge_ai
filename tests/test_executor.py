@@ -195,12 +195,12 @@ def test_pilot_attack_in_place_selects_slot_and_attacks(monkeypatch):
 
     c._on_unit_move()
     assert controller_mod.WEAPON_SELECT_BTN in c.actuator.taps
-    assert c._action.plan is not None and c._action.plan.weapon_slot == 1
+    assert c.timeline.activation.plan is not None and c.timeline.activation.plan.weapon_slot == 1
 
     monkeypatch.setattr(vision, "attack_enabled", lambda f: True)
     monkeypatch.setattr(vision, "read_weapon_select_forecast", lambda f: _forecast())
     monkeypatch.setattr(vision, "read_kill_counter", lambda f: (0, 14))
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
     c._on_weapon_select()
 
     assert controller_mod.WEAPON_SLOTS[0] in c.actuator.taps
@@ -217,7 +217,7 @@ def test_pilot_move_then_attack(monkeypatch):
 
     c._on_unit_move()
     assert (180, 10) in c.actuator.taps
-    assert c._action.moved
+    assert c.timeline.activation.moved
 
     c._on_unit_move()
     assert controller_mod.WEAPON_SELECT_BTN in c.actuator.taps
@@ -297,7 +297,7 @@ def test_pilot_target_mismatch_without_switch_button_aborts(monkeypatch):
         vision, "read_weapon_select_forecast",
         lambda f: _forecast(target_name_sig="0" * 16),
     )
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
 
     with pytest.raises(PilotAbort):
         c._on_weapon_select()
@@ -312,7 +312,7 @@ def test_pilot_weapon_not_lit_aborts(monkeypatch):
     c._on_unit_move()
 
     monkeypatch.setattr(vision, "attack_enabled", lambda f: False)
-    c._dispatched_mode = "label_weapon_select"
+    c.timeline.phase = "weapon_select"
 
     with pytest.raises(PilotAbort):
         c._on_weapon_select()

@@ -190,18 +190,6 @@ class PilotAbort(Exception):
     user's fail-fast call the battle ends immediately, screen left as-is."""
 
 
-@dataclass
-class _ActionState:
-    tried_in_place: bool = False
-    moved: bool = False
-    plan: executor.ActivationPlan | None = None
-
-    def reset(self) -> None:
-        self.tried_in_place = False
-        self.moved = False
-        self.plan = None
-
-
 @dataclass(frozen=True)
 class LoopStep:
     """A handler's report back to the run loop: end the battle, returning
@@ -240,7 +228,6 @@ class ManualBattleController:
     # force is usually over-spec. the OCR power-gap check (建議 vs 我軍戰鬥力)
     # is a future on-device upgrade; for now we do not read the numbers
     hidden_battle_policy: str = "challenge"
-    _action: _ActionState = field(default_factory=_ActionState)
     _enemy_hint: tuple[float, float] | None = None
     _miss_streak: int = 0
     _last_probe: dict = field(default_factory=dict)
@@ -737,7 +724,7 @@ class ManualBattleController:
         self._log("llm_read", frame=frame, reason=reason, **reading.to_event())
 
     def _on_our_turn(self) -> None:
-        self._action.reset()
+        self.timeline.activation.reset()
         self._guard_auto()
         frame = self._frame()
         if vision.unit_cards_present(frame):
@@ -1397,7 +1384,7 @@ class ManualBattleController:
                 self._pilot_abort(
                     "weapon_unresolved", frame=frame, unit=ally_id, weapon=advice.weapon
                 )
-        self._action.plan = executor.ActivationPlan(
+        self.timeline.activation.plan = executor.ActivationPlan(
             advice=advice,
             ally_id=ally_id,
             unit_world=unit_world,
@@ -1434,12 +1421,12 @@ class ManualBattleController:
     def _pilot_unit_move(self) -> bool:
         """True when the pilot handled this unit-move visit; False demotes
         the activation to the greedy body."""
-        if self._action.plan is None:
-            if self._action.tried_in_place or self._action.moved:
+        if self.timeline.activation.plan is None:
+            if self.timeline.activation.tried_in_place or self.timeline.activation.moved:
                 return False
             if not self._pilot_begin():
                 return False
-        plan = self._action.plan
+        plan = self.timeline.activation.plan
         advice = plan.advice
         if advice.kind == ActionKind.STANDBY:
             self._log("pilot_step", step="standby", unit=plan.ally_id)
@@ -1459,7 +1446,7 @@ class ManualBattleController:
                 )
             basis, point = mv
             plan.move_done = True
-            self._action.moved = True
+            self.timeline.activation.moved = True
             self._log(
                 "pilot_step", step="move", frame=frame,
                 unit=plan.ally_id, basis=basis, cell=list(point),
@@ -1471,13 +1458,10 @@ class ManualBattleController:
             self._log("pilot_step", step="standby_after_move", unit=plan.ally_id)
             self._standby("pilot_move_done")
             return True
-        self._action.tried_in_place = True
+        self.timeline.activation.tried_in_place = True
         self._log("pilot_step", step="open_weapon_select", unit=plan.ally_id)
         self.actuator.tap(*WEAPON_SELECT_BTN)
-        self.timeline.acted(
-            "open_weapon_select",
-            on_eaten=lambda: setattr(self._action, "tried_in_place", False),
-        )
+        self.timeline.acted("open_weapon_select")
         time.sleep(1.8)
         return True
 
@@ -1527,19 +1511,14 @@ class ManualBattleController:
     def _on_unit_move(self) -> None:
         if self.pilot_enabled and self._pilot_unit_move():
             return
-        if not self._action.tried_in_place:
+        if not self.timeline.activation.tried_in_place:
             log.info("opening weapon select in place")
-            self._action.tried_in_place = True
+            self.timeline.activation.tried_in_place = True
             self.actuator.tap(*WEAPON_SELECT_BTN)
-            # an eaten tap must clear the flag, or the next visit walks the
-            # move branch believing weapon select was already tried
-            self.timeline.acted(
-                "open_weapon_select",
-                on_eaten=lambda: setattr(self._action, "tried_in_place", False),
-            )
+            self.timeline.acted("open_weapon_select")
             time.sleep(1.8)
             return
-        if not self._action.moved:
+        if not self.timeline.activation.moved:
             frame = self._frame()
             cells = vision.find_move_cells(frame)
             target, basis = self._seek_move_target(frame, cells)
@@ -1553,7 +1532,7 @@ class ManualBattleController:
                     target=(round(target[0]), round(target[1])),
                     cell=cell,
                 )
-                self._action.moved = True
+                self.timeline.activation.moved = True
                 self.actuator.tap(*cell)
                 time.sleep(2.0)
                 return
@@ -1572,7 +1551,7 @@ class ManualBattleController:
                     target=(round(target[0]), round(target[1])),
                     cell=point,
                 )
-                self._action.moved = True
+                self.timeline.activation.moved = True
                 self.actuator.tap(*point)
                 time.sleep(2.0)
                 return
@@ -1674,7 +1653,7 @@ class ManualBattleController:
         return point
 
     def _on_weapon_select(self) -> None:
-        plan = self._action.plan
+        plan = self.timeline.activation.plan
         if self.pilot_enabled and plan is not None and plan.advice.kind == ActionKind.ATTACK:
             self._pilot_weapon_select(plan)
             return
@@ -1694,7 +1673,7 @@ class ManualBattleController:
                 self._attack(slot=i + 1)
                 return
             log.debug("weapon slot %d: no target in range", i + 1)
-        if self._action.moved or not self._can_return():
+        if self.timeline.activation.moved or not self._can_return():
             log.info("all weapons out of range, standing by")
             self._standby("out_of_range")
         else:
@@ -1703,7 +1682,7 @@ class ManualBattleController:
             time.sleep(1.5)
 
     def _can_return(self) -> bool:
-        return not self._action.moved
+        return not self.timeline.activation.moved
 
     def _on_skill(self) -> None:
         # v1 does not use skills yet; leave the accidental skill screen
@@ -1963,7 +1942,6 @@ class ManualBattleController:
         self.actuator.tap(*pos)
         self.timeline.acted("battle_execute")
         self._wait_animation()
-        self._action.reset()
 
     def _attack(self, slot: int) -> None:
         extras: dict = {}
@@ -1995,7 +1973,6 @@ class ManualBattleController:
         self.actuator.tap(*STANDBY_BTN)
         self.timeline.acted("standby")
         time.sleep(1.8)
-        self._action.reset()
 
     def _wait_animation(self) -> None:
         """Wait out the combat cut-in animation. Two exits: frames settling

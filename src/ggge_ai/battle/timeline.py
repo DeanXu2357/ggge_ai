@@ -13,25 +13,56 @@ vetoes a dispatch.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass, field
 
 log = logging.getLogger(__name__)
 
-# the game's UI flow map, one entry per registered action:
-# (targets, checks, retries) = phases the next confirmed read may legally
-# land on, label-less reads budgeted before the contract expires (counted
-# in reads, not wall time), and eaten-tap retries granted. battle_execute
-# gets a generous budget (long battle animations, and a reaction popup's
-# enemy turn continues afterwards); battle_prep is among its legal targets
-# because consecutive reaction popups re-enter that screen.
-TRANSITIONS: dict[str, tuple[tuple[str, ...], int, int]] = {
-    "select_unit": (("unit_move", "weapon_select"), 8, 1),
-    "open_weapon_select": (("weapon_select",), 8, 1),
-    "attack": (("battle_prep",), 8, 1),
-    "battle_execute": (("our_turn", "unit_move", "weapon_select", "battle_prep"), 20, 1),
-    "standby": (("our_turn",), 12, 1),
+
+@dataclass(frozen=True)
+class Transition:
+    """One row of the game's UI flow map: where an action may legally land
+    (`targets`), how many label-less reads the contract survives (`checks`,
+    counted in reads, not wall time), how many eaten-tap retries it gets,
+    which activation flag to roll back when the tap was eaten (`repair`),
+    and whether the action closes the current unit activation."""
+
+    targets: tuple[str, ...]
+    checks: int = 8
+    retries: int = 1
+    repair: str | None = None
+    ends_activation: bool = False
+
+
+# battle_execute gets a generous budget (long battle animations, and a
+# reaction popup's enemy turn continues afterwards); battle_prep is among
+# its legal targets because consecutive reaction popups re-enter that screen
+TRANSITIONS: dict[str, Transition] = {
+    "select_unit": Transition(("unit_move", "weapon_select")),
+    "open_weapon_select": Transition(("weapon_select",), repair="tried_in_place"),
+    "attack": Transition(("battle_prep",)),
+    "battle_execute": Transition(
+        ("our_turn", "unit_move", "weapon_select", "battle_prep"),
+        checks=20,
+        ends_activation=True,
+    ),
+    "standby": Transition(("our_turn",), checks=12, ends_activation=True),
 }
+
+
+@dataclass
+class Activation:
+    """Per-unit activation state threading the unit_move <-> weapon_select
+    visits; reset when the activation ends (standby, battle executed, or a
+    fresh hub visit)."""
+
+    tried_in_place: bool = False
+    moved: bool = False
+    plan: object | None = None
+
+    def reset(self) -> None:
+        self.tried_in_place = False
+        self.moved = False
+        self.plan = None
 
 
 @dataclass
@@ -42,8 +73,9 @@ class Expectation:
     Verdicts, checked against every phase read fed to observe():
     - observed in targets: transition verified.
     - observed == source: the tap was eaten (power-save lock, mid-animation
-      UI) -- on_eaten repairs any handler flag that assumed success, so the
-      reactive dispatch retries the action instead of walking a wrong branch.
+      UI) -- the transition's `repair` flag rolls back on the activation, so
+      the reactive dispatch retries the action instead of walking a wrong
+      branch.
     - observed is some other real phase: a miss. The screen is authoritative,
       so reality wins and the miss is only recorded as evidence that our
       transition model of the game is wrong somewhere.
@@ -55,7 +87,7 @@ class Expectation:
     source: str | None
     targets: frozenset[str]
     checks_left: int
-    on_eaten: Callable[[], None] | None = None
+    repair: str | None = None
     retries_left: int = 1
 
 
@@ -80,6 +112,7 @@ class BattleTimeline:
     phase: str | None = None
     # aligned with BattleLedger.turn / BoardTracker.turn, both 1-based
     turn: int = 1
+    activation: Activation = field(default_factory=Activation)
     _expectation: Expectation | None = field(default=None, repr=False)
     _marker: object | None = field(default=None, repr=False)
     _done_jobs: set[str] = field(default_factory=set, repr=False)
@@ -137,20 +170,23 @@ class BattleTimeline:
     def mark_pending(self, job: str, scope: str = "turn") -> None:
         self._done_jobs.discard(f"{scope}:{job}")
 
-    def acted(self, action: str, on_eaten: Callable[[], None] | None = None) -> None:
+    def acted(self, action: str) -> None:
         """A handler reports the action it just fired; the transition
         contract comes from the TRANSITIONS map, the source is the phase
         the screen last confirmed. One at a time: a newer action supersedes
-        whatever contract was still open."""
-        targets, checks, retries = TRANSITIONS[action]
+        whatever contract was still open. An activation-ending action
+        resets the per-unit state on the spot."""
+        t = TRANSITIONS[action]
         self._expectation = Expectation(
             action=action,
             source=self.phase,
-            targets=frozenset(targets),
-            checks_left=checks,
-            on_eaten=on_eaten,
-            retries_left=retries,
+            targets=frozenset(t.targets),
+            checks_left=t.checks,
+            repair=t.repair,
+            retries_left=t.retries,
         )
+        if t.ends_activation:
+            self.activation.reset()
 
     @property
     def expectation_open(self) -> bool:
@@ -190,8 +226,8 @@ class BattleTimeline:
         elif phase == exp.source and exp.retries_left > 0:
             exp.retries_left -= 1
             log.warning("%s left the screen unchanged (tap eaten?), retrying", exp.action)
-            if exp.on_eaten is not None:
-                exp.on_eaten()
+            if exp.repair is not None:
+                setattr(self.activation, exp.repair, False)
             return [TimelineEvent("expectation_retry", {"action": exp.action, "observed": phase})]
         elif phase == exp.source:
             log.warning("%s still stuck on %s after retrying, giving up on it", exp.action, phase)

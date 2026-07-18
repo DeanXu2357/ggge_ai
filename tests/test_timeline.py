@@ -33,13 +33,13 @@ def test_unexpected_screen_is_a_recorded_miss_not_a_fight():
     assert miss.with_frame is True
 
 
-def test_eaten_tap_triggers_on_eaten_once_then_expires():
-    repaired = []
+def test_eaten_tap_repairs_the_activation_flag_once_then_expires():
     t = BattleTimeline(phase="unit_move")
-    t.acted("open_weapon_select", on_eaten=lambda: repaired.append(True))
+    t.activation.tried_in_place = True
+    t.acted("open_weapon_select")
 
     events = t.observe("unit_move")
-    assert repaired == [True]
+    assert t.activation.tried_in_place is False  # repaired for the retry
     assert [e.kind for e in events] == ["expectation_retry"]
     assert t.expectation_open is True  # re-armed, waiting for the retry
 
@@ -48,11 +48,23 @@ def test_eaten_tap_triggers_on_eaten_once_then_expires():
     assert t.expectation_open is False
 
 
+def test_activation_ending_action_resets_the_per_unit_state():
+    t = BattleTimeline(phase="battle_prep")
+    t.activation.tried_in_place = True
+    t.activation.moved = True
+
+    t.acted("battle_execute")
+
+    assert t.activation.tried_in_place is False
+    assert t.activation.moved is False
+    assert t.activation.plan is None
+
+
 def test_label_less_reads_burn_the_budget_not_the_clock():
     t = BattleTimeline(phase="weapon_select")
     t.acted("attack")
 
-    for _ in range(TRANSITIONS["attack"][1] - 1):
+    for _ in range(TRANSITIONS["attack"].checks - 1):
         assert t.observe(None) == []
     assert t.expectation_open is True
 

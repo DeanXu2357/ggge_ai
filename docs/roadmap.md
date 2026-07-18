@@ -66,6 +66,24 @@ phase 名。行為等價（偵測順序、短路成本、per-tick 截圖副作�
 出口全保留）；491 tests（+7 classify/dispatch）/3 xfail、ruff 全綠；文件
 battle-phase-states.md「分類與分派」。**裝置現況與 S9 恢復點不變，見下。**
 
+**2026-07-19（續）BattleTimeline 三批次（行為不變、非里程碑）**：controller
+的「時間記憶」拆進新物件 `battle/timeline.py`（純狀態、不截圖不點擊；與管
+空間的 BoardTracker 分工），使用者定調「handler 只看當下畫面、跨 tick 記憶
+歸注入物件」。① act→verify 契約搬入：UI 流程圖集中成 `TRANSITIONS` 表，
+handler 改報 `acted("attack")`，`_classify` 每 tick 餵 `observe(phase)` 並執行
+回傳 ledger intent，`_dispatched_mode` 廢除（來源＝畫面最後確認的 phase）；
+ledger 期望事件改記去前綴相位名（流水帳僅工程分析，格式安全）。② turn
+偵測搬入 `on_turn_read`（OCR 跳號防呆＋marker fallback，turn 權威 1-based
+對齊 ledger/tracker），六個散裝旗標（scouted/advised/sig_refreshed/resynced/
+intel_done/full_scan_done）收成 `due()`/`mark_*` 工作閘門（turn scope 翻頁
+自動重上膛）。③ `_ActionState`→`timeline.activation`，被吞回滾從 on_eaten
+lambda 內化成表上 `repair` 欄，`ends_activation` 取代散落的 reset。timeline
+只記帳回報 divergence 永不否決分派（畫面權威紅線）；批次 4（刪
+`_wait_animation` 阻塞等待）與批次 5（not_actionable 依 expectation_open
+分層抑制 nudge/LLM，保留敵方回合 keep-alive tap）已設計未實作，屬行為
+變更待使用者驗收。500 tests/3 xfail、ruff 全綠；文件 battle-phase-states.md
+「期望轉移驗證」。**裝置現況與 S9 恢復點不變，見下。**
+
 ## 暫停快照（2026-07-15 S9d 應戰整併，恢復點）
 
 **裝置現況**：本 session 前半 USB 連上（`R5CRC37JBYJ device`）做了回應探測

@@ -47,10 +47,10 @@ def test_eaten_weapon_select_tap_reopens_on_next_visit(monkeypatch):
 
     c._on_unit_move()
     assert c.actuator.taps.count(WEAPON_SELECT_BTN) == 1
-    assert c._action.tried_in_place is True
+    assert c.timeline.activation.tried_in_place is True
 
     c.timeline.observe("unit_move")
-    assert c._action.tried_in_place is False
+    assert c.timeline.activation.tried_in_place is False
 
     c._on_unit_move()
     assert c.actuator.taps.count(WEAPON_SELECT_BTN) == 2

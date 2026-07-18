@@ -108,15 +108,24 @@ TURN 數字（`vision.turn_marker_changed`）只是這個迴圈的計數器，�
 確認「這次真的是新一輪，不是 modal 造成的幻影」，不影響該做什麼決策
 ——ACTIONABLE/NOT_ACTIONABLE 的二元狀態才是控制器行為的依據。
 
-## 期望轉移驗證（2026-07-12 落地，使用者定案的 act → verify → retry）
+## 期望轉移驗證（2026-07-12 落地，使用者定案的 act → verify → retry；
+2026-07-19 收進 `battle/timeline.py`）
 
-控制器不再只是被動感知：每個關鍵動作發出後登記一份轉移契約
-（`Expectation`：來源相位 → 合法目標相位集合），主迴圈每次確認到
-mode 時對帳：
+act→verify 機制整包住進 `BattleTimeline`——控制器的「時間記憶」物件
+（純狀態、不截圖不點擊，與管「空間」的 BoardTracker 分工）。遊戲 UI
+流程圖集中成一張 `TRANSITIONS` 表（動作 → 合法目標集／checks 預算／
+retry 數／被吞回滾旗標／是否結束 activation）；handler 只報
+`timeline.acted("attack")`，`_classify` 每 tick 餵 `observe(phase)` 對帳
+並執行回傳的 ledger intent。turn 偵測（OCR 跳號防呆＋marker fallback）、
+once-per-turn/battle 工作閘門（`due()`）、per-unit activation 狀態
+（`tried_in_place`/`moved`/`plan`）也都歸 timeline，controller 不再散裝
+旗標。timeline 只記帳與回報 divergence，**永遠不否決分派**。
+
+observe() 的四種判定：
 
 - **命中目標**：轉移驗證成功（`expectation_met`）。
-- **觀測 == 來源**：tap 被吞（省電鎖、動畫中 UI）——`on_eaten` 回滾
-  該動作已設的 handler 旗標（如 `tried_in_place`），讓反應式分派
+- **觀測 == 來源**：tap 被吞（省電鎖、動畫中 UI）——表上的 `repair`
+  欄回滾 activation 旗標（如 `tried_in_place`），讓反應式分派
   自然重試；預算一次，再犯記 `expectation_expired`。
 - **觀測是其他真實相位**：miss——**畫面永遠是權威**，接受現實照常
   分派，只記 `expectation_miss`（附幀）當作「我們的遊戲流程模型
@@ -126,7 +135,8 @@ mode 時對帳：
 
 v1 登記的動作：選單位、開武裝選擇、攻擊、開始戰鬥（含應戰）、待機。
 移動（tap 格子）尚未登記——移動前後 label 同為 unit_move，需要位置
-驗證才能分辨成功與被吞，待實機資料。
+驗證才能分辨成功與被吞，待實機資料。ledger 事件自 07-19 起記去前綴
+相位名（`battle_prep` 而非 `label_battle_prep`）。
 
 ## 分類與分派（2026-07-18 落地，同日收攏成單一接縫）
 

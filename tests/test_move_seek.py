@@ -80,8 +80,8 @@ def test_onscreen_enemy_still_wins_over_threats(monkeypatch):
 def test_directional_step_moves_toward_threats_without_cells(monkeypatch):
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     c = _controller()
-    c._dispatched_mode = "label_unit_move"
-    c._action.tried_in_place = True
+    c.timeline.phase = "unit_move"
+    c.timeline.activation.tried_in_place = True
     _quiet_vision(monkeypatch, threats=[(1170, 150)])
     monkeypatch.setattr(vision, "find_move_cells", lambda f: [])
 
@@ -90,7 +90,7 @@ def test_directional_step_moves_toward_threats_without_cells(monkeypatch):
     x0, y0, w, h = vision.MAP_REGION
     expected = (PAN_CENTER[0], max(PAN_CENTER[1] - MOVE_STEP_PX, y0 + 30))
     assert c.actuator.taps == [expected]
-    assert c._action.moved is True
+    assert c.timeline.activation.moved is True
     move = next(e for e in c.ledger.events if e["kind"] == "move")
     assert move["basis"] == "directional_threat_centroid"
 
@@ -110,8 +110,8 @@ def test_directional_step_pulls_back_from_a_unit_arc(monkeypatch):
 def test_no_signals_still_stands_by(monkeypatch):
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     c = _controller()
-    c._dispatched_mode = "label_unit_move"
-    c._action.tried_in_place = True
+    c.timeline.phase = "unit_move"
+    c.timeline.activation.tried_in_place = True
     _quiet_vision(monkeypatch)
     monkeypatch.setattr(vision, "find_move_cells", lambda f: [])
     monkeypatch.setattr(vision, "unit_cards_present", lambda f: False)
