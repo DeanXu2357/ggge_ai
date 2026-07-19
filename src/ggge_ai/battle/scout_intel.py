@@ -37,13 +37,20 @@ from ..content.stage_def import StageDefinition, StageUnit, signature_distance
 
 log = logging.getLogger(__name__)
 
-# live-calibrated 2026-07-14 on HARD 1 (Sazabi EX sample, free abandon):
-# the enemy summary card docks at the TOP-RIGHT of the battle map -- the
-# old (760, 180) guess pointed at empty map. Tapping the card opens the
-# unit-detail modal, which lands on the weapons tab directly; the tab tap
-# is kept as an idempotent safety. ABILITY_TAB_TAP reaches the 能力、OP
-# page (trait corpus for issues #21/#22).
-SUMMARY_CARD_TAP = (1510, 205)
+# the summary card DOCKS ON EITHER SIDE of the top band: left on the
+# 20260705 hub capture and the 20260719 event stage, right on the
+# 2026-07-14 HARD 1 sample that calibrated the old fixed (1510,205) --
+# which, on a left-docked card, lands on empty map and DISMISSES the card
+# (the 20260719 survey_abort). The left tap goes first because the
+# reader's HP-label anchor sits on the left dock, so a successful summary
+# read is itself evidence for it; the point is the mech panel's flat fill
+# (avoids the ⊖ collapse toggles at ~(163,150)/(592,151) and the pilot
+# panel, whose tap target is unverified). A missed tap dismisses the card,
+# so the fallback re-opens it before trying the right-dock point. Tapping
+# the card opens the unit-detail modal, which lands on the weapons tab
+# directly; the tab tap is kept as an idempotent safety. ABILITY_TAB_TAP
+# reaches the 能力、OP page (trait corpus for issues #21/#22).
+SUMMARY_CARD_TAPS = ((860, 165), (1510, 205))
 WEAPONS_TAB_TAP = (1381, 173)
 ABILITY_TAB_TAP = (1813, 176)
 UNIT_DETAIL_CLOSE = (1176, 992)
@@ -110,9 +117,16 @@ def _survey_point(
     summary = _read_summary_at(capture, tap, screen, sleep)
     if summary is None:
         raise SurveyIncomplete(f"no summary card at {screen}")
-    tap(*SUMMARY_CARD_TAP)
-    sleep(MODAL_SETTLE_S)
-    modal = _await_modal(capture, sleep)
+    modal = None
+    for point in SUMMARY_CARD_TAPS:
+        tap(*point)
+        sleep(MODAL_SETTLE_S)
+        modal = _await_modal(capture, sleep)
+        if modal is not None:
+            break
+        # the missed tap dismissed the card; re-open it for the next dock
+        if _read_summary_at(capture, tap, screen, sleep) is None:
+            break
     if modal is None:
         raise SurveyIncomplete(f"detail modal did not open at {screen}")
     tap(*WEAPONS_TAB_TAP)

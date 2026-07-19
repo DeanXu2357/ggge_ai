@@ -85,14 +85,40 @@ def test_survey_reads_every_unit_and_writes_the_definition(tmp_path):
     assert defn.layout[0].stats["hp"] == 51349
     assert len(defn.layout[0].weapons) == 2
     assert defn.layout[0].pilot_hint
-    # same machine sig twice, and still one panel per unit -- no dedup
-    assert script.taps.count(scout_intel.SUMMARY_CARD_TAP) == 2
+    # same machine sig twice, and still one panel per unit -- no dedup;
+    # the left-dock tap suffices when the modal opens on the first try
+    assert script.taps.count(scout_intel.SUMMARY_CARD_TAPS[0]) == 2
+    assert script.taps.count(scout_intel.SUMMARY_CARD_TAPS[1]) == 0
     by_cell = {u.cell: u.uid for u in defn.layout}
     assert by_cell[(0, 0)] == "e01"
     assert by_cell[(3, 5)] == "e02"
     saved = stage_def.load_stage_def("g/hard_2", root=tmp_path)
     assert saved is not None and saved.status == "complete"
     assert any(e["kind"] == "survey_complete" for e in events)
+
+
+def test_survey_falls_back_to_right_dock_tap(tmp_path):
+    """Left-dock tap misses (modal never opens), the card gets re-opened and
+    the right-dock point succeeds -- the 20260714 HARD 1 layout."""
+    frames = (
+        [HUB]                # summary read
+        + [HUB] * 6          # _await_modal polls after the left tap: no modal
+        + [HUB]              # re-open read
+        + [MODAL, MODAL, HUB]  # right tap opens the modal; weapons; close
+    )
+    script = _Script(frames)
+    defn = survey_stage(
+        script.capture,
+        script.tap,
+        [(900.0, 150.0)],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert [u.uid for u in defn.layout] == ["e01"]
+    assert script.taps.count(scout_intel.SUMMARY_CARD_TAPS[0]) == 1
+    assert script.taps.count(scout_intel.SUMMARY_CARD_TAPS[1]) == 1
 
 
 def test_survey_missing_card_raises_and_writes_nothing(tmp_path):
