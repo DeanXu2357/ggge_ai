@@ -1441,15 +1441,37 @@ class ManualBattleController:
             self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, PAN_SWIPE_MS)
             time.sleep(PAN_SETTLE_S)
             cur = self._frame()
-            shift, response = vision.measure_camera_shift(base, cur)
-            if response >= 0.05:
-                cumulative, source = shift, "phase"
-            else:
-                arc = vision.measure_arc_shift(base, cur)
-                if arc is not None:
-                    cumulative, source = arc, "arcs"
+            # landmark relocalization first (the user's call: adb gesture
+            # delivery is inherently laggy and lossy, so position must come
+            # from what the frame SHOWS, not from what we asked the swipe to
+            # do): known units visible in the overlap fix the camera
+            # absolutely, eaten and late-arriving swipes alike
+            visible = (
+                vision.find_enemy_units(cur, region=vision.HUB_SCAN_REGION)
+                + vision.find_ally_units(cur, region=vision.HUB_SCAN_REGION)
+                + vision.find_third_party_units(cur, region=vision.HUB_SCAN_REGION)
+            )
+            located = self.tacmap.locate(visible) if visible else None
+            response = 0.0
+            source = None
+            if located is not None:
+                delta = (located[0] - camera[0], located[1] - camera[1])
+                # physical bound: one leg cannot out-travel its own gesture
+                # (plus easing slack) -- a bigger jump is a false lock on an
+                # aliased constellation, not a pan
+                limit = abs(requested[0]) + abs(requested[1]) + 250
+                if abs(delta[0]) + abs(delta[1]) <= limit:
+                    cumulative, source = delta, "landmarks"
+            if source is None:
+                shift, response = vision.measure_camera_shift(base, cur)
+                if response >= 0.05:
+                    cumulative, source = shift, "phase"
                 else:
-                    source = "blind"
+                    arc = vision.measure_arc_shift(base, cur)
+                    if arc is not None:
+                        cumulative, source = arc, "arcs"
+                    else:
+                        source = "blind"
             attempts.append(
                 {
                     "origin": [cx, cy],
