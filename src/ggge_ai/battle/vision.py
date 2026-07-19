@@ -427,6 +427,46 @@ def snap_to_lattice(
     return (snap(point[0], cols), snap(point[1], rows))
 
 
+def measure_arc_shift(
+    prev: np.ndarray, cur: np.ndarray, *, tolerance: int = 24
+) -> tuple[float, float] | None:
+    """Camera shift from HP-arc constellations: every arc pair between the
+    two frames votes for a translation, and a mode supported by at least
+    two arcs wins. Second modality for #24: phase correlation goes blind
+    (response < 0.05) on featureless star fields and on frames where a
+    swipe triggered a non-translational UI change -- blindly trusting the
+    gesture there displaced whole scan rows (the 20260719 west-edge ghost
+    coordinates). None without a consensus; faction does not matter, so
+    the hub pink-ally ambiguity cannot corrupt the vote."""
+
+    def arcs(frame: np.ndarray) -> list[tuple[int, int]]:
+        return (
+            find_enemy_units(frame, region=HUB_SCAN_REGION)
+            + find_ally_units(frame, region=HUB_SCAN_REGION)
+            + find_third_party_units(frame, region=HUB_SCAN_REGION)
+        )
+
+    a, b = arcs(prev), arcs(cur)
+    if len(a) < 2 or len(b) < 2:
+        return None
+    votes: dict[tuple[int, int], list[tuple[float, float]]] = {}
+    for ax, ay in a:
+        for bx, by in b:
+            d = (ax - bx, ay - by)
+            key = (round(d[0] / tolerance), round(d[1] / tolerance))
+            votes.setdefault(key, []).append((float(d[0]), float(d[1])))
+    best = max(votes.values(), key=len)
+    if len(best) < 2:
+        return None
+    second = sorted((len(v) for v in votes.values()), reverse=True)
+    if len(second) > 1 and second[1] == second[0]:
+        return None
+    return (
+        sum(d[0] for d in best) / len(best),
+        sum(d[1] for d in best) / len(best),
+    )
+
+
 def measure_camera_shift(
     prev: np.ndarray,
     cur: np.ndarray,

@@ -137,6 +137,51 @@ def test_survey_missing_card_raises_and_writes_nothing(tmp_path):
     assert stage_def.load_stage_def("g/hard_2", root=tmp_path) is None
 
 
+def test_survey_drops_cardless_ghost_hugging_an_ally(tmp_path):
+    """A card-less 'enemy' within GHOST_RADIUS of a scanned ally is the
+    pink-bug ghost twin: recorded, dropped, survey continues. The same
+    failure away from every ally still fails loud (previous test)."""
+    blank = np.zeros((1080, 2340, 3), np.uint8)
+    # ghost point: 3 no-card retries see blank frames; real point follows
+    frames = [blank, blank, blank] + [HUB, MODAL, MODAL, HUB]
+    script = _Script(frames)
+    events, log = _events()
+    dropped: list[int] = []
+    defn = survey_stage(
+        script.capture,
+        script.tap,
+        [(65.0, 819.0), (900.0, 150.0)],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        ally_points=[(65.0, 904.0)],
+        dropped=dropped,
+        ledger_log=log,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert dropped == [0]
+    assert [u.sig for u in defn.layout] == [SIG]
+    assert any(e["kind"] == "survey_phantom" for e in events)
+
+
+def test_survey_all_ghosts_still_fails_loud(tmp_path):
+    blank = np.zeros((1080, 2340, 3), np.uint8)
+    script = _Script([blank])
+    with pytest.raises(SurveyIncomplete):
+        survey_stage(
+            script.capture,
+            script.tap,
+            [(65.0, 819.0)],
+            stage_id="g/hard_2",
+            bring_to_view=_identity_view,
+            ally_points=[(65.0, 904.0)],
+            dropped=[],
+            sleep=lambda s: None,
+            root=tmp_path,
+        )
+    assert stage_def.load_stage_def("g/hard_2", root=tmp_path) is None
+
+
 def test_survey_wall_clock_guard_raises(tmp_path):
     script = _Script([HUB])
     with pytest.raises(SurveyIncomplete):

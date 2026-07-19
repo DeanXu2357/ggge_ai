@@ -130,3 +130,50 @@ def test_leg_budget_bounds_a_huge_map(monkeypatch):
     world = _World(max_x=50000, max_y=50000, start=(25000, 25000), enemies=[])
     _run_scan(monkeypatch, world)
     assert len(world.moves) <= controller_mod.SCAN_MAX_LEGS
+
+
+def test_eaten_swipe_retries_from_alternate_origin(monkeypatch):
+    """A swipe whose start point sits on a unit gets eaten by the game and
+    reads exactly like an edge (zero shift, healthy response) -- the leg
+    must retry from the alternate origins before accepting the verdict
+    (the 20260719 star-map row legs)."""
+    world = _World(max_x=1800, max_y=900, start=(900, 450), enemies=[(2000, 1000)])
+    dead = controller_mod.PAN_CENTER
+    original = world.swipe
+
+    def swipe(x1, y1, x2, y2, *a):
+        if ((x1 + x2) // 2, (y1 + y2) // 2) == dead:
+            world.moves.append((0.0, 0.0))
+            return
+        original(x1, y1, x2, y2, *a)
+
+    world.swipe = swipe
+    c = _run_scan(monkeypatch, world)
+
+    xs = [p[0] for p in world.observed_cameras]
+    ys = [p[1] for p in world.observed_cameras]
+    assert min(xs) == 0 and max(xs) == 1800, "coverage lost to the dead origin"
+    assert min(ys) == 0 and max(ys) == 900
+    legs = [e for e in c.ledger.events if e["kind"] == "scan_leg"]
+    assert any(len(e["attempts"]) > 1 for e in legs), "no leg ever retried"
+
+
+def test_arc_shift_consensus_fallback():
+    a_arcs = [(100, 100), (400, 200), (800, 500)]
+    shift = (150.0, -60.0)
+    b_arcs = [(int(x - shift[0]), int(y - shift[1])) for x, y in a_arcs]
+    f_a, f_b = object(), object()
+    frames = {id(f_a): a_arcs, id(f_b): b_arcs}
+    import unittest.mock as mock
+
+    with mock.patch.object(vision, "find_enemy_units", lambda f, region=None: frames[id(f)]), \
+         mock.patch.object(vision, "find_ally_units", lambda f, region=None: []), \
+         mock.patch.object(vision, "find_third_party_units", lambda f, region=None: []):
+        assert vision.measure_arc_shift(f_a, f_b) == (150.0, -60.0)
+        # a lone arc cannot form a consensus
+        frames[id(f_b)] = b_arcs[:1]
+        assert vision.measure_arc_shift(f_a, f_b) is None
+        # two equally-supported translations = ambiguity, never a guess
+        frames[id(f_a)] = [(0, 0), (100, 0), (1000, 0), (1100, 0)]
+        frames[id(f_b)] = [(50, 0), (150, 0)]
+        assert vision.measure_arc_shift(f_a, f_b) is None

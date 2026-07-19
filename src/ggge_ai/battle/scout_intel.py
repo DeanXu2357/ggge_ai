@@ -62,6 +62,13 @@ MODAL_POLL_TRIES = 6
 SURVEY_WALL_CLOCK_S = 1200.0
 SURVEY_TAP_RETRIES = 3
 VALIDATE_SAMPLE_CAP = 4
+# hub arcs double-classify on the pinned pink-ally bug: one unit can enter
+# the sweep as an enemy AND an ally a few tens of px apart (20260719 pairs
+# 29-85px). Real units sit at least one grid cell (~118px) apart, so an
+# unreadable "enemy" within this radius of a scanned ally is that ally's
+# ghost twin, not a partial description -- it is dropped with a ledger
+# record instead of failing the survey loud.
+GHOST_RADIUS = 90.0
 
 
 class SurveyIncomplete(RuntimeError):
@@ -161,6 +168,8 @@ def survey_stage(
     stage_id: str,
     bring_to_view: Callable[[tuple[float, float]], tuple[float, float] | None],
     factions: list[str] | None = None,
+    ally_points: list[tuple[float, float]] | None = None,
+    dropped: list[int] | None = None,
     llm=None,
     ledger_log: Callable[..., None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
@@ -171,7 +180,11 @@ def survey_stage(
     """Full survey of every non-ally point (world coordinates from the
     serpentine sweep) into a saved schema-2 definition. Raises
     SurveyIncomplete on the first unreadable unit or on the wall-clock
-    guard -- partial definitions are never written."""
+    guard -- partial definitions are never written. The one exception is
+    the evidence-backed ghost drop (GHOST_RADIUS): an unreachable or
+    card-less point hugging a scanned ally is the pink-bug ghost twin of
+    that ally; its index goes into `dropped` (caller-provided list) and
+    the survey continues."""
     if not points:
         raise SurveyIncomplete("no enemy points to survey")
     factions = factions or ["enemy"] * len(points)
@@ -180,6 +193,22 @@ def survey_stage(
     def record(kind: str, **data) -> None:
         if ledger_log is not None:
             ledger_log(kind, **data)
+
+    def ghost_of_ally(point: tuple[float, float]) -> bool:
+        return any(
+            (point[0] - a[0]) ** 2 + (point[1] - a[1]) ** 2 < GHOST_RADIUS**2
+            for a in (ally_points or ())
+        )
+
+    def drop_ghost(i: int, point, reason: str) -> None:
+        record(
+            "survey_phantom",
+            index=i,
+            world=[round(point[0], 1), round(point[1], 1)],
+            reason=reason,
+        )
+        if dropped is not None:
+            dropped.append(i)
 
     surveyed: list[StageUnit] = []
     origin = (min(p[0] for p in points), min(p[1] for p in points))
@@ -190,10 +219,19 @@ def survey_stage(
             )
         screen = bring_to_view(point)
         if screen is None:
+            if ghost_of_ally(point):
+                drop_ghost(i, point, "unreachable_near_ally")
+                continue
             raise SurveyIncomplete(f"unit {i} at {point} cannot be brought into view")
-        sig, name, stats_dict, weapons = _survey_point(
-            capture, tap, screen, llm=llm, sleep=sleep
-        )
+        try:
+            sig, name, stats_dict, weapons = _survey_point(
+                capture, tap, screen, llm=llm, sleep=sleep
+            )
+        except SurveyIncomplete as exc:
+            if str(exc).startswith("no summary card") and ghost_of_ally(point):
+                drop_ghost(i, point, "no_card_near_ally")
+                continue
+            raise
         cell = (
             round((point[0] - origin[0]) / cell_size),
             round((point[1] - origin[1]) / cell_size),
@@ -214,6 +252,8 @@ def survey_stage(
         )
         record("survey_unit", index=i, sig=sig, name=name)
 
+    if not surveyed:
+        raise SurveyIncomplete("every survey point was ghost-dropped")
     defn = StageDefinition(
         stage_id=stage_id,
         layout=stage_def.assign_uids(surveyed),

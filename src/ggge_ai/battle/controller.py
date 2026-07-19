@@ -53,6 +53,11 @@ AUTO_BUTTON = (1820, 54)
 # area (vertical half-travel is shorter to clear the HUD and card strip)
 PAN_CENTER = (1170, 500)
 PAN_HALF = {"x": 300, "y": 200}
+# a swipe starting on a unit sprite / UI element gets eaten instead of
+# panning (20260719: row legs measuring ~0 with healthy response while the
+# map clearly had room) -- an ineffective-but-measurable leg retries from
+# these alternates before an edge verdict is accepted
+PAN_ORIGINS = (PAN_CENTER, (940, 430), (1380, 610))
 PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
 # serpentine full-map scan (turn 1): a pan whose measured travel is under
 # this fraction of the gesture means the camera hit the map edge; leg
@@ -914,6 +919,7 @@ class ManualBattleController:
             defn.status = "stale"
             stage_def_mod.save_stage_def(defn, self.intel_cache_root)
             log.warning("stage definition stale, falling back to a live survey")
+        dropped: list[int] = []
         defn = survey_stage(
             self._frame,
             self.actuator.tap,
@@ -921,10 +927,24 @@ class ManualBattleController:
             stage_id=self.stage_id,
             bring_to_view=self._bring_to_view,
             factions=factions,
+            ally_points=[tuple(p) for p in self.tacmap.allies],
+            dropped=dropped,
             llm=self.llm,
             ledger_log=self._log,
             root=self.intel_cache_root,
         )
+        if dropped:
+            # ghost twins are gone from the definition; purge them from the
+            # census input and the tactical map so hints and the board stop
+            # seeing them too
+            gone = set(dropped)
+            enemy_count = len(self.tacmap.enemies)
+            scan = [p for i, p in enumerate(scan) if i not in gone]
+            for i in sorted(gone, reverse=True):
+                if i < enemy_count:
+                    del self.tacmap.enemies[i]
+                else:
+                    del self.tacmap.third_party[i - enemy_count]
         resolver = IdentityResolver(defn)
         seed = resolver.seed(scan)
         if not seed.ok:
@@ -1322,12 +1342,8 @@ class ManualBattleController:
             len(self.tacmap.third_party),
         )
 
-    @staticmethod
-    def _advance_camera(camera, prev, cur, nominal) -> tuple[float, float]:
-        shift, response = vision.measure_camera_shift(prev, cur)
-        if response < 0.05:
-            # featureless view (open space): trust the gesture instead
-            shift = nominal
+    def _advance_camera(self, camera, prev, cur, nominal) -> tuple[float, float]:
+        shift, _, _ = self._measure_shift(prev, cur, nominal)
         return (camera[0] + shift[0], camera[1] + shift[1])
 
     def _scout_local(self, frame, camera) -> tuple[float, float]:
@@ -1350,40 +1366,62 @@ class ManualBattleController:
             prev = back
         return camera
 
+    def _measure_shift(self, prev, cur, requested):
+        """(shift, response, source): phase correlation first, the
+        arc-constellation vote when it goes blind, the raw gesture only as
+        the last resort -- blind gesture trust displaced whole scan rows on
+        the 20260719 star map (west-edge ghost coordinates)."""
+        shift, response = vision.measure_camera_shift(prev, cur)
+        if response >= 0.05:
+            return shift, response, "phase"
+        arc = vision.measure_arc_shift(prev, cur)
+        if arc is not None:
+            return arc, response, "arcs"
+        return requested, response, "gesture"
+
     def _pan_leg(self, camera, prev, direction, label: str = "pan"):
         """One measured pan. Returns (camera, frame, actual, requested);
-        actual << requested means the camera hit the map edge -- at an edge
-        the two frames are identical, so phase correlation reads ~0 with a
-        strong response (the featureless-view fallback only fires on weak
-        response and cannot mask an edge). Every leg goes to the ledger
-        with its raw measurement (#24): the 20260719 event-stage scan
-        stopped after 7 legs with west-edge ghost coordinates, and without
-        per-leg evidence the failure could not be attributed."""
+        actual << requested means the camera hit the map edge. An
+        ineffective-but-measurable swipe retries from the alternate
+        PAN_ORIGINS before that verdict stands: a swipe starting on a unit
+        gets eaten and reads exactly like an edge (identical frames, high
+        response). Every attempt goes to the ledger (#24)."""
         dx, dy = direction
         hx, hy = dx * PAN_HALF["x"], dy * PAN_HALF["y"]
-        cx, cy = PAN_CENTER
-        self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, 500)
-        time.sleep(1.0)
-        cur = self._frame()
         requested = (2 * hx, 2 * hy)
-        shift, response = vision.measure_camera_shift(prev, cur)
-        fallback = response < 0.05
-        if fallback:
-            # featureless view (open space): trust the gesture instead
-            shift = requested
-        new_camera = (camera[0] + shift[0], camera[1] + shift[1])
-        actual = (shift[0], shift[1])
+        goal = (abs(requested[0]) + abs(requested[1])) * SCAN_EDGE_RATIO
+        total = [0.0, 0.0]
+        attempts = []
+        cur = prev
+        for cx, cy in PAN_ORIGINS:
+            self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, 500)
+            time.sleep(1.0)
+            cur = self._frame()
+            shift, response, source = self._measure_shift(prev, cur, requested)
+            total[0] += shift[0]
+            total[1] += shift[1]
+            attempts.append(
+                {
+                    "origin": [cx, cy],
+                    "measured": [round(shift[0], 1), round(shift[1], 1)],
+                    "response": round(float(response), 4),
+                    "source": source,
+                }
+            )
+            prev = cur
+            if abs(total[0]) + abs(total[1]) >= goal:
+                break
+        new_camera = (camera[0] + total[0], camera[1] + total[1])
         self._log(
             "scan_leg",
             leg=label,
             direction=list(direction),
             requested=list(requested),
-            measured=[round(shift[0], 1), round(shift[1], 1)],
-            response=round(float(response), 4),
-            gesture_fallback=fallback,
+            measured=[round(total[0], 1), round(total[1], 1)],
+            attempts=attempts,
             camera=[round(new_camera[0], 1), round(new_camera[1], 1)],
         )
-        return new_camera, cur, actual, requested
+        return new_camera, cur, (total[0], total[1]), requested
 
     @staticmethod
     def _at_edge(actual, requested, axis: int) -> bool:
