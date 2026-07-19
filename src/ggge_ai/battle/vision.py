@@ -328,6 +328,73 @@ def find_third_party_units(
     return _dedupe(_ring_blobs(teal, region))
 
 
+# min-zoom unit detection (map stitch, 定案 5 第一階段): fully zoomed out,
+# the HP arc and the team-badge ring collapse into one arc-colored ring
+# ~90-110px around the unit's foot cell, so _ring_blobs' flat-arc shape
+# gates go blind (0-7 of 25+ units per frame on the 20260719 ex2if series).
+# Density peaks replace shape: union the three color bands (existence only,
+# faction comes from banner docking later), average over a one-unit box and
+# take local maxima. Threshold measured against the series' transcribed
+# ground truth (recall 101/115; every miss is a screen-edge cut or HUD
+# cover). Remaining false peaks are static HUD furniture (the stitcher's
+# static-screen filter drops them) or extra peaks on multi-cell sprites
+# like warships (merged downstream / adjudicated by the human check).
+# The region reaches x2250/y1020: with the actable-unit list collapsed the
+# map runs far past UNIT_SCAN_REGION, stopping short of the top button row,
+# the right-edge 圖示說明 column and the collapsed-list ▲ row. The bottom
+# rim can emit boundary-clamped peaks for units half-cut by the screen
+# edge (30-70px above the true ring center); stopping higher instead cost
+# 2-3 real bottom-hugging units per sparse frame, which starved the
+# stitcher's placement votes -- the clamped peaks merge into their
+# fully-visible observations from adjacent frames downstream.
+UNIT_DENSITY_REGION = (150, 90, 2100, 930)
+UNIT_DENSITY_WINDOW = 91
+UNIT_DENSITY_THRESHOLD = 0.03
+UNIT_DENSITY_MIN_DIST = 80
+# the turn-banner block (我軍回合/剩餘回合/破壞數) overhangs the region's
+# top-left corner and its colored text peaks like a unit (measured at
+# ~(370,95) and ~(300-370,149-165) across ex2if frames -- too rare for
+# the static-screen filter, frequent enough to seed ghost units). The
+# hole spans the whole banner including the part above the scan region:
+# pixels outside the region still bleed density inside through the box
+# filter window
+UNIT_DENSITY_HUD_HOLES = ((0, 0, 470, 170),)
+
+
+def find_unit_density_peaks(
+    frame: np.ndarray, region: tuple[int, int, int, int] = UNIT_DENSITY_REGION
+) -> list[tuple[int, int]]:
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    red = cv2.inRange(hsv, (0, 100, 155), (10, 210, 255)) | cv2.inRange(
+        hsv, (168, 100, 155), (180, 210, 255)
+    )
+    blue = cv2.inRange(hsv, (100, 100, 155), (125, 210, 255))
+    teal = cv2.inRange(hsv, (78, 100, 155), (97, 210, 255))
+    mask = ((red | blue | teal) > 0).astype(np.float32)
+    # holes are cut from the MASK, not the density map: masked-out density
+    # still integrates the banner's pixels through the box filter, so a
+    # density-level hole just relocates the phantom peak to the hole's rim
+    for hx, hy, hw, hh in UNIT_DENSITY_HUD_HOLES:
+        mask[hy : hy + hh, hx : hx + hw] = 0
+    win = UNIT_DENSITY_WINDOW
+    density = cv2.boxFilter(mask, -1, (win, win))
+    x0, y0, w, h = region
+    bounded = np.zeros_like(density)
+    bounded[y0 : y0 + h, x0 : x0 + w] = density[y0 : y0 + h, x0 : x0 + w]
+    dist = UNIT_DENSITY_MIN_DIST
+    dilated = cv2.dilate(bounded, np.ones((dist, dist), np.uint8))
+    peak_ys, peak_xs = np.nonzero(
+        (bounded >= UNIT_DENSITY_THRESHOLD) & (bounded >= dilated - 1e-9)
+    )
+    points: list[tuple[int, int]] = []
+    for x, y in sorted(
+        zip(peak_xs, peak_ys), key=lambda p: -bounded[p[1], p[0]]
+    ):
+        if all((x - px) ** 2 + (y - py) ** 2 >= dist * dist for px, py in points):
+            points.append((int(x), int(y)))
+    return points
+
+
 # the 顯示方格 in-battle grid (#25): vertical lines ride a stable ~128px
 # pitch while horizontal spacings grow down-screen (108->123 measured on the
 # 20260719 event stage -- mild vertical perspective), so the lattice is

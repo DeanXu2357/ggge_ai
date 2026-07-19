@@ -269,6 +269,10 @@ def _load_cases() -> list[tuple[str, Path]]:
         return []
     cases = []
     for json_path in sorted(FIXTURE_ROOT.rglob("*.json")):
+        annotation = json.loads(json_path.read_text(encoding="utf-8"))
+        if "check" not in annotation:
+            # series metadata (map_scan manifest / ground truth), not a case
+            continue
         case_id = str(json_path.relative_to(FIXTURE_ROOT).with_suffix(""))
         cases.append((case_id, json_path))
     return cases

@@ -1,0 +1,68 @@
+{
+  "series": "ex2if_20260719",
+  "frames": [
+    {
+      "seq": 1,
+      "image": "01_pt1_first_anchor.png",
+      "label": "pt1_first_anchor",
+      "note": "第一定位點：格線已開、地圖縮到最小（最大可視範圍）",
+      "captured_at": "2026-07-19 20:33:53"
+    },
+    {
+      "seq": 2,
+      "image": "02_pt2_pan_up.png",
+      "label": "pt2_pan_up",
+      "note": "鏡頭往上移動（自 pt1 向北平移）",
+      "captured_at": "2026-07-19 20:34:43"
+    },
+    {
+      "seq": 3,
+      "image": "03_pt3_pan_up.png",
+      "label": "pt3_pan_up",
+      "note": "鏡頭再往上移動（自 pt2 續向北平移）",
+      "captured_at": "2026-07-19 20:35:20"
+    },
+    {
+      "seq": 4,
+      "image": "04_pt4_pan_up.png",
+      "label": "pt4_pan_up",
+      "note": "鏡頭再往上移動（自 pt3 續向北平移）",
+      "captured_at": "2026-07-19 20:36:03"
+    },
+    {
+      "seq": 5,
+      "image": "05_pt5_pan_up_small.png",
+      "label": "pt5_pan_up_small",
+      "note": "鏡頭小幅度往上（自 pt4 小步向北平移）",
+      "captured_at": "2026-07-19 20:38:07"
+    },
+    {
+      "seq": 6,
+      "image": "06_pt6_pan_right.png",
+      "label": "pt6_pan_right",
+      "note": "鏡頭往右移動（自 pt5 向東平移）",
+      "captured_at": "2026-07-19 20:38:58"
+    },
+    {
+      "seq": 7,
+      "image": "07_pt7_pan_down.png",
+      "label": "pt7_pan_down",
+      "note": "鏡頭往下移動（自 pt6 向南平移）",
+      "captured_at": "2026-07-19 20:39:32"
+    },
+    {
+      "seq": 8,
+      "image": "08_pt8_pan_down.png",
+      "label": "pt8_pan_down",
+      "note": "鏡頭往下移動（自 pt7 續向南平移）",
+      "captured_at": "2026-07-19 20:40:06"
+    },
+    {
+      "seq": 9,
+      "image": "09_pt9_pan_down_end.png",
+      "label": "pt9_pan_down_end",
+      "note": "鏡頭往下移動（自 pt8 續向南平移），series 結束幀",
+      "captured_at": "2026-07-19 20:41:35"
+    }
+  ]
+}
