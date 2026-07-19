@@ -134,7 +134,12 @@ def test_first_scan_reaches_all_corners_and_syncs_every_unit(monkeypatch):
 
 
 def test_out_of_bounds_ghosts_are_purged(monkeypatch):
-    world = _World(max_x=1800, max_y=900, start=(900, 450), enemies=[(2000, 1000)])
+    world = _World(
+        max_x=1800,
+        max_y=900,
+        start=(900, 450),
+        enemies=[(2000, 1000), (500, 500), (3000, 800)],
+    )
     c = _run_scan(monkeypatch, world)
     c.tacmap.enemies.append((6000.0, 400.0))
     c.tacmap.allies.append((-900.0, 200.0))
@@ -146,6 +151,21 @@ def test_out_of_bounds_ghosts_are_purged(monkeypatch):
     assert (2000.0, 1000.0) in c.tacmap.enemies
     outliers = [e for e in c.ledger.events if e["kind"] == "scan_outlier"]
     assert len(outliers) == 2
+
+
+def test_purge_fuse_refuses_to_erase_most_of_the_board(monkeypatch):
+    """Bounds that would delete over half the board are themselves the
+    error (a mis-anchored corner) -- run 9 erased 10 of 11 real units."""
+    world = _World(max_x=1800, max_y=900, start=(900, 450), enemies=[(2000, 1000)])
+    c = _run_scan(monkeypatch, world)
+    c.tacmap.enemies.append((6000.0, 400.0))
+    c.tacmap.allies.append((-900.0, 200.0))
+
+    c._purge_out_of_bounds()
+
+    assert (6000.0, 400.0) in c.tacmap.enemies
+    assert (-900.0, 200.0) in c.tacmap.allies
+    assert any(e["kind"] == "scan_outlier_skipped" for e in c.ledger.events)
 
 
 def test_second_turn_uses_the_cheap_local_scan(monkeypatch):

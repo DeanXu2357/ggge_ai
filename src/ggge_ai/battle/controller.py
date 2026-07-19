@@ -62,6 +62,15 @@ PAN_ORIGINS = (PAN_CENTER, (940, 430), (1380, 610), (1170, 620))
 # 20260719 star map (post-action camera easing + adb drop flakiness)
 PAN_SWIPE_MS = 700
 PAN_SETTLE_S = 1.5
+# a drag STARTING on a unit gets eaten -- in dense views (the event map's
+# east cluster fills mid-screen) every static origin can sit on a unit at
+# once, which froze whole scan stretches in both directions (runs 4/7/8/9).
+# Origins are therefore picked per swipe from this candidate lattice by
+# max-min distance to the visible arcs.
+PAN_ORIGIN_GRID = tuple(
+    (x, y) for y in (360, 470, 580, 660) for x in (760, 940, 1170, 1400, 1580)
+)
+PAN_ORIGIN_CLEARANCE = 120.0
 PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
 # serpentine full-map scan (turn 1): a pan whose measured travel is under
 # this fraction of the gesture means the camera hit the map edge; leg
@@ -1417,6 +1426,32 @@ class ManualBattleController:
             prev = back
         return camera
 
+    def _pan_origins(self, frame, hx, hy, count: int = 4) -> list[tuple[int, int]]:
+        """Swipe origins for this frame, best first: the drag START point
+        (origin + half-gesture) must sit on empty map or the game eats the
+        drag, so candidates rank by their start point's distance to every
+        visible arc. Falls back to the static list when the frame cannot be
+        read (tests, degenerate frames)."""
+        try:
+            arcs = (
+                vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
+                + vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION)
+                + vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION)
+            )
+        except Exception:
+            return list(PAN_ORIGINS[:count])
+        if not arcs:
+            return list(PAN_ORIGINS[:count])
+
+        def clearance(candidate: tuple[int, int]) -> float:
+            sx, sy = candidate[0] + hx, candidate[1] + hy
+            return min(
+                ((sx - ax) ** 2 + (sy - ay) ** 2) ** 0.5 for ax, ay in arcs
+            )
+
+        ranked = sorted(PAN_ORIGIN_GRID, key=clearance, reverse=True)
+        return ranked[:count]
+
     def _pan_leg(self, camera, prev, direction, label: str = "pan"):
         """One measured pan. Returns (camera, frame, actual, requested);
         actual << requested means the camera hit the map edge. Every
@@ -1437,7 +1472,7 @@ class ManualBattleController:
         cur = prev
         cumulative: tuple[float, float] | None = None
         attempts = []
-        for cx, cy in PAN_ORIGINS:
+        for cx, cy in self._pan_origins(prev, hx, hy):
             self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, PAN_SWIPE_MS)
             time.sleep(PAN_SETTLE_S)
             cur = self._frame()
@@ -1617,6 +1652,26 @@ class ManualBattleController:
         def keep(p) -> bool:
             return lo_x <= p[0] <= hi_x and lo_y <= p[1] <= hi_y
 
+        total = len(self.tacmap.enemies) + len(self.tacmap.allies) + len(
+            self.tacmap.third_party
+        )
+        doomed = sum(
+            1
+            for name in ("enemies", "allies", "third_party")
+            for p in getattr(self.tacmap, name)
+            if not keep(p)
+        )
+        if total and doomed * 2 > total:
+            # a purge that would erase most of the board means the BOUNDS
+            # are wrong (a mis-anchored corner), not the units -- run 9
+            # deleted 10 of 11 real units this way. Keep everything, flag it.
+            self._log(
+                "scan_outlier_skipped",
+                doomed=doomed,
+                total=total,
+                bounds={k: round(v, 1) for k, v in bounds.items() if v is not None},
+            )
+            return
         for name in ("enemies", "allies", "third_party"):
             points = getattr(self.tacmap, name)
             gone = [p for p in points if not keep(p)]
