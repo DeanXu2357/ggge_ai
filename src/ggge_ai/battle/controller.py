@@ -57,7 +57,11 @@ PAN_HALF = {"x": 300, "y": 200}
 # panning (20260719: row legs measuring ~0 with healthy response while the
 # map clearly had room) -- an ineffective-but-measurable leg retries from
 # these alternates before an edge verdict is accepted
-PAN_ORIGINS = (PAN_CENTER, (940, 430), (1380, 610))
+PAN_ORIGINS = (PAN_CENTER, (940, 430), (1380, 610), (1170, 620))
+# swipes land more reliably slow: 500ms drags got eaten in stretches on the
+# 20260719 star map (post-action camera easing + adb drop flakiness)
+PAN_SWIPE_MS = 700
+PAN_SETTLE_S = 1.5
 PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
 # serpentine full-map scan (turn 1): a pan whose measured travel is under
 # this fraction of the gesture means the camera hit the map edge; leg
@@ -1329,6 +1333,10 @@ class ManualBattleController:
             # after the intel pass (or right here when intel is off).
             # Fail-soft: an unverified toggle scans gridless exactly as
             # before.
+            # the sweep must not start while a post-action camera ease is
+            # still running -- swipes fired into the animation get eaten and
+            # read as phantom edges (20260719 run 7's scrambled corner)
+            time.sleep(2.0)
             self._grid_active = battle_settings.set_battle_grid(
                 self.perception.capture, self.actuator.tap, True, sleep=time.sleep
             )
@@ -1430,8 +1438,8 @@ class ManualBattleController:
         cumulative: tuple[float, float] | None = None
         attempts = []
         for cx, cy in PAN_ORIGINS:
-            self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, 500)
-            time.sleep(1.0)
+            self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, PAN_SWIPE_MS)
+            time.sleep(PAN_SETTLE_S)
             cur = self._frame()
             shift, response = vision.measure_camera_shift(base, cur)
             if response >= 0.05:
