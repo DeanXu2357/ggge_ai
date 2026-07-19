@@ -250,8 +250,15 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
 - ~~`available_stances`~~ → `vision.read_reaction_stance_menu`：dodge 圖示定錨、
   defend/shield 雙模板判別、EN 黃字數武器槽、V 閘門判可用；回傳各 stance 的
   tap 座標（`ReactionStanceMenu`/`StanceOption`），即「錨點+pitch 相對定位」的
-  機制實體——**controller 接線仍待做**：`REACTION_OPTION_TAPS` 固定表尚未改為
-  消費此讀取器（流程＝點我方頭像→讀選單→點 stance→行動選擇，需實機驗證）。
+  機制實體。**controller 已接線（待實機驗證）**：`REACTION_OPTION_TAPS` 固定表
+  已刪除，`_choose_reaction_stance` 流程＝算術定位我方頭像槽
+  （`vision.defender_avatar_slot`：頭像列置中 963/pitch200 → token 數＋盾標籤
+  ＋奇偶約束唯一解出最右槽；顏色環偵測在藍水面地圖會誤判、棄用）→ tap 開選單
+  （已開則跳過）→ 讀選單 → `advise_reaction`（allowed_stances=選單集合）→
+  stance/武器 tap（武器＝spec 順序左到右對映，reversed(counters)）→
+  行動選擇 (2042,924)（估計值）→ 回主畫面共用開始戰鬥。fail-fast taxonomy：
+  reaction_ungrounded／reaction_avatar_not_found／reaction_menu_unreadable／
+  reaction_stance_unavailable／reaction_weapon_unmapped／reaction_weapon_disabled。
 - ~~`hit_pct` region~~ → `vision.read_avatar_hits` 頭像列掃描＋`hit` 字型（缺 '3'）；
   ~~defender_hp OCR~~ → hud `6_c` 變體；中央攻/反值另修 `attack` 專用字型。
 - ~~`support_defense`~~ → `label_support_defense.png` 標籤偵測（-應戰- 回 bool；

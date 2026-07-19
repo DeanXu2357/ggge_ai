@@ -128,12 +128,22 @@ Keyguard 本可處理（見 [[stage-clear-loop-status]]「battery-saver touch lo
   無 KILL≠打不死）、敵方 AI 反擊會死就防禦保命、賭暴擊/降防欺敵；「①殺主單位→
   反擊階段全取消（含支援反擊）」sim 已建模（core.py:873），此塊無需改。
 
-**恢復點**：① vision 辨識已落地（見上），下一步＝`docs/battle-prep-ui.md` §9
-剩餘兩塊：**controller 接線**（`_choose_reaction_stance` 改消費
-`read_reaction_stance_menu`：點我方頭像→讀選單→點 stance→行動選擇→開始戰鬥，
-廢固定 `REACTION_OPTION_TAPS` 表；需實機驗證）與 **sim/solver**（forecast 保守
-下界、敵方防禦保命 enemy_model、欺敵博弈、support_defend 互斥枚舉修正、先攻
-queue）。② 實戰驗證開放假設：SHORT 可用性 V 閘門、hit 字型缺 '3'。
+**S9d controller 應戰接線（2026-07-19 晚，離線完成、待實機驗證）**：
+`_choose_reaction_stance` 改消費 `read_reaction_stance_menu`，刪
+`REACTION_OPTION_TAPS` 固定表。流程＝算術定位我方頭像槽
+（`vision.defender_avatar_slot`：頭像列置中 963/pitch200，token 數＋盾標籤＋
+奇偶約束唯一解最右槽，5/5 fixture 驗證；顏色環偵測在藍水面地圖誤判、棄用）
+→ tap 開選單（已開跳過）→ 讀選單 → advise_reaction（allowed_stances=選單
+集合）→ stance/武器 tap（武器假設＝spec 順序左到右）→ 行動選擇 (2042,924)
+估計值 → 共用開始戰鬥。fail-fast：ungrounded/avatar_not_found/
+menu_unreadable/stance_unavailable/weapon_unmapped/weapon_disabled。
+533 tests/3 xfail、ruff 綠。
+
+**恢復點**：① **實機驗證應戰接線**（使用者已同意協助）：GGGE_PILOT=1 跑
+`run_manual_battle.py`，讓敵方攻擊觸發 -應戰-；驗證頭像 tap 開選單、
+行動選擇座標、武器鈕順序=spec 順序假設、SHORT V 閘門、hit 字型缺 '3'。
+② 之後＝sim/solver（forecast 保守下界、敵方防禦保命 enemy_model、欺敵博弈、
+support_defend 互斥枚舉修正、先攻 queue）。
 ③ adb 上次 session 在線健康；純程式任務照舊免連線。
 
 **還差的截圖情境（待使用者實機截圖）**：
