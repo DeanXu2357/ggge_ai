@@ -219,6 +219,23 @@ vs 諾耶·吉爾(EX)(右)。
   註解 confirmed）。**核對＝此塊無需改**。對 solver：主單位會被①秒時 counter 無效、
   應防禦/閃避保命。
 
+## 支援防禦 support_defense（reaction_support_defense_20260719.png）
+
+-應戰- TURN1，敵方攻擊我方、我方**支援防禦**（interceptor 替主單位擋傷）。
+陣營右我左敵（EN/傷害鎖定）：左＝敵腦波傳導型鋼彈（①攻擊12254、命中47%、EN-34、
+受反擊 -195791 KILL）；右上＝我方主單位鋼彈F91（HP86307，被攻擊者、②反擊100%
+傷害195791、EN-55）；右下疊 interceptor 面板 HP28402（支援防禦者，承受 -12254）。
+
+- **support_defense 視覺信號**（vision 標定依據）：
+  - 主單位面板出現**盾圖示「支援防禦」**標籤（本例 F91 面板）。
+  - 右側**疊第二個機體面板**＝interceptor（承受擋傷）。
+  - 底部頭像列有「**支援防禦**」頭像（盾圖示、**無攻擊序號**），插在 ①敵攻 與 ②主單位反擊之間。
+  - 場上 interceptor 單位頭頂標「支援防禦」。
+  → 偵測盾圖示「支援防禦」標籤即 `support_defense=True`（原 stub None 可標定）。
+- 順序：①敵攻(47%) → 支援防禦(interceptor 擋 -12254、主單位免傷) → ②主單位反擊(100%,195791 KILL)。
+- 機制吻合 sim interceptor（core.py:842-846，`struck=interceptor`、_interception_multiplier）。
+  數值語意（interceptor 承受 -12254 是否已含 shield/defend 減免）待與 sim 對照細究。
+
 ## forecast 傷害預覽的保守性陷阱（使用者口述機制，2026-07-19）
 
 **forecast 顯示的傷害/敵血 delta 是保守下界，實際結算 ≥ 預覽**：

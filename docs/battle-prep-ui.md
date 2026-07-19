@@ -64,6 +64,14 @@
 target 存活條件內，target 死則全跳過；core.py:38-43 註解 confirmed），此塊無需改。
 對 solver：我方主單位會被①秒時 counter 無效，應改防禦/閃避保命。
 
+### 支援防禦 support_defense（reaction_support_defense）
+應戰時我方友軍（interceptor）替被攻擊主單位**擋傷**（≠支援反擊的多打一次）。
+視覺信號：主單位面板出現**盾圖示「支援防禦」**標籤、右側疊第二個 interceptor 面板、
+底部頭像列有「支援防禦」頭像（盾圖示、**無攻擊序號**，插在①敵攻與②主單位反擊之間）、
+場上 interceptor 標「支援防禦」。→ vision 偵測盾圖示「支援防禦」標籤即 `support_defense=True`。
+機制吻合 sim interceptor（`core.py:842-846`，`struck=interceptor`）；interceptor 承受傷害
+是否已含 shield/defend 減免待與 sim 對照。順序：①敵攻 → 支援防禦(擋傷、主單位免傷) → ②主單位反擊。
+
 ## 4. 應戰 stance UI（S9d 核心）
 
 ### 入口與流程
@@ -172,6 +180,7 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 | `attack_support_20260719` | -攻擊- ＋支援不參加 | is_reaction 來源、陣營驗證、支援佈局 |
 | `attack_support_active_20260719` | -攻擊- ＋支援參戰 | 攻擊順序①②③、命中率相對定位 |
 | `reaction_support_counter_20260719` | -應戰- ＋支援反擊 | 應戰順序①敵攻②支援反擊③反擊 |
+| `reaction_support_defense_20260719` | -應戰- ＋支援防禦 | interceptor 擋傷、盾圖示「支援防禦」標籤 |
 | `support_weapon_menu_20260719` | 支援武裝選單 | pitch≈170、灰色 disabled、不參加右錨 |
 | `skill_menu_20260719` | 技能選擇 | 技能槽 pitch170、SP、發動鈕 |
 
@@ -183,7 +192,8 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 - `available_stances`：閃避/防禦錨點模板定錨 → 往左數圓鈕（亮度 V 排除灰鈕）。
 - `REACTION_OPTION_TAPS`：改錨點 + pitch 相對定位（非固定表）。
 - `hit_pct` region 重定到底部頭像上方；defender_hp OCR 修正。
-- `support_defense`：**唯一未取得畫面**（需敵攻我方、我方有友軍可支援防禦），暫留 stub。
+- `support_defense`：**已取得畫面**（reaction_support_defense）→ 偵測盾圖示「支援防禦」
+  標籤標定 True，取代 stub None；interceptor 承受傷害的減免語意待與 sim 對照。
 - 各鈕座標像素精量。
 
 **sim/solver**

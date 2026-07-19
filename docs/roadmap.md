@@ -114,8 +114,8 @@ Keyguard 本可處理（見 [[stage-clear-loop-status]]「battery-saver touch lo
 controller `REACTION_OPTION_TAPS`、sim-solver 欺敵；`support_defense` 缺畫面留 stub）。
 
 **還差的截圖情境（待使用者實機截圖）**：
-1. ★`support_defense` 畫面（唯一 sim 有欄位卻缺畫面）：敵攻我、我方友軍「支援防禦」
-   替被攻擊者擋傷（≠ 已標的支援反擊）。
+1. ~~`support_defense` 畫面~~ **已於 2026-07-19 取得**（reaction_support_defense_20260719.png，
+   盾圖示「支援防禦」標籤＝標定依據）。
 2. 應戰時**多武裝機體**的動作選單（驗證應戰情境武器往左排 pitch；現只加布斯雷 2 武器）。
 3. `shield` 是否為裝盾機體的獨立選項（DefenseKind 有 shield，實機未見獨立鈕）。
 4.（可選）敵方 AI 保命實例（選目標顯 KILL→進戰鬥準備敵改防禦、KILL 消失）、
