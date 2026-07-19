@@ -236,6 +236,27 @@ vs 諾耶·吉爾(EX)(右)。
 - 機制吻合 sim interceptor（core.py:842-846，`struck=interceptor`、_interception_multiplier）。
   數值語意（interceptor 承受 -12254 是否已含 shield/defend 減免）待與 sim 對照細究。
 
+## shield stance ＋多武裝應戰選單（reaction_shield_menu_20260719.png）
+
+-應戰- TURN1，我方主單位鋼彈F91（**有盾**）被攻擊、展開應戰選單選防禦。
+一張同時驗證清單第1項（shield）＋第2項（多武器應戰 pitch）。
+
+- **shield stance 確認＋修正前判斷**：F91（裝盾）防禦鈕標「**防禦（盾牌）**」、
+  效果卡「**受到的損傷減少40%**」＝SHIELD_MULTIPLIER 0.6。
+  **修正**：shield 不是獨立第五選項——**防禦鈕 stance 依機體有無盾而定**：
+  無盾＝defend（減20%×0.8，如加布斯雷）、**有盾＝shield（減40%×0.6，標「防禦（盾牌）」）**。
+  vision 靠效果卡「減20% vs 40%」或鈕標籤「防禦 vs 防禦（盾牌）」區分。
+- **多武裝應戰選單**：F91 有 5 武器＋防禦＋閃避：
+  `[MAP EN60(1/1)][SHORT EN23][MIDDLE EN29][LONG EN30][LONG-EX EN55][防禦][閃避]`。
+  等間距 pitch~170 驗證應戰相對定位（原圖估計 MAP~801/SHORT~971/MIDDLE~1141/
+  LONG~1310/LONG-EX~1480/防禦~1685/閃避~1854）。
+- **錨點絕對位置隨武器數變**：閃避 2 武器時~1533、5 武器時~1854 → **必須用圖示模板
+  定位錨點、不可寫固定座標**（坐實相對定位策略；先前 §「錨點座標」的絕對值僅 2 武器例）。
+- **MAP 武器出現在應戰選單**（EN60、1/1 次數）——與 memory「MAP 不能 counter/interception」
+  可能衝突，待確認 MAP 能否作應戰反擊武器。
+- F91「-0 DAMAGE CUT」：選防禦（盾牌）後受傷顯示 -0（盾牌40%＋F91 DAMAGE CUT 能力
+  疑疊加）；數值待與 sim 對照。駕駛員 buff：西布克·阿諾 超一擊 DAMAGE+30%。
+
 ## forecast 傷害預覽的保守性陷阱（使用者口述機制，2026-07-19）
 
 **forecast 顯示的傷害/敵血 delta 是保守下界，實際結算 ≥ 預覽**：

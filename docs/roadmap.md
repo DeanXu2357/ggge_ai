@@ -116,8 +116,10 @@ controller `REACTION_OPTION_TAPS`、sim-solver 欺敵；`support_defense` 缺畫
 **還差的截圖情境（待使用者實機截圖）**：
 1. ~~`support_defense` 畫面~~ **已於 2026-07-19 取得**（reaction_support_defense_20260719.png，
    盾圖示「支援防禦」標籤＝標定依據）。
-2. 應戰時**多武裝機體**的動作選單（驗證應戰情境武器往左排 pitch；現只加布斯雷 2 武器）。
-3. `shield` 是否為裝盾機體的獨立選項（DefenseKind 有 shield，實機未見獨立鈕）。
+2. ~~應戰多武裝機體選單~~ **已取得**（reaction_shield_menu：F91 5 武器、pitch~170、
+   錨點隨武器數移動→須模板定位錨點）。
+3. ~~`shield` 選項~~ **已取得**（reaction_shield_menu：有盾機體防禦鈕＝shield 減40%＝
+   SHIELD_MULTIPLIER 0.6、非獨立選項；修正先前 defend/shield 判斷）。
 4.（可選）敵方 AI 保命實例（選目標顯 KILL→進戰鬥準備敵改防禦、KILL 消失）、
    暴擊武裝 forecast 下界顯示、技能發動後流程。
 

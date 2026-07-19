@@ -87,7 +87,7 @@ target 存活條件內，target 死則全跳過；core.py:38-43 註解 confirmed
   `none / dodge / defend / shield / counter`。
 - 選單各鈕 → stance 對應：
   - 閃避 → **dodge**（動作列最右錨點）
-  - 防禦 → **defend**（閃避左一格錨點；已確認非 shield，見下）
+  - 防禦 → **defend**（無盾機體）或 **shield**（有盾機體，鈕標「防禦（盾牌）」），閃避左一格錨點；見下效果
   - 各反擊武器 → **counter** + weapon（防禦往左第 k 格，pitch 固定）
 
 ### 相對定位標定策略（使用者定案）
@@ -107,7 +107,9 @@ target 存活條件內，target 死則全跳過；core.py:38-43 註解 confirmed
 | 返回 | ~(1802,930) | |
 | 我方頭像（切換入口，應戰②） | ~(924,848) | |
 
-pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
+pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。**上表絕對座標僅
+2 武器例**；動作列不右對齊，**錨點絕對位置隨武器數右移**（閃避 2 武器~1533、5 武器~1854，
+見 reaction_shield_menu）→ **必須用閃避/防禦圖示模板定位錨點、勿寫固定座標**。
 
 ### 選中態與效果卡
 - 選中鈕亮藍高亮外框、其餘變暗 → vision 可讀當前 stance。
@@ -116,9 +118,12 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 - forecast HP delta **隨選定 stance 即時重算**（見下效果驗證）。
 
 ### 各 stance 效果（實機驗證）
-- **defend**：效果卡「受到的損傷減少20%」＝`DEFEND_MULTIPLIER 0.8`。選防禦後我方
-  HP delta 即時 -10364→-8292（10364×0.8＝8291）驗證。**此通用防禦鈕＝defend 非 shield**
-  （shield 疑為裝盾機體另一選項，未見）。
+- **defend / shield**：防禦鈕的 stance **依機體有無盾**（同一鈕位，非獨立選項）：
+  - 無盾 → **defend**：效果卡「受到的損傷減少20%」＝`DEFEND_MULTIPLIER 0.8`
+    （加布斯雷例，選後 HP delta -10364→-8292 驗證）。
+  - 有盾 → **shield**：鈕標「防禦（盾牌）」、效果卡「受到的損傷減少40%」＝
+    `SHIELD_MULTIPLIER 0.6`（F91 例，reaction_shield_menu）。
+  vision 靠效果卡減傷%（20 vs 40）或鈕標籤（防禦 vs 防禦（盾牌））區分。
 - **dodge**：效果卡「敵方命中率減少20%。※超過100%時可能不會減少」＝`dodge_hit_penalty 20.0`。
   選閃避後 HP delta 不變（減命中率非傷害）；命中率 100→90（原>100 封頂，-20 後 90，
   印證「超過100%可能不減」）。確認後中央標籤「反擊 6164」→「閃避 0」（不反擊、對敵 0 傷）。
@@ -181,6 +186,7 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 | `attack_support_active_20260719` | -攻擊- ＋支援參戰 | 攻擊順序①②③、命中率相對定位 |
 | `reaction_support_counter_20260719` | -應戰- ＋支援反擊 | 應戰順序①敵攻②支援反擊③反擊 |
 | `reaction_support_defense_20260719` | -應戰- ＋支援防禦 | interceptor 擋傷、盾圖示「支援防禦」標籤 |
+| `reaction_shield_menu_20260719` | -應戰- 有盾機體多武器選單 | shield＝防禦(盾牌)減40%、5 武器 pitch~170、錨點隨武器數移動 |
 | `support_weapon_menu_20260719` | 支援武裝選單 | pitch≈170、灰色 disabled、不參加右錨 |
 | `skill_menu_20260719` | 技能選擇 | 技能槽 pitch170、SP、發動鈕 |
 
