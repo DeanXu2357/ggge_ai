@@ -15,8 +15,19 @@ log = logging.getLogger(__name__)
 # - the game's own battery-saver touch lock after ~3 min without input; it
 #   dims the frame and draws a lock icon at screen center, is invisible to
 #   dumpsys (the game window stays focused), and swallows all taps while
-#   screen templates still partially match through the dim overlay
+#   screen templates still partially match through the dim overlay. After a
+#   few more idle seconds the overlay FADES: the icon disappears and only
+#   the dimming remains, still eating every tap (2026-07-19 live -- two
+#   probe rounds died tapping through it while ensure_unlocked saw no icon
+#   and reported unlocked). A tap anywhere wakes the icon back up, so the
+#   detector pokes the neutral spot and re-checks before trusting a dim
+#   iconless frame.
 LOCK_DRAG = "input swipe 1164 430 1164 60 350"
+# top-center hosts no interactive element on any battle screen (the
+# controller's NEUTRAL_TAP spot); on the faded overlay the tap is eaten and
+# only wakes the lock UI, on a genuine black transition frame it is inert
+LOCK_POKE = "input tap 1170 90"
+LOCK_POKE_SETTLE_S = 0.8
 
 GAME_LOCK_TEMPLATE = (
     Path(__file__).resolve().parents[3]
@@ -48,6 +59,13 @@ class Keyguard:
         out = self.device.shell("dumpsys window policy | grep mIsShowing").output
         return "mIsShowing=true" in out
 
+    def _icon_visible(self, frame) -> bool:
+        x, y, w, h = GAME_LOCK_REGION
+        crop = frame[y : y + h, x : x + w]
+        result = cv2.matchTemplate(crop, self._template, cv2.TM_CCOEFF_NORMED)
+        _, score, _, _ = cv2.minMaxLoc(result)
+        return score >= GAME_LOCK_THRESHOLD
+
     def is_game_locked(self) -> bool:
         if self.capture is None or self._template is None:
             return False
@@ -57,11 +75,14 @@ class Keyguard:
         # false-match there, never truly lock
         if float(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).mean()) > GAME_LOCK_MAX_MEAN:
             return False
-        x, y, w, h = GAME_LOCK_REGION
-        crop = frame[y : y + h, x : x + w]
-        result = cv2.matchTemplate(crop, self._template, cv2.TM_CCOEFF_NORMED)
-        _, score, _, _ = cv2.minMaxLoc(result)
-        return score >= GAME_LOCK_THRESHOLD
+        if self._icon_visible(frame):
+            return True
+        # dim but iconless: either the faded lock overlay or a transition /
+        # loading black frame. The poke tells them apart -- the overlay wakes
+        # its icon back up, a transition ignores an inert neutral tap.
+        self.device.shell(LOCK_POKE)
+        time.sleep(LOCK_POKE_SETTLE_S)
+        return self._icon_visible(self.capture())
 
     def _drag_lock_icon(self) -> None:
         self.device.shell(LOCK_DRAG)
