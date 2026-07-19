@@ -206,6 +206,7 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 | `reaction_shield_menu_20260719` | -應戰- 有盾機體多武器選單 | shield＝防禦(盾牌)減40%、5 武器 pitch~170、錨點隨武器數移動 |
 | `reaction_first_strike_20260719` | -應戰- 先攻多階段 | 先攻＝橘色「先發攻擊」標籤、帶先攻武裝排最前、sim 缺口 |
 | `unit_detail_combined_20260719` | 點橫幅→單位設置詳情（組合資訊 tab） | 三 tab 語意、±標記＝受能力影響、buff 在組合資訊 |
+| `unit_detail_basic_20260719` | 單位詳情-基本資訊視圖 | 機體+駕駛員總覽、武裝含射程、CHANCE STEP 圓點(橘=再動/灰=已用) |
 | `our_turn_unit_list_20260719` | 我方回合 hub 單位列表-打開 | 9 卡條、啟動順序自由（非 UI 順序） |
 | `our_turn_list_collapsed_20260719` | 我方回合 hub 單位列表-關閉 | ▲單位列表鈕(~1970,1010)、無卡條；count 前須先開 |
 | `unit_action_menu_20260719` | 選單位後「單位移動」動作選單 | 移動/武裝/駕駛員技能(SP)/支援(EN,1/1)/機體技能/待機/返回 |
