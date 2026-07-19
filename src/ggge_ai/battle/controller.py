@@ -1089,7 +1089,7 @@ class ManualBattleController:
                 (screen[0] > x0 + w - margin) - (screen[0] < x0 + margin),
                 (screen[1] > y0 + h - margin) - (screen[1] < y0 + margin),
             )
-            new_camera, _, actual, requested = self._pan_leg(camera, frame, direction)
+            new_camera, _, actual, requested = self._pan_leg(camera, frame, direction, label="bring_to_view")
             if abs(actual[0]) + abs(actual[1]) < (
                 abs(requested[0]) + abs(requested[1])
             ) * SCAN_EDGE_RATIO:
@@ -1298,6 +1298,14 @@ class ManualBattleController:
             len(self.tacmap.third_party),
         )
 
+    @staticmethod
+    def _advance_camera(camera, prev, cur, nominal) -> tuple[float, float]:
+        shift, response = vision.measure_camera_shift(prev, cur)
+        if response < 0.05:
+            # featureless view (open space): trust the gesture instead
+            shift = nominal
+        return (camera[0] + shift[0], camera[1] + shift[1])
+
     def _scout_local(self, frame, camera) -> tuple[float, float]:
         """Four out-and-back legs around the current view; all observations
         share the scan origin."""
@@ -1318,12 +1326,15 @@ class ManualBattleController:
             prev = back
         return camera
 
-    def _pan_leg(self, camera, prev, direction):
+    def _pan_leg(self, camera, prev, direction, label: str = "pan"):
         """One measured pan. Returns (camera, frame, actual, requested);
         actual << requested means the camera hit the map edge -- at an edge
         the two frames are identical, so phase correlation reads ~0 with a
         strong response (the featureless-view fallback only fires on weak
-        response and cannot mask an edge)."""
+        response and cannot mask an edge). Every leg goes to the ledger
+        with its raw measurement (#24): the 20260719 event-stage scan
+        stopped after 7 legs with west-edge ghost coordinates, and without
+        per-leg evidence the failure could not be attributed."""
         dx, dy = direction
         hx, hy = dx * PAN_HALF["x"], dy * PAN_HALF["y"]
         cx, cy = PAN_CENTER
@@ -1331,8 +1342,23 @@ class ManualBattleController:
         time.sleep(1.0)
         cur = self._frame()
         requested = (2 * hx, 2 * hy)
-        new_camera = self._advance_camera(camera, prev, cur, requested)
-        actual = (new_camera[0] - camera[0], new_camera[1] - camera[1])
+        shift, response = vision.measure_camera_shift(prev, cur)
+        fallback = response < 0.05
+        if fallback:
+            # featureless view (open space): trust the gesture instead
+            shift = requested
+        new_camera = (camera[0] + shift[0], camera[1] + shift[1])
+        actual = (shift[0], shift[1])
+        self._log(
+            "scan_leg",
+            leg=label,
+            direction=list(direction),
+            requested=list(requested),
+            measured=[round(shift[0], 1), round(shift[1], 1)],
+            response=round(float(response), 4),
+            gesture_fallback=fallback,
+            camera=[round(new_camera[0], 1), round(new_camera[1], 1)],
+        )
         return new_camera, cur, actual, requested
 
     @staticmethod
@@ -1349,7 +1375,7 @@ class ManualBattleController:
         pending = {"west": (-1, 0), "north": (0, -1)}
         while pending and legs < SCAN_CORNER_MAX_LEGS:
             for name in list(pending):
-                camera, prev, actual, requested = self._pan_leg(camera, prev, pending[name])
+                camera, prev, actual, requested = self._pan_leg(camera, prev, pending[name], label=f"corner_{name}")
                 legs += 1
                 self._observe_map(prev, camera)
                 axis = 0 if name == "west" else 1
@@ -1360,13 +1386,13 @@ class ManualBattleController:
         heading = (1, 0)
         bottom_row = False
         while legs < SCAN_MAX_LEGS:
-            camera, prev, actual, requested = self._pan_leg(camera, prev, heading)
+            camera, prev, actual, requested = self._pan_leg(camera, prev, heading, label="row")
             legs += 1
             self._observe_map(prev, camera)
             if self._at_edge(actual, requested, 0):
                 if bottom_row:
                     break
-                camera, prev, actual, requested = self._pan_leg(camera, prev, (0, 1))
+                camera, prev, actual, requested = self._pan_leg(camera, prev, (0, 1), label="south_step")
                 legs += 1
                 self._observe_map(prev, camera)
                 if self._at_edge(actual, requested, 1):
@@ -1375,14 +1401,6 @@ class ManualBattleController:
                     bottom_row = True
                 heading = (-heading[0], 0)
         return camera, legs
-
-    @staticmethod
-    def _advance_camera(camera, prev, cur, nominal) -> tuple[float, float]:
-        shift, response = vision.measure_camera_shift(prev, cur)
-        if response < 0.05:
-            # featureless view (open space): trust the gesture instead
-            shift = nominal
-        return (camera[0] + shift[0], camera[1] + shift[1])
 
     def _observe_map(self, frame, camera) -> None:
         self.tacmap.observe(
