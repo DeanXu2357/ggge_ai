@@ -89,43 +89,37 @@ lambda 內化成表上 `repair` 欄，`ends_activation` 取代散落的 reset。
 503 tests/3 xfail、ruff 全綠；文件 battle-phase-states.md「期望轉移驗證」。
 **裝置現況與 S9 恢復點不變，見下。**
 
-## 暫停快照（2026-07-15 S9d 應戰整併，恢復點）
+## 暫停快照（2026-07-19 S9d 應戰 stance UI 已標定，恢復點）
 
-**裝置現況**：本 session 前半 USB 連上（`R5CRC37JBYJ device`）做了回應探測
-——螢幕 Awake、無凍機，遊戲停在主畫面（RANK 21、體力 101/106、STAGE 18）。
-**後半要跑實機探測時 adb 掉權限**：`no permissions`——seat0 目前是
-`gdm-greeter`（桌面退回登入畫面、idle 1h+），poyu 不在 active seat →
-USB uaccess ACL 沒給 poyu（見 [[adb-permissions-seat0]]）。sudo 要密碼
-（無免密）、手機無線偵錯已關（5555 拒連），使用者外出無法實體接觸→
-**live S9d 探測擋住,等桌面登入或手機開無線偵錯**。凍機硬體檢查
-（memtest86+/BIOS）仍最優先。
+**裝置現況**：本 session USB 全程在線健康（`R5CRC37JBYJ device`、Awake、**無凍機**，
+遊戲 RANK 23、體力 95/108）。使用者選「直接跑實機」（接受凍機風險，未先做
+memtest86+/platform-tools）並授權主對話直接讀圖（破 screenshot-cost-discipline、
+本 session 限定）。手機省電觸控鎖曾因對話中閒置逾時觸發一次、使用者手動解，
+Keyguard 本可處理（見 [[stage-clear-loop-status]]「battery-saver touch lock」）。
 
-**恢復點（回到桌面後）**：① `loginctl` 確認 poyu 在 seat0 active（實體登入
-桌面即可，必要時重插 USB）→ `adb devices` 應回 `device`。② 探測法已備妥
-（子類 `ManualBattleController`、override `_on_battle_prep`：`is_reaction`
-時存幀＋raise 停住，把遊戲泊在 -應戰- 畫面不確認；greedy 驅動、entry 用
-flow actions 從主畫面 nav_stage 1230,1050 進關）。③ 泊住後手動點候選
-stance 切換入口（機頭動作圖示 ~1120,420 或底部 ☰ ~702,921），subagent
-判讀每步→標 `REACTION_OPTION_TAPS`＋vision 讀 `available_stances`。
+**S9d 成果（本 session，尚未動程式）**：應戰 stance UI 已實機標定完成。
+- 產出：`docs/battle-prep-ui.md`（正式地圖）＋`tests/fixtures/vision/forecast/`
+  10 張 PNG fixture＋`reaction_live_20260719.md`（逐步記錄）＋2 memory
+  （[[battle-prep-ui-map]]、[[forecast-lowerbound-enemy-defense-ai]]）。
+- 標定：陣營右我左敵（攻擊/應戰皆然）、is_reaction＝標題、stance 相對定位錨點策略
+  （閃避最右錨/防禦次右/counter 武器往左 pitch≈170、亮度 V 分辨可用）、defend 減傷20%
+  ／dodge 敵命中-20%（效果卡＋forecast delta 驗證）、命中率＝頭像上方、攻擊順序＝
+  頭像①②③（動態）、支援攻擊/支援反擊順序。
+- 機制知識（sim/solver 建模需求）：forecast 傷害＝保守下界（KILL 才確定擊殺、
+  無 KILL≠打不死）、敵方 AI 反擊會死就防禦保命、賭暴擊/降防欺敵；「①殺主單位→
+  反擊階段全取消（含支援反擊）」sim 已建模（core.py:873），此塊無需改。
 
-**S9d 進度（本 session）**：
-- **關鍵釐清**：應戰決策（#3）在本作不是獨立彈窗，而是敵攻我方時的
-  「戰鬥準備 -應戰-」畫面（match `label_battle_prep` 0.948）。所以它走
-  `_on_battle_prep`（ACTIONABLE），S8 建在 `_on_not_actionable` 的
-  `read_reaction_popup` 路徑永遠到不了＝放錯位置。
-- **碼面整併（行為保持，2c2… 見 git）**：感知留 vision 層——`ReactionPopup`
-  是 `BattlePrepForecast(is_reaction)` 的重複抽象，已廢除；stance 感知改為
-  `BattlePrepForecast.available_stances` stub（同 `support_defense`，未標定
-  回 None）。執行器 `_choose_reaction_stance`（純編排：ground→advise_reaction
-  →tap stance→拋錯）接進 `_on_battle_prep` 的 is_reaction 分支，`available_stances`
-  為 None 時 no-op、落回既有「按開始戰鬥接受預設」＝零行為改變。
-- **stance UI 未知數（留給實機）**：2026-07-11 全螢幕捕捉（`assets/screenshots/
-  20260711-223704.png`，貝爾汀格攻 GQuuuuuuX、KILL 局）經 subagent 判讀，
-  畫面**未見明確的防禦方式切換按鈕**；當前選定 stance 顯示為「閃避」（非
-  screen-map 說的預設反擊）、反擊傷害 0。可能切換入口＝我機頭頂動作小圖示
-  (~1120,420) 或底部 ☰ 清單鈕 (~702,921)，只能實機點擊驗證。→ S9d-live 要
-  標定 `REACTION_OPTION_TAPS`（DefenseKind→tap，controller.py:37 空表待填）
-  ＋ vision 讀 `available_stances`/`support_defense`。
+**恢復點**：① adb 已 `device`（在線健康）。② **還差的截圖情境**（優先序，見下段清單）。
+③ 之後改程式照 `docs/battle-prep-ui.md` §9（vision 相對定位/命中率 region、
+controller `REACTION_OPTION_TAPS`、sim-solver 欺敵；`support_defense` 缺畫面留 stub）。
+
+**還差的截圖情境（待使用者實機截圖）**：
+1. ★`support_defense` 畫面（唯一 sim 有欄位卻缺畫面）：敵攻我、我方友軍「支援防禦」
+   替被攻擊者擋傷（≠ 已標的支援反擊）。
+2. 應戰時**多武裝機體**的動作選單（驗證應戰情境武器往左排 pitch；現只加布斯雷 2 武器）。
+3. `shield` 是否為裝盾機體的獨立選項（DefenseKind 有 shield，實機未見獨立鈕）。
+4.（可選）敵方 AI 保命實例（選目標顯 KILL→進戰鬥準備敵改防禦、KILL 消失）、
+   暴擊武裝 forecast 下界顯示、技能發動後流程。
 
 **規劃定稿**：stage-definition＋uid 身分制＋M8 雙行為 observer 合併為
 **S0-S10 批次**（計畫全文 `~/.claude/plans/nifty-forging-sonnet.md`；
