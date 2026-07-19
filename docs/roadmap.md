@@ -139,12 +139,31 @@ Keyguard 本可處理（見 [[stage-clear-loop-status]]「battery-saver touch lo
 menu_unreadable/stance_unavailable/weapon_unmapped/weapon_disabled。
 533 tests/3 xfail、ruff 綠。
 
-**恢復點**：① **實機驗證應戰接線**（使用者已同意協助）：GGGE_PILOT=1 跑
-`run_manual_battle.py`，讓敵方攻擊觸發 -應戰-；驗證頭像 tap 開選單、
-行動選擇座標、武器鈕順序=spec 順序假設、SHORT V 閘門、hit 字型缺 '3'。
-② 之後＝sim/solver（forecast 保守下界、敵方防禦保命 enemy_model、欺敵博弈、
-support_defend 互斥枚舉修正、先攻 queue）。
-③ adb 上次 session 在線健康；純程式任務照舊免連線。
+**2026-07-19 深夜：實機驗證第一輪暴露五問題、全數修復（活動關「最終驗證
+STAGE EX-2 IF」戰局停在 TURN 1 當標定場）**：
+- ① story 錨點漏 ☰ 左移變體（活動關出擊劇情卡分類）→ manifest region 加寬
+  ＋screen_score fixture（c113e89）。② Keyguard 省電鎖「淡出態」盲點（圖示
+  隱藏、tap 全被吃）→ 中性 poke 喚醒再驗，實戰多次自動解鎖（2589ed3）。
+  ③ survey 詳情卡固定右停靠點位在左停靠關卡打空 dismiss → 雙停靠序列
+  （87dc7b4）。④ #24 serpentine per-leg 流水帳（d7e4df0；收縮量測窗假設
+  實測證偽——循環相關繞回，窗寬須 ≥2× 平移）。⑤ **#25 顯示方格落地**：
+  戰鬥選單→設定→戰鬥籤全路徑實機標定（`docs/battle-settings-ui.md`，
+  AUTO戰鬥紅線防呆）、`battle/settings.py` toggle 驅動（fail-soft）、
+  `vision.read_grid_lattice`（直線 pitch≈128、橫線 108→123 縱向透視 →
+  原始線位、三重閘拒假格網）＋`snap_to_lattice` 弧吸附格心、serpentine
+  前開掃畢關。548 tests/3 xfail、ruff 綠。
+- 標定副產物：戰鬥選單「勝利條件」鈕＝戰鬥中讀勝利條件的第二入口；
+  空格點擊出現青色格子選取框＝格幾何備選信號。
+
+**恢復點**：① **重跑實機驗證**（重跑前先 `discord-notify` 通知使用者——
+使用者指示）：從停住的戰局直接 `GGGE_LLM=0 GGGE_INTEL=1 GGGE_PILOT=1
+GGGE_STAGE_ID=event-hard-20260719 uv run python scripts/run_manual_battle.py`；
+看點＝battle_grid/scan_leg 事件（#24 確診）、survey 全敵通過、應戰四假設
+（頭像槽算術、行動選擇 (2042,924)、武器鈕=spec 順序、SHORT V 閘門）。
+② 之後＝格座標權威化迭代（縱向透視 row 模型、定義檔 cells、bridge
+cell_size 量測供給）＋sim/solver（forecast 保守下界、敵方防禦保命、欺敵、
+support_defend 互斥、先攻 queue）。③ 手機省電鎖 3 分鐘逾時常駐——長閒置
+後首個 tap 前必過 Keyguard。
 
 **還差的截圖情境（待使用者實機截圖）**：
 1. ~~`support_defense` 畫面~~ **已於 2026-07-19 取得**（reaction_support_defense_20260719.png，
