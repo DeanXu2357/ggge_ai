@@ -402,6 +402,19 @@ vs 諾耶·吉爾(EX)(右)。
   （原 1/1 用完），F91 身上出現**金色 buff 光環＋buff 圖示**（技能生效）。→ vision 判斷
   技能可用性＝亮+1/1 可用、反灰+0/1 已用（同 support_weapon_menu 亮度 V 邏輯）。
 
+## MAP 武裝發動（map_weapon_20260719.png）
+
+動作選單選 MAP 武器（武器選單最左、EN60、**1/1 次數**、橘色）→ 標題「選擇武裝」，
+出現**紅色方向範圍**（本例兩條垂直紅帶）＋範圍內敵人 **KILL 提示**（100% KILL、
+左上目標單位 -106764 KILL）＋F91 周圍**方向箭頭**（^< >）調整範圍朝向。
+
+- **MAP 武器特性**（武器卡）：POWER 3910、雙V.S.B.R.〈光束/射擊〉、**方向範圍**、
+  **絕對命中**（必中，對照 memory sim「MAP always-hit」）。
+- 右下大鈕（原「選擇武裝」）變**橘色「開始戰鬥」**(~2200,1000)：按下直接發射、
+  **無視擊殺再動、結束該單位回合**（實機確認 memory sim「MAP force-ends activation, NO re-act」）。
+- sim 已建模 MAP（ammo/pre-move/always-hit/non-interactive/no re-act，見 stage-clear-loop-status）；
+  此為實機視覺確認。次數 1/1＝MAP ammo；顯示 EN60 是否額外扣 EN 待確認（memory 記 MAP ammo-cost）。
+
 ## 其餘待標定
 
 - `available_stances` vision 讀法：底部動作列各鈕圖示模板 or region 分類。

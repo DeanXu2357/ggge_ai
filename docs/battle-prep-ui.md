@@ -212,6 +212,7 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 | `unit_action_menu_20260719` | 選單位後「單位移動」動作選單 | 移動/武裝/駕駛員技能(SP)/支援(EN,1/1)/機體技能/待機/返回 |
 | `unit_skill_select_20260719` | 機體技能選擇＋發動 | SELECT 箭頭、綠色發動鈕、F91「第一擊損傷無效」+機動10% |
 | `unit_skill_used_20260719` | 機體技能發動後 | icon 反灰+次數 0/1、金色 buff 光環；可用性＝亮/1 vs 灰/0 |
+| `map_weapon_20260719` | MAP 武裝發動 | 紅色方向範圍+KILL 提示+方向箭頭、絕對命中、開始戰鬥後無 re-act |
 | `support_weapon_menu_20260719` | 支援武裝選單 | pitch≈170、灰色 disabled、不參加右錨 |
 | `skill_menu_20260719` | 技能選擇 | 技能槽 pitch170、SP、發動鈕 |
 
