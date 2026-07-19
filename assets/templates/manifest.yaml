@@ -114,9 +114,9 @@ screens:
   story:
     file: screens/story.png
     search_region:
-    - 1965
+    - 1880
     - 0
-    - 270
+    - 360
     - 136
   supply:
     file: screens/supply.png

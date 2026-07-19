@@ -1,0 +1,19 @@
+{
+  "check": "screen_score",
+  "expect": {
+    "screen": "story",
+    "max": 0.7
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_live_20260719.png",
+  "note": "story region 加寬後的反向釘：戰鬥準備畫面 story 分數須壓在 0.7 下（實測 0.301）。region 再加寬須先過此檔。"
+}

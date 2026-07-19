@@ -116,6 +116,24 @@ def _check_mode_label(frame: np.ndarray, expect: dict[str, Any]) -> None:
     assert mode == expect["id"], f"got {mode} ({confidences}), want {expect['id']}"
 
 
+def _check_screen_score(frame: np.ndarray, expect: dict[str, Any]) -> None:
+    """Manifest screen-anchor score bounds, as classify_screen computes
+    them. expect: {"screen": id, "min"?: float, "max"?: float, "top"?: true}
+    -- min pins a variant the anchor must keep matching (the story ☰-shift
+    regression), max pins a screen it must keep rejecting."""
+    ranked = _recognizer().classify_screen(frame)
+    scores = {t.screen: t.confidence for t in ranked}
+    got = scores.get(expect["screen"], 0.0)
+    if "min" in expect:
+        assert got >= expect["min"], f"{expect['screen']}: got {got:.3f}, want >= {expect['min']}"
+    if "max" in expect:
+        assert got <= expect["max"], f"{expect['screen']}: got {got:.3f}, want <= {expect['max']}"
+    if expect.get("top"):
+        assert ranked[0].screen == expect["screen"], (
+            f"top is {ranked[0].screen}({ranked[0].confidence:.3f}), want {expect['screen']}"
+        )
+
+
 def _check_kill_counter(frame: np.ndarray, expect: dict[str, Any]) -> None:
     got = vision.read_kill_counter(frame)
     want = tuple(expect["value"]) if expect["value"] is not None else None
@@ -221,6 +239,7 @@ CHECKS = {
     "mode_label": _check_mode_label,
     "digit_read": _check_digit_read,
     "kill_counter": _check_kill_counter,
+    "screen_score": _check_screen_score,
     "weapon_select_forecast": _forecast_check(vision.read_weapon_select_forecast),
     "battle_prep_forecast": _forecast_check(vision.read_battle_prep_forecast),
     "reaction_stance_menu": _check_stance_menu,
