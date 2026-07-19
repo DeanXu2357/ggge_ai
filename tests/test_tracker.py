@@ -23,8 +23,8 @@ def _forecast(**overrides):
 def _prep(**overrides):
     base = dict(
         is_reaction=False, attack_value=5000, defense_value=1000, hit_pct=100,
-        attacker_name_sig=ALLY_SIG, attacker_hp=30000, attacker_en=240,
-        defender_name_sig=ENEMY_SIG, defender_hp=8000, defender_en=120,
+        attacker_name_sig=ENEMY_SIG, attacker_hp=8000, attacker_en=120,
+        defender_name_sig=ALLY_SIG, defender_hp=30000, defender_en=240,
         defender_hp_delta=None, support_defense=None,
     )
     base.update(overrides)
@@ -67,6 +67,17 @@ def test_battle_prep_reaction_swaps_the_direction():
     assert t.beliefs[ENEMY_UID].hp == 7000
     assert t.beliefs[ALLY_UID].faction is Faction.ALLY
     assert t.beliefs[ALLY_UID].hp == 29000
+
+
+def test_battle_prep_attack_keeps_panel_factions():
+    """右我左敵在 -攻擊- 也成立（2026-07-19 標定）：左面板（attacker_* 欄位）
+    是敵方目標、右面板是我方攻擊者，不因 is_reaction=False 而互換。"""
+    t = BoardTracker()
+    t.on_battle_prep(_prep(is_reaction=False))
+    assert t.beliefs[ENEMY_UID].faction is Faction.ENEMY
+    assert t.beliefs[ENEMY_UID].hp == 8000
+    assert t.beliefs[ALLY_UID].faction is Faction.ALLY
+    assert t.beliefs[ALLY_UID].hp == 30000
 
 
 def test_kill_outcome_marks_dead_and_drops_position():

@@ -143,11 +143,13 @@ class BoardTracker:
                 target.source = "forecast"
 
     def on_battle_prep(self, prep: BattlePrepForecast) -> None:
-        attacker_faction = Faction.ENEMY if prep.is_reaction else Faction.ALLY
-        defender_faction = Faction.ALLY if prep.is_reaction else Faction.ENEMY
+        # panel factions are fixed on both prep variants -- left (attacker_*
+        # fields) is always the enemy, right (defender_*) always ours,
+        # calibrated 2026-07-19 (docs/battle-prep-ui.md §2). the old
+        # is_reaction swap tagged the panels backwards on our own attacks.
         sides = (
-            (prep.attacker_name_sig, attacker_faction, prep.attacker_hp, prep.attacker_en),
-            (prep.defender_name_sig, defender_faction, prep.defender_hp, prep.defender_en),
+            (prep.attacker_name_sig, Faction.ENEMY, prep.attacker_hp, prep.attacker_en),
+            (prep.defender_name_sig, Faction.ALLY, prep.defender_hp, prep.defender_en),
         )
         for sig, faction, hp, en in sides:
             if sig is None:
