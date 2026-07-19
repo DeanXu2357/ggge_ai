@@ -180,6 +180,19 @@ def _check_stance_menu(frame: np.ndarray, expect: dict[str, Any] | None) -> None
     assert list(got.available_stances) == expect["available_stances"]
 
 
+def _check_grid_lattice(frame: np.ndarray, expect: dict[str, Any] | None) -> None:
+    """The 顯示方格 lattice reader (#25). expect=null pins a decline (no
+    grid on screen, or a too-sloppy pseudo-lattice); otherwise pins the
+    exact line positions."""
+    got = vision.read_grid_lattice(frame)
+    if expect is None:
+        assert got is None, f"expected no lattice, got {got}"
+        return
+    assert got is not None, "lattice reader declined on a gridded frame"
+    assert list(got[0]) == expect["cols"], f"cols {got[0]}"
+    assert list(got[1]) == expect["rows"], f"rows {got[1]}"
+
+
 def _check_defender_slot(frame: np.ndarray, expect: list[int] | None) -> None:
     """The arithmetic stance-menu entry point: avatar-row hit tokens + the
     support-defense label in, defender slot center out. expect=null pins
@@ -244,6 +257,7 @@ CHECKS = {
     "battle_prep_forecast": _forecast_check(vision.read_battle_prep_forecast),
     "reaction_stance_menu": _check_stance_menu,
     "defender_avatar_slot": _check_defender_slot,
+    "grid_lattice": _check_grid_lattice,
     "enemy_summary": _forecast_check(vision.read_enemy_summary),
     "unit_stats": _forecast_check(panels.parse_unit_stats),
     "weapon_rows": _check_weapon_rows,

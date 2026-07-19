@@ -325,6 +325,108 @@ def find_third_party_units(
     return _dedupe(_ring_blobs(teal, region))
 
 
+# the 顯示方格 in-battle grid (#25): vertical lines ride a stable ~128px
+# pitch while horizontal spacings grow down-screen (108->123 measured on the
+# 20260719 event stage -- mild vertical perspective), so the lattice is
+# reported as raw line positions, never a single cell size. Snapping runs
+# only when a lattice is actually detected, so frames without the grid
+# toggled on pass through unchanged.
+# bottom stops at y780: the 請選擇欲行動的單位 prompt band's top edge reads
+# as a phantom row line at y~823, and HUB_SCAN_REGION only yields arcs above
+# y790 anyway
+GRID_LATTICE_REGION = (150, 250, 1600, 530)
+GRID_LINE_MIN_SPACING = 90
+GRID_LINE_MAX_SPACING = 160
+# a real grid fills the region: ~12 columns at the measured 128px pitch and
+# ~5 rows in the 530px band. Sparse pseudo-lines (unit sprites on a
+# gridless frame lined up by chance) never reach these counts
+GRID_MIN_COLS = 6
+GRID_MIN_ROWS = 4
+# real-lattice gap spread stays tight (max-min <= 26 measured with the mild
+# vertical perspective); the unit-move blue-cell overlay traces the same
+# grid but its detected edges wobble across half-cells (spread 50+), too
+# sloppy to snap against
+GRID_GAP_RANGE = 35
+
+
+def read_grid_lattice(
+    frame: np.ndarray,
+) -> tuple[tuple[int, ...], tuple[int, ...]] | None:
+    """Gridline positions (column xs, row ys) in full-frame pixels, or None
+    when no plausible lattice is on screen. Highpass projections: gridlines
+    are thin brightness ridges spanning the whole map, so their |highpass|
+    column/row means peak while units and map art average out."""
+    x0, y0, w, h = GRID_LATTICE_REGION
+    crop = _crop(frame, GRID_LATTICE_REGION)
+    if crop.shape[0] < h or crop.shape[1] < w:
+        return None
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    hp = np.abs(gray - cv2.GaussianBlur(gray, (0, 0), 6))
+
+    def lines(profile: np.ndarray, offset: int) -> list[int]:
+        prof = profile - profile.mean()
+        gate = prof.std() * 1.2
+        out: list[int] = []
+        for i in range(2, len(prof) - 2):
+            if prof[i] >= prof[i - 1] and prof[i] >= prof[i + 1] and prof[i] > gate:
+                if not out or i - (out[-1] - offset) >= GRID_LINE_MIN_SPACING:
+                    out.append(offset + i)
+                elif prof[i] > prof[out[-1] - offset]:
+                    out[-1] = offset + i
+        return out
+
+    def trim(positions: list[int]) -> list[int]:
+        """Boundary lines whose gap to their neighbor falls outside the
+        cell band are screen furniture (a panel edge), not grid."""
+        out = list(positions)
+        while len(out) >= 2 and not (
+            GRID_LINE_MIN_SPACING <= out[1] - out[0] <= GRID_LINE_MAX_SPACING
+        ):
+            out.pop(0)
+        while len(out) >= 2 and not (
+            GRID_LINE_MIN_SPACING <= out[-1] - out[-2] <= GRID_LINE_MAX_SPACING
+        ):
+            out.pop()
+        return out
+
+    cols = trim(lines(hp.mean(axis=0), x0))
+    rows = trim(lines(hp.mean(axis=1), y0))
+
+    def plausible(positions: list[int], min_lines: int) -> bool:
+        if len(positions) < min_lines:
+            return False
+        gaps = [b - a for a, b in zip(positions, positions[1:])]
+        if max(gaps) - min(gaps) > GRID_GAP_RANGE:
+            return False
+        return all(
+            GRID_LINE_MIN_SPACING <= g <= GRID_LINE_MAX_SPACING for g in gaps
+        )
+
+    if not plausible(cols, GRID_MIN_COLS) or not plausible(rows, GRID_MIN_ROWS):
+        return None
+    return tuple(cols), tuple(rows)
+
+
+def snap_to_lattice(
+    point: tuple[float, float],
+    lattice: tuple[tuple[int, ...], tuple[int, ...]],
+) -> tuple[float, float]:
+    """Nearest cell center for a screen point: the midpoint of its
+    bracketing gridline pair per axis. Points outside the detected line
+    span keep their original coordinate on that axis."""
+
+    def snap(v: float, positions: tuple[int, ...]) -> float:
+        if v < positions[0] or v > positions[-1]:
+            return v
+        for a, b in zip(positions, positions[1:]):
+            if a <= v <= b:
+                return (a + b) / 2.0
+        return v
+
+    cols, rows = lattice
+    return (snap(point[0], cols), snap(point[1], rows))
+
+
 def measure_camera_shift(
     prev: np.ndarray,
     cur: np.ndarray,

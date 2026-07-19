@@ -25,6 +25,7 @@ import time
 from dataclasses import dataclass, field
 
 from ggge_ai.battle import executor, reconcile, vision
+from ggge_ai.battle import settings as battle_settings
 from ggge_ai.battle.actions import ActionKind
 from ggge_ai.battle.advisor import AdvisorConfig, DefaultAdvisor, SimAdvisor
 from ggge_ai.battle.identity import IdentityResolver
@@ -1275,7 +1276,30 @@ class ManualBattleController:
         camera = (0.0, 0.0)
         self._observe_map(frame, camera)
         if self.timeline.due("full_scan", scope="battle"):
-            camera, legs = self._scout_serpentine(frame, camera)
+            # #25 (user's call): flip 顯示方格 on for the full sweep so unit
+            # feet snap to real cells and the pan measurement gets lattice
+            # texture, then restore it off. Fail-soft: an unverified toggle
+            # scans gridless exactly as before.
+            grid_on = battle_settings.set_battle_grid(
+                self.perception.capture, self.actuator.tap, True, sleep=time.sleep
+            )
+            frame = self._frame()
+            lattice = vision.read_grid_lattice(frame) if grid_on else None
+            self._log(
+                "battle_grid",
+                frame=frame,
+                toggled=grid_on,
+                lattice_cols=list(lattice[0]) if lattice else None,
+                lattice_rows=list(lattice[1]) if lattice else None,
+            )
+            self._observe_map(frame, camera)
+            try:
+                camera, legs = self._scout_serpentine(frame, camera)
+            finally:
+                restored = battle_settings.set_battle_grid(
+                    self.perception.capture, self.actuator.tap, False, sleep=time.sleep
+                )
+                self._log("battle_grid", toggled=restored, desired="off")
             scan = f"serpentine({legs} legs)"
         else:
             camera = self._scout_local(frame, camera)
@@ -1403,11 +1427,21 @@ class ManualBattleController:
         return camera, legs
 
     def _observe_map(self, frame, camera) -> None:
+        # with 顯示方格 on (#25) every arc snaps to its cell center before
+        # world coordinates are assigned; gridless frames detect no lattice
+        # and pass through unchanged
+        lattice = vision.read_grid_lattice(frame)
+
+        def cells(points):
+            if lattice is None:
+                return points
+            return [vision.snap_to_lattice(p, lattice) for p in points]
+
         self.tacmap.observe(
             camera,
-            vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION),
-            vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION),
-            vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION),
+            cells(vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)),
+            cells(vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION)),
+            cells(vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION)),
             threats=vision.find_threat_cells(frame),
         )
 

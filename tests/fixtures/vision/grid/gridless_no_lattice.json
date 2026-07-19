@@ -1,0 +1,16 @@
+{
+  "check": "grid_lattice",
+  "expect": null,
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_gridless_20260719.png",
+  "note": "顯示方格 OFF 的同一地圖：單位精靈湊出的稀疏假線（4 條、含 748 大 gap）必須拒讀——線數門檻（col≥6/row≥4）＋全 gap 帶內＋間距均勻度三重閘。誤收假格網會讓 _observe_map 把弧座標吸到錯的格心。"
+}
