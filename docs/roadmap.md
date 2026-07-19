@@ -155,15 +155,21 @@ STAGE EX-2 IF」戰局停在 TURN 1 當標定場）**：
 - 標定副產物：戰鬥選單「勝利條件」鈕＝戰鬥中讀勝利條件的第二入口；
   空格點擊出現青色格子選取框＝格幾何備選信號。
 
-**恢復點**：① **重跑實機驗證**（重跑前先 `discord-notify` 通知使用者——
-使用者指示）：從停住的戰局直接 `GGGE_LLM=0 GGGE_INTEL=1 GGGE_PILOT=1
-GGGE_STAGE_ID=event-hard-20260719 uv run python scripts/run_manual_battle.py`；
-看點＝battle_grid/scan_leg 事件（#24 確診）、survey 全敵通過、應戰四假設
-（頭像槽算術、行動選擇 (2042,924)、武器鈕=spec 順序、SHORT V 閘門）。
-② 之後＝格座標權威化迭代（縱向透視 row 模型、定義檔 cells、bridge
-cell_size 量測供給）＋sim/solver（forecast 保守下界、敵方防禦保命、欺敵、
-support_defend 互斥、先攻 queue）。③ 手機省電鎖 3 分鐘逾時常駐——長閒置
-後首個 tap 前必過 Keyguard。
+**2026-07-19 深夜：十輪實機迭代收攏（全記錄見
+[map-scan-survey.md](map-scan-survey.md)）**：掃描/survey 十輪未全通但每輪
+確診一層——story ☰ 變體、Keyguard 淡出態、卡片停靠、per-leg 取證、角錨定、
+累積基準量測、地標接力、動態空地起點、彈窗凍結（使用者目擊定案）。
+**使用者兩大新定案**：① 掃描產出=完整地圖（角錨定、邊界權威）；
+② **敵我辨識延後二階段——第一階段全單位無陣營入 sim，第二階段點擊看
+橫幅停靠邊（左上=敵、右上=我），捨棄血條顏色判別**（同時解釋卡片換邊
+之謎：停靠邊=陣營）。11 個 commit、555 tests/3 xfail 綠。
+
+**恢復點（新 session 從這裡開始）**：① 讀 `docs/map-scan-survey.md`——
+設計定案五條＋實作藍圖＋未完成清單都在裡面；首務＝**兩階段敵我辨識
+實作**（tacmap 無陣營化＋橫幅停靠邊判陣營；右停靠我方橫幅需一張標定
+截圖）。② 應戰四假設驗證仍排在 survey 全通之後（battle-prep-ui.md §9）。
+③ 裝置：活動關戰局停在 TURN 1 hub（可放棄退體力）、stages cache 已清、
+省電鎖常駐 Keyguard 自理。重跑前 `discord-notify` 通知使用者（指示不變）。
 
 **還差的截圖情境（待使用者實機截圖）**：
 1. ~~`support_defense` 畫面~~ **已於 2026-07-19 取得**（reaction_support_defense_20260719.png，
