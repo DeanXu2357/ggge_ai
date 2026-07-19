@@ -61,10 +61,12 @@ MIN_SUPPORT = 2
 # aliased zero-lock, so the caller decides by trying the next stop
 HINT_MIN_TRAVEL = 120.0
 
-# peaks pinned to the scan-region bottom rim are boundary-clamped reads of
-# half-cut units (measured 30-70px above the true ring center): they still
-# anchor placement votes, but entering the pool they spawn ~70px ghost
-# twins of the fully-visible observation from the neighboring frame
+# peaks pinned to the scan-region top/bottom rim are boundary-clamped
+# reads: at the bottom they are half-cut units read 30-70px off center,
+# at the top they are above-region HUD/unit mass bleeding in through the
+# box filter. Both still anchor placement votes; entering the pool they
+# spawn ~70px ghost twins of the clean observation from a neighboring
+# frame
 CLAMP_BAND = 6.0
 
 # refinement matches observations to pool units within this radius: under
@@ -319,8 +321,11 @@ def stitch(
     cleaned = [_drop_near(pts, static, STATIC_DROP_RADIUS) for pts in detections]
     lattices = [vision.read_grid_lattice(f) for f in frames]
     _, y0, _, h = vision.UNIT_DENSITY_REGION
-    clamp_y = y0 + h - CLAMP_BAND
-    poolable = [[p for p in pts if p[1] < clamp_y] for pts in cleaned]
+    clamp_top = y0 + CLAMP_BAND
+    clamp_bottom = y0 + h - CLAMP_BAND
+    poolable = [
+        [p for p in pts if clamp_top < p[1] < clamp_bottom] for pts in cleaned
+    ]
 
     tac = TacticalMap()
     world_points: list[Point] = []

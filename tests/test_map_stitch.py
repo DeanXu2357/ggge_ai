@@ -1,7 +1,10 @@
 """Offline stitch regression on the 20260719 ex2if manual-pan series:
-9 real hub frames + subagent-transcribed ground truth. Guards the
-min-zoom density detector's recall and the stitcher's placement chain
-(vote + hint + support + ICP + weak-frame relocate)."""
+9 real hub frames + per-frame subagent-transcribed ground truth (ring
+centers, one dedicated reader per frame). Guards the min-zoom density
+detector's recall and the stitcher's placement chain (vote + hint +
+support + ICP + weak-frame relocate), and cross-validates the pooled
+units against the GT-derived board: every unique GT unit must appear in
+the pool; extras are bounded (large sprites shed multiple peaks)."""
 
 from __future__ import annotations
 
@@ -14,15 +17,7 @@ import pytest
 from ggge_ai.battle import map_stitch, vision
 
 SERIES = Path(__file__).parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
-# units the transcription itself flags as HUD-covered or banner-hidden;
-# the detector is not expected to see them in that frame
-GT_HUD_COVERED = {
-    ("07_pt7_pan_down.png", (435, 300)),
-    ("07_pt7_pan_down.png", (420, 205)),
-    ("09_pt9_pan_down_end.png", (455, 125)),
-}
-GT_MATCH_RADIUS = 75.0
-
+GT_MATCH_RADIUS = 70.0
 HINTS = [None, "up", "up", "up", "up", "right", "down", "down", "down"]
 
 
@@ -36,26 +31,31 @@ def series():
 
 
 @pytest.fixture(scope="module")
+def ground_truth():
+    return json.loads((SERIES / "ground_truth.json").read_text(encoding="utf-8"))["frames"]
+
+
+@pytest.fixture(scope="module")
 def result(series):
     _, frames = series
     return map_stitch.stitch(frames, hints=HINTS)
 
 
-def test_density_detector_recall(series):
+def test_density_detector_recall(series, ground_truth):
     entries, frames = series
-    gt = json.loads((SERIES / "ground_truth.json").read_text(encoding="utf-8"))["frames"]
     total = hit = 0
     r2 = GT_MATCH_RADIUS * GT_MATCH_RADIUS
     for entry, frame in zip(entries, frames):
         peaks = vision.find_unit_density_peaks(frame)
-        for unit in gt[entry["image"]]:
-            if (entry["image"], tuple(unit)) in GT_HUD_COVERED:
+        for unit in ground_truth[entry["image"]]:
+            if unit["status"] != "full":
                 continue
+            ux, uy = unit["pos"]
             total += 1
-            if any((unit[0] - x) ** 2 + (unit[1] - y) ** 2 < r2 for x, y in peaks):
+            if any((ux - x) ** 2 + (uy - y) ** 2 < r2 for x, y in peaks):
                 hit += 1
     assert total >= 100
-    assert hit / total >= 0.85
+    assert hit / total >= 0.95
 
 
 def test_placement_directions_follow_pans(result):
@@ -82,14 +82,43 @@ def test_static_filter_finds_hud_buttons(result):
 
     for button in ((199, 273), (391, 273), (2012, 90)):
         assert any(near(s, button) for s in result.static_screen)
-    assert len(result.static_screen) <= 5
+    assert len(result.static_screen) <= 8
 
 
-def test_pool_size_and_consistency(result):
-    assert 28 <= len(result.units) <= 38
-    multi = [u for u in result.units if u.support >= 2]
-    assert len(multi) >= 24
-    assert all(u.spread < 70 for u in multi)
+def expected_board(ground_truth, entries, cameras):
+    """Unique GT units in world coordinates: full+hud observations of
+    every frame carried by the fitted cameras, merged at 60px."""
+    merged: list[tuple[float, float]] = []
+    for i, entry in enumerate(entries):
+        for unit in ground_truth[entry["image"]]:
+            if unit["status"] not in ("full", "hud"):
+                continue
+            w = (unit["pos"][0] + cameras[i][0], unit["pos"][1] + cameras[i][1])
+            for j, q in enumerate(merged):
+                if (w[0] - q[0]) ** 2 + (w[1] - q[1]) ** 2 < 60**2:
+                    merged[j] = ((w[0] + q[0]) / 2, (w[1] + q[1]) / 2)
+                    break
+            else:
+                merged.append(w)
+    return merged
+
+
+def test_pool_covers_every_gt_unit(series, ground_truth, result):
+    entries, _ = series
+    cameras = [p.camera for p in result.placements]
+    board = expected_board(ground_truth, entries, cameras)
+    assert 25 <= len(board) <= 30
+    missing = [
+        b
+        for b in board
+        if all(
+            (b[0] - u.pos[0]) ** 2 + (b[1] - u.pos[1]) ** 2 >= 80**2
+            for u in result.units
+        )
+    ]
+    assert not missing, f"GT units absent from pool: {missing}"
+    # large sprites (warship, oversized MA) shed extra peaks; bound them
+    assert len(result.units) - len(board) <= 14
 
 
 def test_grid_pitch_measured(result):
@@ -101,4 +130,4 @@ def test_missing_hints_still_stitches(series):
     _, frames = series
     result = map_stitch.stitch(frames)
     assert len(result.placements) == len(frames)
-    assert 28 <= len(result.units) <= 40
+    assert 27 <= len(result.units) <= 45

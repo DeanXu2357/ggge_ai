@@ -349,7 +349,16 @@ def find_third_party_units(
 # fully-visible observations from adjacent frames downstream.
 UNIT_DENSITY_REGION = (150, 90, 2100, 930)
 UNIT_DENSITY_WINDOW = 91
-UNIT_DENSITY_THRESHOLD = 0.03
+# absolute colored-pixel count inside the window, not a fraction: 248
+# (=3%) missed a bottom-cut ring measuring 212 while every confirmed unit
+# clears 200 (per-frame subagent ground truth, 104/104 recall)
+UNIT_DENSITY_MIN_COUNT = 200
+# local-maximum test radius vs dedupe radius are deliberately different:
+# at 80 the dilate window let a strong neighbor's density plateau swallow
+# the saddle next to a weaker adjacent unit (three dark units with peak
+# counts 1451-1689 vanished); 31 keeps each unit's own summit alive and
+# the greedy pass below still enforces the 80px spacing
+UNIT_DENSITY_LOCAL_MAX = 31
 UNIT_DENSITY_MIN_DIST = 80
 # the turn-banner block (我軍回合/剩餘回合/破壞數) overhangs the region's
 # top-left corner and its colored text peaks like a unit (measured at
@@ -387,10 +396,12 @@ def find_unit_density_peaks(
     x0, y0, w, h = region
     bounded = np.zeros_like(density)
     bounded[y0 : y0 + h, x0 : x0 + w] = density[y0 : y0 + h, x0 : x0 + w]
+    local = UNIT_DENSITY_LOCAL_MAX
     dist = UNIT_DENSITY_MIN_DIST
-    dilated = cv2.dilate(bounded, np.ones((dist, dist), np.uint8))
-    min_count = int(UNIT_DENSITY_THRESHOLD * win * win)
-    peak_ys, peak_xs = np.nonzero((bounded >= min_count) & (bounded >= dilated))
+    dilated = cv2.dilate(bounded, np.ones((local, local), np.uint8))
+    peak_ys, peak_xs = np.nonzero(
+        (bounded >= UNIT_DENSITY_MIN_COUNT) & (bounded >= dilated)
+    )
     points: list[tuple[int, int]] = []
     for x, y in sorted(
         zip(peak_xs, peak_ys), key=lambda p: -int(bounded[p[1], p[0]])
