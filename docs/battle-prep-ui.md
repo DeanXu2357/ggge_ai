@@ -33,9 +33,12 @@
   defense_value/attacker·defender HP·EN·hp_delta 皆正確；`hit_pct=None`（region
   未對到，見 §3）；defender_hp 偶有 OCR 誤讀（14168→14188，digit 模板待查）。
 - **KILL 標記**：致死傷害在面板 delta 後顯示「KILL」（語意見 §7）。
-- **點頂部單位橫幅 → 單位詳細資料**（攻擊/反擊雙方皆可）：buff（修正效果）、
-  機體＆駕駛員能力數值、武裝、能力。＝**戰鬥中 intel 來源**（關卡外只能點敵人，
-  戰鬥準備畫面可看敵我雙方；連 memory `llm-perception-unit-info`）。
+- **點頂部單位橫幅 → 單位設置詳情**（攻擊/反擊雙方皆可）＝**戰鬥中 intel 來源**
+  （關卡外只能點敵人，戰鬥準備可看敵我雙方）。左欄＝機體＋駕駛員數值（**±標記＝
+  受能力影響**）；三 tab：**組合資訊**(修正效果 buff＋標籤＋系列，buff 欄右「i」看詳細)／
+  **武裝、技能**(機體武裝＋機體/駕駛員技能，**顯示持有≠可用**、限制武裝不顯示剩餘次數)／
+  **能力、OP**(能力＋選擇性零件，**數值影響已反映左欄**)。詳見 unit_detail_combined
+  fixture 與 memory `llm-perception-unit-info`。
 
 ## 3. 底部頭像列：攻擊順序＋命中率
 
@@ -193,6 +196,7 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 | `reaction_support_counter_20260719` | -應戰- ＋支援反擊 | 應戰順序①敵攻②支援反擊③反擊 |
 | `reaction_support_defense_20260719` | -應戰- ＋支援防禦 | interceptor 擋傷、盾圖示「支援防禦」標籤 |
 | `reaction_shield_menu_20260719` | -應戰- 有盾機體多武器選單 | shield＝防禦(盾牌)減40%、5 武器 pitch~170、錨點隨武器數移動 |
+| `unit_detail_combined_20260719` | 點橫幅→單位設置詳情（組合資訊 tab） | 三 tab 語意、±標記＝受能力影響、buff 在組合資訊 |
 | `support_weapon_menu_20260719` | 支援武裝選單 | pitch≈170、灰色 disabled、不參加右錨 |
 | `skill_menu_20260719` | 技能選擇 | 技能槽 pitch170、SP、發動鈕 |
 
