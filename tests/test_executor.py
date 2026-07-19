@@ -331,47 +331,173 @@ def test_pilot_disabled_leaves_greedy_untouched(monkeypatch):
     assert "pilot_plan" not in _kinds(c)
 
 def _reaction_prep(**kw):
-    """A 戰鬥準備 -應戰- forecast with the stance set calibrated (what S9d
-    will populate); available_stances=None models the current uncalibrated
-    state."""
     base = dict(
         is_reaction=True,
         attack_value=25000, defense_value=0, hit_pct=63,
         attacker_name_sig=ENEMY_SIG, attacker_hp=90000, attacker_en=400,
         defender_name_sig=OUR_SIG, defender_hp=11000, defender_en=157,
         defender_hp_delta=25000, support_defense=False,
-        available_stances=("dodge", "defend"),
+        available_stances=None,
     )
     base.update(kw)
     return vision.BattlePrepForecast(**base)
 
 
-def _reaction_advice(stance="dodge"):
-    return type("R", (), {"stance": stance, "weapon": None,
+def _reaction_advice(stance="dodge", weapon=None):
+    return type("R", (), {"stance": stance, "weapon": weapon,
                           "support_defend": False, "value": 1.0})()
 
 
-def test_reaction_stance_taps_the_calibrated_option(monkeypatch):
+def _stance_menu(n_weapons=2, guard="defend", enabled=(True, True)):
+    counters = tuple(
+        vision.StanceOption(
+            stance="counter",
+            tap=(1352 - 187 * (k + 1), 940),
+            enabled=enabled[k],
+            weapon_index=k,
+        )
+        for k in range(n_weapons)
+    )
+    return vision.ReactionStanceMenu(
+        dodge=vision.StanceOption(stance="dodge", tap=(1540, 940), enabled=True),
+        guard=vision.StanceOption(stance=guard, tap=(1352, 940), enabled=True),
+        counters=counters,
+    )
+
+
+def _wire_reaction(monkeypatch, c, advice, menu, *, hits=None, slot=(1063, 938)):
+    """Menu closed on the entry frame, open after the avatar tap."""
+    reads = iter([None, menu])
+    monkeypatch.setattr(
+        vision, "read_reaction_stance_menu", lambda f: next(reads, menu)
+    )
+    monkeypatch.setattr(vision, "read_avatar_hits", lambda f: hits or ())
+    monkeypatch.setattr(vision, "defender_avatar_slot", lambda h, s: slot)
+    calls = {}
+
+    def fake_advise(*a, **k):
+        calls.update(k)
+        return advice
+
+    monkeypatch.setattr(advisor_mod, "advise_reaction", fake_advise)
+    return calls
+
+
+def test_reaction_dodge_flow_taps_avatar_option_confirm(monkeypatch):
     c = _pilot_controller(monkeypatch, None)
-    monkeypatch.setattr(advisor_mod, "advise_reaction", lambda *a, **k: _reaction_advice())
-    monkeypatch.setitem(controller_mod.REACTION_OPTION_TAPS, "dodge", (500, 700))
+    calls = _wire_reaction(monkeypatch, c, _reaction_advice("dodge"), _stance_menu())
 
     c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
 
-    assert (500, 700) in c.actuator.taps
-    choices = [e for e in c.ledger.events if e["kind"] == "reaction_choice"]
-    assert choices and choices[0]["stance"] == "dodge"
+    assert c.actuator.taps == [
+        (1063, 938), (1540, 940), controller_mod.REACTION_ACTION_CONFIRM
+    ]
+    assert calls["allowed_stances"] == ("dodge", "defend", "counter")
+    kinds = _kinds(c)
+    for kind in ("reaction_avatar", "reaction_menu", "reaction_choice", "reaction_confirmed"):
+        assert kind in kinds, kind
 
 
-def test_reaction_stance_without_calibrated_tap_aborts(monkeypatch):
+def test_reaction_menu_already_open_skips_avatar_tap(monkeypatch):
     c = _pilot_controller(monkeypatch, None)
+    menu = _stance_menu()
+    monkeypatch.setattr(vision, "read_reaction_stance_menu", lambda f: menu)
     monkeypatch.setattr(advisor_mod, "advise_reaction", lambda *a, **k: _reaction_advice())
+
+    c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
+
+    assert c.actuator.taps[0] == (1540, 940)
+    assert "reaction_avatar" not in _kinds(c)
+
+
+def test_reaction_counter_maps_spec_order_left_to_right(monkeypatch):
+    # spec order [vulcan, rifle] must map to buttons left-to-right, i.e. the
+    # reverse of menu.counters (which counts from the 防禦 anchor leftward)
+    spec = UnitSpec(weapons=(
+        SimWeapon("vulcan", power=1000, range_min=1, range_max=1),
+        SimWeapon("rifle", power=3000, range_min=1, range_max=3),
+    ))
+    c = _pilot_controller(monkeypatch, None)
+    c.specs_by_id[f"sig:{OUR_SIG}"] = spec
+    _wire_reaction(
+        monkeypatch, c, _reaction_advice("counter", weapon="rifle"), _stance_menu()
+    )
+
+    c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
+
+    assert (1352 - 187, 940) in c.actuator.taps
+
+
+def test_reaction_counter_unmapped_weapon_aborts(monkeypatch):
+    c = _pilot_controller(monkeypatch, None)
+    c.specs_by_id[f"sig:{OUR_SIG}"] = _spec()
+    _wire_reaction(
+        monkeypatch, c, _reaction_advice("counter", weapon="saber"), _stance_menu()
+    )
+
+    with pytest.raises(PilotAbort):
+        c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
+    aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
+    assert aborts and aborts[0]["reason"] == "reaction_weapon_unmapped"
+
+
+def test_reaction_counter_disabled_button_aborts(monkeypatch):
+    spec = UnitSpec(weapons=(
+        SimWeapon("vulcan", power=1000, range_min=1, range_max=1),
+        SimWeapon("rifle", power=3000, range_min=1, range_max=3),
+    ))
+    c = _pilot_controller(monkeypatch, None)
+    c.specs_by_id[f"sig:{OUR_SIG}"] = spec
+    # enabled indexes menu.counters (from the 防禦 anchor leftward): rifle is
+    # the last spec weapon, i.e. the k=0 button nearest the anchor
+    _wire_reaction(
+        monkeypatch, c, _reaction_advice("counter", weapon="rifle"),
+        _stance_menu(enabled=(False, True)),
+    )
+
+    with pytest.raises(PilotAbort):
+        c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
+    aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
+    assert aborts and aborts[0]["reason"] == "reaction_weapon_disabled"
+
+
+def test_reaction_guard_kind_mismatch_aborts(monkeypatch):
+    c = _pilot_controller(monkeypatch, None)
+    _wire_reaction(
+        monkeypatch, c, _reaction_advice("shield"), _stance_menu(guard="defend")
+    )
+
+    with pytest.raises(PilotAbort):
+        c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
+    aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
+    assert aborts and aborts[0]["reason"] == "reaction_stance_unavailable"
+
+
+def test_reaction_menu_never_opens_aborts(monkeypatch):
+    c = _pilot_controller(monkeypatch, None)
+    monkeypatch.setattr(vision, "read_reaction_stance_menu", lambda f: None)
+    monkeypatch.setattr(vision, "read_avatar_hits", lambda f: ())
+    monkeypatch.setattr(vision, "defender_avatar_slot", lambda h, s: (1063, 938))
 
     with pytest.raises(PilotAbort):
         c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
 
+    assert (1063, 938) in c.actuator.taps
     aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
-    assert aborts and aborts[0]["reason"] == "reaction_taps_uncalibrated"
+    assert aborts and aborts[0]["reason"] == "reaction_menu_unreadable"
+
+
+def test_reaction_avatar_not_found_aborts(monkeypatch):
+    c = _pilot_controller(monkeypatch, None)
+    monkeypatch.setattr(vision, "read_reaction_stance_menu", lambda f: None)
+    monkeypatch.setattr(vision, "read_avatar_hits", lambda f: ())
+    monkeypatch.setattr(vision, "defender_avatar_slot", lambda h, s: None)
+
+    with pytest.raises(PilotAbort):
+        c._choose_reaction_stance(c.perception.capture(), _reaction_prep())
+    aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
+    assert aborts and aborts[0]["reason"] == "reaction_avatar_not_found"
+    assert c.actuator.taps == []
 
 
 def test_reaction_stance_ungrounded_names_abort(monkeypatch):
@@ -384,20 +510,6 @@ def test_reaction_stance_ungrounded_names_abort(monkeypatch):
 
     aborts = [e for e in c.ledger.events if e["kind"] == "pilot_abort"]
     assert aborts and aborts[0]["reason"] == "reaction_ungrounded"
-
-
-def test_reaction_stance_dormant_until_stances_calibrated(monkeypatch):
-    # available_stances=None = S9d has not located the -應戰- stance UI yet;
-    # the executor must no-op so _on_battle_prep's 開始戰鬥 confirm accepts
-    # the game's default stance unchanged (behavior-preserving).
-    c = _pilot_controller(monkeypatch, None)
-
-    c._choose_reaction_stance(
-        c.perception.capture(), _reaction_prep(available_stances=None)
-    )
-
-    assert c.actuator.taps == []
-    assert not any(e["kind"] == "pilot_abort" for e in c.ledger.events)
 
 
 def test_reaction_stance_no_op_in_greedy_mode(monkeypatch):

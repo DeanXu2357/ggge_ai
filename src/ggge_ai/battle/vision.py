@@ -537,6 +537,9 @@ BP_HIT_TOKEN_GAP = 40
 BP_HIT_DIGIT_HEIGHT = 32
 BP_HIT_FONT = "hit"
 BP_HIT_RING_MIN_PIXELS = 25
+AVATAR_ROW_CENTER_X = 963
+AVATAR_ROW_Y = 938
+AVATAR_SLOT_TOLERANCE = 18
 
 # name bars end before each panel's bright edge line (x=938 left, x=1790
 # right on the weapon-select capture) so the tight-bbox normalization in
@@ -861,6 +864,45 @@ def read_avatar_hits(frame: np.ndarray) -> tuple[AvatarHit, ...]:
             continue
         hits.append(AvatarHit(x=text_x, pct=pct, faction=_ring_faction(hsv, text_x)))
     return tuple(hits)
+
+
+def defender_avatar_slot(
+    hits: tuple[AvatarHit, ...], support_defense: bool
+) -> tuple[int, int] | None:
+    """Slot center of the defending (rightmost) avatar on a -應戰- prep
+    frame -- the stance-menu entry point -- derived arithmetically, not by
+    pixel probing: the avatar circles are portrait art over arbitrary map
+    background (a blue-water map defeats every ring-color heuristic tried),
+    while the row geometry is exact. The row is centered on x=963 with a
+    200px pitch, so every slot lands on the 100px half-grid; the avatar
+    count is (pct-bearing avatars) + (the label-flagged interceptor) + the
+    defender itself when its current stance shows no pct (dodge/defend) --
+    and the row-centering parity constraint (N-1 ≡ (token_x-963)/100 mod 2)
+    picks exactly one of those two hypotheses. Validated 5/5 on the
+    20260719 reaction fixtures. None on no hits, an off-grid token, or
+    inconsistent parity (layout surprise -- the caller aborts rather than
+    guessing); the caller must still verify the tap actually opened the
+    stance row (read_reaction_stance_menu), which catches a wrong count."""
+    if not hits:
+        return None
+    offsets = []
+    for h in hits:
+        off = h.x - AVATAR_ROW_CENTER_X
+        residue = off % 100
+        if min(residue, 100 - residue) > AVATAR_SLOT_TOLERANCE:
+            return None
+        offsets.append(round(off / 100))
+    if len({d % 2 for d in offsets}) != 1:
+        return None
+    parity = offsets[0] % 2
+    base = len(hits) + (1 if support_defense else 0)
+    count = base if (base - 1) % 2 == parity else base + 1
+    if count < 2:
+        count += 2
+    x = AVATAR_ROW_CENTER_X + (count - 1) * 100
+    if max(h.x for h in hits) > x + AVATAR_SLOT_TOLERANCE:
+        return None
+    return (x, AVATAR_ROW_Y)
 
 
 def _initiator_hit(hits: tuple[AvatarHit, ...], is_reaction: bool) -> int | None:

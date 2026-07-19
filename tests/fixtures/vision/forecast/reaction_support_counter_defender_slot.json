@@ -1,0 +1,19 @@
+{
+  "check": "defender_avatar_slot",
+  "expect": [
+    1163,
+    938
+  ],
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_support_counter_20260719.png",
+  "note": "3 頭像（敵＋支援反擊＋我）：3 token → N=3 → 1163。"
+}

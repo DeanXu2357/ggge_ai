@@ -162,6 +162,16 @@ def _check_stance_menu(frame: np.ndarray, expect: dict[str, Any] | None) -> None
     assert list(got.available_stances) == expect["available_stances"]
 
 
+def _check_defender_slot(frame: np.ndarray, expect: list[int] | None) -> None:
+    """The arithmetic stance-menu entry point: avatar-row hit tokens + the
+    support-defense label in, defender slot center out. expect=null pins
+    that no slot may be derived (no tokens on screen)."""
+    hits = vision.read_avatar_hits(frame)
+    got = vision.defender_avatar_slot(hits, vision.has_support_defense_label(frame))
+    want = tuple(expect) if expect is not None else None
+    assert got == want, f"got {got}, want {want} (hits={hits})"
+
+
 def _check_weapon_rows(frame: np.ndarray, expect: list[dict[str, Any]]) -> None:
     got = panels.parse_weapon_rows(frame)
     assert len(got) == len(expect), f"got {len(got)} rows, want {len(expect)}: {got}"
@@ -214,6 +224,7 @@ CHECKS = {
     "weapon_select_forecast": _forecast_check(vision.read_weapon_select_forecast),
     "battle_prep_forecast": _forecast_check(vision.read_battle_prep_forecast),
     "reaction_stance_menu": _check_stance_menu,
+    "defender_avatar_slot": _check_defender_slot,
     "enemy_summary": _forecast_check(vision.read_enemy_summary),
     "unit_stats": _forecast_check(panels.parse_unit_stats),
     "weapon_rows": _check_weapon_rows,

@@ -1,0 +1,19 @@
+{
+  "check": "defender_avatar_slot",
+  "expect": [
+    1163,
+    938
+  ],
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_support_defense_20260719.png",
+  "note": "支援防禦 interceptor 無 pct：2 token＋盾標籤計入 → N=3 → 1163。此圖右側是整片藍水面地形——顏色環偵測在此誤判 (1363)，算術定位是本函式取代像素法的原因。"
+}

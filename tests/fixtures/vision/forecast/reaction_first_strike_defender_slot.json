@@ -1,0 +1,19 @@
+{
+  "check": "defender_avatar_slot",
+  "expect": [
+    1263,
+    938
+  ],
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_first_strike_20260719.png",
+  "note": "先攻 4 頭像（我支援①＋敵②＋支援防禦＋我閃避）：2 token＋盾標籤 → base=3、奇偶不合 → N=4 → 1263。"
+}

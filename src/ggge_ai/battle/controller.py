@@ -36,12 +36,12 @@ from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.battle.timeline import BattleTimeline
 from ggge_ai.battle.tracker import BoardTracker
 from ggge_ai.domain import screens
+from ggge_ai.sim import DefenseKind
 
-# 戰鬥準備 -應戰- 畫面上各防禦 stance 的切換座標（DefenseKind→tap）。
-# S9d 實機標定後填入；空表＝stance 切換 UI 尚未定位，選到非預設 stance 只能
-# abort（reaction_taps_uncalibrated），預設 stance 走 _on_battle_prep 的開始戰鬥
-# 直接確認。
-REACTION_OPTION_TAPS: dict[str, tuple[int, int]] = {}
+# 應戰 stance 選單的「行動選擇」確認鈕（docs/battle-prep-ui.md §4，估計值、
+# 待實機精量）。各 stance 鈕座標不再維護固定表：由
+# vision.read_reaction_stance_menu 以 dodge/defend 錨點＋pitch 相對定位提供。
+REACTION_ACTION_CONFIRM = (2042, 924)
 
 log = logging.getLogger(__name__)
 
@@ -589,18 +589,17 @@ class ManualBattleController:
     def _choose_reaction_stance(self, frame, prep) -> None:
         """Reaction (#3, 應戰決策) executor. The reaction is the 戰鬥準備
         screen in its -應戰- variant, so it arrives through _on_battle_prep,
-        not the NOT_ACTIONABLE path. Pure orchestration: perception is
-        read_battle_prep_forecast, the decision is advise_reaction (the
-        user's call -- the solver picks the stance, no static default), and
-        this only grounds the plates, taps the chosen stance option, and
-        aborts when the incoming attack cannot be grounded or its stance
-        tap is uncalibrated.
-
-        Dormant until S9d lands prep.available_stances (the offered set):
-        with it None there is no calibrated stance UI to drive, so this
-        no-ops and _on_battle_prep's shared 開始戰鬥 confirm accepts the
-        game's default stance unchanged."""
-        if not self.pilot_enabled or prep.available_stances is None:
+        not the NOT_ACTIONABLE path. Flow (docs/battle-prep-ui.md §4):
+        derive our defender's avatar slot arithmetically and tap it to open
+        the stance action row (skipped when the row is somehow already
+        open), read the offered set off the row, let advise_reaction pick
+        under exactly that set (the user's call -- the solver decides, no
+        static default), tap the chosen option, then 行動選擇 returns to
+        the main screen where the caller's shared 開始戰鬥 tap confirms the
+        engagement. Every alignment surprise aborts (fail-fast): plates
+        that cannot be grounded, no derivable avatar slot, a row that never
+        opens, or an advised weapon that does not map onto the button row."""
+        if not self.pilot_enabled:
             return
         attacker_id = (
             self.resolver.uid_for(prep.attacker_name_sig)
@@ -619,6 +618,39 @@ class ManualBattleController:
                 attacker=attacker_id,
                 defender=defender_id,
             )
+        menu_frame = frame
+        menu = vision.read_reaction_stance_menu(frame)
+        if menu is None:
+            hits = vision.read_avatar_hits(frame)
+            slot = vision.defender_avatar_slot(hits, bool(prep.support_defense))
+            if slot is None:
+                self._pilot_abort(
+                    "reaction_avatar_not_found",
+                    frame=frame,
+                    hits=[[h.x, h.pct, h.faction] for h in hits],
+                )
+            self._log(
+                "reaction_avatar",
+                frame=frame,
+                tap=list(slot),
+                hits=[[h.x, h.pct, h.faction] for h in hits],
+            )
+            self.actuator.tap(*slot)
+            for _ in range(2):
+                time.sleep(1.0)
+                menu_frame = self._frame()
+                menu = vision.read_reaction_stance_menu(menu_frame)
+                if menu is not None:
+                    break
+        if menu is None:
+            self._pilot_abort("reaction_menu_unreadable", frame=menu_frame)
+        self._log(
+            "reaction_menu",
+            frame=menu_frame,
+            stances=list(menu.available_stances),
+            guard=menu.guard.stance if menu.guard is not None else None,
+            weapons=[[c.tap[0], c.enabled] for c in menu.counters],
+        )
         battle, _ = self._build_board()
         advice = self.advisor.advise_reaction(
             battle,
@@ -628,30 +660,95 @@ class ManualBattleController:
             config=AdvisorConfig(
                 time_budget_s=self.pilot_time_budget_s, cell_size=95.0
             ),
-            allowed_stances=prep.available_stances or None,
+            allowed_stances=menu.available_stances or None,
             allow_support_defend=(
                 prep.support_defense if prep.support_defense is not None else True
             ),
         )
         if advice is None:
-            self._pilot_abort("reaction_ungrounded", frame=frame, attacker=attacker_id)
-        point = REACTION_OPTION_TAPS.get(advice.stance)
-        if point is None:
             self._pilot_abort(
-                "reaction_taps_uncalibrated", frame=frame, stance=advice.stance
+                "reaction_ungrounded", frame=menu_frame, attacker=attacker_id
             )
+        point = self._reaction_option_tap(menu, advice, defender_id, menu_frame)
         self._log(
             "reaction_choice",
-            frame=frame,
+            frame=menu_frame,
             stance=advice.stance,
             weapon=advice.weapon,
             support=advice.support_defend,
             value=round(advice.value, 1),
             attacker=attacker_id,
             defender=defender_id,
+            tap=list(point),
         )
         self.actuator.tap(*point)
-        time.sleep(1.0)
+        time.sleep(0.8)
+        self.actuator.tap(*REACTION_ACTION_CONFIRM)
+        time.sleep(1.2)
+        confirm_frame = self._safe_frame()
+        after = (
+            vision.read_battle_prep_forecast(confirm_frame)
+            if confirm_frame is not None
+            else None
+        )
+        self._log(
+            "reaction_confirmed",
+            frame=confirm_frame,
+            stance=advice.stance,
+            defense_value=after.defense_value if after is not None else None,
+            hp_delta=after.defender_hp_delta if after is not None else None,
+            hit_pct=after.hit_pct if after is not None else None,
+        )
+
+    def _reaction_option_tap(self, menu, advice, defender_id, frame) -> tuple[int, int]:
+        """Map the advised stance onto the action-row buttons. Counter
+        weapons: the row runs left-to-right in the unit's spec weapon order
+        (the order weapon-select slots follow), while menu.counters counts
+        from the 防禦 anchor leftward -- reversed() aligns the two. A
+        mismatch means our model of the row disagrees with the screen, so
+        it aborts for live inspection instead of papering over."""
+        if advice.stance == DefenseKind.DODGE:
+            return menu.dodge.tap
+        if advice.stance in (DefenseKind.DEFEND, DefenseKind.SHIELD):
+            if menu.guard is None or menu.guard.stance != advice.stance:
+                self._pilot_abort(
+                    "reaction_stance_unavailable",
+                    frame=frame,
+                    stance=advice.stance,
+                    offered=menu.guard.stance if menu.guard is not None else None,
+                )
+            return menu.guard.tap
+        if advice.stance == DefenseKind.COUNTER:
+            spec = self.specs_by_id.get(defender_id)
+            names = [w.name for w in spec.weapons] if spec is not None else []
+            buttons = list(reversed(menu.counters))
+            if (
+                advice.weapon is None
+                or advice.weapon not in names
+                or len(buttons) != len(names)
+            ):
+                self._pilot_abort(
+                    "reaction_weapon_unmapped",
+                    frame=frame,
+                    weapon=advice.weapon,
+                    buttons=len(buttons),
+                    spec_weapons=len(names),
+                )
+            option = buttons[names.index(advice.weapon)]
+            if not option.enabled:
+                self._pilot_abort(
+                    "reaction_weapon_disabled",
+                    frame=frame,
+                    weapon=advice.weapon,
+                    tap=list(option.tap),
+                )
+            return option.tap
+        self._pilot_abort(
+            "reaction_stance_unavailable",
+            frame=frame,
+            stance=advice.stance,
+            offered=list(menu.available_stances),
+        )
 
     def _on_not_actionable(self) -> bool:
         """No MODE_LABELS matched: we cannot act right now (docs/
@@ -1928,9 +2025,10 @@ class ManualBattleController:
                     prep.attack_value,
                     prep.hit_pct,
                 )
-                # the solver picks the defense stance before we confirm;
-                # dormant until S9d calibrates the -應戰- stance UI, then the
-                # shared 開始戰鬥 tap below confirms the selection
+                # the solver picks the defense stance before we confirm; the
+                # shared 開始戰鬥 tap below then fires the engagement with
+                # whatever _choose_reaction_stance selected (or the game's
+                # default in greedy mode)
                 self._choose_reaction_stance(frame, prep)
         if self._pending is not None and not self._pending.armed:
             if prep is None or not prep.is_reaction:

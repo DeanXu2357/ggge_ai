@@ -1,0 +1,19 @@
+{
+  "check": "defender_avatar_slot",
+  "expect": [
+    1063,
+    938
+  ],
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_dodge_confirmed_20260719.png",
+  "note": "我方已選閃避（無 pct）：只剩敵方 token，奇偶約束仍唯一定出 N=2 → 1063。釘「防守者無 pct 也能定位」。"
+}

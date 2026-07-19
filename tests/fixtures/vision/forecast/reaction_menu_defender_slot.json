@@ -1,0 +1,16 @@
+{
+  "check": "defender_avatar_slot",
+  "expect": null,
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_menu_20260719.png",
+  "note": "stance 選單開啟時頭像列被 SELECT 動作列取代 → 無 token → 不可定位（controller 此時直接讀選單、不找頭像）。"
+}

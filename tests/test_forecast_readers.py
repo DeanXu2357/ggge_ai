@@ -51,6 +51,32 @@ def test_initiator_hit_selection() -> None:
     assert vision._initiator_hit(unknown, is_reaction=False) is None
 
 
+def test_defender_avatar_slot_arithmetic() -> None:
+    """The stance-menu entry point is derived, not detected: row centered on
+    963, pitch 200, avatar count = tokens + labelled interceptor + maybe the
+    defender itself, disambiguated by the row-centering parity."""
+
+    def hit(x: int, faction: str) -> vision.AvatarHit:
+        return vision.AvatarHit(x=x, pct=100, faction=faction)
+
+    two = (hit(863, "enemy"), hit(1063, "ally"))
+    assert vision.defender_avatar_slot(two, False) == (1063, 938)
+    # defender in dodge stance carries no pct; parity still lands the slot
+    assert vision.defender_avatar_slot((hit(863, "enemy"),), False) == (1063, 938)
+    # the interceptor has no pct either -- the support-defense label counts it
+    supdef = (hit(763, "enemy"), hit(1163, "ally"))
+    assert vision.defender_avatar_slot(supdef, True) == (1163, 938)
+    # first-strike layout: our support, the enemy, the interceptor, us = 4
+    strike = (hit(663, "ally"), hit(863, "enemy"))
+    assert vision.defender_avatar_slot(strike, True) == (1263, 938)
+    assert vision.defender_avatar_slot((), False) is None
+    # an off-grid token is a layout surprise, never a guess
+    assert vision.defender_avatar_slot((hit(900, "enemy"),), False) is None
+    # tokens with conflicting parity cannot come from one centered row
+    mixed = (hit(863, "enemy"), hit(963, "ally"))
+    assert vision.defender_avatar_slot(mixed, False) is None
+
+
 def test_available_stances_ordering() -> None:
     dodge = vision.StanceOption(stance="dodge", tap=(1540, 940), enabled=True)
     guard = vision.StanceOption(stance="shield", tap=(1352, 940), enabled=True)

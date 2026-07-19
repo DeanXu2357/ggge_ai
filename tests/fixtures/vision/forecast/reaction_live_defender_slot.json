@@ -1,0 +1,19 @@
+{
+  "check": "defender_avatar_slot",
+  "expect": [
+    1063,
+    938
+  ],
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_live_20260719.png",
+  "note": "2 頭像列（敵①＋我②反擊態）：token 2 個、無支援防禦 → N=2 → 最右槽 1063。"
+}
