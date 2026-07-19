@@ -328,9 +328,11 @@ def find_third_party_units(
 # the 顯示方格 in-battle grid (#25): vertical lines ride a stable ~128px
 # pitch while horizontal spacings grow down-screen (108->123 measured on the
 # 20260719 event stage -- mild vertical perspective), so the lattice is
-# reported as raw line positions, never a single cell size. Snapping runs
-# only when a lattice is actually detected, so frames without the grid
-# toggled on pass through unchanged.
+# reported as raw line positions, never a single cell size. The lattice
+# serves pan-measurement texture, map-bounds work and (future) cell
+# assignment; observations themselves stay raw -- rewriting them to cell
+# centers broke every gridless consumer's 60px match gates (20260719 runs
+# 4/5), so snap_to_lattice is kept for cell math, not applied to the map.
 # bottom stops at y780: the 請選擇欲行動的單位 prompt band's top edge reads
 # as a phantom row line at y~823, and HUB_SCAN_REGION only yields arcs above
 # y790 anyway

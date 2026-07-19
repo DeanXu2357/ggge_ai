@@ -123,6 +123,17 @@ def test_turn_ocr_advances_and_rearms_turn_jobs():
     assert t.due("full_scan", scope="battle") is False  # battle scope survives
 
 
+def test_pending_peeks_without_claiming():
+    """due() claims on the ask; pending() must not -- a peeking caller that
+    used due() stole the intel gate and skipped the survey (20260719)."""
+    t = BattleTimeline()
+    assert t.pending("intel", scope="battle") is True
+    assert t.pending("intel", scope="battle") is True
+    assert t.due("intel", scope="battle") is True
+    assert t.pending("intel", scope="battle") is False
+    assert t.due("intel", scope="battle") is False
+
+
 def test_turn_ocr_same_or_lower_number_does_not_advance():
     t = BattleTimeline(turn=3)
     assert t.on_turn_read(3, marker=None) is False

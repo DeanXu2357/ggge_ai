@@ -897,9 +897,9 @@ class ManualBattleController:
         battle on the first our-turn hub."""
         if not self.intel_enabled or not self.timeline.due("intel", scope="battle"):
             return
-        if self.stage_id is None:
-            raise SurveyIncomplete("intel enabled but no stage_id given")
         try:
+            if self.stage_id is None:
+                raise SurveyIncomplete("intel enabled but no stage_id given")
             self._ensure_stage_definition_inner(frame)
         finally:
             # the grid window (user's flow: grid on -> sweep -> per-unit
@@ -1119,9 +1119,6 @@ class ManualBattleController:
                 + vision.find_enemy_units(frame)
                 + vision.find_third_party_units(frame)
             )
-            lattice = vision.read_grid_lattice(frame)
-            if lattice is not None:
-                arcs = [vision.snap_to_lattice(p, lattice) for p in arcs]
             located = self.tacmap.locate(arcs)
             if located is not None:
                 camera = located
@@ -1350,7 +1347,8 @@ class ManualBattleController:
             finally:
                 self._last_camera = camera
                 if not (
-                    self.intel_enabled and self.timeline.due("intel", scope="battle")
+                    self.intel_enabled
+                    and self.timeline.pending("intel", scope="battle")
                 ):
                     self._release_battle_grid()
             scan = f"serpentine({legs} legs)"
@@ -1601,21 +1599,17 @@ class ManualBattleController:
                 points[:] = [p for p in points if keep(p)]
 
     def _observe_map(self, frame, camera) -> None:
-        # with 顯示方格 on (#25) every arc snaps to its cell center before
-        # world coordinates are assigned; gridless frames detect no lattice
-        # and pass through unchanged
-        lattice = vision.read_grid_lattice(frame)
-
-        def cells(points):
-            if lattice is None:
-                return points
-            return [vision.snap_to_lattice(p, lattice) for p in points]
-
+        # world points stay RAW arc positions: snapping them to lattice cell
+        # centers made every gridless consumer (locate, executor.identify)
+        # compare against coordinates up to half a cell away from what it
+        # sees -- past the 60px match gates. The lattice's jobs are pan
+        # texture, bounds measurement and (future) cell assignment, not
+        # observation rewriting.
         self.tacmap.observe(
             camera,
-            cells(vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)),
-            cells(vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION)),
-            cells(vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION)),
+            vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION),
+            vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION),
+            vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION),
             threats=vision.find_threat_cells(frame),
         )
 

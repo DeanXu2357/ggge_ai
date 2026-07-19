@@ -164,6 +164,14 @@ class BattleTimeline:
         self._done_jobs.add(key)
         return True
 
+    def pending(self, job: str, scope: str = "turn") -> bool:
+        """Read-only peek at a work gate: True while the job is unclaimed.
+        due() claims on the ask, so any caller that only needs to know --
+        not to do the work -- must peek here or it steals the job (the
+        20260719 grid-window regression: _scout's due() ate the intel gate
+        and the survey never ran)."""
+        return f"{scope}:{job}" not in self._done_jobs
+
     def mark_done(self, job: str, scope: str = "turn") -> None:
         self._done_jobs.add(f"{scope}:{job}")
 
