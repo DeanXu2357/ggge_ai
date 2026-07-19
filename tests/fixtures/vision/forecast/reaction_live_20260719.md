@@ -257,6 +257,22 @@ vs 諾耶·吉爾(EX)(右)。
 - F91「-0 DAMAGE CUT」：選防禦（盾牌）後受傷顯示 -0（盾牌40%＋F91 DAMAGE CUT 能力
   疑疊加）；數值待與 sim 對照。駕駛員 buff：西布克·阿諾 超一擊 DAMAGE+30%。
 
+## 單位詳細資料入口 ＋ defend/support_defend 互斥（使用者口述，2026-07-19）
+
+**① 戰鬥準備點橫幅看詳細資料**：-應戰-/-攻擊- 畫面點**頂部單位橫幅**（攻擊/反擊
+雙方皆可）→ 單位詳細資料：buff（修正效果）、機體＆駕駛員能力數值、武裝、能力。
+＝**戰鬥中的 intel 來源**（連 llm-perception-unit-info；之前只在關卡外點敵人看，
+原來戰鬥準備畫面就能看敵我雙方）。
+
+**② defend 與 support_defend 互斥（揪出 solver 建模缺口）**：應戰時被攻擊單位選
+**防禦(defend/shield) → 友方不能支援防禦**；選**閃避(dodge)/反擊(counter)才能接受
+支援防禦**（邏輯：自己擋 vs 友軍擋互斥）。
+- **sim/solver 缺口**：`solver.py:110-112` 與 `enemy_model.py:128-132` 對**每個** stance
+  （含 defend/shield）都枚舉 `support_defend=True` → 產生實機不可能的
+  `(defend/shield, support_defend=True)` 組合。**改程式要修**：support_defend 只配
+  dodge/counter（排除 defend/shield；none 待確認）。執行層 core.py:842 是 support_defend
+  覆蓋 stance mult，該無效組合應在枚舉層擋掉。
+
 ## forecast 傷害預覽的保守性陷阱（使用者口述機制，2026-07-19）
 
 **forecast 顯示的傷害/敵血 delta 是保守下界，實際結算 ≥ 預覽**：

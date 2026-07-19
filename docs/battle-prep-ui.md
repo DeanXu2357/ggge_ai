@@ -33,6 +33,9 @@
   defense_value/attacker·defender HP·EN·hp_delta 皆正確；`hit_pct=None`（region
   未對到，見 §3）；defender_hp 偶有 OCR 誤讀（14168→14188，digit 模板待查）。
 - **KILL 標記**：致死傷害在面板 delta 後顯示「KILL」（語意見 §7）。
+- **點頂部單位橫幅 → 單位詳細資料**（攻擊/反擊雙方皆可）：buff（修正效果）、
+  機體＆駕駛員能力數值、武裝、能力。＝**戰鬥中 intel 來源**（關卡外只能點敵人，
+  戰鬥準備畫面可看敵我雙方；連 memory `llm-perception-unit-info`）。
 
 ## 3. 底部頭像列：攻擊順序＋命中率
 
@@ -71,6 +74,9 @@ target 存活條件內，target 死則全跳過；core.py:38-43 註解 confirmed
 場上 interceptor 標「支援防禦」。→ vision 偵測盾圖示「支援防禦」標籤即 `support_defense=True`。
 機制吻合 sim interceptor（`core.py:842-846`，`struck=interceptor`）；interceptor 承受傷害
 是否已含 shield/defend 減免待與 sim 對照。順序：①敵攻 → 支援防禦(擋傷、主單位免傷) → ②主單位反擊。
+
+**互斥規則（使用者口述）**：被攻擊單位選 **defend/shield 時不能**接受支援防禦（自己擋）；
+只有選 **dodge/counter** 才能疊 support_defend。→ solver 枚舉須據此排除無效組合（見 §9）。
 
 ## 4. 應戰 stance UI（S9d 核心）
 
@@ -207,4 +213,7 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 - `enemy_model` 建模敵方防禦保命決策。
 - `solver` 下界/上界博弈選攻擊（欺敵）。
 - 降防串聯、暴擊上界建模；降防/暴擊率從武裝面板當內容讀。
+- **support_defend 枚舉修正**：`solver.py:110-112`／`enemy_model.py:128-132` 對每個 stance
+  都配 `support_defend=True` → 須排除 defend/shield（互斥，只配 dodge/counter；none 待確認）。
+- 單位詳細資料入口（點頂部橫幅）＝戰鬥中 intel 來源，可接進感知（buff/能力/武裝，敵我雙方）。
 - 技能為未來擴充。
