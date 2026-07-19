@@ -179,6 +179,14 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
   反而逼敵防禦（可能打不死），刻意選「下界不 KILL、上界/降防才 KILL」騙敵反擊再擊殺。
   sim 要能表達「下界 vs 上界傷害」與敵方 policy 的互動（不只單一期望傷害）。
 
+### 先攻（先發攻擊）
+部分機體（**主要防禦型**）的武裝有**先攻特性**：在原結算順序外**額外一個先攻 queue**，
+帶先攻武裝排最前結算；雙方都有先攻則都入先攻 queue，無先攻的照原順序（①②③）。
+視覺標記＝頭像**上方橘色「先發攻擊」標籤**（reaction_first_strike，本例①支援反擊帶先攻
+被排到最前）。戰術：先攻搶殺敵方攻擊者 → 敵攻不觸發（連上「①殺主單位取消反擊」）。
+**sim 缺口**：`core.py` 結算順序（攻擊方→反擊方，core.py:24-43）**無先攻 queue** 概念
+（core.py:28 的「first strike」是 interception 第一擊、非此），改程式要加。先攻＝武裝內容。
+
 > 紅線提醒：降防效果的有無/數值、暴擊率是**內容**，須從武裝面板讀（見
 > memory `llm-perception-unit-info`），不可寫死。
 
@@ -196,6 +204,7 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 | `reaction_support_counter_20260719` | -應戰- ＋支援反擊 | 應戰順序①敵攻②支援反擊③反擊 |
 | `reaction_support_defense_20260719` | -應戰- ＋支援防禦 | interceptor 擋傷、盾圖示「支援防禦」標籤 |
 | `reaction_shield_menu_20260719` | -應戰- 有盾機體多武器選單 | shield＝防禦(盾牌)減40%、5 武器 pitch~170、錨點隨武器數移動 |
+| `reaction_first_strike_20260719` | -應戰- 先攻多階段 | 先攻＝橘色「先發攻擊」標籤、帶先攻武裝排最前、sim 缺口 |
 | `unit_detail_combined_20260719` | 點橫幅→單位設置詳情（組合資訊 tab） | 三 tab 語意、±標記＝受能力影響、buff 在組合資訊 |
 | `support_weapon_menu_20260719` | 支援武裝選單 | pitch≈170、灰色 disabled、不參加右錨 |
 | `skill_menu_20260719` | 技能選擇 | 技能槽 pitch170、SP、發動鈕 |
@@ -219,5 +228,7 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 - 降防串聯、暴擊上界建模；降防/暴擊率從武裝面板當內容讀。
 - **support_defend 枚舉修正**：`solver.py:110-112`／`enemy_model.py:128-132` 對每個 stance
   都配 `support_defend=True` → 須排除 defend/shield（互斥，只配 dodge/counter；none 待確認）。
+- **先攻 queue 建模**：帶先攻特性的武裝優先於一般順序結算（雙方先攻同入先攻 queue）；
+  sim 目前無此概念（core.py:24-43）。先攻＝武裝內容、從面板讀。
 - 單位詳細資料入口（點頂部橫幅）＝戰鬥中 intel 來源，可接進感知（buff/能力/武裝，敵我雙方）。
 - 技能為未來擴充。
