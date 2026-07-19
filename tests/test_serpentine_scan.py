@@ -20,7 +20,10 @@ VIEW_W, VIEW_H = 2340, 1080
 
 class _World:
     """Camera clamped to [0, max_x] x [0, max_y] in world coordinates;
-    the scan starts wherever the hub camera happens to sit."""
+    the scan starts wherever the hub camera happens to sit. Frames are
+    tokens whose capture-time camera is remembered, so shift() measures
+    the true cumulative movement between any two frames -- the same
+    semantics as production's base-frame measurement."""
 
     def __init__(self, max_x, max_y, start, enemies):
         self.max = (max_x, max_y)
@@ -28,6 +31,7 @@ class _World:
         self.enemies = enemies
         self.moves = []
         self.observed_cameras = []
+        self.frame_cameras = {}
 
     def swipe(self, x1, y1, x2, y2, *a):
         requested = (x1 - x2, y1 - y2)
@@ -36,11 +40,18 @@ class _World:
         self.moves.append(((nx - self.camera[0]), (ny - self.camera[1])))
         self.camera = (nx, ny)
 
+    def capture(self):
+        frame = np.zeros((10, 10, 3), np.uint8)
+        self.frame_cameras[id(frame)] = self.camera
+        return frame
+
     def shift(self, prev, cur):
-        return (self.moves[-1] if self.moves else (0.0, 0.0)), 1.0
+        a = self.frame_cameras.get(id(prev), self.camera)
+        b = self.frame_cameras.get(id(cur), self.camera)
+        return (b[0] - a[0], b[1] - a[1]), 1.0
 
     def visible_enemies(self, frame, region=None):
-        cx, cy = self.camera
+        cx, cy = self.frame_cameras.get(id(frame), self.camera)
         return [
             (int(x - cx), int(y - cy))
             for x, y in self.enemies
@@ -49,8 +60,11 @@ class _World:
 
 
 class _Perception:
+    def __init__(self, world):
+        self.world = world
+
     def capture(self):
-        return np.zeros((10, 10, 3), np.uint8)
+        return self.world.capture()
 
     def probe(self, ids):
         return {}
@@ -69,7 +83,7 @@ class _Actuator:
 
 def _run_scan(monkeypatch, world):
     c = ManualBattleController(
-        perception=_Perception(), actuator=_Actuator(world), ledger=BattleLedger()
+        perception=_Perception(world), actuator=_Actuator(world), ledger=BattleLedger()
     )
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
     monkeypatch.setattr(vision, "measure_camera_shift", world.shift)

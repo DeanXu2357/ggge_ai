@@ -270,6 +270,11 @@ class ManualBattleController:
     # always 0.0 when anchored; east/south measured) -- the map frame the
     # survey trusts over any unit-derived coordinate
     _map_bounds: dict | None = None
+    # dead-reckoned camera at the last scan stop: the locate() fallback for
+    # bring_to_view (no taps move the camera between scan end and survey)
+    _last_camera: tuple[float, float] | None = None
+    # 顯示方格 currently toggled on by us (must be restored before combat)
+    _grid_active: bool = False
     _id_positions: dict = field(default_factory=dict)
     _pending: reconcile.PendingOutcome | None = None
     _seen_sigs: set = field(default_factory=set)
@@ -894,6 +899,14 @@ class ManualBattleController:
             return
         if self.stage_id is None:
             raise SurveyIncomplete("intel enabled but no stage_id given")
+        try:
+            self._ensure_stage_definition_inner(frame)
+        finally:
+            # the grid window (user's flow: grid on -> sweep -> per-unit
+            # reads) closes here whether the survey completed or failed loud
+            self._release_battle_grid()
+
+    def _ensure_stage_definition_inner(self, frame) -> None:
         from .scout_intel import survey_stage, validate_stage
 
         self._purge_out_of_bounds()
@@ -1089,12 +1102,16 @@ class ManualBattleController:
     def _bring_to_view(self, world) -> tuple[float, float] | None:
         """Pan until a world point sits inside the tappable map area and
         return its screen point. Constellation locate() recovers the
-        camera before each leg, so pan drift cannot accumulate; edge
-        saturation with the target still outside means the board and the
-        map disagree -- the caller treats None as fail-loud evidence.
-        Live validation is the S9b probe."""
+        camera before each leg (with lattice-snapped arcs while 顯示方格 is
+        up, so both sides of the match live on the same cell centers); when
+        locate has no consensus the dead-reckoned camera from the last scan
+        stop carries -- nothing moves the camera between scan end and the
+        survey. Edge saturation with the target still outside means the
+        board and the map disagree -- the caller treats None as fail-loud
+        evidence."""
         x0, y0, w, h = vision.HUB_SCAN_REGION
         margin = 60
+        camera = self._last_camera
         for _ in range(8):
             frame = self._frame()
             arcs = (
@@ -1102,7 +1119,12 @@ class ManualBattleController:
                 + vision.find_enemy_units(frame)
                 + vision.find_third_party_units(frame)
             )
-            camera = self.tacmap.locate(arcs)
+            lattice = vision.read_grid_lattice(frame)
+            if lattice is not None:
+                arcs = [vision.snap_to_lattice(p, lattice) for p in arcs]
+            located = self.tacmap.locate(arcs)
+            if located is not None:
+                camera = located
             if camera is None:
                 return None
             screen = (world[0] - camera[0], world[1] - camera[1])
@@ -1110,12 +1132,14 @@ class ManualBattleController:
                 x0 + margin <= screen[0] <= x0 + w - margin
                 and y0 + margin <= screen[1] <= y0 + h - margin
             ):
+                self._last_camera = camera
                 return screen
             direction = (
                 (screen[0] > x0 + w - margin) - (screen[0] < x0 + margin),
                 (screen[1] > y0 + h - margin) - (screen[1] < y0 + margin),
             )
-            new_camera, _, actual, requested = self._pan_leg(camera, frame, direction, label="bring_to_view")
+            camera, _, actual, requested = self._pan_leg(camera, frame, direction, label="bring_to_view")
+            self._last_camera = camera
             if abs(actual[0]) + abs(actual[1]) < (
                 abs(requested[0]) + abs(requested[1])
             ) * SCAN_EDGE_RATIO:
@@ -1301,19 +1325,22 @@ class ManualBattleController:
         camera = (0.0, 0.0)
         self._observe_map(frame, camera)
         if self.timeline.due("full_scan", scope="battle"):
-            # #25 (user's call): flip 顯示方格 on for the full sweep so unit
-            # feet snap to real cells and the pan measurement gets lattice
-            # texture, then restore it off. Fail-soft: an unverified toggle
-            # scans gridless exactly as before.
-            grid_on = battle_settings.set_battle_grid(
+            # #25 (user's flow): 顯示方格 on -> sweep positions -> per-unit
+            # survey, and only then off. The grid stays up through the survey
+            # so the world points (cell-snapped) and every locate() input
+            # live on the same lattice; _release_battle_grid restores it
+            # after the intel pass (or right here when intel is off).
+            # Fail-soft: an unverified toggle scans gridless exactly as
+            # before.
+            self._grid_active = battle_settings.set_battle_grid(
                 self.perception.capture, self.actuator.tap, True, sleep=time.sleep
             )
             frame = self._frame()
-            lattice = vision.read_grid_lattice(frame) if grid_on else None
+            lattice = vision.read_grid_lattice(frame) if self._grid_active else None
             self._log(
                 "battle_grid",
                 frame=frame,
-                toggled=grid_on,
+                toggled=self._grid_active,
                 lattice_cols=list(lattice[0]) if lattice else None,
                 lattice_rows=list(lattice[1]) if lattice else None,
             )
@@ -1321,10 +1348,11 @@ class ManualBattleController:
             try:
                 camera, legs = self._scout_serpentine(frame, camera)
             finally:
-                restored = battle_settings.set_battle_grid(
-                    self.perception.capture, self.actuator.tap, False, sleep=time.sleep
-                )
-                self._log("battle_grid", toggled=restored, desired="off")
+                self._last_camera = camera
+                if not (
+                    self.intel_enabled and self.timeline.due("intel", scope="battle")
+                ):
+                    self._release_battle_grid()
             scan = f"serpentine({legs} legs)"
         else:
             camera = self._scout_local(frame, camera)
@@ -1346,6 +1374,18 @@ class ManualBattleController:
             len(self.tacmap.allies),
             len(self.tacmap.third_party),
         )
+
+    def _measure_shift(self, prev, cur, requested):
+        """(shift, response, source): phase correlation first, the
+        arc-constellation vote when it goes blind, the raw gesture only as
+        the last resort."""
+        shift, response = vision.measure_camera_shift(prev, cur)
+        if response >= 0.05:
+            return shift, response, "phase"
+        arc = vision.measure_arc_shift(prev, cur)
+        if arc is not None:
+            return arc, response, "arcs"
+        return requested, response, "gesture"
 
     def _advance_camera(self, camera, prev, cur, nominal) -> tuple[float, float]:
         shift, _, _ = self._measure_shift(prev, cur, nominal)
@@ -1371,62 +1411,72 @@ class ManualBattleController:
             prev = back
         return camera
 
-    def _measure_shift(self, prev, cur, requested):
-        """(shift, response, source): phase correlation first, the
-        arc-constellation vote when it goes blind, the raw gesture only as
-        the last resort -- blind gesture trust displaced whole scan rows on
-        the 20260719 star map (west-edge ghost coordinates)."""
-        shift, response = vision.measure_camera_shift(prev, cur)
-        if response >= 0.05:
-            return shift, response, "phase"
-        arc = vision.measure_arc_shift(prev, cur)
-        if arc is not None:
-            return arc, response, "arcs"
-        return requested, response, "gesture"
-
     def _pan_leg(self, camera, prev, direction, label: str = "pan"):
         """One measured pan. Returns (camera, frame, actual, requested);
-        actual << requested means the camera hit the map edge. An
+        actual << requested means the camera hit the map edge. Every
+        attempt measures the CUMULATIVE shift against the leg's base frame
+        (never chained frame-to-frame): a blind first swipe -- weak phase
+        response, no arc consensus -- is recovered by the next attempt's
+        measurement instead of being guessed at, and an
         ineffective-but-measurable swipe retries from the alternate
-        PAN_ORIGINS before that verdict stands: a swipe starting on a unit
-        gets eaten and reads exactly like an edge (identical frames, high
-        response). Every attempt goes to the ledger (#24)."""
+        PAN_ORIGINS before an edge verdict stands (a swipe starting on a
+        unit gets eaten and reads exactly like an edge). Only when every
+        attempt stays blind does the gesture assumption fire, once. Every
+        attempt goes to the ledger (#24)."""
         dx, dy = direction
         hx, hy = dx * PAN_HALF["x"], dy * PAN_HALF["y"]
         requested = (2 * hx, 2 * hy)
         goal = (abs(requested[0]) + abs(requested[1])) * SCAN_EDGE_RATIO
-        total = [0.0, 0.0]
-        attempts = []
+        base = prev
         cur = prev
+        cumulative: tuple[float, float] | None = None
+        attempts = []
         for cx, cy in PAN_ORIGINS:
             self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, 500)
             time.sleep(1.0)
             cur = self._frame()
-            shift, response, source = self._measure_shift(prev, cur, requested)
-            total[0] += shift[0]
-            total[1] += shift[1]
+            shift, response = vision.measure_camera_shift(base, cur)
+            if response >= 0.05:
+                cumulative, source = shift, "phase"
+            else:
+                arc = vision.measure_arc_shift(base, cur)
+                if arc is not None:
+                    cumulative, source = arc, "arcs"
+                else:
+                    source = "blind"
             attempts.append(
                 {
                     "origin": [cx, cy],
-                    "measured": [round(shift[0], 1), round(shift[1], 1)],
+                    "cumulative": (
+                        [round(cumulative[0], 1), round(cumulative[1], 1)]
+                        if cumulative is not None
+                        else None
+                    ),
                     "response": round(float(response), 4),
                     "source": source,
                 }
             )
-            prev = cur
-            if abs(total[0]) + abs(total[1]) >= goal:
+            if cumulative is not None and (
+                abs(cumulative[0]) + abs(cumulative[1]) >= goal
+            ):
                 break
-        new_camera = (camera[0] + total[0], camera[1] + total[1])
+        if cumulative is None:
+            # every attempt blind (featureless open space with no arcs in
+            # view): assume one gesture's travel, flagged for downstream
+            # correction by bounds snapping / constellation locate
+            cumulative = requested
+        actual = (cumulative[0], cumulative[1])
+        new_camera = (camera[0] + actual[0], camera[1] + actual[1])
         self._log(
             "scan_leg",
             leg=label,
             direction=list(direction),
             requested=list(requested),
-            measured=[round(total[0], 1), round(total[1], 1)],
+            measured=[round(actual[0], 1), round(actual[1], 1)],
             attempts=attempts,
             camera=[round(new_camera[0], 1), round(new_camera[1], 1)],
         )
-        return new_camera, cur, (total[0], total[1]), requested
+        return new_camera, cur, actual, requested
 
     @staticmethod
     def _at_edge(actual, requested, axis: int) -> bool:
@@ -1510,6 +1560,17 @@ class ManualBattleController:
                 **{k: (round(v, 1) if v is not None else None) for k, v in bounds.items()},
             )
         return camera, legs
+
+    def _release_battle_grid(self) -> None:
+        """Restore 顯示方格 off once the grid window (sweep + survey) ends;
+        idempotent, and the ledger records every actual toggle."""
+        if not self._grid_active:
+            return
+        restored = battle_settings.set_battle_grid(
+            self.perception.capture, self.actuator.tap, False, sleep=time.sleep
+        )
+        self._log("battle_grid", toggled=restored, desired="off")
+        self._grid_active = False
 
     def _purge_out_of_bounds(self) -> None:
         """Nothing exists outside the mapped board: scan points beyond the
