@@ -25,13 +25,19 @@
   - vision `attacker`＝左面板＝**敵方**、`defender`＝右面板＝**我方**。
   - controller `_choose_reaction_stance` 把 `attacker_name_sig` 當 enemy、
     `defender_name_sig` 當 "ally" 解析 → **方向正確**。
+  - `tracker.on_battle_prep` 舊碼假設 -攻擊- 時左面板是我方 → **左右反貼**，
+    2026-07-19 晚已改固定映射（左恆敵、右恆我）並補測試。
 - **中央攻擊/反擊數值**：上排＝主動方傷害、下排＝被動反擊方傷害（位置固定）。
   - **顏色＝陣營色（藍＝我方動作、紅＝敵方動作），不固定於攻擊/反擊**：
     -攻擊- 時藍「攻擊」(我)＋紅「反擊」(敵)；-應戰- 時紅「攻擊」(敵)＋藍「反擊」(我)。
     **不可靠顏色分辨攻擊 vs 反擊，只能靠位置（上/下）與陣營（左/右面板）**。
-- `read_battle_prep_forecast` 現況（reaction_live 離線驗證）：attack_value/
-  defense_value/attacker·defender HP·EN·hp_delta 皆正確；`hit_pct=None`（region
-  未對到，見 §3）；defender_hp 偶有 OCR 誤讀（14168→14188，digit 模板待查）。
+- `read_battle_prep_forecast` 現況（2026-07-19 晚落地，全批 fixture 釘住）：
+  全欄位正確。三個 OCR 修正——① `hit_pct` 改頭像列掃描（見 §3）；
+  ② defender_hp 14168→14188 誤讀＝hud 字型 '6'/'8' 相關分邊緣混淆，
+  加 `6_c` 變體修正；③ 中央攻/反值（48px 大字）是另一種字體，hud 字模
+  系統性把 8/9/5 讀成 6（163188→163168 等四例，逐位目視轉錄裁決），
+  改用專用 `attack` 字型（`assets/templates/digits/attack/`，字模裁自
+  本批 PNG 的轉錄驗證數字）。
 - **KILL 標記**：致死傷害在面板 delta 後顯示「KILL」（語意見 §7）。
 - **點頂部單位橫幅 → 單位設置詳情**（攻擊/反擊雙方皆可）＝**戰鬥中 intel 來源**
   （關卡外只能點敵人，戰鬥準備可看敵我雙方）。左欄＝機體＋駕駛員數值（**±標記＝
@@ -47,9 +53,16 @@
 - 各頭像**上方白字＝該階段武裝命中率**（各自獨立，如 85/100/55）；
   **下方字＝行動類型**（攻擊/反擊/支援攻擊/不參加/閃避…）。
 - **藍框＝我方、紅框＝敵方**。
-- **頭像列隨參戰數變長 → 命中率/順序必須相對定位**（從右端往左數），不可固定座標。
-- 命中率 region（原圖估計，待精量）：反擊態紅①（敵攻我）~(813,819)、藍②(我)~(930,819)；
-  digit 比機體數字小。`hit_pct` 應讀主動攻擊方那格（-應戰- 讀紅①敵攻命中率）。
+- **頭像列隨參戰數變長 → 命中率/順序必須掃描定位**，不可固定座標。像素實測
+  （2026-07-19 晚，程式落地依據）：**頭像列置中 x≈963、pitch=200、圓心 y≈938**；
+  序號徽章在頭像圓心 x−49、y≈836；**命中率白字左緣＝頭像圓心 x**、帶域 y 833-862、
+  字身高 32px 但字體與 HUD 不同（'0' 會被 hud 字模讀成 '1'）→ 專用 `hit` 字型
+  （`assets/templates/digits/hit/`；**缺 '3' 字模**，含 3 的命中率暫讀不出）。
+- 陣營判別＝序號徽章右側的環弧色（(左緣−56..−48, y846-860)，紅=敵、藍=我，
+  同 HP 弧詞彙）。`hit_pct` 選取規則（`vision._initiator_hit`）：**-應戰- 取紅環那格
+  （敵攻命中率）；-攻擊- 取最右藍環（支援在主攻左、敵反擊在主攻右，不參加無 pct）**。
+  reaction_first_strike 釘住「取紅環、非取①」（先攻時①是我方）。已落地
+  `vision.read_avatar_hits`＋fixture 15 筆 token 全對照。
 
 ### 支援攻擊
 - 支援候選頭像排在主攻①/反擊②的**左側**；系統自動判參加與否、**無手動選擇 UI**
@@ -99,26 +112,37 @@ target 存活條件內，target 死則全跳過；core.py:38-43 註解 confirmed
   - 防禦 → **defend**（無盾機體）或 **shield**（有盾機體，鈕標「防禦（盾牌）」），閃避左一格錨點；見下效果
   - 各反擊武器 → **counter** + weapon（防禦往左第 k 格，pitch 固定）
 
-### 相對定位標定策略（使用者定案）
-機體武裝數不定 → **不列舉絕對武器座標**，用右側 dodge/defend 錨點 + pitch 相對定位：
-- 用閃避/防禦圖示模板定錨 → 往左數圓鈕算武器數 → 得 `available_stances`。
-- `REACTION_OPTION_TAPS` 改「錨點 + pitch 相對定位」，非固定 stance→tap。
-- **可用/不可用靠鈕中心亮度 V**：disabled（射程外等）暗淡 V≈62、可用 V>105
-  （support_weapon_menu 實測，SHORT 短程超距灰色 V=61.7）。vision 用 V 排除灰鈕。
+### 相對定位標定策略（使用者定案；2026-07-19 晚像素落地修正）
+機體武裝數不定 → 用右側 dodge/defend 錨點 + pitch 相對定位。**像素證據推翻早前
+「錨點隨武器數右移」的目測**（該結論來自縮放失準的視覺估計）：dodge 圖示模板在
+2 武器與 5 武器選單上都以 1.000 分匹配在**同一像素 (1540,940)** → **動作列是
+固定槽位格、右錨不動**，武器從 defend 往左以 **pitch=187** 排。已落地
+`vision.read_reaction_stance_menu`：
+- dodge 圖示模板（`btn_stance_dodge.png`）＝選單存在 gate（正樣本 ≥0.997、
+  負樣本 ≤0.48，含 unit_action_menu 的 SP 圓鈕列與 -攻擊- 支援選單）。
+- **defend vs shield 靠防禦鈕圖示本身**：無盾機體與有盾機體的防禦鈕圖示不同
+  （裁片相關 −0.12，完全反相關），`btn_stance_defend.png`／`btn_stance_shield.png`
+  argmax 判別；鈕下標籤兩者都只寫「防禦」，「防禦（盾牌）」只出現在效果卡標題，
+  不能當判別來源。選中態高亮不影響圖示裁片（選中/未選相關 ≥0.996）。
+- **武器槽佔用＝EN 黃字**（每個武器鈕下緣 y≈992-1016 的「EN <cost>」，disabled
+  也有；防禦/閃避/不參加無）→ 從 defend 往左逐槽檢查、遇空槽停。
+- **可用/不可用＝鈕心 28×28 亮度 V**：已確認 disabled 全部 V≈78、已確認可用全部
+  V≥200，gate=120。**開放假設**：所有 fixture 的 SHORT 都 V≈76 且無「確認可用」
+  樣本（reaction_menu 場景敵方近戰、SHORT 理應可用但像素與 disabled 樣本幾乎
+  相同 0.909）——若存在「可用但圖示深色」的武器會誤判 disabled，S10 實戰驗證。
 
-### 座標（原圖估計，待像素精量）
+### 座標（像素實測，程式與 fixture 依據）
 | 元素 | 座標 | 備註 |
 |---|---|---|
-| 閃避 dodge（最右錨） | ~(1533,918) | 準星圖示 |
-| 防禦 defend（錨） | ~(1351,918) | 盾圖示 |
-| counter 武器（LONG/SHORT 例） | ~(1144,918)/~(969,918) | 往左 pitch≈170 |
-| 行動選擇（確認） | ~(2042,924) | 大鈕 |
-| 返回 | ~(1802,930) | |
-| 我方頭像（切換入口，應戰②） | ~(924,848) | |
+| 閃避 dodge（最右錨） | (1540,940) | 準星圖示，固定槽位 |
+| 防禦 defend/shield（錨） | (1352,940) | 盾圖示（依機體換圖） |
+| counter 武器槽 k | (1352−187k, 940) | k=1..N，EN 黃字定佔用 |
+| 行動選擇（確認） | ~(2042,924) | 大鈕（未精量） |
+| 返回 | ~(1802,930) | 未精量 |
+| 我方頭像（切換入口） | 頭像列掃描（見 §3） | 置中 x≈963、pitch 200 |
 
-pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。**上表絕對座標僅
-2 武器例**；動作列不右對齊，**錨點絕對位置隨武器數右移**（閃避 2 武器~1533、5 武器~1854，
-見 reaction_shield_menu）→ **必須用閃避/防禦圖示模板定位錨點、勿寫固定座標**。
+（shield 5 武器例的實際槽位：MAP 417／SHORT 604／MIDDLE 791／LONG 978／
+LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已作廢。）
 
 ### 選中態與效果卡
 - 選中鈕亮藍高亮外框、其餘變暗 → vision 可讀當前 stance。
@@ -144,9 +168,11 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 ```
 [SHORT][LONG][LONG][不參加X]   ← 右錨＝不參加X（≠ 應戰的防禦/閃避）
 ```
-- 等間距 pitch≈170（x 969/1141/1310/1484）。
-- 灰色 disabled ＝ SHORT（短程超距不可用），靠亮度 V 分辨（見 §4）。
-- **不同情境動作列右錨不同**：-攻擊-支援＝不參加X、-應戰-＝防禦/閃避 → 相對定位須先辨情境。
+- 與應戰選單同一固定槽位格（實測 SHORT 987/LONG 1165/LONG 1352/不參加 1540；
+  早前 969-1484 系列為縮放失準估計）。
+- 灰色 disabled ＝ SHORT（短程超距不可用），靠亮度 V 分辨（見 §4，含開放假設）。
+- **不同情境動作列右錨不同**：-攻擊-支援＝不參加X、-應戰-＝防禦/閃避 →
+  `read_reaction_stance_menu` 靠 dodge 圖示 gate 自動拒讀支援選單（0.377）。
 
 ## 6. 技能選擇畫面（skill_menu）
 
@@ -220,13 +246,19 @@ pitch 實測 172/169/174 ≈ **170**（support_weapon_menu 多武器樣本）。
 
 ## 9. 待標定 / 待接程式
 
-**vision**
-- `available_stances`：閃避/防禦錨點模板定錨 → 往左數圓鈕（亮度 V 排除灰鈕）。
-- `REACTION_OPTION_TAPS`：改錨點 + pitch 相對定位（非固定表）。
-- `hit_pct` region 重定到底部頭像上方；defender_hp OCR 修正。
-- `support_defense`：**已取得畫面**（reaction_support_defense）→ 偵測盾圖示「支援防禦」
-  標籤標定 True，取代 stub None；interceptor 承受傷害的減免語意待與 sim 對照。
-- 各鈕座標像素精量。
+**vision（2026-07-19 晚全數落地，見 §3/§4 與 fixture 對照表）**
+- ~~`available_stances`~~ → `vision.read_reaction_stance_menu`：dodge 圖示定錨、
+  defend/shield 雙模板判別、EN 黃字數武器槽、V 閘門判可用；回傳各 stance 的
+  tap 座標（`ReactionStanceMenu`/`StanceOption`），即「錨點+pitch 相對定位」的
+  機制實體——**controller 接線仍待做**：`REACTION_OPTION_TAPS` 固定表尚未改為
+  消費此讀取器（流程＝點我方頭像→讀選單→點 stance→行動選擇，需實機驗證）。
+- ~~`hit_pct` region~~ → `vision.read_avatar_hits` 頭像列掃描＋`hit` 字型（缺 '3'）；
+  ~~defender_hp OCR~~ → hud `6_c` 變體；中央攻/反值另修 `attack` 專用字型。
+- ~~`support_defense`~~ → `label_support_defense.png` 標籤偵測（-應戰- 回 bool；
+  -攻擊- 敵側標籤未標定、維持 None）。interceptor 承受傷害的減免語意仍待與 sim 對照。
+- ~~各鈕座標像素精量~~ → 動作列/頭像列已精量（§3/§4）；行動選擇/返回鈕仍為估計。
+- 迴歸：15 個新 fixture JSON（7 forecast 全欄位＋4 stance 選單＋4 拒讀負樣本）、
+  520 tests 全綠。開放假設：SHORT 可用性 V 閘門（§4）待 S10 實戰驗證。
 
 **sim/solver**
 - forecast 保守下界語意接進擊殺判定（KILL 可信、無 KILL 不可判打不死）。

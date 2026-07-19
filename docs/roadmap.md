@@ -1,11 +1,10 @@
 # 進度與規劃
 
-更新日期：2026-07-19（tick 收攏見 07-19 段；router middleware 見 07-18 段；
-工程重構批次見 07-17 段；最新里程碑＝07-15
-**S9d 應戰路徑整併落地**：確認應戰彈窗＝戰鬥準備
+更新日期：2026-07-19（最新里程碑＝**07-19 晚 S9d 應戰 UI 辨識落地**（見暫停
+快照）；tick 收攏見 07-19 段；router middleware 見 07-18 段；工程重構批次見
+07-17 段；前一里程碑＝07-15 **S9d 應戰路徑整併落地**：確認應戰彈窗＝戰鬥準備
 -應戰- 變體，感知單一來源化到 `BattlePrepForecast`、廢 `ReactionPopup`、
-執行器 `_choose_reaction_stance` 接進 `_on_battle_prep`；行為保持、
-483 tests/3 xfail 全綠、replay 閘門同基準。stance 切換 UI 仍待實機標定。
+執行器 `_choose_reaction_stance` 接進 `_on_battle_prep`。
 前情：S 批次離線段 S0-S8 全落地）
 
 **2026-07-17 離線工程重構（行為不變、非里程碑）**：`ManualBattleController.run()`
@@ -89,15 +88,35 @@ lambda 內化成表上 `repair` 欄，`ends_activation` 取代散落的 reset。
 503 tests/3 xfail、ruff 全綠；文件 battle-phase-states.md「期望轉移驗證」。
 **裝置現況與 S9 恢復點不變，見下。**
 
-## 暫停快照（2026-07-19 S9d 應戰 stance UI 已標定，恢復點）
+## 暫停快照（2026-07-19 晚 S9d 應戰 UI 辨識落地，恢復點）
 
-**裝置現況**：本 session USB 全程在線健康（`R5CRC37JBYJ device`、Awake、**無凍機**，
+**S9d 辨識落地（2026-07-19 晚，純離線、未碰實機）**：照 `docs/battle-prep-ui.md`
+§9 vision 清單全數接進程式，20 張 20260719 PNG fixture 離線驗證：
+- `vision.read_reaction_stance_menu`：dodge 圖示定錨（**像素證據推翻「錨點隨武器
+  數右移」——動作列是固定槽位格**，dodge (1540,940)、defend (1352,940)、武器往左
+  pitch 187）、defend/shield 靠鈕圖示互斥判別（裁片相關 −0.12）、EN 黃字定武器槽
+  佔用、鈕心 V≥120 判可用（**開放假設：SHORT 無確認可用樣本，V 閘門可能誤殺深色
+  可用圖示，S10 實戰驗證**）。回傳 stance→tap（`ReactionStanceMenu`）。
+- `read_battle_prep_forecast`：`hit_pct` 改頭像列掃描 `read_avatar_hits`（列置中
+  x≈963、pitch 200、pct 白字左緣＝頭像圓心 x、專用 `hit` 字型**缺 '3'**；應戰取
+  紅環、攻擊取最右藍環）；`support_defense` 標籤模板（-應戰- bool／-攻擊- None）。
+- OCR 三修：hud `6_c` 修 14168→14188；中央攻/反 48px 大字是另一字體、hud 字模把
+  8/9/5 誤讀成 6（163188→163168 等四例，subagent 逐位轉錄裁決）→ 專用 `attack`
+  字型；hit% 字體 hud 讀不動（'0'→'1'）→ 專用 `hit` 字型。
+- 標定連帶抓到 `tracker.on_battle_prep` 陣營映射 bug：舊碼假設 -攻擊- 時左面板
+  是我方，實測**左面板永遠是敵方**（右我左敵、兩變體皆然）→ 改為固定映射
+  （-攻擊- prep 的信念更新原本左右反貼）。
+- 15 個新 fixture JSON（7 forecast 全欄位＋4 stance 選單＋4 拒讀負樣本）；
+  521 tests/3 xfail、ruff 全綠。**controller/sim 未動**。
+
+**裝置現況**：前段 session USB 全程在線健康（`R5CRC37JBYJ device`、Awake、**無凍機**，
 遊戲 RANK 23、體力 95/108）。使用者選「直接跑實機」（接受凍機風險，未先做
 memtest86+/platform-tools）並授權主對話直接讀圖（破 screenshot-cost-discipline、
-本 session 限定）。手機省電觸控鎖曾因對話中閒置逾時觸發一次、使用者手動解，
+該 session 限定，**辨識落地 session 未沿用**——目視標定/轉錄一律走 subagent）。
+手機省電觸控鎖曾因對話中閒置逾時觸發一次、使用者手動解，
 Keyguard 本可處理（見 [[stage-clear-loop-status]]「battery-saver touch lock」）。
 
-**S9d 成果（本 session，尚未動程式）**：應戰 stance UI 已實機標定完成。
+**S9d 標定成果（2026-07-19 白天 session）**：應戰 stance UI 已實機標定完成。
 - 產出：`docs/battle-prep-ui.md`（正式地圖）＋`tests/fixtures/vision/forecast/`
   10 張 PNG fixture＋`reaction_live_20260719.md`（逐步記錄）＋2 memory
   （[[battle-prep-ui-map]]、[[forecast-lowerbound-enemy-defense-ai]]）。
@@ -109,9 +128,13 @@ Keyguard 本可處理（見 [[stage-clear-loop-status]]「battery-saver touch lo
   無 KILL≠打不死）、敵方 AI 反擊會死就防禦保命、賭暴擊/降防欺敵；「①殺主單位→
   反擊階段全取消（含支援反擊）」sim 已建模（core.py:873），此塊無需改。
 
-**恢復點**：① adb 已 `device`（在線健康）。② **還差的截圖情境**（優先序，見下段清單）。
-③ 之後改程式照 `docs/battle-prep-ui.md` §9（vision 相對定位/命中率 region、
-controller `REACTION_OPTION_TAPS`、sim-solver 欺敵；`support_defense` 缺畫面留 stub）。
+**恢復點**：① vision 辨識已落地（見上），下一步＝`docs/battle-prep-ui.md` §9
+剩餘兩塊：**controller 接線**（`_choose_reaction_stance` 改消費
+`read_reaction_stance_menu`：點我方頭像→讀選單→點 stance→行動選擇→開始戰鬥，
+廢固定 `REACTION_OPTION_TAPS` 表；需實機驗證）與 **sim/solver**（forecast 保守
+下界、敵方防禦保命 enemy_model、欺敵博弈、support_defend 互斥枚舉修正、先攻
+queue）。② 實戰驗證開放假設：SHORT 可用性 V 閘門、hit 字型缺 '3'。
+③ adb 上次 session 在線健康；純程式任務照舊免連線。
 
 **還差的截圖情境（待使用者實機截圖）**：
 1. ~~`support_defense` 畫面~~ **已於 2026-07-19 取得**（reaction_support_defense_20260719.png，
