@@ -147,7 +147,10 @@ def unit_cards_present(frame: np.ndarray) -> bool:
     the controller never mistakes an open modal for an actable-unit hub."""
     if is_unit_detail_modal(frame):
         return False
-    hsv = cv2.cvtColor(_crop(frame, UNIT_CARD_STRIP_BOX), cv2.COLOR_BGR2HSV)
+    strip = _crop(frame, UNIT_CARD_STRIP_BOX)
+    if strip.size == 0:
+        return False
+    hsv = cv2.cvtColor(strip, cv2.COLOR_BGR2HSV)
     bright = (hsv[..., 2] > 140).astype(np.float64)
     win = UNIT_CARD_WINDOW
     if bright.shape[1] <= win:

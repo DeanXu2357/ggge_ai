@@ -71,6 +71,12 @@ PAN_ORIGIN_GRID = tuple(
     (x, y) for y in (360, 470, 580, 660) for x in (760, 940, 1170, 1400, 1580)
 )
 PAN_ORIGIN_CLEARANCE = 120.0
+# 單位列表 strip toggle (calibrated 20260719 fixtures): tapping ▽ while the
+# card strip is open collapses it, ▲ while collapsed expands it. The scan
+# collapses the strip (user's call: more visible map to stitch, fewer taps
+# swallowed at the bottom) and restores it after the survey window.
+UNIT_LIST_COLLAPSE = (1970, 780)
+UNIT_LIST_EXPAND = (1970, 1010)
 PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
 # serpentine full-map scan (turn 1): a pan whose measured travel is under
 # this fraction of the gesture means the camera hit the map edge; leg
@@ -1126,7 +1132,7 @@ class ManualBattleController:
         margin = 60
         camera = self._last_camera
         for _ in range(8):
-            frame = self._frame()
+            frame = self._clear_scan_obstruction(self._frame())
             arcs = (
                 vision.find_ally_units(frame)
                 + vision.find_enemy_units(frame)
@@ -1349,7 +1355,8 @@ class ManualBattleController:
             self._grid_active = battle_settings.set_battle_grid(
                 self.perception.capture, self.actuator.tap, True, sleep=time.sleep
             )
-            frame = self._frame()
+            self._set_unit_list_open(False)
+            frame = self._clear_scan_obstruction(self._frame())
             lattice = vision.read_grid_lattice(frame) if self._grid_active else None
             self._log(
                 "battle_grid",
@@ -1426,6 +1433,34 @@ class ManualBattleController:
             prev = back
         return camera
 
+    def _clear_scan_obstruction(self, frame):
+        """Close whatever a stray scan tap opened over the map -- the unit
+        detail modal freezes panning wholesale (the user watched drags slide
+        fine while the ledger read zero movement: the 'frozen' stretches
+        were a modal, not eaten gestures). Returns a fresh frame when
+        something was closed, the original otherwise."""
+        if vision.is_unit_detail_modal(frame):
+            self._log("scan_modal_closed", frame=frame)
+            self.actuator.tap(*UNIT_DETAIL_CLOSE)
+            time.sleep(1.2)
+            return self._frame()
+        return frame
+
+    def _set_unit_list_open(self, want_open: bool) -> bool:
+        """Collapse / expand the 可行動單位 card strip. The scan runs
+        collapsed (more map visible); count_unit_cards consumers need it
+        back open afterwards."""
+        for _ in range(2):
+            frame = self._frame()
+            is_open = vision.unit_cards_present(frame)
+            if is_open == want_open:
+                return True
+            self.actuator.tap(
+                *(UNIT_LIST_COLLAPSE if is_open else UNIT_LIST_EXPAND)
+            )
+            time.sleep(1.2)
+        return vision.unit_cards_present(self._frame()) == want_open
+
     def _pan_origins(self, frame, hx, hy, count: int = 4) -> list[tuple[int, int]]:
         """Swipe origins for this frame, best first: the drag START point
         (origin + half-gesture) must sit on empty map or the game eats the
@@ -1475,7 +1510,7 @@ class ManualBattleController:
         for cx, cy in self._pan_origins(prev, hx, hy):
             self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, PAN_SWIPE_MS)
             time.sleep(PAN_SETTLE_S)
-            cur = self._frame()
+            cur = self._clear_scan_obstruction(self._frame())
             # landmark relocalization first (the user's call: adb gesture
             # delivery is inherently laggy and lossy, so position must come
             # from what the frame SHOWS, not from what we asked the swipe to
@@ -1627,6 +1662,7 @@ class ManualBattleController:
     def _release_battle_grid(self) -> None:
         """Restore 顯示方格 off once the grid window (sweep + survey) ends;
         idempotent, and the ledger records every actual toggle."""
+        self._set_unit_list_open(True)
         if not self._grid_active:
             return
         restored = battle_settings.set_battle_grid(
