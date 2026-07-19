@@ -266,6 +266,10 @@ class ManualBattleController:
     _defn: object | None = None
     _proposal: object | None = None
     _card_count: int | None = None
+    # NW-corner-anchored map bounds from the serpentine sweep (west/north
+    # always 0.0 when anchored; east/south measured) -- the map frame the
+    # survey trusts over any unit-derived coordinate
+    _map_bounds: dict | None = None
     _id_positions: dict = field(default_factory=dict)
     _pending: reconcile.PendingOutcome | None = None
     _seen_sigs: set = field(default_factory=set)
@@ -892,6 +896,7 @@ class ManualBattleController:
             raise SurveyIncomplete("intel enabled but no stage_id given")
         from .scout_intel import survey_stage, validate_stage
 
+        self._purge_out_of_bounds()
         scan = [tuple(p) for p in self.tacmap.enemies + self.tacmap.third_party]
         factions = ["enemy"] * len(self.tacmap.enemies) + ["third_party"] * len(
             self.tacmap.third_party
@@ -1427,11 +1432,31 @@ class ManualBattleController:
     def _at_edge(actual, requested, axis: int) -> bool:
         return abs(actual[axis]) < abs(requested[axis]) * SCAN_EDGE_RATIO
 
+    @staticmethod
+    def _snap_bound(bounds: dict, name: str, value: float, tolerance: float = 150.0) -> float:
+        """First touch of a map edge records its coordinate; later touches
+        within tolerance snap the camera back onto it (dead-reckoning
+        drift dies at every edge instead of accumulating). A touch beyond
+        tolerance is a different boundary segment on an irregular map --
+        recorded coordinates stay honest, no snap."""
+        known = bounds.get(name)
+        if known is None:
+            bounds[name] = value
+            return value
+        if abs(value - known) <= tolerance:
+            return known
+        return value
+
     def _scout_serpentine(self, frame, camera) -> tuple[tuple[float, float], int]:
-        """Corner-start full-map sweep: pan to the northwest corner (a leg
-        saturates when the map stops moving), then snake east/west with
-        south steps until the bottom edge, observing at every stop. The
-        leg budget bounds worst-case scan time on huge maps."""
+        """Corner-start full-map sweep -- the scan's product is the COMPLETE
+        map, units are merely its contents (the user's 2026-07-19 framing).
+        Phase A drives to the northwest corner and re-zeroes the world frame
+        there: the map corners are the only landmarks that never move,
+        unlike unit constellations. Phase B snakes the full extent,
+        recording the east/south bounds and snapping the camera onto every
+        agreeing edge touch. Bounds land in the ledger and in
+        self._map_bounds, where the survey uses them to sentence
+        out-of-bounds ghost points."""
         prev = frame
         legs = 0
         pending = {"west": (-1, 0), "north": (0, -1)}
@@ -1439,30 +1464,80 @@ class ManualBattleController:
             for name in list(pending):
                 camera, prev, actual, requested = self._pan_leg(camera, prev, pending[name], label=f"corner_{name}")
                 legs += 1
-                self._observe_map(prev, camera)
                 axis = 0 if name == "west" else 1
                 if self._at_edge(actual, requested, axis):
                     del pending[name]
                 if legs >= SCAN_CORNER_MAX_LEGS:
                     break
+        corner_reached = not pending
+        bounds: dict | None = None
+        if corner_reached:
+            # the corner IS the origin: everything observed on the way there
+            # was in the drift-prone start frame, so the map is rebuilt in
+            # corner coordinates (the sweep below revisits it all anyway)
+            camera = (0.0, 0.0)
+            self.tacmap.reset()
+            bounds = {"west": 0.0, "north": 0.0, "east": None, "south": None}
+        else:
+            log.warning("corner budget exhausted before the NW corner; unanchored scan")
+        self._observe_map(prev, camera)
         heading = (1, 0)
         bottom_row = False
         while legs < SCAN_MAX_LEGS:
             camera, prev, actual, requested = self._pan_leg(camera, prev, heading, label="row")
             legs += 1
+            if self._at_edge(actual, requested, 0) and bounds is not None:
+                side = "east" if heading[0] > 0 else "west"
+                camera = (self._snap_bound(bounds, side, camera[0]), camera[1])
             self._observe_map(prev, camera)
             if self._at_edge(actual, requested, 0):
                 if bottom_row:
                     break
                 camera, prev, actual, requested = self._pan_leg(camera, prev, (0, 1), label="south_step")
                 legs += 1
+                if self._at_edge(actual, requested, 1) and bounds is not None:
+                    camera = (camera[0], self._snap_bound(bounds, "south", camera[1]))
                 self._observe_map(prev, camera)
                 if self._at_edge(actual, requested, 1):
                     # bottom edge: one last row still needs walking, or the
                     # far bottom corner is never observed
                     bottom_row = True
                 heading = (-heading[0], 0)
+        self._map_bounds = bounds
+        if bounds is not None:
+            self._log(
+                "map_bounds",
+                **{k: (round(v, 1) if v is not None else None) for k, v in bounds.items()},
+            )
         return camera, legs
+
+    def _purge_out_of_bounds(self) -> None:
+        """Nothing exists outside the mapped board: scan points beyond the
+        bounds (+margin for arc radius and snap tolerance) are drift ghosts,
+        removed before the survey ever taps at them."""
+        bounds = self._map_bounds
+        if not bounds or bounds.get("east") is None or bounds.get("south") is None:
+            return
+        # a unit is visible between the scan region's extremes of the two
+        # extreme camera positions; anything further out was never on the map
+        margin = 200.0
+        sx, sy, sw, sh = vision.HUB_SCAN_REGION
+        lo_x, hi_x = bounds["west"] + sx - margin, bounds["east"] + sx + sw + margin
+        lo_y, hi_y = bounds["north"] + sy - margin, bounds["south"] + sy + sh + margin
+
+        def keep(p) -> bool:
+            return lo_x <= p[0] <= hi_x and lo_y <= p[1] <= hi_y
+
+        for name in ("enemies", "allies", "third_party"):
+            points = getattr(self.tacmap, name)
+            gone = [p for p in points if not keep(p)]
+            if gone:
+                self._log(
+                    "scan_outlier",
+                    faction=name,
+                    points=[[round(p[0], 1), round(p[1], 1)] for p in gone],
+                )
+                points[:] = [p for p in points if keep(p)]
 
     def _observe_map(self, frame, camera) -> None:
         # with 顯示方格 on (#25) every arc snaps to its cell center before

@@ -109,6 +109,29 @@ def test_first_scan_reaches_all_corners_and_syncs_every_unit(monkeypatch):
     )
     tac = next(e for e in c.ledger.events if e["kind"] == "tactical_map")
     assert tac["scan"].startswith("serpentine")
+    # the corner anchors the frame: bounds are absolute in it
+    assert c._map_bounds == {"west": 0.0, "north": 0.0, "east": 1800, "south": 900}
+    assert any(e["kind"] == "map_bounds" for e in c.ledger.events)
+    # the harness world happens to share the corner frame, so unit world
+    # coordinates come out exact, not merely deduplicated
+    assert sorted(c.tacmap.enemies) == sorted(
+        (float(x), float(y)) for x, y in world.enemies
+    )
+
+
+def test_out_of_bounds_ghosts_are_purged(monkeypatch):
+    world = _World(max_x=1800, max_y=900, start=(900, 450), enemies=[(2000, 1000)])
+    c = _run_scan(monkeypatch, world)
+    c.tacmap.enemies.append((6000.0, 400.0))
+    c.tacmap.allies.append((-900.0, 200.0))
+
+    c._purge_out_of_bounds()
+
+    assert (6000.0, 400.0) not in c.tacmap.enemies
+    assert (-900.0, 200.0) not in c.tacmap.allies
+    assert (2000.0, 1000.0) in c.tacmap.enemies
+    outliers = [e for e in c.ledger.events if e["kind"] == "scan_outlier"]
+    assert len(outliers) == 2
 
 
 def test_second_turn_uses_the_cheap_local_scan(monkeypatch):
