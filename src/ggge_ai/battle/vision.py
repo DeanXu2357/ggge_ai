@@ -370,25 +370,30 @@ def find_unit_density_peaks(
     )
     blue = cv2.inRange(hsv, (100, 100, 155), (125, 210, 255))
     teal = cv2.inRange(hsv, (78, 100, 155), (97, 210, 255))
-    mask = ((red | blue | teal) > 0).astype(np.float32)
+    mask = ((red | blue | teal) > 0).astype(np.uint8)
     # holes are cut from the MASK, not the density map: masked-out density
     # still integrates the banner's pixels through the box filter, so a
     # density-level hole just relocates the phantom peak to the hole's rim
     for hx, hy, hw, hh in UNIT_DENSITY_HUD_HOLES:
         mask[hy : hy + hh, hx : hx + hw] = 0
     win = UNIT_DENSITY_WINDOW
-    density = cv2.boxFilter(mask, -1, (win, win))
+    # integer pixel counts, not a normalized float mean: float32 box
+    # filtering is nondeterministic across runs (OpenCV parallel chunking
+    # changes the accumulation order), which flipped plateau-edge peaks
+    # and wobbled the stitched cameras by a few px per invocation
+    density = cv2.boxFilter(mask, cv2.CV_32S, (win, win), normalize=False).astype(
+        np.uint16
+    )
     x0, y0, w, h = region
     bounded = np.zeros_like(density)
     bounded[y0 : y0 + h, x0 : x0 + w] = density[y0 : y0 + h, x0 : x0 + w]
     dist = UNIT_DENSITY_MIN_DIST
     dilated = cv2.dilate(bounded, np.ones((dist, dist), np.uint8))
-    peak_ys, peak_xs = np.nonzero(
-        (bounded >= UNIT_DENSITY_THRESHOLD) & (bounded >= dilated - 1e-9)
-    )
+    min_count = int(UNIT_DENSITY_THRESHOLD * win * win)
+    peak_ys, peak_xs = np.nonzero((bounded >= min_count) & (bounded >= dilated))
     points: list[tuple[int, int]] = []
     for x, y in sorted(
-        zip(peak_xs, peak_ys), key=lambda p: -bounded[p[1], p[0]]
+        zip(peak_xs, peak_ys), key=lambda p: -int(bounded[p[1], p[0]])
     ):
         if all((x - px) ** 2 + (y - py) ** 2 >= dist * dist for px, py in points):
             points.append((int(x), int(y)))
