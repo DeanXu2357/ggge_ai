@@ -1,0 +1,16 @@
+{
+  "check": "reaction_stance_menu",
+  "expect": null,
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_live_20260719.png",
+  "note": "-應戰- 主畫面尚未點頭像 → 無動作列，拒讀。controller 需先點我方頭像再讀選單。"
+}

@@ -1,0 +1,30 @@
+{
+  "check": "battle_prep_forecast",
+  "expect": {
+    "is_reaction": true,
+    "attack_value": 10364,
+    "defense_value": 6164,
+    "hit_pct": 100,
+    "attacker_name_sig": "3535557575251b2e",
+    "attacker_hp": 28618,
+    "attacker_en": 451,
+    "defender_name_sig": "ab2b2ba99b1bab23",
+    "defender_hp": 14168,
+    "defender_en": 76,
+    "defender_hp_delta": 10364,
+    "support_defense": false,
+    "available_stances": null
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_live_20260719.png",
+  "note": "-應戰- 主畫面（反擊態）。hit_pct 100 = 紅①敵攻命中率（頭像列掃描）；defender_hp 14168 曾被 6→8 誤讀成 14188（SQDIFF 復核與相關分皆邊緣），本釘值鎖住正確讀法。support_defense false = 盾標籤不在。"
+}

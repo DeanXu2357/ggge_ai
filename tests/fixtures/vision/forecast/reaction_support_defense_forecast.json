@@ -1,0 +1,25 @@
+{
+  "check": "battle_prep_forecast",
+  "expect": {
+    "is_reaction": true,
+    "attack_value": 12254,
+    "defense_value": 195791,
+    "hit_pct": 47,
+    "attacker_hp": 62012,
+    "defender_hp": 86307,
+    "defender_hp_delta": null,
+    "support_defense": true
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_support_defense_20260719.png",
+  "note": "-應戰- ＋支援防禦：盾標籤 (1404,224) 匹配 1.000 → support_defense true（S9d 標定，取代 stub）。attack_value 12254 曾誤讀 12264、defense_value 195791 曾誤讀 166791 → attack 字型釘正。interceptor 疊面板佔掉 delta 區 → defender_hp_delta null（拒讀不猜）。支援防禦頭像無序號無 pct，掃描回紅47/藍100 兩筆。"
+}

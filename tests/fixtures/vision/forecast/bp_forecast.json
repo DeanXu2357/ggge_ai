@@ -12,7 +12,7 @@
     "defender_hp": 9045,
     "defender_en": 241,
     "defender_hp_delta": 2626,
-    "support_defense": null,
+    "support_defense": false,
     "available_stances": null
   },
   "box": [
@@ -38,5 +38,5 @@
     }
   ],
   "source": "assets/screenshots/20260705-180119.png",
-  "note": "戰鬥準備 -應戰- (enemy 鋼加農 attacks our GQuuuuuuX). extra_crops carries the hit% strip near the attacker avatar. support_defense and available_stances pin the v1 reaction stubs (None = uncalibrated, never False/()): the reaction is this same battle-prep screen, read by read_battle_prep_forecast; the -應戰- stance-switch UI is not located yet (S9d)."
+  "note": "戰鬥準備 -應戰- (enemy 鋼加農 attacks our GQuuuuuuX). extra_crops carries the hit% strip near the attacker avatar: hit_pct 62 now comes from the avatar-row scan + hit glyph set (S9d), and this older capture pins that the scan generalizes across capture dates. support_defense false = the 支援防禦 pill was calibrated (20260719) and is absent here. available_stances stays None on the main prep screen -- the offered set lives on the stance action row (read_reaction_stance_menu)."
 }

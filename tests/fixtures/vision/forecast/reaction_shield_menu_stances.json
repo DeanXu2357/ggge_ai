@@ -1,0 +1,68 @@
+{
+  "check": "reaction_stance_menu",
+  "expect": {
+    "dodge_tap": [
+      1540,
+      940
+    ],
+    "guard": "shield",
+    "guard_tap": [
+      1352,
+      940
+    ],
+    "counters": [
+      {
+        "tap": [
+          1165,
+          940
+        ],
+        "enabled": true
+      },
+      {
+        "tap": [
+          978,
+          940
+        ],
+        "enabled": true
+      },
+      {
+        "tap": [
+          791,
+          940
+        ],
+        "enabled": false
+      },
+      {
+        "tap": [
+          604,
+          940
+        ],
+        "enabled": false
+      },
+      {
+        "tap": [
+          417,
+          940
+        ],
+        "enabled": false
+      }
+    ],
+    "available_stances": [
+      "dodge",
+      "shield",
+      "counter"
+    ]
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_shield_menu_20260719.png",
+  "note": "F91（有盾）5 武器選單：防禦鈕圖示與無盾版互斥（裁片相關 -0.12）→ guard=shield。LONG-EX/LONG 可用、MIDDLE/SHORT/MAP 灰（使用者實機確認），釘 V 閘門 TTFFF。錨點與 2 武器選單同位置——動作列是固定槽位格，武器數不移動錨點。"
+}

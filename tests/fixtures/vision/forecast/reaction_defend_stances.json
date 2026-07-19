@@ -1,0 +1,47 @@
+{
+  "check": "reaction_stance_menu",
+  "expect": {
+    "dodge_tap": [
+      1540,
+      940
+    ],
+    "guard": "defend",
+    "guard_tap": [
+      1352,
+      940
+    ],
+    "counters": [
+      {
+        "tap": [
+          1165,
+          940
+        ],
+        "enabled": true
+      },
+      {
+        "tap": [
+          978,
+          940
+        ],
+        "enabled": false
+      }
+    ],
+    "available_stances": [
+      "dodge",
+      "defend",
+      "counter"
+    ]
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_defend_20260719.png",
+  "note": "防禦選中態：選中高亮不影響圖示匹配與槽位讀取（與 reaction_menu 同釘值）。"
+}

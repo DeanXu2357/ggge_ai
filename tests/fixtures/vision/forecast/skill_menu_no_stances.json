@@ -1,0 +1,16 @@
+{
+  "check": "reaction_stance_menu",
+  "expect": null,
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "skill_menu_20260719.png",
+  "note": "技能選單無 stance 動作列 → 拒讀。"
+}

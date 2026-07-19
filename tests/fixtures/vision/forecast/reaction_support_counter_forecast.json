@@ -1,0 +1,24 @@
+{
+  "check": "battle_prep_forecast",
+  "expect": {
+    "is_reaction": true,
+    "attack_value": 15660,
+    "defense_value": 20453,
+    "hit_pct": 100,
+    "attacker_hp": 34014,
+    "defender_hp": 28402,
+    "support_defense": false
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_support_counter_20260719.png",
+  "note": "-應戰- ＋支援反擊（①敵100% ②支援反擊100% ③反擊82%）。hit_pct 取紅環那格＝100，不被兩個藍環 pct 干擾。支援反擊≠支援防禦 → support_defense false。"
+}

@@ -140,6 +140,28 @@ def _forecast_check(fn):
     return run
 
 
+def _check_stance_menu(frame: np.ndarray, expect: dict[str, Any] | None) -> None:
+    """The 應戰 stance action row reader. expect=null pins a decline (no
+    dodge anchor); otherwise pins taps, the guard kind (defend vs shield),
+    the counter-weapon slots with their enabled classification, and the
+    derived available_stances."""
+    got = vision.read_reaction_stance_menu(frame)
+    if expect is None:
+        assert got is None, f"expected no stance menu, got {got}"
+        return
+    assert got is not None, "stance menu reader declined on its own screen"
+    assert list(got.dodge.tap) == expect["dodge_tap"], got.dodge
+    if expect["guard"] is None:
+        assert got.guard is None, got.guard
+    else:
+        assert got.guard is not None
+        assert got.guard.stance == expect["guard"], got.guard
+        assert list(got.guard.tap) == expect["guard_tap"], got.guard
+    counters = [{"tap": list(c.tap), "enabled": c.enabled} for c in got.counters]
+    assert counters == expect["counters"], counters
+    assert list(got.available_stances) == expect["available_stances"]
+
+
 def _check_weapon_rows(frame: np.ndarray, expect: list[dict[str, Any]]) -> None:
     got = panels.parse_weapon_rows(frame)
     assert len(got) == len(expect), f"got {len(got)} rows, want {len(expect)}: {got}"
@@ -191,6 +213,7 @@ CHECKS = {
     "kill_counter": _check_kill_counter,
     "weapon_select_forecast": _forecast_check(vision.read_weapon_select_forecast),
     "battle_prep_forecast": _forecast_check(vision.read_battle_prep_forecast),
+    "reaction_stance_menu": _check_stance_menu,
     "enemy_summary": _forecast_check(vision.read_enemy_summary),
     "unit_stats": _forecast_check(panels.parse_unit_stats),
     "weapon_rows": _check_weapon_rows,

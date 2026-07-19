@@ -1,0 +1,22 @@
+{
+  "check": "battle_prep_forecast",
+  "expect": {
+    "is_reaction": false,
+    "attack_value": 169729,
+    "defense_value": 1907,
+    "hit_pct": 100,
+    "support_defense": null
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "attack_support_active_20260719.png",
+  "note": "-攻擊- ＋支援參戰（①支援85 ②主攻100 ③敵反55）。attack_value 169729 曾誤讀 166729（'9'→'6'）→ attack 字型釘正。hit_pct 取最右藍＝主攻 100，不被支援 85 誤導。"
+}

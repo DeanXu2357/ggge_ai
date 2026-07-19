@@ -1,0 +1,24 @@
+{
+  "check": "battle_prep_forecast",
+  "expect": {
+    "is_reaction": true,
+    "attack_value": 10364,
+    "defense_value": 0,
+    "hit_pct": 90,
+    "defender_hp": 14168,
+    "defender_hp_delta": 10364,
+    "support_defense": false
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_dodge_confirmed_20260719.png",
+  "note": "dodge 確認後主畫面：下排「閃避 0」→ defense_value 0；敵命中 100→90（原>100 封頂、-20 後 90）；藍②無命中率，掃描只回紅①。"
+}

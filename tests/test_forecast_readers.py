@@ -31,6 +31,39 @@ def test_readers_decline_without_anchor() -> None:
     assert vision.read_enemy_summary(frame) is None
     assert vision.read_kill_counter(frame) is None
     assert vision.is_battle_prep_reaction(frame) is False
+    assert vision.read_reaction_stance_menu(frame) is None
+    assert vision.read_avatar_hits(frame) == ()
+    assert vision.has_support_defense_label(frame) is False
+
+
+def test_initiator_hit_selection() -> None:
+    """-應戰- takes the red (enemy) hit; -攻擊- the rightmost blue: supports
+    sit left of our main attack and the enemy counter right of it."""
+    hits = (
+        vision.AvatarHit(x=963, pct=85, faction="ally"),
+        vision.AvatarHit(x=1162, pct=100, faction="ally"),
+        vision.AvatarHit(x=1363, pct=55, faction="enemy"),
+    )
+    assert vision._initiator_hit(hits, is_reaction=False) == 100
+    assert vision._initiator_hit(hits, is_reaction=True) == 55
+    assert vision._initiator_hit((), is_reaction=True) is None
+    unknown = (vision.AvatarHit(x=863, pct=90, faction=None),)
+    assert vision._initiator_hit(unknown, is_reaction=False) is None
+
+
+def test_available_stances_ordering() -> None:
+    dodge = vision.StanceOption(stance="dodge", tap=(1540, 940), enabled=True)
+    guard = vision.StanceOption(stance="shield", tap=(1352, 940), enabled=True)
+    dead = vision.StanceOption(
+        stance="counter", tap=(1165, 940), enabled=False, weapon_index=0
+    )
+    live_w = vision.StanceOption(
+        stance="counter", tap=(978, 940), enabled=True, weapon_index=1
+    )
+    menu = vision.ReactionStanceMenu(dodge=dodge, guard=guard, counters=(dead, live_w))
+    assert menu.available_stances == ("dodge", "shield", "counter")
+    disarmed = vision.ReactionStanceMenu(dodge=dodge, guard=None, counters=(dead,))
+    assert disarmed.available_stances == ("dodge",)
 
 
 def test_signature_distance_semantics() -> None:

@@ -1,0 +1,22 @@
+{
+  "check": "battle_prep_forecast",
+  "expect": {
+    "is_reaction": true,
+    "attack_value": 1662,
+    "defense_value": 56579,
+    "hit_pct": 42,
+    "support_defense": true
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "reaction_first_strike_20260719.png",
+  "note": "-應戰- 先攻多階段：①我方先攻支援反擊(藍,100%) ②敵攻(紅,42%)。hit_pct=42 釘「取紅環、非取①/最左」的規則；support_defense true（盾標籤在，0.968）。"
+}

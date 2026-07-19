@@ -1,0 +1,27 @@
+{
+  "check": "battle_prep_forecast",
+  "expect": {
+    "is_reaction": false,
+    "attack_value": 163188,
+    "defense_value": 1907,
+    "hit_pct": 100,
+    "attacker_hp": 18991,
+    "attacker_en": 452,
+    "defender_hp": 95178,
+    "defender_en": 156,
+    "support_defense": null,
+    "available_stances": null
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "attack_support_20260719.png",
+  "note": "-攻擊- ＋支援全不參加。attack_value 163188 曾被 hud 字模讀成 163168（'8'→'6' 相關 0.880 高分誤匹配，dh 掃遍無解）→ 攻防值改用 attack 專用字型（assets/templates/digits/attack/，由本批 PNG 的目視轉錄值裁模）。hit_pct 100＝最右藍環（我方主攻），紅環反擊 55% 不取；不參加頭像無 pct。support_defense null＝-攻擊- 側標籤未標定。"
+}

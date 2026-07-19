@@ -12,6 +12,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from ..sim import DefenseKind
 from ..vision import digits
 from ..vision.template import PREPROCESSORS
 
@@ -520,7 +521,22 @@ FORECAST_RIGHT_EN_REGION = (1700, 180, 92, 44)
 BP_ATTACK_REGION = (1090, 98, 190, 62)
 BP_DEFENSE_REGION = (1090, 213, 190, 62)
 BP_HP_DELTA_REGION = (1420, 238, 175, 36)
-BP_HIT_REGION = (846, 812, 90, 44)
+
+# bottom avatar row on 戰鬥準備: circles at y~938, centered on x~963 with a
+# 200px pitch, so the row grows toward both edges with the participant count
+# and every hit% must be found by scanning, not by fixed regions. each hit%
+# is white text whose left edge sits on its avatar's center x; the ring arc
+# right of the order badge (x0-56..x0-48, rows 846-860) carries the faction
+# color (red enemy / blue ally, same vocabulary as the HP arcs). digits are
+# a narrower typeface than the HUD numbers -- they read with the dedicated
+# "hit" glyph set (assets/templates/digits/hit/, cropped off the 20260719
+# PNG fixtures; '3' and '6' have no capture yet and will not read until one
+# lands)
+BP_HIT_ROW_REGION = (360, 833, 1200, 30)
+BP_HIT_TOKEN_GAP = 40
+BP_HIT_DIGIT_HEIGHT = 32
+BP_HIT_FONT = "hit"
+BP_HIT_RING_MIN_PIXELS = 25
 
 # name bars end before each panel's bright edge line (x=938 left, x=1790
 # right on the weapon-select capture) so the tight-bbox normalization in
@@ -539,6 +555,44 @@ ENEMY_SUMMARY_ANCHOR_REGION = (570, 175, 100, 65)
 ENEMY_SUMMARY_ANCHOR_THRESHOLD = 0.88
 ENEMY_SUMMARY_HP_REGION = (680, 182, 140, 44)
 ENEMY_SUMMARY_EN_REGION = (865, 182, 100, 44)
+
+# 支援防禦 pill on the defender (our, right) panel of -應戰- prep screens.
+# 1.000 / 0.968 on the two 20260719 captures that carry it, <=0.58 on every
+# other prep/menu fixture, so 0.8 splits with wide margin. only the reaction
+# variant is calibrated: on -攻擊- the shielded unit would be the enemy on
+# the left panel, whose label slot has no capture yet.
+SUPPORT_DEFENSE_LABEL_TEMPLATE = _ELEMENTS / "label_support_defense.png"
+SUPPORT_DEFENSE_SEARCH = (1380, 200, 300, 90)
+SUPPORT_DEFENSE_THRESHOLD = 0.8
+
+# 應戰 stance action row (opened by tapping our avatar on -應戰- prep): the
+# row is a fixed-slot grid, right-anchored on the same pixels regardless of
+# weapon count -- 閃避 at (1540,940), 防禦 one slot left at (1352,940),
+# counter weapons continuing leftward at a 187px pitch (all four 20260719
+# menu captures match the dodge icon at exactly (1540,940); the earlier
+# "anchor shifts right with more weapons" note in docs/battle-prep-ui.md was
+# a mis-scaled visual estimate). the 防禦 button repaints per mech: plain
+# shield icon = defend (-20%), boxed shield-with-crest = shield (-40%, 防禦
+# （盾牌）); the two crops anti-correlate (-0.12) so template argmax splits
+# them. weapon slots are detected by their yellow "EN <cost>" caption
+# (present even on disabled buttons) and classified enabled/disabled by icon
+# brightness -- every user-confirmed disabled weapon idles at V~78 and every
+# confirmed enabled one at V>=200, but the only SHORT captures all sit at
+# V~76 with no confirmed-enabled sample, so a dark-but-enabled icon
+# misreading as disabled is an open assumption to verify live (S10).
+STANCE_DODGE_TEMPLATE = _ELEMENTS / "btn_stance_dodge.png"
+STANCE_DEFEND_TEMPLATE = _ELEMENTS / "btn_stance_defend.png"
+STANCE_SHIELD_TEMPLATE = _ELEMENTS / "btn_stance_shield.png"
+STANCE_DODGE_SEARCH = (1450, 860, 180, 160)
+STANCE_GUARD_SEARCH = (1262, 860, 180, 160)
+STANCE_TEMPLATE_THRESHOLD = 0.8
+STANCE_PITCH = 187
+STANCE_ROW_Y = 940
+STANCE_MIN_X = 340
+STANCE_EN_CAPTION_BAND = (992, 24)
+STANCE_EN_MIN_PIXELS = 60
+STANCE_ICON_HALF = 14
+STANCE_ENABLED_MIN_V = 120
 
 
 @dataclass(frozen=True)
@@ -566,17 +620,67 @@ class EnemySummary:
 
 
 @dataclass(frozen=True)
+class AvatarHit:
+    """One hit% readout scanned off the bottom avatar row. x is the pct
+    text's left edge == that avatar's circle center; faction comes from the
+    ring-arc color (None when the arc sample is too weak to call)."""
+
+    x: int
+    pct: int
+    faction: str | None
+
+
+@dataclass(frozen=True)
+class StanceOption:
+    """One tappable option on the 應戰 stance action row. stance uses the
+    sim DefenseKind vocabulary; weapon_index counts counter weapons from
+    the 防禦 button leftward (0 = the slot next to it)."""
+
+    stance: str
+    tap: tuple[int, int]
+    enabled: bool
+    weapon_index: int | None = None
+
+
+@dataclass(frozen=True)
+class ReactionStanceMenu:
+    """The 應戰 stance action row read off a -應戰- prep frame after our
+    avatar was tapped. guard is the 防禦 slot -- defend or shield depending
+    on the mech (None when neither icon template clears the gate, e.g. an
+    unseen selected-state repaint)."""
+
+    dodge: StanceOption
+    guard: StanceOption | None
+    counters: tuple[StanceOption, ...]
+
+    @property
+    def available_stances(self) -> tuple[str, ...]:
+        stances = [self.dodge.stance]
+        if self.guard is not None:
+            stances.append(self.guard.stance)
+        if any(c.enabled for c in self.counters):
+            stances.append(DefenseKind.COUNTER)
+        return tuple(stances)
+
+
+@dataclass(frozen=True)
 class BattlePrepForecast:
-    """The game's prediction on the 戰鬥準備 confirmation. Attacker is
-    always the left panel: our unit on our attacks, the enemy on -應戰-
-    reactions -- is_reaction carries the direction.
+    """The game's prediction on the 戰鬥準備 confirmation. Panel factions
+    are fixed on both variants (calibrated 2026-07-19): the left panel is
+    always the enemy, the right always ours. The attacker_*/defender_*
+    field names describe the -應戰- case (enemy initiates from the left);
+    on our own -攻擊- read them as left/right -- the "attacker" panel is
+    then our target, and is_reaction carries the direction.
 
     The reaction (#3, 應戰決策) is this same screen in its -應戰- variant,
-    not a separate popup: when is_reaction is set, support_defense and
-    available_stances are the defense-choice perception the controller
-    feeds to advise_reaction. Both are v1 stubs (None = uncalibrated,
-    never a guessed value): the stance-switch UI on this screen has not
-    been located on a live device yet (S9d)."""
+    not a separate popup. hit_pct is the initiator's hit chance scanned off
+    the bottom avatar row (the enemy attack on -應戰-, our attack
+    otherwise). support_defense is the 支援防禦 pill read on -應戰- (bool);
+    on -攻擊- it stays None because the enemy-side label slot is
+    uncalibrated. available_stances stays None here: the offered set lives
+    on the stance action row, which only exists after the controller taps
+    our avatar and reads that frame with read_reaction_stance_menu (S9d
+    wiring pending) -- this reader never guesses it from the main screen."""
 
     is_reaction: bool
     attack_value: int | None
@@ -677,6 +781,172 @@ def _magnitude(value: int | None) -> int | None:
     return None if value is None else abs(value)
 
 
+def _match_color(
+    frame: np.ndarray, template_path: Path, region: tuple[int, int, int, int]
+) -> tuple[float, tuple[int, int]]:
+    """Best raw-BGR TM_CCOEFF_NORMED score inside `region` and the matched
+    center. Raw color (no highpass) because these templates carry their own
+    icon artwork against a dark disc, where the color contrast is the
+    signal."""
+    template = _cached_template(str(template_path))
+    if template is None:
+        return 0.0, (0, 0)
+    x, y, w, h = region
+    crop = frame[y : y + h, x : x + w]
+    if crop.shape[0] < template.shape[0] or crop.shape[1] < template.shape[1]:
+        return 0.0, (0, 0)
+    result = cv2.matchTemplate(crop, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, loc = cv2.minMaxLoc(result)
+    center = (
+        x + loc[0] + template.shape[1] // 2,
+        y + loc[1] + template.shape[0] // 2,
+    )
+    return float(score), center
+
+
+def _ring_faction(hsv: np.ndarray, x: int) -> str | None:
+    """Faction of the avatar whose hit% text starts at column x, from the
+    ring-arc pixels between the order badge and the text (rows 846-860).
+    Same color vocabulary as the map HP arcs: red enemy, blue ally."""
+    window = hsv[846:860, max(0, x - 56) : max(0, x - 48)]
+    if window.size == 0:
+        return None
+    strong = window[(window[..., 1] > 120) & (window[..., 2] > 90)]
+    if strong.shape[0] < BP_HIT_RING_MIN_PIXELS:
+        return None
+    hues = strong[:, 0].astype(int)
+    red = int(((hues >= 168) | (hues <= 12)).sum())
+    blue = int(((hues >= 95) & (hues <= 135)).sum())
+    if red > blue:
+        return "enemy"
+    if blue > red:
+        return "ally"
+    return None
+
+
+def read_avatar_hits(frame: np.ndarray) -> tuple[AvatarHit, ...]:
+    """Every hit% on the bottom avatar row, left to right. Scanning, not
+    fixed regions: the row is centered and grows with the participant
+    count. Tokens are the white pct glyphs (full-height components in the
+    row band, clustered on x-gaps); each is OCRed with the hit glyph set
+    and tagged with its avatar's ring color."""
+    x0, y0, w, h = BP_HIT_ROW_REGION
+    band = cv2.cvtColor(_crop(frame, BP_HIT_ROW_REGION), cv2.COLOR_BGR2GRAY)
+    mask = (band >= 190).astype(np.uint8)
+    n, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    xs = sorted(
+        int(stats[i][0])
+        for i in range(1, n)
+        if stats[i][4] >= 40 and stats[i][3] >= 24
+    )
+    if not xs:
+        return ()
+    starts = [xs[0]]
+    last = xs[0]
+    for x in xs[1:]:
+        if x - last > BP_HIT_TOKEN_GAP:
+            starts.append(x)
+        last = x
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    hits = []
+    for start in starts:
+        text_x = x0 + start
+        pct = digits.read_percent(
+            frame,
+            (text_x - 8, 828, 100, 40),
+            digit_height=BP_HIT_DIGIT_HEIGHT,
+            font=BP_HIT_FONT,
+        )
+        if pct is None:
+            continue
+        hits.append(AvatarHit(x=text_x, pct=pct, faction=_ring_faction(hsv, text_x)))
+    return tuple(hits)
+
+
+def _initiator_hit(hits: tuple[AvatarHit, ...], is_reaction: bool) -> int | None:
+    """The initiating attack's hit% -- the enemy's (red ring) on -應戰-,
+    ours on -攻擊-. Our main attack is the rightmost blue with a pct:
+    supports sit left of it and the enemy counter right of it, and
+    non-participants carry no pct."""
+    if is_reaction:
+        return next((h.pct for h in hits if h.faction == "enemy"), None)
+    ally = [h for h in hits if h.faction == "ally"]
+    return ally[-1].pct if ally else None
+
+
+def has_support_defense_label(frame: np.ndarray) -> bool:
+    """True when the 支援防禦 pill sits on the defender (right) panel -- an
+    ally interceptor will absorb the incoming hit. Calibrated for -應戰-
+    only (see SUPPORT_DEFENSE_LABEL_TEMPLATE)."""
+    score, _ = _match_color(
+        frame, SUPPORT_DEFENSE_LABEL_TEMPLATE, SUPPORT_DEFENSE_SEARCH
+    )
+    return score >= SUPPORT_DEFENSE_THRESHOLD
+
+
+def read_reaction_stance_menu(frame: np.ndarray) -> ReactionStanceMenu | None:
+    """The 應戰 stance action row, or None when its dodge anchor is not on
+    screen (main prep screen, -攻擊- support weapon menu whose right anchor
+    is 不參加, skill menu, ...). Weapon slots run leftward from 防禦 on the
+    fixed 187px pitch until a slot has no yellow EN caption; enabled comes
+    from icon brightness (see the constants block for the open SHORT
+    assumption)."""
+    dodge_score, dodge_center = _match_color(
+        frame, STANCE_DODGE_TEMPLATE, STANCE_DODGE_SEARCH
+    )
+    if dodge_score < STANCE_TEMPLATE_THRESHOLD:
+        return None
+    defend_score, defend_center = _match_color(
+        frame, STANCE_DEFEND_TEMPLATE, STANCE_GUARD_SEARCH
+    )
+    shield_score, shield_center = _match_color(
+        frame, STANCE_SHIELD_TEMPLATE, STANCE_GUARD_SEARCH
+    )
+    guard: StanceOption | None = None
+    guard_x = dodge_center[0] - (STANCE_PITCH + 1)
+    if max(defend_score, shield_score) >= STANCE_TEMPLATE_THRESHOLD:
+        if defend_score >= shield_score:
+            kind, center = DefenseKind.DEFEND, defend_center
+        else:
+            kind, center = DefenseKind.SHIELD, shield_center
+        guard = StanceOption(stance=kind, tap=center, enabled=True)
+        guard_x = center[0]
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    caption_y, caption_h = STANCE_EN_CAPTION_BAND
+    counters = []
+    for k in range(1, 8):
+        x = guard_x - STANCE_PITCH * k
+        if x < STANCE_MIN_X:
+            break
+        caption = hsv[caption_y : caption_y + caption_h, x - 70 : x + 70]
+        yellow = (
+            (caption[..., 0] >= 18)
+            & (caption[..., 0] <= 40)
+            & (caption[..., 1] >= 140)
+            & (caption[..., 2] >= 150)
+        )
+        if int(yellow.sum()) < STANCE_EN_MIN_PIXELS:
+            break
+        icon = hsv[
+            STANCE_ROW_Y - STANCE_ICON_HALF : STANCE_ROW_Y + STANCE_ICON_HALF,
+            x - STANCE_ICON_HALF : x + STANCE_ICON_HALF,
+            2,
+        ]
+        counters.append(
+            StanceOption(
+                stance=DefenseKind.COUNTER,
+                tap=(x, STANCE_ROW_Y),
+                enabled=float(icon.mean()) >= STANCE_ENABLED_MIN_V,
+                weapon_index=k - 1,
+            )
+        )
+    return ReactionStanceMenu(
+        dodge=StanceOption(stance=DefenseKind.DODGE, tap=dodge_center, enabled=True),
+        guard=guard,
+        counters=tuple(counters),
+    )
+
+
 def read_enemy_summary(frame: np.ndarray) -> EnemySummary | None:
     """The summary card that pops after tapping an enemy on the hub, or
     None when its HP-label anchor is not on screen. Callers should only
@@ -736,23 +1006,25 @@ def read_weapon_select_forecast(frame: np.ndarray) -> WeaponSelectForecast | Non
 
 def read_battle_prep_forecast(frame: np.ndarray) -> BattlePrepForecast | None:
     """Game forecast off the 戰鬥準備 confirmation, or None when its header
-    is not on screen. support_defense and available_stances are v1 stubs
-    (always None = unknown, never False/()): the support-defense icon and
-    the -應戰- stance-switch UI have not been captured on a live device yet
-    (S9d), so there is nothing to crop a template or a region from."""
+    is not on screen. hit_pct comes from the avatar-row scan (initiator's
+    hit chance); support_defense from the 支援防禦 pill on -應戰- and stays
+    None on -攻擊- (enemy-side label uncalibrated). available_stances is
+    never filled here -- see BattlePrepForecast and
+    read_reaction_stance_menu."""
     if _anchor_score(frame, BATTLE_PREP_HEADER_TEMPLATE, FORECAST_HEADER_REGION) < (
         FORECAST_HEADER_THRESHOLD
     ):
         return None
+    is_reaction = is_battle_prep_reaction(frame)
     return BattlePrepForecast(
-        is_reaction=is_battle_prep_reaction(frame),
+        is_reaction=is_reaction,
         attack_value=digits.read_number(
-            frame, BP_ATTACK_REGION, digit_height=48, allow_minus=False
+            frame, BP_ATTACK_REGION, digit_height=48, allow_minus=False, font="attack"
         ),
         defense_value=digits.read_number(
-            frame, BP_DEFENSE_REGION, digit_height=48, allow_minus=False
+            frame, BP_DEFENSE_REGION, digit_height=48, allow_minus=False, font="attack"
         ),
-        hit_pct=digits.read_percent(frame, BP_HIT_REGION, digit_height=23),
+        hit_pct=_initiator_hit(read_avatar_hits(frame), is_reaction),
         attacker_name_sig=name_signature(frame, FORECAST_LEFT_NAME_REGION),
         attacker_hp=digits.read_number(
             frame, BP_ATTACKER_HP_REGION, digit_height=32, allow_minus=False
@@ -770,6 +1042,6 @@ def read_battle_prep_forecast(frame: np.ndarray) -> BattlePrepForecast | None:
         defender_hp_delta=_magnitude(
             digits.read_number(frame, BP_HP_DELTA_REGION, digit_height=30)
         ),
-        support_defense=None,
+        support_defense=has_support_defense_label(frame) if is_reaction else None,
         available_stances=None,
     )
