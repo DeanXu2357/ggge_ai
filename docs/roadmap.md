@@ -194,16 +194,30 @@ map-scan-survey.md 的實作藍圖第一階段（無陣營位置池）離線落�
 - **常備提醒**：遇到有 MAP 敵機的關卡先蒐樣本——capture 移動選格
   畫面（兩類威脅圖示）＋該敵機武裝面板，存 PNG（silent-events.md
   批D）；蒐到前批E 不開工。
-- **恢復點（cutover 為下一批，兩個設計決策待使用者拍板）**：
-  ①**cutover 本體**：tacmap census 無陣營化（弧偵測降存在信號）＋
-  `_ensure_stage_definition_inner` 掃描點含我方、改傳 identifier＋
-  以 ally_indices/dropped 濾 census 供 resolver.seed＋下游
-  hub_poisoned/信念鏈簡化——與 LiveScanSource 接線同批；
-  ②待拍板 A：第三方單位停靠邊未知，v1 左停靠一律 faction=enemy
-  （舊弧色第三方本就是噪音）？③待拍板 B：warm path census 掃描點
-  將含我方——seed 前以 deploy_slots 格位排除鄰近點，或容忍多餘點；
-  ④出擊機「鈷藍環＋白VV」輔助偵測器仍未實作（僅 turn-1 滿血窗口）；
-  ⑤#24 冷掃太空圖提早收工、#25 掃描期格線、縮放 sendevent 照舊。
+- **07-20 續5（批2 cutover 落地，未碰實機）**：使用者拍板（A）第三方
+  v1 左停靠一律 enemy 可、但**敵我辨識必須有明確邊界**（介面收口，
+  實作內容可慢慢改）；（B）經解釋後同意 seed 吃完整星座。一次切換：
+  ①tacmap 無陣營化（`units`＋`threats` 兩池；locate/anchor 改全池
+  假設）；②`identity.seed` 完整星座（layout ∪ deploy_slots，deploy
+  缺席=不滿編可容忍）＋**共識錨定**取代最西北角錨（每個 (格,點)
+  配對提案原點、互配對數投票，我方站極西/極西出擊格空置都不再剪切
+  網格）；SeedReport 增 deploy_points；③`observe.build_battle_state`
+  改統一證據階梯（resolver 身分→tracker 我方 sig→census 我方位置→
+  丟棄記註），**hub_poisoned 特例整個刪除**——任何弧色都不是陣營
+  判定；④controller：`_ally_points`（census 我方位置，行動後畢業到
+  tracker sig）＋`faction_identifier` 注入欄位（陣營唯一出口）、
+  `_ensure_stage_definition_inner` 改 identifier 模式（cold seed 連
+  我方一起點名=identify 的免費交叉驗證）、warm 採 seed.deploy_points、
+  `_scout` 全掃改 LiveScanSource（controller 舊 serpentine/_pan_leg
+  全刪，`_navigator()` 共享 tacmap 當 bring_to_view 地標池）、
+  hint/resync/sig_refresh/reinforcement 全改「已識別身分＋known ally
+  過濾」。測試面 6 檔重寫/調整。
+- **恢復點（實機驗證 pending）**：①cutover 後全鏈路未經實機——冷掃
+  survey identify 全流程（LiveScanSource 走圖→逐台點擊分流→完整星座
+  點名）需一輪實戰；裝置 adb 目前 unauthorized，需使用者在手機上
+  重新授權 USB 偵錯；②出擊機「鈷藍環＋白VV」輔助偵測器未實作；
+  ③#24 冷掃太空圖提早收工、#25 掃描期格線、縮放 sendevent 照舊；
+  ④第三方判別=未來的 FactionIdentifier 通道（介面已收口）。
 - **裝置現況**：本 session 未碰實機。戰局仍停在活動關 TURN 1 our-turn hub
   （可放棄退體力）；`data/cache/stages/` 已重建 ex2if schema-3 定義檔
   （positions_only、warm path 不採）。

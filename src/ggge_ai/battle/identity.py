@@ -47,6 +47,10 @@ class SeedReport:
     matched: dict[str, Point] = field(default_factory=dict)
     unmatched_uids: list[str] = field(default_factory=list)
     unmatched_points: list[Point] = field(default_factory=list)
+    # scan points claimed by deploy cells: our machines, geometrically
+    # separated from the layout census without a single tap. An empty
+    # deploy cell is a smaller sortie, not a failure.
+    deploy_points: list[Point] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -124,11 +128,17 @@ class IdentityResolver:
         return self.defn is None
 
     def seed(self, scan_points: list[Point]) -> SeedReport:
-        """Bind the layout to a full opening sweep: the scan's min corner
-        anchors the stage grid (ally deployment never does), then layout
-        cells claim points by mutual nearest inside their own cell. A
-        report that is not ok is a validation failure -- survey callers
-        must fail loudly, not proceed on a partial board."""
+        """Bind the opening constellation to a full sweep. The expected
+        constellation is layout ∪ deploy_slots (定案 7: deploy cells are
+        stage content; who stands on them is not): layout cells must all
+        claim a point, deploy cells claim what they can -- an empty one
+        is a smaller sortie, its points land in deploy_points. The grid
+        anchor is CONSENSUS, not the scan's min corner: every (cell,
+        point) pairing proposes an origin and the one most mutual pairs
+        agree with wins, so an ally machine holding the west/north
+        extreme -- or an extreme deploy cell left empty -- cannot shear
+        the frame. A report that is not ok is a validation failure --
+        survey callers must fail loudly, not proceed on a partial board."""
         if self.defn is None:
             raise ValueError("cannot seed a passthrough resolver")
         report = SeedReport()
@@ -138,19 +148,43 @@ class IdentityResolver:
             report.unmatched_points = list(scan_points)
             return report
         cell = self.defn.cell_size
-        origin = (min(p[0] for p in scan_points), min(p[1] for p in scan_points))
-        cmin = (min(u.cell[0] for u in layout), min(u.cell[1] for u in layout))
-        self._grid = (origin, cmin)
-        expected = {
-            u.uid: (
-                origin[0] + (u.cell[0] - cmin[0]) * cell,
-                origin[1] + (u.cell[1] - cmin[1]) * cell,
-            )
-            for u in layout
+        entries = [(u.uid, u.cell) for u in layout] + [
+            (f"deploy_{j}", s.cell) for j, s in enumerate(self.defn.deploy_slots)
+        ]
+        cmin = (min(c[0] for _, c in entries), min(c[1] for _, c in entries))
+        offsets = {
+            uid: ((c[0] - cmin[0]) * cell, (c[1] - cmin[1]) * cell)
+            for uid, c in entries
         }
-        matched = _mutual_pairs(expected, scan_points, (cell * SEED_RADIUS_CELLS) ** 2)
+        max_d2 = (cell * SEED_RADIUS_CELLS) ** 2
+        best: tuple[dict[str, int], Point] | None = None
+        seen: set[tuple[int, int]] = set()
+        for off in offsets.values():
+            for p in scan_points:
+                origin = (p[0] - off[0], p[1] - off[1])
+                key = (round(origin[0] / 20.0), round(origin[1] / 20.0))
+                if key in seen:
+                    continue
+                seen.add(key)
+                expected = {
+                    uid: (origin[0] + o[0], origin[1] + o[1])
+                    for uid, o in offsets.items()
+                }
+                matched = _mutual_pairs(expected, scan_points, max_d2)
+                if best is None or len(matched) > len(best[0]):
+                    best = (matched, origin)
+                    if len(matched) == min(len(entries), len(scan_points)):
+                        break
+            else:
+                continue
+            break
+        matched, origin = best
+        self._grid = (origin, cmin)
         for uid, i in matched.items():
-            report.matched[uid] = scan_points[i]
+            if uid.startswith("deploy_"):
+                report.deploy_points.append(scan_points[i])
+            else:
+                report.matched[uid] = scan_points[i]
         report.unmatched_uids = [u.uid for u in layout if u.uid not in matched]
         matched_points = set(matched.values())
         report.unmatched_points = [

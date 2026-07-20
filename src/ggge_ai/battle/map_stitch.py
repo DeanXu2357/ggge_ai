@@ -375,7 +375,7 @@ def stitch(
                     f"(candidates {len(candidates)}, hint {hint})"
                 )
             support, camera, method = scored[0]
-        tac.observe(camera, poolable[i], [], [])
+        tac.observe(camera, poolable[i])
         for p in poolable[i]:
             world_points.append((p[0] + camera[0], p[1] + camera[1]))
         placements.append(

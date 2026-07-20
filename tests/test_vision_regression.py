@@ -62,26 +62,31 @@ def _check_unit_card_count(frame: np.ndarray, expect: dict[str, int]) -> None:
 
 
 def _check_observer_board(frame: np.ndarray, expect: dict) -> None:
-    """End-to-end observer case on a real screenshot: arc scan feeds
-    build_battle_state with the annotated priors (tracker ally beliefs,
-    intel sig positions), and the resolved board must match the bounds.
-    Screen coordinates double as world coordinates (zero camera offset)."""
+    """End-to-end observer case on a real screenshot: the factionless arc
+    pool feeds build_battle_state with the annotated priors (tracker ally
+    beliefs, intel sig positions, census ally points), and the resolved
+    board must match the bounds. Arc color never decides faction (定案 5)
+    -- a point no evidence claims is dropped, ally-looking or not. Screen
+    coordinates double as world coordinates (zero camera offset)."""
     from ggge_ai.battle.observe import build_battle_state
     from ggge_ai.battle.state import Faction
     from ggge_ai.battle.tacmap import TacticalMap
 
     tacmap = TacticalMap()
-    tacmap.allies.extend(vision.find_ally_units(frame))
-    tacmap.enemies.extend(vision.find_enemy_units(frame))
-    tacmap.third_party.extend(vision.find_third_party_units(frame))
+    tacmap.observe(
+        (0.0, 0.0),
+        vision.find_ally_units(frame)
+        + vision.find_enemy_units(frame)
+        + vision.find_third_party_units(frame),
+    )
     inputs = expect["inputs"]
     battle = build_battle_state(
-        tacmap,
+        list(tacmap.units),
         id_positions={k: tuple(v) for k, v in inputs.get("sig_positions", {}).items()},
         ally_id_positions={
             k: tuple(v) for k, v in inputs.get("ally_sig_positions", {}).items()
         },
-        hub_poisoned=inputs.get("hub_poisoned", True),
+        ally_points=[tuple(p) for p in inputs.get("ally_points", [])],
     )
     actual = {
         "allies": len(battle.allies()),

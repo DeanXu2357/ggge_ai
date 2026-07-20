@@ -73,6 +73,7 @@ def _wire(monkeypatch, world):
     monkeypatch.setattr(vision, "find_enemy_units", world.visible_units)
     monkeypatch.setattr(vision, "find_ally_units", lambda f, region=None: [])
     monkeypatch.setattr(vision, "find_third_party_units", lambda f, region=None: [])
+    monkeypatch.setattr(vision, "find_threat_cells", lambda f: [])
     monkeypatch.setattr(vision, "is_unit_detail_modal", lambda f: False)
 
 

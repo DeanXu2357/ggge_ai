@@ -6,6 +6,12 @@ map-edge clamping cannot corrupt the coordinate frame. A world point is
 its screen position plus the camera offset at observation time; the
 origin is wherever the camera sat when the scan started. Rebuilt every
 turn (units move), so stale positions live at most one turn.
+
+The pool is FACTIONLESS (定案 5): arc detection only ever says "a unit
+stands here" -- faction comes from the identify pass (banner dock side)
+and lives with identities, never here. Threat cells ("!" overlay) keep
+their own list: they only render around the enemy force, so they remain
+a classification-independent bearing toward the enemy mass.
 """
 
 from __future__ import annotations
@@ -28,43 +34,29 @@ def _merge(points: list[Point], p: Point, radius: float = MERGE_RADIUS) -> None:
 
 @dataclass
 class TacticalMap:
-    enemies: list[Point] = field(default_factory=list)
-    allies: list[Point] = field(default_factory=list)
-    third_party: list[Point] = field(default_factory=list)
-    # threat cells ("!" overlay) projected to world coordinates: they only
-    # render around the enemy force, and unlike HP arcs they cannot be
-    # poisoned by ally/enemy color misclassification -- so they double as a
-    # classification-independent bearing toward the enemy mass
+    units: list[Point] = field(default_factory=list)
     threats: list[Point] = field(default_factory=list)
 
     def reset(self) -> None:
-        self.enemies.clear()
-        self.allies.clear()
-        self.third_party.clear()
+        self.units.clear()
         self.threats.clear()
 
     def observe(
         self,
         camera: Point,
-        enemies: list[tuple[int, int]],
-        allies: list[tuple[int, int]],
-        third_party: list[tuple[int, int]] = (),
+        points: list[tuple[int, int]],
         threats: list[tuple[int, int]] = (),
     ) -> None:
-        for screen, world in (
-            (enemies, self.enemies),
-            (allies, self.allies),
-            (third_party, self.third_party),
-            (threats, self.threats),
-        ):
-            for p in screen:
-                _merge(world, (p[0] + camera[0], p[1] + camera[1]))
+        for p in points:
+            _merge(self.units, (p[0] + camera[0], p[1] + camera[1]))
+        for p in threats:
+            _merge(self.threats, (p[0] + camera[0], p[1] + camera[1]))
 
-    def nearest_enemy(self, world_pos: Point) -> Point | None:
-        if not self.enemies:
+    def nearest_unit(self, world_pos: Point) -> Point | None:
+        if not self.units:
             return None
         return min(
-            self.enemies,
+            self.units,
             key=lambda e: (e[0] - world_pos[0]) ** 2 + (e[1] - world_pos[1]) ** 2,
         )
 
@@ -80,12 +72,11 @@ class TacticalMap:
         the one most arcs agree with wins, two coincidences minimum --
         the survey's bring-to-view navigation re-anchors with this
         between pans."""
-        world_points = self.enemies + self.allies + self.third_party
-        if not world_points or not visible_arcs:
+        if not self.units or not visible_arcs:
             return None
         best: tuple[int, Point] | None = None
         for a in visible_arcs:
-            for w in world_points:
+            for w in self.units:
                 t = (w[0] - a[0], w[1] - a[1])
                 score = 0
                 for b in visible_arcs:
@@ -93,7 +84,7 @@ class TacticalMap:
                     if any(
                         (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
                         < ANCHOR_MATCH_RADIUS * ANCHOR_MATCH_RADIUS
-                        for q in world_points
+                        for q in self.units
                     ):
                         score += 1
                 if best is None or score > best[0]:
@@ -107,18 +98,17 @@ class TacticalMap:
     ) -> Point | None:
         """Recover the camera offset of the current view after the game
         recentered on a selected unit (an untracked jump). Each scanned
-        ally is hypothesized to be the selected unit; the translation
-        that makes the most visible arcs of any faction coincide with
-        scanned world points wins. Needs a second coinciding arc to
-        disambiguate, unless only one ally exists at all."""
-        world_points = self.enemies + self.allies + self.third_party
-        if not self.allies or not visible_arcs:
+        point is hypothesized to be the selected unit; the translation
+        that makes the most visible arcs coincide with scanned world
+        points wins. Needs a second coinciding arc to disambiguate,
+        unless only one unit exists at all."""
+        if not self.units or not visible_arcs:
             return None
-        if len(self.allies) == 1 and len(visible_arcs) == 1:
-            w = self.allies[0]
+        if len(self.units) == 1 and len(visible_arcs) == 1:
+            w = self.units[0]
             return (w[0] - unit_screen[0], w[1] - unit_screen[1])
         best: tuple[int, Point] | None = None
-        for w in self.allies:
+        for w in self.units:
             t = (w[0] - unit_screen[0], w[1] - unit_screen[1])
             score = 0
             for a in visible_arcs:
@@ -126,7 +116,7 @@ class TacticalMap:
                 if any(
                     (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2
                     < ANCHOR_MATCH_RADIUS * ANCHOR_MATCH_RADIUS
-                    for q in world_points
+                    for q in self.units
                 ):
                     score += 1
             if best is None or score > best[0]:

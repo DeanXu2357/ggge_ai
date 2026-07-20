@@ -18,10 +18,11 @@ def _blank():
 
 def test_scout_hint_drives_heading_when_anchor_fails():
     tm = TacticalMap()
-    # two far-apart allies make the anchor refuse without corroboration
-    tm.observe((0, 0), enemies=[(2000, 500)], allies=[(100, 100), (2000, 900)])
+    # two far-apart points make the anchor refuse without corroboration
+    tm.observe((0, 0), [(2000, 500), (100, 100), (2000, 900)])
     cells = [(1100, 500), (1200, 500), (1150, 600)]
     c = _controller(tm, hint=(1.0, 0.0))
+    c._id_positions["e01"] = (2000.0, 500.0)
 
     target, basis = c._seek_move_target(_blank(), cells)
 
@@ -86,9 +87,10 @@ def test_no_on_screen_enemy_falls_back_to_stand_by(monkeypatch):
 
 def test_tacmap_anchor_target_preferred_when_available(monkeypatch):
     tm = TacticalMap()
-    tm.observe((0, 0), enemies=[(300, 400)], allies=[(100, 100), (500, 100)])
+    tm.observe((0, 0), [(300, 400), (100, 100), (500, 100)])
     cells = [(30, 50), (70, 50), (50, 50)]  # move range centered on the unit (50, 50)
     c = _controller(tm, hint=(1.0, 0.0))
+    c._id_positions["e01"] = (300.0, 400.0)
     monkeypatch.setattr(vision, "find_ally_units", lambda *a, **k: [(50, 50), (450, 50), (250, 350)])
     monkeypatch.setattr(vision, "find_enemy_units", lambda *a, **k: [])
     monkeypatch.setattr(vision, "find_third_party_units", lambda *a, **k: [])

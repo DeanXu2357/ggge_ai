@@ -381,7 +381,7 @@ def _stage_controller(tmp_path, tacmap_enemies):
         intel_cache_root=tmp_path,
     )
     for p in tacmap_enemies:
-        c.tacmap.enemies.append(p)
+        c.tacmap.units.append(p)
     return c
 
 
@@ -463,7 +463,7 @@ def test_surplus_arc_becomes_a_recorded_reinforcement(tmp_path, monkeypatch):
     assert c.resolver.expected_alive() == 3
 
     surplus = (1600.0, 900.0)
-    c.tacmap.enemies.append(surplus)
+    c.tacmap.units.append(surplus)
     monkeypatch.setattr(c, "_bring_to_view", lambda world: None)
     battle, _ = c._board_with_resync(None)
 
@@ -477,7 +477,7 @@ def test_surplus_arc_becomes_a_recorded_reinforcement(tmp_path, monkeypatch):
     assert c.resolver.resolve(surplus) == "e04"
     assert c.resolver.expected_alive() == 4
 
-    c.tacmap.enemies.append((1600.0, 901.0))
+    c.tacmap.units.append((1600.0, 901.0))
     c._observe_new_units(None, battle)
     saved_again = stage_def.load_stage_def("g/hard_2", root=tmp_path)
     assert len(saved_again.events) == 1

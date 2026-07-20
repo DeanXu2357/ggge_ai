@@ -1,17 +1,14 @@
-"""Corner-start serpentine full-map scan (tacmap v2): the first scan of a
-battle must sync every unit on the map into the backend, not just the
-neighborhood of the hub view.
-
-The harness simulates a bounded world: swipes move a virtual camera that
-clamps at the map edges, measure_camera_shift reports the movement that
-actually happened, and the unit finders return whichever world units fall
-inside the current view.
-"""
+"""Controller-side full-map scan integration (the LiveScanSource walk's
+pool adopted as the turn's census) plus the bounds purge and the cheap
+local scan. The walk's own mechanics -- corner coverage, budget, eaten
+swipes, shift/hint contract -- live in test_live_scan.py; here the
+harness checks what the CONTROLLER does with the walk: pool adoption,
+bounds, ledger events, ghost purge and the local-scan path."""
 
 import numpy as np
 
-from ggge_ai.battle import controller as controller_mod
 from ggge_ai.battle import vision
+from ggge_ai.battle import live_scan as live_scan_mod
 from ggge_ai.battle.controller import ManualBattleController
 from ggge_ai.battle.ledger import BattleLedger
 
@@ -19,18 +16,11 @@ VIEW_W, VIEW_H = 2340, 1080
 
 
 class _World:
-    """Camera clamped to [0, max_x] x [0, max_y] in world coordinates;
-    the scan starts wherever the hub camera happens to sit. Frames are
-    tokens whose capture-time camera is remembered, so shift() measures
-    the true cumulative movement between any two frames -- the same
-    semantics as production's base-frame measurement."""
-
     def __init__(self, max_x, max_y, start, enemies):
         self.max = (max_x, max_y)
         self.camera = start
         self.enemies = enemies
         self.moves = []
-        self.observed_cameras = []
         self.frame_cameras = {}
 
     def swipe(self, x1, y1, x2, y2, *a):
@@ -85,25 +75,18 @@ def _run_scan(monkeypatch, world):
     c = ManualBattleController(
         perception=_Perception(world), actuator=_Actuator(world), ledger=BattleLedger()
     )
-    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
+    monkeypatch.setattr(live_scan_mod.time, "sleep", lambda *a, **k: None)
     monkeypatch.setattr(vision, "measure_camera_shift", world.shift)
     monkeypatch.setattr(vision, "find_enemy_units", world.visible_enemies)
     monkeypatch.setattr(vision, "find_ally_units", lambda f, region=None: [])
     monkeypatch.setattr(vision, "find_third_party_units", lambda f, region=None: [])
     monkeypatch.setattr(vision, "find_threat_cells", lambda f: [])
-
-    original = c._observe_map
-
-    def observing(frame, camera):
-        world.observed_cameras.append(world.camera)
-        original(frame, camera)
-
-    c._observe_map = observing
+    monkeypatch.setattr(vision, "is_unit_detail_modal", lambda f: False)
     c._scout(c.perception.capture())
     return c
 
 
-def test_first_scan_reaches_all_corners_and_syncs_every_unit(monkeypatch):
+def test_first_scan_adopts_the_walk_pool_and_bounds(monkeypatch):
     world = _World(
         max_x=1800,
         max_y=900,
@@ -112,25 +95,20 @@ def test_first_scan_reaches_all_corners_and_syncs_every_unit(monkeypatch):
     )
     c = _run_scan(monkeypatch, world)
 
-    xs = [p[0] for p in world.observed_cameras]
-    ys = [p[1] for p in world.observed_cameras]
-    assert min(xs) == 0 and min(ys) == 0, "scan never reached the NW corner"
-    assert max(xs) == 1800, "scan never reached the east edge"
-    assert max(ys) == 900, "scan never reached the south edge"
-    assert len(c.tacmap.enemies) == len(world.enemies), (
-        f"synced {len(c.tacmap.enemies)} of {len(world.enemies)} units: "
-        f"{c.tacmap.enemies}"
+    assert len(c.tacmap.units) == len(world.enemies), (
+        f"synced {len(c.tacmap.units)} of {len(world.enemies)} units: "
+        f"{c.tacmap.units}"
+    )
+    # the harness world happens to share the corner frame, so unit world
+    # coordinates come out exact, not merely deduplicated
+    assert sorted(c.tacmap.units) == sorted(
+        (float(x), float(y)) for x, y in world.enemies
     )
     tac = next(e for e in c.ledger.events if e["kind"] == "tactical_map")
     assert tac["scan"].startswith("serpentine")
-    # the corner anchors the frame: bounds are absolute in it
     assert c._map_bounds == {"west": 0.0, "north": 0.0, "east": 1800, "south": 900}
     assert any(e["kind"] == "map_bounds" for e in c.ledger.events)
-    # the harness world happens to share the corner frame, so unit world
-    # coordinates come out exact, not merely deduplicated
-    assert sorted(c.tacmap.enemies) == sorted(
-        (float(x), float(y)) for x, y in world.enemies
-    )
+    assert any(e["kind"] == "scan_leg" for e in c.ledger.events)
 
 
 def test_out_of_bounds_ghosts_are_purged(monkeypatch):
@@ -141,16 +119,17 @@ def test_out_of_bounds_ghosts_are_purged(monkeypatch):
         enemies=[(2000, 1000), (500, 500), (3000, 800)],
     )
     c = _run_scan(monkeypatch, world)
-    c.tacmap.enemies.append((6000.0, 400.0))
-    c.tacmap.allies.append((-900.0, 200.0))
+    c.tacmap.units.append((6000.0, 400.0))
+    c.tacmap.units.append((-900.0, 200.0))
 
     c._purge_out_of_bounds()
 
-    assert (6000.0, 400.0) not in c.tacmap.enemies
-    assert (-900.0, 200.0) not in c.tacmap.allies
-    assert (2000.0, 1000.0) in c.tacmap.enemies
+    assert (6000.0, 400.0) not in c.tacmap.units
+    assert (-900.0, 200.0) not in c.tacmap.units
+    assert (2000.0, 1000.0) in c.tacmap.units
     outliers = [e for e in c.ledger.events if e["kind"] == "scan_outlier"]
-    assert len(outliers) == 2
+    assert len(outliers) == 1
+    assert len(outliers[0]["points"]) == 2
 
 
 def test_purge_fuse_refuses_to_erase_most_of_the_board(monkeypatch):
@@ -158,13 +137,13 @@ def test_purge_fuse_refuses_to_erase_most_of_the_board(monkeypatch):
     error (a mis-anchored corner) -- run 9 erased 10 of 11 real units."""
     world = _World(max_x=1800, max_y=900, start=(900, 450), enemies=[(2000, 1000)])
     c = _run_scan(monkeypatch, world)
-    c.tacmap.enemies.append((6000.0, 400.0))
-    c.tacmap.allies.append((-900.0, 200.0))
+    c.tacmap.units.append((6000.0, 400.0))
+    c.tacmap.units.append((-900.0, 200.0))
 
     c._purge_out_of_bounds()
 
-    assert (6000.0, 400.0) in c.tacmap.enemies
-    assert (-900.0, 200.0) in c.tacmap.allies
+    assert (6000.0, 400.0) in c.tacmap.units
+    assert (-900.0, 200.0) in c.tacmap.units
     assert any(e["kind"] == "scan_outlier_skipped" for e in c.ledger.events)
 
 
@@ -186,7 +165,7 @@ def test_second_turn_uses_the_cheap_local_scan(monkeypatch):
 def test_leg_budget_bounds_a_huge_map(monkeypatch):
     world = _World(max_x=50000, max_y=50000, start=(25000, 25000), enemies=[])
     _run_scan(monkeypatch, world)
-    assert len(world.moves) <= controller_mod.SCAN_MAX_LEGS
+    assert len(world.moves) <= live_scan_mod.SCAN_MAX_LEGS
 
 
 def test_eaten_swipe_retries_from_alternate_origin(monkeypatch):
@@ -195,7 +174,7 @@ def test_eaten_swipe_retries_from_alternate_origin(monkeypatch):
     must retry from the alternate origins before accepting the verdict
     (the 20260719 star-map row legs)."""
     world = _World(max_x=1800, max_y=900, start=(900, 450), enemies=[(2000, 1000)])
-    dead = controller_mod.PAN_CENTER
+    dead = live_scan_mod.PAN_CENTER
     original = world.swipe
 
     def swipe(x1, y1, x2, y2, *a):
@@ -207,10 +186,7 @@ def test_eaten_swipe_retries_from_alternate_origin(monkeypatch):
     world.swipe = swipe
     c = _run_scan(monkeypatch, world)
 
-    xs = [p[0] for p in world.observed_cameras]
-    ys = [p[1] for p in world.observed_cameras]
-    assert min(xs) == 0 and max(xs) == 1800, "coverage lost to the dead origin"
-    assert min(ys) == 0 and max(ys) == 900
+    assert sorted(c.tacmap.units) == [(2000.0, 1000.0)], "coverage lost to the dead origin"
     legs = [e for e in c.ledger.events if e["kind"] == "scan_leg"]
     assert any(len(e["attempts"]) > 1 for e in legs), "no leg ever retried"
 

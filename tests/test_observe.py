@@ -1,4 +1,7 @@
-"""Tactical map -> BattleState, and the advisor-proposal wiring (M4b)."""
+"""Factionless pool -> BattleState (the evidence ladder), and the
+advisor-proposal wiring (M4b). Arc colors never decide faction: a point
+enters the board only when a resolver identity, a tracked ally sig or a
+census ally position claims it; everything else drops with a note."""
 
 import numpy as np
 
@@ -10,135 +13,99 @@ from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.observe import build_battle_state
 from ggge_ai.sim import SimWeapon
 from ggge_ai.battle.state import Faction
-from ggge_ai.battle.tacmap import TacticalMap
 from ggge_ai.battle.vision import WeaponSelectForecast
 
 
-def _tacmap():
-    t = TacticalMap()
-    t.allies.append((0.0, 0.0))
-    t.allies.append((95.0, 0.0))
-    t.enemies.append((400.0, 0.0))
-    t.enemies.append((800.0, 300.0))
-    t.third_party.append((100.0, 500.0))
-    return t
+def _units():
+    return [(0.0, 0.0), (95.0, 0.0), (400.0, 0.0), (800.0, 300.0), (100.0, 500.0)]
 
 
-def test_build_battle_state_assigns_factions_and_positions():
-    battle = build_battle_state(_tacmap(), turn=3)
+def test_evidence_ladder_assigns_factions_and_positions():
+    notes: list[str] = []
+    battle = build_battle_state(
+        _units(),
+        id_positions={"e01": (420.0, 30.0), "t01": (120.0, 520.0)},
+        faction_by_id={"e01": Faction.ENEMY, "t01": Faction.THIRD_PARTY},
+        ally_points=[(0.0, 0.0), (95.0, 0.0)],
+        turn=3,
+        notes=notes,
+    )
     assert battle.turn == 3
+    assert [u.unit_id for u in battle.enemies()] == ["e01"]
+    assert [u.unit_id for u in battle.by_faction(Faction.THIRD_PARTY)] == ["t01"]
     assert len(battle.allies()) == 2
-    assert len(battle.enemies()) == 2
-    assert len(battle.by_faction(Faction.THIRD_PARTY)) == 1
-    assert battle.enemies()[0].unit_id == "enemy_1"
+    assert battle.enemies()[0].world_pos == (400.0, 0.0)
+    assert len(notes) == 1 and "dropped" in notes[0]
 
 
-def test_enemy_near_intel_tap_adopts_the_signature():
-    sig = "a" * 16
-    spec = UnitSpec(max_hp=51349)
+def test_identity_carries_the_spec():
     battle = build_battle_state(
-        _tacmap(),
-        specs_by_id={sig: spec},
-        id_positions={sig: (420.0, 30.0)},
+        [(400.0, 0.0)],
+        specs_by_id={"e01": UnitSpec(max_hp=51349)},
+        id_positions={"e01": (420.0, 30.0)},
     )
-    matched = battle.unit(sig)
-    assert matched is not None
-    assert matched.faction is Faction.ENEMY
-    assert matched.max_hp == 51349
-    other = battle.enemies()[1]
-    assert other.unit_id == "enemy_2"
+    unit = battle.unit("e01")
+    assert unit is not None
+    assert unit.faction is Faction.ENEMY
+    assert unit.max_hp == 51349
 
 
-def test_far_signature_is_not_adopted():
-    sig = "a" * 16
-    battle = build_battle_state(_tacmap(), id_positions={sig: (2000.0, 2000.0)})
-    assert battle.unit(sig) is None
-
-
-def test_hub_poisoned_drops_unconfirmed_enemies():
-    sig = "a" * 16
+def test_far_identity_does_not_claim():
     notes: list[str] = []
     battle = build_battle_state(
-        _tacmap(),
-        id_positions={sig: (420.0, 30.0)},
-        hub_poisoned=True,
+        [(400.0, 0.0)],
+        id_positions={"e01": (2000.0, 2000.0)},
         notes=notes,
     )
-    assert [u.unit_id for u in battle.enemies()] == [sig]
-    assert len(notes) == 1
-    assert "dropped" in notes[0]
-
-
-def test_hub_poisoned_without_sigs_yields_no_enemies():
-    battle = build_battle_state(_tacmap(), hub_poisoned=True)
+    assert battle.unit("e01") is None
     assert battle.enemies() == []
-    assert len(battle.allies()) == 2
+    assert len(notes) == 1 and "dropped" in notes[0]
 
 
-def test_poisoned_red_arc_near_tracked_ally_rejoins_allies():
+def test_tracked_ally_sig_claims_with_spec():
     ally_sig = "b" * 16
-    spec = UnitSpec(max_hp=48000)
-    notes: list[str] = []
     battle = build_battle_state(
-        _tacmap(),
-        specs_by_id={ally_sig: spec},
+        [(400.0, 0.0)],
+        specs_by_id={ally_sig: UnitSpec(max_hp=48000)},
         ally_id_positions={ally_sig: (420.0, 30.0)},
-        hub_poisoned=True,
-        notes=notes,
     )
-    recovered = battle.unit(ally_sig)
-    assert recovered is not None
-    assert recovered.faction is Faction.ALLY
-    assert recovered.world_pos == (400.0, 0.0)
-    assert recovered.max_hp == 48000
-    assert battle.enemies() == []
-    assert len(battle.allies()) == 3
-    assert any("resolved as un-acted ally" in n for n in notes)
-    assert any("dropped" in n for n in notes)
+    unit = battle.unit(ally_sig)
+    assert unit is not None
+    assert unit.faction is Faction.ALLY
+    assert unit.world_pos == (400.0, 0.0)
+    assert unit.max_hp == 48000
 
 
-def test_ally_sig_taken_by_blue_arc_is_not_reused_for_recovery():
-    ally_sig = "b" * 16
-    t = TacticalMap()
-    t.allies.append((400.0, 100.0))
-    t.enemies.append((400.0, 0.0))
-    notes: list[str] = []
-    battle = build_battle_state(
-        t,
-        ally_id_positions={ally_sig: (400.0, 50.0)},
-        hub_poisoned=True,
-        notes=notes,
-    )
-    assert battle.enemies() == []
-    assert [u.unit_id for u in battle.allies()] == [ally_sig]
-    assert any("dropped" in n for n in notes)
-
-
-def test_enemy_sig_wins_over_ally_recovery():
+def test_enemy_identity_wins_over_ally_sig():
     enemy_sig = "a" * 16
     ally_sig = "b" * 16
     battle = build_battle_state(
-        _tacmap(),
+        [(400.0, 0.0)],
         id_positions={enemy_sig: (420.0, 30.0)},
         ally_id_positions={ally_sig: (420.0, 30.0)},
-        hub_poisoned=True,
     )
-    matched = battle.unit(enemy_sig)
-    assert matched is not None
-    assert matched.faction is Faction.ENEMY
+    unit = battle.unit(enemy_sig)
+    assert unit is not None
+    assert unit.faction is Faction.ENEMY
     assert battle.unit(ally_sig) is None
 
 
-def test_clean_scan_keeps_red_arcs_as_enemies():
-    ally_sig = "b" * 16
+def test_census_point_claims_an_anonymous_ally():
     battle = build_battle_state(
-        _tacmap(),
-        ally_id_positions={ally_sig: (420.0, 30.0)},
-        hub_poisoned=False,
+        [(400.0, 0.0)],
+        ally_points=[(410.0, 20.0)],
     )
-    assert battle.unit(ally_sig) is None
-    assert len(battle.enemies()) == 2
-    assert len(battle.allies()) == 2
+    assert len(battle.allies()) == 1
+    unit = battle.allies()[0]
+    assert unit.unit_id == "ally_1"
+    assert unit.world_pos == (400.0, 0.0)
+
+
+def test_unclaimed_board_drops_everything_with_notes():
+    notes: list[str] = []
+    battle = build_battle_state(_units(), notes=notes)
+    assert battle.units == []
+    assert len(notes) == len(_units())
 
 
 class _Perception:
@@ -167,8 +134,9 @@ def _armed_controller():
     )
     sig = "a" * 16
     uid = f"sig:{sig}"
-    c.tacmap.allies.append((0.0, 0.0))
-    c.tacmap.enemies.append((400.0, 0.0))
+    c.tacmap.units.append((0.0, 0.0))
+    c.tacmap.units.append((400.0, 0.0))
+    c._ally_points.append((0.0, 0.0))
     c.specs_by_id[uid] = UnitSpec(
         max_hp=8000,
         en_max=300,
@@ -184,9 +152,9 @@ def _armed_controller():
     return c, uid
 
 
-def test_build_board_drops_unconfirmed_hub_enemies():
+def test_build_board_drops_unclaimed_points():
     c, sig = _armed_controller()
-    c.tacmap.enemies.append((900.0, 500.0))
+    c.tacmap.units.append((900.0, 500.0))
 
     battle, notes = c._build_board()
 
@@ -217,6 +185,8 @@ def test_refresh_sig_positions_quiet_update_once_per_turn(monkeypatch):
     c, uid = _armed_controller()
     c.tracker.on_sig_position(uid[len("sig:"):], (400.0, 0.0))
     monkeypatch.setattr(vision, "find_enemy_units", lambda f, region=None: [(410, 10)])
+    monkeypatch.setattr(vision, "find_ally_units", lambda f, region=None: [])
+    monkeypatch.setattr(vision, "find_third_party_units", lambda f, region=None: [])
 
     c._refresh_sig_positions(c.perception.capture())
 
@@ -228,6 +198,22 @@ def test_refresh_sig_positions_quiet_update_once_per_turn(monkeypatch):
 
     c._refresh_sig_positions(c.perception.capture())
     assert len([e for e in c.ledger.events if e["kind"] == "sig_refresh_summary"]) == 1
+
+
+def test_refresh_skips_candidates_hugging_known_allies(monkeypatch):
+    c, uid = _armed_controller()
+    c.tracker.on_sig_position(uid[len("sig:"):], (400.0, 0.0))
+    monkeypatch.setattr(
+        vision, "find_enemy_units", lambda f, region=None: [(30, 20)]
+    )
+    monkeypatch.setattr(vision, "find_ally_units", lambda f, region=None: [])
+    monkeypatch.setattr(vision, "find_third_party_units", lambda f, region=None: [])
+
+    c._refresh_sig_positions(c.perception.capture())
+
+    # the only candidate hugs the census ally at (0,0): nothing to refresh
+    assert c._id_positions[uid] == (400.0, 0.0)
+    assert not [e for e in c.ledger.events if e["kind"] == "sig_refresh_summary"]
 
 
 def test_consult_advisor_logs_a_proposal_once_per_turn():

@@ -28,19 +28,15 @@ from ggge_ai.battle import executor, reconcile, vision
 from ggge_ai.battle import settings as battle_settings
 from ggge_ai.battle.actions import ActionKind
 from ggge_ai.battle.advisor import AdvisorConfig, DefaultAdvisor, SimAdvisor
+from ggge_ai.battle.faction import DockBannerIdentifier, FactionIdentifier
 from ggge_ai.battle.identity import IdentityResolver
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.battle.live_scan import (
     PAN_CENTER,
     PAN_DIRS,
     PAN_HALF,
-    PAN_ORIGIN_GRID,
-    PAN_ORIGINS,
-    PAN_SETTLE_S,
-    PAN_SWIPE_MS,
-    SCAN_CORNER_MAX_LEGS,
     SCAN_EDGE_RATIO,
-    SCAN_MAX_LEGS,
+    LiveScanSource,
 )
 from ggge_ai.battle.scout_intel import SurveyIncomplete
 from ggge_ai.content import stage_def as stage_def_mod
@@ -276,10 +272,18 @@ class ManualBattleController:
     # 顯示方格 currently toggled on by us (must be restored before combat)
     _grid_active: bool = False
     _id_positions: dict = field(default_factory=dict)
+    # census ally positions (survey identify / warm-seed deploy matches):
+    # our machines that have not acted yet, so they still stand where the
+    # opening census saw them. Machines that act graduate into the
+    # tracker's sig-keyed ally positions.
+    _ally_points: list = field(default_factory=list)
     _pending: reconcile.PendingOutcome | None = None
     _seen_sigs: set = field(default_factory=set)
     _sig_names: dict = field(default_factory=dict)
     tacmap: TacticalMap = field(default_factory=TacticalMap)
+    # faction verdicts come from this seam and nowhere else (定案 5, the
+    # user's boundary rule): dock side today, richer channels later
+    faction_identifier: FactionIdentifier = field(default_factory=DockBannerIdentifier)
     # control-flow memory: last confirmed phase and the act -> verify
     # contracts (timeline.TRANSITIONS); fed once per tick by _classify,
     # queried and reported to by the handlers. process-scoped
@@ -910,10 +914,7 @@ class ManualBattleController:
         from .scout_intel import survey_stage, validate_stage
 
         self._purge_out_of_bounds()
-        scan = [tuple(p) for p in self.tacmap.enemies + self.tacmap.third_party]
-        factions = ["enemy"] * len(self.tacmap.enemies) + ["third_party"] * len(
-            self.tacmap.third_party
-        )
+        scan = [tuple(p) for p in self.tacmap.units]
         defn = stage_def_mod.load_stage_def(self.stage_id, self.intel_cache_root)
         if defn is not None and defn.status == "complete":
             report = validate_stage(
@@ -932,21 +933,25 @@ class ManualBattleController:
             )
             if report.ok and report.resolver is not None:
                 log.info("stage definition validated, warm start")
+                self._ally_points = (
+                    list(report.seed.deploy_points) if report.seed is not None else []
+                )
                 self._adopt_definition(defn, report.resolver)
                 return
             defn.status = "stale"
             stage_def_mod.save_stage_def(defn, self.intel_cache_root)
             log.warning("stage definition stale, falling back to a live survey")
         dropped: list[int] = []
+        ally_indices: list[int] = []
         defn = survey_stage(
             self._frame,
             self.actuator.tap,
             scan,
             stage_id=self.stage_id,
             bring_to_view=self._bring_to_view,
-            factions=factions,
-            ally_points=[tuple(p) for p in self.tacmap.allies],
+            identifier=self.faction_identifier,
             dropped=dropped,
+            ally_indices=ally_indices,
             llm=self.llm,
             ledger_log=self._log,
             root=self.intel_cache_root,
@@ -956,13 +961,13 @@ class ManualBattleController:
             # census input and the tactical map so hints and the board stop
             # seeing them too
             gone = set(dropped)
-            enemy_count = len(self.tacmap.enemies)
             scan = [p for i, p in enumerate(scan) if i not in gone]
-            for i in sorted(gone, reverse=True):
-                if i < enemy_count:
-                    del self.tacmap.enemies[i]
-                else:
-                    del self.tacmap.third_party[i - enemy_count]
+            self.tacmap.units[:] = [
+                p for i, p in enumerate(self.tacmap.units) if i not in gone
+            ]
+        # allies stay in the census on purpose: the seed's constellation
+        # includes the deploy cells the survey just wrote, so our machines
+        # must land back on them -- a free cross-check of the identify pass
         resolver = IdentityResolver(defn)
         seed = resolver.seed(scan)
         if not seed.ok:
@@ -970,6 +975,7 @@ class ManualBattleController:
                 f"fresh definition failed its own census: {len(seed.unmatched_uids)} "
                 "layout units unmatched"
             )
+        self._ally_points = list(seed.deploy_points)
         self._adopt_definition(defn, resolver)
 
     def _adopt_definition(self, defn, resolver: IdentityResolver) -> None:
@@ -1035,7 +1041,7 @@ class ManualBattleController:
         from .scout_intel import _survey_point
         from ..content.stage_def import StageUnit
 
-        ally_positions = list(self.tracker.id_positions(Faction.ALLY).values())
+        ally_positions = self._known_ally_points()
 
         def _claimed(point) -> bool:
             if self.resolver.resolve(point) is not None:
@@ -1046,7 +1052,7 @@ class ManualBattleController:
             )
 
         new_points = [
-            (float(p[0]), float(p[1])) for p in self.tacmap.enemies if not _claimed((float(p[0]), float(p[1])))
+            (float(p[0]), float(p[1])) for p in self.tacmap.units if not _claimed((float(p[0]), float(p[1])))
         ]
         if not new_points:
             return
@@ -1135,7 +1141,9 @@ class ManualBattleController:
                 (screen[0] > x0 + w - margin) - (screen[0] < x0 + margin),
                 (screen[1] > y0 + h - margin) - (screen[1] < y0 + margin),
             )
-            camera, _, actual, requested = self._pan_leg(camera, frame, direction, label="bring_to_view")
+            camera, _, actual, requested = self._navigator().pan_leg(
+                camera, frame, direction, label="bring_to_view"
+            )
             self._last_camera = camera
             if abs(actual[0]) + abs(actual[1]) < (
                 abs(requested[0]) + abs(requested[1])
@@ -1156,16 +1164,13 @@ class ManualBattleController:
         }
         notes: list[str] = []
         battle = build_battle_state(
-            self.tacmap,
+            list(self.tacmap.units),
             specs_by_id=self.specs_by_id,
             id_positions=positions,
             ally_id_positions=self.tracker.id_positions(Faction.ALLY),
+            ally_points=list(self._ally_points),
+            faction_by_id=self._faction_by_uid(),
             turn=self.ledger.turn if self.ledger is not None else self.tracker.turn,
-            # the tacmap is scouted on our-turn hub frames, where the pinned
-            # pink-ally bug makes enemy arcs untrustworthy; per the settled
-            # M4 verdict (H/S/V identical on the mixed-faction fixture) only
-            # sig-confirmed enemies enter the simulation
-            hub_poisoned=True,
             notes=notes,
         )
         notes += self.tracker.apply(battle)
@@ -1176,16 +1181,43 @@ class ManualBattleController:
             )
         return battle, notes
 
+    def _faction_by_uid(self) -> dict:
+        """Definition faction per uid (enemy vs third party) for the board
+        build; spawned event units included. Empty in passthrough."""
+        if self._defn is None:
+            return {}
+        out = {}
+        units = list(self._defn.layout)
+        for event in self._defn.events:
+            units.extend(event.spawn_units())
+        for u in units:
+            out[u.uid] = (
+                Faction.THIRD_PARTY if u.faction == "third_party" else Faction.ENEMY
+            )
+        return out
+
     def _resync_board(self, frame, reason: str) -> None:
         """M8-1 full-sync mode: one extra local rescan per turn when the
         board is missing units -- fewer live enemies than the definition
         expects, or an empty board at pilot time. Rebuilds the scan
-        skeleton and re-anchors tracked positions."""
+        skeleton and re-anchors tracked positions. Points hugging a known
+        ally stay out of the refresh: identities only re-anchor onto
+        points our own machines cannot explain."""
         self.timeline.mark_done("resync")
         self._log("board_resync", reason=reason, frame=frame)
         self.timeline.mark_pending("scout")
         self._scout(frame)
-        scan = [tuple(p) for p in self.tacmap.enemies + self.tacmap.third_party]
+        from .identity import MATCH_RADIUS
+
+        allies = self._known_ally_points()
+        scan = [
+            tuple(p)
+            for p in self.tacmap.units
+            if not any(
+                (p[0] - a[0]) ** 2 + (p[1] - a[1]) ** 2 <= MATCH_RADIUS**2
+                for a in allies
+            )
+        ]
         if not self.resolver.passthrough and scan:
             report = self.resolver.refresh(scan)
             for uid, pos in report.updated.items():
@@ -1220,7 +1252,21 @@ class ManualBattleController:
         known = self.tracker.id_positions()
         if not known:
             return
-        candidates = vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
+        from .identity import MATCH_RADIUS
+
+        allies = self._known_ally_points()
+        candidates = [
+            p
+            for p in (
+                vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
+                + vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION)
+                + vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION)
+            )
+            if not any(
+                (p[0] - a[0]) ** 2 + (p[1] - a[1]) ** 2 <= MATCH_RADIUS**2
+                for a in allies
+            )
+        ]
         if not candidates:
             return
         from .scout_intel import refresh_sig_positions
@@ -1346,17 +1392,23 @@ class ManualBattleController:
                 lattice_cols=list(lattice[0]) if lattice else None,
                 lattice_rows=list(lattice[1]) if lattice else None,
             )
-            self._observe_map(frame, camera)
+            source = self._navigator()
+            source.start_frame = frame
             try:
-                camera, legs = self._scout_serpentine(frame, camera)
+                source.collect()
             finally:
+                camera = source.camera
                 self._last_camera = camera
                 if not (
                     self.intel_enabled
                     and self.timeline.pending("intel", scope="battle")
                 ):
                     self._release_battle_grid()
-            scan = f"serpentine({legs} legs)"
+            # the walk's pool IS the turn's census (same detectors, same
+            # merge) -- adopt it wholesale, in corner coordinates
+            self.tacmap = source.pool
+            self._map_bounds = source.bounds
+            scan = f"serpentine({source.legs} legs)"
         else:
             camera = self._scout_local(frame, camera)
             scan = "local"
@@ -1365,18 +1417,27 @@ class ManualBattleController:
             "tactical_map",
             frame=frame,
             scan=scan,
-            enemies=[(round(x), round(y)) for x, y in self.tacmap.enemies],
-            allies=[(round(x), round(y)) for x, y in self.tacmap.allies],
-            third_party=[(round(x), round(y)) for x, y in self.tacmap.third_party],
+            units=[(round(x), round(y)) for x, y in self.tacmap.units],
             camera_drift=(round(camera[0]), round(camera[1])),
         )
         log.info(
-            "scout (%s): tactical map has %d enemies / %d allies / %d third-party",
+            "scout (%s): tactical map has %d units (factionless pool)",
             scan,
-            len(self.tacmap.enemies),
-            len(self.tacmap.allies),
-            len(self.tacmap.third_party),
+            len(self.tacmap.units),
         )
+
+    def _navigator(self) -> LiveScanSource:
+        """A LiveScanSource sharing this battle's tactical map as its
+        landmark pool: the full-scan walk and the survey's bring-to-view
+        legs relocalize against the same world points."""
+        nav = LiveScanSource(
+            capture=self._frame,
+            swipe=self.actuator.swipe,
+            tap=self.actuator.tap,
+            ledger_log=self._log,
+        )
+        nav.pool = self.tacmap
+        return nav
 
     def _measure_shift(self, prev, cur, requested):
         """(shift, response, source): phase correlation first, the
@@ -1442,204 +1503,6 @@ class ManualBattleController:
             time.sleep(1.2)
         return vision.unit_cards_present(self._frame()) == want_open
 
-    def _pan_origins(self, frame, hx, hy, count: int = 4) -> list[tuple[int, int]]:
-        """Swipe origins for this frame, best first: the drag START point
-        (origin + half-gesture) must sit on empty map or the game eats the
-        drag, so candidates rank by their start point's distance to every
-        visible arc. Falls back to the static list when the frame cannot be
-        read (tests, degenerate frames)."""
-        try:
-            arcs = (
-                vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
-                + vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION)
-                + vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION)
-            )
-        except Exception:
-            return list(PAN_ORIGINS[:count])
-        if not arcs:
-            return list(PAN_ORIGINS[:count])
-
-        def clearance(candidate: tuple[int, int]) -> float:
-            sx, sy = candidate[0] + hx, candidate[1] + hy
-            return min(
-                ((sx - ax) ** 2 + (sy - ay) ** 2) ** 0.5 for ax, ay in arcs
-            )
-
-        ranked = sorted(PAN_ORIGIN_GRID, key=clearance, reverse=True)
-        return ranked[:count]
-
-    def _pan_leg(self, camera, prev, direction, label: str = "pan"):
-        """One measured pan. Returns (camera, frame, actual, requested);
-        actual << requested means the camera hit the map edge. Every
-        attempt measures the CUMULATIVE shift against the leg's base frame
-        (never chained frame-to-frame): a blind first swipe -- weak phase
-        response, no arc consensus -- is recovered by the next attempt's
-        measurement instead of being guessed at, and an
-        ineffective-but-measurable swipe retries from the alternate
-        PAN_ORIGINS before an edge verdict stands (a swipe starting on a
-        unit gets eaten and reads exactly like an edge). Only when every
-        attempt stays blind does the gesture assumption fire, once. Every
-        attempt goes to the ledger (#24)."""
-        dx, dy = direction
-        hx, hy = dx * PAN_HALF["x"], dy * PAN_HALF["y"]
-        requested = (2 * hx, 2 * hy)
-        goal = (abs(requested[0]) + abs(requested[1])) * SCAN_EDGE_RATIO
-        base = prev
-        cur = prev
-        cumulative: tuple[float, float] | None = None
-        attempts = []
-        for cx, cy in self._pan_origins(prev, hx, hy):
-            self.actuator.swipe(cx + hx, cy + hy, cx - hx, cy - hy, PAN_SWIPE_MS)
-            time.sleep(PAN_SETTLE_S)
-            cur = self._clear_scan_obstruction(self._frame())
-            # landmark relocalization first (the user's call: adb gesture
-            # delivery is inherently laggy and lossy, so position must come
-            # from what the frame SHOWS, not from what we asked the swipe to
-            # do): known units visible in the overlap fix the camera
-            # absolutely, eaten and late-arriving swipes alike
-            visible = (
-                vision.find_enemy_units(cur, region=vision.HUB_SCAN_REGION)
-                + vision.find_ally_units(cur, region=vision.HUB_SCAN_REGION)
-                + vision.find_third_party_units(cur, region=vision.HUB_SCAN_REGION)
-            )
-            located = self.tacmap.locate(visible) if visible else None
-            response = 0.0
-            source = None
-            if located is not None:
-                delta = (located[0] - camera[0], located[1] - camera[1])
-                # physical bound: one leg cannot out-travel its own gesture
-                # (plus easing slack) -- a bigger jump is a false lock on an
-                # aliased constellation, not a pan
-                limit = abs(requested[0]) + abs(requested[1]) + 250
-                if abs(delta[0]) + abs(delta[1]) <= limit:
-                    cumulative, source = delta, "landmarks"
-            if source is None:
-                shift, response = vision.measure_camera_shift(base, cur)
-                if response >= 0.05:
-                    cumulative, source = shift, "phase"
-                else:
-                    arc = vision.measure_arc_shift(base, cur)
-                    if arc is not None:
-                        cumulative, source = arc, "arcs"
-                    else:
-                        source = "blind"
-            attempts.append(
-                {
-                    "origin": [cx, cy],
-                    "cumulative": (
-                        [round(cumulative[0], 1), round(cumulative[1], 1)]
-                        if cumulative is not None
-                        else None
-                    ),
-                    "response": round(float(response), 4),
-                    "source": source,
-                }
-            )
-            if cumulative is not None and (
-                abs(cumulative[0]) + abs(cumulative[1]) >= goal
-            ):
-                break
-        if cumulative is None:
-            # every attempt blind (featureless open space with no arcs in
-            # view): assume one gesture's travel, flagged for downstream
-            # correction by bounds snapping / constellation locate
-            cumulative = requested
-        actual = (cumulative[0], cumulative[1])
-        new_camera = (camera[0] + actual[0], camera[1] + actual[1])
-        self._log(
-            "scan_leg",
-            leg=label,
-            direction=list(direction),
-            requested=list(requested),
-            measured=[round(actual[0], 1), round(actual[1], 1)],
-            attempts=attempts,
-            camera=[round(new_camera[0], 1), round(new_camera[1], 1)],
-        )
-        return new_camera, cur, actual, requested
-
-    @staticmethod
-    def _at_edge(actual, requested, axis: int) -> bool:
-        return abs(actual[axis]) < abs(requested[axis]) * SCAN_EDGE_RATIO
-
-    @staticmethod
-    def _snap_bound(bounds: dict, name: str, value: float, tolerance: float = 150.0) -> float:
-        """First touch of a map edge records its coordinate; later touches
-        within tolerance snap the camera back onto it (dead-reckoning
-        drift dies at every edge instead of accumulating). A touch beyond
-        tolerance is a different boundary segment on an irregular map --
-        recorded coordinates stay honest, no snap."""
-        known = bounds.get(name)
-        if known is None:
-            bounds[name] = value
-            return value
-        if abs(value - known) <= tolerance:
-            return known
-        return value
-
-    def _scout_serpentine(self, frame, camera) -> tuple[tuple[float, float], int]:
-        """Corner-start full-map sweep -- the scan's product is the COMPLETE
-        map, units are merely its contents (the user's 2026-07-19 framing).
-        Phase A drives to the northwest corner and re-zeroes the world frame
-        there: the map corners are the only landmarks that never move,
-        unlike unit constellations. Phase B snakes the full extent,
-        recording the east/south bounds and snapping the camera onto every
-        agreeing edge touch. Bounds land in the ledger and in
-        self._map_bounds, where the survey uses them to sentence
-        out-of-bounds ghost points."""
-        prev = frame
-        legs = 0
-        pending = {"west": (-1, 0), "north": (0, -1)}
-        while pending and legs < SCAN_CORNER_MAX_LEGS:
-            for name in list(pending):
-                camera, prev, actual, requested = self._pan_leg(camera, prev, pending[name], label=f"corner_{name}")
-                legs += 1
-                axis = 0 if name == "west" else 1
-                if self._at_edge(actual, requested, axis):
-                    del pending[name]
-                if legs >= SCAN_CORNER_MAX_LEGS:
-                    break
-        corner_reached = not pending
-        bounds: dict | None = None
-        if corner_reached:
-            # the corner IS the origin: everything observed on the way there
-            # was in the drift-prone start frame, so the map is rebuilt in
-            # corner coordinates (the sweep below revisits it all anyway)
-            camera = (0.0, 0.0)
-            self.tacmap.reset()
-            bounds = {"west": 0.0, "north": 0.0, "east": None, "south": None}
-        else:
-            log.warning("corner budget exhausted before the NW corner; unanchored scan")
-        self._observe_map(prev, camera)
-        heading = (1, 0)
-        bottom_row = False
-        while legs < SCAN_MAX_LEGS:
-            camera, prev, actual, requested = self._pan_leg(camera, prev, heading, label="row")
-            legs += 1
-            if self._at_edge(actual, requested, 0) and bounds is not None:
-                side = "east" if heading[0] > 0 else "west"
-                camera = (self._snap_bound(bounds, side, camera[0]), camera[1])
-            self._observe_map(prev, camera)
-            if self._at_edge(actual, requested, 0):
-                if bottom_row:
-                    break
-                camera, prev, actual, requested = self._pan_leg(camera, prev, (0, 1), label="south_step")
-                legs += 1
-                if self._at_edge(actual, requested, 1) and bounds is not None:
-                    camera = (camera[0], self._snap_bound(bounds, "south", camera[1]))
-                self._observe_map(prev, camera)
-                if self._at_edge(actual, requested, 1):
-                    # bottom edge: one last row still needs walking, or the
-                    # far bottom corner is never observed
-                    bottom_row = True
-                heading = (-heading[0], 0)
-        self._map_bounds = bounds
-        if bounds is not None:
-            self._log(
-                "map_bounds",
-                **{k: (round(v, 1) if v is not None else None) for k, v in bounds.items()},
-            )
-        return camera, legs
-
     def _release_battle_grid(self) -> None:
         """Restore 顯示方格 off once the grid window (sweep + survey) ends;
         idempotent, and the ledger records every actual toggle."""
@@ -1669,15 +1532,8 @@ class ManualBattleController:
         def keep(p) -> bool:
             return lo_x <= p[0] <= hi_x and lo_y <= p[1] <= hi_y
 
-        total = len(self.tacmap.enemies) + len(self.tacmap.allies) + len(
-            self.tacmap.third_party
-        )
-        doomed = sum(
-            1
-            for name in ("enemies", "allies", "third_party")
-            for p in getattr(self.tacmap, name)
-            if not keep(p)
-        )
+        total = len(self.tacmap.units)
+        doomed = sum(1 for p in self.tacmap.units if not keep(p))
         if total and doomed * 2 > total:
             # a purge that would erase most of the board means the BOUNDS
             # are wrong (a mis-anchored corner), not the units -- run 9
@@ -1689,16 +1545,13 @@ class ManualBattleController:
                 bounds={k: round(v, 1) for k, v in bounds.items() if v is not None},
             )
             return
-        for name in ("enemies", "allies", "third_party"):
-            points = getattr(self.tacmap, name)
-            gone = [p for p in points if not keep(p)]
-            if gone:
-                self._log(
-                    "scan_outlier",
-                    faction=name,
-                    points=[[round(p[0], 1), round(p[1], 1)] for p in gone],
-                )
-                points[:] = [p for p in points if keep(p)]
+        gone = [p for p in self.tacmap.units if not keep(p)]
+        if gone:
+            self._log(
+                "scan_outlier",
+                points=[[round(p[0], 1), round(p[1], 1)] for p in gone],
+            )
+            self.tacmap.units[:] = [p for p in self.tacmap.units if keep(p)]
 
     def _observe_map(self, frame, camera) -> None:
         # world points stay RAW arc positions: snapping them to lattice cell
@@ -1706,27 +1559,49 @@ class ManualBattleController:
         # compare against coordinates up to half a cell away from what it
         # sees -- past the 60px match gates. The lattice's jobs are pan
         # texture, bounds measurement and (future) cell assignment, not
-        # observation rewriting.
+        # observation rewriting. Factionless by design (定案 5): the arc
+        # detectors only ever contribute "a unit is here".
         self.tacmap.observe(
             camera,
-            vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION),
-            vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION),
-            vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION),
+            vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
+            + vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION)
+            + vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION),
             threats=vision.find_threat_cells(frame),
         )
 
+    def _known_ally_points(self) -> list[tuple[float, float]]:
+        """Ally positions the evidence chain vouches for: tracker-learned
+        sig positions (units that have acted) plus the census deploy
+        matches (units that have not, and therefore have not moved)."""
+        return list(self.tracker.id_positions(Faction.ALLY).values()) + list(
+            self._ally_points
+        )
+
+    def _known_enemy_points(self) -> list[tuple[float, float]]:
+        return [
+            pos
+            for uid, pos in self._id_positions.items()
+            if uid not in self.tracker.beliefs or self.tracker.beliefs[uid].alive
+        ]
+
     def _hint_from_map(self) -> tuple[float, float] | None:
-        """Heading from our force toward the enemy mass. Threat cells first:
-        HP-arc faction colors misread on the our-turn hub (the pinned hp_arc
-        bug fed 22 phantom enemies into a 14-enemy map and steered the hint
-        west while the enemy force sat north, 20260712 run), while the "!"
-        overlay only ever renders around real enemies."""
-        origin = vision.centroid([(round(x), round(y)) for x, y in self.tacmap.allies])
+        """Heading from our force toward the enemy mass. Threat cells first
+        (the "!" overlay only ever renders around real enemies), identified
+        enemy positions second -- raw arcs carry no faction at all now, so
+        the fallback rides the resolver's identities."""
+        origin = vision.centroid(
+            [(round(x), round(y)) for x, y in self._known_ally_points()]
+        )
         if origin is None:
             origin = PAN_CENTER
         toward = self.tacmap.threat_centroid()
         if toward is None:
-            toward = self.tacmap.nearest_enemy(origin)
+            enemies = self._known_enemy_points()
+            if enemies:
+                toward = min(
+                    enemies,
+                    key=lambda e: (e[0] - origin[0]) ** 2 + (e[1] - origin[1]) ** 2,
+                )
         if toward is None:
             return None
         dx, dy = toward[0] - origin[0], toward[1] - origin[1]
@@ -1982,9 +1857,9 @@ class ManualBattleController:
                 time.sleep(2.0)
                 return
             log.info(
-                "no enemy direction found (move cells %d, tacmap enemies %d, scout hint %s), standing by",
+                "no enemy direction found (move cells %d, known enemies %d, scout hint %s), standing by",
                 len(cells),
-                len(self.tacmap.enemies),
+                len(self._known_enemy_points()),
                 self._enemy_hint,
             )
             self._standby("no_target")
@@ -2031,7 +1906,8 @@ class ManualBattleController:
         if threat:
             log.info("steering by on-screen threat centroid %s", threat)
             return (float(threat[0]), float(threat[1])), "threat_centroid"
-        if self.tacmap.enemies:
+        known_enemies = self._known_enemy_points()
+        if known_enemies:
             arcs = (
                 vision.find_ally_units(frame)
                 + vision.find_enemy_units(frame)
@@ -2039,7 +1915,11 @@ class ManualBattleController:
             )
             t = self.tacmap.anchor(origin, arcs)
             if t is not None:
-                world_enemy = self.tacmap.nearest_enemy((origin[0] + t[0], origin[1] + t[1]))
+                pos = (origin[0] + t[0], origin[1] + t[1])
+                world_enemy = min(
+                    known_enemies,
+                    key=lambda e: (e[0] - pos[0]) ** 2 + (e[1] - pos[1]) ** 2,
+                )
                 if world_enemy is not None:
                     target = (world_enemy[0] - t[0], world_enemy[1] - t[1])
                     log.info(

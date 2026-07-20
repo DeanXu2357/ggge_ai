@@ -122,8 +122,8 @@ def test_resolve_ally_requires_a_unique_match():
 
 def test_identify_recovers_camera_from_the_constellation(monkeypatch):
     tacmap = TacticalMap()
-    tacmap.allies.append((0.0, 0.0))
-    tacmap.enemies.append((400.0, 0.0))
+    tacmap.units.append((0.0, 0.0))
+    tacmap.units.append((400.0, 0.0))
     monkeypatch.setattr(vision, "find_ally_units", lambda f, region=None: [(0, 0)])
     monkeypatch.setattr(vision, "find_enemy_units", lambda f, region=None: [(400, 0)])
     monkeypatch.setattr(vision, "find_third_party_units", lambda f, region=None: [])
@@ -161,8 +161,9 @@ def _pilot_controller(monkeypatch, advice, *, specs=None):
         pilot_enabled=True,
         pilot_time_budget_s=0.2,
     )
-    c.tacmap.allies.append((0.0, 0.0))
-    c.tacmap.enemies.append((400.0, 0.0))
+    c.tacmap.units.append((0.0, 0.0))
+    c.tacmap.units.append((400.0, 0.0))
+    c._ally_points.append((0.0, 0.0))
     if specs:
         c.specs_by_id.update(specs)
     monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)

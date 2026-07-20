@@ -3,13 +3,12 @@
 The controller's corner-anchored sweep, moved out whole: LiveScanSource
 navigates (swipes, steers around eaten drags, closes stray modals),
 measures every leg from what the frames show, and emits the MapFrame
-series map_grid.read_board consumes. Navigation keeps a private,
+series map_grid.read_board consumes. Navigation keeps its own
 factionless landmark pool for relocalization -- steering may read the
 screen freely, but interpretation only ever sees the emitted series
-(the frame_source contract). The controller's arc census keeps running
-on its own copy of this walk until the phase-2 identify cutover
-replaces its downstream in the same batch (roadmap 07-20: the old
-census consumers have no substitute until inspect_unit lands).
+(the frame_source contract). After collect() the controller adopts
+pool/bounds/camera as the turn's census (the arc detectors only ever
+said "a unit is here"; faction comes from the identify pass).
 """
 
 from __future__ import annotations
@@ -77,27 +76,31 @@ class LiveScanSource:
     swipe: Callable[..., None]
     tap: Callable[[int, int], None]
     ledger_log: Callable[..., None] | None = None
-    sleep: Callable[[float], None] = time.sleep
+    # resolved at construction time, not class-definition time, so a test
+    # that patches time.sleep before building the source is honored
+    sleep: Callable[[float], None] = field(default_factory=lambda: time.sleep)
     start_frame: np.ndarray | None = None
 
     bounds: dict | None = None
     camera: Point = (0.0, 0.0)
     legs: int = 0
     corner_anchored: bool = False
-    _pool: TacticalMap = field(default_factory=TacticalMap, repr=False)
+    # the walk's own factionless census: landmarks for relocalization
+    # during the walk, and the board pool the controller adopts after it
+    pool: TacticalMap = field(default_factory=TacticalMap, repr=False)
 
     def collect(self) -> list[MapFrame]:
         frame = self.start_frame if self.start_frame is not None else self.capture()
         frame = self._clear_obstruction(frame)
         camera: Point = (0.0, 0.0)
-        self._pool.reset()
+        self.pool.reset()
         self._observe(frame, camera)
         legs = 0
         prev = frame
         pending = {"west": (-1, 0), "north": (0, -1)}
         while pending and legs < SCAN_CORNER_MAX_LEGS:
             for name in list(pending):
-                camera, prev, actual, requested = self._pan_leg(
+                camera, prev, actual, requested = self.pan_leg(
                     camera, prev, pending[name], label=f"corner_{name}"
                 )
                 legs += 1
@@ -113,7 +116,7 @@ class LiveScanSource:
             # was in the drift-prone start frame, so pool and camera restart
             # in corner coordinates (the sweep below revisits it all anyway)
             camera = (0.0, 0.0)
-            self._pool.reset()
+            self.pool.reset()
             bounds = {"west": 0.0, "north": 0.0, "east": None, "south": None}
         else:
             log.warning("corner budget exhausted before the NW corner; unanchored series")
@@ -122,7 +125,7 @@ class LiveScanSource:
         heading = (1, 0)
         bottom_row = False
         while legs < SCAN_MAX_LEGS:
-            camera, prev, actual, requested = self._pan_leg(camera, prev, heading, label="row")
+            camera, prev, actual, requested = self.pan_leg(camera, prev, heading, label="row")
             legs += 1
             if self._at_edge(actual, requested, 0) and bounds is not None:
                 side = "east" if heading[0] > 0 else "west"
@@ -132,7 +135,7 @@ class LiveScanSource:
             if self._at_edge(actual, requested, 0):
                 if bottom_row:
                     break
-                camera, prev, actual, requested = self._pan_leg(
+                camera, prev, actual, requested = self.pan_leg(
                     camera, prev, (0, 1), label="south_step"
                 )
                 legs += 1
@@ -178,7 +181,9 @@ class LiveScanSource:
         )
 
     def _observe(self, frame, camera: Point) -> None:
-        self._pool.observe(camera, self._find_units(frame), [], [])
+        self.pool.observe(
+            camera, self._find_units(frame), threats=vision.find_threat_cells(frame)
+        )
 
     def _clear_obstruction(self, frame):
         """Close whatever a stray scan tap opened over the map -- the unit
@@ -212,7 +217,7 @@ class LiveScanSource:
         ranked = sorted(PAN_ORIGIN_GRID, key=clearance, reverse=True)
         return ranked[:count]
 
-    def _pan_leg(self, camera: Point, prev, direction, label: str = "pan"):
+    def pan_leg(self, camera: Point, prev, direction, label: str = "pan"):
         """One measured pan. Returns (camera, frame, actual, requested);
         actual << requested means the camera hit the map edge. Every
         attempt measures the CUMULATIVE shift against the leg's base frame
@@ -240,7 +245,7 @@ class LiveScanSource:
             # the frame SHOWS): known units visible in the overlap fix the
             # camera absolutely, eaten and late-arriving swipes alike
             visible = self._find_units(cur)
-            located = self._pool.locate(visible) if visible else None
+            located = self.pool.locate(visible) if visible else None
             response = 0.0
             source = None
             if located is not None:

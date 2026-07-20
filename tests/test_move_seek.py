@@ -52,14 +52,11 @@ def _quiet_vision(monkeypatch, enemies=(), threats=(), allies=()):
     monkeypatch.setattr(vision, "find_third_party_units", lambda f, region=None: [])
 
 
-def test_threat_centroid_outranks_the_tacmap(monkeypatch):
+def test_threat_centroid_outranks_known_enemies(monkeypatch):
     c = _controller()
     _quiet_vision(monkeypatch, threats=[(1170, 100), (1270, 100)])
-    c.tacmap = SimpleNamespace(
-        enemies=[(-500.0, 500.0)],
-        anchor=lambda origin, arcs: (0.0, 0.0),
-        nearest_enemy=lambda p: (-500.0, 500.0),
-    )
+    c._id_positions["e01"] = (-500.0, 500.0)
+    c.tacmap = SimpleNamespace(anchor=lambda origin, arcs: (0.0, 0.0))
 
     target, basis = c._seek_move_target(c.perception.capture(), [(1100, 480)])
 
@@ -125,20 +122,21 @@ def test_no_signals_still_stands_by(monkeypatch):
 def test_scout_hint_prefers_the_threat_layer():
     c = _controller()
     c.tacmap = TacticalMap(
-        allies=[(0.0, 0.0)],
-        enemies=[(-500.0, 0.0)],
+        units=[(-500.0, 0.0)],
         threats=[(300.0, 0.0), (500.0, 0.0)],
     )
+    c._ally_points.append((0.0, 0.0))
+    c._id_positions["e01"] = (-500.0, 0.0)
 
     hint = c._hint_from_map()
 
     assert hint is not None
-    assert hint[0] > 0.99  # toward the threats, not the phantom enemy
+    assert hint[0] > 0.99  # toward the threats, not the known enemy behind us
 
 
 def test_tacmap_observe_and_reset_cover_threats():
     m = TacticalMap()
-    m.observe((100.0, 0.0), enemies=[], allies=[], threats=[(50, 50), (60, 55)])
+    m.observe((100.0, 0.0), [], threats=[(50, 50), (60, 55)])
     assert len(m.threats) == 1  # merged within MERGE_RADIUS
     assert m.threat_centroid() == (155.0, 52.5)
     m.reset()
