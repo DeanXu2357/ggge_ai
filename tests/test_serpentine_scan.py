@@ -147,6 +147,28 @@ def test_purge_fuse_refuses_to_erase_most_of_the_board(monkeypatch):
     assert any(e["kind"] == "scan_outlier_skipped" for e in c.ledger.events)
 
 
+def test_purge_fuse_triggers_at_exactly_half(monkeypatch):
+    """doomed*2 == total must still trip the fuse -- run 20260720-232808
+    hit exactly this ratio (5 ghosts of 10 units from a mis-anchored
+    corner) and the old strict `>` let the purge through, deleting 5 real
+    units."""
+    world = _World(
+        max_x=1800,
+        max_y=900,
+        start=(900, 450),
+        enemies=[(50, 40), (3600, 60), (80, 1900), (4000, 1950), (2000, 1000)],
+    )
+    c = _run_scan(monkeypatch, world)
+    assert len(c.tacmap.units) == 5
+    for gx, gy in [(6000, 400), (6100, 400), (6200, 400), (6300, 400), (-900, 200)]:
+        c.tacmap.units.append((float(gx), float(gy)))
+
+    c._purge_out_of_bounds()
+
+    assert len(c.tacmap.units) == 10
+    assert any(e["kind"] == "scan_outlier_skipped" for e in c.ledger.events)
+
+
 def test_second_turn_uses_the_cheap_local_scan(monkeypatch):
     world = _World(max_x=1800, max_y=900, start=(900, 450), enemies=[])
     c = _run_scan(monkeypatch, world)

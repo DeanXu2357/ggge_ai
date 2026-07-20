@@ -198,3 +198,33 @@ def test_stray_modal_is_closed_during_the_walk(monkeypatch):
 
     assert live_scan_mod.UNIT_DETAIL_CLOSE in taps
     assert any(e["kind"] == "scan_modal_closed" for e in events)
+
+
+def test_pan_leg_rejects_a_reverse_direction_landmark_lock(monkeypatch):
+    """20260720-232808 corner_west requested (-600, 0) and pool.locate
+    handed back a lock implying (+186, +41) -- a star-field alias whose
+    main-axis motion points backwards, small enough to clear the
+    travel-distance bound but wrong on direction. The gate must reject it
+    and fall through to the phase channel instead of adopting the false
+    lock, while still recording the rejection on the attempt."""
+    world = _World(max_x=1800, max_y=900, start=(900, 450), units=[(2000, 1000)])
+    _wire(monkeypatch, world)
+    monkeypatch.setattr(vision, "find_enemy_units", lambda f, region=None: [(500, 500)])
+    events = []
+    src = _source(world, events=events)
+    monkeypatch.setattr(src.pool, "locate", lambda visible: (186.0, 41.0))
+    prev = world.capture()
+
+    camera, _frame, actual, requested = src.pan_leg((0.0, 0.0), prev, (-1, 0), label="corner_west")
+
+    assert requested == (-600, 0)
+    # the false lock (186, 41) must not be adopted; the phase channel's
+    # real measurement of the westward swipe wins instead
+    assert actual == (-600.0, 0.0)
+    assert camera == (-600.0, 0.0)
+    legs = [e for e in events if e["kind"] == "scan_leg"]
+    assert len(legs) == 1
+    assert legs[0]["measured"] == [-600.0, 0.0]
+    attempt = legs[0]["attempts"][0]
+    assert "landmarks_rejected" in attempt["source"]
+    assert attempt["cumulative"] == [-600.0, 0.0]

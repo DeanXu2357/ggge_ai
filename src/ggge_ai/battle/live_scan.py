@@ -248,13 +248,27 @@ class LiveScanSource:
             located = self.pool.locate(visible) if visible else None
             response = 0.0
             source = None
+            landmark_rejected = False
             if located is not None:
                 delta = (located[0] - camera[0], located[1] - camera[1])
                 # physical bound: one leg cannot out-travel its own gesture
                 # (plus easing slack) -- a bigger jump is a false lock on an
                 # aliased constellation, not a pan
                 limit = abs(requested[0]) + abs(requested[1]) + 250
-                if abs(delta[0]) + abs(delta[1]) <= limit:
+                # direction gate: a lock whose main-axis motion runs opposite
+                # the requested gesture is the same false-lock failure mode
+                # (a star-field alias) -- 20260720 corner_west requested
+                # (-600, 0) and locked onto (+186, +41), a physically small
+                # jump the bound above doesn't catch since it points
+                # backwards. ~0 on the main axis stays legit (a map edge).
+                axis = 0 if abs(requested[0]) >= abs(requested[1]) else 1
+                if (
+                    requested[axis] != 0
+                    and delta[axis] * requested[axis] < 0
+                    and abs(delta[axis]) > 60
+                ):
+                    landmark_rejected = True
+                elif abs(delta[0]) + abs(delta[1]) <= limit:
                     cumulative, source = delta, "landmarks"
             if source is None:
                 shift, response = vision.measure_camera_shift(base, cur)
@@ -266,6 +280,8 @@ class LiveScanSource:
                         cumulative, source = arc, "arcs"
                     else:
                         source = "blind"
+            if landmark_rejected:
+                source = f"landmarks_rejected:{source}"
             attempts.append(
                 {
                     "origin": [cx, cy],

@@ -1534,10 +1534,12 @@ class ManualBattleController:
 
         total = len(self.tacmap.units)
         doomed = sum(1 for p in self.tacmap.units if not keep(p))
-        if total and doomed * 2 > total:
-            # a purge that would erase most of the board means the BOUNDS
-            # are wrong (a mis-anchored corner), not the units -- run 9
-            # deleted 10 of 11 real units this way. Keep everything, flag it.
+        if total and doomed * 2 >= total:
+            # a purge that would erase half or more of the board means the
+            # BOUNDS are wrong (a mis-anchored corner), not the units -- run
+            # 9 deleted 10 of 11 real units this way, run 20260720-232808
+            # deleted exactly 5 of 10 (the >= boundary itself). Keep
+            # everything, flag it.
             self._log(
                 "scan_outlier_skipped",
                 doomed=doomed,
