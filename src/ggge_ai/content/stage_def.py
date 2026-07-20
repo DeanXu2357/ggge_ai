@@ -55,6 +55,11 @@ class StageUnit:
     uid: str
     cell: tuple[int, int]
     faction: str = "enemy"
+    # cells occupied, (cols, rows) anchored at `cell` as the NW corner;
+    # (1,1) for every unit except oversized ones (a 2x2 was measured on
+    # the 20260719 ex2if survey: ring centered on a lattice intersection
+    # instead of a cell center)
+    footprint: tuple[int, int] = (1, 1)
     sig: str | None = None
     name_text: str | None = None
     pilot_hint: dict = field(default_factory=dict)
@@ -212,6 +217,7 @@ def _unit_from_dict(data: dict) -> StageUnit:
         uid=data.get("uid", ""),
         cell=tuple(data.get("cell", (0, 0))),
         faction=data.get("faction", "enemy"),
+        footprint=tuple(data.get("footprint", (1, 1))),
         sig=data.get("sig"),
         name_text=data.get("name_text"),
         pilot_hint=data.get("pilot_hint", {}),
