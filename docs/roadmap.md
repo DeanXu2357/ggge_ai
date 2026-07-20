@@ -154,15 +154,35 @@ map-scan-survey.md 的實作藍圖第一階段（無陣營位置池）離線落�
   census 的下游（survey/敵我分流）要等第二階段 inspect_unit 才有替代品，
   cutover 應與第二階段同批落地**——順序改為批3a（LiveScanSource 離線
   搬遷）＋第二階段實作 → 一次切換。
-- **恢復點**：①第二階段敵我辨識（逐單位點擊、橫幅停靠邊）仍未實作——
-  右停靠錨點缺樣本照舊（候補：data/runs 留存幀考古）；出擊機可用
-  「鈷藍環＋白VV」偵測器輔助判（未實作；使用者修正：VV=可操作提示會
-  消失、環=HP 弧會變色，**僅 turn-1 滿血未行動窗口有效**、陣營權威仍是
-  停靠邊），點擊預算留給 17 台關卡單位；
-  ②live 掃描整合（controller 接 map_grid＋縮放地圖 sendevent）未動——
-  接法採 FrameSource 抽換設計，9 幀 fixture 即離線重放來源；③zoom
-  無關化殘餘兩處（seed 間距合理帶 80-160、密度偵測視窗 91px）——
-  掃描定調最遠 zoom 後降級為穩健性項目。
+- **07-20 續4（批3a＋第二階段離線落地，未碰實機）**：使用者定調工作
+  順序=先偵查/敵我辨識、敵我辨識用介面包裝。四個 commit：
+  ①批3a（61bb69d）`battle/live_scan.py` LiveScanSource——serpentine
+  走法整段搬進 FrameSource 接縫（無陣營導航地標池、逐腿量測、吞滑
+  動換起點、彈窗關閉；measured_shift=負鏡頭位移，_pixel_matches_hint
+  釘死符號），pan/scan 常數單一來源移入、controller 回頭 import；
+  ②FactionIdentifier 介面（02a7cab）`battle/faction.py`——Protocol
+  ＋DockBannerIdentifier（左=敵/右=我、雙命中拒判、永不猜測），
+  vision.summary_anchor_score 共用 0.88 灰階尺；
+  ③右停靠標定（ff50952）**data/runs 考古取代實機取樣**：subagent 掃
+  449 截圖＋1092 流水帳幀（689 幀右停靠），定案右停靠=左佈局「平移」
+  非鏡像（機體+818/駕駛+1652、y 全等），RIGHT_DOCK_REGION=
+  (1388,175,100,65) 沿用模板與閾值，跨四地圖 0.918-0.997；坑：
+  battle_prep/weapon_select 右面板同幾何（雙卡同框 fixture 入庫當
+  拒判回歸釘）；考古全樣本佐證停靠邊定案零反例；
+  ④survey identify 模式（fea83ee）——survey_stage 增 identifier 注入
+  （None=舊路徑，controller 未切）：左停靠→面板鏈入 layout、右停靠
+  →DeploySlot.cell＋ally_indices；幽靈證據兩型（同格重複 twin＋無
+  橫幅貼近已識我方）。589 tests/3 xfail 綠。
+- **恢復點（cutover 為下一批，兩個設計決策待使用者拍板）**：
+  ①**cutover 本體**：tacmap census 無陣營化（弧偵測降存在信號）＋
+  `_ensure_stage_definition_inner` 掃描點含我方、改傳 identifier＋
+  以 ally_indices/dropped 濾 census 供 resolver.seed＋下游
+  hub_poisoned/信念鏈簡化——與 LiveScanSource 接線同批；
+  ②待拍板 A：第三方單位停靠邊未知，v1 左停靠一律 faction=enemy
+  （舊弧色第三方本就是噪音）？③待拍板 B：warm path census 掃描點
+  將含我方——seed 前以 deploy_slots 格位排除鄰近點，或容忍多餘點；
+  ④出擊機「鈷藍環＋白VV」輔助偵測器仍未實作（僅 turn-1 滿血窗口）；
+  ⑤#24 冷掃太空圖提早收工、#25 掃描期格線、縮放 sendevent 照舊。
 - **裝置現況**：本 session 未碰實機。戰局仍停在活動關 TURN 1 our-turn hub
   （可放棄退體力）；`data/cache/stages/` 已重建 ex2if schema-3 定義檔
   （positions_only、warm path 不採）。
