@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from . import vision
 
 Cell = tuple[int, int]
 
@@ -40,10 +39,6 @@ WALK_LIMIT = 40
 WALK_TOLERANCE = 0.3
 WALK_MIN_STEP = 0.8
 WALK_QUALITY = 1.18
-# highpass energy inside a gap: measured 13-20 over map terrain and
-# 0.4-0.8 over starfield on the ex2if frames -- a phantom terminal line
-# always leaves a starfield gap behind itself
-GAP_VOID_ENERGY = 4.0
 # how far past the outermost detected line a unit may still be snapped
 # (virtual lines at the local pitch); kept short so slant and pitch drift
 # cannot push a snap across a cell
