@@ -1,11 +1,12 @@
-"""Stage definition v2: uid identity, conditions, events, screen-authority
-load semantics."""
+"""Stage definition v3: uid identity, deploy slots, conditions, events,
+screen-authority load semantics."""
 
 import json
 
 from ggge_ai.content import stage_def
 from ggge_ai.content.stage_def import (
     Condition,
+    DeploySlot,
     StageConditions,
     StageDefinition,
     StageEvent,
@@ -82,6 +83,25 @@ def test_round_trip(tmp_path):
     loaded = stage_def.load_stage_def("g/hard_2", root=tmp_path)
     assert loaded is not None
     assert loaded == saved
+
+
+def test_deploy_slots_round_trip(tmp_path):
+    defn = _defn()
+    defn.deploy_slots = [
+        DeploySlot(cell=(7, 10), observed=[{"team": 1, "slot": 1, "source": "ex2if"}]),
+        DeploySlot(cell=(9, 10), observed=[{"team": 1, "slot": 2, "source": "ex2if"}]),
+    ]
+    stage_def.save_stage_def(defn, root=tmp_path)
+    loaded = stage_def.load_stage_def("g/hard_2", root=tmp_path)
+    assert loaded is not None
+    assert loaded.deploy_slots == defn.deploy_slots
+
+
+def test_schema2_file_is_ignored(tmp_path):
+    path = stage_def.stage_path("g/hard_1", root=tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"schema": 2, "layout": []}), encoding="utf-8")
+    assert stage_def.load_stage_def("g/hard_1", root=tmp_path) is None
 
 
 def test_uid_issue_is_row_major_and_input_order_free():

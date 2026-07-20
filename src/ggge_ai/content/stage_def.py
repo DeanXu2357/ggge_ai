@@ -8,6 +8,12 @@ events make objective-driven search and in-tree reinforcement expansion
 possible; both tolerate types outside the v1 taxonomy (recorded
 verbatim, inert to the planner).
 
+Schema v3 splits our deployed squad out of `layout` into `deploy_slots`:
+the slot *positions* are stage content (the game always deploys onto the
+same fixed cells), while the unit standing on each slot is per-sortie
+content that must never be cached (2026-07-20 user ruling on the ex2if
+scan, where 10 of 27 scanned units turned out to be the sortie squad).
+
 Permitted content cache per the 2026-07-05 red-line revision: everything
 here originated from screen reads or manual transcription, the screen
 stays authoritative (opening census validation; any mismatch expires the
@@ -25,7 +31,7 @@ from .kit import UnitSpec, UnitStats, WeaponRow, to_unit_spec
 
 log = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DEFAULT_STAGE_ROOT = Path("data") / "cache" / "stages"
 # same tolerance as the retired stage_cache constant: measured 0 bits of
 # drift across +/-4px name-plate shifts, 25+ bits between different units
@@ -45,12 +51,14 @@ def signature_distance(a: str | None, b: str | None) -> int:
 @dataclass
 class StageUnit:
     """One layout (or reinforcement) entry. `cell` is (col, row) on the
-    stage grid whose origin is the min corner over enemy and third-party
-    starting cells -- ally deployment varies per sortie and never anchors
-    the stage coordinate frame. `pilot_hint` snapshots the detail panel's
-    pilot column at survey time: it is what distinguishes two uids that
-    share a machine sig, and it is survey-time evidence only (never a
-    live-read substitute)."""
+    stage grid; map-scan-produced files anchor the origin at the map's NW
+    corner (corner-anchored sweep, 定案 1), legacy survey files used the
+    min corner over enemy and third-party starting cells. Either way the
+    sortie squad never anchors the frame -- it lives in deploy_slots, not
+    layout. `pilot_hint` snapshots the detail panel's pilot column at
+    survey time: it is what distinguishes two uids that share a machine
+    sig, and it is survey-time evidence only (never a live-read
+    substitute)."""
 
     uid: str
     cell: tuple[int, int]
@@ -73,6 +81,19 @@ class StageUnit:
         unit_stats = UnitStats(**self.stats)
         rows = [WeaponRow(**w) for w in self.weapons]
         return to_unit_spec(unit_stats, rows)
+
+
+@dataclass
+class DeploySlot:
+    """One fixed deployment cell. The game maps roster team/slot numbers
+    onto these cells by its own placement logic; `observed` records the
+    (team, slot) seen standing here on past sorties, so the number-to-cell
+    mapping stays an accumulating hypothesis until repeated sorties confirm
+    it. Team ordering is the assignable planning variable -- which actual
+    unit occupies a slot is per-sortie content and is never cached."""
+
+    cell: tuple[int, int]
+    observed: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -124,6 +145,7 @@ class StageEvent:
 class StageDefinition:
     stage_id: str
     layout: list[StageUnit] = field(default_factory=list)
+    deploy_slots: list[DeploySlot] = field(default_factory=list)
     conditions: StageConditions = field(default_factory=default_conditions)
     events: list[StageEvent] = field(default_factory=list)
     status: str = "complete"
@@ -229,6 +251,13 @@ def _unit_from_dict(data: dict) -> StageUnit:
     )
 
 
+def _slot_from_dict(data: dict) -> DeploySlot:
+    return DeploySlot(
+        cell=tuple(data.get("cell", (0, 0))),
+        observed=data.get("observed", []),
+    )
+
+
 def _condition_from_dict(data: dict) -> Condition:
     return Condition(
         type=data.get("type", "verbatim"),
@@ -253,6 +282,7 @@ def load_stage_def(stage_id: str, root: Path | None = None) -> StageDefinition |
         return StageDefinition(
             stage_id=data.get("stage_id", stage_id),
             layout=[_unit_from_dict(u) for u in data.get("layout", [])],
+            deploy_slots=[_slot_from_dict(s) for s in data.get("deploy_slots", [])],
             conditions=StageConditions(
                 victory=[_condition_from_dict(c) for c in conditions.get("victory", [])],
                 defeat=[_condition_from_dict(c) for c in conditions.get("defeat", [])],
@@ -286,6 +316,7 @@ def save_stage_def(defn: StageDefinition, root: Path | None = None) -> Path:
         "status": defn.status,
         "cell_size": defn.cell_size,
         "layout": [asdict(u) for u in defn.layout],
+        "deploy_slots": [asdict(s) for s in defn.deploy_slots],
         "conditions": {
             "victory": [asdict(c) for c in defn.conditions.victory],
             "defeat": [asdict(c) for c in defn.conditions.defeat],

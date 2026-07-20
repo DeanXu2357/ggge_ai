@@ -60,3 +60,14 @@ def test_board_geometry(board, answer):
 def test_units_support(board):
     multi = [u for u in board.units if u.support >= 2]
     assert len(multi) >= 22
+
+
+def test_deployed_marking_matches_user_assignment(answer):
+    deployed = {u["id"]: u["deployed"] for u in answer["units"] if "deployed" in u}
+    assert set(deployed) == {
+        "s08", "s09", "s11", "s12", "s13", "s14", "s15", "s17", "s18", "s20",
+    }
+    by_team: dict[int, set[int]] = {}
+    for mark in deployed.values():
+        by_team.setdefault(mark["team"], set()).add(mark["slot"])
+    assert by_team == {1: {1, 2, 3, 4, 5}, 2: {1, 2, 3, 4, 5}}
