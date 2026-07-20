@@ -481,3 +481,108 @@ def test_surplus_arc_becomes_a_recorded_reinforcement(tmp_path, monkeypatch):
     c._observe_new_units(None, battle)
     saved_again = stage_def.load_stage_def("g/hard_2", root=tmp_path)
     assert len(saved_again.events) == 1
+
+
+# ---- identify mode (定案 5): factionless points, dock side decides ----
+
+RIGHT = _canvas("faction/right_dock_hard1_20260714.png", (0, 0, 2340, 300))
+BLANK = np.zeros((1080, 2340, 3), np.uint8)
+
+
+def _identifier():
+    from ggge_ai.battle.faction import DockBannerIdentifier
+
+    return DockBannerIdentifier()
+
+
+def test_identify_survey_splits_layout_from_deploy_slots(tmp_path):
+    script = _Script(
+        [HUB, HUB, MODAL, MODAL, RIGHT, HUB, HUB, MODAL, MODAL, HUB]
+    )
+    events, log = _events()
+    ally_indices: list[int] = []
+    defn = survey_stage(
+        script.capture,
+        script.tap,
+        [(900.0, 150.0), (1185.0, 625.0), (1350.0, 340.0)],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        identifier=_identifier(),
+        ally_indices=ally_indices,
+        ledger_log=log,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert [u.uid for u in defn.layout] == ["e01", "e02"]
+    assert {u.cell for u in defn.layout} == {(0, 0), (5, 2)}
+    assert all(u.faction == "enemy" for u in defn.layout)
+    assert [s.cell for s in defn.deploy_slots] == [(3, 5)]
+    assert ally_indices == [1]
+    ally_events = [e for e in events if e["kind"] == "survey_ally"]
+    assert len(ally_events) == 1 and ally_events[0]["side"] == "right"
+    saved = stage_def.load_stage_def("g/hard_2", root=tmp_path)
+    assert [s.cell for s in saved.deploy_slots] == [(3, 5)]
+
+
+def test_identify_survey_drops_same_cell_twin(tmp_path):
+    script = _Script([HUB, HUB, MODAL, MODAL, HUB])
+    events, log = _events()
+    dropped: list[int] = []
+    defn = survey_stage(
+        script.capture,
+        script.tap,
+        [(900.0, 150.0), (930.0, 170.0)],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        identifier=_identifier(),
+        dropped=dropped,
+        ledger_log=log,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert [u.uid for u in defn.layout] == ["e01"]
+    assert dropped == [1]
+    phantom = next(e for e in events if e["kind"] == "survey_phantom")
+    assert phantom["reason"] == "duplicate_cell_of_0"
+
+
+def test_identify_survey_ghosts_bannerless_point_near_identified_ally(tmp_path):
+    script = _Script(
+        [RIGHT, BLANK, BLANK, BLANK, HUB, HUB, MODAL, MODAL, HUB]
+    )
+    events, log = _events()
+    dropped: list[int] = []
+    ally_indices: list[int] = []
+    defn = survey_stage(
+        script.capture,
+        script.tap,
+        [(900.0, 150.0), (950.0, 180.0), (1500.0, 700.0)],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        identifier=_identifier(),
+        dropped=dropped,
+        ally_indices=ally_indices,
+        ledger_log=log,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert ally_indices == [0]
+    assert dropped == [1]
+    assert [u.uid for u in defn.layout] == ["e01"]
+    phantom = next(e for e in events if e["kind"] == "survey_phantom")
+    assert phantom["reason"] == "no_banner_near_ally"
+
+
+def test_identify_survey_bannerless_point_alone_fails_loud(tmp_path):
+    script = _Script([BLANK])
+    with pytest.raises(SurveyIncomplete):
+        survey_stage(
+            script.capture,
+            script.tap,
+            [(900.0, 150.0)],
+            stage_id="g/hard_2",
+            bring_to_view=_identity_view,
+            identifier=_identifier(),
+            sleep=lambda s: None,
+            root=tmp_path,
+        )

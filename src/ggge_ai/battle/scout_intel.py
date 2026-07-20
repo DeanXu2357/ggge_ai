@@ -31,9 +31,11 @@ from pathlib import Path
 from . import panels, vision
 from ..content import stage_def
 from ..content.kit import UnitSpec
+from .faction import FactionIdentifier, FactionVerdict
 from .identity import IdentityResolver, SeedReport
 from .observe import SIG_MATCH_RADIUS
-from ..content.stage_def import StageDefinition, StageUnit, signature_distance
+from .state import Faction
+from ..content.stage_def import DeploySlot, StageDefinition, StageUnit, signature_distance
 
 log = logging.getLogger(__name__)
 
@@ -109,6 +111,27 @@ def _read_summary_at(
     return None
 
 
+def _identify_at(
+    capture,
+    tap,
+    screen,
+    identifier: FactionIdentifier,
+    sleep,
+    *,
+    retries: int = SURVEY_TAP_RETRIES,
+) -> FactionVerdict | None:
+    """Tap the unit and read which side its banner docks on (定案 5).
+    None after every retry means no banner appeared at all -- the caller
+    sentences the point (ghost or fail-loud), never guesses a faction."""
+    for _ in range(retries):
+        tap(int(screen[0]), int(screen[1]))
+        sleep(SUMMARY_SETTLE_S)
+        verdict = identifier.identify(capture())
+        if verdict is not None:
+            return verdict
+    return None
+
+
 def _survey_point(
     capture: Callable,
     tap: Callable[[int, int], None],
@@ -170,6 +193,8 @@ def survey_stage(
     factions: list[str] | None = None,
     ally_points: list[tuple[float, float]] | None = None,
     dropped: list[int] | None = None,
+    identifier: FactionIdentifier | None = None,
+    ally_indices: list[int] | None = None,
     llm=None,
     ledger_log: Callable[..., None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
@@ -177,14 +202,24 @@ def survey_stage(
     cell_size: float = 95.0,
     root: Path | None = None,
 ) -> StageDefinition:
-    """Full survey of every non-ally point (world coordinates from the
-    serpentine sweep) into a saved schema-2 definition. Raises
+    """Full survey of the sweep's points into a saved definition. Raises
     SurveyIncomplete on the first unreadable unit or on the wall-clock
-    guard -- partial definitions are never written. The one exception is
-    the evidence-backed ghost drop (GHOST_RADIUS): an unreachable or
-    card-less point hugging a scanned ally is the pink-bug ghost twin of
-    that ally; its index goes into `dropped` (caller-provided list) and
-    the survey continues."""
+    guard -- partial definitions are never written.
+
+    Two faction modes. Legacy (`identifier` None): `factions` carries the
+    arc-color census verdicts and every point is stage content. Identify
+    mode (定案 5, `identifier` given): points arrive FACTIONLESS; each is
+    tapped and the banner's dock side decides -- left docks into the
+    layout through the panel chain, right is one of our deploy machines,
+    recorded as a DeploySlot cell (出擊格是關卡內容、站誰不 cache) with
+    its index in `ally_indices` so the caller can exclude it from the
+    layout census.
+
+    Evidence-backed ghost drops (`dropped`): a point that cannot be
+    reached or shows no banner while hugging a known ally is the
+    pink-bug ghost twin; in identify mode a point whose cell was already
+    surveyed is the same tile double-detected. Both continue with a
+    ledger record instead of failing loud."""
     if not points:
         raise SurveyIncomplete("no enemy points to survey")
     factions = factions or ["enemy"] * len(points)
@@ -194,10 +229,12 @@ def survey_stage(
         if ledger_log is not None:
             ledger_log(kind, **data)
 
+    ally_world: list[tuple[float, float]] = list(ally_points or ())
+
     def ghost_of_ally(point: tuple[float, float]) -> bool:
         return any(
             (point[0] - a[0]) ** 2 + (point[1] - a[1]) ** 2 < GHOST_RADIUS**2
-            for a in (ally_points or ())
+            for a in ally_world
         )
 
     def drop_ghost(i: int, point, reason: str) -> None:
@@ -211,18 +248,49 @@ def survey_stage(
             dropped.append(i)
 
     surveyed: list[StageUnit] = []
+    ally_cells: list[tuple[int, int]] = []
+    claimed: dict[tuple[int, int], int] = {}
     origin = (min(p[0] for p in points), min(p[1] for p in points))
     for i, (point, faction) in enumerate(zip(points, factions)):
         if time.monotonic() >= deadline:
             raise SurveyIncomplete(
                 f"wall clock exhausted after {len(surveyed)}/{len(points)} units"
             )
+        cell = (
+            round((point[0] - origin[0]) / cell_size),
+            round((point[1] - origin[1]) / cell_size),
+        )
+        if identifier is not None and cell in claimed:
+            drop_ghost(i, point, f"duplicate_cell_of_{claimed[cell]}")
+            continue
         screen = bring_to_view(point)
         if screen is None:
             if ghost_of_ally(point):
                 drop_ghost(i, point, "unreachable_near_ally")
                 continue
             raise SurveyIncomplete(f"unit {i} at {point} cannot be brought into view")
+        if identifier is not None:
+            verdict = _identify_at(capture, tap, screen, identifier, sleep)
+            if verdict is None:
+                if ghost_of_ally(point):
+                    drop_ghost(i, point, "no_banner_near_ally")
+                    continue
+                raise SurveyIncomplete(f"no summary banner at {screen}")
+            if verdict.faction is Faction.ALLY:
+                claimed[cell] = i
+                ally_world.append(point)
+                ally_cells.append(cell)
+                if ally_indices is not None:
+                    ally_indices.append(i)
+                record(
+                    "survey_ally",
+                    index=i,
+                    cell=list(cell),
+                    side=verdict.side,
+                    score=round(verdict.score, 3),
+                )
+                continue
+            faction = "enemy"
         try:
             sig, name, stats_dict, weapons = _survey_point(
                 capture, tap, screen, llm=llm, sleep=sleep
@@ -232,10 +300,7 @@ def survey_stage(
                 drop_ghost(i, point, "no_card_near_ally")
                 continue
             raise
-        cell = (
-            round((point[0] - origin[0]) / cell_size),
-            round((point[1] - origin[1]) / cell_size),
-        )
+        claimed[cell] = i
         surveyed.append(
             StageUnit(
                 uid="",
@@ -258,6 +323,7 @@ def survey_stage(
         stage_id=stage_id,
         layout=stage_def.assign_uids(surveyed),
         cell_size=cell_size,
+        deploy_slots=[DeploySlot(cell=c) for c in ally_cells],
     )
     path = stage_def.save_stage_def(defn, root)
     log.info("stage definition written: %s (%d units)", path, len(defn.layout))
