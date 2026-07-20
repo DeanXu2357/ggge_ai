@@ -131,6 +131,18 @@ class StitchResult:
     )
 
 
+def clean_series_detections(frames: list[np.ndarray]) -> list[list[tuple[int, int]]]:
+    """Per-frame unit peaks with the series-level noise removed: static
+    HUD recurrences dropped, rim-clamped (positionally biased) peaks
+    excluded. Shared by the pixel stitcher and the cell integrator."""
+    detections = [vision.find_unit_density_peaks(f) for f in frames]
+    static = _static_screen_points(detections)
+    cleaned = [_drop_near(pts, static, STATIC_DROP_RADIUS) for pts in detections]
+    _, y0, _, h = vision.UNIT_DENSITY_REGION
+    clamp_top, clamp_bottom = y0 + CLAMP_BAND, y0 + h - CLAMP_BAND
+    return [[p for p in pts if clamp_top < p[1] < clamp_bottom] for pts in cleaned]
+
+
 def _static_screen_points(per_frame: list[list[tuple[int, int]]]) -> list[Point]:
     r2 = STATIC_SCREEN_RADIUS * STATIC_SCREEN_RADIUS
     clusters: list[tuple[Point, set[int]]] = []
