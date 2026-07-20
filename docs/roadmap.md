@@ -173,6 +173,27 @@ map-scan-survey.md 的實作藍圖第一階段（無陣營位置池）離線落�
   （None=舊路徑，controller 未切）：左停靠→面板鏈入 layout、右停靠
   →DeploySlot.cell＋ally_indices；幽靈證據兩型（同格重複 twin＋無
   橫幅貼近已識我方）。589 tests/3 xfail 綠。
+- **07-20 續5（不停頓事件討論定調＋規劃，未碰實機、與續4 平行的
+  討論線）**：地圖砲等「不停下來讓我方互動」的敵方事件感知方案與
+  使用者逐輪討論定案，開 issue #27＋規劃全文 `docs/silent-events.md`。
+  要點：①威脅圖示（移動選格內驚嘆號=敵攻擊範圍、鎖定+驚嘆號=地圖砲
+  射程，自動顯示）成為地圖砲主接縫，敵方回合即時偵測正式放棄（動畫
+  夾雜各單位行動間無法定時取樣，使用者實測知識）；②戰況紀錄查無此
+  功能；③**流水帳完備性標準＝離線可推導性**定調（生成模型識別、非
+  軌跡重播；即時單發不逆推、離線全場脈絡歸因；暴擊靠殘差聚類樣本群
+  識別），同步回答 stage-definition-requirements 開放問題 4；④敵方
+  策略假設庫（SRPG 原型庫＋逐機計分＋預測準確率量尺＋min 兜底）
+  可行性確認但**往後排**，process-scoped 不入檔（使用者放棄跨執行
+  留存）。優先序裁決：批A 資料保存（turn-boundary 信念快照＋tracker
+  HP 鮮度欄）→ 批B HP 對帳（audit，騎既有數值讀點、殘差記
+  unattributed_damage、與 reconcile.py 單發歸因分工）→ 批C 帳目閉合
+  檢查（離線腳本、未解殘差率=完備性分數）先行——一邊開發一邊累積
+  數據；批D 樣本蒐集被動並行；批E 威脅圖示偵測器／批F sim MAP 建模
+  等樣本與第二階段；地圖砲規格（只打我方/必中/無支援防禦/移動前
+  限定/次數制）已錄入 silent-events.md §1。
+- **常備提醒**：遇到有 MAP 敵機的關卡先蒐樣本——capture 移動選格
+  畫面（兩類威脅圖示）＋該敵機武裝面板，存 PNG（silent-events.md
+  批D）；蒐到前批E 不開工。
 - **恢復點（cutover 為下一批，兩個設計決策待使用者拍板）**：
   ①**cutover 本體**：tacmap census 無陣營化（弧偵測降存在信號）＋
   `_ensure_stage_definition_inner` 掃描點含我方、改傳 identifier＋
