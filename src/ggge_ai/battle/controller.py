@@ -30,6 +30,18 @@ from ggge_ai.battle.actions import ActionKind
 from ggge_ai.battle.advisor import AdvisorConfig, DefaultAdvisor, SimAdvisor
 from ggge_ai.battle.identity import IdentityResolver
 from ggge_ai.battle.ledger import BattleLedger
+from ggge_ai.battle.live_scan import (
+    PAN_CENTER,
+    PAN_DIRS,
+    PAN_HALF,
+    PAN_ORIGIN_GRID,
+    PAN_ORIGINS,
+    PAN_SETTLE_S,
+    PAN_SWIPE_MS,
+    SCAN_CORNER_MAX_LEGS,
+    SCAN_EDGE_RATIO,
+    SCAN_MAX_LEGS,
+)
 from ggge_ai.battle.scout_intel import SurveyIncomplete
 from ggge_ai.content import stage_def as stage_def_mod
 from ggge_ai.battle.state import Faction
@@ -47,43 +59,12 @@ REACTION_ACTION_CONFIRM = (2042, 924)
 log = logging.getLogger(__name__)
 
 AUTO_BUTTON = (1820, 54)
-# panning works on the our-turn hub with no unit selected: dragging an
-# empty map spot shifts the camera. drag opposite to the look direction,
-# split evenly around the center so both endpoints stay inside the map
-# area (vertical half-travel is shorter to clear the HUD and card strip)
-PAN_CENTER = (1170, 500)
-PAN_HALF = {"x": 300, "y": 200}
-# a swipe starting on a unit sprite / UI element gets eaten instead of
-# panning (20260719: row legs measuring ~0 with healthy response while the
-# map clearly had room) -- an ineffective-but-measurable leg retries from
-# these alternates before an edge verdict is accepted
-PAN_ORIGINS = (PAN_CENTER, (940, 430), (1380, 610), (1170, 620))
-# swipes land more reliably slow: 500ms drags got eaten in stretches on the
-# 20260719 star map (post-action camera easing + adb drop flakiness)
-PAN_SWIPE_MS = 700
-PAN_SETTLE_S = 1.5
-# a drag STARTING on a unit gets eaten -- in dense views (the event map's
-# east cluster fills mid-screen) every static origin can sit on a unit at
-# once, which froze whole scan stretches in both directions (runs 4/7/8/9).
-# Origins are therefore picked per swipe from this candidate lattice by
-# max-min distance to the visible arcs.
-PAN_ORIGIN_GRID = tuple(
-    (x, y) for y in (360, 470, 580, 660) for x in (760, 940, 1170, 1400, 1580)
-)
-PAN_ORIGIN_CLEARANCE = 120.0
 # 單位列表 strip toggle (calibrated 20260719 fixtures): tapping ▽ while the
 # card strip is open collapses it, ▲ while collapsed expands it. The scan
 # collapses the strip (user's call: more visible map to stitch, fewer taps
 # swallowed at the bottom) and restores it after the survey window.
 UNIT_LIST_COLLAPSE = (1970, 780)
 UNIT_LIST_EXPAND = (1970, 1010)
-PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
-# serpentine full-map scan (turn 1): a pan whose measured travel is under
-# this fraction of the gesture means the camera hit the map edge; leg
-# budgets bound worst-case scan time on huge maps
-SCAN_EDGE_RATIO = 0.3
-SCAN_CORNER_MAX_LEGS = 8
-SCAN_MAX_LEGS = 28
 WEAPON_SELECT_BTN = (2106, 965)
 ATTACK_BTN = (2085, 977)
 START_BATTLE_BTN = (2085, 988)
