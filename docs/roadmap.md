@@ -1,11 +1,9 @@
 # 進度與規劃
 
-更新日期：2026-07-19（最新里程碑＝**07-19 晚 S9d 應戰 UI 辨識落地**（見暫停
-快照）；tick 收攏見 07-19 段；router middleware 見 07-18 段；工程重構批次見
-07-17 段；前一里程碑＝07-15 **S9d 應戰路徑整併落地**：確認應戰彈窗＝戰鬥準備
--應戰- 變體，感知單一來源化到 `BattlePrepForecast`、廢 `ReactionPopup`、
-執行器 `_choose_reaction_stance` 接進 `_on_battle_prep`。
-前情：S 批次離線段 S0-S8 全落地）
+更新日期：2026-07-20（最新里程碑＝**07-20 離線地圖拼接＋標準答案落地**（見
+暫停快照）；前一里程碑＝07-19 晚 S9d 應戰 UI 辨識落地；tick 收攏見 07-19 段；
+router middleware 見 07-18 段；工程重構批次見 07-17 段；07-15 S9d 應戰路徑
+整併落地。前情：S 批次離線段 S0-S8 全落地）
 
 **2026-07-17 離線工程重構（行為不變、非里程碑）**：`ManualBattleController.run()`
 兩項結構整理——① 每圈單次截圖：中斷偵測器（終局/敗北/隱藏關/modal/劇情）
@@ -88,7 +86,46 @@ lambda 內化成表上 `repair` 欄，`ends_activation` 取代散落的 reset。
 503 tests/3 xfail、ruff 全綠；文件 battle-phase-states.md「期望轉移驗證」。
 **裝置現況與 S9 恢復點不變，見下。**
 
-## 暫停快照（2026-07-19 晚 S9d 應戰 UI 辨識落地，恢復點）
+## 暫停快照（2026-07-20 離線地圖拼接＋標準答案落地，恢復點）
+
+**本 session（07-19 深夜～07-20，純離線＋subagent 讀圖，未操作實機）**：
+map-scan-survey.md 的實作藍圖第一階段（無陣營位置池）離線落地，issue #26。
+- **fixture series** `tests/fixtures/vision/map_scan/ex2if_20260719/`：使用者
+  手動平移 9 幀全幀 PNG＋manifest（順序/方向標籤）＋ground_truth v2＋
+  standard_answer。
+- **`vision.find_unit_density_peaks`**：最小 zoom 下弧與隊徽環合體、舊形狀閘
+  全盲 → 三色帶聯集＋單位尺寸 box filter 密度峰值。整數計數（float32 平行
+  分塊不確定性會翻 plateau 峰）；NMS 局部極大 31px／貪婪去重 80px 分離
+  （80px 膨脹窗會讓強鄰高原吞掉弱單位）；橫幅 HUD 挖洞挖在色罩（挖密度圖
+  會把峰擠到洞緣）。單幀 recall 104/104。
+- **`battle/map_stitch.py` 離線拼接**：配對假設投票＋pan 方向提示閘門＋池
+  支持度計分；ICP 精修（平均殘差、半徑 45<半格防 alias）；弱幀受限重定位
+  （≤250px；全域 locate 曾跳 890px 對到對面星座）；靜點濾除 ≥4/9 幀（2 幀
+  會誤殺螢幕位置巧合的真單位）；**phase correlation 整條移除**（格線週期
+  紋理高分假鎖近零位移）。
+- **標準答案（使用者定案的工作順序：先讀圖產標準答案、程式以對到它為驗收）**：
+  9 個並行 subagent 各精讀一幀（4x4 分塊窮舉）→ 132 觀測 → 27 唯一單位；
+  四邊界 subagent 實測（東緣其實有入鏡，pt6/8/9 互證）→ 地圖 23x24 格、
+  單位絕對格座標；s20 淡綠大型機 2x2 footprint。管線交叉驗證 **27/27 零漏**，
+  多出的全是大型單位多峰（測試上限 14 把關）。
+- **StageUnit.footprint＋`scripts/export_stage_def.py`**：標準答案→schema-2
+  定義檔（faction=unknown、status=positions_only，warm path 不採、惰性）。
+- 561 tests/3 xfail、ruff 綠。工具：`scripts/replay_map_scan.py`（重放拼接
+  ＋標註合成圖）。
+- **業務知識**：①我方出擊編隊＝鈷藍環＋白色雙V階級徽（比弧色可靠的我方
+  線索，第二階段可用）；②佔格判別＝環心在格心=1x1、環心在格線交叉點＋環寬
+  兩格＋弧底貼列線=2x2；③戰艦陷阱＝環寬兩格但環心在格心＝加大裝飾環仍 1x1；
+  ④平移拼接在畫面邊緣有透視失真（東緣 pt1 極右量測 vs 中央量測差 1.5 格），
+  邊界量測取近畫面中心幀。
+- **恢復點**：①使用者確認 27 單位標準答案後跑
+  `uv run python scripts/export_stage_def.py "最終驗證 STAGE EX-2 IF VS全裝甲鋼彈"`
+  存定義檔；②第二階段敵我辨識（逐單位點擊、橫幅停靠邊）仍未實作——右停靠
+  錨點缺樣本照舊；③live 掃描整合（controller 接 min-zoom 偵測器＋縮放地圖
+  sendevent）未動。
+- **裝置現況**：本 session 未碰實機。戰局仍停在活動關 TURN 1 our-turn hub
+  （可放棄退體力）；`data/cache/stages/` 空。
+
+## 2026-07-19 晚 S9d 應戰 UI 辨識落地（前恢復點）
 
 **S9d 辨識落地（2026-07-19 晚，純離線、未碰實機）**：照 `docs/battle-prep-ui.md`
 §9 vision 清單全數接進程式，20 張 20260719 PNG fixture 離線驗證：
