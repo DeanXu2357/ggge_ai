@@ -56,9 +56,11 @@ class StageUnit:
     cell: tuple[int, int]
     faction: str = "enemy"
     # cells occupied, (cols, rows) anchored at `cell` as the NW corner;
-    # (1,1) for every unit except oversized ones (a 2x2 was measured on
-    # the 20260719 ex2if survey: ring centered on a lattice intersection
-    # instead of a cell center)
+    # (1,1) for every unit except oversized ones (2x2 and 3x2 confirmed
+    # on the 20260719 ex2if survey). Ring geometry cannot derive this --
+    # both large units there were misjudged from their rings; footprints
+    # come from in-game confirmation until a move-range/blocking probe
+    # exists.
     footprint: tuple[int, int] = (1, 1)
     sig: str | None = None
     name_text: str | None = None
