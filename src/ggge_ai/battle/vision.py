@@ -1219,18 +1219,31 @@ def read_reaction_stance_menu(frame: np.ndarray) -> ReactionStanceMenu | None:
     )
 
 
+def summary_anchor_score(
+    frame: np.ndarray, region: tuple[int, int, int, int]
+) -> float:
+    """HP-label anchor score inside `region`, on the same grayscale match
+    the 0.88 summary gate was calibrated with. The phase-2 identify pass
+    scores both dock regions with this: the side that carries the anchor
+    is the unit's faction (left = enemy, right = ally)."""
+    template = _cached_template(str(ENEMY_SUMMARY_ANCHOR_TEMPLATE))
+    if template is None:
+        return 0.0
+    gray = cv2.cvtColor(_crop(frame, region), cv2.COLOR_BGR2GRAY)
+    if gray.shape[0] < template.shape[0] or gray.shape[1] < template.shape[1]:
+        return 0.0
+    tgray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    result = cv2.matchTemplate(gray, tgray, cv2.TM_CCOEFF_NORMED)
+    _, score, _, _ = cv2.minMaxLoc(result)
+    return float(score)
+
+
 def read_enemy_summary(frame: np.ndarray) -> EnemySummary | None:
     """The summary card that pops after tapping an enemy on the hub, or
     None when its HP-label anchor is not on screen. Callers should only
     consult this in hub context: the battle-prep attacker panel scores
     within 0.09 of the anchor gate."""
-    template = _cached_template(str(ENEMY_SUMMARY_ANCHOR_TEMPLATE))
-    if template is None:
-        return None
-    gray = cv2.cvtColor(_crop(frame, ENEMY_SUMMARY_ANCHOR_REGION), cv2.COLOR_BGR2GRAY)
-    tgray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-    result = cv2.matchTemplate(gray, tgray, cv2.TM_CCOEFF_NORMED)
-    _, score, _, _ = cv2.minMaxLoc(result)
+    score = summary_anchor_score(frame, ENEMY_SUMMARY_ANCHOR_REGION)
     if score < ENEMY_SUMMARY_ANCHOR_THRESHOLD:
         return None
     return EnemySummary(
