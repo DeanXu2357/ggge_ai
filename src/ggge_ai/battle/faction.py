@@ -24,12 +24,22 @@ from .state import Faction
 
 log = logging.getLogger(__name__)
 
-# the left-dock anchor region is the summary reader's calibrated gate;
-# the right-dock (ally) region is pending calibration -- no live sample
-# of an ally banner has been measured yet, so the channel ships disabled
-# and identify() cannot produce an ALLY verdict until it is filled in
+# the left-dock anchor region is the summary reader's calibrated gate; the
+# right-dock card is the LEFT layout TRANSLATED (not mirrored): mech panel
+# +818px, pilot panel +1652px, y identical -- measured on the 20260714
+# HARD-1 right-dock samples, anchor hit (1408,188) scoring 0.918-0.997
+# across four maps with the same label_summary_hp template. Caveat: the
+# battle-prep / weapon-select right panel shares this geometry, so a right
+# hit alone never proves a map summary card -- the survey loop provides
+# hub context, and a double hit is refused below.
 LEFT_DOCK_REGION = vision.ENEMY_SUMMARY_ANCHOR_REGION
-RIGHT_DOCK_REGION: tuple[int, int, int, int] | None = None
+RIGHT_DOCK_SHIFT = 818
+RIGHT_DOCK_REGION: tuple[int, int, int, int] | None = (
+    LEFT_DOCK_REGION[0] + RIGHT_DOCK_SHIFT,
+    LEFT_DOCK_REGION[1],
+    LEFT_DOCK_REGION[2],
+    LEFT_DOCK_REGION[3],
+)
 DOCK_SCORE_THRESHOLD = vision.ENEMY_SUMMARY_ANCHOR_THRESHOLD
 
 
