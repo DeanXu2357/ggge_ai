@@ -127,12 +127,28 @@ map-scan-survey.md 的實作藍圖第一階段（無陣營位置池）離線落�
   累積半格），使用者遊戲內雙向驗證（北空 5 排/南空 7 排、s26 從下數
   第 8 格）後定案修正；地圖 23 欄x24 列（欄列各有多幀互證＋迴圈閉合）。
   standard_answer/定義檔已更新；test_map_grid 3 項驗收。564 tests 綠。
+- **07-20 續2（出擊機拆分＋雙V驗證，未碰實機）**：使用者指認 27 單位中
+  10 台為我方出擊機（兩隊各 5 slot，順序即號位）→ **schema-3
+  deploy_slots** 落地（92744bf）：格位=關卡內容可 cache、站誰=每次出擊
+  永不 cache、號位→格位對應存 `DeploySlot.observed` 累積假設（編隊號位=
+  未來規劃可指派變數，使用者確認遊戲自動擺位但格子固定）；ex2if 定義檔
+  重匯出 17 units＋10 slots；567 tests/3 xfail 綠。subagent 幀2/幀3 互證
+  雙V徽：**鈷藍環＋實心白VV=出擊機判別式 10/10 零誤判**；青綠環=特殊
+  狀態（s04 勝利目標標記帶「敵軍全滅」浮字、s27 VV變體）——詳見
+  map-scan-survey.md 07-20 深夜段。同步盤面流程討論定調：掃描前置補
+  「zoom 拉到最遠」（現有標定即最遠 zoom，殘餘參數化降級為穩健性項）；
+  流程解耦四接縫=FrameSource（可抽換取圖）/read_board（純函式）/
+  inspect_unit（單一函式點開讀取）/backfill。
 - **恢復點**：①第二階段敵我辨識（逐單位點擊、橫幅停靠邊）仍未實作——
-  右停靠錨點缺樣本照舊；②live 掃描整合（controller 接 map_grid＋縮放
-  地圖 sendevent）未動；③zoom 無關化殘餘兩處（seed 間距合理帶 80-160、
-  密度偵測視窗 91px）——換 zoom 前先以剖面自相關量主導間距再參數化。
+  右停靠錨點缺樣本照舊（候補：data/runs 留存幀考古）；出擊機改走
+  「鈷藍環＋白VV」偵測器直接判（未實作），點擊預算留給 17 台關卡單位；
+  ②live 掃描整合（controller 接 map_grid＋縮放地圖 sendevent）未動——
+  接法採 FrameSource 抽換設計，9 幀 fixture 即離線重放來源；③zoom
+  無關化殘餘兩處（seed 間距合理帶 80-160、密度偵測視窗 91px）——
+  掃描定調最遠 zoom 後降級為穩健性項目。
 - **裝置現況**：本 session 未碰實機。戰局仍停在活動關 TURN 1 our-turn hub
-  （可放棄退體力）；`data/cache/stages/` 空。
+  （可放棄退體力）；`data/cache/stages/` 已重建 ex2if schema-3 定義檔
+  （positions_only、warm path 不採）。
 
 ## 2026-07-19 晚 S9d 應戰 UI 辨識落地（前恢復點）
 
