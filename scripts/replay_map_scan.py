@@ -7,37 +7,16 @@ usage: uv run python scripts/replay_map_scan.py [series_dir] [--out composite.pn
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 
 import cv2
 import numpy as np
 
 from ggge_ai.battle import map_stitch, vision
+from ggge_ai.battle.frame_source import FixtureFrameSource
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SERIES = PROJECT_ROOT / "tests" / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
-
-HINT_KEYS = ("up", "down", "left", "right")
-
-
-def hint_from_label(label: str) -> str | None:
-    for key in HINT_KEYS:
-        if f"pan_{key}" in label:
-            return key
-    return None
-
-
-def load_series(series_dir: Path) -> tuple[list[np.ndarray], list[dict]]:
-    manifest = json.loads((series_dir / "manifest.json").read_text(encoding="utf-8"))
-    entries = sorted(manifest["frames"], key=lambda f: f["seq"])
-    frames = []
-    for entry in entries:
-        frame = cv2.imread(str(series_dir / entry["image"]))
-        if frame is None:
-            raise SystemExit(f"unreadable frame: {entry['image']}")
-        frames.append(frame)
-    return frames, entries
 
 
 def unit_cells(
@@ -93,15 +72,15 @@ def main() -> None:
     args = parser.parse_args()
     series_dir = Path(args.series_dir)
 
-    frames, entries = load_series(series_dir)
-    hints = [hint_from_label(e["label"]) for e in entries]
-    result = map_stitch.stitch(frames, hints=hints)
+    series = FixtureFrameSource(series_dir).collect()
+    frames = [f.image for f in series]
+    result = map_stitch.stitch(frames, hints=[f.hint for f in series])
 
     print("frame placements:")
-    for placement, entry in zip(result.placements, entries):
+    for seq, (placement, entry) in enumerate(zip(result.placements, series), start=1):
         cx, cy = placement.camera
         print(
-            f"  #{entry['seq']:02d} {entry['label']:<22} camera ({cx:+8.1f}, {cy:+8.1f})"
+            f"  #{seq:02d} {entry.label:<22} camera ({cx:+8.1f}, {cy:+8.1f})"
             f"  method {placement.method:<7} support {placement.support:2d}"
             f"  arcs {placement.arcs}"
         )

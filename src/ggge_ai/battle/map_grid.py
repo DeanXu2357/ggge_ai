@@ -14,9 +14,13 @@ corner that never moves (定案 1)."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
+
+if TYPE_CHECKING:
+    from .frame_source import MapFrame
 
 
 Cell = tuple[int, int]
@@ -479,6 +483,15 @@ def integrate(frames: list[FrameCells], hints: list[str | None] | None = None) -
         offsets=[offsets.get(f.index) for f in frames],
         conflicts=conflicts,
     )
+
+
+def read_board(frames: list["MapFrame"]) -> CellBoard:
+    """The interpretation half of the full-map scan: consume a collected
+    frame series (any FrameSource) and produce the board. Pure -- no
+    capture, no gestures; acquisition failures never reach here and
+    integration failures raise instead of guessing."""
+    series = read_series([f.image for f in frames])
+    return integrate(series, hints=[f.hint for f in frames])
 
 
 def read_series(frames: list[np.ndarray]) -> list[FrameCells]:

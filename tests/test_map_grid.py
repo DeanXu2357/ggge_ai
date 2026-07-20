@@ -10,23 +10,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import cv2
 import pytest
 
 from ggge_ai.battle import map_grid
+from ggge_ai.battle.frame_source import FixtureFrameSource
 
 SERIES = Path(__file__).parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
-HINTS = [None, "up", "up", "up", "up", "right", "down", "down", "down"]
 
 
 @pytest.fixture(scope="module")
 def board():
-    manifest = json.loads((SERIES / "manifest.json").read_text(encoding="utf-8"))
-    entries = sorted(manifest["frames"], key=lambda f: f["seq"])
-    frames = [cv2.imread(str(SERIES / e["image"])) for e in entries]
-    assert all(f is not None for f in frames)
-    series = map_grid.read_series(frames)
-    return map_grid.integrate(series, hints=HINTS)
+    return map_grid.read_board(FixtureFrameSource(SERIES).collect())
 
 
 @pytest.fixture(scope="module")
