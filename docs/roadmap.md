@@ -139,6 +139,21 @@ map-scan-survey.md 的實作藍圖第一階段（無陣營位置池）離線落�
   「zoom 拉到最遠」（現有標定即最遠 zoom，殘餘參數化降級為穩健性項）；
   流程解耦四接縫=FrameSource（可抽換取圖）/read_board（純函式）/
   inspect_unit（單一函式點開讀取）/backfill。
+- **07-20 續3（FrameSource 批1＋批1.5 落地，未碰實機）**：同步盤面解耦
+  開工。批1（16d4651）＝取圖/判讀接縫：`battle/frame_source.py`
+  （MapFrame=image+hint+measured_shift、FrameSource Protocol、
+  FixtureFrameSource manifest 重放）＋`map_grid.read_board` 純函式入口，
+  replay 腳本與測試改走接縫。批1.5（9c4b538）＝integrate 逐軸多通道
+  仲裁，回應使用者「單位集中一隅的地圖拼不拼得起來」：定位骨幹改為
+  地圖本身——邊界絕對註冊＋格線相位解纏（實測位移准到 1/3 格距即可）
+  ＋單位投票降為佐證；逐軸定位（單軸失敗的無單位幀仍當另一軸橋樑）；
+  通道衝突 fail-loud。驗收含極端情境測試（單位只留末幀，全鏈無單位
+  定位、offset 與密集板逐幀一致）。學到：單幀偵測有內容偏差（s24 幀9
+  偏東一格）——多幀支持與第二階段點擊複驗是內容保真度的正解。
+  573 tests/3 xfail 綠。**批2（controller 直接替換）發現時序耦合：舊弧色
+  census 的下游（survey/敵我分流）要等第二階段 inspect_unit 才有替代品，
+  cutover 應與第二階段同批落地**——順序改為批3a（LiveScanSource 離線
+  搬遷）＋第二階段實作 → 一次切換。
 - **恢復點**：①第二階段敵我辨識（逐單位點擊、橫幅停靠邊）仍未實作——
   右停靠錨點缺樣本照舊（候補：data/runs 留存幀考古）；出擊機可用
   「鈷藍環＋白VV」偵測器輔助判（未實作；使用者修正：VV=可操作提示會
