@@ -84,7 +84,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from enum import Enum
 
-from . import formulas
+from . import formulas, tension
 from .vocab import DecisionKind, Faction
 
 Cell = tuple[int, int]
@@ -788,6 +788,7 @@ def compute_damage(
     defense_multiplier: float,
     params: SimParams,
 ) -> int:
+    tension.warn_not_modeled()
     dmg = formulas.expected_damage(
         weapon.power,
         attacker.pilot_attack,
