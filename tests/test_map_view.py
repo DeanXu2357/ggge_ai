@@ -35,6 +35,7 @@ class FakePerception:
         self.i = 0
         self.modal = False
         self.cards = False
+        self.settings = False
 
     @property
     def view(self):
@@ -73,15 +74,17 @@ def _stub_vision(monkeypatch):
     # classify_view / collapse consult these; drive them off the fake
     monkeypatch.setattr(map_view.vision, "is_unit_detail_modal", lambda f: _CUR["modal"])
     monkeypatch.setattr(map_view.vision, "unit_cards_present", lambda f: _CUR["cards"])
+    monkeypatch.setattr(map_view.settings, "is_battle_tab_selected", lambda f: _CUR["settings"])
     yield
 
 
-_CUR = {"modal": False, "cards": False}
+_CUR = {"modal": False, "cards": False, "settings": False}
 
 
 def _bind(perc):
     _CUR["modal"] = perc.modal
     _CUR["cards"] = perc.cards
+    _CUR["settings"] = perc.settings
 
 
 def test_classify_hub():
@@ -103,6 +106,22 @@ def test_classify_substate_and_unknown():
 def test_classify_modal_wins():
     p = FakePerception(["unit_move"])
     p.modal = True
+    _bind(p)
+    assert map_view.classify_view(p) == "modal"
+
+
+def test_classify_settings():
+    p = FakePerception(["enemy"])  # settings page has no battle label
+    p.settings = True
+    _bind(p)
+    assert map_view.classify_view(p) == "settings"
+
+
+def test_classify_modal_beats_settings():
+    # both page predicates fire; the modal veto is ordered first and wins
+    p = FakePerception(["enemy"])
+    p.modal = True
+    p.settings = True
     _bind(p)
     assert map_view.classify_view(p) == "modal"
 

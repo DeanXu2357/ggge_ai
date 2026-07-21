@@ -20,7 +20,7 @@ import logging
 import time
 from collections.abc import Callable
 
-from . import vision
+from . import settings, vision
 
 log = logging.getLogger(__name__)
 
@@ -35,11 +35,12 @@ UNIT_LIST_COLLAPSE = (1970, 780)
 UNIT_DETAIL_CLOSE = (1176, 992)
 
 # classify_frame's return vocabulary, kept as a named closed set: classify_frame
-# is meant to grow into the project-wide page classifier (settings / unit-detail
-# and other non-battle pages land here in later tasks), so callers match these
-# names and never assume the frame is a battle screen.
+# is the project-wide page classifier (settings has landed here in T7; unit-detail
+# and other non-battle pages land in later tasks), so callers match these names
+# and never assume the frame is a battle screen.
 HUB = "hub"
 MODAL = "modal"
+SETTINGS = "settings"
 UNKNOWN = "unknown"
 
 # winning phase label -> state. A label absent here (the enemy-turn distractor)
@@ -52,11 +53,18 @@ _LABEL_STATES: dict[str, str] = {
 # frame-predicate page detectors, tried in order ahead of the phase-label
 # argmax; the first predicate that fires wins. A page that dims the map and
 # lets a phase label bleed through (the unit-detail modal) must be caught here,
-# before the labels. New non-battle pages slot in as (state, predicate) rows
-# without disturbing the argmax below. Predicates resolve the vision function
-# at call time (not import time) so the seam stays monkeypatchable.
+# before the labels. The settings page covers the map entirely and carries no
+# battle label, so its pixel probe sits ahead of the argmax too -- a stale
+# bled-through label can never outvote the exact settings-tab probe. Order is
+# modal-veto -> settings -> label argmax. Only the settings 戰鬥 tab is
+# calibrated today; other settings tabs (no battle-tab underline) fall through
+# to the argmax and resolve "unknown". New non-battle pages slot in as
+# (state, predicate) rows without disturbing the argmax below. Predicates
+# resolve the underlying function at call time (not import time) so the seam
+# stays monkeypatchable.
 _PAGE_DETECTORS: tuple[tuple[str, Callable[..., bool]], ...] = (
     (MODAL, lambda frame: vision.is_unit_detail_modal(frame)),
+    (SETTINGS, lambda frame: settings.is_battle_tab_selected(frame)),
 )
 
 # the full closed set of legal classify_frame return values
@@ -74,9 +82,12 @@ def _center(bbox) -> tuple[int, int]:
 
 def classify_frame(frame, detect: Callable[..., dict]) -> str:
     """Classify a single frame into one of VIEW_STATES: "hub" (top-level, safe,
-    max view), "modal" (unit-detail popup), a sub-state name ("unit_move"/
-    "weapon_select"/"skill"/"battle_prep"), or "unknown" (enemy turn,
-    transition, unclassified).
+    max view), "modal" (unit-detail popup), "settings" (the in-battle settings
+    panel on its 戰鬥 tab), a sub-state name ("unit_move"/"weapon_select"/
+    "skill"/"battle_prep"), or "unknown" (enemy turn, transition, unclassified).
+
+    Known limit: only the settings 戰鬥 tab is calibrated; other settings tabs
+    resolve "unknown".
 
     Pure: ``detect(element_ids, frame=frame) -> dict[id, element]`` is the only
     seam (``perception.probe`` in production, the recognizer in tests). Frame-
