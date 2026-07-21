@@ -1,0 +1,17 @@
+{
+  "check": "grid_setting",
+  "expect": null,
+  "box": [
+    1120,
+    150,
+    900,
+    500
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_not_settings_null.png",
+  "source": "tests/fixtures/vision/grid/hub_gridless_20260719.png",
+  "note": "非設定頁負樣本：太空地圖 hub（顯示方格 OFF 的地圖，非設定選單）。同一探針區在地圖上，read_grid_setting 必須 decline（None）。"
+}

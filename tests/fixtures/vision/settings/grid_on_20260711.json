@@ -1,0 +1,17 @@
+{
+  "check": "grid_setting",
+  "expect": "on",
+  "box": [
+    1120,
+    150,
+    900,
+    500
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "grid_on_20260711.png",
+  "source": "/home/poyu/workspace/project/ggge_ai/assets/screenshots/20260711-211356.png",
+  "note": "第二筆戰鬥籤設定頁、AUTO OFF、顯示方格 ON（20260711-211356，另一場戰局）。跨 session 交叉驗證 read_grid_setting 的 ON 判別。"
+}

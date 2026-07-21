@@ -1,0 +1,17 @@
+{
+  "check": "grid_setting",
+  "expect": "on",
+  "box": [
+    1120,
+    150,
+    900,
+    500
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "grid_on_20260706.png",
+  "source": "/home/poyu/workspace/project/ggge_ai/assets/screenshots/20260706-232851.png",
+  "note": "戰鬥籤設定頁、AUTO戰鬥 OFF、顯示方格 ON（20260706-232851）。crop 含四探針最小外接框＋margin：GRID_TOGGLE/GRID_PROBE(1963,591)、AUTO_BATTLE_OFF_PROBE(1179,295)、BATTLE_TAB_UNDERLINE(1613,201)。三 toggle 縱列 ON/ON/OFF 結構經像素驗證。"
+}
