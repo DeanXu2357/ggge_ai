@@ -31,11 +31,20 @@ import logging
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from typing import Protocol
 
 log = logging.getLogger(__name__)
 
 Point = tuple[float, float]
 Event = tuple[int, int, int]
+
+
+class Pincher(Protocol):
+    """The zoom seam the controller depends on: one call runs a whole two-finger
+    pinch. Both SendeventPincher and GesturePincher satisfy it; tests inject a
+    recorder."""
+
+    def pinch(self, finger_a: tuple[Point, Point], finger_b: tuple[Point, Point]) -> None: ...
 
 # --- Linux input event codes (decimal), confirmed via getevent -lp event7 ---
 EV_SYN = 0
@@ -253,6 +262,25 @@ class GesturePincher:
 
     def pinch(self, finger_a: tuple[Point, Point], finger_b: tuple[Point, Point]) -> None:
         self.gesture(finger_a[0], finger_b[0], finger_a[1], finger_b[1], self.steps)
+
+
+# the game's Unity render surface: the gesture is injected onto this view so it
+# lands on the map, not the surrounding chrome (measured this session)
+SURFACE_RESOURCE_ID = "com.bandainamcoent.gget_WW:id/unitySurfaceView"
+
+
+def gesture_pincher_for(
+    device, *, resource_id: str = SURFACE_RESOURCE_ID, steps: int = 40
+) -> GesturePincher:
+    """Wire a GesturePincher onto a uiautomator2 device -- the working non-root
+    backend on the SELinux-locked device (see the module docstring). Kept here
+    so every caller (flow, run_manual_battle, zoom_probe) builds it one way."""
+    return GesturePincher(
+        gesture=lambda s1, s2, e1, e2, n: device(resourceId=resource_id).gesture(
+            s1, s2, e1, e2, n
+        ),
+        steps=steps,
+    )
 
 
 def zoom_out_fingers(
