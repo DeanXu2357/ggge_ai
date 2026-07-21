@@ -1,0 +1,17 @@
+{
+  "check": "unit_detail_kind",
+  "expect": null,
+  "box": [
+    1000,
+    50,
+    400,
+    100
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "kind_hub.jpg",
+  "source": "tests/fixtures/vision/forecast/our_turn_unit_list_20260719.png",
+  "note": "our-turn hub: no unit-detail page open -> classify None."
+}
