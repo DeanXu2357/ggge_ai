@@ -25,11 +25,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from .audit import AUDIT_TOL_ABS, AUDIT_TOL_RATIO, check_hp_divergence
 from .identity import IdentityResolver
 from .observe import SIG_MATCH_RADIUS
 from .state import BattleState, Faction, Point
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from .audit import HpDivergence
     from .reconcile import PendingOutcome
     from .scout_intel import StageIntel
     from .vision import BattlePrepForecast, WeaponSelectForecast
@@ -53,6 +57,7 @@ _NAMESPACE = {
 class UnitBelief:
     sig: str
     faction: Faction
+    uid: str = ""
     hp: int | None = None
     en: int | None = None
     world_pos: Point | None = None
@@ -69,6 +74,10 @@ class BoardTracker:
     beliefs: dict[str, UnitBelief] = field(default_factory=dict)
     turn: int = 1
     resolver: IdentityResolver = field(default_factory=IdentityResolver)
+    # batch-B audit sink: fed a HpDivergence whenever a screen-read HP
+    # diverges from the carried belief past tolerance; None disables the
+    # audit (the ledger-less test configs). tracker never touches the ledger
+    on_hp_divergence: Callable[[HpDivergence], None] | None = None
 
     def _belief(
         self, sig: str, faction: Faction, world: Point | None = None
@@ -78,9 +87,10 @@ class BoardTracker:
             return None
         belief = self.beliefs.get(uid)
         if belief is None:
-            belief = UnitBelief(sig=sig, faction=faction)
+            belief = UnitBelief(sig=sig, faction=faction, uid=uid)
             self.beliefs[uid] = belief
         belief.sig = sig
+        belief.uid = uid
         return belief
 
     def _place(self, belief: UnitBelief, world: Point | None) -> None:
@@ -88,15 +98,33 @@ class BoardTracker:
             belief.world_pos = (float(world[0]), float(world[1]))
             belief.pos_turn = self.turn
 
-    def _set_hp(self, belief: UnitBelief, hp: int | None, en: int | None = None) -> None:
+    def _set_hp(
+        self, belief: UnitBelief, hp: int | None, en: int | None = None, *, source: str = ""
+    ) -> None:
         """Single sink for screen-confirmed HP/EN writes: writing HP stamps
         hp_turn to the current turn so consumers can tell a fresh read from a
-        carried belief. EN has no freshness column (it rides the same read)."""
+        carried belief. EN has no freshness column (it rides the same read).
+
+        This is also the batch-B audit seam: before a known prior HP is
+        overwritten, the observed value is checked against the carried belief
+        and any residual (damage/recovery from an event we never saw) is
+        reported to on_hp_divergence. Estimate subtraction and definition-file
+        seeding write belief.hp WITHOUT this sink and stay un-audited by
+        design; EN is not audited this batch (no freshness column)."""
         if hp is not None:
+            if self.on_hp_divergence is not None:
+                divergence = check_hp_divergence(
+                    belief, hp, self.turn, source,
+                    tol_abs=AUDIT_TOL_ABS, tol_ratio=AUDIT_TOL_RATIO,
+                )
+                if divergence is not None:
+                    self.on_hp_divergence(divergence)
             belief.hp = hp
             belief.hp_turn = self.turn
         if en is not None:
             belief.en = en
+        if source:
+            belief.source = source
 
     def on_turn(self, turn: int) -> None:
         self.turn = turn
@@ -106,9 +134,8 @@ class BoardTracker:
             belief = self._belief(sig, Faction.ENEMY, world=intel.positions.get(sig))
             if belief is None:
                 continue
-            self._set_hp(belief, summary.hp, summary.en)
+            self._set_hp(belief, summary.hp, summary.en, source="intel")
             self._place(belief, intel.positions.get(sig))
-            belief.source = "intel"
 
     def on_sig_position(
         self, sig: str, world: Point, faction: Faction = Faction.ENEMY
@@ -122,7 +149,7 @@ class BoardTracker:
         refresh hands back uid-keyed positions; no sig resolution here)."""
         belief = self.beliefs.get(uid)
         if belief is None:
-            belief = UnitBelief(sig=self.resolver.expected_sig(uid) or "", faction=faction)
+            belief = UnitBelief(sig=self.resolver.expected_sig(uid) or "", faction=faction, uid=uid)
             self.beliefs[uid] = belief
         self._place(belief, world)
 
@@ -136,15 +163,13 @@ class BoardTracker:
         if forecast.our_name_sig is not None:
             ours = self._belief(forecast.our_name_sig, Faction.ALLY, world=our_world)
             if ours is not None:
-                self._set_hp(ours, forecast.our_hp, forecast.our_en)
+                self._set_hp(ours, forecast.our_hp, forecast.our_en, source="forecast")
                 self._place(ours, our_world)
-                ours.source = "forecast"
         if forecast.target_name_sig is not None:
             target = self._belief(forecast.target_name_sig, Faction.ENEMY, world=target_world)
             if target is not None:
-                self._set_hp(target, forecast.target_hp, forecast.target_en)
+                self._set_hp(target, forecast.target_hp, forecast.target_en, source="forecast")
                 self._place(target, target_world)
-                target.source = "forecast"
 
     def on_battle_prep(self, prep: BattlePrepForecast) -> None:
         # panel factions are fixed on both prep variants -- left (attacker_*
@@ -161,8 +186,7 @@ class BoardTracker:
             belief = self._belief(sig, faction)
             if belief is None:
                 continue
-            self._set_hp(belief, hp, en)
-            belief.source = "prep"
+            self._set_hp(belief, hp, en, source="prep")
 
     def on_outcome(
         self, pending: PendingOutcome, result: str, *, delta: int | None = None
@@ -173,13 +197,12 @@ class BoardTracker:
         belief = self.beliefs.get(uid)
         if belief is None:
             sig = self.resolver.expected_sig(uid) or pending.expectation.target_sig_seen
-            belief = UnitBelief(sig=sig or "", faction=Faction.ENEMY)
+            belief = UnitBelief(sig=sig or "", faction=Faction.ENEMY, uid=uid)
             self.beliefs[uid] = belief
         killed = self._killed(pending, result, delta)
         if killed is True:
             belief.alive = False
-            self._set_hp(belief, 0)
-            belief.source = "outcome"
+            self._set_hp(belief, 0, source="outcome")
         elif killed is False and self._certain_hit(pending) and pending.game_damage is not None:
             before = belief.hp if belief.hp is not None else pending.target_hp_game
             if before is not None:
