@@ -26,34 +26,78 @@ log = logging.getLogger(__name__)
 
 HUB_LABEL = "label_our_turn"
 SUBSTATE_LABELS = ("label_unit_move", "label_weapon_select", "label_skill", "label_battle_prep")
-ALL_LABELS = (HUB_LABEL, *SUBSTATE_LABELS, "label_enemy_turn")
+ENEMY_TURN_LABEL = "label_enemy_turn"
+ALL_LABELS = (HUB_LABEL, *SUBSTATE_LABELS, ENEMY_TURN_LABEL)
 RETURN_BUTTON = "btn_battle_return"
 
 # card-strip toggle: ▽(1970,780) collapses an open strip, ▲(1970,1010) expands
 UNIT_LIST_COLLAPSE = (1970, 780)
 UNIT_DETAIL_CLOSE = (1176, 992)
 
+# classify_frame's return vocabulary, kept as a named closed set: classify_frame
+# is meant to grow into the project-wide page classifier (settings / unit-detail
+# and other non-battle pages land here in later tasks), so callers match these
+# names and never assume the frame is a battle screen.
+HUB = "hub"
+MODAL = "modal"
+UNKNOWN = "unknown"
+
+# winning phase label -> state. A label absent here (the enemy-turn distractor)
+# falls through to UNKNOWN, so a non-actionable banner never reads as a page.
+_LABEL_STATES: dict[str, str] = {
+    HUB_LABEL: HUB,
+    **{label: label.removeprefix("label_") for label in SUBSTATE_LABELS},
+}
+
+# frame-predicate page detectors, tried in order ahead of the phase-label
+# argmax; the first predicate that fires wins. A page that dims the map and
+# lets a phase label bleed through (the unit-detail modal) must be caught here,
+# before the labels. New non-battle pages slot in as (state, predicate) rows
+# without disturbing the argmax below. Predicates resolve the vision function
+# at call time (not import time) so the seam stays monkeypatchable.
+_PAGE_DETECTORS: tuple[tuple[str, Callable[..., bool]], ...] = (
+    (MODAL, lambda frame: vision.is_unit_detail_modal(frame)),
+)
+
+# the full closed set of legal classify_frame return values
+VIEW_STATES: tuple[str, ...] = (
+    *(state for state, _ in _PAGE_DETECTORS),
+    HUB,
+    *(_LABEL_STATES[label] for label in SUBSTATE_LABELS),
+    UNKNOWN,
+)
+
 
 def _center(bbox) -> tuple[int, int]:
     return (int(bbox.x + bbox.w / 2), int(bbox.y + bbox.h / 2))
 
 
-def classify_view(perception, frame=None) -> str:
-    """One of: "hub" (top-level, safe, max view), "modal" (unit-detail popup),
-    a sub-state name ("unit_move"/"weapon_select"/"skill"/"battle_prep"), or
-    "unknown" (enemy turn, transition, unclassified)."""
-    frame = perception.capture() if frame is None else frame
-    if vision.is_unit_detail_modal(frame):
-        return "modal"
-    found = perception.probe(ALL_LABELS, frame=frame)
+def classify_frame(frame, detect: Callable[..., dict]) -> str:
+    """Classify a single frame into one of VIEW_STATES: "hub" (top-level, safe,
+    max view), "modal" (unit-detail popup), a sub-state name ("unit_move"/
+    "weapon_select"/"skill"/"battle_prep"), or "unknown" (enemy turn,
+    transition, unclassified).
+
+    Pure: ``detect(element_ids, frame=frame) -> dict[id, element]`` is the only
+    seam (``perception.probe`` in production, the recognizer in tests). Frame-
+    predicate page detectors (_PAGE_DETECTORS) run first because such a page
+    dims the map behind itself and a phase label can bleed through; whatever
+    none of them claim then resolves by phase-label argmax through _LABEL_STATES,
+    with the enemy-turn distractor falling through to "unknown"."""
+    for state, detected in _PAGE_DETECTORS:
+        if detected(frame):
+            return state
+    found = detect(ALL_LABELS, frame=frame)
     if not found:
-        return "unknown"
+        return UNKNOWN
     best = max(found, key=lambda k: found[k].confidence)
-    if best == HUB_LABEL:
-        return "hub"
-    if best in SUBSTATE_LABELS:
-        return best.removeprefix("label_")
-    return "unknown"
+    return _LABEL_STATES.get(best, UNKNOWN)
+
+
+def classify_view(perception, frame=None) -> str:
+    """``classify_frame`` on a captured frame, probing through perception."""
+    frame = perception.capture() if frame is None else frame
+    return classify_frame(frame, perception.probe)
 
 
 def is_top_hub(perception, frame=None) -> bool:
