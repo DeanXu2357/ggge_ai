@@ -23,7 +23,7 @@ import cv2
 import numpy as np
 import pytest
 
-from ggge_ai.battle import panels, vision
+from ggge_ai.battle import panels, settings, vision
 from ggge_ai.battle.controller import DISTRACTOR_LABELS, MODE_LABELS, resolve_mode
 from ggge_ai.actuation.keyguard import Keyguard
 from ggge_ai.vision import digits
@@ -198,6 +198,14 @@ def _check_grid_lattice(frame: np.ndarray, expect: dict[str, Any] | None) -> Non
     assert list(got[1]) == expect["rows"], f"rows {got[1]}"
 
 
+def _check_grid_setting(frame: np.ndarray, expect: str | None) -> None:
+    """The 顯示方格 settings-toggle reader (design principle 5, T2). expect is
+    "on"/"off"/null -- null pins a decline (the frame is not the battle-tab
+    settings page, so the toggle pixel matches neither state)."""
+    got = settings.read_grid_setting(frame)
+    assert got == expect, f"got {got!r}, want {expect!r}"
+
+
 def _check_defender_slot(frame: np.ndarray, expect: list[int] | None) -> None:
     """The arithmetic stance-menu entry point: avatar-row hit tokens + the
     support-defense label in, defender slot center out. expect=null pins
@@ -263,6 +271,7 @@ CHECKS = {
     "reaction_stance_menu": _check_stance_menu,
     "defender_avatar_slot": _check_defender_slot,
     "grid_lattice": _check_grid_lattice,
+    "grid_setting": _check_grid_setting,
     "enemy_summary": _forecast_check(vision.read_enemy_summary),
     "unit_stats": _forecast_check(panels.parse_unit_stats),
     "weapon_rows": _check_weapon_rows,

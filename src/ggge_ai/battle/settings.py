@@ -44,9 +44,13 @@ def _pixel(frame: np.ndarray, xy: tuple[int, int]) -> tuple[int, int, int] | Non
     return b, g, r
 
 
-def _grid_state(frame: np.ndarray) -> str | None:
-    """"on"/"off" from the toggle's right-slot pixel, None when the pixel
-    matches neither state (settings page not on screen / wrong tab)."""
+def read_grid_setting(frame: np.ndarray) -> str | None:
+    """"on"/"off" from the 顯示方格 toggle's right-slot pixel, None when the
+    pixel matches neither state (settings page not on screen / wrong tab).
+
+    Pure recognition over the passed frame -- never captures -- so every
+    confirmation point is replayable offline against a fixture (design
+    principle 5)."""
     px = _pixel(frame, GRID_PROBE)
     if px is None:
         return None
@@ -58,8 +62,9 @@ def _grid_state(frame: np.ndarray) -> str | None:
     return None
 
 
-def _auto_battle_is_off(frame: np.ndarray) -> bool:
-    """The AUTO戰鬥 OFF hexagon stays teal-filled while OFF is selected."""
+def is_auto_battle_off(frame: np.ndarray) -> bool:
+    """The AUTO戰鬥 OFF hexagon stays teal-filled while OFF is selected.
+    Pure frame recognition; the red-line guard re-reads it every step."""
     px = _pixel(frame, AUTO_BATTLE_OFF_PROBE)
     if px is None:
         return False
@@ -67,8 +72,9 @@ def _auto_battle_is_off(frame: np.ndarray) -> bool:
     return g > 180 and b > 180
 
 
-def _battle_tab_selected(frame: np.ndarray) -> bool:
-    """Salmon underline under the 戰鬥 tab text marks it selected."""
+def is_battle_tab_selected(frame: np.ndarray) -> bool:
+    """Salmon underline under the 戰鬥 tab text marks it selected.
+    Pure frame recognition; the panel reopens on the last-used tab."""
     px = _pixel(frame, BATTLE_TAB_UNDERLINE)
     if px is None:
         return False
@@ -80,8 +86,25 @@ def set_battle_grid(capture, tap, desired_on: bool, *, sleep=time.sleep) -> bool
     """Drive 顯示方格 to `desired_on` through the battle menu and leave the
     menus closed. True when the toggle was verified in the desired state;
     False on any unverified step (the flow still escapes through the close
-    buttons so the battle screen comes back either way)."""
-    ok = False
+    buttons so the battle screen comes back either way).
+
+    The flow alternates operation steps (menu taps) with pure recognition
+    confirmations (the module's read_* probes over the captured frame):
+      1. operate: open the battle menu -> settings -> 戰鬥 tab.
+      2. confirm: on the 戰鬥 tab AND AUTO戰鬥 still OFF (the red line);
+         bail to close otherwise -- never flip a toggle off this page.
+      3. confirm: read the current 顯示方格 state.
+      4. operate: flip it only when it differs from `desired_on`.
+      5. confirm: re-read the state AND re-assert AUTO戰鬥 OFF.
+      6. operate: close settings and the menu (always, fail-soft)."""
+    want = "on" if desired_on else "off"
+
+    def close() -> None:
+        tap(*SETTINGS_CLOSE)
+        sleep(1.2)
+        tap(*BATTLE_MENU_CLOSE)
+        sleep(1.2)
+
     tap(*BATTLE_MENU_BTN)
     sleep(1.5)
     tap(*BATTLE_MENU_SETTINGS)
@@ -89,25 +112,22 @@ def set_battle_grid(capture, tap, desired_on: bool, *, sleep=time.sleep) -> bool
     tap(*SETTINGS_BATTLE_TAB)
     sleep(1.2)
     frame = capture()
-    if _battle_tab_selected(frame) and _auto_battle_is_off(frame):
-        state = _grid_state(frame)
-        if state == ("on" if desired_on else "off"):
+
+    ok = False
+    on_battle_tab = is_battle_tab_selected(frame) and is_auto_battle_off(frame)
+    if on_battle_tab:
+        state = read_grid_setting(frame)
+        if state == want:
             ok = True
         elif state is not None:
             tap(*GRID_TOGGLE)
             sleep(1.0)
             frame = capture()
-            ok = (
-                _grid_state(frame) == ("on" if desired_on else "off")
-                and _auto_battle_is_off(frame)
-            )
+            ok = read_grid_setting(frame) == want and is_auto_battle_off(frame)
+
     if not ok:
         log.warning(
-            "battle-grid toggle unverified (desired %s); scanning without it",
-            "on" if desired_on else "off",
+            "battle-grid toggle unverified (desired %s); scanning without it", want
         )
-    tap(*SETTINGS_CLOSE)
-    sleep(1.2)
-    tap(*BATTLE_MENU_CLOSE)
-    sleep(1.2)
+    close()
     return ok
