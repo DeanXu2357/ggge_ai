@@ -66,7 +66,8 @@ def _log_settings_page_state(perception, tap, keyguard) -> None:
     (classify_frame should read "settings" here), then close back out. Pure
     logging: set_battle_grid's own toggle-pixel confirmations stay the in-page
     authority; classify_frame is only the cross-flow page vocabulary, so this
-    step never gates the toggle flow. Fail-soft -- always escapes the menus."""
+    step never gates the toggle flow. Fail-soft: the close taps run in a finally
+    so the menus are always escaped even if the probe raises."""
     keyguard.ensure_unlocked()
     tap(*settings.BATTLE_MENU_BTN)
     time.sleep(1.5)
@@ -74,11 +75,13 @@ def _log_settings_page_state(perception, tap, keyguard) -> None:
     time.sleep(1.8)
     tap(*settings.SETTINGS_BATTLE_TAB)
     time.sleep(1.2)
-    log.info("settings page classify_frame -> %s", map_view.classify_view(perception))
-    tap(*settings.SETTINGS_CLOSE)
-    time.sleep(1.2)
-    tap(*settings.BATTLE_MENU_CLOSE)
-    time.sleep(1.2)
+    try:
+        log.info("settings page classify_frame -> %s", map_view.classify_view(perception))
+    finally:
+        tap(*settings.SETTINGS_CLOSE)
+        time.sleep(1.2)
+        tap(*settings.BATTLE_MENU_CLOSE)
+        time.sleep(1.2)
 
 
 def main() -> None:

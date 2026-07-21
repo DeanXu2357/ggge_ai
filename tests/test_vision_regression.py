@@ -122,10 +122,12 @@ def _check_mode_label(frame: np.ndarray, expect: dict[str, Any]) -> None:
 
 
 def _check_map_view_state(frame: np.ndarray, expect: dict[str, Any]) -> None:
-    """map_view.classify_frame on a real screenshot: the modal veto, then the
+    """map_view.classify_frame on a real screenshot: the page-predicate vetoes
+    (the unit-detail modal, then the settings 戰鬥-tab underline), then the
     phase-label argmax, exactly as classify_view runs it. The injected detect
     mirrors perception.probe -- the same recognizer + element gate as
-    _check_mode_label. expect: {"state": "hub"/"unit_move"/.../"modal"/"unknown"}."""
+    _check_mode_label.
+    expect: {"state": "hub"/"unit_move"/.../"modal"/"settings"/"unknown"}."""
 
     def detect(element_ids: Any, frame: np.ndarray | None = None) -> dict[str, Any]:
         elements = _recognizer().detect_elements(frame, element_ids)
