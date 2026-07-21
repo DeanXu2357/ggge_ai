@@ -239,6 +239,12 @@ def _check_weapon_rows(frame: np.ndarray, expect: list[dict[str, Any]]) -> None:
             assert actual == value, f"row {i} {key}: got {actual!r}, want {value!r}"
 
 
+def _check_unit_detail_kind(frame: np.ndarray, expect: str | None) -> None:
+    """classify_unit_detail: "modal" / "basic" / null (page not open)."""
+    got = vision.classify_unit_detail(frame)
+    assert got == expect, f"got {got!r}, want {expect!r}"
+
+
 def _check_digit_read(frame: np.ndarray, expect: dict[str, Any]) -> None:
     """Template-digit OCR over a HUD region. expect:
     {"region": [x,y,w,h], "digit_height": 30, "kind": "number|fraction|percent|text",
@@ -291,6 +297,8 @@ CHECKS = {
     "enemy_summary": _forecast_check(vision.read_enemy_summary),
     "unit_stats": _forecast_check(panels.parse_unit_stats),
     "weapon_rows": _check_weapon_rows,
+    "unit_detail_kind": _check_unit_detail_kind,
+    "unit_detail_basic": _forecast_check(vision.read_unit_detail_basic),
 }
 
 

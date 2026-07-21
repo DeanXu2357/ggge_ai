@@ -1368,3 +1368,107 @@ def read_battle_prep_forecast(frame: np.ndarray) -> BattlePrepForecast | None:
         support_defense=has_support_defense_label(frame) if is_reaction else None,
         available_stances=None,
     )
+
+
+# is_unit_detail_modal matches the 單位設置詳情 title band, which both the 詳情
+# (組合/武裝/能力 tabs) detail and the 基本資訊 side-by-side overview share, so
+# it cannot tell the two apart. The top-right toggle text does: the 詳情 view
+# offers "基本資訊", the 基本資訊 view offers "詳情". This template is the "詳情"
+# text alone (right of the shared shuffle icon, so that icon cannot inflate the
+# score); measured 1.0 on the basic view, 0.57 on the 詳情/tab view and <0.2 on
+# the hub, a wide gap around the 0.8 gate. The label is a fixed UI control,
+# identical for every unit.
+UNIT_DETAIL_BASIC_TOGGLE_TEMPLATE = (
+    Path(__file__).resolve().parents[3]
+    / "assets"
+    / "templates"
+    / "elements"
+    / "unit_detail_basic_toggle.png"
+)
+UNIT_DETAIL_BASIC_TOGGLE_REGION = (1900, 62, 200, 64)
+UNIT_DETAIL_BASIC_TOGGLE_THRESHOLD = 0.8
+
+# basic-view value regions (2340x1080 reference). the mech stat column
+# (LV/HP/EN/移動力) and the pilot LV/SP are dark-on-light modal digits, read
+# inverted like parse_unit_stats; MP is a white k/m fraction over the pilot
+# 氣力 bar and reads with the "basic" glyph set (modal digits + a slash cut
+# from this view, since modal has no slash and mis-reads a bare / as 7).
+UDB_MACHINE_LV_REGION = (1150, 222, 200, 44)
+UDB_MACHINE_HP_REGION = (1150, 280, 200, 44)
+UDB_MACHINE_EN_REGION = (1150, 338, 200, 44)
+UDB_MACHINE_MOVE_REGION = (1270, 412, 56, 44)
+UDB_PILOT_LV_REGION = (1930, 222, 160, 44)
+UDB_PILOT_SP_REGION = (1970, 280, 120, 44)
+UDB_PILOT_MP_REGION = (1786, 606, 80, 44)
+UDB_DIGIT_HEIGHT = 30
+
+
+@dataclass(frozen=True)
+class UnitDetailBasic:
+    """The 基本資訊 overview of the 單位設置詳情 page -- the one view that shows
+    the pilot's SP and MP together. Every field is None when its region did
+    not read (never guessed); a partial read is kept. 戰鬥力 (both the mech
+    and pilot combat-power numbers) is deliberately absent: it is a styled
+    gradient font with a thousands comma that neither the modal nor hud glyph
+    set reads, and a wrong number is worse than none. mp_current/mp_max come
+    from the pilot 氣力 k/m fraction."""
+
+    machine_lv: int | None
+    machine_hp: int | None
+    machine_en: int | None
+    machine_move: int | None
+    pilot_lv: int | None
+    pilot_sp: int | None
+    pilot_mp_current: int | None
+    pilot_mp_max: int | None
+
+
+def classify_unit_detail(frame: np.ndarray) -> str | None:
+    """Which 單位設置詳情 layout is on screen: "modal" (the 組合/武裝/能力 tab
+    detail read by parse_unit_stats / parse_weapon_rows) or "basic" (the 基本
+    資訊 overview read by read_unit_detail_basic), or None when the page is not
+    open. Both layouts share the title band is_unit_detail_modal keys on, so
+    the basic-only toggle text is the discriminator."""
+    if not is_unit_detail_modal(frame):
+        return None
+    template = _cached_template(str(UNIT_DETAIL_BASIC_TOGGLE_TEMPLATE))
+    if template is None:
+        return "modal"
+    band = cv2.cvtColor(_crop(frame, UNIT_DETAIL_BASIC_TOGGLE_REGION), cv2.COLOR_BGR2GRAY)
+    tgray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    if band.shape[0] < tgray.shape[0] or band.shape[1] < tgray.shape[1]:
+        return "modal"
+    score = float(cv2.matchTemplate(band, tgray, cv2.TM_CCOEFF_NORMED).max())
+    return "basic" if score >= UNIT_DETAIL_BASIC_TOGGLE_THRESHOLD else "modal"
+
+
+def read_unit_detail_basic(frame: np.ndarray) -> UnitDetailBasic | None:
+    """Mech HP/EN/LV/移動力 and pilot LV/SP/MP off the 基本資訊 overview, or None
+    when that view is not open (classify_unit_detail != "basic"). See
+    UnitDetailBasic for the fields and the 戰鬥力 omission."""
+    if classify_unit_detail(frame) != "basic":
+        return None
+
+    def stat(region: tuple[int, int, int, int]) -> int | None:
+        return digits.read_number(
+            frame,
+            region,
+            digit_height=UDB_DIGIT_HEIGHT,
+            font="modal",
+            invert=True,
+            allow_minus=False,
+        )
+
+    mp = digits.read_fraction(
+        frame, UDB_PILOT_MP_REGION, digit_height=UDB_DIGIT_HEIGHT, font="basic", invert=False
+    )
+    return UnitDetailBasic(
+        machine_lv=stat(UDB_MACHINE_LV_REGION),
+        machine_hp=stat(UDB_MACHINE_HP_REGION),
+        machine_en=stat(UDB_MACHINE_EN_REGION),
+        machine_move=stat(UDB_MACHINE_MOVE_REGION),
+        pilot_lv=stat(UDB_PILOT_LV_REGION),
+        pilot_sp=stat(UDB_PILOT_SP_REGION),
+        pilot_mp_current=mp[0] if mp else None,
+        pilot_mp_max=mp[1] if mp else None,
+    )

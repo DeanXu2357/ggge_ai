@@ -1,0 +1,17 @@
+{
+  "check": "unit_detail_kind",
+  "expect": "modal",
+  "box": [
+    1000,
+    50,
+    1100,
+    90
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "kind_modal.jpg",
+  "source": "tests/fixtures/vision/forecast/unit_detail_combined_20260719.png",
+  "note": "組合資訊 tab detail: shares the 單位設置詳情 title, but its toggle reads '基本資訊' (0.57) -> modal."
+}
