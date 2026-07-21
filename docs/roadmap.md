@@ -1,9 +1,8 @@
 # 進度與規劃
 
-更新日期：2026-07-20（最新里程碑＝**07-20 離線地圖拼接＋標準答案落地**（見
-暫停快照）；前一里程碑＝07-19 晚 S9d 應戰 UI 辨識落地；tick 收攏見 07-19 段；
-router middleware 見 07-18 段；工程重構批次見 07-17 段；07-15 S9d 應戰路徑
-整併落地。前情：S 批次離線段 S0-S8 全落地）
+更新日期：2026-07-21（最新里程碑＝**07-21 協調者管線日：操作/辨識分離
+＋#27 三批＋MP 假設庫全離線落地**（見暫停快照）；前一里程碑＝07-20
+離線地圖拼接＋標準答案落地；S9d/tick/middleware/重構見各日期段）
 
 **2026-07-17 離線工程重構（行為不變、非里程碑）**：`ManualBattleController.run()`
 兩項結構整理——① 每圈單次截圖：中斷偵測器（終局/敗北/隱藏關/modal/劇情）
@@ -86,7 +85,67 @@ lambda 內化成表上 `repair` 欄，`ends_activation` 取代散落的 reset。
 503 tests/3 xfail、ruff 全綠；文件 battle-phase-states.md「期望轉移驗證」。
 **裝置現況與 S9 恢復點不變，見下。**
 
-## 暫停快照（2026-07-20 離線地圖拼接＋標準答案落地，恢復點）
+## 暫停快照（2026-07-21 協調者管線日，恢復點）
+
+**本日（純離線、未碰實機、adb no permissions 待 seat0 桌面登入）**：
+使用者定調兩件工作模式：①**操作/辨識分離**入 agent-architecture.md
+設計原則 5（辨識收 frame 參數可 fixture 驗證、流程拆操作/狀態確認、
+每條實機流程配獨立 probe 腳本）；②**協調者 pipeline 正式化**（主
+session 寫 plan → opus subagent worktree 分支開發 → fable5 subagent
+針對性驗證 → 主 session 整合；網路調查產出先與使用者核對再落檔）。
+十個任務全數走完 pipeline、tip 7fe8270、**706 tests/3 xfailed、ruff 綠**：
+
+- **T1** 盤面狀態辨識庫：`map_view.classify_frame` 純函式＋表驅動偵測器
+  ＋封閉詞彙、`vision.grid_pitch`/`zoom_at_max`（閾值 113=98.5/127.5
+  中點）、11 fixture 幾乎全重用既有圖。
+- **T2** 切格線流程：三像素探針公開化（`read_grid_setting` 等）、六步
+  操作/確認交替、設定頁 ON 真圖 fixture×2（OFF 態全庫無樣本、入缺樣
+  清單）、`scripts/grid_toggle_probe.py`。
+- **T3** zoom 冷掃前置：`Pincher` 注入（uiautomator gesture 工廠）、
+  full_scan 前置序列（退頂層→開格→拉最遠→`zoom_at_max` 驗證）、
+  兩輪不過=SurveyIncomplete fail-fast（**每場首回合都會攔，錯 zoom
+  掃描=垃圾**）；probe try/finally、`ensure_battle_grid` 共用。
+- **T4 批A**：`UnitBelief.hp_turn` 鮮度欄（`_set_hp` 統一收斂、estimate/
+  定義檔不蓋章）＋`board_belief` 每回合快照（timeline 閘門含 turn 1）。
+- **T5 批B**：`battle/audit.py` 騎 `_set_hp` 覆寫前對帳、殘差記
+  `unattributed_damage`（v1 容差 0 資料最大化）；`UnitBelief.uid`。
+- **T6 批C**：`agent/closure.py`＋`scripts/audit_run.py`——board_belief
+  錨定重建 HP 時間線、完備性分數=1−未解殘差率（隱含歸功、擊殺殘差
+  另歸類、第三方只 flag 方向）、舊格式優雅降級。
+- **T7** classify_frame 加 `settings` 態；驗證抓到 major：
+  `is_battle_tab_selected` 單像素在 hub 淺色地形誤判（444 張掃出）→
+  返修為底線幾何（線段比例＋上下護欄），複掃 9→2 僅剩真設定頁，
+  回歸 fixture 釘住。
+- **T8** 單位詳情「基本資訊」視圖：`classify_unit_detail`（切換鈕文字
+  判別，`is_unit_detail_modal` 對 basic 視圖會誤 True）、
+  `read_unit_detail_basic`（HP/EN/SP/**MP** 全欄 OCR 驗證、`basic` 字型
+  =modal 複本＋slash）；單樣本過擬合風險入缺樣清單；form D（動作選單
+  MP）渲染讀不出、刻意跳過。
+- **T9/T9b** MP/激昂調查（`docs/mp-tension.md` 假設庫）＋使用者裁決：
+  MP=激昂 0-12 滿 12 超一擊；**一般機不歸零、跨回合完整保留（使用者
+  證實）**；必暴/強化超一擊=特殊機專屬；階段表（4/8/12→+10/20/30%
+  加算桶）7 源一致**定案進機制層**；「出入」歸因=暴擊倍率獨立軸
+  （1.1/1.2/1.2/1.3）＋加算桶；MP 增減值三源互斥=打表最高優先。
+- **T10 佔位**：`sim/tension.py` 已定案常數＋`compute_damage` warn-once
+  「MP 未建模」；完整建模等 C2 打表（使用者裁決）。發現 `formulas.py`
+  的 CRIT_HIGH_MORALE/CRIT_SUPER 是死常數，接線時收斂單一權威。
+
+**新文件**：`live-verification-queue.md`（實機驗證佇列＋缺樣本清單）、
+`live-test-plan.md`（**run-book：場次 A 非破壞蒐樣→B 冷掃全鏈路→C 戰鬥
+＋C2 MP 打表→D 機會型；BLOCKING 攔截點協定=停下請使用者操作到指定
+畫面→session 截圖→探針驗收**）、`mp-tension.md`。
+
+**恢復點**：①adb 恢復（seat0 桌面實體登入）後照 live-test-plan 逐場
+執行——場次 A 含 OFF 態設定頁/基本資訊視圖第二樣本等缺樣攔截，場次 B
+=cutover 冷掃全鏈路首驗（T3 後 zoom 失敗會 survey_abort，首跑留意）；
+②T10 完整建模等 C2 打表定案 MP 增減值；③驗證回報的 minor 殘項：T5
+prep→forecast 跨 source 斷言、T6 run_summary 雙場加權測試、tension
+出界測試，後續順手。
+
+**裝置現況**：本日未碰實機；戰局仍停活動關 TURN 1 our-turn hub（可
+放棄退體力）；`data/cache/stages/` ex2if schema-3 定義檔在。
+
+## 2026-07-20 離線地圖拼接＋標準答案落地（前恢復點）
 
 **本 session（07-19 深夜～07-20，純離線＋subagent 讀圖，未操作實機）**：
 map-scan-survey.md 的實作藍圖第一階段（無陣營位置池）離線落地，issue #26。
