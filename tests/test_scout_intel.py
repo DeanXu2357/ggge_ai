@@ -404,6 +404,8 @@ def test_ensure_definition_cold_start_surveys_and_adopts(tmp_path, monkeypatch):
     assert set(c._id_positions) == {"e01", "e02", "e03"}
     assert c.tracker.beliefs["e01"].hp == 51349
     assert c.tracker.beliefs["e01"].source == "definition"
+    # definition HP is a file opening value, never screen-confirmed
+    assert c.tracker.beliefs["e01"].hp_turn == 0
 
 
 def test_ensure_definition_warm_start_validates_and_adopts(tmp_path, monkeypatch):

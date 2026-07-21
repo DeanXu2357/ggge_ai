@@ -57,6 +57,9 @@ class UnitBelief:
     en: int | None = None
     world_pos: Point | None = None
     pos_turn: int = 0
+    # the turn this HP was last confirmed from the screen (mirrors pos_turn);
+    # 0 means never screen-confirmed, e.g. a definition-file opening value
+    hp_turn: int = 0
     alive: bool = True
     source: str = ""
 
@@ -85,6 +88,16 @@ class BoardTracker:
             belief.world_pos = (float(world[0]), float(world[1]))
             belief.pos_turn = self.turn
 
+    def _set_hp(self, belief: UnitBelief, hp: int | None, en: int | None = None) -> None:
+        """Single sink for screen-confirmed HP/EN writes: writing HP stamps
+        hp_turn to the current turn so consumers can tell a fresh read from a
+        carried belief. EN has no freshness column (it rides the same read)."""
+        if hp is not None:
+            belief.hp = hp
+            belief.hp_turn = self.turn
+        if en is not None:
+            belief.en = en
+
     def on_turn(self, turn: int) -> None:
         self.turn = turn
 
@@ -93,10 +106,7 @@ class BoardTracker:
             belief = self._belief(sig, Faction.ENEMY, world=intel.positions.get(sig))
             if belief is None:
                 continue
-            if summary.hp is not None:
-                belief.hp = summary.hp
-            if summary.en is not None:
-                belief.en = summary.en
+            self._set_hp(belief, summary.hp, summary.en)
             self._place(belief, intel.positions.get(sig))
             belief.source = "intel"
 
@@ -126,19 +136,13 @@ class BoardTracker:
         if forecast.our_name_sig is not None:
             ours = self._belief(forecast.our_name_sig, Faction.ALLY, world=our_world)
             if ours is not None:
-                if forecast.our_hp is not None:
-                    ours.hp = forecast.our_hp
-                if forecast.our_en is not None:
-                    ours.en = forecast.our_en
+                self._set_hp(ours, forecast.our_hp, forecast.our_en)
                 self._place(ours, our_world)
                 ours.source = "forecast"
         if forecast.target_name_sig is not None:
             target = self._belief(forecast.target_name_sig, Faction.ENEMY, world=target_world)
             if target is not None:
-                if forecast.target_hp is not None:
-                    target.hp = forecast.target_hp
-                if forecast.target_en is not None:
-                    target.en = forecast.target_en
+                self._set_hp(target, forecast.target_hp, forecast.target_en)
                 self._place(target, target_world)
                 target.source = "forecast"
 
@@ -157,10 +161,7 @@ class BoardTracker:
             belief = self._belief(sig, faction)
             if belief is None:
                 continue
-            if hp is not None:
-                belief.hp = hp
-            if en is not None:
-                belief.en = en
+            self._set_hp(belief, hp, en)
             belief.source = "prep"
 
     def on_outcome(
@@ -177,11 +178,12 @@ class BoardTracker:
         killed = self._killed(pending, result, delta)
         if killed is True:
             belief.alive = False
-            belief.hp = 0
+            self._set_hp(belief, 0)
             belief.source = "outcome"
         elif killed is False and self._certain_hit(pending) and pending.game_damage is not None:
             before = belief.hp if belief.hp is not None else pending.target_hp_game
             if before is not None:
+                # subtraction estimate, not a screen read: leave hp_turn stale
                 belief.hp = max(1, before - pending.game_damage)
                 belief.source = "estimate"
 
@@ -235,13 +237,14 @@ class BoardTracker:
         return notes
 
     def _fill(self, unit, belief: UnitBelief, notes: list[str]) -> None:
-        stale = f", position from turn {belief.pos_turn}" if belief.pos_turn < self.turn else ""
+        pos_stale = f", position from turn {belief.pos_turn}" if belief.pos_turn < self.turn else ""
+        hp_stale = f", hp from turn {belief.hp_turn}" if belief.hp_turn < self.turn else ""
         if unit.hp is None and belief.hp is not None:
             unit.hp = belief.hp
-            notes.append(f"{unit.unit_id}: HP {belief.hp} from tracker ({belief.source}{stale})")
+            notes.append(f"{unit.unit_id}: HP {belief.hp} from tracker ({belief.source}{hp_stale})")
         if unit.en is None and belief.en is not None:
             unit.en = belief.en
-            notes.append(f"{unit.unit_id}: EN {belief.en} from tracker ({belief.source}{stale})")
+            notes.append(f"{unit.unit_id}: EN {belief.en} from tracker ({belief.source}{pos_stale})")
 
     @staticmethod
     def _nearest_ally(battle: BattleState, world: Point, taken: set[str]):

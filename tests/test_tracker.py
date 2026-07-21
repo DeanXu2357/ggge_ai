@@ -201,3 +201,79 @@ def test_apply_skips_far_ally_beliefs():
     battle.add_unit(UnitState("ally_1", Faction.ALLY, world_pos=(900.0, 900.0)))
     t.apply(battle)
     assert battle.unit("ally_1").hp is None
+
+
+def test_intel_stamps_hp_turn():
+    t = BoardTracker()
+    t.on_turn(4)
+    intel = StageIntel()
+    intel.summaries[ENEMY_SIG] = EnemySummary(name_sig=ENEMY_SIG, hp=51349, en=300)
+    intel.positions[ENEMY_SIG] = (420, 30)
+    t.on_intel(intel)
+    assert t.beliefs[ENEMY_UID].hp_turn == 4
+
+
+def test_weapon_select_stamps_hp_turn_on_both_sides():
+    t = BoardTracker()
+    t.on_turn(3)
+    t.on_weapon_select(_forecast())
+    assert t.beliefs[ALLY_UID].hp_turn == 3
+    assert t.beliefs[ENEMY_UID].hp_turn == 3
+
+
+def test_battle_prep_stamps_hp_turn():
+    t = BoardTracker()
+    t.on_turn(2)
+    t.on_battle_prep(_prep())
+    assert t.beliefs[ENEMY_UID].hp_turn == 2
+    assert t.beliefs[ALLY_UID].hp_turn == 2
+
+
+def test_kill_outcome_stamps_hp_turn():
+    # 破壞數 confirms hp=0 from the screen, so freshness advances to now
+    t = BoardTracker()
+    t.on_turn(2)
+    t.on_weapon_select(_forecast(), target_world=(400.0, 20.0))
+    t.on_turn(5)
+    t.on_outcome(_pending(expect_kill=True), "confirmed", delta=1)
+    belief = t.beliefs[ENEMY_UID]
+    assert belief.hp == 0
+    assert belief.hp_turn == 5
+
+
+def test_estimate_outcome_leaves_hp_turn_stale():
+    # a subtraction estimate is not a screen read: hp drops but freshness holds
+    t = BoardTracker()
+    t.on_turn(2)
+    t.on_weapon_select(_forecast(target_hp=8000))
+    t.on_turn(5)
+    t.on_outcome(_pending(expect_kill=False, game_damage=5000, hit_pct=100),
+                 "confirmed", delta=0)
+    belief = t.beliefs[ENEMY_UID]
+    assert belief.hp == 3000
+    assert belief.source == "estimate"
+    assert belief.hp_turn == 2
+
+
+def test_apply_reports_stale_hp_note():
+    t = BoardTracker()
+    t.on_turn(2)
+    t.on_weapon_select(_forecast(target_hp=8000), target_world=(400.0, 20.0))
+    t.on_turn(4)
+    battle = BattleState()
+    battle.add_unit(UnitState(ENEMY_UID, Faction.ENEMY, world_pos=(400.0, 20.0)))
+    notes = t.apply(battle)
+    assert battle.unit(ENEMY_UID).hp == 8000
+    hp_note = next(n for n in notes if "HP" in n)
+    assert "hp from turn 2" in hp_note
+
+
+def test_apply_fresh_hp_carries_no_stale_note():
+    t = BoardTracker()
+    t.on_turn(2)
+    t.on_weapon_select(_forecast(target_hp=8000), target_world=(400.0, 20.0))
+    battle = BattleState()
+    battle.add_unit(UnitState(ENEMY_UID, Faction.ENEMY, world_pos=(400.0, 20.0)))
+    notes = t.apply(battle)
+    hp_note = next(n for n in notes if "HP" in n)
+    assert "hp from turn" not in hp_note
