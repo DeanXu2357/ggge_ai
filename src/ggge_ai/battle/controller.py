@@ -865,6 +865,8 @@ class ManualBattleController:
                     self.ledger.next_turn(frame=frame, turn=self.timeline.turn)
             self._card_count = vision.count_unit_cards(frame)
             self._snapshot_factions(frame)
+            if self.timeline.due("board_belief"):
+                self._snapshot_board_belief()
             self._scout(frame)
             self._ensure_stage_definition(frame)
             self._refresh_sig_positions(frame)
@@ -1353,6 +1355,28 @@ class ManualBattleController:
             enemies=vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION),
             third_party=vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION),
         )
+
+    def _snapshot_board_belief(self) -> None:
+        """Serialize the running board beliefs into one turn-boundary ledger
+        event: the offline audit/closure layers need each unit's carried
+        HP/EN plus its freshness (hp_turn) to tell a screen read from a stale
+        belief. Process-scoped engineering evidence like every ledger row."""
+        if self.ledger is None:
+            return
+        units = [
+            {
+                "uid": uid,
+                "faction": belief.faction.value,
+                "world_pos": list(belief.world_pos) if belief.world_pos is not None else None,
+                "hp": belief.hp,
+                "en": belief.en,
+                "alive": belief.alive,
+                "source": belief.source,
+                "hp_turn": belief.hp_turn,
+            }
+            for uid, belief in self.tracker.beliefs.items()
+        ]
+        self.ledger.record("board_belief", units=units)
 
     def _scout(self, frame) -> None:
         """Rebuild the tactical map once per turn. The first scan of a
