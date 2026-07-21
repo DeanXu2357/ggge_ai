@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "unknown"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "no_label_stage_info.png",
+  "source": "assets/screenshots/20260711-212650.png",
+  "note": "T1：無任何相位 label 的畫面（stage_info）＝unknown。無 label 時 classify_frame 保持沉默、不亂縮。"
+}

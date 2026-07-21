@@ -1,0 +1,17 @@
+{
+  "check": "unit_cards_present",
+  "expect": false,
+  "box": [
+    150,
+    820,
+    940,
+    240
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_collapsed_strip.png",
+  "source": "tests/fixtures/vision/map_scan/ex2if_20260719/01_pt1_first_anchor.png",
+  "note": "T1：ex2if pt1（九幀掃描前卡條已收合）的卡條帶裁片，含些微 margin 完整覆蓋 UNIT_CARD_STRIP_BOX。收合態＝無明亮卡片，unit_cards_present=False，釘住收合負樣本以配對既有展開正樣本。"
+}

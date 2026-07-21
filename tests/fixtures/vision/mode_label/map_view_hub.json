@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "hub"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "dark_our_turn_hub.png",
+  "source": "assets/screenshots/20260706-233847.png",
+  "note": "T1 同步盤面：classify_frame 在 our-turn 主 hub 回傳 hub（頂層、最大可視、可安全縮放）。重用 mode_label 圖，label 帶在框內、modal 帶留空黑＝非 modal。"
+}

@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "battle_prep"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "dark_battle_prep.png",
+  "source": "assets/screenshots/20260705-180119.png",
+  "note": "T1：戰鬥準備確認畫面＝battle_prep 子狀態。"
+}

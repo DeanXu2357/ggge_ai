@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "modal"
+  },
+  "box": [
+    1000,
+    50,
+    380,
+    100
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "modal_positive.jpg",
+  "source": "assets/screenshots/20260706-233709.png",
+  "note": "T1：單位設置詳情 modal 優先權——classify_frame 在 label 帶留空黑的情況下仍先由 is_unit_detail_modal 否決回傳 modal，證明 modal veto 排在相位 label argmax 之前。"
+}

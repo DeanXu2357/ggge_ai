@@ -23,7 +23,7 @@ import cv2
 import numpy as np
 import pytest
 
-from ggge_ai.battle import panels, vision
+from ggge_ai.battle import map_view, panels, vision
 from ggge_ai.battle.controller import DISTRACTOR_LABELS, MODE_LABELS, resolve_mode
 from ggge_ai.actuation.keyguard import Keyguard
 from ggge_ai.vision import digits
@@ -119,6 +119,20 @@ def _check_mode_label(frame: np.ndarray, expect: dict[str, Any]) -> None:
     confidences = {e.id: e.confidence for e in elements if e.confidence >= ELEMENT_ACCEPT}
     mode = resolve_mode(confidences)
     assert mode == expect["id"], f"got {mode} ({confidences}), want {expect['id']}"
+
+
+def _check_map_view_state(frame: np.ndarray, expect: dict[str, Any]) -> None:
+    """map_view.classify_frame on a real screenshot: the modal veto, then the
+    phase-label argmax, exactly as classify_view runs it. The injected detect
+    mirrors perception.probe -- the same recognizer + element gate as
+    _check_mode_label. expect: {"state": "hub"/"unit_move"/.../"modal"/"unknown"}."""
+
+    def detect(element_ids: Any, frame: np.ndarray | None = None) -> dict[str, Any]:
+        elements = _recognizer().detect_elements(frame, element_ids)
+        return {e.id: e for e in elements if e.confidence >= ELEMENT_ACCEPT}
+
+    state = map_view.classify_frame(frame, detect)
+    assert state == expect["state"], f"got {state}, want {expect['state']}"
 
 
 def _check_screen_score(frame: np.ndarray, expect: dict[str, Any]) -> None:
@@ -246,6 +260,8 @@ def _check_digit_read(frame: np.ndarray, expect: dict[str, Any]) -> None:
 
 CHECKS = {
     "unit_cards_present": _check_bool(vision.unit_cards_present),
+    "zoom_at_max": _check_bool(vision.zoom_at_max),
+    "map_view_state": _check_map_view_state,
     "unit_detail_modal": _check_bool(vision.is_unit_detail_modal),
     "hidden_battle_warning": _check_bool(vision.is_hidden_battle_warning),
     "defeat_screen": _check_bool(vision.is_defeat_screen),
