@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "weapon_select"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "dark_weapon_select.png",
+  "source": "assets/screenshots/20260705-232809.png",
+  "note": "T1：選擇武裝子狀態＝weapon_select。也是一個選中單位的子狀態，須先退回頂層再縮圖。"
+}

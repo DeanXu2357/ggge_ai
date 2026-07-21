@@ -1,0 +1,16 @@
+{
+  "check": "zoom_at_max",
+  "expect": null,
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_gridless_20260719.png",
+  "note": "T1：顯示方格 OFF＝讀不到格線，zoom_at_max=None（本幀無法判斷 zoom 程度，呼叫端需開格線或另尋依據），與假格網被 read_grid_lattice 拒讀共用同一防線。"
+}

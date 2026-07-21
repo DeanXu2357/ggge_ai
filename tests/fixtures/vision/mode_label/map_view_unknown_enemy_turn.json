@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "unknown"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "enemy_turn_banner_not_ours.png",
+  "source": "assets/screenshots/20260711-223757.png",
+  "note": "T1：敵軍回合 banner 與 label_enemy_turn 相符、贏得 argmax，classify_frame 落到 unknown（既非 hub 也非子狀態）＝敵方回合不當可縮盤面處理。"
+}

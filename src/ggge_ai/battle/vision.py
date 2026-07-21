@@ -515,6 +515,44 @@ def snap_to_lattice(
     return (snap(point[0], cols), snap(point[1], rows))
 
 
+def _median_gap(positions: tuple[int, ...]) -> float | None:
+    gaps = sorted(b - a for a, b in zip(positions, positions[1:]))
+    if not gaps:
+        return None
+    n = len(gaps)
+    return float(gaps[n // 2] if n % 2 else (gaps[n // 2 - 1] + gaps[n // 2]) / 2)
+
+
+def grid_pitch(frame: np.ndarray) -> tuple[float | None, float | None]:
+    """Median column/row gridline spacing from read_grid_lattice, in screen
+    pixels, or (None, None) when no lattice is on screen. The single home for
+    the pitch math -- pinch.zoom_out_max's convergence check reads it through
+    here so there are not two copies of the median."""
+    lattice = read_grid_lattice(frame)
+    if lattice is None:
+        return (None, None)
+    cols, rows = lattice
+    return (_median_gap(cols), _median_gap(rows))
+
+
+# the battle camera's furthest zoom-out packs the grid tighter than the
+# in-battle default: the column pitch measured 98.5px on the 20260719 ex2if
+# max-zoom anchor (顯示方格 ON) and 127.5px on a default-zoom hub. The ceiling
+# is their midpoint, so either sample lands ~14px clear of it either way.
+ZOOM_MAX_COL_PITCH_CEIL = 113.0
+
+
+def zoom_at_max(frame: np.ndarray) -> bool | None:
+    """Whether the battle camera is at its furthest zoom-out, from the grid
+    column pitch: True at or below ZOOM_MAX_COL_PITCH_CEIL, False when wider,
+    None when no lattice can be read (grid off, or a pitch below the detector's
+    floor) so this frame alone cannot decide."""
+    col, _ = grid_pitch(frame)
+    if col is None:
+        return None
+    return col <= ZOOM_MAX_COL_PITCH_CEIL
+
+
 def measure_arc_shift(
     prev: np.ndarray, cur: np.ndarray, *, tolerance: int = 24
 ) -> tuple[float, float] | None:

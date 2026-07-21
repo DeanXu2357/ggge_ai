@@ -1,0 +1,16 @@
+{
+  "check": "zoom_at_max",
+  "expect": false,
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_grid_on_20260719.png",
+  "note": "T1：戰鬥預設 zoom（顯示方格 ON）col pitch≈127.5px＞閾值 113＝尚未縮到最遠，zoom_at_max=False。與最遠 zoom 正樣本共享同一 pitch 判別式。"
+}

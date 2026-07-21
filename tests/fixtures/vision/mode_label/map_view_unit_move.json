@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "unit_move"
+  },
+  "box": [
+    110,
+    0,
+    310,
+    135
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "dark_unit_move.png",
+  "source": "assets/screenshots/20260705-233420.png",
+  "note": "T1：已選單位的移動子狀態＝unit_move。此狀態縮地圖既縮小可視又離提交動作只差一步，必須先辨識出來才能退回頂層。"
+}
