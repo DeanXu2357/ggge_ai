@@ -7,12 +7,17 @@ bounds, ledger events, ghost purge and the local-scan path."""
 
 import numpy as np
 
-from ggge_ai.battle import vision
+from ggge_ai.battle import map_view, vision
 from ggge_ai.battle import live_scan as live_scan_mod
 from ggge_ai.battle.controller import ManualBattleController
 from ggge_ai.battle.ledger import BattleLedger
 
 VIEW_W, VIEW_H = 2340, 1080
+
+
+class _El:
+    def __init__(self, confidence):
+        self.confidence = confidence
 
 
 class _World:
@@ -56,7 +61,11 @@ class _Perception:
     def capture(self):
         return self.world.capture()
 
-    def probe(self, ids):
+    def probe(self, ids, frame=None):
+        # the cold-scan precondition backs out to the hub before sweeping; a
+        # fake hub label lets ensure_max_view settle at once so the sweep runs
+        if map_view.HUB_LABEL in ids:
+            return {map_view.HUB_LABEL: _El(0.9)}
         return {}
 
 

@@ -24,7 +24,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from ggge_ai.battle import executor, reconcile, vision
+from ggge_ai.actuation import pinch
+from ggge_ai.battle import executor, map_view, reconcile, vision
 from ggge_ai.battle import settings as battle_settings
 from ggge_ai.battle.actions import ActionKind
 from ggge_ai.battle.advisor import AdvisorConfig, DefaultAdvisor, SimAdvisor
@@ -284,6 +285,11 @@ class ManualBattleController:
     # faction verdicts come from this seam and nowhere else (定案 5, the
     # user's boundary rule): dock side today, richer channels later
     faction_identifier: FactionIdentifier = field(default_factory=DockBannerIdentifier)
+    # zoom seam for the cold-scan precondition (T3): pinch the camera to its
+    # furthest zoom-out before the full sweep. injected like advisor/
+    # faction_identifier; None (some test configs) skips the pinch, the
+    # production assembly points wire a GesturePincher onto the device
+    pincher: pinch.Pincher | None = None
     # control-flow memory: last confirmed phase and the act -> verify
     # contracts (timeline.TRANSITIONS); fed once per tick by _classify,
     # queried and reported to by the handlers. process-scoped
@@ -1403,11 +1409,20 @@ class ManualBattleController:
             # still running -- swipes fired into the animation get eaten and
             # read as phantom edges (20260719 run 7's scrambled corner)
             time.sleep(2.0)
+            # T3 cold-scan precondition: back out to the top hub (a selected
+            # unit's overlay both shrinks the map and sits one tap from
+            # committing an action) with the card strip collapsed, then, on
+            # top of the grid, pinch to the furthest zoom-out.
+            if not map_view.ensure_max_view(
+                self.perception, self.actuator, keyguard=self.keyguard
+            ):
+                log.warning("cold scan: never reached the top hub; preparing zoom anyway")
             self._grid_active = battle_settings.set_battle_grid(
                 self.perception.capture, self.actuator.tap, True, sleep=time.sleep
             )
             self._set_unit_list_open(False)
             frame = self._clear_scan_obstruction(self._frame())
+            frame = self._zoom_to_max(frame)
             lattice = vision.read_grid_lattice(frame) if self._grid_active else None
             self._log(
                 "battle_grid",
@@ -1511,6 +1526,49 @@ class ManualBattleController:
             time.sleep(1.2)
             return self._frame()
         return frame
+
+    def _log_zoom_step(self, step: pinch.PitchStep) -> None:
+        self._log(
+            "zoom_step",
+            index=step.index,
+            col_pitch=step.col_pitch,
+            row_pitch=step.row_pitch,
+            change=step.change,
+            source=step.source,
+        )
+
+    def _zoom_to_max(self, frame):
+        """Pinch the battle camera to its furthest zoom-out and confirm it with
+        vision.zoom_at_max. The full-scan cell-snap and landmark relocalization
+        are calibrated to the furthest zoom, so a wider zoom scans garbage:
+        fail-fast (SurveyIncomplete, releasing the grid on the way out) rather
+        than fail-soft when the camera will not reach it. A missing pincher
+        (unset seam, some test configs) skips the pinch with a warning and
+        scans at the current zoom. Returns the obstruction-free frame the scan
+        should start from."""
+        if self.pincher is None:
+            log.warning("no pincher injected; skipping max-zoom, scanning at current zoom")
+            return frame
+        fingers = pinch.zoom_out_fingers()
+
+        def zoom_pass():
+            pinch.zoom_out_max(
+                capture=self._frame,
+                pinch_step=lambda: self.pincher.pinch(*fingers),
+                obstruction=self._clear_scan_obstruction,
+                on_step=self._log_zoom_step,
+            )
+            return self._clear_scan_obstruction(self._frame())
+
+        frame = zoom_pass()
+        if vision.zoom_at_max(frame) is True:
+            return frame
+        log.warning("zoom not confirmed at max after the first pass; pinching once more")
+        frame = zoom_pass()
+        if vision.zoom_at_max(frame) is True:
+            return frame
+        self._release_battle_grid()
+        raise SurveyIncomplete("battle camera would not reach maximum zoom-out")
 
     def _set_unit_list_open(self, want_open: bool) -> bool:
         """Collapse / expand the 可行動單位 card strip. The scan runs

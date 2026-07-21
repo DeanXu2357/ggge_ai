@@ -217,14 +217,17 @@ class ManualBattle(Action):
     effects = {"screen": screens.BATTLE_RESULT, "stage_cleared": True}
 
     def execute(self, ctx: ExecutionContext) -> bool:
+        from ...actuation import pinch
         from ...actuation.keyguard import Keyguard
         from ...battle.controller import ManualBattleController
 
+        has_device = hasattr(ctx.actuator, "device")
         keyguard = (
             Keyguard(ctx.actuator.device, capture=ctx.perception.capture)
-            if hasattr(ctx.actuator, "device")
+            if has_device
             else None
         )
+        pincher = pinch.gesture_pincher_for(ctx.actuator.device) if has_device else None
         blackboard = ctx.extras.get("blackboard")
         # reuse the ledger opened at the stage-info screen (if any) so its
         # conditions frame and this fight share one battle_NN.jsonl
@@ -243,6 +246,7 @@ class ManualBattle(Action):
             perception=ctx.perception,
             actuator=ctx.actuator,
             keyguard=keyguard,
+            pincher=pincher,
             ledger=ledger,
             llm=ctx.extras.get("llm"),
             intel_enabled=intel_enabled,

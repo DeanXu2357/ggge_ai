@@ -10,11 +10,19 @@ from ggge_ai.battle.controller import ManualBattleController
 from ggge_ai.battle.ledger import BattleLedger
 
 
+class _HubEl:
+    confidence = 0.9
+
+
 class _Perception:
     def capture(self):
         return np.zeros((1080, 2340, 3), np.uint8)
 
-    def probe(self, ids):
+    def probe(self, ids, frame=None):
+        # our-turn hub: report the hub label so the cold-scan precondition's
+        # ensure_max_view settles at once (a re-scout runs the full sweep)
+        if controller_mod.map_view.HUB_LABEL in ids:
+            return {controller_mod.map_view.HUB_LABEL: _HubEl()}
         return {}
 
 
