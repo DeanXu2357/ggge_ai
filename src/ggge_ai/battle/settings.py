@@ -31,9 +31,16 @@ SETTINGS_CLOSE = (1180, 992)
 GRID_TOGGLE = (1898, 591)
 GRID_PROBE = (1963, 591)
 AUTO_BATTLE_OFF_PROBE = (1179, 295)
-# the settings panel reopens on whichever tab was used last, so the battle
-# tab is probed by its selected-state underline before trusting row probes
+# the settings panel reopens on whichever tab was used last, so the battle tab
+# is probed by its selected-state underline before trusting row probes. The
+# underline is a thin salmon *line*, recognised by a salmon run along the row
+# with non-salmon guard rows above and below -- a lone-pixel probe here
+# false-positives on salmon terrain and filled red UI (see is_battle_tab_selected).
 BATTLE_TAB_UNDERLINE = (1613, 201)
+BATTLE_TAB_UNDERLINE_SPAN = (1605, 1651)
+BATTLE_TAB_UNDERLINE_GUARDS = (14, 18)
+_UNDERLINE_LINE_MIN = 0.85
+_UNDERLINE_GUARD_MAX = 0.25
 
 
 def _pixel(frame: np.ndarray, xy: tuple[int, int]) -> tuple[int, int, int] | None:
@@ -72,14 +79,43 @@ def is_auto_battle_off(frame: np.ndarray) -> bool:
     return g > 180 and b > 180
 
 
-def is_battle_tab_selected(frame: np.ndarray) -> bool:
-    """Salmon underline under the 戰鬥 tab text marks it selected.
-    Pure frame recognition; the panel reopens on the last-used tab."""
-    px = _pixel(frame, BATTLE_TAB_UNDERLINE)
-    if px is None:
-        return False
-    b, g, r = px
+def _is_salmon(bgr: tuple[int, int, int]) -> bool:
+    b, g, r = bgr
     return r > 190 and r > b + 30
+
+
+def _row_salmon_frac(frame: np.ndarray, y: int, x0: int, x1: int) -> float:
+    """Fraction of the [x0, x1] pixels on row y that read the tab's salmon-orange;
+    0.0 when the row is off-frame."""
+    if frame is None or y < 0 or y >= frame.shape[0]:
+        return 0.0
+    xs = [x for x in range(x0, x1 + 1) if 0 <= x < frame.shape[1]]
+    if not xs:
+        return 0.0
+    hits = sum(_is_salmon(tuple(int(v) for v in frame[y, x])) for x in xs)
+    return hits / len(xs)
+
+
+def is_battle_tab_selected(frame: np.ndarray) -> bool:
+    """True when the 戰鬥 tab's thin salmon underline sits at BATTLE_TAB_UNDERLINE.
+
+    The underline is a line, not a point: probing the single pixel (1613,201)
+    false-positives on any salmon terrain speckle or filled red UI block that
+    happens to cover it -- a hub map, the stage page's 機體 3D preview,
+    supply/sortie panels (9 corpus frames collapsed to the 2 real settings
+    pages, 2026-07-21). Recognise the geometry instead: salmon must run along
+    the underline row yet clear the guard rows a fixed distance above and below,
+    so a filled block (salmon through the guards) and a lone speckle (no run)
+    are both rejected. Pure frame recognition; the panel reopens on the
+    last-used tab."""
+    x0, x1 = BATTLE_TAB_UNDERLINE_SPAN
+    y = BATTLE_TAB_UNDERLINE[1]
+    if _row_salmon_frac(frame, y, x0, x1) < _UNDERLINE_LINE_MIN:
+        return False
+    above_dy, below_dy = BATTLE_TAB_UNDERLINE_GUARDS
+    above = _row_salmon_frac(frame, y - above_dy, x0, x1)
+    below = _row_salmon_frac(frame, y + below_dy, x0, x1)
+    return above <= _UNDERLINE_GUARD_MAX and below <= _UNDERLINE_GUARD_MAX
 
 
 def set_battle_grid(capture, tap, desired_on: bool, *, sleep=time.sleep) -> bool:

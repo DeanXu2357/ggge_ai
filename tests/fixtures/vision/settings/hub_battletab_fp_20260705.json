@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "hub"
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    240
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_battletab_fp_20260705.png",
+  "source": "/home/poyu/workspace/project/ggge_ai/assets/screenshots/20260705-153640.png",
+  "note": "我方回合 hub 頂部橫帶（battle_map 1.00、label_our_turn 0.98），涵蓋左上相位 label 帶與戰鬥籤底線探針 (1613,201)。舊單像素 is_battle_tab_selected 在此淺灰白斑地形 (r204,g192,b166,r-b=38) 誤命中→classify_frame 誤判 settings（ensure_max_view 到不了 hub）；新底線幾何判定 line=0.06 拒絕→回 hub。此 fixture 修前 FAIL、修後 PASS（2026-07-21 T7 返修）。"
+}
