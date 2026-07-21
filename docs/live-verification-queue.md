@@ -5,6 +5,9 @@
 允許一個 agent 操作裝置）。每項完成後把結論回寫 roadmap／相關文件，並從
 本佇列移除。
 
+**執行順序與現場操作腳本（含 BLOCKING 攔截點）見
+[live-test-plan.md](live-test-plan.md)**——本檔是案例登記簿，那份是 run-book。
+
 ## 前置：裝置連線恢復
 
 - 2026-07-21 檢查：`adb devices` 顯示 `no permissions`——依經驗為重開機後
@@ -73,8 +76,9 @@
 
 ## 缺樣本清單（實機順手補拍）
 
-- 戰鬥設定選單「顯示方格」toggle ON/OFF 兩態截圖（若 T2 盤點確認庫存
-  沒有）。
+- 戰鬥設定選單「顯示方格」**toggle OFF 態**截圖（T2 已掃全庫 451 張確認
+  缺：ON 態兩張已入 fixture，OFF 態僅合成測試覆蓋；補拍後用
+  `scripts/curate_fixture.py` 裁四探針外接框入 `vision/settings/`，PNG）。
 - zoom 拉近（非最遠）且格線開啟的地圖幀（`zoom_at_max` 負樣本，若庫存
   沒有）。
 - SHORT 武器「深色但可用」圖示樣本（應戰 V 閘門開放假設）。
