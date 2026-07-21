@@ -131,3 +131,22 @@ def set_battle_grid(capture, tap, desired_on: bool, *, sleep=time.sleep) -> bool
         )
     close()
     return ok
+
+
+def ensure_battle_grid(capture, tap, keyguard, desired_on: bool, *, clear=None, attempts: int = 3) -> bool:
+    """Drive 顯示方格 to ``desired_on`` and confirm against the map's ground
+    truth: a lattice readable by vision.read_grid_lattice means the grid is
+    really on AND we are back on the map (not a stray menu the toggle left
+    open). Retries because the menu taps land intermittently. ``clear`` (an
+    optional no-arg callable) returns an obstruction-free frame before the
+    lattice is read; without it the raw capture is used. Shared by the
+    zoom/grid probe scripts (design principle 5)."""
+    from . import vision
+
+    for _ in range(attempts):
+        keyguard.ensure_unlocked()
+        set_battle_grid(capture, tap, desired_on)
+        frame = clear() if clear is not None else capture()
+        if (vision.read_grid_lattice(frame) is not None) == desired_on:
+            return True
+    return False

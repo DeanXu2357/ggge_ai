@@ -8,6 +8,7 @@ import signal
 import sys
 
 from ggge_ai.actuation.keyguard import Keyguard
+from ggge_ai.actuation.pinch import gesture_pincher_for
 from ggge_ai.agent.blackboard import RunBlackboard
 from ggge_ai.app import connect
 from ggge_ai.battle.controller import ManualBattleController
@@ -41,6 +42,7 @@ controller = ManualBattleController(
     perception=perception,
     actuator=actuator,
     keyguard=keyguard,
+    pincher=gesture_pincher_for(actuator.device),
     ledger=ledger,
     llm=LlmScreenReader.from_env(),
     intel_enabled=intel_enabled,

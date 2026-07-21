@@ -23,8 +23,8 @@ import time
 from ggge_ai.actuation.keyguard import Keyguard
 from ggge_ai.app import connect
 from ggge_ai.battle import map_view, vision
-from ggge_ai.battle.scout_intel import UNIT_DETAIL_CLOSE
-from ggge_ai.battle.settings import set_battle_grid
+from ggge_ai.battle.map_view import UNIT_DETAIL_CLOSE
+from ggge_ai.battle.settings import ensure_battle_grid
 
 logging.basicConfig(
     level=logging.DEBUG if os.environ.get("GGGE_DEBUG") else logging.INFO,
@@ -36,7 +36,7 @@ log = logging.getLogger("grid_toggle_probe")
 
 def _clear_obstruction(capture, tap, keyguard):
     """Keep the map clear before reading ground truth: re-unlock and dismiss a
-    stray unit-detail modal the way zoom_probe does."""
+    stray unit-detail modal."""
     keyguard.ensure_unlocked()
     frame = capture()
     if vision.is_unit_detail_modal(frame):
@@ -45,20 +45,6 @@ def _clear_obstruction(capture, tap, keyguard):
         time.sleep(1.2)
         frame = capture()
     return frame
-
-
-def _ensure_grid(capture, tap, keyguard, desired_on: bool, attempts: int = 3) -> bool:
-    """Drive 顯示方格 and confirm against ground truth: a lattice on the live map
-    iff the grid is meant to be on. Retries because the menu taps land
-    intermittently (mirrors zoom_probe._ensure_grid)."""
-    for _ in range(attempts):
-        keyguard.ensure_unlocked()
-        set_battle_grid(capture, tap, desired_on)
-        frame = _clear_obstruction(capture, tap, keyguard)
-        has_lattice = vision.read_grid_lattice(frame) is not None
-        if has_lattice == desired_on:
-            return True
-    return False
 
 
 def main() -> None:
@@ -73,22 +59,26 @@ def main() -> None:
     at_top = map_view.ensure_max_view(perception, actuator, keyguard=keyguard)
     log.info("view = %s", "top hub (max view)" if at_top else "NOT hub (fail-soft)")
 
-    frame = _clear_obstruction(capture, tap, keyguard)
-    initial_on = vision.read_grid_lattice(frame) is not None
+    def clear():
+        return _clear_obstruction(capture, tap, keyguard)
+
+    initial_on = vision.read_grid_lattice(clear()) is not None
     log.info("initial grid (map ground truth) = %s", "ON" if initial_on else "OFF")
 
-    on_ok = _ensure_grid(capture, tap, keyguard, True)
-    log.info("step ON  -> lattice %s", "appeared (OK)" if on_ok else "NOT confirmed")
+    on_ok = off_ok = restored = False
+    try:
+        on_ok = ensure_battle_grid(capture, tap, keyguard, True, clear=clear)
+        log.info("step ON  -> lattice %s", "appeared (OK)" if on_ok else "NOT confirmed")
 
-    off_ok = _ensure_grid(capture, tap, keyguard, False)
-    log.info("step OFF -> lattice %s", "vanished (OK)" if off_ok else "NOT confirmed")
-
-    restored = _ensure_grid(capture, tap, keyguard, initial_on)
-    log.info(
-        "restore -> initial %s %s",
-        "ON" if initial_on else "OFF",
-        "(OK)" if restored else "NOT confirmed",
-    )
+        off_ok = ensure_battle_grid(capture, tap, keyguard, False, clear=clear)
+        log.info("step OFF -> lattice %s", "vanished (OK)" if off_ok else "NOT confirmed")
+    finally:
+        restored = ensure_battle_grid(capture, tap, keyguard, initial_on, clear=clear)
+        log.info(
+            "restore -> initial %s %s",
+            "ON" if initial_on else "OFF",
+            "(OK)" if restored else "NOT confirmed",
+        )
 
     print("\n=== grid_toggle_probe summary ===")
     print(f"initial state : {'ON' if initial_on else 'OFF'}")

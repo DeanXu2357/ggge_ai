@@ -134,11 +134,19 @@ def test_identify_recovers_camera_from_the_constellation(monkeypatch):
     assert unit_world == (0.0, 0.0)
 
 
+class _HubEl:
+    confidence = 0.9
+
+
 class _Perception:
     def capture(self):
         return np.zeros((1080, 2340, 3), np.uint8)
 
-    def probe(self, ids):
+    def probe(self, ids, frame=None):
+        # our-turn hub: report the hub label so a pilot board_resync's cold-scan
+        # precondition (ensure_max_view) settles at once
+        if controller_mod.map_view.HUB_LABEL in ids:
+            return {controller_mod.map_view.HUB_LABEL: _HubEl()}
         return {}
 
 
