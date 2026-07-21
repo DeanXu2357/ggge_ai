@@ -33,6 +33,7 @@ from ..content import stage_def
 from ..content.kit import UnitSpec
 from .faction import FactionIdentifier, FactionVerdict
 from .identity import IdentityResolver, SeedReport
+from .map_view import UNIT_DETAIL_CLOSE
 from .observe import SIG_MATCH_RADIUS
 from .state import Faction
 from ..content.stage_def import DeploySlot, StageDefinition, StageUnit, signature_distance
@@ -55,7 +56,6 @@ log = logging.getLogger(__name__)
 SUMMARY_CARD_TAPS = ((860, 165), (1510, 205))
 WEAPONS_TAB_TAP = (1381, 173)
 ABILITY_TAB_TAP = (1813, 176)
-UNIT_DETAIL_CLOSE = (1176, 992)
 SUMMARY_SETTLE_S = 1.2
 MODAL_SETTLE_S = 1.5
 MODAL_POLL_S = 0.5
