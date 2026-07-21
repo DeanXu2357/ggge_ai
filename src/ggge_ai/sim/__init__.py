@@ -10,12 +10,13 @@ stdlib: the world vocabulary (Faction, DecisionKind) is owned here in
 around.
 
 The public surface is re-exported here; submodules (vocab, core, formulas,
-objective, grid) stay importable directly for callers that want a namespace.
+objective, grid, tension) stay importable directly for callers that want a
+namespace.
 """
 
 from __future__ import annotations
 
-from . import formulas
+from . import formulas, tension
 from .vocab import DecisionKind, Faction
 from .core import (
     DEFAULT_PARAMS,
@@ -73,6 +74,7 @@ from .objective import (
 
 __all__ = [
     "formulas",
+    "tension",
     # vocab
     "DecisionKind",
     "Faction",
