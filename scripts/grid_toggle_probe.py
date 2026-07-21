@@ -22,7 +22,7 @@ import time
 
 from ggge_ai.actuation.keyguard import Keyguard
 from ggge_ai.app import connect
-from ggge_ai.battle import map_view, vision
+from ggge_ai.battle import map_view, settings, vision
 from ggge_ai.battle.map_view import UNIT_DETAIL_CLOSE
 from ggge_ai.battle.settings import ensure_battle_grid
 
@@ -47,6 +47,29 @@ def _clear_obstruction(capture, tap, keyguard):
     return frame
 
 
+def _log_settings_page_state(perception, tap, keyguard) -> None:
+    """Open the settings 戰鬥 tab and log the project-wide page-level state
+    (classify_frame should read "settings" here), then close back out. Pure
+    logging: set_battle_grid's own toggle-pixel confirmations stay the in-page
+    authority; classify_frame is only the cross-flow page vocabulary, so this
+    step never gates the toggle flow. Fail-soft: the close taps run in a finally
+    so the menus are always escaped even if the probe raises."""
+    keyguard.ensure_unlocked()
+    tap(*settings.BATTLE_MENU_BTN)
+    time.sleep(1.5)
+    tap(*settings.BATTLE_MENU_SETTINGS)
+    time.sleep(1.8)
+    tap(*settings.SETTINGS_BATTLE_TAB)
+    time.sleep(1.2)
+    try:
+        log.info("settings page classify_frame -> %s", map_view.classify_view(perception))
+    finally:
+        tap(*settings.SETTINGS_CLOSE)
+        time.sleep(1.2)
+        tap(*settings.BATTLE_MENU_CLOSE)
+        time.sleep(1.2)
+
+
 def main() -> None:
     perception, actuator = connect()
     capture = perception.capture
@@ -64,6 +87,8 @@ def main() -> None:
 
     initial_on = vision.read_grid_lattice(clear()) is not None
     log.info("initial grid (map ground truth) = %s", "ON" if initial_on else "OFF")
+
+    _log_settings_page_state(perception, tap, keyguard)
 
     on_ok = off_ok = restored = False
     try:

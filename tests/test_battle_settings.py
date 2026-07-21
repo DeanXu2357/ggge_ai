@@ -15,9 +15,11 @@ def _settings_frame(*, grid_on: bool, auto_off: bool = True, tab: bool = True) -
     ax, ay = settings.AUTO_BATTLE_OFF_PROBE
     if auto_off:
         frame[ay, ax] = (250, 240, 120)
-    ux, uy = settings.BATTLE_TAB_UNDERLINE
     if tab:
-        frame[uy, ux] = (160, 180, 240)
+        # paint the selected-tab underline as a line (the detector now demands a
+        # salmon run with clear guard rows, not a single salmon pixel)
+        x0, x1 = settings.BATTLE_TAB_UNDERLINE_SPAN
+        frame[settings.BATTLE_TAB_UNDERLINE[1], x0 : x1 + 1] = (160, 180, 240)
     return frame
 
 
