@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "settings"
+  },
+  "box": [
+    1120,
+    150,
+    900,
+    500
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "grid_on_20260711.png",
+  "source": "/home/poyu/workspace/project/ggge_ai/assets/screenshots/20260711-211356.png",
+  "note": "T7 頁面級分類：第二筆戰鬥籤設定頁（同 grid_on_20260711 零複製）跨 session 交叉驗證 classify_frame 判 settings。"
+}

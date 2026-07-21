@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "unknown"
+  },
+  "box": [
+    1120,
+    150,
+    900,
+    500
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_not_settings_null.png",
+  "source": "tests/fixtures/vision/grid/hub_gridless_20260719.png",
+  "note": "T7 頁面級負樣本：太空地圖 hub 裁片（同 hub_not_settings_null 零複製）。settings 述詞不命中，且此 crop 框 [1120,150,900,500] 落在設定面板區、不含左下相位 label 帶，故 label argmax 無命中→classify_frame 判 unknown（非 hub、非 settings）。實測確認 2026-07-21。"
+}
