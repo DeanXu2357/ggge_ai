@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from ggge_ai.actuation import pinch
 from ggge_ai.battle import executor, map_view, reconcile, vision
@@ -47,6 +48,9 @@ from ggge_ai.battle.timeline import BattleTimeline
 from ggge_ai.battle.tracker import BoardTracker
 from ggge_ai.domain import screens
 from ggge_ai.sim import DefenseKind
+
+if TYPE_CHECKING:
+    from ggge_ai.battle.audit import HpDivergence
 
 # 應戰 stance 選單的「行動選擇」確認鈕（docs/battle-prep-ui.md §4，估計值、
 # 待實機精量）。各 stance 鈕座標不再維護固定表：由
@@ -304,6 +308,8 @@ class ManualBattleController:
 
     def __post_init__(self) -> None:
         self.tracker.resolver = self.resolver
+        if self.ledger is not None:
+            self.tracker.on_hp_divergence = self._record_hp_divergence
 
     def ensure_manual_auto(self, timeout_s: float = 60.0) -> bool:
         """Cycle the AUTO button until it is colorless (full manual)."""
@@ -1383,6 +1389,28 @@ class ManualBattleController:
             for uid, belief in self.tracker.beliefs.items()
         ]
         self.ledger.record("board_belief", units=units)
+
+    def _record_hp_divergence(self, divergence: HpDivergence) -> None:
+        """Batch-B audit sink: a residual between a carried HP belief and a
+        fresh screen read -- an event we never saw stop to interact (MAP
+        weapon, off-screen engagement, enemy buff) or the last-known-HP-to-0
+        gap a confirmed kill exposes. Recorded raw as offline-attribution
+        material; live does no interpretation. No frame (not in FRAME_KINDS):
+        a nearby decision event already captured the screen."""
+        if self.ledger is None:
+            return
+        self.ledger.record(
+            "unattributed_damage",
+            uid=divergence.uid,
+            expected_hp=divergence.expected_hp,
+            observed_hp=divergence.observed_hp,
+            delta=divergence.delta,
+            turn=divergence.turn,
+            read_source=divergence.read_source,
+            prior_source=divergence.prior_source,
+            prior_hp_turn=divergence.prior_hp_turn,
+            world_pos=list(divergence.world_pos) if divergence.world_pos is not None else None,
+        )
 
     def _scout(self, frame) -> None:
         """Rebuild the tactical map once per turn. The first scan of a
