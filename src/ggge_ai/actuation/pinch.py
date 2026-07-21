@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
@@ -287,23 +287,12 @@ class PitchStep:
 
 
 def _col_row_pitch(frame) -> tuple[float | None, float | None]:
-    """Median column/row gridline spacing via the vision lattice reader, or
-    (None, None) when no lattice is on screen."""
+    """Median column/row gridline spacing, delegated to vision.grid_pitch so
+    the pitch math lives in one place; (None, None) when no lattice is on
+    screen. Kept as zoom_out_max's default measure seam."""
     from ..battle import vision
 
-    lattice = vision.read_grid_lattice(frame)
-    if lattice is None:
-        return (None, None)
-    cols, rows = lattice
-
-    def median_gap(pos: Sequence[int]) -> float | None:
-        gaps = sorted(b - a for a, b in zip(pos, pos[1:]))
-        if not gaps:
-            return None
-        n = len(gaps)
-        return float(gaps[n // 2] if n % 2 else (gaps[n // 2 - 1] + gaps[n // 2]) / 2)
-
-    return (median_gap(cols), median_gap(rows))
+    return vision.grid_pitch(frame)
 
 
 def _mean_abs_diff(prev, cur) -> float:
