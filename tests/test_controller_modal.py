@@ -7,7 +7,11 @@ import numpy as np
 
 from ggge_ai.battle import controller as controller_mod
 from ggge_ai.battle import vision
-from ggge_ai.battle.controller import UNIT_DETAIL_CLOSE, ManualBattleController
+from ggge_ai.battle.controller import (
+    END_TURN_BTN,
+    UNIT_DETAIL_CLOSE,
+    ManualBattleController,
+)
 from ggge_ai.battle.ledger import BattleLedger
 from ggge_ai.domain import screens
 
@@ -67,6 +71,25 @@ def test_modal_escape_taps_close_and_does_not_advance_turn(monkeypatch):
     assert c.ledger.turn == start
     kinds = [e["kind"] for e in c.ledger.events]
     assert "unit_detail_modal" in kinds
+
+
+def test_on_our_turn_repairs_covered_list_before_ending_turn(monkeypatch):
+    """07-23 輪四 regression. unit_cards_present reads False but a modal covers
+    the strip (unit_list_state -> unknown), so the turn is NOT over. Before
+    concluding "no actable units" and tapping END_TURN, the handler must repair
+    -- clear the obstruction + re-expand the list -- and re-read. The old code
+    went straight to END_TURN on any no-cards frame."""
+    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
+    monkeypatch.setattr(vision, "unit_cards_present", lambda f: False)
+    monkeypatch.setattr(vision, "is_unit_detail_modal", lambda f: True)
+
+    c = _controller()
+    c._on_our_turn()
+
+    # the repair (modal clear) happened, and before any END_TURN tap
+    assert UNIT_DETAIL_CLOSE in c.actuator.taps
+    if END_TURN_BTN in c.actuator.taps:
+        assert c.actuator.taps.index(UNIT_DETAIL_CLOSE) < c.actuator.taps.index(END_TURN_BTN)
 
 
 def test_unit_detail_modal_is_a_frame_event():

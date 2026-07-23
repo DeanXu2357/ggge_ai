@@ -897,6 +897,16 @@ class ManualBattleController:
         # really empty before ending the turn
         time.sleep(1.2)
         late_frame = self._frame()
+        # "no cards" is not yet "no units": a modal or a still-collapsed strip
+        # reads the same (the 07-23 輪四 41-cycle stall ended the turn on a
+        # covered list). Before concluding no unit can act, make sure the list
+        # is genuinely EXPANDED and unobstructed, then re-read.
+        if (
+            not vision.unit_cards_present(late_frame)
+            and vision.unit_list_state(late_frame) != vision.UNIT_LIST_EXPANDED
+        ):
+            self._set_unit_list_open(True)
+            late_frame = self._frame()
         if vision.unit_cards_present(late_frame):
             log.info("unit cards appeared late, selecting next unit")
             self._card_count = vision.count_unit_cards(late_frame)
@@ -1633,17 +1643,29 @@ class ManualBattleController:
     def _set_unit_list_open(self, want_open: bool) -> bool:
         """Collapse / expand the 可行動單位 card strip. The scan runs
         collapsed (more map visible); count_unit_cards consumers need it
-        back open afterwards."""
-        for _ in range(2):
+        back open afterwards. Reads the toggle three-valued: a modal or a
+        card-strip vacuum used to read as unit_cards_present=False and tap the
+        wrong toggle (the 07-23 輪四 failure); on "unknown" clear the
+        obstruction and re-read instead of tapping blind."""
+        target = vision.UNIT_LIST_EXPANDED if want_open else vision.UNIT_LIST_COLLAPSED
+        for _ in range(3):
             frame = self._frame()
-            is_open = vision.unit_cards_present(frame)
-            if is_open == want_open:
+            state = vision.unit_list_state(frame)
+            if state == target:
                 return True
-            self.actuator.tap(
-                *(UNIT_LIST_COLLAPSE if is_open else UNIT_LIST_EXPAND)
-            )
+            if state == vision.UNIT_LIST_UNKNOWN:
+                self._clear_scan_obstruction(frame)
+            else:
+                # the definite opposite state: tap its toggle to flip it
+                self.actuator.tap(
+                    *(
+                        UNIT_LIST_COLLAPSE
+                        if state == vision.UNIT_LIST_EXPANDED
+                        else UNIT_LIST_EXPAND
+                    )
+                )
             time.sleep(1.2)
-        return vision.unit_cards_present(self._frame()) == want_open
+        return vision.unit_list_state(self._frame()) == target
 
     def _release_battle_grid(self) -> None:
         """Restore 顯示方格 off once the grid window (sweep + survey) ends;

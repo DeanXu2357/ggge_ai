@@ -182,13 +182,21 @@ def collapse_unit_list(
     perception, actuator, *, sleep: Callable[[float], None] = time.sleep, attempts: int = 2
 ) -> bool:
     """Collapse the actionable-unit card strip (▽) for the widest map. Returns
-    True once the strip is closed."""
+    True only on a positive "collapsed" toggle read -- never on "unknown"
+    (a covering modal or an unreadable toggle), which the old brightness-only
+    ``not unit_cards_present`` accepted as collapsed (the 07-23 輪四 conflation).
+    On "unknown", clear the obstruction and re-read rather than claim success."""
     for _ in range(attempts):
-        if not vision.unit_cards_present(perception.capture()):
+        frame = perception.capture()
+        state = vision.unit_list_state(frame)
+        if state == vision.UNIT_LIST_COLLAPSED:
             return True
+        if state == vision.UNIT_LIST_UNKNOWN:
+            clear_obstruction(perception, actuator, frame, sleep=sleep)
+            continue
         actuator.tap(*UNIT_LIST_COLLAPSE)
         sleep(1.2)
-    return not vision.unit_cards_present(perception.capture())
+    return vision.unit_list_state(perception.capture()) == vision.UNIT_LIST_COLLAPSED
 
 
 def ensure_max_view(

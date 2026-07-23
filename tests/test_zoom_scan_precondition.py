@@ -83,6 +83,23 @@ def _quiet_vision(monkeypatch):
     yield
 
 
+def test_set_unit_list_open_clears_modal_instead_of_reading_it_as_collapsed(monkeypatch):
+    """07-23 輪四 regression (the 41-cycle stall). The cold scan wants the card
+    list collapsed while a unit-detail modal covers the strip. The old code read
+    unit_cards_present=False as "already collapsed" and returned success, then
+    drove the whole sweep onto a modal-frozen map. Three-valued reading makes
+    the covered toggle "unknown", so the handler must clear the obstruction
+    before it can conclude anything -- never silently accept the modal."""
+    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
+    monkeypatch.setattr(controller_mod.vision, "is_unit_detail_modal", lambda f: True)
+    monkeypatch.setattr(controller_mod.vision, "unit_cards_present", lambda f: False)
+
+    c = _controller(_RecordingPincher())
+    c._set_unit_list_open(False)
+
+    assert map_view.UNIT_DETAIL_CLOSE in c.actuator.taps
+
+
 def test_zoom_to_max_verifies_then_returns(monkeypatch):
     _stub_zoom_out_max(monkeypatch, pinches_per_pass=2)
     monkeypatch.setattr(controller_mod.vision, "zoom_at_max", lambda f: True)

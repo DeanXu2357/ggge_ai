@@ -36,6 +36,7 @@ class FakePerception:
         self.modal = False
         self.cards = False
         self.settings = False
+        self.list_state = "collapsed"
 
     @property
     def view(self):
@@ -69,22 +70,32 @@ class FakeActuator:
             _CUR["modal"] = False
 
 
+def _fake_unit_list_state(_frame):
+    # mirrors vision.unit_list_state: a covering modal is "unknown", never a
+    # collapsed/expanded answer
+    if _CUR["modal"]:
+        return map_view.vision.UNIT_LIST_UNKNOWN
+    return _CUR["list_state"]
+
+
 @pytest.fixture(autouse=True)
 def _stub_vision(monkeypatch):
     # classify_view / collapse consult these; drive them off the fake
     monkeypatch.setattr(map_view.vision, "is_unit_detail_modal", lambda f: _CUR["modal"])
     monkeypatch.setattr(map_view.vision, "unit_cards_present", lambda f: _CUR["cards"])
+    monkeypatch.setattr(map_view.vision, "unit_list_state", _fake_unit_list_state)
     monkeypatch.setattr(map_view.settings, "is_battle_tab_selected", lambda f: _CUR["settings"])
     yield
 
 
-_CUR = {"modal": False, "cards": False, "settings": False}
+_CUR = {"modal": False, "cards": False, "settings": False, "list_state": "collapsed"}
 
 
 def _bind(perc):
     _CUR["modal"] = perc.modal
     _CUR["cards"] = perc.cards
     _CUR["settings"] = perc.settings
+    _CUR["list_state"] = perc.list_state
 
 
 def test_classify_hub():
@@ -180,19 +191,58 @@ def test_clear_obstruction_passes_through_without_modal():
     assert out is frame  # same frame, no recapture
 
 
-def test_ensure_max_view_reaches_hub_and_collapses_list():
-    p = FakePerception(["unit_move", "hub"])
-    p.cards = True
+def test_collapse_unit_list_returns_true_when_already_collapsed():
+    p = FakePerception(["hub"])
+    p.list_state = "collapsed"
+    _bind(p)
+    a = FakeActuator(p)
+    assert map_view.collapse_unit_list(p, a, sleep=lambda s: None) is True
+    assert a.taps == []  # already collapsed: no toggle tap
+
+
+def test_collapse_unit_list_taps_toggle_when_expanded():
+    p = FakePerception(["hub"])
+    p.list_state = "expanded"
     _bind(p)
     a = FakeActuator(p)
 
-    # once the strip is collapsed, cards go away
+    def tap(x, y):
+        a.taps.append((x, y))
+        if (x, y) == map_view.UNIT_LIST_COLLAPSE:
+            _CUR["list_state"] = "collapsed"
+
+    a.tap = tap
+    assert map_view.collapse_unit_list(p, a, sleep=lambda s: None) is True
+    assert map_view.UNIT_LIST_COLLAPSE in a.taps
+
+
+def test_collapse_unit_list_rejects_modal_as_collapsed():
+    # 07-23 輪四 map_view-level regression: a modal covers the strip, so
+    # unit_cards_present reads False -- which the old `not unit_cards_present`
+    # accepted as collapsed and returned True. "unknown" is not "collapsed":
+    # clear the obstruction, and never report success on a covered strip.
+    p = FakePerception(["hub"])
+    p.modal = True
+    p.list_state = "expanded"  # the real list, behind the modal, is open
+    _bind(p)
+    a = FakeActuator(p)
+    assert map_view.collapse_unit_list(p, a, sleep=lambda s: None) is False
+    assert map_view.UNIT_DETAIL_CLOSE in a.taps  # cleared the modal first
+
+
+def test_ensure_max_view_reaches_hub_and_collapses_list():
+    p = FakePerception(["unit_move", "hub"])
+    p.list_state = "expanded"
+    _bind(p)
+    a = FakeActuator(p)
+
+    # once the strip is collapsed, the toggle reads collapsed
     def tap(x, y):
         a.taps.append((x, y))
         if p.i < len(p.views) - 1:
             p.i += 1
         if (x, y) == map_view.UNIT_LIST_COLLAPSE:
-            _CUR["cards"] = False
+            _CUR["list_state"] = "collapsed"
 
     a.tap = tap
     assert map_view.ensure_max_view(p, a, sleep=lambda s: None) is True
