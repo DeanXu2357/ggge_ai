@@ -178,6 +178,46 @@ class LlmScreenReader:
             return None
         return str(data["text"]).strip() or None
 
+    def localize_pair(
+        self, frame_a: np.ndarray, frame_b: np.ndarray, instruction: str, force: bool = False
+    ) -> dict | None:
+        """Send two frames in one message (ollama's images list) for cross-frame
+        landmark localisation, returning the parsed JSON object or None (rate
+        limit / transport / non-object output). Both frames go through the same
+        production encoding path as read()/transcribe() so a probe measures what
+        the live loop would see. Advisory like read(): the returned coordinates
+        are a hypothesis the caller must verify deterministically before they
+        touch a real coordinate -- this method never validates them."""
+        now = time.monotonic()
+        if (
+            not force
+            and self._last_read_ts is not None
+            and now - self._last_read_ts < self.min_interval_s
+        ):
+            log.debug("LLM localize_pair skipped (rate limit)")
+            return None
+        self._last_read_ts = now
+        try:
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": instruction,
+                        "images": [self._encode(frame_a), self._encode(frame_b)],
+                    }
+                ],
+                "stream": False,
+                "format": "json",
+                "options": {"temperature": 0},
+            }
+            content = self.transport(self.url, payload, self.timeout_s)
+            data = json.loads(content)
+        except Exception:
+            log.warning("LLM localize_pair failed, continuing without it", exc_info=True)
+            return None
+        return data if isinstance(data, dict) else None
+
     @staticmethod
     def _encode(frame: np.ndarray) -> str:
         h, w = frame.shape[:2]

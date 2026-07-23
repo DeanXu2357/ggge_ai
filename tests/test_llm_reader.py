@@ -91,6 +91,49 @@ def test_rate_limit_skips_until_forced():
     assert len(calls) == 2
 
 
+def test_localize_pair_sends_two_images_and_returns_the_object():
+    reply = json.dumps(
+        {"landmark": "green mech", "frame1": {"col": 3, "row": 2}, "frame2": {"col": 3, "row": 7}}
+    )
+    reader, calls = _reader(reply)
+    data = reader.localize_pair(_frame(), _frame(), "find a shared landmark")
+
+    assert data == {
+        "landmark": "green mech",
+        "frame1": {"col": 3, "row": 2},
+        "frame2": {"col": 3, "row": 7},
+    }
+    payload = calls[0]
+    assert payload["format"] == "json"
+    assert payload["options"]["temperature"] == 0
+    assert payload["messages"][0]["content"] == "find a shared landmark"
+    assert len(payload["messages"][0]["images"]) == 2
+
+
+def test_localize_pair_non_object_reply_returns_none():
+    reader, _ = _reader(json.dumps(["not", "an", "object"]))
+    assert reader.localize_pair(_frame(), _frame(), "i") is None
+    reader, _ = _reader("not json at all")
+    reader.min_interval_s = 0
+    assert reader.localize_pair(_frame(), _frame(), "i") is None
+
+
+def test_localize_pair_transport_failure_returns_none():
+    def transport(url, payload, timeout_s):
+        raise OSError("server gone")
+
+    reader = LlmScreenReader(transport=transport)
+    assert reader.localize_pair(_frame(), _frame(), "i") is None
+
+
+def test_localize_pair_shares_rate_limit_until_forced():
+    reader, calls = _reader(json.dumps({"landmark": "x"}), min_interval_s=3600)
+    assert reader.localize_pair(_frame(), _frame(), "i") is not None
+    assert reader.localize_pair(_frame(), _frame(), "i") is None
+    assert reader.localize_pair(_frame(), _frame(), "i", force=True) is not None
+    assert len(calls) == 2
+
+
 def test_from_env_disabled_via_ggge_llm(monkeypatch):
     monkeypatch.setenv("GGGE_LLM", "0")
     assert LlmScreenReader.from_env() is None

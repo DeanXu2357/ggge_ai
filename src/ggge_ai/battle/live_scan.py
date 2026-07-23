@@ -26,7 +26,9 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
+import cv2
 import numpy as np
 
 from . import vision
@@ -35,11 +37,15 @@ from .coverage_map import (
     CellMap,
     Detector,
     FrameObservation,
+    LocalizeReport,
     observe_frame,
 )
 from .scout_intel import UNIT_DETAIL_CLOSE, SurveyIncomplete
 from .tacmap import TacticalMap
 from .vision import HUB_SCAN_REGION, find_unit_density_peaks
+
+if TYPE_CHECKING:
+    from ..perception.llm import LlmScreenReader
 
 log = logging.getLogger(__name__)
 
@@ -87,6 +93,62 @@ _DIR_NAME = {(1, 0): "east", (-1, 0): "west", (0, -1): "north", (0, 1): "south"}
 # edge the camera must travel west, etc.
 _EDGE_DIR = {"west": (-1, 0), "east": (1, 0), "north": (0, -1), "south": (0, 1)}
 
+# LLM localisation layer 3 (plan 4). The prompt is the production one; the
+# offline probe (scripts/llm_localize_probe.py) imports it verbatim so it
+# measures exactly what the live loop sends. FRAME 1 is the last localised frame,
+# FRAME 2 the current (refused) frame.
+LLM_LOCALIZE_PROMPT = (
+    "You are given TWO screenshots from the same tactical map in the mobile "
+    "game SD Gundam G Generation ETERNAL. The camera panned a little between "
+    "them, so they overlap. A square grid is drawn over the map in both. The "
+    "FIRST image is FRAME 1, the SECOND image is FRAME 2.\n"
+    "Pick ONE distinctive landmark (a unit, terrain feature or structure) that "
+    "is clearly visible in BOTH frames. Report which grid cell it sits in, in "
+    "each frame, using 0-based integer coordinates: col counts grid columns "
+    "from the LEFTMOST visible vertical gridline (0) increasing rightward; row "
+    "counts grid rows from the TOPMOST visible horizontal gridline (0) "
+    "increasing downward.\n"
+    'Answer strictly as JSON: {"landmark": "<short description>", '
+    '"frame1": {"col": <int>, "row": <int>}, '
+    '"frame2": {"col": <int>, "row": <int>}}'
+)
+# an LLM offset hypothesis is trusted only if a patch cropped at its claimed cell
+# in each frame cross-correlates this high (absolute floor); TM_CCOEFF_NORMED is
+# unreliable on flat regions (CLAUDE.md), so a patch below this texture floor
+# (std) is refused outright rather than matched against empty starfield.
+LLM_PATCH_HALF = 40
+LLM_PATCH_SEARCH = 22
+LLM_PATCH_MIN = 0.55
+LLM_PATCH_MIN_STD = 10.0
+
+
+def _reply_cell(node: object) -> tuple[int, int] | None:
+    if not isinstance(node, dict):
+        return None
+    try:
+        return int(node["col"]), int(node["row"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _cell_patch(
+    frame: np.ndarray, lat: "vision.MapLattice", cell: tuple[int, int], half: int
+) -> np.ndarray | None:
+    """A square crop centred on cell (col, row) using the frame's own lattice, or
+    None when the cell is off-lattice or too close to a frame edge to crop a full
+    window."""
+    col, row = cell
+    if not (0 <= col < len(lat.cols) - 1 and 0 <= row < len(lat.rows) - 1):
+        return None
+    cx = (lat.cols[col] + lat.cols[col + 1]) // 2
+    cy = (lat.rows[row] + lat.rows[row + 1]) // 2
+    h, w = frame.shape[:2]
+    x0, x1 = max(0, cx - half), min(w, cx + half)
+    y0, y1 = max(0, cy - half), min(h, cy + half)
+    if x1 - x0 < half or y1 - y0 < half:
+        return None
+    return frame[y0:y1, x0:x1]
+
 
 @dataclass
 class CoverageScanSource:
@@ -112,8 +174,12 @@ class CoverageScanSource:
     # the injected detector; a synthetic-world test injects its own so `frame`
     # is an opaque token (the loop never touches pixels itself).
     observe: Callable[[np.ndarray], FrameObservation | None] | None = None
-    # batch4 placeholder: the LLM third localisation layer is not wired here.
-    llm: object | None = None
+    # localisation layer 3 (plan 4): an injected screen reader whose landmark
+    # hypotheses are gated by patch verification + edge consistency before they
+    # touch a coordinate. None (the default, and every machine without ollama)
+    # makes _place skip the tier so the loop is bit-identical to the pure
+    # deterministic version.
+    llm: LlmScreenReader | None = None
     # factionless relocalisation pool for bring_to_view (shared with the
     # controller's adopted census).
     pool: TacticalMap = field(default_factory=TacticalMap, repr=False)
@@ -147,6 +213,11 @@ class CoverageScanSource:
         if obs is None:
             raise SurveyIncomplete("coverage scan: anchor frame carried no lattice")
         self._map.anchor(obs)
+        # the last frame that localised (pixels + its observation): the LLM assist
+        # pairs the current refused frame against this one and crops verification
+        # patches from it. The anchor frame is the first.
+        self._anchor_frame = frame
+        self._anchor_obs = obs
         # a confirming second look at the start view before moving: real units
         # appear in both captures (support >= 2, MIN_SUPPORT), transient
         # detector noise usually does not, and a map that fits the viewport
@@ -173,21 +244,13 @@ class CoverageScanSource:
             before = self._map.coverage()[0]
             self.nudge(self._direction_to(target, obs), frame)
             frame, obs = self._capture_observe()
-            off = self._map.localize(obs) if obs is not None else None
-            if off is None:
+            report = self._place(frame, obs)
+            if report.offset is None:
                 frame, obs = self._recover(frame, obs)
                 continue
-            self._map.integrate(obs, off)
-            self._last_offset = off
+            self._integrate(frame, obs, report)
             after = self._map.coverage()[0]
-            self._log(
-                "frame_localized",
-                offset=[off[0], off[1]],
-                margin=None,
-                source="cell_map",
-                edges={s: obs.edges[s] for s in SIDES},
-                new_cells=after - before,
-            )
+            self._log_localized(obs, report, after - before)
             if after > before:
                 self._stuck = 0
             else:
@@ -196,6 +259,118 @@ class CoverageScanSource:
                     self._unreachable.add(target)
                     self._stuck = 0
         return self._finish(outcome)
+
+    # -- localisation seam --------------------------------------------------
+
+    def _place(self, frame: np.ndarray, obs: FrameObservation | None) -> LocalizeReport:
+        """Localise obs against the map: the deterministic report (edge_pin /
+        vote), and on a deterministic refusal the LLM assist tier when one is
+        wired (self.llm). The single seam every localisation flows through so the
+        frame_localized ledger carries the real margin and source, and the assist
+        (source='llm_assist') sits exactly where plan 4 puts it -- after localize
+        refuses, before the recovery protocol. Returns a refused report when obs
+        is None (caller runs recovery)."""
+        if obs is None:
+            return LocalizeReport(
+                offset=None, source=None, margin=None, unit_hits=0, terrain_fraction=0.0
+            )
+        report = self._map.localize_report(obs)
+        if report.offset is None and self.llm is not None:
+            assist = self._llm_assist(frame, obs)
+            if assist is not None:
+                return assist
+        return report
+
+    def _integrate(
+        self, frame: np.ndarray, obs: FrameObservation, report: LocalizeReport
+    ) -> None:
+        self._map.integrate(obs, report.offset)
+        self._last_offset = report.offset
+        self._anchor_frame = frame
+        self._anchor_obs = obs
+
+    def _llm_assist(
+        self, frame: np.ndarray, obs: FrameObservation
+    ) -> LocalizeReport | None:
+        """Localisation layer 3: consult the injected LlmScreenReader for a
+        landmark shared by the last localised frame (FRAME 1) and the current
+        refused one (FRAME 2), turn its two grid cells into an offset hypothesis,
+        then trust NOTHING until two deterministic guards pass -- (a) a patch
+        cropped at each claimed cell cross-correlates over LLM_PATCH_MIN (proof
+        the two positions are the same content, so the offset is a real
+        correspondence), and (b) the offset is edge-consistent
+        (CellMap.verify_offset: nothing covered may sit past a visible boundary).
+        Only then is the offset returned (source='llm_assist'); any miss returns
+        None and the caller falls through to the recovery protocol. force=True
+        bypasses the reader's 60s rate limit so these sparse refusal events are
+        not swallowed."""
+        anchor_frame = getattr(self, "_anchor_frame", None)
+        anchor_obs = getattr(self, "_anchor_obs", None)
+        if anchor_frame is None or anchor_obs is None:
+            return None
+        reply = self.llm.localize_pair(anchor_frame, frame, LLM_LOCALIZE_PROMPT, force=True)
+        if reply is None:
+            return None
+        a_cell = _reply_cell(reply.get("frame1"))
+        b_cell = _reply_cell(reply.get("frame2"))
+        if a_cell is None or b_cell is None:
+            return None
+        offset = (
+            self._last_offset[0] + a_cell[0] - b_cell[0],
+            self._last_offset[1] + a_cell[1] - b_cell[1],
+        )
+        score = self._patch_certainty(
+            anchor_frame, anchor_obs.lattice, a_cell, frame, obs.lattice, b_cell
+        )
+        accepted = score >= LLM_PATCH_MIN and self._map.verify_offset(obs, offset)
+        self._log(
+            "llm_assist",
+            accepted=accepted,
+            offset=[offset[0], offset[1]],
+            patch=round(score, 3),
+            landmark=str(reply.get("landmark", ""))[:60],
+        )
+        if not accepted:
+            return None
+        return LocalizeReport(
+            offset=offset, source="llm_assist", margin=score, unit_hits=0, terrain_fraction=0.0
+        )
+
+    def _patch_certainty(
+        self,
+        a_frame: np.ndarray,
+        a_lat: "vision.MapLattice",
+        a_cell: tuple[int, int],
+        b_frame: np.ndarray,
+        b_lat: "vision.MapLattice",
+        b_cell: tuple[int, int],
+    ) -> float:
+        """Peak TM_CCOEFF_NORMED of the FRAME 1 landmark patch searched in a
+        slightly larger FRAME 2 window (the search band absorbs sub-cell camera
+        drift). A patch flatter than LLM_PATCH_MIN_STD is refused with 0.0: on
+        near-uniform starfield TM_CCOEFF aliases high against any other empty
+        region (CLAUDE.md), so it cannot verify a correspondence there."""
+        tpl = _cell_patch(a_frame, a_lat, a_cell, LLM_PATCH_HALF)
+        win = _cell_patch(b_frame, b_lat, b_cell, LLM_PATCH_HALF + LLM_PATCH_SEARCH)
+        if tpl is None or win is None:
+            return 0.0
+        if float(tpl.std()) < LLM_PATCH_MIN_STD:
+            return 0.0
+        if win.shape[0] < tpl.shape[0] or win.shape[1] < tpl.shape[1]:
+            return 0.0
+        return float(cv2.matchTemplate(win, tpl, cv2.TM_CCOEFF_NORMED).max())
+
+    def _log_localized(
+        self, obs: FrameObservation, report: LocalizeReport, new_cells: int | None
+    ) -> None:
+        self._log(
+            "frame_localized",
+            offset=[report.offset[0], report.offset[1]],
+            margin=report.margin,
+            source=report.source,
+            edges={s: obs.edges[s] for s in SIDES},
+            new_cells=new_cells,
+        )
 
     # -- phases -------------------------------------------------------------
 
@@ -212,20 +387,12 @@ class CoverageScanSource:
                 break
             self.nudge(_EDGE_DIR[need[0]], frame)
             frame, obs = self._capture_observe()
-            off = self._map.localize(obs) if obs is not None else None
-            if off is None:
+            report = self._place(frame, obs)
+            if report.offset is None:
                 frame, obs = self._recover(frame, obs)
                 continue
-            self._map.integrate(obs, off)
-            self._last_offset = off
-            self._log(
-                "frame_localized",
-                offset=[off[0], off[1]],
-                margin=None,
-                source="cell_map",
-                edges={s: obs.edges[s] for s in SIDES},
-                new_cells=None,
-            )
+            self._integrate(frame, obs, report)
+            self._log_localized(obs, report, None)
         return frame, obs
 
     def _confirm(
@@ -236,10 +403,9 @@ class CoverageScanSource:
         sighting (not a doubled single read)."""
         cframe, cobs = self._capture_observe()
         if cobs is not None:
-            coff = self._map.localize(cobs)
-            if coff is not None:
-                self._map.integrate(cobs, coff)
-                self._last_offset = coff
+            creport = self._map.localize_report(cobs)
+            if creport.offset is not None:
+                self._integrate(cframe, cobs, creport)
                 return cframe, cobs
         return frame, obs
 
@@ -259,10 +425,13 @@ class CoverageScanSource:
         for i in range(1, RELOC_MAX_NUDGES + 1):
             self.nudge(recover_dir, frame)
             frame, obs = self._capture_observe()
-            off = self._map.localize(obs) if obs is not None else None
-            if off is not None:
-                self._map.integrate(obs, off)
-                self._last_offset = off
+            report = (
+                self._map.localize_report(obs)
+                if obs is not None
+                else LocalizeReport(None, None, None, 0, 0.0)
+            )
+            if report.offset is not None:
+                self._integrate(frame, obs, report)
                 self._log("scan_recovery", reason="relocated", nudges=i)
                 return frame, obs
         self._log("scan_recovery", reason="exhausted", nudges=RELOC_MAX_NUDGES)
