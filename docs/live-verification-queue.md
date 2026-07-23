@@ -32,6 +32,26 @@
   見 [map-scan-survey.md](map-scan-survey.md) 更正段）。**修復已落地：
   覆蓋驅動重寫（批1~批5，serpentine 退役、min-zoom `find_unit_density_peaks`
   注入、cache bounds 預載）**，見 [coverage-scan-plan.md](coverage-scan-plan.md)。
+- **2026-07-23 輪二（覆蓋驅動重寫後首跑）結果：FAIL 於 T3 前置（未進
+  覆蓋掃描主體）**，run `data/runs/20260723-145815/`。前置兩輪 pinch 收斂
+  正常（frame-diff 46→0.22px），但 `vision.zoom_at_max` 十六次量測全讀不到
+  格線 → 誤判 undecidable → `SurveyIncomplete`。根因離線鐵證：`zoom_at_max`
+  只走窄帶 `read_grid_lattice`，中央量測窗被密集編隊蓋掉（ex2if pt2 同款）；
+  批1 的全幀 `read_map_lattice` 九幀照讀 col_pitch 100/93。**修復已落地
+  （批6）：`zoom_at_max` 窄帶讀不到退全幀 `read_map_lattice` col_pitch 判定
+  （語意/閾值不變）；pinch 中心改每步動態選無單位空地（`pick_pinch_center`
+  max-min clearance，取代寫死 (1170,500)）；`zoom_step`／`battle_grid` ledger
+  事件補存幀＋`zoom_step.source` 增 map_lattice。** 見
+  [coverage-scan-plan.md](coverage-scan-plan.md) §5。
+- **下輪協定（使用者指示，純冷探索）**：
+  1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
+     （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。
+  2. 啟動需帶 `GGGE_INTEL=1 GGGE_STAGE_ID="最終驗證 STAGE EX-2 IF VS全裝甲鋼彈"`
+     ——驗證點 5（identify）與定義檔匯出只在帶這兩個環境變數時才觸發。
+  3. 匯出的新定義檔應含 `map_cols/map_rows=23/24`（首訪冷掃產出、畫面權威）；
+     第二輪同關重掃才驗 cache bounds 預載（`cache_bounds_dropped` 不應出現）。
+  4. 存幀已開：T3 中段可交叉比對 `zoom_step`／`battle_grid` 幀（本輪失敗即因
+     中段零影像），核對窄帶 vs 寬帶讀取與動態中心落點。
 - **本輪要驗的點（重寫後全新，全部離線挑值待實機校準）**：
   1. **手勢方向推動有效性**：nudge 只推鏡頭不量測，卡頓/掉包只損時間；
      實機確認保守短推（`NUDGE_HALF` 250×170、700ms、settle 1.5s）真能
@@ -48,6 +68,10 @@
   6. **cache bounds 預載實戰**：第二輪同關重掃時 `_navigator` 應讀到上一輪
      寫入定義檔的 `map_cols/map_rows` 當 hint（`cache_bounds_dropped` 不應
      出現＝hint 與實掃一致）。
+  7. **T3 前置寬帶 fallback（批6，本輪 FAIL 的直接修復）**：`zoom_step` 幀
+     的 `source` 逐步落 grid／map_lattice／frame；密集編隊幀應由 map_lattice
+     讀出 col_pitch、`zoom_at_max` 過關進覆蓋掃描主體；`pick_pinch_center`
+     選的中心逐步避開單位（比對存幀），全讀不到才退固定 (1170,500)。
 - **附帶確認**：`_scout_local`（turn-2+ 局部掃描）的實際 zoom 狀態——若
   遊戲停留最小 zoom，local scout 用的弧偵測有同款域錯配（既存疑問，非
   本輪引入）；順手記一筆 turn-2 hub 的 zoom。

@@ -109,6 +109,10 @@ camera 已歸零，row 腿實際垂直漂移僅 0.5px）。實際因果鏈：
 **前置不變**：T3 序列（退頂層 → 開格線 → 拉最遠 → `zoom_at_max` 驗證，
 兩輪不過=SurveyIncomplete）。有定義檔 cache 時預載 bounds 當覆蓋帳框架
 （批5）；實掃見到的邊與 cache 矛盾 → 作廢預載、退回探索。
+T3 閘門已升級寬帶 fallback（批6）：`zoom_at_max` 窄帶 `read_grid_lattice`
+讀不到時退全幀 `read_map_lattice` col_pitch（修 07-23 輪二密集編隊蓋掉窄帶
+量測窗的假 undecidable）；pinch 中心改每步動態選無單位空地、`zoom_step`／
+`battle_grid` 補存幀。
 
 **Phase A 錨定**：目標＝一張西邊＋北邊同時入鏡的幀。缺哪條邊就朝那個
 方向 nudge → 截圖 → observe，直到看見（純目視、預算 `ANCHOR_MAX_NUDGES`）。
