@@ -71,6 +71,14 @@ UNIT_LIST_HEADER_TEMPLATE = (
     / "unit_list_header.png"
 )
 
+ENEMY_SELECTION_HUD_TEMPLATE = (
+    Path(__file__).resolve().parents[3]
+    / "assets"
+    / "templates"
+    / "elements"
+    / "enemy_selection_hud.png"
+)
+
 # the 單位設置詳情 title sits top-center of the unit-setup detail modal and is
 # identical across its 組合資訊 / 武裝技能 / 能力OP tabs, so it is a stable modal
 # anchor. a stray keyguard drag onto a live map opens this modal on top of an
@@ -1106,6 +1114,48 @@ def is_unit_detail_modal(frame: np.ndarray, threshold: float = 0.6) -> bool:
     result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
     _, score, _, _ = cv2.minMaxLoc(result)
     return score >= threshold
+
+
+# the enemy-selection 比較 HUD: tapping a unit on the map docks two side-by-side
+# info panels (our reference unit on the left with its MP bar, the tapped unit on
+# the right with HP/EN). A stray pinch finger during the cold scan can tap an
+# enemy and leave this HUD frozen over the map -- its bright screen-anchored info
+# bar poisons the coverage localiser's brightness filter and the red threat-range
+# overlay dyes cells, poisoning terrain fingerprints (輪七 root cause, run
+# 20260724-012023, cross-checked frozen pixel-for-pixel across a 6-minute gap).
+# It is invisible to is_unit_detail_modal (measured False on the full-res sample).
+# Match the LEFT panel's header bar (the ⊖ toggle + pilot-name strip) within its
+# screen-anchored region so a high TM_CCOEFF cannot come from the dimmed map
+# behind it. Calibration: the 20260724-013030 full-res positive scores 1.00 and
+# its two half-scale run-frame siblings 0.99; the clean 輪六 scan frame scores
+# 0.08 and the whole clean fixture corpus peaks at 0.48 (a forecast panel the
+# scan never sees) -- 0.70 gate. SINGLE positive sample: this is calibrated to
+# one frozen selection (one pilot/enemy pair); a different pairing may miss. A
+# miss just leaves the localisation-starving brake as the backstop (never a false
+# empty-land tap on a clean frame). See docs/live-verification-queue.md for the
+# queued second positive sample.
+ENEMY_SELECTION_HUD_REGION = (138, 116, 268, 88)
+ENEMY_SELECTION_HUD_THRESHOLD = 0.70
+
+
+def enemy_selection_active(frame: np.ndarray) -> bool:
+    """True when the enemy-selection 比較 HUD is docked over the battle map
+    (a unit was tapped and its comparison panels stayed up). Screen-anchored
+    template match on the left panel's header strip; non-image input (an opaque
+    scan token) reads False so the empty-land dismiss tap never fires on a
+    non-frame."""
+    if not isinstance(frame, np.ndarray) or frame.ndim != 3:
+        return False
+    template = _cached_template(str(ENEMY_SELECTION_HUD_TEMPLATE))
+    if template is None:
+        return False
+    x0, y0, w, h = ENEMY_SELECTION_HUD_REGION
+    band = frame[y0 : y0 + h, x0 : x0 + w]
+    if band.shape[0] < template.shape[0] or band.shape[1] < template.shape[1]:
+        return False
+    result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, _ = cv2.minMaxLoc(result)
+    return score >= ENEMY_SELECTION_HUD_THRESHOLD
 
 
 # the 可行動單位 card-list toggle is a "單位列表" text header with a divider rule.

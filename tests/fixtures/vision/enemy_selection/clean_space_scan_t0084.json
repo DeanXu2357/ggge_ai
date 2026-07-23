@@ -1,0 +1,16 @@
+{
+  "check": "enemy_selection_active",
+  "expect": false,
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "clean_space_scan_t0084.png",
+  "note": "輪六乾淨掃描幀（run 20260724-004440，1280x591 縮圖升採樣至全解析度）：無比較 HUD，掃描主體乾淨收斂。這是偵測器最相關的負樣本——實際部署就是這個太空掃描情境。"
+}

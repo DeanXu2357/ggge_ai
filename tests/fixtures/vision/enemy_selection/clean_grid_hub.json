@@ -1,0 +1,16 @@
+{
+  "check": "enemy_selection_active",
+  "expect": false,
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_grid_on_20260719.png",
+  "note": "顯示方格 ON 的太空地圖 hub（#25 樣本）＝掃描主體情境（min-zoom、格線在場），無選取殘留。"
+}

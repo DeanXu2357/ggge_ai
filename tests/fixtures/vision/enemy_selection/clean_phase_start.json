@@ -1,0 +1,16 @@
+{
+  "check": "enemy_selection_active",
+  "expect": false,
+  "box": [
+    150,
+    90,
+    1510,
+    780
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "phase_start_clean.png",
+  "note": "PHASE START 乾淨我方回合 hub（弧線藍色）＝掃描前置情境，無選取殘留。"
+}

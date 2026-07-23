@@ -1,0 +1,16 @@
+{
+  "check": "enemy_selection_active",
+  "expect": true,
+  "box": [
+    120,
+    105,
+    360,
+    130
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "residue_space_stage.png",
+  "note": "輪七敗因存證：敵機選取殘留＝比較 HUD（史列加・羅 vs G-3鋼彈）凍結在掃描開始前的太空地圖上，污染批7 亮度濾波與地形指紋。enemy_selection_active 比對左側單位面板頭部條（⊖＋駕駛名）。單正樣本校準：本 fixture 是同一凍結畫面（單一駕駛/敵機配對），不同配對可能漏判——漏判只退回定位飢餓煞車當後盾，不會在乾淨幀誤觸空地 tap。第二正樣本待實機補（docs/live-verification-queue.md）。模板比對類正負分數差 0.99 vs 0.48，用 PNG 存原始像素避免壓縮抹掉校準錨。"
+}

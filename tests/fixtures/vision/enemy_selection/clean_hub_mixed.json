@@ -1,0 +1,16 @@
+{
+  "check": "enemy_selection_active",
+  "expect": false,
+  "box": [
+    150,
+    90,
+    1510,
+    780
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "our_turn_hub_mixed_factions.png",
+  "note": "混編我方回合 hub（TURN 2，含未行動我方與敵機弧線）＝真實 hub 情境，無比較 HUD 選取殘留。"
+}

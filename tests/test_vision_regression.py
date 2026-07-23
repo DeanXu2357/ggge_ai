@@ -288,6 +288,7 @@ CHECKS = {
     "zoom_at_max": _check_bool(vision.zoom_at_max),
     "map_view_state": _check_map_view_state,
     "unit_detail_modal": _check_bool(vision.is_unit_detail_modal),
+    "enemy_selection_active": _check_bool(vision.enemy_selection_active),
     "hidden_battle_warning": _check_bool(vision.is_hidden_battle_warning),
     "defeat_screen": _check_bool(vision.is_defeat_screen),
     "dialog_cursor_present": _check_bool(lambda f: vision.locate_dialog_cursor(f) is not None),
