@@ -394,10 +394,26 @@ class CellMap:
 
     # -- integration --------------------------------------------------------
 
-    def integrate(self, obs: FrameObservation, offset: Cell) -> None:
+    def integrate(self, obs: FrameObservation, offset: Cell) -> int:
         """Fold a localised frame into the map at `offset`: unit support with
         px refinement, terrain fingerprints, coverage, and first-seen boundary
-        registration."""
+        registration.
+
+        Terrain is first-write-wins (輪八 定案): the first frame to see a cell
+        fixes its reference fingerprint and later frames only fill cells not yet
+        seen -- they never overwrite an existing one. Unit evidence already earns
+        a support consensus (批2); terrain now gets the same, so a single
+        barely-passing mislocalised integration can no longer rewrite the
+        reference truth that every honest later frame votes against (the 輪八
+        east dead-lock: one wrong overwrite corrupted hundreds of cells, then
+        every honest frame refused forever). A correct re-sighting writes a
+        near-identical value, so keeping the first is behaviourally equivalent on
+        the healthy path; the divergence is exactly the wrong-overwrite case.
+
+        Returns the terrain_conflict count: overlapped cells whose already-stored
+        fingerprint disagrees with this frame's by TERRAIN_MATCH or more. Zero (or
+        near-zero) on an honest re-integration; high on a mislocalised offset --
+        an immediate ledger warning of a bad placement."""
         dcol, drow = offset
         if self._col_pitch is None:
             self._col_pitch = obs.lattice.col_pitch
@@ -411,10 +427,15 @@ class CellMap:
             unit.px_sum = (unit.px_sum[0] + ox, unit.px_sum[1] + oy)
         west, east = obs.edges["west"], obs.edges["east"]
         north, south = obs.edges["north"], obs.edges["south"]
+        terrain_conflict = 0
         for cell, fp in obs.fingerprints.items():
             col, row = cell
             gcell = (col + dcol, row + drow)
-            self._terrain[gcell] = fp
+            known = self._terrain.get(gcell)
+            if known is None:
+                self._terrain[gcell] = fp
+            elif float(np.linalg.norm(fp - known)) >= TERRAIN_MATCH:
+                terrain_conflict += 1
             # coverage counts map interior only: cell_fingerprints samples the
             # starfield past a visible edge too, and marking that off-map space
             # covered both inflates the coverage report and forges edge
@@ -439,6 +460,7 @@ class CellMap:
                 axis = 0 if side in ("west", "east") else 1
                 self._reg[side] = line + (dcol if axis == 0 else drow)
         self._check_hint()
+        return terrain_conflict
 
     # -- cache size hint ----------------------------------------------------
 

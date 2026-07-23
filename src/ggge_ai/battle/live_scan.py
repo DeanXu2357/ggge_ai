@@ -286,7 +286,7 @@ class CoverageScanSource:
             report = self._place(frame, obs)
             if report.offset is None:
                 self._refused += 1
-                self._save_refused(frame)
+                self._save_refused(frame, report, obs)
                 # a docked enemy-selection HUD poisons the whole-frame vote;
                 # clear it and retry placement before spending recovery budget
                 # (輪七). No residue -> same frame, straight to recovery (old
@@ -297,7 +297,7 @@ class CoverageScanSource:
                     obs = self.observe(frame)
                     report = self._place(frame, obs)
                 if report.offset is None:
-                    frame, obs = self._recover(frame, obs)
+                    frame, obs = self._recover(frame, obs, report)
                     if self._map.coverage()[0] > before:
                         self._starve = 0
                     else:
@@ -306,9 +306,9 @@ class CoverageScanSource:
                             outcome = "starved"
                             break
                     continue
-            self._integrate(frame, obs, report)
+            conflict = self._integrate(frame, obs, report)
             after = self._map.coverage()[0]
-            self._log_localized(obs, report, after - before)
+            self._log_localized(obs, report, after - before, conflict)
             self._starve = 0
             if after > before:
                 self._stuck = 0
@@ -342,12 +342,16 @@ class CoverageScanSource:
 
     def _integrate(
         self, frame: np.ndarray, obs: FrameObservation, report: LocalizeReport
-    ) -> None:
-        self._map.integrate(obs, report.offset)
+    ) -> int:
+        """Fold the localised frame in and return CellMap.integrate's
+        terrain_conflict count so the caller can log it (輪八 mislocalisation
+        warning)."""
+        conflict = self._map.integrate(obs, report.offset)
         self._note_hint_drop()
         self._last_offset = report.offset
         self._anchor_frame = frame
         self._anchor_obs = obs
+        return conflict
 
     def _note_hint_drop(self) -> None:
         """Log cache_bounds_dropped once, the first time CellMap discards the
@@ -450,7 +454,11 @@ class CoverageScanSource:
         return float(cv2.matchTemplate(win, tpl, cv2.TM_CCOEFF_NORMED).max())
 
     def _log_localized(
-        self, obs: FrameObservation, report: LocalizeReport, new_cells: int | None
+        self,
+        obs: FrameObservation,
+        report: LocalizeReport,
+        new_cells: int | None,
+        terrain_conflict: int,
     ) -> None:
         self._log(
             "frame_localized",
@@ -459,7 +467,16 @@ class CoverageScanSource:
             source=report.source,
             edges={s: obs.edges[s] for s in SIDES},
             new_cells=new_cells,
+            terrain_conflict=terrain_conflict,
         )
+
+    @staticmethod
+    def _edges_visibility(obs: FrameObservation | None) -> dict[str, int | None]:
+        """The per-side edge line index this frame sees (None = off-screen), or
+        all-None when the frame carried no observation. Refused telemetry (輪八):
+        an outward-extrapolation refusal with no visible edge reads differently
+        from one that saw an edge and still could not clear the margin."""
+        return {s: obs.edges[s] for s in SIDES} if obs is not None else {s: None for s in SIDES}
 
     # -- phases -------------------------------------------------------------
 
@@ -478,10 +495,10 @@ class CoverageScanSource:
             frame, obs = self._capture_observe()
             report = self._place(frame, obs)
             if report.offset is None:
-                frame, obs = self._recover(frame, obs)
+                frame, obs = self._recover(frame, obs, report)
                 continue
-            self._integrate(frame, obs, report)
-            self._log_localized(obs, report, None)
+            conflict = self._integrate(frame, obs, report)
+            self._log_localized(obs, report, None, conflict)
         return frame, obs
 
     def _confirm(
@@ -499,7 +516,10 @@ class CoverageScanSource:
         return frame, obs
 
     def _recover(
-        self, frame: np.ndarray, obs: FrameObservation | None
+        self,
+        frame: np.ndarray,
+        obs: FrameObservation | None,
+        refused: LocalizeReport,
     ) -> tuple[np.ndarray, FrameObservation | None]:
         """Localisation refused (isolated pairing / over-move / ambiguous
         frame): undo the move that lost the lock -- reversing the last nudge
@@ -508,9 +528,23 @@ class CoverageScanSource:
         re-anchors us. With no prior nudge (lost at the very anchor) steer
         toward the nearest registered edge. The direction is fixed for the whole
         sortie so recovery nudges cannot oscillate. Budgeted; on exhaustion
-        returns with obs unplaced so the caller counts it as no progress."""
+        returns with obs unplaced so the caller counts it as no progress.
+
+        `refused` is the report that triggered recovery; its margin / unit_hits /
+        terrain_fraction and the frame's edge visibility ride the
+        localize_refused event so a refused frame's evidence is on record (輪八
+        遙測), and the relocated event carries the relocation's terrain_conflict
+        count."""
         recover_dir = self._recovery_direction(obs)
-        self._log("scan_recovery", reason="localize_refused", nudges=0)
+        self._log(
+            "scan_recovery",
+            reason="localize_refused",
+            nudges=0,
+            margin=refused.margin,
+            unit_hits=refused.unit_hits,
+            terrain_fraction=refused.terrain_fraction,
+            edges=self._edges_visibility(obs),
+        )
         for i in range(1, RELOC_MAX_NUDGES + 1):
             self.nudge(recover_dir, frame)
             frame, obs = self._capture_observe()
@@ -520,9 +554,11 @@ class CoverageScanSource:
                 else LocalizeReport(None, None, None, 0, 0.0)
             )
             if report.offset is not None:
-                self._integrate(frame, obs, report)
+                conflict = self._integrate(frame, obs, report)
                 self._relocated += 1
-                self._log("scan_recovery", reason="relocated", nudges=i)
+                self._log(
+                    "scan_recovery", reason="relocated", nudges=i, terrain_conflict=conflict
+                )
                 return frame, obs
         self._log("scan_recovery", reason="exhausted", nudges=RELOC_MAX_NUDGES)
         return frame, obs
@@ -685,11 +721,18 @@ class CoverageScanSource:
         except map_view.SelectionResidueStuck as exc:
             raise SurveyIncomplete(str(exc)) from exc
 
-    def _save_refused(self, frame: np.ndarray) -> None:
+    def _save_refused(
+        self, frame: np.ndarray, report: LocalizeReport, obs: FrameObservation | None
+    ) -> None:
         """Round 1.7 forensics: dump the first 3 refused frames and every 20th
         after at NATIVE resolution (outside the ledger's downscaled thumbnail
         pipeline) and record the path in a refused_frame event, so a poisoned
-        localisation can be re-probed offline. self._refused is already bumped."""
+        localisation can be re-probed offline. self._refused is already bumped.
+
+        輪八 telemetry: the refused report already carries margin / unit_hits /
+        terrain_fraction (read but never logged) -- record them plus the frame's
+        edge visibility so a refused frame's evidence is on the ledger without a
+        re-probe (a low-margin miss vs a no-overlap miss read differently)."""
         n = self._refused
         if not (n <= 3 or n % 20 == 0):
             return
@@ -699,7 +742,15 @@ class CoverageScanSource:
                 path = self.diag_save(frame, f"refused{n:03d}")
             except Exception:
                 path = None
-        self._log("refused_frame", n=n, path=path)
+        self._log(
+            "refused_frame",
+            n=n,
+            path=path,
+            margin=report.margin,
+            unit_hits=report.unit_hits,
+            terrain_fraction=report.terrain_fraction,
+            edges=self._edges_visibility(obs),
+        )
 
     # -- survey navigation --------------------------------------------------
 
