@@ -163,3 +163,87 @@
 7. **裝置現況（收工時）**：活動關戰局停在 TURN 1 our-turn hub（我方一機
    已於 run 7 貪婪攻擊過一次）；`data/cache/stages/` 已清空；省電觸控鎖
    3 分鐘逾時常駐（Keyguard 會自動處理）。戰局可放棄退體力。
+
+## 2026-07-23 凌晨：#26 批2 cutover 首次實機驗證——serpentine 南邊界誤判
+
+同一活動關「最終驗證 STAGE EX-2 IF」（3 回合即敗北），批2 cutover
+（LiveScanSource／`battle/live_scan.py`）自批2 合併進 main 以來**第一次
+真正上機跑**（先前全部只在 fixture 回放驗證過）。跑一次即 `survey_abort`，
+`turns:1`（沒浪費回合，fail-fast 正確攔截）；流水帳
+`data/runs/20260723-005301/battle_01.jsonl` 完整還原根因：
+
+- Corner phase 正常定位 west=0／north=0。
+- 東向 `row` 腿量到的相機座標**混入垂直漂移**（y 從 18.2 跳到 -0.5，
+  跑到 north 邊界之外）——`swipe`/`measure_camera_shift` 對真機手勢的
+  雜訊沒有免疫力，程式碼註解已知的「post-action camera easing + adb
+  drop flakiness」這次具體命中。
+- 被污染的 y 座標讓下一個 `south_step` 只量到 11.5 個單位就被
+  `_at_edge`（`SCAN_EDGE_RATIO=0.3`）判定「已到南邊界」，`south=11.0`
+  定案——**很可能是假陽性**，serpentine 因此只走了地圖最上方兩排就
+  收工（5 legs：corner_west/corner_north/row/south_step/row），全地圖
+  密度掃描只找到 **2 個單位**（`tactical_map` 事件），遠低於本關已知
+  的 10 台我方出擊機＋敵方多台。
+- 少數兩個單位之一定位時（`bring_to_view`）用 landmarks 比對只給
+  `response=0.0`（近零信心）卻仍跳了 335px，讀到的單位名稱「戰鬥」
+  明顯是誤讀 UI 文字非真實單位名；第二個單位點名時預期位置沒有摘要
+  橫幅，`SurveyIncomplete` 正確 fail-fast。
+- **offline 測試覆蓋不到這個 bug**：`tests/test_live_scan.py` 的
+  `_World.swipe()` 是完全乾淨無雜訊的虛擬相機（`requested=(x1-x2,y1-y2)`
+  直接套用，橫向腿永遠零垂直分量），fixture 回放本質上模擬不出真機
+  手勢的交叉軸漂移——這類 bug 只有真機驗證才挖得到，也是 #26 排這輪
+  live-verification 的原因。
+- **候選修復方向（未實作，待下個 session 決策）**：`south_step`／
+  `_at_edge` 對邊界判定加二次確認（連續兩次一致才採信，而非單腿量測
+  即定案）；或 `row` 腿量到的垂直分量超出容差時視為污染、丟棄該腿重試
+  而非讓它污染 bounds。
+- 裝置現況：中止後裝置乾淨停在 hub／TURN 1，無殘留彈窗，`turns:1`。
+
+### 更正（2026-07-23 批5 複核，上段「垂直漂移污染」根因已被推翻）
+
+上段以「row 腿垂直漂移污染 y 座標 → 假南邊界」立論；**批5 對流水帳
+`data/runs/20260723-005301/battle_01.jsonl` 逐事件複核後判定此因果不成立**，
+上段保留原文只作歷史紀錄，正確根因如下（權威版見
+[coverage-scan-plan.md](coverage-scan-plan.md) §1）：
+
+- **「y 從 18.2 跳到 -0.5」不是漂移污染**：18.2 是 corner 錨定「之前」的
+  相機座標，corner phase 錨定時 camera 已歸零，實際 row 腿的垂直漂移只有
+  0.5px（在容差內）。垂直漂移這條線索是誤讀。
+- **真正的根因＝偵測器域錯配**：T3 前置把 full_scan 工作點改到最小 zoom，
+  但 `LiveScanSource._find_units` 仍用 battle-zoom 校準的弧形偵測器，27 台
+  單位只普查到 2 台。為最小 zoom 特製的 `find_unit_density_peaks`（九幀
+  recall 104/104）當時只接在離線 `map_stitch`，live 鏈路未接——這個缺口
+  **07-20 已登記在 #26 待辦**（「controller 尚未接 min-zoom 偵測器」），
+  批2 cutover 與 T3 交會時漏接。分類：已定義、已離線實作、**整合漏項**，
+  不是新 bug。
+- **量測鏈全崩是衍生**：pool 稀疏使 landmark 重定位與 `measure_arc_shift`
+  同組偵測器同瞎，量測全落到 phase correlation——而 phase 在「格線開啟的
+  最小 zoom」已被離線裁定不可用（週期紋理假鎖，07-20 從拼接管線移除），
+  該裁定未搬進 live。south 假邊界只是這條崩鏈的下游症狀。
+
+## 2026-07-23 覆蓋驅動掃描重寫落地（serpentine 退役）
+
+使用者定案（見 coverage-scan-plan.md §2）：手勢量全面退出座標計算、幀間
+關聯只用相對關係（單位星座＋逐格地形指紋＋邊界目視）、掃描改覆蓋驅動、
+邊界只在「看見」時成立永不從「推不動」推論。據此以協調者管線分五批重寫，
+**serpentine 路線＋`pan_leg` 量測鏈＋`_at_edge`＋`SCAN_EDGE_RATIO`＋掃描
+路徑上的 `measure_camera_shift`／`measure_arc_shift` 全退役**（`_scout_local`
+turn-2+ battle zoom 與離線 `map_stitch`／`read_board` 保留）。五批摘要：
+
+- **批1**（`932eb4f`）：視覺原語 `read_map_lattice`（全幀格線外插＋截止緣
+  ＝邊界目視證據）＋`cell_fingerprints`（逐格 Lab 指紋）＋fixtures。
+- **批2**（`de1b0f1`／`83a257b`）：`FrameObservation`＋`CellMap`——相對定位
+  （邊界硬約束第 1 層／地形投票＋裕度第 2 層）／integrate／frontier／
+  to_tacmap；配對定位真值、遮單位純地形定位、裕度拒判、標準答案端到端全過。
+- **批3**（`984c95e`／`bbd0960`）：`CoverageScanSource` 迴圈＋回復協定＋
+  controller cutover（含 bring_to_view 同源改造，消滅 07-23 的 335px 假跳）
+  ＋退役清單執行；合成惡意世界收斂、07-23 失效模式做成永久回歸。
+- **批4**（`e6849e2`／`8000baf`／`2b673f9`）：LLM 第三層接線＋護欄＋probe
+  腳本；probe 實跑裁決**不上線**（gemma 本機 0/8 exact、係統性回 (0,0)，
+  見 [llm-localize-probe.md](llm-localize-probe.md)），tier 已落地上鎖但生產
+  休眠，控制器不注入 llm、迴圈與純確定性版 bit 級一致。
+- **批5**（`18ee1be`＋本文件收尾 commit）：cache bounds 預載（規劃 hint、
+  絕不成邊界、矛盾即丟棄退回探索）＋文件回寫。
+
+整份重寫計畫與批次驗收見 [coverage-scan-plan.md](coverage-scan-plan.md)；
+修復後的實機驗證輪見 [live-verification-queue.md](live-verification-queue.md)
+佇列 1。

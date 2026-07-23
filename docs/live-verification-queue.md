@@ -19,14 +19,38 @@
 
 ## 佇列（依優先序）
 
-### 1. #26 cutover 冷掃 survey identify 全鏈路實戰輪
+### 1. #26 覆蓋驅動掃描 survey identify 全鏈路實戰輪（重寫後）
 
-- 內容：LiveScanSource 走圖 → 逐台點擊分流（FactionIdentifier 停靠邊判
-  陣營）→ 完整星座點名 → 定義檔匯出。批2 cutover（c2ba182）後整條鏈路
-  未經實機。
+- 內容：`CoverageScanSource` 覆蓋驅動走圖 → 逐台點擊分流（FactionIdentifier
+  停靠邊判陣營）→ 完整星座點名 → 定義檔匯出。整條鏈路重寫後未經實機。
 - 成功判準：survey_complete；陣營判定零猜測（雙命中拒判有紀錄）；
   `identity.seed` 完整星座點名成功；戰局可正常接續或放棄。
 - 場地：活動關戰局仍停 TURN 1 our-turn hub（可放棄退體力）。
+- **2026-07-23 凌晨第一輪（serpentine cutover）結果：survey_abort（未過）**
+  ——根因＝偵測器域錯配（弧偵測 battle-zoom 校準 vs T3 最小 zoom 工作點，
+  #26 07-20 已登記漏接），非「垂直漂移污染」（該說法已被流水帳複核推翻，
+  見 [map-scan-survey.md](map-scan-survey.md) 更正段）。**修復已落地：
+  覆蓋驅動重寫（批1~批5，serpentine 退役、min-zoom `find_unit_density_peaks`
+  注入、cache bounds 預載）**，見 [coverage-scan-plan.md](coverage-scan-plan.md)。
+- **本輪要驗的點（重寫後全新，全部離線挑值待實機校準）**：
+  1. **手勢方向推動有效性**：nudge 只推鏡頭不量測，卡頓/掉包只損時間；
+     實機確認保守短推（`NUDGE_HALF` 250×170、700ms、settle 1.5s）真能
+     推走鏡頭且下一幀可定位。
+  2. **覆蓋收斂 nudges 數**：`coverage_report` 的 nudges／覆蓋率；對照
+     `SCAN_MAX_NUDGES=48`（有 cache hint 時依尺寸放大）是否夠。
+  3. **四邊目視偵測**：`read_map_lattice` 的截止緣四邊全中（太空圖家族
+     校準，本關即太空圖）；`frame_localized` 的 `edges` 逐邊落點合理。
+  4. **survey 接續 identify**：走完 → `bring_to_view`（constellation 重錨、
+     無 335px 假跳）→ 停靠邊分流 → 定義檔匯出。
+  5. **nudge 預算常數實機調校**：`ANCHOR_MAX_NUDGES=8`／`SCAN_MAX_NUDGES=48`／
+     `RELOC_MAX_NUDGES=6`／`STUCK_LIMIT=3`／`BRING_MAX_NUDGES=8` **皆離線
+     挑值**，實機依收斂表現調整。
+  6. **cache bounds 預載實戰**：第二輪同關重掃時 `_navigator` 應讀到上一輪
+     寫入定義檔的 `map_cols/map_rows` 當 hint（`cache_bounds_dropped` 不應
+     出現＝hint 與實掃一致）。
+- **附帶確認**：`_scout_local`（turn-2+ 局部掃描）的實際 zoom 狀態——若
+  遊戲停留最小 zoom，local scout 用的弧偵測有同款域錯配（既存疑問，非
+  本輪引入）；順手記一筆 turn-2 hub 的 zoom。
 - 附帶：批A/批B（對帳資料保存）落地後，本輪同時開始累積對帳數據。
 
 ### 2. 縮放地圖獨立驗證（定案 4）

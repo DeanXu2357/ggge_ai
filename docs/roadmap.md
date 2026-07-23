@@ -1,8 +1,9 @@
 # 進度與規劃
 
-更新日期：2026-07-21（最新里程碑＝**07-21 協調者管線日：操作/辨識分離
-＋#27 三批＋MP 假設庫全離線落地**（見暫停快照）；前一里程碑＝07-20
-離線地圖拼接＋標準答案落地；S9d/tick/middleware/重構見各日期段）
+更新日期：2026-07-23（最新里程碑＝**07-23 覆蓋驅動掃描重寫日：serpentine
+退役＋覆蓋驅動 CoverageScanSource 五批落地＋cache bounds 預載**（見暫停
+快照）；前一里程碑＝07-21 協調者管線日：操作/辨識分離＋#27 三批＋MP 假設庫
+全離線落地；再前＝07-20 離線地圖拼接＋標準答案落地）
 
 **2026-07-17 離線工程重構（行為不變、非里程碑）**：`ManualBattleController.run()`
 兩項結構整理——① 每圈單次截圖：中斷偵測器（終局/敗北/隱藏關/modal/劇情）
@@ -85,7 +86,49 @@ lambda 內化成表上 `repair` 欄，`ends_activation` 取代散落的 reset。
 503 tests/3 xfail、ruff 全綠；文件 battle-phase-states.md「期望轉移驗證」。
 **裝置現況與 S9 恢復點不變，見下。**
 
-## 暫停快照（2026-07-21 協調者管線日，恢復點）
+## 暫停快照（2026-07-23 覆蓋驅動掃描重寫日，恢復點）
+
+**本日（純離線、未碰實機）**：07-23 凌晨 serpentine cutover 首次實機
+survey_abort，根因＝**偵測器域錯配**（弧偵測 battle-zoom 校準 vs T3 最小
+zoom 工作點，#26 07-20 已登記漏接；「垂直漂移污染」原說法經流水帳複核
+推翻，見 map-scan-survey.md 更正段）。據使用者定案（手勢量退出座標計算、
+幀間只用相對關係＋邊界目視、掃描改覆蓋驅動、邊界只在看見時成立）以協調者
+管線分五批把地圖掃描整條重寫，**serpentine 退役**。tip＝本日文件收尾
+commit、**786 passed／3 xfailed／0 skipped、ruff 綠**：
+
+- **批1**（`932eb4f`）視覺原語：`read_map_lattice`（全幀格線外插＋截止緣
+  ＝邊界目視證據）＋`cell_fingerprints`（逐格 Lab 指紋）＋fixtures。
+- **批2**（`de1b0f1`／`83a257b`）`FrameObservation`＋`CellMap`：相對定位
+  （邊界硬約束＋地形投票裕度，手勢量全面退出）／integrate／frontier／
+  to_tacmap；標準答案端到端 27 台／23×24。
+- **批3**（`984c95e`／`bbd0960`）`CoverageScanSource` 覆蓋迴圈＋回復協定
+  ＋controller cutover（含 bring_to_view 同源改造，消滅 335px 假跳）＋
+  退役 `pan_leg`／`_at_edge`／`SCAN_EDGE_RATIO`／serpentine；07-23 假南
+  邊界回歸鎖死。
+- **批4**（`e6849e2`／`8000baf`／`2b673f9`）LLM 定位第三層接線＋護欄＋
+  probe；實跑裁決**no-ship**（gemma 本機 0/8 exact、係統性回 (0,0)），
+  tier 落地上鎖但生產休眠、控制器不注入 llm、迴圈與純確定性版 bit 級
+  一致（見 llm-localize-probe.md）。
+- **批5**（`18ee1be`＋本文件收尾）cache bounds 預載：既存定義檔的
+  `map_cols/map_rows` 當覆蓋掃描規劃 hint（frontier 外插＋預算放大），
+  **紅線＝hint 永不成 registered edge，邊界仍必須目視看見**；實掃見到的邊
+  與 hint 矛盾即丟棄、ledger 記 `cache_bounds_dropped`、退回純探索。
+  schema 增 map size 欄（來源＝覆蓋掃描落地，符合 2026-07-05 cache 例外）。
+
+**恢復點**：live-verification-queue.md **佇列 1**（覆蓋驅動掃描 survey
+identify 全鏈路實戰輪，重寫後未經實機）——adb 恢復（seat0 桌面實體登入）
+後重跑同活動關冷掃，驗手勢方向推動有效性、覆蓋收斂 nudges 數、四邊目視
+偵測、survey 接續 identify、nudge 預算五常數（ANCHOR 8／SCAN 48／RELOC 6／
+STUCK 3／BRING 8 皆離線挑）實機調校、cache bounds 預載第二輪命中；附帶
+確認 `_scout_local`（turn-2+）實際 zoom。整份重寫計畫＋批次驗收見
+coverage-scan-plan.md（狀態＝已執行完畢）。
+
+**裝置現況**：本日未碰實機（同 07-23 凌晨）；戰局仍停活動關 TURN 1
+our-turn hub（可放棄退體力），中止後乾淨無殘留彈窗；adb 正常（凌晨那輪
+能連上跑掃描）；`data/cache/stages/` ex2if schema-3 定義檔在（尚無 map
+size 欄，冷掃重跑時會補寫）。
+
+## 2026-07-21 協調者管線日（前恢復點）
 
 **本日（純離線、未碰實機、adb no permissions 待 seat0 桌面登入）**：
 使用者定調兩件工作模式：①**操作/辨識分離**入 agent-architecture.md
