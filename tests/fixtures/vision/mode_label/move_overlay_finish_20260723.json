@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "unit_move"
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    1080
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "move_overlay_finish_20260723.jpg",
+  "source": "data/runs/20260723-234149/frames/battle_01/t0135_turn1_finish.jpg",
+  "note": "輪五末幀（20260723-234149 battle_01 t0135）：identify 對未行動我方機盲目重試後留下的殘留疊層——unit_move 疊層上又疊了 weapon_select 右面板。診斷幀以 1280x591 存檔（實機 2340x1080 的約 0.547x 縮圖），fixture 以 INTER_CUBIC 還原回原生解析度供全解析度模板比對；模糊還原使分數成保守下界（label_unit_move highpass 0.966 對次高 0.519、返回鈕 0.981 對閘門 0.80、右停靠 0.995 對左 0.275），原生實機幀只會更高。這裡釘住 classify_frame 對真實移動疊層讀出 unit_move——視圖閘門必須先於停靠讀取跑：DockBannerIdentifier 單獨在此幀會因 weapon_select 右面板共用幾何而回傳假 ally（右 0.995），閘門讀到 unit_move 才擋下它並改走機制證據通道。"
+}

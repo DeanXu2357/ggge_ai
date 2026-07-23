@@ -31,9 +31,10 @@ from pathlib import Path
 from . import panels, vision
 from ..content import stage_def
 from ..content.kit import UnitSpec
-from .faction import FactionIdentifier, FactionVerdict
+from .faction import FactionIdentifier, FactionVerdict, move_overlay_verdict
 from .identity import IdentityResolver, SeedReport
-from .map_view import UNIT_DETAIL_CLOSE
+from .map_view import HUB as HUB_VIEW
+from .map_view import SELECTION_SUBSTATES, UNIT_DETAIL_CLOSE
 from .observe import SIG_MATCH_RADIUS
 from .state import Faction
 from ..content.stage_def import DeploySlot, StageDefinition, StageUnit, signature_distance
@@ -99,13 +100,56 @@ class ValidationReport:
     taps: int = 0
 
 
+# the Round 1.5 view-gate seam: classify(frame)->view name (map_view
+# vocabulary), escape()->reach the hub and report success. Both optional so
+# the legacy dock-only tests and callers keep the old unguarded behaviour;
+# the controller wires the real map_view functions through survey_stage.
+ClassifyView = Callable[[object], str]
+EscapeToHub = Callable[[], bool]
+
+
+def _hub_is_safe_to_tap(
+    capture: Callable,
+    classify: ClassifyView | None,
+    escape: EscapeToHub | None,
+) -> bool:
+    """True when a map point may be tapped: no gate configured, or the view is
+    already the hub. Otherwise back out first (a tap in a selection overlay
+    would land on a map cell and commit a move) and report whether the hub was
+    reached. Never taps a map cell itself -- escape is dedicated-UI only."""
+    if classify is None:
+        return True
+    if classify(capture()) == HUB_VIEW:
+        return True
+    if escape is None:
+        return False
+    return bool(escape())
+
+
 def _read_summary_at(
-    capture, tap, screen, sleep, *, retries: int = SURVEY_TAP_RETRIES
+    capture,
+    tap,
+    screen,
+    sleep,
+    *,
+    retries: int = SURVEY_TAP_RETRIES,
+    classify: ClassifyView | None = None,
+    escape: EscapeToHub | None = None,
 ):
+    """Read a unit's summary card, hub-gated (Round 1.5): confirm the hub
+    before every tap and, if the tap lands in a selection overlay instead of
+    raising a card, escape rather than blind-retry on the overlay."""
     for _ in range(retries):
+        if not _hub_is_safe_to_tap(capture, classify, escape):
+            return None
         tap(int(screen[0]), int(screen[1]))
         sleep(SUMMARY_SETTLE_S)
-        summary = vision.read_enemy_summary(capture())
+        frame = capture()
+        if classify is not None and classify(frame) != HUB_VIEW:
+            if escape is not None:
+                escape()
+            continue
+        summary = vision.read_enemy_summary(frame)
         if summary is not None and summary.name_sig is not None:
             return summary
     return None
@@ -119,14 +163,38 @@ def _identify_at(
     sleep,
     *,
     retries: int = SURVEY_TAP_RETRIES,
+    classify: ClassifyView | None = None,
+    escape: EscapeToHub | None = None,
 ) -> FactionVerdict | None:
-    """Tap the unit and read which side its banner docks on (定案 5).
-    None after every retry means no banner appeared at all -- the caller
-    sentences the point (ghost or fail-loud), never guesses a faction."""
+    """Tap the unit and read which side its banner docks on (定案 5), with a
+    view gate in front of the dock reader (Round 1.5). None after every retry
+    means no banner appeared on a hub frame -- the caller sentences the point
+    (ghost or fail-loud), never guesses a faction.
+
+    The gate makes every attempt safe: confirm the hub before tapping (a tap
+    in a selection overlay lands on a map cell and commits a move), then
+    classify the post-tap frame. A selection substate is mechanism proof the
+    unit is ours -> an ALLY verdict plus a safe escape; the dock reader runs
+    only on a genuine hub frame (the weapon-select right panel would otherwise
+    forge a lone-right ally hit). Any other non-hub state is escaped and
+    retried -- never a blind re-tap on the overlay."""
     for _ in range(retries):
+        if not _hub_is_safe_to_tap(capture, classify, escape):
+            return None
         tap(int(screen[0]), int(screen[1]))
         sleep(SUMMARY_SETTLE_S)
-        verdict = identifier.identify(capture())
+        frame = capture()
+        if classify is not None:
+            view = classify(frame)
+            if view in SELECTION_SUBSTATES:
+                if escape is not None:
+                    escape()
+                return move_overlay_verdict()
+            if view != HUB_VIEW:
+                if escape is not None:
+                    escape()
+                continue
+        verdict = identifier.identify(frame)
         if verdict is not None:
             return verdict
     return None
@@ -139,12 +207,16 @@ def _survey_point(
     *,
     llm,
     sleep: Callable[[float], None],
+    classify: ClassifyView | None = None,
+    escape: EscapeToHub | None = None,
 ) -> tuple[str, str | None, dict, list[dict]]:
     """One unit's full read at a screen point: summary card -> detail
     panel -> stats/weapons (+ LLM name). Raises SurveyIncomplete on any
     unreadable step; the caller decides whether that is fatal (opening
     survey) or a soft note (mid-battle reinforcement)."""
-    summary = _read_summary_at(capture, tap, screen, sleep)
+    summary = _read_summary_at(
+        capture, tap, screen, sleep, classify=classify, escape=escape
+    )
     if summary is None:
         raise SurveyIncomplete(f"no summary card at {screen}")
     modal = None
@@ -196,6 +268,8 @@ def survey_stage(
     identifier: FactionIdentifier | None = None,
     ally_indices: list[int] | None = None,
     llm=None,
+    classify: ClassifyView | None = None,
+    escape: EscapeToHub | None = None,
     ledger_log: Callable[..., None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
     wall_clock_s: float = SURVEY_WALL_CLOCK_S,
@@ -220,7 +294,15 @@ def survey_stage(
     reached or shows no banner while hugging a known ally is the
     pink-bug ghost twin; in identify mode a point whose cell was already
     surveyed is the same tile double-detected. Both continue with a
-    ledger record instead of failing loud."""
+    ledger record instead of failing loud.
+
+    View gate (Round 1.5, `classify`/`escape`): when wired, every tap is
+    guarded -- the hub is confirmed before tapping and the post-tap frame is
+    classified. A tap that selects one of our unactioned machines lands in a
+    unit-move overlay; that is recorded as an ALLY (side="unit_move") through
+    the mechanism channel and escaped, never blind-retried on the overlay
+    (the 輪五 defeat). Left unwired (both None) the loop keeps the old
+    dock-only behaviour."""
     if not points:
         raise SurveyIncomplete("no enemy points to survey")
     factions = factions or ["enemy"] * len(points)
@@ -271,7 +353,10 @@ def survey_stage(
                 continue
             raise SurveyIncomplete(f"unit {i} at {point} cannot be brought into view")
         if identifier is not None:
-            verdict = _identify_at(capture, tap, screen, identifier, sleep)
+            verdict = _identify_at(
+                capture, tap, screen, identifier, sleep,
+                classify=classify, escape=escape,
+            )
             if verdict is None:
                 if ghost_of_ally(point):
                     drop_ghost(i, point, "no_banner_near_ally")
@@ -294,7 +379,8 @@ def survey_stage(
             faction = "enemy"
         try:
             sig, name, stats_dict, weapons = _survey_point(
-                capture, tap, screen, llm=llm, sleep=sleep
+                capture, tap, screen, llm=llm, sleep=sleep,
+                classify=classify, escape=escape,
             )
         except SurveyIncomplete as exc:
             if str(exc).startswith("no summary card") and ghost_of_ally(point):

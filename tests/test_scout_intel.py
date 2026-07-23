@@ -10,7 +10,8 @@ import cv2
 import numpy as np
 import pytest
 
-from ggge_ai.battle import scout_intel, vision
+from ggge_ai.battle import map_view, scout_intel, vision
+from ggge_ai.battle.state import Faction
 from ggge_ai.content import stage_def
 from ggge_ai.battle.scout_intel import (
     RefreshBudget,
@@ -20,8 +21,10 @@ from ggge_ai.battle.scout_intel import (
     validate_stage,
 )
 from ggge_ai.content.stage_def import StageDefinition, StageUnit, assign_uids
+from ggge_ai.vision.manifest import TemplateManifest
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "vision"
+TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "assets" / "templates"
 
 
 def _canvas(rel: str, box: tuple[int, int, int, int]) -> np.ndarray:
@@ -588,3 +591,137 @@ def test_identify_survey_bannerless_point_alone_fails_loud(tmp_path):
             sleep=lambda s: None,
             root=tmp_path,
         )
+
+
+# ---- Round 1.5: identify view gate over selection overlays ----
+
+
+class _GatedWorld:
+    """Drives capture/tap/classify/escape for an identify survey with the view
+    gate wired. Each candidate point is tagged enemy or ally: tapping an ally
+    enters unit-move (a selection overlay, no card); tapping an enemy raises
+    its summary card on the hub; the detail-modal taps behave as the real
+    _survey_point expects. escape() backs out to the hub. Every tap and every
+    escape is recorded in order so a test can prove no blind re-tap ever lands
+    on the overlay (the 輪五 defeat)."""
+
+    def __init__(self, plan, *, start_view="hub"):
+        self.kind = {(int(x), int(y)): k for (x, y), k in plan}
+        self.view = start_view
+        self.taps: list = []
+
+    def capture(self):
+        if self.view == "move":
+            return BLANK
+        if self.view == "modal":
+            return MODAL
+        return HUB
+
+    def classify(self, _frame):
+        return {"hub": "hub", "move": "unit_move", "modal": "modal"}[self.view]
+
+    def escape(self) -> bool:
+        self.taps.append(("escape",))
+        self.view = "hub"
+        return True
+
+    def tap(self, x, y):
+        pt = (int(x), int(y))
+        self.taps.append(pt)
+        if pt in self.kind:
+            self.view = "move" if self.kind[pt] == "ally" else "hub"
+        elif pt == scout_intel.SUMMARY_CARD_TAPS[0]:
+            self.view = "modal"
+        elif pt == scout_intel.UNIT_DETAIL_CLOSE:
+            self.view = "hub"
+
+
+ENEMY_A = (900.0, 150.0)
+ALLY = (1500.0, 700.0)
+ENEMY_B = (1185.0, 625.0)
+
+
+def test_identify_gate_judges_move_overlay_ally_without_reblind_tapping(tmp_path):
+    """A candidate tap that selects one of our unactioned machines lands in a
+    unit-move overlay. The gate must call it ALLY through the mechanism
+    channel (side="unit_move", score 1.0), escape once, and move on -- never
+    re-tap the overlay. Without the gate _identify_at blind-retries the tap and
+    the survey aborts (the failing pre-Round-1.5 behaviour)."""
+    world = _GatedWorld([(ENEMY_A, "enemy"), (ALLY, "ally"), (ENEMY_B, "enemy")])
+    events, log = _events()
+    ally_indices: list[int] = []
+    defn = survey_stage(
+        world.capture,
+        world.tap,
+        [ENEMY_A, ALLY, ENEMY_B],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        identifier=_identifier(),
+        ally_indices=ally_indices,
+        classify=world.classify,
+        escape=world.escape,
+        ledger_log=log,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert [u.faction for u in defn.layout] == ["enemy", "enemy"]
+    assert ally_indices == [1]
+    # the overlay was tapped exactly once, then escaped -- no blind re-tap
+    assert world.taps.count((int(ALLY[0]), int(ALLY[1]))) == 1
+    assert ("escape",) in world.taps
+    ally_events = [e for e in events if e["kind"] == "survey_ally"]
+    assert len(ally_events) == 1
+    assert ally_events[0]["side"] == "unit_move"
+    assert ally_events[0]["score"] == 1.0
+    assert [s.cell for s in defn.deploy_slots] == [tuple(ally_events[0]["cell"])]
+
+
+def test_identify_gate_escapes_a_residual_overlay_before_the_first_tap(tmp_path):
+    """Round 1.5 acceptance point: the survey may open on a stale selection
+    overlay (the 輪五 opening state). The pre-tap gate must back out to the hub
+    before touching any map point -- the escape comes first, no tap lands on
+    the overlay."""
+    world = _GatedWorld([(ENEMY_A, "enemy")], start_view="move")
+    defn = survey_stage(
+        world.capture,
+        world.tap,
+        [ENEMY_A],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        identifier=_identifier(),
+        classify=world.classify,
+        escape=world.escape,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert [u.uid for u in defn.layout] == ["e01"]
+    # the very first action is the escape, before any coordinate tap
+    assert world.taps[0] == ("escape",)
+    first_coord = next(t for t in world.taps if t != ("escape",))
+    assert first_coord == (int(ENEMY_A[0]), int(ENEMY_A[1]))
+
+
+def test_move_overlay_finish_frame_gate_overrides_the_false_dock_ally():
+    """輪五末幀 t0135 (real frame): the raw dock reader forges a lone-right
+    ALLY here because the weapon-select right panel shares the summary
+    geometry -- so the classify gate MUST run first. It reads unit_move, and
+    the 返回 button is present for a dedicated-UI escape. Two uses in one
+    fixture: the dock reader's hazard and the gate that neutralises it."""
+    frame = cv2.imread(
+        str(FIXTURES / "mode_label" / "move_overlay_finish_20260723.jpg")
+    )
+    assert frame is not None
+    recognizer = TemplateManifest.load(TEMPLATE_ROOT).build_recognizer()
+
+    def probe(ids, frame=None):
+        return {
+            e.id: e
+            for e in recognizer.detect_elements(frame, ids)
+            if e.confidence >= 0.80
+        }
+
+    assert map_view.classify_frame(frame, probe) == "unit_move"
+    verdict = _identifier().identify(frame)
+    assert verdict is not None
+    assert verdict.faction is Faction.ALLY and verdict.side == "right"
+    assert map_view.RETURN_BUTTON in probe([map_view.RETURN_BUTTON], frame=frame)

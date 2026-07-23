@@ -614,6 +614,22 @@ class ManualBattleController:
     def _frame(self):
         return self.perception.capture()
 
+    def _classify_battle_view(self, frame) -> str:
+        """The survey view gate (Round 1.5): classify a captured frame through
+        the same recognizer probe the rest of the map-view code uses."""
+        return map_view.classify_frame(frame, self.perception.probe)
+
+    def _escape_selection_overlay(self) -> bool:
+        """Strict back-out to the hub for the survey view gate: the 返回 button
+        and modal-close only, never a neutral map tap (a tap in unit-move mode
+        would commit a move). Reports whether the hub was reached."""
+        return map_view.return_to_top(
+            self.perception,
+            self.actuator,
+            keyguard=self.keyguard,
+            allow_neutral_nudge=False,
+        )
+
     def _safe_frame(self):
         try:
             return self._frame()
@@ -981,6 +997,8 @@ class ManualBattleController:
             dropped=dropped,
             ally_indices=ally_indices,
             llm=self.llm,
+            classify=self._classify_battle_view,
+            escape=self._escape_selection_overlay,
             ledger_log=self._log,
             root=self.intel_cache_root,
             map_size=self._map_size,
