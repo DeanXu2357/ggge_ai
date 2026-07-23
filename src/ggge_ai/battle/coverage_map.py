@@ -190,6 +190,12 @@ class CellMap:
     def __init__(self) -> None:
         self._units: dict[Cell, _MapUnit] = {}
         self._terrain: dict[Cell, np.ndarray] = {}
+        # threat ("!" overlay) cells in internal coordinates. Threats only ever
+        # render around the enemy force, so downstream keeps them as a
+        # classification-independent bearing (tacmap.threat_centroid); the
+        # coverage map folds them to cell space here so to_tacmap can export
+        # them in the same world-px frame as the units.
+        self._threats: set[Cell] = set()
         self._covered: set[Cell] = set()
         self._reg: dict[str, int | None] = {s: None for s in SIDES}
         self._col_pitch: float | None = None
@@ -279,9 +285,9 @@ class CellMap:
 
         Layer 1: a visible registered boundary pins that axis exactly. Layer 2:
         the free axis (or both, on an unpinned frame) is voted per candidate
-        offset by unit hits (high weight) plus distinctive-terrain match
-        fraction (the margin carrier); the winner must clear LOCALIZE_MARGIN or
-        the frame is refused."""
+        offset by the distinctive-terrain match fraction (the high-weight margin
+        carrier, TERRAIN_WEIGHT) with unit hits corroborating; the winner must
+        clear LOCALIZE_MARGIN or the frame is refused."""
         if self.is_empty():
             return None
         col_pin = self._axis_pin(obs, "west", "east")
@@ -354,6 +360,11 @@ class CellMap:
             if south is not None and row >= south:
                 continue
             self._covered.add(gcell)
+        for tx, ty in obs.threats:
+            tcol = _snap_cell(obs.lattice.cols, tx)
+            trow = _snap_cell(obs.lattice.rows, ty)
+            if tcol is not None and trow is not None:
+                self._threats.add((tcol + dcol, trow + drow))
         for side in SIDES:
             line = obs.edges[side]
             if line is not None and self._reg[side] is None:
@@ -483,6 +494,10 @@ class CellMap:
             wx = (cell[0] - west) * col_pitch + max(0.0, min(mean_ox, col_pitch))
             wy = (cell[1] - north) * row_pitch + max(0.0, min(mean_oy, row_pitch))
             tac.units.append((wx, wy))
+        for cell in self._threats:
+            tx = (cell[0] - west) * col_pitch + col_pitch / 2
+            ty = (cell[1] - north) * row_pitch + row_pitch / 2
+            tac.threats.append((tx, ty))
         cols, rows = self.size()
         bounds: dict[str, float | None] = {
             "west": 0.0,
