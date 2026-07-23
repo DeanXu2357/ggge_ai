@@ -1,0 +1,28 @@
+{
+  "check": "unit_list_state",
+  "expect": "expanded",
+  "box": [
+    1855,
+    740,
+    220,
+    92
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "expanded_top.png",
+  "extra_crops": [
+    {
+      "image": "expanded_bottom.png",
+      "box": [
+        1855,
+        960,
+        220,
+        92
+      ]
+    }
+  ],
+  "source": "tests/fixtures/vision/forecast/our_turn_unit_list_20260719.png",
+  "note": "批8：可行動單位列表展開態——'單位列表' 標頭在條帶頂 (1855,740) 命中、底帶 (1855,960) 為地圖無命中。模板比對分數差距 >0.6，兩帶皆真實地圖裁片而非空白。"
+}

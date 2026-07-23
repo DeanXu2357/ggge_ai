@@ -1,0 +1,37 @@
+{
+  "check": "unit_list_state",
+  "expect": "unknown",
+  "box": [
+    1000,
+    50,
+    380,
+    100
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "unknown_modal.png",
+  "extra_crops": [
+    {
+      "image": "unknown_top.png",
+      "box": [
+        1855,
+        740,
+        220,
+        92
+      ]
+    },
+    {
+      "image": "unknown_bottom.png",
+      "box": [
+        1855,
+        960,
+        220,
+        92
+      ]
+    }
+  ],
+  "source": "data/runs/20260723-165948/frames/battle_01/t0001_turn1_unit_detail_modal.jpg",
+  "note": "批8 輪四回歸：單位設置詳情彈窗蓋住條帶——is_unit_detail_modal 先命中→unknown（彈窗＝列表不可讀，絕非收合）。來源是輪四 41 循環失敗幀（1280x591 JPEG，等比放大回 2340x1080，模板比對分數差距 >0.6 容忍 JPEG 偽影）。"
+}

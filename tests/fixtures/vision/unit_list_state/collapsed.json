@@ -1,0 +1,28 @@
+{
+  "check": "unit_list_state",
+  "expect": "collapsed",
+  "box": [
+    1855,
+    960,
+    220,
+    92
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "collapsed_bottom.png",
+  "extra_crops": [
+    {
+      "image": "collapsed_top.png",
+      "box": [
+        1855,
+        740,
+        220,
+        92
+      ]
+    }
+  ],
+  "source": "tests/fixtures/vision/forecast/our_turn_list_collapsed_20260719.png",
+  "note": "批8：可行動單位列表收合態——'單位列表' 標頭降到條帶底 (1855,960) 命中、頂帶 (1855,740) 為地圖無命中。"
+}

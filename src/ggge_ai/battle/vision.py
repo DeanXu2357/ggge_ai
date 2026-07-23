@@ -63,6 +63,14 @@ UNIT_DETAIL_MODAL_TEMPLATE = (
     / "unit_detail_modal.png"
 )
 
+UNIT_LIST_HEADER_TEMPLATE = (
+    Path(__file__).resolve().parents[3]
+    / "assets"
+    / "templates"
+    / "elements"
+    / "unit_list_header.png"
+)
+
 # the 單位設置詳情 title sits top-center of the unit-setup detail modal and is
 # identical across its 組合資訊 / 武裝技能 / 能力OP tabs, so it is a stable modal
 # anchor. a stray keyguard drag onto a live map opens this modal on top of an
@@ -1098,6 +1106,57 @@ def is_unit_detail_modal(frame: np.ndarray, threshold: float = 0.6) -> bool:
     result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
     _, score, _, _ = cv2.minMaxLoc(result)
     return score >= threshold
+
+
+# the 可行動單位 card-list toggle is a "單位列表" text header with a divider rule.
+# It rides the TOP of the strip (y~780) when the list is EXPANDED and drops to
+# the BOTTOM (y~1010) when COLLAPSED, so its position IS the list state. Match
+# the header glyphs (template) inside each candidate band: score separates
+# cleanly (present 0.88-1.0 across three maps/zooms, absent <=0.25, a covering
+# modal <=0.10 -- 0.6 gate, mirroring the other element templates). This is an
+# INDEPENDENT read of the toggle, unlike unit_cards_present which keys on strip
+# brightness and collapses "collapsed" and "covered by a modal" into one False
+# (the 07-23 輪四 41-cycle failure). Bands are the 2340x1080 reference frame.
+UNIT_LIST_HEADER_TOP_BOX = (1855, 740, 220, 92)
+UNIT_LIST_HEADER_BOTTOM_BOX = (1855, 960, 220, 92)
+UNIT_LIST_HEADER_THRESHOLD = 0.6
+
+UNIT_LIST_EXPANDED = "expanded"
+UNIT_LIST_COLLAPSED = "collapsed"
+UNIT_LIST_UNKNOWN = "unknown"
+
+
+def _unit_list_header_score(frame: np.ndarray, box: tuple[int, int, int, int]) -> float | None:
+    template = _cached_template(str(UNIT_LIST_HEADER_TEMPLATE))
+    if template is None:
+        return None
+    band = _crop(frame, box)
+    if band.shape[0] < template.shape[0] or band.shape[1] < template.shape[1]:
+        return None
+    result = cv2.matchTemplate(band, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, _ = cv2.minMaxLoc(result)
+    return float(score)
+
+
+def unit_list_state(frame: np.ndarray) -> str:
+    """Three-valued read of the 可行動單位 card-list toggle: "expanded" (header
+    at the top of the strip), "collapsed" (header at the bottom), or "unknown"
+    (a unit-detail modal covers the strip, both positions match, or neither
+    does). "unknown" is never a semantic answer for "collapsed"/"no units" --
+    callers must clear the obstruction and re-read, never end the turn or tap a
+    toggle blind on it. The modal veto runs first because a modal dims the whole
+    map: the toggle is genuinely unreadable, not collapsed."""
+    if is_unit_detail_modal(frame):
+        return UNIT_LIST_UNKNOWN
+    top = _unit_list_header_score(frame, UNIT_LIST_HEADER_TOP_BOX)
+    bottom = _unit_list_header_score(frame, UNIT_LIST_HEADER_BOTTOM_BOX)
+    top_on = top is not None and top >= UNIT_LIST_HEADER_THRESHOLD
+    bottom_on = bottom is not None and bottom >= UNIT_LIST_HEADER_THRESHOLD
+    if top_on and not bottom_on:
+        return UNIT_LIST_EXPANDED
+    if bottom_on and not top_on:
+        return UNIT_LIST_COLLAPSED
+    return UNIT_LIST_UNKNOWN
 
 
 def read_turn_number(frame: np.ndarray) -> int | None:

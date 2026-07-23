@@ -61,6 +61,14 @@ def _check_unit_card_count(frame: np.ndarray, expect: dict[str, int]) -> None:
     assert actual == expect["count"], f"got {actual}, want {expect['count']}"
 
 
+def _check_unit_list_state(frame: np.ndarray, expect: str) -> None:
+    """Three-valued card-list toggle read: "expanded"/"collapsed"/"unknown".
+    "unknown" pins that a covering modal (or an unreadable toggle) is never
+    mistaken for "collapsed" -- the 07-23 輪四 41-cycle regression."""
+    actual = vision.unit_list_state(frame)
+    assert actual == expect, f"got {actual!r}, want {expect!r}"
+
+
 def _check_observer_board(frame: np.ndarray, expect: dict) -> None:
     """End-to-end observer case on a real screenshot: the factionless arc
     pool feeds build_battle_state with the annotated priors (tracker ally
@@ -276,6 +284,7 @@ def _check_digit_read(frame: np.ndarray, expect: dict[str, Any]) -> None:
 
 CHECKS = {
     "unit_cards_present": _check_bool(vision.unit_cards_present),
+    "unit_list_state": _check_unit_list_state,
     "zoom_at_max": _check_bool(vision.zoom_at_max),
     "map_view_state": _check_map_view_state,
     "unit_detail_modal": _check_bool(vision.is_unit_detail_modal),
