@@ -37,8 +37,7 @@ from ggge_ai.battle.live_scan import (
     PAN_CENTER,
     PAN_DIRS,
     PAN_HALF,
-    SCAN_EDGE_RATIO,
-    LiveScanSource,
+    CoverageScanSource,
 )
 from ggge_ai.battle.scout_intel import SurveyIncomplete
 from ggge_ai.content import stage_def as stage_def_mod
@@ -1120,50 +1119,12 @@ class ManualBattleController:
         stage_def_mod.save_stage_def(self._defn, self.intel_cache_root)
 
     def _bring_to_view(self, world) -> tuple[float, float] | None:
-        """Pan until a world point sits inside the tappable map area and
-        return its screen point. Constellation locate() recovers the
-        camera before each leg (with lattice-snapped arcs while 顯示方格 is
-        up, so both sides of the match live on the same cell centers); when
-        locate has no consensus the dead-reckoned camera from the last scan
-        stop carries -- nothing moves the camera between scan end and the
-        survey. Edge saturation with the target still outside means the
-        board and the map disagree -- the caller treats None as fail-loud
-        evidence."""
-        x0, y0, w, h = vision.HUB_SCAN_REGION
-        margin = 60
-        camera = self._last_camera
-        for _ in range(8):
-            frame = self._clear_scan_obstruction(self._frame())
-            arcs = (
-                vision.find_ally_units(frame)
-                + vision.find_enemy_units(frame)
-                + vision.find_third_party_units(frame)
-            )
-            located = self.tacmap.locate(arcs)
-            if located is not None:
-                camera = located
-            if camera is None:
-                return None
-            screen = (world[0] - camera[0], world[1] - camera[1])
-            if (
-                x0 + margin <= screen[0] <= x0 + w - margin
-                and y0 + margin <= screen[1] <= y0 + h - margin
-            ):
-                self._last_camera = camera
-                return screen
-            direction = (
-                (screen[0] > x0 + w - margin) - (screen[0] < x0 + margin),
-                (screen[1] > y0 + h - margin) - (screen[1] < y0 + margin),
-            )
-            camera, _, actual, requested = self._navigator().pan_leg(
-                camera, frame, direction, label="bring_to_view"
-            )
-            self._last_camera = camera
-            if abs(actual[0]) + abs(actual[1]) < (
-                abs(requested[0]) + abs(requested[1])
-            ) * SCAN_EDGE_RATIO:
-                return None
-        return None
+        """Pan a census world point into the tappable map area and return its
+        screen point. Delegates to the coverage source's content-only
+        bring_to_view (nudge -> constellation locate -> in-view), which drops
+        the retired pan_leg measurement (and its 07-23 335px false jump). None
+        is fail-loud evidence the board and the map disagree."""
+        return self._navigator().bring_to_view(world, start_camera=self._last_camera)
 
     def _build_board(self):
         """Perceived board for the solver: fresh scan positions, tracked
@@ -1462,20 +1423,22 @@ class ManualBattleController:
             source = self._navigator()
             source.start_frame = frame
             try:
-                source.collect()
+                census = source.collect()
             finally:
-                camera = source.camera
-                self._last_camera = camera
+                # the coverage census carries no gesture camera; bring_to_view
+                # re-locates from the constellation each call
+                self._last_camera = None
                 if not (
                     self.intel_enabled
                     and self.timeline.pending("intel", scope="battle")
                 ):
                     self._release_battle_grid()
-            # the walk's pool IS the turn's census (same detectors, same
-            # merge) -- adopt it wholesale, in corner coordinates
-            self.tacmap = source.pool
+            # the coverage walk's census IS the turn's board: min-zoom density
+            # peaks folded to cell space, exported to world px (NW-origin
+            # gridline = 0) with px bounds. Adopt it wholesale.
+            self.tacmap = census
             self._map_bounds = source.bounds
-            scan = f"serpentine({source.legs} legs)"
+            scan = f"coverage({source.nudges} nudges)"
         else:
             camera = self._scout_local(frame, camera)
             scan = "local"
@@ -1493,11 +1456,11 @@ class ManualBattleController:
             len(self.tacmap.units),
         )
 
-    def _navigator(self) -> LiveScanSource:
-        """A LiveScanSource sharing this battle's tactical map as its
-        landmark pool: the full-scan walk and the survey's bring-to-view
-        legs relocalize against the same world points."""
-        nav = LiveScanSource(
+    def _navigator(self) -> CoverageScanSource:
+        """A CoverageScanSource sharing this battle's tactical map as its
+        relocalisation pool: the full-scan walk builds the census, the survey's
+        bring_to_view re-anchors against the same world points."""
+        nav = CoverageScanSource(
             capture=self._frame,
             swipe=self.actuator.swipe,
             tap=self.actuator.tap,

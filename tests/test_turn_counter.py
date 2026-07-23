@@ -73,6 +73,7 @@ def test_new_turn_number_advances_and_rescouts(monkeypatch):
 
 def test_skipped_turn_pins_to_the_screen_number(monkeypatch):
     c = _controller()
+    c._scout = lambda frame: None  # turn counting only; the real scan aborts on blank frames
     _hub_visit(c, monkeypatch, 3)
     assert c.ledger.turn == 3
 
@@ -85,6 +86,7 @@ def test_absurd_jump_is_rejected_as_misread(monkeypatch):
 
 def test_unreadable_chip_falls_back_to_marker_compare(monkeypatch):
     c = _controller()
+    c._scout = lambda frame: None  # turn counting only; the real scan aborts on blank frames
     one = np.zeros((36, 40), np.uint8)
     one[:, :20] = 255
     two = np.zeros((36, 40), np.uint8)

@@ -286,6 +286,9 @@ def test_pilot_no_advice_demotes_to_greedy(monkeypatch):
 def test_pilot_empty_board_resyncs_once_then_aborts(monkeypatch):
     c = _pilot_controller(monkeypatch, None)
     monkeypatch.setattr(vision, "unit_cards_present", lambda f: False)
+    # the resync rescan finds an empty board (blank frames); model that outcome
+    # directly since the real coverage scan fail-fasts on a lattice-less frame
+    c._scout = lambda frame: c.tacmap.reset()
 
     with pytest.raises(PilotAbort):
         c._on_unit_move()

@@ -1,14 +1,23 @@
-"""Live serpentine acquisition behind the FrameSource seam (#26 批3a).
+"""Coverage-driven live scan (#26 批3): replaces the serpentine walk.
 
-The controller's corner-anchored sweep, moved out whole: LiveScanSource
-navigates (swipes, steers around eaten drags, closes stray modals),
-measures every leg from what the frames show, and emits the MapFrame
-series map_grid.read_board consumes. Navigation keeps its own
-factionless landmark pool for relocalization -- steering may read the
-screen freely, but interpretation only ever sees the emitted series
-(the frame_source contract). After collect() the controller adopts
-pool/bounds/camera as the turn's census (the arc detectors only ever
-said "a unit is here"; faction comes from the identify pass).
+The 2026-07-23 red lines (coverage-scan-plan 定案 2): a gesture is only a
+request to push the camera -- a stalled, truncated or eaten swipe costs time
+and nothing else, it never enters a coordinate. Position comes solely from
+what a frame SHOWS against the accumulated CellMap (unit constellation +
+per-cell terrain fingerprints + seen boundaries); boundaries count only when
+seen and never get inferred from "the camera would not move" (the old
+_at_edge -> false south界, the 07-23 failure). The loop is coverage-driven:
+a cell-space ledger says what is still unseen, the frontier picks the next
+region, a conservative nudge steers toward it, and the frame is re-localised.
+
+CoverageScanSource keeps a factionless TacticalMap `pool` for the survey's
+bring_to_view relocalisation, exports the walk's census as `census`
+(to_tacmap: world-px units, NW-origin gridline = 0) plus px `bounds`, and
+fails loud with SurveyIncomplete when coverage cannot close.
+
+PAN_CENTER / PAN_HALF / PAN_DIRS stay exported: the controller's cheap
+turn-2+ local scan (_scout_local, battle zoom, unchanged this batch) imports
+them.
 """
 
 from __future__ import annotations
@@ -21,175 +30,348 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from . import vision
-from .frame_source import MapFrame
-from .scout_intel import UNIT_DETAIL_CLOSE
+from .coverage_map import (
+    SIDES,
+    CellMap,
+    Detector,
+    FrameObservation,
+    observe_frame,
+)
+from .scout_intel import UNIT_DETAIL_CLOSE, SurveyIncomplete
 from .tacmap import TacticalMap
+from .vision import HUB_SCAN_REGION, find_unit_density_peaks
 
 log = logging.getLogger(__name__)
 
 Point = tuple[float, float]
+Direction = tuple[int, int]
 
-# panning works on the our-turn hub with no unit selected: dragging an
-# empty map spot shifts the camera. drag opposite to the look direction,
-# split evenly around the center so both endpoints stay inside the map
-# area (vertical half-travel is shorter to clear the HUD and card strip)
+# retained for the unchanged turn-2+ local scan (_scout_local): a four-leg
+# out-and-back around the hub view, not part of the coverage walk.
 PAN_CENTER = (1170, 500)
 PAN_HALF = {"x": 300, "y": 200}
-# a swipe starting on a unit sprite / UI element gets eaten instead of
-# panning (20260719: row legs measuring ~0 with healthy response while the
-# map clearly had room) -- an ineffective-but-measurable leg retries from
-# these alternates before an edge verdict is accepted
-PAN_ORIGINS = (PAN_CENTER, (940, 430), (1380, 610), (1170, 620))
-# swipes land more reliably slow: 500ms drags got eaten in stretches on the
-# 20260719 star map (post-action camera easing + adb drop flakiness)
-PAN_SWIPE_MS = 700
-PAN_SETTLE_S = 1.5
-# a drag STARTING on a unit gets eaten -- in dense views (the event map's
-# east cluster fills mid-screen) every static origin can sit on a unit at
-# once, which froze whole scan stretches in both directions (runs 4/7/8/9).
-# Origins are therefore picked per swipe from this candidate lattice by
-# max-min distance to the visible arcs.
+PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
+
+# a drag STARTING on a unit sprite gets eaten by the game (reads like an edge
+# without moving the camera); origins are picked per nudge from this lattice by
+# max-min distance to the injected detector's peaks so the drag start lands on
+# empty map. 20260719 dense views could put a unit under every static origin at
+# once, freezing whole scan stretches -- hence the per-frame choice.
 PAN_ORIGIN_GRID = tuple(
     (x, y) for y in (360, 470, 580, 660) for x in (760, 940, 1170, 1400, 1580)
 )
-PAN_DIRS = (("east", (1, 0)), ("west", (-1, 0)), ("north", (0, -1)), ("south", (0, 1)))
-# serpentine full-map scan (turn 1): a pan whose measured travel is under
-# this fraction of the gesture means the camera hit the map edge; leg
-# budgets bound worst-case scan time on huge maps
-SCAN_EDGE_RATIO = 0.3
-SCAN_CORNER_MAX_LEGS = 8
-SCAN_MAX_LEGS = 28
+# a nudge trades reach for localisability: a short push keeps a wide overlap
+# band with the previous frame so terrain voting always has its >= 5 cells.
+NUDGE_HALF = {"x": 250, "y": 170}
+# swipes land more reliably slow (500ms drags got eaten in stretches on the
+# 20260719 star map: post-action camera easing + adb drop flakiness).
+PAN_SWIPE_MS = 700
+PAN_SETTLE_S = 1.5
 
-# MapFrame hints name the camera's travel direction; measured_shift is the
-# content displacement, i.e. the negated camera delta (frame_source.py)
-_HINT_BY_DIR = {(1, 0): "right", (-1, 0): "left", (0, -1): "up", (0, 1): "down"}
+# nudge budgets. ANCHOR reaches the NW corner (west+north seen), SCAN drives
+# the fill loop, RELOC bounds one recovery sortie, STUCK is the zero-progress
+# streak that condemns a frontier target as unreachable. Deliberately generous:
+# coverage may revisit cells, and localisability beats leg efficiency.
+ANCHOR_MAX_NUDGES = 8
+SCAN_MAX_NUDGES = 48
+RELOC_MAX_NUDGES = 6
+STUCK_LIMIT = 3
+
+# bring_to_view (post-scan survey navigation) budget and its in-region safety
+# band (a target this far inside the tappable region is safe to survey-tap).
+BRING_MAX_NUDGES = 8
+BRING_MARGIN = 60
+
+_DIR_NAME = {(1, 0): "east", (-1, 0): "west", (0, -1): "north", (0, 1): "south"}
+# the cardinal push that brings a given map edge INTO view: to see the west
+# edge the camera must travel west, etc.
+_EDGE_DIR = {"west": (-1, 0), "east": (1, 0), "north": (0, -1), "south": (0, 1)}
 
 
 @dataclass
-class LiveScanSource:
-    """FrameSource over the live device: one collect() drives the corner
-    phase plus the full serpentine and returns the anchored frame series.
-    Ghost-sentencing bounds, the final camera and the anchoring verdict
-    stay readable on the instance afterwards."""
+class CoverageScanSource:
+    """One collect() drives the whole first-turn full-map scan: anchor at the
+    NW corner, then fill by frontier until the coverage ledger closes. After a
+    successful collect() the census (a factionless world-px TacticalMap), px
+    bounds and nudge count are readable on the instance; failure raises
+    SurveyIncomplete (fail loud, no fabricated bounds)."""
 
     capture: Callable[[], np.ndarray]
     swipe: Callable[..., None]
     tap: Callable[[int, int], None]
     ledger_log: Callable[..., None] | None = None
-    # resolved at construction time, not class-definition time, so a test
-    # that patches time.sleep before building the source is honored
+    # resolved at construction, not class-definition time, so a test that
+    # patches time.sleep before building the source is honoured
     sleep: Callable[[float], None] = field(default_factory=lambda: time.sleep)
     start_frame: np.ndarray | None = None
-
-    bounds: dict | None = None
-    camera: Point = (0.0, 0.0)
-    legs: int = 0
-    corner_anchored: bool = False
-    # the walk's own factionless census: landmarks for relocalization
-    # during the walk, and the board pool the controller adopts after it
+    # the min-zoom full-scan detector (find_unit_density_peaks). Injected so the
+    # domain matches the work point -- the 07-23 failure was the controller
+    # feeding a battle-zoom arc detector to the min-zoom scan.
+    detect: Detector = find_unit_density_peaks
+    # the frame -> FrameObservation seam. Default composes observe_frame with
+    # the injected detector; a synthetic-world test injects its own so `frame`
+    # is an opaque token (the loop never touches pixels itself).
+    observe: Callable[[np.ndarray], FrameObservation | None] | None = None
+    # batch4 placeholder: the LLM third localisation layer is not wired here.
+    llm: object | None = None
+    # factionless relocalisation pool for bring_to_view (shared with the
+    # controller's adopted census).
     pool: TacticalMap = field(default_factory=TacticalMap, repr=False)
 
-    def collect(self) -> list[MapFrame]:
+    # -- outputs (set by a successful collect) ------------------------------
+    census: TacticalMap | None = field(default=None, repr=False)
+    bounds: dict | None = None
+    nudges: int = 0
+
+    def __post_init__(self) -> None:
+        if self.observe is None:
+            self.observe = lambda frame: observe_frame(frame, detect=self.detect)
+
+    # -- public loop --------------------------------------------------------
+
+    def collect(self) -> TacticalMap:
+        """Scan the whole map and return the census, or raise SurveyIncomplete.
+        Phase A anchors the NW corner; Phase B fills by frontier until the
+        ledger closes (all edges seen and every hole either covered or condemned
+        unreachable) or the budget runs out."""
         frame = self.start_frame if self.start_frame is not None else self.capture()
         frame = self._clear_obstruction(frame)
-        camera: Point = (0.0, 0.0)
-        self.pool.reset()
-        self._observe(frame, camera)
-        legs = 0
-        prev = frame
-        pending = {"west": (-1, 0), "north": (0, -1)}
-        while pending and legs < SCAN_CORNER_MAX_LEGS:
-            for name in list(pending):
-                camera, prev, actual, requested = self.pan_leg(
-                    camera, prev, pending[name], label=f"corner_{name}"
-                )
-                legs += 1
-                axis = 0 if name == "west" else 1
-                if self._at_edge(actual, requested, axis):
-                    del pending[name]
-                if legs >= SCAN_CORNER_MAX_LEGS:
-                    break
-        corner = not pending
-        bounds: dict | None = None
-        if corner:
-            # the corner IS the origin: everything measured on the way there
-            # was in the drift-prone start frame, so pool and camera restart
-            # in corner coordinates (the sweep below revisits it all anyway)
-            camera = (0.0, 0.0)
-            self.pool.reset()
-            bounds = {"west": 0.0, "north": 0.0, "east": None, "south": None}
-        else:
-            log.warning("corner budget exhausted before the NW corner; unanchored series")
-        self._observe(prev, camera)
-        frames = [MapFrame(image=prev, label="corner" if corner else "start")]
-        heading = (1, 0)
-        bottom_row = False
-        while legs < SCAN_MAX_LEGS:
-            camera, prev, actual, requested = self.pan_leg(camera, prev, heading, label="row")
-            legs += 1
-            if self._at_edge(actual, requested, 0) and bounds is not None:
-                side = "east" if heading[0] > 0 else "west"
-                camera = (self._snap_bound(bounds, side, camera[0]), camera[1])
-            self._observe(prev, camera)
-            frames.append(self._emit(prev, heading, actual, "row"))
-            if self._at_edge(actual, requested, 0):
-                if bottom_row:
-                    break
-                camera, prev, actual, requested = self.pan_leg(
-                    camera, prev, (0, 1), label="south_step"
-                )
-                legs += 1
-                if self._at_edge(actual, requested, 1) and bounds is not None:
-                    camera = (camera[0], self._snap_bound(bounds, "south", camera[1]))
-                self._observe(prev, camera)
-                frames.append(self._emit(prev, (0, 1), actual, "south_step"))
-                if self._at_edge(actual, requested, 1):
-                    # bottom edge: one last row still needs walking, or the
-                    # far bottom corner is never in the series
-                    bottom_row = True
-                heading = (-heading[0], 0)
-        self.bounds = bounds
-        self.camera = camera
-        self.legs = legs
-        self.corner_anchored = corner
-        if bounds is not None:
+        self._map = CellMap()
+        self._nudges = 0
+        self._unreachable: set[tuple[int, int]] = set()
+        self._stuck = 0
+        self._last_offset: tuple[int, int] = (0, 0)
+        self._last_nudge: Direction = (0, 0)
+
+        obs = self.observe(frame)
+        if obs is None:
+            raise SurveyIncomplete("coverage scan: anchor frame carried no lattice")
+        self._map.anchor(obs)
+        # a confirming second look at the start view before moving: real units
+        # appear in both captures (support >= 2, MIN_SUPPORT), transient
+        # detector noise usually does not, and a map that fits the viewport
+        # whole would otherwise leave every unit at support 1 (dropped by
+        # to_tacmap) since the scan never revisits it.
+        frame, obs = self._confirm(frame, obs)
+        frame, obs = self._anchor_phase(frame, obs)
+        # the NW-corner frame is the origin reference and its corner units are
+        # otherwise single-visit -- confirm it once reached
+        frame, obs = self._confirm(frame, obs)
+
+        outcome = "budget"
+        for _ in range(SCAN_MAX_NUDGES):
+            edges_seen = self._all_edges_seen()
+            target = self._map.frontier()
+            if target is None:
+                outcome = "complete"
+                break
+            if edges_seen and target in self._unreachable:
+                # frontier only surfaces holes we have already condemned: the
+                # reachable board is done, only unreachable (恆遮擋) holes remain
+                outcome = "unreachable_only"
+                break
+            before = self._map.coverage()[0]
+            self.nudge(self._direction_to(target, obs), frame)
+            frame, obs = self._capture_observe()
+            off = self._map.localize(obs) if obs is not None else None
+            if off is None:
+                frame, obs = self._recover(frame, obs)
+                continue
+            self._map.integrate(obs, off)
+            self._last_offset = off
+            after = self._map.coverage()[0]
             self._log(
-                "map_bounds",
-                **{k: (round(v, 1) if v is not None else None) for k, v in bounds.items()},
+                "frame_localized",
+                offset=[off[0], off[1]],
+                margin=None,
+                source="cell_map",
+                edges={s: obs.edges[s] for s in SIDES},
+                new_cells=after - before,
             )
-        return frames
+            if after > before:
+                self._stuck = 0
+            else:
+                self._stuck += 1
+                if self._stuck >= STUCK_LIMIT:
+                    self._unreachable.add(target)
+                    self._stuck = 0
+        return self._finish(outcome)
 
-    def _emit(self, image, direction, actual, label: str) -> MapFrame:
-        return MapFrame(
-            image=image,
-            hint=_HINT_BY_DIR.get(tuple(direction)),
-            label=label,
-            measured_shift=(-actual[0], -actual[1]),
+    # -- phases -------------------------------------------------------------
+
+    def _anchor_phase(
+        self, frame: np.ndarray, obs: FrameObservation
+    ) -> tuple[np.ndarray, FrameObservation | None]:
+        """Drive to the NW corner: nudge toward whichever of west/north is not
+        yet seen until both register (map smaller than the viewport finishes at
+        once). Best effort -- if the corner resists, Phase B's frontier keeps
+        seeking the unseen edges and the budget is the backstop."""
+        for _ in range(ANCHOR_MAX_NUDGES):
+            need = [s for s in ("west", "north") if self._map.bounds[s] is None]
+            if not need:
+                break
+            self.nudge(_EDGE_DIR[need[0]], frame)
+            frame, obs = self._capture_observe()
+            off = self._map.localize(obs) if obs is not None else None
+            if off is None:
+                frame, obs = self._recover(frame, obs)
+                continue
+            self._map.integrate(obs, off)
+            self._last_offset = off
+            self._log(
+                "frame_localized",
+                offset=[off[0], off[1]],
+                margin=None,
+                source="cell_map",
+                edges={s: obs.edges[s] for s in SIDES},
+                new_cells=None,
+            )
+        return frame, obs
+
+    def _confirm(
+        self, frame: np.ndarray, obs: FrameObservation | None
+    ) -> tuple[np.ndarray, FrameObservation | None]:
+        """Re-observe the current view without moving and fold it in again, so
+        the reference frame's units clear MIN_SUPPORT on a genuine second
+        sighting (not a doubled single read)."""
+        cframe, cobs = self._capture_observe()
+        if cobs is not None:
+            coff = self._map.localize(cobs)
+            if coff is not None:
+                self._map.integrate(cobs, coff)
+                self._last_offset = coff
+                return cframe, cobs
+        return frame, obs
+
+    def _recover(
+        self, frame: np.ndarray, obs: FrameObservation | None
+    ) -> tuple[np.ndarray, FrameObservation | None]:
+        """Localisation refused (isolated pairing / over-move / ambiguous
+        frame): undo the move that lost the lock -- reversing the last nudge
+        heads straight back into the covered mass (which holds the registered
+        edges), re-overlapping known terrain so localize or an edge pin
+        re-anchors us. With no prior nudge (lost at the very anchor) steer
+        toward the nearest registered edge. The direction is fixed for the whole
+        sortie so recovery nudges cannot oscillate. Budgeted; on exhaustion
+        returns with obs unplaced so the caller counts it as no progress."""
+        recover_dir = self._recovery_direction(obs)
+        self._log("scan_recovery", reason="localize_refused", nudges=0)
+        for i in range(1, RELOC_MAX_NUDGES + 1):
+            self.nudge(recover_dir, frame)
+            frame, obs = self._capture_observe()
+            off = self._map.localize(obs) if obs is not None else None
+            if off is not None:
+                self._map.integrate(obs, off)
+                self._last_offset = off
+                self._log("scan_recovery", reason="relocated", nudges=i)
+                return frame, obs
+        self._log("scan_recovery", reason="exhausted", nudges=RELOC_MAX_NUDGES)
+        return frame, obs
+
+    def _finish(self, outcome: str) -> TacticalMap:
+        covered, total = self._map.coverage()
+        self._log(
+            "coverage_report",
+            cells=total,
+            covered=covered,
+            holes=(total - covered) if total else None,
+            unreachable=len(self._unreachable),
+            bounds=dict(self._map.bounds),
+            nudges=self._nudges,
+        )
+        if outcome in ("complete", "unreachable_only") and self._all_edges_seen():
+            self.census, self.bounds = self._map.to_tacmap()
+            self.nudges = self._nudges
+            return self.census
+        raise SurveyIncomplete(
+            f"coverage scan did not close: covered {covered}/{total}, "
+            f"unreachable {len(self._unreachable)}, edges {dict(self._map.bounds)}"
         )
 
-    def _log(self, kind: str, **data) -> None:
-        if self.ledger_log is not None:
-            self.ledger_log(kind, **data)
+    # -- steering (belief picks direction only, never a coordinate) ---------
 
-    def _find_units(self, frame) -> list[tuple[int, int]]:
-        # factionless by design (定案 5): navigation only needs "a unit is
-        # here", the dock-side identify pass owns faction later
-        return (
-            vision.find_enemy_units(frame, region=vision.HUB_SCAN_REGION)
-            + vision.find_ally_units(frame, region=vision.HUB_SCAN_REGION)
-            + vision.find_third_party_units(frame, region=vision.HUB_SCAN_REGION)
-        )
+    def _direction_to(self, target: tuple[int, int], obs: FrameObservation | None) -> Direction:
+        """The cardinal push from the last localised frame toward `target`. The
+        offset supplies a direction only -- it never enters the swipe geometry
+        (定案 1)."""
+        n_cols = (len(obs.lattice.cols) - 1) if obs is not None else 6
+        n_rows = (len(obs.lattice.rows) - 1) if obs is not None else 4
+        vc = self._last_offset[0] + n_cols // 2
+        vr = self._last_offset[1] + n_rows // 2
+        dcol, drow = target[0] - vc, target[1] - vr
+        if dcol == 0 and drow == 0:
+            return (1, 0)
+        if abs(dcol) >= abs(drow):
+            return (1, 0) if dcol > 0 else (-1, 0)
+        return (0, 1) if drow > 0 else (0, -1)
 
-    def _observe(self, frame, camera: Point) -> None:
-        self.pool.observe(
-            camera, self._find_units(frame), threats=vision.find_threat_cells(frame)
-        )
+    def _recovery_direction(self, obs: FrameObservation | None) -> Direction:
+        lx, ly = self._last_nudge
+        if lx or ly:
+            return (-lx, -ly)
+        # lost at the very anchor with no prior push: steer toward the nearest
+        # registered edge so its hard axis pin can re-anchor the free axis
+        reg = self._map.bounds
+        registered = [(s, reg[s]) for s in SIDES if reg[s] is not None]
+        if registered:
+            n_cols = (len(obs.lattice.cols) - 1) if obs is not None else 6
+            n_rows = (len(obs.lattice.rows) - 1) if obs is not None else 4
+            vc = self._last_offset[0] + n_cols // 2
+            vr = self._last_offset[1] + n_rows // 2
+            best: tuple[float, str] | None = None
+            for side, line in registered:
+                dist = abs(vc - line) if side in ("west", "east") else abs(vr - line)
+                if best is None or dist < best[0]:
+                    best = (dist, side)
+            return _EDGE_DIR[best[1]]
+        return (1, 0)
 
-    def _clear_obstruction(self, frame):
+    def _all_edges_seen(self) -> bool:
+        return all(self._map.bounds[s] is not None for s in SIDES)
+
+    # -- operation (dumb: pushes the camera, measures nothing) --------------
+
+    def nudge(self, direction: Direction, frame: np.ndarray) -> None:
+        """One conservative swipe in `direction` from an obstruction-clear
+        origin. Measures nothing and reads nothing back (定案 1); the next
+        observe/localise sees where it landed."""
+        cx, cy = self._pick_origin(frame, direction)
+        hx = direction[0] * NUDGE_HALF["x"]
+        hy = direction[1] * NUDGE_HALF["y"]
+        self.swipe(cx + hx, cy + hy, cx - hx, cy - hy, PAN_SWIPE_MS)
+        self.sleep(PAN_SETTLE_S)
+        self._nudges += 1
+        self._last_nudge = direction
+        self._log("nudge", dir=_DIR_NAME.get(tuple(direction)), origin=[int(cx), int(cy)])
+
+    def _pick_origin(self, frame: np.ndarray, direction: Direction) -> tuple[int, int]:
+        """Origin whose drag START point sits furthest from every detected
+        unit peak (max-min clearance), so the game does not eat the swipe.
+        Clearance is against the injected detector's peaks, fixing the old
+        arc-only choice that was blind to min-zoom units."""
+        hx = direction[0] * NUDGE_HALF["x"]
+        hy = direction[1] * NUDGE_HALF["y"]
+        try:
+            peaks = self.detect(frame)
+        except Exception:
+            peaks = []
+        if not peaks:
+            return PAN_CENTER
+
+        def clearance(cand: tuple[int, int]) -> float:
+            sx, sy = cand[0] + hx, cand[1] + hy
+            return min(((sx - px) ** 2 + (sy - py) ** 2) ** 0.5 for px, py in peaks)
+
+        return max(PAN_ORIGIN_GRID, key=clearance)
+
+    def _capture_observe(self) -> tuple[np.ndarray, FrameObservation | None]:
+        frame = self._clear_obstruction(self.capture())
+        return frame, self.observe(frame)
+
+    def _clear_obstruction(self, frame: np.ndarray) -> np.ndarray:
         """Close whatever a stray scan tap opened over the map -- the unit
-        detail modal freezes panning wholesale (drags slide fine on screen
-        while measured movement reads zero: the 'frozen' stretches were a
-        modal, not eaten gestures)."""
+        detail modal freezes panning wholesale (drags slide on screen while the
+        camera does not move)."""
         if vision.is_unit_detail_modal(frame):
             self._log("scan_modal_closed", frame=frame)
             self.tap(*UNIT_DETAIL_CLOSE)
@@ -197,140 +379,43 @@ class LiveScanSource:
             return self.capture()
         return frame
 
-    def _pan_origins(self, frame, hx, hy, count: int = 4) -> list[tuple[int, int]]:
-        """Swipe origins for this frame, best first: the drag START point
-        (origin + half-gesture) must sit on empty map or the game eats the
-        drag, so candidates rank by their start point's distance to every
-        visible arc. Falls back to the static list when the frame cannot be
-        read (tests, degenerate frames)."""
-        try:
-            arcs = self._find_units(frame)
-        except Exception:
-            return list(PAN_ORIGINS[:count])
-        if not arcs:
-            return list(PAN_ORIGINS[:count])
+    # -- survey navigation --------------------------------------------------
 
-        def clearance(candidate: tuple[int, int]) -> float:
-            sx, sy = candidate[0] + hx, candidate[1] + hy
-            return min(((sx - ax) ** 2 + (sy - ay) ** 2) ** 0.5 for ax, ay in arcs)
-
-        ranked = sorted(PAN_ORIGIN_GRID, key=clearance, reverse=True)
-        return ranked[:count]
-
-    def pan_leg(self, camera: Point, prev, direction, label: str = "pan"):
-        """One measured pan. Returns (camera, frame, actual, requested);
-        actual << requested means the camera hit the map edge. Every
-        attempt measures the CUMULATIVE shift against the leg's base frame
-        (never chained frame-to-frame): a blind first swipe -- weak phase
-        response, no arc consensus -- is recovered by the next attempt's
-        measurement instead of being guessed at, and an
-        ineffective-but-measurable swipe retries from the alternate
-        origins before an edge verdict stands (a swipe starting on a
-        unit gets eaten and reads exactly like an edge). Only when every
-        attempt stays blind does the gesture assumption fire, once."""
-        dx, dy = direction
-        hx, hy = dx * PAN_HALF["x"], dy * PAN_HALF["y"]
-        requested = (2 * hx, 2 * hy)
-        goal = (abs(requested[0]) + abs(requested[1])) * SCAN_EDGE_RATIO
-        base = prev
-        cur = prev
-        cumulative: tuple[float, float] | None = None
-        attempts = []
-        for cx, cy in self._pan_origins(prev, hx, hy):
-            self.swipe(cx + hx, cy + hy, cx - hx, cy - hy, PAN_SWIPE_MS)
-            self.sleep(PAN_SETTLE_S)
-            cur = self._clear_obstruction(self.capture())
-            # landmark relocalization first (定案 3: adb gesture delivery is
-            # inherently laggy and lossy, so position must come from what
-            # the frame SHOWS): known units visible in the overlap fix the
-            # camera absolutely, eaten and late-arriving swipes alike
-            visible = self._find_units(cur)
-            located = self.pool.locate(visible) if visible else None
-            response = 0.0
-            source = None
-            landmark_rejected = False
+    def bring_to_view(
+        self, world: Point, start_camera: Point | None = None
+    ) -> Point | None:
+        """Pan until a census world point sits safely inside the tappable map
+        area and return its screen point, or None when it cannot be reached.
+        Content-only: pool.locate re-anchors the camera each step from the
+        visible constellation (no gesture量測, killing the 07-23 335px false
+        jump); the nudge just pushes toward the target. Budgeted, fail-loud."""
+        x0, y0, w, h = HUB_SCAN_REGION
+        camera = start_camera
+        for _ in range(BRING_MAX_NUDGES):
+            frame = self._clear_obstruction(self.capture())
+            try:
+                arcs = self.detect(frame)
+            except Exception:
+                arcs = []
+            located = self.pool.locate(arcs) if arcs else None
             if located is not None:
-                delta = (located[0] - camera[0], located[1] - camera[1])
-                # physical bound: one leg cannot out-travel its own gesture
-                # (plus easing slack) -- a bigger jump is a false lock on an
-                # aliased constellation, not a pan
-                limit = abs(requested[0]) + abs(requested[1]) + 250
-                # direction gate: a lock whose main-axis motion runs opposite
-                # the requested gesture is the same false-lock failure mode
-                # (a star-field alias) -- 20260720 corner_west requested
-                # (-600, 0) and locked onto (+186, +41), a physically small
-                # jump the bound above doesn't catch since it points
-                # backwards. ~0 on the main axis stays legit (a map edge).
-                axis = 0 if abs(requested[0]) >= abs(requested[1]) else 1
-                if (
-                    requested[axis] != 0
-                    and delta[axis] * requested[axis] < 0
-                    and abs(delta[axis]) > 60
-                ):
-                    landmark_rejected = True
-                elif abs(delta[0]) + abs(delta[1]) <= limit:
-                    cumulative, source = delta, "landmarks"
-            if source is None:
-                shift, response = vision.measure_camera_shift(base, cur)
-                if response >= 0.05:
-                    cumulative, source = shift, "phase"
-                else:
-                    arc = vision.measure_arc_shift(base, cur)
-                    if arc is not None:
-                        cumulative, source = arc, "arcs"
-                    else:
-                        source = "blind"
-            if landmark_rejected:
-                source = f"landmarks_rejected:{source}"
-            attempts.append(
-                {
-                    "origin": [cx, cy],
-                    "cumulative": (
-                        [round(cumulative[0], 1), round(cumulative[1], 1)]
-                        if cumulative is not None
-                        else None
-                    ),
-                    "response": round(float(response), 4),
-                    "source": source,
-                }
-            )
-            if cumulative is not None and (
-                abs(cumulative[0]) + abs(cumulative[1]) >= goal
+                camera = located
+            if camera is None:
+                return None
+            screen = (world[0] - camera[0], world[1] - camera[1])
+            if (
+                x0 + BRING_MARGIN <= screen[0] <= x0 + w - BRING_MARGIN
+                and y0 + BRING_MARGIN <= screen[1] <= y0 + h - BRING_MARGIN
             ):
-                break
-        if cumulative is None:
-            # every attempt blind (featureless open space with no arcs in
-            # view): assume one gesture's travel, flagged for downstream
-            # correction by bounds snapping / hint arbitration
-            cumulative = requested
-        actual = (cumulative[0], cumulative[1])
-        new_camera = (camera[0] + actual[0], camera[1] + actual[1])
-        self._log(
-            "scan_leg",
-            leg=label,
-            direction=list(direction),
-            requested=list(requested),
-            measured=[round(actual[0], 1), round(actual[1], 1)],
-            attempts=attempts,
-            camera=[round(new_camera[0], 1), round(new_camera[1], 1)],
-        )
-        return new_camera, cur, actual, requested
+                return screen
+            dx = (screen[0] > x0 + w - BRING_MARGIN) - (screen[0] < x0 + BRING_MARGIN)
+            dy = (screen[1] > y0 + h - BRING_MARGIN) - (screen[1] < y0 + BRING_MARGIN)
+            step: Direction = (dx, 0) if (abs(dx) >= abs(dy) or dy == 0) else (0, dy)
+            if step == (0, 0):
+                return None
+            self.nudge(step, frame)
+        return None
 
-    @staticmethod
-    def _at_edge(actual, requested, axis: int) -> bool:
-        return abs(actual[axis]) < abs(requested[axis]) * SCAN_EDGE_RATIO
-
-    @staticmethod
-    def _snap_bound(bounds: dict, name: str, value: float, tolerance: float = 150.0) -> float:
-        """First touch of a map edge records its coordinate; later touches
-        within tolerance snap the camera back onto it (dead-reckoning
-        drift dies at every edge instead of accumulating). A touch beyond
-        tolerance is a different boundary segment on an irregular map --
-        recorded coordinates stay honest, no snap."""
-        known = bounds.get(name)
-        if known is None:
-            bounds[name] = value
-            return value
-        if abs(value - known) <= tolerance:
-            return known
-        return value
+    def _log(self, kind: str, **data) -> None:
+        if self.ledger_log is not None:
+            self.ledger_log(kind, **data)

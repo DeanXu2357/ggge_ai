@@ -188,13 +188,14 @@ def test_full_scan_precondition_runs_in_order(monkeypatch):
     class _FakeSource:
         def __init__(self):
             self.start_frame = None
-            self.camera = (0.0, 0.0)
             self.pool = TacticalMap()
             self.bounds = {"west": 0.0, "north": 0.0, "east": 100, "south": 100}
-            self.legs = 1
+            self.nudges = 1
+            self.census = TacticalMap()
 
         def collect(self):
             events.append("sweep")
+            return self.census
 
     pincher = _RecordingPincher()
     c = _controller(pincher)
