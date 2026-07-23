@@ -553,6 +553,332 @@ def zoom_at_max(frame: np.ndarray) -> bool | None:
     return col <= ZOOM_MAX_COL_PITCH_CEIL
 
 
+# --- coverage-scan visual primitives (#26 批1) -----------------------------
+#
+# read_map_lattice extends read_grid_lattice's highpass-ridge idea to the whole
+# frame and adds boundary evidence. read_grid_lattice reads only a small central
+# band, which a dense unit formation buries (frame pt2 of the 20260719 ex2if
+# series reads no lattice there); the coverage scan needs a lattice on every
+# frame, so the seed is grown with an outward walk -- seed a clean sub-band,
+# then predict each next line at the local pitch and grab the strongest ridge in
+# a narrow window, stepping past unit-covered gaps. The seed/walk sampling bands
+# mirror the offline map_grid reader that this validated against.
+MAP_LATTICE_COL_SEED_SPAN = (600, 1700)
+MAP_LATTICE_COL_BAND = (450, 900)
+MAP_LATTICE_ROW_SEED_SPAN = (0, 1080)
+MAP_LATTICE_ROW_BAND = (500, 1900)
+MAP_LATTICE_MIN_SPACING = 80
+MAP_LATTICE_MAX_SPACING = 160
+MAP_LATTICE_WALK_LIMIT = 40
+# the search window must stay wide (pitch drifts across a frame with the mild
+# min-zoom perspective) but the accepted step needs a spacing floor so a faint
+# ridge one full pitch out cannot shift the whole chain by a cell
+MAP_LATTICE_WALK_TOLERANCE = 0.3
+MAP_LATTICE_WALK_MIN_STEP = 0.8
+MAP_LATTICE_WALK_QUALITY = 1.18
+
+# Boundary detection: a gridline ridge dies into starfield (|highpass| below the
+# floor) at a true map edge but stays lit where the grid merely runs off-screen.
+# Perpendicular ridges are walked outward from the map interior and their median
+# termination votes the edge; ridges are sampled in central bands clear of the
+# top banner, the side buttons and the bottom prompt strip.
+MAP_EDGE_FLOOR = 1.6
+# a boundary sitting well inside the frame is confirmed by a half-cell dark run;
+# one hugging the frame border (the min-zoom map is ~24 rows tall vs a 1080 view,
+# so a visible south edge parks a few dozen px above y1080) has no room for that
+# run, so a shorter run touching the frame edge is accepted only when the tail
+# beyond it is genuinely dark -- the map's empty northern "space" cells clear a
+# short dark run too, but carry faint grid and average far above this mean.
+MAP_EDGE_INTERIOR_RUN = 0.5
+MAP_EDGE_FRAME_RUN = 0.28
+MAP_EDGE_DARK_MEAN = 5.0
+MAP_EDGE_ROW_BAND = (250, 941)
+MAP_EDGE_COL_BAND = (550, 1751)
+
+MAP_W = 2340
+MAP_H = 1080
+
+
+@dataclass(frozen=True)
+class MapLattice:
+    """Full-frame gridlines plus map-boundary evidence for one frame.
+
+    cols/rows are gridline positions in full-frame pixels, extrapolated at the
+    measured pitch to cover the whole frame so any pixel maps to a cell (the
+    periphery carries the mild min-zoom perspective error). edges maps each side
+    to the pixel where the grid is cut off by the map boundary, or None when that
+    side is off-screen / only occluded (not a real edge)."""
+
+    cols: tuple[int, ...]
+    rows: tuple[int, ...]
+    col_pitch: float
+    row_pitch: float
+    edges: dict[str, int | None]
+
+
+def _full_highpass(frame: np.ndarray) -> np.ndarray:
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    return np.abs(gray - cv2.GaussianBlur(gray, (0, 0), 6))
+
+
+def _axis_profile(
+    hp: np.ndarray, axis: str, band: tuple[int, int], lo: int, hi: int
+) -> np.ndarray:
+    if axis == "cols":
+        return hp[band[0] : band[1], lo:hi].mean(axis=0)
+    return hp[lo:hi, band[0] : band[1]].mean(axis=1)
+
+
+def _lattice_seed(profile: np.ndarray, offset: int) -> list[int]:
+    centered = profile - profile.mean()
+    gate = centered.std() * 1.2
+    out: list[int] = []
+    for i in range(2, len(centered) - 2):
+        if (
+            centered[i] >= centered[i - 1]
+            and centered[i] >= centered[i + 1]
+            and centered[i] > gate
+        ):
+            if not out or i - (out[-1] - offset) >= MAP_LATTICE_MIN_SPACING:
+                out.append(offset + i)
+            elif centered[i] > centered[out[-1] - offset]:
+                out[-1] = offset + i
+    return out
+
+
+def _lattice_walk(
+    hp: np.ndarray, chain: list[int], axis: str, band: tuple[int, int], limit: int
+) -> list[int]:
+    out = sorted(chain)
+    for direction in (-1, +1):
+        for _ in range(MAP_LATTICE_WALK_LIMIT):
+            if direction < 0:
+                pitch = out[1] - out[0]
+                predicted = out[0] - pitch
+            else:
+                pitch = out[-1] - out[-2]
+                predicted = out[-1] + pitch
+            window = int(pitch * MAP_LATTICE_WALK_TOLERANCE)
+            lo, hi = predicted - window, predicted + window + 1
+            if lo < 0 or hi > limit:
+                break
+            profile = _axis_profile(hp, axis, band, lo, hi)
+            peak = int(profile.argmax())
+            if profile[peak] < float(np.median(profile)) * MAP_LATTICE_WALK_QUALITY:
+                break
+            position = lo + peak
+            end = out[0] if direction < 0 else out[-1]
+            if abs(position - end) < pitch * MAP_LATTICE_WALK_MIN_STEP:
+                break
+            if direction < 0:
+                out.insert(0, position)
+            else:
+                out.append(position)
+    return out
+
+
+def _lattice_lines(
+    hp: np.ndarray, axis: str, seed_span: tuple[int, int], band: tuple[int, int], limit: int
+) -> list[int] | None:
+    profile = _axis_profile(hp, axis, band, seed_span[0], seed_span[1])
+    seed = _lattice_seed(profile, seed_span[0])
+    if len(seed) < 4:
+        return None
+    gaps = [b - a for a, b in zip(seed, seed[1:])]
+    if not all(MAP_LATTICE_MIN_SPACING <= g <= MAP_LATTICE_MAX_SPACING for g in gaps):
+        return None
+    return _lattice_walk(hp, seed, axis, band, limit)
+
+
+def _extrapolate(lines: list[int], pitch: float, limit: int) -> tuple[int, ...]:
+    out = list(lines)
+    while out[0] - pitch >= 0:
+        out.insert(0, int(round(out[0] - pitch)))
+    while out[-1] + pitch < limit:
+        out.append(int(round(out[-1] + pitch)))
+    return tuple(out)
+
+
+def _ridge_smooth(hp: np.ndarray, line: int, axis: str) -> np.ndarray:
+    if axis == "cols":
+        ridge = hp[max(0, line - 2) : line + 3, :].mean(axis=0)
+    else:
+        ridge = hp[:, max(0, line - 2) : line + 3].mean(axis=1)
+    return np.convolve(ridge, np.ones(15, np.float32) / 15, mode="same")
+
+
+def _ridge_termination(
+    smooth: np.ndarray, start: int, direction: int, limit: int, run_need: int, accept_edge: bool
+) -> int | None:
+    run = 0
+    run_start: int | None = None
+    pos = start
+    while 0 <= pos < limit:
+        if smooth[pos] < MAP_EDGE_FLOOR:
+            if run == 0:
+                run_start = pos
+            run += 1
+            if run >= run_need:
+                return run_start
+        else:
+            run = 0
+            run_start = None
+        pos += direction
+    if accept_edge and run_start is not None:
+        return run_start
+    return None
+
+
+def _tail_mean(
+    hp: np.ndarray, axis: str, band: tuple[int, int], inner: int, edge_pos: int
+) -> float:
+    lo, hi = min(inner, edge_pos), max(inner, edge_pos) + 1
+    if axis == "rows":
+        return float(hp[lo:hi, band[0] : band[1]].mean())
+    return float(hp[band[0] : band[1], lo:hi].mean())
+
+
+def _map_edge(
+    hp: np.ndarray,
+    perpendicular: list[int],
+    axis: str,
+    band: tuple[int, int],
+    start: int,
+    direction: int,
+    pitch: float,
+    limit: int,
+) -> int | None:
+    smooths = [_ridge_smooth(hp, line, axis) for line in perpendicular]
+    need = max(3, len(perpendicular) // 2)
+    interior_run = int(pitch * MAP_EDGE_INTERIOR_RUN)
+    frame_run = int(pitch * MAP_EDGE_FRAME_RUN)
+    interior = sorted(
+        e
+        for e in (
+            _ridge_termination(sm, start, direction, limit, interior_run, False)
+            for sm in smooths
+        )
+        if e is not None
+    )
+    if len(interior) >= need:
+        return interior[len(interior) // 2]
+    framed = sorted(
+        e
+        for e in (
+            _ridge_termination(sm, start, direction, limit, frame_run, True)
+            for sm in smooths
+        )
+        if e is not None
+    )
+    if len(framed) >= need:
+        edge_pos = limit - 1 if direction > 0 else 0
+        candidate = framed[len(framed) // 2]
+        if _tail_mean(hp, axis, band, candidate, edge_pos) < MAP_EDGE_DARK_MEAN:
+            return candidate
+    return None
+
+
+def read_map_lattice(frame: np.ndarray) -> MapLattice | None:
+    """Full-frame gridlines plus map-boundary evidence, or None when no lattice
+    is on screen. Column/row lines are seeded then walked outward (so a dense
+    unit formation cannot starve the seed) and extrapolated to full-frame
+    coverage; the four edges are voted from where the perpendicular gridline
+    ridges die into starfield."""
+    if frame.shape[0] < MAP_H or frame.shape[1] < MAP_W:
+        return None
+    hp = _full_highpass(frame)
+    cols = _lattice_lines(
+        hp, "cols", MAP_LATTICE_COL_SEED_SPAN, MAP_LATTICE_COL_BAND, MAP_W
+    )
+    rows = _lattice_lines(
+        hp, "rows", MAP_LATTICE_ROW_SEED_SPAN, MAP_LATTICE_ROW_BAND, MAP_H
+    )
+    if cols is None or rows is None:
+        return None
+    col_pitch = _median_gap(tuple(cols))
+    row_pitch = _median_gap(tuple(rows))
+    if col_pitch is None or row_pitch is None:
+        return None
+    cx = (cols[0] + cols[-1]) // 2
+    cy = (rows[0] + rows[-1]) // 2
+    mid_rows = [y for y in rows if MAP_EDGE_ROW_BAND[0] <= y < MAP_EDGE_ROW_BAND[1]]
+    mid_cols = [x for x in cols if MAP_EDGE_COL_BAND[0] <= x < MAP_EDGE_COL_BAND[1]]
+    edges = {
+        "west": _map_edge(hp, mid_rows, "cols", MAP_EDGE_ROW_BAND, cx, -1, col_pitch, MAP_W),
+        "east": _map_edge(hp, mid_rows, "cols", MAP_EDGE_ROW_BAND, cx, +1, col_pitch, MAP_W),
+        "north": _map_edge(hp, mid_cols, "rows", MAP_EDGE_COL_BAND, cy, -1, row_pitch, MAP_H),
+        "south": _map_edge(hp, mid_cols, "rows", MAP_EDGE_COL_BAND, cy, +1, row_pitch, MAP_H),
+    }
+    return MapLattice(
+        cols=_extrapolate(cols, col_pitch, MAP_W),
+        rows=_extrapolate(rows, row_pitch, MAP_H),
+        col_pitch=col_pitch,
+        row_pitch=row_pitch,
+        edges=edges,
+    )
+
+
+# cell_fingerprints samples terrain only: the map region minus the fixed HUD
+# furniture (top banner block, full-width bottom prompt strip). The reasoning
+# matches UNIT_DENSITY_HUD_HOLES -- HUD pixels are not terrain and would forge
+# cross-frame matches at fixed screen positions. Each cell is sampled from its
+# inset interior so a gridline or a neighbor cannot bleed into the fingerprint.
+CELL_FP_REGION = (150, 90, 2100, 930)
+CELL_FP_HUD_HOLES = ((0, 0, 470, 175), (0, 945, 2340, 135))
+CELL_FP_INSET = 0.22
+CELL_FP_MIN_SAMPLE = 8
+
+
+def _box_inside(x0: int, y0: int, x1: int, y1: int, region: tuple[int, int, int, int]) -> bool:
+    rx, ry, rw, rh = region
+    return x0 >= rx and y0 >= ry and x1 <= rx + rw and y1 <= ry + rh
+
+
+def _box_hits_hud(x0: int, y0: int, x1: int, y1: int) -> bool:
+    for hx, hy, hw, hh in CELL_FP_HUD_HOLES:
+        if x0 < hx + hw and x1 > hx and y0 < hy + hh and y1 > hy:
+            return True
+    return False
+
+
+def cell_fingerprints(
+    frame: np.ndarray, lattice: MapLattice
+) -> dict[tuple[int, int], np.ndarray]:
+    """Per-cell terrain fingerprints keyed by (col_index, row_index) into the
+    lattice. Each value is a float32 [L, a, b, L_std] vector -- the CIELab mean
+    colour of the cell interior plus its luminance spread -- a light,
+    deterministic descriptor for matching the same world cell across frames.
+    Cells overlapping the HUD or reaching outside the map region are dropped."""
+    lab = cv2.cvtColor(frame, cv2.COLOR_BGR2LAB)
+    cols, rows = lattice.cols, lattice.rows
+    out: dict[tuple[int, int], np.ndarray] = {}
+    for i in range(len(cols) - 1):
+        cx0, cx1 = cols[i], cols[i + 1]
+        if cx1 - cx0 < 2 * CELL_FP_MIN_SAMPLE:
+            continue
+        ix = int(round((cx1 - cx0) * CELL_FP_INSET))
+        x0, x1 = cx0 + ix, cx1 - ix
+        for j in range(len(rows) - 1):
+            ry0, ry1 = rows[j], rows[j + 1]
+            if ry1 - ry0 < 2 * CELL_FP_MIN_SAMPLE:
+                continue
+            iy = int(round((ry1 - ry0) * CELL_FP_INSET))
+            y0, y1 = ry0 + iy, ry1 - iy
+            if x1 - x0 < CELL_FP_MIN_SAMPLE or y1 - y0 < CELL_FP_MIN_SAMPLE:
+                continue
+            if not _box_inside(x0, y0, x1, y1, CELL_FP_REGION):
+                continue
+            if _box_hits_hud(x0, y0, x1, y1):
+                continue
+            patch = lab[y0:y1, x0:x1].reshape(-1, 3).astype(np.float32)
+            mean = patch.mean(axis=0)
+            l_std = float(patch[:, 0].std())
+            out[(i, j)] = np.array(
+                [mean[0], mean[1], mean[2], l_std], dtype=np.float32
+            )
+    return out
+
+
 def measure_arc_shift(
     prev: np.ndarray, cur: np.ndarray, *, tolerance: int = 24
 ) -> tuple[float, float] | None:
