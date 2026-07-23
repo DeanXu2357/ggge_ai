@@ -334,6 +334,56 @@ effect-verify 失敗（例如 `validate_stage` 回傳 `report.ok=False`、identi
 - 上機驗證＝輪八：開場若殘留在場應被前置防禦清掉；掃描應恢復輪六型
   收斂並繼續往 identify；若再退化應 <90 秒帶完整證據回報。
 
+## Round 1.8：地形指紋共識化＋refused 遙測（輪八敗因修復，2026-07-24 主 session 定讞）
+
+### 根因（run `data/runs/20260724-023014/`；原生診斷幀離線實驗鏈定讞）
+
+輪八 Round 1.7 兩防禦實戰生效（殘留一次解除未復發、煞車 130 秒誠實
+早停），新敗因＝east 死鎖：最後真實進展（t=86.7）後 east 全 refused／
+west 回復全 relocated，starved 中止，east 邊未註冊。主 session 用三張
+原生 refused 診斷幀做的離線實驗鏈：
+1. 幀本身完全可讀（格線 24×12、east 截止緣 x≈1866、5 單位峰、無殘留）。
+2. 乾淨地圖上互相定位＝edge_pin (0,0) 完美成功。
+3. 強制純投票路徑＝margin 10.0／fraction 1.0 輕鬆過門檻（門檻 2.5/0.5）。
+4. `_search_range` 覆蓋全域無偏置。
+→ 幀、計分器、搜尋皆健康，**病灶＝run 中累積的地圖態**。結構缺口：
+`CellMap.integrate()` 的地形指紋 `self._terrain[gcell] = fp` **無條件
+覆寫（last-write-wins）**——單位證據有 support 共識（批2），地形沒有；
+一次勉強過門檻的錯位整合（t=86.7 margin=4.5 vs 門檻 2.5）可改寫上百格
+參考真相，其後誠實幀對腐化參考在任何候選 offset 都湊不出 margin →
+永久 refused。本輪 16 次整合（含 10 次 relocation 整合）任一次錯位即
+觸發此病。輪七的同款「外推 refused／回復 relocated」簽名在殘留清除後
+仍複發＝同一結構缺口的第二例證。
+
+### 範圍（兩項，皆可離線驗證）
+
+1. **A refused 遙測**：refused 的 `LocalizeReport` 已載 margin／
+   unit_hits／terrain_fraction（read 得到、沒記）——`refused_frame`
+   ledger 事件補這三欄＋當幀 `obs.edges` 可見性；`scan_recovery
+   localize_refused` 事件同步補。零行為變更。
+2. **B 地形指紋 first-write-wins＋衝突計數**：`integrate()` 地形改
+   首見保留（後見只填新格、不覆寫既有格）；同時計數本次整合中「既有
+   指紋與來幀指紋不合（依 `TERRAIN_MATCH` 距離）」的格數，記入
+   `frame_localized`／`scan_recovery` 事件新欄 `terrain_conflict`——
+   高衝突整合＝錯位即時警訊（下輪遙測直接定讞）。**單位 support、
+   計分閘門、frontier、steering、回復方向全部零改動。**
+
+### 紅線
+- 只動 `integrate()` 的地形寫入策略與 ledger 欄位；localize 各閘門
+  數值與語意不動。
+- 正常收斂 run（同視野重寫＝指紋近同）行為等價；行為分歧只發生在
+  「錯位改寫」情境＝本 bug 本身。既有 coverage 測試全綠且不修改。
+- 基準 852 passed／3 xfailed 只增不減＋ruff 綠。
+
+### 驗收標準
+- 輪八情境蒸餾回歸測試（先紅後綠）：正確地圖上疊一次錯位整合 →
+  誠實同視野幀定位；last-write-wins 下 refused（紅）、first-write-wins
+  下正常定位（綠）。
+- terrain_conflict 計數測試：錯位整合報高衝突、同視野重整合報零衝突。
+- refused 遙測欄位測試（fake 迴圈斷言欄位齊全）。
+- 上機驗證＝輪九：同冷探索協定。**若輪九仍在掃描主體失敗，依 CLAUDE.md
+  紀律停下問使用者**（該層將計連續兩輪修復嘗試未過），不再自行開輪十。
+
 ## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死

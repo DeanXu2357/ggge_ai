@@ -183,6 +183,27 @@
   - 裝置末態：TURN 1 hub、選取殘留（比較 HUD＋紅色塊）仍在場、格線已
     釋放、列表展開 9 卡、cache 空。**輪八開場即殘留在場＝前置防禦的
     第一個實戰驗證點，不要手動清**。
+- **2026-07-24 輪八結果（Round 1.7 合併 `baeb53d` 後首跑）：FAIL 於覆蓋
+  掃描主體（starved 早停），identify 未觸達；Round 1.7 兩防禦實戰生效**，
+  run `data/runs/20260724-023014/`（61 行、8 幀＋3 原生診斷幀）。
+  - **殘留防禦 PASS**：`scan_selection_cleared` t=21.9、(1290,600)、
+    attempt=0 一次解除；診斷幀像素探針證實全程未復發。
+  - **飢餓煞車 PASS**：連續 6 次零進展 → t=152.9 `survey_abort
+    ("localization starving...")`，130 秒 vs 輪七 9 分鐘。refused 原生
+    存證 3 張落地。
+  - **新敗因＝east 死鎖**：t=86.7 最後進展後 east 全 refused（鏡頭疑被
+    地圖東緣 clamp、三張診斷幀近同位置）；主 session 離線實驗鏈定讞
+    （幀可讀、乾淨地圖互定位完美、純投票 margin 10 過門檻）→ 病灶＝
+    **`integrate()` 地形指紋 last-write-wins 無共識**，錯位整合（t=86.7
+    margin 4.5）改寫參考真相後誠實幀永久 refused。輪七同款簽名＝第二
+    例證。修復＝**Round 1.8**（指紋 first-write-wins＋terrain_conflict
+    計數＋refused 遙測，scan-flow-robustness-plan.md）。
+  - coverage_report：covered=378／nudges=26／refused=6(連續)/10(累計)／
+    relocated=10／outcome=`starved`／bounds west=10/east=null/north=-14/
+    south=10；首擊 23%。
+  - 裝置末態：TURN 1 hub、殘留已清、格線 off、列表展開 9 卡、cache 空。
+  - **紀律標記：輪九若仍在掃描主體失敗＝該層連續兩輪修復未過，停下
+    問使用者。**
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。
