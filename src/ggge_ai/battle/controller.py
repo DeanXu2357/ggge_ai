@@ -1007,6 +1007,8 @@ class ManualBattleController:
             llm=self.llm,
             classify=self._classify_battle_view,
             escape=self._escape_selection_overlay,
+            detect=vision.find_unit_density_peaks,
+            diag_save=(self.ledger.save_diag_frame if self.ledger is not None else None),
             ledger_log=self._log,
             root=self.intel_cache_root,
             map_size=self._map_size,

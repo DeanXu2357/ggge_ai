@@ -729,3 +729,211 @@ def test_move_overlay_finish_frame_gate_overrides_the_false_dock_ally():
     assert verdict is not None
     assert verdict.faction is Faction.ALLY and verdict.side == "right"
     assert map_view.RETURN_BUTTON in probe([map_view.RETURN_BUTTON], frame=frame)
+
+
+# ---- Round 1.9: identify live re-verify (peak recheck + snap + phantom drop) ----
+
+
+class _RecheckWorld:
+    """Coordinate-sensitive fake for the live re-verify. Tapping a point in
+    `units` raises that unit's summary banner (enemy, left dock = HUB); tapping
+    anywhere else on the map shows no banner (BLANK). The detail-modal taps
+    behave as _survey_point expects. detect() reports the configured density
+    `peaks` -- it is only consulted on the no-banner recheck frame. Every tap is
+    recorded so a test can prove the snap re-tap lands on the peak, not the
+    original point."""
+
+    def __init__(self, units, peaks):
+        self.units = {(int(x), int(y)) for x, y in units}
+        self.peaks = [(int(x), int(y)) for x, y in peaks]
+        self.view = "map"
+        self.taps: list = []
+
+    def capture(self):
+        return {"map": BLANK, "card": HUB, "modal": MODAL}[self.view]
+
+    def tap(self, x, y):
+        pt = (int(x), int(y))
+        self.taps.append(pt)
+        if pt in self.units:
+            self.view = "card"
+        elif pt == scout_intel.SUMMARY_CARD_TAPS[0]:
+            self.view = "modal"
+        elif pt == scout_intel.WEAPONS_TAB_TAP:
+            self.view = "modal"
+        elif pt == scout_intel.UNIT_DETAIL_CLOSE:
+            self.view = "map"
+        else:
+            self.view = "map"
+
+    def detect(self, _frame):
+        return list(self.peaks)
+
+
+def test_identify_live_reverify_drops_phantom_and_continues(tmp_path):
+    """A candidate whose tap raises no banner AND shows no unit peak under it is
+    an evidence-backed phantom: dropped with reason no_unit_at_tap, a diag frame
+    saved, and the survey continues to the real unit. Pre-Round-1.9 this point
+    fails the whole survey loud."""
+    world = _RecheckWorld(units=[(900, 150)], peaks=[])
+    events, log = _events()
+    dropped: list[int] = []
+    diag_calls: list = []
+    defn = survey_stage(
+        world.capture,
+        world.tap,
+        [(1263.0, 419.0), (900.0, 150.0)],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        identifier=_identifier(),
+        dropped=dropped,
+        detect=world.detect,
+        diag_save=lambda frame, tag: diag_calls.append(tag) or f"diag/{tag}.png",
+        ledger_log=log,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert dropped == [0]
+    assert [u.uid for u in defn.layout] == ["e01"]
+    phantom = next(e for e in events if e["kind"] == "survey_phantom")
+    assert phantom["reason"] == "no_unit_at_tap"
+    assert phantom["tap"] == [1263.0, 419.0]
+    assert phantom["diag"] == "diag/identify_fail_i0.png"
+    assert diag_calls == ["identify_fail_i0"]
+    assert any(e["kind"] == "survey_complete" for e in events)
+
+
+def test_identify_live_reverify_snaps_to_offset_peak(tmp_path):
+    """The unit's true pixels sit ~50px off the projected tap point: three blind
+    origin retries fail, then a single snap re-tap on the detected peak reads the
+    banner. Pre-Round-1.9 the three origin retries just fail loud."""
+    world = _RecheckWorld(units=[(940, 180)], peaks=[(940, 180)])
+    events, log = _events()
+    defn = survey_stage(
+        world.capture,
+        world.tap,
+        [(900.0, 150.0)],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        identifier=_identifier(),
+        detect=world.detect,
+        ledger_log=log,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert [u.uid for u in defn.layout] == ["e01"]
+    # three blind retries at the projected origin, then the snap lands on the peak
+    assert world.taps.count((900, 150)) == 3
+    assert (940, 180) in world.taps
+    snap = next(e for e in events if e["kind"] == "snap_tap")
+    assert snap["origin"] == [900.0, 150.0]
+    assert snap["snap"] == [940, 180]
+
+
+def test_identify_live_reverify_snap_still_no_banner_fails_loud(tmp_path):
+    """A peak is present but even the snap re-tap raises no banner: zero-guess
+    holds -- fail loud, write nothing, but record the snap that was attempted."""
+    world = _RecheckWorld(units=[], peaks=[(940, 180)])
+    events, log = _events()
+    with pytest.raises(SurveyIncomplete):
+        survey_stage(
+            world.capture,
+            world.tap,
+            [(900.0, 150.0)],
+            stage_id="g/hard_2",
+            bring_to_view=_identity_view,
+            identifier=_identifier(),
+            detect=world.detect,
+            ledger_log=log,
+            sleep=lambda s: None,
+            root=tmp_path,
+        )
+    assert any(e["kind"] == "snap_tap" for e in events)
+    assert stage_def.load_stage_def("g/hard_2", root=tmp_path) is None
+
+
+def test_identify_live_reverify_ghost_of_ally_keeps_priority(tmp_path):
+    """No peak AND hugging a known ally: the existing ghost_of_ally drop keeps
+    priority (reason no_banner_near_ally), never the new no_unit_at_tap."""
+    world = _RecheckWorld(units=[(900, 150)], peaks=[])
+    events, log = _events()
+    dropped: list[int] = []
+    defn = survey_stage(
+        world.capture,
+        world.tap,
+        [(1263.0, 419.0), (900.0, 150.0)],
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        identifier=_identifier(),
+        ally_points=[(1263.0, 419.0)],
+        dropped=dropped,
+        detect=world.detect,
+        ledger_log=log,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert dropped == [0]
+    assert [u.uid for u in defn.layout] == ["e01"]
+    phantom = next(e for e in events if e["kind"] == "survey_phantom")
+    assert phantom["reason"] == "no_banner_near_ally"
+
+
+def test_identify_live_reverify_diag_frames_are_throttled(tmp_path):
+    """Diagnostic frames for no-banner failures are stashed on the first 3 and
+    every 10th thereafter; the saved failures carry the frame path, throttled
+    ones carry None."""
+    world = _RecheckWorld(units=[(900, 150)], peaks=[])
+    events, log = _events()
+    diag_calls: list = []
+    phantom_pts = [(200.0 + 200 * k, 900.0) for k in range(11)]
+    points = phantom_pts + [(900.0, 150.0)]
+    defn = survey_stage(
+        world.capture,
+        world.tap,
+        points,
+        stage_id="g/hard_2",
+        bring_to_view=_identity_view,
+        identifier=_identifier(),
+        dropped=[],
+        detect=world.detect,
+        diag_save=lambda frame, tag: diag_calls.append(tag) or f"diag/{tag}.png",
+        ledger_log=log,
+        sleep=lambda s: None,
+        root=tmp_path,
+    )
+    assert diag_calls == [
+        "identify_fail_i0",
+        "identify_fail_i1",
+        "identify_fail_i2",
+        "identify_fail_i9",
+    ]
+    phantoms = [e for e in events if e["kind"] == "survey_phantom"]
+    assert len(phantoms) == 11
+    assert all(e["reason"] == "no_unit_at_tap" for e in phantoms)
+    saved = [e for e in phantoms if e["diag"] is not None]
+    assert len(saved) == 4
+    assert [u.uid for u in defn.layout] == ["e01"]
+
+
+def test_ensure_definition_wires_detect_and_diag(tmp_path, monkeypatch):
+    """The controller hands the survey a unit detector and the ledger's
+    native-resolution diag saver (Round 1.9 seam), mirroring classify/escape."""
+    c = _stage_controller(tmp_path, SCAN)
+    captured: dict = {}
+    defn = _defn_for_validation(en=SUMMARY_EN)
+
+    def fake_survey(*a, **k):
+        captured.update(k)
+        return defn
+
+    monkeypatch.setattr(scout_intel, "survey_stage", fake_survey)
+    monkeypatch.setattr(
+        scout_intel,
+        "validate_stage",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no file, no validation")),
+    )
+
+    c._ensure_stage_definition(None)
+
+    assert captured["detect"] is vision.find_unit_density_peaks
+    assert captured["diag_save"] == c.ledger.save_diag_frame

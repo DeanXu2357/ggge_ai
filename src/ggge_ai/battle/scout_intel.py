@@ -73,6 +73,19 @@ VALIDATE_SAMPLE_CAP = 4
 # record instead of failing the survey loud.
 GHOST_RADIUS = 90.0
 
+# Round 1.9 live re-verify radius, as a fraction of the grid cell pitch
+# (cell_size, ~95px). A real unit's density peak sits inside its own cell, so
+# when a tap raises no banner we look at the live frame: a peak within this
+# radius of the tap point is the unit we meant (snap to its true pixels), and
+# no peak at all is current visual proof the point is empty (drop as a phantom
+# instead of failing the whole survey). The fraction is kept STRICTLY BELOW one
+# full cell precisely to bound mis-attribution: a neighbouring cell's peak is
+# >= cell_size away (real units are >= one grid cell / ~118px apart, see
+# GHOST_RADIUS), so the snap can only correct an intra-cell offset and can never
+# reach across into an adjacent unit. At cell_size=95 the radius is ~71px, which
+# still covers the ~40px projection offsets the survey produces.
+TAP_PEAK_RADIUS_CELLS = 0.75
+
 
 class SurveyIncomplete(RuntimeError):
     """The stage could not be read to completion; the caller must stop
@@ -124,6 +137,35 @@ def _hub_is_safe_to_tap(
     if escape is None:
         return False
     return bool(escape())
+
+
+DetectUnits = Callable[[object], list[tuple[int, int]]]
+
+
+def _peaks_near(
+    detect: DetectUnits | None,
+    frame,
+    screen: tuple[float, float],
+    radius: float,
+) -> list[tuple[int, int]]:
+    """Unit density peaks within `radius` px of the tap point, nearest first
+    (Round 1.9 live re-verify). Empty when no detector is wired or none land in
+    range; a raise from the detector on an off-nominal frame counts as no
+    evidence rather than a crash."""
+    if detect is None:
+        return []
+    try:
+        peaks = detect(frame)
+    except Exception:
+        return []
+    r2 = radius * radius
+    near = [
+        (int(px), int(py))
+        for px, py in peaks
+        if (px - screen[0]) ** 2 + (py - screen[1]) ** 2 <= r2
+    ]
+    near.sort(key=lambda p: (p[0] - screen[0]) ** 2 + (p[1] - screen[1]) ** 2)
+    return near
 
 
 def _read_summary_at(
@@ -270,6 +312,8 @@ def survey_stage(
     llm=None,
     classify: ClassifyView | None = None,
     escape: EscapeToHub | None = None,
+    detect: DetectUnits | None = None,
+    diag_save: Callable[[object, str], str | None] | None = None,
     ledger_log: Callable[..., None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
     wall_clock_s: float = SURVEY_WALL_CLOCK_S,
@@ -302,15 +346,40 @@ def survey_stage(
     unit-move overlay; that is recorded as an ALLY (side="unit_move") through
     the mechanism channel and escaped, never blind-retried on the overlay
     (the 輪五 defeat). Left unwired (both None) the loop keeps the old
-    dock-only behaviour."""
+    dock-only behaviour.
+
+    Live re-verify (Round 1.9, `detect`/`diag_save`): before sentencing a
+    no-banner candidate, the current frame is re-detected at the tap point. No
+    unit peak within one cell is current visual proof the point is empty -- the
+    candidate drops as a `survey_phantom` (reason `no_unit_at_tap`) with a saved
+    diagnostic frame instead of aborting the whole survey; a peak off the tap
+    point is a mis-located real unit and is re-tapped once at the peak's true
+    pixels (`snap_tap`). A peak with no banner even after the snap still fails
+    loud (zero-guess). The existing ghost-of-ally drop keeps priority. Left
+    unwired (`detect` None) the loop keeps the old fail-loud-on-no-banner
+    behaviour."""
     if not points:
         raise SurveyIncomplete("no enemy points to survey")
     factions = factions or ["enemy"] * len(points)
     deadline = time.monotonic() + wall_clock_s
+    radius = cell_size * TAP_PEAK_RADIUS_CELLS
 
     def record(kind: str, **data) -> None:
         if ledger_log is not None:
             ledger_log(kind, **data)
+
+    # native-resolution diagnostic frames for identify failures, throttled to
+    # the first 3 and every 10th thereafter (reuses the Round 1.7 diag pipeline)
+    diag_state = {"fails": 0}
+
+    def save_diag(frame, tag: str) -> str | None:
+        diag_state["fails"] += 1
+        if diag_save is None:
+            return None
+        n = diag_state["fails"]
+        if not (n <= 3 or n % 10 == 0):
+            return None
+        return diag_save(frame, tag)
 
     ally_world: list[tuple[float, float]] = list(ally_points or ())
 
@@ -320,12 +389,13 @@ def survey_stage(
             for a in ally_world
         )
 
-    def drop_ghost(i: int, point, reason: str) -> None:
+    def drop_ghost(i: int, point, reason: str, **extra) -> None:
         record(
             "survey_phantom",
             index=i,
             world=[round(point[0], 1), round(point[1], 1)],
             reason=reason,
+            **extra,
         )
         if dropped is not None:
             dropped.append(i)
@@ -358,10 +428,51 @@ def survey_stage(
                 classify=classify, escape=escape,
             )
             if verdict is None:
+                diag = None
+                peaks: list[tuple[int, int]] = []
+                if detect is not None:
+                    frame = capture()
+                    diag = save_diag(frame, f"identify_fail_i{i}")
+                    peaks = _peaks_near(detect, frame, screen, radius)
+                # ghost-of-ally keeps its existing priority (regression pin): a
+                # bannerless point hugging a known ally is that ally's twin,
+                # sentenced before the live-peak re-verify ever runs.
                 if ghost_of_ally(point):
-                    drop_ghost(i, point, "no_banner_near_ally")
+                    drop_ghost(i, point, "no_banner_near_ally", diag=diag)
                     continue
-                raise SurveyIncomplete(f"no summary banner at {screen}")
+                # no peak under the tap right now = current visual proof the
+                # point is empty -> evidence-backed phantom drop, survey continues
+                if detect is not None and not peaks:
+                    drop_ghost(
+                        i,
+                        point,
+                        "no_unit_at_tap",
+                        tap=[round(screen[0], 1), round(screen[1], 1)],
+                        diag=diag,
+                    )
+                    continue
+                # a peak off the tap point = a mis-located real unit -> snap once
+                if peaks:
+                    snap = peaks[0]
+                    record(
+                        "snap_tap",
+                        index=i,
+                        origin=[round(screen[0], 1), round(screen[1], 1)],
+                        snap=[snap[0], snap[1]],
+                    )
+                    verdict = _identify_at(
+                        capture, tap, snap, identifier, sleep,
+                        retries=1, classify=classify, escape=escape,
+                    )
+                    if verdict is not None:
+                        screen = snap
+                # a peak that still yields no banner after the snap stays a
+                # loud abort: zero guessing, never a fabricated faction
+                if verdict is None:
+                    raise SurveyIncomplete(
+                        f"no summary banner at {screen}"
+                        + (f" (diag={diag})" if diag else "")
+                    )
             if verdict.faction is Faction.ALLY:
                 claimed[cell] = i
                 ally_world.append(point)
@@ -383,8 +494,29 @@ def survey_stage(
                 classify=classify, escape=escape,
             )
         except SurveyIncomplete as exc:
-            if str(exc).startswith("no summary card") and ghost_of_ally(point):
-                drop_ghost(i, point, "no_card_near_ally")
+            if not str(exc).startswith("no summary card"):
+                raise
+            # legacy path (no detector): untouched behaviour, no extra capture
+            if detect is None:
+                if ghost_of_ally(point):
+                    drop_ghost(i, point, "no_card_near_ally")
+                    continue
+                raise
+            # Round 1.9: same live re-verify as the identify path -- diag the
+            # failure, keep ghost-of-ally priority, drop an empty tap as a phantom
+            frame = capture()
+            diag = save_diag(frame, f"summary_fail_i{i}")
+            if ghost_of_ally(point):
+                drop_ghost(i, point, "no_card_near_ally", diag=diag)
+                continue
+            if not _peaks_near(detect, frame, screen, radius):
+                drop_ghost(
+                    i,
+                    point,
+                    "no_unit_at_tap",
+                    tap=[round(screen[0], 1), round(screen[1], 1)],
+                    diag=diag,
+                )
                 continue
             raise
         claimed[cell] = i
