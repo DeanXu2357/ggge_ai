@@ -52,6 +52,11 @@ FRAME_KINDS = frozenset(
         "post_select_probe",
         "end_turn",
         "finish",
+        # cold-scan (T3) diagnostics: the zoom sequence and the grid-enable
+        # frame are the only view of the mid-scan camera, cross-referenced
+        # after the 07-23 failure ran with no images
+        "zoom_step",
+        "battle_grid",
     }
 )
 FRAME_MAX_EDGE = 1280

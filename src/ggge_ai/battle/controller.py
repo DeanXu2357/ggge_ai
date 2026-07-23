@@ -296,6 +296,10 @@ class ManualBattleController:
     # faction_identifier; None (some test configs) skips the pinch, the
     # production assembly points wire a GesturePincher onto the device
     pincher: pinch.Pincher | None = None
+    # the frame the zoom loop last captured, stashed so the per-step ledger
+    # entry saves the exact measured image and the next pinch picks its center
+    # from the current view (T3 diagnostics / dynamic pinch center)
+    _last_zoom_frame: object | None = None
     # control-flow memory: last confirmed phase and the act -> verify
     # contracts (timeline.TRANSITIONS); fed once per tick by _classify,
     # queried and reported to by the handlers. process-scoped
@@ -1541,12 +1545,36 @@ class ManualBattleController:
     def _log_zoom_step(self, step: pinch.PitchStep) -> None:
         self._log(
             "zoom_step",
+            frame=self._last_zoom_frame,
             index=step.index,
             col_pitch=step.col_pitch,
             row_pitch=step.row_pitch,
             change=step.change,
             source=step.source,
         )
+
+    def _pinch_peaks(self, frame) -> list[tuple[int, int]]:
+        """Detected unit points the dynamic pinch center must dodge, unioned
+        across both zoom domains the pinch sequence passes through: the min-zoom
+        density peaks (find_unit_density_peaks) and the battle-zoom HP-arc rings
+        (find_*_units). Union because reading the pitch to pick a domain is
+        exactly the signal this batch stopped trusting mid-zoom; clearance
+        tolerates the extra phantoms a wrong-domain detector emits (they only
+        move the center). Each detector is guarded -- a raise on an off-nominal
+        frame just contributes nothing."""
+        peaks: list[tuple[int, int]] = []
+        detectors = (
+            vision.find_unit_density_peaks,
+            vision.find_enemy_units,
+            vision.find_ally_units,
+            vision.find_third_party_units,
+        )
+        for detect in detectors:
+            try:
+                peaks.extend((int(x), int(y)) for x, y in detect(frame))
+            except Exception:
+                continue
+        return peaks
 
     def _zoom_to_max(self, frame):
         """Pinch the battle camera to its furthest zoom-out and confirm it with
@@ -1560,12 +1588,26 @@ class ManualBattleController:
         if self.pincher is None:
             log.warning("no pincher injected; skipping max-zoom, scanning at current zoom")
             return frame
-        fingers = pinch.zoom_out_fingers()
+        self._last_zoom_frame = frame
+
+        def capture():
+            f = self._frame()
+            self._last_zoom_frame = f
+            return f
+
+        def pinch_step():
+            base = self._last_zoom_frame
+            center = (
+                pinch.pick_pinch_center(self._pinch_peaks(base))
+                if base is not None
+                else pinch.PINCH_CENTER_DEFAULT
+            )
+            self.pincher.pinch(*pinch.zoom_out_fingers(center=center))
 
         def zoom_pass():
             pinch.zoom_out_max(
-                capture=self._frame,
-                pinch_step=lambda: self.pincher.pinch(*fingers),
+                capture=capture,
+                pinch_step=pinch_step,
                 obstruction=self._clear_scan_obstruction,
                 on_step=self._log_zoom_step,
             )
