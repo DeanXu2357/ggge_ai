@@ -195,6 +195,17 @@ SurveyIncomplete（詳細證據鏈＝佇列 1 輪五段）。**恢復點＝Round
 疊層（艾格沙貝選中未確認）、格線已釋放、cache 空。既有 flaky
 `test_not_actionable` 計時競態定讞非本輪引入，收尾立 issue。
 
+**Round 1.5＝identify 疊層安全化合併**（`ba29868`/`e6a8520`，831 tests
+綠；視圖閘門先於 dock、move-overlay=ALLY 機制證據通道、return_to_top
+嚴格脫出；t0135 實測單右 dock 0.995 偽 ally——閘門必要性的更強證據）。
+**輪六：FAIL 於 identify 前置 `bring_to_view()`（`_nudges` 未初始化、
+確定性崩潰），但覆蓋掃描主體 100% 收斂**（552/552、28 nudges、首擊
+71%）；並引爆既有 late-arrival 缺陷（跳過簿記與 scout 直接選卡攻擊
+一次）。**恢復點＝Round 1.6（navigator 生命週期＋late-arrival 歸位，
+規格在 scan-flow-robustness-plan.md）**，之後輪七同協定重跑——Round
+1.5 的 unit_move 通道在輪七才真正受測。裝置：TURN 1 hub、9/10 可行動、
+cache 空。
+
 ## 2026-07-21 協調者管線日（前恢復點）
 
 **本日（純離線、未碰實機、adb no permissions 待 seat0 桌面登入）**：

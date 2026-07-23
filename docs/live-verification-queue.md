@@ -139,6 +139,30 @@
   - 裝置末態：TURN 1「單位移動＋選擇武裝」疊層（艾格沙貝被選中、未確認
     任何行動）、格線已由 abort 路徑釋放（批7 生效）、cache 空、定義檔
     未匯出（依設計不寫部分定義檔）。
+- **2026-07-24 輪六結果（Round 1.5 合併 `e6a8520` 後首跑）：FAIL 於
+  identify 前置 `bring_to_view()`，Round 1.5 目標驗證點未觸達；但覆蓋
+  掃描主體 100% 收斂**，run `data/runs/20260724-004440/`（87 行、14 幀）。
+  - 開場前置：遊戲省電觸控鎖吞掉前兩次返回 tap（模板穿透變暗覆蓋層
+    誤 match，CLAUDE.md 已知坑），`Keyguard.dismiss_game_lock()` 解除後
+    一次返回即回 hub。
+  - **意外事件**：收合態開場經批8 修復後流進 late-arrival 分支——該
+    分支直接選卡**跳過回合簿記與 `_scout`**（既有缺陷），「諸耶・吉爾
+    (EX)」被真實攻擊一次（合法操作非 AUTO；`[SIM-SKIP]` 無校準）。
+    第二次進 `_on_our_turn` 才走 happy path 跑掃描。
+  - **覆蓋掃描主體**：`coverage_report` cells=552／covered=552／holes=0
+    ／unreachable=0／nudges=28／outcome=`complete`（**100%，優於輪五
+    97.6%**）；首擊定位率 71%（輪五 32%）；bounds west=14／east=37／
+    north=-7／south=17（span 23×24 與輪五一致，原點相對）。
+  - **崩潰**：`survey_stage` 進 `bring_to_view()` 星座重錨即
+    `AttributeError: 'CoverageScanSource' object has no attribute
+    '_nudges'`（live_scan.py:567）——`_nudges` 只在 `collect()` 初始化，
+    `_navigator()` 每次 new 新實例；候選需挪鏡頭即必炸（輪五僥倖）。
+    identify 零事件、定義檔未匯出。真實 `bring_to_view()`→`nudge()`
+    路徑既有測試零覆蓋（全 `_identity_view` 假件）。
+  - 修復＝**Round 1.6**（scan-flow-robustness-plan.md：A navigator 生命
+    週期初始化＋B late-arrival 歸位單一路徑）。
+  - 裝置末態：TURN 1 hub、列表展開、9/10 可行動（諸耶已行動）、格線
+    已釋放（批7 finally 生效）、cache 空。
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。

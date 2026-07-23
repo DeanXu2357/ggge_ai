@@ -217,6 +217,59 @@ effect-verify 失敗（例如 `validate_stage` 回傳 `report.ok=False`、identi
 - 上機驗證＝輪六：同冷探索協定；**開場殘留疊層（單位移動＋選擇武裝）
   應被脫出機制自癒——本身就是第一個驗證點**。
 
+## Round 1.6：navigator 生命週期＋late-arrival 歸位（輪六敗因修復，2026-07-24 凌晨主 session 定讞）
+
+### 根因（run `data/runs/20260724-004440/`，主 session 讀碼確認、皆確定性）
+
+- **A（identify 前置崩潰）**：`CoverageScanSource.nudge()`（live_scan.py
+  ~567）寫 `self._nudges += 1`／`self._last_nudge`，但這些欄位只在
+  `collect()`（~216）初始化；`controller._navigator()`（~1502）每次 new
+  全新實例供 `survey_stage` 的 `bring_to_view()` 用、從不跑 `collect()`
+  ——目標點不在畫面內時首次 `nudge()` 即 `AttributeError`，Python 進程
+  整個掛掉。輪五兩個候選恰在畫面內僥倖未踩。既有測試對真實
+  `bring_to_view()`→`nudge()` 路徑零覆蓋（全部注入 `_identity_view` 假件）。
+- **B（late-arrival 跳過 scout，既有缺陷被批8 引爆）**：`_on_our_turn`
+  的 late-arrival 分支（~925-935）直接 tap `FIRST_UNIT_CARD`，跳過
+  happy path 的全部前置（`timeline.on_turn_read` 回合簿記、
+  `_snapshot_factions`、`board_belief`、`_scout`、
+  `_ensure_stage_definition`、`_refresh_sig_positions`、
+  `_consult_advisor`）。批8 修復使「收合態開場」必然流經此分支：輪六
+  開場「諸耶・吉爾 (EX)」被直接選取並真實攻擊一次（合法操作、非
+  AUTO，但浪費行動且簿記缺漏）。
+
+### 範圍
+
+1. **A 修法（嚴格限定生命週期，不碰演算法）**：把 `nudge()`／
+   `bring_to_view()` 路徑依賴的可變走圖狀態（`_nudges`、`_last_nudge`，
+   及該路徑實際觸及的其他 collect-only 欄位，以讀碼為準）移到
+   `__post_init__` 初始化；`collect()` 保留原地重置（行為位元級不變）。
+   **frontier／回復協定／integrate 邏輯零改動**（批7 紅線不破）。
+2. **B 修法（單一路徑）**：把 happy path 的 cards-present 處理抽成單一
+   內部 helper；late-arrival（含批8 修復後重讀）改走同一 helper——
+   選單位之前必經回合簿記與 scout 閘門，不再有第二條「直接選卡」路徑。
+   有界重入（一次），避免卡條閃爍造成迴圈。
+3. **回歸測試（先紅後綠）**：
+   - A：全新 `CoverageScanSource`（fake capture/swipe/tap）直接
+     `bring_to_view()` 一個需要 nudge 的目標——舊碼 AttributeError、
+     新碼正常；**不得用 `_identity_view` 假件繞過**。
+   - B：收合態開場 → 批8 修復 → 卡片出現 → 必須先跑 scout 閘門
+     （斷言 `_scout`／`on_turn_read` 在 `select_unit` 之前），舊碼直接
+     select 會失敗。
+4. 附帶回寫：既有 `survey_stage` 測試全用 `_identity_view` 的盲區記入
+   測試註解或 audit 清單。
+
+### 紅線
+- `CoverageScanSource` 只准動狀態初始化位置；掃描演算法本體零改動。
+- 不碰 `_on_our_turn` 之後的 solver 職權；helper 抽取＝行為歸位、非新流程。
+- 基準 831 passed／3 xfailed 只增不減＋ruff 綠。
+
+### 驗收標準
+- 全新實例 `bring_to_view()` 需 nudge 的路徑不再崩潰（真實路徑回歸測試）。
+- `_on_our_turn` 只剩一條選單位路徑，late-arrival 必經簿記＋scout 閘門。
+- 先紅後綠有紀錄；`collect()` 行為不變（既有覆蓋掃描測試全綠不動）。
+- 上機驗證＝輪七：同冷探索協定，identify 應通過 `bring_to_view` 進入
+  逐台分流（Round 1.5 的 `side="unit_move"` 通道在此輪才真正受測）。
+
 ## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死
