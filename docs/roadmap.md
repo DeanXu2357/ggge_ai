@@ -182,6 +182,19 @@ worktree 清理（16 個孤兒 worktree，15 個確認合併清除，1 個未合
 -model` 坑④），再照 scan-flow-robustness-plan.md「Round 1」直接派工，
 不需重新規劃。
 
+**2026-07-23 深夜（委派迴圈執行 session）**：額度已調 40（新 session 生效）。
+**Round 1＝批8 落地合併**（`220d40c`..`2eeed9c` fast-forward，824 passed/
+3 xfailed、ruff 綠；切換鈕實為「單位列表」文字標頭帶域模板、非 ▽/▲ 座標
+——三張真像素 fixture 佐證的證據驅動偏差）。**輪五冷探索：FAIL 於
+identify，但為歷來最深進度**——批8 回合入口自癒 PASS、T3 PASS、**覆蓋
+掃描主體首次實機收斂**（97.6%、bounds 24×23、frontier 自然收斂），
+identify 2/45 後 tap 中未行動我方機進移動模式、盲目重試致
+SurveyIncomplete（詳細證據鏈＝佇列 1 輪五段）。**恢復點＝Round 1.5
+（identify 疊層安全化，規格在 scan-flow-robustness-plan.md，已定讞待
+開工）**，之後輪六同協定重跑。裝置末態：TURN 1「單位移動＋選擇武裝」
+疊層（艾格沙貝選中未確認）、格線已釋放、cache 空。既有 flaky
+`test_not_actionable` 計時競態定讞非本輪引入，收尾立 issue。
+
 ## 2026-07-21 協調者管線日（前恢復點）
 
 **本日（純離線、未碰實機、adb no permissions 待 seat0 桌面登入）**：

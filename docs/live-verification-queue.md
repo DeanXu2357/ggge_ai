@@ -111,6 +111,34 @@
   ——下面這輪冷探索協定就是該計畫 Round 1 的上機驗證步驟，**須等 Round 1
   的程式修改合併進 `feat/inner-goap` 後才執行**，不要在批8 落地前單獨重跑
   （會重現輪四同一個卡點）。
+- **2026-07-23 輪五結果（Round 1＝批8 合併 `2eeed9c` 後首跑）：FAIL 於
+  identify（歷來最深進度，覆蓋掃描主體首次實機收斂）**，run
+  `data/runs/20260723-234149/`（135 行事件＋16 幀）。
+  - **回合入口自癒 PASS**（批8 實戰生效：輪四收合殘留開場自動修復，
+    41 循環卡點不再重演）。**T3 前置 PASS**（三次 `zoom_step` 全
+    `source="grid"` 一次到位，未觸發寬帶 fallback）。
+  - **覆蓋掃描主體首次實機收斂（批7 三修復實戰生效）**：`coverage_report`
+    cells=506／covered=494／holes=12／unreachable=2／nudges=50／
+    outcome=`unreachable_only`（覆蓋率 97.6%，靠 frontier 自然收斂非撞
+    預算牆）。bounds west=9／east=32／north=-9／south=13 → 24 欄×23 列，
+    與標準答案 23×24 量級一致（軸序對應待暖掃比對）。效率觀察：首擊
+    定位成功率約 32%（`scan_recovery` 34 次），記調校候選、非敗因。
+  - **identify 2/45 台後 FAIL**：index 0 判敵並完整讀出（sig=
+    `682a6a6a2aea1a29`；name 轉錄「戰鬥」疑雜訊，記次要診斷）、index 1
+    判我方（right dock 0.996）。index 2（screen≈716,575）tap 中**未行動
+    我方單位進入移動模式**、無 banner；`_identify_at` 盲目重試同座標，
+    第二 tap 疑似確認原地移動並開出選擇武裝（末幀
+    `t0135_turn1_finish.jpg` 雙疊層）；雙 dock 拒判（faction.py:32-34
+    幾何預警命中）3 次後 `SurveyIncomplete("no summary banner")`。
+  - **根因（主 session 流水帳＋程式碼定讞）**：識別迴圈缺視圖狀態閘門
+    ——`scout_intel._identify_at` 重試前不檢查畫面狀態；而**未行動我方機
+    tap 後結構性不出 banner**（遊戲機制：tap＝選取進移動模式），45 候選
+    含 9 台未行動我方機，不修必重演。盲目重試在移動模式內有誤操作單位
+    的實際風險。修復＝**Round 1.5**（見
+    [scan-flow-robustness-plan.md](scan-flow-robustness-plan.md)）。
+  - 裝置末態：TURN 1「單位移動＋選擇武裝」疊層（艾格沙貝被選中、未確認
+    任何行動）、格線已由 abort 路徑釋放（批7 生效）、cache 空、定義檔
+    未匯出（依設計不寫部分定義檔）。
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。

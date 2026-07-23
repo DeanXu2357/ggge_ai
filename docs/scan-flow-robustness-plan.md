@@ -158,6 +158,65 @@ effect-verify 失敗（例如 `validate_stage` 回傳 `report.ok=False`、identi
 4. 產出：`data/runs/<timestamp>/battle_01.jsonl`＋螢幕證據；結果不論成敗
    都回寫 `docs/roadmap.md` 暫停快照與 `docs/live-verification-queue.md`。
 
+## Round 1.5：identify 疊層安全化（輪五敗因修復，2026-07-23 深夜主 session 定讞）
+
+### 根因（run `data/runs/20260723-234149/`，主 session 流水帳＋程式碼複核定讞）
+
+1. `scout_intel._identify_at`（~126-132）verdict 讀不到時**對同一座標盲目
+   重試 tap**，重試之間沒有任何畫面狀態檢查。
+2. **未行動我方單位 tap 後結構性不出 banner**——遊戲機制：tap＝選取進
+   「單位移動」模式（這正是我們自己 activation 流程操作單位的方式）。
+   identify 的互動模型假設「tap 單位→摘要卡停靠」普遍成立，漏掉這個
+   已知機制。turn-1 的 45 個候選含 9 台未行動我方機，不修必重演 9 次。
+3. 疊層上的盲目重試有**誤操作風險**：第二 tap 落在該單位腳下＝移動模式
+   內點自己的格，疑似確認原地移動並開出選擇武裝（輪五末幀
+   `t0135_turn1_finish.jpg` 雙疊層鐵證）。
+4. 雙 dock 拒判是 faction.py:32-34 早已預警的幾何共用（武裝選擇右面板＝
+   右 dock 同幾何）；零猜測政策本身運作正確，缺的是它前面的狀態閘門。
+
+### 範圍
+
+1. **視圖狀態閘門**：identify 的每次嘗試改為「驗證 hub → tap → settle →
+   capture → 先 `map_view.classify_frame`（經 perception.probe）再談 dock」：
+   - `unit_move`／`weapon_select`（我方機被選中的子狀態）→ **verdict=
+     ALLY**——遊戲機制證據：只有我方未行動機 tap 會進移動模式（第三方
+     不可操作、敵機出摘要卡）；記 side=`unit_move`、score=1.0，脫出疊層
+     後 continue。faction 停靠邊仍是權威通道；move-overlay 是機制證據
+     新通道**不是猜測**，依據記入 faction.py docstring。
+   - `hub` → 照舊 dock 讀取（雙命中拒判語意保留）。
+   - 其他狀態 → 先脫出再重試；**任何重試前必須先驗證已回 hub，絕不在
+     疊層上重複 tap**。
+2. **脫出機制**：優先重用/擴充 `map_view.return_to_top`（現有
+   RETURN_BUTTON probe 對 unit_move 疊層是否有效，以輪五末幀驗證；並查
+   `executor.py` pilot 流程既有取消路徑）。**行動安全紅線：脫出過程絕不
+   tap 地圖格（移動模式下點格＝下移動指令），只准點專用取消/返回 UI
+   元素，每步 act→verify。**
+3. `_read_summary_at`（enemy 路徑）同款防護；classify/escape 能力從
+   controller 接進 `survey_stage`（新參數、保持 fake 可測）。
+4. **回歸測試（先紅後綠）**：
+   - fake 驅動：候選 tap 出 unit_move view → 必須判 ALLY、絕不在疊層上
+     重 tap（斷言 taps 序列）、脫出後才處理下一候選；舊碼在此測試下會
+     盲重試並 SurveyIncomplete。
+   - 真幀 fixture：`t0135_turn1_finish.jpg`（unit_move＋weapon_select
+     疊層）過 DockBannerIdentifier 釘住雙命中→None；過 classify 閘門讀出
+     子狀態（模板比對類，JPEG 可）。
+5. 次要（有幀證據才修、不阻塞）：index 0 name=「戰鬥」轉錄診斷
+   （`FORECAST_LEFT_NAME_REGION` 在 survey 詳情 modal 的適用性，幀
+   t0131~t0134）；證據不足記 issue。
+
+### 紅線
+- 不碰 `CoverageScanSource`／`coverage_map.py` 掃描演算法本體（本輪首次
+  實機收斂、不疊變因）。
+- 不碰 `_on_our_turn` 之後的 solver 職權。
+- 基準 824 passed／3 xfailed 只增不減＋ruff 綠。
+
+### 驗收標準
+- 舊碼會失敗的疊層回歸測試轉綠（先紅後綠有紀錄）。
+- `_identify_at`／`_read_summary_at` 不存在「未驗 hub 就重 tap」路徑。
+- 脫出全程無地圖格 tap（測試斷言）。
+- 上機驗證＝輪六：同冷探索協定；**開場殘留疊層（單位移動＋選擇武裝）
+  應被脫出機制自癒——本身就是第一個驗證點**。
+
 ## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死
