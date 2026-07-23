@@ -249,6 +249,23 @@
   - 裝置末態：TURN 1 hub、乾淨、格線 off、列表展開、鏡頭停中央偏東
     空曠星空、cache 空。
   - **紀律標記：輪十一掃描主體再敗（任何簽名）＝停下問使用者。**
+- **2026-07-24 輪十一結果（Round 1.10 合併 `ae63d39` 後首跑）：FAIL 於
+  掃描入口 `observe()`（比輪十更早；`anchor_seek` 零觸發＝Round 1.10
+  零實機曝光、Round 1.9 連三輪零曝光）**，run `data/runs/20260724-050945/`。
+  - `SurveyIncomplete("coverage scan: anchor frame carried no lattice")`
+    ——同一幀 t=24.0 窄帶 `read_grid_lattice` 成功（cols 1175..1664、
+    pitch 98/91）、全幀 `read_map_lattice` 回 None，**兩讀取器同幀矛盾**；
+    此入口無批6 式窄帶↔全幀 fallback、無原生存證（縮圖尺寸守門讓離線
+    復現不可能）。
+  - **主嫌假說（未定讞）**：省電鎖變暗——裝置末態螢幕偏暗（省電鎖
+    觸發中）＋輪十 d1 幀偏暗（34.5 vs 48.9）；批7 亮度濾波
+    `MAP_EDGE_LIT_MEAN` 對變暗幀砍光票源、窄帶讀取器無亮度閘門＝
+    同幀矛盾的完整解釋。次嫌：西緣入鏡、格線僅佔半幀的取景對
+    seed/walk 閘門的邊界情境。皆缺原生幀證據。
+  - **依紀律停工**：輪十＋輪十一連續兩輪敗於掃描主體錨定段，觸發
+    「停下問使用者」標記；主 session 停止自迴圈，交使用者裁決。
+  - 裝置末態：TURN 1 hub、乾淨、格線 off、列表展開、螢幕偏暗（省電鎖
+    中，下次腳本 keyguard 會自解）、cache 空。
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。
