@@ -115,6 +115,68 @@ def test_pt2_west_and_pt9_south_are_caught(lattices):
     assert lattices["pt9"].edges["south"] is not None
 
 
+# --- 07-23 輪三 anomaly A: west-in-view starfield phantom columns (批7) ------
+
+MAP_SCAN = Path(__file__).parent / "fixtures" / "vision" / "map_scan"
+
+
+def test_west_in_view_no_phantom_north_south():
+    """Regression for the 07-23 run-3 survey_abort root cause (anomaly A). This
+    frame has a real west map edge in view; x<1153 is starfield (subagent
+    eyeball verdict, see the fixture .json note). The seed/walk over-reaches the
+    west edge and plants ~7 phantom column lines in that starfield; before the
+    fix each fed the edge vote as a perpendicular ridge that is dark end-to-end,
+    so north and south both false-read at the search start (573), interior to
+    the detected row span (71..1075) -- a read that never checks its own
+    consistency and later starves the coverage ledger to a 0-nudge abort. Only
+    the west edge is genuinely visible; the phantom-driven north/south/east must
+    all be None."""
+    spec = json.loads((MAP_SCAN / "west_in_view_20260723.json").read_text(encoding="utf-8"))
+    frame = cv2.imread(str(MAP_SCAN / spec["image"]))
+    lat = vision.read_map_lattice(frame)
+    assert lat is not None
+    exp = spec["expect_edges"]
+    tol = spec["edge_tol"]
+    assert lat.edges["east"] is None, f"phantom east {lat.edges['east']}"
+    assert lat.edges["north"] is None, f"phantom north {lat.edges['north']}"
+    assert lat.edges["south"] is None, f"phantom south {lat.edges['south']}"
+    west = lat.edges["west"]
+    assert west is not None and abs(west - exp["west"]) <= tol, (
+        f"west {west}, truth {exp['west']} (tol {tol})"
+    )
+
+
+def test_phase_pressure_midcell_start_no_false_edge(images):
+    """Phase pressure: the outward edge walk must not read a false interior edge
+    when the bare lattice midpoint lands mid-cell. pt7 shows only an east edge
+    (north/south off-screen); forcing the north/south search to start dead-centre
+    between two adjacent rows (a full half-pitch off any gridline) must still
+    read None, because the search re-anchors to the nearest gridline before
+    walking. The eight other frames' truth table is unchanged (asserted above)."""
+    frame = images["pt7"]
+    hp = vision._full_highpass(frame)
+    cols = vision._lattice_lines(
+        hp, "cols", vision.MAP_LATTICE_COL_SEED_SPAN, vision.MAP_LATTICE_COL_BAND, vision.MAP_W
+    )
+    rows = vision._lattice_lines(
+        hp, "rows", vision.MAP_LATTICE_ROW_SEED_SPAN, vision.MAP_LATTICE_ROW_BAND, vision.MAP_H
+    )
+    row_pitch = vision._median_gap(tuple(rows))
+    lit_cols = tuple(x for x in cols if vision._strip_lit(hp, x, "rows"))
+    lit_rows = tuple(y for y in rows if vision._strip_lit(hp, y, "cols"))
+    mid_cols = [x for x in lit_cols if vision.MAP_EDGE_COL_BAND[0] <= x < vision.MAP_EDGE_COL_BAND[1]]
+    k = len(rows) // 2
+    mid_start = (rows[k] + rows[k + 1]) // 2
+    # the forced start is genuinely mid-cell (near a half-pitch off any gridline)
+    assert min(abs(mid_start - r) for r in rows) >= row_pitch * 0.4
+    for direction in (-1, 1):
+        got = vision._map_edge(
+            hp, mid_cols, "rows", vision.MAP_EDGE_COL_BAND, mid_start,
+            direction, row_pitch, vision.MAP_H, lit_rows,
+        )
+        assert got is None, f"mid-cell start dir={direction} gave false edge {got}"
+
+
 # --- lattice ---------------------------------------------------------------
 
 def test_pitch_matches_standard_answer(lattices, answer):

@@ -1,0 +1,14 @@
+{
+  "image": "west_in_view_20260723.png",
+  "source": "assets/screenshots/20260723-154959.png",
+  "run": "data/runs/20260723-154731/",
+  "canvas_size": [2340, 1080],
+  "expect_edges": {
+    "west": 1153,
+    "east": null,
+    "north": null,
+    "south": null
+  },
+  "edge_tol": 55,
+  "note": "實機輪三 (run 20260723-154731) 覆蓋掃描 0 nudge 即 survey_abort 的主因幀（異常A）。此幀西側地圖邊界在畫面內：x<1153 全是地圖外星空（subagent 目視裁定：紅線 x=1153 左側只有暗色太空＋星點與左上角 HUD 面板，戰術方格與所有單位都在其右側；最左側真實直格線約在 x≈1160），north/south/east 皆不可見（格線貫穿上下右三緣）。修前 _map_edge 讀成 {west:1153, east:None, north:573, south:573}：seed/walk 把西側邊界左方星空裡的雜訊當成 7 條幽靈直格線（x=679..1092），這些條帶在垂直strip上整條皆暗，於是每條都在搜尋起點附近投出假邊界，7 票 >= need=6 造成 north==south==573（cy 起點值本身）。573 深陷已偵測列線 span (71..1075) 內部，自洽性從未被檢查。真正病因是『地圖外星空條帶污染垂直票源』，不是原假設的『格內自然間隙』——實測真實直格線垂直strip連續明亮、不產生格內暗run。修法：只有 central-band 亮度達 MAP_EDGE_LIT_MEAN 的格線可投票／界定 span（濾掉星空幽靈）＋搜尋起點錨到最近格線＋截止點不得落在該軸格線 span 內部。"
+}

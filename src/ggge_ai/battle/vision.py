@@ -589,6 +589,24 @@ MAP_LATTICE_WALK_QUALITY = 1.18
 # Perpendicular ridges are walked outward from the map interior and their median
 # termination votes the edge; ridges are sampled in central bands clear of the
 # top banner, the side buttons and the bottom prompt strip.
+#
+# 07-23 輪三 (run 20260723-154959, west edge in view): a seeded lattice line can
+# be a spurious ridge sitting in the map-exterior starfield (the walk over-reaches
+# past a real edge, so ~7 phantom column lines land left of a genuine west
+# boundary). Fed into the edge vote as perpendicular ridges these are dark for
+# their whole length, so each votes an edge right at the search start -> a false
+# north==south read that then starves the coverage ledger. Two guards, both
+# evidence-driven (the "single cell gap" hypothesis was wrong: a real gridline
+# ridge is continuous, it carries no mid-cell dark run -- the false votes came
+# only from exterior strips):
+#  * a perpendicular ridge is admitted only when it is LIT over a central band
+#    (a real gridline reads mean >> the floor there; an exterior strip reads ~1),
+#    so starfield phantoms never testify;
+#  * the search anchors to the nearest detected gridline (not the bare midpoint)
+#    and the voted cut-off must be self-consistent -- it may not fall interior to
+#    the detected gridline span on that axis. A bounded interior gap therefore
+#    can never register (its cut-off is interior); only a run that separates lit
+#    interior from dark exterior survives.
 MAP_EDGE_FLOOR = 1.6
 # a boundary sitting well inside the frame is confirmed by a half-cell dark run;
 # one hugging the frame border (the min-zoom map is ~24 rows tall vs a 1080 view,
@@ -601,6 +619,17 @@ MAP_EDGE_FRAME_RUN = 0.28
 MAP_EDGE_DARK_MEAN = 5.0
 MAP_EDGE_ROW_BAND = (250, 941)
 MAP_EDGE_COL_BAND = (550, 1751)
+# a perpendicular ridge whose smoothed strip averages below this over its central
+# band is exterior starfield, not a gridline; excluded from the edge vote and
+# from the self-consistency span. Measured 07-23: real ridges read 22-70, the
+# starfield phantoms read 0.6-1.6, so the gate sits well clear of both.
+MAP_EDGE_LIT_MEAN = 8.0
+MAP_EDGE_LIT_BAND_ROWS = (270, 810)
+MAP_EDGE_LIT_BAND_COLS = (585, 1755)
+# a self-consistent edge cut-off sits outside the outermost detected gridline on
+# its axis; this much slack (in pitches) past that extreme absorbs the ridge
+# dying a hair inside the last lit line under smoothing.
+MAP_EDGE_SELF_CONSISTENT_SLACK = 1.0
 
 MAP_W = 2340
 MAP_H = 1080
@@ -745,6 +774,17 @@ def _tail_mean(
     return float(hp[band[0] : band[1], lo:hi].mean())
 
 
+def _strip_lit(hp: np.ndarray, line: int, axis: str) -> bool:
+    """Does the gridline strip at `line` carry actual grid, or is it a phantom
+    ridge sitting in the map-exterior starfield? A real gridline's smoothed
+    strip averages far above the floor over the frame's central band; an
+    exterior strip is near-black there. Guards the edge vote against the 07-23
+    over-reached lattice lines (see MAP_EDGE_LIT_MEAN)."""
+    sm = _ridge_smooth(hp, line, axis)
+    lo, hi = MAP_EDGE_LIT_BAND_ROWS if axis == "rows" else MAP_EDGE_LIT_BAND_COLS
+    return float(sm[lo:hi].mean()) >= MAP_EDGE_LIT_MEAN
+
+
 def _map_edge(
     hp: np.ndarray,
     perpendicular: list[int],
@@ -754,11 +794,28 @@ def _map_edge(
     direction: int,
     pitch: float,
     limit: int,
+    axis_lines: tuple[int, ...],
 ) -> int | None:
+    if not perpendicular or not axis_lines:
+        return None
+    # anchor the outward walk to the nearest real gridline: the bare lattice
+    # midpoint can land in a cell interior, and starting off a gridline lets the
+    # very first sample begin a spurious dark run.
+    start = min(axis_lines, key=lambda v: abs(v - start))
     smooths = [_ridge_smooth(hp, line, axis) for line in perpendicular]
     need = max(3, len(perpendicular) // 2)
     interior_run = int(pitch * MAP_EDGE_INTERIOR_RUN)
     frame_run = int(pitch * MAP_EDGE_FRAME_RUN)
+    slack = pitch * MAP_EDGE_SELF_CONSISTENT_SLACK
+
+    def consistent(cutoff: int) -> bool:
+        # a real edge cut-off lies outside the outermost detected gridline; a
+        # cut-off interior to the span is a mid-grid false read (the 07-23
+        # north==south bug) and is rejected.
+        if direction < 0:
+            return cutoff <= axis_lines[0] + slack
+        return cutoff >= axis_lines[-1] - slack
+
     interior = sorted(
         e
         for e in (
@@ -768,7 +825,9 @@ def _map_edge(
         if e is not None
     )
     if len(interior) >= need:
-        return interior[len(interior) // 2]
+        candidate = interior[len(interior) // 2]
+        if consistent(candidate):
+            return candidate
     framed = sorted(
         e
         for e in (
@@ -780,7 +839,9 @@ def _map_edge(
     if len(framed) >= need:
         edge_pos = limit - 1 if direction > 0 else 0
         candidate = framed[len(framed) // 2]
-        if _tail_mean(hp, axis, band, candidate, edge_pos) < MAP_EDGE_DARK_MEAN:
+        if consistent(candidate) and (
+            _tail_mean(hp, axis, band, candidate, edge_pos) < MAP_EDGE_DARK_MEAN
+        ):
             return candidate
     return None
 
@@ -808,13 +869,21 @@ def read_map_lattice(frame: np.ndarray) -> MapLattice | None:
         return None
     cx = (cols[0] + cols[-1]) // 2
     cy = (rows[0] + rows[-1]) // 2
-    mid_rows = [y for y in rows if MAP_EDGE_ROW_BAND[0] <= y < MAP_EDGE_ROW_BAND[1]]
-    mid_cols = [x for x in cols if MAP_EDGE_COL_BAND[0] <= x < MAP_EDGE_COL_BAND[1]]
+    # only LIT lines (real grid, not exterior-starfield phantoms) may vote an
+    # edge or bound the self-consistency span
+    lit_cols = tuple(x for x in cols if _strip_lit(hp, x, "rows"))
+    lit_rows = tuple(y for y in rows if _strip_lit(hp, y, "cols"))
+    if not lit_cols:
+        lit_cols = tuple(cols)
+    if not lit_rows:
+        lit_rows = tuple(rows)
+    mid_rows = [y for y in lit_rows if MAP_EDGE_ROW_BAND[0] <= y < MAP_EDGE_ROW_BAND[1]]
+    mid_cols = [x for x in lit_cols if MAP_EDGE_COL_BAND[0] <= x < MAP_EDGE_COL_BAND[1]]
     edges = {
-        "west": _map_edge(hp, mid_rows, "cols", MAP_EDGE_ROW_BAND, cx, -1, col_pitch, MAP_W),
-        "east": _map_edge(hp, mid_rows, "cols", MAP_EDGE_ROW_BAND, cx, +1, col_pitch, MAP_W),
-        "north": _map_edge(hp, mid_cols, "rows", MAP_EDGE_COL_BAND, cy, -1, row_pitch, MAP_H),
-        "south": _map_edge(hp, mid_cols, "rows", MAP_EDGE_COL_BAND, cy, +1, row_pitch, MAP_H),
+        "west": _map_edge(hp, mid_rows, "cols", MAP_EDGE_ROW_BAND, cx, -1, col_pitch, MAP_W, lit_cols),
+        "east": _map_edge(hp, mid_rows, "cols", MAP_EDGE_ROW_BAND, cx, +1, col_pitch, MAP_W, lit_cols),
+        "north": _map_edge(hp, mid_cols, "rows", MAP_EDGE_COL_BAND, cy, -1, row_pitch, MAP_H, lit_rows),
+        "south": _map_edge(hp, mid_cols, "rows", MAP_EDGE_COL_BAND, cy, +1, row_pitch, MAP_H, lit_rows),
     }
     return MapLattice(
         cols=_extrapolate(cols, col_pitch, MAP_W),
