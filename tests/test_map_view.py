@@ -36,6 +36,7 @@ class FakePerception:
         self.modal = False
         self.cards = False
         self.settings = False
+        self.selection = False
         self.list_state = "collapsed"
 
     @property
@@ -84,17 +85,22 @@ def _stub_vision(monkeypatch):
     monkeypatch.setattr(map_view.vision, "is_unit_detail_modal", lambda f: _CUR["modal"])
     monkeypatch.setattr(map_view.vision, "unit_cards_present", lambda f: _CUR["cards"])
     monkeypatch.setattr(map_view.vision, "unit_list_state", _fake_unit_list_state)
+    monkeypatch.setattr(map_view.vision, "enemy_selection_active", lambda f: _CUR["selection"])
     monkeypatch.setattr(map_view.settings, "is_battle_tab_selected", lambda f: _CUR["settings"])
     yield
 
 
-_CUR = {"modal": False, "cards": False, "settings": False, "list_state": "collapsed"}
+_CUR = {
+    "modal": False, "cards": False, "settings": False,
+    "selection": False, "list_state": "collapsed",
+}
 
 
 def _bind(perc):
     _CUR["modal"] = perc.modal
     _CUR["cards"] = perc.cards
     _CUR["settings"] = perc.settings
+    _CUR["selection"] = perc.selection
     _CUR["list_state"] = perc.list_state
 
 
@@ -189,6 +195,90 @@ def test_clear_obstruction_passes_through_without_modal():
     out = map_view.clear_obstruction(p, a, frame, sleep=lambda s: None)
     assert a.taps == []  # nothing tapped
     assert out is frame  # same frame, no recapture
+
+
+# --- Round 1.7: enemy-selection residue leg of the chain --------------------
+
+
+def test_clear_obstruction_dismisses_selection_residue_with_empty_land_tap():
+    # 輪七: a docked enemy-selection 比較 HUD is cleared by tapping empty land
+    # (max-min clearance from the detected units), then verified gone. Only the
+    # scan path (detect given) runs this leg.
+    p = FakePerception(["hub"])
+    p.selection = True
+    _bind(p)
+    a = FakeActuator(p)
+    peaks = [(300.0, 300.0), (1600.0, 600.0)]
+
+    def tap(x, y):
+        a.taps.append((x, y))
+        _CUR["selection"] = False  # an empty-land tap deselects
+
+    a.tap = tap
+    frame = object()
+    out = map_view.clear_obstruction(
+        p, a, frame, sleep=lambda s: None, detect=lambda f: peaks
+    )
+    assert len(a.taps) == 1
+    tx, ty = a.taps[0]
+    # the dismiss tap landed clear of every detected unit (紅線: never a unit tap)
+    assert min(((tx - px) ** 2 + (ty - py) ** 2) ** 0.5 for px, py in peaks) > 150
+    assert _CUR["selection"] is False
+    assert out is not frame  # recaptured after the dismiss
+
+
+def test_clear_obstruction_fails_loud_when_residue_will_not_dismiss():
+    # fail-loud: the tap never clears the HUD, so after the initial attempt plus
+    # one retry the chain raises rather than trusting a poisoned frame.
+    p = FakePerception(["hub"])
+    p.selection = True
+    _bind(p)
+    a = FakeActuator(p)
+    a.tap = lambda x, y: a.taps.append((x, y))  # tap does NOT dismiss
+
+    with pytest.raises(map_view.SelectionResidueStuck):
+        map_view.clear_obstruction(
+            p, a, object(), sleep=lambda s: None, detect=lambda f: []
+        )
+    assert len(a.taps) == 2  # initial + one retry, then loud
+
+
+def test_clear_obstruction_ignores_selection_residue_without_detect():
+    # the three non-scan callers pass no detect: the residue leg is skipped and
+    # a residue frame passes through untouched (modal-only behaviour unchanged).
+    p = FakePerception(["hub"])
+    p.selection = True
+    _bind(p)
+    a = FakeActuator(p)
+    frame = object()
+    out = map_view.clear_obstruction(p, a, frame, sleep=lambda s: None)
+    assert a.taps == []
+    assert out is frame
+
+
+def test_clear_obstruction_chains_modal_then_selection():
+    # both present on the scan path: the modal is closed first, then the residue
+    # dismissed, in one call.
+    p = FakePerception(["hub"])
+    p.modal = True
+    p.selection = True
+    _bind(p)
+    a = FakeActuator(p)
+
+    def tap(x, y):
+        a.taps.append((x, y))
+        if (x, y) == map_view.UNIT_DETAIL_CLOSE:
+            _CUR["modal"] = False
+        else:
+            _CUR["selection"] = False
+
+    a.tap = tap
+    map_view.clear_obstruction(
+        p, a, object(), sleep=lambda s: None, detect=lambda f: []
+    )
+    assert a.taps[0] == map_view.UNIT_DETAIL_CLOSE  # modal closed first
+    assert len(a.taps) == 2  # then one empty-land dismiss
+    assert _CUR["modal"] is False and _CUR["selection"] is False
 
 
 def test_collapse_unit_list_returns_true_when_already_collapsed():

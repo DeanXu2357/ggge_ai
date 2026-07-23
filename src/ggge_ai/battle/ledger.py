@@ -121,6 +121,26 @@ class BattleLedger:
             log.warning("failed to save frame for event %r, skipping", kind, exc_info=True)
             return None
 
+    def save_diag_frame(self, frame: Any, tag: str) -> str | None:
+        """Stash a NATIVE-resolution diagnostic frame, outside the downscaled
+        FRAME_KINDS pipeline (Round 1.7). Refused-localisation forensics need the
+        full 2340x1080 pixels a calibration probe runs on, which the 1280-edge
+        JPEG thumbnails destroy (the 輪七 rerun could not re-probe its own dumps).
+        PNG, lossless; returns the ledger-relative path for the event that names
+        it."""
+        if frame is None or self.frames_dir is None:
+            return None
+        try:
+            self.frames_dir.mkdir(parents=True, exist_ok=True)
+            name = f"diag_turn{self.turn}_{tag}.png"
+            path = self.frames_dir / name
+            if not cv2.imwrite(str(path), frame):
+                return None
+            return f"{self.frame_rel_prefix}/{name}" if self.frame_rel_prefix else name
+        except Exception:
+            log.warning("failed to save diag frame %r, skipping", tag, exc_info=True)
+            return None
+
     def snapshot(
         self, allies: list[Point], enemies: list[Point], third_party: list[Point]
     ) -> None:

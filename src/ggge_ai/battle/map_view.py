@@ -21,8 +21,17 @@ import time
 from collections.abc import Callable
 
 from . import settings, vision
+from ..actuation.pinch import pick_pinch_center
 
 log = logging.getLogger(__name__)
+
+
+class SelectionResidueStuck(RuntimeError):
+    """The enemy-selection 比較 HUD survived the empty-land dismiss tap and its
+    one retry, so the coverage scan cannot trust any localisation on this frame
+    (輪七 root cause). Raised only on the scan path (a unit detector was given);
+    the scan turns it into a loud SurveyIncomplete abort rather than anchoring on
+    a poisoned frame."""
 
 HUB_LABEL = "label_our_turn"
 SUBSTATE_LABELS = ("label_unit_move", "label_weapon_select", "label_skill", "label_battle_prep")
@@ -95,21 +104,74 @@ def clear_obstruction(
     sleep: Callable[[float], None] = time.sleep,
     settle_s: float = 1.2,
     on_close: Callable[..., None] | None = None,
+    detect: Callable[..., list] | None = None,
+    on_clear_selection: Callable[..., None] | None = None,
 ):
-    """Single source of truth for closing a stray 單位設置詳情 modal over the
-    battle map: if the frame shows the modal, tap 關閉, settle, and return a
-    fresh capture; otherwise return the frame unchanged. A modal freezes panning
-    wholesale (drags slide on screen while the camera does not move), so every
-    scan/back-out path must run a frame through here first. ``on_close`` (given
-    the pre-close frame) lets a caller log the close event. Coordinates, settle
-    duration and recapture match the three inline copies this replaces."""
+    """Single source of truth for clearing whatever a stray tap left over the
+    battle map. Chain, in order: a 單位設置詳情 modal (tap 關閉, settle, recapture)
+    first, then -- ONLY when a unit detector ``detect`` is supplied (the cold-scan
+    path) -- an enemy-selection 比較 HUD residue, dismissed by tapping empty land
+    picked for max-min clearance from every detected unit (輪七). A modal freezes
+    panning wholesale (drags slide while the camera does not move); the residue
+    poisons localisation instead, so both must be gone before a frame is trusted.
+    ``on_close`` (given the pre-close frame) and ``on_clear_selection`` (given the
+    frame, tap point and attempt index) let a caller log the events. With
+    ``detect=None`` this is the pure modal-only clearing the three non-scan
+    callers rely on -- their behaviour (coordinates, settle, recapture) is
+    unchanged. The residue leg is fail-loud: SelectionResidueStuck when it cannot
+    be dismissed."""
     if vision.is_unit_detail_modal(frame):
         if on_close is not None:
             on_close(frame)
         actuator.tap(*UNIT_DETAIL_CLOSE)
         sleep(settle_s)
-        return perception.capture()
+        frame = perception.capture()
+    if detect is not None and vision.enemy_selection_active(frame):
+        frame = _dismiss_selection_residue(
+            perception,
+            actuator,
+            frame,
+            detect=detect,
+            sleep=sleep,
+            settle_s=settle_s,
+            on_clear=on_clear_selection,
+        )
     return frame
+
+
+def _dismiss_selection_residue(
+    perception,
+    actuator,
+    frame,
+    *,
+    detect: Callable[..., list],
+    sleep: Callable[[float], None],
+    settle_s: float,
+    on_clear: Callable[..., None] | None,
+):
+    """Tap an empty map cell to drop a docked enemy-selection 比較 HUD, verify it
+    is gone, and retry once before failing loud. The tap point reuses
+    pick_pinch_center's max-min clearance over the detected unit peaks so the
+    finger lands on empty land (紅線: never a unit/UI tap in unit-move mode);
+    empty peaks fall back to the safe map center. Two attempts (initial + one
+    retry); still docked after both raises SelectionResidueStuck."""
+    for attempt in range(2):
+        try:
+            peaks = detect(frame)
+        except Exception:
+            peaks = []
+        point = pick_pinch_center([(float(px), float(py)) for px, py in peaks])
+        tap = (int(point[0]), int(point[1]))
+        if on_clear is not None:
+            on_clear(frame, tap, attempt)
+        actuator.tap(*tap)
+        sleep(settle_s)
+        frame = perception.capture()
+        if not vision.enemy_selection_active(frame):
+            return frame
+    raise SelectionResidueStuck(
+        "enemy-selection 比較 HUD survived the empty-land dismiss tap and retry"
+    )
 
 
 def classify_frame(frame, detect: Callable[..., dict]) -> str:
