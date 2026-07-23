@@ -270,6 +270,70 @@ effect-verify 失敗（例如 `validate_stage` 回傳 `report.ok=False`、identi
 - 上機驗證＝輪七：同冷探索協定，identify 應通過 `bring_to_view` 進入
   逐台分流（Round 1.5 的 `side="unit_move"` 通道在此輪才真正受測）。
 
+## Round 1.7：敵機選取殘留防禦＋定位飢餓煞車＋refused 存證（輪七敗因修復，2026-07-24 主 session 定讞）
+
+### 根因（run `data/runs/20260724-012023/`；流水帳＋讀碼＋影像鑑識三方交叉定讞）
+
+**症狀簽名**：任何朝未知領域的 nudge（北 8、東 48）全數 localize_refused、
+任何退回覆蓋區的回復（南、西）全數 relocated，從錨定第一推（t=26.5）開始
+方向無關；全場僅 3 次「成功」定位且 offset 跳 7/10 格、west 邊 11→4→1→
+終局 11 翻動＝偽定位；110 nudges 燒完預算 outcome=budget。
+
+**根因＝敵機選取殘留態從掃描開始前就在場**（影像鑑識：t0005 幀左上已有
+「史列加・羅 vs G-3鋼彈」比較 HUD＋紅色威脅範圍色塊，數值與 t0228／6 分
+鐘後截圖逐像素凍結）：
+- 亮色 HUD（螢幕錨定，x0-40%/y0-25%）壓在星空區→污染批7 亮度濾波與
+  全幀格線外插；紅色範圍色塊（世界錨定）染紅一片格子→污染地形指紋。
+- 螢幕錨定內容在鏡頭移動時投「offset=(0,0)」假票：低重疊外推幀被假票
+  壓過→refused；退回高支持度覆蓋區真票佔優→relocated。與輪六（乾淨幀、
+  首擊 71%）對照成立。
+- 此殘留態對 `is_unit_detail_modal` **全盲**（2340×1080 截圖
+  `assets/screenshots/20260724-013030.png` 實測 False）；成因未定
+  （pinch 手指路徑誤觸敵機為主嫌），**任何一輪都可能復發**。
+
+**連帶機制缺口（讀碼確認）**：①`collect()` 填圖迴圈 refused 路徑
+`continue` 繞過 stuck 計數、`_recover` 不寫回任何狀態→無煞車，唯一出口
+是外層預算（110 nudges ≈ 9 分鐘）；②refused 幀零存證（本次鑑識被擋在
+這裡）；③流水帳存幀是 1280×591 縮圖，校準探針不能直接跑。
+
+### 範圍
+
+1. **選取殘留偵測器**：`vision.enemy_selection_active(frame) -> bool`，
+   校準樣本＝`assets/screenshots/20260724-013030.png`（全解析度正樣本，
+   裁 fixture 入庫）；負樣本＝既有乾淨 fixture корpus（含輪六 t0084 升採樣）。
+   偵測目標選比較 HUD 資訊條（結構化高對比、螢幕錨定）；單樣本過擬合
+   風險記入 fixture note＋缺樣清單（下輪實機順手補第二正樣本）。
+2. **解除機制**：障礙清除鏈擴充——順序＝unit_detail_modal（tap 關閉）→
+   選取殘留（**空地 tap 解除**：復用 `pick_pinch_center` 的 max-min
+   clearance 選無單位空點，tap 後重截驗證偵測器轉 False，一次重試後
+   fail loud）。接線點：掃描前置（錨定之前）＋填圖迴圈 refused 路徑
+   （進 `_recover` 前先查一次障礙，清掉就重試 placement 不消耗回復）。
+3. **定位飢餓煞車**：連續 K 次主向 refused（不論回復成功與否、期間零
+   integration 進展）→ `SurveyIncomplete("localization starving: ...")`
+   誠實早停（K 取 6，預期 <90 秒回報 vs 本輪 9 分鐘）。**不動
+   frontier／integrate／localize 語意**；只加 refused 簿記＋早停出口。
+4. **refused 存證**：前 3 次＋之後每 20 次 refused 存原生解析度幀
+   （ledger 既有縮圖管線之外的診斷存檔，路徑入 ledger 事件欄），abort
+   時的 coverage_report 附 refused 統計欄。
+5. 附帶：`survey_abort` 訊息帶 refused/relocated 統計。
+
+### 紅線
+- frontier／integrate／localize／回復方向選擇的演算法語意零改動；煞車
+  只在「先前必然燒預算」的路徑上新增誠實早停。
+- 空地 tap 解除必須經 clearance 選點＋tap 後驗證，絕不點單位/UI。
+- 偵測器閾值需 fixture 佐證；單正樣本風險明文記錄。
+- 基準 834 passed／3 xfailed 只增不減＋ruff 綠。
+
+### 驗收標準
+- 013030 正樣本＋乾淨負樣本全數正確分類（fixture 測試）。
+- fake 驅動：選取殘留在場→掃描前置偵測並解除→定位恢復（舊碼無此
+  防禦，測試先紅後綠）；殘留無法解除→fail loud 不進錨定。
+- fake 驅動：連續 refused K 次→SurveyIncomplete 早停（舊碼燒滿預算，
+  先紅後綠）；正常收斂路徑（輪六型）行為不變（既有 coverage 測試全綠）。
+- refused 存證：fake 迴圈驗證存檔節流（3＋每 20）與 ledger 欄位。
+- 上機驗證＝輪八：開場若殘留在場應被前置防禦清掉；掃描應恢復輪六型
+  收斂並繼續往 identify；若再退化應 <90 秒帶完整證據回報。
+
 ## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死

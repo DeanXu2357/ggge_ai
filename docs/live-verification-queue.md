@@ -163,6 +163,26 @@
     週期初始化＋B late-arrival 歸位單一路徑）。
   - 裝置末態：TURN 1 hub、列表展開、9/10 可行動（諸耶已行動）、格線
     已釋放（批7 finally 生效）、cache 空。
+- **2026-07-24 輪七結果（Round 1.6 合併 `3a69ffd` 後首跑）：FAIL 於覆蓋
+  掃描主體（前兩輪皆收斂的層首次退化），identify 未觸達**，run
+  `data/runs/20260724-012023/`（229 行、僅 5 幀）。
+  - Round 1.6-B 生效（開場 happy path、scout 先於選卡）；T3 PASS。
+  - **掃描退化簽名**：首擊定位率 5.4%（vs 輪六 71%）；北/東外推全
+    refused、南/西回復全 relocated（t=26.5 起、方向無關）；3 次偽定位
+    （offset 跳 7/10 格、west 邊 11→4→1→11 翻動）；110 nudges 燒完預算
+    `outcome=budget`→SurveyIncomplete。
+  - **根因（三方交叉定讞）＝敵機選取殘留態**：t0005 起「史列加・羅 vs
+    G-3鋼彈」比較 HUD＋紅色威脅色塊全程在場（幀證據：t0005/t0228/
+    013030 逐像素凍結）；螢幕錨定 HUD 投 offset=(0,0) 假票壓過低重疊
+    外推幀、紅色塊污染指紋；`is_unit_detail_modal` 對此全盲（全解析度
+    實測 False）。成因未定（pinch 誤觸主嫌），任何輪都可能復發。
+  - 連帶缺口：refused 路徑無煞車（continue 繞過 stuck 計數）、refused
+    幀零存證、ledger 存幀為 1280×591 縮圖。
+  - 修復＝**Round 1.7**（scan-flow-robustness-plan.md：選取殘留偵測＋
+    空地 tap 解除鏈、定位飢餓煞車 K=6、refused 原生解析度有界存證）。
+  - 裝置末態：TURN 1 hub、選取殘留（比較 HUD＋紅色塊）仍在場、格線已
+    釋放、列表展開 9 卡、cache 空。**輪八開場即殘留在場＝前置防禦的
+    第一個實戰驗證點，不要手動清**。
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。

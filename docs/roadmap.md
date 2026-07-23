@@ -206,6 +206,15 @@ SurveyIncomplete（詳細證據鏈＝佇列 1 輪五段）。**恢復點＝Round
 1.5 的 unit_move 通道在輪七才真正受測。裝置：TURN 1 hub、9/10 可行動、
 cache 空。
 
+**Round 1.6 合併（`3a69ffd`，834 tests 綠）→ 輪七 FAIL 於覆蓋掃描主體
+（首擊 5.4% vs 輪六 71%、110 nudges 燒預算）**。三方鑑識定讞根因＝
+**敵機選取殘留態**（比較 HUD＋紅色威脅色塊自 t0005 全程在場；螢幕錨定
+HUD 投 (0,0) 假票壓過低重疊外推幀；`is_unit_detail_modal` 對此全盲）＋
+refused 路徑無煞車無存證。**恢復點＝Round 1.7（選取殘留偵測與空地 tap
+解除鏈＋定位飢餓煞車＋refused 原生存證，規格在
+scan-flow-robustness-plan.md）**，之後輪八同協定——開場殘留在場即前置
+防禦首戰。裝置：TURN 1 hub、殘留在場勿手動清、9/10 可行動、cache 空。
+
 ## 2026-07-21 協調者管線日（前恢復點）
 
 **本日（純離線、未碰實機、adb no permissions 待 seat0 桌面登入）**：
