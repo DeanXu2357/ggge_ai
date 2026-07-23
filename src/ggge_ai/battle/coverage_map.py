@@ -114,6 +114,22 @@ class FrameObservation:
     threats: list[tuple[int, int]]
 
 
+@dataclass(frozen=True)
+class LocalizeReport:
+    """The diagnostic behind localize(): the placed offset (None on refusal),
+    which mechanism placed it, and the evidence. `source` is 'edge_pin' when both
+    axes are pinned exactly by visible boundaries (no vote, no margin), 'vote'
+    when the terrain/unit vote decided (margin is the winner's lead over the
+    runner-up), or None when the frame was refused. The loop logs `margin` and
+    `source` from here; localize() returns only `offset`."""
+
+    offset: Cell | None
+    source: str | None
+    margin: float | None
+    unit_hits: int
+    terrain_fraction: float
+
+
 def _snap_cell(lines: tuple[int, ...], value: float) -> int | None:
     for i in range(len(lines) - 1):
         if lines[i] <= value < lines[i + 1]:
@@ -281,21 +297,32 @@ class CellMap:
     def localize(self, obs: FrameObservation) -> Cell | None:
         """The internal cell offset (dcol, drow) that places this frame on the
         map -- frame cell k belongs to internal cell k + offset -- or None when
-        the map cannot place it with confidence.
+        the map cannot place it with confidence. Thin wrapper over
+        localize_report (same decision, offset only)."""
+        return self.localize_report(obs).offset
 
-        Layer 1: a visible registered boundary pins that axis exactly. Layer 2:
-        the free axis (or both, on an unpinned frame) is voted per candidate
-        offset by the distinctive-terrain match fraction (the high-weight margin
-        carrier, TERRAIN_WEIGHT) with unit hits corroborating; the winner must
-        clear LOCALIZE_MARGIN or the frame is refused."""
+    def localize_report(self, obs: FrameObservation) -> LocalizeReport:
+        """localize() with its reasoning exposed for the ledger (source, margin,
+        evidence). Layer 1: a visible registered boundary pins that axis exactly
+        (both axes -> 'edge_pin', no vote). Layer 2: the free axis (or both, on
+        an unpinned frame) is voted per candidate offset by the distinctive
+        terrain match fraction (the high-weight margin carrier, TERRAIN_WEIGHT)
+        with unit hits corroborating; the winner must clear LOCALIZE_MARGIN and
+        the evidence floor or the frame is refused ('vote' with offset None)."""
+        refused = LocalizeReport(
+            offset=None, source=None, margin=None, unit_hits=0, terrain_fraction=0.0
+        )
         if self.is_empty():
-            return None
+            return refused
         col_pin = self._axis_pin(obs, "west", "east")
         row_pin = self._axis_pin(obs, "north", "south")
         if col_pin == "conflict" or row_pin == "conflict":
-            return None
+            return refused
         if isinstance(col_pin, int) and isinstance(row_pin, int):
-            return (col_pin, row_pin)
+            return LocalizeReport(
+                offset=(col_pin, row_pin), source="edge_pin", margin=None,
+                unit_hits=0, terrain_fraction=0.0,
+            )
 
         col_range = (
             [col_pin] if isinstance(col_pin, int) else self._search_range(obs, 0)
@@ -318,11 +345,36 @@ class CellMap:
                     best = (score, (dcol, drow), unit_hits, fraction)
                 elif score > second:
                     second = score
-        if best is None or best[0] - second < LOCALIZE_MARGIN:
-            return None
+        if best is None:
+            return refused
+        margin = best[0] - second
+        vote = LocalizeReport(
+            offset=best[1], source="vote", margin=margin,
+            unit_hits=best[2], terrain_fraction=best[3],
+        )
+        if margin < LOCALIZE_MARGIN:
+            return LocalizeReport(
+                offset=None, source=None, margin=margin,
+                unit_hits=best[2], terrain_fraction=best[3],
+            )
         if best[2] < MIN_UNIT_EVIDENCE and best[3] < MIN_TERRAIN_FRACTION:
-            return None
-        return best[1]
+            return LocalizeReport(
+                offset=None, source=None, margin=margin,
+                unit_hits=best[2], terrain_fraction=best[3],
+            )
+        return vote
+
+    def verify_offset(self, obs: FrameObservation, offset: Cell) -> bool:
+        """Is `offset` consistent with every boundary this frame SEES? The public
+        guardrail for an externally-proposed offset (the LLM assist hypothesis,
+        plan 4 layer 3): wraps _edge_consistent so an LLM guess that would place
+        already-covered terrain past a visible map edge is rejected before it can
+        touch a coordinate. Trivially true on an empty map (nothing to
+        contradict)."""
+        if not self._covered:
+            return True
+        dcol, drow = offset
+        return self._edge_consistent(obs, dcol, drow, self._covered_bbox())
 
     # -- integration --------------------------------------------------------
 
