@@ -145,3 +145,49 @@ def test_first_hub_visit_sets_baseline_without_advancing(monkeypatch):
     c._on_our_turn()
     assert c.ledger.turn == start
     assert c.timeline._marker is not None
+
+
+def test_late_arrival_runs_scout_gate_before_selecting(monkeypatch):
+    """07-24 輪六-B regression. A collapsed-list start reads no cards until the
+    list is re-expanded (the 批8 repair), so selection necessarily flows through
+    the late-arrival branch. That branch must run the same per-turn gate as the
+    happy path -- turn bookkeeping + _scout -- BEFORE selecting a unit. The old
+    code tapped FIRST_UNIT_CARD directly, skipping both."""
+    monkeypatch.setattr(controller_mod.time, "sleep", lambda *a, **k: None)
+    monkeypatch.setattr(vision, "crop_turn_marker", lambda f: np.zeros((36, 40), np.uint8))
+    monkeypatch.setattr(vision, "unit_list_state", lambda f: vision.UNIT_LIST_COLLAPSED)
+
+    state = {"open": False}
+    monkeypatch.setattr(vision, "unit_cards_present", lambda f: state["open"])
+
+    c = _controller()
+    calls = []
+
+    def _open(want_open):
+        state["open"] = True  # the repair reveals the strip
+        calls.append("repair")
+        return True
+
+    c._set_unit_list_open = _open
+    c._scout = lambda frame: calls.append("scout")
+    c._snapshot_factions = lambda frame: None
+    c._snapshot_board_belief = lambda: None
+    c._probe_after_select = lambda *a, **k: None
+
+    otr = c.timeline.on_turn_read
+    c.timeline.on_turn_read = lambda *a, **k: (calls.append("on_turn_read"), otr(*a, **k))[1]
+
+    real_tap = c.actuator.tap
+
+    def _tap(x, y):
+        if (x, y) == vision.FIRST_UNIT_CARD:
+            calls.append("select")
+        real_tap(x, y)
+
+    c.actuator.tap = _tap
+
+    c._on_our_turn()
+
+    assert "select" in calls, "the late-arrival branch never selected the unit"
+    assert "scout" in calls and calls.index("scout") < calls.index("select")
+    assert "on_turn_read" in calls and calls.index("on_turn_read") < calls.index("select")

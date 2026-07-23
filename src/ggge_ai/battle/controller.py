@@ -883,31 +883,7 @@ class ManualBattleController:
         self._guard_auto()
         frame = self._frame()
         if vision.unit_cards_present(frame):
-            # the turn boundary is the on-screen TURN number changing between
-            # hub visits: turns auto-advance once every unit has acted, so the
-            # end-turn dialog is not reliable, and quiet label-less stretches
-            # also occur mid-turn during attack animations. the OCR/marker
-            # decision (jump guard, marker fallback, per-turn job re-arm)
-            # lives in timeline.on_turn_read
-            if self.timeline.on_turn_read(
-                vision.read_turn_number(frame), vision.crop_turn_marker(frame)
-            ):
-                self.tracker.on_turn(self.timeline.turn)
-                if self.ledger is not None:
-                    self.ledger.next_turn(frame=frame, turn=self.timeline.turn)
-            self._card_count = vision.count_unit_cards(frame)
-            self._snapshot_factions(frame)
-            if self.timeline.due("board_belief"):
-                self._snapshot_board_belief()
-            self._scout(frame)
-            self._ensure_stage_definition(frame)
-            self._refresh_sig_positions(frame)
-            self._consult_advisor()
-            log.info("selecting next actable unit")
-            self._log("select_unit", frame=frame, cards=self._card_count)
-            self.actuator.tap(*vision.FIRST_UNIT_CARD)
-            self.timeline.acted("select_unit")
-            self._probe_after_select()
+            self._handle_cards_present(frame)
             return
         # the card strip animates in after the hub appears; confirm it is
         # really empty before ending the turn
@@ -916,7 +892,8 @@ class ManualBattleController:
         # "no cards" is not yet "no units": a modal or a still-collapsed strip
         # reads the same (the 07-23 輪四 41-cycle stall ended the turn on a
         # covered list). Before concluding no unit can act, make sure the list
-        # is genuinely EXPANDED and unobstructed, then re-read.
+        # is genuinely EXPANDED and unobstructed, then re-read. Bounded to one
+        # repair so a flickering strip cannot loop.
         if (
             not vision.unit_cards_present(late_frame)
             and vision.unit_list_state(late_frame) != vision.UNIT_LIST_EXPANDED
@@ -924,17 +901,48 @@ class ManualBattleController:
             self._set_unit_list_open(True)
             late_frame = self._frame()
         if vision.unit_cards_present(late_frame):
+            # the 07-24 輪六-B fix: late arrival flows through the same gate as
+            # the happy path, never a second direct-select shortcut that skips
+            # turn bookkeeping and the scout
             log.info("unit cards appeared late, selecting next unit")
-            self._card_count = vision.count_unit_cards(late_frame)
-            self._log("select_unit", frame=late_frame, cards=self._card_count)
-            self.actuator.tap(*vision.FIRST_UNIT_CARD)
-            self.timeline.acted("select_unit")
-            self._probe_after_select()
+            self._handle_cards_present(late_frame)
         else:
             log.info("no actable units left, ending turn")
             self.actuator.tap(*END_TURN_BTN)
             self.timeline.mark_pending("scout")
             time.sleep(1.8)
+
+    def _handle_cards_present(self, frame) -> None:
+        """The single cards-present path: per-turn bookkeeping -> faction
+        snapshot -> board belief -> scout -> stage definition -> sig refresh ->
+        advisor -> select. Both the immediate hub read and the late-arrival
+        re-read converge here, so a unit is never selected before the turn
+        bookkeeping and the scout gate have run."""
+        # the turn boundary is the on-screen TURN number changing between hub
+        # visits: turns auto-advance once every unit has acted, so the end-turn
+        # dialog is not reliable, and quiet label-less stretches also occur
+        # mid-turn during attack animations. the OCR/marker decision (jump
+        # guard, marker fallback, per-turn job re-arm) lives in
+        # timeline.on_turn_read
+        if self.timeline.on_turn_read(
+            vision.read_turn_number(frame), vision.crop_turn_marker(frame)
+        ):
+            self.tracker.on_turn(self.timeline.turn)
+            if self.ledger is not None:
+                self.ledger.next_turn(frame=frame, turn=self.timeline.turn)
+        self._card_count = vision.count_unit_cards(frame)
+        self._snapshot_factions(frame)
+        if self.timeline.due("board_belief"):
+            self._snapshot_board_belief()
+        self._scout(frame)
+        self._ensure_stage_definition(frame)
+        self._refresh_sig_positions(frame)
+        self._consult_advisor()
+        log.info("selecting next actable unit")
+        self._log("select_unit", frame=frame, cards=self._card_count)
+        self.actuator.tap(*vision.FIRST_UNIT_CARD)
+        self.timeline.acted("select_unit")
+        self._probe_after_select()
 
     def _ensure_stage_definition(self, frame) -> None:
         """S6: the stage definition is the solver's game description.
