@@ -335,3 +335,33 @@ def test_frontier_none_when_complete():
 
 def test_frontier_none_on_empty_map():
     assert CellMap().frontier() is None
+
+
+def test_frontier_raises_on_inconsistent_starved_coverage():
+    """The 07-23 anomaly B: opposing edges registered on the same lattice line
+    make integrate()'s interior filter reject every cell, so coverage stays empty
+    though terrain was integrated. frontier() must not read that empty coverage as
+    a finished scan (returning None); it is an upstream contradiction and raises
+    MapStateInconsistent so the loop fails honestly instead of a 0-nudge
+    'complete'."""
+    lat = _lattice(6, 4)
+    fps = {(c, r): np.zeros(4, np.float32) for c in range(6) for r in range(4)}
+    starved = _obs(
+        lat, [], fps,
+        edges={"west": 0, "east": None, "north": 2, "south": 2},
+    )
+    cmap = CellMap()
+    cmap.anchor(starved)
+    assert not cmap.is_empty()  # terrain integrated
+    assert cmap.coverage()[0] == 0  # yet nothing covered
+    with pytest.raises(cm.MapStateInconsistent):
+        cmap.frontier()
+
+
+def test_frontier_healthy_map_does_not_raise():
+    """A normally-covered map (the anomaly-B guard must not fire on healthy
+    state): frontier returns a real target, never the inconsistency signal."""
+    covered = {(c, r) for c in range(5) for r in range(5)}
+    cmap = _map_with_coverage(covered, {"west": 0, "east": None, "north": 0, "south": 5})
+    target = cmap.frontier()
+    assert target is not None

@@ -39,6 +39,7 @@ from .coverage_map import (
     Detector,
     FrameObservation,
     LocalizeReport,
+    MapStateInconsistent,
     observe_frame,
 )
 from .scout_intel import UNIT_DETAIL_CLOSE, SurveyIncomplete
@@ -217,6 +218,7 @@ class CoverageScanSource:
         self._stuck = 0
         self._last_offset: tuple[int, int] = (0, 0)
         self._last_nudge: Direction = (0, 0)
+        self._inconsistency: str | None = None
 
         obs = self.observe(frame)
         if obs is None:
@@ -242,7 +244,14 @@ class CoverageScanSource:
         outcome = "budget"
         for _ in range(self._scan_budget(obs)):
             edges_seen = self._all_edges_seen()
-            target = self._map.frontier()
+            try:
+                target = self._map.frontier()
+            except MapStateInconsistent as exc:
+                # empty coverage with observations integrated is upstream
+                # breakage, not a finished scan -- fail honestly, never "complete"
+                self._inconsistency = str(exc)
+                outcome = "inconsistent"
+                break
             if target is None:
                 outcome = "complete"
                 break
@@ -487,7 +496,12 @@ class CoverageScanSource:
             unreachable=len(self._unreachable),
             bounds=dict(self._map.bounds),
             nudges=self._nudges,
+            outcome=outcome,
         )
+        if outcome == "inconsistent":
+            raise SurveyIncomplete(
+                f"map state inconsistent: {self._inconsistency}"
+            )
         if outcome in ("complete", "unreachable_only") and self._all_edges_seen():
             self.census, self.bounds = self._map.to_tacmap()
             self.size = self._map.size()

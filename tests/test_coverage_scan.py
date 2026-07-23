@@ -284,6 +284,55 @@ def test_never_fabricates_a_south_edge_from_a_blocked_push():
     assert src.bounds is None and src.census is None
 
 
+def test_inconsistent_map_state_fails_loud_not_complete():
+    """Anomaly B, locked. A pathological observation registers opposing edges on
+    the same lattice line (north==south, the 07-23 phantom read), so integrate's
+    interior filter rejects every cell and coverage stays empty. The loop must
+    NOT read that empty coverage as a finished scan (the old frontier() returned
+    None -> outcome 'complete' -> a silent 0-nudge close caught only by a later
+    safety net); it fails loud with 'map state inconsistent' and the ledger names
+    the outcome honestly -- never 'complete'."""
+    lat = MapLattice(
+        cols=tuple(range(0, 7 * PITCH, PITCH)),
+        rows=tuple(range(0, 5 * PITCH, PITCH)),
+        col_pitch=float(PITCH), row_pitch=float(PITCH),
+        edges={s: None for s in SIDES},
+    )
+    fps = {
+        (c, r): np.array([c * 100.0, r * 100.0, 0.0, 0.0], np.float32)
+        for c in range(6)
+        for r in range(4)
+    }
+    # west + north + south all seen (both axes edge-pin, mirroring the real
+    # 輪三 frame) but north and south land on the same line -> starved coverage
+    starved = FrameObservation(
+        lattice=lat,
+        edges={"west": 0, "east": None, "north": 2, "south": 2},
+        units=[],
+        fingerprints=fps,
+        distinctive=frozenset(fps),
+        threats=[],
+    )
+    events = []
+    src = CoverageScanSource(
+        capture=lambda: np.zeros((10, 10, 3), np.uint8),
+        swipe=lambda *a: None,
+        tap=lambda x, y: None,
+        ledger_log=lambda kind, **d: events.append({"kind": kind, **d}),
+        sleep=lambda s: None,
+        observe=lambda frame: starved,
+    )
+
+    with pytest.raises(SurveyIncomplete, match="map state inconsistent"):
+        src.collect()
+
+    report = next(e for e in events if e["kind"] == "coverage_report")
+    assert report["outcome"] == "inconsistent"
+    assert report["covered"] == 0
+    # nothing fabricated on the failure path
+    assert src.bounds is None and src.census is None
+
+
 # --- recovery protocol -----------------------------------------------------
 
 def test_recovery_relocates_after_an_overmove_loses_the_lock():

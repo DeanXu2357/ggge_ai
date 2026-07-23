@@ -40,6 +40,15 @@ Detector = Callable[[np.ndarray], list[tuple[int, int]]]
 
 SIDES = ("west", "east", "north", "south")
 
+
+class MapStateInconsistent(RuntimeError):
+    """frontier() cannot classify the map: observations have been integrated yet
+    no cell is covered -- an upstream contradiction, not a finished scan. The
+    07-23 case: opposing edges registered on the same lattice line make
+    integrate()'s interior filter reject every cell (west==east or north==south),
+    so _covered stays empty while terrain accrues. The caller must surface this
+    (SurveyIncomplete), never read the empty coverage as 'complete'."""
+
 # a peak within this many px of the scan region's top/bottom rim is a
 # boundary-clamped read (a half-cut unit's ring reads 30-70px off centre, HUD
 # above the region bleeds in through the density box filter); it still anchors
@@ -504,10 +513,21 @@ class CellMap:
 
     def frontier(self) -> Cell | None:
         """The next internal cell worth steering toward, or None when the scan
-        is complete (all four edges seen and no uncovered cell inside them).
-        Priority (plan 5): an unseen edge (extrapolate outward) over the largest
-        uncovered region inside the known frame."""
+        is genuinely complete (all four edges seen and no uncovered cell inside
+        them). Priority (plan 5): an unseen edge (extrapolate outward) over the
+        largest uncovered region inside the known frame.
+
+        None means ONLY a true completion. An empty coverage with observations
+        already integrated is an upstream inconsistency, not a finish, and raises
+        MapStateInconsistent rather than masquerading as complete (the 07-23
+        north==south bug that starved the ledger to a 0-nudge abort)."""
         if not self._covered:
+            if not self.is_empty():
+                raise MapStateInconsistent(
+                    "coverage empty after integrating observations: "
+                    f"edges {dict(self._reg)}, {len(self._terrain)} terrain cells, "
+                    f"{len(self._units)} unit cells"
+                )
             return None
         cmin, cmax, rmin, rmax = self._covered_bbox()
         mid_col, mid_row = (cmin + cmax) // 2, (rmin + rmax) // 2
