@@ -165,6 +165,23 @@ zoom 工作點，#26 07-20 已登記漏接；「垂直漂移污染」原說法�
 sonnet 手動關閉；adb libusb 正常；`data/cache/stages/` 空（冷探索中，
 備份在 `data/cache/stages.bak-20260723/`）；戰局可放棄退體力。
 
+**同日稍晚（規劃 session，純離線、未碰裝置）**：批8 範圍擴充定案——
+往前追查發現 modal 清除邏輯（`is_unit_detail_modal` 觸發時點掉重試）
+已在 `controller._clear_scan_obstruction`／`live_scan.CoverageScanSource
+._clear_obstruction`／`map_view.return_to_top` 三處獨立重複實作，
+`UNIT_DETAIL_CLOSE` 座標常數也有兩份宣告；批8 唯一沒有這層防護的正是
+輪四摔倒的 `_set_unit_list_open`。**批8 完整規格（含此擴充）已落檔
+[scan-flow-robustness-plan.md](scan-flow-robustness-plan.md)**，roadmap
+本節之後只保留指標，todo 以該檔為準。委派迴圈規劃：opus worktree 開發
+→ 主 session 驗證合併 → sonnet 上機驗證（＝輪五）→ 回報→下一輪。已完成
+worktree 清理（16 個孤兒 worktree，15 個確認合併清除，1 個未合併
+`worktree-agent-a6dfce2035d900d36`/`8b1b6df` LLM probe B 產出刻意保留
+待使用者決定去留）。**卡點：`Agent` 工具 subagent 派遣額度 session 內
+20/20 用滿、Round 1 opus dev 尚未派出**——新 session 開工前先調高
+`CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`（memory `delegation-execution
+-model` 坑④），再照 scan-flow-robustness-plan.md「Round 1」直接派工，
+不需重新規劃。
+
 ## 2026-07-21 協調者管線日（前恢復點）
 
 **本日（純離線、未碰實機、adb no permissions 待 seat0 桌面登入）**：

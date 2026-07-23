@@ -277,3 +277,11 @@ HARD 1 零關卡專屬資料首戰通關）、E3（戰略迴圈 farm→強化→
 - 戰役目標介面（「通關到 HARD X」）；主動編成（等歸因出現編成短板
   證據）。
 - LLM 整合：無現成資料時推斷 action 前置條件等啟發式判斷。
+- **戰鬥內流程層 GOAP**（2026-07-23 使用者討論定調，見
+  [scan-flow-robustness-plan.md](scan-flow-robustness-plan.md) Round 2）：
+  `_scout` 前置流程（回到 hub→收合列表→開格線→zoom→覆蓋掃描→關格線）
+  升格成宣告式 Action/Goal，重用 `goap/planner.py` 的同一顆 A*——這是
+  `AgentLoop` 的 view-action pattern 下沉進戰鬥內部的第三個實例（戰略層/
+  流程層/戰術層三顆規劃器各管各的狀態空間，互不巢狀，只透過共同的真實
+  畫面耦合，不透過彼此內部狀態呼叫）。單位選取/攻擊決策仍是 solver
+  （expectiminimax）職權，不進這顆 A*。

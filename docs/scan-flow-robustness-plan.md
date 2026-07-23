@@ -1,0 +1,231 @@
+# 同步盤面流程強化：架構討論＋委派迴圈執行計畫
+
+2026-07-23 稍晚（純規劃 session，未碰裝置）。承接批8（roadmap 07-23 暫停
+快照「恢復點＝批8」）——本文件把批8 的四項範圍擴充，並記錄促成這個擴充的
+架構討論，供下個 session 直接接續執行。**這是批8的正式規格文件，批8 的
+todo 以此檔為準，roadmap 暫停快照只保留指標。**
+
+## 架構討論結論（為什麼要做這個重構）
+
+使用者提出的問題：關卡內是否也該套 GOAP，讓「畫面該按什麼」變成規劃而不是
+寫死流程；如果套，跟既有的戰術層 solver（expectiminimax）疊起來會不會變成
+病態的多層巢狀。
+
+結論（三個規劃器，各管各的狀態空間，不是同一顆疊三次）：
+
+| 層 | 狀態空間 | 機制 | 回答的問題 |
+|---|---|---|---|
+| 戰略層 | 資源/進度述詞 | GOAP A*（`goap/planner.py`） | 接下來做哪件大事 |
+| 流程層（view action） | 畫面述詞 | 同一顆 GOAP A*，另一個實例 | 怎麼把畫面弄到能執行意圖的狀態 |
+| 戰術層 | BattleState 盤面 | expectiminimax solver | 這場仗怎麼打 |
+
+`agent/loop.py` 的 `AgentLoop` 本來就是流程層 GOAP 的範本（screen 述詞、
+act→verify、計畫外畫面觸發 replan）——這次的落地方向是把同一個 pattern
+下沉到戰鬥內部，用在同步盤面這條前置流程（`_scout` 觸發的：回到 hub →
+收合單位列表 → 開格線 → zoom 到底 → 覆蓋掃描 → 關格線），而不是整個
+`_on_our_turn`（單位選取/攻擊決策仍是 solver 職權，不進 A*）。
+
+replan 的觸發方式：**每層各自重新感知、各自檢查自己的 goal，沒有跨層呼叫**。
+回合推進會讓流程層的 `due()`/`mark_*` 述詞（timeline.py）在下次進場時重新
+不滿足，因此自然重規劃，不是戰術層通知流程層。`battle/reconcile.py` 記的
+是傷害預測 divergence，**明文紅線是永不否決分派**（roadmap 07-19：「timeline
+只記帳回報 divergence 永不否決分派——畫面權威紅線」）——它不是、也不該是
+任何 replan 的觸發點。真正合法的流程層 replan 觸發點是流程層自己的
+effect-verify 失敗（例如 `validate_stage` 回傳 `report.ok=False`、identify
+星座定位失敗）。
+
+## 具體發現：批8同一類 bug 已經被複製貼上三次
+
+批8 的診斷（`unit_cards_present` 讀 False 卻分不清「真的收合」還是「彈窗
+蓋住讀不到」，導致輪四 41 次循環）往前追一步發現：`is_unit_detail_modal`
+觸發時「點掉再重試」的邏輯**已經被寫了三次**：
+
+1. `controller._clear_scan_obstruction`（controller.py ~1540-1551）
+2. `live_scan.CoverageScanSource._clear_obstruction`（live_scan.py ~595-604）
+3. `map_view.return_to_top` 內的 modal 分支（map_view.py ~138-141）
+
+`UNIT_DETAIL_CLOSE = (1176, 992)` 甚至有兩份獨立宣告（`map_view.py:35` 與
+`controller.py:93`，同值但沒有單一事實來源）。唯一**沒有**這層保護的呼叫點
+正是輪四摔倒的 `_set_unit_list_open`／`map_view.collapse_unit_list`——不是
+巧合，是同一類「特例修一個、下一輪冒出另一個」的模式在真的重複發生。
+
+## 執行模式（每輪固定流程，委派迴圈）
+
+1. **主 session** 為該輪寫 dev-plan（目標／已知事實／紅線／驗收標準）。
+2. **主 session** 開工前 `git worktree prune`／`git worktree remove` 清掉
+   已合併的孤兒 worktree，避免新 opus subagent 掛到過期分支
+   （見 memory `delegation-execution-model` 實務坑①）。
+3. **Agent（opus，`isolation: "worktree"`）** 依 dev-plan 修改、跑
+   `uv run pytest -q` 與 `uv run ruff check src tests scripts`、commit。
+4. **主 session** 驗證：讀 diff、在該 worktree 重跑全套 pytest/ruff、對照
+   驗收標準逐條打勾、確認 `battle/vision.py`／`battle/controller.py` 的
+   改動附了離線證據（新 fixture 或會重現歷史失敗的回歸測試）；通過後
+   merge 進 `feat/inner-goap`（主工作目錄，非 worktree 內）。
+5. **Agent（sonnet，主工作目錄、真實裝置）** 依 `docs/live-test-plan.md`
+   慣例上機跑，戰鬥前先 discord-notify 通知使用者；結果（通過/失敗、
+   根因、流水帳路徑、螢幕證據）回報主 session。
+6. **主 session** 把結論寫回 `docs/roadmap.md` 暫停快照／
+   `docs/live-verification-queue.md`，決定下一輪範圍。**同一問題連續
+   兩輪失敗就停下來問使用者**（CLAUDE.md 既有紀律），不無限自轉。
+
+裝置同時間只允許一個 agent 操作；round 內 opus 與 sonnet 不會同時碰裝置，
+因為 sonnet 的上機驗證排在 merge 之後。
+
+**已知限制（本次規劃 session 實測踩到）**：`Agent` 工具的 subagent 派遣
+額度（`CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`）預設每 session 20 個，
+一天的委派迴圈重度使用（一輪至少 opus+sonnet 兩個，多輪很快打頂）會在
+單一 session 內用盡且不會重置，需要新 session 才能重新取得額度。**開工
+前務必先確認/調高這個額度**（見 memory `delegation-execution-model`
+實務坑④）。
+
+## Round 1：收斂三份重複的 modal 清除邏輯＋補上收合列表的漏洞（＝批8 落地，範圍擴充）
+
+批8 原定四項全部收進本輪，外加上面發現的重複收斂：
+
+**新增（本次規劃發現）**：
+- 在 `map_view.py` 新增單一事實來源的 `clear_obstruction(perception,
+  actuator, frame, *, sleep) -> frame`（把現有三份 `is_unit_detail_modal`
+  → tap `UNIT_DETAIL_CLOSE` → sleep → recapture 的邏輯收成一個函式，
+  語意不變）。
+- `controller._clear_scan_obstruction`、
+  `live_scan.CoverageScanSource._clear_obstruction`、
+  `map_view.return_to_top` 的 modal 分支，三處改呼叫這一個函式。
+- 刪除 `controller.py:93` 那份重複的 `UNIT_DETAIL_CLOSE`，改從
+  `map_view` import（`scout_intel.py`/`live_scan.py` 現有的 import 鏈不動）。
+
+**批8 原定四項**：
+1. **觀測三值化**：`vision.py` 新增 `unit_list_state(frame) →
+   "expanded"/"collapsed"/"unknown"` 像素探針（切換鈕位置：展開
+   ▽(1970,780)、收合 ▲(1970,1010)；輪四截圖
+   `data/runs/20260723-165948/frames/battle_01/t0001_turn1_unit_detail_modal.jpg`
+   可當 unknown/收合態 fixture）。`unit_cards_present`／`count_unit_cards`
+   的既有消費者（`_set_unit_list_open`、`map_view.collapse_unit_list`）
+   改吃三值，`unknown` 永不當「已收合」的答案——遇到 `unknown` 先呼叫
+   新的 `clear_obstruction` 再重讀，不直接判定「無單位可選」。
+2. **handler 前提契約**：`_on_our_turn`（controller.py ~867）在下「無可
+   行動單位」結論前，若列表狀態是 `unknown`，先修復（清障礙＋重新展開）
+   再讀，不直接走去點結束回合。
+3. **`END_TURN_BTN` 離線診斷**：對照輪四截圖判斷 `(275,182)` 這個座標在
+   「列表收合態」下實際點到什麼；只在有截圖證據時才改座標（CLAUDE.md
+   紅線：沒有新截圖證據不動閾值/座標），否則維持現狀並標記待 live probe。
+   這項不阻塞本輪其餘項目，可視時間排到下一輪。
+4. **absence-audit**：全庫掃一遍「布林讀值把『讀不到』和『真的沒有』混成
+   同一個 False」的同型 vision 讀值（`unit_cards_present` 是本次的具體
+   案例，audit 找其他可能同款的探針，不代表都要在本輪修完——記錄成
+   後續 issue 即可）。
+
+### 涉及檔案
+- `src/ggge_ai/battle/map_view.py`（新 `clear_obstruction`／`unit_list_state`
+  消費、`collapse_unit_list` 改吃三值）
+- `src/ggge_ai/battle/vision.py`（新 `unit_list_state` 探針）
+- `src/ggge_ai/battle/controller.py`（刪重複常數、`_clear_scan_obstruction`
+  改轉呼叫、`_set_unit_list_open`／`_on_our_turn` 改吃三值）
+- `src/ggge_ai/battle/live_scan.py`（`CoverageScanSource._clear_obstruction`
+  改轉呼叫，呼叫端簽名不變）
+- `src/ggge_ai/battle/scout_intel.py`（確認 `UNIT_DETAIL_CLOSE` re-export
+  鏈不受影響，預期零改動）
+
+### 測試（沿用既有 fake perception/actuator 慣例，無需裝置）
+- `tests/test_map_view.py`：`clear_obstruction` 與 `unit_list_state`
+  三態分類（沿用檔內既有 `FakePerception`/`_stub_vision` pattern）。
+- `tests/test_zoom_scan_precondition.py` 或新檔：`_set_unit_list_open`
+  在收合中途被 modal 打斷時能自我修復，直接對照輪四失敗場景寫成回歸測試
+  （`unit_cards_present` 讀 False 但實際是 modal 蓋住，不得被判定為
+  「已收合」）。
+- `tests/test_controller_modal.py`：`_on_our_turn` 在 `unit_list_state`
+  為 `unknown` 時不得直接下「無可行動單位」結論。
+- 既有 `tests/test_coverage_scan.py`、`tests/test_coverage_hint.py`、
+  `tests/test_coverage_map*.py` 應維持全綠不動（`_clear_obstruction`
+  行為不變、只是轉呼叫）。
+- 全庫：`uv run pytest -q`（目前基準 810 passed/3 xfailed）與
+  `uv run ruff check src tests scripts` 全綠。
+
+### 驗收標準
+- `UNIT_DETAIL_CLOSE` 只有一份宣告，其餘全部 import。
+- 三處 modal 清除邏輯改為呼叫同一函式，行為（座標、sleep、重截）不變。
+- 輪四那個具體失敗場景有專屬回歸測試且會在修復前對現有程式碼失敗、修復後轉綠。
+- `_set_unit_list_open`／`collapse_unit_list`／`_on_our_turn` 三個消費者
+  都不再把「讀不到」跟「真的沒有」混成同一個布林值。
+
+### 上機驗證（sonnet subagent，即排定中的「輪五」冷探索協定）
+沿用 `docs/live-verification-queue.md` 已寫好的下輪協定，不用重新設計：
+1. 開跑前把 `data/cache/stages/` 移到 `data/cache/stages.bak-20260723/`。
+2. `GGGE_INTEL=1 GGGE_STAGE_ID="最終驗證 STAGE EX-2 IF VS全裝甲鋼彈"` 啟動
+   `scripts/run_manual_battle.py`（戰鬥前先 discord-notify）。
+3. 重點觀察：(a) 是否終於能通過回合入口進到覆蓋掃描主體（輪四從未到達）、
+   (b) 收合列表過程若真的被誤觸打斷，是否自我修復而非誤判無單位、
+   (c) 覆蓋掃描主體本身能否收斂（批7 修復後仍是零實機驗證）。
+4. 產出：`data/runs/<timestamp>/battle_01.jsonl`＋螢幕證據；結果不論成敗
+   都回寫 `docs/roadmap.md` 暫停快照與 `docs/live-verification-queue.md`。
+
+## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
+
+方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死
+的直線流程（回到 hub → 收合列表 → 開格線 → zoom 到底 → `collect()` → 關格線，
+controller.py ~1397-1458）升格成宣告式 Action／Goal，重用既有
+`goap/planner.py` 的 A*（`goap/action.py` 的 `Action`/`Goal`，不需新機制，
+外層 `AgentLoop` 已經是同一顆 planner 的另一個實例）：
+
+- 狀態空間：`map_view.classify_frame` 現有的 `VIEW_STATES` 詞彙
+  （hub/modal/settings/unit_move/...）＋新增 `unit_list`（expanded/
+  collapsed）、`grid`（on/off）、`zoom`（max/not_max）述詞。
+- Action 集合：`ReachHub`、`CollapseUnitList`、`EnableGrid`、`ZoomToMax`、
+  `RunCoverageScan`（包住現有 `CoverageScanSource.collect()`，內部機制
+  不變）、`ReleaseGrid`，每個都是 precondition/effect＋act-verify
+  （鏡照 `AgentLoop.run()` 現有模式）。
+- 好處：新的意外畫面（劇情彈窗、設定頁誤入）只需要新增一個 Action，
+  不用巡查 N 個手寫迴圈各補一次；這是本輪要解的具體技術債的根治，
+  不只是繞過症狀。
+- 範圍與驗收標準留待 Round 1 的上機結果出爐後、由主 session 針對實際
+  發現的失效模式重新寫 dev-plan（避免在 Round 1 結果未知時過度設計）。
+
+## 風險與邊界
+
+- 兩輪都不碰 `CoverageScanSource`／`coverage_map.py` 的掃描演算法本體
+  （frontier/回復協定/惡意世界收斂測試）——那條線批7 才剛鎖死、仍是零
+  實機驗證，不應該在同一輪疊加變因。
+- 兩輪都不碰 `_on_our_turn` 之後的單位選取/攻擊決策（solver 職權），
+  只動「這回合機制前提是否滿足」這段。
+- Round 1 的三處呼叫端改動（controller/live_scan/map_view）都是「轉呼叫
+  同一函式」而非「改變行為」，離線測試應該能在不看真機的情況下把回歸
+  風險壓到很低；真正需要上機才能驗證的只有「三值化後 `_on_our_turn`／
+  `_set_unit_list_open` 的決策分支是否真的接住輪四那種場景」。
+
+## 現況與待續點（2026-07-23 本次規劃 session 收工）
+
+**已完成**：
+- 本文件的架構討論與 Round 1/Round 2 規劃已與使用者核准
+  （plan 檔 `~/.claude/plans/opus-subagent-composed-moler.md`，內容與本檔
+  一致，本檔為 git 版永久記錄）。
+- Worktree 整理：`git worktree list` 原有 16 個孤兒 worktree（歷史批次
+  T1-T10／批1-8 留下），逐一核對 branch tip 是否已是 `feat/inner-goap`
+  的祖先後，**15 個確認已合併並清除**。**1 個未合併、刻意保留未動**：
+  `.claude/worktrees/agent-a6dfce2035d900d36`，branch
+  `worktree-agent-a6dfce2035d900d36`，tip `8b1b6df`（commit message：
+  「#26 批4後續: LLM 定位 probe B——弱版 patch 選擇器 vs 確定性基準，
+  裁決皆不可行（只量測不接線）」），內容為
+  `docs/llm-localize-probe-b.md`＋`scripts/llm_localize_probe_b.py`＋
+  `tests/test_llm_localize_probe_b.py`（純新增檔案，跟主線無衝突）。
+  **待使用者決定**：併入主線（純測量報告，本身已裁決「不接線」，併入
+  價值主要是保留分析過程）、或直接捨棄這個 worktree/branch。
+
+**卡點（本次規劃 session 未能執行）**：
+- Round 1 的 opus dev subagent dev-plan 已經寫好（內容＝本檔「Round 1」
+  整節），但**尚未派出**——`Agent` 工具的 subagent 派遣額度在規劃階段的
+  Explore 呼叫就已經 20/20 用滿（額度似乎是這個 session 稍早的批次工作
+  累積用掉的，不會在同一 session 內重置）。
+
+**下一步（新 session 接續）**：
+1. 開工前先確認/調高 `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION`（見 memory
+   `delegation-execution-model` 實務坑④）。
+2. 直接照本文件「Round 1」小節派出 opus subagent（`isolation: "worktree"`，
+   dev-plan 內容即本檔 Round 1 整節的展開版——上一個 session 已經寫好完整
+   prompt，可從對話記錄或本檔重建，不需要重新設計）。
+3. 主 session 驗證（pytest+ruff+diff 審查）→ merge 進 `feat/inner-goap`。
+4. 派 sonnet subagent 依「上機驗證」小節跑輪五冷探索協定。
+5. 結果回報後決定 Round 2 範圍，或視失敗模式停下問使用者。
+6. 順手處理上面「待使用者決定」的孤兒 worktree。
+
+裝置現況與批7 之前的所有既定事實不變，見 `docs/roadmap.md` 07-23 暫停
+快照本節。本次規劃 session 全程未碰裝置、未修改任何 `src/`／`tests/`
+程式碼，只做了唯讀探索與上述 worktree 清理（git 操作，非程式變更）。

@@ -106,6 +106,11 @@
     **零實機驗證**；輪五協定不變（冷探索、`GGGE_INTEL=1 GGGE_STAGE_ID`）。
   - 裝置末態：TURN 1 hub、0/15、格線 ON＋列表收合殘留（批8 主修會自癒）、
     modal 已手動關、cache 空（備份 stages.bak-20260723）。
+- **前置（2026-07-23 規劃 session 新增）**：批8 修訂版規格與委派迴圈
+  執行計畫已落檔 [scan-flow-robustness-plan.md](scan-flow-robustness-plan.md)
+  ——下面這輪冷探索協定就是該計畫 Round 1 的上機驗證步驟，**須等 Round 1
+  的程式修改合併進 `feat/inner-goap` 後才執行**，不要在批8 落地前單獨重跑
+  （會重現輪四同一個卡點）。
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。
