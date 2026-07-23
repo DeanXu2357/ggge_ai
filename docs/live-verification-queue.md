@@ -204,6 +204,31 @@
   - 裝置末態：TURN 1 hub、殘留已清、格線 off、列表展開 9 卡、cache 空。
   - **紀律標記：輪九若仍在掃描主體失敗＝該層連續兩輪修復未過，停下
     問使用者。**
+- **2026-07-24 輪九結果（Round 1.8 合併 `d8575ae` 後首跑）：掃描主體
+  決定性 PASS（歷來最佳），FAIL 於 identify index 5**，run
+  `data/runs/20260724-031546/`。
+  - **Round 1.8 完全生效**：coverage_report cells=552／covered=552／
+    holes=0／unreachable=0／**nudges=10**（vs 輪六 28）／refused=0／
+    relocated=0／outcome=`complete`／bounds 四邊全註冊（west=9/east=32/
+    north=1/south=25，east 死鎖解除）；**首擊定位率 100%**。
+  - **terrain_conflict 首次量測＝常值 44-71**（不隨 new_cells 變動）：
+    星空指紋固有雜訊超過 TERRAIN_MATCH=14——回溯解釋 LWW 時代每次
+    整合改寫 ~50 格參考＝歷輪首擊率漂移（32%/71%/23%）的病源；FWW
+    凍結後 100%。**健康基準修正：太空圖常值 40-70，非錯位警訊**；
+    無證據不動 TERRAIN_MATCH 閾值。
+  - **identify 5/31 後 FAIL（歷來最深，輪五 2/45）**：index 0~4 敵機
+    完整讀出；index 5 tap (1263,419) 三次無 banner、非移動疊層（新
+    簽名）。census 31 vs 標準答案 27＝池含 ≥4 幽靈候選；`ghost_of_ally`
+    只救貼近我方者、遠端幽靈無路可退；identify 失敗零存幀。
+    `bring_to_view` 4 nudges 正常（Round 1.6 持續生效）。
+  - 修復＝**Round 1.9**（tap 前臨場複驗：無峰=帶證據 phantom drop、
+    有峰=snap-to-peak 重 tap 一次、仍無 banner=fail loud；識別失敗
+    原生存證。scan-flow-robustness-plan.md）。
+  - index 0 name=「無」＝轉錄雜訊複發（既記 issue，非阻塞）。
+  - 裝置末態：TURN 1 hub、乾淨（無殘留/modal）、格線 off、列表展開
+    9 卡、鏡頭停東北角、cache 空。
+  - **紀律標記：輪十若 identify 再敗＝該層連續兩輪修復未過，停下問
+    使用者。**
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。

@@ -384,6 +384,58 @@ west 回復全 relocated，starved 中止，east 邊未註冊。主 session 用�
 - 上機驗證＝輪九：同冷探索協定。**若輪九仍在掃描主體失敗，依 CLAUDE.md
   紀律停下問使用者**（該層將計連續兩輪修復嘗試未過），不再自行開輪十。
 
+## Round 1.9：identify 臨場複驗＋失敗存證（輪九敗因修復，2026-07-24 主 session 定讞）
+
+### 根因脈絡（run `data/runs/20260724-031546/`）
+
+輪九掃描主體決定性 PASS（552/552、10 nudges、0 refused、首擊 100%、
+四邊全註冊）＝Round 1.8 完全生效；terrain_conflict 常值 44-71 揭露
+星空指紋固有雜訊——LWW 時代每次整合都在改寫 ~50 格參考，解釋了歷輪
+首擊率漂移（32%/71%/23%），FWW 凍結參考後 100%。**該欄位健康基準修正
+為「太空圖常值 40-70」**，不是錯位警訊（錯位警訊＝顯著高於本關常值）。
+
+identify FAIL 於 index 5/31：tap (1263.0,419.0) 三次重試無 banner、
+非 SELECTION_SUBSTATES（Round 1.5 閘門未觸發＝新簽名）。census 31 候選
+vs 標準答案 27 台＝**池含 ≥4 幽靈候選**。兩假說症狀相同：(a) 幽靈候選
+（掃描期弧/密度偵測假陽性過 support 門檻）；(b) `TacticalMap.locate()`
+星群平移錯位使 tap 落空地。現行 ghost-drop 只在「貼近已知我方」時放行
+（`ghost_of_ally`），遠離我方的幽靈無路可退→fail loud。identify 失敗
+路徑零存幀（同 Round 1.7 前的 refused 觀測性缺口）。
+
+### 範圍
+
+1. **tap 前臨場複驗（treats both 假說）**：`_identify_at`／
+   `_read_summary_at` 在 no-banner 重試耗盡前，對 tap 當下的幀跑單位
+   偵測（`find_unit_density_peaks`）檢查 tap 點半徑內（一格 ≈95px，
+   常數化）有無單位峰：
+   - **無峰**＝當下負面視覺證據 → 候選以 `survey_phantom`
+     reason=`no_unit_at_tap` 帶證據 drop，survey 繼續（認識論同「邊界
+     只在看見時成立」——看了、確實沒有，非猜測）。
+   - **有峰但偏離 tap 點** → snap-to-peak 重 tap 一次（半徑內最近峰的
+     實際像素位置）；成功讀 banner 照常，仍無 banner → fail loud
+     （零猜測不變）。snap 只做一次；mis-attribution 風險（貼鄰單位）
+     以半徑 <1 格控制並記入 ledger（`snap_tap` 事件含原/新座標）。
+2. **identify 失敗存證**：no-banner 失敗（drop 或 fail loud 前）存原生
+   解析度診斷幀（沿用 `ledger.save_diag_frame`，首 3 張＋每 10 次），
+   事件記幀路徑。
+3. **不碰**：`TacticalMap.locate()`／dock 閘門／`SELECTION_SUBSTATES`
+   閘門（Round 1.5）語意——錯位假說待輪十的診斷幀定讞後再議。
+
+### 紅線
+- 零猜測政策不變：drop 必須有「當下無峰」的視覺證據；有峰無 banner
+  仍 fail loud。
+- 座標/閾值只引入「一格半徑」常數（由 cell_size 95px 推導、註明依據）。
+- 基準 864 passed／3 xfailed 只增不減＋ruff 綠。
+
+### 驗收標準（先紅後綠）
+- 幽靈候選（tap 點無峰）→ 帶證據 drop、survey 繼續；舊碼 fail loud（紅→綠）。
+- 偏位真單位（峰在半徑內）→ snap 重 tap 後讀到 banner；舊碼三次原點重試失敗（紅→綠）。
+- 有峰、snap 後仍無 banner → fail loud（零猜測保留，測試釘住）。
+- 診斷幀節流與 ledger 欄位（fake 迴圈斷言）。
+- 上機驗證＝輪十：identify 應消化 31 候選池（預期 ~4 幽靈 drop 有據、
+  其餘讀出）、首次觸發 unit_move 通道、`survey_complete`＋定義檔匯出
+  →續跑暖掃。identify 若再敗＝該層計連續兩輪修復未過，停下問使用者。
+
 ## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死
