@@ -483,6 +483,39 @@ vs 標準答案 27 台＝**池含 ≥4 幽靈候選**。兩假說症狀相同：
   連續兩輪未過，停下問使用者**；PASS 則 identify（Round 1.9 首戰）
   →暖掃連跑。
 
+## Round 1.11：省電鎖環境防禦——keyguard 下沉＋入口存證重試（輪十一敗因，2026-07-24 使用者裁決開工）
+
+### 根因（使用者已確認省電鎖不可從遊戲設定調整，程式防禦唯一路徑）
+
+輪十一：collect() 入口 `observe()`=None（同幀窄帶讀取器成功＝矛盾）。
+主嫌＝遊戲省電觸控鎖變暗的時序競態：變暗可發生在 controller 15 秒
+keyguard 檢查的間隙、正中掃描關鍵讀取瞬間；批7 亮度濾波對變暗幀砍光
+格線票源（窄帶無亮度閘門故同幀矛盾）。佐證：輪十一末態螢幕變暗中、
+輪十 d1 幀 34.5 vs 正常 48.9。入口路徑無原生存證（縮圖守門），無法
+100% 離線定讞——本輪同時補上存證，若假說錯誤下輪即有鐵證。
+
+### 範圍
+
+1. **keyguard 下沉**：`CoverageScanSource` 增 optional `guard:
+   Callable[[], None] | None` 欄位（controller 接 `keyguard.
+   ensure_unlocked`，機制重用零新閾值）。呼叫點＝**失敗回應式**（不逐
+   幀呼叫、控制 adb 成本）：collect() 入口 observe=None 時、
+   `_anchor_seek` 步進 obs=None 時、fill loop refused 分支（`_clear_full`
+   之前）——guard→重截→重試一次。
+2. **入口存證與重試**：collect() 入口 observe=None → 原生 diag 存幀
+   （復用 `diag_save`，tag=`anchor_no_lattice`）→ guard → 重截重觀測
+   一次 → 仍 None → `SurveyIncomplete`（訊息帶 diag 路徑）。
+3. 不碰：定位/整合/steering 語意、identify 鏈、`coverage_map.py`。
+
+### 驗收標準（先紅後綠）
+- 暗幀世界（observe 前 N 幀回 None、guard 被呼叫後恢復）：入口與
+  seek 皆能經 guard 重試恢復；舊碼直接 abort（紅→綠）。
+- guard 未接（legacy None）行為不變；guard 不消耗 nudge 預算。
+- 入口失敗存證：diag 幀＋訊息路徑（fake 斷言）。
+- 既有 coverage 測試全綠不修改；基準 876 passed／3 xfailed 只增不減。
+- 上機＝輪十二：**掃描主體再敗仍維持停工紀律**（將帶原生入口存證
+  回來定讞）；PASS 則 identify（R1.9/R1.10 首戰）→暖掃連跑。
+
 ## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死
