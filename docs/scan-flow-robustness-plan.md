@@ -436,6 +436,53 @@ vs 標準答案 27 台＝**池含 ≥4 幽靈候選**。兩假說症狀相同：
   其餘讀出）、首次觸發 unit_move 通道、`survey_complete`＋定義檔匯出
   →續跑暖掃。identify 若再敗＝該層計連續兩輪修復未過，停下問使用者。
 
+## Round 1.10：錨定證據閘門＋anchor phase 煞車（輪十敗因修復，2026-07-24 主 session 定讞）
+
+### 根因（run `data/runs/20260724-035547/`；探針鑑識定讞）
+
+輪十掃描主體全新簽名崩壞：anchor 後 0 次 `frame_localized`、98 nudges、
+14 次 recovery 全 exhausted、margin 幾乎全 null。探針鑑識：
+- **anchor 幀（t0005 升採樣）units=0**——鏡頭停輪九收工的東北角空曠區，
+  幀內只有東/北緣＋均勻星空，無任何單位峰。
+- diag 幀 d2/d3 同樣 units=0（西緣可見、無單位）；d1 `observe_frame`
+  =None 且偏暗（34.5 vs 正常 48.9，疑省電鎖變暗過渡，次要）。
+- 機制：均勻星空地形讓多個候選 offset 近同分→margin 崩（首拒 1.0＜
+  2.5）；回復幀同無單位→配不回參考；anchor phase 外層 west 8 vs 回復
+  east 48 的不對稱預算造成淨東漂 +40，脫離重疊窗後 margin=null 永久
+  迷航。輪九同版程式滿分＝起始位置恰有單位入鏡；**結構缺口＝錨定參考
+  無證據閘門，零單位參考在太空圖上不可定位**。anchor phase 無煞車，
+  56 nudges 空燒（fill loop 的 STARVE_LIMIT 管不到它）。
+
+### 範圍
+
+1. **錨定證據閘門**：`collect()` 錨定前檢查幀單位峰數 ≥
+   `ANCHOR_MIN_UNITS=1`（常數化、註明依據：單位星座是定位證據主幹，
+   零單位＋均勻地形＝不可定位參考）。零單位時**朝地圖內裡尋找單位**：
+   方向由幀內可見截止緣推導（見東緣→往西、見北緣→往南；皆不可見→
+   依 `find_unit_density_peaks` 全幀掃描的質心方向；再不然固定順序
+   試探），有界推進（復用 `ANCHOR_MAX_NUDGES` 額度），每步重讀峰數；
+   預算耗盡仍零單位 → `SurveyIncomplete("anchor without units")` 誠實
+   中止。**方向只來自畫面證據、不進座標計算（定案 1 不破）。**
+2. **anchor phase 煞車**：與 fill loop 相同的連續零進展計數
+   （`STARVE_LIMIT` 復用），anchor phase 連續 K 次 refused＋recovery
+   exhausted → 誠實 `SurveyIncomplete`，不再 8×6 空燒漂移。
+3. **不碰**：fill loop 語意、`coverage_map.py`、Round 1.9 identify 鏈。
+
+### 紅線
+- 方向推導只用畫面證據（可見邊/峰質心），不做座標幾何。
+- 基準 870 passed／3 xfailed 只增不減＋ruff 綠；既有 coverage 測試
+  全綠不修改。
+
+### 驗收標準（先紅後綠）
+- 零單位起始世界：閘門引導至有單位區後成功錨定（舊碼直接錨定→迷航
+  starve；新碼收斂）。
+- 全圖無單位世界：預算耗盡誠實中止（不漂移空燒）。
+- anchor phase 連續失敗 → K 次即停（舊碼 8×6 空燒，紅→綠）。
+- 有單位起始（輪九型）→ 行為不變（既有收斂測試全綠）。
+- 上機驗證＝輪十一：**掃描主體若再敗（任何簽名）＝該層在錨定議題上
+  連續兩輪未過，停下問使用者**；PASS 則 identify（Round 1.9 首戰）
+  →暖掃連跑。
+
 ## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死

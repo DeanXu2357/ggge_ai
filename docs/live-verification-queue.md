@@ -229,6 +229,26 @@
     9 卡、鏡頭停東北角、cache 空。
   - **紀律標記：輪十若 identify 再敗＝該層連續兩輪修復未過，停下問
     使用者。**
+- **2026-07-24 輪十結果（Round 1.9 合併 `0790507` 後首跑）：FAIL 於
+  掃描主體 anchor（全新簽名），identify 未觸達（Round 1.9 零實機
+  曝光）**，run `data/runs/20260724-035547/`。
+  - coverage_report：covered=165／nudges=98／refused=6／relocated=0／
+    outcome=`starved`／bounds 僅 east=22；0 次 `frame_localized`、
+    14 次 recovery 全 exhausted、margin 13/14 為 null。
+  - **根因（主 session 探針鑑識定讞）＝錨定幀零單位**：t0005 升採樣
+    units=0（東北角空曠區、只有東/北緣＋均勻星空）；diag 幀同 units=0。
+    均勻地形 margin 崩（首拒 1.0＜2.5）→回復配不回→anchor phase 外層
+    8 west vs 回復 48 east 不對稱漂移 +40→margin=null 永久迷航。輪九
+    同版程式滿分＝起始位置恰有單位。缺口＝**錨定無證據閘門＋anchor
+    phase 無煞車**（56 nudges 空燒）。d1 幀 obs=None 且偏暗（34.5）疑
+    省電鎖過渡，次要記錄。
+  - Round 1.7/1.8 煞車與存證持續生效（本輪靠 STARVE_LIMIT 收尾、diag
+    幀即鑑識素材）。
+  - 修復＝**Round 1.10**（錨定證據閘門：零單位時依可見邊/峰質心方向
+    有界尋位＋anchor phase 煞車。scan-flow-robustness-plan.md）。
+  - 裝置末態：TURN 1 hub、乾淨、格線 off、列表展開、鏡頭停中央偏東
+    空曠星空、cache 空。
+  - **紀律標記：輪十一掃描主體再敗（任何簽名）＝停下問使用者。**
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。
