@@ -67,6 +67,10 @@ def _events():
 
 
 def _identity_view(world):
+    # AUDIT (Round 1.6-A): survey_stage tests inject this fake for bring_to_view,
+    # so the REAL CoverageScanSource.bring_to_view()->nudge() path is a blind spot
+    # here -- it hid the 07-24 輪六 _navigator lifecycle crash. That path is now
+    # covered directly by tests/test_bring_to_view_lifecycle.py.
     return world
 
 

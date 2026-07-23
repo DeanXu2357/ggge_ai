@@ -201,6 +201,12 @@ class CoverageScanSource:
     def __post_init__(self) -> None:
         if self.observe is None:
             self.observe = lambda frame: observe_frame(frame, detect=self.detect)
+        # the walk state nudge()/bring_to_view() write: _navigator() builds a
+        # fresh source purely for the survey's bring_to_view and never runs
+        # collect(), so both must exist from construction. collect() re-sets
+        # them to the same values (behaviour unchanged).
+        self._nudges = 0
+        self._last_nudge: Direction = (0, 0)
 
     # -- public loop --------------------------------------------------------
 
