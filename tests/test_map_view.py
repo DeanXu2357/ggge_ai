@@ -247,3 +247,48 @@ def test_ensure_max_view_reaches_hub_and_collapses_list():
     a.tap = tap
     assert map_view.ensure_max_view(p, a, sleep=lambda s: None) is True
     assert map_view.UNIT_LIST_COLLAPSE in a.taps
+
+
+class _NoButtonPerception(FakePerception):
+    """A frame where the 返回 button is not visible, so return_to_top must
+    choose between the neutral nudge and (strict mode) touching nothing."""
+
+    def probe(self, ids, frame=None):
+        out = super().probe(ids, frame)
+        out.pop(map_view.RETURN_BUTTON, None)
+        return out
+
+
+def test_return_to_top_strict_mode_skips_the_neutral_nudge():
+    # Round 1.5 escape red line: on an unknown frame with no 返回 button the
+    # default mode neutral-nudges (1170,90); strict mode must touch NOTHING --
+    # a map tap in unit-move mode would commit a move.
+    p = _NoButtonPerception(["enemy"])  # no label matches -> unknown, no button
+    _bind(p)
+    a = FakeActuator(p)
+    reached = map_view.return_to_top(
+        p, a, sleep=lambda s: None, attempts=2, allow_neutral_nudge=False
+    )
+    assert reached is False
+    assert a.taps == []  # never a neutral nudge, never a map cell
+
+
+def test_return_to_top_default_mode_neutral_nudges_when_no_button():
+    p = _NoButtonPerception(["enemy"])
+    _bind(p)
+    a = FakeActuator(p)
+    map_view.return_to_top(p, a, sleep=lambda s: None, attempts=2)
+    assert (1170, 90) in a.taps  # default mode still nudges
+
+
+def test_return_to_top_strict_mode_still_cancels_substate_via_return_button():
+    # strict mode loses nothing where it matters: the 返回 button is drawn in
+    # every selection substate, so the overlay is still escaped by it alone.
+    p = FakePerception(["unit_move", "hub"])
+    _bind(p)
+    a = FakeActuator(p)
+    reached = map_view.return_to_top(
+        p, a, sleep=lambda s: None, allow_neutral_nudge=False
+    )
+    assert reached is True
+    assert a.taps == [(1805, 975)]  # only the 返回 button center, no map cell

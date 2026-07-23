@@ -9,6 +9,20 @@ the dock reader is the authority, and a turn-1 cobalt-ring + white-VV
 assist can join later as another implementation without touching the
 loop. No verdict is ever guessed -- an unreadable or ambiguous banner
 returns None and the caller decides how loudly to fail.
+
+Move-overlay evidence channel (Round 1.5, 2026-07-23 輪五 defeat fix):
+tapping a unit that enters the unit-move / weapon-select selection overlay
+is itself proof the unit is OURS -- only an unactioned ally enters move
+mode on a tap (a third party is not operable, an enemy raises a summary
+card). This is a game-mechanism verdict, not a dock read: it is emitted by
+``move_overlay_verdict`` (faction ALLY, side="unit_move", score=1.0) when
+the survey loop's view gate classifies the post-tap frame as a selection
+substate. It exists because the dock reader alone is UNSAFE on such a
+frame -- the weapon-select right panel shares the summary geometry
+(:33-35), so a lone right-dock hit fires on the overlay and would forge a
+plausible-but-coincidental ally verdict (輪五末幀 t0135: left 0.31 /
+right 0.995). The view gate must run before the dock reader for exactly
+this reason; the dock reader stays the authority only on the hub.
 """
 
 from __future__ import annotations
@@ -51,6 +65,17 @@ class FactionVerdict:
     faction: Faction
     side: str
     score: float
+
+
+MOVE_OVERLAY_SIDE = "unit_move"
+
+
+def move_overlay_verdict() -> FactionVerdict:
+    """The mechanism-evidence ALLY verdict for a unit whose tap entered a
+    selection overlay (see the module docstring). Certain by construction,
+    so score is 1.0 and side records the evidence channel rather than a
+    dock -- no pixels were read to reach it."""
+    return FactionVerdict(faction=Faction.ALLY, side=MOVE_OVERLAY_SIDE, score=1.0)
 
 
 class FactionIdentifier(Protocol):

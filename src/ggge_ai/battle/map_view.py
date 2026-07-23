@@ -75,6 +75,13 @@ VIEW_STATES: tuple[str, ...] = (
     UNKNOWN,
 )
 
+# the selection substates a unit-move overlay can classify as: a tap that
+# reaches any of them selected a unit, which is mechanism proof it is ours
+# (Round 1.5). Derived from the same label set so the two never drift.
+SELECTION_SUBSTATES: frozenset[str] = frozenset(
+    _LABEL_STATES[label] for label in SUBSTATE_LABELS
+)
+
 
 def _center(bbox) -> tuple[int, int]:
     return (int(bbox.x + bbox.w / 2), int(bbox.y + bbox.h / 2))
@@ -148,11 +155,20 @@ def return_to_top(
     keyguard=None,
     attempts: int = 6,
     settle_s: float = 1.2,
+    allow_neutral_nudge: bool = True,
 ) -> bool:
     """Cancel back to the our-turn hub. Closes a stray unit-detail modal, taps
     the 返回 button out of any selection sub-state, and nudges the neutral spot
     on an unrecognised frame -- never the system back key, so the hub is never
-    at risk of a quit dialog. Fail-soft: returns whether the hub was reached."""
+    at risk of a quit dialog. Fail-soft: returns whether the hub was reached.
+
+    ``allow_neutral_nudge=False`` is the strict escape used to back out of a
+    unit-selection overlay (Round 1.5): in unit-move mode any tap that is not
+    the dedicated 返回 button risks landing on a map cell and committing a
+    move, so the neutral nudge is suppressed and an unrecognised frame just
+    settles and re-reads. The game draws 返回 in every selection substate, so
+    this loses nothing there; it only trades a nudge for a wait on a genuinely
+    unknown frame, failing soft to let the caller stop loudly."""
     for _ in range(attempts):
         if keyguard is not None:
             keyguard.ensure_unlocked()
@@ -168,12 +184,17 @@ def return_to_top(
         if btn is not None:
             log.info("view=%s: tapping 返回 to cancel to hub", view)
             actuator.tap(*_center(btn.bbox))
-        else:
+        elif allow_neutral_nudge:
             # unknown with no cancel button visible: a harmless neutral tap can
             # dismiss a transient banner; if it is genuinely the hub the next
             # probe will confirm it. Never blind-press system back here.
             log.info("view=%s, no 返回 button; neutral nudge", view)
             actuator.tap(1170, 90)
+        else:
+            # strict overlay escape: no 返回 button means we cannot back out
+            # SAFELY (a map-cell tap would commit a move), so wait and re-read
+            # rather than touch the map.
+            log.info("view=%s, no 返回 button; strict escape waits", view)
         sleep(settle_s)
     return is_top_hub(perception)
 
