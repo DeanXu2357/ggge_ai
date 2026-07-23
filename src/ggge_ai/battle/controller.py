@@ -39,6 +39,7 @@ from ggge_ai.battle.live_scan import (
     PAN_HALF,
     CoverageScanSource,
 )
+from ggge_ai.battle.map_view import UNIT_DETAIL_CLOSE
 from ggge_ai.battle.scout_intel import SurveyIncomplete
 from ggge_ai.content import stage_def as stage_def_mod
 from ggge_ai.battle.state import Faction
@@ -88,9 +89,6 @@ END_TURN_EXECUTE = (1365, 850)
 # this modal's corner is the animation/story toggle, unrelated to control
 DECLINE_HIDDEN_BATTLE = (1018, 977)
 CHALLENGE_HIDDEN_BATTLE = (1404, 977)
-# 關閉 button of the 單位設置詳情 modal a stray keyguard drag can open on a map
-# unit; tapping it dismisses the modal and hands control back to the battle
-UNIT_DETAIL_CLOSE = (1176, 992)
 # nudge spot for scenes nothing recognizes: top-center hosts no interactive
 # element on any battle screen (AUTO/MENU sit right of x1780, 回合結束 left of
 # x400, objective text is not tappable), while dialog-style scenes advance on
@@ -1542,13 +1540,14 @@ class ManualBattleController:
         detail modal freezes panning wholesale (the user watched drags slide
         fine while the ledger read zero movement: the 'frozen' stretches
         were a modal, not eaten gestures). Returns a fresh frame when
-        something was closed, the original otherwise."""
-        if vision.is_unit_detail_modal(frame):
-            self._log("scan_modal_closed", frame=frame)
-            self.actuator.tap(*UNIT_DETAIL_CLOSE)
-            time.sleep(1.2)
-            return self._frame()
-        return frame
+        something was closed, the original otherwise. Delegates to
+        map_view.clear_obstruction, the single source of truth."""
+        return map_view.clear_obstruction(
+            self.perception,
+            self.actuator,
+            frame,
+            on_close=lambda f: self._log("scan_modal_closed", frame=f),
+        )
 
     def _log_zoom_step(self, step: pinch.PitchStep) -> None:
         self._log(

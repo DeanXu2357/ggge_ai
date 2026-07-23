@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING
 import cv2
 import numpy as np
 
-from . import vision
+from . import map_view, vision
 from .coverage_map import (
     SIDES,
     CellMap,
@@ -42,7 +42,7 @@ from .coverage_map import (
     MapStateInconsistent,
     observe_frame,
 )
-from .scout_intel import UNIT_DETAIL_CLOSE, SurveyIncomplete
+from .scout_intel import SurveyIncomplete
 from .tacmap import TacticalMap
 from .vision import HUB_SCAN_REGION, find_unit_density_peaks
 
@@ -595,13 +595,16 @@ class CoverageScanSource:
     def _clear_obstruction(self, frame: np.ndarray) -> np.ndarray:
         """Close whatever a stray scan tap opened over the map -- the unit
         detail modal freezes panning wholesale (drags slide on screen while the
-        camera does not move)."""
-        if vision.is_unit_detail_modal(frame):
-            self._log("scan_modal_closed", frame=frame)
-            self.tap(*UNIT_DETAIL_CLOSE)
-            self.sleep(1.2)
-            return self.capture()
-        return frame
+        camera does not move). Delegates to map_view.clear_obstruction, the
+        single source of truth; this source's capture/tap/sleep fields satisfy
+        the perception/actuator/sleep seams directly."""
+        return map_view.clear_obstruction(
+            self,
+            self,
+            frame,
+            sleep=self.sleep,
+            on_close=lambda f: self._log("scan_modal_closed", frame=f),
+        )
 
     # -- survey navigation --------------------------------------------------
 

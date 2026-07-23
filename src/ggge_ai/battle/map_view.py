@@ -80,6 +80,31 @@ def _center(bbox) -> tuple[int, int]:
     return (int(bbox.x + bbox.w / 2), int(bbox.y + bbox.h / 2))
 
 
+def clear_obstruction(
+    perception,
+    actuator,
+    frame,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+    settle_s: float = 1.2,
+    on_close: Callable[..., None] | None = None,
+):
+    """Single source of truth for closing a stray 單位設置詳情 modal over the
+    battle map: if the frame shows the modal, tap 關閉, settle, and return a
+    fresh capture; otherwise return the frame unchanged. A modal freezes panning
+    wholesale (drags slide on screen while the camera does not move), so every
+    scan/back-out path must run a frame through here first. ``on_close`` (given
+    the pre-close frame) lets a caller log the close event. Coordinates, settle
+    duration and recapture match the three inline copies this replaces."""
+    if vision.is_unit_detail_modal(frame):
+        if on_close is not None:
+            on_close(frame)
+        actuator.tap(*UNIT_DETAIL_CLOSE)
+        sleep(settle_s)
+        return perception.capture()
+    return frame
+
+
 def classify_frame(frame, detect: Callable[..., dict]) -> str:
     """Classify a single frame into one of VIEW_STATES: "hub" (top-level, safe,
     max view), "modal" (unit-detail popup), "settings" (the in-battle settings
@@ -136,8 +161,7 @@ def return_to_top(
         if view == "hub":
             return True
         if view == "modal":
-            actuator.tap(*UNIT_DETAIL_CLOSE)
-            sleep(settle_s)
+            clear_obstruction(perception, actuator, frame, sleep=sleep, settle_s=settle_s)
             continue
         found = perception.probe([RETURN_BUTTON], frame=frame)
         btn = found.get(RETURN_BUTTON)

@@ -152,6 +152,34 @@ def test_return_to_top_gives_up_soft_when_never_hub():
     assert map_view.return_to_top(p, a, sleep=lambda s: None, attempts=3) is False
 
 
+def test_clear_obstruction_closes_modal_recaptures_and_logs():
+    # single source of truth: a modal frame is closed (tap 關閉), the pre-close
+    # frame reaches on_close, and a fresh capture comes back
+    p = FakePerception(["hub"])
+    p.modal = True
+    _bind(p)
+    a = FakeActuator(p)
+    logged = []
+    frame = object()
+    out = map_view.clear_obstruction(
+        p, a, frame, sleep=lambda s: None, on_close=lambda f: logged.append(f)
+    )
+    assert a.taps == [map_view.UNIT_DETAIL_CLOSE]
+    assert logged == [frame]
+    assert out is not frame  # recaptured after the close
+
+
+def test_clear_obstruction_passes_through_without_modal():
+    p = FakePerception(["hub"])
+    p.modal = False
+    _bind(p)
+    a = FakeActuator(p)
+    frame = object()
+    out = map_view.clear_obstruction(p, a, frame, sleep=lambda s: None)
+    assert a.taps == []  # nothing tapped
+    assert out is frame  # same frame, no recapture
+
+
 def test_ensure_max_view_reaches_hub_and_collapses_list():
     p = FakePerception(["unit_move", "hub"])
     p.cards = True
