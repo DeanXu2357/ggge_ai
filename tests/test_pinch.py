@@ -247,3 +247,58 @@ def test_zoom_out_max_reports_every_step_via_hook():
     # 120->100 shrinks, then 100->100 twice: two non-shrinking pinches = done
     assert [s.index for s in seen] == [0, 1, 2, 3]
     assert seen[0].col_pitch == 120.0
+
+
+def test_zoom_out_max_source_reports_wide_band_reader():
+    """A 3-tuple measure (the default's shape) carries its reader tag into
+    PitchStep.source, so a step read through the full-frame fallback logs
+    "map_lattice" while a narrow-band step logs "grid" -- the 批6 ledger split."""
+    seq = [
+        (128.0, 120.0, "grid"),
+        (100.0, 95.0, "map_lattice"),  # narrow band buried; wide band read it
+        (99.0, 95.0, "map_lattice"),
+        (99.0, 95.0, "map_lattice"),
+    ]
+    frames = iter(range(len(seq)))
+    steps = zoom_out_max(
+        capture=lambda: next(frames),
+        pinch_step=lambda: None,
+        measure=lambda f: seq[f],
+        frame_change=lambda a, b: 0.0,
+        sleep=lambda s: None,
+        max_pinches=10,
+    )
+    assert [s.source for s in steps] == ["grid", "map_lattice", "map_lattice", "map_lattice"]
+
+
+# --- pick_pinch_center (dynamic pinch center) ---
+
+def _four_point_clearance(center, peaks):
+    a, b = zoom_out_fingers(center)
+    pts = (a[0], a[1], b[0], b[1])
+    return min(((px - ux) ** 2 + (py - uy) ** 2) ** 0.5 for px, py in pts for ux, uy in peaks)
+
+
+def test_pick_pinch_center_no_peaks_returns_default():
+    assert pinch.pick_pinch_center([]) == pinch.PINCH_CENTER_DEFAULT
+
+
+def test_pick_pinch_center_beats_fixed_on_a_cluster():
+    """A cluster under the fixed center's left finger: the picker must find a
+    center whose four points clear it better than (1170,500) does."""
+    peaks = [(660, 500), (700, 480), (680, 520), (1170, 500), (1230, 500)]
+    chosen = pinch.pick_pinch_center(peaks)
+    assert chosen != pinch.PINCH_CENTER_DEFAULT
+    assert _four_point_clearance(chosen, peaks) > _four_point_clearance(
+        pinch.PINCH_CENTER_DEFAULT, peaks
+    )
+
+
+def test_pick_pinch_center_keeps_all_points_in_region():
+    """Every chosen center's four finger points stay inside the safe map
+    rectangle even when units blanket the interior."""
+    peaks = [(x, y) for x in range(500, 1900, 110) for y in range(340, 640, 90)]
+    a, b = zoom_out_fingers(pinch.pick_pinch_center(peaks))
+    rx, ry, rw, rh = pinch.PINCH_SAFE_REGION
+    for px, py in (a[0], a[1], b[0], b[1]):
+        assert rx <= px <= rx + rw and ry <= py <= ry + rh

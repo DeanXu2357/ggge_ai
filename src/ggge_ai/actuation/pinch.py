@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -283,8 +283,14 @@ def gesture_pincher_for(
     )
 
 
+# the fixed pinch center kept as the fallback: mid-map, clear of the end-turn
+# (275,182) / AUTO (1815,52) buttons up top and the unit-card strip along the
+# bottom.
+PINCH_CENTER_DEFAULT: Point = (1170.0, 500.0)
+
+
 def zoom_out_fingers(
-    center: Point = (1170.0, 500.0),
+    center: Point = PINCH_CENTER_DEFAULT,
     *,
     start_span: float = 1000.0,
     end_span: float = 120.0,
@@ -305,22 +311,89 @@ def zoom_out_fingers(
     return a, b
 
 
+# a pinch finger that STARTS on a unit sprite is eaten by the game (the same
+# failure live_scan._pick_origin dodges for swipe origins), so the center is
+# re-picked every step from the current frame instead of hard-wired at
+# (1170,500). Candidates ride a lattice across the map interior; each is scored
+# by how far its four finger points sit from every detected unit (max-min
+# clearance) and rejected unless all four stay inside PINCH_SAFE_REGION -- clear
+# of the top banner, the side buttons and the bottom card strip. The widest
+# points are the two start points (start_span/2 either side of the center), so
+# the grid is bounded to keep cx +/- 500 inside the region.
+PINCH_SAFE_REGION = (400, 330, 1500, 320)  # x, y, w, h -> x in [400,1900], y in [330,650]
+PINCH_CENTER_GRID: tuple[Point, ...] = tuple(
+    (float(x), float(y))
+    for y in (380.0, 490.0, 600.0)
+    for x in (900.0, 1050.0, 1170.0, 1290.0, 1400.0)
+)
+
+
+def pick_pinch_center(
+    peaks: Sequence[Point],
+    *,
+    start_span: float = 1000.0,
+    end_span: float = 120.0,
+    horizontal: bool = True,
+    candidates: Sequence[Point] = PINCH_CENTER_GRID,
+    region: tuple[int, int, int, int] = PINCH_SAFE_REGION,
+    default: Point = PINCH_CENTER_DEFAULT,
+) -> Point:
+    """Pinch center whose four finger points sit furthest from every detected
+    unit peak while all four stay inside ``region``. Pure and offline-testable:
+    ``peaks`` are injected -- the caller unions the arc and density detectors so
+    the choice survives the battle-zoom -> min-zoom transition (clearance is
+    tolerant of false peaks: a phantom only nudges the center, never breaks the
+    pinch). Empty ``peaks`` (nothing to dodge) or no in-region candidate returns
+    ``default``."""
+    if not peaks:
+        return default
+    rx, ry, rw, rh = region
+    best: tuple[float, Point] | None = None
+    for center in candidates:
+        a, b = zoom_out_fingers(
+            center, start_span=start_span, end_span=end_span, horizontal=horizontal
+        )
+        pts = (a[0], a[1], b[0], b[1])
+        if not all(rx <= px <= rx + rw and ry <= py <= ry + rh for px, py in pts):
+            continue
+        clearance = min(
+            ((px - ux) ** 2 + (py - uy) ** 2) ** 0.5
+            for px, py in pts
+            for ux, uy in peaks
+        )
+        if best is None or clearance > best[0]:
+            best = (clearance, center)
+    return best[1] if best is not None else default
+
+
 @dataclass
 class PitchStep:
     index: int
     col_pitch: float | None
     row_pitch: float | None
     change: float | None  # frame mean-abs-diff vs the previous frame
-    source: str  # "grid" when pitch read, "frame" when the fail-soft fired
+    source: str  # "grid"/"map_lattice" reader, "frame" when the fail-soft fired
 
 
-def _col_row_pitch(frame) -> tuple[float | None, float | None]:
-    """Median column/row gridline spacing, delegated to vision.grid_pitch so
-    the pitch math lives in one place; (None, None) when no lattice is on
-    screen. Kept as zoom_out_max's default measure seam."""
+def _col_row_pitch(frame) -> tuple[float | None, float | None, str | None]:
+    """Median column/row gridline spacing plus which reader found it. The
+    narrow central band (vision.grid_pitch) is tried first; a dense formation
+    that buries it falls back to the full-frame lattice (vision.read_map_lattice)
+    so the convergence check keeps a pitch to compare instead of dropping to the
+    frame-diff fail-soft (the 07-23 live failure, where the buried band mislabeled
+    a max-zoom camera as unreadable). Returns (None, None, None) when neither
+    reader sees a lattice; the "grid"/"map_lattice" tag rides into
+    PitchStep.source for the zoom ledger. Kept as zoom_out_max's default measure
+    seam."""
     from ..battle import vision
 
-    return vision.grid_pitch(frame)
+    col, row = vision.grid_pitch(frame)
+    if col is not None:
+        return col, row, "grid"
+    lattice = vision.read_map_lattice(frame)
+    if lattice is not None:
+        return lattice.col_pitch, lattice.row_pitch, "map_lattice"
+    return None, None, None
 
 
 def _mean_abs_diff(prev, cur) -> float:
@@ -334,11 +407,26 @@ def _mean_abs_diff(prev, cur) -> float:
     return float(np.abs(a - b).mean())
 
 
+def _read_pitch(measure, frame) -> tuple[float | None, float | None, str]:
+    """Unpack a measure result into (col, row, source). The default measure
+    reports its reader as a third element ("grid"/"map_lattice"/None); a
+    2-tuple measure (the injected test seams) has none, so source is derived
+    the legacy way -- "grid" when a pitch came back, "frame" when it did not."""
+    result = measure(frame)
+    col, row = result[0], result[1]
+    reader = result[2] if len(result) > 2 else None
+    if reader is not None:
+        source = reader
+    else:
+        source = "grid" if col is not None else "frame"
+    return col, row, source
+
+
 def zoom_out_max(
     capture: Callable[[], object],
     pinch_step: Callable[[], None],
     *,
-    measure: Callable[[object], tuple[float | None, float | None]] = _col_row_pitch,
+    measure: Callable[[object], tuple] = _col_row_pitch,
     frame_change: Callable[[object, object], float] = _mean_abs_diff,
     obstruction: Callable[[object], object] | None = None,
     sleep: Callable[[float], None] = time.sleep,
@@ -352,10 +440,13 @@ def zoom_out_max(
 
     Convergence primarily on the grid pitch: two pinches in a row that fail to
     shrink the column pitch by more than ``shrink_tol`` px means the camera hit
-    minimum zoom. Fail-soft when the lattice cannot be read (grid off, pitch
-    below the detector's floor): fall back to the frame mean-abs-diff over the
-    map region -- two near-identical frames (change < ``change_tol``) count as
-    settled. Every step is reported through ``on_step`` and in the return list.
+    minimum zoom. The default measure reads the narrow central band first and
+    falls back to the full-frame lattice when a dense formation buries it, so a
+    packed max-zoom frame keeps a pitch to compare (PitchStep.source names the
+    reader: "grid" / "map_lattice"). Fail-soft when neither reader sees a lattice
+    (grid off): fall back to the frame mean-abs-diff over the map region -- two
+    near-identical frames (change < ``change_tol``) count as settled, source
+    "frame". Every step is reported through ``on_step`` and in the return list.
 
     ``obstruction`` (optional) is handed each frame to close a stray unit-detail
     modal, mirroring live_scan._clear_obstruction; it returns the frame to keep.
@@ -363,8 +454,8 @@ def zoom_out_max(
     frame = capture()
     if obstruction is not None:
         frame = obstruction(frame)
-    col, row = measure(frame)
-    steps = [PitchStep(0, col, row, None, "grid" if col is not None else "frame")]
+    col, row, source = _read_pitch(measure, frame)
+    steps = [PitchStep(0, col, row, None, source)]
     if on_step:
         on_step(steps[0])
 
@@ -376,16 +467,16 @@ def zoom_out_max(
         frame = capture()
         if obstruction is not None:
             frame = obstruction(frame)
-        col, row = measure(frame)
+        col, row, source = _read_pitch(measure, frame)
         change = frame_change(prev_frame, frame)
 
         if col is not None and prev_col is not None:
             shrank = (prev_col - col) > shrink_tol
-            source = "grid"
         else:
-            # no clean pitch this step: lean on whether anything moved at all
+            # no clean pitch to compare this step: lean on whether anything
+            # moved at all (source already reflects the reader, "frame" when
+            # neither band read a pitch)
             shrank = change > change_tol
-            source = "frame"
         stable = 0 if shrank else stable + 1
 
         rec = PitchStep(i, col, row, round(change, 3), source)

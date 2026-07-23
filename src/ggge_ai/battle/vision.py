@@ -545,11 +545,18 @@ ZOOM_MAX_COL_PITCH_CEIL = 113.0
 def zoom_at_max(frame: np.ndarray) -> bool | None:
     """Whether the battle camera is at its furthest zoom-out, from the grid
     column pitch: True at or below ZOOM_MAX_COL_PITCH_CEIL, False when wider,
-    None when no lattice can be read (grid off, or a pitch below the detector's
-    floor) so this frame alone cannot decide."""
+    None when no lattice can be read at all so this frame alone cannot decide.
+    The narrow central band (grid_pitch) is read first; when a dense unit
+    formation buries it (grid_pitch None on the crowded 20260719 ex2if pt2, the
+    07-23 live failure) the full-frame reader (read_map_lattice) supplies the
+    column pitch instead -- same ceiling, same True/False/None contract -- so a
+    packed max-zoom frame is not mistaken for undecidable."""
     col, _ = grid_pitch(frame)
     if col is None:
-        return None
+        lattice = read_map_lattice(frame)
+        if lattice is None:
+            return None
+        col = lattice.col_pitch
     return col <= ZOOM_MAX_COL_PITCH_CEIL
 
 

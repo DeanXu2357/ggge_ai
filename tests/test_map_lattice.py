@@ -136,6 +136,61 @@ def test_lattice_covers_full_frame(lattices):
         assert list(lat.rows) == sorted(lat.rows)
 
 
+# --- zoom_at_max wide-band fallback (批6) -----------------------------------
+
+GRID_DIR = Path(__file__).parent / "fixtures" / "vision" / "grid"
+
+
+def test_zoom_at_max_pt2_recovered_by_wide_band(images):
+    """07-23 root cause / 批6 fix: the narrow read_grid_lattice band is buried
+    by pt2's dense central formation, so grid_pitch reads None and the old
+    zoom_at_max returned None (mislabeling a max-zoom camera as undecidable and
+    tripping SurveyIncomplete). The read_map_lattice wide-band fallback recovers
+    the column pitch and the verdict flips to True -- while the narrow band
+    stays blind, proving the fallback is what does the work."""
+    assert vision.grid_pitch(images["pt2"])[0] is None
+    assert vision.zoom_at_max(images["pt2"]) is True
+
+
+def test_zoom_at_max_all_frames_true(images):
+    """Every frame in this min-zoom series was captured at the furthest zoom;
+    the eight clean frames already read True through the narrow band and pt2
+    now joins them, so all nine must read True (no regression on the eight)."""
+    for name, img in images.items():
+        assert vision.zoom_at_max(img) is True, f"{name}: not True"
+
+
+def test_zoom_at_max_non_max_and_gridless_unchanged():
+    """The fallback must not disturb the other two verdicts: a default-zoom
+    grid-on hub (col pitch ~127px) stays False -- grid_pitch reads it, the
+    fallback never fires -- and a gridless hub stays None -- neither reader
+    finds a lattice."""
+    hub = cv2.imread(str(GRID_DIR / "hub_grid_on_20260719.png"))
+    gridless = cv2.imread(str(GRID_DIR / "hub_gridless_20260719.png"))
+    assert vision.zoom_at_max(hub) is False
+    assert vision.zoom_at_max(gridless) is None
+
+
+def test_pick_pinch_center_beats_fixed_on_dense_frame(images):
+    """批6 dynamic pinch center: on pt2's packed formation the picked center's
+    four finger points clear the detected units far better than the old
+    hard-wired (1170,500), so the zoom gesture starts on open map instead of on
+    a sprite (which the game eats)."""
+    from ggge_ai.actuation import pinch
+
+    peaks = vision.find_unit_density_peaks(images["pt2"])
+
+    def clearance(center):
+        a, b = pinch.zoom_out_fingers(center)
+        pts = (a[0], a[1], b[0], b[1])
+        return min(
+            ((px - ux) ** 2 + (py - uy) ** 2) ** 0.5 for px, py in pts for ux, uy in peaks
+        )
+
+    chosen = pinch.pick_pinch_center(peaks)
+    assert clearance(chosen) > 1.8 * clearance(pinch.PINCH_CENTER_DEFAULT)
+
+
 # --- fingerprints ----------------------------------------------------------
 
 def _distinctive(fps: dict, thr: float = 12.0) -> set:
