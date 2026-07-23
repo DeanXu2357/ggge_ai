@@ -270,6 +270,9 @@ class ManualBattleController:
     # always 0.0 when anchored; east/south measured) -- the map frame the
     # survey trusts over any unit-derived coordinate
     _map_bounds: dict | None = None
+    # (cols, rows) the coverage scan measured this turn; written into the stage
+    # definition on a cold survey and re-read as the bounds hint on a warm rescan
+    _map_size: tuple | None = None
     # dead-reckoned camera at the last scan stop: the locate() fallback for
     # bring_to_view (no taps move the camera between scan end and survey)
     _last_camera: tuple[float, float] | None = None
@@ -968,6 +971,7 @@ class ManualBattleController:
             llm=self.llm,
             ledger_log=self._log,
             root=self.intel_cache_root,
+            map_size=self._map_size,
         )
         if dropped:
             # ghost twins are gone from the definition; purge them from the
@@ -1438,6 +1442,7 @@ class ManualBattleController:
             # gridline = 0) with px bounds. Adopt it wholesale.
             self.tacmap = census
             self._map_bounds = source.bounds
+            self._map_size = getattr(source, "size", None)
             scan = f"coverage({source.nudges} nudges)"
         else:
             camera = self._scout_local(frame, camera)
@@ -1459,15 +1464,30 @@ class ManualBattleController:
     def _navigator(self) -> CoverageScanSource:
         """A CoverageScanSource sharing this battle's tactical map as its
         relocalisation pool: the full-scan walk builds the census, the survey's
-        bring_to_view re-anchors against the same world points."""
+        bring_to_view re-anchors against the same world points. A cached stage
+        definition's map size is passed as the bounds hint (planning only; the
+        scan still has to see each edge)."""
         nav = CoverageScanSource(
             capture=self._frame,
             swipe=self.actuator.swipe,
             tap=self.actuator.tap,
             ledger_log=self._log,
+            bounds_hint=self._cached_bounds_hint(),
         )
         nav.pool = self.tacmap
         return nav
+
+    def _cached_bounds_hint(self) -> tuple[int, int] | None:
+        """(cols, rows) from a complete cached stage definition, or None when
+        intel is off, no stage_id is set, or the file is missing / older-schema /
+        sizeless. Screen-read origin (the coverage scan wrote it), so it obeys
+        the 2026-07-05 cache exception."""
+        if not self.intel_enabled or self.stage_id is None:
+            return None
+        defn = stage_def_mod.load_stage_def(self.stage_id, self.intel_cache_root)
+        if defn is None or defn.map_cols is None or defn.map_rows is None:
+            return None
+        return (defn.map_cols, defn.map_rows)
 
     def _measure_shift(self, prev, cur, requested):
         """(shift, response, source): phase correlation first, the

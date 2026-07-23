@@ -203,7 +203,14 @@ class CellMap:
     lines are stored in the same internal indexing and only the exports
     normalise to the north-west origin."""
 
-    def __init__(self) -> None:
+    def __init__(self, size_hint: tuple[int, int] | None = None) -> None:
+        # (cols, rows) expected extent from a cached stage definition. A planning
+        # hint ONLY (frontier reach); it never registers an edge and is dropped
+        # the instant the seen geometry contradicts it (架構紅線: 邊界必須目視
+        # 看見). None on a first-ever scan of a stage.
+        self._hint = size_hint
+        self._hint_dropped = False
+        self._hint_drop_reason: str | None = None
         self._units: dict[Cell, _MapUnit] = {}
         self._terrain: dict[Cell, np.ndarray] = {}
         # threat ("!" overlay) cells in internal coordinates. Threats only ever
@@ -422,6 +429,71 @@ class CellMap:
             if line is not None and self._reg[side] is None:
                 axis = 0 if side in ("west", "east") else 1
                 self._reg[side] = line + (dcol if axis == 0 else drow)
+        self._check_hint()
+
+    # -- cache size hint ----------------------------------------------------
+
+    def _check_hint(self) -> None:
+        """Drop the cache size hint the moment the SEEN geometry contradicts it
+        (架構紅線): both opposing edges registered at a span that disagrees with
+        the hint, or covered terrain already reaching past the hint's projected
+        edge from a registered opposite edge (the real map is bigger than the
+        cache claimed). A dropped hint never comes back -- the scan reverts to
+        pure exploration."""
+        if self._hint is None:
+            return
+        cols, rows = self._hint
+        w, e = self._reg["west"], self._reg["east"]
+        n, s = self._reg["north"], self._reg["south"]
+        cmin = cmax = rmin = rmax = None
+        if self._covered:
+            cmin, cmax, rmin, rmax = self._covered_bbox()
+        contradicted = (
+            (w is not None and e is not None and e - w != cols)
+            or (n is not None and s is not None and s - n != rows)
+            or (w is not None and cmax is not None and cmax >= w + cols)
+            or (e is not None and cmin is not None and cmin < e - cols)
+            or (n is not None and rmax is not None and rmax >= n + rows)
+            or (s is not None and rmin is not None and rmin < s - rows)
+        )
+        if contradicted:
+            self._hint = None
+            self._hint_dropped = True
+            self._hint_drop_reason = "seen_geometry_contradicts_cache"
+
+    def _hint_projection(self) -> dict[str, int | None]:
+        """Each side's expected boundary line from the hint plus the registered
+        OPPOSITE edge (west+cols -> east line, etc.), or None where the hint is
+        absent or the opposite edge is unseen. Steers the frontier toward where
+        the cache says the edge is; the edge still only counts once SEEN."""
+        proj: dict[str, int | None] = {s: None for s in SIDES}
+        if self._hint is None:
+            return proj
+        cols, rows = self._hint
+        w, e = self._reg["west"], self._reg["east"]
+        n, s = self._reg["north"], self._reg["south"]
+        if w is not None:
+            proj["east"] = w + cols
+        if e is not None:
+            proj["west"] = e - cols
+        if n is not None:
+            proj["south"] = n + rows
+        if s is not None:
+            proj["north"] = s - rows
+        return proj
+
+    @property
+    def size_hint(self) -> tuple[int, int] | None:
+        """The live cache size hint (None once dropped or never set)."""
+        return self._hint
+
+    @property
+    def hint_dropped(self) -> bool:
+        return self._hint_dropped
+
+    @property
+    def hint_drop_reason(self) -> str | None:
+        return self._hint_drop_reason
 
     # -- frontier -----------------------------------------------------------
 
@@ -439,11 +511,12 @@ class CellMap:
             return None
         cmin, cmax, rmin, rmax = self._covered_bbox()
         mid_col, mid_row = (cmin + cmax) // 2, (rmin + rmax) // 2
+        proj = self._hint_projection()
         outward = {
-            "east": (cmax + 1, mid_row),
-            "south": (mid_col, rmax + 1),
-            "west": (cmin - 1, mid_row),
-            "north": (mid_col, rmin - 1),
+            "east": (proj["east"] if proj["east"] is not None else cmax + 1, mid_row),
+            "south": (mid_col, proj["south"] if proj["south"] is not None else rmax + 1),
+            "west": (proj["west"] if proj["west"] is not None else cmin - 1, mid_row),
+            "north": (mid_col, proj["north"] if proj["north"] is not None else rmin - 1),
         }
         for side in ("east", "south", "west", "north"):
             if self._reg[side] is None:

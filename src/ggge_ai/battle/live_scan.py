@@ -23,6 +23,7 @@ them.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -183,10 +184,17 @@ class CoverageScanSource:
     # factionless relocalisation pool for bring_to_view (shared with the
     # controller's adopted census).
     pool: TacticalMap = field(default_factory=TacticalMap, repr=False)
+    # (cols, rows) expected extent from a cached stage definition. A planning
+    # hint fed to CellMap: the frontier reaches toward where the cache says the
+    # edge is and the nudge budget scales to the known size. NEVER an edge (the
+    # scan still has to SEE each boundary); dropped + logged the moment the seen
+    # geometry contradicts it. None makes the loop bit-identical to a cold scan.
+    bounds_hint: tuple[int, int] | None = None
 
     # -- outputs (set by a successful collect) ------------------------------
     census: TacticalMap | None = field(default=None, repr=False)
     bounds: dict | None = None
+    size: tuple[int | None, int | None] | None = None
     nudges: int = 0
 
     def __post_init__(self) -> None:
@@ -202,7 +210,8 @@ class CoverageScanSource:
         unreachable) or the budget runs out."""
         frame = self.start_frame if self.start_frame is not None else self.capture()
         frame = self._clear_obstruction(frame)
-        self._map = CellMap()
+        self._map = CellMap(size_hint=self.bounds_hint)
+        self._hint_drop_logged = False
         self._nudges = 0
         self._unreachable: set[tuple[int, int]] = set()
         self._stuck = 0
@@ -213,6 +222,7 @@ class CoverageScanSource:
         if obs is None:
             raise SurveyIncomplete("coverage scan: anchor frame carried no lattice")
         self._map.anchor(obs)
+        self._note_hint_drop()
         # the last frame that localised (pixels + its observation): the LLM assist
         # pairs the current refused frame against this one and crops verification
         # patches from it. The anchor frame is the first.
@@ -230,7 +240,7 @@ class CoverageScanSource:
         frame, obs = self._confirm(frame, obs)
 
         outcome = "budget"
-        for _ in range(SCAN_MAX_NUDGES):
+        for _ in range(self._scan_budget(obs)):
             edges_seen = self._all_edges_seen()
             target = self._map.frontier()
             if target is None:
@@ -285,9 +295,39 @@ class CoverageScanSource:
         self, frame: np.ndarray, obs: FrameObservation, report: LocalizeReport
     ) -> None:
         self._map.integrate(obs, report.offset)
+        self._note_hint_drop()
         self._last_offset = report.offset
         self._anchor_frame = frame
         self._anchor_obs = obs
+
+    def _note_hint_drop(self) -> None:
+        """Log cache_bounds_dropped once, the first time CellMap discards the
+        cache size hint because the SEEN geometry contradicted it (紅線: hint
+        never survives a conflicting real edge)."""
+        if self._hint_drop_logged or not self._map.hint_dropped:
+            return
+        self._hint_drop_logged = True
+        self._log(
+            "cache_bounds_dropped",
+            hint=list(self.bounds_hint) if self.bounds_hint else None,
+            reason=self._map.hint_drop_reason,
+            bounds=dict(self._map.bounds),
+        )
+
+    def _scan_budget(self, obs: FrameObservation | None) -> int:
+        """The fill-loop nudge ceiling. SCAN_MAX_NUDGES with no cache hint; with
+        one, scaled to the known map size (a serpentine-ish cover of cols x rows
+        at this viewport takes far more than the cold default on a large stage)
+        so a warm rescan does not fail-fast spuriously. Capped, and only ever
+        raises the ceiling -- a wrong hint that inflates it is still bounded and
+        gets dropped mid-scan anyway."""
+        if self.bounds_hint is None or obs is None:
+            return SCAN_MAX_NUDGES
+        cols, rows = self.bounds_hint
+        vc = max(1, len(obs.lattice.cols) - 2)
+        vr = max(1, len(obs.lattice.rows) - 2)
+        frames = math.ceil(cols / vc) * math.ceil(rows / vr)
+        return min(max(SCAN_MAX_NUDGES, frames * 3), SCAN_MAX_NUDGES * 8)
 
     def _llm_assist(
         self, frame: np.ndarray, obs: FrameObservation
@@ -450,6 +490,7 @@ class CoverageScanSource:
         )
         if outcome in ("complete", "unreachable_only") and self._all_edges_seen():
             self.census, self.bounds = self._map.to_tacmap()
+            self.size = self._map.size()
             self.nudges = self._nudges
             return self.census
         raise SurveyIncomplete(

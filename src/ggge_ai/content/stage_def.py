@@ -151,6 +151,13 @@ class StageDefinition:
     status: str = "complete"
     game_version: str | None = None
     cell_size: float = 95.0
+    # map extent in cells, written by the coverage-driven scan on completion
+    # (source = screen read, per the 2026-07-05 cache exception). Used only as a
+    # planning hint for a later scan of the same stage (frontier reach + nudge
+    # budget); the live scan still has to SEE each boundary -- the hint never
+    # becomes a registered edge.
+    map_cols: int | None = None
+    map_rows: int | None = None
 
 
 def stage_path(stage_id: str, root: Path | None = None) -> Path:
@@ -300,6 +307,8 @@ def load_stage_def(stage_id: str, root: Path | None = None) -> StageDefinition |
             status=data.get("status", "complete"),
             game_version=data.get("game_version"),
             cell_size=float(data.get("cell_size", 95.0)),
+            map_cols=data.get("map_cols"),
+            map_rows=data.get("map_rows"),
         )
     except (json.JSONDecodeError, OSError, TypeError, ValueError) as exc:
         log.warning("stage def %s unreadable (%s), falling back to live survey", path, exc)
@@ -315,6 +324,8 @@ def save_stage_def(defn: StageDefinition, root: Path | None = None) -> Path:
         "stage_id": defn.stage_id,
         "status": defn.status,
         "cell_size": defn.cell_size,
+        "map_cols": defn.map_cols,
+        "map_rows": defn.map_rows,
         "layout": [asdict(u) for u in defn.layout],
         "deploy_slots": [asdict(s) for s in defn.deploy_slots],
         "conditions": {

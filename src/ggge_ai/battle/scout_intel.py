@@ -200,6 +200,7 @@ def survey_stage(
     sleep: Callable[[float], None] = time.sleep,
     wall_clock_s: float = SURVEY_WALL_CLOCK_S,
     cell_size: float = 95.0,
+    map_size: tuple[int | None, int | None] | None = None,
     root: Path | None = None,
 ) -> StageDefinition:
     """Full survey of the sweep's points into a saved definition. Raises
@@ -319,11 +320,14 @@ def survey_stage(
 
     if not surveyed:
         raise SurveyIncomplete("every survey point was ghost-dropped")
+    map_cols, map_rows = map_size if map_size is not None else (None, None)
     defn = StageDefinition(
         stage_id=stage_id,
         layout=stage_def.assign_uids(surveyed),
         cell_size=cell_size,
         deploy_slots=[DeploySlot(cell=c) for c in ally_cells],
+        map_cols=map_cols,
+        map_rows=map_rows,
     )
     path = stage_def.save_stage_def(defn, root)
     log.info("stage definition written: %s (%d units)", path, len(defn.layout))
