@@ -1430,16 +1430,24 @@ class ManualBattleController:
             )
             source = self._navigator()
             source.start_frame = frame
+            scan_ok = False
             try:
                 census = source.collect()
+                scan_ok = True
             finally:
                 # the coverage census carries no gesture camera; bring_to_view
                 # re-locates from the constellation each call
                 self._last_camera = None
-                if not (
-                    self.intel_enabled
+                # keep the grid up ONLY when the scan succeeded and the intel
+                # pass will run next (it releases on its way out). On any failure
+                # -- SurveyIncomplete included -- intel never runs, so release
+                # here unconditionally rather than stranding the grid ON.
+                intel_will_release = (
+                    scan_ok
+                    and self.intel_enabled
                     and self.timeline.pending("intel", scope="battle")
-                ):
+                )
+                if not intel_will_release:
                     self._release_battle_grid()
             # the coverage walk's census IS the turn's board: min-zoom density
             # peaks folded to cell space, exported to world px (NW-origin

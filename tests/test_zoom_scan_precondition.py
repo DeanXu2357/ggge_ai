@@ -156,6 +156,90 @@ def test_zoom_to_max_skips_without_a_pincher(monkeypatch):
     assert seen == []  # no verification because no pinch was attempted
 
 
+def _wire_full_scan(monkeypatch, source_factory):
+    """Stub every full-scan seam except the CoverageScanSource (supplied by
+    source_factory) and return the release recorder."""
+    monkeypatch.setattr(
+        controller_mod.map_view, "ensure_max_view", lambda perc, act, **kw: True
+    )
+    released: list = []
+    monkeypatch.setattr(
+        controller_mod.battle_settings,
+        "set_battle_grid",
+        lambda cap, tap, desired, **kw: released.append(desired) or True,
+    )
+
+    def fake_zoom(capture, pinch_step, *, obstruction=None, on_step=None, **kw):
+        return []
+
+    monkeypatch.setattr(controller_mod.pinch, "zoom_out_max", fake_zoom)
+    monkeypatch.setattr(controller_mod.vision, "zoom_at_max", lambda f: True)
+    monkeypatch.setattr(controller_mod.vision, "read_grid_lattice", lambda f: None)
+    for name in ("find_enemy_units", "find_ally_units", "find_third_party_units"):
+        monkeypatch.setattr(controller_mod.vision, name, lambda f, region=None: [])
+    monkeypatch.setattr(controller_mod.vision, "find_threat_cells", lambda f: [])
+    return released
+
+
+def test_full_scan_releases_grid_when_survey_incomplete_even_with_intel_pending(
+    monkeypatch,
+):
+    """Anomaly C: a SurveyIncomplete out of the coverage sweep must release the
+    battle grid on the way out even when intel is enabled and its pass is still
+    pending -- because that intel pass never runs (the exception propagates), so
+    the 'leave the grid for intel to close' branch would strand it ON. The old
+    finally skipped release exactly here."""
+
+    class _Raising:
+        def __init__(self):
+            self.start_frame = None
+            self.pool = TacticalMap()
+
+        def collect(self):
+            raise SurveyIncomplete("coverage scan did not close")
+
+    released = _wire_full_scan(monkeypatch, _Raising)
+    c = _controller(_RecordingPincher())
+    c.intel_enabled = True  # and battle:intel is pending by default
+    assert c.timeline.pending("intel", scope="battle")
+    monkeypatch.setattr(c, "_navigator", _Raising)
+
+    with pytest.raises(SurveyIncomplete):
+        c._scout(c._frame())
+
+    # grid was turned on (True) then released (False) despite intel pending
+    assert released == [True, False]
+    assert c._grid_active is False
+
+
+def test_full_scan_keeps_grid_for_intel_on_success(monkeypatch):
+    """The counterpart: a SUCCESSFUL sweep with intel enabled+pending keeps the
+    grid up (the intel pass releases it later), unchanged by the anomaly-C fix."""
+
+    class _Ok:
+        def __init__(self):
+            self.start_frame = None
+            self.pool = TacticalMap()
+            self.bounds = {"west": 0.0, "north": 0.0, "east": 100, "south": 100}
+            self.size = (1, 1)
+            self.nudges = 1
+            self.census = TacticalMap()
+
+        def collect(self):
+            return self.census
+
+    released = _wire_full_scan(monkeypatch, _Ok)
+    c = _controller(_RecordingPincher())
+    c.intel_enabled = True
+    monkeypatch.setattr(c, "_navigator", _Ok)
+
+    c._scout(c._frame())
+
+    # grid turned on, NOT released here (left for the pending intel pass)
+    assert released == [True]
+    assert c._grid_active is True
+
+
 def test_full_scan_precondition_runs_in_order(monkeypatch):
     """The cold-scan entry point sequences: back out to the hub -> grid on ->
     pinch iterations -> zoom_at_max verify -> the sweep starts."""

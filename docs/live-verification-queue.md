@@ -43,6 +43,40 @@
   max-min clearance，取代寫死 (1170,500)）；`zoom_step`／`battle_grid` ledger
   事件補存幀＋`zoom_step.source` 增 map_lattice。** 見
   [coverage-scan-plan.md](coverage-scan-plan.md) §5。
+- **2026-07-23 輪三（純冷探索協定首跑）結果：FAIL 於覆蓋掃描（0 nudge
+  即 survey_abort）**，run `data/runs/20260723-154731/`，主因幀
+  `assets/screenshots/20260723-154959.png`。
+  - **T3 前置 PASS**（批6 修復實戰生效）：`zoom_step.source=map_lattice`
+    全程、首輪即確認到頂進入覆蓋掃描主體，批6 寬帶 fallback 過關。
+  - **新敗因＝三層連鎖，批7 全數離線修復**：
+    - **異常A（主因，`vision._map_edge` 南北偽陽性）**：此關西側地圖邊界
+      在畫面內（west=1153，subagent 目視裁定 x<1153 全是星空，已存 fixture
+      `tests/fixtures/vision/map_scan/west_in_view_20260723.png`＋sidecar）。
+      seed/walk 越過真實西緣、在左側星空種出 7 條幽靈直格線（x=679..1092）；
+      這些條帶整條皆暗，餵進邊界票源後每條在搜尋起點附近投假邊界，7 票
+      過門檻→north==south==573（cy 起點值），且 573 深陷已偵測列線 span
+      (71..1075) 內部卻從未自洽檢查。**實測推翻原「格內自然間隙」假設**
+      （真實直格線垂直strip連續明亮、不產生格內暗run；假票只來自地圖外
+      星空條帶）。批7 修法：亮度濾波（只有 central-band 達 `MAP_EDGE_LIT_MEAN`
+      的格線可投票／界定 span）＋起點錨到最近格線＋自洽 gate（截止點不得
+      落在該軸格線 span 內部）。九幀真值表不變、west=1153 保留。
+    - **異常B（連鎖＋防線缺口，`coverage_map`/`live_scan`）**：north==south
+      使 `integrate()` 列過濾互斥、`_covered` 恆空；`frontier()` 開頭把
+      「無資料」當「完成」→ 主迴圈 0 nudge outcome=complete 跳出，只靠
+      `_finish` 的 `_all_edges_seen` 事後攔成 SurveyIncomplete。批7 修法：
+      `frontier()` 語意分離（空覆蓋＋已整合觀測＝raise `MapStateInconsistent`），
+      迴圈映成 `SurveyIncomplete("map state inconsistent: ...")`、outcome
+      誠實命名（不叫 complete）。
+    - **異常C（附帶，controller `_scout`）**：abort 路徑格線留 ON——finally
+      在 intel pending 時跳過 `_release_battle_grid()`，但 SurveyIncomplete
+      後 intel 不會跑。批7 修法：collect 拋例外時無條件 release，正常成功
+      ＋intel pending 才維持「留給 intel 收尾」。
+  - **pitch 觀察旗標（不動標準答案）**：本幀 `read_map_lattice` 讀
+    col_pitch≈94／row_pitch≈91，vs ex2if 標準答案 98.7／93.1 差約 5%。
+    屬同關不同 zoom 相位/透視的正常浮動（九幀 pitch 測試容差 ±7 內），
+    **僅記為觀察，不調整標準答案或閾值**；輪四留意若差距擴大再查。
+  - **給輪四**：異常A/B/C 已離線修復，需重跑同一冷探索協定驗證覆蓋掃描
+    主體能收斂（本輪三卡在 0 nudge，主體從未真正跑過）。
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。
