@@ -93,8 +93,9 @@ survey_abort，根因＝**偵測器域錯配**（弧偵測 battle-zoom 校準 vs
 zoom 工作點，#26 07-20 已登記漏接；「垂直漂移污染」原說法經流水帳複核
 推翻，見 map-scan-survey.md 更正段）。據使用者定案（手勢量退出座標計算、
 幀間只用相對關係＋邊界目視、掃描改覆蓋驅動、邊界只在看見時成立）以協調者
-管線分五批把地圖掃描整條重寫，**serpentine 退役**。tip＝本日文件收尾
-commit、**786 passed／3 xfailed／0 skipped、ruff 綠**：
+管線分五批把地圖掃描整條重寫，**serpentine 退役**。下午起三輪實機驗證
+（輪二~輪四）逐層剝洋蔥又落地批6／批7，收工 tip 見文末、**810 passed／
+3 xfailed、ruff 綠**：
 
 - **批1**（`932eb4f`）視覺原語：`read_map_lattice`（全幀格線外插＋截止緣
   ＝邊界目視證據）＋`cell_fingerprints`（逐格 Lab 指紋）＋fixtures。
@@ -115,18 +116,54 @@ commit、**786 passed／3 xfailed／0 skipped、ruff 綠**：
   與 hint 矛盾即丟棄、ledger 記 `cache_bounds_dropped`、退回純探索。
   schema 增 map size 欄（來源＝覆蓋掃描落地，符合 2026-07-05 cache 例外）。
 
-**恢復點**：live-verification-queue.md **佇列 1**（覆蓋驅動掃描 survey
-identify 全鏈路實戰輪，重寫後未經實機）——adb 恢復（seat0 桌面實體登入）
-後重跑同活動關冷掃，驗手勢方向推動有效性、覆蓋收斂 nudges 數、四邊目視
-偵測、survey 接續 identify、nudge 預算五常數（ANCHOR 8／SCAN 48／RELOC 6／
-STUCK 3／BRING 8 皆離線挑）實機調校、cache bounds 預載第二輪命中；附帶
-確認 `_scout_local`（turn-2+）實際 zoom。整份重寫計畫＋批次驗收見
-coverage-scan-plan.md（狀態＝已執行完畢）。
+**下午實機三輪（輪二~輪四，皆 sonnet 執行、裝置每輪零損耗）**：每輪都在
+覆蓋掃描主體之前的不同層陣亡、每層都是離線測不到的真 bug，逐案定讞後
+落地修復批（詳細證據鏈全在 live-verification-queue.md 佇列 1）：
 
-**裝置現況**：本日未碰實機（同 07-23 凌晨）；戰局仍停活動關 TURN 1
-our-turn hub（可放棄退體力），中止後乾淨無殘留彈窗；adb 正常（凌晨那輪
-能連上跑掃描）；`data/cache/stages/` ex2if schema-3 定義檔在（尚無 map
-size 欄，冷掃重跑時會補寫）。
+- **輪二**（run 20260723-145815）FAIL 於 T3 前置：`zoom_at_max` 窄帶被
+  密集編隊蓋掉誤判 → **批6**（`d13b26a`..`f35b39b`）寬帶 fallback＋pinch
+  中心動態選空地（使用者指示）＋zoom 序列存幀。
+- **輪三**（run 20260723-154731）T3 PASS（批6 生效），FAIL 於邊界偵測：
+  seed/walk 越過真實西緣在星空種幽靈格線 → north=south 偽陽性 → 0 nudge
+  假完成 → **批7**（`c1bd7a7`..`fb1ed3f`）亮度濾波＋自洽 gate＋起點錨定、
+  frontier 語意分離（不一致態顯式 fail）、abort 路徑無條件釋放格線；
+  實機幀入 fixture `west_in_view_20260723.png`。
+- **輪四**（run 20260723-165948）FAIL 於回合入口（覆蓋掃描未觸達）：
+  輪三殘留的**收合單位列表**（批7 之前的 abort 不釋放）讓 `_on_our_turn`
+  的 `unit_cards_present` 誤判「無可行動單位」，tap 疑似誤標的
+  `END_TURN_BTN=(275,182)` 反開單位比較 modal，41 次循環零進展後依紀律
+  中止。**批8 修訂版設計已與使用者定案（見佇列 1），尚未開工**。
+- 另落地：測試衛生修正（`b1a46e1`，RunBlackboard 流水帳導 tmp——pytest
+  汙染真 data/runs/ 的假 run 自 07-21 起即存在，鑑識定讞後修除）；
+  **probe B**（`04b2d24`）單圖 LLM 選 patch vs 確定性基準三模式量測，
+  裁決「作為獨立定位層皆不可行」（alias 高分同調投票擊敗多數決；
+  幾何護欄 verify_offset 被反證必要），LLM tier 維持休眠。
+
+**恢復點＝批8（修訂版，使用者已核設計、待開工）**，之後輪五重跑冷探索：
+1. **觀測三值化（治本）**：新 `unit_list_state(frame) → expanded/collapsed/
+   unknown` 像素探針（切換鈕位置：展開 ▽(1970,780)、收合 ▲(1970,1010)）；
+   `unit_cards_present` 消費者改吃三值，「收合／unknown」永不得當語意答案
+   ——與掃描定案同一認識論（absence of evidence ≠ evidence of absence）。
+   連帶修 `_set_unit_list_open` 自身的同款混淆（展開但卡條真空會被誤讀成
+   收合而點錯切換鈕）。
+2. **handler 前提契約（防線）**：`_on_our_turn` 下「無可行動單位」結論前，
+   前提不滿足先修復（展開列表）再重讀；相位分類器已把關到 phase 層
+   （輪四分類正確、敗在子狀態），前提檢查用廉價像素探針不加截圖成本。
+3. **END_TURN_BTN=(275,182) 離線診斷**：用輪四截圖確認實際命中元素；
+   有證據才改座標，否則標 live probe。回合本會自動推進，此鈕的必要性
+   一併檢視。
+4. **absence-audit**：全庫掃同型觀測（哪些 vision 讀值的 False 混合了
+   「前提不成立」），揪兄弟 bug。
+5. 佇列 1 回寫輪四＋批8 結果。
+輪五協定沿用冷探索（cache 空、`GGGE_INTEL=1 GGGE_STAGE_ID`），批7 的
+三項修復與掃描主體（nudge／frontier／回復協定）仍為零實機驗證。
+
+**裝置現況（輪四收工）**：活動關 EX-2 IF 戰鬥 TURN 1 our-turn hub、
+破壞數 0/15、剩 3 回合敗北限制、一台我方已行動（輪二貪婪攻擊）；
+**格線 ON 殘留＋單位列表收合殘留**（輪三 abort、批7 前行為；批8 主修會
+讓輪五開場自癒，或手動點 ▲(1970,1010) 展開）；unit-detail modal 已由
+sonnet 手動關閉；adb libusb 正常；`data/cache/stages/` 空（冷探索中，
+備份在 `data/cache/stages.bak-20260723/`）；戰局可放棄退體力。
 
 ## 2026-07-21 協調者管線日（前恢復點）
 

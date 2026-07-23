@@ -77,6 +77,35 @@
     **僅記為觀察，不調整標準答案或閾值**；輪四留意若差距擴大再查。
   - **給輪四**：異常A/B/C 已離線修復，需重跑同一冷探索協定驗證覆蓋掃描
     主體能收斂（本輪三卡在 0 nudge，主體從未真正跑過）。
+- **2026-07-23 輪四結果：FAIL 於回合入口（`_on_our_turn`），覆蓋掃描
+  完全未觸達**，run `data/runs/20260723-165948/`（41 次循環零進展後依
+  「同一問題不二次嘗試」紀律手動中止，裝置零損耗）。
+  - 根因：輪三殘留的**收合單位列表**（輪三 abort 跑在批7 之前、未釋放）
+    使 `vision.unit_cards_present`（只掃底部卡條帶）系統性回 False，
+    `_on_our_turn` 誤判「無可行動單位」→ tap `END_TURN_BTN=(275,182)`
+    ——該座標在此狀態實際開出**單位比較 modal**（疑似誤標；證據幀
+    `data/runs/20260723-165948/frames/battle_01/t0001_turn1_unit_detail_modal.jpg`）
+    → modal 自動關閉 → 回收合態，循環。畫面同時持續顯示「請選擇欲行動
+    的單位」＝遊戲認定仍有單位可選的直接反證。
+  - 認識論定性：`unit_cards_present` 的 False 把「讀不到（收合）」與
+    「真沒有（展開且空）」壓成同一值——absence of evidence 被當
+    evidence of absence，與掃描定案「邊界只在看見時成立」同款錯誤。
+    相位分類器層無責（`ACTIONABLE our_turn 0.98` 判定正確）；缺的是
+    handler 內「子狀態前提」的驗證。
+  - **批8（修訂版，2026-07-23 與使用者定案，待開工）**：①觀測三值化
+    ——新 `unit_list_state(frame) → expanded/collapsed/unknown` 像素探針
+    （切換鈕位置：展開 ▽(1970,780)、收合 ▲(1970,1010)；輪四截圖可當
+    收合態 fixture），`unit_cards_present` 消費者改吃三值、收合/unknown
+    永不得當語意答案；連帶修 `_set_unit_list_open` 自身同款混淆（展開
+    但卡條真空被誤讀成收合）。②handler 前提契約——`_on_our_turn` 下
+    「無可行動單位」結論前，前提不滿足先修復（展開）再重讀。
+    ③END_TURN_BTN 離線診斷（輪四截圖），有證據才改座標，否則標 live
+    probe；回合本會自動推進，此鈕必要性一併檢視。④absence-audit：全庫
+    掃「False 混合前提不成立」的同型 vision 讀值。
+  - 批7 三項修復＋掃描主體（nudge／frontier／回復協定）經輪四仍為
+    **零實機驗證**；輪五協定不變（冷探索、`GGGE_INTEL=1 GGGE_STAGE_ID`）。
+  - 裝置末態：TURN 1 hub、0/15、格線 ON＋列表收合殘留（批8 主修會自癒）、
+    modal 已手動關、cache 空（備份 stages.bak-20260723）。
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。
