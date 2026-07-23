@@ -84,6 +84,13 @@ ANCHOR_MAX_NUDGES = 8
 SCAN_MAX_NUDGES = 48
 RELOC_MAX_NUDGES = 6
 STUCK_LIMIT = 3
+# localisation-starving brake (輪七): K consecutive primary-direction refusals
+# with zero coverage progress -- regardless of whether recovery relocated --
+# is a starving scan. The 輪七 failure took 110 nudges / ~9 min to hit the outer
+# budget; K=6 fails honestly in <90s with the refused/relocated tally. Only a
+# new early-stop exit on a path that WOULD have burned the budget; frontier/
+# integrate/localize/recovery-direction semantics are untouched.
+STARVE_LIMIT = 6
 
 # bring_to_view (post-scan survey navigation) budget and its in-region safety
 # band (a target this far inside the tappable region is safe to survey-tap).
@@ -191,6 +198,10 @@ class CoverageScanSource:
     # scan still has to SEE each boundary); dropped + logged the moment the seen
     # geometry contradicts it. None makes the loop bit-identical to a cold scan.
     bounds_hint: tuple[int, int] | None = None
+    # native-resolution diagnostic sink for refused-localisation forensics
+    # (輪七): (frame, tag) -> ledger-relative path, independent of the ledger's
+    # downscaled thumbnail pipeline. None (tests, no ledger) just records no path.
+    diag_save: Callable[[np.ndarray, str], str | None] | None = None
 
     # -- outputs (set by a successful collect) ------------------------------
     census: TacticalMap | None = field(default=None, repr=False)
@@ -216,7 +227,10 @@ class CoverageScanSource:
         ledger closes (all edges seen and every hole either covered or condemned
         unreachable) or the budget runs out."""
         frame = self.start_frame if self.start_frame is not None else self.capture()
-        frame = self._clear_obstruction(frame)
+        self._refused = 0
+        self._relocated = 0
+        self._starve = 0
+        frame = self._clear_full(frame)
         self._map = CellMap(size_hint=self.bounds_hint)
         self._hint_drop_logged = False
         self._nudges = 0
@@ -271,11 +285,31 @@ class CoverageScanSource:
             frame, obs = self._capture_observe()
             report = self._place(frame, obs)
             if report.offset is None:
-                frame, obs = self._recover(frame, obs)
-                continue
+                self._refused += 1
+                self._save_refused(frame)
+                # a docked enemy-selection HUD poisons the whole-frame vote;
+                # clear it and retry placement before spending recovery budget
+                # (輪七). No residue -> same frame, straight to recovery (old
+                # behaviour bit-for-bit).
+                cleared = self._clear_full(frame)
+                if cleared is not frame:
+                    frame = cleared
+                    obs = self.observe(frame)
+                    report = self._place(frame, obs)
+                if report.offset is None:
+                    frame, obs = self._recover(frame, obs)
+                    if self._map.coverage()[0] > before:
+                        self._starve = 0
+                    else:
+                        self._starve += 1
+                        if self._starve >= STARVE_LIMIT:
+                            outcome = "starved"
+                            break
+                    continue
             self._integrate(frame, obs, report)
             after = self._map.coverage()[0]
             self._log_localized(obs, report, after - before)
+            self._starve = 0
             if after > before:
                 self._stuck = 0
             else:
@@ -487,6 +521,7 @@ class CoverageScanSource:
             )
             if report.offset is not None:
                 self._integrate(frame, obs, report)
+                self._relocated += 1
                 self._log("scan_recovery", reason="relocated", nudges=i)
                 return frame, obs
         self._log("scan_recovery", reason="exhausted", nudges=RELOC_MAX_NUDGES)
@@ -502,11 +537,22 @@ class CoverageScanSource:
             unreachable=len(self._unreachable),
             bounds=dict(self._map.bounds),
             nudges=self._nudges,
+            refused=self._refused,
+            relocated=self._relocated,
             outcome=outcome,
+        )
+        stats = (
+            f"{self._refused} refused / {self._relocated} relocated, "
+            f"bounds {dict(self._map.bounds)}"
         )
         if outcome == "inconsistent":
             raise SurveyIncomplete(
                 f"map state inconsistent: {self._inconsistency}"
+            )
+        if outcome == "starved":
+            raise SurveyIncomplete(
+                f"localization starving: {self._starve} consecutive refused "
+                f"with no integration progress; {stats}"
             )
         if outcome in ("complete", "unreachable_only") and self._all_edges_seen():
             self.census, self.bounds = self._map.to_tacmap()
@@ -515,7 +561,8 @@ class CoverageScanSource:
             return self.census
         raise SurveyIncomplete(
             f"coverage scan did not close: covered {covered}/{total}, "
-            f"unreachable {len(self._unreachable)}, edges {dict(self._map.bounds)}"
+            f"unreachable {len(self._unreachable)}, edges {dict(self._map.bounds)}; "
+            f"{stats}"
         )
 
     # -- steering (belief picks direction only, never a coordinate) ---------
@@ -599,11 +646,14 @@ class CoverageScanSource:
         return frame, self.observe(frame)
 
     def _clear_obstruction(self, frame: np.ndarray) -> np.ndarray:
-        """Close whatever a stray scan tap opened over the map -- the unit
-        detail modal freezes panning wholesale (drags slide on screen while the
-        camera does not move). Delegates to map_view.clear_obstruction, the
-        single source of truth; this source's capture/tap/sleep fields satisfy
-        the perception/actuator/sleep seams directly."""
+        """Modal-only obstruction clearing on every capture -- the unit detail
+        modal freezes panning wholesale (drags slide on screen while the camera
+        does not move). Delegates to map_view.clear_obstruction, the single
+        source of truth; this source's capture/tap/sleep fields satisfy the
+        perception/actuator/sleep seams directly. The selection-residue leg is
+        deliberately NOT wired here (no detect passed): it belongs only at the
+        two defence points (_clear_full) so the recovery-capture path keeps its
+        pristine, empty-tap-free semantics (批7 red line)."""
         return map_view.clear_obstruction(
             self,
             self,
@@ -611,6 +661,45 @@ class CoverageScanSource:
             sleep=self.sleep,
             on_close=lambda f: self._log("scan_modal_closed", frame=f),
         )
+
+    def _clear_full(self, frame: np.ndarray) -> np.ndarray:
+        """Full obstruction chain (輪七): modal THEN enemy-selection residue,
+        fail-loud. Wired at exactly two points -- the scan pre-anchor and the
+        fill-loop refused branch -- where a docked comparison HUD would poison
+        localisation. Returns a fresh frame when something was cleared, the same
+        frame object when nothing was (lets the caller cheaply detect a clear).
+        An undismissable residue becomes a loud SurveyIncomplete rather than
+        anchoring on a poisoned frame."""
+        try:
+            return map_view.clear_obstruction(
+                self,
+                self,
+                frame,
+                sleep=self.sleep,
+                detect=self.detect,
+                on_close=lambda f: self._log("scan_modal_closed", frame=f),
+                on_clear_selection=lambda f, pt, i: self._log(
+                    "scan_selection_cleared", point=list(pt), attempt=i
+                ),
+            )
+        except map_view.SelectionResidueStuck as exc:
+            raise SurveyIncomplete(str(exc)) from exc
+
+    def _save_refused(self, frame: np.ndarray) -> None:
+        """Round 1.7 forensics: dump the first 3 refused frames and every 20th
+        after at NATIVE resolution (outside the ledger's downscaled thumbnail
+        pipeline) and record the path in a refused_frame event, so a poisoned
+        localisation can be re-probed offline. self._refused is already bumped."""
+        n = self._refused
+        if not (n <= 3 or n % 20 == 0):
+            return
+        path = None
+        if self.diag_save is not None:
+            try:
+                path = self.diag_save(frame, f"refused{n:03d}")
+            except Exception:
+                path = None
+        self._log("refused_frame", n=n, path=path)
 
     # -- survey navigation --------------------------------------------------
 

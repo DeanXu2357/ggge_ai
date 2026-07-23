@@ -1519,6 +1519,7 @@ class ManualBattleController:
             tap=self.actuator.tap,
             ledger_log=self._log,
             bounds_hint=self._cached_bounds_hint(),
+            diag_save=(self.ledger.save_diag_frame if self.ledger is not None else None),
         )
         nav.pool = self.tacmap
         return nav

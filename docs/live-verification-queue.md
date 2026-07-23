@@ -264,6 +264,15 @@
 
 ## 缺樣本清單（實機順手補拍）
 
+- **選取殘留第二正樣本**（Round 1.7）：`vision.enemy_selection_active` 目前
+  只用單一凍結畫面 `assets/screenshots/20260724-013030.png` 校準（史列加・羅
+  vs G-3鋼彈，同一駕駛/敵機配對），過擬合風險已記入 fixture
+  `tests/fixtures/vision/enemy_selection/residue_space_stage.json` sidecar
+  note。實機遇任一「tap 敵機→比較 HUD」畫面（**不同駕駛/敵機配對、最好非
+  太空圖**）順手全解析度截圖，`scripts/curate_fixture.py --check
+  enemy_selection_active --expect true --format png` 入 `vision/enemy_selection/`，
+  用第二配對重測門檻（0.70）與模板泛化；若第二配對分數低於門檻，改用內容
+  無關的面板 chrome 重新選模板區。
 - 戰鬥設定選單「顯示方格」**toggle OFF 態**截圖（T2 已掃全庫 451 張確認
   缺：ON 態兩張已入 fixture，OFF 態僅合成測試覆蓋；補拍後用
   `scripts/curate_fixture.py` 裁四探針外接框入 `vision/settings/`，PNG）。
