@@ -35,6 +35,7 @@ import numpy as np
 from . import map_view, vision
 from .coverage_map import (
     SIDES,
+    TERRAIN_MIN_OVERLAP,
     CellMap,
     Detector,
     FrameObservation,
@@ -91,6 +92,22 @@ STUCK_LIMIT = 3
 # new early-stop exit on a path that WOULD have burned the budget; frontier/
 # integrate/localize/recovery-direction semantics are untouched.
 STARVE_LIMIT = 6
+
+# 輪十 anchor-evidence gate: the anchor reference must carry localisation
+# evidence before the map commits to it. localize() votes on two sources -- a
+# unit constellation and distinctive per-cell terrain -- so a frame with at
+# least ANCHOR_MIN_UNITS unit peaks OR at least TERRAIN_MIN_OVERLAP distinctive
+# cells is re-findable once the camera moves and is a valid anchor. The 輪十
+# void (camera parked in the empty north-east corner: 0 units + uniform starfield
+# past only the east/north cut-off edges) has neither; anchoring on it strands
+# the scan at margin=null forever (98 nudges, every recovery exhausted). When the
+# start view is that void the loop seeks toward the map interior instead, reusing
+# the ANCHOR_MAX_NUDGES budget, until a unit appears. The terrain half of the
+# gate is why a 0-unit-but-distinctive frame (the 輪七/輪八 starving worlds, the
+# north==south inconsistency frame) is NOT diverted -- it localises on terrain
+# alone and its downstream handling (fill-loop starve, frontier inconsistency)
+# must stay reachable.
+ANCHOR_MIN_UNITS = 1
 
 # bring_to_view (post-scan survey navigation) budget and its in-region safety
 # band (a target this far inside the tappable region is safe to survey-tap).
@@ -243,6 +260,10 @@ class CoverageScanSource:
         obs = self.observe(frame)
         if obs is None:
             raise SurveyIncomplete("coverage scan: anchor frame carried no lattice")
+        # 輪十 anchor-evidence gate: refuse to anchor on an un-re-findable void.
+        # Seeks toward the interior when the start view carries no localisation
+        # evidence; returns a units-bearing frame or fails loud (anchor_starved).
+        frame, obs = self._anchor_seek(frame, obs)
         self._map.anchor(obs)
         self._note_hint_drop()
         # the last frame that localised (pixels + its observation): the LLM assist
@@ -480,13 +501,108 @@ class CoverageScanSource:
 
     # -- phases -------------------------------------------------------------
 
+    @staticmethod
+    def _anchorable(obs: FrameObservation | None) -> bool:
+        """Does this frame carry enough evidence to be a localisation anchor?
+        localize() places later frames by a unit constellation and by distinctive
+        per-cell terrain; a frame strong in EITHER is re-findable once the camera
+        moves. The 輪十 void has neither (0 units + uniform starfield), so it is
+        the only shape the anchor gate diverts. TERRAIN_MIN_OVERLAP is the exact
+        distinctive-cell count localize() needs before it trusts a terrain vote,
+        so it is the honest 'terrain alone can localise this' threshold."""
+        if obs is None:
+            return False
+        return (
+            len(obs.units) >= ANCHOR_MIN_UNITS
+            or len(obs.distinctive) >= TERRAIN_MIN_OVERLAP
+        )
+
+    def _seek_direction(
+        self, frame: np.ndarray, obs: FrameObservation | None, step: int
+    ) -> tuple[Direction, str]:
+        """Which cardinal push brings the map interior (and its units) into view.
+        Frame evidence only (定案 1 -- never a coordinate):
+        1. a visible cut-off edge means the interior lies the opposite way (see
+           the east edge -> go west, see north -> go south); when both a
+           horizontal and a vertical edge show, alternate the two single-axis
+           pushes by step parity (合成單向輪替) so neither axis stalls;
+        2. no edge to lean on -> steer toward the density-peak centroid if the
+           detector still finds peaks the observation dropped (rim-clamped /
+           off-lattice);
+        3. nothing at all -> a fixed probe order so the seek still explores.
+        Returns (direction, basis) for the anchor_seek ledger event."""
+        cx = cy = 0
+        if obs is not None:
+            if obs.edges["east"] is not None:
+                cx -= 1
+            if obs.edges["west"] is not None:
+                cx += 1
+            if obs.edges["north"] is not None:
+                cy += 1
+            if obs.edges["south"] is not None:
+                cy -= 1
+        if cx and cy:
+            return ((cx, 0), "edge") if step % 2 == 0 else ((0, cy), "edge")
+        if cx:
+            return (cx, 0), "edge"
+        if cy:
+            return (0, cy), "edge"
+        try:
+            peaks = self.detect(frame)
+        except Exception:
+            peaks = []
+        if peaks:
+            mx = sum(p[0] for p in peaks) / len(peaks)
+            my = sum(p[1] for p in peaks) / len(peaks)
+            dcol, drow = mx - PAN_CENTER[0], my - PAN_CENTER[1]
+            if abs(dcol) >= abs(drow):
+                return ((1, 0) if dcol > 0 else (-1, 0)), "peak"
+            return ((0, 1) if drow > 0 else (0, -1)), "peak"
+        probe = ((-1, 0), (0, 1), (1, 0), (0, -1))
+        return probe[step % 4], "probe"
+
+    def _anchor_seek(
+        self, frame: np.ndarray, obs: FrameObservation | None
+    ) -> tuple[np.ndarray, FrameObservation]:
+        """輪十 anchor-evidence gate. When the start view already carries
+        localisation evidence (_anchorable) this is a no-op -- returns the frame
+        untouched, zero behaviour change for a healthy start. Otherwise seek the
+        interior: pick a direction from frame evidence, nudge, re-observe, and
+        exit the moment a localisable frame appears. Budgeted by ANCHOR_MAX_NUDGES
+        (an obs=None seek frame still spends a step and continues -- never an
+        infinite wait); the budget spent without a localisable anchor fails loud
+        (anchor_starved) rather than committing to the void."""
+        if self._anchorable(obs):
+            return frame, obs
+        for step in range(ANCHOR_MAX_NUDGES):
+            direction, basis = self._seek_direction(frame, obs, step)
+            self._log(
+                "anchor_seek",
+                dir=_DIR_NAME.get(direction),
+                basis=basis,
+                peaks=(len(obs.units) if obs is not None else 0),
+            )
+            self.nudge(direction, frame)
+            frame, obs = self._capture_observe()
+            if self._anchorable(obs):
+                return frame, obs
+        self._finish("anchor_starved")
+
     def _anchor_phase(
         self, frame: np.ndarray, obs: FrameObservation
     ) -> tuple[np.ndarray, FrameObservation | None]:
         """Drive to the NW corner: nudge toward whichever of west/north is not
         yet seen until both register (map smaller than the viewport finishes at
         once). Best effort -- if the corner resists, Phase B's frontier keeps
-        seeking the unseen edges and the budget is the backstop."""
+        seeking the unseen edges and the budget is the backstop.
+
+        輪十 brake: the same zero-progress streak the fill loop carries
+        (STARVE_LIMIT). A corner push that refuses AND whose recovery cannot
+        relocate is a starving anchor phase; K such in a row fails loud rather
+        than burning the whole ANCHOR_MAX_NUDGES x RELOC_MAX_NUDGES budget on a
+        camera that will not re-anchor (the void the evidence gate already guards
+        the START frame against -- this guards the drive to the corner)."""
+        starve = 0
         for _ in range(ANCHOR_MAX_NUDGES):
             need = [s for s in ("west", "north") if self._map.bounds[s] is None]
             if not need:
@@ -495,10 +611,18 @@ class CoverageScanSource:
             frame, obs = self._capture_observe()
             report = self._place(frame, obs)
             if report.offset is None:
+                before = self._relocated
                 frame, obs = self._recover(frame, obs, report)
+                if self._relocated > before:
+                    starve = 0
+                else:
+                    starve += 1
+                    if starve >= STARVE_LIMIT:
+                        self._finish("anchor_phase_starved")
                 continue
             conflict = self._integrate(frame, obs, report)
             self._log_localized(obs, report, None, conflict)
+            starve = 0
         return frame, obs
 
     def _confirm(
@@ -589,6 +713,16 @@ class CoverageScanSource:
             raise SurveyIncomplete(
                 f"localization starving: {self._starve} consecutive refused "
                 f"with no integration progress; {stats}"
+            )
+        if outcome == "anchor_starved":
+            raise SurveyIncomplete(
+                f"anchor without units: {self._nudges} seek nudges found no "
+                f"localizable reference (0 units, no distinctive terrain); {stats}"
+            )
+        if outcome == "anchor_phase_starved":
+            raise SurveyIncomplete(
+                f"anchor phase starving: {STARVE_LIMIT} consecutive corner "
+                f"pushes refused with no relocation; {stats}"
             )
         if outcome in ("complete", "unreachable_only") and self._all_edges_seen():
             self.census, self.bounds = self._map.to_tacmap()
