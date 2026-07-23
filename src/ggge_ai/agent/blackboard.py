@@ -21,8 +21,11 @@ from ..battle.ledger import BattleLedger
 log = logging.getLogger(__name__)
 
 
+RUNS_ROOT = Path("data/runs")
+
+
 def _default_out_dir() -> Path:
-    return Path("data/runs") / time.strftime("%Y%m%d-%H%M%S")
+    return RUNS_ROOT / time.strftime("%Y%m%d-%H%M%S")
 
 
 @dataclass
