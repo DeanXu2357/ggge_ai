@@ -516,6 +516,33 @@ keyguard 檢查的間隙、正中掃描關鍵讀取瞬間；批7 亮度濾波對
 - 上機＝輪十二：**掃描主體再敗仍維持停工紀律**（將帶原生入口存證
   回來定讞）；PASS 則 identify（R1.9/R1.10 首戰）→暖掃連跑。
 
+## Round 1.12：read_map_lattice seed 離群修剪（輪十二定讞，2026-07-24 使用者核准、待新 session 開工）
+
+### 根因（run `data/runs/20260724-082334/`；原生 diag 幀離線復現、主 session 復核）
+
+見佇列 1 輪十二段。一句話：全幀讀取器 row-seed 在平均帶 (500,1900) 撿到
+頂部 HUD 邊緣離群峰 y=71（與真格線首峰間距 357px 違反 80-160），
+`_lattice_lines()` 的 all() 全有全無一致性檢查**缺窄帶讀取器
+`read_grid_lattice` 自帶的 trim() 離群修剪**→單一離群峰毀掉整條 row
+讀取→observe None→掃描入口 abort。確定性、可離線復現。
+
+### 範圍
+1. `vision.read_map_lattice` 的 seed 一致性檢查補離群修剪（鏡照
+   `read_grid_lattice` 既有 trim() 語意，row/col 兩軸同補）；閾值不動。
+2. 鐵證幀入 fixture：`data/runs/20260724-082334/frames/battle_01/
+   diag_turn1_anchor_no_lattice.png`（2340×1080 原生 PNG）依
+   `tests/fixtures/vision/map_scan/` 慣例入庫＋sidecar。
+3. 先紅後綠：該幀舊碼 `read_map_lattice`=None（紅）、新碼讀出 7 條
+   row 線且與同幀窄帶讀值（rows 428..703、pitch 91-99）一致（綠）。
+4. 批1 九幀真值表與既有 map_scan fixture 全綠**不修改**；全庫基準
+   **883 passed／3 xfailed** 只增不減＋ruff 綠。
+
+### 上機驗證＝輪十三（同冷探索協定）
+- R1.9（臨場複驗）/R1.10（錨定閘門）/R1.11（guard）皆待首戰；期望
+  identify 全鏈路→`survey_complete`＋定義檔匯出（驗收 A1）→暖掃
+  （驗收 A2）連跑。
+- **掃描主體若再敗→停下問使用者**（紀律延續）。
+
 ## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死

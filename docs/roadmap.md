@@ -1,9 +1,9 @@
 # 進度與規劃
 
-更新日期：2026-07-23（最新里程碑＝**07-23 覆蓋驅動掃描重寫日：serpentine
-退役＋覆蓋驅動 CoverageScanSource 五批落地＋cache bounds 預載**（見暫停
-快照）；前一里程碑＝07-21 協調者管線日：操作/辨識分離＋#27 三批＋MP 假設庫
-全離線落地；再前＝07-20 離線地圖拼接＋標準答案落地）
+更新日期：2026-07-24（**現行恢復點＝本檔「暫停快照（2026-07-24 委派迴圈
+session 收工）」段**——委派迴圈 8 修復輪合併＋實機 8 輪、恢復點
+Round 1.12；最新里程碑＝07-24 掃描主體首度滿分收斂（輪九）；前一里程碑
+＝07-23 覆蓋驅動掃描重寫日；再前＝07-21 協調者管線日）
 
 **2026-07-17 離線工程重構（行為不變、非里程碑）**：`ManualBattleController.run()`
 兩項結構整理——① 每圈單次截圖：中斷偵測器（終局/敗北/隱藏關/modal/劇情）
@@ -86,7 +86,7 @@ lambda 內化成表上 `repair` 欄，`ends_activation` 取代散落的 reset。
 503 tests/3 xfail、ruff 全綠；文件 battle-phase-states.md「期望轉移驗證」。
 **裝置現況與 S9 恢復點不變，見下。**
 
-## 暫停快照（2026-07-23 覆蓋驅動掃描重寫日，恢復點）
+## 2026-07-23 覆蓋驅動掃描重寫日（前恢復點）
 
 **本日（純離線、未碰實機）**：07-23 凌晨 serpentine cutover 首次實機
 survey_abort，根因＝**偵測器域錯配**（弧偵測 battle-zoom 校準 vs T3 最小
@@ -214,6 +214,38 @@ refused 路徑無煞車無存證。**恢復點＝Round 1.7（選取殘留偵測�
 解除鏈＋定位飢餓煞車＋refused 原生存證，規格在
 scan-flow-robustness-plan.md）**，之後輪八同協定——開場殘留在場即前置
 防禦首戰。裝置：TURN 1 hub、殘留在場勿手動清、9/10 可行動、cache 空。
+
+## 暫停快照（2026-07-24 委派迴圈 session 收工，恢復點）
+
+**本 session 戰果**：委派迴圈 8 個修復輪全數合併（Round 1／1.5～1.11，
+tip `cd44e20`，**883 passed／3 xfailed、ruff 綠**，測試 810→883）；實機
+8 輪（輪五~輪十二）。**已實戰驗證**：批8 回合入口自癒、identify 疊層
+安全化（unit_move 機制通道）、navigator 生命週期、選取殘留防禦（一次
+解除）、飢餓煞車（130 秒早停）、地形指紋 first-write-wins（輪九掃描
+主體滿分：552/552、10 nudges、首擊 100%、四邊全註冊）、refused／
+anchor 原生存證管線。**逐輪敗因鏈**（全部定讞、詳細證據在
+live-verification-queue.md 佇列 1）：輪五 identify 盲重試→R1.5；輪六
+`bring_to_view` 生命週期崩潰＋late-arrival 跳 scout→R1.6；輪七選取
+殘留污染→R1.7；輪八地形 LWW 錯位死鎖→R1.8；輪九 identify 幽靈候選
+→R1.9；輪十錨定零單位→R1.10；輪十一/十二掃描入口 no-lattice→省電鎖
+假說（R1.11）被輪十二原生鐵證推翻，**真根因＝`read_map_lattice`
+row-seed 撞 HUD 邊緣離群峰、缺 trim()（確定性、已離線復現）**。
+
+**恢復點＝Round 1.12（規格已落檔 scan-flow-robustness-plan.md、使用者
+已核准，新 session 直接派 opus worktree 開工）**：seed 離群修剪＋鐵證
+幀 fixture 先紅後綠。之後輪十三（R1.9/1.10/1.11 皆待首戰；期望 A1 冷掃
+＋A2 暖掃落袋）→Round 2 GOAP 化→跨家族第二關（總計畫與驗收 A1-A5 在
+plan 檔 `~/.claude/plans/adb-adb-libusb-1-whimsical-hopper.md`）。
+**紀律**：掃描主體再敗→停問使用者；省電鎖使用者已確認不可調。
+
+**裝置現況**：TURN 1 our-turn hub（EX-2 IF、0/15、剩 3 回合敗北限制、
+9/9 卡可行動）、乾淨無殘留、格線 off、閒置變暗中（keyguard 自解）、
+`data/cache/stages/` 空（備份 stages.bak-20260723/）、adb libusb 正常、
+戰局可棄退體力。孤兒 worktree `8b1b6df`（probe B）依使用者裁決續擱置。
+subagent 額度 settings 已調 40（新 session 生效）。**收尾待辦**（驗收
+A5 時處理）：flaky `test_not_actionable` 計時競態、name 轉錄
+`FORECAST_LEFT_NAME_REGION` 跨螢幕挪用、absence-audit 清單立 issue、
+`_scout_local` 觀察（歷輪皆未達 turn-2）。
 
 ## 2026-07-21 協調者管線日（前恢復點）
 
