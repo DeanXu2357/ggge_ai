@@ -146,6 +146,43 @@ def test_west_in_view_no_phantom_north_south():
     )
 
 
+def test_hud_edge_outlier_row_seed_trimmed():
+    """Regression for the 07-24 run-12 scan-entry survey_abort (issue #26, live
+    round 12). Native hardware frame: the full-frame row seed over the (500,1900)
+    averaging band picks up a spurious peak at y=71 on the top HUD banner edge,
+    whose 357px gap to the first real gridline (428) violates the (80,160)
+    lattice band. Before the fix _lattice_lines' all-or-nothing gap check voided
+    the whole row axis on that one outlier, so read_map_lattice returned None and
+    the coverage scan aborted. The seed-trim (mirroring read_grid_lattice's) must
+    drop y=71 and keep the seven clean rows, so the lattice reads with a ~97px
+    row pitch consistent with the same frame's narrow-band read."""
+    spec = json.loads(
+        (MAP_SCAN / "hud_edge_outlier_20260724.json").read_text(encoding="utf-8")
+    )
+    frame = cv2.imread(str(MAP_SCAN / spec["image"]))
+    # the raw seed still carries the HUD-edge outlier; the fix trims it, it does
+    # not suppress the peak, so this holds before and after the fix
+    hp = vision._full_highpass(frame)
+    profile = vision._axis_profile(
+        hp, "rows", vision.MAP_LATTICE_ROW_BAND, *vision.MAP_LATTICE_ROW_SEED_SPAN
+    )
+    raw_seed = vision._lattice_seed(profile, vision.MAP_LATTICE_ROW_SEED_SPAN[0])
+    assert raw_seed[0] == 71, f"expected HUD-edge outlier at 71, got {raw_seed[0]}"
+    assert raw_seed[1] - raw_seed[0] > vision.MAP_LATTICE_MAX_SPACING, (
+        "outlier gap should violate the lattice band"
+    )
+    lat = vision.read_map_lattice(frame)
+    assert lat is not None, "seed outlier voided the whole lattice (unfixed)"
+    lo, hi = spec["row_pitch_range"]
+    assert lo <= lat.row_pitch <= hi, f"row pitch {lat.row_pitch} outside [{lo},{hi}]"
+    clean = spec["expect_rows"]
+    assert len(clean) == 7
+    for y in clean:
+        assert any(abs(y - r) <= 3 for r in lat.rows), (
+            f"clean row {y} missing from {lat.rows}"
+        )
+
+
 def test_phase_pressure_midcell_start_no_false_edge(images):
     """Phase pressure: the outward edge walk must not read a false interior edge
     when the bare lattice midpoint lands mid-cell. pt7 shows only an east edge

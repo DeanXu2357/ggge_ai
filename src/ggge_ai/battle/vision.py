@@ -734,6 +734,18 @@ def _lattice_lines(
 ) -> list[int] | None:
     profile = _axis_profile(hp, axis, band, seed_span[0], seed_span[1])
     seed = _lattice_seed(profile, seed_span[0])
+    # a boundary seed peak whose gap to its neighbour falls outside the lattice
+    # band is screen furniture (a HUD banner edge, not grid); trim it -- mirroring
+    # read_grid_lattice's trim() -- so one outlier cannot void the whole axis
+    # through the all-or-nothing consistency check below
+    while len(seed) >= 2 and not (
+        MAP_LATTICE_MIN_SPACING <= seed[1] - seed[0] <= MAP_LATTICE_MAX_SPACING
+    ):
+        seed.pop(0)
+    while len(seed) >= 2 and not (
+        MAP_LATTICE_MIN_SPACING <= seed[-1] - seed[-2] <= MAP_LATTICE_MAX_SPACING
+    ):
+        seed.pop()
     if len(seed) < 4:
         return None
     gaps = [b - a for a, b in zip(seed, seed[1:])]

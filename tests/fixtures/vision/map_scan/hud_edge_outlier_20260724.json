@@ -1,0 +1,9 @@
+{
+  "image": "hud_edge_outlier_20260724.png",
+  "source": "data/runs/20260724-082334/frames/battle_01/diag_turn1_anchor_no_lattice.png",
+  "run": "data/runs/20260724-082334/",
+  "canvas_size": [2340, 1080],
+  "expect_rows": [428, 519, 610, 703, 799, 896, 995],
+  "row_pitch_range": [91, 99],
+  "note": "實機輪十二 (run 20260724-082334、#26 現場驗證迴圈第 12 輪) 掃描入口 anchor 段 survey_abort 的原生鐵證幀（2340×1080 原生 PNG、非合成；diag mean 34.8 明亮正常，省電鎖假說已推翻）。read_map_lattice 全幀 row-seed 在平均帶 (500,1900) 撿到 8 峰 [71,428,519,610,703,799,896,995]：y=71 是頂部 HUD 橫幅邊緣、非真格線，與下峰 428 間距 357px 違反 (80,160) lattice 帶。_lattice_lines 的 all() 全有全無一致性檢查缺窄帶讀取器 read_grid_lattice 自帶的 trim() 離群修剪，單一離群峰即毀掉整條 row → read_map_lattice=None → observe None → 掃描入口 abort。修法＝seed 補離群修剪（row/col 兩軸同補、閾值不動）：剪掉 y=71 後 7 條乾淨列 [428..995] gaps [91,91,93,96,97,99] 全在帶內、pitch≈97；與同幀窄帶 read_grid_lattice 讀值 (rows 428..703、pitch 91-93) 一致。與輪三異常A（west_in_view starfield 幽靈直格）同源不同函式。"
+}
