@@ -55,9 +55,18 @@ worktree。
 BattleController2 tick 迴圈＋flow_* ledger 事件）＋`map_view.
 expand_unit_list`（collapse 位元級等價委派）；controller.py／goap/／
 vision.py／settings.py 零觸碰；dimmed 偵測缺樣（值域保留、永不
-emit）。複核修正一處：tick 語意定調「逐步驗證執行」（原草案「只執行
-第一步」與定案 2 分流規則矛盾）。**恢復點＝Round 2.1（巨集＋逐單位
-動作＋goal＋run_sync_map.py，離線）→ Round 2.2 實機 probe**。
+emit）。**Round 2.0 首版 `run()` 做成 AgentLoop 式雙層巢狀（外圈規劃／內圈
+執行），使用者複核判定退化成 controller 1 的 router、違反流程層
+「規劃/執行解耦」價值主張，駁回**。已插入並完成 **Round 2.05
+`run()` 扁平化重塑**（`1d7fde1`）：改成單層 persistent-queue 骨架
+（queue／pending 跨 tick 存活、`plan()` 只在 queue 空時補貨、單一
+判斷入口、每 tick 一步一截圖），分流規則與所有 `flow_*` 事件逐條
+等價、只有結構扁平化；925 passed／4 skipped／3 xfailed 逐位元不變、
+ruff 綠、無測試需改。規格「tick 語意」節已改定案為此形狀＋補結構
+驗收條款（禁第二層執行迴圈、`plan()` 只在 queue 空分支、queue／
+pending 迴圈外變數）杜絕再漂。**恢復點＝Round 2.1（巨集＋逐單位
+動作＋goal＋run_sync_map.py，離線，在扁平 `run()` 上擴充）→
+Round 2.2 實機 probe**。
 
 **裝置現況**：TURN 1 our-turn hub（EX-2 IF、0/15、剩 3 回合敗北限制、
 9/9 卡可行動）、乾淨無殘留、格線 off、閒置變暗中（keyguard 自解）、
