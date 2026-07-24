@@ -1522,6 +1522,11 @@ class ManualBattleController:
             ledger_log=self._log,
             bounds_hint=self._cached_bounds_hint(),
             diag_save=(self.ledger.save_diag_frame if self.ledger is not None else None),
+            # Round 1.11: a mid-scan battery-saver touch lock dims the frame
+            # between the controller's 15s keyguard checks and starves the
+            # scan's anchor read; wire the same keyguard so a refused observation
+            # can poke it and retry (failure-response, no per-frame adb cost).
+            guard=(self.keyguard.ensure_unlocked if self.keyguard is not None else None),
         )
         nav.pool = self.tacmap
         return nav

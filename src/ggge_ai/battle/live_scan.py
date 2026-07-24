@@ -219,6 +219,15 @@ class CoverageScanSource:
     # (輪七): (frame, tag) -> ledger-relative path, independent of the ledger's
     # downscaled thumbnail pipeline. None (tests, no ledger) just records no path.
     diag_save: Callable[[np.ndarray, str], str | None] | None = None
+    # Round 1.11 keyguard defence: the controller wires keyguard.ensure_unlocked
+    # here. The game's battery-saver touch lock can dim the frame between the
+    # controller's 15s keyguard checks -- mid-scan, at the exact read that anchors
+    # the survey -- and 批7's brightness filter then starves the darkened frame of
+    # gridline votes (observe -> None). Poked ONLY on a failed observation
+    # (failure-response, not per-frame, to bound adb cost) so the caller can
+    # re-capture and retry once. None (legacy, no keyguard) is a no-op and leaves
+    # every path bit-identical; it never counts as a nudge (spends no scan budget).
+    guard: Callable[[], None] | None = None
 
     # -- outputs (set by a successful collect) ------------------------------
     census: TacticalMap | None = field(default=None, repr=False)
@@ -259,7 +268,20 @@ class CoverageScanSource:
 
         obs = self.observe(frame)
         if obs is None:
-            raise SurveyIncomplete("coverage scan: anchor frame carried no lattice")
+            # 輪十一: a no-lattice anchor read is the last frame the batch7
+            # brightness filter starved -- most likely the battery-saver touch
+            # lock dimming mid-scan. Stash the native frame BEFORE any recovery
+            # (the entry path had no forensics -- only downscaled thumbnails --
+            # so the hypothesis could not be settled offline), poke the guard to
+            # dismiss a lock, then re-capture and re-observe once.
+            diag_path = self._save_diag(frame, "anchor_no_lattice")
+            self._guard()
+            frame, obs = self._capture_observe()
+            if obs is None:
+                detail = f" (diag {diag_path})" if diag_path else ""
+                raise SurveyIncomplete(
+                    f"coverage scan: anchor frame carried no lattice{detail}"
+                )
         # 輪十 anchor-evidence gate: refuse to anchor on an un-re-findable void.
         # Seeks toward the interior when the start view carries no localisation
         # evidence; returns a units-bearing frame or fails loud (anchor_starved).
@@ -308,25 +330,35 @@ class CoverageScanSource:
             if report.offset is None:
                 self._refused += 1
                 self._save_refused(frame, report, obs)
-                # a docked enemy-selection HUD poisons the whole-frame vote;
-                # clear it and retry placement before spending recovery budget
-                # (輪七). No residue -> same frame, straight to recovery (old
-                # behaviour bit-for-bit).
-                cleared = self._clear_full(frame)
-                if cleared is not frame:
-                    frame = cleared
-                    obs = self.observe(frame)
+                # 輪十一: a refusal can be the battery-saver touch lock dimming
+                # the frame between the controller's 15s keyguard checks. Poke
+                # the guard and re-capture ONCE before spending clear/recovery
+                # budget on it. Gated on a wired guard so the legacy path is
+                # bit-identical; the re-capture is not a nudge.
+                if self.guard is not None:
+                    self._guard()
+                    frame, obs = self._capture_observe()
                     report = self._place(frame, obs)
                 if report.offset is None:
-                    frame, obs = self._recover(frame, obs, report)
-                    if self._map.coverage()[0] > before:
-                        self._starve = 0
-                    else:
-                        self._starve += 1
-                        if self._starve >= STARVE_LIMIT:
-                            outcome = "starved"
-                            break
-                    continue
+                    # a docked enemy-selection HUD poisons the whole-frame vote;
+                    # clear it and retry placement before spending recovery
+                    # budget (輪七). No residue -> same frame, straight to
+                    # recovery (old behaviour bit-for-bit).
+                    cleared = self._clear_full(frame)
+                    if cleared is not frame:
+                        frame = cleared
+                        obs = self.observe(frame)
+                        report = self._place(frame, obs)
+                    if report.offset is None:
+                        frame, obs = self._recover(frame, obs, report)
+                        if self._map.coverage()[0] > before:
+                            self._starve = 0
+                        else:
+                            self._starve += 1
+                            if self._starve >= STARVE_LIMIT:
+                                outcome = "starved"
+                                break
+                        continue
             conflict = self._integrate(frame, obs, report)
             after = self._map.coverage()[0]
             self._log_localized(obs, report, after - before, conflict)
@@ -584,6 +616,14 @@ class CoverageScanSource:
             )
             self.nudge(direction, frame)
             frame, obs = self._capture_observe()
+            # 輪十一: a seek step that reads no lattice may be the battery-saver
+            # touch lock dimming the frame -- poke the guard and re-capture once
+            # before spending another seek step (or condemning the anchor void).
+            # Gated on a wired guard so the legacy seek is bit-identical; the
+            # re-capture is not a nudge.
+            if obs is None and self.guard is not None:
+                self._guard()
+                frame, obs = self._capture_observe()
             if self._anchorable(obs):
                 return frame, obs
         self._finish("anchor_starved")
@@ -855,6 +895,30 @@ class CoverageScanSource:
         except map_view.SelectionResidueStuck as exc:
             raise SurveyIncomplete(str(exc)) from exc
 
+    def _guard(self) -> None:
+        """Round 1.11 failure-response keyguard defence. Poke the injected guard
+        (the controller wires keyguard.ensure_unlocked) so the game's
+        battery-saver touch lock -- which dims the frame and starves 批7's
+        brightness filter of gridline votes, invisible to the controller's 15s
+        keyguard cadence -- is dismissed before the caller re-captures and retries.
+        A no-op when no guard is wired (legacy, bit-identical). Never a nudge: it
+        spends no scan budget."""
+        if self.guard is not None:
+            self.guard()
+
+    def _save_diag(self, frame: np.ndarray, tag: str) -> str | None:
+        """Stash a NATIVE-resolution diagnostic frame via the diag_save seam
+        (outside the ledger's downscaled thumbnail pipeline) and return its
+        ledger-relative path, or None when no sink is wired or the save fails.
+        The single seam for scan forensics (refused frames + the 輪十一 entry
+        no-lattice存證)."""
+        if self.diag_save is None:
+            return None
+        try:
+            return self.diag_save(frame, tag)
+        except Exception:
+            return None
+
     def _save_refused(
         self, frame: np.ndarray, report: LocalizeReport, obs: FrameObservation | None
     ) -> None:
@@ -870,12 +934,7 @@ class CoverageScanSource:
         n = self._refused
         if not (n <= 3 or n % 20 == 0):
             return
-        path = None
-        if self.diag_save is not None:
-            try:
-                path = self.diag_save(frame, f"refused{n:03d}")
-            except Exception:
-                path = None
+        path = self._save_diag(frame, f"refused{n:03d}")
         self._log(
             "refused_frame",
             n=n,
