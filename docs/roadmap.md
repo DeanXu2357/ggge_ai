@@ -1,9 +1,10 @@
 # 進度與規劃
 
 更新日期：2026-07-24（**現行恢復點＝本檔「暫停快照（2026-07-24 委派迴圈
-session 收工）」段**——委派迴圈 8 修復輪合併＋實機 8 輪、恢復點
-Round 1.12；最新里程碑＝07-24 掃描主體首度滿分收斂（輪九）；前一里程碑
-＝07-23 覆蓋驅動掃描重寫日；再前＝07-21 協調者管線日）
+session 收工）」段**——委派迴圈 8 修復輪合併＋實機 8 輪＋同日 Round 1.12
+離線合併、恢復點 Round 1.13（待上機）；最新里程碑＝07-24 掃描主體首度
+滿分收斂（輪九）；前一里程碑＝07-23 覆蓋驅動掃描重寫日；再前＝07-21
+協調者管線日）
 
 **2026-07-17 離線工程重構（行為不變、非里程碑）**：`ManualBattleController.run()`
 兩項結構整理——① 每圈單次截圖：中斷偵測器（終局/敗北/隱藏關/modal/劇情）
@@ -231,11 +232,25 @@ live-verification-queue.md 佇列 1）：輪五 identify 盲重試→R1.5；輪�
 假說（R1.11）被輪十二原生鐵證推翻，**真根因＝`read_map_lattice`
 row-seed 撞 HUD 邊緣離群峰、缺 trim()（確定性、已離線復現）**。
 
-**恢復點＝Round 1.12（規格已落檔 scan-flow-robustness-plan.md、使用者
-已核准，新 session 直接派 opus worktree 開工）**：seed 離群修剪＋鐵證
-幀 fixture 先紅後綠。之後輪十三（R1.9/1.10/1.11 皆待首戰；期望 A1 冷掃
-＋A2 暖掃落袋）→Round 2 GOAP 化→跨家族第二關（總計畫與驗收 A1-A5 在
-plan 檔 `~/.claude/plans/adb-adb-libusb-1-whimsical-hopper.md`）。
+**同日稍晚（新 session 主 session 驗證整合，純離線、未碰裝置）**：
+Round 1.12（`read_map_lattice` seed 離群修剪，鏡照 `read_grid_lattice`
+既有 `trim()`、閾值不動）由 opus worktree agent 依規格開工，主 session
+複核 diff＋在該 worktree 重跑全套 pytest/ruff 後 fast-forward 合併
+（`869114a`）：先紅後綠驗證——舊碼在鐵證幀 `hud_edge_outlier_20260724.
+png`（源自輪十二 `diag_turn1_anchor_no_lattice.png`）上因頂部 HUD 邊緣
+離群峰（y=71，與下峰間距 357px 違反 80-160）觸發全有全無檢查判 `None`
+（紅）；補離群修剪後讀出 7 條乾淨列、pitch≈97，與同幀窄帶讀值一致
+（綠）。880 passed／4 skipped（既有 skipif、與本次改動無關）／3 xfailed、
+ruff 全綠，九幀標準答案表與既有 fixture 全數不受影響、閾值未動。已清
+worktree。
+
+**恢復點＝Round 1.13（輪十三，同冷探索協定，待上機）**：R1.9/1.10/1.11/
+1.12 皆待首戰（R1.11 的 guard 機制已在輪十二正確觸發過一次，但因當下
+無鎖是 no-op，其「真的從變暗恢復」路徑仍零實機曝光）；期望 A1 冷掃
+＋A2 暖掃落袋→Round 2 GOAP 化（草案，待輪十三結果回報後由主 session
+重新規劃細節，見 scan-flow-robustness-plan.md）→跨家族第二關（總計畫
+與驗收 A1-A5 在 plan 檔
+`~/.claude/plans/adb-adb-libusb-1-whimsical-hopper.md`）。
 **紀律**：掃描主體再敗→停問使用者；省電鎖使用者已確認不可調。
 
 **裝置現況**：TURN 1 our-turn hub（EX-2 IF、0/15、剩 3 回合敗北限制、
