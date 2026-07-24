@@ -77,23 +77,73 @@
 分離定案）。無 fixture 證據的新探針不猜閾值——標 unknown-capable＋
 記入缺樣清單（「沒有新截圖證據不動閾值」紅線）。
 
-## tick 語意
+## tick 語意（**2026-07-24 使用者定案：扁平 persistent-queue，規劃／
+執行／判斷三者解耦，禁止巢狀 plan-execute 迴圈**）
 
-每 tick：keyguard 前置 → 單次截圖 → translator（frame＋probe＋黑板→
-WorldState）→ goal 檢查 → A* 規劃 → **逐步執行計畫、每步之間重感知
-驗證**；diff 打中剩餘計畫（或 goal）依賴的 keys、或動作原地卡住，
-當場放棄計畫 replan（**2026-07-24 Round 2.0 複核修正**：原草案寫
-「只執行計畫第一步」，但定案 2 的「無關 diff→續走」分流本就預設
-計畫能續走，兩者矛盾，以逐步驗證執行為準）。
+**設計紅線（結構層，非行為層）**：`run()` 是**單層** while 迴圈；規劃
+是「queue 空了才補貨」的事件、不是迴圈層級的每圈動作；action queue
+**跨 tick 存活**；每個 tick 恰好一次截圖、一個判斷入口、執行 queue
+的一步。這是本層的價值主張——宣告式動作＋規劃器解耦，不是把寫死
+順序包成 A* 儀式再塞回巢狀執行迴圈（Round 2.0 首版做成 AgentLoop
+式雙層巢狀＝退化成 controller 1 的 router，已定調重塑）。
 
-- 預期 effect 成立 → 續。
-- 非預期變化 → ledger 記 `unplanned_transition`（from／to／上一動作／
-  diff keys）；diff 只碰剩餘計畫不依賴的 keys → 續走，否則 replan。
-- 零變化 → 失敗計數，有界（沿用 LoopConfig 形態）後 fail loud。
+單層迴圈骨架（語意權威，實作照此結構）：
+
+```
+queue = []          # 剩餘計畫，跨 tick 存活
+pending = None      # 上一 tick 執行、待本 tick 感知確認的動作＋當時 deps／state／ok
+
+while replans <= max_replans:
+    keyguard 前置
+    frame, state = 感知()          # 每 tick 恰好一次截圖
+    log flow_tick(state)
+
+    # ── 單一判斷入口 ──
+    if goal 滿足(state): return True
+    if pending: 判斷(pending, state)   # 見下：effect 成立／無害 diff → 保留 queue；
+                                       #       打中依賴／卡住 → 清空 queue（→ 下方自然 replan）；
+                                       #       達失敗上限 → fail loud return False
+    if view=unknown 且非可清障礙:
+        清空 queue；有界等待＋節流 diag；超時 fail loud；continue
+
+    # ── 規劃＝補貨事件（queue 空才觸發）──
+    if not queue:
+        queue = plan(state, goal, actions)   # PlanNotFound → fail loud＋state dump
+        replans += 1; log flow_plan(queue)
+
+    # ── 執行 queue 一步 ──
+    action = queue.pop(0)
+    deps = 剩餘 queue（＋goal）依賴的 keys
+    execute(action); sleep(settle)
+    pending = (action, deps, state, ok)      # 下一 tick 感知後才判斷
+```
+
+判斷（pending 對本 tick 新 state）——與 Round 2.0 分流規則逐條等價，
+只是移到單一入口、對 queue 動作而非對巢狀 for 的 break/continue：
+
+- `ok` 且 effect 成立 → 確認，失敗計數歸零，**保留 queue**。
+- 非預期變化（diff 非空）→ ledger 記 `unplanned_transition`（from／
+  to／上一動作／diff keys），失敗計數歸零；diff 只碰剩餘 queue 不
+  依賴的 keys → **保留 queue**（續走），否則 **清空 queue**（replan）。
+- 零變化 → 失敗計數＋1，達 `max_consecutive_failures` → fail loud；
+  否則 **清空 queue**（replan）。
 - `view=unknown` → 有界等待＋原生 diag 存幀（節流），超時誠實中止。
 - `PlanNotFound` → 中止＋state dump（「沒準備的情況」的明確訊號）。
 
-ledger 新事件：`flow_plan`（計畫全文）、`flow_tick`（state 快照）、
+與 Round 2.0 巢狀版的**刻意差異**（重塑輪逐項記錄，皆為改善或中性）：
+
+1. 每 tick 單次截圖——巢狀版 replan（inner break）時外圈會再截一次，
+   扁平版天然無雙截。
+2. keyguard／unknown 檢查／`flow_tick` 現在**每步**發生（單一判斷
+   入口），巢狀版只在每個 plan 開頭發生；扁平版能在步與步之間接住
+   中途冒出的 unknown／變暗，更貼近 Round 1.11 的失敗回應精神。
+   `flow_tick` 因此每 tick 一筆（觀測性更細）——計數這類事件的既有
+   測試需隨語意更新並記錄。
+3. 動作**呼叫順序**、`flow_plan`／`unplanned_transition`／`flow_abort`
+   的**內容與觸發條件**逐條保持不變（既有 flow 測試對這些的斷言
+   不得改動）。
+
+ledger 事件：`flow_plan`（計畫全文）、`flow_tick`（state 快照）、
 `unplanned_transition`、`flow_unknown`（含幀路徑）、`flow_abort`。
 
 ## 動作目錄
@@ -157,7 +207,35 @@ replan 分流規則單元測試、三值 unknown 永不當已知答案。
 紅線：`controller.py` 行為零改動（抽出＋委派須位元級等價）、
 `goap/` 零改動、scan／survey 內部零改動、無新截圖證據不動任何閾值。
 
+**Round 2.0 已合併（`ca99e89`）但 `run()` 做成 AgentLoop 式雙層巢狀
+（外圈規劃／內圈執行）——退化成 controller 1 的 router、違反本層
+「規劃／執行解耦」的價值主張，使用者複核駁回，插入 Round 2.05 重塑。**
+
+### Round 2.05：`run()` 扁平化重塑（opus worktree，純離線）
+
+**唯一範圍**：把 `controller2.py` 的 `run()` 從雙層巢狀改成上節
+「tick 語意」的**單層 persistent-queue** 骨架——規劃＝queue 補貨
+事件、queue 跨 tick 存活、單一判斷入口、每 tick 一步一截圖。分流
+規則（effect 成立／無害 diff 續走／打中依賴或卡住 replan／unknown
+等待／PlanNotFound dump）與所有 `flow_*` 事件的**內容與觸發條件
+逐條等價**；只有結構從巢狀變扁平。
+
+- **只動 `run()`（與必要的私有 helper 如 `_plan_deps`／`_judge`
+  抽取）**；`vocabulary.py`／`actions.py`／`map_view.py`／`goap/`
+  零改動。
+- 既有 flow 測試中對**動作呼叫順序、`flow_plan`／
+  `unplanned_transition`／`flow_abort` 內容與觸發**的斷言全綠不改；
+  對 `flow_tick`／keyguard **計數**的斷言若因單一判斷入口而位移，
+  逐條更新並在 commit 訊息記錄理由（上節「刻意差異」1-3）。
+- 結構驗收（**杜絕再漂**）：`run()` 內不得有第二層 `for`／`while`
+  在同一次規劃結果上逐步執行；`plan()` 呼叫點只能在 `if not queue`
+  分支內；queue 與 pending 是跨 tick 存活的迴圈外變數。
+- 基準 925 passed／4 skipped／3 xfailed 只增不減＋ruff 綠。
+
 ### Round 2.1：巨集＋逐單位動作＋goal（opus worktree，純離線）
+
+**前置**：Round 2.05 已合併（`run()` 已是扁平 queue 形狀），本輪
+在其上擴充動作目錄與 goal，不再碰 `run()` 骨架。
 
 範圍：`LoadStageDef`／`RunCoverageScan`／`ValidateAgainstDef`／
 `SurveyUnit(c)`／`SyncSim`／`SaveStageDef`＋`SyncInitialMap` goal＋
