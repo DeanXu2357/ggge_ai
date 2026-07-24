@@ -320,6 +320,46 @@ def test_collapse_unit_list_rejects_modal_as_collapsed():
     assert map_view.UNIT_DETAIL_CLOSE in a.taps  # cleared the modal first
 
 
+def test_expand_unit_list_returns_true_when_already_expanded():
+    p = FakePerception(["hub"])
+    p.list_state = "expanded"
+    _bind(p)
+    a = FakeActuator(p)
+    assert map_view.expand_unit_list(p, a, sleep=lambda s: None) is True
+    assert a.taps == []  # already expanded: no toggle tap
+
+
+def test_expand_unit_list_taps_expand_toggle_when_collapsed():
+    # the mirror of collapse: from a positively-read collapsed strip, tap the ▲
+    # expand toggle (never the ▽ collapse one) to open it.
+    p = FakePerception(["hub"])
+    p.list_state = "collapsed"
+    _bind(p)
+    a = FakeActuator(p)
+
+    def tap(x, y):
+        a.taps.append((x, y))
+        if (x, y) == map_view.UNIT_LIST_EXPAND:
+            _CUR["list_state"] = "expanded"
+
+    a.tap = tap
+    assert map_view.expand_unit_list(p, a, sleep=lambda s: None) is True
+    assert map_view.UNIT_LIST_EXPAND in a.taps
+    assert map_view.UNIT_LIST_COLLAPSE not in a.taps
+
+
+def test_expand_unit_list_rejects_modal_as_expanded():
+    # three-valued: a covering modal reads "unknown", never accepted as the
+    # target; the obstruction is cleared before any conclusion.
+    p = FakePerception(["hub"])
+    p.modal = True
+    p.list_state = "collapsed"
+    _bind(p)
+    a = FakeActuator(p)
+    assert map_view.expand_unit_list(p, a, sleep=lambda s: None) is False
+    assert map_view.UNIT_DETAIL_CLOSE in a.taps  # cleared the modal first
+
+
 def test_ensure_max_view_reaches_hub_and_collapses_list():
     p = FakePerception(["unit_move", "hub"])
     p.list_state = "expanded"

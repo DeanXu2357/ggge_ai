@@ -41,6 +41,7 @@ RETURN_BUTTON = "btn_battle_return"
 
 # card-strip toggle: ▽(1970,780) collapses an open strip, ▲(1970,1010) expands
 UNIT_LIST_COLLAPSE = (1970, 780)
+UNIT_LIST_EXPAND = (1970, 1010)
 UNIT_DETAIL_CLOSE = (1176, 992)
 
 # classify_frame's return vocabulary, kept as a named closed set: classify_frame
@@ -261,6 +262,33 @@ def return_to_top(
     return is_top_hub(perception)
 
 
+def _drive_unit_list(
+    perception,
+    actuator,
+    *,
+    target: str,
+    toggle_tap: tuple[int, int],
+    sleep: Callable[[float], None],
+    attempts: int,
+) -> bool:
+    """Drive the actionable-unit card strip to ``target`` (collapsed/expanded).
+    Reads the toggle three-valued: a positive read of the opposite state taps
+    ``toggle_tap`` to flip it, "unknown" (a covering modal or unreadable toggle)
+    clears the obstruction and re-reads -- never accepted as an answer (the
+    07-23 輪四 conflation). Returns True only on a positive ``target`` read."""
+    for _ in range(attempts):
+        frame = perception.capture()
+        state = vision.unit_list_state(frame)
+        if state == target:
+            return True
+        if state == vision.UNIT_LIST_UNKNOWN:
+            clear_obstruction(perception, actuator, frame, sleep=sleep)
+            continue
+        actuator.tap(*toggle_tap)
+        sleep(1.2)
+    return vision.unit_list_state(perception.capture()) == target
+
+
 def collapse_unit_list(
     perception, actuator, *, sleep: Callable[[float], None] = time.sleep, attempts: int = 2
 ) -> bool:
@@ -269,17 +297,31 @@ def collapse_unit_list(
     (a covering modal or an unreadable toggle), which the old brightness-only
     ``not unit_cards_present`` accepted as collapsed (the 07-23 輪四 conflation).
     On "unknown", clear the obstruction and re-read rather than claim success."""
-    for _ in range(attempts):
-        frame = perception.capture()
-        state = vision.unit_list_state(frame)
-        if state == vision.UNIT_LIST_COLLAPSED:
-            return True
-        if state == vision.UNIT_LIST_UNKNOWN:
-            clear_obstruction(perception, actuator, frame, sleep=sleep)
-            continue
-        actuator.tap(*UNIT_LIST_COLLAPSE)
-        sleep(1.2)
-    return vision.unit_list_state(perception.capture()) == vision.UNIT_LIST_COLLAPSED
+    return _drive_unit_list(
+        perception,
+        actuator,
+        target=vision.UNIT_LIST_COLLAPSED,
+        toggle_tap=UNIT_LIST_COLLAPSE,
+        sleep=sleep,
+        attempts=attempts,
+    )
+
+
+def expand_unit_list(
+    perception, actuator, *, sleep: Callable[[float], None] = time.sleep, attempts: int = 2
+) -> bool:
+    """Expand the actionable-unit card strip (▲): the mirror of
+    ``collapse_unit_list``. count_unit_cards consumers need the strip open;
+    the flow layer's ExpandUnitList action reuses this so the 輪四 hole
+    (a collapsed hub with no path back to the open list) has an owner."""
+    return _drive_unit_list(
+        perception,
+        actuator,
+        target=vision.UNIT_LIST_EXPANDED,
+        toggle_tap=UNIT_LIST_EXPAND,
+        sleep=sleep,
+        attempts=attempts,
+    )
 
 
 def ensure_max_view(
