@@ -80,8 +80,11 @@
 ## tick 語意
 
 每 tick：keyguard 前置 → 單次截圖 → translator（frame＋probe＋黑板→
-WorldState）→ goal 檢查 → A* 規劃 → **只執行計畫第一步** → 重感知。
-搜尋空間極小，每 tick 重規劃成本可忽略，v1 採最保守形態。
+WorldState）→ goal 檢查 → A* 規劃 → **逐步執行計畫、每步之間重感知
+驗證**；diff 打中剩餘計畫（或 goal）依賴的 keys、或動作原地卡住，
+當場放棄計畫 replan（**2026-07-24 Round 2.0 複核修正**：原草案寫
+「只執行計畫第一步」，但定案 2 的「無關 diff→續走」分流本就預設
+計畫能續走，兩者矛盾，以逐步驗證執行為準）。
 
 - 預期 effect 成立 → 續。
 - 非預期變化 → ledger 記 `unplanned_transition`（from／to／上一動作／

@@ -1,12 +1,13 @@
 """BattleController2: the flow-layer tick loop. A new entry point beside the
 legacy battle/controller.py (定案 5: the Round 1.x live winners do not go back on
-the table) that drives the map-setup dance as sense -> plan -> act-one-step ->
+the table) that drives the map-setup dance as sense -> plan -> act -> verify ->
 re-sense over the ``goap`` A*.
 
 Every tick: keyguard chore -> ONE capture -> translate -> goal check ->
-A* plan -> execute ONLY the first step -> re-sense, then classify the
-transition. The search space is tiny so re-planning every tick is free; v1 keeps
-the most conservative shape. Observability is a first-class deliverable (定案 4):
+A* plan -> execute the plan one verified step at a time, re-sensing between
+steps. The plan is abandoned for a replan the moment an unplanned diff hits a
+key the remaining steps (or the goal) depend on, or a step stalls; a diff off
+those keys is recorded and the plan keeps going (定案 2's simplest split). Observability is a first-class deliverable (定案 4):
 an unexpected screen is always recorded as "we were not prepared for this" with
 native evidence, never silently swallowed into a retry spin.
 

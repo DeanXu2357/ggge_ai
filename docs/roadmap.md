@@ -47,9 +47,17 @@ worktree。
 使用者逐題定案，正式規格落檔
 [flow-goap-controller2.md](flow-goap-controller2.md)（BattleController2
 新入口、goal=sync_initial_map、逐單位 GOAP 化、不設獨立中斷 router）。
-**恢復點改為 Round 2.0（flow kernel，opus worktree 離線開發）→
-Round 2.1 → Round 2.2 實機 probe；使用者拍板 probe 優先於輪十三**
-（現況 EX-2 IF 戰局讓給 probe，輪十三順延其後）。
+使用者拍板 probe 優先於輪十三（現況 EX-2 IF 戰局讓給 probe，輪十三
+順延其後）。**Round 2.0（flow kernel）已合併**：opus worktree 開發、
+主 session 複核 diff＋worktree 重跑全套後 fast-forward（`ca99e89`），
+**925 passed／4 skipped／3 xfailed、ruff 綠**（基準 880→925）；交付
+`battle/flow/`（vocabulary 三值 translator、8 個 ensure 修復導航動作、
+BattleController2 tick 迴圈＋flow_* ledger 事件）＋`map_view.
+expand_unit_list`（collapse 位元級等價委派）；controller.py／goap/／
+vision.py／settings.py 零觸碰；dimmed 偵測缺樣（值域保留、永不
+emit）。複核修正一處：tick 語意定調「逐步驗證執行」（原草案「只執行
+第一步」與定案 2 分流規則矛盾）。**恢復點＝Round 2.1（巨集＋逐單位
+動作＋goal＋run_sync_map.py，離線）→ Round 2.2 實機 probe**。
 
 **裝置現況**：TURN 1 our-turn hub（EX-2 IF、0/15、剩 3 回合敗北限制、
 9/9 卡可行動）、乾淨無殘留、格線 off、閒置變暗中（keyguard 自解）、
