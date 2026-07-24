@@ -543,7 +543,14 @@ keyguard 檢查的間隙、正中掃描關鍵讀取瞬間；批7 亮度濾波對
   （驗收 A2）連跑。
 - **掃描主體若再敗→停下問使用者**（紀律延續）。
 
-## Round 2（草案，待 Round 1 上機結果回報後由主 session 重新規劃細節）
+## Round 2（草案，已被取代）
+
+> **2026-07-24 更新**：本段草案已由正式規格
+> [flow-goap-controller2.md](flow-goap-controller2.md) 取代——與使用者
+> 逐題定案後範圍演進為：BattleController2 新入口（不重構舊
+> controller）、goal=sync_initial_map、survey 逐單位 GOAP 化、不設
+> 獨立中斷 router、controller2 冷跑 probe 優先於輪十三。以下原文
+> 保留為歷史脈絡。
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死
 的直線流程（回到 hub → 收合列表 → 開格線 → zoom 到底 → `collect()` → 關格線，

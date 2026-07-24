@@ -43,6 +43,14 @@ worktree。
 `~/.claude/plans/adb-adb-libusb-1-whimsical-hopper.md`）。
 **紀律**：掃描主體再敗→停問使用者；省電鎖使用者已確認不可調。
 
+**2026-07-24 再更新（Round 2 定案 session）**：戰鬥內流程層 GOAP 與
+使用者逐題定案，正式規格落檔
+[flow-goap-controller2.md](flow-goap-controller2.md)（BattleController2
+新入口、goal=sync_initial_map、逐單位 GOAP 化、不設獨立中斷 router）。
+**恢復點改為 Round 2.0（flow kernel，opus worktree 離線開發）→
+Round 2.1 → Round 2.2 實機 probe；使用者拍板 probe 優先於輪十三**
+（現況 EX-2 IF 戰局讓給 probe，輪十三順延其後）。
+
 **裝置現況**：TURN 1 our-turn hub（EX-2 IF、0/15、剩 3 回合敗北限制、
 9/9 卡可行動）、乾淨無殘留、格線 off、閒置變暗中（keyguard 自解）、
 `data/cache/stages/` 空（備份 stages.bak-20260723/）、adb libusb 正常、
