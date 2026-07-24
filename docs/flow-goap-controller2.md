@@ -114,10 +114,15 @@ ledger 新事件：`flow_plan`（計畫全文）、`flow_tick`（state 快照）
   （八輪戰果、內部回復協定零改動）。pre：view=hub、obstruction=none、
   unit_list=collapsed、grid=on、zoom=max；effect：census_built＋
   展開 `unit:<cid>` 述詞。
-- `ValidateAgainstDef`：純計算；只比敵方佈局（deploy_slots＝出擊格
-  永不 cache 的既有 schema-3 決定）。不符 → `stage_def_valid=False`
-  → replan 自然落到 cold 路徑（「不符整關過期退回現場全讀」紅線）。
-  逐台部分重用 cache 是逐單位化的未來收益，v1 不做。
+- `ValidateAgainstDef`（**2026-07-24 稍晚讀碼修正：非純計算**）：包
+  `scout_intel.validate_stage` 原樣——幾何 census（免費）＋抽樣
+  spot-tap 讀摘要卡（**會操作裝置**），只比敵方佈局（deploy_slots＝
+  出擊格永不 cache 的既有 schema-3 決定）。pre 含乾淨畫面述詞；新
+  呼叫點把 R1.5 classify/escape 閘門接進其 `_read_summary_at`
+  （參數本來就收、現行呼叫端沒接；scout_intel 零改動、舊線行為
+  不變）。不符 → `stage_def_valid=False` → replan 自然落到 cold
+  路徑（「不符整關過期退回現場全讀」紅線）。逐台部分重用 cache 是
+  逐單位化的未來收益，v1 不做。
 - `SurveyUnit(c)`（逐台，per-candidate 實例由 census 生成）：
   execute＝bring_to_view → identify（R1.5 閘門＋R1.9 複驗原樣）→
   面板讀取 → escape 回 hub。pre：view=hub、obstruction=none、
@@ -156,6 +161,24 @@ replan 分流規則單元測試、三值 unknown 永不當已知答案。
 `scripts/run_sync_map.py`（獨立驗證腳本，2026-07-21 定案慣例）。
 `survey_stage` 外層編排被逐單位動作取代時，單台機制函式簽名不變、
 既有測試不動；warm／cold／validate 失效三分支 fake-world 測試。
+
+**2026-07-24 稍晚前置讀碼發現（2.1 dev-plan 必須處理）**：
+
+- `survey_stage` 迴圈有跨單位共享狀態：`claimed` 格（重複格 ghost
+  drop）與 `ally_world`（隨辨識到的我方增長，`ghost_of_ally` 判決
+  因此**順序相依**）。逐單位化必須把它們收進黑板上的共享
+  SurveyContext；v1 動作 cost 以 census 序當 tie-break，維持與現行
+  走訪順序等價——planner 重排是之後的自由度，不是第一版目標。
+- 單台判決鏈（identify 失敗→diag→ghost_of_ally 優先→無峰 drop→
+  snap 一次→仍無 banner fail loud；`survey_stage` ~425-475）目前
+  內嵌在迴圈裡：抽成模組級 per-candidate 函式＋`survey_stage` 原地
+  委派（位元級等價、既有測試釘住），`SurveyUnit(c)` 與舊線共用
+  同一份，不複製貼上。
+- 全程 wall-clock（`SURVEY_WALL_CLOCK_S`）在逐單位化後改由
+  controller2 的 run 預算承接；語意不變（超時誠實中止、部分定義檔
+  永不落地——`SaveStageDef` 的 pre 就是全候選 resolved）。
+- `SyncSim` 走既有 content 管線（`ground_unit` 假設回報鏈、
+  `stage_sim` 定義檔直建），不新增公式。
 
 ### Round 2.2：實機 probe（sonnet，主工作目錄）
 
