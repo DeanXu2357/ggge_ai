@@ -8,6 +8,25 @@
 1. 讀 `docs/roadmap.md` 最上方的暫停快照——那裡有裝置現況與恢復點。
 2. 讀 `docs/agent-architecture.md`——架構紅線都在裡面。
 
+## Delegation & model routing (applies to every session)
+
+- Code modification: delegate ALL non-trivial code changes to the
+  `code-editor` subagent (opus). The main session plans, reviews the diff,
+  and integrates; it does not edit source files directly. Use
+  `isolation: "worktree"` for multi-file changes. Trivial single-line fixes
+  (typo, obvious constant) may be done inline.
+- Image inspection: delegate ALL screenshot/image viewing to the
+  `image-reader` subagent (sonnet). Never Read an image file in the main
+  conversation. Prefer templates/pixel probes/classifiers over eyeballing;
+  reserve visual inspection for new screens and anomaly diagnosis.
+- Live-device integration testing: delegate to the `live-tester` subagent
+  (sonnet) with a concrete test plan and explicit success criteria; it
+  returns a text report with evidence paths.
+- adb: `ADB_LIBUSB=1` is enforced via the `env` block in
+  `.claude/settings.json`. If an adb server may already be running without
+  it, `adb kill-server` first, then confirm with `ps -T -C adb` that the
+  `device poll` thread is gone before trusting the connection.
+
 ## 架構紅線（使用者定案，違反=返工）
 
 - **程式只內建機制，不內建內容**：關卡敵方數值、能力、範圍從畫面讀取，

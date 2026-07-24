@@ -14,5 +14,7 @@ node_modules/
 assets/screenshots/
 assets/run-shots/
 data/
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/agents/
 .idea/
