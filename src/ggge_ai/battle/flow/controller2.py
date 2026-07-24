@@ -3,13 +3,18 @@ legacy battle/controller.py (定案 5: the Round 1.x live winners do not go back
 the table) that drives the map-setup dance as sense -> plan -> act -> verify ->
 re-sense over the ``goap`` A*.
 
-Every tick: keyguard chore -> ONE capture -> translate -> goal check ->
-A* plan -> execute the plan one verified step at a time, re-sensing between
-steps. The plan is abandoned for a replan the moment an unplanned diff hits a
-key the remaining steps (or the goal) depend on, or a step stalls; a diff off
-those keys is recorded and the plan keeps going (定案 2's simplest split). Observability is a first-class deliverable (定案 4):
-an unexpected screen is always recorded as "we were not prepared for this" with
-native evidence, never silently swallowed into a retry spin.
+The loop is a single level: one keyguard chore, one capture, one judgment entry
+and one queue step per tick. The action queue survives across ticks; planning
+is a restock event that fires only when the queue empties, never a per-iteration
+ritual (the 2026-07-24 flat persistent-queue settlement -- the Round 2.0 nested
+plan/execute pair had degenerated into a controller-1 router). Each tick
+confirms the previous tick's action against the freshly sensed frame: the
+declared effect holding keeps the queue, an unplanned diff off the remaining
+plan's dependencies is recorded and the queue keeps going (定案 2's simplest
+split), a diff onto a dependency (or a stall) drops the queue for a replan.
+Observability is a first-class deliverable (定案 4): an unexpected screen is
+always recorded as "we were not prepared for this" with native evidence, never
+silently swallowed into a retry spin.
 
 No interrupt router (定案 7): every off-vocabulary screen goes through the GOAP
 vocabulary; the keyguard stays a tick pre-chore. A screen the vocabulary cannot
@@ -117,26 +122,73 @@ class BattleController2:
         deps.update(getattr(goal, "conditions", {}).keys())
         return deps
 
+    def _judge(self, pending, state) -> str:
+        """Confirm the previous tick's action against the freshly sensed state.
+
+        Returns the queue verdict: ``confirmed`` (the declared effect holds),
+        ``diverted_keep`` (an unplanned but harmless diff -- the same plan may
+        keep going), ``diverted_replan`` (an unplanned diff hit a key the rest
+        of the plan or the goal depends on), or ``stalled`` (the world did not
+        move). The unplanned_transition ledger event is emitted here (定案 4);
+        the failure counter and abort live in ``run`` where the config is."""
+        action, deps, before, ok = pending
+        if ok and state.satisfies(action.effects):
+            return "confirmed"
+        diff = _diff_keys(before, state)
+        if diff:
+            self._log(
+                "unplanned_transition",
+                action=action.name,
+                from_state=dict(before),
+                to_state=dict(state),
+                diff=sorted(diff),
+            )
+            return "diverted_replan" if diff & deps else "diverted_keep"
+        return "stalled"
+
     def run(self, goal: Goal) -> bool:
         cfg = self.config
         replans = 0
         failures = 0
         unknown_waits = 0
 
+        queue = []  # remaining plan steps, alive across ticks
+        pending = None  # last-executed action + its deps/from-state/ok, judged next tick
+
         while replans <= cfg.max_replans:
             if self.keyguard is not None:
                 self.keyguard.ensure_unlocked()
             frame, state = self._sense()
             self._log("flow_tick", state=dict(state))
+
             if goal.is_satisfied(state):
                 log.info("flow goal %s satisfied", goal.name)
                 return True
+
+            if pending is not None:
+                verdict = self._judge(pending, state)
+                judged = pending[0]
+                pending = None
+                if verdict == "stalled":
+                    failures += 1
+                    log.warning("flow: %s made no progress (failures=%d)", judged.name, failures)
+                    if failures >= cfg.max_consecutive_failures:
+                        self._log(
+                            "flow_abort", reason="stuck", action=judged.name, state=dict(state)
+                        )
+                        return False
+                    queue = []  # replan
+                else:
+                    failures = 0
+                    if verdict == "diverted_replan":
+                        queue = []  # the change may invalidate the rest of the plan
 
             clearable = state.get(vocabulary.OBSTRUCTION) in vocabulary.CLEARABLE_OBSTRUCTIONS
             if state.get(vocabulary.VIEW) == vocabulary.UNKNOWN and not clearable:
                 # a genuinely opaque frame (story/animation/transition): wait it
                 # out rather than plan from a misread state. A clearable
                 # obstruction on an unknown frame does NOT wait -- it replans.
+                queue = []
                 unknown_waits += 1
                 if unknown_waits > cfg.max_unknown_waits:
                     log.error("flow: view stayed unknown too long, aborting")
@@ -149,69 +201,30 @@ class BattleController2:
                 continue
             unknown_waits = 0
 
-            try:
-                result = plan(state, goal, self.actions)
-            except PlanNotFound as exc:
-                log.error("flow: no plan from %r to %s", state, goal.name)
-                self._log(
-                    "flow_abort",
-                    reason="plan_not_found",
-                    state=dict(state),
-                    expanded=exc.expanded,
-                    exhausted=exc.exhausted,
-                )
-                return False
-            replans += 1
-            self._log(
-                "flow_plan",
-                plan=[a.name for a in result.actions],
-                cost=result.total_cost,
-            )
-
-            for i, action in enumerate(result.actions):
-                deps = self._plan_deps(result.actions[i + 1 :], goal)
-                ctx = self._context(frame)
-                log.info("flow executing %s", action.name)
-                ok = action.execute(ctx)
-                self._sleep(cfg.settle_delay_s)
-                frame, new_state = self._sense()
-
-                if goal.is_satisfied(new_state):
-                    log.info("flow goal %s satisfied", goal.name)
-                    return True
-
-                if ok and new_state.satisfies(action.effects):
-                    failures = 0
-                    state = new_state
-                    continue
-
-                diff = _diff_keys(state, new_state)
-                if diff:
-                    # the world moved, just not to the action's declared effect:
-                    # record the hole (定案 4) and decide continue-vs-replan on
-                    # the simplest rule (定案 2).
+            if not queue:
+                try:
+                    result = plan(state, goal, self.actions)
+                except PlanNotFound as exc:
+                    log.error("flow: no plan from %r to %s", state, goal.name)
                     self._log(
-                        "unplanned_transition",
-                        action=action.name,
-                        from_state=dict(state),
-                        to_state=dict(new_state),
-                        diff=sorted(diff),
-                    )
-                    failures = 0
-                    if diff & deps:
-                        state = new_state
-                        break  # the change may invalidate the rest of the plan
-                    state = new_state
-                    continue  # harmless change: keep executing the same plan
-                # zero change: the action did not move the world
-                failures += 1
-                log.warning("flow: %s made no progress (failures=%d)", action.name, failures)
-                if failures >= cfg.max_consecutive_failures:
-                    self._log(
-                        "flow_abort", reason="stuck", action=action.name, state=dict(state)
+                        "flow_abort",
+                        reason="plan_not_found",
+                        state=dict(state),
+                        expanded=exc.expanded,
+                        exhausted=exc.exhausted,
                     )
                     return False
-                break  # replan
+                queue = list(result.actions)
+                replans += 1
+                self._log("flow_plan", plan=[a.name for a in queue], cost=result.total_cost)
+
+            action = queue.pop(0)
+            deps = self._plan_deps(queue, goal)
+            ctx = self._context(frame)
+            log.info("flow executing %s", action.name)
+            ok = action.execute(ctx)
+            self._sleep(cfg.settle_delay_s)
+            pending = (action, deps, state, ok)
 
         log.error("flow: replan limit reached")
         self._log("flow_abort", reason="replan_limit")
