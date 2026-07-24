@@ -266,6 +266,27 @@
     「停下問使用者」標記；主 session 停止自迴圈，交使用者裁決。
   - 裝置末態：TURN 1 hub、乾淨、格線 off、列表展開、螢幕偏暗（省電鎖
     中，下次腳本 keyguard 會自解）、cache 空。
+- **2026-07-24 輪十二結果（Round 1.11 合併 `ddbfb8c` 後首跑）：FAIL 於
+  掃描入口（同輪十一失敗點），但**首次拿到原生鐵證且離線復現成功**，
+  run `data/runs/20260724-082334/`。
+  - **Round 1.11 存證機制實戰生效**：`diag_turn1_anchor_no_lattice.png`
+    （2340×1080）＝四輪以來第一張此失敗點的原生現場；guard 有呼叫但
+    當下無鎖（no-op）。
+  - **省電鎖假說被證據推翻**：diag 幀明亮正常（mean 34.8 ≈ 成功幀
+    32.1；真變暗幀實測 3.66）。
+  - **真根因（sonnet 離線重現＋主 session 復核）＝`read_map_lattice`
+    row-seed 對單一離群峰零容錯**：row 平均帶 (500,1900) 撿到 8 峰
+    [71,428,519,...]，y=71 是頂部 HUD 邊緣、與下峰間距 357px 違反
+    (80,160)，`_lattice_lines()` 的 all() 全有全無檢查**缺
+    `read_grid_lattice` 自帶的 trim() 離群修剪**→整條 row 判 None→
+    observe None→abort。窄帶收窄平均帶後乾淨讀出 7 列。批1 九幀驗證
+    未覆蓋「格線非滿幅＋HUD 干擾」組合。與輪三異常A 同源不同函式。
+  - 修復候選＝**Round 1.12**：`read_map_lattice` seed 離群修剪（鏡照
+    `read_grid_lattice` 既有 trim()），diag 幀入 fixture 先紅後綠——
+    符合視覺紅線（有新截圖證據＋fixture＋全庫回歸）。**依承諾維持
+    停工紀律，待使用者裁決後開工。**
+  - 裝置末態：TURN 1 hub、乾淨、格線 off、列表展開 9/9、cache 空、
+    閒置變暗中（自然現象）。
 - **下輪協定（使用者指示，純冷探索）**：
   1. 開跑前把 `data/cache/stages/` 現存定義檔移到 `data/cache/stages.bak-20260723/`
      （使用者指示：測無資料探索，驗證首訪冷掃自產 bounds）。
