@@ -9,6 +9,7 @@ from ggge_ai.goap.state import Value
 
 from .action import Action
 from .board import MockBoard
+from .frame import FrameReading
 from .mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
 from .router import ReflexRouter, ReflexTable, SymbolTable
 from .state import UNKNOWN, BotState
@@ -49,6 +50,23 @@ class TickRecord:
     symbols: dict[str, Value] = field(default_factory=dict)
     duration_ms: int = 0
     slept_ms: int = 0
+
+
+@dataclass
+class TickOutcome:
+    """What one lifecycle step decided. The recorder folds it into a TickRecord.
+
+    Returned from `Bot._step` at every exit, so the lifecycle never touches
+    the ledger -- recording is a wrapper around the step, not a resident of
+    it. `error` carries a pending BotStuck: the recorder logs the panic tick
+    first, then `tick` re-raises it.
+    """
+
+    outcome: str
+    head: str | None = None
+    popped: list[str] = field(default_factory=list)
+    replanned: str | None = None
+    error: BotStuck | None = None
 
 
 class Bot:
@@ -97,50 +115,31 @@ class Bot:
         frame = self.screen.capture()
         reading = self.classifier.classify(frame)
 
+        # 感知門開在拍首：符號表＋盤面摘要，一次性重算，走反射的拍也照做。
         perceived = self.symbol_table.translate(reading)
         perceived.update(self.board.summary_symbols())
         self.state.sense_update(perceived)
 
-        def emit(
-            outcome: str,
-            head: str | None = None,
-            popped: list[str] | None = None,
-            replanned: str | None = None,
-        ) -> None:
-            self.log.append(
-                TickRecord(
-                    tick=len(self.log),
-                    phase=reading.phase,
-                    tags=[tag.name for tag in reading.tags],
-                    outcome=outcome,
-                    head=head,
-                    popped=popped or [],
-                    replanned=replanned,
-                    plan_len=len(self.queue),
-                    plan=[step.name for step in self.queue],
-                    progress=self.board.progress_key(),
-                    symbols=self.state.symbols(),
-                    duration_ms=self.clock.now_ms() - t0,
-                    slept_ms=self.clock.slept_ms() - t0,
-                )
-            )
+        out = self._step(reading)
+        self._record(reading, t0, out)
+        if out.error is not None:
+            raise out.error
 
+    def _step(self, reading: FrameReading) -> TickOutcome:
+        """The lifecycle ladder, one rung per exit. No ledger code anywhere."""
         goal = self.state.goal
         if goal is None or goal.satisfied(self.state):
             self.finished = True
-            emit("done")
-            return
+            return TickOutcome("done")
 
         handled = self.reflexes.route(self, reading)
         if handled is not None:
-            emit(handled)
-            return
+            return TickOutcome(handled)
 
         if reading.phase == UNKNOWN:
             # 等待格只記帳、不裁決：連續 unknown 的超限是熔斷器的事（延後，
             # 從流水帳導出），v1 的粗保險只有 run() 的 max_ticks。
-            emit("wait:unknown")
-            return
+            return TickOutcome("wait:unknown")
 
         popped: list[str] = []
         while self.queue and self.state.satisfies(self.queue[0].eff):
@@ -163,19 +162,37 @@ class Bot:
                     raise BotStuck(
                         self._dump(f"replanned head {self.queue[0].name!r} not applicable")
                     )
-        except BotStuck:
-            emit("panic", popped=popped, replanned=replanned)
-            raise
+        except BotStuck as exc:
+            return TickOutcome("panic", popped=popped, replanned=replanned, error=exc)
 
         head = self.queue[0]
         if head.refire == "require_change" and self._last_exec == (head.name, reading.key()):
             # 幀沒變就不准重發：sleep 略短的轉場尾巴在這裡吸收，不會雙開面板。
-            emit("wait:refire", head=head.name, popped=popped, replanned=replanned)
-            return
+            return TickOutcome("wait:refire", head=head.name, popped=popped, replanned=replanned)
 
         head.do(self)
         self._last_exec = (head.name, reading.key())
-        emit("executed", head=head.name, popped=popped, replanned=replanned)
+        return TickOutcome("executed", head=head.name, popped=popped, replanned=replanned)
+
+    def _record(self, reading: FrameReading, t0: int, out: TickOutcome) -> None:
+        """The only writer of the tick log: folds one TickOutcome into a TickRecord."""
+        self.log.append(
+            TickRecord(
+                tick=len(self.log),
+                phase=reading.phase,
+                tags=[tag.name for tag in reading.tags],
+                outcome=out.outcome,
+                head=out.head,
+                popped=out.popped,
+                replanned=out.replanned,
+                plan_len=len(self.queue),
+                plan=[step.name for step in self.queue],
+                progress=self.board.progress_key(),
+                symbols=self.state.symbols(),
+                duration_ms=self.clock.now_ms() - t0,
+                slept_ms=self.clock.slept_ms() - t0,
+            )
+        )
 
     def think(self) -> list[Action]:
         """Refill the queue: one A* run over the catalog towards the outer goal.

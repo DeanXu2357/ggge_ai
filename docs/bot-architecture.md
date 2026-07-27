@@ -184,7 +184,10 @@ FrameReading ─┬─→ 反射表：tags → handler          （給反射弧�
 ## metrics／TickRecord
 
 唯一事實來源＝tick 流水帳；**程式裡不散落可變計數器**，一切計數
-是流水帳的導出值。每拍一筆：
+是流水帳的導出值。記帳不佔生命週期（2026-07-27 使用者提議）：
+`_step` 每個出口回傳 TickOutcome，外層 recorder 一次摺成
+TickRecord——單一寫入點，生命週期本體零 ledger 碼；將來要接第二個
+觀察者就掛在同一個點。每拍一筆：
 
 | 欄位 | 內容 |
 |---|---|
