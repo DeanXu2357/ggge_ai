@@ -1,4 +1,4 @@
-"""Action and Goal types for the bot skeleton."""
+"""Action and Goal types for the bot loop."""
 
 from __future__ import annotations
 
@@ -18,41 +18,31 @@ if TYPE_CHECKING:
 class Action(GoapAction):
     """One planner operator and one device step.
 
-    The adapter to `ggge_ai.goap` is deliberately the smallest one available:
-    subclass the planner's Action and re-point `check`/`apply` at this
-    package's `pre`/`eff` names. Nothing else is inherited that matters --
-    the base `execute(ctx)` stays unused, because this loop hands one action
-    per tick to `do(bot)` instead of handing a whole plan to an executor.
+    `pre`/`eff` are pure symbols -- an action never depends on a screen
+    contract. If a step needs a screen feature, the classifier tags it and
+    the symbol table translates it; the action only ever reads symbols.
 
-    `do()` performs exactly one device interaction or one pure computation.
-    No internal loop, no polling, no sleep-until-settled: waiting is its own
-    action (`WaitOut`) and re-checking is the next tick's `sense`. An action
-    that loops internally is a tick the log cannot see into.
+    `do()` performs exactly one device interaction or one pure computation,
+    and owns its own transition sleep (`bot.clock.sleep`). No internal loop,
+    no polling, no screen inspection: branching is declared as separate
+    actions with mutually exclusive `pre`, and re-checking is the next tick.
 
-    `eff` is the exit condition of this step, not a promise that one call
-    achieves it. The action stays at the head of the plan and fires again
-    every tick until the screen reports `eff` as true, so `PanToFrontier`
-    (`eff={"coverage": "complete"}`) pans until the map is covered -- no
-    repeat counter, no staged goal, no loop inside `do()`.
+    `eff` is the exit condition of the step, not a promise that one call
+    achieves it: the action holds the head of the queue and fires each tick
+    until the screen reports `eff` true (standing instruction). It can also
+    pop without ever firing, when the world happens to already satisfy it.
 
-    That has a price, and it is `cost`. A step can now be one tap or twenty,
-    so a plan's total cost is no longer an estimate of the effort to run it
-    and must not be used to choose between routes. A fork that used to be
-    decided by cost (the warm path when a panel is already open vs the cold
-    path that has to open it) has to be split by preconditions instead: two
-    actions, mutually exclusive `pre`, only one of them applicable.
-
-    `repeat_safe=False` marks actions that must not be fired twice in a row
-    (a double tap opens and closes a panel); `settle_ticks` is how many ticks
-    the loop will hold off before firing the same action again.
+    `refire="require_change"` refuses to fire again while the frame key is
+    unchanged since this action's last execution -- the guard for steps whose
+    double-fire is destructive (a second tap toggles the panel back). The
+    tick loop routes such a tick to the wait slot instead.
     """
 
     name: str = "action"
     cost: float = 1.0
     pre: Mapping[str, Value] = {}
     eff: Mapping[str, Value] = {}
-    repeat_safe: bool = True
-    settle_ticks: int = 0
+    refire: str = "safe"
 
     def check(self, state: WorldState) -> bool:
         return state.satisfies(self.pre)
@@ -60,31 +50,13 @@ class Action(GoapAction):
     def apply(self, state: WorldState) -> WorldState:
         return state.with_updates(self.eff)
 
-    def still_relevant(self, state: BotState) -> bool:
-        """Is this step worth doing at all any more?
-
-        Asked only when the step is blocked, and it decides between repairing
-        the way to it and dropping it. Default True: most flow-level steps are
-        still worth reaching. The ones that are not live in tactical
-        sequences -- the target of a planned attack is already dead, the unit
-        that was going to move has already acted -- where the honest answer is
-        to drop the step and carry on with the rest of the sequence rather
-        than spend actions restoring a precondition for something pointless.
-        """
-        return True
-
     def do(self, bot: Bot) -> None:
         raise NotImplementedError(f"{self.name} has no body")
 
 
 @dataclass
 class Goal(GoapGoal):
-    """A named set of conditions over the flat symbol space.
-
-    Same adapter trick as Action: the goap base already supplies the
-    `is_satisfied`/`heuristic` the planner calls, so this only adds
-    `satisfied`, the bot-facing form that takes a `BotState`.
-    """
+    """A named set of conditions over the flat symbol space."""
 
     name: str = "goal"
     conditions: dict[str, Value] = field(default_factory=dict)

@@ -1,4 +1,4 @@
-"""The loop: sense, decide, act -- over a plan that outlives the tick."""
+"""The tick loop: one screenshot, at most one device interaction, no idle ticks."""
 
 from __future__ import annotations
 
@@ -7,150 +7,190 @@ from dataclasses import dataclass, field
 from ggge_ai.goap.planner import PlanNotFound, plan
 from ggge_ai.goap.state import Value
 
-from .action import Action, Goal
+from .action import Action
 from .board import MockBoard
-from .mocks import MockDevice, MockSensor
-from .state import BotState
+from .mocks import MockClassifier, MockClock, MockDevice
+from .router import ReflexTable, SymbolTable
+from .state import UNKNOWN, BotState
 
 
 class BotStuck(RuntimeError):
-    """Honest abort. The loop stops and says where, it does not improvise.
+    """Honest abort: the loop stops and says where, it does not improvise.
 
-    Exactly two things raise it: `think` cannot find a plan for the goal, and
-    `on_blocked` has already tried repair and reset and still has nothing.
-    Anything else that goes wrong is supposed to show up in the log, not in an
-    exception -- reading the log is how this skeleton is meant to be judged.
+    Raised when the screen stays unreadable past the wait budget, when the
+    planner finds no route (an unprepared situation -- the vocabulary is
+    missing a mid-state), or when a fresh plan is somehow not applicable.
+    The real system turns this into a human-intervention request.
     """
 
 
 @dataclass
 class TickRecord:
-    """One line per tick, and the whole point of this skeleton.
+    """One line per tick -- the single source of truth for every metric.
 
-    `head` is the action the tick was about (the one executed, or the one that
-    was found blocked, or the one now at the front after popping) and
-    `outcome` is what happened to it. `plan` is what is left afterwards, so
-    two consecutive lines show whether a repair kept the tail or a reset threw
-    it away, and a run of identical `head` values shows an action holding the
-    front of the plan until its effect finally comes true.
+    No mutable counters anywhere else: replan rates, reflex streaks and
+    progress stalls are all derived from this stream (the future circuit
+    breaker reads it in-process; the jsonl export is analysis-only).
     """
 
     tick: int
-    goal: str | None
-    head: str | None
+    phase: str
+    tags: list[str]
     outcome: str
+    head: str | None
+    popped: list[str]
+    replanned: str | None
     plan_len: int
     plan: list[str] = field(default_factory=list)
     progress: tuple[int, int] = (0, 0)
     symbols: dict[str, Value] = field(default_factory=dict)
+    duration_ms: int = 0
+    slept_ms: int = 0
 
 
 class Bot:
-    """Two things per tick: read the screen once, take one step.
+    """sense -> reflex/wait -> bookkeeping -> plan -> one action.
 
-    One goal, and it is the outer one. The staging that used to live in a goal
-    array now lives in `plan`, an ordered list of actions that survives across
-    ticks: the planner said "collapse the list, then scan, then read the
-    panels, then sync", and that sentence is kept instead of being re-derived
-    every tick from a goal that only says "sync".
+    The queue is a persistent plan: it advances on evidence (a step is popped
+    when its *effect* is observed, which may take many ticks or zero
+    executions) and it dies whole (a stale head throws the entire queue away
+    and replans from the current symbols -- there is no repair surgery).
 
-    The plan advances on evidence, not on execution -- see `decide`. Nothing
-    else in this class is allowed to pop it.
+    Same-tick continuation: pops, refill and replan are bookkeeping and pure
+    computation over the frame captured at the top of this tick, so they do
+    not end the tick -- the one device interaction that follows is authorized
+    by that same fresh frame. What never happens is two device interactions
+    on one reading.
     """
 
     def __init__(
         self,
         state: BotState,
         board: MockBoard,
-        sensor: MockSensor,
+        classifier: MockClassifier,
         device: MockDevice,
+        clock: MockClock,
         catalog: list[Action],
-        repair_max_cost: float = 6.0,
+        symbol_table: SymbolTable,
+        reflex_table: ReflexTable,
+        wait_budget: int = 3,
     ) -> None:
         self.state = state
         self.board = board
-        self.sensor = sensor
+        self.classifier = classifier
         self.device = device
+        self.clock = clock
         self.catalog = list(catalog)
-        self.repair_max_cost = repair_max_cost
-        self.plan: list[Action] = []
+        self.symbol_table = symbol_table
+        self.reflex_table = reflex_table
+        self.wait_budget = wait_budget
+        self.queue: list[Action] = []
         self.log: list[TickRecord] = []
         self.finished = False
-        # decide 決定這個 tick 的 head 與 outcome，act 只有在真的動手時才把
-        # outcome 改成 executed/settled——兩者合起來才是一筆完整的流水帳。
-        self._outcome = "done"
-        self._head: str | None = None
-        self._last_action: str | None = None
-        self._settle_left = 0
+        self._unknown_streak = 0
+        self._last_exec: tuple[str, tuple] | None = None
+        self._last_reflex: tuple[str, tuple] | None = None
 
     def tick(self) -> None:
-        self.sense()
-        action = self.decide()
-        self.act(action)
+        t0 = self.clock.now_ms()
+        reading = self.classifier.read()
 
-    def sense(self) -> None:
-        self.state.sense_update(**self.sensor.read())
-        self.state.sense_update(**self.board.summary_symbols())
+        # 感知門開在拍首：符號表＋盤面摘要，一次性重算，走反射的拍也照做。
+        perceived = self.symbol_table.translate(reading)
+        perceived.update(self.board.summary_symbols())
+        self.state.sense_update(perceived)
 
-    def decide(self) -> Action | None:
-        """Advance the plan by one step, or hand back the step to run.
+        def emit(
+            outcome: str,
+            head: str | None = None,
+            popped: list[str] | None = None,
+            replanned: str | None = None,
+        ) -> None:
+            self.log.append(
+                TickRecord(
+                    tick=len(self.log),
+                    phase=reading.phase,
+                    tags=[tag.name for tag in reading.tags],
+                    outcome=outcome,
+                    head=head,
+                    popped=popped or [],
+                    replanned=replanned,
+                    plan_len=len(self.queue),
+                    plan=[step.name for step in self.queue],
+                    progress=self.board.progress_key(),
+                    symbols=self.state.symbols(),
+                    duration_ms=self.clock.now_ms() - t0,
+                    slept_ms=self.clock.slept_ms() - t0,
+                )
+            )
 
-        The rule that everything else follows from: the head is popped when
-        its *effect* is true, not when it has been executed. An action is a
-        standing instruction -- "pan until the map is covered", "wait until
-        the screen is readable" -- and it keeps the front of the plan for as
-        many ticks as that takes. Repetition needs no counter and no
-        intermediate goal, and an action that ran but achieved nothing simply
-        runs again.
-
-        A tick that pops does not also execute: popping is a claim about the
-        world ("that step is done"), and the next step deserves to be judged
-        against a fresh reading rather than against the one that just changed
-        under it. Same for a blocked head -- `on_blocked` rewrites the plan
-        and lets the next tick run it.
-        """
         goal = self.state.goal
         if goal is None or goal.satisfied(self.state):
             self.finished = True
-            self._outcome, self._head = "done", None
-            return None
+            emit("done")
+            return
 
-        if not self.plan:
-            self.plan = self.think()
+        hit = self.reflex_table.match(reading)
+        if hit is not None:
+            rule, tag = hit
+            if rule.refire == "require_change" and self._last_reflex == (rule.tag, reading.key()):
+                emit("wait:refire")
+                return
+            rule.handler(self, tag)
+            self._last_reflex = (rule.tag, reading.key())
+            emit(f"reflex:{rule.tag}")
+            return
 
-        advanced = False
-        while self.plan and self.state.satisfies(self.plan[0].eff):
-            self.plan.pop(0)
-            advanced = True
-        if advanced:
-            if not self.plan:
-                self.plan = self.think()
-            self._outcome = "popped"
-            self._head = self.plan[0].name if self.plan else None
-            return None
+        if reading.phase == UNKNOWN:
+            self._unknown_streak += 1
+            if self._unknown_streak > self.wait_budget:
+                emit("panic")
+                raise BotStuck(self._dump(f"screen unreadable for {self._unknown_streak} ticks"))
+            emit("wait:unknown")
+            return
+        self._unknown_streak = 0
 
-        head = self.plan[0]
-        self._head = head.name
-        if not self.state.satisfies(head.pre):
-            return self.on_blocked(head)
-        self._outcome = "executed"
-        return head
+        popped: list[str] = []
+        while self.queue and self.state.satisfies(self.queue[0].eff):
+            popped.append(self.queue.pop(0).name)
+
+        replanned: str | None = None
+        try:
+            if not self.queue:
+                self.queue = self.think()
+                replanned = "refill"
+            if not self.state.satisfies(self.queue[0].pre):
+                if replanned is not None:
+                    raise BotStuck(
+                        self._dump(f"fresh plan head {self.queue[0].name!r} not applicable")
+                    )
+                self.queue.clear()
+                self.queue = self.think()
+                replanned = "replan"
+                if not self.state.satisfies(self.queue[0].pre):
+                    raise BotStuck(
+                        self._dump(f"replanned head {self.queue[0].name!r} not applicable")
+                    )
+        except BotStuck:
+            emit("panic", popped=popped, replanned=replanned)
+            raise
+
+        head = self.queue[0]
+        if head.refire == "require_change" and self._last_exec == (head.name, reading.key()):
+            # 幀沒變就不准重發：sleep 略短的轉場尾巴在這裡吸收，不會雙開面板。
+            emit("wait:refire", head=head.name, popped=popped, replanned=replanned)
+            return
+
+        head.do(self)
+        self._last_exec = (head.name, reading.key())
+        emit("executed", head=head.name, popped=popped, replanned=replanned)
 
     def think(self) -> list[Action]:
-        """Refill the plan. Two kinds of thinking coexist, on purpose.
+        """Refill the queue: one A* run over the catalog towards the outer goal.
 
-        This one is the flow-level kind: a single A* run over the catalog
-        towards the outer goal, and the entire `actions` list is kept, not
-        just its first step. Keeping it is what makes the plan a commitment --
-        re-deriving the route every tick would let it flip between equal-cost
-        alternatives and would throw away work the search already did.
-
-        The other kind is `SolveTactics`: an action whose `do()` splices the
-        steps it just produced in behind itself. Thinking is then an action
-        like any other -- it occupies one tick, it appears in the log with its
-        own line, and it can be interrupted before its output is executed. The
-        mock body writes a fixed sequence; the real one runs expectiminimax
-        over the battle state and splices what it found.
+        Flow-level thinking. The other kind is an action like `SolveTactics`,
+        whose `do()` splices the tactical steps it produced in behind itself;
+        both feed the same queue and the same one-step-per-tick execution.
         """
         goal = self.state.goal
         if goal is None:
@@ -163,100 +203,12 @@ class Bot:
             raise BotStuck(self._dump(f"empty plan for unsatisfied goal {goal.name!r}"))
         return list(result.actions)
 
-    def on_blocked(self, head: Action) -> Action | None:
-        """The head cannot run from here. Decide what the rest of the plan is worth.
-
-        Three answers, and choosing between them is one question: how
-        expensive is the tail?
-
-        - repair: plan a detour from the current state to `head.pre` and
-          splice it in *front*, keeping the tail. For tails that were costly
-          to produce -- a tactical sequence out of expectiminimax is not worth
-          throwing away because a popup covered the screen for two ticks.
-        - reset: drop the whole plan and think again next tick. For cheap
-          tails -- flow-level A* over this catalog costs microseconds, and a
-          plan derived from the screen as it is now is more honest than one
-          patched to look like the screen we expected.
-        - abandon: the head itself stopped meaning anything, so drop it and
-          continue with the tail. Here it is only `Action.still_relevant`,
-          which defaults to True; the real use is inside tactical sequences,
-          where the target of a planned attack is already dead or the unit has
-          already acted.
-
-        v1 policy: abandon if the head says so, otherwise repair while the
-        detour stays under `repair_max_cost` -- past that it is not a detour,
-        it is a different plan -- otherwise reset. If the think() that follows
-        a reset also finds nothing, `BotStuck`: the loop stops and says so.
-
-        Override this one method to change the policy. The choice is a
-        judgement about the price of a plan, and a judgement that small does
-        not need a framework built around it. Returning an action here runs it
-        this tick; v1 always returns None and lets the next tick run the
-        rewritten plan.
-        """
-        if not head.still_relevant(self.state):
-            self.plan.pop(0)
-            self._outcome = "blocked:abandon"
-            return None
-
-        detour = self._repair(head)
-        if detour is not None:
-            self.plan[0:0] = detour
-            self._outcome = "blocked:repair"
-            return None
-
-        self.plan.clear()
-        self._outcome = "blocked:reset"
-        return None
-
-    def _repair(self, head: Action) -> list[Action] | None:
-        goal = Goal(f"repair:{head.name}", dict(head.pre))
-        try:
-            result = plan(self.state.to_world_state(), goal, self.catalog)
-        except PlanNotFound:
-            return None
-        if not result.actions or result.total_cost > self.repair_max_cost:
-            return None
-        return list(result.actions)
-
-    def act(self, action: Action | None) -> None:
-        outcome = self._outcome
-        if action is not None:
-            if (
-                not action.repeat_safe
-                and self._last_action == action.name
-                and self._settle_left > 0
-            ):
-                # 上一 tick 才點過同一顆，畫面還沒定下來：這個 tick 只記帳不動手。
-                self._settle_left -= 1
-                outcome = "settled"
-            else:
-                action.do(self)
-                self._last_action = action.name
-                self._settle_left = 0 if action.repeat_safe else action.settle_ticks
-        self.log.append(
-            TickRecord(
-                tick=len(self.log),
-                goal=self.state.goal.name if self.state.goal else None,
-                head=self._head,
-                outcome=outcome,
-                plan_len=len(self.plan),
-                plan=[step.name for step in self.plan],
-                progress=self.board.progress_key(),
-                symbols=self.state.symbols(),
-            )
-        )
-
     def run(self, max_ticks: int = 60) -> list[TickRecord]:
         """Run until the goal is satisfied or `max_ticks` is spent.
 
-        `max_ticks` is the only termination guarantee there is. This version
-        has no loop detection at all: an action whose effect never becomes
-        true holds the front of the plan and is fired every tick until the
-        budget runs out, and nothing will interrupt it. That is a deliberate
-        simplification for this round -- the log is the only instrument for
-        judging whether the behaviour was sane, so read `trace()` and do not
-        read "it finished" as "it was right".
+        `max_ticks` plus BotStuck are the only v1 backstops; the circuit
+        breaker (replans-without-progress over the log) comes later and reads
+        the same records.
         """
         for _ in range(max_ticks):
             self.tick()
@@ -265,17 +217,18 @@ class Bot:
         return self.log
 
     def trace(self) -> str:
-        """The log as aligned text: one line per tick, plan remainder on the right."""
+        """The log as aligned text: one line per tick, queue remainder on the right."""
         goal = self.state.goal.name if self.state.goal else "-"
         lines = [
             f"goal={goal}",
-            f"{'tick':>4}  {'outcome':<16}{'head':<18}{'left':<5}{'progress':<10}plan",
+            f"{'tick':>4}  {'outcome':<18}{'head':<18}{'pops':<5}"
+            f"{'left':<5}{'progress':<10}plan",
         ]
-        for record in self.log:
-            remaining = " -> ".join(record.plan) or "-"
+        for r in self.log:
+            outcome = f"replan>{r.outcome}" if r.replanned == "replan" else r.outcome
             lines.append(
-                f"{record.tick:>4}  {record.outcome:<16}{record.head or '-':<18}"
-                f"{record.plan_len:<5}{str(record.progress):<10}{remaining}"
+                f"{r.tick:>4}  {outcome:<18}{r.head or '-':<18}{len(r.popped):<5}"
+                f"{r.plan_len:<5}{str(r.progress):<10}{' -> '.join(r.plan) or '-'}"
             )
         return "\n".join(lines)
 
@@ -286,6 +239,6 @@ class Bot:
             f"{reason}\n"
             f"  symbols={{{facts}}}\n"
             f"  board={self.board}\n"
-            f"  plan={[step.name for step in self.plan]}\n"
+            f"  queue={[step.name for step in self.queue]}\n"
             f"  last ticks: {trail}"
         )

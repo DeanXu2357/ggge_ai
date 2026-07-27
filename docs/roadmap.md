@@ -21,11 +21,22 @@ scan-flow-robustness-plan.md 與 agent-architecture.md 指標已改指
 新規格。規格定案前的 `bot/` 草稿骨架（mock 迴圈＋demo）一併入庫，
 待依規格「重塑清單」改造。
 
-**恢復點＝bot 重塑 R1（純離線，委派 opus worktree 慣例）**：依
-bot-architecture.md「與現有 bot/ 骨架的差異」七條重塑 mock 骨架
-（replan 一元化、同拍續行、分類器/router 兩表、TickRecord 擴欄、
-完備性測試）→R2 真分類器最小 phase 集＋實機 probe。輪十三
-（R1.9~1.12 首戰）與舊線待辦順延，優先序屆時與使用者確認。
+**同日稍晚（bot 重塑 R1，主 session 直改——使用者指示主架構不委派
+以保上下文，並提醒骨架是舊討論產物、一律以規格裁決）**：七條重塑
+清單全數落地（replan 一元化、pop 同拍續行＋replan 同拍執行、
+frame.py/router.py 兩張表、感知門拍首一次重算、action refire 閘門、
+TickRecord 擴欄、完備性測試）。過程中的規格級發現：**phase 掛載讓
+hub 事實在 panel 內變 UNKNOWN，setup 動作必須用 ensure 語意**（pre
+只綁 view、eff 設目標值，靠證據 pop 免費跳過，否則 replan 從
+unknown 無路可走必死）——已回寫進 actions.py 與測試。demo trace
+17 拍零空轉，重現全部四種恢復形態（等待格、反射、replan 同拍、
+免費 pop×4）。**903 passed／3 xfailed、ruff 綠**（基準 892＋16 新
+bot 測試−5 舊骨架測試）。
+
+**恢復點＝使用者檢視 R1 成果後決定後續分派方式**（使用者定案：告一
+段落再議）；候選下一步＝R2 真分類器最小 phase 集＋實機 probe、
+熔斷器（metrics 已就緒）、戰術層接線。輪十三（R1.9~1.12 首戰）與
+舊線待辦仍順延，優先序屆時與使用者確認。
 
 **裝置現況**：沿用 07-24 快照段（本 session 未碰裝置、未起 adb）。
 

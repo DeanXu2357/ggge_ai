@@ -1,44 +1,58 @@
-"""Stand-ins for perception and the device. No I/O anywhere."""
+"""Stand-ins for the classifier, the device, and time. No I/O anywhere."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Sequence
 
-from ggge_ai.goap.state import Value
+from .frame import FrameReading, Tag
 
 
-class MockSensor:
-    """Scripted perception: one observation per tick.
+class MockClassifier:
+    """Scripted classification: one FrameReading per tick.
 
-    Two layers, because a mock run needs both "the screen changed because we
-    tapped something" and "the screen changed because the game did something":
+    Three layers, outermost wins:
 
-    - `frame` is the steady-state observation. Mock actions call `override()`
-      on it, which is how a tap becomes visible to the next tick's `sense`.
     - `script[i]` is what the game does to us at tick i regardless of what we
-      did -- a story animation, a popup. It wins over `frame` for the keys it
-      names, and its other keys fall through to `frame`. Once the script runs
-      out the last entry repeats forever.
+      did -- a story overlay, a popup. `None` means no interference. Past the
+      end of the script there is no interference.
+    - `overlay` is a screen stacked on top of the base by our own actions
+      (the unit panel over the hub). `enter`/`retag_overlay`/`exit` model
+      "the hub persists underneath" without every action rebuilding hub tags.
+    - `base` is the steady screen. Actions mutate it with `retag_base`, which
+      is how a tap becomes visible to the next tick's read.
     """
 
     def __init__(
         self,
-        frame: Mapping[str, Value],
-        script: Sequence[Mapping[str, Value]] | None = None,
+        base: FrameReading,
+        script: Sequence[FrameReading | None] = (),
     ) -> None:
-        self.frame = dict(frame)
-        self.script = [dict(entry) for entry in (script or [])]
-        self.tick = 0
+        self.base = base
+        self.overlay: FrameReading | None = None
+        self.script = list(script)
+        self.reads = 0
 
-    def read(self) -> dict[str, Value]:
-        entry: Mapping[str, Value] = {}
-        if self.script:
-            entry = self.script[min(self.tick, len(self.script) - 1)]
-        self.tick += 1
-        return {**self.frame, **entry}
+    def read(self) -> FrameReading:
+        index = self.reads
+        self.reads += 1
+        if index < len(self.script) and self.script[index] is not None:
+            return self.script[index]
+        return self.overlay if self.overlay is not None else self.base
 
-    def override(self, **observed: Value) -> None:
-        self.frame.update(observed)
+    def retag_base(self, add: Iterable[Tag] = (), remove: Iterable[str] = ()) -> None:
+        gone = set(remove)
+        kept = tuple(tag for tag in self.base.tags if tag.name not in gone)
+        self.base = FrameReading(self.base.phase, kept + tuple(add))
+
+    def enter(self, phase: str, tags: Iterable[Tag] = ()) -> None:
+        self.overlay = FrameReading(phase, tuple(tags))
+
+    def retag_overlay(self, tags: Iterable[Tag]) -> None:
+        assert self.overlay is not None
+        self.overlay = FrameReading(self.overlay.phase, tuple(tags))
+
+    def exit(self) -> None:
+        self.overlay = None
 
 
 class MockDevice:
@@ -53,3 +67,29 @@ class MockDevice:
 
     def swipe(self, x1: int, y1: int, x2: int, y2: int) -> None:
         self.swipes.append((x1, y1, x2, y2))
+
+    @property
+    def interactions(self) -> int:
+        return len(self.taps) + len(self.swipes)
+
+
+class MockClock:
+    """Time that only advances when someone sleeps.
+
+    Handlers and actions own their settle sleeps (`clock.sleep`); the tick
+    loop reads `now_ms` before and after to put the cost in the record. The
+    real clock sleeps for real and reports wall time.
+    """
+
+    def __init__(self) -> None:
+        self._now_ms = 0
+
+    def now_ms(self) -> int:
+        return self._now_ms
+
+    def slept_ms(self) -> int:
+        # mock 的時間只因 sleep 前進，牆鐘＝睡眠鐘；真實時鐘兩者分開計。
+        return self._now_ms
+
+    def sleep(self, seconds: float) -> None:
+        self._now_ms += int(seconds * 1000)

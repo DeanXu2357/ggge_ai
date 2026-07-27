@@ -1,21 +1,24 @@
-"""A scripted sync-map run: one goal, one plan, and three things to watch.
+"""A scripted sync-map run: one goal, one queue, and five things to watch.
 
-The goal is `sim_ready` and nothing else. Everything that used to be a staged
-goal ("get to the hub", "finish the scan", "read the panels") is now just the
-order of the plan the planner produced on tick 0.
+The goal is `sim_ready` and nothing else; the staging lives in the order of
+the plan the planner produced on tick 0.
 
-1. `PanToFrontier` holds the head of the plan for several ticks in a row. Its
-   effect is `coverage=complete`, one swipe does not achieve that, and the
-   plan does not move on until the board says the map is covered. No counter
-   anywhere, no sub-goal, no loop inside the action.
-2. A story animation cuts in mid-scan (`view=unknown` for two ticks) and the
-   head stops being runnable. `on_blocked` repairs: `WaitOut` is spliced in
-   *front* and the tail is untouched -- the `plan` column of the trace shows
-   the same four steps still queued behind it.
-3. `TapUnit` opens the info panel and loses the camera pose doing it, which
-   takes `coverage` back to unknown. `SyncSim` is then blocked, and repair
-   splices in the way back (escape the panel, re-anchor, re-scan) while
-   `SyncSim` stays at the end of the plan.
+1. Same-tick continuation everywhere: a step whose effect shows up in this
+   tick's frame is popped and the next step fires on the same reading --
+   there is not a single bookkeeping-only tick in the whole trace.
+2. `PanToFrontier` holds the head for several ticks (standing instruction);
+   an unskippable story animation (phase UNKNOWN, ticks 6-7) is absorbed by
+   the wait slot without touching the queue.
+3. A one-button popup rides in on tick 10 as an `info_popup` tag: the reflex
+   table dismisses it at the classifier-supplied point. The reflex check
+   runs before the UNKNOWN check, so a tagged frame is handled even when the
+   phase is unreadable.
+4. `TapUnit` loses the camera pose; when `SyncSim` reaches the head its pre
+   no longer holds -> the whole queue is thrown away and replanned from the
+   panel state, and the new head executes the same tick. No repair surgery.
+5. The replanned route re-lists the ensure steps (hub facts are UNKNOWN from
+   inside the panel), and the next hub frame pops four of them at once for
+   free -- evidence advancing the queue past steps that never fired.
 
 Run `python -m ggge_ai.bot.demo` to print the trace.
 """
@@ -23,50 +26,39 @@ Run `python -m ggge_ai.bot.demo` to print the trace.
 from __future__ import annotations
 
 from .action import Goal
-from .actions import default_catalog
+from .actions import default_catalog, default_reflex_table, default_symbol_table
 from .board import MockBoard
 from .bot import Bot
-from .mocks import MockDevice, MockSensor
+from .frame import FrameReading, Tag
+from .mocks import MockClassifier, MockClock, MockDevice
 from .state import UNKNOWN, BotState
 
-BASE_FRAME = {
-    "in_stage": True,
-    "in_sync_flow": True,
-    "view": "hub",
-    "obstruction": "none",
-    "phase": "our_turn",
-    "cards": "present",
-    "panel": "closed",
-    "unit_list": "expanded",
-    "unit_state": "idle",
-}
+BASE_FRAME = FrameReading(
+    "hub",
+    (Tag("unit_cards"), Tag("turn_ours"), Tag("unit_list_expanded")),
+)
 
-# 劇情動畫剛好插在掃描中間（tick 7、8）：兩 tick 都讀不到畫面，而 obstruction
-# 從 story 變 unknown——不是 none，所以 ReachHub 不適用，只剩下等待。
-STORY_SCRIPT = [
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {"view": UNKNOWN, "obstruction": "story"},
-    {"view": UNKNOWN, "obstruction": UNKNOWN},
-    {},
-]
+STORY = FrameReading(UNKNOWN)
+POPUP = FrameReading(UNKNOWN, (Tag("info_popup", point=(1170, 760)),))
+
+# 劇情動畫插在掃描中間（tick 6、7，無 skip 鈕＝只能等）；資訊彈窗蓋在
+# 開面板之後（tick 10，有 tag＝反射點掉）。其餘拍不干擾。
+SCRIPT: list[FrameReading | None] = [None] * 6 + [STORY, STORY, None, None, POPUP]
 
 
 def build_demo_bot() -> Bot:
     state = BotState()
-    state.remember(grid="off", zoom="fit", sim_ready=False, intent="none")
+    state.remember(sim_ready=False, intent="none")
     state.goal = Goal("sim_ready", {"sim_ready": True})
     return Bot(
         state=state,
         board=MockBoard(covered_cells=1, total_cells=5, resolved_units=0, candidates=1),
-        sensor=MockSensor(BASE_FRAME, STORY_SCRIPT),
+        classifier=MockClassifier(BASE_FRAME, SCRIPT),
         device=MockDevice(),
+        clock=MockClock(),
         catalog=default_catalog(),
+        symbol_table=default_symbol_table(),
+        reflex_table=default_reflex_table(),
     )
 
 

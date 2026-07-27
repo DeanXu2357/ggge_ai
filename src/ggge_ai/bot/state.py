@@ -1,4 +1,4 @@
-"""Flat symbolic state for the bot skeleton."""
+"""Flat symbolic state with two write doors on a fixed schedule."""
 
 from __future__ import annotations
 
@@ -16,29 +16,21 @@ UNKNOWN = "unknown"
 
 @dataclass
 class BotState:
-    """One flat symbol space, no outer / in-stage split.
+    """One flat symbol space; every symbol belongs to exactly one door.
 
-    `in_stage`, `view`, `coverage`, `phase`, `sim_ready`, `intent` all live in
-    the same dict; "which layer am I in" is just another symbol the planner
-    reads, not a separate state machine.
+    Perception door (`sense_update`): opened once per tick, at the top, by the
+    router's symbol table plus the board summary. Facts the screen can attest
+    live here and are fully recomputed from the current frame every tick --
+    an action's eff over these is a *prediction* the screen must confirm,
+    never a write.
 
-    There is exactly one goal, and it is the outer one ("this stage is
-    cleared", "the simulator is in sync"). Staged goals do not exist any more:
-    the order of `Bot.plan` is what says "positions first, then details" --
-    a sequence the planner produced, not a list a human pre-decided.
+    Memory door (`remember`): opened only inside `Action.do`. Decisions the
+    screen cannot show (intent, sim_ready) live here; the router never
+    touches them.
 
-    Two disciplines this class exists to keep visible:
-
-    1. Perception symbols are overwritten by `sense` every tick. If a symbol
-       cannot be read this tick it is written `UNKNOWN` -- never left at its
-       last value, because a stale symbol is indistinguishable from a fresh
-       one to the planner. `sense_update` is the only door for these.
-    2. Memory symbols are written by actions only. `sense` never touches them,
-       so nothing on screen can silently revoke a decision we made. `remember`
-       is the only door for these.
-
-    Both doors write into the same dict on purpose: the planner sees one flat
-    space. The split is a discipline about who writes what, not two storages.
+    Between those two moments the symbol space is read-only. After `act` the
+    symbols are stale by definition, and that is fine: nothing reads them
+    until the next tick rewrites them.
     """
 
     facts: dict[str, Value] = field(default_factory=dict)
@@ -48,30 +40,14 @@ class BotState:
     def get(self, key: str, default: Value = UNKNOWN) -> Value:
         return self.facts.get(key, default)
 
-    def set(self, key: str, value: Value) -> None:
-        self.facts[key] = value
-
-    def update(self, values: Mapping[str, Value]) -> None:
-        self.facts.update(values)
-
     def symbols(self) -> dict[str, Value]:
         return dict(self.facts)
 
     def satisfies(self, conditions: Mapping[str, Value]) -> bool:
-        """One reading of the screen, asked twice per tick.
-
-        `decide` asks it about the head's effect (is this step done?) and about
-        the head's preconditions (may this step run?). Same question form, so
-        the two must not drift apart into separate comparison rules.
-        """
         return self.to_world_state().satisfies(conditions)
 
-    def sense_update(self, **observed: Value) -> None:
-        """Perception door: called once per tick by `Bot.sense`.
-
-        The caller is expected to pass `UNKNOWN` for anything it failed to
-        read, so the write is always a full overwrite of what it owns.
-        """
+    def sense_update(self, observed: Mapping[str, Value]) -> None:
+        """Perception door: called once per tick, at the top, by the router."""
         self.facts.update(observed)
 
     def remember(self, **decided: Value) -> None:

@@ -57,3 +57,6 @@ class MockBoard:
             "details": self.details_verdict(),
             "pose": self.pose,
         }
+
+
+BOARD_SYMBOLS = frozenset({"coverage", "details", "pose"})
