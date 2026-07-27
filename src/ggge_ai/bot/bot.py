@@ -106,11 +106,26 @@ class Bot:
         the ones with an identity of their own (reflex router, recorder,
         planner call). Everything else stays visible here so any drift from
         the spec diagram is immediately in view.
+
+        A sense that raises is an infrastructure failure, not a game
+        situation: no action in any catalog fixes a dead adb, so routing it
+        through the unreadable-frame path would spin the loop on `Observe`
+        until `max_ticks` and report a timeout instead of the real cause.
+        The tick therefore dies at the top -- but never silently: it leaves
+        one `panic:sense` record (no tags, and the symbols are the previous
+        tick's leftovers, since nothing was sensed) and re-raises the
+        original exception untouched. Not BotStuck: that type is scoped to
+        planning failures, and only the real traceback says whether it was
+        the transport, the decoder, or the classifier.
         """
         t0 = self.clock.now_ms()
         slept0 = self.clock.slept_ms()
-        frame = self.screen.capture()
-        reading = self.classifier.classify(frame)
+        try:
+            frame = self.screen.capture()
+            reading = self.classifier.classify(frame)
+        except Exception:
+            self._record(FrameReading(), t0, slept0, "panic:sense")
+            raise
 
         perceived = self.symbol_table.translate(reading)
         perceived.update(self.board.summary_symbols())

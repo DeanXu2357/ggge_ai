@@ -15,6 +15,7 @@ from ggge_ai.bot.action import Goal
 from ggge_ai.bot.bot import BotStuck
 from ggge_ai.bot.demo import build_demo_bot, run_demo
 from ggge_ai.bot.metrics import Metrics
+from tests.test_bot_skeleton import _DeadScreen
 
 
 def _suffixes(snapshot: dict[str, int], prefix: str) -> set[str]:
@@ -119,6 +120,21 @@ def test_plan_not_found_is_counted_on_the_panic_path():
     assert snapshot["plan.calls"] == 1
     assert snapshot["plan.latency_ms.n"] == 1
     assert snapshot["tick.outcome.panic"] == 1
+
+
+def test_sense_failure_is_counted_apart_from_the_planner_panic():
+    bot = build_demo_bot()
+    bot.screen = _DeadScreen()
+
+    with pytest.raises(OSError):
+        bot.tick()
+
+    snapshot = bot.metrics.snapshot()
+    assert snapshot["tick.total"] == len(bot.log) == 1
+    assert snapshot["tick.outcome.panic:sense"] == 1
+    # 感知失敗跟規劃走投無路是兩種病因，計數器不共格；規劃器根本沒被叫到。
+    assert "tick.outcome.panic" not in snapshot
+    assert "plan.calls" not in snapshot
 
 
 # --- Metrics 自身 ---

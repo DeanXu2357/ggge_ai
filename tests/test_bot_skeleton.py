@@ -270,6 +270,48 @@ def test_unknown_views_do_not_panic_only_max_ticks_stops_them():
     assert bot.device.interactions == 0
 
 
+class _DeadScreen:
+    """USB 掉線的離線替身：capture() 死在傳輸層。"""
+
+    def capture(self) -> FrameReading:
+        raise OSError("device offline")
+
+
+class _DeadClassifier:
+    def classify(self, frame: FrameReading) -> FrameReading:
+        raise ValueError("template decode failed")
+
+
+def test_sense_failure_leaves_a_record_and_re_raises_the_original_error():
+    bot = _mini_bot(Goal("grid", {"grid": "on"}))
+    bot.tick()
+    sensed = bot.log[-1].symbols
+    bot.screen = _DeadScreen()
+
+    with pytest.raises(OSError, match="device offline"):
+        bot.tick()
+
+    record = bot.log[-1]
+    assert record.outcome == "panic:sense"
+    assert record.tags == []
+    assert record.head is None
+    assert record.popped == []
+    # 沒感知到就不換算符號：留上一 tick 的殘值，不從缺席的 tag 生出 UNKNOWN。
+    assert record.symbols == sensed
+    assert bot.device.interactions == 1
+
+
+def test_classifier_failure_takes_the_same_path():
+    bot = _mini_bot(Goal("grid", {"grid": "on"}))
+    bot.classifier = _DeadClassifier()
+
+    with pytest.raises(ValueError, match="template decode failed"):
+        bot.tick()
+
+    assert bot.log[-1].outcome == "panic:sense"
+    assert bot.device.interactions == 0
+
+
 def test_missing_vocabulary_panics_with_a_dump():
     bot = _mini_bot(
         Goal("sim_ready", {"sim_ready": True}),
