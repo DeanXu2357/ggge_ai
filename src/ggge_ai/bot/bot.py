@@ -17,10 +17,13 @@ from .state import UNKNOWN, BotState
 class BotStuck(RuntimeError):
     """Honest abort: the loop stops and says where, it does not improvise.
 
-    Raised when the screen stays unreadable past the wait budget, when the
-    planner finds no route (an unprepared situation -- the vocabulary is
-    missing a mid-state), or when a fresh plan is somehow not applicable.
-    The real system turns this into a human-intervention request.
+    Raised only for immediate honest failures: the planner finds no route
+    (an unprepared situation -- the vocabulary is missing a mid-state) or a
+    fresh plan is somehow not applicable. Threshold judgements (too many
+    replans, too long unreadable) belong to the deferred circuit breaker,
+    which will derive them from the tick log; until then `run(max_ticks)`
+    is the only coarse backstop. The real system turns this into a
+    human-intervention request.
     """
 
 
@@ -74,7 +77,6 @@ class Bot:
         catalog: list[Action],
         symbol_table: SymbolTable,
         reflex_table: ReflexTable,
-        wait_budget: int = 3,
     ) -> None:
         self.state = state
         self.board = board
@@ -85,11 +87,9 @@ class Bot:
         self.catalog = list(catalog)
         self.symbol_table = symbol_table
         self.reflex_table = reflex_table
-        self.wait_budget = wait_budget
         self.queue: list[Action] = []
         self.log: list[TickRecord] = []
         self.finished = False
-        self._unknown_streak = 0
         self._last_exec: tuple[str, tuple] | None = None
         self._last_reflex: tuple[str, tuple] | None = None
 
@@ -145,13 +145,10 @@ class Bot:
             return
 
         if reading.phase == UNKNOWN:
-            self._unknown_streak += 1
-            if self._unknown_streak > self.wait_budget:
-                emit("panic")
-                raise BotStuck(self._dump(f"screen unreadable for {self._unknown_streak} ticks"))
+            # 等待格只記帳、不裁決：連續 unknown 的超限是熔斷器的事（延後，
+            # 從流水帳導出），v1 的粗保險只有 run() 的 max_ticks。
             emit("wait:unknown")
             return
-        self._unknown_streak = 0
 
         popped: list[str] = []
         while self.queue and self.state.satisfies(self.queue[0].eff):

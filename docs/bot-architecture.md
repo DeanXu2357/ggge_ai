@@ -36,7 +36,7 @@
   → 分類器 → FrameReading {phase, tags}
   → router 符號表：無條件重算全部感知符號（走反射的拍也照做）
   → 有 blocking tag？        → 跑對應反射 handler（內含自己的 sleep），本拍結束
-  → phase = UNKNOWN？        → 等待格（消耗等待預算），本拍結束
+  → phase = UNKNOWN？        → 等待格（只記帳；超限裁決歸熔斷器，延後），本拍結束
   → 記帳：把「本幀已證明完成」的隊頭連續 pop 掉（0..n 步，純比對，不碰裝置）
   → 隊列空？                 → think（A* 補貨，純計算）
   → 隊頭 pre 不成立？        → replan（丟掉整個隊列重規劃，純計算）
@@ -167,10 +167,14 @@ FrameReading ─┬─→ 反射表：tags → handler          （給反射弧�
 
 - v1 backstop＝`max_ticks`＋BotStuck（dump：符號快照＋最後幾拍
   流水＋截圖路徑）；實機上 panic 接 discord-notify 請求人工干預。
-- **熔斷器延後、metrics 先行**（使用者定案）。未來形：
-  「自上次 progress 以來的 replan 次數 ≥ N」→panic；
-  「連續同 tag 反射 M 次未回到預期」→升級 replan。計數全部從
-  流水帳導出，落地時不需回頭改埋點。
+  BotStuck 只留給**即時誠實失敗**（PlanNotFound、新計畫不可執行）；
+  一切門檻裁決（等太久、replan 太多）都不屬於 v1。
+- **熔斷器延後、metrics 先行**（使用者定案；2026-07-27 再確認：
+  等待格的預算與超限 panic 同屬熔斷家族，v1 不做、迴圈內不養
+  計數器）。未來形：「自上次 progress 以來的 replan 次數 ≥ N」→
+  panic；「連續同 tag 反射 M 次未回到預期」→升級 replan；「連續
+  wait:unknown ≥ W」→panic。計數全部從流水帳導出，落地時不需
+  回頭改埋點。
 
 ## metrics／TickRecord
 

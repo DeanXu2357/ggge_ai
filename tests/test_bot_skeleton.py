@@ -178,15 +178,16 @@ def test_reflex_refire_gate_fires_once_on_identical_frames():
 # --- panic 路徑 ---
 
 
-def test_unknown_streak_beyond_the_wait_budget_panics():
+def test_unknown_waits_do_not_panic_only_max_ticks_stops_them():
+    # 連續 unknown 的超限裁決是熔斷器的事（延後、從流水帳導出）；
+    # v1 的等待格只記帳，粗保險只有 max_ticks。
     bot = _mini_bot(Goal("grid", {"grid": "on"}), script=[STORY] * 8)
 
-    with pytest.raises(BotStuck) as excinfo:
-        bot.run(max_ticks=10)
+    bot.run(max_ticks=6)
 
-    assert "unreadable" in str(excinfo.value)
-    assert bot.log[-1].outcome == "panic"
-    assert [r.outcome for r in bot.log[:-1]] == ["wait:unknown"] * bot.wait_budget
+    assert not bot.finished
+    assert [r.outcome for r in bot.log] == ["wait:unknown"] * 6
+    assert bot.device.interactions == 0
 
 
 def test_missing_vocabulary_panics_with_a_dump():
