@@ -1,12 +1,35 @@
 # 進度與規劃
 
-更新日期：2026-07-24（**現行恢復點＝本檔「暫停快照（2026-07-24 委派迴圈
-session 收工）」段**——委派迴圈 8 修復輪合併＋實機 8 輪＋同日 Round 1.12
-離線合併、恢復點 Round 1.13（待上機）；最新里程碑＝07-24 掃描主體首度
-滿分收斂（輪九）；前一里程碑＝07-23 覆蓋驅動掃描重寫日；再前＝07-21
-協調者管線日）
+更新日期：2026-07-27（**現行恢復點＝本檔「暫停快照（2026-07-27 bot
+大重寫定案 session 收工）」段**——bot 新架構規格落檔、controller2 整組
+廢止；最新里程碑＝07-27 大重寫定案；前一里程碑＝07-24 掃描主體首度
+滿分收斂（輪九）；再前＝07-23 覆蓋驅動掃描重寫日）
 
-## 暫停快照（2026-07-24 委派迴圈 session 收工，恢復點）
+## 暫停快照（2026-07-27 bot 大重寫定案 session 收工，現行恢復點）
+
+**本 session 戰果（純離線、未碰裝置）**：使用者裁決大重寫——舊架構
+疊床架屋偏離目標，新架構落 `src/ggge_ai/bot/`。與使用者逐題定案
+（討論鏈：非預期畫面的多 tick 恢復問題→反射梯＋replan＋熔斷分層→
+分類器 `{phase, tags}`＋router 兩張表（反射表／符號表）→「一符號
+一扇門、eff 是預測不是寫入」→pop 同拍續行＋replan 同拍執行），
+正式規格落檔 **[bot-architecture.md](bot-architecture.md)**（唯一
+規格來源；含核心不變式、tick 生命週期、兩表欄位、metrics 先行／
+熔斷延後、延後清單）。**controller2 路線整組廢止移除**：
+`battle/flow/`（vocabulary／actions／controller2）＋三個 flow 測試檔
+＋ flow-goap-controller2.md 皆刪，原 Round 2.1／2.2 計畫作廢；
+scan-flow-robustness-plan.md 與 agent-architecture.md 指標已改指
+新規格。規格定案前的 `bot/` 草稿骨架（mock 迴圈＋demo）一併入庫，
+待依規格「重塑清單」改造。
+
+**恢復點＝bot 重塑 R1（純離線，委派 opus worktree 慣例）**：依
+bot-architecture.md「與現有 bot/ 骨架的差異」七條重塑 mock 骨架
+（replan 一元化、同拍續行、分類器/router 兩表、TickRecord 擴欄、
+完備性測試）→R2 真分類器最小 phase 集＋實機 probe。輪十三
+（R1.9~1.12 首戰）與舊線待辦順延，優先序屆時與使用者確認。
+
+**裝置現況**：沿用 07-24 快照段（本 session 未碰裝置、未起 adb）。
+
+## 暫停快照（2026-07-24 委派迴圈 session 收工，已被 07-27 段取代）
 
 **本 session 戰果**：委派迴圈 8 個修復輪全數合併（Round 1／1.5～1.11，
 tip `cd44e20`，**883 passed／3 xfailed、ruff 綠**，測試 810→883）；實機
@@ -66,7 +89,8 @@ ruff 綠、無測試需改。規格「tick 語意」節已改定案為此形狀�
 驗收條款（禁第二層執行迴圈、`plan()` 只在 queue 空分支、queue／
 pending 迴圈外變數）杜絕再漂。**恢復點＝Round 2.1（巨集＋逐單位
 動作＋goal＋run_sync_map.py，離線，在扁平 `run()` 上擴充）→
-Round 2.2 實機 probe**。
+Round 2.2 實機 probe**。（**2026-07-27 作廢**：controller2 路線整組
+移除，見 07-27 快照段與 bot-architecture.md。）
 
 **裝置現況**：TURN 1 our-turn hub（EX-2 IF、0/15、剩 3 回合敗北限制、
 9/9 卡可行動）、乾淨無殘留、格線 off、閒置變暗中（keyguard 自解）、
