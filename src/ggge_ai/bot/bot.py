@@ -52,23 +52,6 @@ class TickRecord:
     slept_ms: int = 0
 
 
-@dataclass
-class TickOutcome:
-    """What one lifecycle step decided. The recorder folds it into a TickRecord.
-
-    Returned from `Bot._step` at every exit, so the lifecycle never touches
-    the ledger -- recording is a wrapper around the step, not a resident of
-    it. `error` carries a pending BotStuck: the recorder logs the panic tick
-    first, then `tick` re-raises it.
-    """
-
-    outcome: str
-    head: str | None = None
-    popped: list[str] = field(default_factory=list)
-    replanned: str | None = None
-    error: BotStuck | None = None
-
-
 class Bot:
     """sense -> reflex/wait -> bookkeeping -> plan -> one action.
 
@@ -111,6 +94,13 @@ class Bot:
         self._last_exec: tuple[str, tuple] | None = None
 
     def tick(self) -> None:
+        """The whole lifecycle, inline: the spec diagram is this method, top to bottom.
+
+        Deliberately not decomposed further -- the only extracted pieces are
+        the ones with an identity of their own (reflex router, recorder,
+        planner call). Everything else stays visible here so any drift from
+        the spec diagram is immediately in view.
+        """
         t0 = self.clock.now_ms()
         frame = self.screen.capture()
         reading = self.classifier.classify(frame)
@@ -120,26 +110,16 @@ class Bot:
         perceived.update(self.board.summary_symbols())
         self.state.sense_update(perceived)
 
-        out = self._step(reading)
-        self._record(reading, t0, out)
-        if out.error is not None:
-            raise out.error
-
-    def _step(self, reading: FrameReading) -> TickOutcome:
-        """The lifecycle ladder, one rung per exit. No ledger code anywhere."""
-        goal = self.state.goal
-        if goal is None or goal.satisfied(self.state):
-            self.finished = True
-            return TickOutcome("done")
-
         handled = self.reflexes.route(self, reading)
         if handled is not None:
-            return TickOutcome(handled)
+            self._record(reading, t0, handled)
+            return
 
         if reading.phase == UNKNOWN:
             # 等待格只記帳、不裁決：連續 unknown 的超限是熔斷器的事（延後，
             # 從流水帳導出），v1 的粗保險只有 run() 的 max_ticks。
-            return TickOutcome("wait:unknown")
+            self._record(reading, t0, "wait:unknown")
+            return
 
         popped: list[str] = []
         while self.queue and self.state.satisfies(self.queue[0].eff):
@@ -150,7 +130,7 @@ class Bot:
             if not self.queue:
                 self.queue = self.think()
                 replanned = "refill"
-            if not self.state.satisfies(self.queue[0].pre):
+            if self.queue and not self.state.satisfies(self.queue[0].pre):
                 if replanned is not None:
                     raise BotStuck(
                         self._dump(f"fresh plan head {self.queue[0].name!r} not applicable")
@@ -158,33 +138,52 @@ class Bot:
                 self.queue.clear()
                 self.queue = self.think()
                 replanned = "replan"
-                if not self.state.satisfies(self.queue[0].pre):
+                if self.queue and not self.state.satisfies(self.queue[0].pre):
                     raise BotStuck(
                         self._dump(f"replanned head {self.queue[0].name!r} not applicable")
                     )
-        except BotStuck as exc:
-            return TickOutcome("panic", popped=popped, replanned=replanned, error=exc)
+        except BotStuck:
+            self._record(reading, t0, "panic", popped=popped, replanned=replanned)
+            raise
+
+        if not self.queue:
+            # planner 回空計畫＝goal 已滿足。收工的唯一裁判是 A*，迴圈裡沒有
+            # 第二個 goal 檢查點；代價是 goal 提早成立時會先把殘餘隊列走完。
+            self.finished = True
+            self._record(reading, t0, "done", popped=popped, replanned=replanned)
+            return
 
         head = self.queue[0]
         if head.refire == "require_change" and self._last_exec == (head.name, reading.key()):
             # 幀沒變就不准重發：sleep 略短的轉場尾巴在這裡吸收，不會雙開面板。
-            return TickOutcome("wait:refire", head=head.name, popped=popped, replanned=replanned)
+            self._record(
+                reading, t0, "wait:refire", head=head.name, popped=popped, replanned=replanned
+            )
+            return
 
         head.do(self)
         self._last_exec = (head.name, reading.key())
-        return TickOutcome("executed", head=head.name, popped=popped, replanned=replanned)
+        self._record(reading, t0, "executed", head=head.name, popped=popped, replanned=replanned)
 
-    def _record(self, reading: FrameReading, t0: int, out: TickOutcome) -> None:
-        """The only writer of the tick log: folds one TickOutcome into a TickRecord."""
+    def _record(
+        self,
+        reading: FrameReading,
+        t0: int,
+        outcome: str,
+        head: str | None = None,
+        popped: list[str] | None = None,
+        replanned: str | None = None,
+    ) -> None:
+        """The only writer of the tick log."""
         self.log.append(
             TickRecord(
                 tick=len(self.log),
                 phase=reading.phase,
                 tags=[tag.name for tag in reading.tags],
-                outcome=out.outcome,
-                head=out.head,
-                popped=out.popped,
-                replanned=out.replanned,
+                outcome=outcome,
+                head=head,
+                popped=popped or [],
+                replanned=replanned,
                 plan_len=len(self.queue),
                 plan=[step.name for step in self.queue],
                 progress=self.board.progress_key(),
@@ -197,9 +196,12 @@ class Bot:
     def think(self) -> list[Action]:
         """Refill the queue: one A* run over the catalog towards the outer goal.
 
-        Flow-level thinking. The other kind is an action like `SolveTactics`,
-        whose `do()` splices the tactical steps it produced in behind itself;
-        both feed the same queue and the same one-step-per-tick execution.
+        An empty result is not an error -- it is the done signal: A* returns
+        no actions exactly when the current state already satisfies the goal
+        (or there is no goal), and the planner is the loop's only judge of
+        satisfaction. Flow-level thinking; the other kind is an action like
+        `SolveTactics`, whose `do()` splices the tactical steps it produced
+        in behind itself.
         """
         goal = self.state.goal
         if goal is None:
@@ -208,8 +210,6 @@ class Bot:
             result = plan(self.state.to_world_state(), goal, self.catalog)
         except PlanNotFound as exc:
             raise BotStuck(self._dump(f"no plan for goal {goal.name!r}: {exc}")) from exc
-        if not result.actions:
-            raise BotStuck(self._dump(f"empty plan for unsatisfied goal {goal.name!r}"))
         return list(result.actions)
 
     def run(self, max_ticks: int = 60) -> list[TickRecord]:

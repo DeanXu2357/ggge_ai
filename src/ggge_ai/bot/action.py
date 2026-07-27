@@ -12,7 +12,6 @@ from ggge_ai.goap.state import Value, WorldState
 
 if TYPE_CHECKING:
     from .bot import Bot
-    from .state import BotState
 
 
 class Action(GoapAction):
@@ -56,10 +55,12 @@ class Action(GoapAction):
 
 @dataclass
 class Goal(GoapGoal):
-    """A named set of conditions over the flat symbol space."""
+    """A named set of conditions over the flat symbol space.
+
+    Deliberately no bot-facing `satisfied()` helper: the loop's only judge
+    of goal satisfaction is the planner (an empty plan is the done signal),
+    and a second predicate here would invite a second checkpoint.
+    """
 
     name: str = "goal"
     conditions: dict[str, Value] = field(default_factory=dict)
-
-    def satisfied(self, state: BotState) -> bool:
-        return state.to_world_state().satisfies(self.conditions)
