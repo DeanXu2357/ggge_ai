@@ -49,6 +49,19 @@ instruction／remember／互斥 pre 拆步），迴圈不做行為決策、不�
 的 do() 即時生效無法演練，真 catalog 落地時各 action 需自帶再入
 符號並實機確認。**907 passed／3 xfailed、ruff 綠**。
 
+**同日第三輪（等待格撤除——使用者指正「核准我的翻譯版」不算核准）**：
+view 入場閘門是對「unknown 丟給 decide」的過度翻譯，撤除。定案：
+迴圈無任何 unknown 檢查；「處於何種狀態」是計畫的課題——catalog
+必含觀察動作（`Observe`：pre view unknown、eff 目標畫面、do 不碰
+裝置，standing instruction「等到看得懂」；可讀成別的畫面則 pre
+破裂、從已知狀態 replan），planner 從 unknown 照樣排出「先看清楚
+再繼續」的計畫；PlanNotFound 只剩真詞彙洞的誠實 panic；**真正的
+unknown＝一直 replan 沒有 progress**（熔斷器領域，v1 靠
+max_ticks）。mock demo 17 拍數不變，story 拍從 wait 變 replan＋
+Observe。真 catalog 留待 R2：觀察動作需逐畫面或參數化、自帶
+settle sleep（mock 的 no-op 版不上實機）。**909 passed／
+3 xfailed、ruff 綠**。
+
 **恢復點＝使用者檢視 R1 成果後決定後續分派方式**（使用者定案：告一
 段落再議）；候選下一步＝R2 真分類器最小 identity tag 集＋實機
 probe、

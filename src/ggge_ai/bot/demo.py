@@ -7,12 +7,14 @@ the plan the planner produced on tick 0.
    tick's frame is popped and the next step fires on the same reading --
    there is not a single bookkeeping-only tick in the whole trace.
 2. `PanToFrontier` holds the head for several ticks (standing instruction);
-   an unskippable story animation (no identity tag, ticks 6-7) is absorbed by
-   the wait slot without touching the queue.
+   an unskippable story animation (no identity tag, ticks 6-7) breaks its
+   `view` precondition, and the replan answers with `Observe` at the head --
+   a standing instruction with nothing to send, so the story costs the device
+   nothing and the hub frame at tick 8 pops it plus three ensure steps at once.
 3. A one-button popup rides in on tick 10 as an `info_popup` tag: the reflex
    table dismisses it at the classifier-supplied point. The reflex check runs
-   before the `view` check, so a tagged frame is handled even when the screen
-   identity is unreadable.
+   before the queue, so a tagged frame is handled without disturbing the plan
+   even though its screen identity is unreadable.
 4. `TapUnit` loses the camera pose; when `SyncSim` reaches the head its pre
    no longer holds -> the whole queue is thrown away and replanned from the
    panel state, and the new head executes the same tick. No repair surgery.

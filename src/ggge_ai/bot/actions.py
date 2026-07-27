@@ -26,6 +26,7 @@ from .router import (
     tag_present,
     tag_value,
 )
+from .state import UNKNOWN
 
 if TYPE_CHECKING:
     from .bot import Bot
@@ -91,6 +92,30 @@ def default_reflex_table() -> ReflexTable:
             ReflexRule(tag="info_popup", handler=_dismiss_info_popup),
         ]
     )
+
+
+# --- 觀察：不可讀的畫面是規劃的課題，不是迴圈的分支 ---
+
+
+class Observe(Action):
+    """The route out of an unreadable screen, expressed as an ordinary step.
+
+    `view: unknown` is a state like any other, so the planner can be given a
+    step that leaves it -- "look until the screen reads again, then carry on".
+    It is a standing instruction with nothing to send: it holds the head while
+    the screen stays unreadable, pops the moment the target screen is attested,
+    and breaks its own `pre` if the screen comes back as something else, which
+    replans from the now-known state.
+    """
+
+    name = "Observe"
+    cost = 1.0
+    pre = {"view": UNKNOWN}
+    eff = {"view": IDENTITY_VIEWS["hub"]}
+
+    def do(self, bot: Bot) -> None:
+        # 真做法：不送任何輸入——下一拍的截圖就是唯一需要的新證據。
+        pass
 
 
 # --- 導航／畫面整備 ---
@@ -351,6 +376,7 @@ class EndTurn(Action):
 
 def default_catalog() -> list[Action]:
     return [
+        Observe(),
         ExpandUnitList(),
         CollapseUnitList(),
         EnableGrid(),

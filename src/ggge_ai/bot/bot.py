@@ -12,7 +12,7 @@ from .board import MockBoard
 from .frame import FrameReading
 from .mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
 from .router import ReflexRouter, ReflexTable, SymbolTable
-from .state import UNKNOWN, BotState
+from .state import BotState
 
 
 class BotStuck(RuntimeError):
@@ -59,9 +59,10 @@ class Bot:
     executions) and it dies whole (a stale head throws the entire queue away
     and replans from the current symbols -- there is no repair surgery).
 
-    Every queue path is gated on `view`: a frame that cannot say which screen
-    it is goes to the wait slot before any pop, replan or execution. A tick
-    that cannot attest to the screen declares no verdict at all.
+    There is no unknown check anywhere in the loop: a frame that cannot say
+    which screen it is breaks the head's `view` precondition like any other
+    stale head, and the planner routes out of it through an observation
+    action that holds the head until the screen reads again.
 
     Same-tick continuation: pops, refill and replan are bookkeeping and pure
     computation over the frame captured at the top of this tick, so they do
@@ -114,10 +115,6 @@ class Bot:
         handled = self.reflexes.route(self, reading)
         if handled is not None:
             self._record(reading, t0, handled)
-            return
-
-        if self.state.get("view") == UNKNOWN:
-            self._record(reading, t0, "wait:unknown")
             return
 
         popped: list[str] = []

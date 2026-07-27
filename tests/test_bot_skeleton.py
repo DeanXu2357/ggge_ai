@@ -1,10 +1,10 @@
 """Offline tests for the reshaped bot loop (spec: docs/bot-architecture.md).
 
 The demo trace is the fixture for the loop's semantics: same-tick
-continuation, standing instructions, the wait slot, reflex dismissal,
-whole-queue replan, and evidence pops of steps that never fired. The
-crafted mini-bots cover the identity gate on the queue, the reflex dispatch
-contract, the panic paths, and the two router tables' contracts.
+continuation, standing instructions, observation as a planned step, reflex
+dismissal, whole-queue replan, and evidence pops of steps that never fired.
+The crafted mini-bots cover unreadable frames, the reflex dispatch contract,
+the panic paths, and the two router tables' contracts.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ from ggge_ai.bot.router import (
     unproduced_symbols,
 )
 from ggge_ai.bot.state import UNKNOWN, BotState
+from ggge_ai.goap.planner import plan
 
 
 def _mini_bot(
@@ -57,6 +58,13 @@ def _mini_bot(
     )
 
 
+def _panel_replan_index(bot: Bot) -> int:
+    # 故事幀也會讓隊頭 pre 破裂重規劃，所以要點名的是面板那一次。
+    return next(
+        i for i, r in enumerate(bot.log) if r.replanned == "replan" and r.symbols["view"] == "panel"
+    )
+
+
 # --- demo：迴圈語意的整體 fixture ---
 
 
@@ -72,7 +80,7 @@ def test_no_bookkeeping_only_ticks():
     bot = run_demo()
 
     for record in bot.log:
-        assert record.outcome.split(":")[0] in {"executed", "reflex", "wait", "done"}
+        assert record.outcome.split(":")[0] in {"executed", "reflex", "done"}
     assert any(record.popped and record.outcome == "executed" for record in bot.log)
 
 
@@ -100,14 +108,24 @@ def test_pan_holds_the_head_then_pops_into_the_next_step():
     assert handoff.symbols["coverage"] == "complete"
 
 
-def test_wait_slot_absorbs_unskippable_story_without_touching_the_queue():
-    bot = run_demo()
+def test_unskippable_story_costs_the_device_nothing_and_the_goal_still_lands():
+    bot = build_demo_bot()
 
-    waits = [i for i, r in enumerate(bot.log) if r.outcome == "wait:unknown"]
-    assert len(waits) == 2
-    for index in waits:
-        assert bot.log[index].plan == bot.log[index - 1].plan
-        assert bot.log[index].symbols["view"] == UNKNOWN
+    observed = 0
+    for _ in range(40):
+        before = bot.device.interactions
+        bot.tick()
+        record = bot.log[-1]
+        if record.head == "Observe":
+            observed += 1
+            assert record.symbols["view"] == UNKNOWN
+            assert bot.device.interactions == before
+        if bot.finished:
+            break
+
+    assert observed == 2
+    assert bot.finished
+    assert bot.state.get("sim_ready") is True
 
 
 def test_reflex_dismisses_popup_at_the_classifier_supplied_point():
@@ -121,7 +139,7 @@ def test_reflex_dismisses_popup_at_the_classifier_supplied_point():
 def test_replan_throws_the_whole_queue_away_and_executes_same_tick():
     bot = run_demo()
 
-    record = next(r for r in bot.log if r.replanned == "replan")
+    record = bot.log[_panel_replan_index(bot)]
     assert record.outcome == "executed"
     assert record.head == "EscapePanel"
     assert record.symbols["coverage"] == UNKNOWN
@@ -131,8 +149,7 @@ def test_replan_throws_the_whole_queue_away_and_executes_same_tick():
 def test_evidence_pops_steps_that_never_fired():
     bot = run_demo()
 
-    replan_at = next(i for i, r in enumerate(bot.log) if r.replanned == "replan")
-    tail = bot.log[replan_at + 1 :]
+    tail = bot.log[_panel_replan_index(bot) + 1 :]
 
     ensure_pop = next(r for r in tail if len(r.popped) >= 3)
     assert {"CollapseUnitList", "EnableGrid", "ZoomToMax"} <= set(ensure_pop.popped)
@@ -151,29 +168,66 @@ def test_perception_symbols_are_recomputed_every_tick():
     assert back_on_hub.symbols["panel_tab"] == UNKNOWN
 
 
-# --- 畫面身分閘門：不可作證的幀不得宣告裁決 ---
+# --- 不可讀的幀：由計畫裡的觀察動作承接，迴圈裡沒有 unknown 分支 ---
 
 
-def test_frame_without_any_identity_tag_keeps_the_queue_untouched():
+def test_the_planner_routes_out_of_an_unreadable_screen():
+    state = BotState()
+    state.remember(sim_ready=False, intent="none")
+    state.sense_update(default_symbol_table().translate(STORY))
+    state.sense_update(MockBoard(covered_cells=1, total_cells=5, candidates=1).summary_symbols())
+    assert state.get("view") == UNKNOWN
+
+    result = plan(state.to_world_state(), Goal("grid", {"grid": "on"}), default_catalog())
+
+    assert [step.name for step in result.actions] == ["Observe", "EnableGrid"]
+
+
+def test_a_run_that_starts_unreadable_observes_first_and_carries_on():
     bot = _mini_bot(Goal("grid", {"grid": "on"}), script=[STORY, None])
 
     bot.run(max_ticks=5)
 
-    assert bot.log[0].outcome == "wait:unknown"
+    assert bot.log[0].replanned == "refill"
+    assert bot.log[0].head == "Observe"
     assert bot.log[0].symbols["view"] == UNKNOWN
-    assert bot.log[0].plan == []
-    assert bot.log[1].outcome == "executed"
+    assert bot.log[1].head == "EnableGrid"
+    assert bot.device.taps == [(2180, 140)]
+    assert bot.finished
 
 
-def test_two_identity_tags_on_one_frame_leave_the_view_unknown():
-    # 兩個畫面身分同時命中是互相矛盾的讀數，不是「兩個都成立」——退回
-    # unknown，佇列一步都不動。
+def test_a_frame_going_unreadable_replans_into_an_observe_led_plan():
+    bot = _mini_bot(Goal("setup", {"grid": "on", "zoom": "max"}), script=[None, STORY, None])
+
+    bot.tick()
+    assert bot.log[0].outcome == "executed"
+
+    quiet = bot.device.interactions
+    bot.tick()
+
+    assert bot.log[1].replanned == "replan"
+    assert bot.log[1].head == "Observe"
+    assert bot.log[1].plan[0] == "Observe"
+    assert bot.log[1].symbols["view"] == UNKNOWN
+    assert bot.device.interactions == quiet
+
+    bot.run(max_ticks=5)
+
+    assert bot.finished
+    assert bot.state.get("grid") == "on"
+    assert bot.state.get("zoom") == "max"
+
+
+def test_two_identity_tags_on_one_frame_take_the_same_observation_route():
+    # 兩個畫面身分同時命中是互相矛盾的讀數，不是「兩個都成立」——一樣是
+    # view unknown，走同一條觀察路徑。
     contradictory = FrameReading((Tag("hub"), Tag("unit_panel"), Tag("turn_ours")))
     bot = _mini_bot(Goal("grid", {"grid": "on"}), base=contradictory)
 
     bot.run(max_ticks=3)
 
-    assert [r.outcome for r in bot.log] == ["wait:unknown"] * 3
+    assert [r.outcome for r in bot.log] == ["executed"] * 3
+    assert [r.head for r in bot.log] == ["Observe"] * 3
     assert all(r.symbols["view"] == UNKNOWN for r in bot.log)
     assert bot.device.interactions == 0
 
@@ -203,14 +257,16 @@ def test_reflex_dispatches_every_tick_the_tag_is_present():
 
 
 def test_unknown_views_do_not_panic_only_max_ticks_stops_them():
-    # 連續 unknown 的超限裁決是熔斷器的事（延後、從流水帳導出）；
-    # v1 的等待格只記帳，粗保險只有 max_ticks。
+    # 持續讀不出畫面不是詞彙洞，PlanNotFound 也就永遠不會發生；「一直重規劃
+    # 卻沒有進度」的超限裁決是熔斷器的事（延後、從流水帳導出），v1 的粗保險
+    # 只有 max_ticks。
     bot = _mini_bot(Goal("grid", {"grid": "on"}), script=[STORY] * 8)
 
     bot.run(max_ticks=6)
 
     assert not bot.finished
-    assert [r.outcome for r in bot.log] == ["wait:unknown"] * 6
+    assert [r.head for r in bot.log] == ["Observe"] * 6
+    assert all(r.outcome == "executed" for r in bot.log)
     assert bot.device.interactions == 0
 
 

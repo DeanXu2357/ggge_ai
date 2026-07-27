@@ -29,8 +29,8 @@
    對話框一律是 identity tag 登記成員，由計畫內的 action 明確
    處理；identity tag 出現在反射表＝完備性測試失敗（2026-07-27
    使用者裁決：單一 tag 空間＋靜態擋，防火牆由「不可表示」降為
-   「禁止表示」）。未辨識畫面沒有 identity tag，view 讀不出，
-   等待格直接擋下，永不反射。
+   「禁止表示」）。未辨識畫面沒有 identity tag、產不出可認領的
+   tag，反射構造上碰不到；恢復由計畫的觀察動作承接。
 
 ## tick 生命週期（線性，無分支例外）
 
@@ -39,7 +39,6 @@
   → 分類器 → FrameReading {tags}
   → router 符號表：無條件重算全部感知符號（含 view；走反射的拍也照做）
   → 有 blocking tag？        → 跑對應反射 handler（內含自己的 sleep），本拍結束
-  → view = unknown？         → 等待格（幀不作證，只記帳；超限裁決歸熔斷器，延後），本拍結束
   → 記帳：把「本幀已證明完成」的隊頭連續 pop 掉（0..n 步，純比對，不碰裝置）
   → 隊列空？                 → think（A* 補貨，純計算）
   → 隊頭 pre 不成立？        → replan（丟掉整個隊列重規劃，純計算）
@@ -50,7 +49,8 @@
 
 - **收工的唯一裁判是 planner**（2026-07-27 使用者定案）：迴圈裡沒有
   獨立的 goal 檢查格，A* 從已滿足狀態出發回空計畫，空計畫＝done。
-  好處是單一裁判、done 只在幀可讀且反射清空的拍上宣告；已知取捨：
+  好處是單一裁判、done 只在反射清空的拍上宣告（goal 由記憶符號
+  組成，不需當前幀作證）；已知取捨：
   goal 因外部事件提早成立而隊列非空時，會把殘餘隊列走完，到下一次
   補貨才發現收工。
 - **pop 同拍續行（定案）**：pop 與執行依據同一張新鮮截圖——這一幀
@@ -61,13 +61,17 @@
 - 「沒執行也可以 pop」是一等語意：世界或前一步順帶達成了後續步驟
   的 eff，同一幀能證明的連續完成步驟一起記帳（例：面板剛好開在
   目標 tab 時，`ToWeaponTab` 免費通過）。
-- 等待格＝「不可作證的幀不得宣告任何裁決」（2026-07-27 phase 拆除
-  時定形）：view unknown 的幀上符號多為 unknown，pop 拿不到證據、
-  replan 會從垃圾狀態出發、think 會把 PlanNotFound（詞彙缺洞的
-  誠實訊號）污染成幀品質問題、done 可能在動畫幀上宣告收工——所以
-  pop／replan／think／done／執行全部以 view 已知為入場前提。等待
-  不是 action（舊骨架 `WaitOut` 的假 eff 廢除），也不是 router 的
-  行為——decide 入口讀的是普通感知符號。
+- **迴圈裡沒有等待格**（2026-07-27 使用者指正定案；先前的 view
+  入場閘門是對「丟給 decide」的過度翻譯，撤除）：「處於何種狀態」
+  是計畫的課題——catalog 必含 view unknown 下適用的觀察動作
+  （pre `view: unknown`、eff 設目標畫面、do 不碰裝置），planner
+  從 unknown 狀態照樣排得出「先看清楚、再繼續」的計畫，觀察動作以
+  standing instruction 語意霸著隊頭直到畫面可讀（可讀成別的畫面則
+  pre 破裂、從已知狀態 replan）。pop 天然安全（unknown 作不了
+  證據）；done 合法（goal 由記憶符號組成，act 門寫入、不需當前幀
+  作證）；PlanNotFound 維持即時誠實 panic——它現在只代表真的詞彙
+  洞。真正的 unknown＝一直 replan 卻沒有 progress，屬熔斷器領域
+  （從流水帳導出），v1 靠 max_ticks 粗保險。
 
 ## 分類器（classifier）
 
@@ -89,13 +93,13 @@ FrameReading:
   單鈕資訊彈窗、loading、卡條、格線、面板 active tab…。tag 必帶
   payload（分類器找到的按鈕座標／區域／分數），handler 直接用，
   不再掃第二次畫面（「彈窗關閉鈕座標會浮動、不寫死」既有原則）。
-- 辨識不出的畫面：沒有任何 identity tag→view unknown→等待格，
-  **永不反射**。注意 view unknown ≠ 幀零資訊：overlay tag 可在
+- 辨識不出的畫面：沒有任何 identity tag→view unknown→由計畫的
+  觀察動作承接，**永不反射**。注意 view unknown ≠ 幀零資訊：overlay tag 可在
   身分讀不出的幀上正面命中——攻擊動畫幀上的 skip 鈕、把畫面遮到
   身分讀不出的單鈕彈窗，正是反射的主場。
 - 分類器核心是純函數（一幀進、一個判讀出）。去抖 wrapper 延後
-  （本作是 SLG、執行階段等玩家決策；等待格本身就是隱性去抖——
-  誤讀成 view unknown 的幀下一拍自我修正）。
+  （本作是 SLG、執行階段等玩家決策；觀察動作本身就是隱性去抖——
+  誤讀成 view unknown 的幀頂多多付一次 replan，下一拍自我修正）。
 - **capture 與 classify 是兩個接縫**（2026-07-27 使用者指正回寫）：
   `screen.capture() → frame`、`classifier.classify(frame) →
   FrameReading`，迴圈只碰這兩個組件，分類器絕不自己截圖。這樣保存
@@ -124,15 +128,16 @@ FrameReading ─┬─→ 反射表：overlay tags → handler       （給反�
 | blocking | true＝壓過 decide，本拍只跑反射 |
 | 適用 view 集合 | **延後欄位**：v1 不分畫面都偵測，metrics 看到誤判（TM_CCOEFF 深色區亂匹配坑）再加掛載 |
 
-- sleep 寧可偏短：殘餘轉場尾巴由等待格吸收；偏長只是浪費。之後
+- sleep 寧可偏短：殘餘轉場尾巴由觀察動作吸收；偏長只是浪費。之後
   依 metrics 逐 handler 升級成「短輪詢直到畫面變化＋上限」，
   不做全域機制。
 - **反射層對一幀的結果是二值**（2026-07-27 使用者定案）：tag 匹配→
   進 handler→本拍結束、下一拍重新截圖；無匹配→放行進佇列格。沒有
   「認領後放行」、沒有 router 側扣住——route 編排不做任何行為決策。
   派發本身（比對順序＝登記序先勝、outcome 字串）封裝在 router 模組
-  的無狀態 `ReflexRouter`；迴圈只問「這幀你處理了嗎」。等待格不屬於
-  router——它看 view 符號不看 tag，是佇列路徑的入場前提。
+  的無狀態 `ReflexRouter`；迴圈只問「這幀你處理了嗎」。view unknown
+  不屬於 router 的課題——沒有 tag 可認領就放行，由計畫的觀察動作
+  承接。
 - v1 反射表只收 tap-through 類（skip 鈕、AVG 對話推進、單鈕資訊
   彈窗）。使用者
   原案的「常規次級 UI 用 back 返回」在 v1 由 **replan＋目錄裡的
@@ -172,7 +177,8 @@ FrameReading ─┬─→ 反射表：overlay tags → handler       （給反�
   多個 action（warm/cold 用互斥 pre，不用 do 裡的 if）。
 - `eff` 是出口條件不是承諾：standing instruction 語意保留——
   `PanToFrontier`（eff=coverage complete）霸著隊頭每拍揮一次
-  直到證據成立。
+  直到證據成立。觀察動作（pre `view: unknown`、eff＝目標畫面、
+  do 不碰裝置）是同語意的極簡形：「等到看得懂」。
 - **整備類動作用 ensure 語意**（R1 實作發現，2026-07-27 回寫）：
   pre 只綁畫面（`view: hub`），eff 設目標值，**不得**把反值寫進
   pre（`grid: off`）。原因：identity scope 使 hub 事實在 panel
@@ -196,9 +202,11 @@ FrameReading ─┬─→ 反射表：overlay tags → handler       （給反�
   `repair_max_cost`、`still_relevant` 全部移除**。隊頭 pre 不成立
   ＝計畫過時＝整個隊列丟掉、從當前符號重新 A*（戰術拼接一併丟，
   `SolveTactics` 重跑——被打斷後世界本來就可能變了）。
-- replan 只從 view 已知的幀發起；view unknown 走等待格。
+- replan 可從任何幀發起：view unknown 的幀 replan 出來的計畫以
+  觀察動作開頭。
 - **詞彙完備性義務**：catalog 必須涵蓋中間態（單位已移動未攻擊、
-  面板停在任一 tab…），否則人類救得回來的局面會 PlanNotFound。
+  面板停在任一 tab…）**與 view unknown 狀態（觀察動作）**，
+  否則人類救得回來的局面會 PlanNotFound。
   PlanNotFound＝「沒準備的情況」的誠實訊號→panic。
 
 ## panic 與熔斷
@@ -208,11 +216,11 @@ FrameReading ─┬─→ 反射表：overlay tags → handler       （給反�
   BotStuck 只留給**即時誠實失敗**（PlanNotFound、新計畫不可執行）；
   一切門檻裁決（等太久、replan 太多）都不屬於 v1。
 - **熔斷器延後、metrics 先行**（使用者定案；2026-07-27 再確認：
-  等待格的預算與超限 panic 同屬熔斷家族，v1 不做、迴圈內不養
+  無進度等待的預算與超限 panic 同屬熔斷家族，v1 不做、迴圈內不養
   計數器）。未來形：「自上次 progress 以來的 replan 次數 ≥ N」→
-  panic；「連續同 tag 反射 M 次未回到預期」→升級 replan；「連續
-  wait:unknown ≥ W」→panic。計數全部從流水帳導出，落地時不需
-  回頭改埋點。
+  panic（**真正的 unknown**＝一直 replan 卻沒有 progress，就是
+  這條的領域）；「連續同 tag 反射 M 次未回到預期」→升級 replan。
+  計數全部從流水帳導出，落地時不需回頭改埋點。
 
 ## metrics／TickRecord
 
@@ -229,7 +237,7 @@ FrameReading ─┬─→ 反射表：overlay tags → handler       （給反�
 | tick | 序號 |
 | tags | 分類器輸出（view 走 symbols 快照） |
 | symbols | 拍首重算後的符號快照 |
-| outcome | `executed`／`reflex:<tag>`／`wait`／`replan`／`panic`／`done`（結構化 tag，可組合：replan＋executed 同拍） |
+| outcome | `executed`／`reflex:<tag>`／`replan`／`panic`／`done`（結構化 tag，可組合：replan＋executed 同拍） |
 | popped | 本拍記帳掉的步驟名列表 |
 | head／plan | 執行了誰＋剩餘隊列 |
 | duration_ms／slept_ms | 本拍耗時與 handler/action 內睡眠（sleep 進了流水帳才有數據可調） |
@@ -249,13 +257,17 @@ FrameReading ─┬─→ 反射表：overlay tags → handler       （給反�
    （refire 閘門 2026-07-27 否決移除）。
 4. `MockSensor` 換成 mock 分類器（輸出 tags）＋符號表；
    `sense_update` 的呼叫端變成 router。
-5. `WaitOut`／假 eff 廢除→等待格；`ClearObstruction` 轉反射
-   handler；`ReachHub` 等導航動作留在 catalog（replan 用）。
+5. `WaitOut` 廢除→觀察動作（standing instruction 語意，eff＝
+   出口條件非承諾）；`ClearObstruction` 轉反射 handler；`ReachHub`
+   等導航動作留在 catalog（replan 用）。
 6. `TickRecord` 擴欄位（上表）。
 7. 兩張表＋完備性測試新增。
 8. phase 頻道拆除（2026-07-27）：FrameReading 只剩 tags、畫面
-   身分＝identity tag→view 符號、等待格條件改讀 view 符號、
-   identity tag 禁入反射表（靜態擋）。
+   身分＝identity tag→view 符號、identity tag 禁入反射表
+   （靜態擋）。
+9. 等待格廢除（2026-07-27 使用者指正）：迴圈無任何 unknown
+   檢查；狀態判斷歸計畫——觀察動作在 view unknown 適用；真正的
+   unknown＝持續 replan 無進度（熔斷器領域）。
 
 ## 延後清單（記錄保留實作彈性，v1 不做）
 
@@ -266,3 +278,5 @@ FrameReading ─┬─→ 反射表：overlay tags → handler       （給反�
 4. 熔斷器（metrics 先行，規則見上）。
 5. 固定 sleep→短輪詢升級（逐 handler、依 metrics）。
 6. back 反射（v1 由 replan＋導航 action 承接，見反射表節）。
+7. 觀察動作的 pre 形狀（`view: unknown` vs 空集＋cost）到真
+   catalog／R2 與實機一起定；v1 mock 用前者。
