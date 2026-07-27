@@ -131,6 +131,13 @@ FrameReading ─┬─→ 反射表：tags → handler          （給反射弧�
 - `eff` 是出口條件不是承諾：standing instruction 語意保留——
   `PanToFrontier`（eff=coverage complete）霸著隊頭每拍揮一次
   直到證據成立。
+- **整備類動作用 ensure 語意**（R1 實作發現，2026-07-27 回寫）：
+  pre 只綁畫面（`view: hub`），eff 設目標值，**不得**把反值寫進
+  pre（`grid: off`）。原因：phase 掛載使 hub 事實在 panel 內是
+  UNKNOWN，planner 沒有任何動作能從 unknown 過渡到已知值，pre 綁
+  反值會讓跨畫面 replan 必然 PlanNotFound。ensure 寫法讓 planner
+  在 unknown 上照樣可排；runtime 若目標已成立，證據 pop 會免費
+  跳過該步，toggle 鈕不會被盲按。
 - action 也帶 refire 政策（沿用舊骨架 `repeat_safe` 概念）：
   `require_change` 的 action 若 eff 未成立且幀與上次執行時相同
   （phase＋tags 未變），不重發、走等待格——防「sleep 略短→
