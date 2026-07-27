@@ -5,9 +5,10 @@ comment above each mock body is the spec for the real one. Actions read
 symbols, never frames -- when a step needs a screen feature, the classifier
 tags it and the symbol table below translates it.
 
-Structural red line: choice dialogs (end-turn confirm and friends) are phases
-handled by explicit actions; they are never registered in the reflex table,
-so no generic dismiss logic can ever reach the auto-battle button.
+Structural red line: choice dialogs (end-turn confirm and friends) are
+identity tags driven by explicit actions; identity tags may never be
+registered in the reflex table (`misrouted_identity_tags` enforces it), so no
+generic dismiss logic can ever reach the auto-battle button.
 """
 
 from __future__ import annotations
@@ -20,8 +21,8 @@ from .router import (
     ReflexRule,
     ReflexTable,
     SymbolTable,
-    from_phase,
-    on_phases,
+    from_identity,
+    identity_scope,
     tag_present,
     tag_value,
 )
@@ -33,29 +34,33 @@ if TYPE_CHECKING:
 # 要嘛在符號表、要嘛在盤面摘要、要嘛在這裡。
 MEMORY_SYMBOLS = frozenset({"intent", "sim_ready"})
 
+# 畫面身分的封閉登記清單：identity tag 名 -> view 值。
+IDENTITY_VIEWS = {"hub": "hub", "unit_panel": "panel"}
+
 
 def default_symbol_table() -> SymbolTable:
     return SymbolTable(
         {
-            "view": from_phase({"hub": "hub", "unit_panel": "panel"}),
+            "view": from_identity(IDENTITY_VIEWS),
             "turn": tag_value({"turn_ours": "our_turn", "turn_enemy": "enemy_turn"}),
-            "cards": on_phases({"hub"}, tag_present("unit_cards", "present", "absent")),
-            "unit_list": on_phases(
+            "cards": identity_scope({"hub"}, tag_present("unit_cards", "present", "absent")),
+            "unit_list": identity_scope(
                 {"hub"}, tag_present("unit_list_expanded", "expanded", "collapsed")
             ),
-            "grid": on_phases({"hub"}, tag_present("grid_on", "on", "off")),
-            "zoom": on_phases({"hub"}, tag_present("zoom_max", "max", "not_max")),
-            "panel_tab": on_phases(
+            "grid": identity_scope({"hub"}, tag_present("grid_on", "on", "off")),
+            "zoom": identity_scope({"hub"}, tag_present("zoom_max", "max", "not_max")),
+            "panel_tab": identity_scope(
                 {"unit_panel"}, tag_value({"tab_weapon": "weapon", "tab_ability": "ability"})
             ),
-            "unit_state": on_phases(
+            "unit_state": identity_scope(
                 {"hub"},
                 tag_value(
                     {"unit_selected": "selected", "unit_moved": "moved", "unit_acted": "acted"},
                     default="idle",
                 ),
             ),
-        }
+        },
+        identities=IDENTITY_VIEWS,
     )
 
 
@@ -73,7 +78,7 @@ def _tap_through(bot: Bot, tag: Tag) -> None:
 
 def _dismiss_info_popup(bot: Bot, tag: Tag) -> None:
     # 真做法：單鈕資訊彈窗（獎勵通知等），點確認鈕。選擇型對話框永遠
-    # 不會走到這裡——它們是 phase，不是 tag。
+    # 不會走到這裡——它們是 identity tag，靜態擋在反射表外。
     assert tag.point is not None
     bot.device.tap(*tag.point)
     bot.clock.sleep(0.5)
@@ -95,8 +100,8 @@ class ExpandUnitList(Action):
     """Ensure-style: pre binds the screen only, eff states the target value.
 
     The setup actions deliberately do not require the opposite value in
-    `pre` -- phase gating makes hub facts UNKNOWN while a panel is up, and a
-    pre of `grid: off` would leave the planner no route from UNKNOWN. With
+    `pre` -- identity scoping makes hub facts UNKNOWN while a panel is up, and
+    a pre of `grid: off` would leave the planner no route from UNKNOWN. With
     ensure semantics the planner can schedule the step from an unknown
     state, and at runtime the evidence-pop discards it for free when the
     target already holds -- the toggle button is never blindly re-tapped.
@@ -106,11 +111,9 @@ class ExpandUnitList(Action):
     cost = 1.0
     pre = {"view": "hub"}
     eff = {"unit_list": "expanded"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
         # 真做法：點左側卡條展開可操作單位列表（我方權威來源）。
-        # 同一顆鈕是開關，refire=require_change 防連點又收回去。
         bot.device.tap(90, 300)
         bot.screen.retag_base(add=(Tag("unit_list_expanded"),))
         bot.clock.sleep(0.3)
@@ -121,7 +124,6 @@ class CollapseUnitList(Action):
     cost = 1.0
     pre = {"view": "hub"}
     eff = {"unit_list": "collapsed"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
         # 真做法：收起卡條——展開時蓋住地圖左半，掃描會漏格。
@@ -135,7 +137,6 @@ class EnableGrid(Action):
     cost = 1.0
     pre = {"view": "hub"}
     eff = {"grid": "on"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
         # 真做法：開格線顯示。格線開沒開是畫面能作證的事實，所以走
@@ -153,8 +154,8 @@ class ZoomToMax(Action):
     eff = {"zoom": "max"}
 
     def do(self, bot: Bot) -> None:
-        # 真做法：縮到最大比例尺（pinch 冪等，refire=safe）；zoom 值域由
-        # 格線 pitch 推導，同樣是感知符號。
+        # 真做法：縮到最大比例尺（pinch 冪等）；zoom 值域由格線 pitch
+        # 推導，同樣是感知符號。
         bot.device.tap(2180, 420)
         bot.screen.retag_base(add=(Tag("zoom_max"),))
         bot.clock.sleep(0.3)
@@ -209,14 +210,13 @@ class TapUnit(Action):
     cost = 1.0
     pre = {"view": "hub", "coverage": "complete", "details": "partial"}
     eff = {"view": "panel"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
         # 真做法：點地圖上的單位圖示。面板開在哪個 tab 由遊戲的黏性記憶
         # 決定——我們不建模，開了看一眼就知道（mock 固定開在能力分頁，
         # 最壞情況）。副作用：鏡頭跳到該單位，掃描對位失效。
         bot.device.tap(1180, 520)
-        bot.screen.enter("unit_panel", (Tag("tab_ability"),))
+        bot.screen.enter((Tag("unit_panel"), Tag("tab_ability")))
         bot.board.pose = "lost"
         bot.clock.sleep(1.0)
 
@@ -228,12 +228,11 @@ class ToWeaponTab(Action):
     cost = 1.0
     pre = {"view": "panel"}
     eff = {"panel_tab": "weapon"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
         # 真做法：點武裝分頁的頁籤。
         bot.device.tap(1520, 200)
-        bot.screen.retag_overlay((Tag("tab_weapon"),))
+        bot.screen.retag_overlay(add=(Tag("tab_weapon"),), remove=("tab_ability",))
         bot.clock.sleep(0.3)
 
 
@@ -255,7 +254,6 @@ class EscapePanel(Action):
     cost = 1.0
     pre = {"view": "panel"}
     eff = {"view": "hub"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
         # 真做法：返回鍵關面板回地圖（鏡頭仍在跳走的位置，pose 還是 lost）。
@@ -301,7 +299,6 @@ class SelectUnit(Action):
     cost = 1.0
     pre = {"turn": "our_turn", "cards": "present", "intent": "ready", "unit_state": "idle"}
     eff = {"unit_state": "selected"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
         # 真做法：點 intent 指定的單位卡（卡條才是我方權威，不點地圖）。
@@ -315,7 +312,6 @@ class MoveTo(Action):
     cost = 1.0
     pre = {"unit_state": "selected", "intent": "ready"}
     eff = {"unit_state": "moved"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
         # 真做法：點 intent 指定的目標格；移動動畫睡過去。
@@ -329,7 +325,6 @@ class Attack(Action):
     cost = 1.0
     pre = {"unit_state": "moved", "intent": "ready"}
     eff = {"intent": "none"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
         # 真做法：開攻擊選單、選 intent 指定的武裝、確認出擊。intent 用掉
@@ -345,10 +340,9 @@ class EndTurn(Action):
     cost = 3.0
     pre = {"turn": "our_turn", "cards": "absent"}
     eff = {"turn": "enemy_turn"}
-    refire = "require_change"
 
     def do(self, bot: Bot) -> None:
-        # 真做法：結束回合對話框（phase，非 tag）永遠選左邊「待機並結束」
+        # 真做法：結束回合對話框（identity tag，不進反射表）永遠選左邊「待機並結束」
         # 再按執行。右邊是自動戰鬥紅線，絕不點——本動作是唯一的擁有者。
         bot.device.tap(997, 562)
         bot.device.tap(1365, 850)

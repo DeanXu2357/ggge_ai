@@ -1,7 +1,7 @@
 """The router: two parallel consumers of one FrameReading.
 
-    FrameReading ──┬──> ReflexTable:  tags -> handler        (reflex arc)
-                   └──> SymbolTable:  {phase, tags} -> facts (for the planner)
+    FrameReading ──┬──> ReflexTable:  tags -> handler  (reflex arc)
+                   └──> SymbolTable:  tags -> facts    (for the planner)
 
 Reflex routing never goes through symbols; the symbol table never fires
 handlers. The symbol table is pure translation -- stateless, current frame
@@ -27,9 +27,20 @@ if TYPE_CHECKING:
 Rule = Callable[[FrameReading], Value]
 
 
-def from_phase(mapping: Mapping[str, Value], default: Value = UNKNOWN) -> Rule:
+def from_identity(mapping: Mapping[str, Value]) -> Rule:
+    """Screen identity as an ordinary symbol, derived from the identity tags.
+
+    Exactly one registered identity tag on the frame yields its value; zero
+    (nothing recognised) and two (contradictory readings) are equally UNKNOWN.
+    The tick log already carries the tag list, so which of the two happened is
+    read off the record rather than signalled here.
+    """
+
     def rule(reading: FrameReading) -> Value:
-        return mapping.get(reading.phase, default)
+        hits = [value for name, value in mapping.items() if reading.has(name)]
+        if len(hits) != 1:
+            return UNKNOWN
+        return hits[0]
 
     return rule
 
@@ -48,17 +59,19 @@ def tag_present(name: str, present: Value, absent: Value) -> Rule:
     return tag_value({name: present}, default=absent)
 
 
-def on_phases(phases: Iterable[str], inner: Rule, otherwise: Value = UNKNOWN) -> Rule:
-    """Gate a rule by phase: outside `phases` the symbol is honestly `otherwise`.
+def identity_scope(identities: Iterable[str], inner: Rule, otherwise: Value = UNKNOWN) -> Rule:
+    """Scope a rule to the screen that owns it: no identity tag, no default value.
 
     This is what keeps a tag rule total without lying -- "no expanded-list tag"
-    means `collapsed` on the hub, but means "no idea" on any other screen.
+    means `collapsed` while the hub's identity tag is on the frame, and means
+    "no idea" on a frame that cannot attest to the hub at all. A frame we
+    cannot read must never manufacture facts out of absent tags.
     """
 
-    allowed = frozenset(phases)
+    allowed = frozenset(identities)
 
     def rule(reading: FrameReading) -> Value:
-        if reading.phase not in allowed:
+        if not any(reading.has(name) for name in allowed):
             return otherwise
         return inner(reading)
 
@@ -72,14 +85,28 @@ class SymbolTable:
     perception symbol is fully recomputed from the current frame on every
     translate() call. Nothing can go stale -- a popup that disappears takes its
     symbol value with it on the very next frame.
+
+    `identities` is the closed registration list of identity tags (tag name ->
+    screen value). It lives here because screen identity is just another
+    symbol, and it is exposed so the completeness check can keep those same
+    tags out of the reflex table.
     """
 
-    def __init__(self, rules: Mapping[str, Rule]) -> None:
+    def __init__(
+        self,
+        rules: Mapping[str, Rule],
+        identities: Mapping[str, Value] | None = None,
+    ) -> None:
         self.rules = dict(rules)
+        self.identities = dict(identities or {})
 
     @property
     def symbols(self) -> frozenset[str]:
         return frozenset(self.rules)
+
+    @property
+    def identity_tags(self) -> frozenset[str]:
+        return frozenset(self.identities)
 
     def translate(self, reading: FrameReading) -> dict[str, Value]:
         return {symbol: rule(reading) for symbol, rule in self.rules.items()}
@@ -93,8 +120,9 @@ class ReflexRule:
     hold/timeout logic for being dispatched again (a back-style handler
     that must not re-press on an unchanged frame implements that check
     itself). Handlers never write symbols; their effect is attested by the
-    next tick's frame. Choice dialogs and unidentified modals are never
-    registered here -- that is a structural rule, not a runtime one.
+    next tick's frame. Identity tags are never registered here -- choice
+    dialogs are screens the plan drives, and `misrouted_identity_tags` makes
+    that a static rule rather than a runtime one.
     """
 
     tag: str
@@ -137,6 +165,18 @@ class ReflexRouter:
         rule, tag = hit
         rule.handler(bot, tag)
         return f"reflex:{rule.tag}"
+
+
+def misrouted_identity_tags(table: SymbolTable, reflexes: ReflexTable) -> set[str]:
+    """Identity tags are barred from the reflex table -- one tag space, checked statically.
+
+    A screen identity that can fire a handler is a screen whose verdict is
+    settled by a reflex tap instead of by the plan; the end-turn dialog is
+    exactly that case, and the auto-battle button is on it. Returns the
+    offending names (empty = clean).
+    """
+
+    return {rule.tag for rule in reflexes.rules} & set(table.identities)
 
 
 def unproduced_symbols(

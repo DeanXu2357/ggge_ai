@@ -31,17 +31,16 @@ class Action(GoapAction):
     until the screen reports `eff` true (standing instruction). It can also
     pop without ever firing, when the world happens to already satisfy it.
 
-    `refire="require_change"` refuses to fire again while the frame key is
-    unchanged since this action's last execution -- the guard for steps whose
-    double-fire is destructive (a second tap toggles the panel back). The
-    tick loop routes such a tick to the wait slot instead.
+    Carrying a step across ticks is the action's own job: `do()` performs at
+    most one interaction and lets go, and the next tick re-enters through the
+    symbols the action itself declared. The loop makes no behavioural
+    decision about re-entry and holds no frame comparison of its own.
     """
 
     name: str = "action"
     cost: float = 1.0
     pre: Mapping[str, Value] = {}
     eff: Mapping[str, Value] = {}
-    refire: str = "safe"
 
     def check(self, state: WorldState) -> bool:
         return state.satisfies(self.pre)

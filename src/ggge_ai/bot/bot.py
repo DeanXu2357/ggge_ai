@@ -38,7 +38,6 @@ class TickRecord:
     """
 
     tick: int
-    phase: str
     tags: list[str]
     outcome: str
     head: str | None
@@ -59,6 +58,10 @@ class Bot:
     when its *effect* is observed, which may take many ticks or zero
     executions) and it dies whole (a stale head throws the entire queue away
     and replans from the current symbols -- there is no repair surgery).
+
+    Every queue path is gated on `view`: a frame that cannot say which screen
+    it is goes to the wait slot before any pop, replan or execution. A tick
+    that cannot attest to the screen declares no verdict at all.
 
     Same-tick continuation: pops, refill and replan are bookkeeping and pure
     computation over the frame captured at the top of this tick, so they do
@@ -91,7 +94,6 @@ class Bot:
         self.queue: list[Action] = []
         self.log: list[TickRecord] = []
         self.finished = False
-        self._last_exec: tuple[str, tuple] | None = None
 
     def tick(self) -> None:
         """The whole lifecycle, inline: the spec diagram is this method, top to bottom.
@@ -105,7 +107,6 @@ class Bot:
         frame = self.screen.capture()
         reading = self.classifier.classify(frame)
 
-        # 感知門開在拍首：符號表＋盤面摘要，一次性重算，走反射的拍也照做。
         perceived = self.symbol_table.translate(reading)
         perceived.update(self.board.summary_symbols())
         self.state.sense_update(perceived)
@@ -115,9 +116,7 @@ class Bot:
             self._record(reading, t0, handled)
             return
 
-        if reading.phase == UNKNOWN:
-            # 等待格只記帳、不裁決：連續 unknown 的超限是熔斷器的事（延後，
-            # 從流水帳導出），v1 的粗保險只有 run() 的 max_ticks。
+        if self.state.get("view") == UNKNOWN:
             self._record(reading, t0, "wait:unknown")
             return
 
@@ -154,15 +153,7 @@ class Bot:
             return
 
         head = self.queue[0]
-        if head.refire == "require_change" and self._last_exec == (head.name, reading.key()):
-            # 幀沒變就不准重發：sleep 略短的轉場尾巴在這裡吸收，不會雙開面板。
-            self._record(
-                reading, t0, "wait:refire", head=head.name, popped=popped, replanned=replanned
-            )
-            return
-
         head.do(self)
-        self._last_exec = (head.name, reading.key())
         self._record(reading, t0, "executed", head=head.name, popped=popped, replanned=replanned)
 
     def _record(
@@ -178,7 +169,6 @@ class Bot:
         self.log.append(
             TickRecord(
                 tick=len(self.log),
-                phase=reading.phase,
                 tags=[tag.name for tag in reading.tags],
                 outcome=outcome,
                 head=head,

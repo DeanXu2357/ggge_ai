@@ -33,8 +33,25 @@ unknown 無路可走必死）——已回寫進 actions.py 與測試。demo trac
 免費 pop×4）。**903 passed／3 xfailed、ruff 綠**（基準 892＋16 新
 bot 測試−5 舊骨架測試）。
 
+**同日再晚（規格再裁決輪：refire 否決＋phase 頻道拆除）**：使用者
+質詢 refire 出處，查證為舊骨架 `repeat_safe` 擅自升格、未經定案，
+否決移除——跨 tick 執行由 action 自身符號流程承接（standing
+instruction／remember／互斥 pre 拆步），迴圈不做行為決策、不持幀
+比對狀態。隨後裁決拆除 phase 頻道：`FrameReading` 只剩 tags，畫面
+身分＝封閉登記 identity tag→view 符號（`from_identity` 唯一命中
+取值、零／多重命中→unknown）、等待格條件改讀 view 符號（「不可
+作證的幀不得宣告任何裁決」：pop／replan／think／done 全以 view
+已知為入場前提）、缺席預設值掛 identity scope（不可讀幀不得用預設
+值偽造事實）、選擇型對話框防火牆改單一 tag 空間＋
+`misrouted_identity_tags` 靜態擋（使用者選定，不做雙頻道）。規格
+與程式同步落地（opus worktree 開發、主 session 審整）。已知留待
+實機驗證：refire 拆除後 eff 未及時可見的 action 會逐拍重發，mock
+的 do() 即時生效無法演練，真 catalog 落地時各 action 需自帶再入
+符號並實機確認。**907 passed／3 xfailed、ruff 綠**。
+
 **恢復點＝使用者檢視 R1 成果後決定後續分派方式**（使用者定案：告一
-段落再議）；候選下一步＝R2 真分類器最小 phase 集＋實機 probe、
+段落再議）；候選下一步＝R2 真分類器最小 identity tag 集＋實機
+probe、
 熔斷器（metrics 已就緒）、戰術層接線。輪十三（R1.9~1.12 首戰）與
 舊線待辦仍順延，優先序屆時與使用者確認。
 

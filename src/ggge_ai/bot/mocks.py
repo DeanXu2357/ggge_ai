@@ -46,19 +46,23 @@ class MockScreen:
         return self.overlay if self.overlay is not None else self.base
 
     def retag_base(self, add: Iterable[Tag] = (), remove: Iterable[str] = ()) -> None:
-        gone = set(remove)
-        kept = tuple(tag for tag in self.base.tags if tag.name not in gone)
-        self.base = FrameReading(self.base.phase, kept + tuple(add))
+        self.base = _retagged(self.base, add, remove)
 
-    def enter(self, phase: str, tags: Iterable[Tag] = ()) -> None:
-        self.overlay = FrameReading(phase, tuple(tags))
+    def enter(self, tags: Iterable[Tag] = ()) -> None:
+        self.overlay = FrameReading(tuple(tags))
 
-    def retag_overlay(self, tags: Iterable[Tag]) -> None:
+    def retag_overlay(self, add: Iterable[Tag] = (), remove: Iterable[str] = ()) -> None:
         assert self.overlay is not None
-        self.overlay = FrameReading(self.overlay.phase, tuple(tags))
+        self.overlay = _retagged(self.overlay, add, remove)
 
     def exit(self) -> None:
         self.overlay = None
+
+
+def _retagged(reading: FrameReading, add: Iterable[Tag], remove: Iterable[str]) -> FrameReading:
+    gone = set(remove)
+    kept = tuple(tag for tag in reading.tags if tag.name not in gone)
+    return FrameReading(kept + tuple(add))
 
 
 class IdentityClassifier:

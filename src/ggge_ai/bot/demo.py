@@ -7,12 +7,12 @@ the plan the planner produced on tick 0.
    tick's frame is popped and the next step fires on the same reading --
    there is not a single bookkeeping-only tick in the whole trace.
 2. `PanToFrontier` holds the head for several ticks (standing instruction);
-   an unskippable story animation (phase UNKNOWN, ticks 6-7) is absorbed by
+   an unskippable story animation (no identity tag, ticks 6-7) is absorbed by
    the wait slot without touching the queue.
 3. A one-button popup rides in on tick 10 as an `info_popup` tag: the reflex
-   table dismisses it at the classifier-supplied point. The reflex check
-   runs before the UNKNOWN check, so a tagged frame is handled even when the
-   phase is unreadable.
+   table dismisses it at the classifier-supplied point. The reflex check runs
+   before the `view` check, so a tagged frame is handled even when the screen
+   identity is unreadable.
 4. `TapUnit` loses the camera pose; when `SyncSim` reaches the head its pre
    no longer holds -> the whole queue is thrown away and replanned from the
    panel state, and the new head executes the same tick. No repair surgery.
@@ -31,15 +31,14 @@ from .board import MockBoard
 from .bot import Bot
 from .frame import FrameReading, Tag
 from .mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
-from .state import UNKNOWN, BotState
+from .state import BotState
 
 BASE_FRAME = FrameReading(
-    "hub",
-    (Tag("unit_cards"), Tag("turn_ours"), Tag("unit_list_expanded")),
+    (Tag("hub"), Tag("unit_cards"), Tag("turn_ours"), Tag("unit_list_expanded")),
 )
 
-STORY = FrameReading(UNKNOWN)
-POPUP = FrameReading(UNKNOWN, (Tag("info_popup", point=(1170, 760)),))
+STORY = FrameReading()
+POPUP = FrameReading((Tag("info_popup", point=(1170, 760)),))
 
 # 劇情動畫插在掃描中間（tick 6、7，無 skip 鈕＝只能等）；資訊彈窗蓋在
 # 開面板之後（tick 10，有 tag＝反射點掉）。其餘拍不干擾。

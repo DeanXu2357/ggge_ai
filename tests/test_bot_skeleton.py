@@ -3,7 +3,7 @@
 The demo trace is the fixture for the loop's semantics: same-tick
 continuation, standing instructions, the wait slot, reflex dismissal,
 whole-queue replan, and evidence pops of steps that never fired. The
-crafted mini-bots cover the action refire gate, the reflex dispatch
+crafted mini-bots cover the identity gate on the queue, the reflex dispatch
 contract, the panic paths, and the two router tables' contracts.
 """
 
@@ -13,6 +13,7 @@ import pytest
 
 from ggge_ai.bot.action import Action, Goal
 from ggge_ai.bot.actions import (
+    IDENTITY_VIEWS,
     MEMORY_SYMBOLS,
     default_catalog,
     default_reflex_table,
@@ -23,7 +24,13 @@ from ggge_ai.bot.bot import Bot, BotStuck
 from ggge_ai.bot.demo import BASE_FRAME, STORY, build_demo_bot, run_demo
 from ggge_ai.bot.frame import FrameReading, Tag
 from ggge_ai.bot.mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
-from ggge_ai.bot.router import ReflexRouter, ReflexRule, ReflexTable, unproduced_symbols
+from ggge_ai.bot.router import (
+    ReflexRouter,
+    ReflexRule,
+    ReflexTable,
+    misrouted_identity_tags,
+    unproduced_symbols,
+)
 from ggge_ai.bot.state import UNKNOWN, BotState
 
 
@@ -100,7 +107,7 @@ def test_wait_slot_absorbs_unskippable_story_without_touching_the_queue():
     assert len(waits) == 2
     for index in waits:
         assert bot.log[index].plan == bot.log[index - 1].plan
-        assert bot.log[index].phase == UNKNOWN
+        assert bot.log[index].symbols["view"] == UNKNOWN
 
 
 def test_reflex_dismisses_popup_at_the_classifier_supplied_point():
@@ -144,22 +151,37 @@ def test_perception_symbols_are_recomputed_every_tick():
     assert back_on_hub.symbols["panel_tab"] == UNKNOWN
 
 
-# --- refire 閘門 ---
+# --- 畫面身分閘門：不可作證的幀不得宣告裁決 ---
 
 
-def test_action_refire_gate_holds_while_the_frame_is_frozen():
-    bot = _mini_bot(Goal("grid", {"grid": "on"}), script=[None, BASE_FRAME])
+def test_frame_without_any_identity_tag_keeps_the_queue_untouched():
+    bot = _mini_bot(Goal("grid", {"grid": "on"}), script=[STORY, None])
 
     bot.run(max_ticks=5)
 
-    assert [r.outcome for r in bot.log] == ["executed", "wait:refire", "done"]
-    assert bot.device.taps.count((2180, 140)) == 1
+    assert bot.log[0].outcome == "wait:unknown"
+    assert bot.log[0].symbols["view"] == UNKNOWN
+    assert bot.log[0].plan == []
+    assert bot.log[1].outcome == "executed"
+
+
+def test_two_identity_tags_on_one_frame_leave_the_view_unknown():
+    # 兩個畫面身分同時命中是互相矛盾的讀數，不是「兩個都成立」——退回
+    # unknown，佇列一步都不動。
+    contradictory = FrameReading((Tag("hub"), Tag("unit_panel"), Tag("turn_ours")))
+    bot = _mini_bot(Goal("grid", {"grid": "on"}), base=contradictory)
+
+    bot.run(max_ticks=3)
+
+    assert [r.outcome for r in bot.log] == ["wait:unknown"] * 3
+    assert all(r.symbols["view"] == UNKNOWN for r in bot.log)
+    assert bot.device.interactions == 0
 
 
 def test_reflex_dispatches_every_tick_the_tag_is_present():
     # router 只派發不決策：tag 還在就每拍進一次 handler（多頁劇情連點的
     # 基礎）；等待／重觸發／timeout 屬於 handler 內容，不屬於 route 編排。
-    popup = FrameReading(UNKNOWN, (Tag("info_popup", point=(500, 500)),))
+    popup = FrameReading((Tag("info_popup", point=(500, 500)),))
     taps: list[tuple[int, int]] = []
 
     def dismiss(bot: Bot, tag: Tag) -> None:
@@ -180,7 +202,7 @@ def test_reflex_dispatches_every_tick_the_tag_is_present():
 # --- panic 路徑 ---
 
 
-def test_unknown_waits_do_not_panic_only_max_ticks_stops_them():
+def test_unknown_views_do_not_panic_only_max_ticks_stops_them():
     # 連續 unknown 的超限裁決是熔斷器的事（延後、從流水帳導出）；
     # v1 的等待格只記帳，粗保險只有 max_ticks。
     bot = _mini_bot(Goal("grid", {"grid": "on"}), script=[STORY] * 8)
@@ -227,7 +249,7 @@ def test_reflex_router_first_registered_blocking_rule_wins():
             ]
         )
     )
-    both = FrameReading(UNKNOWN, (Tag("b"), Tag("a")))
+    both = FrameReading((Tag("b"), Tag("a")))
 
     assert router.route(None, both) == "reflex:a"
     assert fired == ["first:a"]
@@ -236,16 +258,44 @@ def test_reflex_router_first_registered_blocking_rule_wins():
 def test_symbol_table_is_total_on_any_frame():
     table = default_symbol_table()
 
-    blank = table.translate(FrameReading(UNKNOWN))
+    blank = table.translate(FrameReading())
     assert set(blank) == set(table.symbols)
     assert all(value == UNKNOWN for value in blank.values())
 
     hub = table.translate(BASE_FRAME)
+    assert hub["view"] == "hub"
     assert hub["grid"] == "off"
     assert hub["zoom"] == "not_max"
     assert hub["cards"] == "present"
     assert hub["unit_list"] == "expanded"
     assert hub["unit_state"] == "idle"
+
+
+def test_scoped_symbols_are_unknown_without_their_identity_tag():
+    # tag 缺席只有在所屬畫面在場時才讀得出「關閉」；不可作證的幀上，
+    # 預設值就是偽造事實。全域符號（turn）不受畫面身分限制。
+    table = default_symbol_table()
+
+    orphan = table.translate(FrameReading((Tag("unit_cards"), Tag("turn_ours"))))
+
+    assert orphan["view"] == UNKNOWN
+    assert orphan["cards"] == UNKNOWN
+    assert orphan["grid"] == UNKNOWN
+    assert orphan["unit_list"] == UNKNOWN
+    assert orphan["unit_state"] == UNKNOWN
+    assert orphan["turn"] == "our_turn"
+
+
+def test_identity_tags_are_barred_from_the_reflex_table():
+    table = default_symbol_table()
+    assert table.identity_tags == frozenset(IDENTITY_VIEWS)
+    assert misrouted_identity_tags(table, default_reflex_table()) == set()
+
+    def dismiss(bot: Bot, tag: Tag) -> None:
+        raise AssertionError("an identity tag must never reach a reflex handler")
+
+    smuggled = ReflexTable([*default_reflex_table().rules, ReflexRule("unit_panel", dismiss)])
+    assert misrouted_identity_tags(table, smuggled) == {"unit_panel"}
 
 
 def test_every_catalog_symbol_has_exactly_one_producer():

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .state import UNKNOWN
-
 
 @dataclass(frozen=True)
 class Tag:
@@ -23,15 +21,15 @@ class Tag:
 
 @dataclass(frozen=True)
 class FrameReading:
-    """Classifier output for one frame: a phase plus zero or more tags.
+    """Every feature the classifier detected on one frame.
 
-    `phase` is a closed enum of screens the flow deliberately visits --
-    including every choice dialog -- or UNKNOWN. `tags` are overlay features
-    (skip buttons, info popups, grid lines, active tab markers): an open set.
-    The two routers consume this in parallel; nothing else reads frames.
+    Screen identity is a detection like any other, so it gets no channel of
+    its own: which tags are identities (hub, unit panel, end-turn dialog) and
+    which are overlays (skip buttons, popups, grid lines, tab markers) is
+    registered in the symbol table, not encoded in this type. The two routers
+    consume this in parallel; nothing else reads frames.
     """
 
-    phase: str = UNKNOWN
     tags: tuple[Tag, ...] = ()
 
     def tag(self, name: str) -> Tag | None:
@@ -42,7 +40,3 @@ class FrameReading:
 
     def has(self, name: str) -> bool:
         return self.tag(name) is not None
-
-    def key(self) -> tuple[str, tuple[str, ...]]:
-        """Refire fingerprint: same key = the screen has not visibly changed."""
-        return (self.phase, tuple(sorted(tag.name for tag in self.tags)))

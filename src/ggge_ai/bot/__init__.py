@@ -1,8 +1,8 @@
 """bot: the rewritten flow layer. Spec: docs/bot-architecture.md.
 
 One tick = one screenshot, at most one device interaction, no idle ticks.
-Classifier {phase, tags} -> router (reflex table / symbol table) -> pure
-symbolic actions on a persistent queue, replan as the only recovery.
+Classifier tags -> router (reflex table / symbol table) -> pure symbolic
+actions on a persistent queue, replan as the only recovery.
 """
 
 from .action import Action, Goal
@@ -15,8 +15,9 @@ from .router import (
     ReflexRule,
     ReflexTable,
     SymbolTable,
-    from_phase,
-    on_phases,
+    from_identity,
+    identity_scope,
+    misrouted_identity_tags,
     tag_present,
     tag_value,
     unproduced_symbols,
@@ -43,8 +44,9 @@ __all__ = [
     "SymbolTable",
     "Tag",
     "TickRecord",
-    "from_phase",
-    "on_phases",
+    "from_identity",
+    "identity_scope",
+    "misrouted_identity_tags",
     "tag_present",
     "tag_value",
     "unproduced_symbols",
