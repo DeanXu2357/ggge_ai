@@ -117,6 +117,34 @@ class ReflexTable:
         return None
 
 
+class ReflexRouter:
+    """Runtime dispatcher over a ReflexTable: one per bot run.
+
+    Owns the refire fingerprint, so every piece of reflex semantics -- match
+    order (first registered blocking rule wins), the refire gate, handler
+    firing -- lives in this module. The loop only asks "did you handle this
+    frame?": a non-None return is the tick's outcome and ends the tick.
+    The table stays pure registration data and can be shared; the router is
+    the per-run stateful wrapper around it.
+    """
+
+    def __init__(self, table: ReflexTable) -> None:
+        self.table = table
+        self._last: tuple[str, tuple] | None = None
+
+    def route(self, bot: Bot, reading: FrameReading) -> str | None:
+        hit = self.table.match(reading)
+        if hit is None:
+            return None
+        rule, tag = hit
+        key = (rule.tag, reading.key())
+        if rule.refire == "require_change" and self._last == key:
+            return "wait:refire"
+        rule.handler(bot, tag)
+        self._last = key
+        return f"reflex:{rule.tag}"
+
+
 def unproduced_symbols(
     catalog: Iterable[Action],
     table: SymbolTable,

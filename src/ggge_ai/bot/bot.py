@@ -10,7 +10,7 @@ from ggge_ai.goap.state import Value
 from .action import Action
 from .board import MockBoard
 from .mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
-from .router import ReflexTable, SymbolTable
+from .router import ReflexRouter, ReflexTable, SymbolTable
 from .state import UNKNOWN, BotState
 
 
@@ -86,19 +86,17 @@ class Bot:
         self.clock = clock
         self.catalog = list(catalog)
         self.symbol_table = symbol_table
-        self.reflex_table = reflex_table
+        self.reflexes = ReflexRouter(reflex_table)
         self.queue: list[Action] = []
         self.log: list[TickRecord] = []
         self.finished = False
         self._last_exec: tuple[str, tuple] | None = None
-        self._last_reflex: tuple[str, tuple] | None = None
 
     def tick(self) -> None:
         t0 = self.clock.now_ms()
         frame = self.screen.capture()
         reading = self.classifier.classify(frame)
 
-        # 感知門開在拍首：符號表＋盤面摘要，一次性重算，走反射的拍也照做。
         perceived = self.symbol_table.translate(reading)
         perceived.update(self.board.summary_symbols())
         self.state.sense_update(perceived)
@@ -133,15 +131,9 @@ class Bot:
             emit("done")
             return
 
-        hit = self.reflex_table.match(reading)
-        if hit is not None:
-            rule, tag = hit
-            if rule.refire == "require_change" and self._last_reflex == (rule.tag, reading.key()):
-                emit("wait:refire")
-                return
-            rule.handler(self, tag)
-            self._last_reflex = (rule.tag, reading.key())
-            emit(f"reflex:{rule.tag}")
+        handled = self.reflexes.route(self, reading)
+        if handled is not None:
+            emit(handled)
             return
 
         if reading.phase == UNKNOWN:

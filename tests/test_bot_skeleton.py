@@ -23,7 +23,7 @@ from ggge_ai.bot.bot import Bot, BotStuck
 from ggge_ai.bot.demo import BASE_FRAME, STORY, build_demo_bot, run_demo
 from ggge_ai.bot.frame import FrameReading, Tag
 from ggge_ai.bot.mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
-from ggge_ai.bot.router import ReflexRule, ReflexTable, unproduced_symbols
+from ggge_ai.bot.router import ReflexRouter, ReflexRule, ReflexTable, unproduced_symbols
 from ggge_ai.bot.state import UNKNOWN, BotState
 
 
@@ -206,6 +206,29 @@ def test_missing_vocabulary_panics_with_a_dump():
 
 
 # --- router 兩張表的契約 ---
+
+
+def test_reflex_router_first_registered_blocking_rule_wins():
+    fired: list[str] = []
+
+    def first(bot: Bot, tag: Tag) -> None:
+        fired.append(f"first:{tag.name}")
+
+    def second(bot: Bot, tag: Tag) -> None:
+        fired.append(f"second:{tag.name}")
+
+    router = ReflexRouter(
+        ReflexTable(
+            [
+                ReflexRule(tag="a", handler=first),
+                ReflexRule(tag="b", handler=second),
+            ]
+        )
+    )
+    both = FrameReading(UNKNOWN, (Tag("b"), Tag("a")))
+
+    assert router.route(None, both) == "reflex:a"
+    assert fired == ["first:a"]
 
 
 def test_symbol_table_is_total_on_any_frame():

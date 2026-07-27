@@ -11,6 +11,7 @@ from .bot import Bot, BotStuck, TickRecord
 from .frame import FrameReading, Tag
 from .mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
 from .router import (
+    ReflexRouter,
     ReflexRule,
     ReflexTable,
     SymbolTable,
@@ -36,6 +37,7 @@ __all__ = [
     "MockClock",
     "MockDevice",
     "MockScreen",
+    "ReflexRouter",
     "ReflexRule",
     "ReflexTable",
     "SymbolTable",
