@@ -9,6 +9,7 @@ from .action import Action, Goal
 from .board import BOARD_SYMBOLS, MockBoard
 from .bot import Bot, BotStuck, TickRecord
 from .frame import FrameReading, Tag
+from .metrics import Metrics
 from .mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
 from .router import (
     ReflexRouter,
@@ -34,6 +35,7 @@ __all__ = [
     "FrameReading",
     "Goal",
     "IdentityClassifier",
+    "Metrics",
     "MockBoard",
     "MockClock",
     "MockDevice",

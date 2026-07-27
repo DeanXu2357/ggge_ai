@@ -10,6 +10,7 @@ from ggge_ai.goap.state import Value
 from .action import Action
 from .board import MockBoard
 from .frame import FrameReading
+from .metrics import Metrics
 from .mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
 from .router import ReflexRouter, ReflexTable, SymbolTable
 from .state import BotState
@@ -32,9 +33,10 @@ class BotStuck(RuntimeError):
 class TickRecord:
     """One line per tick -- the single source of truth for every metric.
 
-    No mutable counters anywhere else: replan rates, reflex streaks and
-    progress stalls are all derived from this stream (the future circuit
-    breaker reads it in-process; the jsonl export is analysis-only).
+    Counters are an online fold of this stream, not a second truth, and the
+    fold happens in one place (`_record`): replan rates, reflex streaks and
+    progress stalls all reduce to these columns (the future circuit breaker
+    reads them in-process; the jsonl export is analysis-only).
     """
 
     tick: int
@@ -94,6 +96,7 @@ class Bot:
         self.reflexes = ReflexRouter(reflex_table)
         self.queue: list[Action] = []
         self.log: list[TickRecord] = []
+        self.metrics = Metrics()
         self.finished = False
 
     def tick(self) -> None:
@@ -105,6 +108,7 @@ class Bot:
         the spec diagram is immediately in view.
         """
         t0 = self.clock.now_ms()
+        slept0 = self.clock.slept_ms()
         frame = self.screen.capture()
         reading = self.classifier.classify(frame)
 
@@ -114,7 +118,7 @@ class Bot:
 
         handled = self.reflexes.route(self, reading)
         if handled is not None:
-            self._record(reading, t0, handled)
+            self._record(reading, t0, slept0, handled)
             return
 
         popped: list[str] = []
@@ -139,46 +143,67 @@ class Bot:
                         self._dump(f"replanned head {self.queue[0].name!r} not applicable")
                     )
         except BotStuck:
-            self._record(reading, t0, "panic", popped=popped, replanned=replanned)
+            self._record(reading, t0, slept0, "panic", popped=popped, replanned=replanned)
             raise
 
         if not self.queue:
             # planner 回空計畫＝goal 已滿足。收工的唯一裁判是 A*，迴圈裡沒有
             # 第二個 goal 檢查點；代價是 goal 提早成立時會先把殘餘隊列走完。
             self.finished = True
-            self._record(reading, t0, "done", popped=popped, replanned=replanned)
+            self._record(reading, t0, slept0, "done", popped=popped, replanned=replanned)
             return
 
         head = self.queue[0]
         head.do(self)
-        self._record(reading, t0, "executed", head=head.name, popped=popped, replanned=replanned)
+        self._record(
+            reading, t0, slept0, "executed", head=head.name, popped=popped, replanned=replanned
+        )
 
     def _record(
         self,
         reading: FrameReading,
         t0: int,
+        slept0: int,
         outcome: str,
         head: str | None = None,
         popped: list[str] | None = None,
         replanned: str | None = None,
     ) -> None:
-        """The only writer of the tick log."""
-        self.log.append(
-            TickRecord(
-                tick=len(self.log),
-                tags=[tag.name for tag in reading.tags],
-                outcome=outcome,
-                head=head,
-                popped=popped or [],
-                replanned=replanned,
-                plan_len=len(self.queue),
-                plan=[step.name for step in self.queue],
-                progress=self.board.progress_key(),
-                symbols=self.state.symbols(),
-                duration_ms=self.clock.now_ms() - t0,
-                slept_ms=self.clock.slept_ms() - t0,
-            )
+        """The only writer of the tick log, and the only tick-level metrics seam.
+
+        Every counter below is derived from the record just written, keyed by
+        the literal log field values -- so a counter and the log lines behind
+        it are matched without a translation step, and no `count()` call is
+        allowed to drift out into the rest of the loop.
+        """
+        record = TickRecord(
+            tick=len(self.log),
+            tags=[tag.name for tag in reading.tags],
+            outcome=outcome,
+            head=head,
+            popped=popped or [],
+            replanned=replanned,
+            plan_len=len(self.queue),
+            plan=[step.name for step in self.queue],
+            progress=self.board.progress_key(),
+            symbols=self.state.symbols(),
+            duration_ms=self.clock.now_ms() - t0,
+            slept_ms=self.clock.slept_ms() - slept0,
         )
+        self.log.append(record)
+
+        self.metrics.count("tick.total")
+        self.metrics.count(f"tick.outcome.{record.outcome}")
+        if record.replanned is not None:
+            self.metrics.count(f"replan.{record.replanned}")
+        for name in record.popped:
+            self.metrics.count("step_popped.total")
+            self.metrics.count(f"step_popped.{name}")
+        if record.outcome == "executed" and record.head is not None:
+            self.metrics.count("action_executed.total")
+            self.metrics.count(f"action_executed.{record.head}")
+        self.metrics.observe("tick.duration_ms", record.duration_ms)
+        self.metrics.observe("tick.slept_ms", record.slept_ms)
 
     def think(self) -> list[Action]:
         """Refill the queue: one A* run over the catalog towards the outer goal.
@@ -189,14 +214,23 @@ class Bot:
         satisfaction. Flow-level thinking; the other kind is an action like
         `SolveTactics`, whose `do()` splices the tactical steps it produced
         in behind itself.
+
+        The only metrics not folded from the tick log live here: search cost
+        and PlanNotFound are facts about the A* run, and no column of the
+        record can reconstruct them.
         """
+        self.metrics.count("plan.calls")
         goal = self.state.goal
         if goal is None:
             return []
+        started = self.clock.now_ms()
         try:
             result = plan(self.state.to_world_state(), goal, self.catalog)
         except PlanNotFound as exc:
+            self.metrics.count("plan.not_found")
             raise BotStuck(self._dump(f"no plan for goal {goal.name!r}: {exc}")) from exc
+        finally:
+            self.metrics.observe("plan.latency_ms", self.clock.now_ms() - started)
         return list(result.actions)
 
     def run(self, max_ticks: int = 60) -> list[TickRecord]:
