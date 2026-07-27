@@ -64,7 +64,8 @@ def default_symbol_table() -> SymbolTable:
 
 def _tap_through(bot: Bot, tag: Tag) -> None:
     # 真做法：點分類器找到的位置（payload 座標），睡過跳轉；多頁劇情靠
-    # refire=safe 連點推進。座標永遠來自本幀的 tag，不寫死。
+    # 「tag 還在就每拍再被派發一次」連點推進。座標永遠來自本幀的 tag，
+    # 不寫死。等待／重觸發判斷若有需要，寫在 handler 內容裡，不歸 router。
     assert tag.point is not None
     bot.device.tap(*tag.point)
     bot.clock.sleep(1.0)
@@ -81,8 +82,8 @@ def _dismiss_info_popup(bot: Bot, tag: Tag) -> None:
 def default_reflex_table() -> ReflexTable:
     return ReflexTable(
         [
-            ReflexRule(tag="skip_ui", handler=_tap_through, refire="safe"),
-            ReflexRule(tag="info_popup", handler=_dismiss_info_popup, refire="safe"),
+            ReflexRule(tag="skip_ui", handler=_tap_through),
+            ReflexRule(tag="info_popup", handler=_dismiss_info_popup),
         ]
     )
 

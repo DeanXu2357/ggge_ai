@@ -105,19 +105,19 @@ FrameReading ─┬─→ 反射表：tags → handler          （給反射弧�
 | 欄位 | 說明 |
 |---|---|
 | tag | 觸發的特徵名 |
-| handler(bot, payload) | 動裝置；**內含自己的 sleep**（固定秒數起步）；不寫符號——效果由下一拍截圖作證 |
-| refire | `safe`（tap-through 類，同畫面再打是對的，多頁劇情連點）／`require_change`（back 類，畫面沒變就不准再打、改走等待格） |
+| handler(bot, payload) | 動裝置；**內含自己的 sleep**（固定秒數起步）；不寫符號——效果由下一拍截圖作證。**等待／重觸發／timeout 行為全由 handler 內容定義**（back 類「幀沒變不再按」的判斷寫在 handler 裡），表只宣告派發 |
 | blocking | true＝壓過 decide，本拍只跑反射 |
 | 適用 phase 集合 | **延後欄位**：v1 全 phase 都偵測，metrics 看到誤判（TM_CCOEFF 深色區亂匹配坑）再加掛載 |
 
 - sleep 寧可偏短：殘餘轉場尾巴由等待格吸收；偏長只是浪費。之後
   依 metrics 逐 handler 升級成「短輪詢直到畫面變化＋上限」，
   不做全域機制。
-- 派發語意（比對順序＝登記序先勝、refire 閘門、指紋狀態）整包封裝
-  在 router 模組的 `ReflexRouter`（2026-07-27 使用者提議）：表是純
-  登記資料、可共用，router 是 per-run 的有狀態外殼；迴圈只問「這幀
-  你處理了嗎」。等待格不屬於 router——它看 phase 不看 tag，是 tick
-  生命週期的一格。
+- **反射層對一幀的結果是二值**（2026-07-27 使用者定案）：tag 匹配→
+  進 handler→本拍結束、下一拍重新截圖；無匹配→放行進佇列格。沒有
+  「認領後放行」、沒有 router 側扣住——route 編排不做任何行為決策。
+  派發本身（比對順序＝登記序先勝、outcome 字串）封裝在 router 模組
+  的無狀態 `ReflexRouter`；迴圈只問「這幀你處理了嗎」。等待格不屬於
+  router——它看 phase 不看 tag，是 tick 生命週期的一格。
 - v1 反射表只收 tap-through 類（skip 鈕、單鈕資訊彈窗）。使用者
   原案的「常規次級 UI 用 back 返回」在 v1 由 **replan＋目錄裡的
   導航 action** 承接（次級畫面是 phase 成員，catalog 有 back

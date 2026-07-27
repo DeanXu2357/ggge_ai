@@ -87,19 +87,18 @@ class SymbolTable:
 
 @dataclass(frozen=True)
 class ReflexRule:
-    """One tag-to-handler registration.
+    """One tag-to-handler registration: dispatch only, no behaviour.
 
-    `handler` acts on the device and owns its own settle sleep; it never
-    writes symbols -- its effect is attested by the next tick's frame.
-    `refire="require_change"` refuses to fire again while the frame key is
-    unchanged since the last firing (back-style hazards); `"safe"` may fire
-    every tick (tap-through pages). Choice dialogs and unidentified modals
-    are never registered here -- that is a structural rule, not a runtime one.
+    `handler` owns everything behavioural -- its settle sleep, and any
+    hold/timeout logic for being dispatched again (a back-style handler
+    that must not re-press on an unchanged frame implements that check
+    itself). Handlers never write symbols; their effect is attested by the
+    next tick's frame. Choice dialogs and unidentified modals are never
+    registered here -- that is a structural rule, not a runtime one.
     """
 
     tag: str
     handler: Callable[[Bot, Tag], None]
-    refire: str = "safe"
     blocking: bool = True
 
 
@@ -118,30 +117,25 @@ class ReflexTable:
 
 
 class ReflexRouter:
-    """Runtime dispatcher over a ReflexTable: one per bot run.
+    """Stateless dispatcher over a ReflexTable.
 
-    Owns the refire fingerprint, so every piece of reflex semantics -- match
-    order (first registered blocking rule wins), the refire gate, handler
-    firing -- lives in this module. The loop only asks "did you handle this
-    frame?": a non-None return is the tick's outcome and ends the tick.
-    The table stays pure registration data and can be shared; the router is
-    the per-run stateful wrapper around it.
+    The contract with the loop is strictly binary: a matched blocking tag
+    runs its handler and the tick ends (non-None return = the tick's
+    outcome); no match returns None and the tick proceeds to the queue.
+    The router makes no behavioural decisions -- no hold, no timeout, no
+    claim-then-release; what to do when dispatched again on an unchanged
+    frame is defined inside the handler, next tick.
     """
 
     def __init__(self, table: ReflexTable) -> None:
         self.table = table
-        self._last: tuple[str, tuple] | None = None
 
     def route(self, bot: Bot, reading: FrameReading) -> str | None:
         hit = self.table.match(reading)
         if hit is None:
             return None
         rule, tag = hit
-        key = (rule.tag, reading.key())
-        if rule.refire == "require_change" and self._last == key:
-            return "wait:refire"
         rule.handler(bot, tag)
-        self._last = key
         return f"reflex:{rule.tag}"
 
 

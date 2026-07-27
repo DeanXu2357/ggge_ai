@@ -3,8 +3,8 @@
 The demo trace is the fixture for the loop's semantics: same-tick
 continuation, standing instructions, the wait slot, reflex dismissal,
 whole-queue replan, and evidence pops of steps that never fired. The
-crafted mini-bots cover the refire gates, the panic paths, and the two
-router tables' contracts.
+crafted mini-bots cover the action refire gate, the reflex dispatch
+contract, the panic paths, and the two router tables' contracts.
 """
 
 from __future__ import annotations
@@ -156,7 +156,9 @@ def test_action_refire_gate_holds_while_the_frame_is_frozen():
     assert bot.device.taps.count((2180, 140)) == 1
 
 
-def test_reflex_refire_gate_fires_once_on_identical_frames():
+def test_reflex_dispatches_every_tick_the_tag_is_present():
+    # router 只派發不決策：tag 還在就每拍進一次 handler（多頁劇情連點的
+    # 基礎）；等待／重觸發／timeout 屬於 handler 內容，不屬於 route 編排。
     popup = FrameReading(UNKNOWN, (Tag("info_popup", point=(500, 500)),))
     taps: list[tuple[int, int]] = []
 
@@ -165,13 +167,13 @@ def test_reflex_refire_gate_fires_once_on_identical_frames():
         bot.device.tap(*tag.point)
         taps.append(tag.point)
 
-    table = ReflexTable([ReflexRule(tag="info_popup", handler=dismiss, refire="require_change")])
+    table = ReflexTable([ReflexRule(tag="info_popup", handler=dismiss)])
     bot = _mini_bot(Goal("grid", {"grid": "on"}), script=[popup, popup], reflexes=table)
 
     bot.run(max_ticks=6)
 
-    assert taps == [(500, 500)]
-    assert [r.outcome for r in bot.log[:2]] == ["reflex:info_popup", "wait:refire"]
+    assert taps == [(500, 500), (500, 500)]
+    assert [r.outcome for r in bot.log[:2]] == ["reflex:info_popup", "reflex:info_popup"]
     assert bot.finished
 
 
