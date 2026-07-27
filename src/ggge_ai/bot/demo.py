@@ -30,7 +30,7 @@ from .actions import default_catalog, default_reflex_table, default_symbol_table
 from .board import MockBoard
 from .bot import Bot
 from .frame import FrameReading, Tag
-from .mocks import MockClassifier, MockClock, MockDevice
+from .mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
 from .state import UNKNOWN, BotState
 
 BASE_FRAME = FrameReading(
@@ -53,7 +53,8 @@ def build_demo_bot() -> Bot:
     return Bot(
         state=state,
         board=MockBoard(covered_cells=1, total_cells=5, resolved_units=0, candidates=1),
-        classifier=MockClassifier(BASE_FRAME, SCRIPT),
+        screen=MockScreen(BASE_FRAME, SCRIPT),
+        classifier=IdentityClassifier(),
         device=MockDevice(),
         clock=MockClock(),
         catalog=default_catalog(),

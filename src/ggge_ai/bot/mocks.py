@@ -7,8 +7,14 @@ from collections.abc import Iterable, Sequence
 from .frame import FrameReading, Tag
 
 
-class MockClassifier:
-    """Scripted classification: one FrameReading per tick.
+class MockScreen:
+    """The fake game screen: one capture per tick.
+
+    In the real system `capture()` returns an image and the classifier turns
+    it into a FrameReading; the mock world is already symbolic, so its
+    "frame" type is FrameReading itself and the classifier is the identity.
+    The seam is the point: the loop never fuses capture with classification,
+    so the real classifier stays a pure function testable on saved PNGs.
 
     Three layers, outermost wins:
 
@@ -19,7 +25,7 @@ class MockClassifier:
       (the unit panel over the hub). `enter`/`retag_overlay`/`exit` model
       "the hub persists underneath" without every action rebuilding hub tags.
     - `base` is the steady screen. Actions mutate it with `retag_base`, which
-      is how a tap becomes visible to the next tick's read.
+      is how a tap becomes visible to the next tick's capture.
     """
 
     def __init__(
@@ -30,11 +36,11 @@ class MockClassifier:
         self.base = base
         self.overlay: FrameReading | None = None
         self.script = list(script)
-        self.reads = 0
+        self.captures = 0
 
-    def read(self) -> FrameReading:
-        index = self.reads
-        self.reads += 1
+    def capture(self) -> FrameReading:
+        index = self.captures
+        self.captures += 1
         if index < len(self.script) and self.script[index] is not None:
             return self.script[index]
         return self.overlay if self.overlay is not None else self.base
@@ -53,6 +59,17 @@ class MockClassifier:
 
     def exit(self) -> None:
         self.overlay = None
+
+
+class IdentityClassifier:
+    """Mock classifier: the mock screen already speaks FrameReading.
+
+    The real one is `classify(image) -> FrameReading` -- a pure function over
+    one frame, regression-tested against saved screenshots.
+    """
+
+    def classify(self, frame: FrameReading) -> FrameReading:
+        return frame
 
 
 class MockDevice:

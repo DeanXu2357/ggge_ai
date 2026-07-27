@@ -9,7 +9,7 @@ from ggge_ai.goap.state import Value
 
 from .action import Action
 from .board import MockBoard
-from .mocks import MockClassifier, MockClock, MockDevice
+from .mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
 from .router import ReflexTable, SymbolTable
 from .state import UNKNOWN, BotState
 
@@ -67,7 +67,8 @@ class Bot:
         self,
         state: BotState,
         board: MockBoard,
-        classifier: MockClassifier,
+        screen: MockScreen,
+        classifier: IdentityClassifier,
         device: MockDevice,
         clock: MockClock,
         catalog: list[Action],
@@ -77,6 +78,7 @@ class Bot:
     ) -> None:
         self.state = state
         self.board = board
+        self.screen = screen
         self.classifier = classifier
         self.device = device
         self.clock = clock
@@ -93,7 +95,8 @@ class Bot:
 
     def tick(self) -> None:
         t0 = self.clock.now_ms()
-        reading = self.classifier.read()
+        frame = self.screen.capture()
+        reading = self.classifier.classify(frame)
 
         # 感知門開在拍首：符號表＋盤面摘要，一次性重算，走反射的拍也照做。
         perceived = self.symbol_table.translate(reading)

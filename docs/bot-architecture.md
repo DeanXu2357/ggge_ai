@@ -75,6 +75,12 @@ FrameReading:
 - 分類器核心是純函數（一幀進、一個判讀出）。去抖 wrapper 延後
   （本作是 SLG、執行階段等玩家決策；等待格本身就是隱性去抖——
   誤讀成 UNKNOWN 的幀下一拍自我修正）。
+- **capture 與 classify 是兩個接縫**（2026-07-27 使用者指正回寫）：
+  `screen.capture() → frame`、`classifier.classify(frame) →
+  FrameReading`，迴圈只碰這兩個組件，分類器絕不自己截圖。這樣保存
+  的實機截圖可以直接餵真分類器做回歸測試（fixture 慣例沿用
+  tests/fixtures/）。mock 端：MockScreen 持有假世界（frame 型別
+  就是 FrameReading）、分類器＝identity。
 - 同類畫面的變體編碼（如單位面板三個 tab：一個 phase＋active_tab
   tag，或三個 phase）到實作分類器時再定，兩種都能翻成同一個
   `panel_tab` 符號。

@@ -1,6 +1,6 @@
 """The mock catalog: actions, the symbol table, and the reflex table.
 
-Every `do()` here touches the mock classifier / board / device only; the
+Every `do()` here touches the mock screen / board / device only; the
 comment above each mock body is the spec for the real one. Actions read
 symbols, never frames -- when a step needs a screen feature, the classifier
 tags it and the symbol table below translates it.
@@ -111,7 +111,7 @@ class ExpandUnitList(Action):
         # 真做法：點左側卡條展開可操作單位列表（我方權威來源）。
         # 同一顆鈕是開關，refire=require_change 防連點又收回去。
         bot.device.tap(90, 300)
-        bot.classifier.retag_base(add=(Tag("unit_list_expanded"),))
+        bot.screen.retag_base(add=(Tag("unit_list_expanded"),))
         bot.clock.sleep(0.3)
 
 
@@ -125,7 +125,7 @@ class CollapseUnitList(Action):
     def do(self, bot: Bot) -> None:
         # 真做法：收起卡條——展開時蓋住地圖左半，掃描會漏格。
         bot.device.tap(90, 300)
-        bot.classifier.retag_base(remove=("unit_list_expanded",))
+        bot.screen.retag_base(remove=("unit_list_expanded",))
         bot.clock.sleep(0.3)
 
 
@@ -141,7 +141,7 @@ class EnableGrid(Action):
         # 感知門（分類器 grid_on tag），不用 remember——舊骨架在這裡
         # 用記憶門是界線模糊，已依規格改正。
         bot.device.tap(2180, 140)
-        bot.classifier.retag_base(add=(Tag("grid_on"),))
+        bot.screen.retag_base(add=(Tag("grid_on"),))
         bot.clock.sleep(0.3)
 
 
@@ -155,7 +155,7 @@ class ZoomToMax(Action):
         # 真做法：縮到最大比例尺（pinch 冪等，refire=safe）；zoom 值域由
         # 格線 pitch 推導，同樣是感知符號。
         bot.device.tap(2180, 420)
-        bot.classifier.retag_base(add=(Tag("zoom_max"),))
+        bot.screen.retag_base(add=(Tag("zoom_max"),))
         bot.clock.sleep(0.3)
 
 
@@ -215,7 +215,7 @@ class TapUnit(Action):
         # 決定——我們不建模，開了看一眼就知道（mock 固定開在能力分頁，
         # 最壞情況）。副作用：鏡頭跳到該單位，掃描對位失效。
         bot.device.tap(1180, 520)
-        bot.classifier.enter("unit_panel", (Tag("tab_ability"),))
+        bot.screen.enter("unit_panel", (Tag("tab_ability"),))
         bot.board.pose = "lost"
         bot.clock.sleep(1.0)
 
@@ -232,7 +232,7 @@ class ToWeaponTab(Action):
     def do(self, bot: Bot) -> None:
         # 真做法：點武裝分頁的頁籤。
         bot.device.tap(1520, 200)
-        bot.classifier.retag_overlay((Tag("tab_weapon"),))
+        bot.screen.retag_overlay((Tag("tab_weapon"),))
         bot.clock.sleep(0.3)
 
 
@@ -259,7 +259,7 @@ class EscapePanel(Action):
     def do(self, bot: Bot) -> None:
         # 真做法：返回鍵關面板回地圖（鏡頭仍在跳走的位置，pose 還是 lost）。
         bot.device.tap(120, 980)
-        bot.classifier.exit()
+        bot.screen.exit()
         bot.clock.sleep(0.5)
 
 
@@ -305,7 +305,7 @@ class SelectUnit(Action):
     def do(self, bot: Bot) -> None:
         # 真做法：點 intent 指定的單位卡（卡條才是我方權威，不點地圖）。
         bot.device.tap(90, 260)
-        bot.classifier.retag_base(add=(Tag("unit_selected"),))
+        bot.screen.retag_base(add=(Tag("unit_selected"),))
         bot.clock.sleep(0.3)
 
 
@@ -319,7 +319,7 @@ class MoveTo(Action):
     def do(self, bot: Bot) -> None:
         # 真做法：點 intent 指定的目標格；移動動畫睡過去。
         bot.device.tap(1240, 560)
-        bot.classifier.retag_base(add=(Tag("unit_moved"),), remove=("unit_selected",))
+        bot.screen.retag_base(add=(Tag("unit_moved"),), remove=("unit_selected",))
         bot.clock.sleep(1.0)
 
 
@@ -335,7 +335,7 @@ class Attack(Action):
         # 即作廢（記憶門）；下一台要打之前必須重新 SolveTactics。
         bot.device.tap(1700, 620)
         bot.state.remember(intent="none")
-        bot.classifier.retag_base(add=(Tag("unit_acted"),), remove=("unit_moved",))
+        bot.screen.retag_base(add=(Tag("unit_acted"),), remove=("unit_moved",))
         bot.clock.sleep(1.5)
 
 

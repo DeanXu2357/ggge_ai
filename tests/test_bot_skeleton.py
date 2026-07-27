@@ -22,7 +22,7 @@ from ggge_ai.bot.board import BOARD_SYMBOLS, MockBoard
 from ggge_ai.bot.bot import Bot, BotStuck
 from ggge_ai.bot.demo import BASE_FRAME, STORY, build_demo_bot, run_demo
 from ggge_ai.bot.frame import FrameReading, Tag
-from ggge_ai.bot.mocks import MockClassifier, MockClock, MockDevice
+from ggge_ai.bot.mocks import IdentityClassifier, MockClock, MockDevice, MockScreen
 from ggge_ai.bot.router import ReflexRule, ReflexTable, unproduced_symbols
 from ggge_ai.bot.state import UNKNOWN, BotState
 
@@ -40,7 +40,8 @@ def _mini_bot(
     return Bot(
         state=state,
         board=board or MockBoard(covered_cells=1, total_cells=5, candidates=1),
-        classifier=MockClassifier(base, script or []),
+        screen=MockScreen(base, script or []),
+        classifier=IdentityClassifier(),
         device=MockDevice(),
         clock=MockClock(),
         catalog=default_catalog(),
