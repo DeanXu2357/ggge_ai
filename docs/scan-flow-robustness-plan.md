@@ -545,11 +545,12 @@ keyguard 檢查的間隙、正中掃描關鍵讀取瞬間；批7 亮度濾波對
 
 ## Round 2（草案，已被取代）
 
-> **2026-07-24 更新**：本段草案已由正式規格
-> [flow-goap-controller2.md](flow-goap-controller2.md) 取代——與使用者
-> 逐題定案後範圍演進為：BattleController2 新入口（不重構舊
-> controller）、goal=sync_initial_map、survey 逐單位 GOAP 化、不設
-> 獨立中斷 router、controller2 冷跑 probe 優先於輪十三。以下原文
+> **2026-07-24 更新**：本段草案曾由正式規格 flow-goap-controller2.md
+> 取代（BattleController2 新入口、goal=sync_initial_map、survey 逐單位
+> GOAP 化、不設獨立中斷 router）。
+> **2026-07-27 再更新**：controller2 路線整組廢止移除（規格＋
+> `battle/flow/` 實作＋測試），使用者裁決大重寫——流程層 GOAP 的
+> 現行規格改見 [bot-architecture.md](bot-architecture.md)。以下原文
 > 保留為歷史脈絡。
 
 方向：把 `_scout` 裡 `if self.timeline.due("full_scan", ...)` 這段目前寫死
