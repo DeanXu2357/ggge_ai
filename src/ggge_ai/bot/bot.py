@@ -18,15 +18,19 @@ from .state import BotState
 class BotStuck(RuntimeError):
     """Honest abort: the loop stops and says where, it does not improvise.
 
-    Raised only for immediate honest failures, and `kind` says which:
-    `no_plan` (the planner finds no route -- an unprepared situation, the
-    vocabulary is missing a mid-state) or `stale_plan` (a fresh plan is
-    somehow not applicable). The tick record spells it `panic:<kind>`, the
-    same literal family as `panic:sense`. Threshold judgements (too many
-    replans, too long unreadable) belong to the deferred circuit breaker,
-    which will derive them from the tick log; until then `run(max_ticks)`
-    is the only coarse backstop. The real system turns this into a
-    human-intervention request.
+    Raised for immediate honest failures, and `kind` says which: `no_plan`
+    (the planner finds no route -- an unprepared situation, the vocabulary
+    is missing a mid-state), `stale_plan` (a fresh plan is somehow not
+    applicable) or `replan_storm` (the breaker in `run`).
+
+    The first two are tick-level: the tick catches them, leaves one final
+    `panic:<kind>` record -- the same literal family as `panic:sense` -- and
+    re-raises. The third is a threshold judgement, and those live in `run`,
+    outside the tick: it reads the tail of a log whose last entry is a
+    complete record of a complete tick, so it writes no record of its own
+    and loses nothing -- where it tripped is reconstructible from the log.
+    `max_ticks` stays the coarse backstop for every stall no breaker names.
+    The real system turns this into a human-intervention request.
     """
 
     def __init__(self, message: str, kind: str) -> None:
@@ -40,7 +44,7 @@ class TickRecord:
 
     Nothing accumulates beside this stream: replan rates, reflex streaks,
     progress stalls and planning cost are aggregations computed over the log
-    when someone asks (the future circuit breaker reads the same records
+    when someone asks (`replan_storm` in `run` reads the same records
     in-process; the jsonl export is analysis-only). A column that no other
     column can reconstruct -- `plan_ms` -- therefore has to be written here.
     """
@@ -58,6 +62,35 @@ class TickRecord:
     duration_ms: int = 0
     slept_ms: int = 0
     plan_ms: int | None = None
+
+
+REPLAN_STORM_TICKS = 10
+
+
+def replan_storm(log: list[TickRecord], n: int = REPLAN_STORM_TICKS) -> bool:
+    """True when the last `n` ticks each threw the whole queue away and replanned.
+
+    The shape this names is a plan-flipping cycle: every tick the head's
+    `pre` has stopped holding, so the queue dies whole and is rebuilt, and
+    nothing the loop decides survives long enough to be spent. Consecutive
+    replans therefore imply the symbols keep moving -- a head that still
+    applies is never replanned -- so what is behind them is perception
+    jitter, or a world changing faster than a plan can be executed.
+
+    Deliberately the only shape guarded. A head spinning without progress,
+    an observation loop on a screen that never reads, a reflex chain: all
+    stalls, none of them replans, all left to `max_ticks`. Any record that
+    is not a replan breaks the streak by itself, so there is no counter to
+    reset and the verdict replays offline from the log alone.
+
+    `n = 10` is a placeholder from the offline mock era. It must be
+    re-judged against real-device jsonl before this loop drives the phone:
+    how long a legitimate replan streak runs during an enemy turn is
+    unknown.
+    """
+    if len(log) < n:
+        return False
+    return all(record.replanned == "replan" for record in log[-n:])
 
 
 class Bot:
@@ -261,16 +294,25 @@ class Bot:
         return list(result.actions)
 
     def run(self, max_ticks: int = 60) -> list[TickRecord]:
-        """Run until the goal is satisfied or `max_ticks` is spent.
+        """The only judge of when the loop stops: finished, breaker, budget.
 
-        `max_ticks` plus BotStuck are the only v1 backstops; the circuit
-        breaker (replans-without-progress over the log) comes later and reads
-        the same records.
+        In that order, and the order is the point: a run whose very last tick
+        happens to be a replan has still reached its goal, so `finished` wins
+        over the breaker. The breaker itself is a pure predicate over the
+        tail of the log, evaluated between ticks -- it sees exactly what an
+        offline replay of the same records sees, and it can only trip on a
+        tick that is already fully recorded. `max_ticks` is unchanged: the
+        coarse budget behind every stall the breaker does not name.
         """
         for _ in range(max_ticks):
             self.tick()
             if self.finished:
                 break
+            if replan_storm(self.log):
+                raise BotStuck(
+                    self._dump(f"replan storm: {REPLAN_STORM_TICKS} consecutive replans"),
+                    kind="replan_storm",
+                )
         return self.log
 
     def trace(self) -> str:
