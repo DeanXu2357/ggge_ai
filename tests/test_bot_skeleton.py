@@ -324,7 +324,7 @@ def test_missing_vocabulary_panics_with_a_dump():
 
     assert "no plan for goal 'sim_ready'" in str(excinfo.value)
     assert "pose='lost'" in str(excinfo.value)
-    assert bot.log[-1].outcome == "panic"
+    assert bot.log[-1].outcome == "panic:no_plan"
 
 
 # --- router 兩張表的契約 ---
