@@ -1,0 +1,163 @@
+{
+  "series": "機動戰士鋼彈",
+  "series_note": "MAIN STAGE 輪播最左端第一張系列卡；卡面標記為「G ガンダム／GUNDAM」但系列資訊畫面標題與底部標籤均為「機動戰士鋼彈」（1979 原作 UC0079，非機動武闘伝Gガンダム）",
+  "recommended_power": 10000,
+  "registry": "41/41",
+  "series_rewards": [
+    {
+      "difficulty": "NORMAL",
+      "clear_count": "14/14",
+      "rewards": [
+        {"item": "貨幣圖示(藍,推測鑽石)×1008", "claimed": true, "uncertain": true},
+        {"item": "MS船塢(容量擴充)", "claimed": true, "uncertain": false}
+      ]
+    }
+  ],
+  "series_perfect_rewards": [
+    {
+      "difficulty": "NORMAL",
+      "clear_count": "14/14",
+      "rewards": [
+        {"item": "貨幣圖示(藍,推測鑽石)×1008", "claimed": true, "uncertain": true},
+        {"item": "MS船塢(容量擴充)", "claimed": true, "uncertain": false}
+      ]
+    },
+    {
+      "difficulty": "HARD",
+      "clear_count": "3/3",
+      "rewards": [
+        {"item": "貨幣圖示(藍,推測鑽石)×1008", "claimed": true, "uncertain": true},
+        {"item": "MS船塢(容量擴充)", "claimed": true, "uncertain": false}
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "difficulty": "NORMAL", "no": 1, "title": "鋼彈立於大地",
+      "tag": "GUEST BATTLE", "status": "complete", "stars": null,
+      "terrain": null, "en_cost": null, "recommended_power": null,
+      "rewards": {"first": "×50(推測,已領取,遮蓋)"},
+      "skip": "not_applicable", "skip_remaining": null,
+      "uncertain": true,
+      "note": "特殊節點:無星旗列/無地形EN/無建議戰鬥力,按鈕為橙色「出擊」而非「出擊準備」,獎勵只有首次一格"
+    },
+    {
+      "difficulty": "NORMAL", "no": 2, "title": "鋼彈破壊命令",
+      "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 1500,
+      "rewards": {"first": "×50(推測,已領取,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 3, "title": "飛吧！鋼彈",
+      "status": "complete", "stars": "3/3",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 10000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,坦克類載具,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 4, "title": "卡爾馬之死",
+      "status": "complete", "stars": "3/3",
+      "terrain": "水陸", "en_cost": 10, "recommended_power": 13500,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×4500(推測,已領取)", "capture": "角色頭像(未識別,綠白機體頭部,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 5, "title": "雪拉出擊",
+      "status": "complete", "stars": "3/3",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 15000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,綠色薩克類機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 6, "title": "蘭巴·拉爾特攻！",
+      "status": "complete", "stars": "3/3",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 18000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 7, "title": "三連星·德姆的追擊",
+      "status": "complete", "stars": "3/3",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 20000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,藍灰色多姆類機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 8, "title": "哀·戰士",
+      "status": "complete", "stars": "3/3",
+      "terrain": "水陸", "en_cost": 10, "recommended_power": 21000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,紅色薩克類機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 9, "title": "魂斷賈布羅！",
+      "status": "complete", "stars": "3/3",
+      "terrain": "水陸", "en_cost": 10, "recommended_power": 22500,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,白粉色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 10, "title": "宿命的邂逅",
+      "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 25000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,紅色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 11, "title": "恐怖！機動畢格·薩姆",
+      "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 28000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,暗紅色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 12, "title": "閃光的宇宙",
+      "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 30000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 13, "title": "宇宙要塞阿·巴瓦·庫",
+      "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 33000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 14, "title": "宇宙相逢",
+      "tag": "BOSS", "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 35000,
+      "rewards": {"first": "×50(推測,已領取)", "first2": "×2000(推測,已領取)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "HARD", "no": 1, "title": "(與 NORMAL 同名地圖,無獨立標題,標題列顯示「機動戰士鋼彈 HARD STAGE 1」)",
+      "status": "complete", "stars": "3/3(星旗列另有第4顆特殊色星,見notes)",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 65000,
+      "rewards": {"first": "×50(推測,已領取)", "secret": "LV10(推測,已領取)", "capture": "角色頭像(未識別,白/紫機體,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "HARD", "no": 2, "title": "(標題列「機動戰士鋼彈 HARD STAGE 2」)",
+      "status": "complete", "stars": "3/3(同上,4顆星旗)",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 70000,
+      "rewards": {"first": "×50(推測,已領取)", "secret": "LV10(推測,已領取)", "capture": "角色頭像(未識別,戴帽人物肖像,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "HARD", "no": 3, "title": "(標題列「機動戰士鋼彈 HARD STAGE 3」)",
+      "status": "complete", "stars": "3/3(同上,4顆星旗)",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 75000,
+      "rewards": {"first": "×50(已領取,遮蓋下裁圖確認)", "secret": "LV10(已領取,遮蓋下裁圖確認)", "capture": "角色頭像(未識別,灰色獨眼薩克類機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": false
+    }
+  ],
+  "notes": "難度切換機制:本系列未見獨立NORMAL/HARD分頁切換鈕;HARD關卡是直接附加在同一條橫向捲動節點軸的尾端(NORMAL 1-14接續HARD 1-3),用同一組左右swipe瀏覽即可到達,非彈窗/分頁選擇。HARD節點在星旗列多顯示一顆與前3顆顏色/樣式不同的星(第4顆),但節點下方完成徽章仍固定顯示「COMPLETE 3/3」——3/3計數只反映基礎3星,第4顆星的實際意義(EX星?評分?)未查證,已記於各HARD關notes/stars欄位。全系列(NORMAL 1-14 + HARD 1-3)皆COMPLETE 3/3,故報酬格全數顯示已領取的勾選遮蓋圖示,原始道具圖案與數字多數被完全遮蓋只留邊緣像素,故所有金額讀值標記uncertain=true,僅HARD STAGE 3因額外放大裁圖確認故uncertain=false。奪取(capture)欄位不受勾選遮蓋,顯示實際機體/角色頭像美術,但因無文字標籤故一律記「未識別」。stage 1為特殊GUEST BATTLE節點,無星旗/地形/EN/建議戰鬥力欄位,按鈕文字為「出擊」(橙色)而非「出擊準備」(藍色),獎勵只有一格首次。",
+  "screenshots": [
+    "assets/screenshots/20260729-234425.png (系列資訊畫面)",
+    "assets/screenshots/20260729-234652.png (HARD STAGE 3 info,可見同軸NORMAL+HARD節點)",
+    "assets/screenshots/20260729-235612.png (HARD STAGE 1 info)"
+  ]
+}

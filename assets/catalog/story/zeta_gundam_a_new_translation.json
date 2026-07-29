@@ -1,0 +1,117 @@
+{
+  "series": "機動戰士Z鋼彈 A New Translation",
+  "series_note": "MAIN STAGE 輪播第二張(緊接機動戰士鋼彈之後);系列資訊畫面右上角有「特別活動舉辦中」橙色徽章(選擇鈕旁),意義未查證",
+  "recommended_power": 25000,
+  "registry": "22/33",
+  "series_rewards": [
+    {
+      "difficulty": "NORMAL",
+      "clear_count": "15/15",
+      "rewards": [
+        {"item": "貨幣圖示(藍,推測鑽石)×1008", "claimed": true, "uncertain": false},
+        {"item": "MS船塢(容量擴充)", "claimed": true, "uncertain": false}
+      ]
+    }
+  ],
+  "series_perfect_rewards": [
+    {
+      "difficulty": "NORMAL",
+      "clear_count": "15/15",
+      "rewards": [
+        {"item": "貨幣圖示(藍,推測鑽石)×1008", "claimed": true, "uncertain": false},
+        {"item": "MS船塢(容量擴充)", "claimed": true, "uncertain": false}
+      ]
+    },
+    {
+      "difficulty": "HARD",
+      "clear_count": "3/3",
+      "rewards": [
+        {"item": "貨幣圖示(藍,推測鑽石)×1008", "claimed": true, "uncertain": false},
+        {"item": "MS船塢(容量擴充)", "claimed": true, "uncertain": false}
+      ]
+    }
+  ],
+  "stages": [
+    {"difficulty": "NORMAL", "no": 1, "title": "黑色鋼彈", "status": "complete", "stars": "3/3",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 25000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,白紅鋼彈類機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 2, "title": "父與子……", "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 30000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 3, "title": "賈布羅之風", "status": "complete", "stars": "3/3",
+      "terrain": "水陸", "en_cost": 10, "recommended_power": 32000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 4, "title": "救出蕾柯亞", "status": "complete", "stars": "3/3",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 34000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,白紅機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 5, "title": "阿姆羅再起", "status": "complete", "stars": "3/3",
+      "terrain": "空中", "en_cost": 10, "recommended_power": 28000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 6, "title": "揮別白色陰霾", "status": "complete", "stars": "3/3",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 36000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,彩色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 7, "title": "灰姑娘·鳳", "status": "complete", "stars": "3/3",
+      "terrain": "水陸", "en_cost": 10, "recommended_power": 45000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 8, "title": "灼熱的脫離", "status": "complete", "stars": "3/3",
+      "terrain": "空中", "en_cost": 10, "recommended_power": 42000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 9, "title": "Z的鼓動", "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 47500,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,紅色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 10, "title": "殖民地墜落之日", "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 50000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,金棕色機體,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 11, "title": "色當之門", "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 52500,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,紅色機體,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 12, "title": "西羅克崛起", "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 55000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,藍色機體,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 13, "title": "宇宙的漩渦", "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 57500,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 14, "title": "生命消逝", "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 60000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,綠色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "NORMAL", "no": 15, "title": "星之鼓動是愛", "tag": "BOSS", "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 65000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "first2": "×2000(已領取,遮蓋)", "capture": "角色頭像(未識別,紫色機體,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "HARD", "no": 1, "title": "機動戰士Z鋼彈 A New Translation HARD STAGE 1",
+      "status": "complete", "stars": "3/3(星旗列另有第4顆特殊色星)",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 100000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "secret": "LV10(已領取,遮蓋)", "capture": "角色頭像(未識別,白色鋼彈類機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "HARD", "no": 2, "title": "機動戰士Z鋼彈 A New Translation HARD STAGE 2",
+      "status": "complete", "stars": "3/3(同上,4顆星旗)",
+      "terrain": "空中", "en_cost": 10, "recommended_power": 85000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "secret": "LV10(已領取,遮蓋)", "capture": "角色頭像(未識別,綠色機體,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true},
+    {"difficulty": "HARD", "no": 3, "title": "機動戰士Z鋼彈 A New Translation HARD STAGE 3",
+      "status": "complete", "stars": "3/3(同上,4顆星旗)",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 75000,
+      "rewards": {"first": "×50(已領取,遮蓋)", "secret": "LV10(已領取,遮蓋)", "capture": "角色頭像(未識別,灰色機頭,遮蓋)"},
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true}
+  ],
+  "notes": "與機動戰士鋼彈系列同構:HARD附加在NORMAL 1-15(15=BOSS)軸尾端,同一橫向捲動,無獨立分頁切換鈕。系列標題卡面圖與底部標籤均為「機動戰士Z鋼彈 A New Translation」(壓縮劇場版三部曲),未見獨立的「Z鋼彈(TV版)」系列卡——先前 docs/ui-navigation-map.md 記載的『Z鋼彈(TV)、Z鋼彈 A New Translation』兩張系列卡,實測本輪播中G鋼彈之後緊接的就是A New Translation,未見到TV版獨立卡,待後續系列掃描確認TV版是否存在於其他輪播位置或該記載有誤。全系列(NORMAL1-15+HARD1-3)皆COMPLETE 3/3,報酬遮蓋同前。系列完成/完美達成報酬金額本次以較大範圍裁圖確認讀出「×1008」清晰可辨,故該欄 uncertain=false;個別關卡首次/SECRET金額仍為滿版讀值未逐一裁圖驗證,故關卡層級 uncertain=true。",
+  "screenshots": [
+    "assets/screenshots/20260729-235950.png (系列資訊畫面,登錄狀況22/33)",
+    "assets/screenshots/20260730-001054.png (HARD STAGE 1 info,同軸14/15/BOSS/HARD1-3節點)",
+    "assets/screenshots/20260730-001119.png (HARD STAGE 2 info)"
+  ]
+}

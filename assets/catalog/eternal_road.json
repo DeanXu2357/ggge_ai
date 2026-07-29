@@ -1,0 +1,68 @@
+{
+  "hub_path": "關卡(1220,1021) → ETERNAL ROAD(1930,763)",
+  "structure_note": "重大結構修正(超越 docs/ui-navigation-map.md 原始記載):永恆之路不是單一 No.1-82 連續清單,而是垂直捲動的單一清單中依序堆疊三個難度區段,各區段內部獨立從 No.1 重新編號:NORMAL(No.1-23,23關) → HARD(No.1-32,32關) → EXPERT(No.1-27,27關)。23+32+27=82,與底部『完成數 6/82』全域計數器一致(全域計數器橫跨三區段)。捲動方式:垂直 swipe(非橫向),5欄×N列網格,座標約 swipe(570,700→570,300)前進、反向後退。每張節點卡面自帶難度字樣(NORMAL藍/HARD橙/EXPERT紅),區段交界處另有整列區段標題列(『難度 NORMAL』『難度 HARD』『難度 EXPERT』)。",
+  "lock_note": "鎖定節點(白色掛鎖圖示疊加卡面縮圖)點擊後右欄資訊完整可讀(系列名/出擊限制/建議戰鬥力/地形/首次報酬三格皆顯示,只有『出擊準備』鈕呈灰底掛鎖鎖定)——鎖定不影響資訊可讀性,已驗證(HARD No.24)。",
+  "reward_slot_note": "首次報酬格數不固定:本次樣本中 NORMAL 節點固定2格(鑽石+資源),HARD/EXPERT 節點固定3格(鑽石+徽章/ULT類道具+第三格)。已完成(COMPLETE)節點的報酬格全遮蓋為藍色勾選圖示,只殘留邊緣可辨數字;未完成/鎖定節點報酬格顯示完整圖示與數字。",
+  "restriction_note": "單位/角色出擊限制不是統一套用同一系列標籤:可以是單一系列(如 EXPERT No.7→機動戰士鋼彈、NORMAL No.2→機動戰士Z鋼彈、HARD No.24→水星的魔女),也可以是跨系列大類 TAG(如 HARD No.1→『宇宙世紀系列』TAG,角色欄位甚至可為『無限制』)。逐節點資料需個別確認,不可用單一規則推論。",
+  "completion_count_global": "6/82",
+  "sampled_nodes": [
+    {
+      "section": "NORMAL", "no": 1, "status": "complete", "locked": false,
+      "series_tag": "機動戰士鋼彈",
+      "unit_restriction": "機動戰士鋼彈(單一系列)",
+      "character_restriction": "機動戰士鋼彈(單一系列)",
+      "recommended_power": 27000, "terrain": "宇宙",
+      "first_rewards": ["×100(已領取,遮蓋,疑似鑽石)", "×50(已領取,遮蓋,疑似資源)"],
+      "uncertain": true
+    },
+    {
+      "section": "NORMAL", "no": 2, "status": "not_achieved", "locked": false,
+      "series_tag": "機動戰士Z鋼彈",
+      "unit_restriction": "機動戰士Z鋼彈(單一系列)",
+      "character_restriction": "機動戰士Z鋼彈(單一系列)",
+      "recommended_power": 40000, "terrain": "水陸",
+      "first_rewards": ["鑽×100", "金幣袋×50"],
+      "uncertain": false
+    },
+    {
+      "section": "HARD", "no": 1, "status": "complete", "locked": false,
+      "series_tag": "宇宙世紀系列",
+      "unit_restriction": "TAG:宇宙世紀系列(跨系列大類)",
+      "character_restriction": "無限制",
+      "recommended_power": 130000, "terrain": "宇宙",
+      "first_rewards": ["×500(已領取,遮蓋,疑似鑽石)", "×5?(已領取,遮蓋,數字不確定)", "×200(已領取,遮蓋)"],
+      "uncertain": true
+    },
+    {
+      "section": "HARD", "no": 24, "status": "locked", "locked": true,
+      "series_tag": "機動戰士鋼彈 水星的魔女",
+      "unit_restriction": "機動戰士鋼彈 水星的魔女(單一系列)",
+      "character_restriction": "機動戰士鋼彈 水星的魔女(單一系列)",
+      "recommended_power": 200000, "terrain": "宇宙",
+      "first_rewards": ["鑽×300", "ULT徽章×50", "金幣×200"],
+      "uncertain": false,
+      "note": "鎖定節點樣本,證明鎖定不影響資訊可讀性;出擊準備鈕灰底掛鎖"
+    },
+    {
+      "section": "EXPERT", "no": 7, "status": "unlocked_not_achieved", "locked": false,
+      "series_tag": "機動戰士鋼彈",
+      "unit_restriction": "機動戰士鋼彈(單一系列)",
+      "character_restriction": "機動戰士鋼彈(單一系列)",
+      "recommended_power": 300000, "terrain": "地面",
+      "first_rewards": ["鑽×500", "徽章(綠)×3", "紅色機頭×1"],
+      "uncertain": false,
+      "note": "初次進入永恆之路畫面時預設選中節點"
+    }
+  ],
+  "coverage_scope": "本次僅重點採樣5個節點(NORMAL No.1/2, HARD No.1/24, EXPERT No.7)以驗證結構規律與資料欄位;三區段共82關中尚有77關未逐一讀取。後續作業建議:依本檔記載的區段邊界(NORMAL 1-23/HARD 1-32/EXPERT 1-27)逐一垂直捲動點擊,每節點約3次工具呼叫(tap+capture+read),全量約需250次呼叫。",
+  "not_tapped": "使命(Missions,右上藍鈕)、攻略資訊(左上黃鈕NEW)、出擊對象/出擊準備均未點擊,零資源消耗達成。",
+  "screenshots": [
+    "assets/screenshots/20260730-001658.png (初始畫面,EXPERT No.7預選,完成數6/82)",
+    "assets/screenshots/20260730-001908.png (NORMAL區段開頭,No.1-15)",
+    "assets/screenshots/20260730-002126.png (NORMAL尾端No.16-23銜接HARD開頭)",
+    "assets/screenshots/20260730-002155.png (HARD尾端No.21-32,最後一列只有No.31/32)",
+    "assets/screenshots/20260730-002224.png (EXPERT區段,No.16-27,清單底部)",
+    "assets/screenshots/20260730-002420.png (HARD No.1詳情,宇宙世紀系列TAG)",
+    "assets/screenshots/20260730-002518.png (HARD No.24鎖定節點詳情,水星的魔女)"
+  ]
+}
