@@ -56,9 +56,9 @@ class Action(GoapAction):
 class Goal(GoapGoal):
     """A named set of conditions over the flat symbol space.
 
-    Deliberately no bot-facing `satisfied()` helper: the loop's only judge
-    of goal satisfaction is the planner (an empty plan is the done signal),
-    and a second predicate here would invite a second checkpoint.
+    One judge each: the loop decides *done* by checking `conditions` against
+    the state itself, and the planner decides only the route there. A plan is
+    never a verdict on satisfaction.
     """
 
     name: str = "goal"

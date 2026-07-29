@@ -22,7 +22,7 @@ from ggge_ai.bot.state import BotState
 
 _SCREEN_A = FrameReading((Tag("screen_a"),))
 _SCREEN_B = FrameReading((Tag("screen_b"),))
-_CLEARED = FrameReading((Tag("cleared_banner"),))
+_WON = FrameReading((Tag("locked_banner"), Tag("cleared_banner")))
 _POPUP = FrameReading((Tag("info_popup", point=(500, 500)),))
 
 
@@ -112,7 +112,7 @@ def test_the_tripping_run_ends_on_a_complete_record_of_the_nth_replan():
     assert last.outcome == "executed"
     assert last.head in {"AimA", "AimB"}
     # 跳閘不留自己的記錄：最後一筆是那一拍完整走完的執行記錄。
-    assert all(not record.outcome.startswith("panic") for record in bot.log)
+    assert all(not record.outcome.startswith(("panic", "stuck")) for record in bot.log)
 
 
 def test_a_reflex_tick_neither_counts_nor_clears_the_streak():
@@ -151,16 +151,18 @@ def test_a_tick_that_kept_its_plan_clears_the_streak():
     assert len([r for r in bot.log if r.replanned == "replan"]) == nearly * 2
 
 
-def test_a_goal_reached_on_the_tripping_tick_finishes_instead_of_tripping():
-    bot = _flip_bot([*_alternating(REPLAN_STORM_TICKS), _CLEARED])
+def test_a_goal_reached_one_replan_short_of_the_threshold_finishes():
+    # 連續 n-1 次翻桌後目標達成：收工那拍隊列被證據清空，頂部檢查直接裁決
+    # done——不經 planner，也就不可能再補上第 n 次 replan。
+    bot = _flip_bot([*_alternating(REPLAN_STORM_TICKS), _WON])
 
     bot.run(max_ticks=60)
 
     assert bot.finished
     assert len(bot.log) == REPLAN_STORM_TICKS + 1
+    assert len([r for r in bot.log if r.replanned == "replan"]) == REPLAN_STORM_TICKS - 1
 
     last = bot.log[-1]
     assert last.outcome == "done"
-    assert last.replanned == "replan"
-    # 收工那拍自己補滿了第 n 次翻桌：跳閘條件成立，但 finished 先判。
-    assert all(record.replanned == "replan" for record in bot.log[-REPLAN_STORM_TICKS:])
+    assert last.replanned is None
+    assert last.popped == ["AimB", "Fire"]

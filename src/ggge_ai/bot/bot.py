@@ -16,22 +16,20 @@ from .state import BotState
 
 
 class BotStuck(RuntimeError):
-    """Honest abort: the loop stops and says where, it does not improvise.
+    """The supervisor escalating: the loop stops and asks for a human.
 
-    Raised for immediate honest failures, and `kind` says which: `no_plan`
-    (the planner finds no route -- an unprepared situation, the vocabulary
-    is missing a mid-state), `stale_plan` (a fresh plan is somehow not
-    applicable) or `replan_storm` (the breaker in `run`).
+    Raised by `run` and nowhere else. A tick never throws this -- a tick that
+    cannot proceed says so in its record and returns it, and `run` is the one
+    that decides an honest stop is warranted. `kind` says what it saw:
+    `no_plan` (the planner found no route -- an unprepared situation, the
+    vocabulary is missing a mid-state) or `replan_storm` (its own threshold
+    judgement over the reports, counted in a local rather than read out of
+    the log).
 
-    The first two are tick-level: the tick catches them, leaves one final
-    `panic:<kind>` record -- the same literal family as `panic:sense` -- and
-    re-raises. The third is a threshold judgement, and those live in `run`,
-    outside the tick: `run` supervises from the record each tick hands back,
-    counting in a local of its own rather than reading the log. It writes no
-    record -- the tick that completed the streak is already recorded like
-    any other, so the trip point is reconstructible from the log without the
-    breaker ever having written to it.
-    `max_ticks` stays the coarse backstop for every stall no breaker names.
+    Nothing here writes to the log. The tick behind an escalation is already
+    recorded like any other, so where and why it stopped is reconstructible
+    from the records without the supervisor ever having filed one.
+    `max_ticks` stays the coarse backstop for every stall no kind names.
     The real system turns this into a human-intervention request.
     """
 
@@ -46,10 +44,8 @@ class TickRecord:
 
     The log is a collector, not a channel: nothing in the loop's machinery
     reads it back to decide anything (`run` supervises from the record each
-    tick hands it). Reading these lines is analysis -- replan rates, reflex
-    streaks, progress stalls -- and it happens after the fact, in a test or
-    over the jsonl export. A column that no other column can reconstruct --
-    `plan_ms` -- therefore has to be written here.
+    tick hands it). Reading these lines is after-the-fact analysis, which is
+    why a column no other column can reconstruct -- `plan_ms` -- lives here.
     """
 
     tick: int
@@ -120,25 +116,22 @@ class Bot:
 
         Deliberately not decomposed further -- the only extracted pieces are
         the ones with an identity of their own (reflex router, recorder,
-        planner call). Everything else stays visible here so any drift from
-        the spec diagram is immediately in view.
+        planner call).
 
-        The return value is this tick's report to whoever called it -- the
-        same record the log just collected, handed over directly so that a
-        supervisor like `run` never has to read the log back. The two panic
-        exits report by raising instead: they file their record and let the
-        exception carry the news.
+        The record goes back to the caller directly, so a supervisor like
+        `run` never has to read the log. Four outcomes return one:
+        `reflex:<tag>`, `done`, `executed`, `stuck:no_plan` -- running out of
+        road is a verdict this loop returns, not an exception it throws.
+        `done` is judged here, right after the pops: an empty queue plus a
+        goal the symbols satisfy, checked against the state itself and never
+        inferred from what the planner answered.
 
-        A sense that raises is an infrastructure failure, not a game
-        situation: no action in any catalog fixes a dead adb, so routing it
-        through the unreadable-frame path would spin the loop on `Observe`
-        until `max_ticks` and report a timeout instead of the real cause.
-        The tick therefore dies at the top -- but never silently: it leaves
-        one `panic:sense` record (no tags, and the symbols are the previous
-        tick's leftovers, since nothing was sensed) and re-raises the
-        original exception untouched. Not BotStuck: that type is scoped to
-        planning failures, and only the real traceback says whether it was
-        the transport, the decoder, or the classifier.
+        The one raise is `panic:sense`: a sense that fails is an
+        infrastructure failure no action in any catalog can fix, so the tick
+        dies at the top after filing one record (no tags, symbols left over
+        from the previous tick) and re-raises the original exception
+        untouched -- only the real traceback says whether it was the
+        transport, the decoder, or the classifier.
         """
         t0 = self.clock.now_ms()
         slept0 = self.clock.slept_ms()
@@ -161,52 +154,51 @@ class Bot:
         while self.queue and self.state.satisfies(self.queue[0].eff):
             popped.append(self.queue.pop(0).name)
 
-        replanned: str | None = None
-        plan_ms: int | None = None
-        try:
-            if not self.queue:
-                # 先賦值再進 think()：think 死在裡面時，panic 記錄也要如實說出死前在做哪一種規劃。
-                replanned = "refill"
-                started = self.clock.now_ms()
-                try:
-                    self.queue = self.think()
-                finally:
-                    plan_ms = self.clock.now_ms() - started
-            if self.queue and not self.state.satisfies(self.queue[0].pre):
-                if replanned is not None:
-                    raise BotStuck(
-                        self._dump(f"fresh plan head {self.queue[0].name!r} not applicable"),
-                        kind="stale_plan",
-                    )
-                self.queue.clear()
-                replanned = "replan"
-                started = self.clock.now_ms()
-                try:
-                    self.queue = self.think()
-                finally:
-                    plan_ms = self.clock.now_ms() - started
-                if self.queue and not self.state.satisfies(self.queue[0].pre):
-                    raise BotStuck(
-                        self._dump(f"replanned head {self.queue[0].name!r} not applicable"),
-                        kind="stale_plan",
-                    )
-        except BotStuck as exc:
-            self._record(
-                reading,
-                t0,
-                slept0,
-                f"panic:{exc.kind}",
-                popped=popped,
-                replanned=replanned,
-                plan_ms=plan_ms,
-            )
-            raise
+        goal = self.state.goal
+        if not self.queue and (goal is None or self.state.satisfies(goal.conditions)):
+            self.finished = True
+            return self._record(reading, t0, slept0, "done", popped=popped)
 
         if not self.queue:
-            self.finished = True
-            return self._record(
-                reading, t0, slept0, "done", popped=popped, replanned=replanned, plan_ms=plan_ms
-            )
+            replanned = "refill"
+            started = self.clock.now_ms()
+            try:
+                plans = self.think()
+            finally:
+                plan_ms = self.clock.now_ms() - started
+            if plans is None:
+                return self._record(
+                    reading,
+                    t0,
+                    slept0,
+                    "stuck:no_plan",
+                    popped=popped,
+                    replanned=replanned,
+                    plan_ms=plan_ms,
+                )
+            self.queue = plans
+        elif not self.state.satisfies(self.queue[0].pre):
+            self.queue.clear()
+            replanned = "replan"
+            started = self.clock.now_ms()
+            try:
+                plans = self.think()
+            finally:
+                plan_ms = self.clock.now_ms() - started
+            if plans is None:
+                return self._record(
+                    reading,
+                    t0,
+                    slept0,
+                    "stuck:no_plan",
+                    popped=popped,
+                    replanned=replanned,
+                    plan_ms=plan_ms,
+                )
+            self.queue = plans
+        else:
+            replanned = None
+            plan_ms = None
 
         head = self.queue[0]
         head.do(self)
@@ -251,58 +243,38 @@ class Bot:
         self.log.append(record)
         return record
 
-    def think(self) -> list[Action]:
-        """Refill the queue: one A* run over the catalog towards the outer goal.
+    def think(self) -> list[Action] | None:
+        """One A* run towards the outer goal: steps to take, or `None` for no route.
 
-        An empty result is not an error -- it is the done signal: A* returns
-        no actions exactly when the current state already satisfies the goal
-        (or there is no goal), and the planner is the loop's only judge of
-        satisfaction. Flow-level thinking; the other kind is an action like
-        `SolveTactics`, whose `do()` splices the tactical steps it produced
-        in behind itself.
+        Two answers only, and the tick reads them as such: a non-empty queue
+        refill, or `stuck:no_plan`. It is called exactly when the tick has
+        already judged the goal unsatisfied, so a plan of zero steps is the
+        planner contradicting that judgement over the same symbols -- `or
+        None` folds it into the stuck verdict, because a view that split has
+        to stop the run loudly rather than refill with nothing and spin.
 
-        The caller times this call and puts the cost in the record's
-        `plan_ms`; nothing is counted here.
+        `PlanNotFound` turns into a value here because here is the seam with
+        the GOAP library: raising is how that library says it, a value is how
+        this loop carries it.
         """
-        goal = self.state.goal
-        if goal is None:
-            return []
         try:
-            result = plan(self.state.to_world_state(), goal, self.catalog)
-        except PlanNotFound as exc:
-            raise BotStuck(
-                self._dump(f"no plan for goal {goal.name!r}: {exc}"), kind="no_plan"
-            ) from exc
-        return list(result.actions)
+            result = plan(self.state.to_world_state(), self.state.goal, self.catalog)
+        except PlanNotFound:
+            return None
+        return list(result.actions) or None
 
     def run(self, max_ticks: int = 60) -> list[TickRecord]:
-        """The only judge of when the loop stops: finished, breaker, budget.
+        """The only judge of when the loop stops: finished, stuck, breaker, budget.
 
-        A supervisor with a memory of its own: every tick reports what it did
-        and the streak lives in a local here, so the loop never reads the log
-        back to decide anything -- the log stays a collector.
-
-        The breaker names a plan-flipping cycle: every tick the head's `pre`
-        has stopped holding, the queue dies whole and is rebuilt, and nothing
-        decided survives long enough to be spent. Consecutive replans imply
-        the symbols keep moving -- a head that still applies is never
-        replanned -- so behind them is perception jitter, or a world changing
-        faster than a plan can be executed.
+        `finished` is read first and there is nothing for it to outrank: a
+        done tick returns before the fork, so it carries no replan the
+        breaker could have counted.
 
         A tick a reflex ended is neutral: it neither counts nor clears. The
         reflex arc dismisses what sits in front of the plan and returns
         without ever reaching the queue, so it is evidence about neither
         side; clearing on it would let a popup burst launder exactly the
-        flip-popup-flip interleaving this exists to catch. Only a tick that
-        ran the bookkeeping through without throwing the queue away -- a
-        refill, an ordinary execution -- shows a plan surviving, and that is
-        what resets the count.
-
-        `finished` wins over the breaker: a run whose very last tick happens
-        to be a replan has still reached its goal. `max_ticks` is unchanged,
-        the coarse budget behind every stall no breaker names -- a head
-        spinning without progress, an observation loop on a screen that never
-        reads, a reflex chain: all stalls, none of them replans.
+        flip-popup-flip interleaving the breaker exists to catch.
 
         `REPLAN_STORM_TICKS = 10` is a placeholder from the offline mock era.
         It must be re-judged against real-device jsonl before this loop
@@ -314,6 +286,10 @@ class Bot:
             record = self.tick()
             if self.finished:
                 break
+            if record.outcome == "stuck:no_plan":
+                raise BotStuck(
+                    self._dump(f"no plan for goal {self.state.goal.name!r}"), kind="no_plan"
+                )
             if record.outcome.startswith("reflex:"):
                 continue
             streak = streak + 1 if record.replanned == "replan" else 0

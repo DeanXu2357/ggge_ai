@@ -1,34 +1,22 @@
-"""The tick log is the only truth, so it must be complete on its own.
+"""What a tick reports, and what the supervisor does with it.
 
-Aggregates are computed over `bot.log` when someone asks; nothing else keeps
-score. This file pins the columns no other column can reconstruct -- planning
-cost (`plan_ms`), which side of the fork the tick took (`replanned`) and why
-it died (`panic:<kind>`) -- including on the paths where `think()` dies.
+The record has to stand on its own: planning cost (`plan_ms`), which side of
+the fork the tick took (`replanned`), and the verdict when the tick runs out
+of road (`stuck:*`). Running out of road is a returned value here, not an
+exception, so these tests also stand guard over the price of that: a verdict
+tick files exactly one record and touches no device. Turning a verdict into
+BotStuck is `run`'s job, and the second half pins that seam.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from ggge_ai.bot.action import Action, Goal
+from ggge_ai.bot.action import Goal
 from ggge_ai.bot.bot import Bot, BotStuck, TickRecord
 from ggge_ai.bot.demo import STORY, build_demo_bot, run_demo
-from ggge_ai.goap.state import WorldState
+from ggge_ai.goap.planner import PlanResult
 from tests.test_bot_skeleton import _DeadScreen, _mini_bot
-
-
-class _Ungrounded(Action):
-    """A planner operator that lies: routable in search, inapplicable in the loop."""
-
-    name = "Ungrounded"
-    pre = {"no_such_symbol": True}
-    eff = {"grid": "on"}
-
-    def check(self, state: WorldState) -> bool:
-        return True
-
-    def do(self, bot: Bot) -> None:
-        raise AssertionError("an inapplicable head must never run")
 
 
 def _plan_ticks(bot: Bot, kind: str) -> list[TickRecord]:
@@ -81,9 +69,22 @@ def test_sense_failure_never_reaches_the_planner():
     assert record.replanned is None
 
 
-def test_a_goal_less_tick_still_measures_the_call():
-    # goal 是 None 時 think() 仍被呼叫、當場回空——量到的是呼叫本身
-    # （MockClock 不因計算前進，所以是 0），不是「沒量」。
+# --- done 是迴圈自己的裁決：不經 think()，所以既無 replanned 也無 plan_ms ---
+
+
+def test_done_lands_on_the_tick_that_pops_the_last_step():
+    bot = run_demo()
+
+    record = bot.log[-1]
+    assert record.outcome == "done"
+    assert record.popped == ["SyncSim"]
+    assert record.plan == []
+    assert record.replanned is None
+    assert record.plan_ms is None
+
+
+def test_a_goal_less_tick_finishes_without_asking_the_planner():
+    # goal 是 None＝無所求：頂部檢查當場收工，planner 連呼叫都沒有。
     bot = build_demo_bot()
     bot.state.goal = None
 
@@ -91,52 +92,72 @@ def test_a_goal_less_tick_still_measures_the_call():
 
     record = bot.log[-1]
     assert record.outcome == "done"
+    assert record.replanned is None
+    assert record.plan_ms is None
+    assert bot.finished
+    assert bot.device.interactions == 0
+
+
+# --- 走不下去是回傳值：tick 不丟例外，只留一筆判定並停手 ---
+
+
+def test_no_route_on_the_refill_path_is_a_returned_verdict():
+    bot = build_demo_bot()
+    bot.state.goal = Goal("impossible", {"no_such_symbol": True})
+
+    record = bot.tick()
+
+    assert record.outcome == "stuck:no_plan"
     assert record.replanned == "refill"
-    assert record.plan_ms == 0
+    assert record.plan_ms is not None
+    assert bot.log == [record]
+    assert bot.device.interactions == 0
+    assert not bot.finished
 
 
-# --- think() 死在裡面時，記錄仍要說出死前做了什麼 ---
+def test_no_route_found_on_the_replan_path_records_the_replan():
+    bot = _mini_bot(Goal("setup", {"grid": "on", "zoom": "max"}), script=[None, STORY, None])
+    bot.tick()
+    assert bot.log[0].replanned == "refill"
+    quiet = bot.device.interactions
+
+    bot.catalog = [action for action in bot.catalog if action.name != "Observe"]
+    record = bot.tick()
+
+    assert record.outcome == "stuck:no_plan"
+    assert record.replanned == "replan"
+    assert record.plan_ms is not None
+    assert bot.log == [bot.log[0], record]
+    assert bot.device.interactions == quiet
 
 
-def test_missing_vocabulary_records_the_refill_it_died_in():
+def test_an_empty_plan_is_a_split_view_not_a_finish(monkeypatch):
+    # 迴圈判定 goal 未滿足才會問 planner；planner 卻說無事可做＝兩邊對同一組
+    # 符號看法分裂。摺成 stuck:no_plan 當場停機，不准無聲 refill 空轉。
+    bot = build_demo_bot()
+    monkeypatch.setattr("ggge_ai.bot.bot.plan", lambda *args, **kwargs: PlanResult([], 0.0, 0))
+
+    assert bot.think() is None
+
+    record = bot.tick()
+
+    assert record.outcome == "stuck:no_plan"
+    assert record.replanned == "refill"
+    assert not bot.finished
+    assert bot.device.interactions == 0
+
+
+# --- 判定變例外是 run() 的職責 ---
+
+
+def test_run_escalates_a_no_route_verdict_naming_the_goal():
     bot = build_demo_bot()
     bot.state.goal = Goal("impossible", {"no_such_symbol": True})
 
     with pytest.raises(BotStuck) as excinfo:
-        bot.tick()
+        bot.run(max_ticks=5)
 
     assert excinfo.value.kind == "no_plan"
-    record = bot.log[-1]
-    assert record.outcome == "panic:no_plan"
-    assert record.replanned == "refill"
-    assert record.plan_ms is not None
-
-
-def test_a_vocabulary_hole_found_on_the_replan_path_records_the_replan():
-    bot = _mini_bot(Goal("setup", {"grid": "on", "zoom": "max"}), script=[None, STORY, None])
-    bot.tick()
-    assert bot.log[0].replanned == "refill"
-
-    bot.catalog = [action for action in bot.catalog if action.name != "Observe"]
-
-    with pytest.raises(BotStuck):
-        bot.tick()
-
-    record = bot.log[-1]
-    assert record.outcome == "panic:no_plan"
-    assert record.replanned == "replan"
-    assert record.plan_ms is not None
-
-
-def test_an_inapplicable_fresh_head_is_a_different_panic_kind():
-    bot = _mini_bot(Goal("grid", {"grid": "on"}))
-    bot.catalog = [_Ungrounded()]
-
-    with pytest.raises(BotStuck) as excinfo:
-        bot.tick()
-
-    assert excinfo.value.kind == "stale_plan"
-    record = bot.log[-1]
-    assert record.outcome == "panic:stale_plan"
-    assert record.replanned == "refill"
-    assert record.plan_ms is not None
+    assert "no plan for goal 'impossible'" in str(excinfo.value)
+    assert len(bot.log) == 1
+    assert bot.log[-1].outcome == "stuck:no_plan"

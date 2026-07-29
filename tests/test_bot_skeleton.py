@@ -320,11 +320,11 @@ def test_missing_vocabulary_panics_with_a_dump():
     bot.catalog = [action for action in bot.catalog if action.name != "ReAnchor"]
 
     with pytest.raises(BotStuck) as excinfo:
-        bot.tick()
+        bot.run(max_ticks=1)
 
     assert "no plan for goal 'sim_ready'" in str(excinfo.value)
     assert "pose='lost'" in str(excinfo.value)
-    assert bot.log[-1].outcome == "panic:no_plan"
+    assert bot.log[-1].outcome == "stuck:no_plan"
 
 
 # --- router 兩張表的契約 ---
