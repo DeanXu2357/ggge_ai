@@ -15,8 +15,9 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 
 ### 恢復點
 
-- 分支 `feat/inner-goap`。本輪未跑 pytest／ruff（純文件變更，
-  使用者裁定跳過測試閘門）。
+- 分支 `feat/inner-goap`。`uv run pytest -q` 955 passed／3 xfailed
+  ＋1 flaky（`test_not_actionable` 既有計時競態、7/24 定讞、單跑綠）、
+  ruff 綠。
 - 架構方向定案入庫：`docs/requirements.md`（基礎需求）＋
   `docs/architecture.md`（HTN 外層＋GOAP 內層、層界＝進入關卡、
   戰局沙盤雙注入、資源帳本、事實依據的邊界）。
@@ -24,7 +25,14 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   推斷依據——見 architecture.md「事實依據的邊界」。
 - goal 規格已定案入 architecture.md（四目標項目＋達成約束二態）。
 - 批次規劃核准入 `docs/module-map.md`（批 0～5＋調查線；stage 命名
-  裁決）。批 0 骨架開發派工中；調查 A（成就／隱藏報酬）與調查 B
-  （評分公式）兩個背景 agent 跑中，產出先與使用者核對再落檔。
-- 下一步：批 0 整合驗收 → 批 1 內層離線。批 2 首戰 stage 屆時
-  由使用者指定。
+  裁決）。**批 0 骨架已整合**：contracts 四契約、SHOP 式 HTN 引擎
+  （帶回溯）、入口點 dry-run 最小生命週期（假帳本同步→無適用方法
+  →誠實停止報告落 run 目錄）；舊碼零改動，`test_package_boundary`
+  以 AST 掃 import 機械化凍結舊包。
+- 調查 A（成就／隱藏報酬）與調查 B（評分公式）完成，摘要已交
+  使用者核對、未落檔。待使用者答覆：①「成就列表」對應遊戲哪個
+  系統（主線星級 vs Story Challenge／Eternal Road 任務）；②「逐關
+  不同公式」的來源（主線無公開公式，僅 Score Attack 活動關有逐關
+  門檻表）；③評分量測反推 fallback 是否核准。
+- 下一步：調查核對收尾 → 批 1（內層離線）規格與派工。批 2 首戰
+  stage 屆時由使用者指定。
