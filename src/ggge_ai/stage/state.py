@@ -28,6 +28,10 @@ class StageState:
 
     withdrawn 是規劃側的自標記——畫面永遠讀不到「我決定撤退」這件事，
     感知一律回 False，它只在搜尋內部讓離場目標可判定。
+
+    known ＝ 已在本輪確認過詳情的單位。同樣不是畫面事實，來源是情報庫
+    （stage/intel.py 的 IntelPerceiver 併入），因為 Inspect 的效果只有
+    我們自己的記憶承接得住。
     """
 
     phase: Phase
@@ -36,6 +40,7 @@ class StageState:
     enemies: frozenset[str]
     positions: frozenset[tuple[str, Cell]] = frozenset()
     reachable: frozenset[tuple[str, Cell]] = frozenset()
+    known: frozenset[str] = frozenset()
     reaction: Reaction | None = None
     withdrawn: bool = False
 
@@ -59,6 +64,9 @@ class StageState:
     def relocate(self, unit: str, cell: Cell) -> StageState:
         kept = frozenset(pair for pair in self.positions if pair[0] != unit)
         return replace(self, positions=kept | {(unit, cell)})
+
+    def learn(self, unit: str) -> StageState:
+        return replace(self, known=self.known | {unit})
 
     def kill(self, enemy: str) -> StageState:
         return replace(self, enemies=self.enemies - {enemy})

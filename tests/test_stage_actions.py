@@ -9,6 +9,7 @@ from ggge_ai.stage.actions import (
     VOCABULARY,
     Attack,
     Brace,
+    Inspect,
     Move,
     Standby,
     Withdraw,
@@ -21,8 +22,8 @@ FREE = Pricing(1.0)
 LETHAL = Pricing(1.0, Guarantee.KILL)
 
 
-def test_the_vocabulary_is_exactly_the_five_verbs():
-    assert VOCABULARY == (Move, Attack, Standby, Brace, Withdraw)
+def test_the_vocabulary_is_exactly_the_six_verbs():
+    assert VOCABULARY == (Move, Attack, Inspect, Standby, Brace, Withdraw)
 
 
 def test_an_attack_without_a_kill_guarantee_leaves_the_enemy_alive():
@@ -126,6 +127,36 @@ def test_candidates_expand_every_unit_against_every_enemy_and_every_reachable_ce
         "move:a1->1,2",
         "withdraw",
     ]
+
+
+def test_inspect_needs_a_live_unknown_target_and_only_buys_intel():
+    state = battle(allies=["a1"], enemies=["e1", "e2"], known=["a1", "e2"])
+
+    assert Inspect("e1").applicable(state)
+    assert not Inspect("e2").applicable(state)
+    assert not Inspect("ghost").applicable(state)
+
+    after = Inspect("e1").apply(state, FREE)
+
+    assert after.known == {"a1", "e1", "e2"}
+    assert after.actionable == {"a1"}
+    assert after.enemies == {"e1", "e2"}
+    assert Inspect("e1").progressed(after, FREE)
+    assert not Inspect("e1").progressed(state, FREE)
+
+
+def test_inspect_is_off_the_table_during_the_enemy_phase():
+    state = battle(allies=["a1"], enemies=["e1"], actionable=[], phase=Phase.ENEMY, known=["a1"])
+
+    assert not Inspect("e1").applicable(state)
+
+
+def test_candidates_expand_inspect_for_every_unknown_enemy():
+    state = battle(allies=["a1"], enemies=["e1", "e2"], known=["a1", "e1"])
+
+    labels = [action.label for action in candidates(state)]
+
+    assert labels == ["standby:a1", "attack:a1->e1", "attack:a1->e2", "inspect:e2", "withdraw"]
 
 
 def test_candidates_during_a_popup_are_only_the_stances_on_screen():

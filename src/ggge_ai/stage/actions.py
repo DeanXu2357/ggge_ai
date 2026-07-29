@@ -1,4 +1,4 @@
-"""行動詞彙：移動／攻擊／待機／應戰／主動離開。效果採保守下界。"""
+"""行動詞彙：移動／攻擊／偵察／待機／應戰／主動離開。效果採保守下界。"""
 
 from __future__ import annotations
 
@@ -72,6 +72,30 @@ class Attack(Action):
 
 
 @dataclass(frozen=True)
+class Inspect(Action):
+    """點單位讀詳情：只換到情報，不花任何單位的行動權。"""
+
+    target: str
+
+    @property
+    def label(self) -> str:
+        return f"inspect:{self.target}"
+
+    def applicable(self, state: StageState) -> bool:
+        return (
+            state.phase is Phase.PLAYER
+            and self.target in state.enemies
+            and self.target not in state.known
+        )
+
+    def apply(self, state: StageState, pricing: Pricing) -> StageState:
+        return state.learn(self.target)
+
+    def progressed(self, state: StageState, pricing: Pricing) -> bool:
+        return self.target in state.known
+
+
+@dataclass(frozen=True)
 class Standby(Action):
     unit: str
 
@@ -134,7 +158,7 @@ class Withdraw(Action):
         return state.withdrawn
 
 
-VOCABULARY: tuple[type[Action], ...] = (Move, Attack, Standby, Brace, Withdraw)
+VOCABULARY: tuple[type[Action], ...] = (Move, Attack, Inspect, Standby, Brace, Withdraw)
 
 
 def candidates(state: StageState) -> tuple[Action, ...]:
@@ -151,6 +175,7 @@ def candidates(state: StageState) -> tuple[Action, ...]:
         actions.append(Standby(unit))
         actions.extend(Attack(unit, enemy) for enemy in sorted(state.enemies))
         actions.extend(Move(unit, cell) for cell in state.reach_of(unit))
+    actions.extend(Inspect(enemy) for enemy in sorted(state.enemies - state.known))
     if not state.withdrawn:
         actions.append(Withdraw())
     return tuple(actions)

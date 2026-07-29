@@ -15,7 +15,7 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 
 ### 恢復點
 
-- 分支 `feat/inner-goap`。`uv run pytest -q` 1113 passed／3 xfailed、
+- 分支 `feat/inner-goap`。`uv run pytest -q` 1140 passed／3 xfailed、
   ruff 綠（`test_not_actionable` 歷史 flaky 偶發、單跑綠）。
 - 架構方向定案入庫：`docs/requirements.md`（基礎需求）＋
   `docs/architecture.md`（HTN 外層＋GOAP 內層、層界＝進入關卡、
@@ -43,5 +43,7 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   重派，逐系列即時落檔 assets/catalog/）。
 - 注意：下次真跑 `python -m ggge_ai`（無 --run-dir）會把 data/runs
   下的七月舊 run 目錄一次性全部壓縮——刻意行為，勿在意外時機觸發。
-- 下一步：Advisor 實作接線設計（符號狀態→沙盤數據的情報庫接縫，
-  批 2 前置）→ 批 2 實機首戰（首戰 stage 待使用者指定）。
+- 批 2a 已入庫：情報庫（learn／assume 分離）＋TacticalAdvisor＋
+  Inspect 行動與 known 符號。下一步：2b 實機蒐樣（強化頁＋敵機
+  面板）→2c 解析器→2d 實機通道→2e 首戰獨角獸 HARD 1；里程碑＝
+  二輪起高評價收獨角獸全系列 HARD（docs/module-map.md）。

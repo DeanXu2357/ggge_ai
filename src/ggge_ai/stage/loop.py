@@ -289,6 +289,7 @@ def _seen(state: StageState | None) -> dict[str, Any] | None:
         "allies": sorted(state.allies),
         "actionable": sorted(state.actionable),
         "enemies": sorted(state.enemies),
+        "known": sorted(state.known),
         "positions": {unit: list(cell) for unit, cell in sorted(state.positions)},
         "reaction": (
             None

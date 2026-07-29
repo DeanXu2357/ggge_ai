@@ -13,7 +13,7 @@ from typing import Any
 from ggge_ai.contracts import Ending
 from ggge_ai.runtime.perceive import Observation
 from ggge_ai.sandbox.advise import Appraisal, Guarantee, Pricing, Verdict
-from ggge_ai.stage.actions import Action, Attack, Brace, Move, Standby, Withdraw
+from ggge_ai.stage.actions import Action, Attack, Brace, Inspect, Move, Standby, Withdraw
 from ggge_ai.stage.state import Cell, Phase, Reaction, StageState
 
 Pricer = Callable[[StageState, Action], Pricing | None]
@@ -27,8 +27,10 @@ def battle(
     phase: Phase = Phase.PLAYER,
     positions: dict[str, Cell] | None = None,
     reachable: dict[str, Sequence[Cell]] | None = None,
+    known: Sequence[str] | None = None,
     reaction: Reaction | None = None,
 ) -> StageState:
+    """known 預設全知：不談情報的劇本才不會被 Inspect 候選污染。"""
     return StageState(
         phase=phase,
         allies=frozenset(allies),
@@ -38,6 +40,7 @@ def battle(
         reachable=frozenset(
             (unit, cell) for unit, cells in (reachable or {}).items() for cell in cells
         ),
+        known=frozenset([*allies, *enemies] if known is None else known),
         reaction=reaction,
     )
 
@@ -105,6 +108,7 @@ class KindPricer:
 
     attack: Pricing | None = None
     move: Pricing | None = None
+    inspect: Pricing | None = None
     standby: Pricing | None = None
     brace: Pricing | None = None
     withdraw: Pricing | None = None
@@ -114,6 +118,8 @@ class KindPricer:
             return self.attack
         if isinstance(action, Move):
             return self.move
+        if isinstance(action, Inspect):
+            return self.inspect
         if isinstance(action, Standby):
             return self.standby
         if isinstance(action, Brace):
