@@ -37,9 +37,12 @@ MAIN STAGE → 系列輪播（橫向 3D 立體模型；全通系列掛 COMPLETE
 Z鋼彈 A New Translation、SEED、SEED Recollection、W、X、鐵血的
 孤兒（badge=CLEAR 未完）、機動武鬥傳G、00、逆襲的夏亞、水星的
 魔女、閃光的哈薩威、NT、F91（最右）、AGE；再往右 COMING SOON。
-**衝突待定案**：首次觀察曾見 Z鋼彈(TV)、0730 名單未含；
-**獨角獸（UC）兩次觀察皆未見**——輪播完整名單由續掃逐卡截圖
-定案。輪播另有 CHALLENGE 與 HISTORY STAGE 捷徑磁貼。
+**使用者修正（0730）**：系列選擇畫面有**時間條**，要拖動它才能
+移到其他系列段——上列 15 張名單只是未拉動時間條時的可見段，
+**獨角獸（UC）確定存在**（使用者一手確認）；Z鋼彈(TV) 的觀察
+矛盾可能同因。時間條的元件位置與拖動手勢待實機標定（續掃
+進行中），標定後本節改寫。輪播另有 CHALLENGE 與 HISTORY STAGE
+捷徑磁貼。
 難度切換無分頁：HARD 關卡直接接在 NORMAL 軌 BOSS 關之後的
 同一條橫向節點軸上，同一 swipe 續行。
 
