@@ -55,8 +55,10 @@ class IntelDelta:
 
 @dataclass
 class StageReport:
+    stage: str
     ending: Ending
     achieved: dict[Objective, bool]
+    reason: str = ""
     intel: IntelDelta = field(default_factory=IntelDelta)
 
 

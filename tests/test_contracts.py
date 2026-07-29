@@ -54,11 +54,13 @@ def test_stage_order_carries_policy_and_budget():
         order.max_ticks = 1
 
 
-def test_stage_report_defaults_to_an_empty_intel_delta():
-    report = StageReport(ending=Ending.WITHDREW, achieved={Objective.CLEAR: False})
+def test_stage_report_names_the_stage_it_came_back_from():
+    report = StageReport(stage="S01", ending=Ending.WITHDREW, achieved={Objective.CLEAR: False})
 
+    assert report.stage == "S01"
     assert report.ending is Ending.WITHDREW
     assert report.achieved[Objective.CLEAR] is False
+    assert report.reason == ""
     assert report.intel.facts == {}
 
 
