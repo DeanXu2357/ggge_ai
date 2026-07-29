@@ -68,15 +68,19 @@ src/ggge_ai/
 - 批 0 骨架：本文件的包結構＋契約＋入口點，dry-run 最小生命週期。
 - 批 1 內層離線：GOAP 迴圈＋全滅型 clear goal＋行動詞彙最小集＋
   沙盤戰術定價注入＋流水帳；離線假件全流程綠。
-- 批 2 內層實機首戰：簡單已通關 stage 實機整場（首戰 stage 由
-  使用者屆時指定）＋略過每日登入彈窗（反射；素材＝
-  docs/ui-navigation-map.md 收乾路徑與樣本 assets/screenshots/
-  sample-login-bonus-20260729.png）＋前景卡死看門狗（tap 無效
-  N 次→HOME 循環復原；0729 實測新故障模式，見導航地圖文件）
-  ＋評分假設實測與結算蒐樣（architecture.md 待辦 7）。執行紀錄
-  完備化（幀入 run 目錄＋壓縮輪替）已由批 1c 離線落地——使用者
-  裁定需求六優先插隊；批 2 只剩確認 LivePerceiver 交付未經改動的
-  原生 screencap 位元組。
+- 批 2 內層實機首戰（首戰 stage＝獨角獸 HARD 1，使用者指定），
+  資料需求定案於 docs/intel-data-spec.md，分五段：
+  - 2a 離線：情報庫型別＋TacticalAdvisor 接線＋known 符號與
+    Inspect 行動入內層詞彙。
+  - 2b 實機蒐樣：強化頁逐分頁樣本＋敵機面板樣本（偵察輪：進
+    獨角獸 HARD 1 逐敵 Inspect 後棄戰退體力，零損耗）。
+  - 2c 解析器：面板→結構化數據，方法依 2b 樣本裁定。
+  - 2d 實機通道：LivePerceiver／LiveExecutor（搬舊 battle/ 標定
+    成果）＋反射組（登入彈窗略過、回合結束、應戰、前景卡死
+    看門狗）＋確認原生幀位元組直通（批 1c 只驗到離線）。
+  - 2e 首戰：獨角獸 HARD 1 整場自主通關＋評分假設實測＋結算
+    蒐樣（architecture.md 待辦 7）。
+  執行紀錄完備化已由批 1c 離線落地（使用者裁定需求六優先插隊）。
 - 批 3 外層骨架：clear goal 端到端「指定 stage→無人值守通關或
   誠實停止」＋資源帳本 v1。
 - 批 4 補強迴路：診斷門面＋參數微調實驗＋刷／強化方法入 HTN。
