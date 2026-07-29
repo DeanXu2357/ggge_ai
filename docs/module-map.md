@@ -30,7 +30,8 @@ src/ggge_ai/
   runtime/        兩層共用執行底盤
     device.py     adb 截圖與觸控
     perceive.py   畫面分類與讀數（吃實機標定成果：模板、座標）
-    journal.py    流水帳 jsonl（兩層共用格式）
+    journal.py    流水帳 jsonl＋逐 tick 原生截圖（同 run 目錄；
+                  舊 run 壓縮輪替、只留最新未壓縮）
 ```
 
 ## 跨層契約（contracts.py）
@@ -72,7 +73,10 @@ src/ggge_ai/
   docs/ui-navigation-map.md 收乾路徑與樣本 assets/screenshots/
   sample-login-bonus-20260729.png）＋前景卡死看門狗（tap 無效
   N 次→HOME 循環復原；0729 實測新故障模式，見導航地圖文件）
-  ＋評分假設實測與結算蒐樣（architecture.md 待辦 7）。
+  ＋評分假設實測與結算蒐樣（architecture.md 待辦 7）＋執行紀錄
+  完備化：每 tick 擷取的原生截圖存入該次 run 目錄（與 jsonl 同處，
+  流水帳逐筆記幀檔名供事後歸因）、入口點啟動時把舊 run 目錄壓縮
+  （只留最新一個未壓縮）。
 - 批 3 外層骨架：clear goal 端到端「指定 stage→無人值守通關或
   誠實停止」＋資源帳本 v1。
 - 批 4 補強迴路：診斷門面＋參數微調實驗＋刷／強化方法入 HTN。
