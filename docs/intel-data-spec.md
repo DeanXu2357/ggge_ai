@@ -8,12 +8,13 @@
 
 | 組 | 欄位 | 蒐集來源 |
 |---|---|---|
-| 數值面板 | unit_attack／unit_defense、reaction（反応）、mobility（機動）、max_hp、en_max、move_range | 我方：強化頁機體詳情（**反応與機動確認在列**）。敵方：關卡內機體詳情 |
-| 駕駛員 | pilot_attack／pilot_defense（含命中公式的能力補正來源） | 我方：角色詳情頁。敵方：關卡內機體詳情 |
-| 武裝（逐把） | name、power、range_min／max、en_cost、accuracy、can_counter、map_weapon（**MAP 字樣 icon**）＋blast＋彈數、debuff 種類與量 | 武裝分頁（強化頁與關卡內詳情皆有） |
-| 能力詞條 | has_shield、attack_shield、interception_reduction、skills（EN 補給等） | 能力／OP 分頁 |
-| 次數類 | chance_steps_max（再動）、support_attack／defend 次數上限 | **關卡內機體詳情頁**（使用者裁定；進入路徑＝點單位→摘要卡→詳情，舊標定可參考） |
+| 數值面板 | unit_attack／unit_defense、mobility（機動力）、max_hp、en_max、move_range（移動力） | 我方：強化頁機體卡面＋單位情報分頁。敵方：關卡內機體詳情。**0730 蒐樣定讞：機體面板無反応欄** |
+| 駕駛員 | **射擊值／格鬥值**（規格原單一 pilot_attack 為簡化，遊戲拆兩欄；另有覺醒值）、守備值（pilot_defense）、**反應值（reaction——駕駛員專屬）**、SP | 我方：角色詳情頁。敵方：關卡內機體詳情 |
+| 武裝（逐把） | name、類別（格鬥／射擊／覺醒）、power、RANGE（MAP 武裝此欄顯示「MAP」）、en_cost、accuracy、**爆擊%（規格外新欄，公式接法待定）**、彈藥量（僅限彈數武器出現此欄）、debuff 文字 | 武裝、技能分頁（強化頁與關卡內詳情皆有） |
+| 能力詞條 | has_shield（以**裝置：盾牌防禦**形式呈現，含減傷%）、attack_shield、interception_reduction、skills（SP 技能另在技能分頁） | 能力／OP 分頁＋裝置欄 |
+| 次數類 | support_defend 上限：**關卡外可推**（能力詞條「支援防禦+1次」＋卡面支援圖示數，0730 部分推翻原假設）；support_attack 上限與 chance_steps_max（再動；卡面「額外行動」CS 徽章數疑為其值）仍待關卡內確認 | 角色能力分頁＋卡面；關卡內機體詳情複核 |
 | 戰場動態 | pos、hp／en 即值、acted、debuffs、支援次數餘額 | 戰鬥中逐 tick 觀測，**永不 cache** |
+| 支援人員 | 支援技能（HP／EN 恢復）、HP 支援值、攻擊力支援值、隊長技能（條件徽章分 **TAG／SERIES 兩型**，解析器需分欄） | 支援人員詳情頁；沙盤尚未建模，先入情報庫存放 |
 
 關卡層級：地形補正（逐格，待標定）、增援劇本事件（攻略經驗回寫，
 沙盤已支援注入）。
