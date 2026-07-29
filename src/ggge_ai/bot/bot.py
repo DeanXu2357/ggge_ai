@@ -16,21 +16,10 @@ from .state import BotState
 
 
 class BotStuck(RuntimeError):
-    """The supervisor escalating: the loop stops and asks for a human.
+    """Escalation raised only by `run`: a tick returns its verdict, never throws.
 
-    Raised by `run` and nowhere else. A tick never throws this -- a tick that
-    cannot proceed says so in its record and returns it, and `run` is the one
-    that decides an honest stop is warranted. `kind` says what it saw:
-    `no_plan` (the planner found no route -- an unprepared situation, the
-    vocabulary is missing a mid-state) or `replan_storm` (its own threshold
-    judgement over the reports, counted in a local rather than read out of
-    the log).
-
-    Nothing here writes to the log. The tick behind an escalation is already
-    recorded like any other, so where and why it stopped is reconstructible
-    from the records without the supervisor ever having filed one.
-    `max_ticks` stays the coarse backstop for every stall no kind names.
-    The real system turns this into a human-intervention request.
+    Files nothing of its own -- the tick behind the escalation is already
+    recorded. The real system turns this into a human-intervention request.
     """
 
     def __init__(self, message: str, kind: str) -> None:
@@ -40,12 +29,10 @@ class BotStuck(RuntimeError):
 
 @dataclass
 class TickRecord:
-    """One line per tick -- everything that happened, filed as it happens.
+    """One line per tick: a collector, never a channel -- no machinery reads it back.
 
-    The log is a collector, not a channel: nothing in the loop's machinery
-    reads it back to decide anything (`run` supervises from the record each
-    tick hands it). Reading these lines is after-the-fact analysis, which is
-    why a column no other column can reconstruct -- `plan_ms` -- lives here.
+    Which is why `plan_ms` has to live here: it is the one column that cannot
+    be reconstructed from the others afterwards.
     """
 
     tick: int
@@ -69,21 +56,17 @@ REPLAN_STORM_TICKS = 10
 class Bot:
     """sense -> reflex/wait -> bookkeeping -> plan -> one action.
 
-    The queue is a persistent plan: it advances on evidence (a step is popped
-    when its *effect* is observed, which may take many ticks or zero
-    executions) and it dies whole (a stale head throws the entire queue away
-    and replans from the current symbols -- there is no repair surgery).
+    The queue advances on evidence, not on execution, and it dies whole: a
+    stale head throws the entire queue away rather than being repaired.
 
-    There is no unknown check anywhere in the loop: a frame that cannot say
+    No unknown check belongs anywhere in the loop. A frame that cannot say
     which screen it is breaks the head's `view` precondition like any other
     stale head, and the planner routes out of it through an observation
-    action that holds the head until the screen reads again.
+    action.
 
-    Same-tick continuation: pops, refill and replan are bookkeeping and pure
-    computation over the frame captured at the top of this tick, so they do
-    not end the tick -- the one device interaction that follows is authorized
-    by that same fresh frame. What never happens is two device interactions
-    on one reading.
+    Bookkeeping never ends a tick: pops, refill and replan are pure
+    computation over the frame captured at the top, so the interaction that
+    follows is still authorized by that same fresh frame.
     """
 
     def __init__(
@@ -112,26 +95,14 @@ class Bot:
         self.finished = False
 
     def tick(self) -> TickRecord:
-        """The whole lifecycle, inline: the spec diagram is this method, top to bottom.
+        """The whole lifecycle, kept inline: the spec diagram is this method.
 
-        Deliberately not decomposed further -- the only extracted pieces are
-        the ones with an identity of their own (reflex router, recorder,
-        planner call).
-
-        The record goes back to the caller directly, so a supervisor like
-        `run` never has to read the log. Four outcomes return one:
-        `reflex:<tag>`, `done`, `executed`, `stuck:no_plan` -- running out of
-        road is a verdict this loop returns, not an exception it throws.
-        `done` is judged here, right after the pops: an empty queue plus a
-        goal the symbols satisfy, checked against the state itself and never
-        inferred from what the planner answered.
-
-        The one raise is `panic:sense`: a sense that fails is an
-        infrastructure failure no action in any catalog can fix, so the tick
-        dies at the top after filing one record (no tags, symbols left over
-        from the previous tick) and re-raises the original exception
-        untouched -- only the real traceback says whether it was the
-        transport, the decoder, or the classifier.
+        A failing sense must not take the unreadable-frame route: no action in
+        any catalog fixes a dead adb, so an `Observe` plan would spin to
+        `max_ticks` and report a timeout in place of the real cause. It dies
+        here instead, after one record (symbols are the previous tick's
+        leftovers -- nothing was sensed), re-raising untouched so the
+        traceback still names the transport, the decoder or the classifier.
         """
         t0 = self.clock.now_ms()
         slept0 = self.clock.slept_ms()
@@ -246,16 +217,14 @@ class Bot:
     def think(self) -> list[Action] | None:
         """One A* run towards the outer goal: steps to take, or `None` for no route.
 
-        Two answers only, and the tick reads them as such: a non-empty queue
-        refill, or `stuck:no_plan`. It is called exactly when the tick has
-        already judged the goal unsatisfied, so a plan of zero steps is the
-        planner contradicting that judgement over the same symbols -- `or
-        None` folds it into the stuck verdict, because a view that split has
-        to stop the run loudly rather than refill with nothing and spin.
+        Called only when the tick has already judged the goal unsatisfied, so
+        a plan of zero steps is the planner contradicting that judgement over
+        the same symbols -- `or None` folds it into `stuck:no_plan`, because a
+        split view has to stop the run loudly instead of refilling with
+        nothing and spinning.
 
-        `PlanNotFound` turns into a value here because here is the seam with
-        the GOAP library: raising is how that library says it, a value is how
-        this loop carries it.
+        `PlanNotFound` becomes a value here because this is the seam with the
+        GOAP library.
         """
         try:
             result = plan(self.state.to_world_state(), self.state.goal, self.catalog)
@@ -266,20 +235,15 @@ class Bot:
     def run(self, max_ticks: int = 60) -> list[TickRecord]:
         """The only judge of when the loop stops: finished, stuck, breaker, budget.
 
-        `finished` is read first and there is nothing for it to outrank: a
-        done tick returns before the fork, so it carries no replan the
-        breaker could have counted.
+        A tick a reflex ended is neutral -- it neither counts nor clears. The
+        arc returns without ever reaching the queue, so it is evidence about
+        neither side, and clearing on it would let a popup burst launder
+        exactly the flip-popup-flip interleaving the breaker exists to catch.
 
-        A tick a reflex ended is neutral: it neither counts nor clears. The
-        reflex arc dismisses what sits in front of the plan and returns
-        without ever reaching the queue, so it is evidence about neither
-        side; clearing on it would let a popup burst launder exactly the
-        flip-popup-flip interleaving the breaker exists to catch.
-
-        `REPLAN_STORM_TICKS = 10` is a placeholder from the offline mock era.
-        It must be re-judged against real-device jsonl before this loop
-        drives the phone: how long a legitimate replan streak runs during an
-        enemy turn is unknown.
+        `REPLAN_STORM_TICKS = 10` is a placeholder from the offline mock. It
+        must be re-judged against real-device jsonl before this loop drives
+        the phone: how long a legitimate replan streak runs during an enemy
+        turn is unknown.
         """
         streak = 0
         for _ in range(max_ticks):
