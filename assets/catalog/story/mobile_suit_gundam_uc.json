@@ -1,0 +1,206 @@
+{
+  "series": "機動戰士鋼彈UC",
+  "series_note": "MAIN STAGE 輪播位於「逆襲的夏亞」右側、「閃光的哈薩威」左側;卡面／系列資訊畫面標題均為「機動戰士鋼彈UC」,系列資訊畫面內建大圖 logo 為「MOBILE SUIT GUNDAM UNICORN」。徽章=none(前兩輪已定案:NORMAL全清但HARD未全清,不掛COMPLETE牌)。本輪(0730)為進站時帳號既有進度,非本次探索產生:NORMAL 1-10 全部至少 CLEAR(其中4關已COMPLETE 3/3)、HARD 1 已 CLEAR、HARD 2 為 NEXT(未打)、HARD 3/4 鎖定。",
+  "recommended_power": 80000,
+  "registry": "13/43",
+  "series_rewards": [
+    {
+      "difficulty": "NORMAL",
+      "clear_count": "10/10",
+      "rewards": [
+        {"item": "貨幣圖示(藍,推測鑽石)×1000", "claimed": true, "uncertain": true},
+        {"item": "MS船塢(容量擴充)", "claimed": true, "uncertain": false}
+      ]
+    }
+  ],
+  "series_perfect_rewards": [
+    {
+      "difficulty": "NORMAL",
+      "clear_count": "3/10",
+      "rewards": [
+        {"item": "貨幣圖示(藍,推測鑽石)×1000", "claimed": false, "uncertain": true},
+        {"item": "MS船塢(容量擴充)", "claimed": false, "uncertain": false}
+      ]
+    },
+    {
+      "difficulty": "HARD",
+      "clear_count": "0/4",
+      "rewards": [
+        {"item": "貨幣圖示(藍,推測鑽石)×1000", "claimed": false, "uncertain": true},
+        {"item": "MS船塢(容量擴充)", "claimed": false, "uncertain": false}
+      ]
+    }
+  ],
+  "series_perfect_rewards_note": "畫面上「NORMAL 3/10」與「HARD 0/4」兩行緊鄰同一組報酬圖示(僅一組×1000+MS船塢),未見各自獨立圖示列;不確定是兩條件各自對應相同報酬、或單一報酬需雙難度同時達成才發放,已標記 uncertain,待其中一難度先達陣時複查確認。",
+  "stages": [
+    {
+      "difficulty": "NORMAL", "no": 1, "title": "獨角獸之日",
+      "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 80000,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "capture": "角色/機體頭像(深綠色機體頭部,未識別,無遮蓋)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 2, "title": "弗爾·伏朗托的追擊",
+      "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 95000,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "capture": "角色/機體頭像(深綠色機體頭部,與N1同色系,未識別)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 3, "title": "激戰・紅色彗星",
+      "status": "clear", "stars": "2/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 97500,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "capture": "角色/機體頭像(深綠色機體頭部,與N1/N2同色系,未識別)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 4, "title": "帛琉攻略戰",
+      "status": "complete", "stars": "3/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 100000,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "capture": "角色/機體頭像(淺綠/灰色機體頭部,獨眼特徵,未識別)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 5, "title": "拉普拉斯的亡靈",
+      "status": "clear", "stars": "2/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 115000,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "capture": "角色/機體頭像(深綠色機體頭部,未識別)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 6, "title": "在重力井底",
+      "status": "clear", "stars": "2/3",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 120000,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "capture": "角色/機體頭像(紅色機體頭部,未識別)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 7, "title": "個人的戰爭",
+      "status": "clear", "stars": "1/3",
+      "terrain": "地面", "en_cost": 10, "recommended_power": 130000,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "capture": "角色/機體頭像(灰褐色機體頭部,未識別)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 8, "title": "黑色獨角獸",
+      "status": "clear", "stars": "2/3",
+      "terrain": "空中", "en_cost": 10, "recommended_power": 132500,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "capture": "角色/機體頭像(綠色機體頭部,獨眼特徵,與N4類似,未識別)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "NORMAL", "no": 9, "title": "宇宙與地球",
+      "status": "clear", "stars": "1/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 135000,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "first3": "×20(推測鑽石,已領取勾選覆蓋)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true,
+      "note": "本關報酬為三格首次(無first2/first3以外欄位),右欄無「奪取」欄位——本輪唯一無 capture 的關卡"
+    },
+    {
+      "difficulty": "NORMAL", "no": 10, "title": "彩虹的彼端",
+      "tag": "BOSS", "status": "clear", "stars": "1/3",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 140000,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "first2": "×2000(推測鑽石,已領取勾選覆蓋)",
+        "capture": "角色/機體頭像(綠色機體頭部,未識別)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "HARD", "no": 1, "title": "(與 NORMAL 同名地圖無獨立標題,標題列顯示「機動戰士鋼彈UC HARD STAGE 1」)",
+      "status": "clear", "stars": "2/4(前2顆金色已達成,後2顆灰色未達成,第4顆星形樣式與前3顆不同,疑為特殊星,意義未定)",
+      "terrain": "宇宙", "en_cost": 10, "recommended_power": 165000,
+      "rewards": {
+        "first": "×50(推測鑽石,已領取勾選覆蓋)",
+        "secret": "LV65(徽章文字可讀,未見勾選覆蓋,推測未達成)",
+        "capture": "角色/機體頭像(白色/金色機體頭部,獨角獸鋼彈RX-0外觀清晰可辨,無遮蓋)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true
+    },
+    {
+      "difficulty": "HARD", "no": 2, "title": "(標題列「機動戰士鋼彈UC HARD STAGE 2」)",
+      "status": "next", "stars": "0/4(全灰未達成)",
+      "terrain": "水陸", "en_cost": 10, "recommended_power": 170000,
+      "rewards": {
+        "first": "×50(推測鑽石,未領取,無勾選覆蓋)",
+        "secret": "LV65(徽章文字可讀,未見勾選覆蓋,未達成)",
+        "capture": "角色/機體頭像(暗紫/黑色機體頭部,單紅眼,疑似Kshatriya或Neo Zeong類外觀,未識別)"
+      },
+      "skip": "enabled", "skip_remaining": "3/3", "uncertain": true,
+      "note": "節點狀態=NEXT(平台紅橙環+黃色NEXT箭頭),出擊準備鈕為啟用狀態(藍框亮字),與四態表定義相符"
+    },
+    {
+      "difficulty": "HARD", "no": 3, "title": "未知(節點鎖定,無法點入取得右欄詳細資訊)",
+      "status": "locked", "stars": "0/4(carousel 顯示全灰,未點入細節)",
+      "terrain": null, "en_cost": null, "recommended_power": null,
+      "rewards": {},
+      "skip": "not_applicable", "skip_remaining": null, "uncertain": true,
+      "note": "鎖定節點在 MAIN STAGE 關卡列表無法點選——與 docs/ui-navigation-map.md 記載的 Eternal Road『鎖定節點右欄仍完整可讀』不同,本系列鎖定節點點擊後右欄不更新(維持前一個已選節點畫面),嘗試2次(不同y座標)均無反應,依專案規則停止重試。僅能記錄 carousel 上可見的編號/難度/鎖定徽章/灰階星列,終端明細(地形/EN/戰鬥力/報酬)無法取得"
+    },
+    {
+      "difficulty": "HARD", "no": 4, "title": "未知(節點鎖定,同 HARD 3 無法點入)",
+      "status": "locked", "stars": "0/4(carousel 顯示全灰,未點入細節)",
+      "terrain": null, "en_cost": null, "recommended_power": null,
+      "rewards": {},
+      "skip": "not_applicable", "skip_remaining": null, "uncertain": true,
+      "note": "同 HARD 3——鎖定節點不可點選,右欄無法載入,理由與嘗試次數同上"
+    }
+  ],
+  "notes": "UC 難度切換機制與機動戰士鋼彈本傳一致:無獨立分頁,NORMAL 1-10 後直接接續 HARD 1-4 於同一條橫向捲動節點軸,同一組左右 swipe 瀏覽即達。HARD 節點星列固定顯示 4 顆星(較 NORMAL 的 3 顆多一顆樣式不同的第4顆特殊星),與機動戰士鋼彈本傳 HARD 軌觀察一致,意義仍未查證。本輪關鍵新發現:鎖定節點(HARD3/4)在 MAIN STAGE 關卡列表『不可點選』,右欄維持前一節點畫面不變——這與 Eternal Road 鎖定節點『右欄仍完整可讀』的既有記載形成對比,是本系列(或可能是所有 MAIN STAGE 系列)的通則,建議之後掃描其他系列時一併驗證。獎勵格顯示規則:NORMAL 關卡固定 2 格『首次』(某些關卡如 N9 為 3 格『首次』且無『奪取』欄),HARD 關卡固定『首次』+『SECRET』(LVxx 徽章)+『奪取』三格。已完成/已達成的報酬格右上角疊加藍底勾選圖示,但圖示本體(鑽石/船塢圖案)仍完整可視,不像機動戰士鋼彈本傳部分報酬被完全遮蓋——故本輪『uncertain』多半只因缺乏文字標籤確認幣種身份,而非視覺遮蓋。奪取(capture)欄位重複出現多個外觀相近的深綠色機體頭部圖示(N1/N2/N3/N5/N9缺/N10),無法排除是否為同一素材重複使用或僅視覺相似的不同機體,均標註『未識別』。座標排錯記錄:本輪初期(NORMAL4嘗試)誤用螢幕顯示縮圖座標(2000x923)直接餵給 adb(需求為原生 2340x1080),導致連續2次誤點到相鄰左側節點;改為『顯示座標×1.17』換算原生座標後全數命中,後續 13 站均一次到位(僅鎖定節點2站因遊戲本身不可互動而非座標問題無法讀取)。",
+  "screenshots": [
+    "assets/screenshots/20260730-051509.png (NORMAL1 獨角獸之日)",
+    "assets/screenshots/20260730-051535.png (NORMAL2 弗爾·伏朗托的追擊)",
+    "assets/screenshots/20260730-051554.png (NORMAL3 激戰・紅色彗星)",
+    "assets/screenshots/20260730-051714.png (NORMAL4 帛琉攻略戰)",
+    "assets/screenshots/20260730-051734.png (NORMAL5 拉普拉斯的亡靈)",
+    "assets/screenshots/20260730-051828.png (NORMAL6 在重力井底)",
+    "assets/screenshots/20260730-051850.png (NORMAL7 個人的戰爭)",
+    "assets/screenshots/20260730-051911.png (NORMAL8 黑色獨角獸)",
+    "assets/screenshots/20260730-051930.png (NORMAL9 宇宙與地球,無奪取欄三格首次)",
+    "assets/screenshots/20260730-051955.png (NORMAL10/BOSS 彩虹的彼端)",
+    "assets/screenshots/20260730-052031.png (HARD1,可見RX-0獨角獸鋼彈奪取頭像+LV65 SECRET)",
+    "assets/screenshots/20260730-052108.png (HARD2,NEXT狀態,報酬未領取)",
+    "assets/screenshots/20260730-052237.png (嘗試點擊HARD3鎖定節點,右欄未變仍為HARD2)",
+    "assets/screenshots/20260730-052315.png (嘗試點擊HARD4鎖定節點,右欄未變仍為HARD2)",
+    "assets/screenshots/20260730-052428.png (UC系列資訊畫面,系列完成/完美達成報酬+登錄13/43+建議戰鬥力80000)",
+    "assets/screenshots/20260730-051324.png+051349.png (省電觸控鎖疊加陷阱實例,復原=swipe(1164,430→1164,60))"
+  ]
+}
