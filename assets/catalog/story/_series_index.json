@@ -1,0 +1,39 @@
+{
+  "order": [
+    {"index": 1, "series": "機動戰士鋼彈", "badge": "COMPLETE", "note": "卡面標記「Gガンダム／GUNDAM」,系列資訊畫面標題為「機動戰士鋼彈」(1979原作UC0079)。前輪已全深度掃描(story/mobile_suit_gundam.json)"},
+    {"index": 2, "series": "機動戰士Z鋼彈 A New Translation", "badge": "COMPLETE", "note": "前輪已全深度掃描(story/zeta_gundam_a_new_translation.json)。卡面縮圖僅顯示「Zガンダム」四字,無A New Translation字樣,推測是前兩輪誤判Z(TV)存在的根源"},
+    {"index": 3, "series": "機動戰士鋼彈SEED", "badge": "COMPLETE", "note": "特別活動舉辦中"},
+    {"index": 4, "series": "機動戰士鋼彈SEED Recollection", "badge": "COMPLETE", "note": "特別活動舉辦中"},
+    {"index": 5, "series": "機動戰士鋼彈SEED DESTINY", "badge": "CLEAR", "note": "特別活動舉辦中;前兩輪名單完全遺漏此系列"},
+    {"index": 6, "series": "機動戰士鋼彈ZZ", "badge": "none", "note": "前兩輪名單完全遺漏此系列(重大系統性遺漏)。系列資訊已核實:NORMAL 18/18(已完成)、HARD 0/3(未開始)、登錄狀況9/34、建議戰鬥力45,000。徽章none印證「COMPLETE需NORMAL+HARD皆滿」規則——單一難度全清不足以掛牌"},
+    {"index": 7, "series": "新機動戰記鋼彈W", "badge": "COMPLETE", "note": "特別活動舉辦中"},
+    {"index": 8, "series": "新機動戰記鋼彈W 無盡的華爾茲", "badge": "CLEAR", "note": "與本傳W分屬獨立系列卡,前兩輪名單完全遺漏"},
+    {"index": 9, "series": "機動新世紀鋼彈X", "badge": "none", "note": "特別活動舉辦中,未開始"},
+    {"index": 10, "series": "機動戰士鋼彈 水星的魔女", "badge": "none", "note": "特別活動舉辦中,未開始"},
+    {"index": 11, "series": "機動戰士鋼彈 鐵血的孤兒", "badge": "CLEAR", "note": "特別活動舉辦中"},
+    {"index": 12, "series": "機動武鬥傳G鋼彈", "badge": "none", "note": "特別活動舉辦中,未開始;與index1「機動戰士鋼彈」卡面同樣掛G字樣但為完全不同系列(格鬥番,1994)"},
+    {"index": 13, "series": "機動戰士鋼彈00", "badge": "none", "note": "特別活動舉辦中,未開始"},
+    {"index": 14, "series": "機動戰士鋼彈 逆襲的夏亞", "badge": "COMPLETE", "note": "卡面顯示紅字「機動戦士ガンダム GUNDAM」+副標「逆襲のシャア」"},
+    {"index": 15, "series": "機動戰士鋼彈UC", "badge": "none", "note": "**懸案定案:UC確定存在,前兩輪觀察錯誤**。原因非隱藏時間軸/特殊手勢——徹底排查輪播畫面(垂直swipe、i說明彈窗5頁、系列資訊「開發路線圖」按鈕、選單→圖鑑→系列圖鑑百科)均無獨立時間軸拉桿;純粹是前兩輪橫滑步幅過大(一次跳6-7張卡)跳過此卡位置。以500px小步幅横滑逐張確認,UC位於「逆襲的夏亞」右鄰。系列資訊已核實:標題MOBILE SUIT GUNDAM UNICORN、系列完成報酬NORMAL 10/10(已領)、系列完美達成報酬NORMAL 3/10+HARD 0/4(未全領)、登錄狀況13/43、建議戰鬥力80,000、有正常「選擇」按鈕可進入關卡列表(非純百科條目)。全深度掃描為本輪第2優先"},
+    {"index": 16, "series": "機動戰士鋼彈 閃光的哈薩威", "badge": "COMPLETE", "note": null},
+    {"index": 17, "series": "機動戰士鋼彈AGE", "badge": "none", "note": "特別活動舉辦中,未開始;index 17/18(AGE/NT)相對順序取自畫面空間位置,兩者在同一步幅內同時首次出現,嚴格前後順序不確定"},
+    {"index": 18, "series": "機動戰士鋼彈NT", "badge": "none", "note": "未開始;唯一未見「特別活動舉辦中」橙標的系列,可能無活動加成;index 17/18相對順序不確定(見index17備註)"},
+    {"index": 19, "series": "機動戰士鋼彈F91", "badge": "COMPLETE", "note": "全輪播最後一張,右側緊接COMING SOON空白區"}
+  ],
+  "coming_soon": true,
+  "notes": "本輪(0730第二輪)結論,推翻前兩輪名單:(1) UC(機動戰士鋼彈UC/MOBILE SUIT GUNDAM UNICORN)確定存在且可對戰,位於index15(逆襲的夏亞之後、閃光的哈薩威之前),見index15備註的完整排查過程。(2) Z鋼彈(TV版,無A New Translation字樣的獨立系列)確定不存在——整條輪播僅一張Z鋼彈卡(index2,即A New Translation),選單→圖鑑→系列圖鑑的全IP百科清單第一排(機動戰士鋼彈/機動戰士Z鋼彈A New Translation/機動戰士鋼彈ZZ/機動戰士鋼彈逆襲的夏亞)也沒有獨立Z(TV)條目;前兩輪的「見過Z(TV)」觀察應是誤讀Z-ANT卡面縮小時只顯示「Zガンダム」四字所致。(3) 除UC外還發現前兩輪同樣系統性遺漏的3個系列:ZZ(index6)、新機動戰記鋼彈W無盡的華爾茲(index8)、機動戰士鋼彈SEED DESTINY(index5)——顯示前兩輪的遺漏是「橫滑步幅過大跳過卡片」的系統性問題,不只影響UC一張。全輪播總計19個系列(非前兩輪記載的15個),已用500px固定步幅小步橫滑從最左端(index1)完整走到COMING SOON(index19之後),逐幀截圖比對交叉核實。\n\n**輪播導航校準參數(供後續程式化導航使用)**:座標系2340x1080橫向。橫滑手勢統一用 adb shell input swipe <x1> 400 <x2> 400 500 (500ms耗時)。小步幅=swipe(1600,400)→(1100,400),每次約推進2-3張卡位置(足以避免跳過單張卡,但仍會讓部分卡片只在畫面邊緣露出局部,需靠連續幀比對縫合)。判斷「已達最左端」的訊號:畫面左側只剩CHALLENGE/HISTORY STAGE捷徑磁貼,無更多系列卡;判斷「已達最右端」的訊號:出現「COMING SOON」白字,其後大片空白星空無更多卡片。從最左端(index1)到COMING SOON共執行7次小步幅橫滑(每次500px移動距離,共約3500px累積)。回到最左端的重置手勢:swipe(400,400)→(1800,400)反向,連續執行2-3次直到左側只剩捷徑磁貼即達邊界(觀察到單次可能跳躍不均,需連續執行並用「左側是否只剩捷徑磁貼」判斷是否到底,不能只憑固定次數)。\n\n**徽章語意(本輪交叉驗證,與docs/ui-navigation-map.md既有結論一致)**:COMPLETE=NORMAL+HARD皆全清(如G/Z-ANT/SEED/SEED-R/W/CCA/Hathaway/F91);CLEAR=至少一難度有清但未達COMPLETE門檻(如SEED-DESTINY/EndlessWaltz/IBO,推測是該難度未3星滿或另一難度未清);none=完全未開始或雖NORMAL全清但HARD尚未動(如ZZ、UC——兩者皆NORMAL全清HARD0完成卻不掛牌,證實COMPLETE門檻是雙難度皆滿,不是任一難度全清即掛牌)。\n\n**時間軸拉桿排查結論(回應coordinator假設)**:未找到獨立於卡片橫滑之外的時間軸/年表拉桿控制項。排查途徑:(a)輪播畫面本身垂直swipe無反應、無隱藏抽屜;(b)輪播「i」說明彈窗5頁教學(內容:系列解鎖規則/故事回想/戰鬥評價/略過機制/隱藏戰鬥)全無提及時間軸;(c)系列資訊畫面「開發路線圖」按鈕點入後是單一機體的量產/改修分支樹(如ZZ系列的「幽谷/新吉翁/終極」路線),與系列輪播導航無關;(d)主選單→選單→圖鑑→系列圖鑑,是全IP讀物式百科(含MSV、MS-X、MS IGLOO、MS IGLOO2重力戰線、第08MS小隊、CROSS DIMENSION、THE ORIGIN、THE ORIGIN MSD、THE BLUE DESTINY等明顯不可對戰的外傳條目),用垂直捲軸(非拉桿,一般直向swipe)瀏覽,此百科每張卡點入後只有純文字/圖片介紹與左右箭頭切換鄰卡,**沒有「選擇」對戰按鈕**,與MAIN STAGE可對戰輪播是兩套獨立系統——UC在百科裡確實存在條目,但真正證實其可對戰的是回到MAIN STAGE輪播小步幅找到同名卡並點入有「選擇」鈕的系列資訊畫面。結論:UC被前兩輪遺漏純屬橫滑步幅過大跳過卡片所致,無隱藏時間軸機制。",
+  "screenshots": [
+    "assets/screenshots/20260730-010604.png (最左端,G+Z-ANT+SEED局部)",
+    "assets/screenshots/20260730-010636.png (step1,SEED家族+ZZ+W+EndlessWaltz)",
+    "assets/screenshots/20260730-010709.png (step2,新增X+水星的魔女)",
+    "assets/screenshots/20260730-010743.png (step3,新增鐵血孤兒+G鋼彈武鬥傳+00)",
+    "assets/screenshots/20260730-010818.png (step4,新增逆襲的夏亞+UC)",
+    "assets/screenshots/20260730-010857.png (step5,新增閃光的哈薩威)",
+    "assets/screenshots/20260730-010932.png (step6,新增NT+AGE+F91局部)",
+    "assets/screenshots/20260730-011003.png (step7,F91完整+COMING SOON首次可見)",
+    "assets/screenshots/20260730-011039.png (最右端確認,COMING SOON後方純空景無更多卡)",
+    "assets/screenshots/20260730-010213.png (UC系列資訊畫面,NORMAL10/10+HARD0/4+選擇鈕)",
+    "assets/screenshots/20260730-005534.png (選單→圖鑑→系列圖鑑,全IP百科第一頁,可見UC存在於百科但此頁無選擇鈕)",
+    "assets/screenshots/20260730-005720.png (系列圖鑑UC條目內文,純文字介紹,證實百科與MAIN STAGE是兩套系統)"
+  ]
+}
