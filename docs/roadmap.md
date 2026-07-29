@@ -15,9 +15,8 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 
 ### 恢復點
 
-- 分支 `feat/inner-goap`。`uv run pytest -q` 955 passed／3 xfailed
-  ＋1 flaky（`test_not_actionable` 既有計時競態、7/24 定讞、單跑綠）、
-  ruff 綠。
+- 分支 `feat/inner-goap`。`uv run pytest -q` 1113 passed／3 xfailed、
+  ruff 綠（`test_not_actionable` 歷史 flaky 偶發、單跑綠）。
 - 架構方向定案入庫：`docs/requirements.md`（基礎需求）＋
   `docs/architecture.md`（HTN 外層＋GOAP 內層、層界＝進入關卡、
   戰局沙盤雙注入、資源帳本、事實依據的邊界）。
@@ -32,5 +31,17 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 - 調查 A／B 定稿落檔 `docs/rewards-and-scoring.md`（裁決：成就＝
   永恆之路逐關任務；主線評分公式放棄，改假設「10 機全存活＋每機
   殘 HP > 50% → ★3」批 2 實測）。
-- 下一步：批 1（內層離線）規格核可 → 派工。批 2 首戰 stage 屆時
-  由使用者指定。
+- **批 1 全部入庫**：批 1a 內層迴圈（dc744a3：Advisor 契約、
+  GOAP A*、tick 證據推進、三終局劇本）、批 1b 沙盤搬遷（bc47690：
+  機制對照 combat-formulas.md 逐條清點、95 測試釘語意、命名改遊戲
+  術語）、批 1c 執行紀錄完備化（幀入 run 目錄＋壓縮輪替，使用者
+  裁定需求六優先插隊）。舊 `sim/`、`planner/` 未刪——舊 battle/
+  content 參考碼仍 import，批 2/3 搬完一起刪。
+- UI 導航地圖入庫 docs/ui-navigation-map.md（含前景卡死新故障模式
+  與 CLEAR/COMPLETE 四態標示）；每日登入彈窗略過與看門狗排批 2。
+- 進行中：關卡型錄全量掃描（live-tester；第一次外部中斷零產出後
+  重派，逐系列即時落檔 assets/catalog/）。
+- 注意：下次真跑 `python -m ggge_ai`（無 --run-dir）會把 data/runs
+  下的七月舊 run 目錄一次性全部壓縮——刻意行為，勿在意外時機觸發。
+- 下一步：Advisor 實作接線設計（符號狀態→沙盤數據的情報庫接縫，
+  批 2 前置）→ 批 2 實機首戰（首戰 stage 待使用者指定）。

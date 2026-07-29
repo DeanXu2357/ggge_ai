@@ -73,10 +73,10 @@ src/ggge_ai/
   docs/ui-navigation-map.md 收乾路徑與樣本 assets/screenshots/
   sample-login-bonus-20260729.png）＋前景卡死看門狗（tap 無效
   N 次→HOME 循環復原；0729 實測新故障模式，見導航地圖文件）
-  ＋評分假設實測與結算蒐樣（architecture.md 待辦 7）＋執行紀錄
-  完備化：每 tick 擷取的原生截圖存入該次 run 目錄（與 jsonl 同處，
-  流水帳逐筆記幀檔名供事後歸因）、入口點啟動時把舊 run 目錄壓縮
-  （只留最新一個未壓縮）。
+  ＋評分假設實測與結算蒐樣（architecture.md 待辦 7）。執行紀錄
+  完備化（幀入 run 目錄＋壓縮輪替）已由批 1c 離線落地——使用者
+  裁定需求六優先插隊；批 2 只剩確認 LivePerceiver 交付未經改動的
+  原生 screencap 位元組。
 - 批 3 外層骨架：clear goal 端到端「指定 stage→無人值守通關或
   誠實停止」＋資源帳本 v1。
 - 批 4 補強迴路：診斷門面＋參數微調實驗＋刷／強化方法入 HTN。

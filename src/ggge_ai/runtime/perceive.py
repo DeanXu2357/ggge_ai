@@ -11,12 +11,14 @@ from ..contracts import Ending
 @dataclass(frozen=True)
 class Observation[StateT]:
     """一張畫面的全部所見。state 為 None ＝ 這張畫面推不出符號狀態
-    （選單、過場、讀不出來），不是「戰場是空的」。"""
+    （選單、過場、讀不出來），不是「戰場是空的」。frame ＝ 這張畫面的
+    原生解析度 PNG 位元組，供事後歸因；離線假件沒有幀就是 None。"""
 
     screen: str
     state: StateT | None = None
     terminal: Ending | None = None
     evidence: dict[str, Any] = field(default_factory=dict)
+    frame: bytes | None = None
 
 
 class Perceiver[StateT](Protocol):

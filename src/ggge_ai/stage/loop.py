@@ -42,6 +42,7 @@ class TickRecord:
     plan: tuple[str, ...] = ()
     did: str | None = None
     note: str = ""
+    frame: str | None = None
 
 
 @dataclass(frozen=True)
@@ -255,7 +256,9 @@ class StageLoop:
             plan=tuple(step.action.label for step in self.queue),
             did=did,
             note=note,
+            frame=self.journal.save_frame(observation.frame, self.ticks),
         )
+        stored_frame: dict[str, Any] = {} if record.frame is None else {"frame": record.frame}
         self.journal.record(
             "tick",
             tick=record.tick,
@@ -272,6 +275,7 @@ class StageLoop:
             plan=list(record.plan),
             did=record.did,
             note=record.note,
+            **stored_frame,
         )
         return record
 

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .contracts import Constraint, GoalSpec, Objective
-from .runtime.journal import Journal
+from .runtime.journal import Journal, rotate_runs
 from .strategy import htn
 from .strategy.domain import build_domain, root_task
 from .strategy.ledger import Ledger, OfflineLedger
@@ -91,6 +91,13 @@ def resolve_run_dir(run_dir: str | None, runs_root: Path = RUNS_ROOT) -> Path:
     return runs_root / time.strftime("%Y%m%d-%H%M%S")
 
 
+def rotate_default_runs(run_dir: str | None, runs_root: Path = RUNS_ROOT) -> tuple[Path, ...]:
+    """明確指定 run 目錄（測試注入、外部工具接管）就不動 runs root。"""
+    if run_dir is not None:
+        return ()
+    return rotate_runs(runs_root)
+
+
 def run(goal: GoalSpec, run_dir: Path, dry_run: bool) -> StopReport:
     journal = Journal(run_dir / JOURNAL_NAME)
     journal.record(
@@ -143,6 +150,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.dry_run:
         parser.error("批 0 只實作 --dry-run")
     goal = goal_from_args(args)
+    archives = rotate_default_runs(args.run_dir)
+    if archives:
+        print(f"rotated {len(archives)} old run dir(s)")
     run_dir = resolve_run_dir(args.run_dir)
     report = run(goal, run_dir, dry_run=True)
     print(f"{report.kind}: {report.reason}")
