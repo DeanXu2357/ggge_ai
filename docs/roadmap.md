@@ -4,30 +4,23 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-07-27 22:35）
+## 暫停快照（2026-07-29）
 
 ### 裝置現況
 
-- adb：R5CRC37JBYJ 經 USB 連線正常（`adb devices -l` 顯示 `usb:1-3`、
-  `model:SM_G9900`）。`ps -T -C adb -o spid,comm` 只有 2 個執行緒、
-  無 `device poll`，`ADB_LIBUSB=1` 生效。
-- 螢幕：熄滅。本次截圖 `assets/screenshots/20260727-223342.png` 全黑
-  （像素層級確認 min=max=0、1080x2340 直式）。**遊戲當下畫面未知**——
-  本次沒有喚醒裝置，也沒有解圖形鎖（使用者刻意保留）。
+- 本輪純文件作業，未觸碰裝置。07-27 快照的狀態未重新驗證：
+  當時 adb 經 USB 正常（`ADB_LIBUSB=1` 生效）、螢幕熄滅、
+  遊戲當下畫面未知（未喚醒、未解鎖，使用者刻意保留）。
 - `data/cache/stages/` 空，備份在 `data/cache/stages.bak-20260723/`。
 
 ### 恢復點
 
-- 分支 `feat/inner-goap`，tip `5ab6ef0`。`uv run pytest -q` 920 passed／
-  3 xfailed、`uv run ruff check src tests scripts` 綠。
-- `src/ggge_ai/bot/` 目前是**純離線骨架**：tick 迴圈、反射 router、
-  符號表、mock catalog、metrics 都在，但分類器／螢幕／裝置全是
-  `bot/mocks.py` 的假件，尚未接實機。`python -m ggge_ai.bot.demo`
-  是唯一的端到端跑法。
-- 本次完成：metrics 物件（`bot/metrics.py`）、`_record` 內的 A 層摺帳、
-  `think()` 的 planner 埋點、`slept_ms` 基準錯誤修正。
-- 已知未做：
-  - jsonl 匯出——metrics 與流水帳都只活在 process 內，收工即消失。
-  - 關卡外（關卡列表／出擊／強化）的 action 尚未進 catalog，
-    catalog 目前全是關卡內詞彙。
-  - 真分類器未接；接上之前 `bot/` 碰不到實機。
+- 分支 `feat/inner-goap`。本輪未跑 pytest／ruff（純文件變更，
+  使用者裁定跳過測試閘門）。
+- 架構方向定案入庫：`docs/requirements.md`（基礎需求）＋
+  `docs/architecture.md`（HTN 外層＋GOAP 內層、層界＝進入關卡、
+  戰局沙盤雙注入、資源帳本、事實依據的邊界）。
+- 既有程式碼（含 `bot/`）全部降級為實作參考，不作為新規劃的
+  推斷依據——見 architecture.md「事實依據的邊界」。
+- 下一步：使用者先完成 goal 完整定義（architecture.md 待辦第 1 條，
+  批次規劃的前置條件）；完成後才展開批次規劃。
