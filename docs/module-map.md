@@ -68,8 +68,10 @@ src/ggge_ai/
 - 批 1 內層離線：GOAP 迴圈＋全滅型 clear goal＋行動詞彙最小集＋
   沙盤戰術定價注入＋流水帳；離線假件全流程綠。
 - 批 2 內層實機首戰：簡單已通關 stage 實機整場（首戰 stage 由
-  使用者屆時指定）＋略過每日登入彈窗（反射；素材＝導航地圖的
-  收乾路徑與樣本 assets/screenshots/sample-login-bonus-20260729.png）
+  使用者屆時指定）＋略過每日登入彈窗（反射；素材＝
+  docs/ui-navigation-map.md 收乾路徑與樣本 assets/screenshots/
+  sample-login-bonus-20260729.png）＋前景卡死看門狗（tap 無效
+  N 次→HOME 循環復原；0729 實測新故障模式，見導航地圖文件）
   ＋評分假設實測與結算蒐樣（architecture.md 待辦 7）。
 - 批 3 外層骨架：clear goal 端到端「指定 stage→無人值守通關或
   誠實停止」＋資源帳本 v1。
