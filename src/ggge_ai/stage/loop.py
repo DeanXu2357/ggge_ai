@@ -67,8 +67,10 @@ class Reflex(Protocol):
 
 @dataclass(frozen=True)
 class ReactionReflex:
-    """應戰彈窗 15 秒逾時，來不及跑搜尋：把畫面給的姿態送 Advisor 計價
-    取最低價。這裡沒有戰術判斷，只是消費計價結果。"""
+    """應戰窗（敵方回合挨打時選反擊／閃避／防禦）沒有逾時——有 15 秒逾時的
+    是隱藏關觸發彈窗與前次 AUTO 的關卡資訊頁，別搞混。走反射不走規劃器的
+    理由是結構性的：敵方相位計畫佇列已作廢、選項只有畫面給的姿態，送
+    Advisor 計價取最低價即可。這裡沒有戰術判斷，只是消費計價結果。"""
 
     advisor: Advisor[StageState, Action]
     name: ClassVar[str] = "reaction"
