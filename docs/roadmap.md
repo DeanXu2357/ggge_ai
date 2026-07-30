@@ -52,11 +52,21 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   （原生幀直通 2340x1080 ✓）。
 - **2d 遺留（2e 前置）**：Move/Attack/Inspect/Standby 執行 plan
   未接（需單位↔螢幕點對位）；LivePerceiver.reader 未注入
-  （Observation.state 恆 None，符號讀取歸 2e）；三彈窗簽名缺樣
-  ——LOGIN BONUS 本機有 sample-login-bonus-20260729.png、日期
-  彈窗疑在 assets/screenshots/20260730-00xx 序列，入 fixtures
-  ＋建簽名是下輪小批；實機驗證清單 12 項見 2d 交付報告（①原生
-  幀已過，⑤進場乾跑⑧掃描 20-tick 需先寫駕駛 script）。
+  （Observation.state 實機恆 None，符號讀取歸 2e）；pinch／
+  zoom_out 注入點留白。
+- **2d 收尾小批入庫**（0730 合併 1458 passed＋scripts 清理
+  7e006ad）：收卡條符號化（CollapseRoster＋SurveyBoard 雙前置；
+  roster_collapsed 感知權威、None 永不折成收合；Inspect 效果
+  作廢卡條）＋三彈窗簽名解封（全語料 1002 張零誤命中；公告
+  近全黑載入空窗仍缺樣回 unknown）＋stage_list 簽名＋
+  scripts/dry_run_entry.py（分段停點 select/prep/stage_info/
+  map/grid/survey，expect 失敗即停；用法見 docs/reviews/
+  2d-closeout-review.md）。scripts 刪 11 支＋孤兒測試、
+  CLAUDE.md 常用指令同步（備案 decisions.md）。實機待驗：
+  ROSTER_TOGGLE_TAP (1970,780)、STAGE_LIST_PREP_TAP (2035,880)、
+  STAGE_INFO_ADVANCE_TAP (1170,780)、卡條換回合是否彈回、
+  掃描 20-tick 行為（最大未驗風險）、關卡節點 (544,872) 落
+  放棄危險帶（點編號列 y~667 繞開）。
 - UC HARD 1 敵情（沙盤先驗素材）：破壞數目標 0/18；薩克群
   6–8＋帶盾精英＋散兵 2；北帶克斯希雅 2–3＋**boss 獨角獸鋼彈
   （巴納吉，可奪取，分數檔 4,000/7,000/10,000）**；西南大型
@@ -67,11 +77,8 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   高評價（保守解讀＝三星 COMPLETE，備案待推翻）完成 UC 全系列
   HARD（4 關）。決策自裁授權：保守預設＋逐筆備案 docs/decisions.md；
   需要使用者時 discord-notify。
-- 下一步順序：①2d 收尾小批（進行中：收卡條符號化＋彈窗簽名
-  補樣＋dry_run_entry.py 駕駛 script）②scripts/ 目錄清理
-  （0730 使用者指派：無需求入口移除、逐支備案、CLAUDE.md 常用
-  指令同步）③2d 實機驗證輪（live-tester 按 12 項清單）④2e
-  首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據分層、
-  Move/Attack/Inspect plan）。
+- 下一步順序：①2d 實機驗證輪（live-tester 以 dry_run_entry
+  分段跑清單）②2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕
+  對位、陣營證據分層、Move/Attack/Inspect plan）。
 - 注意：首次真跑 `python -m ggge_ai`（無 --run-dir）會把 data/runs
   舊 run 目錄一次性全壓縮——刻意行為，勿在意外時機觸發。

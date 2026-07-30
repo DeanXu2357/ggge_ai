@@ -101,6 +101,34 @@
   定向：符號行動供給 roster_collapsed，SurveyBoard 前置條件再加
   一條｜採 (b)：同一原則——會改 UI 狀態的行為進符號層。實作
   入 2d 收尾小批。
+- **2d 收尾小批設計決定整批接受**（合併入庫；驗證：閘門綠 1454
+  ＋roster_collapsed 感知權威落地親讀＋簽名判別依據審閱）。要點
+  備查：(1) enter_stage 拆四段入 runtime（分段停點做在可測層，
+  script 保持薄）；(2) 公告簽名取「公告」標題帶不取關閉鈕——
+  全語料 1002 張實測關閉鈕帶誤命中 100 張、標題僅 4 張；(3)
+  Inspect.apply 作廢 roster_collapsed（點單位彈回卡條），Move／
+  Attack 的同款效果留待 2e 接手勢 plan 時一併補；(4) LiveExecutor
+  把 driver 微步驟名記進流水帳；(5) 新增 stage_list 簽名（group
+  末位只吃 unknown 幀）；(6) roster_collapsed=感知權威、None 永不
+  折成收合（0723 輪四 41 次空轉的教訓條文化）。
+- **關卡節點與放棄危險帶重疊＝保留危險帶不縮**｜UC HARD 1 節點
+  平台 (544,872) 落在放棄帶（x0-900,y825-905），程式點選會
+  TapRefused｜(a) 縮帶、(b) 加 stage_select intent、(c) 保留帶，
+  節點改點編號／星列（y~667）或人工先選關｜採 (c) 保守：帶保護
+  的是戰鬥內誤觸放棄，收益大於選關便利；批 3 外層選關 UI 操作
+  落地時再議帶的畫面感知化。
+- **scripts 清理（0730 使用者指派）**｜留 10 支（capture／crop／
+  verify_match／curate_fixture／ensure_unlocked／parse_panel／
+  extract_glyphs／extract_panel_templates／probe_live_channel／
+  dry_run_entry）；刪 11 支＋孤兒測試：attribute_battle、
+  audit_run（掛凍結 agent/）、grid_toggle_probe（runtime entry
+  取代）、llm_localize_probe(_b)（定位堆疊未搬遷）、replay_
+  frames、replay_map_scan（舊 battle/ 回放）、run_clear_loop、
+  run_manual_battle（駕駛凍結架構，操作需求由裸 adb 與 dry_run_
+  entry 承接）、zoom_probe（pinch 延後）、export_stage_def（舊
+  content 管線）。CLAUDE.md 常用指令同步。注意：ensure_unlocked
+  仍 import 凍結 actuation/keyguard——過渡容忍，刪 battle/ 時
+  轉 runtime.keyguard。
 - **里程碑「高評價」解讀**｜使用者設定「二輪後以高評價完成獨角獸
   全系列 HARD」，未定義星數｜(a) 三星 COMPLETE（評分 10000，解鎖
   略過）、(b) 四星（另含隱藏戰鬥）｜採 (a)：保守——隱藏與評分
