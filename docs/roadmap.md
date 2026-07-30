@@ -35,15 +35,28 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   （CS 徽章、支援＝資格旗標無數字、彈藥欄關卡內缺樣）。
   站位普查 12–15/18（±1 格）收蒐樣級，權威站位歸批 2d 程式
   掃描（備案 decisions.md）。
-- **批 2c 入庫**（b24543e 合併＋後續修正）：runtime/glyphs＋
-  panels＋panel_text（封閉 schema 約束解碼，LLM 預設 gemma4:31b）
-  ＋stage/intel_panels 組裝＋字模／徽章模板＋fixture 釘死測試
-  98 筆＋scripts/parse_panel.py。針對性驗證過（數值 ground truth
-  全中、LLM 契約確認）。**已知缺口留給 2d**：intel.py 型別缺
-  pilot 三值／武裝類別／爆擊%／LV／MP 等落點（2c 讀到落不進）、
-  能力整區 LLM 通道不可信（要確定性切分逐條餵）、強化頁能力
-  分頁零樣本、關卡內彈藥欄缺樣、CS 多徽章排列未驗、
+- **批 2c 入庫**（b24543e）：面板解析三通道（數值字模／徽章
+  模板／封閉 schema LLM，預設 gemma4:31b）＋intel_panels 組裝＋
+  parse_panel.py。遺留：能力整區 LLM 通道不可信（要確定性切分）、
+  強化頁能力分頁零樣本、關卡內彈藥欄缺樣、CS 多徽章排列未驗、
   accuracy=命中%−100 待 forecast 對帳。
+- **批 2d 入庫**（0730 合併，全套 1419 passed）：runtime/
+  {screens,keyguard,board,entry,reflexes}＋device/perceive 實機
+  通道＋stage/{gestures,survey}＋intel 型別擴充（pilot 三值、
+  武裝類別集合、crit_pct、LV/SP；MP/faction 走 dynamics 不進
+  cache）。掃描＝符號行動（ShowGrid 供給 grid_on、SurveyBoard
+  前置 grid_on、恢復式微步驟、CoverageLedger＋StageState.swept/
+  board_synced 雙層簿記、敵回合 expire＋generation 換代）。
+  設計決定 16 條整批接受（decisions.md；pinch 延後、卡條收合
+  建模傾向比照 grid_on 待使用者裁）。**唯讀探針實機已過**
+  （原生幀直通 2340x1080 ✓）。
+- **2d 遺留（2e 前置）**：Move/Attack/Inspect/Standby 執行 plan
+  未接（需單位↔螢幕點對位）；LivePerceiver.reader 未注入
+  （Observation.state 恆 None，符號讀取歸 2e）；三彈窗簽名缺樣
+  ——LOGIN BONUS 本機有 sample-login-bonus-20260729.png、日期
+  彈窗疑在 assets/screenshots/20260730-00xx 序列，入 fixtures
+  ＋建簽名是下輪小批；實機驗證清單 12 項見 2d 交付報告（①原生
+  幀已過，⑤進場乾跑⑧掃描 20-tick 需先寫駕駛 script）。
 - UC HARD 1 敵情（沙盤先驗素材）：破壞數目標 0/18；薩克群
   6–8＋帶盾精英＋散兵 2；北帶克斯希雅 2–3＋**boss 獨角獸鋼彈
   （巴納吉，可奪取，分數檔 4,000/7,000/10,000）**；西南大型
@@ -54,8 +67,9 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   高評價（保守解讀＝三星 COMPLETE，備案待推翻）完成 UC 全系列
   HARD（4 關）。決策自裁授權：保守預設＋逐筆備案 docs/decisions.md；
   需要使用者時 discord-notify。
-- 下一步順序：①2c 解析器收工驗證入庫（worktree 交付審查）
-  ②2d 實機通道（module-map 批 2d：LivePerceiver／LiveExecutor、
-  反射組、程式版進場閘門、盤面全覽掃描）③2e 首戰 UC HARD 1。
+- 下一步順序：①2d 實機驗證輪（先寫進場乾跑＋掃描駕駛 script，
+  live-tester 按 2d 交付報告 12 項清單跑）②彈窗簽名補樣小批
+  ③2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據
+  分層、Move/Attack/Inspect plan）。
 - 注意：首次真跑 `python -m ggge_ai`（無 --run-dir）會把 data/runs
   舊 run 目錄一次性全壓縮——刻意行為，勿在意外時機觸發。
