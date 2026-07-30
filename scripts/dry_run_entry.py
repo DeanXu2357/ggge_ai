@@ -44,7 +44,7 @@ from ggge_ai.runtime import entry, screens
 from ggge_ai.runtime.device import Adb, LiveDevice, LiveExecutor
 from ggge_ai.runtime.journal import Journal, rotate_runs
 from ggge_ai.runtime.keyguard import Keyguard
-from ggge_ai.runtime.perceive import LivePerceiver, decode
+from ggge_ai.runtime.perceive import LivePerceiver, Observation, decode
 from ggge_ai.stage.actions import CollapseRoster, ShowGrid, SurveyBoard
 from ggge_ai.stage.survey import BoardDriver, survey_drivers
 
@@ -121,9 +121,16 @@ class DryRun:
         self.begin("grid")
         self.perform(ShowGrid(), "show_grid")
         self.perform(CollapseRoster(), "collapse_roster")
-        self.observe("after_grid_and_roster")
+        seen = self.observe("after_grid_and_roster")
         if self.end("grid"):
             return
+
+        # 掃描的兩個符號前置條件，逐幀觀測說了才算。這支不跑規劃器，所以前置條件
+        # 要自己在這裡守——沒格線或卡條還開著就掃，量出來的座標是垃圾。
+        if not seen.evidence.get("grid_on"):
+            raise Halt("格網讀不出來：ShowGrid 沒生效，掃描的前置條件不成立")
+        if seen.evidence.get("roster_strip") != screens.ROSTER_COLLAPSED:
+            raise Halt(f"卡條不是收合態（{seen.evidence.get('roster_strip')}），不掃")
 
         self.begin("survey")
         for index in range(self.survey_ticks):
@@ -161,7 +168,7 @@ class DryRun:
         self.journal.record("perform_start", label=label, screen=observation.screen)
         self.executor.perform(action, observation)
 
-    def observe(self, label: str) -> None:
+    def observe(self, label: str) -> Observation:
         seen = self.perceiver.look()
         self.journal.record("observed", label=label, screen=seen.screen, **seen.evidence)
         log.info(
@@ -172,6 +179,7 @@ class DryRun:
             seen.evidence.get("grid_on"),
             seen.evidence.get("roster_strip"),
         )
+        return seen
 
     def summarize_survey(self) -> None:
         ledger = self.driver.ledger
