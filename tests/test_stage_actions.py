@@ -11,7 +11,9 @@ from ggge_ai.stage.actions import (
     Brace,
     Inspect,
     Move,
+    ShowGrid,
     Standby,
+    SurveyBoard,
     Withdraw,
     candidates,
 )
@@ -22,8 +24,17 @@ FREE = Pricing(1.0)
 LETHAL = Pricing(1.0, Guarantee.KILL)
 
 
-def test_the_vocabulary_is_exactly_the_six_verbs():
-    assert VOCABULARY == (Move, Attack, Inspect, Standby, Brace, Withdraw)
+def test_the_vocabulary_is_exactly_these_verbs():
+    assert VOCABULARY == (
+        Move,
+        Attack,
+        Inspect,
+        ShowGrid,
+        SurveyBoard,
+        Standby,
+        Brace,
+        Withdraw,
+    )
 
 
 def test_an_attack_without_a_kill_guarantee_leaves_the_enemy_alive():

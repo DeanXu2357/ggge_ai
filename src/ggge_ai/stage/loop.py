@@ -11,6 +11,7 @@ from ..contracts import Ending, StageOrder
 from ..runtime.device import Executor
 from ..runtime.journal import Journal
 from ..runtime.perceive import Observation, Perceiver
+from ..runtime.reflexes import ScreenFix
 from ..sandbox.advise import Advisor, Verdict
 from .actions import Action, Withdraw, candidates
 from .goals import Goal, LeftStage
@@ -53,11 +54,15 @@ class LoopOutcome:
 
 
 class Reflex(Protocol):
-    """彈窗反射：畫面直接指定一個行動，跳過規劃層。"""
+    """彈窗反射：畫面直接指定一個操作，跳過規劃層。
+
+    回傳可以是行動詞彙裡的行動（應戰要經 Advisor 計價），也可以是純收乾用的
+    ScreenFix——後者不是符號行動，規劃層不該認識它，所以它自帶手勢。
+    """
 
     name: str
 
-    def match(self, observation: Observation[StageState]) -> Action | None: ...
+    def match(self, observation: Observation[StageState]) -> Action | ScreenFix | None: ...
 
 
 @dataclass(frozen=True)
@@ -290,6 +295,9 @@ def _seen(state: StageState | None) -> dict[str, Any] | None:
         "actionable": sorted(state.actionable),
         "enemies": sorted(state.enemies),
         "known": sorted(state.known),
+        "grid_on": state.grid_on,
+        "board_synced": state.board_synced,
+        "swept": sorted(state.swept),
         "positions": {unit: list(cell) for unit, cell in sorted(state.positions)},
         "reaction": (
             None

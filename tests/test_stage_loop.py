@@ -245,6 +245,9 @@ def test_the_journal_reconstructs_what_each_tick_saw_and_did(tmp_path):
         "actionable": ["a1"],
         "enemies": ["e1"],
         "known": ["a1", "e1"],
+        "grid_on": True,
+        "board_synced": True,
+        "swept": [],
         "positions": {},
         "reaction": None,
     }

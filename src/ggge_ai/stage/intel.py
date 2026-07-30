@@ -22,6 +22,10 @@ from .state import StageState
 
 FORMAT_VERSION = 1
 
+MELEE = "melee"
+SHOOTING = "shooting"
+AWAKENING = "awakening"
+
 
 class Side(StrEnum):
     ROSTER = "roster"
@@ -30,6 +34,12 @@ class Side(StrEnum):
 
 @dataclass(frozen=True)
 class WeaponIntel:
+    """categories ＝ 面板徽章（格鬥／射擊／覺醒），一把可以掛多枚，所以是集合
+    而非單值；駕駛員攻擊值挑哪一欄由它決定（UnitIntel.offence_for）。
+
+    crit_pct 是面板原值，沙盤還沒有爆擊節點——先存不換算，接法定了再對映。
+    """
+
     name: str
     power: float
     range_min: int = 1
@@ -42,6 +52,9 @@ class WeaponIntel:
     ammo: int = 0
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
+    categories: tuple[str, ...] = ()
+    crit_pct: int = 0
+    level: int = 0
 
     def to_weapon(self) -> Weapon:
         return Weapon(
@@ -77,7 +90,12 @@ class SkillIntel:
 
 @dataclass(frozen=True)
 class UnitIntel:
-    """docs/intel-data-spec.md 的欄位表，扣掉戰場動態那一列。"""
+    """docs/intel-data-spec.md 的欄位表，扣掉戰場動態那一列。
+
+    pilot_attack 是「已挑好的那一欄」，三欄原值另存 pilot_shooting／melee／
+    awakening——遊戲把駕駛員攻擊拆三欄而沙盤 Unit 只有一欄，挑選發生在組裝
+    時（decisions.md 0730）。
+    """
 
     unit_id: str
     max_hp: int = 1
@@ -97,6 +115,27 @@ class UnitIntel:
     has_shield: bool = False
     attack_shield: bool = False
     interception_reduction: float = 0.0
+    pilot_shooting: float = 0.0
+    pilot_melee: float = 0.0
+    pilot_awakening: float = 0.0
+    unit_lv: int = 0
+    pilot_lv: int = 0
+    pilot_sp: int = 0
+
+    def offence_for(self, weapon: WeaponIntel) -> float:
+        """武裝類別對應的駕駛員攻擊值。多枚徽章取最小值——沙盤拿它算我方
+        傷害，低估只會讓 KILL 判準更保守；無徽章或該欄沒讀到就退回已挑選的
+        pilot_attack。"""
+        values = [
+            value
+            for category, value in (
+                (MELEE, self.pilot_melee),
+                (SHOOTING, self.pilot_shooting),
+                (AWAKENING, self.pilot_awakening),
+            )
+            if category in weapon.categories and value > 0
+        ]
+        return min(values) if values else self.pilot_attack
 
     def to_unit(
         self,
@@ -106,6 +145,7 @@ class UnitIntel:
         hp: int | None = None,
         en: int | None = None,
         acted: bool = False,
+        pilot_attack: float | None = None,
     ) -> Unit:
         return Unit(
             unit_id=self.unit_id,
@@ -117,7 +157,7 @@ class UnitIntel:
             en_max=self.en_max,
             unit_attack=self.unit_attack,
             unit_defense=self.unit_defense,
-            pilot_attack=self.pilot_attack,
+            pilot_attack=self.pilot_attack if pilot_attack is None else pilot_attack,
             pilot_defense=self.pilot_defense,
             reaction=self.reaction,
             mobility=self.mobility,
@@ -166,11 +206,14 @@ class Intelligence:
         hp: int | None = None,
         en: int | None = None,
         acted: bool = False,
+        pilot_attack: float | None = None,
     ) -> Unit | None:
         record = self.record(unit_id)
         if record is None:
             return None
-        return record.to_unit(faction, pos=pos, hp=hp, en=en, acted=acted)
+        return record.to_unit(
+            faction, pos=pos, hp=hp, en=en, acted=acted, pilot_attack=pilot_attack
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -201,10 +244,15 @@ def loads(text: str) -> Intelligence:
 def _record_from_dict(data: dict[str, Any]) -> UnitIntel:
     scalars = {key: value for key, value in data.items() if key not in ("weapons", "skills")}
     return UnitIntel(
-        weapons=tuple(WeaponIntel(**raw) for raw in data.get("weapons", ())),
+        weapons=tuple(_weapon_from_dict(raw) for raw in data.get("weapons", ())),
         skills=tuple(_skill_from_dict(raw) for raw in data.get("skills", ())),
         **scalars,
     )
+
+
+def _weapon_from_dict(data: dict[str, Any]) -> WeaponIntel:
+    # json 沒有 tuple：categories 讀回來是 list，不轉回去往返比較就不相等。
+    return WeaponIntel(**{**data, "categories": tuple(data.get("categories", ()))})
 
 
 def _skill_from_dict(data: dict[str, Any]) -> SkillIntel:

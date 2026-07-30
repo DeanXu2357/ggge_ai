@@ -15,7 +15,16 @@ from ggge_ai.stage.intel import (
 )
 from tests.fixtures.stage_offline import ScriptedPerceiver, battle, frame
 
-BEAM = WeaponIntel(name="ビームライフル", power=120.0, range_min=1, range_max=3, en_cost=10)
+BEAM = WeaponIntel(
+    name="ビームライフル",
+    power=120.0,
+    range_min=1,
+    range_max=3,
+    en_cost=10,
+    categories=("shooting",),
+    crit_pct=10,
+    level=2,
+)
 MAP_GUN = WeaponIntel(name="メガ粒子砲", power=300.0, range_max=5, map_weapon=True, blast=1, ammo=2)
 REFILL = SkillIntel(kind=MoveKind.SKILL_EN_REFILL, amount=40.0, uses=2)
 
@@ -40,6 +49,12 @@ def unicorn() -> UnitIntel:
         has_shield=True,
         attack_shield=True,
         interception_reduction=0.15,
+        pilot_shooting=583.0,
+        pilot_melee=700.0,
+        pilot_awakening=690.0,
+        unit_lv=51,
+        pilot_lv=22,
+        pilot_sp=15,
     )
 
 
@@ -94,6 +109,56 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert unit.support_defend_charges == 1
     assert (unit.has_shield, unit.attack_shield) == (True, True)
     assert unit.interception_reduction == 0.15
+
+
+def test_the_weapon_carries_its_badges_its_crit_and_its_level():
+    """類別是集合（一把可以掛多枚徽章）；爆擊%沙盤還沒接，先存原值不換算。"""
+    intel = Intelligence()
+    intel.learn(unicorn(), Side.ROSTER)
+
+    weapon = intel.record("unicorn").weapons[0]
+
+    assert weapon.categories == ("shooting",)
+    assert (weapon.crit_pct, weapon.level) == (10, 2)
+
+
+def test_the_pilot_offence_column_is_chosen_by_the_weapon_category():
+    """遊戲把駕駛員攻擊拆射擊／格鬥／覺醒，沙盤只有一欄——挑選在組裝時發生。"""
+    record = unicorn()
+
+    assert record.offence_for(WeaponIntel("射", 1.0, categories=("shooting",))) == 583.0
+    assert record.offence_for(WeaponIntel("格", 1.0, categories=("melee",))) == 700.0
+    assert record.offence_for(WeaponIntel("覺", 1.0, categories=("awakening",))) == 690.0
+
+
+def test_a_multi_badge_weapon_takes_the_lowest_applicable_column():
+    """低估我方傷害只會讓 KILL 判準更保守，這個方向的錯是安全的。"""
+    record = unicorn()
+
+    assert record.offence_for(WeaponIntel("兩用", 1.0, categories=("melee", "shooting"))) == 583.0
+
+
+def test_a_weapon_with_no_badge_falls_back_to_the_already_picked_column():
+    record = unicorn()
+
+    assert record.offence_for(WeaponIntel("無徽", 1.0)) == record.pilot_attack
+
+
+def test_the_caller_can_override_pilot_attack_per_weapon_at_assembly():
+    intel = Intelligence()
+    intel.learn(unicorn(), Side.ROSTER)
+
+    unit = intel.unit("unicorn", Faction.ALLY, pilot_attack=700.0)
+
+    assert unit.pilot_attack == 700.0
+
+
+def test_the_pilot_and_unit_levels_ride_along():
+    intel = Intelligence()
+    intel.learn(unicorn(), Side.ROSTER)
+    record = intel.record("unicorn")
+
+    assert (record.unit_lv, record.pilot_lv, record.pilot_sp) == (51, 22, 15)
 
 
 def test_battlefield_dynamics_are_the_callers_to_supply():

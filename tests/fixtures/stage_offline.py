@@ -13,7 +13,17 @@ from typing import Any
 from ggge_ai.contracts import Ending
 from ggge_ai.runtime.perceive import Observation
 from ggge_ai.sandbox.advise import Appraisal, Guarantee, Pricing, Verdict
-from ggge_ai.stage.actions import Action, Attack, Brace, Inspect, Move, Standby, Withdraw
+from ggge_ai.stage.actions import (
+    Action,
+    Attack,
+    Brace,
+    Inspect,
+    Move,
+    ShowGrid,
+    Standby,
+    SurveyBoard,
+    Withdraw,
+)
 from ggge_ai.stage.state import Cell, Phase, Reaction, StageState
 
 Pricer = Callable[[StageState, Action], Pricing | None]
@@ -29,8 +39,12 @@ def battle(
     reachable: dict[str, Sequence[Cell]] | None = None,
     known: Sequence[str] | None = None,
     reaction: Reaction | None = None,
+    grid_on: bool = True,
+    board_synced: bool = True,
+    swept: Sequence[str] | None = None,
 ) -> StageState:
-    """known 預設全知：不談情報的劇本才不會被 Inspect 候選污染。"""
+    """known 預設全知、格線已開、盤面已同步：不談情報與盤面的劇本才不會被
+    Inspect／ShowGrid／SurveyBoard 候選污染。"""
     return StageState(
         phase=phase,
         allies=frozenset(allies),
@@ -42,6 +56,9 @@ def battle(
         ),
         known=frozenset([*allies, *enemies] if known is None else known),
         reaction=reaction,
+        grid_on=grid_on,
+        board_synced=board_synced,
+        swept=frozenset(swept or ()),
     )
 
 
@@ -112,6 +129,8 @@ class KindPricer:
     standby: Pricing | None = None
     brace: Pricing | None = None
     withdraw: Pricing | None = None
+    show_grid: Pricing | None = None
+    survey: Pricing | None = None
 
     def __call__(self, state: StageState, action: Action) -> Pricing | None:
         if isinstance(action, Attack):
@@ -126,6 +145,10 @@ class KindPricer:
             return self.brace
         if isinstance(action, Withdraw):
             return self.withdraw
+        if isinstance(action, ShowGrid):
+            return self.show_grid
+        if isinstance(action, SurveyBoard):
+            return self.survey
         raise AssertionError(f"未知的行動型別：{type(action).__name__}")
 
 
