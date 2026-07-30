@@ -59,6 +59,9 @@ class CoverageLedger:
     swept: set[str] = field(default_factory=set)
     legs: dict[str, int] = field(default_factory=dict)
     scan: board.BoardScan | None = None
+    # 每次衰效加一。執行器拿它認出「上一輪的世界座標系作廢了」並重置游標——
+    # 不然下一輪的目擊會疊在上一輪的累積位移上。
+    generation: int = 0
 
     @property
     def synced(self) -> bool:
@@ -100,6 +103,7 @@ class CoverageLedger:
         self.swept.clear()
         self.legs.clear()
         self.scan = None
+        self.generation += 1
 
 
 @dataclass
@@ -152,12 +156,17 @@ class BoardDriver:
     sleep: Callable[[float], None] = field(default=time.sleep)
     cursor: board.ScanCursor = field(default_factory=board.ScanCursor)
     steps: list[str] = field(default_factory=list)
+    generation: int = 0
 
     def show_grid(self, action: ShowGrid, observation: Observation[Any]) -> None:
         entry.set_battle_grid(self.capture, self._tap, True, sleep=self.sleep)
 
     def survey_board(self, action: SurveyBoard, observation: Observation[Any]) -> str:
         """一次呼叫＝感知複核＋一個微步驟。回傳這次做了哪一步（進流水帳）。"""
+        if self.generation != self.ledger.generation:
+            # 簿記衰效過：上一輪的累積位移與目擊都作廢，游標整個換掉。
+            self.cursor = board.ScanCursor()
+            self.generation = self.ledger.generation
         frame = self.capture()
         self.cursor.feed(frame)
 
@@ -171,7 +180,7 @@ class BoardDriver:
         self.steps.append(step)
         return step
 
-    def drivers(self) -> dict[type, Callable[[Any, Observation[Any]], None]]:
+    def drivers(self) -> dict[type, Callable[[Any, Observation[Any]], Any]]:
         return {ShowGrid: self.show_grid, SurveyBoard: self.survey_board}
 
     def _zoom(self) -> None:

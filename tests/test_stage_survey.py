@@ -251,6 +251,25 @@ def test_the_driver_resumes_from_the_ledger_not_from_its_own_variables():
     assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == "east"
 
 
+def test_an_expired_ledger_throws_away_the_old_world_frame():
+    """衰效不只清覆蓋：上一輪的累積位移與目擊都作廢，否則新目擊會疊在舊
+    座標系上。"""
+    camera = Camera([map_frame()])
+    driver, ledger = survey_drivers(
+        camera.capture, FakeActuator(), itinerary=("west",), sleep=lambda _: None
+    )
+    ledger.zoomed = True
+    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+    stale = driver.cursor
+
+    ledger.expire()
+    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert driver.cursor is not stale
+    assert driver.cursor.scan.frames == 1
+
+
 def test_the_perceiver_folds_the_coverage_ledger_into_the_symbolic_state():
     ledger = CoverageLedger()
     ledger.edge_reached("west")
