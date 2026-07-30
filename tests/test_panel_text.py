@@ -79,6 +79,17 @@ def test_request_carries_the_schema_as_the_decode_format():
     assert sent[0]["stream"] is False
 
 
+def test_a_card_without_a_note_is_not_asked_for_an_effect():
+    """The deterministic layer already knows there is no effect line, so the
+    schema must not offer the model a slot to fill."""
+    transport, sent = stub({"name": "光束軍刀"})
+    reader = OllamaPanelTextReader(transport=transport, terms={"weapons": ("光束軍刀",)})
+    text = reader.weapon(PATCH, has_note=False)
+    assert sent[0]["format"] == panel_text.WEAPON_NAME_SCHEMA
+    assert "effect" not in sent[0]["format"]["properties"]
+    assert text == WeaponText(name="光束軍刀", matched=True, effect=None)
+
+
 def test_weapon_effect_inside_the_schema_is_kept():
     transport, _ = stub(
         {
@@ -202,8 +213,13 @@ def test_align_refuses_an_ambiguous_near_miss():
     assert align("光束軍力", ("光束軍刀", "光束軍才")) == ("光束軍力", False)
 
 
-def test_align_never_corrects_a_short_name():
-    assert align("I力場", ("I力壁",)) == ("I力場", False)
+def test_align_corrects_a_three_character_near_miss():
+    """gemma4:31b returned 感應炮 for 感應砲 on the kshatriya fixture."""
+    assert align("感應炮", ("感應砲", "光束軍刀")) == ("感應砲", True)
+
+
+def test_align_never_corrects_a_two_character_name():
+    assert align("力場", ("力壁",)) == ("力場", False)
 
 
 def test_shipped_vocabulary_covers_the_fixture_weapons():

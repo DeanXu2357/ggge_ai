@@ -45,7 +45,9 @@ def _weapon_texts(frame, rows, reader: PanelTextReader | None):
                 region[2],
                 row.note_region[1] + row.note_region[3] - region[1],
             )
-        pairs.append((row, reader.weapon(crop(frame, region))))
+        pairs.append(
+            (row, reader.weapon(crop(frame, region), has_note=row.note_region is not None))
+        )
     return tuple(pairs)
 
 

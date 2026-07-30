@@ -8,17 +8,24 @@ sandbox:
 - **schema closure.** The request carries a JSON schema whose enums list only
   mechanics the sandbox actually implements (sandbox.model's Weapon.debuff_kind,
   Skill.kind, and the Unit ability flags). ollama constrains decoding to it,
-  and _coerce re-checks every field afterwards, because a schema the server
-  ignored is not a guarantee. Wording that does not land in an enum is
-  reported under `unsupported` with the verbatim excerpt: it is not guessed at,
-  not widened, and not fed to the sandbox. Supporting a new mechanic is a code
-  change to the sandbox and to these enums, in that order.
+  while coerce_weapon/coerce_abilities re-check every field afterwards, because
+  a schema the server ignored is not a guarantee. Wording that does not land in
+  an enum is reported under `unsupported` with the verbatim excerpt: it is not
+  guessed at, not widened, and not fed to the sandbox. Supporting a new
+  mechanic is a code change to the sandbox and to these enums, in that order.
+  The schema also shrinks to what the panel can actually answer: a weapon card
+  with no effect line is asked for a name only.
 - **vocabulary alignment.** Names are matched against a transcribed term list
   and only accepted when they land on one exactly or within a single character
   of exactly one entry. Anything else is kept verbatim with matched=False.
 
 Tests inject a fake reader or a fake transport; nothing here requires ollama to
 be running, and OllamaPanelTextReader.from_env returns None when it is not.
+
+Measured 2026-07-30 on the kshatriya weapons fixture: gemma3:27b transcribed
+none of the three names correctly and answered in Simplified Chinese. The
+guards held (every name came back matched=False) but the channel is not yet
+usable for names; model choice is still open.
 """
 
 from __future__ import annotations
@@ -48,6 +55,7 @@ DEFAULT_URL = "http://localhost:11434"
 DEFAULT_MODEL = "gemma3:27b"
 MAX_EDGE = 1280
 JPEG_QUALITY = 92
+MIN_ALIGN_LEN = 3
 
 DAMAGE_TAKEN_UP = "damage_taken_up"
 SHIELD_DEFENSE = "shield_defense"
@@ -77,6 +85,13 @@ WEAPON_SCHEMA: dict[str, Any] = {
     },
 }
 
+WEAPON_NAME_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["name"],
+    "properties": {"name": {"type": "string"}},
+}
+
 ABILITY_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -103,14 +118,23 @@ ABILITY_SCHEMA: dict[str, Any] = {
     },
 }
 
+WEAPON_NAME_PROMPT = (
+    "This crop is one weapon row from a Traditional Chinese mobile game panel. "
+    "Transcribe the weapon name on the top line verbatim, in Traditional "
+    "Chinese exactly as printed. Do not translate it, do not convert it to "
+    "Simplified Chinese, and do not guess a plausible weapon name."
+)
+
 WEAPON_PROMPT = (
-    "This crop is one weapon row from a Traditional Chinese mobile game panel: "
-    "the weapon name, and below it an optional effect sentence. Transcribe the "
-    "name verbatim. Map the effect sentence to one of the listed effect codes "
-    "and put its percentage in magnitude as a fraction (10% -> 0.1). "
-    "damage_taken_up means the target takes more damage. If the sentence "
-    "describes anything else, set effect to null and copy the sentence into "
-    "unsupported. Never invent an effect code."
+    WEAPON_NAME_PROMPT
+    + " Below the name is one effect sentence. Map it to one of the listed "
+    "effect codes and put its percentage in magnitude as a fraction "
+    "(10% -> 0.1). damage_taken_up means only this: the struck target will "
+    "take MORE damage from later attacks. A sentence that lowers the target's "
+    "own attack power, raises your own power, or changes hit or critical rates "
+    "is NOT damage_taken_up. For anything that is not damage_taken_up, set "
+    "effect to null and copy the sentence verbatim into unsupported. Never "
+    "invent an effect code."
 )
 
 ABILITY_PROMPT = (
@@ -156,7 +180,7 @@ class AbilityTexts:
 class PanelTextReader(Protocol):
     """The seam every caller depends on; production and fakes both satisfy it."""
 
-    def weapon(self, patch: np.ndarray) -> WeaponText | None: ...
+    def weapon(self, patch: np.ndarray, *, has_note: bool = True) -> WeaponText | None: ...
 
     def abilities(self, patch: np.ndarray) -> AbilityTexts | None: ...
 
@@ -197,7 +221,9 @@ def align(text: str, terms: Iterable[str]) -> tuple[str, bool]:
     """Snap `text` onto the term list, or keep it verbatim.
 
     A single-character miss is corrected only when exactly one term is that
-    close; ties and larger misses stay verbatim so nothing is invented.
+    close; ties and larger misses stay verbatim so nothing is invented. Names
+    below MIN_ALIGN_LEN are never corrected -- one character out of two is not
+    a typo, it is a different word.
     """
     stripped = text.strip()
     if not stripped:
@@ -207,7 +233,7 @@ def align(text: str, terms: Iterable[str]) -> tuple[str, bool]:
     for term in candidates:
         if _normalise(term) == wanted:
             return term, True
-    if len(wanted) < 4:
+    if len(wanted) < MIN_ALIGN_LEN:
         return stripped, False
     near = [term for term in candidates if _distance(_normalise(term), wanted) <= 1]
     if len(near) == 1:
@@ -339,8 +365,19 @@ class OllamaPanelTextReader:
             return None
         return cls(url=url, model=model)
 
-    def weapon(self, patch: np.ndarray) -> WeaponText | None:
-        data = self._ask(patch, WEAPON_PROMPT, WEAPON_SCHEMA)
+    def weapon(self, patch: np.ndarray, *, has_note: bool = True) -> WeaponText | None:
+        """has_note=False drops the effect fields from the schema entirely.
+
+        Whether a card carries an effect line is already known deterministically
+        (panels._note_region), and leaving effect in the schema for a card that
+        has none invites the model to fill it: gemma3:27b asserted
+        damage_taken_up on all three kshatriya weapons, two of which print no
+        sentence at all.
+        """
+        if has_note:
+            data = self._ask(patch, WEAPON_PROMPT, WEAPON_SCHEMA)
+        else:
+            data = self._ask(patch, WEAPON_NAME_PROMPT, WEAPON_NAME_SCHEMA)
         return coerce_weapon(data, self.terms.get("weapons", ()))
 
     def abilities(self, patch: np.ndarray) -> AbilityTexts | None:
