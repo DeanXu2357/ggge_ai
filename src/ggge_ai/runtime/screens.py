@@ -4,8 +4,8 @@
 的三個，raw 0.83／highpass 0.76 都在任何合理門檻之上（0711 實機），所以幹擾樣本
 一起進同一組比大小，幹擾贏了就是「不是我方回合」。門檻只用來擋整組都沒中的幀。
 
-疊層優先：詳情面板、對話框這類覆蓋物先判，因為它們蓋在地圖上時底下的相位橫幅
-還在原地照樣比中。
+疊層優先：系統彈窗、詳情面板、對話框這類覆蓋物先判，因為它們蓋在地圖上時底下的
+相位橫幅還在原地照樣比中。
 
 AUTO 開關 (1815,52) 的三態不看單點——那顆像素落在白色「AUTO」字上，三態全是
 (255,255,254) 級的白。看整片開關底色的中位數：暗＝OFF、青＝ON 待機、紅＝ON
@@ -42,9 +42,8 @@ STAGE_INFO = "stage_info"
 SORTIE_PREP = "sortie_prep"
 BATTLE_RESULT = "battle_result"
 BATTLE_DEFEAT = "battle_defeat"
+STAGE_LIST = "stage_list"
 
-# 進場閘門與棄戰流程需要的畫面，模板尚未取樣（0729 只留 gitignored 截圖）。
-# 名字先立起來讓反射組接得上，簽名待 live-tester 補樣（回報的實機驗證清單）。
 LOGIN_BONUS = "login_bonus"
 NOTICE = "notice"
 DATE_CHANGED = "date_changed"
@@ -68,6 +67,7 @@ AUTO_SWITCH_REGION: Region = (1770, 15, 190, 75)
 
 GRID_TOGGLE_TAP = (1898, 591)
 GRID_PROBE = (1963, 591)
+ROSTER_TOGGLE_TAP = (1970, 780)
 AUTO_BATTLE_OFF_PROBE = (1179, 295)
 BATTLE_TAB_UNDERLINE = (1613, 201)
 BATTLE_TAB_UNDERLINE_SPAN = (1605, 1651)
@@ -92,35 +92,50 @@ class Signature:
 # MODE_LABELS＋DISTRACTOR_LABELS 決策，換成宣告式）。
 PHASE_LABEL_REGION: Region = (110, 0, 310, 135)
 
-# group 由小到大＝疊層由上到下：先判覆蓋物，再判戰鬥準備家族，最後才是地圖相位
-# 與外層畫面。同 group 內比分數。
+# group 由小到大＝疊層由上到下：系統彈窗蓋住一切，再是覆蓋物與戰鬥準備家族，
+# 最後才是地圖相位與外層畫面。同 group 內比分數。
+UNIT_DETAIL_SIGNATURE = Signature(
+    UNIT_DETAIL, "elements/unit_detail_modal.png", (1000, 50, 380, 100), 1, 0.75
+)
+
 SIGNATURES: tuple[Signature, ...] = (
-    Signature(UNIT_DETAIL, "elements/unit_detail_modal.png", (1000, 50, 380, 100), 0, 0.75),
-    Signature(END_TURN_DIALOG, "elements/dlg_end_turn.png", (990, 165, 370, 135), 1, 0.75),
+    # 三個彈窗的簽名都取「一定畫得出來的元素」而不是內容：公告有近 1.5 秒的載入
+    # 空窗（內容出現前畫面近全黑），標題列與關閉鈕在空窗前後都在。空窗連框都還沒
+    # 畫的那幾幀一律 UNKNOWN——猜錯畫面比說不知道貴。
+    Signature(LOGIN_BONUS, "elements/label_login_bonus.png", (1380, 150, 640, 110), 0, 0.80),
+    Signature(NOTICE, "elements/label_notice.png", (1110, 50, 180, 90), 0, 0.80),
+    # 日期變更取「前往主畫面」鈕而不是「更新資料」標題：標題是所有維護對話框共用
+    # 的，按鈕文字既是這張對話框的識別、也正是反射要點的那一顆。
+    Signature(DATE_CHANGED, "elements/btn_to_main_screen.png", (1050, 810, 275, 90), 0, 0.80),
+    UNIT_DETAIL_SIGNATURE,
+    Signature(END_TURN_DIALOG, "elements/dlg_end_turn.png", (990, 165, 370, 135), 2, 0.75),
     Signature(
-        BATTLE_PREP_REACTION, "elements/label_prep_reaction.png", (250, 0, 450, 100), 2, 0.80
+        BATTLE_PREP_REACTION, "elements/label_prep_reaction.png", (250, 0, 450, 100), 3, 0.80
     ),
-    Signature(BATTLE_MAP, "elements/label_our_turn.png", PHASE_LABEL_REGION, 3, 0.80, True),
+    Signature(BATTLE_MAP, "elements/label_our_turn.png", PHASE_LABEL_REGION, 4, 0.80, True),
     Signature(
-        BATTLE_MAP_ENEMY, "elements/label_enemy_turn.png", PHASE_LABEL_REGION, 3, 0.80, True
+        BATTLE_MAP_ENEMY, "elements/label_enemy_turn.png", PHASE_LABEL_REGION, 4, 0.80, True
     ),
     Signature(
-        BATTLE_UNIT_MOVE, "elements/label_unit_move.png", PHASE_LABEL_REGION, 3, 0.80, True
+        BATTLE_UNIT_MOVE, "elements/label_unit_move.png", PHASE_LABEL_REGION, 4, 0.80, True
     ),
     Signature(
         BATTLE_WEAPON_SELECT,
         "elements/label_weapon_select.png",
         PHASE_LABEL_REGION,
-        3,
+        4,
         0.80,
         True,
     ),
-    Signature(BATTLE_SKILL, "elements/label_skill.png", PHASE_LABEL_REGION, 3, 0.80, True),
-    Signature(BATTLE_PREP, "elements/label_battle_prep.png", PHASE_LABEL_REGION, 3, 0.80, True),
-    Signature(SORTIE_PREP, "elements/btn_launch.png", (1915, 935, 255, 145), 4, 0.80, True),
-    Signature(STAGE_INFO, "screens/stage_info.png", (335, 288, 250, 128), 5, 0.80),
-    Signature(BATTLE_RESULT, "screens/battle_result.png", (160, 300, 290, 125), 6, 0.75),
-    Signature(BATTLE_DEFEAT, "screens/battle_failed.png", (980, 0, 400, 175), 7, 0.60),
+    Signature(BATTLE_SKILL, "elements/label_skill.png", PHASE_LABEL_REGION, 4, 0.80, True),
+    Signature(BATTLE_PREP, "elements/label_battle_prep.png", PHASE_LABEL_REGION, 4, 0.80, True),
+    Signature(SORTIE_PREP, "elements/btn_launch.png", (1915, 935, 255, 145), 5, 0.80, True),
+    Signature(STAGE_INFO, "screens/stage_info.png", (335, 288, 250, 128), 6, 0.80),
+    Signature(BATTLE_RESULT, "screens/battle_result.png", (160, 300, 290, 125), 7, 0.75),
+    Signature(BATTLE_DEFEAT, "screens/battle_failed.png", (980, 0, 400, 175), 8, 0.60),
+    # 「選擇關卡」標頭。NORMAL 與 HARD 節點在同一條軸上（難度不是分頁），所以這個
+    # 名字只說「人在關卡列表」，選了哪一關讀不出來。
+    Signature(STAGE_LIST, "screens/stage_list.png", (310, 0, 340, 140), 9, 0.85),
 )
 
 
@@ -142,14 +157,14 @@ def crop(frame: np.ndarray, region: Region) -> np.ndarray:
     return frame[y : y + h, x : x + w]
 
 
-def score(frame: np.ndarray, signature: Signature) -> float:
-    template = _template(signature.template)
+def match(frame: np.ndarray, template_name: str, region: Region, highpass: bool = False) -> float:
+    template = _template(template_name)
     if template is None or frame is None:
         return 0.0
-    patch = crop(frame, signature.region)
+    patch = crop(frame, region)
     if patch.size == 0:
         return 0.0
-    if signature.highpass:
+    if highpass:
         patch, template = _highpass(patch), _highpass(template)
     else:
         patch = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY)
@@ -157,6 +172,10 @@ def score(frame: np.ndarray, signature: Signature) -> float:
     if patch.shape[0] < template.shape[0] or patch.shape[1] < template.shape[1]:
         return 0.0
     return float(cv2.matchTemplate(patch, template, cv2.TM_CCOEFF_NORMED).max())
+
+
+def score(frame: np.ndarray, signature: Signature) -> float:
+    return match(frame, signature.template, signature.region, signature.highpass)
 
 
 def scores(frame: np.ndarray) -> dict[str, float]:
@@ -227,6 +246,38 @@ def read_grid_setting(frame: np.ndarray) -> str | None:
         return "on"
     if r < 120 and g < 120 and b < 120:
         return "off"
+    return None
+
+
+ROSTER_HEADER_TEMPLATE = "elements/unit_list_header.png"
+ROSTER_HEADER_EXPANDED_REGION: Region = (1855, 740, 220, 92)
+ROSTER_HEADER_COLLAPSED_REGION: Region = (1855, 960, 220, 92)
+ROSTER_HEADER_MIN = 0.6
+
+ROSTER_EXPANDED = "expanded"
+ROSTER_COLLAPSED = "collapsed"
+
+
+def is_unit_detail_modal(frame: np.ndarray) -> bool:
+    return score(frame, UNIT_DETAIL_SIGNATURE) >= UNIT_DETAIL_SIGNATURE.threshold
+
+
+def read_roster_strip(frame: np.ndarray) -> str | None:
+    """可行動單位卡條的狀態就是它的標頭在哪：條帶頂＝展開、降到底＝收合。
+
+    None ＝ 讀不出來（詳情彈窗蓋著、兩帶都命中、或兩帶都不中），**永遠不可以當
+    成收合**——舊碼把「被遮住」與「收合」混成同一個 False，實機上換來 41 次空轉
+    循環（0723 輪四）。搬自 battle/vision.unit_list_state，帶域與 0.6 門檻沿用
+    當時實測（命中 0.88-1.0、空帶 <=0.25、彈窗 <=0.10）。
+    """
+    if frame is None or is_unit_detail_modal(frame):
+        return None
+    top = match(frame, ROSTER_HEADER_TEMPLATE, ROSTER_HEADER_EXPANDED_REGION)
+    bottom = match(frame, ROSTER_HEADER_TEMPLATE, ROSTER_HEADER_COLLAPSED_REGION)
+    if top >= ROSTER_HEADER_MIN and bottom < ROSTER_HEADER_MIN:
+        return ROSTER_EXPANDED
+    if bottom >= ROSTER_HEADER_MIN and top < ROSTER_HEADER_MIN:
+        return ROSTER_COLLAPSED
     return None
 
 

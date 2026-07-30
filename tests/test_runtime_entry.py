@@ -5,11 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+import pytest
 
 import cv2
 
 from ggge_ai.runtime import entry, screens
-from ggge_ai.runtime.device import check_tap
+from ggge_ai.runtime.device import TapRefused, check_tap
 from tests.fixtures.frames import load, path_of
 
 MAP_GRID_ON = "grid/hub_grid_on_20260719"
@@ -19,6 +20,7 @@ MAP_AUTO_OFF = "stage_panels/battle_map_turn1_r2"
 MAP_AUTO_ACTIVE = "stage_panels/battle_map_turn1"
 PREP = "stage_panels/prep_screen"
 SETTINGS_GRID_ON = "settings/grid_on_20260706"
+STAGE_LIST = "popups/stage_list_dim_20260719"
 
 
 @dataclass
@@ -194,12 +196,90 @@ def test_expect_screen_gives_up_honestly():
     assert name == screens.UNKNOWN
 
 
+def test_selecting_a_stage_taps_nothing_when_no_node_is_supplied():
+    """哪一關的節點落在哪個像素是關卡內容（還隨節點軸捲動位置變），runtime 不猜。"""
+    screen = Screen([load(STAGE_LIST)])
+
+    report = entry.select_stage(screen.capture, screen.tap, sleep=lambda _: None)
+
+    assert report.ok, report.trail
+    assert report.trail == ("stage_list:ok",)
+    assert screen.taps == []
+
+
+def test_selecting_a_stage_taps_the_node_the_caller_supplied():
+    screen = Screen([load(STAGE_LIST), load(STAGE_LIST)])
+
+    report = entry.select_stage(
+        screen.capture, screen.tap, node=(544, 667), sleep=lambda _: None
+    )
+
+    assert report.ok, report.trail
+    assert screen.points() == [(544, 667)]
+    assert "stage_node:ok" in report.trail
+
+
+def test_a_stage_node_inside_the_abandon_band_is_refused_not_quietly_tapped():
+    """關卡列表的節點平台落在 y≈872，正好撞上戰鬥選單「放棄」的危險帶——裝置層看
+    不到畫面名，所以整帶一律拒點。節點要改點編號／星列那一列（y 較高）。"""
+    screen = Screen([load(STAGE_LIST)])
+
+    with pytest.raises(TapRefused):
+        entry.select_stage(screen.capture, screen.tap, node=(544, 872), sleep=lambda _: None)
+
+
+def test_selecting_a_stage_refuses_to_tap_when_we_are_not_on_the_list():
+    screen = Screen([blank()])
+
+    report = entry.select_stage(screen.capture, screen.tap, sleep=lambda _: None)
+
+    assert report.trail == ("stage_list:not_on_page",)
+    assert screen.taps == []
+
+
+def test_the_prep_page_step_reaches_the_prep_screen_without_spending_anything():
+    screen = Screen([load(STAGE_LIST), load(PREP)])
+
+    report = entry.open_sortie_prep(
+        screen.capture, screen.tap, entry.GateReport(), sleep=lambda _: None
+    )
+
+    assert report.ok, report.trail
+    assert report.trail == ("sortie_prep_page:ok",)
+    assert screen.points() == [entry.STAGE_LIST_PREP_TAP]
+
+
+def test_the_prep_page_is_not_claimed_when_the_tap_did_not_land():
+    screen = Screen([load(STAGE_LIST), blank()])
+
+    report = entry.open_sortie_prep(
+        screen.capture, screen.tap, entry.GateReport(), sleep=lambda _: None
+    )
+
+    assert not report.ok
+    assert "sortie_prep_page:not_reached" in report.trail
+
+
+def test_the_sortie_step_stops_on_the_stage_info_page_without_advancing():
+    """分段停點：出擊＋AUTO 閘門過了，TAP TO NEXT 還沒點——乾跑要在這裡停得住。"""
+    screen = Screen([load(PREP), stage_info_with_auto("off")])
+
+    report = entry.sortie(screen.capture, screen.tap, sleep=lambda _: None)
+
+    assert report.ok, report.trail
+    assert report.trail == ("sortie_prep:ok", "stage_info:ok", "auto_off:ok")
+    assert screen.points() == [entry.SORTIE_TAP]
+
+
 def sortie_script() -> Screen:
+    """AUTO 從 ON 關成 OFF 之後還會被重新確認一次所在頁（推進前的複核），所以
+    OFF 態的關卡資訊頁在腳本裡出現兩次。"""
     return Screen(
         [
             load(PREP),
             stage_info_with_auto("on"),
             stage_info_with_auto("on"),
+            stage_info_with_auto("off"),
             stage_info_with_auto("off"),
             load(MAP_GRID_ON),
             load(MAP_GRID_ON),

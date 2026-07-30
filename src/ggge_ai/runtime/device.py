@@ -222,9 +222,9 @@ class LiveDevice:
 class LiveExecutor:
     """手勢重播器。plans 把一個行動翻成手勢串；自帶 gestures 的操作直接重播。
 
-    drivers 收「要邊看邊做」的行動（翻設定頁開關、平移掃描）：它們不是一串固定
-    手勢，得自己截圖再決定下一步，所以拿到控制權自己跑完。成敗仍不回報——一律
-    由下一張畫面裁決（Executor 契約）。
+    drivers 收「要邊看邊做」的行動（翻設定頁開關、收卡條、平移掃描）：它們不是一串
+    固定手勢，得自己截圖再決定下一步，所以拿到控制權自己跑完。回傳值只當流水帳的
+    自述（這次做了哪一個微步驟），成敗仍不回報——一律由下一張畫面裁決。
 
     查不到 plan／driver 就拋 UnsupportedAction：無聲空轉是這個專案最貴的失效
     模式。
@@ -241,9 +241,11 @@ class LiveExecutor:
     def perform(self, action: Any, observation: Observation[Any]) -> None:
         driver = self.drivers.get(type(action))
         if driver is not None:
-            driver(action, observation)
+            step = driver(action, observation)
             if self.journal is not None:
-                self.journal.record("perform", label=getattr(action, "label", ""), driven=True)
+                self.journal.record(
+                    "perform", label=getattr(action, "label", ""), driven=True, step=step
+                )
             return
         self.replay(self.gestures_for(action, observation), label=getattr(action, "label", ""))
 

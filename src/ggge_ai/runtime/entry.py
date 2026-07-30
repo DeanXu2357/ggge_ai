@@ -35,6 +35,10 @@ class Tapper(Protocol):
 # 關卡資訊／條件頁的「TAP TO NEXT」推進點。畫面上大片都可推進，選一個離所有
 # 已知按鈕最遠的中下位置；**待實機確認此點無其他元件**。
 STAGE_INFO_ADVANCE_TAP = (1170, 780)
+# 關卡列表右欄的「出擊準備」鈕（模板 elements/btn_sortie_prep.png 的匹配中心）。
+# 鈕的下半壓在 y≈895-955 的危險帶裡（同一格在別的畫面上是自動編制／行動選擇），
+# 所以這個點刻意落在帶的上緣之上。
+STAGE_LIST_PREP_TAP = (2035, 880)
 SORTIE_TAP = (1930, 970)
 AUTO_DEPLOY_CANCEL_TAP = (971, 1009)
 BATTLE_MENU_TAP = (2170, 52)
@@ -220,13 +224,69 @@ def confirm_in_map(
     return report
 
 
-def enter_stage(
+def select_stage(
+    capture: Capture,
+    tap: Tapper,
+    *,
+    node: tuple[int, int] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> GateReport:
+    """關卡列表上選一關。不花任何資源。
+
+    node 是**呼叫端給的**：哪一關的節點落在哪個像素是關卡內容（而且隨節點軸捲動
+    位置變），不進 runtime。不給就什麼都不點，沿用現在選著的那一關。
+
+    點完只複驗「還在關卡列表」——選中的是哪一關畫面上讀不出來（右欄標題還沒接文字
+    讀取），所以呼叫端要自己看落檔的截圖確認。
+    """
+    report = GateReport()
+    screen, _ = expect_screen(capture, (screens.STAGE_LIST,), sleep=sleep)
+    if screen != screens.STAGE_LIST:
+        report.add("stage_list", "not_on_page", screen)
+        return report
+    report.add("stage_list", "ok")
+    if node is None:
+        return report
+
+    tap(*node)
+    sleep(1.5)
+    screen, _ = expect_screen(capture, (screens.STAGE_LIST,), sleep=sleep)
+    if screen != screens.STAGE_LIST:
+        report.add("stage_node", "left_the_page", screen)
+        return report
+    report.add("stage_node", "ok", f"{node[0]},{node[1]}")
+    return report
+
+
+def open_sortie_prep(
+    capture: Capture,
+    tap: Tapper,
+    report: GateReport,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+) -> GateReport:
+    """關卡列表 →（出擊準備）→ 出擊準備頁。仍然不花任何資源（花的是下一步的出擊）。"""
+    screen, _ = expect_screen(capture, (screens.STAGE_LIST,), sleep=sleep)
+    if screen != screens.STAGE_LIST:
+        report.add("sortie_prep_page", "not_on_list", screen)
+        return report
+    tap(*STAGE_LIST_PREP_TAP)
+    sleep(3.0)
+    screen, _ = expect_screen(capture, (screens.SORTIE_PREP,), sleep=sleep, attempts=10)
+    if screen != screens.SORTIE_PREP:
+        report.add("sortie_prep_page", "not_reached", screen)
+        return report
+    report.add("sortie_prep_page", "ok")
+    return report
+
+
+def sortie(
     capture: Capture,
     tap: Tapper,
     *,
     sleep: Callable[[float], None] = time.sleep,
 ) -> GateReport:
-    """出擊準備 →（出擊）→ 關卡資訊 →（TAP TO NEXT）→ 地圖，逐步硬閘門。
+    """出擊準備 →（出擊）→ 關卡資訊 → AUTO 硬閘門。**這一步起花 EN 與挑戰次數。**
 
     出擊鈕 (1930,970) 右上一帶是自動編制 (2001,924)：誤點會改編成，所以那一帶
     由裝置層的危險帶拒點，這裡只管按對的那一顆。
@@ -245,20 +305,51 @@ def enter_stage(
     )
     if screen == screens.STAGE_INFO:
         report.add("stage_info", "ok")
-        auto = confirm_auto_off(capture, tap, report, sleep=sleep)
-        if not auto.ok:
-            return report
-        tap(*STAGE_INFO_ADVANCE_TAP)
-        sleep(2.0)
+        confirm_auto_off(capture, tap, report, sleep=sleep)
     elif screen in screens.MAP_SCREENS:
         # TAP TO NEXT 被解鎖 wake-tap 誤觸過一次（0730）：已經進圖就不再點推進，
         # 直接進入入圖複核——AUTO 的確認在那裡照樣做。
         report.add("stage_info", "skipped", "already advanced to the map")
     else:
         report.add("stage_info", "not_on_page", screen)
-        return report
+    return report
 
+
+def advance_to_map(
+    capture: Capture,
+    tap: Tapper,
+    report: GateReport,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+) -> GateReport:
+    """關卡資訊 →（TAP TO NEXT）→ 地圖 → 入圖複核。
+
+    推進前重新確認所在頁：解鎖 wake-tap 誤觸 TAP TO NEXT（0730 實測）之後人已經在
+    地圖上，再點一下就是對著地圖亂點。
+    """
+    screen, _ = expect_screen(
+        capture, (screens.STAGE_INFO, *screens.MAP_SCREENS), sleep=sleep, attempts=10
+    )
+    if screen == screens.STAGE_INFO:
+        tap(*STAGE_INFO_ADVANCE_TAP)
+        sleep(2.0)
+    elif screen not in screens.MAP_SCREENS:
+        report.add("advance", "not_on_page", screen)
+        return report
     return confirm_in_map(capture, tap, report, sleep=sleep)
+
+
+def enter_stage(
+    capture: Capture,
+    tap: Tapper,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+) -> GateReport:
+    """出擊準備 →（出擊）→ 關卡資訊 →（TAP TO NEXT）→ 地圖，逐步硬閘門。"""
+    report = sortie(capture, tap, sleep=sleep)
+    if not report.ok:
+        return report
+    return advance_to_map(capture, tap, report, sleep=sleep)
 
 
 def abandon_battle(

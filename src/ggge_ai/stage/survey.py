@@ -1,9 +1,9 @@
-"""盤面全覽：覆蓋簿記、感知接縫，以及兩個行動的恢復式執行器。
+"""盤面全覽：覆蓋簿記、感知接縫，以及三個行動的恢復式執行器。
 
-開格線與掃描都是**符號行動**（stage/actions.py），不是藏在感知裡的程序：兩者
-都會改遊戲狀態，照 refire-gate 同一精神由規劃器排序。grid_on 是掃描的前置
-條件，所以規劃器自然把 show_grid 排在 survey_board 之前；掃描程序內部不翻
-開關，也沒有無格線降級掃。
+開格線、收卡條與掃描都是**符號行動**（stage/actions.py），不是藏在感知裡的程序：
+三者都會改遊戲狀態，照 refire-gate 同一精神由規劃器排序。grid_on 與
+roster_collapsed 是掃描的前置條件，所以規劃器自然把 show_grid／collapse_roster
+排在 survey_board 之前；掃描程序內部不翻開關、不收卡條，也沒有降級掃。
 
 掃描是**一個**行動，留在計畫佇列頭跨 tick 重入。執行器每次進來先感知複核（截
 一張新圖、對回上一幀量位移，鏡頭被反射動過也自己修回來），再挑下一個微步驟：
@@ -32,9 +32,9 @@ from typing import Any
 
 import numpy as np
 
-from ..runtime import board, entry
+from ..runtime import board, entry, screens
 from ..runtime.perceive import Observation, Perceiver
-from .actions import ShowGrid, SurveyBoard
+from .actions import CollapseRoster, ShowGrid, SurveyBoard
 from .state import Phase, StageState
 
 log = logging.getLogger(__name__)
@@ -43,6 +43,10 @@ ZOOM_STEP = "zoom"
 MERGE_STEP = "merge"
 DEFAULT_ITINERARY: tuple[str, ...] = ("west", "north", "east", "south")
 LEGS_PER_DIRECTION = 8
+ROSTER_SETTLE_S = 1.2
+ROSTER_ALREADY = "already"
+ROSTER_TAPPED = "tapped"
+ROSTER_UNREADABLE = "unreadable"
 
 
 @dataclass
@@ -108,10 +112,14 @@ class CoverageLedger:
 
 @dataclass
 class SurveyPerceiver:
-    """把 board_synced／swept 與 grid_on 併進觀測。
+    """把 board_synced／swept 與 grid_on／roster_collapsed 併進觀測。
 
     前兩個來自簿記（同 IntelPerceiver 的理由：符號效果只有我們自己的記憶承接
-    得住）；grid_on 是畫面事實，感知已經在 evidence 裡讀好了，這裡只搬不重讀。
+    得住）；後兩個是畫面事實，感知已經在 evidence 裡讀好了，這裡只搬不重讀。
+
+    卡條走**感知權威**：每個 tick 逐幀觀測，讀不出來（None）一律折成「沒收起」
+    ——收一次的成本遠低於在被遮住的掃描帶上量座標。evidence 裡沒有這個鍵時
+    （離線假件）保留狀態原值。
 
     看到敵方回合就讓簿記過期——這個接縫是唯一同時看得到簿記與觀測的地方。
     """
@@ -127,8 +135,12 @@ class SurveyPerceiver:
         if state.phase is Phase.ENEMY and self.ledger.synced:
             self.ledger.expire()
         grid_on = bool(seen.evidence.get("grid_on", state.grid_on))
-        folded = (self.ledger.synced, self.ledger.frozen_swept, grid_on)
-        if (state.board_synced, state.swept, state.grid_on) == folded:
+        if "roster_strip" in seen.evidence:
+            collapsed = seen.evidence["roster_strip"] == screens.ROSTER_COLLAPSED
+        else:
+            collapsed = state.roster_collapsed
+        folded = (self.ledger.synced, self.ledger.frozen_swept, grid_on, collapsed)
+        if (state.board_synced, state.swept, state.grid_on, state.roster_collapsed) == folded:
             return seen
         return replace(
             seen,
@@ -137,6 +149,7 @@ class SurveyPerceiver:
                 board_synced=self.ledger.synced,
                 swept=self.ledger.frozen_swept,
                 grid_on=grid_on,
+                roster_collapsed=collapsed,
             ),
         )
 
@@ -158,8 +171,21 @@ class BoardDriver:
     steps: list[str] = field(default_factory=list)
     generation: int = 0
 
-    def show_grid(self, action: ShowGrid, observation: Observation[Any]) -> None:
-        entry.set_battle_grid(self.capture, self._tap, True, sleep=self.sleep)
+    def show_grid(self, action: ShowGrid, observation: Observation[Any]) -> bool:
+        return entry.set_battle_grid(self.capture, self._tap, True, sleep=self.sleep)
+
+    def collapse_roster(self, action: CollapseRoster, observation: Observation[Any]) -> str:
+        """先讀再決定要不要點：卡條的切換鈕是同一顆的兩個位置，讀不出來就別亂點
+        （盲點一下會把已經收好的卡條又展開）。回傳這次做了什麼（進流水帳）。"""
+        strip = screens.read_roster_strip(self.capture())
+        if strip == screens.ROSTER_COLLAPSED:
+            return ROSTER_ALREADY
+        if strip is None:
+            log.warning("roster strip unreadable; not tapping the toggle blind")
+            return ROSTER_UNREADABLE
+        self._tap(*screens.ROSTER_TOGGLE_TAP)
+        self.sleep(ROSTER_SETTLE_S)
+        return ROSTER_TAPPED
 
     def survey_board(self, action: SurveyBoard, observation: Observation[Any]) -> str:
         """一次呼叫＝感知複核＋一個微步驟。回傳這次做了哪一步（進流水帳）。"""
@@ -181,7 +207,11 @@ class BoardDriver:
         return step
 
     def drivers(self) -> dict[type, Callable[[Any, Observation[Any]], Any]]:
-        return {ShowGrid: self.show_grid, SurveyBoard: self.survey_board}
+        return {
+            ShowGrid: self.show_grid,
+            CollapseRoster: self.collapse_roster,
+            SurveyBoard: self.survey_board,
+        }
 
     def _zoom(self) -> None:
         if self.zoom_out is None:
