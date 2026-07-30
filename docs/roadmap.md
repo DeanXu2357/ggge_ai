@@ -4,7 +4,31 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-07-30 10:00 更新，批 2c 派工進行中）
+## 暫停快照（2026-07-30 16:00，API 過載中斷點——使用者指示統整
+待命，重啟時間由使用者決定）
+
+### 中斷點與重啟指南
+
+- **中斷原因**：Anthropic API 大範圍 529 過載（官方事件「Elevated
+  errors across many models」），修正批連五次派工早夭（三次
+  opus＋兩次非 opus）。主 session 存活、主分支乾淨。
+- **重啟第一件事＝派「驗證輪修正批」**（code-editor worktree，
+  opus 恢復就用 opus）：五項規格＝①pinch 搬遷＋zoom_out 注入
+  ②dry_run_entry 幀源統一（Camera/Perceiver 兩套真相）③格線
+  設定頁探針降 advisory、地圖地面真相升唯一判準 ④select 明示化
+  （--stage-node 必填＋右欄截圖入 journal）⑤survey-ticks 預設 40
+  ＋unlocalised 入 survey_summary。細節：roadmap「2d 實機驗證輪
+  完成」條＋decisions.md；實測證據 data/runs/20260730-13*~14*。
+  派工時注意告知：覆蓋模型 v2 是下一批，別加深方向腿數耦合。
+- **修正批入庫後＝派「覆蓋模型 v2 批」**：完整派工規格已定案
+  `docs/survey-coverage-v2.md`（0730 使用者三輪問答核可：四態
+  知識圖＋前緣探索＋邊界旗＋五層量測防禦＋衰效降級）。
+- 之後：掃描複驗輪（live-tester）→ 2e 首戰。
+- 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（右欄 HARD 2
+  ——注意棄戰游標飄移陷阱，重入必明示選關）、EN 161/111、
+  資金 1,255,000。鎖屏靠 scripts/ensure_unlocked.py。
+
+## 舊快照（2026-07-30 10:00 更新，批 2c 派工進行中）
 
 ### 裝置現況
 
