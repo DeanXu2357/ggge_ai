@@ -55,6 +55,23 @@
   ——0730 使用者核可並補充定向：LLM 輸出綁封閉 schema（沙盤已
   實作機制的枚舉，MCP 式契約）、schema 外新機制標 unsupported
   待改碼，不猜不入庫（已落 intel-data-spec.md）。
+- **批 2c 設計決定整批接受**（b24543e 合併；驗證：worktree 閘門
+  綠＋獨角獸武裝頁數值逐欄對 ground truth 全中＋LLM 契約確認為
+  約束解碼非 prompt 拜託）。要點備查：(1) 組裝落 stage/
+  intel_panels.py——runtime 不得 import stage，型別住 stage；
+  (2) **accuracy＝命中%−100**（沙盤加法項對映）待批 2d 實機
+  forecast 對帳；(3) pilot_attack 不預填，三值存 pilot_offence
+  由呼叫端依武裝類別選；(4) 武裝類別是集合（一把可掛多枚徽章，
+  實樣佐證）；(5) 無特效說明的卡 schema 縮成只問名稱（實測留欄
+  會誘發模型腦補）；(6) 戰鬥力／總戰鬥力描邊漸層字放棄解析（與
+  舊碼同判）。舊 battle/panels.py 實測有無聲讀錯 bug（digit_height
+  24 應為 22＋固定卡距錯位）——搬遷以新 runtime 實作為準。
+- **面板 LLM 預設模型改 gemma4:31b**｜規格原指名 gemma3:27b
+  （裁定當時的知識），交付實測：gemma3:27b 武裝名 0/3 且吐簡體、
+  gemma4:31b 收窄後 8/8 全對齊｜(a) 留 gemma3 照規格、(b) 改
+  gemma4:31b｜採 (b)：證據一面倒，簡體輸出另違專案紅線；
+  GGGE_PANEL_LLM_MODEL 可覆寫。能力整區通道仍不可信（截斷、
+  誤映各一例），列 2d 待驗。
 - **2b-2 站位掃描精度接受**｜重跑輪人工掃描產出：四邊界截證齊、
   單位普查 12–15/18（南東角未逐格掃）、格座標 ±1 行不確定（透視
   ＋貼圖高度）｜(a) 再派一輪補到像素級全覆蓋、(b) 接受為蒐樣級

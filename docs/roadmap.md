@@ -35,11 +35,15 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   （CS 徽章、支援＝資格旗標無數字、彈藥欄關卡內缺樣）。
   站位普查 12–15/18（±1 格）收蒐樣級，權威站位歸批 2d 程式
   掃描（備案 decisions.md）。
-- **2c 解析方法已裁定**（decisions.md）：混合式——數值欄數字
-  字模模板匹配＋固定徽章小模板＋自由文字本地視覺 LLM（ollama
-  gemma3:27b）＋型錄白名單對齊。**2c 解析器實作已派 code-editor
-  （opus worktree）進行中**，交付：runtime/ 解析模組＋字模模板
-  ＋fixture 釘死測試＋scripts/parse_panel.py。
+- **批 2c 入庫**（b24543e 合併＋後續修正）：runtime/glyphs＋
+  panels＋panel_text（封閉 schema 約束解碼，LLM 預設 gemma4:31b）
+  ＋stage/intel_panels 組裝＋字模／徽章模板＋fixture 釘死測試
+  98 筆＋scripts/parse_panel.py。針對性驗證過（數值 ground truth
+  全中、LLM 契約確認）。**已知缺口留給 2d**：intel.py 型別缺
+  pilot 三值／武裝類別／爆擊%／LV／MP 等落點（2c 讀到落不進）、
+  能力整區 LLM 通道不可信（要確定性切分逐條餵）、強化頁能力
+  分頁零樣本、關卡內彈藥欄缺樣、CS 多徽章排列未驗、
+  accuracy=命中%−100 待 forecast 對帳。
 - UC HARD 1 敵情（沙盤先驗素材）：破壞數目標 0/18；薩克群
   6–8＋帶盾精英＋散兵 2；北帶克斯希雅 2–3＋**boss 獨角獸鋼彈
   （巴納吉，可奪取，分數檔 4,000/7,000/10,000）**；西南大型
