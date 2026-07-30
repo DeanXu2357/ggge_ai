@@ -96,6 +96,56 @@ class Inspect(Action):
 
 
 @dataclass(frozen=True)
+class ShowGrid(Action):
+    """開輔助格線。供給 grid_on，不花任何單位的行動權。
+
+    翻開關的地方在戰鬥設定頁，所以這是一個會改遊戲狀態的行為——照 refire-gate
+    同一精神，它是符號行動而不是藏在掃描程序裡的一步。驗不到格網＝沒進展，
+    照既有行動失敗語意走（重送、換規劃、或誠實停止）。
+    """
+
+    @property
+    def label(self) -> str:
+        return "show_grid"
+
+    def applicable(self, state: StageState) -> bool:
+        return state.phase is Phase.PLAYER and not state.grid_on
+
+    def apply(self, state: StageState, pricing: Pricing) -> StageState:
+        return state.show_grid()
+
+    def progressed(self, state: StageState, pricing: Pricing) -> bool:
+        return state.grid_on
+
+
+@dataclass(frozen=True)
+class SurveyBoard(Action):
+    """盤面全覽掃描：最小縮放＋系統平移收全單位格座標。
+
+    前置條件 grid_on 是符號的——沒有格線就不掃，沒有降級版。像素→格的換算靠
+    格線才穩，量不到格的座標進情報庫比沒有座標更糟。
+
+    **一個行動、跨 tick 重入**：它會留在計畫佇列頭被反覆 perform，執行器每次
+    進來先感知複核再走一個微步驟（縮放→分段平移→逐幀量測吸附→邊界→合併
+    寫回），所以反射可以在任何一個 tick 插進來收彈窗，之後接著掃。完成與否只
+    看 board_synced，分段進度（swept）是恢復點不是完成條件。
+    """
+
+    @property
+    def label(self) -> str:
+        return "survey_board"
+
+    def applicable(self, state: StageState) -> bool:
+        return state.phase is Phase.PLAYER and state.grid_on and not state.board_synced
+
+    def apply(self, state: StageState, pricing: Pricing) -> StageState:
+        return state.sync_board()
+
+    def progressed(self, state: StageState, pricing: Pricing) -> bool:
+        return state.board_synced
+
+
+@dataclass(frozen=True)
 class Standby(Action):
     unit: str
 
@@ -158,7 +208,16 @@ class Withdraw(Action):
         return state.withdrawn
 
 
-VOCABULARY: tuple[type[Action], ...] = (Move, Attack, Inspect, Standby, Brace, Withdraw)
+VOCABULARY: tuple[type[Action], ...] = (
+    Move,
+    Attack,
+    Inspect,
+    ShowGrid,
+    SurveyBoard,
+    Standby,
+    Brace,
+    Withdraw,
+)
 
 
 def candidates(state: StageState) -> tuple[Action, ...]:
@@ -176,6 +235,9 @@ def candidates(state: StageState) -> tuple[Action, ...]:
         actions.extend(Attack(unit, enemy) for enemy in sorted(state.enemies))
         actions.extend(Move(unit, cell) for cell in state.reach_of(unit))
     actions.extend(Inspect(enemy) for enemy in sorted(state.enemies - state.known))
+    for board_action in (ShowGrid(), SurveyBoard()):
+        if board_action.applicable(state):
+            actions.append(board_action)
     if not state.withdrawn:
         actions.append(Withdraw())
     return tuple(actions)

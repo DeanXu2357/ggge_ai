@@ -32,8 +32,6 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from .device import Swipe
-
 log = logging.getLogger(__name__)
 
 Point = tuple[float, float]
@@ -89,6 +87,8 @@ PAN_ORIGIN_GRID: tuple[Point, ...] = tuple(
     (float(x), float(y)) for y in (360, 470, 580, 660) for x in (760, 940, 1170, 1400, 1580)
 )
 PAN_HALF = {"x": 250, "y": 170}
+# 拖得慢比較不會被吃掉：0719 星圖上 500ms 的拖曳整段被吞（動作後的鏡頭緩動
+# ＋adb 掉線）。呼叫端把手勢打出去時用這兩個值。
 PAN_DURATION_S = 0.7
 PAN_SETTLE_S = 1.5
 DIRECTIONS: dict[str, tuple[int, int]] = {
@@ -413,11 +413,6 @@ def pan_gesture(direction: str, origin: Point) -> tuple[int, int, int, int]:
     )
 
 
-def pan_swipe(direction: str, origin: Point) -> Swipe:
-    """平移手勢。拖得慢比較不會被吃掉（0719 星圖上 500ms 的拖曳整段被吞：
-    動作後的鏡頭緩動＋adb 掉線）。"""
-    x1, y1, x2, y2 = pan_gesture(direction, origin)
-    return Swipe(x1, y1, x2, y2, duration_s=PAN_DURATION_S, settle_s=PAN_SETTLE_S)
 
 
 @dataclass

@@ -18,7 +18,7 @@ import cv2
 import numpy as np
 
 from ..contracts import Ending
-from . import screens
+from . import board, screens
 
 
 @dataclass(frozen=True)
@@ -73,6 +73,9 @@ def read(frame: Any) -> dict[str, Any]:
         return {}
     return {
         "auto": screens.read_auto_switch(image),
+        # grid_on 是地圖上的地面真相（讀不讀得出格網），grid_setting 是設定頁
+        # 滑塊——盤面掃描的符號前置條件看前者，設定頁流程看後者。
+        "grid_on": board.read_lattice(image) is not None,
         "grid_setting": screens.read_grid_setting(image),
         "frame_sig": screens.frame_signature(image),
     }
