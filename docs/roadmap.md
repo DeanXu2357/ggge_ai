@@ -67,9 +67,11 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   高評價（保守解讀＝三星 COMPLETE，備案待推翻）完成 UC 全系列
   HARD（4 關）。決策自裁授權：保守預設＋逐筆備案 docs/decisions.md；
   需要使用者時 discord-notify。
-- 下一步順序：①2d 實機驗證輪（先寫進場乾跑＋掃描駕駛 script，
-  live-tester 按 2d 交付報告 12 項清單跑）②彈窗簽名補樣小批
-  ③2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據
-  分層、Move/Attack/Inspect plan）。
+- 下一步順序：①2d 收尾小批（進行中：收卡條符號化＋彈窗簽名
+  補樣＋dry_run_entry.py 駕駛 script）②scripts/ 目錄清理
+  （0730 使用者指派：無需求入口移除、逐支備案、CLAUDE.md 常用
+  指令同步）③2d 實機驗證輪（live-tester 按 12 項清單）④2e
+  首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據分層、
+  Move/Attack/Inspect plan）。
 - 注意：首次真跑 `python -m ggge_ai`（無 --run-dir）會把 data/runs
   舊 run 目錄一次性全壓縮——刻意行為，勿在意外時機觸發。
