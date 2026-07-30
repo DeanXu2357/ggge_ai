@@ -73,7 +73,11 @@ class Attack(Action):
 
 @dataclass(frozen=True)
 class Inspect(Action):
-    """點單位讀詳情：只換到情報，不花任何單位的行動權。"""
+    """點單位讀詳情：只換到情報，不花任何單位的行動權。
+
+    點單位會把可行動單位卡條彈回來（使用者實測），所以效果裡要把 roster_collapsed
+    打回原點——否則規劃器會排出「收卡條→偵察→掃描」這種自己踩掉前置條件的計畫。
+    """
 
     target: str
 
@@ -89,7 +93,7 @@ class Inspect(Action):
         )
 
     def apply(self, state: StageState, pricing: Pricing) -> StageState:
-        return state.learn(self.target)
+        return state.learn(self.target).expand_roster()
 
     def progressed(self, state: StageState, pricing: Pricing) -> bool:
         return self.target in state.known
@@ -119,11 +123,34 @@ class ShowGrid(Action):
 
 
 @dataclass(frozen=True)
+class CollapseRoster(Action):
+    """收可行動單位卡條（▽）。供給 roster_collapsed，不花任何單位的行動權。
+
+    比照 ShowGrid：展開的卡條蓋住地圖下緣、掃描帶一路到 y1020，所以收卡條是一個
+    符號行動而不是藏在掃描程序裡的一步（0730 使用者核可）。驗不到收合＝沒進展。
+    """
+
+    @property
+    def label(self) -> str:
+        return "collapse_roster"
+
+    def applicable(self, state: StageState) -> bool:
+        return state.phase is Phase.PLAYER and not state.roster_collapsed
+
+    def apply(self, state: StageState, pricing: Pricing) -> StageState:
+        return state.collapse_roster()
+
+    def progressed(self, state: StageState, pricing: Pricing) -> bool:
+        return state.roster_collapsed
+
+
+@dataclass(frozen=True)
 class SurveyBoard(Action):
     """盤面全覽掃描：最小縮放＋系統平移收全單位格座標。
 
-    前置條件 grid_on 是符號的——沒有格線就不掃，沒有降級版。像素→格的換算靠
-    格線才穩，量不到格的座標進情報庫比沒有座標更糟。
+    前置條件 grid_on 與 roster_collapsed 都是符號的——沒有格線就不掃，沒有降級版。
+    像素→格的換算靠格線才穩，量不到格的座標進情報庫比沒有座標更糟；卡條沒收起來
+    則下緣整帶量到的是卡條而不是地圖。
 
     **一個行動、跨 tick 重入**：它會留在計畫佇列頭被反覆 perform，執行器每次
     進來先感知複核再走一個微步驟（縮放→分段平移→逐幀量測吸附→邊界→合併
@@ -136,7 +163,12 @@ class SurveyBoard(Action):
         return "survey_board"
 
     def applicable(self, state: StageState) -> bool:
-        return state.phase is Phase.PLAYER and state.grid_on and not state.board_synced
+        return (
+            state.phase is Phase.PLAYER
+            and state.grid_on
+            and state.roster_collapsed
+            and not state.board_synced
+        )
 
     def apply(self, state: StageState, pricing: Pricing) -> StageState:
         return state.sync_board()
@@ -213,6 +245,7 @@ VOCABULARY: tuple[type[Action], ...] = (
     Attack,
     Inspect,
     ShowGrid,
+    CollapseRoster,
     SurveyBoard,
     Standby,
     Brace,
@@ -235,7 +268,7 @@ def candidates(state: StageState) -> tuple[Action, ...]:
         actions.extend(Attack(unit, enemy) for enemy in sorted(state.enemies))
         actions.extend(Move(unit, cell) for cell in state.reach_of(unit))
     actions.extend(Inspect(enemy) for enemy in sorted(state.enemies - state.known))
-    for board_action in (ShowGrid(), SurveyBoard()):
+    for board_action in (ShowGrid(), CollapseRoster(), SurveyBoard()):
         if board_action.applicable(state):
             actions.append(board_action)
     if not state.withdrawn:

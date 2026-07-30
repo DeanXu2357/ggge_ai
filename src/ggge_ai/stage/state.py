@@ -37,6 +37,11 @@ class StageState:
     為符號前置條件，所以開格線是一個行動、由規劃器排在掃描之前——掃描程序
     內部不偷偷翻開關，也沒有無格線降級掃這回事。
 
+    roster_collapsed ＝ 可行動單位卡條已收起（畫面事實：卡條標頭落在條帶底）。
+    展開的卡條蓋住地圖下緣，而密度峰的掃描帶一路到 y1020，所以它跟 grid_on 同樣
+    是掃描的符號前置條件、收卡條同樣是一個行動（0730 使用者核可）。感知權威：
+    每個 tick 由 screens.read_roster_strip 重讀，讀不出來一律當「沒收起」。
+
     board_synced ＝ 盤面全覽已收完並寫回，且還沒過期。swept ＝ 已掃完的分段，
     掃描行動跨 tick 重入時的恢復點。兩者都與 known 同族的程式內記憶（來源是
     stage/survey.py 的 SurveyPerceiver），但**必須在符號狀態上看得見**：完成
@@ -56,6 +61,7 @@ class StageState:
     reaction: Reaction | None = None
     withdrawn: bool = False
     grid_on: bool = False
+    roster_collapsed: bool = False
     board_synced: bool = False
     swept: frozenset[str] = frozenset()
 
@@ -86,6 +92,12 @@ class StageState:
     def show_grid(self) -> StageState:
         return replace(self, grid_on=True)
 
+    def collapse_roster(self) -> StageState:
+        return replace(self, roster_collapsed=True)
+
+    def expand_roster(self) -> StageState:
+        return replace(self, roster_collapsed=False)
+
     def sync_board(self) -> StageState:
         """搜尋側的掃描是一步到底：分段進度是執行側的恢復點，不進搜尋鍵。"""
         return replace(self, board_synced=True)
@@ -106,12 +118,16 @@ def next_player_phase(state: StageState) -> StageState:
     入狀態，讓沒有進展的交界自我重合，搜尋才會在原地打轉時收斂。
 
     盤面同步在交界一律過期：敵方回合裡每台敵人都可能動過，上一輪掃出來的站位
-    不再是站位。格線不受影響（設定不會自己關掉）。"""
+    不再是站位。格線不受影響（設定不會自己關掉）。卡條收合保守當作作廢——新回合
+    重新算可行動單位、卡條會重繪，實機是否真的彈回來未驗，所以搜尋側取「還要再
+    收一次」這一邊；真的還收著的話感知會馬上把它讀回 True，多排的收卡條當下就
+    算完成。"""
     return replace(
         state,
         phase=Phase.PLAYER,
         actionable=state.allies,
         reaction=None,
+        roster_collapsed=False,
         board_synced=False,
         swept=frozenset(),
     )

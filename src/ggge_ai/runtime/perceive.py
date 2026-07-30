@@ -77,6 +77,9 @@ def read(frame: Any) -> dict[str, Any]:
         # 滑塊——盤面掃描的符號前置條件看前者，設定頁流程看後者。
         "grid_on": board.read_lattice(image) is not None,
         "grid_setting": screens.read_grid_setting(image),
+        # 三值：收合／展開／None（讀不出來）。None 不可以當成收合——掃描帶被卡條
+        # 蓋著的話量出來的座標比沒有座標更糟。
+        "roster_strip": screens.read_roster_strip(image),
         "frame_sig": screens.frame_signature(image),
     }
 

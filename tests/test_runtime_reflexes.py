@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import pytest
+
 from ggge_ai.contracts import Ending, HiddenPolicy, Objective, StageOrder
 from ggge_ai.runtime import reflexes, screens
 from ggge_ai.runtime.device import Key, LiveExecutor, Tap
@@ -12,6 +14,7 @@ from ggge_ai.runtime.perceive import Observation
 from ggge_ai.stage.goals import Annihilation
 from ggge_ai.stage.loop import StageLoop, TickOutcome
 from ggge_ai.stage.run import JOURNAL_NAME
+from tests.fixtures.frames import load
 from tests.fixtures.stage_offline import MockAdvisor, ScriptedPerceiver, battle, kills_everything
 
 
@@ -57,6 +60,41 @@ def test_the_login_and_notice_popups_are_dismissed_by_their_calibrated_taps():
     assert reflexes.LOGIN_BONUS_FIX.gestures[0].x == reflexes.LOGIN_BONUS_TAP[0]
     assert reflexes.NOTICE_FIX.gestures[0].y == reflexes.NOTICE_CLOSE_TAP[1]
     assert reflexes.DATE_CHANGED_FIX.gestures[0].x == reflexes.DATE_CHANGED_TAP[0]
+
+
+@pytest.mark.parametrize(
+    ("case", "reflex_name", "point"),
+    [
+        ("popups/login_bonus_dim_20260729", "login_bonus", reflexes.LOGIN_BONUS_TAP),
+        ("popups/notice_loading_20260729", "notice", reflexes.NOTICE_CLOSE_TAP),
+        ("popups/date_changed_hub_20260730", "date_changed", reflexes.DATE_CHANGED_TAP),
+    ],
+)
+def test_a_real_popup_frame_reaches_its_reflex_and_gets_the_right_tap(case, reflex_name, point):
+    """簽名補齊前這三個反射永遠等不到自己的畫面名（分類器只回 unknown）。
+    實幀 → classify → 反射 → 收乾點，整條線一起釘住。"""
+    observation = Observation(screen=screens.classify(load(case)))
+
+    fired = [
+        (reflex.name, reflex.match(observation))
+        for reflex in reflexes.default_reflexes()
+        if reflex.match(observation) is not None
+    ]
+
+    assert [name for name, _ in fired] == [reflex_name]
+    fix = fired[0][1]
+    assert [(g.x, g.y) for g in fix.gestures] == [point]
+
+
+def test_the_notice_close_tap_lands_on_the_close_button_in_the_real_frame():
+    """關閉鈕帶是實測位置：反射點的那一下必須落在按鈕框內（0723 標定）。"""
+    frame = load("popups/notice_loading_20260729")
+    x, y = reflexes.NOTICE_CLOSE_TAP
+
+    assert screens.classify(frame) == screens.NOTICE
+    # 按鈕框的內側亮底（藍灰），不是彈窗留白也不是黑幀。
+    b, g, r = (int(v) for v in frame[y, x])
+    assert 60 < b < 255 and 60 < g < 255 and 60 < r < 255
 
 
 def test_a_stray_unit_move_mode_is_backed_out_of():

@@ -9,6 +9,7 @@ from ggge_ai.stage.actions import (
     VOCABULARY,
     Attack,
     Brace,
+    CollapseRoster,
     Inspect,
     Move,
     ShowGrid,
@@ -30,6 +31,7 @@ def test_the_vocabulary_is_exactly_these_verbs():
         Attack,
         Inspect,
         ShowGrid,
+        CollapseRoster,
         SurveyBoard,
         Standby,
         Brace,
@@ -154,6 +156,17 @@ def test_inspect_needs_a_live_unknown_target_and_only_buys_intel():
     assert after.enemies == {"e1", "e2"}
     assert Inspect("e1").progressed(after, FREE)
     assert not Inspect("e1").progressed(state, FREE)
+
+
+def test_inspecting_a_unit_pops_the_roster_strip_back_open():
+    """點單位會把卡條彈回來（使用者實測），效果裡要看得到——不然規劃器會排出
+    自己踩掉掃描前置條件的計畫。"""
+    state = battle(allies=["a1"], enemies=["e1"], known=["a1"])
+
+    after = Inspect("e1").apply(state, FREE)
+
+    assert state.roster_collapsed
+    assert not after.roster_collapsed
 
 
 def test_inspect_is_off_the_table_during_the_enemy_phase():

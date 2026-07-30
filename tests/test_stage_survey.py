@@ -16,7 +16,8 @@ from ggge_ai.runtime.device import LiveExecutor
 from ggge_ai.runtime.journal import Journal
 from ggge_ai.runtime.perceive import Observation
 from ggge_ai.sandbox.advise import Guarantee, Pricing
-from ggge_ai.stage.actions import Attack, ShowGrid, SurveyBoard, candidates
+from ggge_ai.runtime import screens
+from ggge_ai.stage.actions import Attack, CollapseRoster, ShowGrid, SurveyBoard, candidates
 from ggge_ai.stage.goals import Annihilation
 from ggge_ai.stage.loop import StageLoop, TickOutcome
 from ggge_ai.stage.planner import PlannerConfig, plan
@@ -24,15 +25,22 @@ from ggge_ai.stage.run import JOURNAL_NAME
 from ggge_ai.stage.state import Phase, StageState, next_player_phase
 from ggge_ai.stage.survey import (
     MERGE_STEP,
+    ROSTER_ALREADY,
+    ROSTER_TAPPED,
+    ROSTER_UNREADABLE,
     ZOOM_STEP,
     CoverageLedger,
     SurveyPerceiver,
     survey_drivers,
 )
+from tests.fixtures.frames import load
 from tests.fixtures.stage_offline import MockAdvisor, ScriptedPerceiver, battle, frame
 
 SERIES = Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
 FREE = Pricing(1.0)
+ROSTER_EXPANDED_FRAME = "forecast/our_turn_unit_list_20260719"
+ROSTER_COLLAPSED_FRAME = "forecast/our_turn_list_collapsed_20260719"
+ROSTER_COVERED_FRAME = "forecast/unit_detail_combined_20260719"
 
 
 @functools.cache
@@ -79,7 +87,7 @@ def _survey_then_kill(current: StageState, action) -> Pricing | None:
     """情報不全＝行為：盤面沒同步就不替戰鬥背書，計畫自己長出掃描。"""
     if isinstance(action, Attack):
         return Pricing(1.0, Guarantee.KILL) if current.board_synced else None
-    if isinstance(action, ShowGrid | SurveyBoard):
+    if isinstance(action, ShowGrid | CollapseRoster | SurveyBoard):
         return Pricing(1.0)
     return None
 
@@ -90,6 +98,131 @@ def test_the_survey_needs_the_grid_first():
 
     assert not SurveyBoard().applicable(dark)
     assert ShowGrid().applicable(dark)
+
+
+def test_the_survey_needs_the_roster_strip_collapsed_too():
+    """展開的卡條蓋住掃描帶下緣（一路到 y1020）：同 grid_on，前置條件是符號的。"""
+    open_strip = battle(allies=["a1"], enemies=["e1"], roster_collapsed=False, board_synced=False)
+
+    assert not SurveyBoard().applicable(open_strip)
+    assert CollapseRoster().applicable(open_strip)
+
+    collapsed = CollapseRoster().apply(open_strip, FREE)
+
+    assert collapsed.roster_collapsed
+    assert SurveyBoard().applicable(collapsed)
+    assert CollapseRoster().progressed(collapsed, FREE)
+    assert not CollapseRoster().applicable(collapsed)
+
+
+def test_collapsing_the_roster_is_a_candidate_only_while_the_strip_is_open():
+    open_strip = battle(allies=["a1"], enemies=["e1"], roster_collapsed=False, board_synced=False)
+    collapsed = battle(allies=["a1"], enemies=["e1"], board_synced=False)
+
+    assert "collapse_roster" in [action.label for action in candidates(open_strip)]
+    assert "collapse_roster" not in [action.label for action in candidates(collapsed)]
+
+
+def test_the_planner_collapses_the_roster_before_the_survey():
+    state = battle(
+        allies=["a1"],
+        enemies=["e1"],
+        grid_on=False,
+        roster_collapsed=False,
+        board_synced=False,
+        known=["a1", "e1"],
+    )
+
+    labels = [
+        step.action.label
+        for step in plan(
+            state, Annihilation(), MockAdvisor(_survey_then_kill), PlannerConfig()
+        ).steps
+    ]
+
+    assert labels.index("collapse_roster") < labels.index("survey_board")
+    assert labels.index("show_grid") < labels.index("survey_board")
+
+
+def test_a_turn_boundary_makes_the_collapse_stale_again():
+    """換回合重算可行動單位、卡條重繪：搜尋側取保守的那一邊（還要再收一次）。"""
+    collapsed = battle(allies=["a1"], enemies=["e1"], actionable=[])
+
+    assert not next_player_phase(collapsed).roster_collapsed
+
+
+def test_the_driver_reads_the_strip_before_touching_the_toggle():
+    actuator = FakeActuator()
+    driver, _ = survey_drivers(
+        lambda: load(ROSTER_COLLAPSED_FRAME), actuator, sleep=lambda _: None
+    )
+
+    step = driver.collapse_roster(CollapseRoster(), Observation(screen="battle_map"))
+
+    assert step == ROSTER_ALREADY
+    assert actuator.taps == []
+
+
+def test_the_driver_taps_the_toggle_when_the_strip_is_open():
+    actuator = FakeActuator()
+    driver, _ = survey_drivers(lambda: load(ROSTER_EXPANDED_FRAME), actuator, sleep=lambda _: None)
+
+    step = driver.collapse_roster(CollapseRoster(), Observation(screen="battle_map"))
+
+    assert step == ROSTER_TAPPED
+    assert [(x, y) for x, y, _ in actuator.taps] == [screens.ROSTER_TOGGLE_TAP]
+
+
+def test_an_unreadable_strip_is_never_tapped_blind():
+    """彈窗蓋住條帶＝讀不出來，不是收好了。盲點一下會把收好的卡條又展開。"""
+    actuator = FakeActuator()
+    driver, _ = survey_drivers(lambda: load(ROSTER_COVERED_FRAME), actuator, sleep=lambda _: None)
+
+    step = driver.collapse_roster(CollapseRoster(), Observation(screen="battle_map"))
+
+    assert step == ROSTER_UNREADABLE
+    assert actuator.taps == []
+
+
+def test_the_journal_records_which_micro_step_the_driver_did(tmp_path):
+    """驅動型行動的自述要進流水帳：不然事後只看得到「做過一次掃描」，看不出那一 tick
+    是縮放、平移還是合併，也看不出收卡條是點了還是本來就收好。"""
+    journal = Journal(tmp_path / JOURNAL_NAME)
+    driver, ledger = survey_drivers(
+        lambda: load(ROSTER_COLLAPSED_FRAME), FakeActuator(), sleep=lambda _: None
+    )
+    executor = LiveExecutor(
+        device=FakeActuator(), drivers=driver.drivers(), journal=journal, sleep=lambda _: None
+    )
+    ledger.zoomed = True
+
+    executor.perform(CollapseRoster(), Observation(screen="battle_map"))
+
+    recorded = [line for line in journal.entries() if line["kind"] == "perform"]
+    assert [(line["label"], line["step"]) for line in recorded] == [
+        ("collapse_roster", ROSTER_ALREADY)
+    ]
+
+
+def test_the_perceiver_takes_the_strip_state_from_the_frame_evidence():
+    """感知權威：逐幀觀測覆寫符號狀態，讀不出來一律折成「沒收起」。"""
+    seen = Observation(
+        screen="battle_map",
+        state=battle(allies=["a1"], enemies=["e1"], roster_collapsed=False),
+        evidence={"roster_strip": screens.ROSTER_COLLAPSED},
+    )
+    covered = Observation(
+        screen="battle_map",
+        state=battle(allies=["a1"], enemies=["e1"]),
+        evidence={"roster_strip": None},
+    )
+
+    assert SurveyPerceiver(ScriptedPerceiver([seen]), CoverageLedger()).look().state.roster_collapsed
+    assert (
+        not SurveyPerceiver(ScriptedPerceiver([covered]), CoverageLedger())
+        .look()
+        .state.roster_collapsed
+    )
 
 
 def test_showing_the_grid_supplies_the_precondition():
