@@ -88,9 +88,11 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   unverified（地面真相複驗皆過，疑截圖早於動畫）；④棄戰後
   游標飄移陷阱（已入 ui-navigation-map）；⑤unlocalised 出現
   1 次（fail-soft 正確，觀察中）。
-- 下一步順序：①驗證輪修正批（pinch 搬遷＋幀源統一＋格線探針
-  降級地面真相＋select 明示化＋掃描預算調整）②修正後掃描
-  複驗輪 ③2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、
-  陣營證據分層、Move/Attack/Inspect plan）。
+- 下一步順序：①驗證輪修正批（進行中：pinch 搬遷＋幀源統一＋
+  格線探針降級地面真相＋select 明示化＋掃描預算調整）②覆蓋
+  模型 v2 批（0730 晚使用者定向，module-map 批 2d 條：世界空間
+  四態知識圖＋缺口導向平移＋衰效降級 stale 不抹除＋縮小降級為
+  最佳化）③掃描複驗輪 ④2e 首戰 UC HARD 1（符號讀取注入、
+  單位↔螢幕對位、陣營證據分層、Move/Attack/Inspect plan）。
 - 注意：首次真跑 `python -m ggge_ai`（無 --run-dir）會把 data/runs
   舊 run 目錄一次性全壓縮——刻意行為，勿在意外時機觸發。
