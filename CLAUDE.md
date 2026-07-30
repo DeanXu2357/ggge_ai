@@ -26,7 +26,9 @@
 ## 常用指令
 
 - 截圖：`uv run python scripts/capture.py`（存 assets/screenshots/，gitignored）
-- 手動接管當前戰鬥：`uv run python scripts/run_manual_battle.py`
-- 完整通關迴圈（從關卡列表）：`uv run python scripts/run_clear_loop.py`
-- 流水帳輸出：`data/runs/<時間戳>/battle_NN.jsonl`（gitignored）
+- 解鎖（系統鎖＋遊戲省電觸控鎖）：`uv run python scripts/ensure_unlocked.py`
+- 實機唯讀探針（畫面名／AUTO／格網／目擊）：`uv run python scripts/probe_live_channel.py`
+- 進場乾跑（分段停點＋掃描＋棄戰）：`uv run python scripts/dry_run_entry.py --stop-after …`
+- 面板解析驗證：`uv run python scripts/parse_panel.py <png> [--no-llm]`
+- 流水帳輸出：`data/runs/<時間戳>/`（gitignored）
 - 模板驗證：`scripts/verify_match.py`、裁切：`scripts/crop.py`
