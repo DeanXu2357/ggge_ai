@@ -139,6 +139,76 @@ def test_missing_abilities_is_a_gap_not_a_clean_record():
     assert result.complete is False
 
 
+def test_the_weapon_badges_crit_and_level_reach_the_record():
+    column, _, rows = read("stage_panels/enemy_detail_weapons_kshatriya")
+    weapons = tuple((row, WeaponText(name=f"w{row.index}")) for row in rows)
+
+    record = unit_intel_from_panels("kshatriya", column=column, weapons=weapons).record
+
+    assert [weapon.categories for weapon in record.weapons] == [
+        ("melee",),
+        ("shooting",),
+        ("awakening",),
+    ]
+    assert [weapon.crit_pct for weapon in record.weapons] == [10, 0, 20]
+    assert {weapon.level for weapon in record.weapons} == {1}
+
+
+def test_the_three_pilot_offence_columns_are_all_stored_not_just_the_pick():
+    column, _, _ = read("stage_panels/enemy_detail_weapons_unicorngundam")
+
+    record = unit_intel_from_panels("unicorn", column=column, pick="melee").record
+
+    assert (record.pilot_shooting, record.pilot_melee, record.pilot_awakening) == (
+        583.0,
+        700.0,
+        690.0,
+    )
+    assert record.pilot_attack == 700.0
+    assert record.pilot_sp == 15
+
+
+def test_the_basic_view_supplies_the_levels_when_the_panel_prints_them():
+    _, basic, _ = read("stage_panels/ally_detail_basicinfo_ntgundam")
+
+    result = unit_intel_from_panels("nt_gundam", basic=basic)
+
+    assert (result.record.unit_lv, result.record.pilot_lv) == (51, 22)
+
+
+def test_an_enemy_panel_without_level_rows_declares_the_gap():
+    _, basic, _ = read("stage_panels/enemy_detail_basicinfo_unicorngundam")
+
+    result = unit_intel_from_panels("unicorn", basic=basic)
+
+    assert (result.record.unit_lv, result.record.pilot_lv) == (0, 0)
+    assert "unit_lv" in result.gaps
+    assert "pilot_lv" in result.gaps
+
+
+def test_battlefield_dynamics_come_back_separately_and_never_enter_the_record():
+    """MP／HP／EN 即值與敵我 faction 是戰場動態：讀得到但永不進 UnitIntel
+    （docs/intel-data-spec.md），改由 dynamics 交還呼叫端注入。"""
+    _, basic, _ = read("stage_panels/ally_detail_basicinfo_ntgundam")
+
+    result = unit_intel_from_panels("nt_gundam", basic=basic)
+
+    assert result.dynamics.faction == "ally"
+    assert (result.dynamics.mp_current, result.dynamics.mp_max) == (0, 12)
+    assert not hasattr(result.record, "mp_current")
+    assert not hasattr(result.record, "faction")
+
+
+def test_a_weapon_with_no_badge_is_a_declared_gap():
+    _, _, rows = read("roster_panels/unit_weapons_map_icon_nu_gundam")
+    weapons = ((rows[0], WeaponText(name="雙翼狀感應砲")),)
+
+    result = unit_intel_from_panels("nu_gundam", weapons=weapons)
+
+    if not result.record.weapons[0].categories:
+        assert "weapon0:categories" in result.gaps
+
+
 def test_record_round_trips_through_the_intel_library():
     column, basic, rows = read("stage_panels/enemy_detail_weapons_gearadoga")
     weapons = tuple((row, WeaponText(name=f"w{row.index}")) for row in rows)

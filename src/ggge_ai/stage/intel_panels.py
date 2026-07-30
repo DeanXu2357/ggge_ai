@@ -51,9 +51,21 @@ class PilotOffence:
 
 
 @dataclass(frozen=True)
+class Dynamics:
+    """Read off the panel yet barred from UnitIntel: battlefield state that the
+    cache must never carry (docs/intel-data-spec.md). Handed back so the caller
+    can inject it through Intelligence.unit(hp=, en=) instead of losing it."""
+
+    faction: str | None = None
+    mp_current: int | None = None
+    mp_max: int | None = None
+
+
+@dataclass(frozen=True)
 class PanelIntel:
     record: UnitIntel
     pilot_offence: PilotOffence = PilotOffence()
+    dynamics: Dynamics = Dynamics()
     gaps: tuple[str, ...] = ()
     unsupported: tuple[str, ...] = ()
 
@@ -101,6 +113,8 @@ def weapon_intel(row: panels.WeaponRowRead, text: WeaponText | None, build: _Bui
         build.gaps.append(f"weapon{row.index}:map_blast")
     elif row.range_min is None or row.range_max is None:
         build.gaps.append(f"weapon{row.index}:range")
+    if not row.categories:
+        build.gaps.append(f"weapon{row.index}:categories")
     return WeaponIntel(
         name=name,
         power=float(row.power or 0),
@@ -112,6 +126,9 @@ def weapon_intel(row: panels.WeaponRowRead, text: WeaponText | None, build: _Bui
         ammo=row.ammo or 0,
         debuff_kind=text.effect if text else None,
         debuff_magnitude=text.magnitude if text else 0.0,
+        categories=row.categories,
+        crit_pct=row.crit_pct or 0,
+        level=row.level or 0,
     )
 
 
@@ -158,7 +175,7 @@ def unit_intel_from_panels(
 
     max_hp = en_max = move_range = 0
     unit_attack = unit_defense = mobility = 0
-    pilot_defense = reaction = 0
+    pilot_defense = reaction = pilot_sp = 0
     if column is not None:
         max_hp = _stat(build, "max_hp", column.max_hp, 0)
         en_max = _stat(build, "en_max", column.en_max, 0)
@@ -169,6 +186,7 @@ def unit_intel_from_panels(
         if column.kind in panels.STAGE_KINDS:
             pilot_defense = _stat(build, "pilot_defense", column.pilot_defense, 0)
             reaction = _stat(build, "pilot_reaction", column.pilot_reaction, 0)
+            pilot_sp = _stat(build, "pilot_sp", column.pilot_sp, 0)
             offence = PilotOffence(
                 shooting=column.pilot_shooting.absolute,
                 melee=column.pilot_melee.absolute,
@@ -177,10 +195,18 @@ def unit_intel_from_panels(
     else:
         build.gaps.append("stat_column")
 
+    unit_lv = pilot_lv = 0
+    dynamics = Dynamics()
     if basic is not None:
         max_hp = max_hp or build.need("max_hp", basic.max_hp, 0)
         en_max = en_max or build.need("en_max", basic.en_max, 0)
         move_range = move_range or build.need("move_range", basic.move_range, 0)
+        unit_lv = build.need("unit_lv", basic.unit_lv, 0)
+        pilot_lv = build.need("pilot_lv", basic.pilot_lv, 0)
+        pilot_sp = pilot_sp or build.need("pilot_sp", basic.pilot_sp, 0)
+        dynamics = Dynamics(
+            faction=basic.faction, mp_current=basic.mp_current, mp_max=basic.mp_max
+        )
 
     pilot_attack = 0
     if pick is not None:
@@ -219,10 +245,17 @@ def unit_intel_from_panels(
         has_shield=flags["has_shield"],
         attack_shield=flags["attack_shield"],
         interception_reduction=flags["interception_reduction"],
+        pilot_shooting=float(offence.shooting or 0),
+        pilot_melee=float(offence.melee or 0),
+        pilot_awakening=float(offence.awakening or 0),
+        unit_lv=unit_lv,
+        pilot_lv=pilot_lv,
+        pilot_sp=pilot_sp,
     )
     return PanelIntel(
         record=record,
         pilot_offence=offence,
+        dynamics=dynamics,
         gaps=tuple(dict.fromkeys(build.gaps)),
         unsupported=tuple(dict.fromkeys(build.unsupported)),
     )
