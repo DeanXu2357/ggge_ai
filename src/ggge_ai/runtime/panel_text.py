@@ -27,6 +27,12 @@ gemma3:27b got 0/3 names on the kshatriya card set and answered in Simplified
 Chinese; gemma4:31b got 8/8 names exactly, aligned, and pushed all three effect
 sentences to `unsupported` verbatim, at 11-38s per card. DEFAULT_MODEL stays on
 the model docs/intel-data-spec.md names; GGGE_PANEL_LLM_MODEL overrides it.
+
+abilities() is the weaker half of the same measurement and is not yet trusted:
+handed the whole tab as one crop, gemma4:31b took 66s on one fixture (3 of 4
+entries usable) and 150s on the other, where the reply truncated mid-string and
+the whole read came back None. Feeding it one ability entry at a time would
+need deterministic entry segmentation, which this batch does not build.
 """
 
 from __future__ import annotations
@@ -250,6 +256,13 @@ def _number(value: Any) -> float:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
 
 
+def _name(value: Any) -> str:
+    """A name has to contain at least one word character: gemma4:31b emitted a
+    '//' entry off the ability tab's separator rules."""
+    text = str(value).strip() if value is not None else ""
+    return text if any(char.isalnum() for char in text) else ""
+
+
 def _strings(value: Any) -> tuple[str, ...]:
     if not isinstance(value, list):
         return ()
@@ -261,7 +274,7 @@ def coerce_weapon(data: Any, terms: Iterable[str] = ()) -> WeaponText | None:
     demoted to unsupported rather than dropped silently."""
     if not isinstance(data, dict):
         return None
-    name = str(data.get("name", "")).strip()
+    name = _name(data.get("name"))
     if not name:
         return None
     aligned, matched = align(name, terms)
@@ -291,7 +304,7 @@ def coerce_abilities(data: Any, terms: Iterable[str] = ()) -> AbilityTexts | Non
     for raw in raw_entries:
         if not isinstance(raw, dict):
             continue
-        name = str(raw.get("name", "")).strip()
+        name = _name(raw.get("name"))
         if not name:
             continue
         owner = _enum(raw.get("owner"), OWNERS)

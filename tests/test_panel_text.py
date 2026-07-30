@@ -145,6 +145,15 @@ def test_nameless_or_malformed_reply_is_refused():
     assert coerce_abilities({"entries": "none"}) is None
 
 
+def test_a_name_without_word_characters_is_refused():
+    """gemma4:31b emitted a '//' ability entry off the tab's separator rules."""
+    assert coerce_weapon({"name": "//"}) is None
+    texts = coerce_abilities(
+        {"entries": [{"name": "//", "owner": "unit", "effect": None, "magnitude": 0}]}
+    )
+    assert texts is not None and texts.entries == ()
+
+
 def test_transport_failure_yields_none():
     def broken(url, payload, timeout_s):
         raise OSError("connection refused")
