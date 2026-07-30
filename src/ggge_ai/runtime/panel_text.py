@@ -22,10 +22,11 @@ sandbox:
 Tests inject a fake reader or a fake transport; nothing here requires ollama to
 be running, and OllamaPanelTextReader.from_env returns None when it is not.
 
-Measured 2026-07-30 on the kshatriya weapons fixture: gemma3:27b transcribed
-none of the three names correctly and answered in Simplified Chinese. The
-guards held (every name came back matched=False) but the channel is not yet
-usable for names; model choice is still open.
+Measured 2026-07-30 over the three stage weapons fixtures (8 cards):
+gemma3:27b got 0/3 names on the kshatriya card set and answered in Simplified
+Chinese; gemma4:31b got 8/8 names exactly, aligned, and pushed all three effect
+sentences to `unsupported` verbatim, at 11-38s per card. DEFAULT_MODEL stays on
+the model docs/intel-data-spec.md names; GGGE_PANEL_LLM_MODEL overrides it.
 """
 
 from __future__ import annotations
