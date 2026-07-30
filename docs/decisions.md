@@ -133,6 +133,12 @@
   content 管線）。CLAUDE.md 常用指令同步。注意：ensure_unlocked
   仍 import 凍結 actuation/keyguard——過渡容忍，刪 battle/ 時
   轉 runtime.keyguard。
+- **修正批改用主 session 模型（單批偏離 opus 慣例）**｜opus 池
+  持續 529 過載，修正批三次派工全數早夭（兩次原實例＋一次全新
+  重派），主迴圈同時段請求正常｜(a) 繼續等 opus、(b) 本批改用
+  主 session 同款模型｜採 (b)：五項修正規格明確偏機械性，模型
+  降轉風險低於無限期停擺；delegation pipeline 的 opus 慣例不變，
+  僅此批例外。
 - **里程碑「高評價」解讀**｜使用者設定「二輪後以高評價完成獨角獸
   全系列 HARD」，未定義星數｜(a) 三星 COMPLETE（評分 10000，解鎖
   略過）、(b) 四星（另含隱藏戰鬥）｜採 (a)：保守——隱藏與評分
