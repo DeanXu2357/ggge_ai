@@ -77,8 +77,20 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   高評價（保守解讀＝三星 COMPLETE，備案待推翻）完成 UC 全系列
   HARD（4 關）。決策自裁授權：保守預設＋逐筆備案 docs/decisions.md；
   需要使用者時 discord-notify。
-- 下一步順序：①2d 實機驗證輪（live-tester 以 dry_run_entry
-  分段跑清單）②2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕
-  對位、陣營證據分層、Move/Attack/Inspect plan）。
+- **2d 實機驗證輪完成**（0730 晚，run 目錄 data/runs/20260730-
+  134751~140043）：A–J 十驗證點全過或部分過、八段 EN 帳全對齊
+  零消耗；stage_list 簽名 0.99 穩定、進場閘門四輪一次到位、
+  AUTO 讀值與肉眼一致、TAP 點周邊無元件、棄戰座標中、收卡條
+  tap 生效且跨戰鬥持續。**發現待修**：①掃描無縮小 20 tick 掃出
+  0 cell（東西各燒滿 8 腿未到邊）→ pinch 裁定推翻改搬遷；
+  ②dry_run_entry 的 Camera/Perceiver 幀源不一致（邊界存檔是
+  陳舊幀，journal 結構化欄位才可信）；③設定頁格線探針兩輪
+  unverified（地面真相複驗皆過，疑截圖早於動畫）；④棄戰後
+  游標飄移陷阱（已入 ui-navigation-map）；⑤unlocalised 出現
+  1 次（fail-soft 正確，觀察中）。
+- 下一步順序：①驗證輪修正批（pinch 搬遷＋幀源統一＋格線探針
+  降級地面真相＋select 明示化＋掃描預算調整）②修正後掃描
+  複驗輪 ③2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、
+  陣營證據分層、Move/Attack/Inspect plan）。
 - 注意：首次真跑 `python -m ggge_ai`（無 --run-dir）會把 data/runs
   舊 run 目錄一次性全壓縮——刻意行為，勿在意外時機觸發。
