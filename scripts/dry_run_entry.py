@@ -14,7 +14,7 @@ usage:
   # 分段停點：select / prep / stage_info / map / grid / survey
   # stage_info 起開始花 EN 與挑戰次數
   uv run python scripts/dry_run_entry.py … --stop-after grid
-  uv run python scripts/dry_run_entry.py … --survey-ticks 20   # 預設 40
+  uv run python scripts/dry_run_entry.py … --survey-ticks 20   # 預設 80
   uv run python scripts/dry_run_entry.py … --no-zoom           # 不 pinch，掃當前縮放
 
   # 全程（預設進到地圖之後會棄戰收尾；棄戰不耗 AP／挑戰次數／EN，0730 實證）
@@ -64,9 +64,9 @@ STAGES = ("select", "prep", "stage_info", "map", "grid", "survey")
 # 逐 observe 的量測遙測（A5 儀器化）：微步驟名答不了「那一腿到底移了多少」，
 # 位移量、閘門裁決與靜止閘輪數只有這一種紀錄看得到。
 SURVEY_TICK = "survey_tick"
-# 0730 實測 20 tick 掃出 0 cell（東西各燒滿 8 腿預算仍未到邊、合併從未觸發），
-# 預算翻倍讓整段掃描至少有機會走到合併。
-SURVEY_TICKS = 40
+# 步數帳（0801 複驗實測）：南 11＋北 2＋東 18＋西 ~10 已 41 腿，40 tick 連一輪都
+# 走不完。80 給斷鏈殘餘與西側補掃留裕度；真正的上限仍是 coverage.LEG_BUDGET。
+SURVEY_TICKS = 80
 # 只有真的進到地圖才有戰鬥可棄；停在更早的段落就交給人自己收。
 IN_BATTLE_STAGES = (None, "map", "grid", "survey")
 

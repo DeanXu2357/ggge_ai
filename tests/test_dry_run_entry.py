@@ -215,10 +215,10 @@ def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
 
 
 def test_the_default_survey_budget_is_the_raised_one(monkeypatch):
-    """0730 實測 20 tick 掃出 0 cell（東西各燒滿 8 腿未到邊、合併從未觸發）。"""
+    """0801 複驗的步數帳：南 11＋北 2＋東 18＋西 ~10 已 41 腿，40 tick 沒有餘裕。"""
     monkeypatch.setattr(sys, "argv", ["dry_run_entry", "--stage-node", "544,667"])
 
-    assert parse_args().survey_ticks == SURVEY_TICKS == 40
+    assert parse_args().survey_ticks == SURVEY_TICKS == 80
     assert DryRun.survey_ticks == SURVEY_TICKS
 
 
