@@ -248,7 +248,6 @@ def test_the_journal_reconstructs_what_each_tick_saw_and_did(tmp_path):
         "grid_on": True,
         "roster_collapsed": True,
         "board_synced": True,
-        "swept": [],
         "positions": {},
         "reaction": None,
     }

@@ -43,7 +43,6 @@ def battle(
     grid_on: bool = True,
     roster_collapsed: bool = True,
     board_synced: bool = True,
-    swept: Sequence[str] | None = None,
 ) -> StageState:
     """known 預設全知、格線已開、卡條已收、盤面已同步：不談情報與盤面的劇本才不會
     被 Inspect／ShowGrid／CollapseRoster／SurveyBoard 候選污染。"""
@@ -61,7 +60,6 @@ def battle(
         grid_on=grid_on,
         roster_collapsed=roster_collapsed,
         board_synced=board_synced,
-        swept=frozenset(swept or ()),
     )
 
 

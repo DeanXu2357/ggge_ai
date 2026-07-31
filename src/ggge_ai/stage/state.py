@@ -42,13 +42,15 @@ class StageState:
     是掃描的符號前置條件、收卡條同樣是一個行動（0730 使用者核可）。感知權威：
     每個 tick 由 screens.read_roster_strip 重讀，讀不出來一律當「沒收起」。
 
-    board_synced ＝ 盤面全覽已收完並寫回，且還沒過期。swept ＝ 已掃完的分段，
-    掃描行動跨 tick 重入時的恢復點。兩者都與 known 同族的程式內記憶（來源是
-    stage/survey.py 的 SurveyPerceiver），但**必須在符號狀態上看得見**：完成
-    判定走 progressed(state)，恢復點不能只活在執行器的內部變數裡。
+    board_synced ＝ 盤面全覽已收完，且還沒過期（覆蓋模型 v2 的定義：四個方向的
+    邊界旗全定、界內沒有一格是 UNKNOWN／STALE）。它與 known 同族，是程式內記憶
+    （來源是 stage/survey.py 的 SurveyPerceiver），但**必須在符號狀態上看得見**：
+    完成判定走 progressed(state)，恢復點不能只活在執行器的內部變數裡。分段進度
+    不進這裡——v2 的進度是逐格的知識圖，沒有任何 applicable／progressed 讀它，
+    壓成搜尋鍵只會讓等價的盤面互相不重合；它逐 tick 走 evidence 進流水帳。
 
     board_synced 過期＝敵方回合過完（敵人動過，站位全部作廢），所以回合交界
-    會把它與 swept 一起打回原點（next_player_phase）。
+    會把它打回原點（next_player_phase）。
     """
 
     phase: Phase
@@ -63,7 +65,6 @@ class StageState:
     grid_on: bool = False
     roster_collapsed: bool = False
     board_synced: bool = False
-    swept: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         strays = self.actionable - self.allies
@@ -99,7 +100,7 @@ class StageState:
         return replace(self, roster_collapsed=False)
 
     def sync_board(self) -> StageState:
-        """搜尋側的掃描是一步到底：分段進度是執行側的恢復點，不進搜尋鍵。"""
+        """搜尋側的掃描是一步到底：逐格的覆蓋進度是執行側的恢復點，不進搜尋鍵。"""
         return replace(self, board_synced=True)
 
     def kill(self, enemy: str) -> StageState:
@@ -129,5 +130,4 @@ def next_player_phase(state: StageState) -> StageState:
         reaction=None,
         roster_collapsed=False,
         board_synced=False,
-        swept=frozenset(),
     )
