@@ -628,6 +628,33 @@ def test_pins_stand_on_their_own_when_the_island_saw_nothing_to_contradict_them(
 
 
 
+def test_a_retired_target_is_always_a_cell_of_the_pocket_itself():
+    """L 形聚類的質心不在聚類裡。退休質心既不會讓目標清單變短（每 tick 重挑同一團
+    ＝活鎖、腿數不前進、保險絲永遠不燒），又把一格 EMPTY 跨代排除掉＝無聲丟失。"""
+    survey = _boxed()
+    survey.clamps.update({"north": -50.0, "south": -50.0})
+
+    leg = survey.plan_leg()
+
+    assert survey.chart.unreachable <= set(_POCKET)
+    assert (1, 1) not in survey.chart.unreachable
+    assert survey.chart.knowledge((1, 1)) is Knowledge.EMPTY
+    # 退休讓目標清單真的變短，同一次 plan_leg 就挑得到別團——沒有活鎖
+    assert leg is not None
+    assert survey.legs == 1
+
+
+def test_a_pocket_no_camera_position_can_expose_retires_cell_by_cell_and_stops():
+    survey = _boxed()
+    for direction in coverage.COMPASS:
+        survey.clamps[direction] = -50.0
+
+    assert survey.plan_leg() is None
+    assert survey.chart.unreachable == set(_POCKET)
+    assert survey.complete
+    # 每輪嚴格縮小目標清單，所以停下來靠的是缺口清空，不是燒斷保險絲
+    assert not survey.fused
+
 
 def test_a_clamp_line_from_the_old_world_never_survives_into_the_new_one():
     """撞邊線記的是世界座標。縮放之後原點換了一幀，同一個數字不代表頂在邊上——

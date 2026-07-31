@@ -502,7 +502,12 @@ class Survey:
 
     def _aim(self) -> Leg | None:
         """挑一個前緣聚類推一步。推不動（兩軸都夾在邊界上）就把目標退休——
-        那一格從任何到得了的鏡頭位置都看不清楚，硬要它只會原地空轉。"""
+        那一格從任何到得了的鏡頭位置都看不清楚，硬要它只會原地空轉。
+
+        退休的一定是**聚類成員**：L 形聚類的質心根本不在聚類裡，退休它既不會讓
+        目標清單變短（plan_leg 的迴圈永遠挑到同一團＝活鎖），又把一格可能是 EMPTY
+        的格子跨代排除掉＝無聲丟失。一次退休一格，迴圈才保證嚴格縮小。
+        """
         chart = self.chart
         if chart is None:
             return None
@@ -522,8 +527,9 @@ class Survey:
             if self._clamped(direction):
                 continue
             return self._leg(direction, min(abs(wanted), LEG_LIMIT[axis]), target)
-        chart.unreachable.update(pocket if len(pocket) == 1 else (target,))
-        log.warning("cell %s is unreachable from every camera position we can hold", target)
+        retired = _nearest(pocket, target)
+        chart.unreachable.add(retired)
+        log.warning("cell %s is unreachable from every camera position we can hold", retired)
         return None
 
     def viewport(self) -> Point:
@@ -882,6 +888,15 @@ def _centroid(cells: Sequence[Cell]) -> Cell:
     return (
         round(sum(cell[0] for cell in cells) / len(cells)),
         round(sum(cell[1] for cell in cells) / len(cells)),
+    )
+
+
+def _nearest(cells: Sequence[Cell], target: Cell) -> Cell:
+    """離 target 最近的成員格。平手時取字典序最小的——退休是跨代生效的事實，
+    同一個盤面每次都要退休同一格。"""
+    return min(
+        cells,
+        key=lambda cell: ((cell[0] - target[0]) ** 2 + (cell[1] - target[1]) ** 2, cell),
     )
 
 
