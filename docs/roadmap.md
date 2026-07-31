@@ -4,9 +4,23 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-08-01，v2.1 六缺陷修正批入庫）
+## 暫停快照（2026-08-01，v2.1 入庫＋複驗輪第 1 輪 FAIL 已診斷）
 
 ### 恢復點
+
+- **0801 掃描複驗輪第 1 輪 Phase A FAIL＋診斷定讞**（run
+  data/runs/20260801-033746；判讀與 v2.2 裁決全文 decisions.md
+  0801 條）：40 tick 不夠、36% 腿數 BROKEN(phase) 斷鏈＝pan 慣性
+  滑行殘餘落進相位閘窗口（22.5–40px）；恢復機制（島嶼＋relocalise
+  整欄修正）照設計運作。Phase B 未跑（依規格跳過）；結束回合鈕
+  目視 (300,185) 待 tap 覆核；棄戰零耗三度實證；裝置收尾乾淨。
+  **v2.2 入庫**（`94fa54a`：靜止閘 measure_shift 判準＋逐
+  observe 遙測 survey_tick＋SURVEY_TICKS 80；coverage.py 零改動；
+  1525 passed／ruff 綠；設計決定 16 條＋五爭點裁決備案
+  decisions.md，導覽 docs/reviews/scan-quiescence-v2_2-review.md）。
+  **紀律：下一輪複驗同款斷鏈簽名再敗＝連兩輪，停下問使用者。
+  驗收標準＝斷鏈率降到個位數（非零）；首要觀察 settle.waits
+  分佈。**
 
 - **0801 v2.1 修正批入庫**（`42d8f77`，六 commit fast-forward；
   opus worktree 交付、主 session 親審）：①legs 保險絲改單回合
@@ -27,20 +41,21 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 - **待使用者裁**：v2 的 D1——`StageState.swept` 淘汰（無讀者
   grep 驗證、覆蓋數字改走 evidence["survey"]；已接受入庫，可
   推翻）。修正批/複驗輪先後已自裁＝先修後驗（decisions.md 0801）。
-- **佇列**：①掃描複驗輪（live-tester：UC HARD 1 收斂到
-  board_synced、cells 非空、格座標對 2b-2 人工普查 ±1 格；
-  覆核——SURVEY_TICKS=40 夠不夠 v2 的短腿制、橫軸 0.5px/腿
-  系統偏差累積、relocalise 支持數門檻 3、敵回合後星座重錨、
-  緩動殘餘 vs 無指令 40px 閘；**v2.1 增驗**——多回合每回合
-  board_synced 且 legs 從 0 起算、島嶼重錨成功率與 islands.reset
-  計數對照修正前流水帳、最小縮放 y 夾死時逐格退休不 stuck）
-  ②2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據
-  分層、Move/Attack/Inspect plan）。
-- 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（右欄 HARD 2
-  ——棄戰游標飄移再次實證，重入必明示選關）、EN 161/111、
-  資金 1,255,000、鑽 2,600。鎖屏靠 scripts/ensure_unlocked.py。
-  遊戲登入逾時會彈錯誤 300（唯一鈕返回標題），恢復流程＝標題
-  →下載→登入獎勵→公告→主頁，座標已標定。
+- **佇列**：①掃描複驗輪第 2 輪（同判準重跑；已解鎖量測——遙測讓 A5 緩動殘餘
+  ／橫軸 0.5px/腿偏差可測；Phase A 過了接 Phase B 多回合：
+  每回合 board_synced 且 legs 從 0 起算、島嶼重錨成功率、敵回
+  合後星座重錨、卡條換回合彈回、結束回合鈕 (300,185) tap 覆核
+  〔左待機並結束 (997,562)、右自動戰鬥紅線永不點〕；Phase B
+  腳本已預寫 scratchpad phaseB_repl.py 可沿用）②2e 首戰 UC
+  HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據分層、
+  Move/Attack/Inspect plan）。
+- 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（游標 HARD 2
+  ——棄戰游標飄移三度實證，重入必明示選關 --stage-node
+  544,667）、EN 211/111、資金 1,307,500、鑽 4,200、RANK 26
+  （基準漂移＝session 間非本程式活動）。鎖屏靠
+  scripts/ensure_unlocked.py。遊戲登入逾時會彈錯誤 300（唯一鈕
+  返回標題），恢復流程＝標題→下載→登入獎勵→公告→主頁，座標
+  已標定。UC HARD 1 掛 CLEAR 徽章＝0730 舊事故既有狀態非新異常。
 
 ## 舊快照（2026-07-30 10:00 更新，批 2c 派工進行中）
 

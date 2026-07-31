@@ -6,6 +6,54 @@
 
 ## 2026-08-01
 
+- **v2.2 靜止閘＋遙測批設計決定 16 條整批接受（94fa54a 合併）**｜
+  opus worktree 交付（API 過濾誤殺中斷於最終閘門前，主 session 接
+  手補 commit 導覽＋親跑閘門 1525 passed／ruff 綠）｜全文
+  docs/reviews/scan-quiescence-v2_2-review.md 第五節。要點：靜止
+  判準 measure_shift 非 frame_difference；常數落 stage/survey.py
+  （取幀策略歸執行器，board.py 保持純像素機制）；QUIET_PX=3.0
+  （0.5px 零位移偏差 6× 裕度、相位閘容差 7.5× 安全距）；重試盡
+  照收＋quiet 旗分開記；遙測走注入 callback（無緩衝所有權問題、
+  失敗單點隔離）；islands 計數器逐筆記（斷鏈歸因到 precheck/leg）；
+  survey_tick kind 名歸 Runner 端。**五爭點裁決**：(1) 驗收標準
+  ＝斷鏈率降到個位數非零，接受；(2) QUIET_PX/ROUNDS 未實機標定
+  →下輪首要看 settle.waits 分佈；(3) 截圖成本翻倍→實測牆鐘再
+  議，PAN_SETTLE_S 本批不動（單變因紀律）；(4) Odometer.feed
+  BROKEN 不推進 previous 之疑→主 session 親追呼叫鏈**裁決非缺
+  陷**：observe 遇 BROKEN 一律 _isolate，新島 odometer 以斷鏈幀
+  為 previous 重新播種，「同 odometer 連續兩次 BROKEN 用舊基準」
+  情境不存在，量測層不補規則；(5) 實機驗證項併入複驗輪第 2 輪
+  （unlocalised/isolated 對照 14/14、settle.waits 分佈、逐腿
+  shift.magnitude、西旗 80 tick 內能否定）。
+- **掃描複驗輪第 1 輪判讀＋v2.2 小批決策（主 session 診斷定讞）**｜
+  UC HARD 1 Phase A FAIL（run data/runs/20260801-033746）：40 tick
+  打滿 synced=false、西邊界未定（3/4 旗）、cells=16（9 藍 7 紅 vs
+  畫面破壞數 0/18）、14 次 BROKEN(phase) 斷鏈＝36% 腿數、islands
+  isolated14/merged8/discarded6、unlocalised=14；unreachable=0（退
+  休機制無異常）。Phase B 依規格跳過。**機制鏈定讞**：重錨修正量
+  全為整欄（180/270/360px＝pitch90 的 2-4 欄）＝被拒那腿的行程，
+  恢復機制照設計運作；根因是斷鏈頻率——pan 慣性滑行拖過 1.5s
+  settle，前置複核幀（expected=None，envelope 只擋 >40px）量到
+  22.5–40px 無指令殘餘位移剛好落進相位閘窗口（PHASE_TOLERANCE
+  0.25×90=22.5）＝0731 快照「緩動殘餘 vs 無指令 40px 閘」疑點
+  實證。**v2.2 三件套裁決**：①掃描取幀靜止閘——連拍兩幀以
+  measure_shift 量全域位移judge靜止（**不用 frame_difference**：
+  單位待機動畫會讓它永不安靜；滑行是全域同調位移相位相關量得
+  到），有界重試用盡照收（閘只降污染率）；②逐 tick 遙測入
+  journal（verdict/reason/shift/offset/island 態/重試數）補 A5
+  儀器化缺口；③dry_run SURVEY_TICKS 預設 40→80（步數帳 41+ 無
+  裕度；LEG_BUDGET 200 不動）。coverage.py 本批零改動（v2.1 剛
+  過審避免多變因）。斷鏈同款簽名若下一輪複驗再敗＝連兩輪，停下
+  問使用者。
+- **複驗輪附帶實機觀察**｜(a) 結束回合鈕目視標定約中心 (300,185)
+  （原生 2340×1080，範圍 x172-431/y156-214）——與舊疑誤標
+  (275,182) 同一鈕面，懸案傾向解除，但未實際 tap＋彈窗確認，
+  不升級「已標定」，Phase B 首次點擊時覆核；(b) 棄戰零資源消耗
+  三度實證（EN/資金/鑽/RANK 前後全同）；(c) 複驗輪執行面教訓：
+  長時裝置委派任務要有收尾檢查點——本輪子代理 Phase A 跑完後
+  失聯，戰局懸空由協調端接手收尾（棄戰＋對帳＋導航），未造成
+  資源損失。(d) 資源基準漂移（EN 161→211、資金 1,255,000→
+  1,307,500、鑽 2,600→4,200）＝session 間非本程式活動，僅記錄。
 - **v2.1 六缺陷修正批設計決定 15 條整批接受（42d8f77 合併）**｜opus
   worktree 交付、主 session 親審 diff＋測試＋導覽（全文
   docs/reviews/coverage-v2_1-fix-review.md 第四節）｜要點：`expire()`
