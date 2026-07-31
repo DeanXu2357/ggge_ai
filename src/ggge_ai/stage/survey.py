@@ -167,6 +167,14 @@ class BoardDriver:
     telemetry 是逐 observe 的量測遙測水槽（A5 儀器化）：位移量、閘門裁決與靜止閘
     等了幾輪都只在這裡看得到，流水帳的微步驟名答不了「那一腿到底移了多少」。
     它是純觀察者——寫失敗只記一次警告，掃描照跑。
+
+    evidence 是斷鏈的**存證**水槽：observe 判 BROKEN 時把上一張與這一張 settled
+    幀連同那一筆遙測交出去，離線才重放得了量測。水平向斷鏈的根因（量測系統性
+    欠讀 vs 相位參考漂移）在幀存下來之前定不了讞。`dump_frames` 打開時每一次
+    observe 都發射，供離線把整輪掃描重跑一遍。同樣是純觀察者。
+
+    上一幀由執行器自己留：`Odometer.feed` 判 BROKEN 時刻意不推進它的 previous
+    （斷鏈的處置是呼叫端的事），所以量測層的 previous 未必是時間上的前一張。
     """
 
     capture: Callable[[], np.ndarray]
@@ -176,6 +184,9 @@ class BoardDriver:
     sleep: Callable[[float], None] = field(default=time.sleep)
     steps: list[str] = field(default_factory=list)
     telemetry: Callable[[dict[str, Any]], None] | None = None
+    evidence: Callable[[dict[str, Any], np.ndarray | None, np.ndarray], None] | None = None
+    dump_frames: bool = False
+    previous: np.ndarray | None = None
     ticks: int = 0
 
     def show_grid(self, action: ShowGrid, observation: Observation[Any]) -> str:
@@ -204,8 +215,7 @@ class BoardDriver:
             return self._step(ZOOM_STEP)
         self.ticks += 1
         settled = self._settled_capture()
-        reading = survey.observe(settled.frame)
-        self._trace(PRECHECK_PROBE, None, reading, settled)
+        self._read(PRECHECK_PROBE, None, settled)
         leg = survey.plan_leg()
         if leg is None:
             if survey.complete:
@@ -215,9 +225,7 @@ class BoardDriver:
         # 是盲推——流水帳要分得出來，不然事後看不出這一段有沒有座標可信。
         prefix = SWEEP_STEP if survey.anchored else BLIND_STEP
         self._pan(leg, board.pick_pan_origin(board.find_sightings(settled.frame)))
-        after = self._settled_capture()
-        reading = survey.observe(after.frame, leg)
-        self._trace(LEG_PROBE, leg, reading, after)
+        self._read(LEG_PROBE, leg, self._settled_capture())
         return self._step(f"{prefix}:{leg.direction}")
 
     def drivers(self) -> dict[type, Callable[[Any, Observation[Any]], Any]]:
@@ -249,6 +257,16 @@ class BoardDriver:
         log.warning("frame never went quiet in %d rounds; observing it anyway", SETTLE_ROUNDS)
         return SettledFrame(frame, SETTLE_ROUNDS, False)
 
+    def _read(
+        self, probe: str, leg: coverage.Leg | None, settled: SettledFrame
+    ) -> coverage.Reading:
+        """一次 observe 連同它的兩個觀察者，然後把這一幀記成「上一幀」。"""
+        reading = self.ledger.survey.observe(settled.frame, leg)
+        self._trace(probe, leg, reading, settled)
+        self._preserve(probe, leg, reading, settled)
+        self.previous = settled.frame
+        return reading
+
     def _trace(
         self,
         probe: str,
@@ -262,6 +280,26 @@ class BoardDriver:
             self.telemetry(self._record(probe, leg, reading, settled))
         except Exception:
             log.warning("survey telemetry sink failed; the scan carries on", exc_info=True)
+
+    def _preserve(
+        self,
+        probe: str,
+        leg: coverage.Leg | None,
+        reading: coverage.Reading,
+        settled: SettledFrame,
+    ) -> None:
+        """斷鏈的前後幀對交給存證水槽；dump_frames 打開時每一次 observe 都交。
+
+        兩個水槽各包各的 try：遙測炸了不該連帶讓存證失效，反之亦然。
+        """
+        if self.evidence is None:
+            return
+        if reading.verdict != coverage.BROKEN and not self.dump_frames:
+            return
+        try:
+            self.evidence(self._record(probe, leg, reading, settled), self.previous, settled.frame)
+        except Exception:
+            log.warning("survey evidence sink failed; the scan carries on", exc_info=True)
 
     def _record(
         self,
@@ -323,6 +361,8 @@ def survey_drivers(
     zoom_out: Callable[[], None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
     telemetry: Callable[[dict[str, Any]], None] | None = None,
+    evidence: Callable[[dict[str, Any], np.ndarray | None, np.ndarray], None] | None = None,
+    dump_frames: bool = False,
 ) -> tuple[BoardDriver, CoverageLedger]:
     """把簿記與執行器一起立起來——感知接縫與執行器必須共用同一本簿記。"""
     book = ledger or CoverageLedger()
@@ -333,5 +373,7 @@ def survey_drivers(
         zoom_out=zoom_out,
         sleep=sleep,
         telemetry=telemetry,
+        evidence=evidence,
+        dump_frames=dump_frames,
     )
     return driver, book

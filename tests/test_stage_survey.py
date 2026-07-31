@@ -62,13 +62,22 @@ def map_frame() -> np.ndarray:
 
 @dataclass
 class Rig:
-    """腳本化鏡頭：手指行程乘上增益推鏡頭，畫布邊界就是地圖邊界。"""
+    """腳本化鏡頭：手指行程乘上增益推鏡頭，畫布邊界就是地圖邊界。
+
+    blank 數的是截圖次數（靜止閘讓每次 observe 花掉兩張，見 test_runtime_coverage
+    的同名替身）：空白幀量不出位移＝斷鏈。
+    """
 
     world: World
     gain: float = 2.0
     swipes: int = 0
+    shots: int = 0
+    blank: tuple[int, ...] = ()
 
     def capture(self) -> np.ndarray:
+        self.shots += 1
+        if self.shots in self.blank:
+            return np.zeros((1080, 2340, 3), np.uint8)
         return self.world.frame()
 
     def tap(self, x: int, y: int, intent: str = "") -> None:
@@ -554,6 +563,82 @@ def test_a_failing_telemetry_sink_never_stops_the_scan():
 
     assert [step.split(":")[0] for step in driver.steps] == [SWEEP_STEP] * 2
     assert rig.swipes == 2
+
+
+# ---- v2.3 斷鏈原生存證（0801 複驗第 2 輪 37 次 BROKEN 幾乎全在東西向，根因未定） ----
+
+
+def _witnessed(
+    *, dump_frames: bool = False, **kwargs
+) -> tuple[BoardDriver, list[tuple[dict, np.ndarray | None, np.ndarray]]]:
+    rig = Rig(World(cols=22, rows=12, units=((3, 2), (9, 6))), **kwargs)
+    kept: list[tuple[dict, np.ndarray | None, np.ndarray]] = []
+    driver, ledger = survey_drivers(
+        rig.capture,
+        rig,
+        sleep=lambda _: None,
+        evidence=lambda record, prev, curr: kept.append((record, prev, curr)),
+        dump_frames=dump_frames,
+    )
+    ledger.zoomed = True
+    return driver, kept
+
+
+def test_a_broken_reading_hands_both_frames_to_the_evidence_sink():
+    """水平向斷鏈的根因（量測系統性欠讀 vs 相位參考漂移）在幀存下來之前定不了讞
+    ——遙測只有數字，離線重放要的是那一對幀本身。"""
+    driver, kept = _witnessed(blank=(4,))
+
+    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert len(kept) == 1
+    record, previous, current = kept[0]
+    assert record["verdict"] == coverage.BROKEN
+    assert (record["tick"], record["probe"]) == (1, LEG_PROBE)
+    assert record["direction"] in board.DIRECTIONS
+    assert not current.any()
+    # 前一幀來自執行器自己留的引用：Odometer.feed 判 BROKEN 時刻意不推進 previous
+    assert previous is not None and previous.any()
+
+
+def test_the_evidence_sink_stays_silent_while_the_chain_holds():
+    """存證只在斷鏈時發射：整輪都好好的就不該留下任何一對幀。"""
+    driver, kept = _witnessed()
+
+    for _ in range(3):
+        driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert kept == []
+
+
+def test_dumping_survey_frames_hands_over_every_observe_in_order():
+    """離線重放量測要的是整輪的 settled 幀，不只斷鏈那幾張。"""
+    driver, kept = _witnessed(dump_frames=True)
+
+    for _ in range(2):
+        driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert [record["probe"] for record, _, _ in kept] == [PRECHECK_PROBE, LEG_PROBE] * 2
+    assert kept[0][1] is None
+    # 上一幀就是上一次 observe 收下的那一張——這條鏈住在執行器，不是量測層
+    for (_, previous, _), (_, _, earlier) in zip(kept[1:], kept[:-1], strict=True):
+        assert previous is earlier
+
+
+def test_a_failing_evidence_sink_never_stops_the_scan():
+    """存證是純觀察者：水槽炸了只記一次警告，掃描照跑。"""
+
+    def boom(record: dict, previous, current) -> None:
+        raise RuntimeError("the disk is on fire")
+
+    rig = Rig(World(cols=22, rows=12, units=((3, 2), (9, 6))), blank=(4,))
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, evidence=boom)
+    ledger.zoomed = True
+
+    step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert step.startswith(SWEEP_STEP)
+    assert rig.swipes == 1
 
 
 def test_the_survey_completes_when_the_frontier_empties():

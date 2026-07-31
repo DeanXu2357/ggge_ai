@@ -12,18 +12,21 @@ import cv2
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import entry
+from ggge_ai.runtime import coverage, entry
 from ggge_ai.runtime.device import LiveExecutor
 from ggge_ai.runtime.journal import Journal
 from ggge_ai.runtime.perceive import LivePerceiver
 from ggge_ai.stage.survey import survey_drivers
 from scripts.dry_run_entry import (
+    BROKEN_PAIRS,
     JOURNAL_NAME,
+    SURVEY_BROKEN,
     SURVEY_TICK,
     SURVEY_TICKS,
     Camera,
     DryRun,
     Halt,
+    SurveyFrames,
     build,
     parse_args,
     point,
@@ -212,6 +215,97 @@ def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
     assert [line["unlocalised"] for line in summary] == [2]
     assert summary[0]["survey"]["islands"]["open"] is False
     assert "coverage" in summary[0]["survey"]
+
+
+# ---- v2.3 斷鏈存證 ----
+
+
+def broken(tick: int, reason: str = "phase") -> dict[str, object]:
+    return {
+        "tick": tick,
+        "probe": "leg",
+        "direction": "east",
+        "reason": reason,
+        "verdict": coverage.BROKEN,
+    }
+
+
+def test_a_broken_pair_lands_on_disk_as_two_full_frames(tmp_path):
+    """斷鏈根因未定讞：離線重放量測要的是那一對幀本身，遙測的數字答不了。"""
+    journal = Journal(tmp_path / JOURNAL_NAME)
+    sink = SurveyFrames(journal=journal)
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+
+    sink(broken(7, "no lattice"), frame, frame)
+
+    row = [line for line in journal.entries() if line["kind"] == SURVEY_BROKEN][0]
+    assert row["saved"] is True
+    assert (row["tick"], row["probe"], row["reason"]) == (7, "leg", "no lattice")
+    assert row["prev"] == "frames/broken/t7-leg-no_lattice-prev.png"
+    assert row["curr"] == "frames/broken/t7-leg-no_lattice-curr.png"
+    assert cv2.imread(str(tmp_path / row["curr"])).shape == frame.shape
+
+
+def test_the_very_first_observe_has_no_previous_frame_to_keep(tmp_path):
+    journal = Journal(tmp_path / JOURNAL_NAME)
+    sink = SurveyFrames(journal=journal)
+
+    sink(broken(1), None, np.zeros((1080, 2340, 3), np.uint8))
+
+    row = [line for line in journal.entries() if line["kind"] == SURVEY_BROKEN][0]
+    assert row["prev"] is None
+    assert (tmp_path / row["curr"]).exists()
+
+
+def test_past_the_pair_ceiling_the_break_is_journalled_but_not_photographed(tmp_path):
+    """80 tick 全斷鏈時 run 目錄會被幀塞爆；上限之後只記流水帳。"""
+    journal = Journal(tmp_path / JOURNAL_NAME)
+    sink = SurveyFrames(journal=journal)
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+
+    for tick in range(BROKEN_PAIRS + 3):
+        sink(broken(tick), frame, frame)
+
+    rows = [line for line in journal.entries() if line["kind"] == SURVEY_BROKEN]
+    assert len(rows) == BROKEN_PAIRS + 3
+    assert [line["saved"] for line in rows].count(True) == BROKEN_PAIRS
+    assert len(list((tmp_path / "frames" / "broken").iterdir())) == BROKEN_PAIRS * 2
+
+
+def test_an_intact_reading_is_only_photographed_when_dumping_is_on(tmp_path):
+    journal = Journal(tmp_path / JOURNAL_NAME)
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+    quiet = {"tick": 2, "probe": "precheck", "direction": None, "reason": "ok", "verdict": "ok"}
+
+    SurveyFrames(journal=journal)(quiet, frame, frame)
+
+    assert SURVEY_BROKEN not in kinds(journal)
+    assert not (tmp_path / "frames" / "survey").exists()
+
+    SurveyFrames(journal=journal, dump=True)(quiet, frame, frame)
+
+    assert (tmp_path / "frames" / "survey" / "t2-precheck.png").exists()
+
+
+def test_the_assembled_run_wires_the_evidence_sink_and_the_dump_flag(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["dry_run_entry", "--stage-node", "544,667", "--no-zoom"])
+    journal = Journal(tmp_path / JOURNAL_NAME)
+
+    dry = build(parse_args(), journal)
+
+    assert isinstance(dry.driver.evidence, SurveyFrames)
+    assert dry.driver.dump_frames is False
+    assert dry.driver.evidence.dump is False
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["dry_run_entry", "--stage-node", "544,667", "--no-zoom", "--dump-survey-frames"],
+    )
+    dumping = build(parse_args(), Journal(tmp_path / "dump" / JOURNAL_NAME))
+
+    assert dumping.driver.dump_frames is True
+    assert dumping.driver.evidence.dump is True
 
 
 def test_the_default_survey_budget_is_the_raised_one(monkeypatch):

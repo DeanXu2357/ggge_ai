@@ -16,6 +16,7 @@ usage:
   uv run python scripts/dry_run_entry.py … --stop-after grid
   uv run python scripts/dry_run_entry.py … --survey-ticks 20   # 預設 80
   uv run python scripts/dry_run_entry.py … --no-zoom           # 不 pinch，掃當前縮放
+  uv run python scripts/dry_run_entry.py … --dump-survey-frames  # 每次 observe 的幀都留
 
   # 全程（預設進到地圖之後會棄戰收尾；棄戰不耗 AP／挑戰次數／EN，0730 實證）
   uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stage-node 544,667
@@ -33,24 +34,28 @@ map.md），沿用「現在選著的那一關」會打到別關去，所以每�
 證據：data/runs/<時間戳>/dry_run.jsonl＋frames/（每段界線、每次觀測與每次失敗各存
 一張原生幀）。截圖只有 Camera 一個來源——感知器也吃它，所以存下來的幀就是當下判定
 用的那張。掃描每 tick 另出兩筆 survey_tick（前置複核幀與 leg 幀各一），帶位移量、
-閘門裁決與靜止閘輪數。任何 expect 失敗就停在原地不再點，印出畫面名與當下截圖路徑。
+閘門裁決與靜止閘輪數；斷鏈那幾次另存 frames/broken/ 的前後幀對（上限 20 對），
+`--dump-survey-frames` 則把每次 observe 的幀全留在 frames/survey/ 供離線重放量測。
+任何 expect 失敗就停在原地不再點，印出畫面名與當下截圖路徑。
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+import cv2
 import numpy as np
 
-from ggge_ai.runtime import entry, screens, zoom
+from ggge_ai.runtime import coverage, entry, screens, zoom
 from ggge_ai.runtime.device import Adb, LiveDevice, LiveExecutor
-from ggge_ai.runtime.journal import Journal, rotate_runs
+from ggge_ai.runtime.journal import FRAMES_DIRNAME, Journal, rotate_runs
 from ggge_ai.runtime.keyguard import Keyguard
 from ggge_ai.runtime.perceive import LivePerceiver, Observation, decode
 from ggge_ai.stage.actions import CollapseRoster, ShowGrid, SurveyBoard
@@ -64,6 +69,13 @@ STAGES = ("select", "prep", "stage_info", "map", "grid", "survey")
 # 逐 observe 的量測遙測（A5 儀器化）：微步驟名答不了「那一腿到底移了多少」，
 # 位移量、閘門裁決與靜止閘輪數只有這一種紀錄看得到。
 SURVEY_TICK = "survey_tick"
+# 斷鏈存證：0801 複驗第 2 輪兩輪共 37 次 BROKEN(phase) 幾乎全在東西向，候選假說
+# （量測系統性欠讀 vs 相位參考漂移）在幀存下來之前定不了讞。上限擋的是 80 tick
+# 全斷鏈時把 run 目錄塞爆——超過只記流水帳。
+SURVEY_BROKEN = "survey_broken"
+BROKEN_DIRNAME = "broken"
+BROKEN_PAIRS = 20
+SURVEY_DIRNAME = "survey"
 # 步數帳（0801 複驗實測）：南 11＋北 2＋東 18＋西 ~10 已 41 腿，40 tick 連一輪都
 # 走不完。80 給斷鏈殘餘與西側補掃留裕度；真正的上限仍是 coverage.LEG_BUDGET。
 SURVEY_TICKS = 80
@@ -101,6 +113,76 @@ class Camera:
         path = self.journal.save_frame(self.raw, self.shots)
         self.journal.record("frame", label=label, frame=path)
         return path
+
+
+@dataclass
+class SurveyFrames:
+    """掃描的幀存證水槽：斷鏈的前後幀對，外加可選的全幀傾印。
+
+    存的是 `cv2.imencode` 重編的 PNG——PNG 無失真，像素與裝置那張逐點相同，只有
+    檔案位元組不同（幀在 driver 那一層已經是解碼過的陣列，拿不到原始位元組）。
+    離線重放量測要的是像素，這個代價可以接受。
+
+    純觀察者：寫檔失敗只記一次警告，掃描照跑（driver 那一層也包了一層 try）。
+    """
+
+    journal: Journal
+    dump: bool = False
+    pairs: int = 0
+
+    @property
+    def run_dir(self) -> Path:
+        return self.journal.path.parent
+
+    def __call__(
+        self, record: dict[str, object], previous: np.ndarray | None, current: np.ndarray
+    ) -> None:
+        if record.get("verdict") == coverage.BROKEN:
+            self._pair(record, previous, current)
+        if self.dump:
+            self._dump(record, current)
+
+    def _pair(
+        self, record: dict[str, object], previous: np.ndarray | None, current: np.ndarray
+    ) -> None:
+        stem = f"t{record['tick']}-{record['probe']}-{_slug(str(record['reason']))}"
+        saved = self.pairs < BROKEN_PAIRS
+        frames: dict[str, str | None] = {"prev": None, "curr": None}
+        if saved:
+            self.pairs += 1
+            frames["prev"] = self._write(BROKEN_DIRNAME, f"{stem}-prev.png", previous)
+            frames["curr"] = self._write(BROKEN_DIRNAME, f"{stem}-curr.png", current)
+        self.journal.record(
+            SURVEY_BROKEN,
+            tick=record["tick"],
+            probe=record["probe"],
+            direction=record["direction"],
+            reason=record["reason"],
+            saved=saved,
+            **frames,
+        )
+
+    def _dump(self, record: dict[str, object], current: np.ndarray) -> None:
+        self._write(SURVEY_DIRNAME, f"t{record['tick']}-{record['probe']}.png", current)
+
+    def _write(self, folder: str, name: str, frame: np.ndarray | None) -> str | None:
+        if frame is None:
+            return None
+        directory = self.run_dir / FRAMES_DIRNAME / folder
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            ok, buffer = cv2.imencode(".png", frame)
+            if not ok:
+                raise ValueError("cv2.imencode refused the frame")
+            (directory / name).write_bytes(buffer.tobytes())
+        except Exception:
+            log.warning("could not keep survey frame %s/%s", folder, name, exc_info=True)
+            return None
+        return f"{FRAMES_DIRNAME}/{folder}/{name}"
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^0-9a-zA-Z]+", "_", text).strip("_") or "unknown"
 
 
 @dataclass
@@ -257,6 +339,11 @@ def parse_args() -> argparse.Namespace:
         default=True,
         help="掃描前先 pinch 到最小縮放（需要 uiautomator2 連得上）",
     )
+    parser.add_argument(
+        "--dump-survey-frames",
+        action="store_true",
+        help="每次 observe 的 settled 幀都存進 frames/survey/（離線重放量測用）",
+    )
     parser.add_argument("--run-dir", type=Path, default=None)
     return parser.parse_args()
 
@@ -324,6 +411,8 @@ def build(args: argparse.Namespace, journal: Journal) -> DryRun:
         device,
         zoom_out=zoom_driver(args, camera, journal),
         telemetry=lambda record: journal.record(SURVEY_TICK, **record),
+        evidence=SurveyFrames(journal=journal, dump=args.dump_survey_frames),
+        dump_frames=args.dump_survey_frames,
     )
     return DryRun(
         device=device,
