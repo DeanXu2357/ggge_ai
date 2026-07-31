@@ -10,7 +10,7 @@ import pytest
 import cv2
 
 from ggge_ai.runtime import entry, screens
-from ggge_ai.runtime.device import TapRefused, check_tap
+from ggge_ai.runtime.device import DANGER_BANDS, TapRefused, check_tap
 from tests.fixtures.frames import load, path_of
 
 MAP_GRID_ON = "grid/hub_grid_on_20260719"
@@ -309,12 +309,14 @@ def test_the_sortie_gate_walks_prep_to_stage_info_to_the_map():
 
 
 def test_the_sortie_gate_never_taps_the_auto_deploy_button():
-    """出擊 (1930,970) 與自動編制 (2001,924) 相鄰；誤點會改編成。"""
+    """自動編制 (1496,1010) 在出擊準備下緣按鈕列；誤點會覆蓋排好的編成。"""
+    band = next(b for b in DANGER_BANDS if b.name == "auto_deploy")
     screen = sortie_script()
 
     entry.enter_stage(screen.capture, screen.tap, sleep=lambda _: None)
 
-    assert (2001, 924) not in screen.points()
+    for x, y in screen.points():
+        assert not band.contains(x, y), (x, y)
 
 
 def test_an_early_tap_to_next_skips_the_advance_instead_of_tapping_blind():

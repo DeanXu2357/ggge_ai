@@ -103,14 +103,16 @@ def test_the_stance_slots_march_left_at_the_measured_pitch():
 
 
 def test_the_reaction_confirm_needs_a_deliberate_intent():
-    """行動選擇 (2042,924) 與出擊準備的自動編制 (2001,924) 共用一塊區域。"""
+    """行動選擇＝右下角大圓鈕 (2037,930)，確認帶只放行刻意 intent。"""
     with pytest.raises(TapRefused):
         check_tap(*gestures.REACTION_CONFIRM_TAP)
 
     check_tap(*gestures.REACTION_CONFIRM_TAP, intent=gestures.CONFIRM_INTENT)
 
     with pytest.raises(TapRefused):
-        check_tap(2001, 924, intent="")
+        check_tap(1496, 1010)
+    with pytest.raises(TapRefused):
+        check_tap(1496, 1010, intent="confirm")
 
 
 def test_the_parked_end_turn_taps_stay_off_the_auto_battle_half():

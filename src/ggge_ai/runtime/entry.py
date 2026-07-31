@@ -36,8 +36,8 @@ class Tapper(Protocol):
 # 已知按鈕最遠的中下位置；**待實機確認此點無其他元件**。
 STAGE_INFO_ADVANCE_TAP = (1170, 780)
 # 關卡列表右欄的「出擊準備」鈕（模板 elements/btn_sortie_prep.png 的匹配中心）。
-# 鈕的下半壓在 y≈895-955 的危險帶裡（同一格在別的畫面上是自動編制／行動選擇），
-# 所以這個點刻意落在帶的上緣之上。
+# 鈕的下半壓在 y≈895-955 的危險帶裡（同一帶在應戰 stance 選單上是行動選擇確認
+# 鈕），所以這個點刻意落在帶的上緣之上。
 STAGE_LIST_PREP_TAP = (2035, 880)
 SORTIE_TAP = (1930, 970)
 AUTO_DEPLOY_CANCEL_TAP = (971, 1009)
@@ -288,8 +288,8 @@ def sortie(
 ) -> GateReport:
     """出擊準備 →（出擊）→ 關卡資訊 → AUTO 硬閘門。**這一步起花 EN 與挑戰次數。**
 
-    出擊鈕 (1930,970) 右上一帶是自動編制 (2001,924)：誤點會改編成，所以那一帶
-    由裝置層的危險帶拒點，這裡只管按對的那一顆。
+    同一列的左邊還有「自動編制」(1496,1010)，誤點會覆蓋排好的編成；那一帶由裝置層
+    的 auto_deploy 危險帶絕對拒點（無 intent 可放行），這裡只管按出擊那一顆。
     """
     report = GateReport()
     screen, _ = expect_screen(capture, (screens.SORTIE_PREP,), sleep=sleep)

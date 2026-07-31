@@ -125,7 +125,8 @@ def test_off_screen_coordinates_are_refused_before_they_reach_adb():
         ((1773, 295), "auto_battle_tristate"),
         ((410, 860), "battle_menu_abandon"),
         ((752, 865), "battle_menu_abandon"),
-        ((2001, 924), "top_right_confirm"),
+        ((2042, 924), "bottom_right_confirm"),
+        ((1496, 1010), "auto_deploy"),
         ((1815, 52), "auto_switch"),
     ],
 )
@@ -146,11 +147,13 @@ def test_only_the_declared_intent_gets_through_a_danger_band():
 
 
 def test_the_sortie_button_sits_clear_of_the_auto_deploy_band():
-    """出擊 (1930,970) 與自動編制 (2001,924) 相鄰：前者必須放行、後者必須拒絕。"""
+    """出擊 (1930,970) 不在任何帶內、必須無 intent 就放行；同一列左邊的自動編制
+    (1496,1010) 會覆蓋編成，任何 intent 都不放行。"""
     check_tap(1930, 970)
 
-    with pytest.raises(TapRefused):
-        check_tap(2001, 924)
+    for intent in ("", "confirm", "abandon"):
+        with pytest.raises(TapRefused, match="auto_deploy"):
+            check_tap(1496, 1010, intent=intent)
 
 
 def test_the_keyguard_hook_is_throttled_not_per_tap():

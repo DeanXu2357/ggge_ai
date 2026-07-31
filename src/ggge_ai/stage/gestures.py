@@ -31,7 +31,8 @@ STANCE_DODGE_TAP = (1540, 940)
 STANCE_DEFEND_TAP = (1352, 940)
 STANCE_PITCH = 187
 STANCE_ROW_Y = 940
-# 行動選擇：與出擊準備的自動編制共用同一塊右上區域，所以帶 intent 才點得下去。
+# 行動選擇：右下角確認帶（bottom_right_confirm）只放行刻意確認，所以帶 intent
+# 才點得下去。
 REACTION_CONFIRM_TAP = (2042, 924)
 CONFIRM_INTENT = "confirm"
 
