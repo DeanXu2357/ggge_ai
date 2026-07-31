@@ -76,7 +76,8 @@ STALL_CONFIRM = 2
 ISLAND_BUDGET = 6
 # 前緣選目標時 STALE 聚類的距離折扣（含 STALE ＝ 單位大概率在附近，威脅評估最需要）。
 STALE_WEIGHT = 0.5
-# 腿數保險絲：只防失控，不是完成判準。
+# 腿數保險絲：只防**單一回合**內的失控，不是整場戰鬥的額度，也不是完成判準。
+# 跨回合累積的話十幾回合就燒斷，之後 fused 恆真、掃描永遠完不成＝整關卡死。
 LEG_BUDGET = 200
 
 _STILL = Shift(0.0, 0.0, 1.0, "still")
@@ -532,8 +533,12 @@ class Survey:
         敵方回合鏡頭會被遊戲拉去演出，兩個回合之間的位移量不出來，所以世界錨點
         一律當作斷了——下一幀進島嶼，重錨成功才接回同一套世界座標；重錨不成就
         誠實重開世界（邊界旗一起重來，但不會有一格是錯的）。
+
+        腿數保險絲跟著歸零：衰效之後整張圖都要重掃，這一回合的腿數不該由上一回合
+        預付。不歸零的話十幾回合就燒斷，之後每一回合都直接判掃不完。
         """
         self.generation += 1
+        self.legs = 0
         if self.chart is None:
             return
         self.chart.expire()
@@ -735,6 +740,10 @@ class Survey:
 
         規格的「開到最近已知邊歸零」是更好的復原，但那需要一套朝已知邊界轉向的
         steering；本批取有界的誠實重來——舊圖作廢、重新錨定，成本是一次全掃。
+
+        撞邊線跟著舊世界一起作廢（新世界的原點是當下這一幀，舊座標值沒有意義）；
+        腿數**不**歸零——同一回合內島嶼反覆丟棄重開仍受同一條保險絲約束，不然
+        回合內就沒有上界了。
         """
         log.warning("island of %d frames never re-anchored; resetting the world", len(island.views))
         self.islands["discarded"] += 1
@@ -744,16 +753,23 @@ class Survey:
         self.chart = None
         self.odometer = Odometer()
         self.stalls.clear()
+        self.clamps.clear()
         if frame is not None:
             self._anchor(frame)
 
     def reset(self) -> None:
-        """鏡頭的比例被動過（縮放）：舊世界的像素座標全部作廢，重新錨定。"""
+        """鏡頭的比例被動過（縮放）：舊世界的像素座標全部作廢，重新錨定。
+
+        撞邊線帶的是舊世界的座標值，新世界走到同一個數字並不代表頂在邊上，所以
+        一起清掉；腿數也重開，縮放後這是新的一輪掃描。
+        """
         self.chart = None
         self.odometer = Odometer()
         self.island = None
         self.adrift = False
         self.stalls.clear()
+        self.clamps.clear()
+        self.legs = 0
 
 
 def covered(grid: WorldGrid, view: FrameView) -> tuple[Cell, ...]:

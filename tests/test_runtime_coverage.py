@@ -18,9 +18,11 @@ from ggge_ai.runtime.coverage import (
     BROKEN,
     STALLED,
     FrameView,
+    Island,
     Knowledge,
     KnowledgeMap,
     Odometer,
+    Reading,
     Survey,
     WorldGrid,
 )
@@ -523,3 +525,112 @@ def test_the_fuse_stops_the_survey_instead_of_burning_the_whole_tick_budget():
     assert survey.fused
     assert survey.plan_leg() is None
     assert not survey.complete
+
+
+# ---- v2.1 缺陷修正的迴歸線（0731 重審定讞的六缺陷，復現腳本見流水帳存檔） ----
+
+
+def test_the_leg_fuse_is_a_per_turn_ceiling_not_a_whole_battle_quota():
+    """保險絲只防單一回合內的失控。跨回合累積的話十幾回合就燒斷，之後 fused 恆真、
+    board_synced 永遠達不成——整關從那一刻起卡死。"""
+    world = _synthetic()
+    rig = Rig(world)
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
+    ledger.zoomed = True
+
+    spent = []
+    for _ in range(3):
+        for _ in range(60):
+            driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+            if ledger.synced:
+                break
+        assert ledger.synced
+        assert not ledger.survey.fused
+        spent.append(ledger.survey.legs)
+        ledger.expire()
+        assert ledger.survey.legs == 0
+
+    assert max(spent) < coverage.LEG_BUDGET
+    # 每回合各自從零起算，所以後面的回合不會比第一回合貴
+    assert max(spent[1:]) <= spent[0] * 2
+
+
+
+
+
+
+def test_a_clamp_line_from_the_old_world_never_survives_into_the_new_one():
+    """撞邊線記的是世界座標。縮放之後原點換了一幀，同一個數字不代表頂在邊上——
+    帶過去會讓新世界裡地圖中央的方向被當成推不動。"""
+    survey = Survey()
+    survey.clamps["east"] = 3200.0
+    survey.legs = 30
+
+    survey.reset()
+    survey.odometer = Odometer(grid=GRID, offset=(3210.0, 0.0))
+
+    assert survey.clamps == {}
+    assert not survey._clamped("east")
+    assert survey.legs == 0
+
+
+def test_abandoning_an_island_drops_the_clamps_but_keeps_the_leg_fuse():
+    survey = Survey()
+    survey.chart = chart()
+    survey.clamps["east"] = 3200.0
+    survey.legs = 7
+    island = Island(reason="test", odometer=Odometer(grid=GRID))
+    survey.island = island
+
+    survey._abandon(island)
+
+    assert survey.clamps == {}
+    # 同一回合內島嶼反覆丟棄重開仍受同一條保險絲約束，不然回合內就沒有上界
+    assert survey.legs == 7
+
+
+_POCKET = ((0, 0), (1, 0), (2, 0), (2, 1), (2, 2))
+
+
+def _boxed() -> Survey:
+    """四旗全定的 5x5 小世界，缺口是一個 L 形聚類（質心 (1,1) 落在聚類外）。"""
+    survey = Survey(region=WINDOW)
+    survey.chart = chart()
+    survey.odometer = Odometer(grid=GRID, offset=(-50.0, -50.0))
+    for direction, line in (("west", 0), ("east", 4), ("north", 0), ("south", 4)):
+        survey.chart.boundary[direction] = line
+    for col in range(5):
+        for row in range(5):
+            survey.chart.charted.add((col, row))
+            survey.chart.state[(col, row)] = Knowledge.EMPTY
+    for cell in _POCKET:
+        survey.chart.state[cell] = Knowledge.UNKNOWN
+    return survey
+
+
+def _islanded(marks: tuple[tuple[float, float], ...], truth: tuple[float, float]) -> Survey:
+    """權威圖記著 marks，島嶼在同一批單位上差了 truth 這個偏移。"""
+    survey = Survey()
+    survey.chart = chart()
+    for point in marks:
+        survey.chart.state[GRID.cell_of(point)] = Knowledge.STALE
+        survey.chart.marks[GRID.cell_of(point)] = board.Sighting(point)
+    survey.island = Island(reason="test", odometer=Odometer(grid=GRID))
+    survey.island.views = [
+        view(
+            region=(0, 0, 2340, 1080),
+            units=[board.Sighting((x - truth[0], y - truth[1])) for x, y in marks],
+        )
+    ]
+    return survey
+
+
+def _stalling_island() -> Survey:
+    survey = Survey()
+    survey.chart = chart(boundary={"west": 0})
+    survey.island = Island(reason="test", odometer=Odometer(grid=GRID))
+    return survey
+
+
+def _reading(verdict: str) -> Reading:
+    return Reading(verdict, board.Shift(0.0, 0.0, 1.0, "still"), (640.0, 0.0))
