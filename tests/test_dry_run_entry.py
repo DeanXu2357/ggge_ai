@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
 
 import cv2
@@ -16,7 +17,15 @@ from ggge_ai.runtime.device import LiveExecutor
 from ggge_ai.runtime.journal import Journal
 from ggge_ai.runtime.perceive import LivePerceiver
 from ggge_ai.stage.survey import survey_drivers
-from scripts.dry_run_entry import JOURNAL_NAME, Camera, DryRun, Halt, point
+from scripts.dry_run_entry import (
+    JOURNAL_NAME,
+    Camera,
+    DryRun,
+    Halt,
+    build,
+    parse_args,
+    point,
+)
 from tests.fixtures.frames import load
 
 STAGE_LIST = "popups/stage_list_dim_20260719"
@@ -35,9 +44,12 @@ class FakeDevice:
     transitions: dict[tuple[int, int], np.ndarray] = field(default_factory=dict)
     taps: list[tuple[int, int, str]] = field(default_factory=list)
     unlocks: int = 0
+    handed: list[bytes] = field(default_factory=list)
 
     def screenshot(self) -> bytes:
-        return cv2.imencode(".png", self.frame)[1].tobytes()
+        raw = cv2.imencode(".png", self.frame)[1].tobytes()
+        self.handed.append(raw)
+        return raw
 
     def ensure_unlocked(self, force: bool = False) -> None:
         self.unlocks += 1
@@ -132,6 +144,29 @@ def test_every_stage_boundary_keeps_a_native_frame(tmp_path):
     assert [line["label"] for line in saved] == ["select:start", "select:end"]
     for line in saved:
         assert (tmp_path / line["frame"]).exists()
+
+
+def test_the_perceiver_and_the_saved_frame_come_from_one_camera(tmp_path):
+    """0730 發現②：Camera 與 LivePerceiver 各抓各的，段界存檔是陳舊幀、只有
+    journal 的結構化欄位可信。單一幀源之後，判定用的與存下來的是同一張。"""
+    device = FakeDevice(frame=load(STAGE_LIST))
+    journal = Journal(tmp_path / JOURNAL_NAME)
+    camera = Camera(device=device, journal=journal)
+
+    seen = LivePerceiver(device=camera).look()
+    saved = camera.keep("probe")
+
+    assert len(device.handed) == camera.shots == 1
+    assert seen.frame == device.handed[-1]
+    assert (tmp_path / saved).read_bytes() == seen.frame
+
+
+def test_the_assembled_run_gives_the_perceiver_the_camera_channel(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["dry_run_entry", "--stage-node", "544,667", "--no-zoom"])
+
+    dry = build(parse_args(), Journal(tmp_path / JOURNAL_NAME))
+
+    assert dry.perceiver.device is dry.camera
 
 
 def test_the_node_argument_is_parsed_as_a_point():

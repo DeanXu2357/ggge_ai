@@ -24,8 +24,9 @@ usage:
 節點平台約在 (544,872)，**那個點撞上戰鬥選單「放棄」的危險帶會被拒點**——要點就
 點編號／星列那一列（y 較高，例如 544,667），或乾脆手動先選好關卡。
 
-證據：data/runs/<時間戳>/dry_run.jsonl＋frames/（每段界線與每次失敗各存一張原生
-幀）。任何 expect 失敗就停在原地不再點，印出畫面名與當下截圖路徑。
+證據：data/runs/<時間戳>/dry_run.jsonl＋frames/（每段界線、每次觀測與每次失敗各存
+一張原生幀）。截圖只有 Camera 一個來源——感知器也吃它，所以存下來的幀就是當下判定
+用的那張。任何 expect 失敗就停在原地不再點，印出畫面名與當下截圖路徑。
 """
 
 from __future__ import annotations
@@ -63,17 +64,25 @@ class Halt(RuntimeError):
 
 @dataclass
 class Camera:
-    """capture 通道，順手記住最後一張原生幀——段界與失敗點才有圖可指。"""
+    """**唯一幀源**：這支所有的截圖都經過這裡，最後一張原生幀留著給段界與失敗點。
+
+    感知器也吃這個通道（`LivePerceiver(device=camera)`），因為它自己抓幀時存檔存
+    到的是別張——0730 實機發現②：段界存的是陳舊幀，只有 journal 的結構化欄位
+    才對得上。共用同一張之後，同一個停點的判定與存檔必然是同一張幀。
+    """
 
     device: LiveDevice
     journal: Journal
     raw: bytes | None = field(default=None, init=False)
     shots: int = field(default=0, init=False)
 
-    def grab(self) -> np.ndarray:
+    def screenshot(self) -> bytes:
         self.raw = self.device.screenshot()
         self.shots += 1
-        return decode(self.raw)
+        return self.raw
+
+    def grab(self) -> np.ndarray:
+        return decode(self.screenshot())
 
     def keep(self, label: str) -> str | None:
         path = self.journal.save_frame(self.raw, self.shots)
@@ -170,7 +179,14 @@ class DryRun:
 
     def observe(self, label: str) -> Observation:
         seen = self.perceiver.look()
-        self.journal.record("observed", label=label, screen=seen.screen, **seen.evidence)
+        # 存的就是這次判定用的那張幀（感知器與存檔共用 Camera），事後才對得起來。
+        self.journal.record(
+            "observed",
+            label=label,
+            screen=seen.screen,
+            frame=self.journal.save_frame(seen.frame, self.camera.shots),
+            **seen.evidence,
+        )
         log.info(
             "%s: screen=%s auto=%s grid_on=%s roster=%s",
             label,
@@ -277,7 +293,7 @@ def build(args: argparse.Namespace, journal: Journal) -> DryRun:
         journal=journal,
         executor=LiveExecutor(device=device, drivers=driver.drivers(), journal=journal),
         driver=driver,
-        perceiver=LivePerceiver(device=device),
+        perceiver=LivePerceiver(device=camera),
         stop_after=args.stop_after,
         survey_ticks=args.survey_ticks,
         node=point(args.stage_node),
