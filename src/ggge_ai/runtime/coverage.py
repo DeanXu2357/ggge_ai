@@ -207,11 +207,23 @@ class KnowledgeMap:
         return True
 
     def absorb(self, view: FrameView) -> tuple[Cell, ...]:
-        """把一幀寫進圖：整格看得清楚的先記 EMPTY，落在其中的目擊再蓋成 UNIT。"""
+        """把一幀寫進圖：整格看得清楚的先記 EMPTY，落在其中的目擊再蓋成 UNIT。
+
+        **同一代裡已是 UNIT 的格不因為這一幀沒目擊就降級。** 掃描發生在我方回合，
+        敵單位在這段時間不會移動，所以「這一格看得清楚卻沒目擊」是偵測漏（弧被
+        精靈或特效遮住、密度峰沒過門檻、斷鏈期的座標誤差把目擊算到隔壁格），不是
+        單位離開的證據。無條件先鋪 EMPTY 的話，一次漏檢就抹掉先前記下的 UNIT，
+        整輪掃完只剩最後一次看到的那幾台。
+
+        單位離開的合法證據只有跨代：`expire()` 把 UNIT 降成 STALE 之後，同款的
+        view 照常把它蓋成 EMPTY——那一代的敵人真的動過。
+        """
         seen = covered(self.grid, view)
         fresh = tuple(cell for cell in seen if self.knowledge(cell) in GAPS)
         for cell in seen:
             self.charted.add(cell)
+            if self.knowledge(cell) is Knowledge.UNIT:
+                continue
             self.state[cell] = Knowledge.EMPTY
             self.marks.pop(cell, None)
         inside = set(seen)

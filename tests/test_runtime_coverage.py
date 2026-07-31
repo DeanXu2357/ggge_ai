@@ -80,6 +80,45 @@ def test_absorbing_a_frame_marks_empty_then_stamps_the_sightings():
     assert world.units() == (((2, 1), board.RED_HINT),)
 
 
+def test_a_seen_unit_survives_a_later_frame_that_simply_missed_it():
+    """掃描在我方回合，敵單位不會移動：同一代裡「看得清楚卻沒目擊」＝偵測漏，
+    不是離開。無條件鋪 EMPTY 的話一次漏檢就抹掉整格知識（0801 複驗：23 個目擊
+    最後只記得 10 台）。"""
+    world = chart()
+    world.absorb(view(units=[board.Sighting((250.0, 150.0), board.RED_HINT)]))
+
+    world.absorb(view())
+
+    assert world.knowledge((2, 1)) is Knowledge.UNIT
+    assert world.units() == (((2, 1), board.RED_HINT),)
+    assert world.knowledge((0, 0)) is Knowledge.EMPTY
+
+
+def test_a_fresh_sighting_on_the_same_cell_still_updates_the_mark():
+    """滯後保的是「有單位」這件事，不是舊座標：本幀量到的世界像素照樣蓋上去，
+    不然重定位器比對的是過期的星座。"""
+    world = chart()
+    world.absorb(view(units=[board.Sighting((250.0, 150.0), board.RED_HINT)]))
+
+    world.absorb(view(units=[board.Sighting((262.0, 158.0), board.BLUE_HINT)]))
+
+    assert world.marks[(2, 1)] == board.Sighting((262.0, 158.0), board.BLUE_HINT)
+    assert world.units() == (((2, 1), board.BLUE_HINT),)
+
+
+def test_a_stale_cell_is_downgraded_by_an_empty_view_because_the_enemy_did_move():
+    """跨代才是單位離開的合法證據：expire() 之後同款的 view 照常蓋成 EMPTY。"""
+    world = chart()
+    world.absorb(view(units=[board.Sighting((250.0, 150.0), board.RED_HINT)]))
+    world.expire()
+    assert world.knowledge((2, 1)) is Knowledge.STALE
+
+    world.absorb(view())
+
+    assert world.knowledge((2, 1)) is Knowledge.EMPTY
+    assert world.marks == {}
+
+
 def test_a_sighting_outside_the_readable_band_is_not_written_at_all():
     """半個機體露在畫面外時峰的位置不可信：寧可留 UNKNOWN 等前緣回補。"""
     world = chart()
@@ -295,6 +334,9 @@ class Rig:
 
     blank 數的是**截圖次數**，而取幀靜止閘讓每一次 observe 花掉兩張圖（f1、f2 各
     一），所以第 k 次 observe 拿到的是第 2k 張——合成世界瞬時靜止，第一輪就過閘。
+
+    blind ＝ 那幾張截圖的單位沒畫出來（偵測漏的合成版）：背景與格線逐像素相同，
+    只有機體環不見了，所以量測照舊、目擊憑空少一批。
     """
 
     world: World
@@ -304,13 +346,23 @@ class Rig:
     eaten: tuple[int, ...] = ()
     doubled: tuple[int, ...] = ()
     blank: tuple[int, ...] = ()
+    blind: tuple[int, ...] = ()
     jumps: dict[int, tuple[float, float]] = field(default_factory=dict)
+    bare: World | None = None
 
     def capture(self) -> np.ndarray:
         self.shots += 1
         if self.shots in self.blank:
             return np.zeros((1080, 2340, 3), np.uint8)
+        if self.shots in self.blind:
+            return self._bare_frame()
         return self.world.frame()
+
+    def _bare_frame(self) -> np.ndarray:
+        if self.bare is None:
+            self.bare = World(cols=self.world.cols, rows=self.world.rows, units=())
+        self.bare.camera = self.world.camera
+        return self.bare.frame()
 
     def tap(self, x: int, y: int, intent: str = "") -> None:
         raise AssertionError("掃描不點任何東西")
@@ -355,6 +407,28 @@ def test_the_survey_converges_on_a_known_world_and_places_every_unit():
     assert census["unit"] == len(world.units)
     assert census["empty"] > 100
     assert census["stale"] == 0
+
+
+def test_a_scan_that_misses_units_on_some_frames_still_ends_with_all_of_them():
+    """A6 的簽名：偵測漏一幀就抹掉那一格，整輪掃完記得的遠少於世界真值（0801
+    複驗：單幀 23 個目擊，整輪只記 10 台）。同一代內單位數只准增加。"""
+    world = _synthetic()
+    # 第 3、6、9… 次 observe 的那一幀看不到任何單位（截圖序號 ＝ observe 序號 ×2）
+    rig = Rig(world, blind=tuple(range(6, 200, 6)))
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
+    ledger.zoomed = True
+
+    tally: list[int] = []
+    for _ in range(40):
+        driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+        tally.append(len(ledger.cells()))
+        if ledger.synced:
+            break
+
+    assert ledger.synced
+    assert tally == sorted(tally)
+    want, got = unit_cells(ledger, world)
+    assert got == want
 
 
 def test_the_corner_cells_the_camera_can_never_expose_are_retired_out_loud():
