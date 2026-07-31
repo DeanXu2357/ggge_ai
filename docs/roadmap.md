@@ -4,9 +4,26 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-08-01，v2.1 入庫＋複驗輪第 1 輪 FAIL 已診斷）
+## 暫停快照（2026-08-01，複驗輪第 2 輪過半＋v2.3 派工中）
 
 ### 恢復點
+
+- **0801 複驗輪第 2 輪**（Phase A run 20260801-042733、Phase B
+  20260801-044436-phaseB；判讀與鑑識全文 decisions.md 0801 條）：
+  A1/A4 PASS（29 腿 synced、四旗全定）、expire 語意實機驗證、
+  **結束回合鈕標定完成**（(300,185)→(997,562) 待機並結束→
+  (1365,850) 執行）、應戰彈窗 18 連發正確應答、卡條不彈回。
+  三定讞：A6 漏記＝absorb 無條件覆寫（偵測器單幀 23 目擊 vs 最
+  終記 10）、增益學習死鎖（0.5×wanted 保護恆真）、東緣橡皮筋
+  回彈由 STALL 吸收不修。**水平向斷鏈根因未定**（37 次幾乎全
+  east/west、靜止閘 waits 全=1 滑行假說出局）→v2.3 補 BROKEN
+  存證待第 3 輪資料定讞。**v2.3 入庫**（`fb2f806`：absorb 同代
+  UNIT 滯後＋增益入帳 ACCEPTED≥40px＋BROKEN 幀對存證〔上限 20〕
+  ＋--dump-survey-frames＋synced 提前結束；1547 passed／ruff 綠；
+  設計決定 20 條＋六爭點裁決備案 decisions.md，導覽
+  docs/reviews/scan-v2_3-review.md）。注意：兩輪
+  --stage-node 544,667 實際打的都是 UC HARD 1（截圖證實），
+  map_scan 基準有效。
 
 - **0801 掃描複驗輪第 1 輪 Phase A FAIL＋診斷定讞**（run
   data/runs/20260801-033746；判讀與 v2.2 裁決全文 decisions.md
@@ -41,14 +58,14 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 - **待使用者裁**：v2 的 D1——`StageState.swept` 淘汰（無讀者
   grep 驗證、覆蓋數字改走 evidence["survey"]；已接受入庫，可
   推翻）。修正批/複驗輪先後已自裁＝先修後驗（decisions.md 0801）。
-- **佇列**：①掃描複驗輪第 2 輪（同判準重跑；已解鎖量測——遙測讓 A5 緩動殘餘
-  ／橫軸 0.5px/腿偏差可測；Phase A 過了接 Phase B 多回合：
-  每回合 board_synced 且 legs 從 0 起算、島嶼重錨成功率、敵回
-  合後星座重錨、卡條換回合彈回、結束回合鈕 (300,185) tap 覆核
-  〔左待機並結束 (997,562)、右自動戰鬥紅線永不點〕；Phase B
-  腳本已預寫 scratchpad phaseB_repl.py 可沿用）②2e 首戰 UC
-  HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據分層、
-  Move/Attack/Inspect plan）。
+- **佇列**：①掃描複驗輪第 3 輪＝鑑識輪（Phase A 單輪＋
+  --dump-survey-frames；驗收：R1 增益收斂〔第 5-6 腿
+  measured/expected→~1.0〕、R2 腿數 <29、R3 台數 UNIT≈28 紅
+  ≥16、R4 broken 幀對存證齊；**斷鏈率不入驗收**——量測鏈本批
+  未修）②主 session 離線鑑識 broken 幀對（measure_shift 對帳
+  遙測值＋read_lattice 相位逐對比）定讞水平斷鏈根因→視結果出
+  v2.4 量測鏈修正③2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕
+  對位、陣營證據分層、Move/Attack/Inspect plan）。
 - 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（游標 HARD 2
   ——棄戰游標飄移三度實證，重入必明示選關 --stage-node
   544,667）、EN 211/111、資金 1,307,500、鑽 4,200、RANK 26
