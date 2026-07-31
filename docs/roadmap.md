@@ -9,6 +9,12 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 
 ### 中斷點與重啟指南
 
+- **0731 增補：2c-2d review 使用者裁定完成**（四條，備案
+  decisions.md 0731＋reviews/2c-2d-review.md 審後裁定節）。
+  唯一程式改動＝爭點 4 否決：end_turn 反射拆除入庫 `4d3f381`
+  （對話框應答歸未來結束回合行動，標定座標停放
+  stage/gestures.py）。pytest 1446 passed／3 xfailed、ruff 綠。
+  重啟佇列不變：修正批 → 覆蓋模型 v2。
 - **中斷原因**：Anthropic API 大範圍 529 過載（官方事件「Elevated
   errors across many models」），修正批連五次派工早夭（三次
   opus＋兩次非 opus）。主 session 存活、主分支乾淨。
