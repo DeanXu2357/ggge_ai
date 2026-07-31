@@ -76,8 +76,10 @@ SURVEY_BROKEN = "survey_broken"
 BROKEN_DIRNAME = "broken"
 BROKEN_PAIRS = 20
 SURVEY_DIRNAME = "survey"
+SURVEY_DONE = "survey_done"
 # 步數帳（0801 複驗實測）：南 11＋北 2＋東 18＋西 ~10 已 41 腿，40 tick 連一輪都
 # 走不完。80 給斷鏈殘餘與西側補掃留裕度；真正的上限仍是 coverage.LEG_BUDGET。
+# 這是**上限**不是目標——掃完就停（DryRun.sweep）。
 SURVEY_TICKS = 80
 # 只有真的進到地圖才有戰鬥可棄；停在更早的段落就交給人自己收。
 IN_BATTLE_STAGES = (None, "map", "grid", "survey")
@@ -241,11 +243,24 @@ class DryRun:
             raise Halt(f"卡條不是收合態（{seen.evidence.get('roster_strip')}），不掃")
 
         self.begin("survey")
-        for index in range(self.survey_ticks):
-            self.perform(SurveyBoard(), f"survey_board#{index + 1}")
+        self.sweep()
         self.observe("after_survey")
         self.summarize_survey()
         self.end("survey")
+
+    def sweep(self) -> int:
+        """掃到 synced 就停，回傳花掉幾個 tick。
+
+        完成判準是建構性的（四旗全定 ∧ 界內無缺口），達成之後每多跑一 tick 都是
+        白燒截圖——0801 複驗第 2 輪 29 腿就 synced，剩下的 50 tick 各燒兩張。
+        """
+        for index in range(self.survey_ticks):
+            self.perform(SurveyBoard(), f"survey_board#{index + 1}")
+            if self.driver.ledger.synced:
+                self.journal.record(SURVEY_DONE, tick=index + 1, budget=self.survey_ticks)
+                log.info("survey synced after %d of %d ticks", index + 1, self.survey_ticks)
+                return index + 1
+        return self.survey_ticks
 
     def abandon(self) -> None:
         self.begin("abandon")

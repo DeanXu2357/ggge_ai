@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -21,6 +22,7 @@ from scripts.dry_run_entry import (
     BROKEN_PAIRS,
     JOURNAL_NAME,
     SURVEY_BROKEN,
+    SURVEY_DONE,
     SURVEY_TICK,
     SURVEY_TICKS,
     Camera,
@@ -306,6 +308,52 @@ def test_the_assembled_run_wires_the_evidence_sink_and_the_dump_flag(tmp_path, m
 
     assert dumping.driver.dump_frames is True
     assert dumping.driver.evidence.dump is True
+
+
+# ---- v2.3 synced 提前結束 ----
+
+
+@dataclass
+class CountingLedger:
+    """簿記替身：第 stop_at 次 perform 之後就宣告掃完。"""
+
+    stop_at: int
+    calls: int = 0
+
+    @property
+    def synced(self) -> bool:
+        return self.calls >= self.stop_at
+
+    def perform(self, action: object, observation: object) -> None:
+        self.calls += 1
+
+
+def scripted_sweep(tmp_path, stop_at: int, ticks: int) -> DryRun:
+    run, _ = dry_run(tmp_path, load(STAGE_LIST), node=NODE, survey_ticks=ticks)
+    ledger = CountingLedger(stop_at=stop_at)
+    run.driver = SimpleNamespace(ledger=ledger)
+    run.executor = ledger
+    return run
+
+
+def test_the_survey_loop_stops_the_moment_the_board_is_synced(tmp_path):
+    """0801 複驗第 2 輪 29 腿就 synced，剩下的 50 tick 每 tick 白燒兩張截圖。"""
+    run = scripted_sweep(tmp_path, stop_at=3, ticks=20)
+
+    spent = run.sweep()
+
+    assert spent == 3
+    done = [line for line in run.journal.entries() if line["kind"] == SURVEY_DONE]
+    assert [(line["tick"], line["budget"]) for line in done] == [(3, 20)]
+
+
+def test_the_survey_loop_still_spends_the_whole_budget_when_it_never_syncs(tmp_path):
+    run = scripted_sweep(tmp_path, stop_at=99, ticks=4)
+
+    spent = run.sweep()
+
+    assert spent == 4
+    assert SURVEY_DONE not in kinds(run.journal)
 
 
 def test_the_default_survey_budget_is_the_raised_one(monkeypatch):
