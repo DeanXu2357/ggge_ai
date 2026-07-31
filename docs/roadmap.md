@@ -4,39 +4,34 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-07-30 16:00，API 過載中斷點——使用者指示統整
-待命，重啟時間由使用者決定）
+## 暫停快照（2026-07-31，修正批入庫，pinch 煙測→覆蓋模型 v2 進行中）
 
-### 中斷點與重啟指南
+### 恢復點
 
-- **0731 增補：2c-2d review 使用者裁定完成**（四條，備案
-  decisions.md 0731＋reviews/2c-2d-review.md 審後裁定節）。
-  程式改動兩筆：①爭點 4 否決：end_turn 反射拆除 `4d3f381`
-  （對話框應答歸未來結束回合行動，標定座標停放
-  stage/gestures.py）；②爭點 1 追問引出**自動編制位置勘誤**
-  `5c0b6c9`——使用者一手記憶推翻 0730 標定（實在出擊鈕左邊
-  (1496,1010)，(2001,924) 為空星空），新增 auto_deploy 帶、
-  top_right_confirm 改名 bottom_right_confirm，殘留風險三筆見
-  decisions.md。pytest 1447 passed／3 xfailed、ruff 綠。
-  重啟佇列不變：修正批 → 覆蓋模型 v2。
-- **中斷原因**：Anthropic API 大範圍 529 過載（官方事件「Elevated
-  errors across many models」），修正批連五次派工早夭（三次
-  opus＋兩次非 opus）。主 session 存活、主分支乾淨。
-- **重啟第一件事＝派「驗證輪修正批」**（code-editor worktree，
-  opus 恢復就用 opus）：五項規格＝①pinch 搬遷＋zoom_out 注入
-  ②dry_run_entry 幀源統一（Camera/Perceiver 兩套真相）③格線
-  設定頁探針降 advisory、地圖地面真相升唯一判準 ④select 明示化
-  （--stage-node 必填＋右欄截圖入 journal）⑤survey-ticks 預設 40
-  ＋unlocalised 入 survey_summary。細節：roadmap「2d 實機驗證輪
-  完成」條＋decisions.md；實測證據 data/runs/20260730-13*~14*。
-  派工時注意告知：覆蓋模型 v2 是下一批，別加深方向腿數耦合。
-- **修正批入庫後＝派「覆蓋模型 v2 批」**：完整派工規格已定案
-  `docs/survey-coverage-v2.md`（0730 使用者三輪問答核可：四態
-  知識圖＋前緣探索＋邊界旗＋五層量測防禦＋衰效降級）。
-- 之後：掃描複驗輪（live-tester）→ 2e 首戰。
-- 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（右欄 HARD 2
-  ——注意棄戰游標飄移陷阱，重入必明示選關）、EN 161/111、
-  資金 1,255,000。鎖屏靠 scripts/ensure_unlocked.py。
+- **驗證輪修正批入庫**（`b19392c` merge；opus worktree 交付、主
+  session 審後合併。worktree 閘門全綠 1466 passed；合併樹複跑
+  1470 passed＋1 flaky＝凍結層 test_not_actionable 時鐘抖動、
+  單跑綠、與本批無關）。五項全落地：
+  pinch 搬遷入 runtime/zoom.py＋zoom_out 注入、dry_run_entry 幀源
+  統一（Camera 唯一幀源餵 Perceiver）、格線設定頁探針降 advisory、
+  --stage-node 必填＋右欄截圖、掃描預算預設 40＋unlocalised 入
+  summary。設計決定 11 條整批接受（decisions.md 0731；導覽
+  docs/reviews/fix-batch-review.md）。同日並行 session 的自動編制
+  位置勘誤（`5c0b6c9`，auto_deploy 帶＋bottom_right_confirm 改名）
+  已合流，pinch 落點區（y≤650）與新帶（y≥970）無重疊。
+- **佇列**：①pinch 單項上機煙測（live-tester：進 UC HARD 1 地圖
+  →ZoomOut→格距遞減驗證→棄戰退出；失敗不擋 v2，縮放只是最佳化）
+  ②覆蓋模型 v2 批（規格定案 `docs/survey-coverage-v2.md`：四態
+  知識圖＋前緣補掃＋邊界旗＋五層量測防禦＋衰效降級）③掃描複驗輪
+  ④2e 首戰。
+- **縮放整條路尚未上過實機**：要驗 uiautomator2 連線＋
+  unitySurfaceView 元件存在＋ZoomOut 後格距 col_pitch 遞減打平。
+  0720 成功紀錄是同幾何同後端但接線是新的。煙測指令參考
+  fix-batch-review.md 末節（--stop-after survey＋--no-zoom 對照）。
+- 裝置現況（0730 確認，本 session 未碰機）：R5CRC37JBYJ 在線、
+  遊戲停 UC 關卡列表（右欄 HARD 2——棄戰游標飄移陷阱，重入必
+  明示選關）、EN 161/111、資金 1,255,000。鎖屏靠
+  scripts/ensure_unlocked.py。
 
 ## 舊快照（2026-07-30 10:00 更新，批 2c 派工進行中）
 

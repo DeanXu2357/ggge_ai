@@ -29,6 +29,19 @@
   跨畫面固有重疊，該流程搬上 LiveDevice 時再裁（帶目前無 intent
   可放行）；(c) 帶只罩視覺 bbox＋數px，遊戲觸控 padding 若超出
   視覺框仍可能觸發，實戰觀察。
+- **驗證輪修正批設計決定整批接受**（opus worktree 交付，主 session
+  審後合併；閘門雙跑全綠 1466 passed＋合併後複跑）｜11 條全文在
+  docs/reviews/fix-batch-review.md，要點備查：(D1) zoom_out_max 量測
+  單讀器 `board.read_lattice`＋幀差 fail-soft——不為凍結層的兩段式
+  憑空造未實測的寬區常數；(D3) 不搬 obstruction 彈窗參數——彈窗歸
+  反射組，代價是縮放中彈窗會讓該輪提早收斂；(D5) 幀源統一採
+  「Camera 實作 screenshot() 當 device 餵 Perceiver」——單一幀源是
+  結構保證非呼叫紀律；(D8) `advisory` 入 ACCEPTED_OUTCOMES 當第三
+  等級（記錄不裁定），僅 grid_setting 使用；(D4) pinch 注入繞過
+  tap 白名單，出手前四落點自過 check_tap。審驗確認：凍結層
+  pinch.py 一字未動、show_grid bool→str 唯一消費端只記流水帳不
+  裁定、pinch 落點區（y≤650）與同日勘誤新增的 auto_deploy 帶
+  （y≥970）無重疊。
 
 ## 2026-07-30
 
