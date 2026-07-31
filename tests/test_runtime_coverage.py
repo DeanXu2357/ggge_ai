@@ -174,6 +174,50 @@ def test_the_boundary_lands_on_the_outermost_cell_we_can_actually_read():
     assert line == 2
 
 
+def test_fixing_a_boundary_deletes_every_record_that_fell_outside_it():
+    """線外沒有地圖：邊界一定案，線外的 state／marks／charted／unreachable 全部作廢。
+
+    它們是舊座標系的殘留（島嶼重錨把世界挪過之後落到線外），從此不會有任何一幀去
+    覆蓋——0801 第 4 輪的 84 筆單位格裡有 29 筆就是這樣長出來的。
+    """
+    world = chart()
+    world.absorb(view(units=[board.Sighting((250.0, 150.0), board.RED_HINT)]))
+    world.absorb(
+        view(offset=(1500.0, 0.0), units=[board.Sighting((150.0, 150.0), board.BLUE_HINT)])
+    )
+    world.unreachable.add((17, 2))
+    assert world.knowledge((16, 1)) is Knowledge.UNIT
+
+    assert world.fix_boundary("east", view(offset=(1000.0, 0.0))) == 13
+
+    assert world.knowledge((16, 1)) is Knowledge.UNKNOWN
+    assert (16, 1) not in world.marks
+    assert not any(cell[0] > 13 for cell in world.charted)
+    assert world.unreachable == set()
+    # 界內原封不動
+    assert world.knowledge((2, 1)) is Knowledge.UNIT
+    assert world.knowledge((0, 0)) is Knowledge.EMPTY
+    assert (0, 0) in world.charted
+    assert world.units() == (((2, 1), board.RED_HINT),)
+
+
+def test_a_reversed_boundary_trims_the_strip_it_just_gave_up():
+    """改判走同一條裁剪：0801 第 4 輪西界兩度定案（−10→−9），舊界那一欄的紀錄
+    留著就成了永遠對不上的鬼影。"""
+    world = chart()
+    world.boundary["west"] = -10
+    for col in (-10, -9):
+        world.charted.add((col, 0))
+        world.state[(col, 0)] = Knowledge.UNIT
+        world.marks[(col, 0)] = board.Sighting((col * 100.0 + 50.0, 50.0), board.RED_HINT)
+
+    assert world.fix_boundary("west", view(offset=(-900.0, 0.0))) == -9
+
+    assert world.knowledge((-10, 0)) is Knowledge.UNKNOWN
+    assert (-10, 0) not in world.marks and (-10, 0) not in world.charted
+    assert world.units() == (((-9, 0), board.RED_HINT),)
+
+
 def test_completion_needs_all_four_flags_and_an_empty_interior():
     world = chart()
     world.absorb(view())

@@ -242,11 +242,26 @@ class KnowledgeMap:
 
         用觀測得到的極值而不是地圖美術的邊：看不全的半格永遠補不完，把它畫進界內
         會讓前緣永遠不空。
+
+        定線之後把線外的每一筆知識裁掉（`state`／`marks`／`charted`／`unreachable`）：
+        **邊界＝該側最外一格看得清楚的格，線外沒有地圖。** 線外還留著紀錄就是舊
+        座標系的殘留——那些格是定案前寫下的，島嶼重錨把整個世界的座標挪過之後它們
+        落到線外，從此不會有任何一幀去覆蓋，變成永久鬼影混進單位帳（0801 第 4 輪：
+        journal 的 84 筆單位格裡有 29 筆的欄座標整段落在最終東界之外）。同方向第二
+        次定案（改判）走同一條裁剪。
         """
         line = edge_cell(self.grid, view, direction)
-        if line is not None:
-            self.boundary[direction] = line
+        if line is None:
+            return None
+        self.boundary[direction] = line
+        self._trim()
         return line
+
+    def _trim(self) -> None:
+        self.state = {cell: known for cell, known in self.state.items() if self.in_bounds(cell)}
+        self.marks = {cell: mark for cell, mark in self.marks.items() if self.in_bounds(cell)}
+        self.charted = {cell for cell in self.charted if self.in_bounds(cell)}
+        self.unreachable = {cell for cell in self.unreachable if self.in_bounds(cell)}
 
     def frontier(self) -> tuple[Cell, ...]:
         """界內、與已測繪區相鄰（或本身已測繪過）、還不是現況的格。
