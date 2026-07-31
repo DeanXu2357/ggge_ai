@@ -6,23 +6,29 @@ stage 模組（都有離線測試），這支只負責組裝、迴圈與落證�
 
 usage:
   # 只驗到關卡列表／出擊準備頁——**不花任何資源**，第一次跑先跑這兩段
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stop-after select
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stop-after prep
+  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stage-node 544,667 \
+      --stop-after select
+  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stage-node 544,667 \
+      --stop-after prep
 
   # 分段停點：select / prep / stage_info / map / grid / survey
   # stage_info 起開始花 EN 與挑戰次數
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stop-after grid
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --survey-ticks 20
+  uv run python scripts/dry_run_entry.py … --stop-after grid
+  uv run python scripts/dry_run_entry.py … --survey-ticks 20   # 預設 40
+  uv run python scripts/dry_run_entry.py … --no-zoom           # 不 pinch，掃當前縮放
 
   # 全程（預設進到地圖之後會棄戰收尾；棄戰不耗 AP／挑戰次數／EN，0730 實證）
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --no-abandon
+  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stage-node 544,667
+  uv run python scripts/dry_run_entry.py … --no-abandon
 
-前提：手機已經停在目標系列的關卡列表（選擇關卡頁），**右欄已經是要打的那一關**。
---stage-node X,Y 可以先點一個關卡節點再進出擊準備，但選中的是哪一關畫面上讀不
-出來（右欄標題還沒接文字讀取），所以一律自己看落檔的截圖確認。0730 的 UC HARD 1
-節點平台約在 (544,872)，**那個點撞上戰鬥選單「放棄」的危險帶會被拒點**——要點就
-點編號／星列那一列（y 較高，例如 544,667），或乾脆手動先選好關卡。
+前提：手機已經停在目標系列的關卡列表（選擇關卡頁）。
+
+**--stage-node X,Y 是必填的**：棄戰回來的關卡列表游標會飄（見 docs/ui-navigation-
+map.md），沿用「現在選著的那一關」會打到別關去，所以每次都要明示要打哪個節點。
+選中的是哪一關畫面上讀不出來（右欄標題還沒接文字讀取），所以選完會多存一張右欄
+截圖（frames 的 select:right_panel）供事後比對。0730 的 UC HARD 1 節點平台約在
+(544,872)，**那個點撞上戰鬥選單「放棄」的危險帶會被拒點**——要點就點編號／星列
+那一列（y 較高，例如 544,667）。
 
 證據：data/runs/<時間戳>/dry_run.jsonl＋frames/（每段界線、每次觀測與每次失敗各存
 一張原生幀）。截圖只有 Camera 一個來源——感知器也吃它，所以存下來的幀就是當下判定
@@ -108,6 +114,10 @@ class DryRun:
 
         self.begin("select")
         self.gate("select", entry.select_stage(capture, tap, node=self.node, sleep=nap))
+        # 選中哪一關畫面上讀不出來，所以留一張右欄的圖給人事後核對——棄戰回來
+        # 游標會飄，盲選會打到別關。
+        self.camera.grab()
+        self.camera.keep("select:right_panel")
         if self.end("select"):
             return
 
@@ -216,7 +226,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--serial", default=None)
     parser.add_argument("--stop-after", choices=STAGES, default=None)
     parser.add_argument("--survey-ticks", type=int, default=20)
-    parser.add_argument("--stage-node", default=None, help="X,Y：先點一個關卡節點再進出擊準備")
+    parser.add_argument(
+        "--stage-node",
+        required=True,
+        help="X,Y：要打的關卡節點。必填——棄戰回來游標會飄，沿用現選會打到別關",
+    )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
         "--zoom",
@@ -308,7 +322,12 @@ def main() -> int:
     print(f"run dir: {run_dir}")
     print(f"screens known: {screens.STAGE_LIST}, {screens.SORTIE_PREP}, {screens.STAGE_INFO}")
     dry = build(args, journal)
-    journal.record("dry_run_start", stop_after=args.stop_after, survey_ticks=args.survey_ticks)
+    journal.record(
+        "dry_run_start",
+        stop_after=args.stop_after,
+        survey_ticks=args.survey_ticks,
+        stage_node=args.stage_node,
+    )
     try:
         dry.run()
         if args.abandon and args.stop_after in IN_BATTLE_STAGES:
