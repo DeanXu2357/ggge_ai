@@ -19,6 +19,7 @@ from ggge_ai.runtime.perceive import LivePerceiver
 from ggge_ai.stage.survey import survey_drivers
 from scripts.dry_run_entry import (
     JOURNAL_NAME,
+    SURVEY_TICKS,
     Camera,
     DryRun,
     Halt,
@@ -183,6 +184,26 @@ def test_the_assembled_run_gives_the_perceiver_the_camera_channel(tmp_path, monk
     dry = build(parse_args(), Journal(tmp_path / JOURNAL_NAME))
 
     assert dry.perceiver.device is dry.camera
+
+
+def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
+    """位移量不出來的那一幀，目擊會落在錯的世界座標。次數要跟結果同一筆——
+    看到 >0 就該把整批座標當可疑，不能只留在 log 裡。"""
+    run, _ = dry_run(tmp_path, load(STAGE_LIST), node=NODE)
+    run.driver.cursor.scan.unlocalised = 2
+
+    run.summarize_survey()
+
+    summary = [line for line in run.journal.entries() if line["kind"] == "survey_summary"]
+    assert [line["unlocalised"] for line in summary] == [2]
+
+
+def test_the_default_survey_budget_is_the_raised_one(monkeypatch):
+    """0730 實測 20 tick 掃出 0 cell（東西各燒滿 8 腿未到邊、合併從未觸發）。"""
+    monkeypatch.setattr(sys, "argv", ["dry_run_entry", "--stage-node", "544,667"])
+
+    assert parse_args().survey_ticks == SURVEY_TICKS == 40
+    assert DryRun.survey_ticks == SURVEY_TICKS
 
 
 def test_the_node_argument_is_parsed_as_a_point():

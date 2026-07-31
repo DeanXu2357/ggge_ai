@@ -60,6 +60,9 @@ log = logging.getLogger("dry_run_entry")
 RUNS_ROOT = Path("data/runs")
 JOURNAL_NAME = "dry_run.jsonl"
 STAGES = ("select", "prep", "stage_info", "map", "grid", "survey")
+# 0730 實測 20 tick 掃出 0 cell（東西各燒滿 8 腿預算仍未到邊、合併從未觸發），
+# 預算翻倍讓整段掃描至少有機會走到合併。
+SURVEY_TICKS = 40
 # 只有真的進到地圖才有戰鬥可棄；停在更早的段落就交給人自己收。
 IN_BATTLE_STAGES = (None, "map", "grid", "survey")
 
@@ -105,7 +108,7 @@ class DryRun:
     driver: BoardDriver
     perceiver: LivePerceiver
     stop_after: str | None = None
-    survey_ticks: int = 20
+    survey_ticks: int = SURVEY_TICKS
     node: tuple[int, int] | None = None
     sleep: Callable[[float], None] = time.sleep
 
@@ -210,22 +213,32 @@ class DryRun:
     def summarize_survey(self) -> None:
         ledger = self.driver.ledger
         cells = ledger.cells()
+        # unlocalised＝那一幀的位移量不出來、目擊落在錯的世界座標。>0 就代表整批
+        # 座標可疑，所以它要跟結果放在同一筆紀錄裡，不是只留在 log。
+        unlocalised = self.driver.cursor.scan.unlocalised
         self.journal.record(
             "survey_summary",
             steps=list(self.driver.steps),
             swept=sorted(ledger.swept),
             synced=ledger.synced,
+            unlocalised=unlocalised,
             cells=[[list(cell), hint] for cell, hint in cells],
         )
         log.info("survey steps: %s", self.driver.steps)
-        log.info("swept=%s synced=%s cells=%d", sorted(ledger.swept), ledger.synced, len(cells))
+        log.info(
+            "swept=%s synced=%s cells=%d unlocalised=%d",
+            sorted(ledger.swept),
+            ledger.synced,
+            len(cells),
+            unlocalised,
+        )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--serial", default=None)
     parser.add_argument("--stop-after", choices=STAGES, default=None)
-    parser.add_argument("--survey-ticks", type=int, default=20)
+    parser.add_argument("--survey-ticks", type=int, default=SURVEY_TICKS)
     parser.add_argument(
         "--stage-node",
         required=True,
