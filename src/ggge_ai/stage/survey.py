@@ -172,8 +172,10 @@ class BoardDriver:
     steps: list[str] = field(default_factory=list)
     generation: int = 0
 
-    def show_grid(self, action: ShowGrid, observation: Observation[Any]) -> bool:
-        return entry.set_battle_grid(self.capture, self._tap, True, sleep=self.sleep)
+    def show_grid(self, action: ShowGrid, observation: Observation[Any]) -> str:
+        """翻設定頁的開關。回傳設定頁探針的自述（進流水帳）——它是 advisory，
+        grid_on 到底成不成立由感知讀地圖上的格線像素說了算。"""
+        return entry.set_battle_grid(self.capture, self._tap, True, sleep=self.sleep).detail
 
     def collapse_roster(self, action: CollapseRoster, observation: Observation[Any]) -> str:
         """先讀再決定要不要點：卡條的切換鈕是同一顆的兩個位置，讀不出來就別亂點
