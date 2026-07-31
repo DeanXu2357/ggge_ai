@@ -29,6 +29,22 @@
   跨畫面固有重疊，該流程搬上 LiveDevice 時再裁（帶目前無 intent
   可放行）；(c) 帶只罩視覺 bbox＋數px，遊戲觸控 padding 若超出
   視覺框仍可能觸發，實戰觀察。
+- **覆蓋模型 v2 設計決定 18 條整批接受（2df6e04 合併）**｜opus
+  worktree 交付、主 session 審驗（規格 14 條逐一對落點、符號層
+  零改動宣稱屬實、swept 無讀者 grep 驗證、閘門親跑 1506 passed）
+  ｜全文 docs/reviews/survey-coverage-v2-review.md。**D1 swept
+  淘汰請使用者確認**：欄位無任何 applicable/progressed/goal 讀者，
+  覆蓋數字改走 evidence["survey"]；備選（改義／覆蓋率整數）都
+  污染搜尋鍵，故採淘汰——介面縮小，使用者可推翻（git 可復原）。
+  其餘要點備查：(D4) 包絡閘三段 ok/repeat/refused 解規格 1.5×
+  與 2× 條文牴觸；(D5) 相位閘只驗直線軸（橫線透視遞增非不變
+  量）；(D8) unreachable 退休集——HUD 壓角格明寫退休出聲，不
+  悄悄當掃完；(D9) 島嶼重錨失敗＝丟棄重開世界（steering 未實
+  作，成本有界）；(D12) 停滯位移取準確 0（phaseCorrelate +0.5px
+  系統偏差實測 80 tick 漂一列）；(D17/18) 格距帶 ((60,105),
+  (90,160)) 細帶先試、read_lattice 加 bands 參數不開新讀取器。
+  煙測三發現全數處置（多尺度＋grid_on 從根修＋煙測幀入 fixture）。
+  SURVEY_TICKS 未動——腿數變多是否夠用歸掃描複驗輪實測。
 - **pinch 煙測重跑 PASS（0731 傍晚，使用者授權 adb 點擊恢復後）**
   ｜恢復路徑：返回標題→登入（含 154MB 資料下載、登入獎勵 DAY 6
   道具、公告關閉）→主頁→關卡 hub→UC 輪播（停留位正確）→系列

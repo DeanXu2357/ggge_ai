@@ -4,37 +4,35 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-07-31，修正批入庫，pinch 煙測→覆蓋模型 v2 進行中）
+## 暫停快照（2026-07-31 晚，修正批＋煙測＋覆蓋模型 v2 全部入庫）
 
 ### 恢復點
 
-- **驗證輪修正批入庫**（`b19392c` merge；opus worktree 交付、主
-  session 審後合併。worktree 閘門全綠 1466 passed；合併樹複跑
-  1470 passed＋1 flaky＝凍結層 test_not_actionable 時鐘抖動、
-  單跑綠、與本批無關）。五項全落地：
-  pinch 搬遷入 runtime/zoom.py＋zoom_out 注入、dry_run_entry 幀源
-  統一（Camera 唯一幀源餵 Perceiver）、格線設定頁探針降 advisory、
-  --stage-node 必填＋右欄截圖、掃描預算預設 40＋unlocalised 入
-  summary。設計決定 11 條整批接受（decisions.md 0731；導覽
-  docs/reviews/fix-batch-review.md）。同日並行 session 的自動編制
-  位置勘誤（`5c0b6c9`，auto_deploy 帶＋bottom_right_confirm 改名）
-  已合流，pinch 落點區（y≤650）與新帶（y≥970）無重疊。
-- **佇列**：①覆蓋模型 v2 批**派工進行中**（規格定案
-  `docs/survey-coverage-v2.md`；煙測三發現已轉交開發 agent）
-  ②掃描複驗輪 ③2e 首戰。
-- **pinch 煙測 PASS**（decisions.md 0731 備案；先遭遊戲錯誤 300
-  中斷，使用者授權 adb 點擊走完登入恢復後重跑）：七次 pinch
-  收斂、格距 127.5→約 64px、全流程含棄戰 ok、EN 零消耗。縮放
-  可用定讞。**新發現**：最小縮放 pitch ~64 低於 read_lattice 的
-  GRID_MIN_SPACING=90（讀不到＋滿幅幀有隔行混疊翻倍風險）、
-  grid_on 信念縮放後翻 False（長跑會讓 SurveyBoard 前置中途
-  看似失效）、邊緣半幅虛空破壞間距均勻閘——三筆都要 v2 提案
-  處理。遊戲錯誤 300＝登入逾時（使用者說明），登入流程 adb
-  導航路徑已實走一遍（標題→下載→登入獎勵→公告→主頁→關卡
-  hub→UC→關卡列表，座標見 ui-navigation-map）。
+- **0731 三役完成**：①驗證輪修正批入庫（`b19392c`；五項全落地，
+  設計決定 11 條備案，導覽 docs/reviews/fix-batch-review.md）
+  ②pinch 煙測 PASS（縮放可用定讞：七次 pinch 收斂、格距 127.5→
+  約 64px、EN 零消耗；先遭遊戲錯誤 300＝登入逾時中斷，使用者
+  授權 adb 點擊走完登入恢復，導航座標見 ui-navigation-map）
+  ③**覆蓋模型 v2 入庫**（`2df6e04`；四態知識圖＋前緣補掃＋五層
+  量測防禦取代方向腿數制，runtime/coverage.py 845 行＋合成世界
+  38 條測試；煙測三發現全數處置——多尺度格距帶細帶先試、
+  grid_on 信念從根修、煙測幀入 fixture；設計決定 18 條備案，
+  導覽 docs/reviews/survey-coverage-v2-review.md）。閘門親跑
+  1506 passed／ruff 綠。
+- **待使用者裁**：v2 的 D1——`StageState.swept` 淘汰（無讀者
+  grep 驗證、覆蓋數字改走 evidence["survey"]；已接受入庫，可
+  推翻）。
+- **佇列**：①掃描複驗輪（live-tester：UC HARD 1 收斂到
+  board_synced、cells 非空、格座標對 2b-2 人工普查 ±1 格；
+  另要覆核——SURVEY_TICKS=40 夠不夠 v2 的短腿制、橫軸 0.5px/腿
+  系統偏差累積、relocalise 支持數門檻 3、敵回合後星座重錨）
+  ②2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據
+  分層、Move/Attack/Inspect plan）。
 - 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（右欄 HARD 2
   ——棄戰游標飄移再次實證，重入必明示選關）、EN 161/111、
   資金 1,255,000、鑽 2,600。鎖屏靠 scripts/ensure_unlocked.py。
+  遊戲登入逾時會彈錯誤 300（唯一鈕返回標題），恢復流程＝標題
+  →下載→登入獎勵→公告→主頁，座標已標定。
 
 ## 舊快照（2026-07-30 10:00 更新，批 2c 派工進行中）
 
