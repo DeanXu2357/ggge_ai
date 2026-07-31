@@ -158,8 +158,9 @@ class SurveyPerceiver:
 class BoardDriver:
     """兩個閉迴圈行動的執行器：要邊看邊做，不是一串固定手勢。
 
-    zoom_out 是注入的（最小縮放要多點觸控 pinch，本批未搬）：沒給就把縮放微
-    步驟記成 skipped 走下去——覆蓋會比最小縮放時差，但不影響流程正確性。
+    zoom_out 是注入的（實作在 runtime/zoom.py，需要 uiautomator 注入通道，與截圖
+    ／點擊的 adb 通道分開）：沒給就只記一次警告照樣往下走——覆蓋會比最小縮放時
+    差（腿數變多），但不影響流程正確性。
     """
 
     capture: Callable[[], np.ndarray]

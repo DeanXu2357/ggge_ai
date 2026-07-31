@@ -35,12 +35,12 @@ import logging
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import numpy as np
 
-from ggge_ai.runtime import entry, screens
+from ggge_ai.runtime import entry, screens, zoom
 from ggge_ai.runtime.device import Adb, LiveDevice, LiveExecutor
 from ggge_ai.runtime.journal import Journal, rotate_runs
 from ggge_ai.runtime.keyguard import Keyguard
@@ -202,6 +202,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--survey-ticks", type=int, default=20)
     parser.add_argument("--stage-node", default=None, help="X,Y：先點一個關卡節點再進出擊準備")
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--zoom",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="掃描前先 pinch 到最小縮放（需要 uiautomator2 連得上）",
+    )
     parser.add_argument("--run-dir", type=Path, default=None)
     return parser.parse_args()
 
@@ -234,12 +240,37 @@ def soft_capture(camera: Camera) -> Callable[[], np.ndarray | None]:
     return capture
 
 
+def zoom_driver(
+    args: argparse.Namespace, camera: Camera, journal: Journal
+) -> Callable[[], None] | None:
+    """縮放走 uiautomator 注入（本裝置唯一可行的後端，見 runtime/zoom.py），與截圖
+    ／點擊的 adb 通道各自獨立。接不上就回 None——掃描在當下縮放照樣跑得完，只是
+    腿數與截圖次數變多，所以這裡不讓它擋任何事。"""
+    if not args.zoom:
+        journal.record("zoom_backend", available=False, reason="disabled")
+        return None
+    try:
+        import uiautomator2 as u2
+
+        pincher = zoom.gesture_pincher_for(u2.connect(args.serial))
+    except Exception as boom:
+        log.warning("no zoom backend; scanning at the current zoom", exc_info=True)
+        journal.record("zoom_backend", available=False, reason=repr(boom))
+        return None
+    journal.record("zoom_backend", available=True)
+    return zoom.ZoomOut(
+        capture=camera.grab,
+        pincher=pincher,
+        on_step=lambda step: journal.record("zoom_step", **asdict(step)),
+    )
+
+
 def build(args: argparse.Namespace, journal: Journal) -> DryRun:
     adb = Adb(serial=args.serial)
     device = LiveDevice(adb=adb)
     camera = Camera(device=device, journal=journal)
     device.keyguard = Keyguard(shell=adb.shell, capture=soft_capture(camera))
-    driver, _ = survey_drivers(camera.grab, device)
+    driver, _ = survey_drivers(camera.grab, device, zoom_out=zoom_driver(args, camera, journal))
     return DryRun(
         device=device,
         camera=camera,
