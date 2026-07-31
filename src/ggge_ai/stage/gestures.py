@@ -35,6 +35,13 @@ STANCE_ROW_Y = 940
 REACTION_CONFIRM_TAP = (2042, 924)
 CONFIRM_INTENT = "confirm"
 
+# 結束回合對話框（0731 裁定自反射組遷出：選哪邊是行為選擇，歸按下結束
+# 回合鈕的行動，反射不代答）。左「待機並結束」、右邊是自動戰鬥（紅線，
+# 永不點）；兩下之間要留重繪時間，否則第二下打在動畫上被吃掉。結束回合
+# 行動落地前先只保存標定。
+END_TURN_WAIT_TAP = (997, 562)
+END_TURN_CONFIRM_TAP = (1365, 850)
+
 # 有盾機體的防禦鈕就是同一個槽位（換圖示、不換位置）。
 STANCE_TAPS: dict[str, tuple[int, int]] = {
     "dodge": STANCE_DODGE_TAP,

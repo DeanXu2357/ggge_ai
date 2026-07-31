@@ -5,7 +5,9 @@
 執行器重播，成敗照舊由下一張畫面裁決。
 
 不在這裡的東西：跨 tick 的行為（由行動自身的符號流程承接，0727 裁決否決空轉
-拍）、觸控鎖（在裝置通道的每段操作前，不是反射——反射也得先能點得動）。
+拍）、觸控鎖（在裝置通道的每段操作前，不是反射——反射也得先能點得動）、結束
+回合對話框的應答（0731 裁定：選哪邊是行為選擇，歸按下結束回合鈕的那個行動自己
+收，反射不代答）。
 """
 
 from __future__ import annotations
@@ -21,9 +23,6 @@ LOGIN_BONUS_TAP = (1150, 1000)
 NOTICE_CLOSE_TAP = (1170, 993)
 # 午夜跨日的系統對話框「將返回主畫面」＋前往主畫面鈕。
 DATE_CHANGED_TAP = (1178, 850)
-# 結束回合對話框：**永遠左邊「待機並結束」**，右邊是自動戰鬥（紅線）。
-END_TURN_WAIT_TAP = (997, 562)
-END_TURN_CONFIRM_TAP = (1365, 850)
 # 地圖子模式（誤入單位移動／武裝選擇）退回穩態。
 BATTLE_RETURN_TAP = (1802, 930)
 UNIT_DETAIL_CLOSE_TAP = (1176, 992)
@@ -92,11 +91,6 @@ class StallWatchdog:
 LOGIN_BONUS_FIX = ScreenFix("skip:login_bonus", (Tap(*LOGIN_BONUS_TAP, settle_s=2.5),))
 NOTICE_FIX = ScreenFix("skip:notice", (Tap(*NOTICE_CLOSE_TAP, settle_s=2.0),))
 DATE_CHANGED_FIX = ScreenFix("dismiss:date_changed", (Tap(*DATE_CHANGED_TAP, settle_s=3.0),))
-# 左選項＋執行：兩下之間留時間讓對話框重繪，否則第二下打在動畫上被吃掉。
-END_TURN_FIX = ScreenFix(
-    "end_turn:wait",
-    (Tap(*END_TURN_WAIT_TAP, settle_s=1.0), Tap(*END_TURN_CONFIRM_TAP, settle_s=2.0)),
-)
 UNIT_MOVE_FIX = ScreenFix("leave:unit_move", (Tap(*BATTLE_RETURN_TAP, settle_s=1.2),))
 UNIT_DETAIL_FIX = ScreenFix("close:unit_detail", (Tap(*UNIT_DETAIL_CLOSE_TAP, settle_s=1.2),))
 
@@ -108,7 +102,6 @@ def default_reflexes() -> tuple[Any, ...]:
         PopupReflex("login_bonus", screens.LOGIN_BONUS, LOGIN_BONUS_FIX),
         PopupReflex("notice", screens.NOTICE, NOTICE_FIX),
         PopupReflex("date_changed", screens.DATE_CHANGED, DATE_CHANGED_FIX),
-        PopupReflex("end_turn", screens.END_TURN_DIALOG, END_TURN_FIX),
         PopupReflex("unit_detail", screens.UNIT_DETAIL, UNIT_DETAIL_FIX),
         PopupReflex("unit_move", screens.BATTLE_UNIT_MOVE, UNIT_MOVE_FIX),
         PopupReflex("weapon_select", screens.BATTLE_WEAPON_SELECT, UNIT_MOVE_FIX),

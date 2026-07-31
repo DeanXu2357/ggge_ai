@@ -111,3 +111,9 @@ def test_the_reaction_confirm_needs_a_deliberate_intent():
 
     with pytest.raises(TapRefused):
         check_tap(2001, 924, intent="")
+
+
+def test_the_parked_end_turn_taps_stay_off_the_auto_battle_half():
+    """對話框右半是自動戰鬥（紅線）。標定停放 gestures，行動落地前也不准往右飄。"""
+    for x, y in (gestures.END_TURN_WAIT_TAP, gestures.END_TURN_CONFIRM_TAP):
+        assert x < 1400 or y > 700

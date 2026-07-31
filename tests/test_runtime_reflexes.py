@@ -45,15 +45,10 @@ def test_each_popup_reflex_only_fires_on_its_own_screen():
         assert reflex.match(seen(screens.BATTLE_MAP)) is None
 
 
-def test_the_end_turn_dialog_always_takes_the_left_option_then_confirms():
-    """紅線：左邊「待機並結束」，右邊自動戰鬥永遠不點。"""
-    fix = reflexes.END_TURN_FIX
-
-    assert [(g.x, g.y) for g in fix.gestures] == [
-        reflexes.END_TURN_WAIT_TAP,
-        reflexes.END_TURN_CONFIRM_TAP,
-    ]
-    assert all(g.x < 1400 or g.y > 700 for g in fix.gestures)
+def test_the_end_turn_dialog_is_nobodys_reflex():
+    """0731 裁定：結束回合對話框選哪邊是行為選擇，歸行動層；反射不代答。"""
+    for reflex in reflexes.default_reflexes():
+        assert reflex.match(seen(screens.END_TURN_DIALOG)) is None
 
 
 def test_the_login_and_notice_popups_are_dismissed_by_their_calibrated_taps():
@@ -158,7 +153,7 @@ def test_a_popup_is_answered_before_any_planning_and_before_the_watchdog(tmp_pat
         max_ticks=4,
     )
     frames = [
-        seen(screens.END_TURN_DIALOG, frame_sig="same"),
+        seen(screens.UNIT_DETAIL, frame_sig="same"),
         Observation(
             screen=screens.BATTLE_MAP,
             state=battle(allies=["a1"], enemies=[], actionable=[]),
@@ -180,13 +175,10 @@ def test_a_popup_is_answered_before_any_planning_and_before_the_watchdog(tmp_pat
     first = loop.tick()
 
     assert first.outcome is TickOutcome.REFLEX
-    assert first.reflex == "end_turn"
-    assert first.did == "end_turn:wait"
+    assert first.reflex == "unit_detail"
+    assert first.did == "close:unit_detail"
     assert advisor.appraisals == 0
-    assert [(x, y) for x, y, _ in actuator.taps] == [
-        reflexes.END_TURN_WAIT_TAP,
-        reflexes.END_TURN_CONFIRM_TAP,
-    ]
+    assert [(x, y) for x, y, _ in actuator.taps] == [reflexes.UNIT_DETAIL_CLOSE_TAP]
 
 
 def test_the_fixes_only_use_taps_keys_and_waits():
