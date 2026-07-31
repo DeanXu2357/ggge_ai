@@ -11,9 +11,13 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 
 - **0731 增補：2c-2d review 使用者裁定完成**（四條，備案
   decisions.md 0731＋reviews/2c-2d-review.md 審後裁定節）。
-  唯一程式改動＝爭點 4 否決：end_turn 反射拆除入庫 `4d3f381`
+  程式改動兩筆：①爭點 4 否決：end_turn 反射拆除 `4d3f381`
   （對話框應答歸未來結束回合行動，標定座標停放
-  stage/gestures.py）。pytest 1446 passed／3 xfailed、ruff 綠。
+  stage/gestures.py）；②爭點 1 追問引出**自動編制位置勘誤**
+  `5c0b6c9`——使用者一手記憶推翻 0730 標定（實在出擊鈕左邊
+  (1496,1010)，(2001,924) 為空星空），新增 auto_deploy 帶、
+  top_right_confirm 改名 bottom_right_confirm，殘留風險三筆見
+  decisions.md。pytest 1447 passed／3 xfailed、ruff 綠。
   重啟佇列不變：修正批 → 覆蓋模型 v2。
 - **中斷原因**：Anthropic API 大範圍 529 過載（官方事件「Elevated
   errors across many models」），修正批連五次派工早夭（三次
