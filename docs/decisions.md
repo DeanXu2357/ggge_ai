@@ -6,6 +6,34 @@
 
 ## 2026-07-31
 
+- **0731 深夜重審定讞（使用者指示：入庫後 re-review 今日兩批）**｜
+  主 session 親審（coverage/zoom 全文、board/survey/entry/dry_run
+  diff、座標約定逐處交叉推導）＋對抗性 reviewer 獨立掃
+  `0c31161..HEAD` 雙軌，四支復現腳本親跑證實（存
+  data/review-repros-20260731/）｜無問題的部分：座標與符號約定
+  全數互洽、邊界旗語意四處一致無 off-by-one、GridProbe 呼叫端
+  乾淨（凍結層 battle/settings.py 是獨立 bool 版未波及）、合成
+  世界測試無恆真斷言。**coverage.py 六缺陷（4 high）**：
+  (1) `legs` 保險絲跨代不歸零——每回合衰效後全圖重掃累積（復現
+  11 回合 106 腿），燒斷後 `board_synced` 永達不成、整關 STUCK；
+  (2) 島嶼合併 `_whole_cells` 把 y 捨入整列——y 軸無 rephase 也
+  無相位閘，復現真值 (0,50) 解成 (0,0)、整批 −50px 併入權威圖
+  且主里程計繼承該誤差永不修正；(3) 島嶼 `_pin` 單次 STALLED 即
+  釘軸（主圖 D6 要 STALL_CONFIRM=2），兩軸 pins 齊時 `_solve`
+  繞過 relocalise 的支持數複驗＝「量錯寫入」路徑；(4) 多格
+  pocket 退休只退質心且質心可落在 pocket 外（L 形復現）——每
+  tick 空轉退同一格、當下 EMPTY 的質心格誤入 unreachable 跨代
+  排除＝「無聲丟失」路徑；最小縮放下地圖高（12 列×86px≈1032
+  <1080）y 軸雙向夾死是常態，前提不難湊齊；(5) `clamps` 不隨
+  reset()/_abandon() 清除，跨世界殘留誤真實證；(6) relocalise
+  支持數門檻被島嶼重疊 view 的重複目擊灌水（「3 台實體」實質
+  退化為 2 台）。另兩筆實機待驗觀察：緩動殘餘 vs 無指令 40px
+  閘（每 tick 前置複核幀可能誤開島嶼）、星空假邊界後果從單輪
+  升級為永久。裁決：**掃描複驗輪可照跑**——40 tick 上限＋
+  expect 失敗即停＋棄戰收尾，上述缺陷在該情境至多浪費一輪不會
+  失控，且緩動疑點正需實機資料；**2e 首戰前六條必修**（v2.1
+  小批，範圍全在 coverage.py）。修正批派工與複驗輪先後待使用者
+  裁示。
 - **2c-2d review 使用者裁定**｜四項爭點（docs/reviews/2c-2d-review.md
   尾節）｜(1) `top_right_confirm` 危險帶疑問→引出勘誤（見下條）；
   (2) 自動編制不給按的原則接受；(3) accuracy＝命中%−100 暫用假設

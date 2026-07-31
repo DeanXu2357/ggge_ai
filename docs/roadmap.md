@@ -19,15 +19,26 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   grid_on 信念從根修、煙測幀入 fixture；設計決定 18 條備案，
   導覽 docs/reviews/survey-coverage-v2-review.md）。閘門親跑
   1506 passed／ruff 綠。
-- **待使用者裁**：v2 的 D1——`StageState.swept` 淘汰（無讀者
+- **0731 深夜重審定讞**（使用者指示 re-review）：主 session 親審
+  ＋對抗性 reviewer 雙軌、四支復現腳本親跑證實（data/
+  review-repros-20260731/）。結構與座標約定無誤；**coverage.py
+  六缺陷（4 high）**：legs 保險絲跨代累積、島嶼合併 y 捨入
+  −50px、島嶼單停滯釘軸、質心退休活鎖＋無聲丟失、clamps 跨
+  重置殘留、relocalise 支持數灌水。裁決：掃描複驗輪可照跑
+  （有界不失控、緩動疑點正需實機資料）；**2e 首戰前必修**
+  （v2.1 小批，全在 coverage.py）。詳 decisions.md 0731 重審條。
+- **待使用者裁**：①v2 的 D1——`StageState.swept` 淘汰（無讀者
   grep 驗證、覆蓋數字改走 evidence["survey"]；已接受入庫，可
-  推翻）。
-- **佇列**：①掃描複驗輪（live-tester：UC HARD 1 收斂到
+  推翻）②v2.1 缺陷修正小批與掃描複驗輪的先後順序（複驗輪不
+  依賴修正，可先跑收實機資料，也可先修再驗）。
+- **佇列**：①v2.1 缺陷修正小批（六條，全在 coverage.py，2e 前
+  必修）②掃描複驗輪（live-tester：UC HARD 1 收斂到
   board_synced、cells 非空、格座標對 2b-2 人工普查 ±1 格；
   另要覆核——SURVEY_TICKS=40 夠不夠 v2 的短腿制、橫軸 0.5px/腿
-  系統偏差累積、relocalise 支持數門檻 3、敵回合後星座重錨）
-  ②2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據
-  分層、Move/Attack/Inspect plan）。
+  系統偏差累積、relocalise 支持數門檻 3、敵回合後星座重錨、
+  緩動殘餘 vs 無指令 40px 閘）③2e 首戰 UC HARD 1（符號讀取
+  注入、單位↔螢幕對位、陣營證據分層、Move/Attack/Inspect
+  plan）。
 - 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（右欄 HARD 2
   ——棄戰游標飄移再次實證，重入必明示選關）、EN 161/111、
   資金 1,255,000、鑽 2,600。鎖屏靠 scripts/ensure_unlocked.py。
