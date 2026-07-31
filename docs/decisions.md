@@ -4,6 +4,39 @@
 選項、逐筆在此備案。使用者隨時可回查與推翻；被推翻的決策劃線保留
 不刪除。格式：日期｜情境｜選項｜採用與理由。
 
+## 2026-08-01
+
+- **v2.1 六缺陷修正批設計決定 15 條整批接受（42d8f77 合併）**｜opus
+  worktree 交付、主 session 親審 diff＋測試＋導覽（全文
+  docs/reviews/coverage-v2_1-fix-review.md 第四節）｜要點：`expire()`
+  legs 歸零放 `chart is None` 早退前；`_abandon()` 不歸零 legs 但清
+  clamps；`_whole_cells` 更名 `_whole_columns`（名實相符）；島嶼停滯
+  計數掛 `Island.stalls` 隨島滅；`_agrees` 容差逐軸半格、門檻
+  RELOCATE_MIN_SUPPORT 不放寬（稀疏島寧走 `_abandon` 全掃也不讓一台
+  單位背書重錨）、權威圖零目擊同視為無可矛盾；pins 複驗失敗 fall
+  through 到 relocalise 不直接 None；`_nearest` 格空間歐氏＋字典序
+  tie-break、一次退休一格；去重半徑 0.5×min(pitch)、每簇留字典序最
+  小點、無格網退 CONSTELLATION_TOLERANCE。閘門主 repo 親跑 1521
+  passed／ruff 綠；未修碼判別性 10/11 條 FAIL 實測。
+- **v2.1 三爭點裁決（主 session 自裁）**｜(1) repro2_ydrift 非缺陷 2
+  判別性證據（修正前後都 ok，合成世界造不出穩定半列島偏移）→接受
+  現狀：判別性證據以 repro3a＋迴歸測試為準，不為此擴 fixture；半列
+  情境的端到端驗證歸掃描複驗輪實機收（敵回合過場天然產生）。(2) 稀
+  疏盤面重錨變嚴（pins 被 `_agrees` 擋下→ISLAND_BUDGET 耗盡→
+  `_abandon` 全掃）→接受「誠實但貴」，符合「量錯寫入不准存在」紅
+  線；成本實機量測後再議是否調整。(3) 實機驗證三項（多回合 legs 歸
+  零＋board_synced、重錨成功率 vs 修正前流水帳、y 夾死逐格退休）併
+  入掃描複驗輪清單（roadmap 佇列，live-verification-queue.md 已隨
+  83fce1e 清洗刪除不重建）。
+- **v2.1 修正批先於掃描複驗輪**（0731 快照留白的先後裁決）｜選項：
+  複驗輪先跑收未修碼實機資料 vs 先修再驗｜採先修再驗：①一輪實機
+  同時驗六缺陷修正與量測疑點（SURVEY_TICKS、0.5px/腿偏差、重錨、
+  緩動殘餘），複驗先跑則修完仍得再跑一輪＝雙倍裝置時間；②實機
+  session 有凍機風險前科（7/5–7/13 九次），輪數愈少愈保守；③島嶼
+  合併 −50px、釘軸繞複驗屬「量錯寫入」路徑，未修先驗收的格座標
+  資料可信度存疑。緩動疑點不因後驗而失真——修正批不碰量測層。
+  使用者可推翻（複驗輪腳本與停點設計不受先後影響）。
+
 ## 2026-07-31
 
 - **0731 深夜重審定讞（使用者指示：入庫後 re-review 今日兩批）**｜

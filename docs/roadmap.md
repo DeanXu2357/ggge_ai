@@ -4,41 +4,38 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-07-31 晚，修正批＋煙測＋覆蓋模型 v2 全部入庫）
+## 暫停快照（2026-08-01，v2.1 六缺陷修正批入庫）
 
 ### 恢復點
 
-- **0731 三役完成**：①驗證輪修正批入庫（`b19392c`；五項全落地，
-  設計決定 11 條備案，導覽 docs/reviews/fix-batch-review.md）
-  ②pinch 煙測 PASS（縮放可用定讞：七次 pinch 收斂、格距 127.5→
-  約 64px、EN 零消耗；先遭遊戲錯誤 300＝登入逾時中斷，使用者
-  授權 adb 點擊走完登入恢復，導航座標見 ui-navigation-map）
-  ③**覆蓋模型 v2 入庫**（`2df6e04`；四態知識圖＋前緣補掃＋五層
-  量測防禦取代方向腿數制，runtime/coverage.py 845 行＋合成世界
-  38 條測試；煙測三發現全數處置——多尺度格距帶細帶先試、
-  grid_on 信念從根修、煙測幀入 fixture；設計決定 18 條備案，
-  導覽 docs/reviews/survey-coverage-v2-review.md）。閘門親跑
-  1506 passed／ruff 綠。
+- **0801 v2.1 修正批入庫**（`42d8f77`，六 commit fast-forward；
+  opus worktree 交付、主 session 親審）：①legs 保險絲改單回合
+  上限（expire/reset 歸零、_abandon 不歸零）②`_whole_columns`
+  只吸附欄、列保留 relocalise 原值（y 無相位閘）③島嶼釘軸連兩
+  次停滯＋pins 過 `_agrees` 支持數複驗④pocket 退休改離質心最近
+  成員格、一次一格⑤reset/_abandon 清 clamps ⑥`Island.sightings`
+  近鄰去重。迴歸測試 11 條（未修碼 10 條 FAIL 實測）；主 repo
+  閘門親跑 **1521 passed／3 xfailed、ruff 綠**。導覽
+  docs/reviews/coverage-v2_1-fix-review.md；設計決定 15 條＋三
+  爭點裁決備案 decisions.md 0801 條（要點：稀疏島重錨變嚴＝誠實
+  但貴，成本歸複驗輪量測；repro2 非判別性，半列情境歸實機收）。
+  孤兒 worktree 三個核對後全清（皆已合併）。
 - **0731 深夜重審定讞**（使用者指示 re-review）：主 session 親審
   ＋對抗性 reviewer 雙軌、四支復現腳本親跑證實（data/
-  review-repros-20260731/）。結構與座標約定無誤；**coverage.py
-  六缺陷（4 high）**：legs 保險絲跨代累積、島嶼合併 y 捨入
-  −50px、島嶼單停滯釘軸、質心退休活鎖＋無聲丟失、clamps 跨
-  重置殘留、relocalise 支持數灌水。裁決：掃描複驗輪可照跑
-  （有界不失控、緩動疑點正需實機資料）；**2e 首戰前必修**
-  （v2.1 小批，全在 coverage.py）。詳 decisions.md 0731 重審條。
-- **待使用者裁**：①v2 的 D1——`StageState.swept` 淘汰（無讀者
+  review-repros-20260731/；repro3c 因 `_pin` 簽名改變已 TypeError
+  ＝凍結證據，勿當回歸跑）。六缺陷全數已修（見上條）。
+- **待使用者裁**：v2 的 D1——`StageState.swept` 淘汰（無讀者
   grep 驗證、覆蓋數字改走 evidence["survey"]；已接受入庫，可
-  推翻）②v2.1 缺陷修正小批與掃描複驗輪的先後順序（複驗輪不
-  依賴修正，可先跑收實機資料，也可先修再驗）。
-- **佇列**：①v2.1 缺陷修正小批（六條，全在 coverage.py，2e 前
-  必修）②掃描複驗輪（live-tester：UC HARD 1 收斂到
+  推翻）。修正批/複驗輪先後已自裁＝先修後驗（decisions.md 0801）。
+- **佇列**：①掃描複驗輪（live-tester：UC HARD 1 收斂到
   board_synced、cells 非空、格座標對 2b-2 人工普查 ±1 格；
-  另要覆核——SURVEY_TICKS=40 夠不夠 v2 的短腿制、橫軸 0.5px/腿
+  覆核——SURVEY_TICKS=40 夠不夠 v2 的短腿制、橫軸 0.5px/腿
   系統偏差累積、relocalise 支持數門檻 3、敵回合後星座重錨、
-  緩動殘餘 vs 無指令 40px 閘）③2e 首戰 UC HARD 1（符號讀取
-  注入、單位↔螢幕對位、陣營證據分層、Move/Attack/Inspect
-  plan）。
+  緩動殘餘 vs 無指令 40px 閘；**v2.1 增驗**——多回合每回合
+  board_synced 且 legs 從 0 起算、島嶼重錨成功率與 islands.reset
+  計數對照修正前流水帳、最小縮放 y 夾死時逐格退休不 stuck）
+  ②2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據
+  分層、Move/Attack/Inspect plan）。
 - 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（右欄 HARD 2
   ——棄戰游標飄移再次實證，重入必明示選關）、EN 161/111、
   資金 1,255,000、鑽 2,600。鎖屏靠 scripts/ensure_unlocked.py。
