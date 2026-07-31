@@ -19,22 +19,22 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   docs/reviews/fix-batch-review.md）。同日並行 session 的自動編制
   位置勘誤（`5c0b6c9`，auto_deploy 帶＋bottom_right_confirm 改名）
   已合流，pinch 落點區（y≤650）與新帶（y≥970）無重疊。
-- **佇列**：①pinch 煙測**中斷待使用者**（遊戲錯誤 300 卡對話框，
-  詳下）②覆蓋模型 v2 批**已並行派工進行中**（規格定案
-  `docs/survey-coverage-v2.md`；v2 明文不依賴縮放，煙測不擋它）
-  ③掃描複驗輪 ④2e 首戰。
-- **pinch 煙測中斷**（decisions.md 0731 備案）：進關途中遊戲彈
-  「錯誤代碼 300 工作階段錯誤」唯一鈕對話框，zoom 本體未驗到；
-  唯一收穫＝zoom_backend available=true（uiautomator2 接線通）。
-  恢復點擊被權限分類器攔截，已 discord 通知使用者擇一：手機上
-  按「返回標題」導回關卡列表，或回 session 授權點擊。恢復後
-  重跑：`uv run python scripts/dry_run_entry.py --serial
-  R5CRC37JBYJ --stage-node 544,667 --survey-ticks 3 --stop-after
-  survey`，並先對 EN 基準 161/111 對帳。
-- 裝置現況：R5CRC37JBYJ 在線、**遊戲卡錯誤 300 對話框**（未誤
-  操作；跑前基準 assets/screenshots/20260731-163658.png＝關卡
-  列表右欄 HARD 2、EN 161/111、資金 1,255,000）。棄戰游標飄移
-  陷阱不變，重入必明示選關。鎖屏靠 scripts/ensure_unlocked.py。
+- **佇列**：①覆蓋模型 v2 批**派工進行中**（規格定案
+  `docs/survey-coverage-v2.md`；煙測三發現已轉交開發 agent）
+  ②掃描複驗輪 ③2e 首戰。
+- **pinch 煙測 PASS**（decisions.md 0731 備案；先遭遊戲錯誤 300
+  中斷，使用者授權 adb 點擊走完登入恢復後重跑）：七次 pinch
+  收斂、格距 127.5→約 64px、全流程含棄戰 ok、EN 零消耗。縮放
+  可用定讞。**新發現**：最小縮放 pitch ~64 低於 read_lattice 的
+  GRID_MIN_SPACING=90（讀不到＋滿幅幀有隔行混疊翻倍風險）、
+  grid_on 信念縮放後翻 False（長跑會讓 SurveyBoard 前置中途
+  看似失效）、邊緣半幅虛空破壞間距均勻閘——三筆都要 v2 提案
+  處理。遊戲錯誤 300＝登入逾時（使用者說明），登入流程 adb
+  導航路徑已實走一遍（標題→下載→登入獎勵→公告→主頁→關卡
+  hub→UC→關卡列表，座標見 ui-navigation-map）。
+- 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（右欄 HARD 2
+  ——棄戰游標飄移再次實證，重入必明示選關）、EN 161/111、
+  資金 1,255,000、鑽 2,600。鎖屏靠 scripts/ensure_unlocked.py。
 
 ## 舊快照（2026-07-30 10:00 更新，批 2c 派工進行中）
 

@@ -29,6 +29,20 @@
   跨畫面固有重疊，該流程搬上 LiveDevice 時再裁（帶目前無 intent
   可放行）；(c) 帶只罩視覺 bbox＋數px，遊戲觸控 padding 若超出
   視覺框仍可能觸發，實戰觀察。
+- **pinch 煙測重跑 PASS（0731 傍晚，使用者授權 adb 點擊恢復後）**
+  ｜恢復路徑：返回標題→登入（含 154MB 資料下載、登入獎勵 DAY 6
+  道具、公告關閉）→主頁→關卡 hub→UC 輪播（停留位正確）→系列
+  資訊→關卡列表，全程照 ui-navigation-map 標定座標｜煙測
+  （--survey-ticks 3，run data/runs/20260731-170423）：七次 pinch
+  幀差 47.7→0.18 收斂、格距 127.5→約 64px 視野加倍、全流程
+  select→…→survey→棄戰 ok、EN 161/111 前後一致零消耗。**縮放
+  可用定讞**｜新發現三筆（已轉 v2 開發中 agent）：(a) 最小縮放
+  pitch ~64 低於 GRID_MIN_SPACING=90，read_lattice 全程 None 退
+  幀差；且 _ridges 間距下限在滿格幅幀會隔行取線把 64 誤讀成
+  128（混疊翻倍），v2 格線相位層兩模式都要處理；(b) grid_on
+  信念隨之翻 False（after_survey 實測），長跑會讓 SurveyBoard
+  前置中途看似失效，v2 交付需提案；(c) 地圖邊緣半幅虛空破壞
+  間距均勻性閘＋星空帶 unlocalised（r=0.001 fail-soft 正確）。
 - **pinch 煙測遭遊戲錯誤 300 中斷＋恢復點擊被權限系統攔截**｜煙測
   （dry_run_entry --survey-ticks 3）進關途中 sortie→stage_info 段，
   遊戲彈「錯誤代碼：300 工作階段錯誤。將返回標題。」唯一鈕對話框；
