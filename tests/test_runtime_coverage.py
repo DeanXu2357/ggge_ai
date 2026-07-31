@@ -555,6 +555,23 @@ def test_the_leg_fuse_is_a_per_turn_ceiling_not_a_whole_battle_quota():
     assert max(spent[1:]) <= spent[0] * 2
 
 
+def test_a_half_row_island_offset_is_merged_as_measured_not_rounded_to_a_row():
+    """島與世界的**列**偏移可以是任意值：橫軸沒有相位閘（橫線間距隨 y 遞增），敵
+    回合演出常把鏡頭拉走半列。硬吸附整列＝把誤差當成 0 寫進整批合併。"""
+    truth = (0.0, 60.0)
+    marks = ((350.0, 290.0), (550.0, 490.0), (950.0, 690.0))
+    survey = _islanded(marks, truth)
+
+    delta = survey._solve()
+
+    assert delta == pytest.approx(truth)
+    merged = survey.island.views[0].shifted(delta)
+    assert [merged.world(unit.point) for unit in merged.units] == [
+        pytest.approx(point) for point in marks
+    ]
+    assert [GRID.cell_of(merged.world(unit.point)) for unit in merged.units] == [
+        GRID.cell_of(point) for point in marks
+    ]
 
 
 

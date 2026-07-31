@@ -396,8 +396,9 @@ class Odometer:
 class Island:
     """斷鏈之後的側緩衝：局部座標系的觀測，重錨成功才併進權威圖。
 
-    局部原點刻意沿用斷鏈當下的 offset 估計，所以島與世界之間的偏移必然是整數格
-    （相位同一族），重錨解出來的偏移吸附到整格不會撕裂格網。
+    局部原點刻意沿用斷鏈當下的 offset 估計並對齊格線相位（`rephase`），所以島與
+    世界的**欄**偏移必然是整數格（相位同一族），吸附到整欄不會撕裂格網。**列不然**
+    ——橫軸沒有相位閘，島與世界的列偏移可以是任意值（見 `_whole_columns`）。
     """
 
     reason: str
@@ -724,16 +725,20 @@ class Survey:
         drift = board.relocalise(self.chart.sightings(), island.sightings)
         if drift is None:
             return None
-        return self._whole_cells((-drift[0], -drift[1]))
+        return self._whole_columns((-drift[0], -drift[1]))
 
-    def _whole_cells(self, delta: Point) -> Point:
+    def _whole_columns(self, delta: Point) -> Point:
+        """只把**欄**吸附整格，列保留重定位器解出來的原值。
+
+        島嶼開局的 `rephase` 只驗直線軸的相位，所以島與世界的欄偏移必然是整數格，
+        吸附只是把量測小數吃掉。列方向沒有相位閘（橫線間距隨 y 遞增，取模不是
+        不變量），敵回合演出常把鏡頭拉走半列——硬吸附整列會把半列誤差當成 0 寫進
+        整批合併，重錨後的里程計還會一路繼承那個誤差。
+        """
         grid = self.chart.grid if self.chart is not None else None
         if grid is None:
             return delta
-        return (
-            round(delta[0] / grid.col_pitch) * grid.col_pitch,
-            round(delta[1] / grid.row_pitch) * grid.row_pitch,
-        )
+        return (round(delta[0] / grid.col_pitch) * grid.col_pitch, delta[1])
 
     def _abandon(self, island: Island) -> None:
         """島嶼重錨失敗：整批丟棄（那一區留 UNKNOWN），世界重開在當下這一幀。
