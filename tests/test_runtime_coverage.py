@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -787,6 +788,71 @@ def test_abandoning_an_island_drops_the_clamps_but_keeps_the_leg_fuse():
     assert survey.clamps == {}
     # 同一回合內島嶼反覆丟棄重開仍受同一條保險絲約束，不然回合內就沒有上界
     assert survey.legs == 7
+
+
+# ---- v2.3：增益學習死鎖（0801 複驗第 2 輪遙測 measured/expected 恆 0.33） ----
+
+
+def test_a_three_fold_overestimated_gain_is_learned_down_within_a_few_legs():
+    """舊條件「量到的不足預期一半就不入帳」在增益高估三倍時恆真：0801 遙測南向
+    9 腿 measured/expected 全是 0.33（51.5 對 155），增益一次都沒學到。"""
+    world = World(cols=40, rows=24, units=())
+    rig = Rig(world, gain=0.76)
+    survey = Survey()
+    survey.observe(world.frame())
+
+    ratios: dict[str, list[float]] = {"x": [], "y": []}
+    for _ in range(24):
+        leg = survey.plan_leg()
+        assert leg is not None
+        before = world.camera
+        rig.swipe(*board.pan_gesture(leg.direction, (1170.0, 500.0), leg.reach), 0.7)
+        moved = math.hypot(world.camera[0] - before[0], world.camera[1] - before[1])
+        survey.observe(world.frame(), leg)
+        if moved >= board.EDGE_SHIFT_PX:
+            ratios["x" if leg.direction in ("east", "west") else "y"].append(
+                moved / math.hypot(*leg.expected)
+            )
+
+    for axis, seen in ratios.items():
+        assert len(seen) >= 6, axis
+        # 起手三倍超推（未修碼的 measured/expected 就永遠停在這裡）
+        assert seen[0] < 0.4, axis
+        # 第 5、6 腿已經收斂：指令要的行程就是實際走到的行程
+        assert min(seen[4:6]) > 0.85, axis
+        assert survey.gain[axis] < 1.0, axis
+
+
+def test_a_leg_that_hit_the_map_edge_never_teaches_the_gain():
+    """真撞邊的位移 < EDGE_SHIFT_PX 已經被判 STALLED，而 STALLED 進不了增益帳
+    ——撞邊污染靠的是這條，不是「不到半個預期就不學」。"""
+    survey = Survey()
+    before = dict(survey.gain)
+    leg = Leg("east", 200.0, (-350.0, 0.0))
+
+    survey._learn_gain(leg, Reading(STALLED, board.Shift(-2.0, 0.0, 1.0, "still"), (0.0, 0.0)))
+
+    assert survey.gain == before
+
+    survey._learn_gain(leg, Reading(ACCEPTED, board.Shift(-150.0, 0.0, 0.9, "phase"), (0.0, 0.0)))
+
+    blended = (1 - coverage.GAIN_BLEND) * coverage.GAIN_DEFAULT + coverage.GAIN_BLEND * 0.75
+    assert survey.gain["x"] == pytest.approx(blended)
+    assert survey.gain["y"] == coverage.GAIN_DEFAULT
+
+
+def test_a_broken_leg_never_reaches_the_gain_ledger():
+    """observe 判 BROKEN 就直接隔離進島嶼，_learn_gain 根本沒被叫到——量不出來的
+    位移不准當成增益證據。"""
+    world = _synthetic()
+    survey = Survey()
+    survey.observe(world.frame())
+    before = dict(survey.gain)
+
+    reading = survey.observe(np.zeros((1080, 2340, 3), np.uint8), Leg("east", 200.0, (-350.0, 0.0)))
+
+    assert reading.verdict == BROKEN
+    assert survey.gain == before
 
 
 _POCKET = ((0, 0), (1, 0), (2, 0), (2, 1), (2, 2))

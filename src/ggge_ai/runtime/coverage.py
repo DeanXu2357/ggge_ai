@@ -675,13 +675,19 @@ class Survey:
         return self._leg(direction, LEG_LIMIT[_axis_of(direction)])
 
     def _learn_gain(self, leg: Leg, reading: Reading) -> None:
-        """手指行程對內容位移的增益逐腿修正。被邊界夾住（量到的遠小於預期）的那
-        一腿不入帳——那不是增益變小，是撞到邊了。"""
-        wanted = math.hypot(*leg.expected)
-        if wanted <= 0 or leg.reach <= 0:
+        """手指行程對內容位移的增益逐腿修正：**真的動了就入帳**。
+
+        舊條件是「量到的不足預期的一半就不入帳」，本意是擋撞邊那一腿。但預設增益
+        高估三倍時 measured/expected 恆在 0.5 以下（0801 遙測：南向 9 腿全是 0.33，
+        51.5px 對 155px），這條保護就恆真——增益永遠學不到，每一腿都照著錯的增益
+        超推。撞邊的污染改由三件事自癒：真撞邊時位移 < EDGE_SHIFT_PX 已經被判
+        STALLED，而 STALLED 進不了這裡；GAIN_BLEND 的指數混合讓半推半就的一腿只
+        帶走一半權重；GAIN_RANGE 夾住極端值。
+        """
+        if reading.verdict != ACCEPTED or leg.reach <= 0:
             return
         measured = math.hypot(reading.shift.dx, reading.shift.dy)
-        if measured < 0.5 * wanted:
+        if measured < board.EDGE_SHIFT_PX:
             return
         blended = (1 - GAIN_BLEND) * self.gain[_axis_of(leg.direction)] + GAIN_BLEND * (
             measured / leg.reach
