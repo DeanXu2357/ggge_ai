@@ -19,19 +19,22 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   docs/reviews/fix-batch-review.md）。同日並行 session 的自動編制
   位置勘誤（`5c0b6c9`，auto_deploy 帶＋bottom_right_confirm 改名）
   已合流，pinch 落點區（y≤650）與新帶（y≥970）無重疊。
-- **佇列**：①pinch 單項上機煙測（live-tester：進 UC HARD 1 地圖
-  →ZoomOut→格距遞減驗證→棄戰退出；失敗不擋 v2，縮放只是最佳化）
-  ②覆蓋模型 v2 批（規格定案 `docs/survey-coverage-v2.md`：四態
-  知識圖＋前緣補掃＋邊界旗＋五層量測防禦＋衰效降級）③掃描複驗輪
-  ④2e 首戰。
-- **縮放整條路尚未上過實機**：要驗 uiautomator2 連線＋
-  unitySurfaceView 元件存在＋ZoomOut 後格距 col_pitch 遞減打平。
-  0720 成功紀錄是同幾何同後端但接線是新的。煙測指令參考
-  fix-batch-review.md 末節（--stop-after survey＋--no-zoom 對照）。
-- 裝置現況（0730 確認，本 session 未碰機）：R5CRC37JBYJ 在線、
-  遊戲停 UC 關卡列表（右欄 HARD 2——棄戰游標飄移陷阱，重入必
-  明示選關）、EN 161/111、資金 1,255,000。鎖屏靠
-  scripts/ensure_unlocked.py。
+- **佇列**：①pinch 煙測**中斷待使用者**（遊戲錯誤 300 卡對話框，
+  詳下）②覆蓋模型 v2 批**已並行派工進行中**（規格定案
+  `docs/survey-coverage-v2.md`；v2 明文不依賴縮放，煙測不擋它）
+  ③掃描複驗輪 ④2e 首戰。
+- **pinch 煙測中斷**（decisions.md 0731 備案）：進關途中遊戲彈
+  「錯誤代碼 300 工作階段錯誤」唯一鈕對話框，zoom 本體未驗到；
+  唯一收穫＝zoom_backend available=true（uiautomator2 接線通）。
+  恢復點擊被權限分類器攔截，已 discord 通知使用者擇一：手機上
+  按「返回標題」導回關卡列表，或回 session 授權點擊。恢復後
+  重跑：`uv run python scripts/dry_run_entry.py --serial
+  R5CRC37JBYJ --stage-node 544,667 --survey-ticks 3 --stop-after
+  survey`，並先對 EN 基準 161/111 對帳。
+- 裝置現況：R5CRC37JBYJ 在線、**遊戲卡錯誤 300 對話框**（未誤
+  操作；跑前基準 assets/screenshots/20260731-163658.png＝關卡
+  列表右欄 HARD 2、EN 161/111、資金 1,255,000）。棄戰游標飄移
+  陷阱不變，重入必明示選關。鎖屏靠 scripts/ensure_unlocked.py。
 
 ## 舊快照（2026-07-30 10:00 更新，批 2c 派工進行中）
 

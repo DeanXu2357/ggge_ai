@@ -29,6 +29,19 @@
   跨畫面固有重疊，該流程搬上 LiveDevice 時再裁（帶目前無 intent
   可放行）；(c) 帶只罩視覺 bbox＋數px，遊戲觸控 padding 若超出
   視覺框仍可能觸發，實戰觀察。
+- **pinch 煙測遭遊戲錯誤 300 中斷＋恢復點擊被權限系統攔截**｜煙測
+  （dry_run_entry --survey-ticks 3）進關途中 sortie→stage_info 段，
+  遊戲彈「錯誤代碼：300 工作階段錯誤。將返回標題。」唯一鈕對話框；
+  zoom 本體未驗到（唯一收穫＝zoom_backend available=true，
+  uiautomator2 接線通）。run：data/runs/20260731-163732｜(a) 停手
+  等使用者、(b) 裁決點「返回標題」恢復＋依標定文件導航重試｜先裁
+  (b)（唯一官方恢復鈕、不耗資源），但執行遭權限分類器兩路攔截
+  （臨時 tap 腳本＋原始 adb input tap）——live-tester 依「兩次失敗
+  停下」紀律停手正確，且查證 run_manual_battle.py 是 0730 使用者
+  指示刪除（無手動導航正式入口是刻意狀態），權限攔截與之相印證。
+  升級使用者裁決（discord 已通知），裝置停在對話框未被誤操作。
+  附記：同時段 tmux server 意外死亡一筆（日誌完整保留、是否同源
+  未深究）。EN 是否受中斷流程影響待恢復後對帳（基準 161/111）。
 - **驗證輪修正批設計決定整批接受**（opus worktree 交付，主 session
   審後合併；閘門雙跑全綠 1466 passed＋合併後複跑）｜11 條全文在
   docs/reviews/fix-batch-review.md，要點備查：(D1) zoom_out_max 量測
