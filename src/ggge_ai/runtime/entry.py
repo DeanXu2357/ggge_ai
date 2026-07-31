@@ -51,7 +51,9 @@ SETTINGS_CLOSE_TAP = (1180, 992)
 
 
 #「skipped」＝這一關不需要走（例如已經被推進到下一頁），不是失敗。
-ACCEPTED_OUTCOMES = ("ok", "skipped")
+#「advisory」＝只留紀錄的觀察值，永遠不裁定（見 set_battle_grid）。
+ACCEPTED_OUTCOMES = ("ok", "skipped", "advisory")
+ADVISORY = "advisory"
 
 
 @dataclass(frozen=True)
@@ -137,17 +139,43 @@ def confirm_auto_off(
     return report.add("auto_off", "stuck", f"AUTO still {state}")
 
 
+GRID_PROBE_ALREADY = "already"
+GRID_PROBE_TAPPED = "tapped"
+GRID_PROBE_UNREADABLE = "unreadable"
+GRID_PROBE_GUARDED = "guarded"
+GRID_PROBE_AUTO_DRIFT = "auto_drift"
+
+
+@dataclass(frozen=True)
+class GridProbe:
+    """設定頁滑塊的讀值——**advisory，不裁定任何事**。
+
+    0730 兩輪都讀成未驗證，而地圖上的格線像素複驗皆過（疑截圖早於 UI 動畫）。
+    滑塊是遠端狀態的間接證據，格線是地面真相，所以這裡只回報看到什麼；
+    要不要重來由 confirm_grid 讀地圖決定。
+    """
+
+    wanted: str
+    outcome: str
+    before: str | None = None
+    after: str | None = None
+
+    @property
+    def detail(self) -> str:
+        return f"want={self.wanted} {self.outcome} before={self.before} after={self.after}"
+
+
 def set_battle_grid(
     capture: Capture,
     tap: Tapper,
     desired_on: bool,
     *,
     sleep: Callable[[float], None] = time.sleep,
-) -> bool:
-    """從戰鬥選單把顯示方格開到 desired_on，最後把選單關回去。
+) -> GridProbe:
+    """從戰鬥選單把顯示方格翻到 desired_on，最後把選單關回去。
 
-    每一步都複驗 AUTO戰鬥 三選一還停在 OFF（紅線），不符就從關閉鈕撤退——這一頁
-    上絕不亂翻開關。fail-soft：驗不到就回 False 讓呼叫端無格線照掃。
+    動作守衛照舊硬性：讀不到「戰鬥分頁選著」＋「AUTO戰鬥 停在 OFF」（紅線）就
+    一個開關都不碰，直接從關閉鈕撤退。回傳的 GridProbe 只是紀錄。
     """
     want = "on" if desired_on else "off"
 
@@ -165,20 +193,29 @@ def set_battle_grid(
     sleep(1.2)
     frame = capture()
 
-    ok = False
+    before = after = None
+    outcome = GRID_PROBE_GUARDED
     if screens.is_battle_tab_selected(frame) and screens.is_auto_battle_off(frame):
-        state = screens.read_grid_setting(frame)
-        if state == want:
-            ok = True
-        elif state is not None:
+        before = screens.read_grid_setting(frame)
+        if before == want:
+            outcome, after = GRID_PROBE_ALREADY, before
+        elif before is None:
+            outcome = GRID_PROBE_UNREADABLE
+        else:
             tap(*screens.GRID_TOGGLE_TAP)
             sleep(1.0)
             frame = capture()
-            ok = screens.read_grid_setting(frame) == want and screens.is_auto_battle_off(frame)
-    if not ok:
-        log.warning("battle-grid toggle unverified (wanted %s)", want)
+            after = screens.read_grid_setting(frame)
+            outcome = GRID_PROBE_TAPPED
+            if not screens.is_auto_battle_off(frame):
+                # 我們沒碰那一列（滑塊在 y591，三選一在 y245-345），但真的漂了就
+                # 得看得見——AUTO 的硬閘門在 confirm_auto_off／confirm_in_map。
+                log.error("AUTO battle row left OFF while toggling the grid")
+                outcome = GRID_PROBE_AUTO_DRIFT
     close()
-    return ok
+    probe = GridProbe(wanted=want, outcome=outcome, before=before, after=after)
+    log.info("grid setting probe (advisory): %s", probe.detail)
+    return probe
 
 
 def confirm_grid(
@@ -190,15 +227,17 @@ def confirm_grid(
     attempts: int = 3,
     sleep: Callable[[float], None] = time.sleep,
 ) -> Step:
-    """顯示方格的地面真相是地圖本身讀不讀得出格網——不是設定頁的滑塊。
+    """顯示方格的**唯一判準**是地圖本身讀不讀得出格網——不是設定頁的滑塊。
 
-    讀得出格網同時也證明我們已經回到地圖上（選單沒被留著開）。
+    讀得出格網同時也證明我們已經回到地圖上（選單沒被留著開）。設定頁探針的結果
+    只當 advisory 進報告（0730 兩輪未驗證但地圖複驗皆過），不裁定也不擋流程。
     """
     for _ in range(attempts):
         frame = capture()
         if (board.read_lattice(frame) is not None) == desired_on:
             return report.add("grid", "ok")
-        set_battle_grid(capture, tap, desired_on, sleep=sleep)
+        probe = set_battle_grid(capture, tap, desired_on, sleep=sleep)
+        report.add("grid_setting", ADVISORY, probe.detail)
     return report.add("grid", "unverified", f"lattice != {desired_on}")
 
 

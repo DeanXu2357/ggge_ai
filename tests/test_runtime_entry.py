@@ -156,6 +156,40 @@ def test_the_grid_gate_reports_unverified_rather_than_pretending():
     assert step.outcome == "unverified"
 
 
+def test_the_settings_probe_is_advisory_and_never_fails_the_gate():
+    """0730 兩輪滑塊讀成未驗證、地圖格線複驗皆過（疑截圖早於 UI 動畫）：
+    探針只留紀錄，判準單獨歸地圖像素。"""
+    screen = Screen([load(MAP_GRIDLESS), blank(), load(MAP_GRID_ON)])
+    report = entry.GateReport()
+
+    step = entry.confirm_grid(screen.capture, screen.tap, report, attempts=2, sleep=lambda _: None)
+
+    advisory = [line for line in report.steps if line.gate == "grid_setting"]
+    assert [line.outcome for line in advisory] == [entry.ADVISORY]
+    assert all(line.ok for line in advisory)  # advisory 不擋流程
+    assert entry.GRID_PROBE_GUARDED in advisory[0].detail  # 空白幀讀不到分頁＝不亂翻
+    assert step.ok and report.ok
+
+
+def test_the_settings_probe_never_touches_a_toggle_it_cannot_confirm():
+    screen = Screen([blank()])
+
+    probe = entry.set_battle_grid(screen.capture, screen.tap, True, sleep=lambda _: None)
+
+    assert probe.outcome == entry.GRID_PROBE_GUARDED
+    assert screens.GRID_TOGGLE_TAP not in screen.points()
+
+
+def test_the_settings_probe_reports_a_slider_already_where_it_should_be():
+    screen = Screen([load(SETTINGS_GRID_ON)])
+
+    probe = entry.set_battle_grid(screen.capture, screen.tap, True, sleep=lambda _: None)
+
+    assert probe.outcome == entry.GRID_PROBE_ALREADY
+    assert probe.before == probe.after == "on"
+    assert screens.GRID_TOGGLE_TAP not in screen.points()
+
+
 def test_the_in_map_recheck_wants_the_map_auto_off_and_a_lattice():
     screen = Screen([load(MAP_GRID_ON)])
 

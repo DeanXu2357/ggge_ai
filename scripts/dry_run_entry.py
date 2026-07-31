@@ -6,26 +6,33 @@ stage 模組（都有離線測試），這支只負責組裝、迴圈與落證�
 
 usage:
   # 只驗到關卡列表／出擊準備頁——**不花任何資源**，第一次跑先跑這兩段
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stop-after select
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stop-after prep
+  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stage-node 544,667 \
+      --stop-after select
+  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stage-node 544,667 \
+      --stop-after prep
 
   # 分段停點：select / prep / stage_info / map / grid / survey
   # stage_info 起開始花 EN 與挑戰次數
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stop-after grid
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --survey-ticks 20
+  uv run python scripts/dry_run_entry.py … --stop-after grid
+  uv run python scripts/dry_run_entry.py … --survey-ticks 20   # 預設 40
+  uv run python scripts/dry_run_entry.py … --no-zoom           # 不 pinch，掃當前縮放
 
   # 全程（預設進到地圖之後會棄戰收尾；棄戰不耗 AP／挑戰次數／EN，0730 實證）
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ
-  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --no-abandon
+  uv run python scripts/dry_run_entry.py --serial R5CRC37JBYJ --stage-node 544,667
+  uv run python scripts/dry_run_entry.py … --no-abandon
 
-前提：手機已經停在目標系列的關卡列表（選擇關卡頁），**右欄已經是要打的那一關**。
---stage-node X,Y 可以先點一個關卡節點再進出擊準備，但選中的是哪一關畫面上讀不
-出來（右欄標題還沒接文字讀取），所以一律自己看落檔的截圖確認。0730 的 UC HARD 1
-節點平台約在 (544,872)，**那個點撞上戰鬥選單「放棄」的危險帶會被拒點**——要點就
-點編號／星列那一列（y 較高，例如 544,667），或乾脆手動先選好關卡。
+前提：手機已經停在目標系列的關卡列表（選擇關卡頁）。
 
-證據：data/runs/<時間戳>/dry_run.jsonl＋frames/（每段界線與每次失敗各存一張原生
-幀）。任何 expect 失敗就停在原地不再點，印出畫面名與當下截圖路徑。
+**--stage-node X,Y 是必填的**：棄戰回來的關卡列表游標會飄（見 docs/ui-navigation-
+map.md），沿用「現在選著的那一關」會打到別關去，所以每次都要明示要打哪個節點。
+選中的是哪一關畫面上讀不出來（右欄標題還沒接文字讀取），所以選完會多存一張右欄
+截圖（frames 的 select:right_panel）供事後比對。0730 的 UC HARD 1 節點平台約在
+(544,872)，**那個點撞上戰鬥選單「放棄」的危險帶會被拒點**——要點就點編號／星列
+那一列（y 較高，例如 544,667）。
+
+證據：data/runs/<時間戳>/dry_run.jsonl＋frames/（每段界線、每次觀測與每次失敗各存
+一張原生幀）。截圖只有 Camera 一個來源——感知器也吃它，所以存下來的幀就是當下判定
+用的那張。任何 expect 失敗就停在原地不再點，印出畫面名與當下截圖路徑。
 """
 
 from __future__ import annotations
@@ -35,12 +42,12 @@ import logging
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import numpy as np
 
-from ggge_ai.runtime import entry, screens
+from ggge_ai.runtime import entry, screens, zoom
 from ggge_ai.runtime.device import Adb, LiveDevice, LiveExecutor
 from ggge_ai.runtime.journal import Journal, rotate_runs
 from ggge_ai.runtime.keyguard import Keyguard
@@ -53,6 +60,9 @@ log = logging.getLogger("dry_run_entry")
 RUNS_ROOT = Path("data/runs")
 JOURNAL_NAME = "dry_run.jsonl"
 STAGES = ("select", "prep", "stage_info", "map", "grid", "survey")
+# 0730 實測 20 tick 掃出 0 cell（東西各燒滿 8 腿預算仍未到邊、合併從未觸發），
+# 預算翻倍讓整段掃描至少有機會走到合併。
+SURVEY_TICKS = 40
 # 只有真的進到地圖才有戰鬥可棄；停在更早的段落就交給人自己收。
 IN_BATTLE_STAGES = (None, "map", "grid", "survey")
 
@@ -63,17 +73,25 @@ class Halt(RuntimeError):
 
 @dataclass
 class Camera:
-    """capture 通道，順手記住最後一張原生幀——段界與失敗點才有圖可指。"""
+    """**唯一幀源**：這支所有的截圖都經過這裡，最後一張原生幀留著給段界與失敗點。
+
+    感知器也吃這個通道（`LivePerceiver(device=camera)`），因為它自己抓幀時存檔存
+    到的是別張——0730 實機發現②：段界存的是陳舊幀，只有 journal 的結構化欄位
+    才對得上。共用同一張之後，同一個停點的判定與存檔必然是同一張幀。
+    """
 
     device: LiveDevice
     journal: Journal
     raw: bytes | None = field(default=None, init=False)
     shots: int = field(default=0, init=False)
 
-    def grab(self) -> np.ndarray:
+    def screenshot(self) -> bytes:
         self.raw = self.device.screenshot()
         self.shots += 1
-        return decode(self.raw)
+        return self.raw
+
+    def grab(self) -> np.ndarray:
+        return decode(self.screenshot())
 
     def keep(self, label: str) -> str | None:
         path = self.journal.save_frame(self.raw, self.shots)
@@ -90,7 +108,7 @@ class DryRun:
     driver: BoardDriver
     perceiver: LivePerceiver
     stop_after: str | None = None
-    survey_ticks: int = 20
+    survey_ticks: int = SURVEY_TICKS
     node: tuple[int, int] | None = None
     sleep: Callable[[float], None] = time.sleep
 
@@ -99,6 +117,10 @@ class DryRun:
 
         self.begin("select")
         self.gate("select", entry.select_stage(capture, tap, node=self.node, sleep=nap))
+        # 選中哪一關畫面上讀不出來，所以留一張右欄的圖給人事後核對——棄戰回來
+        # 游標會飄，盲選會打到別關。
+        self.camera.grab()
+        self.camera.keep("select:right_panel")
         if self.end("select"):
             return
 
@@ -170,7 +192,14 @@ class DryRun:
 
     def observe(self, label: str) -> Observation:
         seen = self.perceiver.look()
-        self.journal.record("observed", label=label, screen=seen.screen, **seen.evidence)
+        # 存的就是這次判定用的那張幀（感知器與存檔共用 Camera），事後才對得起來。
+        self.journal.record(
+            "observed",
+            label=label,
+            screen=seen.screen,
+            frame=self.journal.save_frame(seen.frame, self.camera.shots),
+            **seen.evidence,
+        )
         log.info(
             "%s: screen=%s auto=%s grid_on=%s roster=%s",
             label,
@@ -184,24 +213,44 @@ class DryRun:
     def summarize_survey(self) -> None:
         ledger = self.driver.ledger
         cells = ledger.cells()
+        # unlocalised＝那一幀的位移量不出來、目擊落在錯的世界座標。>0 就代表整批
+        # 座標可疑，所以它要跟結果放在同一筆紀錄裡，不是只留在 log。
+        unlocalised = self.driver.cursor.scan.unlocalised
         self.journal.record(
             "survey_summary",
             steps=list(self.driver.steps),
             swept=sorted(ledger.swept),
             synced=ledger.synced,
+            unlocalised=unlocalised,
             cells=[[list(cell), hint] for cell, hint in cells],
         )
         log.info("survey steps: %s", self.driver.steps)
-        log.info("swept=%s synced=%s cells=%d", sorted(ledger.swept), ledger.synced, len(cells))
+        log.info(
+            "swept=%s synced=%s cells=%d unlocalised=%d",
+            sorted(ledger.swept),
+            ledger.synced,
+            len(cells),
+            unlocalised,
+        )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--serial", default=None)
     parser.add_argument("--stop-after", choices=STAGES, default=None)
-    parser.add_argument("--survey-ticks", type=int, default=20)
-    parser.add_argument("--stage-node", default=None, help="X,Y：先點一個關卡節點再進出擊準備")
+    parser.add_argument("--survey-ticks", type=int, default=SURVEY_TICKS)
+    parser.add_argument(
+        "--stage-node",
+        required=True,
+        help="X,Y：要打的關卡節點。必填——棄戰回來游標會飄，沿用現選會打到別關",
+    )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--zoom",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="掃描前先 pinch 到最小縮放（需要 uiautomator2 連得上）",
+    )
     parser.add_argument("--run-dir", type=Path, default=None)
     return parser.parse_args()
 
@@ -234,19 +283,44 @@ def soft_capture(camera: Camera) -> Callable[[], np.ndarray | None]:
     return capture
 
 
+def zoom_driver(
+    args: argparse.Namespace, camera: Camera, journal: Journal
+) -> Callable[[], None] | None:
+    """縮放走 uiautomator 注入（本裝置唯一可行的後端，見 runtime/zoom.py），與截圖
+    ／點擊的 adb 通道各自獨立。接不上就回 None——掃描在當下縮放照樣跑得完，只是
+    腿數與截圖次數變多，所以這裡不讓它擋任何事。"""
+    if not args.zoom:
+        journal.record("zoom_backend", available=False, reason="disabled")
+        return None
+    try:
+        import uiautomator2 as u2
+
+        pincher = zoom.gesture_pincher_for(u2.connect(args.serial))
+    except Exception as boom:
+        log.warning("no zoom backend; scanning at the current zoom", exc_info=True)
+        journal.record("zoom_backend", available=False, reason=repr(boom))
+        return None
+    journal.record("zoom_backend", available=True)
+    return zoom.ZoomOut(
+        capture=camera.grab,
+        pincher=pincher,
+        on_step=lambda step: journal.record("zoom_step", **asdict(step)),
+    )
+
+
 def build(args: argparse.Namespace, journal: Journal) -> DryRun:
     adb = Adb(serial=args.serial)
     device = LiveDevice(adb=adb)
     camera = Camera(device=device, journal=journal)
     device.keyguard = Keyguard(shell=adb.shell, capture=soft_capture(camera))
-    driver, _ = survey_drivers(camera.grab, device)
+    driver, _ = survey_drivers(camera.grab, device, zoom_out=zoom_driver(args, camera, journal))
     return DryRun(
         device=device,
         camera=camera,
         journal=journal,
         executor=LiveExecutor(device=device, drivers=driver.drivers(), journal=journal),
         driver=driver,
-        perceiver=LivePerceiver(device=device),
+        perceiver=LivePerceiver(device=camera),
         stop_after=args.stop_after,
         survey_ticks=args.survey_ticks,
         node=point(args.stage_node),
@@ -261,7 +335,12 @@ def main() -> int:
     print(f"run dir: {run_dir}")
     print(f"screens known: {screens.STAGE_LIST}, {screens.SORTIE_PREP}, {screens.STAGE_INFO}")
     dry = build(args, journal)
-    journal.record("dry_run_start", stop_after=args.stop_after, survey_ticks=args.survey_ticks)
+    journal.record(
+        "dry_run_start",
+        stop_after=args.stop_after,
+        survey_ticks=args.survey_ticks,
+        stage_node=args.stage_node,
+    )
     try:
         dry.run()
         if args.abandon and args.stop_after in IN_BATTLE_STAGES:

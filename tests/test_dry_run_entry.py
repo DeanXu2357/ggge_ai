@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
 
 import cv2
@@ -16,11 +17,22 @@ from ggge_ai.runtime.device import LiveExecutor
 from ggge_ai.runtime.journal import Journal
 from ggge_ai.runtime.perceive import LivePerceiver
 from ggge_ai.stage.survey import survey_drivers
-from scripts.dry_run_entry import JOURNAL_NAME, Camera, DryRun, Halt, point
+from scripts.dry_run_entry import (
+    JOURNAL_NAME,
+    SURVEY_TICKS,
+    Camera,
+    DryRun,
+    Halt,
+    build,
+    parse_args,
+    point,
+)
 from tests.fixtures.frames import load
 
 STAGE_LIST = "popups/stage_list_dim_20260719"
 PREP = "stage_panels/prep_screen"
+# 節點平台 (544,872) 落在戰鬥選單「放棄」的危險帶裡會被拒點，改點編號／星列那一列。
+NODE = (544, 667)
 
 
 @dataclass
@@ -35,9 +47,12 @@ class FakeDevice:
     transitions: dict[tuple[int, int], np.ndarray] = field(default_factory=dict)
     taps: list[tuple[int, int, str]] = field(default_factory=list)
     unlocks: int = 0
+    handed: list[bytes] = field(default_factory=list)
 
     def screenshot(self) -> bytes:
-        return cv2.imencode(".png", self.frame)[1].tobytes()
+        raw = cv2.imencode(".png", self.frame)[1].tobytes()
+        self.handed.append(raw)
+        return raw
 
     def ensure_unlocked(self, force: bool = False) -> None:
         self.unlocks += 1
@@ -83,23 +98,23 @@ def to_prep() -> dict[tuple[int, int], np.ndarray]:
     return {entry.STAGE_LIST_PREP_TAP: load(PREP)}
 
 
-def test_stopping_after_select_never_taps_anything(tmp_path):
-    """關卡列表段不花資源也不動任何按鈕——第一次上機就跑這一段。"""
-    run, device = dry_run(tmp_path, load(STAGE_LIST), stop_after="select")
+def test_the_select_stage_taps_the_named_node_and_nothing_else(tmp_path):
+    """關卡列表段不花資源，唯一的動作是點明示的那個節點——第一次上機就跑這一段。"""
+    run, device = dry_run(tmp_path, load(STAGE_LIST), stop_after="select", node=NODE)
 
     run.run()
 
-    assert device.taps == []
+    assert [(x, y) for x, y, _ in device.taps] == [NODE]
     assert stages(run.journal) == ["select"]
     assert "gate" in kinds(run.journal)
 
 
-def test_stopping_after_prep_taps_only_the_prep_button(tmp_path):
-    run, device = dry_run(tmp_path, load(STAGE_LIST), to_prep(), stop_after="prep")
+def test_stopping_after_prep_taps_only_the_node_and_the_prep_button(tmp_path):
+    run, device = dry_run(tmp_path, load(STAGE_LIST), to_prep(), stop_after="prep", node=NODE)
 
     run.run()
 
-    assert [(x, y) for x, y, _ in device.taps] == [entry.STAGE_LIST_PREP_TAP]
+    assert [(x, y) for x, y, _ in device.taps] == [NODE, entry.STAGE_LIST_PREP_TAP]
     assert stages(run.journal) == ["select", "prep"]
     # 出擊鈕永遠不在這一段裡：出擊才開始花 EN 與挑戰次數。
     assert entry.SORTIE_TAP not in [(x, y) for x, y, _ in device.taps]
@@ -107,7 +122,7 @@ def test_stopping_after_prep_taps_only_the_prep_button(tmp_path):
 
 def test_every_stage_re_arms_the_keyguard(tmp_path):
     """兩種鎖都會無聲吞 tap，所以每段開頭一定要問一次。"""
-    run, device = dry_run(tmp_path, load(STAGE_LIST), to_prep(), stop_after="prep")
+    run, device = dry_run(tmp_path, load(STAGE_LIST), to_prep(), stop_after="prep", node=NODE)
 
     run.run()
 
@@ -115,7 +130,9 @@ def test_every_stage_re_arms_the_keyguard(tmp_path):
 
 
 def test_a_failed_gate_halts_in_place_without_tapping(tmp_path):
-    run, device = dry_run(tmp_path, np.zeros((1080, 2340, 3), np.uint8), stop_after="select")
+    run, device = dry_run(
+        tmp_path, np.zeros((1080, 2340, 3), np.uint8), stop_after="select", node=NODE
+    )
 
     with pytest.raises(Halt):
         run.run()
@@ -123,15 +140,70 @@ def test_a_failed_gate_halts_in_place_without_tapping(tmp_path):
     assert device.taps == []
 
 
-def test_every_stage_boundary_keeps_a_native_frame(tmp_path):
-    run, _ = dry_run(tmp_path, load(STAGE_LIST), stop_after="select")
+def test_the_select_stage_keeps_a_shot_of_the_right_hand_panel(tmp_path):
+    """選中哪一關畫面上讀不出來，而棄戰回來游標會飄——所以留圖給人事後核對。"""
+    run, _ = dry_run(tmp_path, load(STAGE_LIST), stop_after="select", node=NODE)
 
     run.run()
 
     saved = [line for line in run.journal.entries() if line["kind"] == "frame"]
-    assert [line["label"] for line in saved] == ["select:start", "select:end"]
+    assert [line["label"] for line in saved] == [
+        "select:start",
+        "select:right_panel",
+        "select:end",
+    ]
     for line in saved:
         assert (tmp_path / line["frame"]).exists()
+
+
+def test_the_command_line_refuses_to_run_without_a_stage_node(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["dry_run_entry", "--stop-after", "select"])
+
+    with pytest.raises(SystemExit):
+        parse_args()
+
+
+def test_the_perceiver_and_the_saved_frame_come_from_one_camera(tmp_path):
+    """0730 發現②：Camera 與 LivePerceiver 各抓各的，段界存檔是陳舊幀、只有
+    journal 的結構化欄位可信。單一幀源之後，判定用的與存下來的是同一張。"""
+    device = FakeDevice(frame=load(STAGE_LIST))
+    journal = Journal(tmp_path / JOURNAL_NAME)
+    camera = Camera(device=device, journal=journal)
+
+    seen = LivePerceiver(device=camera).look()
+    saved = camera.keep("probe")
+
+    assert len(device.handed) == camera.shots == 1
+    assert seen.frame == device.handed[-1]
+    assert (tmp_path / saved).read_bytes() == seen.frame
+
+
+def test_the_assembled_run_gives_the_perceiver_the_camera_channel(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["dry_run_entry", "--stage-node", "544,667", "--no-zoom"])
+
+    dry = build(parse_args(), Journal(tmp_path / JOURNAL_NAME))
+
+    assert dry.perceiver.device is dry.camera
+
+
+def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
+    """位移量不出來的那一幀，目擊會落在錯的世界座標。次數要跟結果同一筆——
+    看到 >0 就該把整批座標當可疑，不能只留在 log 裡。"""
+    run, _ = dry_run(tmp_path, load(STAGE_LIST), node=NODE)
+    run.driver.cursor.scan.unlocalised = 2
+
+    run.summarize_survey()
+
+    summary = [line for line in run.journal.entries() if line["kind"] == "survey_summary"]
+    assert [line["unlocalised"] for line in summary] == [2]
+
+
+def test_the_default_survey_budget_is_the_raised_one(monkeypatch):
+    """0730 實測 20 tick 掃出 0 cell（東西各燒滿 8 腿未到邊、合併從未觸發）。"""
+    monkeypatch.setattr(sys, "argv", ["dry_run_entry", "--stage-node", "544,667"])
+
+    assert parse_args().survey_ticks == SURVEY_TICKS == 40
+    assert DryRun.survey_ticks == SURVEY_TICKS
 
 
 def test_the_node_argument_is_parsed_as_a_point():

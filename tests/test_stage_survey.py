@@ -341,6 +341,38 @@ def test_the_driver_does_exactly_one_micro_step_per_call():
     assert len(actuator.swipes) == 1
 
 
+def test_the_zoom_micro_step_runs_the_injected_zoom_out():
+    """縮放實作住 runtime/zoom.py（要 uiautomator 注入通道），掃描只認這個接縫。"""
+    camera = Camera([map_frame()])
+    zooms: list[int] = []
+    driver, _ = survey_drivers(
+        camera.capture,
+        FakeActuator(),
+        itinerary=("west",),
+        zoom_out=lambda: zooms.append(1),
+        sleep=lambda _: None,
+    )
+
+    assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == ZOOM_STEP
+    assert zooms == [1]
+
+    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert zooms == [1]  # 只在縮放那一個微步驟，之後的平移不再碰鏡頭
+
+
+def test_the_survey_carries_on_without_a_zoom_backend():
+    """縮放是最佳化不是前提：接不上後端照樣掃得完，只是腿數變多。"""
+    camera = Camera([map_frame()])
+    driver, ledger = survey_drivers(
+        camera.capture, FakeActuator(), itinerary=("west",), sleep=lambda _: None
+    )
+
+    assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == ZOOM_STEP
+    assert ledger.zoomed
+    assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == "west"
+
+
 def test_the_driver_marks_a_direction_swept_when_the_view_stops_moving():
     camera = Camera([map_frame()])
     driver, ledger = survey_drivers(
