@@ -62,6 +62,8 @@ ROSTER_UNREADABLE = "unreadable"
 SETTLE_POLL_S = 0.25
 SETTLE_QUIET_PX = 3.0
 SETTLE_ROUNDS = 4
+PRECHECK_PROBE = "precheck"
+LEG_PROBE = "leg"
 
 
 @dataclass
@@ -161,6 +163,10 @@ class BoardDriver:
     zoom_out 是注入的（實作在 runtime/zoom.py，需要 uiautomator 注入通道，與截圖
     ／點擊的 adb 通道分開）：沒給就只記一次警告照樣往下走——**掃描成功不依賴
     縮小**，縮不動只是截圖次數變多（覆蓋模型 v2 的核心目的）。
+
+    telemetry 是逐 observe 的量測遙測水槽（A5 儀器化）：位移量、閘門裁決與靜止閘
+    等了幾輪都只在這裡看得到，流水帳的微步驟名答不了「那一腿到底移了多少」。
+    它是純觀察者——寫失敗只記一次警告，掃描照跑。
     """
 
     capture: Callable[[], np.ndarray]
@@ -169,6 +175,8 @@ class BoardDriver:
     zoom_out: Callable[[], None] | None = None
     sleep: Callable[[float], None] = field(default=time.sleep)
     steps: list[str] = field(default_factory=list)
+    telemetry: Callable[[dict[str, Any]], None] | None = None
+    ticks: int = 0
 
     def show_grid(self, action: ShowGrid, observation: Observation[Any]) -> str:
         """翻設定頁的開關。回傳設定頁探針的自述（進流水帳）——它是 advisory，
@@ -194,8 +202,10 @@ class BoardDriver:
         if not self.ledger.zoomed:
             self._zoom()
             return self._step(ZOOM_STEP)
+        self.ticks += 1
         settled = self._settled_capture()
-        survey.observe(settled.frame)
+        reading = survey.observe(settled.frame)
+        self._trace(PRECHECK_PROBE, None, reading, settled)
         leg = survey.plan_leg()
         if leg is None:
             if survey.complete:
@@ -205,7 +215,9 @@ class BoardDriver:
         # 是盲推——流水帳要分得出來，不然事後看不出這一段有沒有座標可信。
         prefix = SWEEP_STEP if survey.anchored else BLIND_STEP
         self._pan(leg, board.pick_pan_origin(board.find_sightings(settled.frame)))
-        survey.observe(self._settled_capture().frame, leg)
+        after = self._settled_capture()
+        reading = survey.observe(after.frame, leg)
+        self._trace(LEG_PROBE, leg, reading, after)
         return self._step(f"{prefix}:{leg.direction}")
 
     def drivers(self) -> dict[type, Callable[[Any, Observation[Any]], Any]]:
@@ -237,6 +249,54 @@ class BoardDriver:
         log.warning("frame never went quiet in %d rounds; observing it anyway", SETTLE_ROUNDS)
         return SettledFrame(frame, SETTLE_ROUNDS, False)
 
+    def _trace(
+        self,
+        probe: str,
+        leg: coverage.Leg | None,
+        reading: coverage.Reading,
+        settled: SettledFrame,
+    ) -> None:
+        if self.telemetry is None:
+            return
+        try:
+            self.telemetry(self._record(probe, leg, reading, settled))
+        except Exception:
+            log.warning("survey telemetry sink failed; the scan carries on", exc_info=True)
+
+    def _record(
+        self,
+        probe: str,
+        leg: coverage.Leg | None,
+        reading: coverage.Reading,
+        settled: SettledFrame,
+    ) -> dict[str, Any]:
+        survey = self.ledger.survey
+        island = survey.island
+        shift = reading.shift
+        return {
+            "tick": self.ticks,
+            "probe": probe,
+            "direction": None if leg is None else leg.direction,
+            "reach": None if leg is None else round(leg.reach, 1),
+            "expected": None if leg is None else [round(value, 1) for value in leg.expected],
+            "verdict": reading.verdict,
+            "reason": reading.reason,
+            "shift": {
+                "dx": round(shift.dx, 2),
+                "dy": round(shift.dy, 2),
+                "magnitude": round(shift.magnitude, 2),
+                "confidence": round(shift.confidence, 3),
+                "source": shift.source,
+            },
+            "offset": [round(value, 1) for value in reading.offset],
+            "island": {
+                "open": island is not None,
+                "views": 0 if island is None else len(island.views),
+            },
+            "islands": dict(survey.islands),
+            "settle": {"waits": settled.waits, "quiet": settled.quiet},
+        }
+
     def _zoom(self) -> None:
         if self.zoom_out is None:
             log.warning("no zoom-out driver injected; scanning at the current zoom")
@@ -262,10 +322,16 @@ def survey_drivers(
     ledger: CoverageLedger | None = None,
     zoom_out: Callable[[], None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
+    telemetry: Callable[[dict[str, Any]], None] | None = None,
 ) -> tuple[BoardDriver, CoverageLedger]:
     """把簿記與執行器一起立起來——感知接縫與執行器必須共用同一本簿記。"""
     book = ledger or CoverageLedger()
     driver = BoardDriver(
-        capture=capture, actuator=actuator, ledger=book, zoom_out=zoom_out, sleep=sleep
+        capture=capture,
+        actuator=actuator,
+        ledger=book,
+        zoom_out=zoom_out,
+        sleep=sleep,
+        telemetry=telemetry,
     )
     return driver, book

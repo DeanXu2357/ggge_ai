@@ -27,6 +27,8 @@ from ggge_ai.stage.survey import (
     BLIND_STEP,
     DONE_STEP,
     FUSE_STEP,
+    LEG_PROBE,
+    PRECHECK_PROBE,
     ROSTER_ALREADY,
     ROSTER_TAPPED,
     ROSTER_UNREADABLE,
@@ -35,6 +37,7 @@ from ggge_ai.stage.survey import (
     STUCK_STEP,
     SWEEP_STEP,
     ZOOM_STEP,
+    BoardDriver,
     CoverageLedger,
     SurveyPerceiver,
     survey_drivers,
@@ -418,7 +421,7 @@ def test_an_unreadable_world_still_moves_and_says_it_was_blind():
     assert not ledger.survey.anchored
 
 
-# ---- v2.2 取幀靜止閘（0801 複驗 14 次 BROKEN(phase) 的 root fix） ----
+# ---- v2.2 取幀靜止閘與逐 observe 遙測（0801 複驗 14 次 BROKEN(phase) 的修正） ----
 
 
 def _glider(drifts: list[float]) -> Glide:
@@ -465,6 +468,92 @@ def test_an_unmeasurable_frame_counts_as_quiet_and_is_handed_straight_on():
     assert settled.quiet
     assert settled.waits == 1
     assert not settled.frame.any()
+
+
+def _traced(ticks: int, **kwargs) -> tuple[BoardDriver, Rig]:
+    rig = Rig(World(cols=22, rows=12, units=((3, 2), (9, 6))))
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, **kwargs)
+    ledger.zoomed = True
+    for _ in range(ticks):
+        driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+    return driver, rig
+
+
+def test_the_telemetry_files_one_row_per_observe_with_the_measurement():
+    """A5 儀器化：微步驟名答不了「那一腿到底移了多少」，位移量與閘門裁決只有這一種
+    紀錄看得到。"""
+    rows: list[dict] = []
+    _traced(3, telemetry=rows.append)
+
+    assert [row["probe"] for row in rows] == [PRECHECK_PROBE, LEG_PROBE] * 3
+    assert [row["tick"] for row in rows] == [1, 1, 2, 2, 3, 3]
+    for row in rows:
+        assert set(row) == {
+            "tick",
+            "probe",
+            "direction",
+            "reach",
+            "expected",
+            "verdict",
+            "reason",
+            "shift",
+            "offset",
+            "island",
+            "islands",
+            "settle",
+        }
+        assert set(row["shift"]) == {"dx", "dy", "magnitude", "confidence", "source"}
+        assert set(row["island"]) == {"open", "views"}
+        assert set(row["islands"]) == {"isolated", "merged", "discarded", "reset"}
+        assert set(row["settle"]) == {"waits", "quiet"}
+        assert len(row["offset"]) == 2
+
+    prechecks = [row for row in rows if row["probe"] == PRECHECK_PROBE]
+    legs = [row for row in rows if row["probe"] == LEG_PROBE]
+    # 前置複核幀無指令，所以 leg 三欄全空——包絡閘那時只能要求「幾乎沒動」
+    assert all(row["direction"] is None and row["expected"] is None for row in prechecks)
+    assert all(row["reach"] is None for row in prechecks)
+    assert all(row["direction"] in board.DIRECTIONS for row in legs)
+    assert all(len(row["expected"]) == 2 for row in legs)
+    assert legs[0]["verdict"] == coverage.ACCEPTED
+    assert legs[0]["shift"]["magnitude"] > board.EDGE_SHIFT_PX
+
+
+def test_the_telemetry_reports_how_long_the_quiescence_gate_had_to_wait():
+    """合成世界是瞬時靜止的：第一輪就過閘、零重試。實機上這個數字才是滑行的量尺。"""
+    rows: list[dict] = []
+    _traced(2, telemetry=rows.append)
+
+    assert {row["settle"]["waits"] for row in rows} == {1}
+    assert all(row["settle"]["quiet"] for row in rows)
+
+
+def test_the_telemetry_lands_in_the_journal_as_numbers_not_strings(tmp_path):
+    """Journal 的 default=str 是安全網不是預期路徑——numpy 純量會被悄悄寫成字串，
+    事後就沒得算了。"""
+    journal = Journal(tmp_path / JOURNAL_NAME)
+    _traced(3, telemetry=lambda record: journal.record("survey_tick", **record))
+
+    rows = [line for line in journal.entries() if line["kind"] == "survey_tick"]
+
+    assert len(rows) == 6
+    for row in rows:
+        assert isinstance(row["shift"]["magnitude"], float)
+        assert isinstance(row["shift"]["dx"], float)
+        assert all(isinstance(value, float) for value in row["offset"])
+        assert isinstance(row["settle"]["waits"], int)
+
+
+def test_a_failing_telemetry_sink_never_stops_the_scan():
+    """遙測是純觀察者：水槽炸了只記一次警告，掃描照跑。"""
+
+    def boom(record: dict) -> None:
+        raise RuntimeError("journal is on fire")
+
+    driver, rig = _traced(2, telemetry=boom)
+
+    assert [step.split(":")[0] for step in driver.steps] == [SWEEP_STEP] * 2
+    assert rig.swipes == 2
 
 
 def test_the_survey_completes_when_the_frontier_empties():

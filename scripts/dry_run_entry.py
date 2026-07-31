@@ -32,7 +32,8 @@ map.md），沿用「現在選著的那一關」會打到別關去，所以每�
 
 證據：data/runs/<時間戳>/dry_run.jsonl＋frames/（每段界線、每次觀測與每次失敗各存
 一張原生幀）。截圖只有 Camera 一個來源——感知器也吃它，所以存下來的幀就是當下判定
-用的那張。任何 expect 失敗就停在原地不再點，印出畫面名與當下截圖路徑。
+用的那張。掃描每 tick 另出兩筆 survey_tick（前置複核幀與 leg 幀各一），帶位移量、
+閘門裁決與靜止閘輪數。任何 expect 失敗就停在原地不再點，印出畫面名與當下截圖路徑。
 """
 
 from __future__ import annotations
@@ -60,6 +61,9 @@ log = logging.getLogger("dry_run_entry")
 RUNS_ROOT = Path("data/runs")
 JOURNAL_NAME = "dry_run.jsonl"
 STAGES = ("select", "prep", "stage_info", "map", "grid", "survey")
+# 逐 observe 的量測遙測（A5 儀器化）：微步驟名答不了「那一腿到底移了多少」，
+# 位移量、閘門裁決與靜止閘輪數只有這一種紀錄看得到。
+SURVEY_TICK = "survey_tick"
 # 0730 實測 20 tick 掃出 0 cell（東西各燒滿 8 腿預算仍未到邊、合併從未觸發），
 # 預算翻倍讓整段掃描至少有機會走到合併。
 SURVEY_TICKS = 40
@@ -315,7 +319,12 @@ def build(args: argparse.Namespace, journal: Journal) -> DryRun:
     device = LiveDevice(adb=adb)
     camera = Camera(device=device, journal=journal)
     device.keyguard = Keyguard(shell=adb.shell, capture=soft_capture(camera))
-    driver, _ = survey_drivers(camera.grab, device, zoom_out=zoom_driver(args, camera, journal))
+    driver, _ = survey_drivers(
+        camera.grab,
+        device,
+        zoom_out=zoom_driver(args, camera, journal),
+        telemetry=lambda record: journal.record(SURVEY_TICK, **record),
+    )
     return DryRun(
         device=device,
         camera=camera,

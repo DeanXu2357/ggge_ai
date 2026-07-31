@@ -19,6 +19,7 @@ from ggge_ai.runtime.perceive import LivePerceiver
 from ggge_ai.stage.survey import survey_drivers
 from scripts.dry_run_entry import (
     JOURNAL_NAME,
+    SURVEY_TICK,
     SURVEY_TICKS,
     Camera,
     DryRun,
@@ -184,6 +185,19 @@ def test_the_assembled_run_gives_the_perceiver_the_camera_channel(tmp_path, monk
     dry = build(parse_args(), Journal(tmp_path / JOURNAL_NAME))
 
     assert dry.perceiver.device is dry.camera
+
+
+def test_the_assembled_run_pipes_the_survey_telemetry_into_the_journal(tmp_path, monkeypatch):
+    """逐 observe 的量測（位移量、閘門裁決、靜止閘輪數）要落到流水帳——0801 複驗
+    的 A5 量測疑點就是因為 journal 只有微步驟名而答不出來。"""
+    monkeypatch.setattr(sys, "argv", ["dry_run_entry", "--stage-node", "544,667", "--no-zoom"])
+    journal = Journal(tmp_path / JOURNAL_NAME)
+
+    dry = build(parse_args(), journal)
+    dry.driver.telemetry({"tick": 7, "probe": "leg"})
+
+    rows = [line for line in journal.entries() if line["kind"] == SURVEY_TICK]
+    assert [(line["tick"], line["probe"]) for line in rows] == [(7, "leg")]
 
 
 def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
