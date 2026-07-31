@@ -627,6 +627,30 @@ def test_pins_stand_on_their_own_when_the_island_saw_nothing_to_contradict_them(
     assert survey._solve() == (-700.0, 300.0)
 
 
+def test_one_unit_seen_in_three_overlapping_views_only_votes_once():
+    """支持數門檻要的是「這麼多台**實體**真的對上位置」。同一台在重疊 view 出現
+    N 次就自己湊滿門檻的話，重錨的星座複驗形同虛設。"""
+    marks = ((350.0, 290.0), (550.0, 490.0), (950.0, 690.0))
+    survey = Survey()
+    survey.chart = chart()
+    for point in marks:
+        survey.chart.state[GRID.cell_of(point)] = Knowledge.STALE
+        survey.chart.marks[GRID.cell_of(point)] = board.Sighting(point)
+    # 島上只有兩台實體，其中一台被三個重疊 view 各看到一次
+    wide = (0, 0, 2340, 1080)
+    survey.island = Island(reason="test", odometer=Odometer(grid=GRID))
+    survey.island.views = [
+        view(region=wide, units=[board.Sighting((550.0, 430.0))]),
+        view(region=wide, units=[board.Sighting((551.0, 431.0))]),
+        view(
+            region=wide,
+            units=[board.Sighting((549.0, 429.0)), board.Sighting((950.0, 630.0))],
+        ),
+    ]
+
+    assert survey.island.sightings == ((549.0, 429.0), (950.0, 630.0))
+    assert survey._solve() is None
+
 
 def test_a_retired_target_is_always_a_cell_of_the_pocket_itself():
     """L 形聚類的質心不在聚類裡。退休質心既不會讓目標清單變短（每 tick 重挑同一團

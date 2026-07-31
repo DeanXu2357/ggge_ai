@@ -74,6 +74,9 @@ STALL_CONFIRM = 2
 # 島嶼重錨的耐心。用完就整批丟棄並重開世界：誠實重掃的成本有界，帶著不知道位置的
 # 觀測繼續走沒有上界。
 ISLAND_BUDGET = 6
+# 島嶼目擊去重的半徑（格距的比例）。兩台不同實體至少隔一格，同一台在重疊 view 之間
+# 只差里程計的量測小數，半格把兩者分得很開。
+DUPLICATE_SPAN = 0.5
 # 前緣選目標時 STALE 聚類的距離折扣（含 STALE ＝ 單位大概率在附近，威脅評估最需要）。
 STALE_WEIGHT = 0.5
 # 腿數保險絲：只防**單一回合**內的失控，不是整場戰鬥的額度，也不是完成判準。
@@ -411,7 +414,25 @@ class Island:
 
     @property
     def sightings(self) -> tuple[Point, ...]:
-        return tuple(view.world(unit.point) for view in self.views for unit in view.units)
+        """島內的目擊，**同一台實體在重疊 view 的重複目擊只算一票**。
+
+        重錨的支持數門檻要的是「這麼多台實體真的對上位置」；不去重的話一台單位
+        出現在 N 個重疊 view 就自己湊滿門檻，星座複驗形同虛設。
+        """
+        radius = self._merge_radius()
+        seen = sorted(view.world(unit.point) for view in self.views for unit in view.units)
+        kept: list[Point] = []
+        for point in seen:
+            if any(math.hypot(point[0] - x, point[1] - y) < radius for x, y in kept):
+                continue
+            kept.append(point)
+        return tuple(kept)
+
+    def _merge_radius(self) -> float:
+        grid = self.odometer.grid
+        if grid is None:
+            return float(board.CONSTELLATION_TOLERANCE)
+        return DUPLICATE_SPAN * min(grid.col_pitch, grid.row_pitch)
 
 
 @dataclass
