@@ -12,7 +12,8 @@
 
 量測的五層防禦（順序即防線順序）：
 
-1. 主里程計＝相位相關（`board.measure_shift`），量測窗 ≥2× 最大位移。
+1. 主里程計＝`board.measure_pan`：有指令的水平腿走格線相位通道（小數部分看格線、
+   整數欄數由證人裁決），其餘一律相位相關，量測窗 ≥2× 最大位移。
 2. 指令包絡閘（`board.envelope`）：同軸同號、倍率有上界，擋繞回混疊的自信錯值。
 3. 格線相位交叉驗證：混疊差一個窗寬、窗寬 mod 格距 ≠ 0，相位對不上即拒收；
    對得上就順手吸附，讓漂移只能整格跳。
@@ -351,7 +352,7 @@ class Odometer:
         if self.previous is None:
             self.previous = frame
             return Reading(ACCEPTED, _STILL, self.offset, "anchor")
-        shift = board.measure_shift(self.previous, frame)
+        shift = board.measure_pan(self.previous, frame, expected)
         # 兩幀幾乎同一張＝畫面真的沒動，位移取準確的 0。相位相關對零位移有半像素
         # 的系統偏差（實測 identical frames 回 dy=+0.5），停滯一多就會累成整格漂移。
         if shift.magnitude < board.EDGE_SHIFT_PX or not shift.known:
@@ -383,8 +384,10 @@ class Odometer:
         lattice = board.read_lattice(frame)
         if lattice is None:
             return
-        residual = board.phase_residual(
-            lattice.cols[0] + self.offset[0], self.grid.col_pitch, self.grid.phase[0]
+        residual = board.median_residual(
+            [col + self.offset[0] for col in lattice.cols],
+            self.grid.col_pitch,
+            self.grid.phase[0],
         )
         self.offset = (self.offset[0] - residual, self.offset[1])
 
@@ -394,6 +397,8 @@ class Odometer:
 
         只驗直線軸：橫線間距隨 y 遞增（縱向透視），對它取模的相位不是不變量。縱向
         的保護落在腿長規則（單腿 ≤ 窗高/4）與包絡閘。
+
+        殘差取**全線中位數**而不是單線：單線抖動 ±10px 實測在案，容差只有 0.25 pitch。
         """
         if self.grid is None:
             return candidate
@@ -401,7 +406,9 @@ class Odometer:
         if lattice is None:
             return candidate
         pitch = self.grid.col_pitch
-        residual = board.phase_residual(lattice.cols[0] + candidate[0], pitch, self.grid.phase[0])
+        residual = board.median_residual(
+            [col + candidate[0] for col in lattice.cols], pitch, self.grid.phase[0]
+        )
         if abs(residual) > board.PHASE_TOLERANCE * pitch:
             return None
         return (candidate[0] - residual, candidate[1])

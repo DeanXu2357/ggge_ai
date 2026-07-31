@@ -31,12 +31,15 @@ from ggge_ai.runtime.coverage import (
 from ggge_ai.runtime.perceive import Observation
 from ggge_ai.stage.actions import SurveyBoard
 from ggge_ai.stage.survey import survey_drivers
-from tests.fixtures.synthetic_map import World
+from tests.fixtures.synthetic_map import World, freeze_correlator
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 # 一格 100px 的小視窗：手算得出來哪幾格「整格看得清楚」。
 WINDOW = (0, 0, 400, 300)
 UNITS = ((3, 2), (5, 4), (9, 6), (14, 3), (18, 9))
+# 大世界的擺位：欄距固定但**列位刻意不成等差**。等差擺位會讓好幾對單位共用同一個
+# 平移量，星座投票湊出並列眾數就直接棄權（`_constellation_shift` 不猜平手）。
+SPREAD = ((2, 2), (5, 7), (8, 12), (11, 4), (14, 9), (17, 13), (20, 3), (23, 8), (26, 11))
 
 
 def view(offset=(0.0, 0.0), units=(), region=WINDOW, holes=()):
@@ -329,6 +332,31 @@ def test_the_odometer_refuses_a_jump_the_command_cannot_explain():
     assert odometer.offset == (0.0, 0.0)
 
 
+def test_a_single_jittery_grid_line_no_longer_rejects_the_whole_frame(monkeypatch):
+    """0801 逐幀實測單線位置抖動 ±10px，相位閘的容差只有 0.25 pitch（~22px）——
+    取 cols[0] 一條就等於讓抖動決定整幀收不收。"""
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=90.0, row_pitch=90.0)
+    lattice = board.Lattice(cols=(25, 100, 190, 280, 370), rows=(0, 90, 180, 270))
+    monkeypatch.setattr(board, "read_lattice", lambda *args, **kwargs: lattice)
+
+    snapped = Odometer(grid=grid)._snap(np.zeros((1080, 2340, 3), np.uint8), (0.0, 0.0))
+
+    assert board.phase_residual(lattice.cols[0], 90.0, 0.0) > board.PHASE_TOLERANCE * 90.0
+    assert snapped is not None
+    assert snapped[0] == pytest.approx(-10.0)
+
+
+def test_rephasing_an_island_reads_every_line_not_just_the_first(monkeypatch):
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=90.0, row_pitch=90.0)
+    lattice = board.Lattice(cols=(25, 100, 190, 280, 370), rows=(0, 90, 180, 270))
+    monkeypatch.setattr(board, "read_lattice", lambda *args, **kwargs: lattice)
+    odometer = Odometer(grid=grid)
+
+    odometer.rephase(np.zeros((1080, 2340, 3), np.uint8))
+
+    assert odometer.offset[0] == pytest.approx(-10.0)
+
+
 @dataclass
 class Rig:
     """腳本化鏡頭：手指行程乘上增益推鏡頭，畫布邊界就是地圖邊界。
@@ -408,6 +436,42 @@ def test_the_survey_converges_on_a_known_world_and_places_every_unit():
     assert census["unit"] == len(world.units)
     assert census["empty"] > 100
     assert census["stale"] == 0
+
+
+def test_a_correlator_frozen_on_the_static_peak_no_longer_freezes_the_odometer(monkeypatch):
+    """v2.4 的核心迴歸，復刻 0801 t27/t28/t30：內容實際移動上百 px，水平相位相關
+    整個鎖在靜態峰，而 response 照樣過 SHIFT_MIN_RESPONSE。
+
+    舊碼在這裡量到 0：位移過得了包絡閘（沿軸 0 不算反號）卻過不了相位閘（格線
+    移了 300、300 mod 128 = 44 > 0.25×128），於是整幀 BROKEN——實機那 18 對
+    broken 幀的成因逐字就是這個。格線相位通道要照樣量對並入帳。
+    """
+    world = World(cols=40, rows=24, units=SPREAD)
+    survey = Survey()
+    survey.observe(world.frame())
+    freeze_correlator(monkeypatch)
+
+    readings = []
+    for _ in range(4):
+        world.move(300.0, 0.0)
+        readings.append(survey.observe(world.frame(), Leg("east", 152.0, (-300.0, 0.0))))
+
+    assert [reading.verdict for reading in readings] == [ACCEPTED] * 4
+    assert all(reading.shift.dx == pytest.approx(-300.0, abs=6.0) for reading in readings)
+    assert all(reading.shift.source.startswith(board.LATTICE_SOURCE) for reading in readings)
+    assert survey.odometer.offset[0] == pytest.approx(1200.0, abs=12.0)
+
+
+def test_a_whole_scan_still_converges_under_a_frozen_correlator(monkeypatch):
+    """量對之外還要走得完：水平腿全程走格線相位通道，整輪掃描收斂到世界真值。"""
+    world = World(cols=30, rows=16, units=SPREAD)
+    freeze_correlator(monkeypatch)
+
+    _, ledger = sweep(Rig(world), ticks=90)
+
+    assert ledger.synced
+    want, got = unit_cells(ledger, world)
+    assert got == want
 
 
 def test_a_scan_that_misses_units_on_some_frames_still_ends_with_all_of_them():

@@ -16,9 +16,11 @@ import pytest
 
 from ggge_ai.runtime import board, coverage
 from tests.fixtures.frames import load
+from tests.fixtures.synthetic_map import COL_PITCH, World, freeze_correlator
 
 SERIES = Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
 MATCH_RADIUS = 60
+UNITS = ((3, 2), (5, 4), (9, 6), (14, 3))
 
 
 @functools.cache
@@ -173,6 +175,116 @@ def test_an_unmeasurable_shift_says_so_instead_of_returning_zero():
 
     assert shift.source == "none"
     assert not shift.known
+
+
+# ---- v2.4 水平量測的格線相位通道（0801 複驗輪第 3 輪 18 對 broken 幀的定讞） ----
+
+
+def test_the_column_phase_reads_the_fraction_a_pan_leaves_on_the_grid():
+    """格線是貫穿全圖的細亮脊，兩幀線集合對位的訊噪比極高——但只給得出 mod pitch。"""
+    world = World(cols=22, rows=12, units=())
+    before = world.frame()
+    world.move(300.0, 0.0)
+    after = world.frame()
+
+    frac = board._column_phase(
+        board.read_lattice(before).cols, board.read_lattice(after).cols, COL_PITCH
+    )
+
+    # 內容左移 300：300 mod 128 = 44，帶號相位差 −44
+    assert frac == pytest.approx(-44.0, abs=3.0)
+
+
+def test_the_constellation_outranks_the_correlator_for_the_column_count():
+    pick = board._resolve_columns(16.0, 128.0, -350.0, constellation=-236.0)
+
+    assert pick == (-240.0, board.WITNESS_CONSTELLATION)
+
+
+def test_the_correlator_carries_the_column_count_when_nobody_voted():
+    pick = board._resolve_columns(16.0, 128.0, -350.0, constellation=None, correlator=-205.0)
+
+    assert pick == (-240.0, board.WITNESS_PHASE)
+
+
+def test_two_independent_witnesses_pointing_at_different_columns_refuse_to_guess():
+    """星座錯起來是整整一個眾數的錯（0801 t11 投 21.5、t13 投 4.7，離真值一整欄），
+    所以獨立證人互相矛盾時寧可斷鏈——「量錯寫入」那條路徑不准存在。"""
+    assert board._resolve_columns(16.0, 128.0, -350.0, -236.0, -100.0) is None
+
+
+def test_a_witness_sitting_between_two_columns_is_no_witness():
+    assert board._resolve_columns(16.0, 128.0, -350.0, correlator=-48.0) is None
+
+
+def test_the_command_alone_only_speaks_when_it_leaves_a_single_column():
+    """真實腿長的包絡窗寬得下好幾欄，指令根本分不出 k——0801 實測增益還沒學會時
+    expected 是真值的 2.5 倍，取最近的候選會回一個差兩整欄的自信錯值。"""
+    assert board._resolve_columns(60.0, 128.0, -30.0) == (-68.0, board.WITNESS_COMMANDED)
+    assert board._resolve_columns(60.0, 128.0, -350.0) is None
+
+
+def test_the_column_vote_keeps_the_westward_sign():
+    pick = board._resolve_columns(-16.0, 128.0, 350.0, constellation=236.0)
+
+    assert pick == (240.0, board.WITNESS_CONSTELLATION)
+
+
+def test_a_correlator_locked_on_the_static_peak_no_longer_freezes_the_measurement(monkeypatch):
+    """本批的核心迴歸，復刻 0801 t27/t28/t30：內容實際移動上百 px，phaseCorrelate
+    完全鎖在靜態峰，而 response 照樣過 SHIFT_MIN_RESPONSE——退星座的 fallback 連
+    觸發的機會都沒有。格線相位通道要在這種相關器底下照樣量對。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    before = world.frame()
+    world.move(240.0, 0.0)
+    after = world.frame()
+    freeze_correlator(monkeypatch)
+
+    assert board.measure_shift(before, after).dx == 0.0
+
+    shift = board.measure_pan(before, after, (-350.0, 0.0))
+
+    assert shift.source == f"{board.LATTICE_SOURCE}:{board.WITNESS_CONSTELLATION}"
+    assert shift.dx == pytest.approx(-240.0, abs=4.0)
+
+
+def test_the_lattice_channel_stands_down_without_a_horizontal_command(monkeypatch):
+    """靜止閘的取幀比對與 precheck 都沒有指令可帶，行為必須逐字照舊。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    before = world.frame()
+    world.move(240.0, 0.0)
+    after = world.frame()
+    freeze_correlator(monkeypatch)
+
+    for expected in (None, (0.0, -155.0)):
+        assert board.measure_pan(before, after, expected) == board.measure_shift(before, after)
+
+
+def test_a_frame_without_a_lattice_falls_straight_back_to_the_old_path(monkeypatch):
+    """星空虛空讀不出格網，那裡沒有相位可用。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    before = world.frame()
+    world.move(240.0, 0.0)
+    after = world.frame()
+    monkeypatch.setattr(board, "read_lattice", lambda *args, **kwargs: None)
+
+    assert board.measure_pan(before, after, (-350.0, 0.0)) == board.measure_shift(before, after)
+
+
+def test_the_median_residual_shrugs_off_one_jittery_line():
+    """0801 逐幀實測單線位置抖動 ±10px，而相位閘的容差只有 0.25 pitch。"""
+    lines = [110.0, 190.0, 280.0, 370.0, 460.0]
+
+    assert board.phase_residual(lines[0], 90.0, 100.0) == pytest.approx(10.0)
+    assert board.median_residual(lines, 90.0, 100.0) == pytest.approx(0.0, abs=0.01)
+
+
+def test_the_median_residual_does_not_split_a_phase_that_straddles_the_cell_edge():
+    """真值卡在 ±pitch/2 時，直接對 wrap 過的值取中位數會分裂到圓的兩端、
+    中位數落在離真值最遠的地方。"""
+    lines = [163.0, 291.0, 421.0, 549.0]
+
+    assert abs(board.median_residual(lines, 128.0, 100.0)) == pytest.approx(64.0, abs=2.0)
 
 
 def test_the_pan_gesture_drags_the_content_the_other_way():

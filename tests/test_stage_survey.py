@@ -465,6 +465,26 @@ def test_a_frame_that_never_goes_quiet_is_observed_anyway():
     assert settled.frame.any()
 
 
+def test_the_settle_gate_never_goes_through_the_commanded_channel(monkeypatch):
+    """v2.4 守成：格線相位通道只在帶 x 分量的指令腿上接手。靜止閘的取幀比對沒有
+    指令可帶，整段行為必須逐字照舊。"""
+    handed: list = []
+    monkeypatch.setattr(
+        board,
+        "measure_pan",
+        lambda previous, current, expected, *args, **kwargs: handed.append(expected),
+    )
+    glide = _glider([0.0, 40.0, 15.0])
+    driver, _ = survey_drivers(glide.capture, FakeActuator(), sleep=lambda _: None)
+
+    settled = driver._settled_capture()
+
+    assert handed == []
+    assert settled.quiet
+    assert settled.waits == 3
+    assert glide.shots == 4
+
+
 def test_an_unmeasurable_frame_counts_as_quiet_and_is_handed_straight_on():
     """量不出位移不是「還在動」的證據（無特徵星空就量不出來），而下一步 observe
     自己會把它隔離進島嶼——在這裡硬等只是白燒截圖。"""

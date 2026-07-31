@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
+from ggge_ai.runtime import board
+
 SCREEN = (2340, 1080)
 COL_PITCH = 128
 ROW_PITCH = 115
@@ -25,6 +27,22 @@ UNIT_RADIUS = 45
 UNIT_THICKNESS = 10
 # 弧色帶內的紅（HSV 5,160,220）：find_units 只認 ARC_BANDS 的三個色帶。
 UNIT_HSV = (5, 160, 220)
+
+
+def freeze_correlator(monkeypatch, response: float = 0.3) -> None:
+    """把 phaseCorrelate 的水平分量鎖在靜態峰——0801 t27/t28/t30 的實機情境。
+
+    垂直分量照實回：實機證據是南北向量測健康，只有水平被格線 alias 與 HUD 靜態成分
+    搶峰。response 壓在 `SHIFT_MIN_RESPONSE` 之上，所以退星座的 fallback 不會觸發
+    ——那正是舊碼在這個情境下救不回來的原因。
+    """
+    real = board._phase_shift
+
+    def frozen(previous, current, region=board.MAP_REGION):
+        _, dy, measured = real(previous, current, region)
+        return (0.0, dy, max(measured, response))
+
+    monkeypatch.setattr(board, "_phase_shift", frozen)
 
 
 def _bgr(hsv: tuple[int, int, int]) -> tuple[int, int, int]:

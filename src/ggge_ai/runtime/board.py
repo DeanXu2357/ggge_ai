@@ -32,6 +32,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
@@ -131,6 +132,20 @@ ENVELOPE_CROSS = 0.4
 # 格線相位交叉驗證的容差（欄距的比例）。只用在直線軸：直線 pitch 穩定約 128，
 # 橫線間距隨 y 從 108 遞增到 123（縱向透視），對橫軸取模的相位本來就不是不變量。
 PHASE_TOLERANCE = 0.25
+
+# 水平位移的格線相位通道（`measure_pan`）。source 帶證人後綴，遙測才分得出走哪一條：
+# lattice:constellation ／ lattice:phase ／ lattice:commanded。
+LATTICE_SOURCE = "lattice"
+WITNESS_CONSTELLATION = "constellation"
+WITNESS_PHASE = "phase"
+WITNESS_COMMANDED = "commanded"
+# 證人與候選的容差（欄距的比例）。半格＝候選之間的一半間距，所以它挑得出唯一候選、
+# 只在證人剛好卡在兩個候選正中間時才拒收。
+LATTICE_WITNESS_TOLERANCE = 0.5
+# 兩幀欄距差超過這個比例＝縮放被動過，格線相位不是同一個世界的量，退回現行路徑。
+LATTICE_PITCH_DRIFT = 0.1
+# 整數欄候選的枚舉界：相位相關的無歧義範圍是 ±窗長/2。
+PAN_UNAMBIGUOUS = MAP_REGION[2] / 2.0
 
 
 def crop(frame: np.ndarray, region: Region) -> np.ndarray:
@@ -364,16 +379,192 @@ def measure_shift(
     回 source="none"——寧可承認不知道，也不要拿手勢當位置（0719 西緣鬼影座標
     就是這樣長出來的）。
     """
+    dx, dy, response = _phase_shift(previous, current, region)
+    if response >= SHIFT_MIN_RESPONSE:
+        return Shift(dx, dy, response, "phase")
+    vote = _constellation_shift(find_units(previous), find_units(current))
+    if vote is not None:
+        return Shift(vote[0], vote[1], vote[2], "constellation")
+    return Shift(0.0, 0.0, response, "none")
+
+
+def _phase_shift(
+    previous: np.ndarray, current: np.ndarray, region: Region = MAP_REGION
+) -> tuple[float, float, float]:
     a = cv2.cvtColor(crop(previous, region), cv2.COLOR_BGR2GRAY).astype(np.float32)
     b = cv2.cvtColor(crop(current, region), cv2.COLOR_BGR2GRAY).astype(np.float32)
     window = cv2.createHanningWindow((a.shape[1], a.shape[0]), cv2.CV_32F)
     (dx, dy), response = cv2.phaseCorrelate(a, b, window)
-    if response >= SHIFT_MIN_RESPONSE:
-        return Shift(float(dx), float(dy), float(response), "phase")
+    return (float(dx), float(dy), float(response))
+
+
+def measure_pan(
+    previous: np.ndarray,
+    current: np.ndarray,
+    expected: Point | None,
+    region: Region = MAP_REGION,
+) -> Shift:
+    """有指令的水平平移：**格線相位是量測權威**，相位相關降級成證人之一。
+
+    直欄格線是 90px 的週期訊號，所以水平相位相關天生帶 ±90k 的歧義峰，而 HUD 與
+    星空的靜態成分還會來搶峰。0801 複驗輪第 3 輪實測（`data/runs/20260801-060433`
+    的 18 對 broken 幀）：東向 7 腿的遙測 dx 凍在 −108.0±0.3，t17／t27／t28／t30
+    甚至回 ~0——內容實際移動上百 px，相關器整個鎖在靜態峰，而 response 0.13-0.47
+    照樣過 `SHIFT_MIN_RESPONSE`，退星座的 fallback 連觸發的機會都沒有。
+    **7/20 前例**：`battle/map_stitch.py` 當時就是因為「相位相關被格線 alias 高分
+    假鎖」整條被移除，map_grid 的解法是「整數格偏移三重裁決」——這裡是同一個模式
+    搬進 runtime 量測鏈。
+
+    兩層：小數部分由兩幀欄線集合對位算出（高 SNR、精確到幾個像素），整數欄數 k 由
+    三個證人裁決（`_resolve_columns`）。裁不出來就回 source="none"＝誠實不知道，
+    讓上層 BROKEN 隔離——**不准拿手勢當位置**（0719 西緣鬼影紅線）。
+
+    走不到格線通道（沒指令、指令沒有 x 分量、任一幀讀不出格網、兩幀欄距對不上）就
+    **完全走 `measure_shift` 的現行路徑**：靜止閘的取幀比對與 precheck 行為零改變。
+    """
+    if expected is None or expected[0] == 0.0:
+        return measure_shift(previous, current, region)
+    before = read_lattice(previous)
+    after = read_lattice(current)
+    if before is None or after is None:
+        return measure_shift(previous, current, region)
+    pitch = (before.col_pitch + after.col_pitch) / 2.0
+    if pitch <= 0 or abs(before.col_pitch - after.col_pitch) > LATTICE_PITCH_DRIFT * pitch:
+        return measure_shift(previous, current, region)
+    frac = _column_phase(before.cols, after.cols, pitch)
+    if frac is None:
+        return measure_shift(previous, current, region)
+    dx, dy, response = _phase_shift(previous, current, region)
     vote = _constellation_shift(find_units(previous), find_units(current))
-    if vote is not None:
-        return Shift(vote[0], vote[1], vote[2], "constellation")
-    return Shift(0.0, 0.0, float(response), "none")
+    verdict = _resolve_columns(
+        frac,
+        pitch,
+        expected[0],
+        None if vote is None else vote[0],
+        dx if _correlator_credible(previous, current, dx, response, region) else None,
+    )
+    if verdict is None:
+        return Shift(0.0, 0.0, response, "none")
+    pan, witness = verdict
+    if response >= SHIFT_MIN_RESPONSE:
+        drift = dy
+    elif vote is not None:
+        drift = vote[1]
+    else:
+        drift = 0.0
+    confidence = vote[2] if witness == WITNESS_CONSTELLATION and vote is not None else response
+    return Shift(pan, drift, confidence, f"{LATTICE_SOURCE}:{witness}")
+
+
+def _correlator_credible(
+    previous: np.ndarray,
+    current: np.ndarray,
+    dx: float,
+    response: float,
+    region: Region,
+) -> bool:
+    """相關器夠不夠格當整數欄數的證人。
+
+    擋的是本批的決定性證據——靜態峰鎖死：畫面明明變了，相關器卻回「沒動」。它給的
+    k 會把移動了一整格的幀寫成停滯，而停滯連兩次就把邊界旗永久釘在錯的地方。真的
+    停住的幀（手勢被吃掉、到邊）兩幀幾乎逐像素相同，照樣過得了這一關。
+    """
+    if response < SHIFT_MIN_RESPONSE:
+        return False
+    if abs(dx) >= EDGE_SHIFT_PX:
+        return True
+    return frame_difference(previous, current, region) < EDGE_FRAME_DIFF
+
+
+def _column_phase(before: Sequence[int], after: Sequence[int], pitch: float) -> float | None:
+    """兩幀欄線集合的相位差＝內容位移的小數部分（mod pitch，±pitch/2）。
+
+    每條前幀線配後幀**絕對位置**最近的那條，殘差取環狀中位數。配對用絕對距離而不是
+    「mod pitch 最近」：後者會逐線挑殘差最小的那條，把答案系統性地拉向 0。
+    """
+    if pitch <= 0 or len(before) < 2 or len(after) < 2:
+        return None
+    residuals = [
+        _wrap(min((line - anchor for line in after), key=abs), pitch) for anchor in before
+    ]
+    return _circular_median(residuals, pitch)
+
+
+def _resolve_columns(
+    frac: float,
+    pitch: float,
+    expected: float,
+    constellation: float | None = None,
+    correlator: float | None = None,
+    limit: float = PAN_UNAMBIGUOUS,
+) -> tuple[float, str] | None:
+    """整數欄數 k 的三重裁決：候選 ＝ frac + k×pitch，回 (位移, 證人) 或 None。
+
+    候選先被指令包絡窗篩過（規則同 `envelope`，只是攤成一維）——窗外的值下游本來就
+    會被拒收，先篩掉是為了讓證人在**還可能成立的** k 之間選，而不是被一票離譜的
+    星座眾數（0801 t19 投出 −945）整筆帶走。
+
+    兩個獨立證人：**星座投票**（單位環是非週期訊號，格線 alias 對它無效）與
+    **相關器**（可信時才進來，見 `_correlator_credible`）。各自挑離自己最近的候選：
+
+    - 兩個都有選、選的是同一格 → 採用（0801 東向 t21-t24 就是這一支）。
+    - **兩個都有選、選的不是同一格 → 誠實回 None。** 星座名義上較強，但它錯起來
+      是整整一個眾數的錯（0801 t11 投 21.5、t13 投 4.7，離真值一整欄），而
+      「量錯寫入」那條路徑不准存在，所以獨立證人互相矛盾時寧可斷鏈。
+    - 只有一個有選 → 採用它（0801 t28-t32 靜態峰鎖死時只剩星座，那正是本批要救的）。
+
+    指令只在兩個獨立證人都缺席時兜底，而且要求**窗內只剩唯一候選**：0801 實測增益
+    還沒學會時 expected 是真值的 2.5 倍（指令 −350 對真值 −142），「取離 expected
+    最近的候選」會回一個差兩整欄的自信錯值。窗比一個欄距寬就代表指令分不出 k，那就
+    誠實回 None——指令永遠只閘量測，不寫進位置（0719 紅線）。
+    """
+    if pitch <= 0:
+        return None
+    low, high = _envelope_window(expected)
+    first = math.ceil((max(-limit, low) - frac) / pitch)
+    last = math.floor((min(limit, high) - frac) / pitch)
+    candidates = [frac + k * pitch for k in range(first, last + 1)]
+    if not candidates:
+        return None
+    tolerance = LATTICE_WITNESS_TOLERANCE * pitch
+    spoken: dict[str, float] = {}
+    for witness, value in (
+        (WITNESS_CONSTELLATION, constellation),
+        (WITNESS_PHASE, correlator),
+    ):
+        if value is None:
+            continue
+        pick = _nearest_candidate(candidates, value, tolerance)
+        if pick is not None:
+            spoken[witness] = pick
+    if len(set(spoken.values())) > 1:
+        return None
+    for witness in (WITNESS_CONSTELLATION, WITNESS_PHASE):
+        if witness in spoken:
+            return (spoken[witness], witness)
+    if len(candidates) != 1:
+        return None
+    return (candidates[0], WITNESS_COMMANDED)
+
+
+def _nearest_candidate(
+    candidates: Sequence[float], witness: float, tolerance: float
+) -> float | None:
+    ranked = sorted(candidates, key=lambda candidate: abs(candidate - witness))
+    gap = abs(ranked[0] - witness)
+    if gap > tolerance:
+        return None
+    if len(ranked) > 1 and abs(abs(ranked[1] - witness) - gap) < 1e-9:
+        return None
+    return ranked[0]
+
+
+def _envelope_window(expected: float) -> tuple[float, float]:
+    """指令包絡在單軸上的窗（帶號）。規則與 `envelope` 同一套，只是攤成一維。"""
+    reach = ENVELOPE_DOUBLE * abs(expected)
+    if expected > 0:
+        return (-EDGE_SHIFT_PX, reach)
+    return (-reach, EDGE_SHIFT_PX)
 
 
 CONSTELLATION_TOLERANCE = 24
@@ -446,10 +637,52 @@ def envelope(shift: Shift, expected: Point | None) -> str:
 
 def phase_residual(line: float, pitch: float, anchor: float) -> float:
     """線位離世界格線相位多遠（±pitch/2，帶號）。0 ＝ 對得上。"""
-    if pitch <= 0:
+    return _wrap(line - anchor, pitch)
+
+
+def median_residual(lines: Sequence[float], pitch: float, anchor: float) -> float:
+    """整組線位對世界相位的殘差，取（環狀）中位數。
+
+    單線取樣會被格線讀取的抖動整支帶走——0801 複驗輪逐幀實測單線位置抖動 ±10px，
+    而相位閘的容差只有 0.25 pitch（~22px），一條抖過頭的線就能讓整幀被拒收。
+    """
+    if not lines:
         return 0.0
-    offset = (line - anchor) % pitch
-    return offset - pitch if offset > pitch / 2.0 else offset
+    return _circular_median([line - anchor for line in lines], pitch)
+
+
+def _wrap(value: float, period: float) -> float:
+    if period <= 0:
+        return 0.0
+    offset = value % period
+    return offset - period if offset > period / 2.0 else offset
+
+
+def _circular_median(values: Sequence[float], period: float) -> float:
+    """環狀量的中位數（落在 ±period/2）。
+
+    直接對 wrap 過的值取中位數會在真值靠近 ±period/2 時炸掉：樣本分裂到圓的兩端，
+    中位數落在中間＝離真值最遠的地方。先用相量平均定圓心，再繞著圓心取中位數。
+    """
+    if not values or period <= 0:
+        return 0.0
+    angles = [2.0 * math.pi * value / period for value in values]
+    centre = (
+        math.atan2(
+            sum(math.sin(angle) for angle in angles) / len(angles),
+            sum(math.cos(angle) for angle in angles) / len(angles),
+        )
+        * period
+        / (2.0 * math.pi)
+    )
+    centred = sorted(_wrap(value - centre, period) for value in values)
+    count = len(centred)
+    middle = (
+        centred[count // 2]
+        if count % 2
+        else (centred[count // 2 - 1] + centred[count // 2]) / 2.0
+    )
+    return _wrap(centre + middle, period)
 
 
 RELOCATE_MIN_SUPPORT = 3
