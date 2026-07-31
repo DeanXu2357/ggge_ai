@@ -405,6 +405,9 @@ class Island:
     odometer: Odometer
     views: list[FrameView] = field(default_factory=list)
     pins: dict[str, float] = field(default_factory=dict)
+    # 島嶼模式的停滯計數（方向別）。掛在島上而不是 Survey 上：島一丟棄就跟著滅，
+    # 上一座島的停滯不能拿來釘下一座島的軸。
+    stalls: dict[str, int] = field(default_factory=dict)
 
     @property
     def sightings(self) -> tuple[Point, ...]:
@@ -683,8 +686,8 @@ class Survey:
         island = self.island
         if island is None or self.chart is None:
             return
-        if leg is not None and reading.verdict == STALLED:
-            self._pin(leg, view)
+        if leg is not None:
+            self._pin(leg, reading, view)
         delta = self._solve()
         if delta is not None:
             for buffered in island.views:
@@ -701,10 +704,22 @@ class Survey:
         if len(island.views) >= ISLAND_BUDGET:
             self._abandon(island)
 
-    def _pin(self, leg: Leg, view: FrameView) -> None:
-        """撞邊重錨：島嶼在一條已知的邊界線上停住，那一軸的偏移就被絕對釘死。"""
+    def _pin(self, leg: Leg, reading: Reading, view: FrameView) -> None:
+        """撞邊重錨：島嶼在一條已知的邊界線上停住，那一軸的偏移就被絕對釘死。
+
+        停滯要連續 STALL_CONFIRM 次才算撞邊，跟主圖釘邊界旗同一條規則：起手點落在
+        單位精靈上的手勢會被遊戲吃掉，畫面同樣不動，一次停滯分不出是哪一種。釘錯
+        軸的代價是整批島嶼寫進錯的世界座標。
+        """
         island = self.island
         if island is None or self.chart is None:
+            return
+        if reading.verdict != STALLED:
+            island.stalls.pop(leg.direction, None)
+            return
+        hits = island.stalls.get(leg.direction, 0) + 1
+        island.stalls[leg.direction] = hits
+        if hits < STALL_CONFIRM:
             return
         line = self.chart.boundary.get(leg.direction)
         if line is None:
@@ -721,11 +736,39 @@ class Survey:
         if island is None or self.chart is None:
             return None
         if "x" in island.pins and "y" in island.pins:
-            return (island.pins["x"], island.pins["y"])
+            pinned = (island.pins["x"], island.pins["y"])
+            if self._agrees(pinned):
+                return pinned
+            log.warning("pinned offset %s contradicts the recorded sightings", pinned)
         drift = board.relocalise(self.chart.sightings(), island.sightings)
         if drift is None:
             return None
         return self._whole_columns((-drift[0], -drift[1]))
+
+    def _agrees(self, delta: Point) -> bool:
+        """撞邊釘出來的偏移過不過 relocalise 那一關的支持數複驗。
+
+        兩軸都釘住不代表釘對：邊界旗與邊緣格任一量錯，整批島嶼就寫進錯的世界座標
+        ——「量錯寫入」那條路徑不准存在，所以釘軸也要回頭跟已記目擊對答案。島上
+        零目擊（或權威圖零目擊）時沒有可矛盾之物，釘軸單獨成立。
+        """
+        island = self.island
+        chart = self.chart
+        if island is None or chart is None:
+            return False
+        seen = island.sightings
+        marks = chart.sightings()
+        if not seen or not marks:
+            return True
+        span = (chart.grid.col_pitch / 2.0, chart.grid.row_pitch / 2.0)
+        support = sum(
+            any(
+                abs(sx + delta[0] - kx) <= span[0] and abs(sy + delta[1] - ky) <= span[1]
+                for kx, ky in marks
+            )
+            for sx, sy in seen
+        )
+        return support >= board.RELOCATE_MIN_SUPPORT
 
     def _whole_columns(self, delta: Point) -> Point:
         """只把**欄**吸附整格，列保留重定位器解出來的原值。

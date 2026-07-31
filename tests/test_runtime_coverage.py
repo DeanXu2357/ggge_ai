@@ -21,6 +21,7 @@ from ggge_ai.runtime.coverage import (
     Island,
     Knowledge,
     KnowledgeMap,
+    Leg,
     Odometer,
     Reading,
     Survey,
@@ -572,6 +573,58 @@ def test_a_half_row_island_offset_is_merged_as_measured_not_rounded_to_a_row():
     assert [GRID.cell_of(merged.world(unit.point)) for unit in merged.units] == [
         GRID.cell_of(point) for point in marks
     ]
+
+
+def test_one_stall_never_pins_an_island_axis():
+    """島嶼釘軸比照主圖釘邊界旗：起手點被單位精靈吃掉的手勢，畫面同樣不動，一次
+    停滯分不出是哪一種。釘錯一軸＝整批島嶼寫進錯的世界座標。"""
+    survey = _stalling_island()
+    leg = Leg("west", 100.0, (350.0, 0.0))
+    seen = view(offset=(640.0, 0.0), region=(0, 0, 1280, 1080))
+
+    survey._pin(leg, _reading(STALLED), seen)
+
+    assert survey.island.pins == {}
+
+    survey._pin(leg, _reading(STALLED), seen)
+
+    assert survey.island.pins == {"x": pytest.approx(-700.0)}
+
+
+def test_a_leg_that_actually_moved_starts_the_island_stall_count_over():
+    survey = _stalling_island()
+    leg = Leg("west", 100.0, (350.0, 0.0))
+    seen = view(offset=(640.0, 0.0), region=(0, 0, 1280, 1080))
+
+    survey._pin(leg, _reading(STALLED), seen)
+    survey._pin(leg, _reading(ACCEPTED), seen)
+    survey._pin(leg, _reading(STALLED), seen)
+
+    assert survey.island.pins == {}
+
+
+def test_a_pinned_offset_still_has_to_agree_with_the_recorded_sightings():
+    """兩軸都釘住不代表釘對——邊界旗或邊緣格任一量錯就是「量錯寫入」，而那條路徑
+    這個模型不准存在。對不上就當沒釘過，退回星座重定位。"""
+    truth = (0.0, 60.0)
+    marks = ((350.0, 290.0), (550.0, 490.0), (950.0, 690.0))
+    survey = _islanded(marks, truth)
+    survey.island.pins = {"x": 0.0, "y": 0.0}
+
+    delta = survey._solve()
+
+    assert delta == pytest.approx(truth)
+
+
+def test_pins_stand_on_their_own_when_the_island_saw_nothing_to_contradict_them():
+    """島上零目擊時沒有可矛盾之物：撞邊釘軸是絕對參考，不需要星座背書。"""
+    survey = Survey()
+    survey.chart = chart()
+    survey.island = Island(reason="test", odometer=Odometer(grid=GRID))
+    survey.island.views = [view()]
+    survey.island.pins = {"x": -700.0, "y": 300.0}
+
+    assert survey._solve() == (-700.0, 300.0)
 
 
 
