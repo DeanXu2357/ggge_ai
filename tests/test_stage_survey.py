@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from ggge_ai.contracts import Ending, HiddenPolicy, Objective, StageOrder
-from ggge_ai.runtime.board import BoardScan
+from ggge_ai.runtime import board, coverage
 from ggge_ai.runtime.device import LiveExecutor
 from ggge_ai.runtime.journal import Journal
 from ggge_ai.runtime.perceive import Observation
@@ -24,10 +24,14 @@ from ggge_ai.stage.planner import PlannerConfig, plan
 from ggge_ai.stage.run import JOURNAL_NAME
 from ggge_ai.stage.state import Phase, StageState, next_player_phase
 from ggge_ai.stage.survey import (
-    MERGE_STEP,
+    BLIND_STEP,
+    DONE_STEP,
+    FUSE_STEP,
     ROSTER_ALREADY,
     ROSTER_TAPPED,
     ROSTER_UNREADABLE,
+    STUCK_STEP,
+    SWEEP_STEP,
     ZOOM_STEP,
     CoverageLedger,
     SurveyPerceiver,
@@ -35,6 +39,7 @@ from ggge_ai.stage.survey import (
 )
 from tests.fixtures.frames import load
 from tests.fixtures.stage_offline import MockAdvisor, ScriptedPerceiver, battle, frame
+from tests.fixtures.synthetic_map import World
 
 SERIES = Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
 FREE = Pricing(1.0)
@@ -48,6 +53,25 @@ def map_frame() -> np.ndarray:
     image = cv2.imread(str(SERIES / "03_pt3_pan_up.png"))
     assert image is not None
     return image
+
+
+@dataclass
+class Rig:
+    """腳本化鏡頭：手指行程乘上增益推鏡頭，畫布邊界就是地圖邊界。"""
+
+    world: World
+    gain: float = 2.0
+    swipes: int = 0
+
+    def capture(self) -> np.ndarray:
+        return self.world.frame()
+
+    def tap(self, x: int, y: int, intent: str = "") -> None:
+        raise AssertionError("掃描不點任何東西")
+
+    def swipe(self, x1: int, y1: int, x2: int, y2: int, duration_s: float) -> None:
+        self.swipes += 1
+        self.world.move((x1 - x2) * self.gain, (y1 - y2) * self.gain)
 
 
 @dataclass
@@ -247,11 +271,13 @@ def test_the_survey_is_done_when_the_board_is_synced():
 
 
 def test_partial_coverage_is_not_completion():
-    """swept 是恢復點不是完成條件：掃了一半仍然沒完成。"""
-    halfway = battle(
-        allies=["a1"], enemies=["e1"], board_synced=False, swept=["west", "north"]
-    )
+    """完成判準是建構性的（四旗全定 ∧ 界內無缺口）：掃了一半仍然沒完成，而
+    符號層看得到的就只有這一個位元。"""
+    ledger = CoverageLedger()
+    ledger.survey.observe(map_frame())
+    halfway = battle(allies=["a1"], enemies=["e1"], board_synced=ledger.synced)
 
+    assert not ledger.synced
     assert not SurveyBoard().progressed(halfway, FREE)
     assert SurveyBoard().applicable(halfway)
 
@@ -286,165 +312,180 @@ def test_the_planner_orders_show_grid_before_the_survey():
 
 def test_a_turn_boundary_expires_the_board_sync():
     """敵方回合過完，敵人都動過，站位全部作廢。格線不受影響。"""
-    synced = battle(allies=["a1"], enemies=["e1"], actionable=[], swept=["west"])
+    synced = battle(allies=["a1"], enemies=["e1"], actionable=[])
 
     after = next_player_phase(synced)
 
     assert after.grid_on
     assert not after.board_synced
-    assert after.swept == frozenset()
 
 
-def test_the_ledger_walks_zoom_then_every_direction_then_the_merge():
-    ledger = CoverageLedger(itinerary=("west", "east"))
-
-    assert ledger.next_step() == ZOOM_STEP
-    ledger.zoomed = True
-    assert ledger.next_step() == "west"
-    ledger.edge_reached("west")
-    assert ledger.next_step() == "east"
-    ledger.edge_reached("east")
-    assert ledger.next_step() == MERGE_STEP
-
-
-def test_a_direction_that_never_reaches_an_edge_stops_at_its_leg_budget():
-    """誠實停在有限覆蓋，而不是把整批 tick 燒在一個方向上。"""
-    ledger = CoverageLedger(itinerary=("west",), legs_per_direction=2)
-    ledger.zoomed = True
-
-    ledger.leg_done("west")
-    assert "west" not in ledger.swept
-    ledger.leg_done("west")
-
-    assert ledger.swept == {"west"}
-
-
-def test_the_driver_does_exactly_one_micro_step_per_call():
-    """一 tick 一個微步驟：反射才插得進來。"""
-    camera = Camera([map_frame(), rolled(1), rolled(2), rolled(2)])
-    actuator = FakeActuator()
+def test_the_ledger_zooms_first_and_only_once():
+    """縮放是最佳化不是前提，但它改的是比例——所以它排在最前面，掃描的世界錨點
+    才不會在半路作廢。"""
+    world = World(cols=22, rows=12, units=((3, 2), (9, 6)))
+    rig = Rig(world)
+    zooms: list[int] = []
     driver, ledger = survey_drivers(
-        camera.capture, actuator, itinerary=("west",), sleep=lambda _: None
+        rig.capture, rig, zoom_out=lambda: zooms.append(1), sleep=lambda _: None
     )
-
-    def pan(*args, **kwargs):
-        camera.advance()
-        actuator.swipes.append(args)
-
-    driver._pan = lambda direction, origin: pan(direction, origin)
 
     assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == ZOOM_STEP
     assert ledger.zoomed
-    assert actuator.swipes == []
-
-    assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == "west"
-    assert len(actuator.swipes) == 1
-
-
-def test_the_zoom_micro_step_runs_the_injected_zoom_out():
-    """縮放實作住 runtime/zoom.py（要 uiautomator 注入通道），掃描只認這個接縫。"""
-    camera = Camera([map_frame()])
-    zooms: list[int] = []
-    driver, _ = survey_drivers(
-        camera.capture,
-        FakeActuator(),
-        itinerary=("west",),
-        zoom_out=lambda: zooms.append(1),
-        sleep=lambda _: None,
-    )
-
-    assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == ZOOM_STEP
     assert zooms == [1]
+    assert rig.swipes == 0
 
-    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+    step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
 
-    assert zooms == [1]  # 只在縮放那一個微步驟，之後的平移不再碰鏡頭
+    assert step.startswith(SWEEP_STEP)
+    assert zooms == [1]
+    assert rig.swipes == 1
 
 
 def test_the_survey_carries_on_without_a_zoom_backend():
-    """縮放是最佳化不是前提：接不上後端照樣掃得完，只是腿數變多。"""
-    camera = Camera([map_frame()])
-    driver, ledger = survey_drivers(
-        camera.capture, FakeActuator(), itinerary=("west",), sleep=lambda _: None
-    )
+    """成功不依賴縮小：接不上後端照樣掃得完，只是截圖與腿數變多。"""
+    world = World(cols=22, rows=12, units=((3, 2), (9, 6)))
+    rig = Rig(world)
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
 
     assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == ZOOM_STEP
     assert ledger.zoomed
-    assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == "west"
 
+    for _ in range(40):
+        driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+        if ledger.synced:
+            break
 
-def test_the_driver_marks_a_direction_swept_when_the_view_stops_moving():
-    camera = Camera([map_frame()])
-    driver, ledger = survey_drivers(
-        camera.capture, FakeActuator(), itinerary=("west",), sleep=lambda _: None
-    )
-    ledger.zoomed = True
-
-    step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
-
-    assert step == "west"
-    assert ledger.swept == {"west"}
-    assert ledger.next_step() == MERGE_STEP
-
-
-def test_the_merge_step_writes_the_scan_back_and_completes_the_survey():
-    camera = Camera([map_frame()])
-    driver, ledger = survey_drivers(
-        camera.capture, FakeActuator(), itinerary=("west",), sleep=lambda _: None
-    )
-    ledger.zoomed = True
-
-    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
-    step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
-
-    assert step == MERGE_STEP
     assert ledger.synced
     assert ledger.cells()
 
 
+def test_the_driver_does_exactly_one_micro_step_per_call():
+    """一 tick 一個微步驟：反射才插得進來。"""
+    world = World(cols=22, rows=12, units=((3, 2),))
+    rig = Rig(world)
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
+    ledger.zoomed = True
+
+    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert rig.swipes == 1
+    assert len(driver.steps) == 1
+
+
+def test_the_micro_step_says_which_way_it_went():
+    """流水帳要看得出這一 tick 往哪推——不然事後只知道「做過一次掃描」。"""
+    world = World(cols=22, rows=12, units=())
+    rig = Rig(world)
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
+    ledger.zoomed = True
+
+    step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert step.split(":")[0] == SWEEP_STEP
+    assert step.split(":")[1] in board.DIRECTIONS
+
+
+def test_an_unreadable_world_still_moves_and_says_it_was_blind():
+    """地圖邊緣的半幅虛空讀不出格網。待在原地只會永遠讀不到，所以照樣推一步——
+    但那一腿沒有座標可信，微步驟名要分得出來。"""
+    blank = np.zeros((1080, 2340, 3), np.uint8)
+    actuator = FakeActuator()
+    driver, ledger = survey_drivers(lambda: blank, actuator, sleep=lambda _: None)
+    ledger.zoomed = True
+
+    step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert step.startswith(BLIND_STEP)
+    assert len(actuator.swipes) == 1
+    assert not ledger.survey.anchored
+
+
+def test_the_survey_completes_when_the_frontier_empties():
+    world = World(cols=22, rows=12, units=((3, 2), (9, 6), (14, 3)))
+    rig = Rig(world)
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
+    ledger.zoomed = True
+
+    for _ in range(40):
+        step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+        if ledger.synced:
+            break
+
+    assert ledger.synced
+    assert step.startswith(SWEEP_STEP)
+    assert len(ledger.cells()) == len(world.units)
+    # 再叫一次也不會亂動：前緣已空
+    assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == DONE_STEP
+
+
+def test_the_leg_fuse_stops_instead_of_burning_the_whole_tick_budget():
+    """腿數上限只是防失控的保險絲，不是完成判準——燒斷了就誠實停在沒同步。"""
+    world = World(cols=22, rows=12, units=())
+    rig = Rig(world)
+    ledger = CoverageLedger(survey=coverage.Survey(budget=1))
+    ledger.zoomed = True
+    driver, _ = survey_drivers(rig.capture, rig, ledger=ledger, sleep=lambda _: None)
+
+    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+    step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+
+    assert step == FUSE_STEP
+    assert not ledger.synced
+
+
 def test_the_driver_resumes_from_the_ledger_not_from_its_own_variables():
     """換一個執行器實例也接得下去——恢復點在簿記，不在執行器內部。"""
-    ledger = CoverageLedger(itinerary=("west", "east"))
+    world = World(cols=22, rows=12, units=((3, 2),))
+    rig = Rig(world)
+    ledger = CoverageLedger()
     ledger.zoomed = True
-    ledger.edge_reached("west")
-    camera = Camera([map_frame()])
+    first, _ = survey_drivers(rig.capture, rig, ledger=ledger, sleep=lambda _: None)
+    first.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+    charted = len(ledger.survey.chart.charted)
 
-    driver, _ = survey_drivers(
-        camera.capture, FakeActuator(), ledger=ledger, sleep=lambda _: None
-    )
+    second, _ = survey_drivers(rig.capture, rig, ledger=ledger, sleep=lambda _: None)
+    second.survey_board(SurveyBoard(), Observation(screen="battle_map"))
 
-    assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == "east"
+    assert second.steps[0].startswith(SWEEP_STEP)
+    assert len(ledger.survey.chart.charted) >= charted
 
 
-def test_an_expired_ledger_throws_away_the_old_world_frame():
-    """衰效不只清覆蓋：上一輪的累積位移與目擊都作廢，否則新目擊會疊在舊
-    座標系上。"""
-    camera = Camera([map_frame()])
-    driver, ledger = survey_drivers(
-        camera.capture, FakeActuator(), itinerary=("west",), sleep=lambda _: None
-    )
+def test_expiry_downgrades_the_board_and_keeps_the_map_geometry():
+    """衰效降級不抹除：UNIT→STALE、EMPTY→UNKNOWN，邊界旗與縮放留著。"""
+    world = World(cols=22, rows=12, units=((3, 2), (9, 6), (14, 3)))
+    rig = Rig(world)
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
     ledger.zoomed = True
-    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
-    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
-    stale = driver.cursor
+    for _ in range(40):
+        driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+        if ledger.synced:
+            break
+    bounded = ledger.summary()["bounded"]
 
     ledger.expire()
-    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+    summary = ledger.summary()
 
-    assert driver.cursor is not stale
-    assert driver.cursor.scan.frames == 1
+    assert not ledger.synced
+    assert summary["cells"]["stale"] == len(world.units)
+    assert summary["cells"]["unit"] == 0
+    assert ledger.cells() == ()
+    assert summary["bounded"] == bounded
+    assert ledger.zoomed
+    assert summary["generation"] == 1
 
 
 def test_the_perceiver_folds_the_coverage_ledger_into_the_symbolic_state():
+    """符號層只看得到 board_synced；逐格的覆蓋進度走 evidence 進流水帳。"""
     ledger = CoverageLedger()
-    ledger.edge_reached("west")
     seen = frame(battle(allies=["a1"], enemies=["e1"], board_synced=False, grid_on=False))
     perceiver = SurveyPerceiver(ScriptedPerceiver([seen]), ledger)
 
-    state = perceiver.look().state
+    observed = perceiver.look()
 
-    assert state.swept == {"west"}
-    assert not state.board_synced
+    assert not observed.state.board_synced
+    assert observed.evidence["survey"]["coverage"] == 0.0
+    assert observed.evidence["survey"]["complete"] is False
 
 
 def test_the_perceiver_takes_grid_on_from_the_frame_evidence():
@@ -460,18 +501,23 @@ def test_the_perceiver_takes_grid_on_from_the_frame_evidence():
 
 def test_an_enemy_phase_expires_the_ledger_so_the_next_turn_rescans():
     ledger = CoverageLedger()
-    ledger.edge_reached("west")
-    ledger.record(BoardScan())
+    ledger.survey.observe(map_frame())
     enemy_turn = frame(
         battle(allies=["a1"], enemies=["e1"], actionable=[], phase=Phase.ENEMY)
     )
-    perceiver = SurveyPerceiver(ScriptedPerceiver([enemy_turn]), ledger)
+    perceiver = SurveyPerceiver(ScriptedPerceiver([enemy_turn, enemy_turn]), ledger)
 
     state = perceiver.look().state
 
     assert not ledger.synced
-    assert ledger.swept == set()
+    assert ledger.summary()["cells"]["empty"] == 0
     assert not state.board_synced
+
+    perceiver.look()
+
+    # 整個敵方回合只衰效一次：每加一代就換一套世界座標，逐 tick 加會讓掃描
+    # 永遠停在重新錨定
+    assert ledger.generation == 1
 
 
 def test_a_screen_with_no_symbolic_reading_passes_straight_through():
@@ -576,9 +622,45 @@ def test_the_journal_records_the_board_symbols_every_tick(tmp_path):
     seen = journal.entries()[0]["seen"]
     assert seen["grid_on"] is False
     assert seen["board_synced"] is False
-    assert seen["swept"] == []
+    assert "swept" not in seen
 
 
-@pytest.mark.parametrize("step", [ZOOM_STEP, MERGE_STEP])
+def test_the_journal_gets_the_coverage_numbers_every_tick(tmp_path):
+    """規格要求逐 tick 記覆蓋率、前緣聚類數、unlocalised 與島嶼事件。它們壓不成
+    搜尋鍵，所以走 evidence——迴圈本來就逐 tick 把 evidence 抄進流水帳。"""
+    ledger = CoverageLedger()
+    order = StageOrder(
+        stage="S01",
+        objectives=frozenset({Objective.CLEAR}),
+        hidden_policy=HiddenPolicy.DECLINE,
+        max_ticks=2,
+    )
+    journal = Journal(tmp_path / JOURNAL_NAME)
+    unsynced = battle(allies=["a1"], enemies=["e1"], board_synced=False)
+    loop = StageLoop(
+        order,
+        perceiver=SurveyPerceiver(ScriptedPerceiver([frame(unsynced)]), ledger),
+        executor=LiveExecutor(device=FakeActuator(), sleep=lambda _: None),
+        advisor=MockAdvisor(lambda current, action: None),
+        victory=Annihilation(),
+        journal=journal,
+    )
+
+    loop.tick()
+
+    survey = journal.entries()[0]["evidence"]["survey"]
+    assert set(survey) >= {"coverage", "clusters", "frontier", "unlocalised", "islands"}
+    assert survey["islands"] == {
+        "isolated": 0,
+        "merged": 0,
+        "discarded": 0,
+        "reset": 0,
+        "open": False,
+    }
+
+
+@pytest.mark.parametrize(
+    "step", [ZOOM_STEP, SWEEP_STEP, DONE_STEP, FUSE_STEP, STUCK_STEP, BLIND_STEP]
+)
 def test_the_micro_step_names_are_stable_for_the_journal(step):
     assert isinstance(step, str) and step

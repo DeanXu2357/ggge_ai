@@ -187,15 +187,17 @@ def test_the_assembled_run_gives_the_perceiver_the_camera_channel(tmp_path, monk
 
 
 def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
-    """位移量不出來的那一幀，目擊會落在錯的世界座標。次數要跟結果同一筆——
-    看到 >0 就該把整批座標當可疑，不能只留在 log 裡。"""
+    """位移量不出來的那一幀會被隔離進島嶼，不進權威圖。次數要跟結果同一筆——
+    看到 >0 就代表這一輪斷過鏈，不能只留在 log 裡。"""
     run, _ = dry_run(tmp_path, load(STAGE_LIST), node=NODE)
-    run.driver.cursor.scan.unlocalised = 2
+    run.driver.ledger.survey.unlocalised = 2
 
     run.summarize_survey()
 
     summary = [line for line in run.journal.entries() if line["kind"] == "survey_summary"]
     assert [line["unlocalised"] for line in summary] == [2]
+    assert summary[0]["survey"]["islands"]["open"] is False
+    assert "coverage" in summary[0]["survey"]
 
 
 def test_the_default_survey_budget_is_the_raised_one(monkeypatch):

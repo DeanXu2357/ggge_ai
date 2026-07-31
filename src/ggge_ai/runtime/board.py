@@ -13,8 +13,13 @@
 3. **平移量測**：相位相關給位移與信賴度；星空這種無特徵區信賴度會掉到接近 0，
    改投票制——單位星座每一對配對投一個平移、有兩台以上支持的眾數勝。量測窗要
    ≥2× 最大平移，否則循環相關會繞回（0719 實測：1050px 窗量 600px 位移量出
-   −505 反號），所以平移一律走小步（PAN_HALF）：短推才留得住重疊帶。
-4. **邊界**：一次平移後畫面沒動＝那個方向到邊（0730 偵察輪實證此判準）。
+   −505 反號），所以平移一律走小步：短推才留得住重疊帶。
+4. **量測雙閘**：`envelope` 拿指令當包絡（同軸同號、倍率有上界）擋繞回混疊的
+   「自信錯值」，`phase_residual` 拿格線相位交叉驗證（混疊差一個窗寬、窗寬 mod
+   格距 ≠ 0，相位對不上即拒收）。指令只閘量測，永遠不寫進覆蓋。
+5. **邊界**：一次平移後畫面沒動＝那個方向到邊（0730 偵察輪實證此判準）。
+
+世界座標的累積與四態知識圖在 `runtime/coverage.py`——這裡只做像素。
 
 單位一律**不帶陣營**出去。腳下弧的顏色不是陣營的權威——我方回合未行動的我方
 單位弧色偏紅、與敵紅在同一幀上 HSV 幾乎重合（fixtures hp_arc/*，定案 5）。掃描
@@ -27,8 +32,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -49,6 +54,12 @@ GRID_MAX_SPACING = 160
 GRID_MIN_COLS = 6
 GRID_MIN_ROWS = 4
 GRID_GAP_RANGE = 35
+# 格距帶由細到粗。(90,160) 是預設縮放標定出來的（實測 pitch 108-128）；(60,105) 是
+# 最小縮放——0731 pinch 煙測（data/runs/20260731-170423 frames/00013）量到欄距 91.5
+# ／列距 86.0，列距整排落在舊下限 90 之下，所以整段 grid_on 翻 False。**細帶先試**
+# 是防混疊的關鍵：粗帶的最小間距套在細格網上會隔行取線，湊出翻倍的「均勻」格距
+# 而且過得了合理性閘——那正是「自信錯值」，寧可先問細帶。
+SPACING_BANDS: tuple[tuple[int, int], ...] = ((60, 105), (90, 160))
 
 RED_HINT = "red"
 BLUE_HINT = "blue"
@@ -88,6 +99,8 @@ PAN_ORIGIN_GRID: tuple[Point, ...] = tuple(
     (float(x), float(y)) for y in (360, 470, 580, 660) for x in (760, 940, 1170, 1400, 1580)
 )
 PAN_HALF = {"x": 250, "y": 170}
+PAN_MIN_REACH = 50.0
+PAN_MAX_REACH = 260.0
 # 拖得慢比較不會被吃掉：0719 星圖上 500ms 的拖曳整段被吞（動作後的鏡頭緩動
 # ＋adb 掉線）。呼叫端把手勢打出去時用這兩個值。
 PAN_DURATION_S = 0.7
@@ -99,14 +112,25 @@ DIRECTIONS: dict[str, tuple[int, int]] = {
     "south": (0, 1),
 }
 
-# 一次平移的位移小於這個像素數就算沒動＝到邊。實測一腿約 570-600px，半格已是
-# 巨大差距，取 40 對量測雜訊有餘裕。
+# 一次平移的位移小於這個像素數就算沒動＝停滯（到邊或指令被吃掉）。實測一腿約
+# 570-600px，半格已是巨大差距，取 40 對量測雜訊有餘裕。
 EDGE_SHIFT_PX = 40.0
 # 相位相關在無特徵星空上會瞎掉；信賴度低於此就不信它的數字，改看幀差。
 SHIFT_MIN_RESPONSE = 0.05
 EDGE_FRAME_DIFF = 2.5
-# 同一台單位在相鄰幀重複入鏡：世界座標距離小於這個值就併成一筆。
-MERGE_RADIUS_PX = 60.0
+
+# 指令包絡閘的三個等級。REPEAT 是「同一個手勢被執行兩次」——腿長規則保證 2× 仍
+# 落在無歧義量測範圍內，所以照量入帳（被跳過的帶留 UNKNOWN 由前緣回補）；繞回
+# 混疊差一個窗寬，不是反號就是遠超上界，兩種都落在 REFUSED。
+ENVELOPE_OK = "ok"
+ENVELOPE_REPEAT = "repeat"
+ENVELOPE_REFUSED = "refused"
+ENVELOPE_SINGLE = 1.5
+ENVELOPE_DOUBLE = 2.5
+ENVELOPE_CROSS = 0.4
+# 格線相位交叉驗證的容差（欄距的比例）。只用在直線軸：直線 pitch 穩定約 128，
+# 橫線間距隨 y 從 108 遞增到 123（縱向透視），對橫軸取模的相位本來就不是不變量。
+PHASE_TOLERANCE = 0.25
 
 
 def crop(frame: np.ndarray, region: Region) -> np.ndarray:
@@ -168,13 +192,21 @@ def _index_axis(value: float, positions: Sequence[int]) -> int | None:
     return None
 
 
-def read_lattice(frame: np.ndarray | None, region: Region = GRID_REGION) -> Lattice | None:
+def read_lattice(
+    frame: np.ndarray | None,
+    region: Region = GRID_REGION,
+    bands: Sequence[tuple[int, int]] = SPACING_BANDS,
+) -> Lattice | None:
     """格線位置，讀不出合理格網就 None。
 
     高通投影取峰：格線是貫穿整張地圖的細亮脊，所以 |高通| 的行／列均值會出峰，
     單位與地圖美術則被平均掉。三重閘擋掉假格網——頭尾間距出帶就裁掉（面板邊
     不是格線）、線數門檻（無格線幀上湊巧對齊的精靈永遠湊不到這個數）、間距全帶
     內且均勻（單位移動模式的藍格覆蓋描同一格網但邊緣抖半格，鬆到不能吸附）。
+
+    格距帶**由細到粗逐帶試，第一個過關的贏**：縮放會改格距（0731 實測最小縮放
+    落到 68-83），而粗帶的最小間距套在細格網上會隔行取線、湊出翻倍的假格距——
+    先問細帶就是不讓那個自信錯值有機會出線。
     """
     if frame is None:
         return None
@@ -184,14 +216,17 @@ def read_lattice(frame: np.ndarray | None, region: Region = GRID_REGION) -> Latt
         return None
     gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY).astype(np.float32)
     highpass = np.abs(gray - cv2.GaussianBlur(gray, (0, 0), 6))
-    cols = _trim(_ridges(highpass.mean(axis=0), x0))
-    rows = _trim(_ridges(highpass.mean(axis=1), y0))
-    if not _plausible(cols, GRID_MIN_COLS) or not _plausible(rows, GRID_MIN_ROWS):
-        return None
-    return Lattice(tuple(cols), tuple(rows))
+    columns = highpass.mean(axis=0)
+    lines = highpass.mean(axis=1)
+    for low, high in bands:
+        cols = _trim(_ridges(columns, x0, low), low, high)
+        rows = _trim(_ridges(lines, y0, low), low, high)
+        if _plausible(cols, GRID_MIN_COLS, low, high) and _plausible(rows, GRID_MIN_ROWS, low, high):
+            return Lattice(tuple(cols), tuple(rows))
+    return None
 
 
-def _ridges(profile: np.ndarray, offset: int) -> list[int]:
+def _ridges(profile: np.ndarray, offset: int, spacing: int = GRID_MIN_SPACING) -> list[int]:
     centered = profile - profile.mean()
     gate = centered.std() * 1.2
     out: list[int] = []
@@ -200,29 +235,36 @@ def _ridges(profile: np.ndarray, offset: int) -> list[int]:
             continue
         if centered[i] <= gate:
             continue
-        if not out or i - (out[-1] - offset) >= GRID_MIN_SPACING:
+        if not out or i - (out[-1] - offset) >= spacing:
             out.append(offset + i)
         elif centered[i] > centered[out[-1] - offset]:
             out[-1] = offset + i
     return out
 
 
-def _trim(positions: list[int]) -> list[int]:
+def _trim(
+    positions: list[int], low: int = GRID_MIN_SPACING, high: int = GRID_MAX_SPACING
+) -> list[int]:
     out = list(positions)
-    while len(out) >= 2 and not (GRID_MIN_SPACING <= out[1] - out[0] <= GRID_MAX_SPACING):
+    while len(out) >= 2 and not (low <= out[1] - out[0] <= high):
         out.pop(0)
-    while len(out) >= 2 and not (GRID_MIN_SPACING <= out[-1] - out[-2] <= GRID_MAX_SPACING):
+    while len(out) >= 2 and not (low <= out[-1] - out[-2] <= high):
         out.pop()
     return out
 
 
-def _plausible(positions: list[int], minimum: int) -> bool:
+def _plausible(
+    positions: list[int],
+    minimum: int,
+    low: int = GRID_MIN_SPACING,
+    high: int = GRID_MAX_SPACING,
+) -> bool:
     if len(positions) < minimum:
         return False
     gaps = [b - a for a, b in zip(positions, positions[1:], strict=False)]
     if max(gaps) - min(gaps) > GRID_GAP_RANGE:
         return False
-    return all(GRID_MIN_SPACING <= gap <= GRID_MAX_SPACING for gap in gaps)
+    return all(low <= gap <= high for gap in gaps)
 
 
 @dataclass(frozen=True)
@@ -374,16 +416,68 @@ def frame_difference(
     return float(np.abs(a - b).mean())
 
 
-def at_edge(previous: np.ndarray, current: np.ndarray) -> bool:
-    """一次平移請求之後畫面沒動＝這個方向到邊。
+def envelope(shift: Shift, expected: Point | None) -> str:
+    """指令包絡閘：量到的位移得同軸同號、落在指令的 0~1.5 倍（重複執行一次到
+    2.5 倍）之內，否則整筆拒收。
 
-    量到位移就看位移量；量不到（兩個模態都瞎）就退幀差——都「幾乎沒變」才判到
-    邊，免得把星空誤判成邊界。
+    這一關擋的是繞回混疊的「自信錯值」——循環相關的假峰差一整個窗寬，投影回
+    指令軸不是反號就是遠超上界。**指令只閘量測，永遠不寫進覆蓋**：閘不過的處置
+    是承認斷鏈，不是拿指令當位置。
+
+    沒有指令（expected=None）時只允許「幾乎沒動」：兩個 tick 之間鏡頭本來就不該
+    自己跑，量到大位移就是斷鏈。
     """
-    shift = measure_shift(previous, current)
-    if shift.known:
-        return shift.magnitude < EDGE_SHIFT_PX
-    return frame_difference(previous, current) < EDGE_FRAME_DIFF
+    if expected is None:
+        return ENVELOPE_OK if shift.magnitude < EDGE_SHIFT_PX else ENVELOPE_REFUSED
+    span = (expected[0] ** 2 + expected[1] ** 2) ** 0.5
+    if span <= 0:
+        return ENVELOPE_OK if shift.magnitude < EDGE_SHIFT_PX else ENVELOPE_REFUSED
+    ux, uy = expected[0] / span, expected[1] / span
+    along = shift.dx * ux + shift.dy * uy
+    across = abs(-shift.dx * uy + shift.dy * ux)
+    if along < -EDGE_SHIFT_PX or across > ENVELOPE_CROSS * span + EDGE_SHIFT_PX:
+        return ENVELOPE_REFUSED
+    if along <= ENVELOPE_SINGLE * span:
+        return ENVELOPE_OK
+    if along <= ENVELOPE_DOUBLE * span:
+        return ENVELOPE_REPEAT
+    return ENVELOPE_REFUSED
+
+
+def phase_residual(line: float, pitch: float, anchor: float) -> float:
+    """線位離世界格線相位多遠（±pitch/2，帶號）。0 ＝ 對得上。"""
+    if pitch <= 0:
+        return 0.0
+    offset = (line - anchor) % pitch
+    return offset - pitch if offset > pitch / 2.0 else offset
+
+
+RELOCATE_MIN_SUPPORT = 3
+
+
+def relocalise(
+    known: Sequence[Point], seen: Sequence[Point], minimum: int = RELOCATE_MIN_SUPPORT
+) -> Point | None:
+    """全域重定位器：拿當前的密度峰對已記目擊解偏移（seen ＝ known ＋ 回傳值）。
+
+    **不是主里程計**——它只在斷鏈之後重錨用。除了星座投票的唯一眾數，解出來的偏移
+    還要**回頭驗**：至少 minimum 台單位真的對上位置才算數。滿場二十幾台時光靠
+    「兩票且唯一」太便宜，而重錨一錯就是整批島嶼寫進錯的世界座標——那正是這個
+    模型不准存在的路徑。
+    """
+    vote = _constellation_shift(known, seen)
+    if vote is None:
+        return None
+    delta = (vote[0], vote[1])
+    support = sum(
+        any(
+            abs(sx - delta[0] - kx) <= CONSTELLATION_TOLERANCE
+            and abs(sy - delta[1] - ky) <= CONSTELLATION_TOLERANCE
+            for kx, ky in known
+        )
+        for sx, sy in seen
+    )
+    return delta if support >= minimum else None
 
 
 def pick_pan_origin(
@@ -402,132 +496,18 @@ def pick_pan_origin(
     )
 
 
-def pan_gesture(direction: str, origin: Point) -> tuple[int, int, int, int]:
-    """把鏡頭往 direction 推的拖曳：手指往反方向拉（往東看＝內容往西拖）。"""
+def pan_gesture(direction: str, origin: Point, reach: float | None = None) -> tuple[int, int, int, int]:
+    """把鏡頭往 direction 推的拖曳：手指往反方向拉（往東看＝內容往西拖）。
+
+    reach ＝ 手指行程（螢幕像素）。不給就用 PAN_HALF 的軸別預設；掃描端會依腿長
+    規則自己算——單腿的內容位移必須留在無歧義量測範圍的一半以內。
+    """
     dx, dy = DIRECTIONS[direction]
     x0, y0 = origin
+    span = {"x": PAN_HALF["x"], "y": PAN_HALF["y"]} if reach is None else {"x": reach, "y": reach}
     return (
         int(x0),
         int(y0),
-        int(x0 - dx * PAN_HALF["x"]),
-        int(y0 - dy * PAN_HALF["y"]),
+        int(round(x0 - dx * span["x"])),
+        int(round(y0 - dy * span["y"])),
     )
-
-
-
-
-@dataclass
-class BoardScan:
-    """一次掃描的產出。world 座標＝首幀螢幕座標系加上累積位移。"""
-
-    sightings: list[Sighting] = field(default_factory=list)
-    cells: list[tuple[Cell, str | None]] = field(default_factory=list)
-    edges: set[str] = field(default_factory=set)
-    frames: int = 0
-    offset: Point = (0.0, 0.0)
-    lattice: Lattice | None = None
-    unlocalised: int = 0
-
-    @property
-    def bounds(self) -> tuple[float, float, float, float] | None:
-        if not self.sightings:
-            return None
-        xs = [sighting.point[0] for sighting in self.sightings]
-        ys = [sighting.point[1] for sighting in self.sightings]
-        return (min(xs), min(ys), max(xs), max(ys))
-
-
-@dataclass
-class ScanCursor:
-    """逐幀累積：位移量測 → 世界座標 → 併重複目擊。
-
-    格座標由首幀格網的 pitch 與線位錨定推導（世界像素 ÷ pitch）。縱向透視讓
-    row 隨 y 變寬，所以 row 是近似值——2b-2 人工掃描也只到 ±1 行，程式版與它
-    同級，權威仍是世界像素座標。
-    """
-
-    scan: BoardScan = field(default_factory=BoardScan)
-    previous: np.ndarray | None = None
-
-    def feed(self, frame: np.ndarray) -> Point:
-        """吃一張幀，回傳這張幀相對首幀的累積位移。
-
-        位移量不到就記一筆 unlocalised 並**保留舊 offset**：這一幀的目擊會落在
-        錯的世界座標，所以呼叫端看到 unlocalised>0 就該把整批結果當可疑。
-        """
-        if self.previous is not None:
-            shift = measure_shift(self.previous, frame)
-            if shift.known:
-                self.scan.offset = (self.scan.offset[0] - shift.dx, self.scan.offset[1] - shift.dy)
-            else:
-                self.scan.unlocalised += 1
-                log.warning("pan shift unlocalisable (r=%.3f); offset held", shift.confidence)
-        lattice = read_lattice(frame)
-        if lattice is not None and self.scan.lattice is None:
-            self.scan.lattice = lattice
-        for sighting in find_sightings(frame):
-            point = lattice.snap(sighting.point) if lattice is not None else sighting.point
-            self._absorb(
-                Sighting(
-                    (point[0] + self.scan.offset[0], point[1] + self.scan.offset[1]), sighting.hint
-                )
-            )
-        self.previous = frame
-        self.scan.frames += 1
-        self.scan.cells = self._cells()
-        return self.scan.offset
-
-    def _absorb(self, sighting: Sighting) -> None:
-        for known in self.scan.sightings:
-            dx = known.point[0] - sighting.point[0]
-            dy = known.point[1] - sighting.point[1]
-            if dx * dx + dy * dy < MERGE_RADIUS_PX * MERGE_RADIUS_PX:
-                return
-        self.scan.sightings.append(sighting)
-
-    def _cells(self) -> list[tuple[Cell, str | None]]:
-        lattice = self.scan.lattice
-        if lattice is None or not self.scan.sightings:
-            return []
-        col_pitch, row_pitch = lattice.col_pitch, lattice.row_pitch
-        if col_pitch <= 0 or row_pitch <= 0:
-            return []
-        origin = (lattice.cols[0], lattice.rows[0])
-        return [
-            (
-                (
-                    int(round((sighting.point[0] - origin[0]) / col_pitch)),
-                    int(round((sighting.point[1] - origin[1]) / row_pitch)),
-                ),
-                sighting.hint,
-            )
-            for sighting in self.scan.sightings
-        ]
-
-
-def walk(
-    capture: Callable[[], np.ndarray],
-    pan: Callable[[str, Point], None],
-    *,
-    itinerary: Sequence[str] = ("west", "north", "east", "south"),
-    legs_per_direction: int = 8,
-) -> BoardScan:
-    """沿 itinerary 逐方向推到邊，逐幀餵給游標。
-
-    手勢只是請求：每一腿之後重新截圖、由畫面判斷有沒有動、沒動就記下邊界換下
-    一個方向。起手點逐腿重挑（避單位）。
-    """
-    cursor = ScanCursor()
-    frame = capture()
-    cursor.feed(frame)
-    for direction in itinerary:
-        for _ in range(legs_per_direction):
-            origin = pick_pan_origin(find_sightings(frame))
-            before = frame
-            pan(direction, origin)
-            frame = capture()
-            if at_edge(before, frame):
-                cursor.scan.edges.add(direction)
-                break
-            cursor.feed(frame)
-    return cursor.scan

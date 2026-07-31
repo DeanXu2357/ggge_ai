@@ -213,24 +213,26 @@ class DryRun:
     def summarize_survey(self) -> None:
         ledger = self.driver.ledger
         cells = ledger.cells()
-        # unlocalised＝那一幀的位移量不出來、目擊落在錯的世界座標。>0 就代表整批
-        # 座標可疑，所以它要跟結果放在同一筆紀錄裡，不是只留在 log。
-        unlocalised = self.driver.cursor.scan.unlocalised
+        summary = ledger.summary()
+        # unlocalised＝那一幀的位移量不出來、觀測被隔離進島嶼。>0 就代表這一輪
+        # 斷過鏈，要跟結果放在同一筆紀錄裡，不是只留在 log。
         self.journal.record(
             "survey_summary",
             steps=list(self.driver.steps),
-            swept=sorted(ledger.swept),
             synced=ledger.synced,
-            unlocalised=unlocalised,
+            unlocalised=summary["unlocalised"],
+            survey=summary,
             cells=[[list(cell), hint] for cell, hint in cells],
         )
         log.info("survey steps: %s", self.driver.steps)
         log.info(
-            "swept=%s synced=%s cells=%d unlocalised=%d",
-            sorted(ledger.swept),
+            "synced=%s coverage=%s bounded=%s cells=%d unlocalised=%s islands=%s",
             ledger.synced,
+            summary["coverage"],
+            summary["bounded"],
             len(cells),
-            unlocalised,
+            summary["unlocalised"],
+            summary["islands"],
         )
 
 

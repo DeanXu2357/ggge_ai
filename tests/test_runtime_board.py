@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import board
+from ggge_ai.runtime import board, coverage
 from tests.fixtures.frames import load
 
 SERIES = Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
@@ -175,35 +175,6 @@ def test_an_unmeasurable_shift_says_so_instead_of_returning_zero():
     assert not shift.known
 
 
-def test_an_unchanged_frame_after_a_pan_means_the_edge():
-    frame = dict(series())["01_pt1_first_anchor.png"]
-
-    assert board.at_edge(frame, frame) is True
-
-
-def test_a_frame_that_moved_is_not_the_edge():
-    base = dict(series())["03_pt3_pan_up.png"]
-    moved = np.roll(base, 250, axis=1)
-
-    assert board.at_edge(base, moved) is False
-
-
-def test_the_pan_origin_dodges_every_detected_unit():
-    """起手落在單位精靈上會被遊戲吃掉（看起來像到邊但鏡頭沒動）。"""
-    crowded = tuple(
-        board.Sighting((float(x), 470.0)) for x in (760, 940, 1170, 1400, 1580)
-    )
-
-    origin = board.pick_pan_origin(crowded)
-
-    assert origin in board.PAN_ORIGIN_GRID
-    assert origin[1] != 470.0
-
-
-def test_the_pan_origin_falls_back_to_the_middle_when_nothing_is_seen():
-    assert board.pick_pan_origin(()) in board.PAN_ORIGIN_GRID
-
-
 def test_the_pan_gesture_drags_the_content_the_other_way():
     """往東看＝手指把內容往西拉。"""
     x1, y1, x2, y2 = board.pan_gesture("east", (1170.0, 500.0))
@@ -215,68 +186,77 @@ def test_the_pan_gesture_drags_the_content_the_other_way():
     assert south_y < 500
 
 
-def test_the_cursor_accumulates_offsets_and_merges_repeat_sightings():
-    base = dict(series())["03_pt3_pan_up.png"]
-    moved = np.roll(base, -250, axis=1)
-    cursor = board.ScanCursor()
+def test_the_pan_gesture_takes_the_reach_the_caller_worked_out():
+    """腿長由掃描端依無歧義量測範圍算，不是固定的 PAN_HALF。"""
+    x1, _, x2, _ = board.pan_gesture("west", (1170.0, 500.0), 140.0)
 
-    cursor.feed(base)
-    first = len(cursor.scan.sightings)
-    offset = cursor.feed(moved)
-
-    assert offset[0] == pytest.approx(250, abs=3)
-    assert cursor.scan.frames == 2
-    assert cursor.scan.unlocalised == 0
-    # 同一批單位換了個鏡頭位置：世界座標對上就不該長出第二份
-    assert len(cursor.scan.sightings) <= first + 3
+    assert x2 - x1 == 140
 
 
-def test_the_cursor_flags_frames_it_could_not_localise():
-    flat = np.zeros((1080, 2340, 3), np.uint8)
-    cursor = board.ScanCursor()
+def test_the_lattice_reader_still_reads_the_minimum_zoom_grid():
+    """0731 pinch 煙測：縮到最小之後欄距 91.5／列距 86，舊的單一間距帶讀不到，
+    整段 grid_on 因此翻 False（掃描的符號前置條件會憑空失效）。"""
+    expect = json.loads((SERIES.parent / "min_zoom_grid_20260731.json").read_text(encoding="utf-8"))
+    crop = cv2.imread(str(SERIES.parent / "min_zoom_grid_20260731.png"))
+    x, y, w, h = expect["box"]
+    canvas = np.zeros((1080, 2340, 3), np.uint8)
+    canvas[y : y + h, x : x + w] = crop
 
-    cursor.feed(flat)
-    cursor.feed(flat)
+    lattice = board.read_lattice(canvas)
 
-    assert cursor.scan.unlocalised == 1
-
-
-def test_the_walk_stops_a_direction_at_its_edge_and_records_it():
-    frames = [
-        dict(series())["03_pt3_pan_up.png"],
-        np.roll(dict(series())["03_pt3_pan_up.png"], -250, axis=1),
-    ]
-    served: list[np.ndarray] = []
-    pans: list[tuple[str, tuple[int, int, int, int]]] = []
-
-    def capture():
-        frame = frames[min(len(served), len(frames) - 1)]
-        served.append(frame)
-        return frame
-
-    def pan(direction, origin):
-        pans.append((direction, board.pan_gesture(direction, origin)))
-
-    scan = board.walk(capture, pan, itinerary=("west", "north"), legs_per_direction=3)
-
-    # 第二腿之後畫面不再變（腳本卡在最後一幀）＝到邊，兩個方向各記一次
-    assert scan.edges == {"west", "north"}
-    assert scan.frames >= 2
-    assert [direction for direction, _ in pans].count("west") <= 3
+    assert lattice is not None
+    assert list(lattice.cols) == expect["expect"]["cols"]
+    assert list(lattice.rows) == expect["expect"]["rows"]
+    assert 60 <= lattice.col_pitch <= 105
 
 
-def test_the_scan_reports_bounds_from_what_it_actually_saw():
-    cursor = board.ScanCursor()
-    cursor.feed(dict(series())["03_pt3_pan_up.png"])
+def test_the_coarse_band_alone_would_have_gone_blind_on_the_zoomed_out_grid():
+    """細帶先試是防混疊的關鍵：粗帶的最小間距套在細格網上會隔行取線，湊出翻倍的
+    「均勻」格距——那是自信錯值，不是讀不到。"""
+    expect = json.loads((SERIES.parent / "min_zoom_grid_20260731.json").read_text(encoding="utf-8"))
+    crop = cv2.imread(str(SERIES.parent / "min_zoom_grid_20260731.png"))
+    x, y, w, h = expect["box"]
+    canvas = np.zeros((1080, 2340, 3), np.uint8)
+    canvas[y : y + h, x : x + w] = crop
 
-    bounds = cursor.scan.bounds
-
-    assert bounds is not None
-    assert bounds[0] < bounds[2] and bounds[1] < bounds[3]
+    assert board.read_lattice(canvas, bands=((90, 160),)) is None
 
 
-def test_an_empty_scan_has_no_bounds_and_no_cells():
-    scan = board.BoardScan()
+def test_the_default_zoom_lattice_is_untouched_by_the_extra_band():
+    """既有標定不因為多一條細帶而改讀數。"""
+    expected = json.loads(
+        (Path(__file__).resolve().parent / "fixtures" / "vision" / "grid" / "grid_on_lattice.json")
+        .read_text(encoding="utf-8")
+    )["expect"]
 
-    assert scan.bounds is None
-    assert scan.cells == []
+    lattice = board.read_lattice(load("grid/hub_grid_on_20260719"), bands=((90, 160),))
+
+    assert list(lattice.cols) == expected["cols"]
+    assert list(lattice.rows) == expected["rows"]
+
+
+def test_replaying_the_real_series_keeps_the_bookkeeping_honest():
+    """半真實案例：0719 的九幀是用舊腿長拍的（一腿約 600px，量測窗 620 高），
+    所以縱向那幾腿本來就量不準——重點不是它掃得完，而是**量不到的時候不會亂寫**：
+    斷鏈一律進島嶼，重錨不成就丟掉，出來的每一格都有實際覆蓋過的幀撐著。
+    """
+    survey = coverage.Survey()
+    for name, frame in series():
+        direction = (
+            "north" if "up" in name else "south" if "down" in name else "east" if "right" in name else None
+        )
+        leg = None
+        if direction is not None:
+            dx, dy = board.DIRECTIONS[direction]
+            leg = coverage.Leg(direction, 250.0, (-dx * 575.0, -dy * 575.0))
+        survey.observe(frame, leg)
+
+    summary = survey.summary()
+    islands = summary["islands"]
+
+    assert survey.anchored
+    assert summary["units"] > 10
+    assert summary["unlocalised"] > 0
+    assert islands["isolated"] == islands["merged"] + islands["discarded"] + bool(islands["open"])
+    # STALE 是換代才有的狀態，一輪掃描裡不該冒出來
+    assert summary["cells"]["stale"] == 0
