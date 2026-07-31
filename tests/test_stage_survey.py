@@ -30,6 +30,8 @@ from ggge_ai.stage.survey import (
     ROSTER_ALREADY,
     ROSTER_TAPPED,
     ROSTER_UNREADABLE,
+    SETTLE_POLL_S,
+    SETTLE_ROUNDS,
     STUCK_STEP,
     SWEEP_STEP,
     ZOOM_STEP,
@@ -72,6 +74,21 @@ class Rig:
     def swipe(self, x1: int, y1: int, x2: int, y2: int, duration_s: float) -> None:
         self.swipes += 1
         self.world.move((x1 - x2) * self.gain, (y1 - y2) * self.gain)
+
+
+@dataclass
+class Glide:
+    """慣性滑行的鏡頭：每次取幀前先滑一段，drifts 用完就停住（＝滑行結束）。"""
+
+    world: World
+    drifts: list[float] = field(default_factory=list)
+    shots: int = 0
+
+    def capture(self) -> np.ndarray:
+        self.shots += 1
+        if self.drifts:
+            self.world.move(self.drifts.pop(0), 0.0)
+        return self.world.frame()
 
 
 @dataclass
@@ -399,6 +416,55 @@ def test_an_unreadable_world_still_moves_and_says_it_was_blind():
     assert step.startswith(BLIND_STEP)
     assert len(actuator.swipes) == 1
     assert not ledger.survey.anchored
+
+
+# ---- v2.2 取幀靜止閘（0801 複驗 14 次 BROKEN(phase) 的 root fix） ----
+
+
+def _glider(drifts: list[float]) -> Glide:
+    return Glide(World(cols=22, rows=12, units=((3, 2), (9, 6))), drifts=drifts)
+
+
+def test_the_scan_waits_for_the_glide_to_stop_before_it_takes_the_frame():
+    """pan 的慣性滑行拖過 PAN_SETTLE_S 時，殘餘位移剛好過得了包絡閘（<40px）又過
+    不了相位閘（>22.5px）＝BROKEN(phase)。所以取幀前先等畫面靜下來。"""
+    glide = _glider([0.0, 40.0, 15.0])
+    naps: list[float] = []
+    driver, _ = survey_drivers(glide.capture, FakeActuator(), sleep=naps.append)
+
+    settled = driver._settled_capture()
+
+    assert settled.quiet
+    assert settled.waits == 3
+    assert glide.shots == 4
+    assert naps == [SETTLE_POLL_S] * 3
+
+
+def test_a_frame_that_never_goes_quiet_is_observed_anyway():
+    """閘只降污染率，不保證零污染：停在原地不收幀會把整個 tick 空轉掉。"""
+    glide = _glider([30.0] * 12)
+    driver, _ = survey_drivers(glide.capture, FakeActuator(), sleep=lambda _: None)
+
+    settled = driver._settled_capture()
+
+    assert not settled.quiet
+    assert settled.waits == SETTLE_ROUNDS
+    assert glide.shots == SETTLE_ROUNDS + 1
+    assert settled.frame.any()
+
+
+def test_an_unmeasurable_frame_counts_as_quiet_and_is_handed_straight_on():
+    """量不出位移不是「還在動」的證據（無特徵星空就量不出來），而下一步 observe
+    自己會把它隔離進島嶼——在這裡硬等只是白燒截圖。"""
+    blank = np.zeros((1080, 2340, 3), np.uint8)
+    frames = [World(cols=22, rows=12, units=((3, 2), (9, 6))).frame(), blank]
+    driver, _ = survey_drivers(lambda: frames.pop(0), FakeActuator(), sleep=lambda _: None)
+
+    settled = driver._settled_capture()
+
+    assert settled.quiet
+    assert settled.waits == 1
+    assert not settled.frame.any()
 
 
 def test_the_survey_completes_when_the_frontier_empties():

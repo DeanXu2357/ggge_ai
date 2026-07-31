@@ -5,10 +5,11 @@
 roster_collapsed 是掃描的前置條件，所以規劃器自然把 show_grid／collapse_roster
 排在 survey_board 之前；掃描程序內部不翻開關、不收卡條，也沒有降級掃。
 
-掃描是**一個**行動，留在計畫佇列頭跨 tick 重入。執行器每次進來先感知複核（截
-一張新圖、對回上一幀量位移），再挑下一個微步驟：縮放 → 往缺口推一步 → 逐幀
-量測吸附。所以反射可以在任何一個 tick 插進來收彈窗，之後接著掃；一個 tick 只做
-一個微步驟，迴圈「一 tick 至多一次操作」的紀律不變。
+掃描是**一個**行動，留在計畫佇列頭跨 tick 重入。執行器每次進來先感知複核（等畫面
+靜止再收一張新圖、對回上一幀量位移），再挑下一個微步驟：縮放 → 往缺口推一步 →
+逐幀量測吸附。所以反射可以在任何一個 tick 插進來收彈窗，之後接著掃；一個 tick 只做
+一個微步驟，迴圈「一 tick 至多一次操作」的紀律不變。兩處取幀都走 `_settled_capture`
+——慣性滑行拖過 pan 的 settle 時，收下的幀會被相位閘拒收＝斷鏈（見常數區）。
 
 **覆蓋進度的落點**：世界模型住 `runtime/coverage.Survey`（四態知識圖＋邊界旗＋
 前緣，覆蓋模型 v2），CoverageLedger 只是簿記側的門面，SurveyPerceiver 把它折進
@@ -52,6 +53,15 @@ ROSTER_SETTLE_S = 1.2
 ROSTER_ALREADY = "already"
 ROSTER_TAPPED = "tapped"
 ROSTER_UNREADABLE = "unreadable"
+
+# 取幀靜止閘。0801 複驗實證：重手勢的慣性滑行會拖過 PAN_SETTLE_S，殘餘滑行落在
+# PHASE_TOLERANCE×col_pitch（22.5px）到 EDGE_SHIFT_PX（40px）這個窗口時，包絡閘
+# （expected=None 只擋 >40px）放行、相位閘拒收＝BROKEN(phase)，40 tick 裡斷了 14 次。
+# 靜止判準用相位相關的位移量而**不是** frame_difference：單位待機動畫逐幀都在動，
+# 幀差永遠安靜不下來；滑行是全域同調位移，相位相關量得到、待機動畫量不到。
+SETTLE_POLL_S = 0.25
+SETTLE_QUIET_PX = 3.0
+SETTLE_ROUNDS = 4
 
 
 @dataclass
@@ -135,6 +145,15 @@ class SurveyPerceiver:
         )
 
 
+@dataclass(frozen=True)
+class SettledFrame:
+    """等靜止之後收下的那一幀，連同等了幾輪、最後有沒有真的靜下來。"""
+
+    frame: np.ndarray
+    waits: int
+    quiet: bool
+
+
 @dataclass
 class BoardDriver:
     """兩個閉迴圈行動的執行器：要邊看邊做，不是一串固定手勢。
@@ -175,8 +194,8 @@ class BoardDriver:
         if not self.ledger.zoomed:
             self._zoom()
             return self._step(ZOOM_STEP)
-        frame = self.capture()
-        survey.observe(frame)
+        settled = self._settled_capture()
+        survey.observe(settled.frame)
         leg = survey.plan_leg()
         if leg is None:
             if survey.complete:
@@ -185,8 +204,8 @@ class BoardDriver:
         # 錨不到世界（地圖邊緣的半幅虛空讀不出格網）也照樣推一步換視野，但那一腿
         # 是盲推——流水帳要分得出來，不然事後看不出這一段有沒有座標可信。
         prefix = SWEEP_STEP if survey.anchored else BLIND_STEP
-        self._pan(leg, board.pick_pan_origin(board.find_sightings(frame)))
-        survey.observe(self.capture(), leg)
+        self._pan(leg, board.pick_pan_origin(board.find_sightings(settled.frame)))
+        survey.observe(self._settled_capture().frame, leg)
         return self._step(f"{prefix}:{leg.direction}")
 
     def drivers(self) -> dict[type, Callable[[Any, Observation[Any]], Any]]:
@@ -199,6 +218,24 @@ class BoardDriver:
     def _step(self, name: str) -> str:
         self.steps.append(name)
         return name
+
+    def _settled_capture(self) -> SettledFrame:
+        """等畫面靜止再收幀——掃描的兩處取幀都走這裡。
+
+        重試用盡就收最後一幀照常 observe：這個閘只降污染率，不保證零污染，而停在
+        原地不收幀會把整個 tick 空轉掉。量不出位移（known=False，無特徵星空）視為
+        靜止：量不出來不是「還在動」的證據，下一步 observe 自己會處置那一幀。
+        """
+        frame = self.capture()
+        for waits in range(1, SETTLE_ROUNDS + 1):
+            self.sleep(SETTLE_POLL_S)
+            later = self.capture()
+            shift = board.measure_shift(frame, later)
+            frame = later
+            if not shift.known or shift.magnitude < SETTLE_QUIET_PX:
+                return SettledFrame(frame, waits, True)
+        log.warning("frame never went quiet in %d rounds; observing it anyway", SETTLE_ROUNDS)
+        return SettledFrame(frame, SETTLE_ROUNDS, False)
 
     def _zoom(self) -> None:
         if self.zoom_out is None:

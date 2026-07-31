@@ -291,7 +291,11 @@ def test_the_odometer_refuses_a_jump_the_command_cannot_explain():
 
 @dataclass
 class Rig:
-    """腳本化鏡頭：手指行程乘上增益推鏡頭，畫布邊界就是地圖邊界。"""
+    """腳本化鏡頭：手指行程乘上增益推鏡頭，畫布邊界就是地圖邊界。
+
+    blank 數的是**截圖次數**，而取幀靜止閘讓每一次 observe 花掉兩張圖（f1、f2 各
+    一），所以第 k 次 observe 拿到的是第 2k 張——合成世界瞬時靜止，第一輪就過閘。
+    """
 
     world: World
     gain: float = 2.0
@@ -391,7 +395,8 @@ def test_a_doubled_command_is_measured_and_the_skipped_band_gets_filled_in():
 def test_an_unlocalisable_frame_is_isolated_and_never_written_blind():
     world = _synthetic()
 
-    _, ledger = sweep(Rig(world, blank=(9, 10, 11)))
+    # 第 9、10、11 次 observe 收到空白幀（截圖序號 ＝ observe 序號 ×2，見 Rig）
+    _, ledger = sweep(Rig(world, blank=(18, 20, 22)))
 
     summary = ledger.summary()
     assert summary["unlocalised"] >= 1
@@ -419,7 +424,7 @@ def test_an_island_that_never_re_anchors_is_dropped_and_the_world_restarts():
     """重錨失敗就整批丟棄（那一區留 UNKNOWN）、誠實重開世界——寧可重掃一次，
     也不要把不知道位置的觀測寫進權威圖。"""
     world = World(cols=22, rows=12, units=())
-    rig = Rig(world, blank=(3,))
+    rig = Rig(world, blank=(6,))
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
     ledger.zoomed = True
     survey = ledger.survey
