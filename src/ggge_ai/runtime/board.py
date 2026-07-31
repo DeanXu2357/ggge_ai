@@ -54,6 +54,12 @@ GRID_MAX_SPACING = 160
 GRID_MIN_COLS = 6
 GRID_MIN_ROWS = 4
 GRID_GAP_RANGE = 35
+# 格距帶由細到粗。(90,160) 是預設縮放標定出來的（實測 pitch 108-128）；(60,105) 是
+# 最小縮放——0731 pinch 煙測（data/runs/20260731-170423 frames/00013）量到欄距 91.5
+# ／列距 86.0，列距整排落在舊下限 90 之下，所以整段 grid_on 翻 False。**細帶先試**
+# 是防混疊的關鍵：粗帶的最小間距套在細格網上會隔行取線，湊出翻倍的「均勻」格距
+# 而且過得了合理性閘——那正是「自信錯值」，寧可先問細帶。
+SPACING_BANDS: tuple[tuple[int, int], ...] = ((60, 105), (90, 160))
 
 RED_HINT = "red"
 BLUE_HINT = "blue"
@@ -186,13 +192,21 @@ def _index_axis(value: float, positions: Sequence[int]) -> int | None:
     return None
 
 
-def read_lattice(frame: np.ndarray | None, region: Region = GRID_REGION) -> Lattice | None:
+def read_lattice(
+    frame: np.ndarray | None,
+    region: Region = GRID_REGION,
+    bands: Sequence[tuple[int, int]] = SPACING_BANDS,
+) -> Lattice | None:
     """格線位置，讀不出合理格網就 None。
 
     高通投影取峰：格線是貫穿整張地圖的細亮脊，所以 |高通| 的行／列均值會出峰，
     單位與地圖美術則被平均掉。三重閘擋掉假格網——頭尾間距出帶就裁掉（面板邊
     不是格線）、線數門檻（無格線幀上湊巧對齊的精靈永遠湊不到這個數）、間距全帶
     內且均勻（單位移動模式的藍格覆蓋描同一格網但邊緣抖半格，鬆到不能吸附）。
+
+    格距帶**由細到粗逐帶試，第一個過關的贏**：縮放會改格距（0731 實測最小縮放
+    落到 68-83），而粗帶的最小間距套在細格網上會隔行取線、湊出翻倍的假格距——
+    先問細帶就是不讓那個自信錯值有機會出線。
     """
     if frame is None:
         return None
@@ -202,14 +216,17 @@ def read_lattice(frame: np.ndarray | None, region: Region = GRID_REGION) -> Latt
         return None
     gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY).astype(np.float32)
     highpass = np.abs(gray - cv2.GaussianBlur(gray, (0, 0), 6))
-    cols = _trim(_ridges(highpass.mean(axis=0), x0))
-    rows = _trim(_ridges(highpass.mean(axis=1), y0))
-    if not _plausible(cols, GRID_MIN_COLS) or not _plausible(rows, GRID_MIN_ROWS):
-        return None
-    return Lattice(tuple(cols), tuple(rows))
+    columns = highpass.mean(axis=0)
+    lines = highpass.mean(axis=1)
+    for low, high in bands:
+        cols = _trim(_ridges(columns, x0, low), low, high)
+        rows = _trim(_ridges(lines, y0, low), low, high)
+        if _plausible(cols, GRID_MIN_COLS, low, high) and _plausible(rows, GRID_MIN_ROWS, low, high):
+            return Lattice(tuple(cols), tuple(rows))
+    return None
 
 
-def _ridges(profile: np.ndarray, offset: int) -> list[int]:
+def _ridges(profile: np.ndarray, offset: int, spacing: int = GRID_MIN_SPACING) -> list[int]:
     centered = profile - profile.mean()
     gate = centered.std() * 1.2
     out: list[int] = []
@@ -218,29 +235,36 @@ def _ridges(profile: np.ndarray, offset: int) -> list[int]:
             continue
         if centered[i] <= gate:
             continue
-        if not out or i - (out[-1] - offset) >= GRID_MIN_SPACING:
+        if not out or i - (out[-1] - offset) >= spacing:
             out.append(offset + i)
         elif centered[i] > centered[out[-1] - offset]:
             out[-1] = offset + i
     return out
 
 
-def _trim(positions: list[int]) -> list[int]:
+def _trim(
+    positions: list[int], low: int = GRID_MIN_SPACING, high: int = GRID_MAX_SPACING
+) -> list[int]:
     out = list(positions)
-    while len(out) >= 2 and not (GRID_MIN_SPACING <= out[1] - out[0] <= GRID_MAX_SPACING):
+    while len(out) >= 2 and not (low <= out[1] - out[0] <= high):
         out.pop(0)
-    while len(out) >= 2 and not (GRID_MIN_SPACING <= out[-1] - out[-2] <= GRID_MAX_SPACING):
+    while len(out) >= 2 and not (low <= out[-1] - out[-2] <= high):
         out.pop()
     return out
 
 
-def _plausible(positions: list[int], minimum: int) -> bool:
+def _plausible(
+    positions: list[int],
+    minimum: int,
+    low: int = GRID_MIN_SPACING,
+    high: int = GRID_MAX_SPACING,
+) -> bool:
     if len(positions) < minimum:
         return False
     gaps = [b - a for a, b in zip(positions, positions[1:], strict=False)]
     if max(gaps) - min(gaps) > GRID_GAP_RANGE:
         return False
-    return all(GRID_MIN_SPACING <= gap <= GRID_MAX_SPACING for gap in gaps)
+    return all(low <= gap <= high for gap in gaps)
 
 
 @dataclass(frozen=True)

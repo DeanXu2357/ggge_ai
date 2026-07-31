@@ -193,6 +193,48 @@ def test_the_pan_gesture_takes_the_reach_the_caller_worked_out():
     assert x2 - x1 == 140
 
 
+def test_the_lattice_reader_still_reads_the_minimum_zoom_grid():
+    """0731 pinch 煙測：縮到最小之後欄距 91.5／列距 86，舊的單一間距帶讀不到，
+    整段 grid_on 因此翻 False（掃描的符號前置條件會憑空失效）。"""
+    expect = json.loads((SERIES.parent / "min_zoom_grid_20260731.json").read_text(encoding="utf-8"))
+    crop = cv2.imread(str(SERIES.parent / "min_zoom_grid_20260731.png"))
+    x, y, w, h = expect["box"]
+    canvas = np.zeros((1080, 2340, 3), np.uint8)
+    canvas[y : y + h, x : x + w] = crop
+
+    lattice = board.read_lattice(canvas)
+
+    assert lattice is not None
+    assert list(lattice.cols) == expect["expect"]["cols"]
+    assert list(lattice.rows) == expect["expect"]["rows"]
+    assert 60 <= lattice.col_pitch <= 105
+
+
+def test_the_coarse_band_alone_would_have_gone_blind_on_the_zoomed_out_grid():
+    """細帶先試是防混疊的關鍵：粗帶的最小間距套在細格網上會隔行取線，湊出翻倍的
+    「均勻」格距——那是自信錯值，不是讀不到。"""
+    expect = json.loads((SERIES.parent / "min_zoom_grid_20260731.json").read_text(encoding="utf-8"))
+    crop = cv2.imread(str(SERIES.parent / "min_zoom_grid_20260731.png"))
+    x, y, w, h = expect["box"]
+    canvas = np.zeros((1080, 2340, 3), np.uint8)
+    canvas[y : y + h, x : x + w] = crop
+
+    assert board.read_lattice(canvas, bands=((90, 160),)) is None
+
+
+def test_the_default_zoom_lattice_is_untouched_by_the_extra_band():
+    """既有標定不因為多一條細帶而改讀數。"""
+    expected = json.loads(
+        (Path(__file__).resolve().parent / "fixtures" / "vision" / "grid" / "grid_on_lattice.json")
+        .read_text(encoding="utf-8")
+    )["expect"]
+
+    lattice = board.read_lattice(load("grid/hub_grid_on_20260719"), bands=((90, 160),))
+
+    assert list(lattice.cols) == expected["cols"]
+    assert list(lattice.rows) == expected["rows"]
+
+
 def test_replaying_the_real_series_keeps_the_bookkeeping_honest():
     """半真實案例：0719 的九幀是用舊腿長拍的（一腿約 600px，量測窗 620 高），
     所以縱向那幾腿本來就量不準——重點不是它掃得完，而是**量不到的時候不會亂寫**：
