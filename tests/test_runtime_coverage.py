@@ -804,6 +804,41 @@ def test_a_mark_outside_the_walls_never_supports_a_re_anchor():
     assert survey._solve() is None
 
 
+def test_a_merged_island_records_the_offset_it_was_merged_at():
+    truth = (0.0, 60.0)
+    marks = ((350.0, 290.0), (550.0, 490.0), (950.0, 690.0))
+    survey = _islanded(marks, truth)
+
+    survey._reanchor(None, _reading(ACCEPTED), survey.island.views[0])
+
+    assert survey.islands["merged"] == 1
+    delta, views = survey.last_merge
+    assert delta == pytest.approx(truth)
+    assert views == 1
+
+
+def test_a_re_anchored_island_hands_its_offset_to_the_telemetry():
+    """界內台數膨脹的鑑識輸入：`islands` 只有累計次數，答不了哪一次錯、錯多少。
+    合併是單幀事件，所以只有那一列遙測帶得到它。"""
+    world = _synthetic()
+    rig = Rig(world, jumps={4: (900.0, 0.0)})
+    rows: list[dict] = []
+    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, telemetry=rows.append)
+    ledger.zoomed = True
+    for _ in range(40):
+        driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+        if ledger.synced:
+            break
+
+    assert ledger.summary()["islands"]["merged"] == 1
+    merged = [row for row in rows if row["merge"] is not None]
+    assert len(merged) == 1
+    assert len(merged[0]["merge"]["delta"]) == 2
+    assert merged[0]["merge"]["views"] >= 1
+    # 合併只屬於那一次 observe——掃到最後 last_merge 已經被清回 None
+    assert ledger.survey.last_merge is None
+
+
 def test_one_stall_never_pins_an_island_axis():
     """島嶼釘軸比照主圖釘邊界旗：起手點被單位精靈吃掉的手勢，畫面同樣不動，一次
     停滯分不出是哪一種。釘錯一軸＝整批島嶼寫進錯的世界座標。"""

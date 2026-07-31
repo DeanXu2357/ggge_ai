@@ -164,9 +164,9 @@ class BoardDriver:
     ／點擊的 adb 通道分開）：沒給就只記一次警告照樣往下走——**掃描成功不依賴
     縮小**，縮不動只是截圖次數變多（覆蓋模型 v2 的核心目的）。
 
-    telemetry 是逐 observe 的量測遙測水槽（A5 儀器化）：位移量、閘門裁決與靜止閘
-    等了幾輪都只在這裡看得到，流水帳的微步驟名答不了「那一腿到底移了多少」。
-    它是純觀察者——寫失敗只記一次警告，掃描照跑。
+    telemetry 是逐 observe 的量測遙測水槽（A5 儀器化）：位移量、閘門裁決、島嶼合併
+    的偏移與靜止閘等了幾輪都只在這裡看得到，流水帳的微步驟名答不了「那一腿到底移了
+    多少」。它是純觀察者——寫失敗只記一次警告，掃描照跑。
 
     evidence 是斷鏈的**存證**水槽：observe 判 BROKEN 時把上一張與這一張 settled
     幀連同那一筆遙測交出去，離線才重放得了量測。水平向斷鏈的根因（量測系統性
@@ -332,6 +332,7 @@ class BoardDriver:
                 "views": 0 if island is None else len(island.views),
             },
             "islands": dict(survey.islands),
+            "merge": _merge_row(survey.last_merge),
             "settle": {"waits": settled.waits, "quiet": settled.quiet},
         }
 
@@ -351,6 +352,18 @@ class BoardDriver:
         x1, y1, x2, y2 = board.pan_gesture(leg.direction, origin, leg.reach)
         self.actuator.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
         self.sleep(board.PAN_SETTLE_S)
+
+
+def _merge_row(merge: tuple[board.Point, int] | None) -> dict[str, Any] | None:
+    """這一次 observe 的島嶼合併（偏移與併進的 view 數），沒合併就是 null。
+
+    界內台數膨脹的鑑識輸入：重錨偏移寫錯時整批島 view 以錯格吸收，`islands` 只有
+    累計次數，答不了「哪一次錯、錯多少」。
+    """
+    if merge is None:
+        return None
+    delta, views = merge
+    return {"delta": [round(value, 1) for value in delta], "views": views}
 
 
 def survey_drivers(

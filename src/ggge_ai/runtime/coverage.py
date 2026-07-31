@@ -507,6 +507,11 @@ class Survey:
     legs: int = 0
     generation: int = 0
     adrift: bool = False
+    # 這一次 observe 有沒有合併島嶼，合併在哪個偏移、併進幾個 view。每次 observe
+    # 開頭清成 None：它是「這一幀發生了什麼」的遙測，留著跨 tick 會讓同一次合併
+    # 重複入帳。delta 寫錯時整批島 view 以錯格吸收，事後光看 islands 的累計次數
+    # 分不出是哪一次錯、錯多少。
+    last_merge: tuple[Point, int] | None = None
 
     @property
     def anchored(self) -> bool:
@@ -522,6 +527,7 @@ class Survey:
 
     def observe(self, frame: np.ndarray, leg: Leg | None = None) -> Reading:
         """吃一幀：量位移、過雙閘，寫進權威圖或側緩衝。"""
+        self.last_merge = None
         if self.chart is None:
             return self._anchor(frame)
         if self.adrift:
@@ -779,6 +785,7 @@ class Survey:
             )
             self.island = None
             self.islands["merged"] += 1
+            self.last_merge = (delta, len(island.views))
             log.info("island of %d frames re-anchored at %s", len(island.views), delta)
             return
         if len(island.views) >= ISLAND_BUDGET:
