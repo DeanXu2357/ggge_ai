@@ -320,20 +320,33 @@ class KnowledgeMap:
                 self.state[cell] = Knowledge.UNKNOWN
 
     def units(self) -> tuple[tuple[Cell, str | None], ...]:
-        """現況的單位格。**STALE 不出現**——前代的站位永遠不能當現況。"""
+        """現況的單位格。**STALE 不出現**——前代的站位永遠不能當現況。
+
+        四旗全定之後只回界內，跟 `census()` 同一個口徑：流水帳的單位清單與普查
+        本來就該對得起來，界外的 mark 是錯座標，算進台數就是憑空多出來的鬼影。
+        """
         return tuple(
             (cell, mark.hint)
             for cell, mark in sorted(self.marks.items())
-            if self.knowledge(cell) is Knowledge.UNIT
+            if self.knowledge(cell) is Knowledge.UNIT and self._inside(cell)
         )
 
     def sightings(self) -> tuple[Point, ...]:
-        """已記目擊的世界像素座標（含 STALE）——重定位器的比對標的。"""
+        """已記目擊的世界像素座標（含 STALE）——重定位器的比對標的。
+
+        同樣只回界內：界外 mark 的世界像素本身就是錯的（線外沒有地圖），拿它當
+        星座錨只會把 `relocalise` 解出來的偏移帶歪，整批島嶼再以錯格吸收。
+        """
         return tuple(
             mark.point
             for cell, mark in sorted(self.marks.items())
-            if self.knowledge(cell) in (Knowledge.UNIT, Knowledge.STALE)
+            if self.knowledge(cell) in (Knowledge.UNIT, Knowledge.STALE) and self._inside(cell)
         )
+
+    def _inside(self, cell: Cell) -> bool:
+        """四旗全定才談界內：只定了一兩面旗時界內仍是無限大，濾了等於憑半套邊界
+        丟掉真的觀測。"""
+        return not self.bounded or self.in_bounds(cell)
 
     def census(self) -> dict[str, int]:
         counts = {known.value: 0 for known in Knowledge}

@@ -218,6 +218,32 @@ def test_a_reversed_boundary_trims_the_strip_it_just_gave_up():
     assert world.units() == (((-9, 0), board.RED_HINT),)
 
 
+def test_the_unit_roll_and_the_census_count_the_same_cells():
+    """journal 的 cells 與 census 必須同一個口徑。absorb 不看邊界（邊界可能是錯的，
+    觀測不該被半套邊界丟掉），所以界外的 mark 照樣寫得進來——讀值側才是對齊的地方。"""
+    world = chart()
+    for direction, line in (("west", 0), ("east", 3), ("north", 0), ("south", 2)):
+        world.boundary[direction] = line
+    world.absorb(view(units=[board.Sighting((250.0, 150.0), board.RED_HINT)]))
+    world.absorb(
+        view(offset=(1500.0, 0.0), units=[board.Sighting((150.0, 150.0), board.BLUE_HINT)])
+    )
+
+    assert world.knowledge((16, 1)) is Knowledge.UNIT
+    assert world.units() == (((2, 1), board.RED_HINT),)
+    assert world.census()["unit"] == len(world.units())
+    assert world.sightings() == ((250.0, 150.0),)
+
+
+def test_an_unbounded_chart_still_reports_every_mark_it_has():
+    """旗子沒定滿之前界內無限大：這時候濾界內等於憑半套邊界丟掉真的觀測。"""
+    world = chart(boundary={"east": 3})
+    world.absorb(view(offset=(1500.0, 0.0), units=[board.Sighting((150.0, 150.0), board.RED_HINT)]))
+
+    assert world.units() == (((16, 1), board.RED_HINT),)
+    assert world.sightings() == ((1650.0, 150.0),)
+
+
 def test_completion_needs_all_four_flags_and_an_empty_interior():
     world = chart()
     world.absorb(view())
@@ -761,6 +787,21 @@ def test_a_half_row_island_offset_is_merged_as_measured_not_rounded_to_a_row():
     assert [GRID.cell_of(merged.world(unit.point)) for unit in merged.units] == [
         GRID.cell_of(point) for point in marks
     ]
+
+
+def test_a_mark_outside_the_walls_never_supports_a_re_anchor():
+    """`sightings()` 是重定位器的比對標的：界外 mark 的世界像素本身就是錯的，拿它
+    當星座錨只會把解出來的偏移帶歪，整批島嶼再以錯格吸收。四旗全定之後就不給了。"""
+    truth = (0.0, 60.0)
+    outside = ((1550.0, 150.0), (1750.0, 350.0), (1950.0, 550.0))
+    survey = _islanded(outside, truth)
+    assert survey._solve() == pytest.approx(truth)
+
+    for direction, line in (("west", 0), ("east", 13), ("north", 0), ("south", 9)):
+        survey.chart.boundary[direction] = line
+
+    assert survey.chart.sightings() == ()
+    assert survey._solve() is None
 
 
 def test_one_stall_never_pins_an_island_axis():
