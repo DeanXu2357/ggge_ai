@@ -60,10 +60,18 @@ def animated(frame: np.ndarray, step: int = 4) -> np.ndarray:
     return cv2.add(frame, step)
 
 
-def void_outside(frame: np.ndarray, box: tuple[int, int, int, int], seed: int = 11) -> np.ndarray:
-    """框外換成星空虛空（暗噪點）：地圖走到邊緣時畫面就是這樣，格線只剩框內那一角。"""
+def void_outside(
+    frame: np.ndarray,
+    box: tuple[int, int, int, int],
+    seed: int = 11,
+    level: tuple[int, int] = (6, 14),
+) -> np.ndarray:
+    """框外換成星空虛空（暗噪點）：地圖走到邊緣時畫面就是這樣，格線只剩框內那一角。
+
+    level 調亮就是「框外還是地圖，只是這一帶沒讀到線」——終止邊的亮度閘要擋下它。
+    """
     rng = np.random.default_rng(seed)
-    out = rng.integers(6, 14, size=frame.shape, dtype=np.uint8)
+    out = rng.integers(level[0], level[1], size=frame.shape, dtype=np.uint8)
     x, y, w, h = box
     out[y : y + h, x : x + w] = frame[y : y + h, x : x + w]
     return np.ascontiguousarray(out)

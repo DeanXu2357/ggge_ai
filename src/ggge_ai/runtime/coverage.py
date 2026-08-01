@@ -59,6 +59,10 @@ COMPASS: tuple[str, ...] = ("west", "east", "north", "south")
 ACCEPTED = "accepted"
 STALLED = "stalled"
 BROKEN = "broken"
+# 目視終止邊與已定旗對不上的斷鏈理由（帶方向後綴進遙測）。
+EDGE_MISMATCH = "edge_mismatch"
+# 目視邊與旗容許的落差（格距的比例）。半格＝格座標還指得到同一格。
+EDGE_TOLERANCE = 0.5
 
 # 單腿的內容位移上限（世界像素）＝該軸無歧義量測範圍的一半。相位相關的無歧義範圍
 # 是 ±窗長/2，量測窗 1600x620 → x 400／y 155；x 收到 350 留餘裕（0719 教訓：1050px
@@ -141,6 +145,11 @@ class FrameView:
     units: tuple[Sighting, ...] = ()
     region: Region = board.UNIT_DENSITY_REGION
     holes: tuple[Region, ...] = board.UNIT_DENSITY_HUD_HOLES
+    # 這一幀格線覆蓋的**螢幕**矩形（所以 shifted() 不必動它）與看到終止邊的側。
+    # None ＝ 這一幀讀不出格線：幾何上「整格在帶內」照樣成立，但沒有格線背書就
+    # 不敢說那裡有格子——EMPTY 毯一格都不鋪。
+    lattice: Region | None = None
+    edges: frozenset[str] = frozenset()
 
     def shifted(self, delta: Point) -> FrameView:
         return replace(self, offset=(self.offset[0] + delta[0], self.offset[1] + delta[1]))
@@ -222,6 +231,10 @@ class KnowledgeMap:
 
         單位離開的合法證據只有跨代：`expire()` 把 UNIT 降成 STALE 之後，同款的
         view 照常把它蓋成 EMPTY——那一代的敵人真的動過。
+
+        **EMPTY 毯與目擊兩條口徑不同**：毯子要格線背書（`covered`），目擊只要讀得
+        清楚（`readable`）。密度峰不依賴格線，一幀讀不出格線不代表看不見機體——
+        那時該做的是不蓋章，不是連看到的單位都丟掉。
         """
         seen = covered(self.grid, view)
         fresh = tuple(cell for cell in seen if self.knowledge(cell) in GAPS)
@@ -231,7 +244,7 @@ class KnowledgeMap:
                 continue
             self.state[cell] = Knowledge.EMPTY
             self.marks.pop(cell, None)
-        inside = set(seen)
+        inside = set(readable(self.grid, view))
         for sighting in view.units:
             point = view.world(sighting.point)
             cell = self.grid.cell_of(point)
@@ -257,6 +270,11 @@ class KnowledgeMap:
         line = edge_cell(self.grid, view, direction)
         if line is None:
             return None
+        return self.set_boundary(direction, line)
+
+    def set_boundary(self, direction: str, line: int) -> int:
+        """定旗＋裁掉線外的每一筆知識。撞邊（`fix_boundary`）與目視終止邊
+        （`Survey._sight_edges`）走同一條路——裁剪的理由與來源無關。"""
         self.boundary[direction] = line
         self._trim()
         return line
@@ -571,7 +589,13 @@ class Survey:
             self.island.views.append(view)
             self._reanchor(leg, reading, view, frame)
         else:
+            clash = self._edge_clash(view)
+            if clash is not None:
+                reading = Reading(BROKEN, reading.shift, reading.offset, clash)
+                self._isolate(frame, reading, odometer, expected)
+                return reading
             self.chart.absorb(view)
+            self._sight_edges(view)
             if leg is not None:
                 self._boundary(leg, reading, view)
         if self.island is None:
@@ -693,17 +717,69 @@ class Survey:
             return Reading(BROKEN, _STILL, (0.0, 0.0), "no lattice")
         self.chart = KnowledgeMap(grid=grid)
         self.odometer = Odometer(grid=grid, offset=(0.0, 0.0), previous=frame)
-        self.chart.absorb(self._view(frame, (0.0, 0.0)))
+        view = self._view(frame, (0.0, 0.0))
+        self.chart.absorb(view)
+        self._sight_edges(view)
         self.mainland = (frame, (0.0, 0.0))
         return Reading(ACCEPTED, _STILL, (0.0, 0.0), "anchor")
 
     def _view(self, frame: np.ndarray, offset: Point) -> FrameView:
+        span = board.read_span(frame)
         return FrameView(
             offset=offset,
             units=board.find_sightings(frame, self.region),
             region=self.region,
             holes=self.holes,
+            lattice=None if span is None else span.box,
+            edges=frozenset() if span is None else span.edges,
         )
+
+    def _sight_edges(self, view: FrameView) -> None:
+        """目視終止邊定旗：格網在畫面上就到這裡，那一側的邊界是**看到的**，不是從
+        「推不動了」推論出來的（0723 定則：邊界只目視、永不推論）。撞邊那條路
+        （`_boundary`）保留當第二來源——手勢被吃掉與到邊在畫面上分不開，但格網終止
+        邊分得出來。
+
+        旗已定就不再動它，見 `_edge_clash`。
+        """
+        chart = self.chart
+        if chart is None:
+            return
+        for direction in sorted(view.edges):
+            if direction in chart.boundary:
+                continue
+            border = sighted_border(view, direction)
+            if border is None:
+                continue
+            line = _border_cell(chart.grid, direction, border)
+            chart.set_boundary(direction, line)
+            log.info("boundary %s sighted at cell %s (no stall needed)", direction, line)
+
+    def _edge_clash(self, view: FrameView) -> str | None:
+        """已定的旗與這一幀目視的終止邊差超過半格＝旗與 offset 至少有一個錯了。
+
+        當場裁不出是哪一個（旗跨代保留、offset 是這一幀的量測），所以**兩個都不改**
+        ——誠實把這一幀隔離，讓影像複驗閘與重定位器在島嶼那條路上裁。自動改旗的
+        代價是跨代永久的，自動改 offset 就是「量錯寫入」。
+        """
+        chart = self.chart
+        if chart is None:
+            return None
+        for direction in sorted(view.edges):
+            line = chart.boundary.get(direction)
+            if line is None:
+                continue
+            border = sighted_border(view, direction)
+            if border is None:
+                continue
+            pitch = _pitch_of(chart.grid, direction)
+            drift = border - _flag_border(chart.grid, direction, line)
+            if abs(drift) > EDGE_TOLERANCE * pitch:
+                log.warning(
+                    "sighted %s edge sits %.1fpx from the flag; isolating the frame", direction, drift
+                )
+                return f"{EDGE_MISMATCH}:{direction}"
+        return None
 
     def _leg(self, direction: str, wanted: float, target: Cell | None = None) -> Leg:
         axis = "x" if direction in ("east", "west") else "y"
@@ -1000,11 +1076,11 @@ class Survey:
         self.legs = 0
 
 
-def covered(grid: WorldGrid, view: FrameView) -> tuple[Cell, ...]:
-    """這一幀敢說「掃過」的格：整格框都在偵測帶內、且不碰 HUD 挖洞。
+def readable(grid: WorldGrid, view: FrameView) -> tuple[Cell, ...]:
+    """這一幀讀得清楚的格：整格框都在偵測帶內、且不碰 HUD 挖洞。
 
     被螢幕邊切一半、或壓在回合橫幅底下的格一律留 UNKNOWN——那裡漏看一台單位是
-    沉默的錯，比多走一腿貴得多。
+    沉默的錯，比多走一腿貴得多。**這是幾何，不是「掃過」**：見 `covered`。
     """
     x, y, w, h = view.region
     ox, oy = view.offset
@@ -1021,6 +1097,81 @@ def covered(grid: WorldGrid, view: FrameView) -> tuple[Cell, ...]:
                 continue
             out.append((col, row))
     return tuple(out)
+
+
+def covered(grid: WorldGrid, view: FrameView) -> tuple[Cell, ...]:
+    """這一幀敢說「掃過」的格：讀得清楚**而且沒有越過看得見的格網終止邊**。
+
+    四態知識全是單位知識，每一態都預設「這裡有一格」——但那個前提要有人背書。
+    幾何框完整不代表那裡是棋盤：地圖邊緣外是星空虛空，鏡頭帶把它框得再完整也
+    不該蓋 EMPTY 章（EMPTY 的語意是「掃過、沒單位」，不是「那裡什麼都沒有」）。
+
+    切的是**有目擊的那幾側**，不是整個線位矩形：`GRID_REGION` 是取樣帶不是格網的
+    邊界，拿帶緣當界會把帶外明明有格線的地方一起判成沒格子（實測那會讓單幀的
+    EMPTY 毯縮到四成，掃描腿數跟著翻倍）。同一條原則在 `board._terminal_edges`
+    ——貼著帶緣的線分不出「格網到此為止」與「帶就到這裡」，那種側不出證言。
+
+    整幀讀不出格線（全幀帶與象限窗都 None）＝零遮罩，這一幀一格都不蓋——單位目擊
+    照收（密度峰不依賴格線，見 `KnowledgeMap.absorb`）。
+    """
+    if view.lattice is None:
+        return ()
+    x, y, w, h = view.lattice
+    ox, oy = view.offset
+    out: list[Cell] = []
+    for cell in readable(grid, view):
+        box = _screen_box(grid, cell, (ox, oy))
+        if "west" in view.edges and box[0] < x:
+            continue
+        if "east" in view.edges and box[2] > x + w:
+            continue
+        if "north" in view.edges and box[1] < y:
+            continue
+        if "south" in view.edges and box[3] > y + h:
+            continue
+        out.append(cell)
+    return tuple(out)
+
+
+def _screen_box(grid: WorldGrid, cell: Cell, offset: Point) -> tuple[float, float, float, float]:
+    bx0, by0, bx1, by1 = grid.box_of(cell)
+    return (bx0 - offset[0], by0 - offset[1], bx1 - offset[0], by1 - offset[1])
+
+
+def sighted_border(view: FrameView, direction: str) -> float | None:
+    """目視終止邊在**世界像素**上的位置（該側地圖的外緣）。沒有目擊就 None。"""
+    if view.lattice is None or direction not in view.edges:
+        return None
+    x, y, w, h = view.lattice
+    ox, oy = view.offset
+    return {
+        "west": x + ox,
+        "east": x + w + ox,
+        "north": y + oy,
+        "south": y + h + oy,
+    }[direction]
+
+
+def _flag_border(grid: WorldGrid, direction: str, line: int) -> float:
+    """已定的旗換算成該側地圖外緣的世界像素。"""
+    if _axis_of(direction) == "x":
+        edge = grid.phase[0] + line * grid.col_pitch
+        return edge if direction == "west" else edge + grid.col_pitch
+    edge = grid.phase[1] + line * grid.row_pitch
+    return edge if direction == "north" else edge + grid.row_pitch
+
+
+def _border_cell(grid: WorldGrid, direction: str, border: float) -> int:
+    """外緣往界內半格＝該側最外一格的格座標。"""
+    pitch = _pitch_of(grid, direction)
+    inward = pitch / 2.0 if direction in ("west", "north") else -pitch / 2.0
+    if _axis_of(direction) == "x":
+        return grid.cell_of((border + inward, grid.phase[1]))[0]
+    return grid.cell_of((grid.phase[0], border + inward))[1]
+
+
+def _pitch_of(grid: WorldGrid, direction: str) -> float:
+    return grid.col_pitch if _axis_of(direction) == "x" else grid.row_pitch
 
 
 def edge_cell(grid: WorldGrid, view: FrameView, direction: str) -> int | None:

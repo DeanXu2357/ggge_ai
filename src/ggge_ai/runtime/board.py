@@ -263,6 +263,104 @@ def lattice_windows(region: Region = MAP_REGION) -> tuple[Region, ...]:
 LATTICE_WINDOWS: tuple[Region, ...] = lattice_windows()
 
 
+@dataclass(frozen=True)
+class GridSpan:
+    """這一幀格線實際覆蓋的螢幕矩形，外加四側有沒有看到「格網到此為止」。
+
+    `box` 是線位圍出來的矩形（不是格心）；`edges` 只收有證據的那幾側，看不出來就
+    不出證言——星空半幅虛空與「地圖還沒看完」在幾何上長得一樣。
+    """
+
+    lattice: Lattice
+    box: Region
+    edges: frozenset[str]
+
+
+# 終止邊的三道閘（0801 run 20260801-080213 逐幀實測，見 docs/reviews/scan-v2_6-review.md）：
+# 真終止邊外側的高通能量 3.9-8.5、內側 17.3-21.3；灰階 26-34 對 43-52。地圖還沒看完
+# 的那幾側外側高通 17-24＝與內側同級。**兩個比值＋一個絕對上限**：批 7 的星空假邊界
+# 前科就是只看單一絕對值，這裡要求外側同時安靜、暗、而且比內側安靜得多。
+EDGE_QUIET_HIGH = 10.0
+EDGE_TEXTURE_RATIO = 0.5
+EDGE_BRIGHTNESS_RATIO = 0.75
+
+
+def read_span(frame: np.ndarray | None) -> GridSpan | None:
+    """格線覆蓋範圍＋終止邊目擊。找不到格線就 None（＝這一幀不敢說哪裡有格子）。"""
+    for band, minimum in _lattice_bands():
+        lattice = read_lattice(frame, band, minimum=minimum)
+        if lattice is None:
+            continue
+        box = (
+            lattice.cols[0],
+            lattice.rows[0],
+            lattice.cols[-1] - lattice.cols[0],
+            lattice.rows[-1] - lattice.rows[0],
+        )
+        return GridSpan(lattice, box, _terminal_edges(frame, lattice, band))
+    return None
+
+
+def _lattice_bands() -> Iterable[tuple[Region, tuple[int, int]]]:
+    yield (GRID_REGION, (GRID_MIN_COLS, GRID_MIN_ROWS))
+    for window in LATTICE_WINDOWS:
+        yield (window, _window_minimum(window))
+
+
+def _terminal_edges(frame: np.ndarray, lattice: Lattice, band: Region) -> frozenset[str]:
+    """哪幾側的最外一條線之外是虛空。
+
+    先要**帶內留得下一整格的檢驗空間**：貼著取樣帶邊緣的線分不出「格網到此為止」
+    與「帶就到這裡」，那種側一律不出證言（象限窗的窗緣尤其）。
+    """
+    out: set[str] = set()
+    for side, outside, inside in _edge_strips(lattice, band):
+        beyond = _strip_stats(frame, outside)
+        within = _strip_stats(frame, inside)
+        if beyond is None or within is None:
+            continue
+        gray, texture = beyond
+        if texture > EDGE_QUIET_HIGH:
+            continue
+        if texture > EDGE_TEXTURE_RATIO * within[1]:
+            continue
+        if gray > EDGE_BRIGHTNESS_RATIO * within[0]:
+            continue
+        out.add(side)
+    return frozenset(out)
+
+
+def _edge_strips(lattice: Lattice, band: Region) -> Iterable[tuple[str, Region, Region]]:
+    bx, by, bw, bh = band
+    cols, rows = lattice.cols, lattice.rows
+    span = (cols[-1] - cols[0], rows[-1] - rows[0])
+    across = (int(lattice.col_pitch), int(lattice.row_pitch))
+    if span[0] <= 0 or span[1] <= 0 or across[0] <= 0 or across[1] <= 0:
+        return
+    if cols[0] - across[0] >= bx:
+        yield ("west", (cols[0] - across[0], rows[0], across[0], span[1]),
+               (cols[0], rows[0], across[0], span[1]))
+    if cols[-1] + across[0] <= bx + bw:
+        yield ("east", (cols[-1], rows[0], across[0], span[1]),
+               (cols[-1] - across[0], rows[0], across[0], span[1]))
+    if rows[0] - across[1] >= by:
+        yield ("north", (cols[0], rows[0] - across[1], span[0], across[1]),
+               (cols[0], rows[0], span[0], across[1]))
+    if rows[-1] + across[1] <= by + bh:
+        yield ("south", (cols[0], rows[-1], span[0], across[1]),
+               (cols[0], rows[-1] - across[1], span[0], across[1]))
+
+
+def _strip_stats(frame: np.ndarray, strip: Region) -> tuple[float, float] | None:
+    x, y, w, h = strip
+    height, width = frame.shape[:2]
+    if x < 0 or y < 0 or w < 4 or h < 4 or x + w > width or y + h > height:
+        return None
+    patch = cv2.cvtColor(crop(frame, strip), cv2.COLOR_BGR2GRAY).astype(np.float32)
+    texture = np.abs(patch - cv2.GaussianBlur(patch, (0, 0), 6))
+    return (float(patch.mean()), float(texture.mean()))
+
+
 def find_lattice(frame: np.ndarray | None) -> Lattice | None:
     """找得到格線就回：先問全幀 GRID_REGION 帶，讀不出來再問 MAP_REGION 的四象限窗。
 
@@ -276,11 +374,8 @@ def find_lattice(frame: np.ndarray | None) -> Lattice | None:
     格網的相位對答案，pitch 仍取世界格網的。錨定（`Survey._anchor`）刻意不走這裡，
     新世界的格距要全幀帶那種取樣量才敢定。
     """
-    lattice = read_lattice(frame)
-    if lattice is not None:
-        return lattice
-    for window in LATTICE_WINDOWS:
-        lattice = read_lattice(frame, window, minimum=_window_minimum(window))
+    for band, minimum in _lattice_bands():
+        lattice = read_lattice(frame, band, minimum=minimum)
         if lattice is not None:
             return lattice
     return None

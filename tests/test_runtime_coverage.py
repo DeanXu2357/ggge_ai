@@ -49,8 +49,22 @@ UNITS = ((3, 2), (5, 4), (9, 6), (14, 3), (18, 9))
 SPREAD = ((2, 2), (5, 7), (8, 12), (11, 4), (14, 9), (17, 13), (20, 3), (23, 8), (26, 11))
 
 
-def view(offset=(0.0, 0.0), units=(), region=WINDOW, holes=()):
-    return FrameView(offset=offset, units=tuple(units), region=region, holes=tuple(holes))
+SCREEN = (0, 0, 2340, 1080)
+
+
+def view(offset=(0.0, 0.0), units=(), region=WINDOW, holes=(), lattice=SCREEN, edges=()):
+    """預設「整幀都有格線、四側都沒看到終止邊」＝格線遮罩不裁任何格。
+
+    遮罩只在有終止邊目擊時才切，所以這個預設就是 v2.5 之前的行為。
+    """
+    return FrameView(
+        offset=offset,
+        units=tuple(units),
+        region=region,
+        holes=tuple(holes),
+        lattice=lattice,
+        edges=frozenset(edges),
+    )
 
 
 def chart(**kwargs) -> KnowledgeMap:
@@ -647,6 +661,105 @@ def _rebased(cells: list[tuple[int, int]]) -> list[tuple[int, int]]:
         return []
     base = (min(cell[0] for cell in cells), min(cell[1] for cell in cells))
     return sorted((cell[0] - base[0], cell[1] - base[1]) for cell in cells)
+
+
+# 虛空框的左緣壓在畫布的格線上（COL_PITCH 的倍數）：線與虛空之間留了半格地圖的話，
+# 外側取樣條讀到的是地圖不是虛空，終止邊當然不成立。
+VOID_WEST = (8 * COL_PITCH, 250, 726, 530)
+
+
+def test_a_frame_whose_grid_stops_partway_stamps_only_up_to_the_edge():
+    """星空虛空不是 EMPTY：四態知識全是單位知識，每一態都預設「這裡有一格」，
+    而說得出那句話的畫面證據只有格線。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    survey = Survey()
+    survey.observe(world.frame())
+    grid = survey.chart.grid
+    edge = survey._view(void_outside(world.frame(), VOID_WEST), (0.0, 0.0))
+
+    seen = coverage.covered(grid, edge)
+    band = coverage.readable(grid, edge)
+
+    assert edge.edges == frozenset({"west"})
+    assert seen and set(seen) < set(band)
+    assert all(grid.box_of(cell)[0] >= edge.lattice[0] for cell in seen)
+    assert any(grid.box_of(cell)[0] < edge.lattice[0] for cell in band)
+
+
+def test_the_lattice_mask_only_cuts_the_sides_that_were_seen_to_end():
+    """取樣帶的邊緣不是證言：`GRID_REGION` 讀不到那裡的線不代表那裡沒格子。
+    只有目視終止邊那幾側才切——不然單幀的 EMPTY 毯會縮到帶內那一塊。"""
+    box = (150, 150, 200, 150)
+    corner = view(lattice=box, edges=("west", "north"))
+
+    seen = set(coverage.covered(GRID, corner))
+
+    assert (0, 0) not in seen and (1, 0) not in seen
+    assert (2, 2) in seen
+    assert set(coverage.covered(GRID, view(lattice=box))) == set(coverage.readable(GRID, view()))
+
+
+def test_a_frame_without_any_lattice_stamps_no_empty_but_keeps_the_sighting():
+    """整幀讀不出格線＝零遮罩。單位偵測不依賴格線，所以目擊照收——不蓋章，不是
+    連看到的機體都丟掉。"""
+    world = chart()
+
+    world.absorb(view(lattice=None, units=[board.Sighting((250.0, 150.0), board.RED_HINT)]))
+
+    assert world.knowledge((2, 1)) is Knowledge.UNIT
+    assert world.units() == (((2, 1), board.RED_HINT),)
+    assert world.knowledge((0, 0)) is Knowledge.UNKNOWN
+    assert world.charted == set()
+
+
+def test_a_sighted_grid_edge_fixes_the_flag_without_waiting_for_a_stall():
+    """0723 定則：邊界只目視、永不推論。格網終止邊看得見的時候不必等兩次停滯——
+    停滯分不出「到邊」與「手勢被吃掉」，終止邊分得出來。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    frame = void_outside(world.frame(), VOID_WEST)
+    survey = Survey()
+
+    survey.observe(frame)
+
+    grid = survey.chart.grid
+    span = board.read_span(frame)
+    assert "west" in span.edges
+    assert survey.chart.boundary["west"] == grid.cell_of(
+        (span.box[0] + grid.col_pitch / 2, grid.phase[1])
+    )[0]
+    assert survey.stalls == {}
+
+
+def test_a_sighted_edge_that_contradicts_the_flag_isolates_the_frame():
+    """旗與 offset 至少有一個錯了，當場裁不出是哪一個（旗跨代保留、offset 是這一幀
+    的量測）。兩個都不改——誠實隔離，讓重錨那條路去裁。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    frame = void_outside(world.frame(), VOID_WEST)
+    survey = Survey()
+    survey.observe(frame)
+    assert "west" in survey.chart.boundary
+    flag = survey.chart.boundary["west"]
+    # 里程計整整錯兩欄——編隊 alias 的簽名（相位閘只保證整格，擋不住整欄的錯）
+    survey.odometer.offset = (2 * COL_PITCH, 0.0)
+
+    reading = survey.observe(frame)
+
+    assert reading.verdict == BROKEN
+    assert reading.reason == f"{coverage.EDGE_MISMATCH}:west"
+    assert survey.island is not None
+    assert survey.chart.boundary["west"] == flag
+
+
+def test_a_bright_strip_beyond_the_last_line_is_no_edge_at_all():
+    """批 7 的星空假邊界前科：只看「線到這裡為止」會把「這一帶剛好沒讀到線」當成
+    地圖邊。外側要同時安靜、暗、而且比內側安靜得多。"""
+    world = World(cols=22, rows=12, units=UNITS)
+
+    dark = board.read_span(void_outside(world.frame(), VOID_WEST))
+    lit = board.read_span(void_outside(world.frame(), VOID_WEST, level=(60, 90)))
+
+    assert "west" in dark.edges
+    assert lit is not None and lit.edges == frozenset()
 
 
 def test_an_idle_animation_no_longer_blocks_the_stall_verdict(monkeypatch):
