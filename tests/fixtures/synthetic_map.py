@@ -45,6 +45,30 @@ def freeze_correlator(monkeypatch, response: float = 0.3) -> None:
     monkeypatch.setattr(board, "_phase_shift", frozen)
 
 
+def blind_correlator(monkeypatch) -> None:
+    """相位相關整個瞎掉（信賴度 0）——無特徵星空的實機情境。
+
+    這是星座 fallback 唯一會被叫到的路徑，影像複驗閘要在這裡受測。
+    """
+    monkeypatch.setattr(board, "_phase_shift", lambda *args, **kwargs: (0.0, 0.0, 0.0))
+
+
+def animated(frame: np.ndarray, step: int = 4) -> np.ndarray:
+    """待機動畫的合成版：整幀亮度抖一階。位移是零，但 frame_difference 過得了門檻
+    ——實機待機動畫實測 5.8-12.5，恆高於 EDGE_FRAME_DIFF（2.5），原地幀因此永遠
+    走不進靜止那一支。"""
+    return cv2.add(frame, step)
+
+
+def void_outside(frame: np.ndarray, box: tuple[int, int, int, int], seed: int = 11) -> np.ndarray:
+    """框外換成星空虛空（暗噪點）：地圖走到邊緣時畫面就是這樣，格線只剩框內那一角。"""
+    rng = np.random.default_rng(seed)
+    out = rng.integers(6, 14, size=frame.shape, dtype=np.uint8)
+    x, y, w, h = box
+    out[y : y + h, x : x + w] = frame[y : y + h, x : x + w]
+    return np.ascontiguousarray(out)
+
+
 def _bgr(hsv: tuple[int, int, int]) -> tuple[int, int, int]:
     patch = np.array([[list(hsv)]], np.uint8)
     b, g, r = cv2.cvtColor(patch, cv2.COLOR_HSV2BGR)[0][0]

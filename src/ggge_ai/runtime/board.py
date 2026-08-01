@@ -55,6 +55,11 @@ GRID_MAX_SPACING = 160
 GRID_MIN_COLS = 6
 GRID_MIN_ROWS = 4
 GRID_GAP_RANGE = 35
+# 邊帶格線的退路窗（MAP_REGION 的四象限）。走到地圖邊緣時地圖只佔畫面一角，全幀
+# GRID_REGION 帶的取樣線數湊不到門檻——0801 實測 t7-leg 到 t13-precheck 這七幀全幀
+# 帶一律 None，而下半窗讀得到 pitch 92-93 的格線。線數門檻按窗邊長等比縮，下限 3：
+# 兩個間距才談得上「間距均勻」這一閘。
+LATTICE_WINDOW_FLOOR = 3
 # 格距帶由細到粗。(90,160) 是預設縮放標定出來的（實測 pitch 108-128）；(60,105) 是
 # 最小縮放——0731 pinch 煙測（data/runs/20260731-170423 frames/00013）量到欄距 91.5
 # ／列距 86.0，列距整排落在舊下限 90 之下，所以整段 grid_on 翻 False。**細帶先試**
@@ -139,6 +144,9 @@ LATTICE_SOURCE = "lattice"
 WITNESS_CONSTELLATION = "constellation"
 WITNESS_PHASE = "phase"
 WITNESS_COMMANDED = "commanded"
+# 星座票被影像複驗判成「確定沒動」——與 `_STILL` 分開記名，遙測才看得出這一幀的
+# 停滯是誰認定的。
+CONSTELLATION_STILL = "constellation:still"
 # 證人與候選的容差（欄距的比例）。半格＝候選之間的一半間距，所以它挑得出唯一候選、
 # 只在證人剛好卡在兩個候選正中間時才拒收。
 LATTICE_WITNESS_TOLERANCE = 0.5
@@ -211,6 +219,7 @@ def read_lattice(
     frame: np.ndarray | None,
     region: Region = GRID_REGION,
     bands: Sequence[tuple[int, int]] = SPACING_BANDS,
+    minimum: tuple[int, int] = (GRID_MIN_COLS, GRID_MIN_ROWS),
 ) -> Lattice | None:
     """格線位置，讀不出合理格網就 None。
 
@@ -236,9 +245,52 @@ def read_lattice(
     for low, high in bands:
         cols = _trim(_ridges(columns, x0, low), low, high)
         rows = _trim(_ridges(lines, y0, low), low, high)
-        if _plausible(cols, GRID_MIN_COLS, low, high) and _plausible(rows, GRID_MIN_ROWS, low, high):
+        if _plausible(cols, minimum[0], low, high) and _plausible(rows, minimum[1], low, high):
             return Lattice(tuple(cols), tuple(rows))
     return None
+
+
+def lattice_windows(region: Region = MAP_REGION) -> tuple[Region, ...]:
+    x, y, w, h = region
+    half = (w // 2, h // 2)
+    return tuple(
+        (x + col * half[0], y + row * half[1], half[0], half[1])
+        for row in (0, 1)
+        for col in (0, 1)
+    )
+
+
+LATTICE_WINDOWS: tuple[Region, ...] = lattice_windows()
+
+
+def find_lattice(frame: np.ndarray | None) -> Lattice | None:
+    """找得到格線就回：先問全幀 GRID_REGION 帶，讀不出來再問 MAP_REGION 的四象限窗。
+
+    相位是 mod pitch 的量，子窗的線位一樣驗得了相位——所以邊緣區沒必要因為「整條
+    帶湊不到六欄四列」就整個放棄相位交叉驗證。0801 實測（run 20260801-080213）：
+    走到北緣之後 t7-leg 到 t13-precheck 七幀全幀帶一律 None，`_snap` 於是連驗都不驗
+    直接放行，t11／t12 兩腿實際各滑了 200px 以上卻被記成停滯，同一片場景以同一個
+    offset 重複吸收——台數膨脹的第一顆齒輪。
+
+    **回的是線位，不是新的量測**：呼叫端（`Odometer._snap`／`rephase`）只拿它跟世界
+    格網的相位對答案，pitch 仍取世界格網的。錨定（`Survey._anchor`）刻意不走這裡，
+    新世界的格距要全幀帶那種取樣量才敢定。
+    """
+    lattice = read_lattice(frame)
+    if lattice is not None:
+        return lattice
+    for window in LATTICE_WINDOWS:
+        lattice = read_lattice(frame, window, minimum=_window_minimum(window))
+        if lattice is not None:
+            return lattice
+    return None
+
+
+def _window_minimum(region: Region) -> tuple[int, int]:
+    return (
+        max(LATTICE_WINDOW_FLOOR, round(GRID_MIN_COLS * region[2] / GRID_REGION[2])),
+        max(LATTICE_WINDOW_FLOOR, round(GRID_MIN_ROWS * region[3] / GRID_REGION[3])),
+    )
 
 
 def _ridges(profile: np.ndarray, offset: int, spacing: int = GRID_MIN_SPACING) -> list[int]:
@@ -375,16 +427,16 @@ def measure_shift(
     """地圖內容從前一幀到這一幀移動了多少（螢幕像素）。
 
     內容位移是鏡頭位移的反號：鏡頭往東走，地形往西滑。相位相關優先；信賴度太低
-    （無特徵星空、或平移過大導致重疊帶不足）就退單位星座投票。兩個都不給答案就
-    回 source="none"——寧可承認不知道，也不要拿手勢當位置（0719 西緣鬼影座標
-    就是這樣長出來的）。
+    （無特徵星空、或平移過大導致重疊帶不足）就退單位星座投票——**星座票要先過影像
+    複驗**（`_constellation_witness`）。兩個都不給答案就回 source="none"——寧可承認
+    不知道，也不要拿手勢當位置（0719 西緣鬼影座標就是這樣長出來的）。
     """
     dx, dy, response = _phase_shift(previous, current, region)
     if response >= SHIFT_MIN_RESPONSE:
         return Shift(dx, dy, response, "phase")
-    vote = _constellation_shift(find_units(previous), find_units(current))
-    if vote is not None:
-        return Shift(vote[0], vote[1], vote[2], "constellation")
+    witness = _constellation_witness(previous, current, region)
+    if witness is not None:
+        return witness
     return Shift(0.0, 0.0, response, "none")
 
 
@@ -417,7 +469,9 @@ def measure_pan(
 
     兩層：小數部分由兩幀欄線集合對位算出（高 SNR、精確到幾個像素），整數欄數 k 由
     三個證人裁決（`_resolve_columns`）。裁不出來就回 source="none"＝誠實不知道，
-    讓上層 BROKEN 隔離——**不准拿手勢當位置**（0719 西緣鬼影紅線）。
+    讓上層 BROKEN 隔離——**不准拿手勢當位置**（0719 西緣鬼影紅線）。星座證人進來
+    之前先過影像複驗（`_constellation_witness`）；複驗判「確定沒動」時整條格線通道
+    讓位——畫面說沒動就是沒動，沒有 k 好裁。
 
     走不到格線通道（沒指令、指令沒有 x 分量、任一幀讀不出格網、兩幀欄距對不上）就
     **完全走 `measure_shift` 的現行路徑**：靜止閘的取幀比對與 precheck 行為零改變。
@@ -435,7 +489,14 @@ def measure_pan(
     if frac is None:
         return measure_shift(previous, current, region)
     dx, dy, response = _phase_shift(previous, current, region)
-    vote = _constellation_shift(find_units(previous), find_units(current))
+    constellation = _constellation_witness(previous, current, region)
+    if constellation is not None and constellation.source == CONSTELLATION_STILL:
+        return constellation
+    vote = (
+        None
+        if constellation is None
+        else (constellation.dx, constellation.dy, constellation.confidence)
+    )
     verdict = _resolve_columns(
         frac,
         pitch,
@@ -597,6 +658,108 @@ def _constellation_shift(
         sum(delta[1] for delta in best) / len(best),
         len(best) / max(len(before), len(after)),
     )
+
+
+NULL_MOVED = "moved"
+NULL_STILL = "still"
+NULL_UNCLEAR = "unclear"
+# 取樣不到足夠的窗＝裁判沒東西可看。與 unclear 分開：unclear 是「看了，兩個假設都
+# 對不上」（呼叫端該拒收），blind 是「沒得看」（呼叫端照舊處置，不因為裁判缺席就
+# 把原本收得下的量測丟掉）。
+NULL_BLIND = "blind"
+# 影像複驗閘的取樣窗與判準。窗半徑 45 ＝ 半格：精靈連同腳下環都在裡面，又不會把
+# 隔壁那台一起框進來。
+NULL_PATCH_HALF = 45
+NULL_MARGIN = 0.8
+NULL_MIN_WITNESSES = 2
+
+
+def null_check(
+    previous: np.ndarray,
+    current: np.ndarray,
+    delta: Point,
+    points: Sequence[Point] | None = None,
+    region: Region = MAP_REGION,
+) -> str:
+    """「內容位移了 delta」與「根本沒動」兩個假設，拿畫面對質。
+
+    逐個精靈開一個窗，比 `current` 的窗對上 `previous` 同位置（原地假設）與
+    `previous` 平移 delta 之後那個位置（位移假設）的平均絕對差，明顯低的那個假設
+    得一票。票數要過門檻又要勝過對手才算數，否則回 `NULL_UNCLEAR`＝看過了但兩個
+    假設都對不上；窗湊不到門檻數（鏡頭底下沒幾台）回 `NULL_BLIND`＝沒得看。
+
+    **為什麼是逐精靈窗而不是整個 region 取一個平均**：畫面有兩層，星空背景不隨鏡頭
+    動、地圖層才動。整區平均由面積大的那一層說了算，0801 實測（run 20260801-080213）
+    因此把真移動判成原地——t15 的真位移 (−13,−177) 整區比分 20.11 vs 18.22（原地
+    勝）、t16 0.995、t24 1.315，全是誤判；逐精靈窗同一批幀分別是 4:0、4:0、1:1，
+    真移動全過、可疑的落回 unclear。精靈窗還天生只取樣地圖層。
+
+    取樣窗的中心限在 `region` 內（預設地圖區）：卡條與畫面下緣那一帶的密度峰品質
+    差，放進來會把 0801 t24 這種本該 unclear 的幀投成 still（實測 4:6）。
+
+    delta 小於一次平移的判準門檻時兩個假設在畫面上根本分不開（窗幾乎重疊），直接
+    回 blind——那種量值下游本來就當沒動處理。
+    """
+    if math.hypot(delta[0], delta[1]) < EDGE_SHIFT_PX:
+        return NULL_BLIND
+    x, y, w, h = region
+    before = cv2.cvtColor(previous, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    after = cv2.cvtColor(current, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    polled = 0
+    moved = 0
+    stayed = 0
+    for px, py in find_units(current) if points is None else points:
+        if not (x <= px <= x + w and y <= py <= y + h):
+            continue
+        here = _window(after, px, py)
+        origin = _window(before, px, py)
+        shifted = _window(before, px - delta[0], py - delta[1])
+        if here is None or origin is None or shifted is None:
+            continue
+        polled += 1
+        moving = float(np.abs(here - shifted).mean())
+        staying = float(np.abs(here - origin).mean())
+        if moving < NULL_MARGIN * staying:
+            moved += 1
+        elif staying < NULL_MARGIN * moving:
+            stayed += 1
+    if polled < NULL_MIN_WITNESSES:
+        return NULL_BLIND
+    if moved >= NULL_MIN_WITNESSES and moved > stayed:
+        return NULL_MOVED
+    if stayed >= NULL_MIN_WITNESSES and stayed > moved:
+        return NULL_STILL
+    return NULL_UNCLEAR
+
+
+def _window(image: np.ndarray, x: float, y: float, half: int = NULL_PATCH_HALF) -> np.ndarray | None:
+    height, width = image.shape[:2]
+    x0, y0 = int(round(x)) - half, int(round(y)) - half
+    if x0 < 0 or y0 < 0 or x0 + 2 * half > width or y0 + 2 * half > height:
+        return None
+    return image[y0 : y0 + 2 * half, x0 : x0 + 2 * half]
+
+
+def _constellation_witness(
+    previous: np.ndarray, current: np.ndarray, region: Region = MAP_REGION
+) -> Shift | None:
+    """星座票過影像複驗才算數；原地假設勝出時回「確定沒動」。
+
+    同型薩克與我方編隊是週期陣列（0801 實測幀內縱距 90/93/96），配對投票因此會把
+    「錯一個編隊間距」的組合投成票數十足的幽靈位移——票數多寡分不出真假，畫面分得
+    出來。原地勝出時刻意回一個零位移但 `known` 的 Shift：`Odometer.feed` 於是走
+    STALLED 正軌，不必靠 `frame_difference`（待機動畫實測 5.8-12.5，恆高於
+    EDGE_FRAME_DIFF，原地幀永遠走不進那一支）。
+    """
+    vote = _constellation_shift(find_units(previous), find_units(current))
+    if vote is None:
+        return None
+    verdict = null_check(previous, current, (vote[0], vote[1]), region=region)
+    if verdict == NULL_STILL:
+        return Shift(0.0, 0.0, vote[2], CONSTELLATION_STILL)
+    if verdict == NULL_UNCLEAR:
+        return None
+    return Shift(vote[0], vote[1], vote[2], WITNESS_CONSTELLATION)
 
 
 def frame_difference(

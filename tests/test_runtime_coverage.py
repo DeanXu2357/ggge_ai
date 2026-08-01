@@ -31,7 +31,13 @@ from ggge_ai.runtime.coverage import (
 from ggge_ai.runtime.perceive import Observation
 from ggge_ai.stage.actions import SurveyBoard
 from ggge_ai.stage.survey import survey_drivers
-from tests.fixtures.synthetic_map import World, freeze_correlator
+from tests.fixtures.synthetic_map import (
+    World,
+    animated,
+    blind_correlator,
+    freeze_correlator,
+    void_outside,
+)
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 # 一格 100px 的小視窗：手算得出來哪幾格「整格看得清楚」。
@@ -627,6 +633,49 @@ def test_a_camera_jump_is_refused_then_re_anchored_by_the_constellation():
     assert ledger.synced
     want, got = unit_cells(ledger, world)
     assert got == want
+
+
+def test_an_idle_animation_no_longer_blocks_the_stall_verdict(monkeypatch):
+    """待機動畫讓 frame_difference 恆高於門檻（實機 5.8-12.5 對 2.5），原地幀因此
+    走不進靜止那一支；影像複驗閘直接給「確定沒動」，STALLED 不必再靠幀差。"""
+    blind_correlator(monkeypatch)
+    before = World(cols=22, rows=12, units=((3, 3), (4, 3), (5, 3), (6, 3))).frame()
+    after = animated(World(cols=22, rows=12, units=((4, 3), (5, 3), (6, 3), (7, 3))).frame())
+    survey = Survey()
+    survey.observe(before)
+    offset = survey.odometer.offset
+
+    assert board.frame_difference(before, after) > board.EDGE_FRAME_DIFF
+
+    reading = survey.observe(after, Leg("south", 70.0, (0.0, -155.0)))
+
+    assert reading.verdict == STALLED
+    assert reading.shift.source == board.CONSTELLATION_STILL
+    assert reading.offset == pytest.approx(offset, abs=0.01)
+
+
+def test_a_frame_whose_only_lattice_is_in_a_corner_still_gets_a_phase_check(monkeypatch):
+    """0801 t7-t13：地圖走到北緣，全幀帶讀不出格線，`_snap` 於是無條件放行——兩腿
+    各滑了 200px 卻被記成停滯，同一片場景以同一個 offset 重複吸收。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    survey = Survey()
+    survey.observe(world.frame())
+    freeze_correlator(monkeypatch)
+    world.move(300.0, 0.0)
+    edge = void_outside(world.frame(), board.LATTICE_WINDOWS[3])
+    leg = Leg("east", 152.0, (-350.0, 0.0))
+
+    assert board.read_lattice(edge) is None
+
+    monkeypatch.setattr(board, "find_lattice", board.read_lattice)
+    assert survey.observe(edge, leg).verdict == STALLED
+
+    monkeypatch.undo()
+    freeze_correlator(monkeypatch)
+    survey = Survey()
+    survey.observe(world.canvas[0:1080, 0:2340])
+
+    assert survey.observe(edge, leg).verdict == BROKEN
 
 
 def test_an_island_that_never_re_anchors_is_dropped_and_the_world_restarts():

@@ -16,7 +16,8 @@
    整數欄數由證人裁決），其餘一律相位相關，量測窗 ≥2× 最大位移。
 2. 指令包絡閘（`board.envelope`）：同軸同號、倍率有上界，擋繞回混疊的自信錯值。
 3. 格線相位交叉驗證：混疊差一個窗寬、窗寬 mod 格距 ≠ 0，相位對不上即拒收；
-   對得上就順手吸附，讓漂移只能整格跳。
+   對得上就順手吸附，讓漂移只能整格跳。全幀帶讀不出格線就退象限窗
+   （`board.find_lattice`）——邊緣區地圖只佔一角，整段沒有相位閘比量錯更貴。
 4. 星座匹配（`board.relocalise`）＝全域重定位器，斷鏈後重錨用，不是主里程計。
 5. 撞邊重錨＝絕對參考：島嶼在已知邊界上撞邊就把那一軸釘死。
 
@@ -409,7 +410,7 @@ class Odometer:
         """
         if self.grid is None:
             return
-        lattice = board.read_lattice(frame)
+        lattice = board.find_lattice(frame)
         if lattice is None:
             return
         residual = board.median_residual(
@@ -427,10 +428,13 @@ class Odometer:
         的保護落在腿長規則（單腿 ≤ 窗高/4）與包絡閘。
 
         殘差取**全線中位數**而不是單線：單線抖動 ±10px 實測在案，容差只有 0.25 pitch。
+
+        格線走 `board.find_lattice`（全幀帶讀不出來就退象限窗）：讀不到格線這一支是
+        **無條件放行**，邊緣區整段停擺等於整段沒有相位閘。
         """
         if self.grid is None:
             return candidate
-        lattice = board.read_lattice(frame)
+        lattice = board.find_lattice(frame)
         if lattice is None:
             return candidate
         pitch = self.grid.col_pitch

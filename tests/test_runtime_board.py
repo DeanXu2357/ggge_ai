@@ -16,7 +16,13 @@ import pytest
 
 from ggge_ai.runtime import board, coverage
 from tests.fixtures.frames import load
-from tests.fixtures.synthetic_map import COL_PITCH, World, freeze_correlator
+from tests.fixtures.synthetic_map import (
+    COL_PITCH,
+    World,
+    blind_correlator,
+    freeze_correlator,
+    void_outside,
+)
 
 SERIES = Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
 MATCH_RADIUS = 60
@@ -269,6 +275,81 @@ def test_a_frame_without_a_lattice_falls_straight_back_to_the_old_path(monkeypat
     monkeypatch.setattr(board, "read_lattice", lambda *args, **kwargs: None)
 
     assert board.measure_pan(before, after, (-350.0, 0.0)) == board.measure_shift(before, after)
+
+
+def _formation(cells: tuple[tuple[int, int], ...]) -> World:
+    """同一張畫布、只換單位擺位：背景逐像素相同，星座卻換了一批。"""
+    return World(cols=22, rows=12, units=cells)
+
+
+ROW = ((3, 3), (4, 3), (5, 3), (6, 3))
+ROW_SHIFTED = ((4, 3), (5, 3), (6, 3), (7, 3))
+
+
+def test_a_formation_alias_vote_is_overruled_by_the_picture(monkeypatch):
+    """週期陣列的幽靈票：偵測到的那一排薩克整批往右錯一個編隊間距，配對投票就投出
+    票數十足的 +一格位移——但畫面根本沒動。0801 台數膨脹的第二顆齒輪。"""
+    blind_correlator(monkeypatch)
+    before = _formation(ROW).frame()
+    after = _formation(ROW_SHIFTED).frame()
+
+    vote = board._constellation_shift(board.find_units(before), board.find_units(after))
+    assert vote is not None
+    assert vote[0] == pytest.approx(COL_PITCH, abs=6.0)
+
+    assert board.null_check(before, after, (vote[0], vote[1])) == board.NULL_STILL
+
+    shift = board.measure_shift(before, after)
+    assert shift.source == board.CONSTELLATION_STILL
+    assert (shift.dx, shift.dy) == (0.0, 0.0)
+    assert shift.known
+
+
+def test_a_real_pan_still_beats_the_null_hypothesis(monkeypatch):
+    """守成：複驗閘只否決對不上畫面的票，真移動照過（不然掃描全程斷鏈）。"""
+    blind_correlator(monkeypatch)
+    world = _formation(ROW)
+    before = world.frame()
+    world.move(0.0, 150.0)
+    after = world.frame()
+
+    assert board.null_check(before, after, (0.0, -150.0)) == board.NULL_MOVED
+
+    shift = board.measure_shift(before, after)
+    assert shift.source == board.WITNESS_CONSTELLATION
+    assert shift.dy == pytest.approx(-150.0, abs=6.0)
+
+
+def test_the_null_check_says_nothing_when_there_is_nothing_to_look_at():
+    """鏡頭底下沒幾台＝裁判沒得看。這時要回 blind（呼叫端照舊處置），不是 unclear
+    ——把「裁判缺席」當成「兩個假設都不對」會讓空曠地帶整段斷鏈。"""
+    world = _formation(((3, 3),))
+    before = world.frame()
+    world.move(0.0, 150.0)
+
+    assert board.null_check(before, world.frame(), (0.0, -150.0)) == board.NULL_BLIND
+
+
+def test_the_lattice_falls_back_to_a_sub_window_when_the_band_runs_out_of_lines():
+    """地圖走到邊緣只剩右下一角有格線：全幀帶的線數湊不到門檻，相位閘於是整段
+    停擺（0801 t7-t13 七幀全 None，兩腿各滑了 200px 卻被記成停滯）。"""
+    frame = void_outside(_formation(ROW).frame(), board.LATTICE_WINDOWS[3])
+
+    assert board.read_lattice(frame) is None
+
+    lattice = board.find_lattice(frame)
+
+    assert lattice is not None
+    assert lattice.col_pitch == pytest.approx(COL_PITCH, abs=4.0)
+    x, y, w, h = board.LATTICE_WINDOWS[3]
+    assert all(x <= col <= x + w for col in lattice.cols)
+
+
+def test_the_sub_window_lattice_is_only_a_fallback():
+    """全幀帶讀得出來就用全幀帶：子窗的取樣量少，pitch 不該由它決定。"""
+    frame = _formation(ROW).frame()
+
+    assert board.find_lattice(frame) == board.read_lattice(frame)
 
 
 def test_the_median_residual_shrugs_off_one_jittery_line():
