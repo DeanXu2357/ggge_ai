@@ -43,10 +43,13 @@ from tests.fixtures.synthetic_map import (
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 # 一格 100px 的小視窗：手算得出來哪幾格「整格看得清楚」。
 WINDOW = (0, 0, 400, 300)
-UNITS = ((3, 2), (5, 4), (9, 6), (14, 3), (18, 9))
+# 擺位避開最西三欄的最北三列：那一塊被 HUD 挖洞夾死（回合橫幅 y0-170 與「變更初期
+# 配置」鈕 y242-326 之間只剩 72px，一格塞不進去），任何鏡頭位置都讀不清楚，`_aim`
+# 會誠實把它退休——把單位擺在那裡等於要求測試斷言一件設計上放棄的事。
+UNITS = ((3, 5), (5, 4), (9, 6), (14, 3), (18, 9))
 # 大世界的擺位：欄距固定但**列位刻意不成等差**。等差擺位會讓好幾對單位共用同一個
 # 平移量，星座投票湊出並列眾數就直接棄權（`_constellation_shift` 不猜平手）。
-SPREAD = ((2, 2), (5, 7), (8, 12), (11, 4), (14, 9), (17, 13), (20, 3), (23, 8), (26, 11))
+SPREAD = ((2, 5), (5, 7), (8, 12), (11, 4), (14, 9), (17, 13), (20, 3), (23, 8), (26, 11))
 
 
 SCREEN = (0, 0, 2340, 1080)
@@ -1171,6 +1174,28 @@ def test_a_pocket_no_camera_position_can_expose_retires_cell_by_cell_and_stops()
     assert survey.complete
     # 每輪嚴格縮小目標清單，所以停下來靠的是缺口清空，不是燒斷保險絲
     assert not survey.fused
+
+
+def test_the_hud_button_hole_costs_the_west_band_everything_above_the_button():
+    """v2.8 挖洞的代價要看得見，不能只寫在導覽裡。
+
+    回合橫幅（y0-170）與「變更初期配置」鈕（y242-326）之間只剩 72px，最小縮放的
+    格距 86-92 塞不進一整格——最西那幾欄從此只在 y≥326 讀得到。鏡頭同時夾在西界與
+    北界時那幾格由 `_aim` 明寫退休（HUD 壓角），不是無聲丟失。
+    """
+    grid = WorldGrid(phase=(150.0, 170.0), col_pitch=89.0, row_pitch=89.0)
+    band = FrameView(
+        offset=(0.0, 0.0),
+        region=board.UNIT_DENSITY_REGION,
+        holes=board.UNIT_DENSITY_HUD_HOLES,
+    )
+
+    seen = set(coverage.readable(grid, band))
+
+    assert (0, 0) not in seen and (0, 1) not in seen
+    assert (0, 2) in seen
+    # 鈕右緣之外的同一列照舊讀得到——洞是鈕那一塊，不是整條西帶
+    assert (4, 0) in seen
 
 
 # ---- v2.8：可見終止邊＝該方向的天然 clamp（0801 第 6 輪 t28-t31／t75 的空推） ----

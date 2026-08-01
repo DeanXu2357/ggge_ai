@@ -352,7 +352,7 @@ def test_a_turn_boundary_expires_the_board_sync():
 def test_the_ledger_zooms_first_and_only_once():
     """縮放是最佳化不是前提，但它改的是比例——所以它排在最前面，掃描的世界錨點
     才不會在半路作廢。"""
-    world = World(cols=22, rows=12, units=((3, 2), (9, 6)))
+    world = World(cols=22, rows=12, units=((3, 5), (9, 6)))
     rig = Rig(world)
     zooms: list[int] = []
     driver, ledger = survey_drivers(
@@ -373,7 +373,7 @@ def test_the_ledger_zooms_first_and_only_once():
 
 def test_the_survey_carries_on_without_a_zoom_backend():
     """成功不依賴縮小：接不上後端照樣掃得完，只是截圖與腿數變多。"""
-    world = World(cols=22, rows=12, units=((3, 2), (9, 6)))
+    world = World(cols=22, rows=12, units=((3, 5), (9, 6)))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
 
@@ -391,7 +391,7 @@ def test_the_survey_carries_on_without_a_zoom_backend():
 
 def test_the_driver_does_exactly_one_micro_step_per_call():
     """一 tick 一個微步驟：反射才插得進來。"""
-    world = World(cols=22, rows=12, units=((3, 2),))
+    world = World(cols=22, rows=12, units=((3, 5),))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
     ledger.zoomed = True
@@ -434,7 +434,7 @@ def test_an_unreadable_world_still_moves_and_says_it_was_blind():
 
 
 def _glider(drifts: list[float]) -> Glide:
-    return Glide(World(cols=22, rows=12, units=((3, 2), (9, 6))), drifts=drifts)
+    return Glide(World(cols=22, rows=12, units=((3, 5), (9, 6))), drifts=drifts)
 
 
 def test_the_scan_waits_for_the_glide_to_stop_before_it_takes_the_frame():
@@ -489,7 +489,7 @@ def test_an_unmeasurable_frame_counts_as_quiet_and_is_handed_straight_on():
     """量不出位移不是「還在動」的證據（無特徵星空就量不出來），而下一步 observe
     自己會把它隔離進島嶼——在這裡硬等只是白燒截圖。"""
     blank = np.zeros((1080, 2340, 3), np.uint8)
-    frames = [World(cols=22, rows=12, units=((3, 2), (9, 6))).frame(), blank]
+    frames = [World(cols=22, rows=12, units=((3, 5), (9, 6))).frame(), blank]
     driver, _ = survey_drivers(lambda: frames.pop(0), FakeActuator(), sleep=lambda _: None)
 
     settled = driver._settled_capture()
@@ -500,7 +500,7 @@ def test_an_unmeasurable_frame_counts_as_quiet_and_is_handed_straight_on():
 
 
 def _traced(ticks: int, **kwargs) -> tuple[BoardDriver, Rig]:
-    rig = Rig(World(cols=22, rows=12, units=((3, 2), (9, 6))))
+    rig = Rig(World(cols=22, rows=12, units=((3, 5), (9, 6))))
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, **kwargs)
     ledger.zoomed = True
     for _ in range(ticks):
@@ -594,7 +594,7 @@ def test_a_failing_telemetry_sink_never_stops_the_scan():
 def _witnessed(
     *, dump_frames: bool = False, **kwargs
 ) -> tuple[BoardDriver, list[tuple[dict, np.ndarray | None, np.ndarray]]]:
-    rig = Rig(World(cols=22, rows=12, units=((3, 2), (9, 6))), **kwargs)
+    rig = Rig(World(cols=22, rows=12, units=((3, 5), (9, 6))), **kwargs)
     kept: list[tuple[dict, np.ndarray | None, np.ndarray]] = []
     driver, ledger = survey_drivers(
         rig.capture,
@@ -654,7 +654,7 @@ def test_a_failing_evidence_sink_never_stops_the_scan():
     def boom(record: dict, previous, current) -> None:
         raise RuntimeError("the disk is on fire")
 
-    rig = Rig(World(cols=22, rows=12, units=((3, 2), (9, 6))), blank=(4,))
+    rig = Rig(World(cols=22, rows=12, units=((3, 5), (9, 6))), blank=(4,))
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, evidence=boom)
     ledger.zoomed = True
 
@@ -665,7 +665,7 @@ def test_a_failing_evidence_sink_never_stops_the_scan():
 
 
 def test_the_survey_completes_when_the_frontier_empties():
-    world = World(cols=22, rows=12, units=((3, 2), (9, 6), (14, 3)))
+    world = World(cols=22, rows=12, units=((3, 5), (9, 6), (14, 3)))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
     ledger.zoomed = True
@@ -676,7 +676,10 @@ def test_the_survey_completes_when_the_frontier_empties():
             break
 
     assert ledger.synced
-    assert step.startswith(SWEEP_STEP)
+    # 收尾那一 tick 可能是掃描腿，也可能是「HUD 挖洞蓋住的角落格退休」——後者同樣
+    # 讓前緣清空，只是回 DONE_STEP。真正要釘的是這一輪確實走了掃描腿。
+    assert any(name.startswith(SWEEP_STEP) for name in driver.steps)
+    assert step.startswith(SWEEP_STEP) or step == DONE_STEP
     assert len(ledger.cells()) == len(world.units)
     # 再叫一次也不會亂動：前緣已空
     assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == DONE_STEP
@@ -699,7 +702,7 @@ def test_the_leg_fuse_stops_instead_of_burning_the_whole_tick_budget():
 
 def test_the_driver_resumes_from_the_ledger_not_from_its_own_variables():
     """換一個執行器實例也接得下去——恢復點在簿記，不在執行器內部。"""
-    world = World(cols=22, rows=12, units=((3, 2),))
+    world = World(cols=22, rows=12, units=((3, 5),))
     rig = Rig(world)
     ledger = CoverageLedger()
     ledger.zoomed = True
@@ -716,7 +719,7 @@ def test_the_driver_resumes_from_the_ledger_not_from_its_own_variables():
 
 def test_expiry_downgrades_the_board_and_keeps_the_map_geometry():
     """衰效降級不抹除：UNIT→STALE、EMPTY→UNKNOWN，邊界旗與縮放留著。"""
-    world = World(cols=22, rows=12, units=((3, 2), (9, 6), (14, 3)))
+    world = World(cols=22, rows=12, units=((3, 5), (9, 6), (14, 3)))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
     ledger.zoomed = True

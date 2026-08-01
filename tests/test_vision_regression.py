@@ -230,6 +230,11 @@ def _check_map_scan_peaks(frame: np.ndarray, expect: dict[str, Any]) -> None:
     pins recall only (these units must never be lost); exact=true also pins
     precision (no peak may sit anywhere else) and is how a phantom-placement
     fixture stays red until the discriminant lands.
+
+    expect.forbidden is a list of [x,y,w,h] boxes no peak may land in -- a
+    per-class precision contract, so a frame whose phantoms come from two
+    different mechanisms can pin the fixed class green while the unfixed
+    class stays pinned red in its own case.
     """
     found = board.find_units(frame)
     tolerance = expect.get("tolerance", 40)
@@ -240,6 +245,10 @@ def _check_map_scan_peaks(frame: np.ndarray, expect: dict[str, Any]) -> None:
 
     missed = [unit for unit in units if not any(near(unit, point) for point in found)]
     assert not missed, f"missed {missed} of {units}; found {found}"
+    for box in expect.get("forbidden", []):
+        x, y, w, h = box
+        intruders = [p for p in found if x <= p[0] <= x + w and y <= p[1] <= y + h]
+        assert not intruders, f"peaks {intruders} inside forbidden box {box}; found {found}"
     if not expect.get("exact"):
         return
     phantom = [point for point in found if not any(near(unit, point) for unit in units)]
