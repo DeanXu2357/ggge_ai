@@ -8,6 +8,14 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 
 ### 恢復點
 
+- **0802 流水帳回放網頁工具入庫**（`fa04b56`，1621 passed／4
+  xfailed；純新增不動既有進度）：`uv run python scripts/
+  replay_run.py [run|tar.gz|名稱]` 起本機網頁逐筆回放 run 紀錄
+  與留存幀，投影片（前後翻＋只停有幀）／條漫（全列直欄）雙模
+  式。回放單位＝entry 逐筆（不做 tick 分組，decisions.md 0802
+  一條）；導覽 docs/reviews/replay-run-review.md。裝置現況不變
+  （本批未碰實機）。
+
 - **0802 鑑識三翻案＋v2.9 作廢＋v2.10 入庫＋使用者定 v3 方向**
   （`e503d50`，1603 passed；全文 decisions.md 0802 五條）：離線
   鑑識定讞「致動雙態不存在」（53 次平移全部推動畫面 97-107%、
