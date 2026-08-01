@@ -1173,6 +1173,92 @@ def test_a_pocket_no_camera_position_can_expose_retires_cell_by_cell_and_stops()
     assert not survey.fused
 
 
+# ---- v2.8：可見終止邊＝該方向的天然 clamp（0801 第 6 輪 t28-t31／t75 的空推） ----
+
+
+def test_a_sighted_terminal_edge_throttles_the_aim_exactly_like_a_bump_clamp():
+    """邊外是虛空，往那邊再推收不到覆蓋。撞邊線與目視邊並列，`_aim` 分不出差別
+    ——同一個 `_boxed` 世界換成目視邊，退休與換團的行為要一模一樣。"""
+    survey = _boxed()
+    survey.sighted = frozenset({"north", "south"})
+
+    leg = survey.plan_leg()
+
+    assert survey.chart.unreachable <= set(_POCKET)
+    assert leg is not None and leg.direction not in ("north", "south")
+    assert survey.legs == 1
+
+
+def test_the_probe_rotation_skips_a_direction_whose_edge_is_already_in_view():
+    """未定的方向旗是強制前緣，但已經看得到終止邊的那一側不是——輪替把它跳過去，
+    不然旗定不下來的方向會一直被輪到（島嶼期 `_sight_edges` 不跑）。"""
+    survey = Survey()
+    survey.chart = chart()
+    survey.sighted = frozenset({"east"})
+
+    spun = {survey._probe().direction for _ in range(8)}
+
+    assert spun == {"west", "north", "south"}
+
+    survey.sighted = frozenset()
+
+    assert "east" in {survey._probe().direction for _ in range(8)}
+
+
+def test_the_sighted_clamp_lifts_as_soon_as_the_camera_leaves_the_edge():
+    """目視邊是逐幀的證言不是旗子：讀不到終止邊的下一幀就解除，不然鏡頭離開之後
+    那個方向會被永久封死（`_aim` 兩軸都被誤夾就把目標格退休掉）。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    survey = Survey()
+    survey.observe(void_outside(world.frame(), VOID_WEST))
+
+    assert survey.sighted == frozenset({"west"})
+    assert survey._clamped("west")
+
+    survey.observe(world.frame())
+
+    assert survey.sighted == frozenset()
+    assert not survey._clamped("west")
+
+
+def test_a_terminal_edge_seen_from_an_island_still_throttles_the_planner():
+    """0801 第 6 輪 t28-t31：東緣連續四幀在畫面裡，但那段在島嶼上——`_sight_edges`
+    只跑大陸那條路，旗於是定不下來，規劃器對著虛空推了四腿。目視邊記側名不記座標，
+    島上照樣成立。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    survey = Survey()
+    survey.observe(world.frame())
+    edge = void_outside(world.frame(), VOID_WEST)
+    survey.island = Island(
+        reason="test",
+        odometer=Odometer(grid=survey.chart.grid, offset=survey.odometer.offset, previous=edge),
+    )
+
+    survey.observe(edge)
+
+    assert "west" not in survey.chart.boundary
+    assert survey.sighted == frozenset({"west"})
+    assert survey._clamped("west")
+
+
+def test_a_zoom_step_drops_the_sighted_edges_but_abandoning_a_world_keeps_them():
+    """縮放換的是整個畫面內容，同一側可能露出更多地圖，舊證言留著會誤夾一個方向；
+    丟棄世界只是座標作廢，畫面沒變，側名照樣成立。"""
+    survey = Survey()
+    survey.chart = chart()
+    survey.sighted = frozenset({"east"})
+    island = Island(reason="test", odometer=Odometer(grid=GRID))
+    survey.island = island
+
+    survey._abandon(island)
+
+    assert survey.sighted == frozenset({"east"})
+
+    survey.reset()
+
+    assert survey.sighted == frozenset()
+
+
 def test_a_clamp_line_from_the_old_world_never_survives_into_the_new_one():
     """撞邊線記的是世界座標。縮放之後原點換了一幀，同一個數字不代表頂在邊上——
     帶過去會讓新世界裡地圖中央的方向被當成推不動。"""

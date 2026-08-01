@@ -531,6 +531,10 @@ class Survey:
     stalls: dict[str, int] = field(default_factory=dict)
     # 撞邊當下的世界座標（軸別）：鏡頭離開就不再是夾住的狀態，見 _clamped。
     clamps: dict[str, float] = field(default_factory=dict)
+    # 最近一次收下的 view 目視到終止邊的那幾側＝該方向的天然夾點（見 _clamped）。
+    # 存側名不存座標：終止邊在不在畫面上是螢幕事實，與里程計解出什麼偏移無關，所以
+    # 島嶼期的 view 一樣算數（那正是旗還沒定、最需要它的時候）。
+    sighted: frozenset[str] = frozenset()
     islands: dict[str, int] = field(
         default_factory=lambda: {
             "isolated": 0,
@@ -585,6 +589,7 @@ class Survey:
         if leg is not None:
             self._learn_gain(leg, reading)
         view = self._view(frame, reading.offset)
+        self.sighted = view.edges
         if self.island is not None:
             self.island.views.append(view)
             self._reanchor(leg, reading, view, frame)
@@ -697,6 +702,7 @@ class Survey:
             "anchored": chart is not None,
             "bounded": sorted(chart.boundary) if chart is not None else [],
             "boundary": dict(chart.boundary) if chart is not None else {},
+            "sighted": sorted(self.sighted),
             "cells": census,
             "coverage": round(observed / scope, 3) if scope else 0.0,
             "frontier": len(chart.targets()) if chart is not None else 0,
@@ -718,6 +724,7 @@ class Survey:
         self.chart = KnowledgeMap(grid=grid)
         self.odometer = Odometer(grid=grid, offset=(0.0, 0.0), previous=frame)
         view = self._view(frame, (0.0, 0.0))
+        self.sighted = view.edges
         self.chart.absorb(view)
         self._sight_edges(view)
         self.mainland = (frame, (0.0, 0.0))
@@ -792,12 +799,21 @@ class Survey:
         return Leg(direction, reach, (-dx * travel, -dy * travel), target)
 
     def _clamped(self, direction: str) -> bool:
-        """鏡頭**此刻**就頂在這個方向的邊上。
+        """往這個方向再推收不到覆蓋。兩個來源並列，任一成立即成立：
 
-        記的是撞邊當下的世界座標而不是一面旗子：離開之後同一個方向當然又推得動，
-        拿旗子當狀態會讓地圖中央的格子也被當成推不到。一次停滯不算數——起手點被
-        單位精靈吃掉的手勢，畫面同樣不動。
+        1. **目視終止邊**（`sighted`）：最近一次收下的畫面看得到那一側的格網終止邊，
+           邊外是虛空、邊內整段已經在偵測帶裡，所以再推只是把虛空推進畫面。鏡頭移開
+           之後那一側自然讀不到終止邊，下一幀就解除——它是逐幀的證言，不是旗子。
+        2. **撞邊當下的世界座標**（`clamps`）：手勢推不動的那一點。同樣不記成旗子，
+           離開之後同一個方向當然又推得動，拿旗子當狀態會讓地圖中央的格也被當成推不到。
+           一次停滯不算數——起手點被單位精靈吃掉的手勢，畫面同樣不動。
+
+        兩者互不覆蓋：目視邊管「那邊沒有地圖」，撞邊線管「這邊推不動」，前者連旗還
+        沒定的島嶼期都成立（`_sight_edges` 只在大陸那條路上跑），後者連讀不到格線的
+        幀都成立。這是**規劃層**的節流——量測與簿記一概不看它。
         """
+        if direction in self.sighted:
+            return True
         line = self.clamps.get(direction)
         if line is None:
             return False
@@ -1065,6 +1081,11 @@ class Survey:
 
         撞邊線帶的是舊世界的座標值，新世界走到同一個數字並不代表頂在邊上，所以
         一起清掉；腿數也重開，縮放後這是新的一輪掃描。
+
+        目視邊也清：縮放換的是整個畫面內容，縮小之後同一側可能露出更多地圖，留著
+        舊證言會讓那個方向被誤判成推不動——`_aim` 兩軸都被誤夾就把目標格退休掉，
+        那是跨代生效的。**丟棄世界（`_abandon`）不清**：那裡的畫面沒變，側名照樣
+        成立，而且下一次錨定馬上會覆蓋它。
         """
         self.chart = None
         self.odometer = Odometer()
@@ -1073,6 +1094,7 @@ class Survey:
         self.adrift = False
         self.stalls.clear()
         self.clamps.clear()
+        self.sighted = frozenset()
         self.legs = 0
 
 
