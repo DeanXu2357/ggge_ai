@@ -277,6 +277,54 @@ def test_a_frame_without_a_lattice_falls_straight_back_to_the_old_path(monkeypat
     assert board.measure_pan(before, after, (-350.0, 0.0)) == board.measure_shift(before, after)
 
 
+def test_the_lattice_channel_reads_the_two_frames_from_different_windows():
+    """v2.7(3) 的論證：兩幀由**不同**象限窗讀出線位，小數相位照樣量得對。
+
+    `_column_phase` 拿的是環狀中位殘差＝mod pitch 的量，而同一張格網不論從哪一角
+    取樣，線位都落在同一族相位上。這裡兩組線位在螢幕上整整差 728px、一條都不重疊，
+    frac 仍然回真值（-40）。
+    """
+    world = World(cols=22, rows=12, units=UNITS)
+    before = void_outside(world.frame(), board.LATTICE_WINDOWS[2])
+    world.move(40.0, 0.0)
+    after = void_outside(world.frame(), board.LATTICE_WINDOWS[3])
+
+    assert board.read_lattice(before) is None
+    assert board.read_lattice(after) is None
+
+    lattices = (board.find_lattice(before), board.find_lattice(after))
+    assert all(lattice is not None for lattice in lattices)
+    for lattice, window in zip(lattices, board.LATTICE_WINDOWS[2:4], strict=True):
+        x, _, w, _ = window
+        assert all(x <= col <= x + w for col in lattice.cols)
+    assert not set(lattices[0].cols) & set(lattices[1].cols)
+
+    frac = board._column_phase(lattices[0].cols, lattices[1].cols, COL_PITCH)
+
+    assert frac == pytest.approx(-40.0, abs=4.0)
+
+
+def test_the_lattice_channel_no_longer_stands_down_at_the_map_edge():
+    """v2.6 爭點 5：邊緣區全幀帶讀不出格線時，格線通道整條讓位給相關器。
+
+    那裡的相關器拿虛空噪點湊出 +472 的自信錯值（真值 -40）。接上象限窗之後
+    `measure_pan` 不再等於 `measure_shift`——量不出來就誠實回 none，由上層隔離。
+    """
+    world = World(cols=22, rows=12, units=UNITS)
+    before = void_outside(world.frame(), board.LATTICE_WINDOWS[2])
+    world.move(40.0, 0.0)
+    after = void_outside(world.frame(), board.LATTICE_WINDOWS[3])
+
+    fallback = board.measure_shift(before, after)
+    assert fallback.source == "phase"
+    assert fallback.dx > 400.0
+
+    shift = board.measure_pan(before, after, (-350.0, 0.0))
+
+    assert shift != fallback
+    assert not shift.known
+
+
 def _formation(cells: tuple[tuple[int, int], ...]) -> World:
     """同一張畫布、只換單位擺位：背景逐像素相同，星座卻換了一批。"""
     return World(cols=22, rows=12, units=cells)

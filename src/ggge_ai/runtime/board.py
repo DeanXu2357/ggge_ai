@@ -568,13 +568,20 @@ def measure_pan(
     之前先過影像複驗（`_constellation_witness`）；複驗判「確定沒動」時整條格線通道
     讓位——畫面說沒動就是沒動，沒有 k 好裁。
 
+    格線走 `find_lattice`（全幀帶讀不出來就退象限窗）。**兩幀可以由不同的窗讀出**：
+    `_column_phase` 拿的是兩組線位對位後的環狀中位殘差，那是 mod pitch 的量，而同一
+    張格網不論從哪個象限取樣，線位都落在同一族相位上——窗不同不影響 frac。整數欄數 k
+    本來就不由線位決定（那是 `_resolve_columns` 三個證人的事），所以子窗的取樣量少
+    在這條路上不構成風險。擋錯格距的閘仍在下面：兩幀欄距差超過 `LATTICE_PITCH_DRIFT`
+    就退回現行路徑，粗帶隔行取線湊出的翻倍 pitch 會在那裡被攔下。
+
     走不到格線通道（沒指令、指令沒有 x 分量、任一幀讀不出格網、兩幀欄距對不上）就
     **完全走 `measure_shift` 的現行路徑**：靜止閘的取幀比對與 precheck 行為零改變。
     """
     if expected is None or expected[0] == 0.0:
         return measure_shift(previous, current, region)
-    before = read_lattice(previous)
-    after = read_lattice(current)
+    before = find_lattice(previous)
+    after = find_lattice(current)
     if before is None or after is None:
         return measure_shift(previous, current, region)
     pitch = (before.col_pitch + after.col_pitch) / 2.0
