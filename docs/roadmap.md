@@ -4,9 +4,19 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-08-01，v2.1–v2.4 全入庫＋複驗輪三輪完結，第 4 輪待跑）
+## 暫停快照（2026-08-01，v2.1–v2.5 全入庫＋複驗輪四輪完結，第 5 輪待跑）
 
 ### 恢復點
+
+- **0801 第 4 輪決勝過關＋v2.5 入庫**（run 20260801-071055；判讀
+  全文 decisions.md）：**水平斷鏈軸完結——東西向 broken 18→0**、
+  lattice:constellation 通道實機接通（保留觀察：9/13 水平腿退
+  舊路徑、lattice:phase 零出現）、增益 0.44→0.75 爬升。V5 台數
+  FAIL 定位第二軸：cells 84 vs census 55 vs 期望 28、29 筆在東
+  界外＝邊界定案/重錨後 marks 不裁剪。**v2.5 入庫**（`d056004`：
+  fix_boundary 裁剪線外知識＋units/sightings bounded 界內＋
+  merge delta 遙測；1571 passed／ruff 綠；設計決定 10 條備案，
+  導覽 docs/reviews/scan-v2_5-review.md）。
 
 - **0801 複驗輪第 2 輪**（Phase A run 20260801-042733、Phase B
   20260801-044436-phaseB；判讀與鑑識全文 decisions.md 0801 條）：
@@ -62,10 +72,10 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   垂直增益收斂實證；水平第二死鎖＋A6 翻多記（鬼影）；主 session
   離線鑑識定讞＝phaseCorrelate 水平凍值/靜態峰鎖死（7/20
   map_stitch 同款），v2.4 規格＝格線相位權威＋整數欄三重裁決。
-- **佇列**：①掃描複驗輪第 4 輪（v2.4 已入庫 `55cac00`；驗收：
-  水平斷鏈個位數、shift.source 水平腿走 lattice:* 通道、水平
-  增益開始收斂、腿數 <29、A6 台數 ≈28 紅 ≥16；**同款斷鏈簽名
-  再敗＝連兩次針對性修正失敗，停下 discord-notify 使用者**）
+- **佇列**：①掃描複驗輪第 5 輪（v2.5 已入庫 `d056004`；驗收：
+  台數軸——journal cells ≡ 界內 census、UNIT 總數 ≈28 紅 ≥16、無界外 cells；merge 遙測逐筆有 delta；islands.discarded 不暴增；水平
+  增益續爬；**台數軸再敗＝該軸連兩次針對性修正失敗，停
+  下 discord-notify 使用者**）
   ②2e 首戰 UC HARD 1（符號讀取注入、單位↔螢幕對位、陣營證據
   分層、Move/Attack/Inspect plan）。
 - 裝置現況：R5CRC37JBYJ 在線、遊戲停 UC 關卡列表（游標 HARD 2

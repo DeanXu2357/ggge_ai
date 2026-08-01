@@ -6,6 +6,39 @@
 
 ## 2026-08-01
 
+- **v2.5 單位帳一致性批設計決定 10 條整批接受（d056004 合併）**｜
+  opus worktree 交付四 commit、主 session 親審（含 _trim 對未定
+  旗方向不裁的行為親驗）＋主 repo 閘門 1571 passed／ruff 綠；
+  判別性 6/7 未修碼 FAIL 實測。導覽 docs/reviews/
+  scan-v2_5-review.md。要點裁決：裁剪含 charted（frontier 種子，
+  線外「看過」是假的）；**absorb 寫值側不加界內過濾**（保守
+  正確——邊界旗可能錯，寫值側過濾＝錯旗靜默吃掉真觀測；裁剪
+  只在旗被新證據改寫那一刻）；`_inside` 以四旗全定為前提；
+  last_merge 掛 Survey 不塞 Reading（層次歸屬）。爭點留檔：
+  本批只保證 journal cells ≡ 界內 census，界內膨脹責任歸重錨
+  delta＋UNIT 滯後組合，第 5 輪憑 merge 遙測定讞；若第 5 輪仍
+  見界外 cells 而旗只定案一次＝存在第三條路徑（absorb 旗定後
+  仍收線外格，設計決定 2 刻意保留）；`_agrees` 因 sightings 界
+  內化變嚴，實機盯 islands.discarded。
+- **複驗輪第 4 輪判定：水平斷鏈決勝過關＋台數第二軸缺陷定位＋
+  v2.5 裁決**｜第 4 輪（run 20260801-071055，5.7 分、EN 零耗、
+  游標未飄）：**V1 PASS——東西向 broken 18→0**（僅 2 次垂直
+  unmeasurable 誠實隔離）；V2 PASS 有保留（lattice:constellation
+  ×4 實機接通、無 lattice:commanded；但 9/13 水平腿退回舊路徑、
+  lattice:phase 證人零出現＝接通率偏低，列觀察）；V3 PASS 增益
+  0.44→0.75 爬升非死鎖；V4 資訊性 34 腿未降。停工條款未觸發，
+  **v2.4 修正定讞有效**。**V5 FAIL 且機制定位**：journal cells
+  84（藍 52 紅 32）vs 界內 census 55 vs 期望 28；29 筆整段在
+  最終東界外＝邊界定案/重錨後 marks 從不裁剪的舊座標系殘留
+  （fix_boundary/absorb/expire 只動 state）；界內膨脹指向重錨
+  delta 寫錯整批鬼影被 UNIT 滯後保住（本輪兩次 merge delta
+  (455,186.9)/(0,164.3) 可疑但無法從遙測定讞）。**v2.5 裁決**
+  （自裁：不讓 2e 帶著 3 倍鬼影單位表起步）：①fix_boundary 定
+  案/改判時裁剪線外 state/marks/charted/unreachable ②units/
+  sightings 在 bounded 時只回界內（含 relocalise 比對標的去鬼
+  影）③重錨 delta 入遙測（界內膨脹若第 5 輪仍在，憑此＋全幀
+  傾印鑑識）；_reanchor/_solve/量測鏈零改動——重錨寫錯的根治
+  等資料定讞，不猜。
 - **v2.4 量測鏈修正批入庫＋兩偏離裁決（55cac00 合併）**｜opus
   worktree 交付、主 session 親審 diff＋主 repo 閘門親跑 1564
   passed／ruff 綠；離線以 18 對實幀重放驗證：14 對量對（與星座
