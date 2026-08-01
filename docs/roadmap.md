@@ -8,11 +8,11 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 
 ### 恢復點
 
-- **0802 流水帳回放網頁工具入庫＋補修**（`fa04b56`＋`de07f0a`，
-  1625 passed／4 xfailed；純新增不動既有進度）：`uv run python
-  scripts/replay_run.py [run|tar.gz|名稱]` 起本機網頁逐筆回放
-  run 紀錄與留存幀，投影片（前後翻＋只停有圖）／條漫（全列直
-  欄、文字左圖右）雙模式。回放單位＝entry 逐筆（不做 tick 分
+- **0802 流水帳回放網頁工具入庫＋補修**（`fa04b56`＋`de07f0a`＋
+  `f006388`，1625 passed／4 xfailed；純新增不動既有進度）：
+  `uv run python scripts/replay_run.py [run|tar.gz|名稱]` 起本機
+  網頁逐筆回放 run 紀錄與留存幀，投影片（前後翻＋只停有圖，
+  ←/j、→/l 快捷鍵）／直頁顯示（全列直欄、文字左圖右）雙模式。回放單位＝entry 逐筆（不做 tick 分
   組）；補修收齊 prev/curr 欄位＋survey 側傾印命名慣例附掛
   （17→144/282 筆有圖；decisions.md 0802 兩條）；導覽
   docs/reviews/replay-run-review.md。**附帶發現 test_not_
