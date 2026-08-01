@@ -87,3 +87,33 @@ load_entries 正常／空行／殘行容忍；safe_frame_path 正常／`../`／`
 `20260801-212645`（282 筆、17 幀）：`/` 200 10918B、`/api/run` 282 筆原樣、
 主幀與 `frames/survey/t1-precheck.png` 均 200 image/png、
 `--path-as-is /frames/../../../../etc/hostname` → 404。
+
+## 五、補修（同日，使用者實測回饋）
+
+首版只認 `frame` 欄位，使用者實測條漫「太多沒圖」點破兩個漏洞，補修批
+（`de07f0a`，閘門 1625 passed／4 xfailed）：
+
+1. **`survey_broken` 的 `prev`／`curr` 欄位漏顯**（20 筆×前後幀對，指
+   `frames/broken/`）。前端改收 entry 頂層**所有**符合 `^frames/.+\.png$`
+   的字串欄位（順序 frame→prev→curr→其餘鍵序，標籤=欄位名）。
+2. **`frames/survey/` 側傾印流水帳零參照**：`--dump-survey-frames` 只寫檔
+   不記帳，`t{tick}-{probe}.png` 命名慣例（`SurveyFrames._dump`）是唯一連
+   結。伺服器端新增 `collect_attachments()` 按 `kind=="survey_tick"`＋
+   `tick`＋`probe` 掛回（實 run 107 筆↔107 張一一對應），payload 增
+   `attachments`（鍵=entries 索引字串），entries 保持原樣不注入欄位。
+
+版面同步：條漫有圖卡片改雙欄（文字左、圖右直疊，<900px 退單欄）、投影片
+一筆多圖直疊帶標籤、沿用邏輯改「最近一筆有任何圖」整疊壓暗、勾選框改
+「只停在有圖的紀錄」、tick 顯示 entry 自帶欄位優先。修正後有圖紀錄
+17→144/282（frame 17＋survey_tick 107＋survey_broken 20），純文字的
+gate／stage／perform 本來就不留幀。爭點追加：投影片同組圖不重建 DOM
+（避免翻頁重抓 2MB 級 PNG）、`/frames/` 刻意不加 Cache-Control（同 port
+換 run 會吃到舊位元組）。
+
+**附帶發現（未修，與本批無關）**：`tests/test_not_actionable.py::
+test_run_updates_last_activity_only_when_not_actionable_returns_true` 先天
+flaky——`idle_timeout_s=0.0` 靠相鄰兩次 `time.time()` 嚴格遞增才早退，本機
+71% 機率同值，走進迴圈就撞假件 `_P.observe` 不收 `frame` 參數的
+TypeError（`battle/controller.py:479`）。全套 5 跑 1 失敗、隔離 60 跑 0
+失敗；移除本批兩檔重跑仍過＝與本批無因果。修法在該測試（假件補參數或
+`idle_timeout_s` 給非零），屬既有檔案，待使用者裁示。

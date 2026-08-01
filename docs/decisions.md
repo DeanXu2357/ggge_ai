@@ -16,6 +16,17 @@
   的「至多一個未壓縮」不變量）、只用標準庫 http.server（不加相
   依）、/api/run 啟動時序列化一次（回放定位是過去的 run，不做即
   時尾隨）。導覽 docs/reviews/replay-run-review.md。
+- **回放工具補修：survey 側傾印以命名慣例掛回（寫入端知識入回放
+  工具）**｜使用者實測點破條漫圖太少；查明 frames/survey/ 傾印
+  流水帳零參照，t{tick}-{probe}.png ↔ survey_tick 的 tick＋probe
+  是唯一連結｜(a) 只收流水帳有參照的圖（survey 傾印繼續看不到）、
+  (b) 回放工具內建這條命名慣例掛回、(c) 改寫入端讓傾印入帳｜採
+  (b)：(a) 答不了使用者需求；(c) 動 dry_run_entry.py 違反本批
+  「不動既有進度」約束，且舊 run 已寫死救不回。慣例出處
+  （SurveyFrames._dump）已留坑註解，寫入端未來改名要同步。附帶
+  自裁：圖片欄位偵測泛化成「所有 frames/*.png 字串欄位」（prev/
+  curr 即刻受益、未來新欄位免改）；entries 保持原樣、附掛走獨立
+  attachments 鍵。補修 commit de07f0a。
 
 ## 2026-08-01
 
