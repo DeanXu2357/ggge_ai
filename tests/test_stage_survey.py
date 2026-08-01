@@ -520,6 +520,7 @@ def test_the_telemetry_files_one_row_per_observe_with_the_measurement():
         assert set(row) == {
             "tick",
             "probe",
+            "sequence",
             "direction",
             "reach",
             "expected",
@@ -527,16 +528,20 @@ def test_the_telemetry_files_one_row_per_observe_with_the_measurement():
             "reason",
             "shift",
             "offset",
+            "span",
+            "measure",
             "island",
             "islands",
             "merge",
             "settle",
         }
         assert set(row["shift"]) == {"dx", "dy", "magnitude", "confidence", "source"}
+        assert set(row["span"]) == {"sequence", "box", "edges"}
         assert set(row["island"]) == {"open", "views"}
         assert set(row["islands"]) == {"isolated", "merged", "discarded", "reset", "refused"}
         assert set(row["settle"]) == {"waits", "quiet"}
         assert len(row["offset"]) == 2
+        assert row["sequence"] == row["span"]["sequence"]
         # 沒合併就是 null——它是單幀事件，不是累計欄位
         assert row["merge"] is None
 

@@ -400,6 +400,39 @@ def test_the_odometer_calls_an_unmoved_view_a_stall_not_a_measurement():
     assert odometer.offset == (0.0, 0.0)
 
 
+def test_a_stall_the_picture_flatly_contradicts_is_a_break_not_a_stall(monkeypatch):
+    """0801 第 7 輪的整列級量錯寫入：t13／t16／t25 判 STALLED，真實位移卻是
+    −172／−186／+164。STALLED 照樣 absorb，所以那是「量錯寫入」最直接的路徑。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    before = world.frame()
+    odometer = Odometer(grid=WorldGrid.anchor(board.read_lattice(before)), previous=before)
+    world.move(0.0, 155.0)
+    monkeypatch.setattr(
+        board, "measure_pan", lambda *args, **kwargs: board.Shift(0.0, -4.0, 0.6, "phase")
+    )
+
+    reading = odometer.feed(world.frame(), (0.0, -155.0))
+
+    assert reading.verdict == BROKEN
+    assert reading.reason == f"stall_{board.NULL_MOVED}"
+    assert odometer.offset == (0.0, 0.0)
+
+
+def test_a_stall_the_picture_agrees_with_is_still_a_stall():
+    """撞邊夾住只滑得動 20px：量到的值就是對的，複驗的對手要是**量到的值**而不是
+    原地——環偏 20px 對上原地一定輸，那不是「動了指令那麼多」的證據。"""
+    world = World(cols=22, rows=12, units=UNITS)
+    world.camera = (0.0, 20.0)
+    before = world.frame()
+    odometer = Odometer(grid=WorldGrid.anchor(board.read_lattice(before)), previous=before)
+    world.move(0.0, -20.0)
+
+    reading = odometer.feed(world.frame(), (0.0, 155.0))
+
+    assert reading.verdict == STALLED
+    assert reading.detail["stall"]["verdict"] == board.NULL_STILL
+
+
 def test_the_odometer_tracks_a_real_leg_and_snaps_it_to_the_grid_phase():
     world = _synthetic()
     frame = world.frame()
@@ -502,8 +535,10 @@ class Rig:
         self.world.move((x1 - x2) * self.gain * scale, (y1 - y2) * self.gain * scale)
 
 
-def sweep(rig: Rig, ticks: int = 40):
-    driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
+def sweep(rig: Rig, ticks: int = 40, telemetry=None):
+    driver, ledger = survey_drivers(
+        rig.capture, rig, sleep=lambda _: None, telemetry=telemetry
+    )
     ledger.zoomed = True
     for _ in range(ticks):
         driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
@@ -644,14 +679,21 @@ def test_a_camera_jump_sideways_is_refused_and_the_world_restarts_honestly():
     閘再擋掉重錨——南向腿推不出 512px 的橫向偏移，那個 delta 只可能是星座的編隊
     alias。處置是整批丟棄、世界誠實重開：座標換一套原點，但一格都沒寫錯。"""
     world = _synthetic()
+    rows: list[dict] = []
 
-    _, ledger = sweep(Rig(world, jumps={4: (900.0, 0.0)}))
+    _, ledger = sweep(Rig(world, jumps={4: (900.0, 0.0)}), telemetry=rows.append)
 
     summary = ledger.summary()
-    assert summary["islands"]["isolated"] == 1
-    assert summary["islands"]["merged"] == 0
+    # 跳走那一腿只有一次，其餘斷鏈只可能是停滯確認不了（v2.10 的已知代價：鏡頭底下
+    # 不到兩台就沒得複驗），不准有第二次「量到了但閘不過」
+    broke = [row["reason"] for row in rows if row["verdict"] == BROKEN]
+    assert broke.count("envelope") == 1
+    assert all(reason == "envelope" or reason.startswith("stall_") for reason in broke)
     assert summary["islands"]["refused"] >= 1
     assert summary["islands"]["reset"] == 1
+    # 那個 512px（四整欄）的編隊 alias 一次都沒被併進去
+    merges = [row["merge"]["delta"] for row in rows if row["merge"] is not None]
+    assert all(abs(delta[0]) < COL_PITCH / 2 for delta in merges)
     assert ledger.synced
     want, got = unit_cells(ledger, world)
     assert _rebased(got) == _rebased(want)
@@ -786,21 +828,30 @@ def test_an_idle_animation_no_longer_blocks_the_stall_verdict(monkeypatch):
 
 def test_a_frame_whose_only_lattice_is_in_a_corner_still_gets_a_phase_check(monkeypatch):
     """0801 t7-t13：地圖走到北緣，全幀帶讀不出格線，`_snap` 於是無條件放行——兩腿
-    各滑了 200px 卻被記成停滯，同一片場景以同一個 offset 重複吸收。"""
+    各滑了 200px 卻被記成停滯，同一片場景以同一個 offset 重複吸收。
+
+    放行那一支對著 `_snap` 直接斷言：v2.10 之後 `measure_pan` 走 `read_span`（自帶
+    象限窗退路），所以整幀量測那一層已經先攔下來了，survey 層看不到那個病癥。
+    """
     world = World(cols=22, rows=12, units=UNITS)
     survey = Survey()
     survey.observe(world.frame())
     freeze_correlator(monkeypatch)
+    anchor = world.frame()
     world.move(300.0, 0.0)
     edge = void_outside(world.frame(), board.LATTICE_WINDOWS[3])
     leg = Leg("east", 152.0, (-350.0, 0.0))
+    odometer = Odometer(grid=survey.chart.grid, offset=(0.0, 0.0), previous=anchor)
 
     assert board.read_lattice(edge) is None
 
+    # 凍住的相關器量到 0，所以候選 offset 還停在 (0,0)——實際上場景已經滑了 300
     monkeypatch.setattr(board, "find_lattice", board.read_lattice)
-    assert survey.observe(edge, leg).verdict == STALLED
+    assert odometer._snap(edge, (0.0, 0.0)) == (0.0, 0.0)
 
     monkeypatch.undo()
+    assert odometer._snap(edge, (0.0, 0.0)) is None
+
     freeze_correlator(monkeypatch)
     survey = Survey()
     survey.observe(world.canvas[0:1080, 0:2340])
@@ -1046,7 +1097,8 @@ def test_a_merged_island_records_the_offset_it_was_merged_at():
     assert survey.islands["merged"] == 1
     delta, views = survey.last_merge
     assert delta == pytest.approx(truth)
-    assert views == 1
+    # 逐 view 記出生序號與自身 offset：偏移寫錯時錯的那一格要追得回是哪一幀收的
+    assert views == ((0, (0.0, 0.0)),)
 
 
 def test_a_re_anchored_island_hands_its_offset_to_the_telemetry():
@@ -1067,6 +1119,11 @@ def test_a_re_anchored_island_hands_its_offset_to_the_telemetry():
     assert len(merged) == 1
     assert len(merged[0]["merge"]["delta"]) == 2
     assert merged[0]["merge"]["views"] >= 1
+    # 每一張併進去的 view 都帶著出生序號，對得回同一份流水帳的 sequence 欄
+    buffered = merged[0]["merge"]["buffered"]
+    assert len(buffered) == merged[0]["merge"]["views"]
+    stamped = {row["sequence"] for row in rows}
+    assert all(entry["sequence"] in stamped for entry in buffered)
     # 合併只屬於那一次 observe——掃到最後 last_merge 已經被清回 None
     assert ledger.survey.last_merge is None
 

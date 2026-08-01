@@ -311,9 +311,11 @@ class BoardDriver:
         survey = self.ledger.survey
         island = survey.island
         shift = reading.shift
+        view = survey.last_view
         return {
             "tick": self.ticks,
             "probe": probe,
+            "sequence": survey.observes,
             "direction": None if leg is None else leg.direction,
             "reach": None if leg is None else round(leg.reach, 1),
             "expected": None if leg is None else [round(value, 1) for value in leg.expected],
@@ -327,6 +329,14 @@ class BoardDriver:
                 "source": shift.source,
             },
             "offset": [round(value, 1) for value in reading.offset],
+            "span": None
+            if view is None
+            else {
+                "sequence": view.sequence,
+                "box": None if view.lattice is None else list(view.lattice),
+                "edges": sorted(view.edges),
+            },
+            "measure": reading.detail,
             "island": {
                 "open": island is not None,
                 "views": 0 if island is None else len(island.views),
@@ -354,16 +364,26 @@ class BoardDriver:
         self.sleep(board.PAN_SETTLE_S)
 
 
-def _merge_row(merge: tuple[board.Point, int] | None) -> dict[str, Any] | None:
-    """這一次 observe 的島嶼合併（偏移與併進的 view 數），沒合併就是 null。
+def _merge_row(
+    merge: tuple[board.Point, tuple[tuple[int, board.Point], ...]] | None,
+) -> dict[str, Any] | None:
+    """這一次 observe 的島嶼合併（偏移與併進的每一張 view），沒合併就是 null。
 
     界內台數膨脹的鑑識輸入：重錨偏移寫錯時整批島 view 以錯格吸收，`islands` 只有
-    累計次數，答不了「哪一次錯、錯多少」。
+    累計次數，答不了「哪一次錯、錯多少」。`buffered` 的序號對得回同一份流水帳的
+    `sequence` 欄，所以錯的那一格追得到是哪一 tick／哪一個 probe 收的。
     """
     if merge is None:
         return None
     delta, views = merge
-    return {"delta": [round(value, 1) for value in delta], "views": views}
+    return {
+        "delta": [round(value, 1) for value in delta],
+        "views": len(views),
+        "buffered": [
+            {"sequence": sequence, "offset": [round(value, 1) for value in offset]}
+            for sequence, offset in views
+        ],
+    }
 
 
 def survey_drivers(

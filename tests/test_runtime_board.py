@@ -174,6 +174,34 @@ def test_too_few_units_is_no_constellation_at_all():
     assert board._constellation_shift(((0.0, 0.0),), ((10.0, 0.0),)) is None
 
 
+def test_two_deltas_inside_the_tolerance_land_in_the_same_group():
+    """0801 第 7 輪的八腿殺手：固定桶 `round(delta/24)` 把差 20px 的兩對切進不同的
+    桶（t49 的 (−129,0) 與 (−130,+20)），最高票掉到 1，整條星座證人缺席。"""
+    before = ((400.0, 400.0), (900.0, 380.0))
+    after = ((271.0, 400.0), (770.0, 400.0))
+
+    vote = board._constellation_shift(before, after)
+
+    assert vote is not None
+    assert vote[0] == pytest.approx(-129.5, abs=1.0)
+    assert vote[1] == pytest.approx(10.0, abs=1.0)
+
+
+def test_a_tied_tally_is_broken_by_the_side_that_leaves_no_stragglers():
+    """票數只數支持不數矛盾：兩個候選各拿兩票，但「沒動」那一邊要憑空生出兩台
+    落在偵測帶正中央的單位，「動了 500」那一邊多出來的兩台是從帶外滑進來的。"""
+    before = ((600.0, 400.0), (700.0, 400.0))
+    after = ((600.0, 400.0), (700.0, 400.0), (1100.0, 400.0), (1200.0, 400.0))
+
+    vote = board._constellation_shift(before, after)
+
+    assert vote is not None
+    assert vote[0] == pytest.approx(500.0, abs=1.0)
+    assert board._pairing_score(before, after, (500.0, 0.0)) > board._pairing_score(
+        before, after, (0.0, 0.0)
+    )
+
+
 def test_an_unmeasurable_shift_says_so_instead_of_returning_zero():
     flat = np.zeros((1080, 2340, 3), np.uint8)
 
@@ -323,6 +351,38 @@ def test_the_lattice_channel_no_longer_stands_down_at_the_map_edge():
 
     assert shift != fallback
     assert not shift.known
+
+
+def test_a_terminal_edge_seen_in_both_frames_measures_the_pan_on_its_own():
+    """v2.10 的第三證人：地圖的物理邊界不是週期訊號，格線 alias 與編隊 alias 都動
+    不了它。這裡整幀沒有半台單位、相關器也只有虛空噪點可看，位移仍然量得出來。"""
+    world = World(cols=22, rows=12, units=())
+    # 虛空從最外一條線的右邊開始：地圖到此為止，那條線就是物理邊界
+    lit = COL_PITCH * 12 + 8
+    step = COL_PITCH * 2
+    before = void_outside(world.frame(), (0, 0, lit, 1080))
+    world.move(float(step), 0.0)
+    after = void_outside(world.frame(), (0, 0, lit - step, 1080))
+
+    spans = (board.read_span(before), board.read_span(after))
+    assert all("east" in span.edges for span in spans)
+
+    shift = board.measure_pan(before, after, (-350.0, 0.0))
+
+    assert shift.source == f"{board.LATTICE_SOURCE}:{board.WITNESS_EDGE}"
+    assert shift.dx == pytest.approx(-step, abs=4.0)
+
+
+def test_two_terminal_edges_that_disagree_are_both_dropped():
+    """兩側各量一次同一個剛體平移，差太多就代表至少一側不是地圖邊——挑一個信
+    等於再開一條「量錯寫入」的路。"""
+    lattice = board.Lattice(tuple(range(200, 1400, 100)), tuple(range(300, 700, 100)))
+    seen = board.GridSpan(lattice, (200, 300, 1100, 300), frozenset({"west", "east"}))
+    # 西邊挪了 100、東邊一步沒動＝至少一側量的不是同一件事
+    drifted = board.GridSpan(lattice, (100, 300, 1200, 300), frozenset({"west", "east"}))
+
+    assert board._edge_shift(seen, drifted, "x") is None
+    assert board._edge_shift(seen, seen, "x") == 0.0
 
 
 def _formation(cells: tuple[tuple[int, int], ...]) -> World:

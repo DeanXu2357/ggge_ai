@@ -35,6 +35,7 @@ import logging
 import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 import cv2
 import numpy as np
@@ -44,6 +45,13 @@ log = logging.getLogger(__name__)
 Point = tuple[float, float]
 Cell = tuple[int, int]
 Region = tuple[int, int, int, int]
+# 量測鏈的遙測水槽：給了就逐步驟填進去，永遠不影響裁決（純觀察者）。
+Trace = dict[str, Any] | None
+
+
+def _note(trace: Trace, key: str, value: Any) -> None:
+    if trace is not None:
+        trace[key] = value
 
 # 地圖區：上方避開回合橫幅帶、下方停在 MP／技能／支援鈕列之上（它們的亮圓框會
 # 被當成可移動格）。相位相關的量測窗就是它，1600 寬對 600px 平移安全。
@@ -150,11 +158,15 @@ ENVELOPE_CROSS = 0.4
 PHASE_TOLERANCE = 0.25
 
 # 水平位移的格線相位通道（`measure_pan`）。source 帶證人後綴，遙測才分得出走哪一條：
-# lattice:constellation ／ lattice:phase ／ lattice:commanded。
+# lattice:edge ／ lattice:constellation ／ lattice:phase ／ lattice:commanded。
 LATTICE_SOURCE = "lattice"
+WITNESS_EDGE = "edge"
 WITNESS_CONSTELLATION = "constellation"
 WITNESS_PHASE = "phase"
 WITNESS_COMMANDED = "commanded"
+# 兩側終止邊各量一次同一個剛體平移，差超過這個像素數就是至少一側不是地圖邊——
+# 兩個都不採信（誠實斷鏈勝過挑一個信）。
+EDGE_WITNESS_AGREEMENT = EDGE_SHIFT_PX
 # 星座票被影像複驗判成「確定沒動」——與 `_STILL` 分開記名，遙測才看得出這一幀的
 # 停滯是誰認定的。
 CONSTELLATION_STILL = "constellation:still"
@@ -286,6 +298,13 @@ class GridSpan:
     box: Region
     edges: frozenset[str]
 
+    def border(self, side: str) -> float | None:
+        """該側終止邊的螢幕座標。沒有目擊就 None。"""
+        if side not in self.edges:
+            return None
+        x, y, w, h = self.box
+        return {"west": x, "east": x + w, "north": y, "south": y + h}[side]
+
 
 # 終止邊的三道閘（0801 run 20260801-080213 逐幀實測，見 docs/reviews/scan-v2_6-review.md）：
 # 真終止邊外側的高通能量 3.9-8.5、內側 17.3-21.3；灰階 26-34 對 43-52。地圖還沒看完
@@ -308,7 +327,7 @@ def read_span(frame: np.ndarray | None) -> GridSpan | None:
             lattice.cols[-1] - lattice.cols[0],
             lattice.rows[-1] - lattice.rows[0],
         )
-        return GridSpan(lattice, box, _terminal_edges(frame, lattice, band))
+        return GridSpan(lattice, box, _terminal_edges(frame, lattice))
     return None
 
 
@@ -318,14 +337,18 @@ def _lattice_bands() -> Iterable[tuple[Region, tuple[int, int]]]:
         yield (window, _window_minimum(window))
 
 
-def _terminal_edges(frame: np.ndarray, lattice: Lattice, band: Region) -> frozenset[str]:
+def _terminal_edges(frame: np.ndarray, lattice: Lattice) -> frozenset[str]:
     """哪幾側的最外一條線之外是虛空。
 
-    先要**帶內留得下一整格的檢驗空間**：貼著取樣帶邊緣的線分不出「格網到此為止」
-    與「帶就到這裡」，那種側一律不出證言（象限窗的窗緣尤其）。
+    檢驗帶**只受幀邊界約束，不受取樣帶約束**：取樣帶是找脊的窗，三閘讀的是原始
+    像素，帶外照樣讀得到。舊碼要求「帶內留得下一整格」，於是最外一條線貼著帶緣
+    的那幾側一律棄權——0801 第 7 輪實測那正是東西向死腿的常態（東緣落在 1697-1711、
+    取樣帶到 1750，差一格的餘裕），15 條可用的邊證言被這條含蓄假設全數擋掉。
+    「線到帶緣為止、地圖其實還沒完」由三閘自己擋：那種側的外側是地圖紋理，安靜
+    與暗兩閘都過不了。
     """
     out: set[str] = set()
-    for side, outside, inside in _edge_strips(lattice, band):
+    for side, outside, inside in _edge_strips(lattice):
         beyond = _strip_stats(frame, outside)
         within = _strip_stats(frame, inside)
         if beyond is None or within is None:
@@ -341,25 +364,20 @@ def _terminal_edges(frame: np.ndarray, lattice: Lattice, band: Region) -> frozen
     return frozenset(out)
 
 
-def _edge_strips(lattice: Lattice, band: Region) -> Iterable[tuple[str, Region, Region]]:
-    bx, by, bw, bh = band
+def _edge_strips(lattice: Lattice) -> Iterable[tuple[str, Region, Region]]:
     cols, rows = lattice.cols, lattice.rows
     span = (cols[-1] - cols[0], rows[-1] - rows[0])
     across = (int(lattice.col_pitch), int(lattice.row_pitch))
     if span[0] <= 0 or span[1] <= 0 or across[0] <= 0 or across[1] <= 0:
         return
-    if cols[0] - across[0] >= bx:
-        yield ("west", (cols[0] - across[0], rows[0], across[0], span[1]),
-               (cols[0], rows[0], across[0], span[1]))
-    if cols[-1] + across[0] <= bx + bw:
-        yield ("east", (cols[-1], rows[0], across[0], span[1]),
-               (cols[-1] - across[0], rows[0], across[0], span[1]))
-    if rows[0] - across[1] >= by:
-        yield ("north", (cols[0], rows[0] - across[1], span[0], across[1]),
-               (cols[0], rows[0], span[0], across[1]))
-    if rows[-1] + across[1] <= by + bh:
-        yield ("south", (cols[0], rows[-1], span[0], across[1]),
-               (cols[0], rows[-1] - across[1], span[0], across[1]))
+    yield ("west", (cols[0] - across[0], rows[0], across[0], span[1]),
+           (cols[0], rows[0], across[0], span[1]))
+    yield ("east", (cols[-1], rows[0], across[0], span[1]),
+           (cols[-1] - across[0], rows[0], across[0], span[1]))
+    yield ("north", (cols[0], rows[0] - across[1], span[0], across[1]),
+           (cols[0], rows[0], span[0], across[1]))
+    yield ("south", (cols[0], rows[-1], span[0], across[1]),
+           (cols[0], rows[-1] - across[1], span[0], across[1]))
 
 
 def _strip_stats(frame: np.ndarray, strip: Region) -> tuple[float, float] | None:
@@ -528,7 +546,10 @@ class Shift:
 
 
 def measure_shift(
-    previous: np.ndarray, current: np.ndarray, region: Region = MAP_REGION
+    previous: np.ndarray,
+    current: np.ndarray,
+    region: Region = MAP_REGION,
+    trace: Trace = None,
 ) -> Shift:
     """地圖內容從前一幀到這一幀移動了多少（螢幕像素）。
 
@@ -538,11 +559,15 @@ def measure_shift(
     不知道，也不要拿手勢當位置（0719 西緣鬼影座標就是這樣長出來的）。
     """
     dx, dy, response = _phase_shift(previous, current, region)
+    _note(trace, "correlator", {"dx": round(dx, 1), "dy": round(dy, 1), "response": round(response, 3)})
     if response >= SHIFT_MIN_RESPONSE:
+        _note(trace, "path", "phase")
         return Shift(dx, dy, response, "phase")
-    witness = _constellation_witness(previous, current, region)
+    witness = _constellation_witness(previous, current, region, trace)
     if witness is not None:
+        _note(trace, "path", "constellation")
         return witness
+    _note(trace, "path", "none")
     return Shift(0.0, 0.0, response, "none")
 
 
@@ -561,6 +586,7 @@ def measure_pan(
     current: np.ndarray,
     expected: Point | None,
     region: Region = MAP_REGION,
+    trace: Trace = None,
 ) -> Shift:
     """有指令的水平平移：**格線相位是量測權威**，相位相關降級成證人之一。
 
@@ -577,9 +603,15 @@ def measure_pan(
     三個證人裁決（`_resolve_columns`）。裁不出來就回 source="none"＝誠實不知道，
     讓上層 BROKEN 隔離——**不准拿手勢當位置**（0719 西緣鬼影紅線）。星座證人進來
     之前先過影像複驗（`_constellation_witness`）；複驗判「確定沒動」時整條格線通道
-    讓位——畫面說沒動就是沒動，沒有 k 好裁。
+    讓位——畫面說沒動就是沒動，沒有 k 好裁，除非終止邊證人當場否認（見下）。
 
-    格線走 `find_lattice`（全幀帶讀不出來就退象限窗）。**兩幀可以由不同的窗讀出**：
+    **終止邊證人**（`_edge_shift`）是三個證人裡唯一的絕對量：地圖的物理邊界不是
+    週期訊號，格線 alias、編隊 alias 與靜態星空對它全部無效，所以它排在星座之前。
+    它的代價是常常缺席（那一側的邊得同時在兩幀的取樣帶裡），所以它只是補位、不是
+    取代。與「確定沒動」互相矛盾時兩個都不採信——0801 第 7 輪的整列級量錯寫入就是
+    「一個證人說沒動、畫面其實動了上百 px」，那條路徑不准存在。
+
+    格線走 `read_span`（全幀帶讀不出來就退象限窗）。**兩幀可以由不同的窗讀出**：
     `_column_phase` 拿的是兩組線位對位後的環狀中位殘差，那是 mod pitch 的量，而同一
     張格網不論從哪個象限取樣，線位都落在同一族相位上——窗不同不影響 frac。整數欄數 k
     本來就不由線位決定（那是 `_resolve_columns` 三個證人的事），所以子窗的取樣量少
@@ -590,21 +622,35 @@ def measure_pan(
     **完全走 `measure_shift` 的現行路徑**：靜止閘的取幀比對與 precheck 行為零改變。
     """
     if expected is None or expected[0] == 0.0:
-        return measure_shift(previous, current, region)
-    before = find_lattice(previous)
-    after = find_lattice(current)
+        return measure_shift(previous, current, region, trace)
+    before = read_span(previous)
+    after = read_span(current)
+    _note(trace, "span", [_span_row(before), _span_row(after)])
     if before is None or after is None:
-        return measure_shift(previous, current, region)
-    pitch = (before.col_pitch + after.col_pitch) / 2.0
-    if pitch <= 0 or abs(before.col_pitch - after.col_pitch) > LATTICE_PITCH_DRIFT * pitch:
-        return measure_shift(previous, current, region)
-    frac = _column_phase(before.cols, after.cols, pitch)
+        _note(trace, "path", "measure_shift:no-lattice")
+        return measure_shift(previous, current, region, trace)
+    pitch = (before.lattice.col_pitch + after.lattice.col_pitch) / 2.0
+    if (
+        pitch <= 0
+        or abs(before.lattice.col_pitch - after.lattice.col_pitch) > LATTICE_PITCH_DRIFT * pitch
+    ):
+        _note(trace, "path", "measure_shift:pitch-drift")
+        return measure_shift(previous, current, region, trace)
+    frac = _column_phase(before.lattice.cols, after.lattice.cols, pitch)
     if frac is None:
-        return measure_shift(previous, current, region)
+        _note(trace, "path", "measure_shift:no-frac")
+        return measure_shift(previous, current, region, trace)
+    _note(trace, "frac", round(frac, 1))
+    _note(trace, "pitch", round(pitch, 1))
+    edge = _edge_shift(before, after, "x", trace)
     dx, dy, response = _phase_shift(previous, current, region)
-    constellation = _constellation_witness(previous, current, region)
+    constellation = _constellation_witness(previous, current, region, trace)
     if constellation is not None and constellation.source == CONSTELLATION_STILL:
-        return constellation
+        if edge is None or abs(edge) < EDGE_SHIFT_PX:
+            _note(trace, "path", "constellation:still")
+            return constellation
+        _note(trace, "path", "edge-contradicts-still")
+        return Shift(0.0, 0.0, response, "none")
     vote = (
         None
         if constellation is None
@@ -615,8 +661,12 @@ def measure_pan(
         pitch,
         expected[0],
         None if vote is None else vote[0],
-        dx if _correlator_credible(previous, current, dx, response, region) else None,
+        dx if _correlator_credible(previous, current, dx, response, region, trace) else None,
+        edge,
+        trace=trace,
     )
+    _note(trace, "path", "lattice")
+    across = _edge_shift(before, after, "y", trace)
     if verdict is None:
         return Shift(0.0, 0.0, response, "none")
     pan, witness = verdict
@@ -625,9 +675,42 @@ def measure_pan(
     elif vote is not None:
         drift = vote[1]
     else:
-        drift = 0.0
+        drift = 0.0 if across is None else across
     confidence = vote[2] if witness == WITNESS_CONSTELLATION and vote is not None else response
     return Shift(pan, drift, confidence, f"{LATTICE_SOURCE}:{witness}")
+
+
+def _span_row(span: GridSpan | None) -> dict[str, Any] | None:
+    if span is None:
+        return None
+    return {"box": list(span.box), "edges": sorted(span.edges)}
+
+
+def _edge_shift(
+    before: GridSpan, after: GridSpan, axis: str, trace: Trace = None
+) -> float | None:
+    """同一側的格網終止邊在兩幀之間的螢幕位移＝內容位移。讀不到就 None。
+
+    地圖的物理邊界是**絕對地標**：它不週期，所以格線 alias（欄距 92）與編隊 alias
+    （同型機縱距 90-96）對它都無效，靜態星空與 HUD 也搶不走它。0801 第 7 輪離線
+    鑑識：東西向 17 條死腿有 15 條至少一側可用，與真值差 3.5-8px。
+
+    兩側都讀得到就要互相對得上（`EDGE_WITNESS_AGREEMENT`）——差太多代表至少一側
+    不是地圖邊（脊偵測在取樣帶緣多撿或漏撿一條線），兩個都不採信。
+    """
+    sides = ("west", "east") if axis == "x" else ("north", "south")
+    readings = {
+        side: after.border(side) - before.border(side)
+        for side in sides
+        if before.border(side) is not None and after.border(side) is not None
+    }
+    _note(trace, f"edge_{axis}", {side: round(value, 1) for side, value in readings.items()})
+    if not readings:
+        return None
+    values = sorted(readings.values())
+    if values[-1] - values[0] > EDGE_WITNESS_AGREEMENT:
+        return None
+    return sum(values) / len(values)
 
 
 def _correlator_credible(
@@ -636,6 +719,7 @@ def _correlator_credible(
     dx: float,
     response: float,
     region: Region,
+    trace: Trace = None,
 ) -> bool:
     """相關器夠不夠格當整數欄數的證人。
 
@@ -644,10 +728,24 @@ def _correlator_credible(
     停住的幀（手勢被吃掉、到邊）兩幀幾乎逐像素相同，照樣過得了這一關。
     """
     if response < SHIFT_MIN_RESPONSE:
+        _note(trace, "credible", {"response": round(response, 3), "verdict": False})
         return False
     if abs(dx) >= EDGE_SHIFT_PX:
+        _note(trace, "credible", {"response": round(response, 3), "dx": round(dx, 1), "verdict": True})
         return True
-    return frame_difference(previous, current, region) < EDGE_FRAME_DIFF
+    difference = frame_difference(previous, current, region)
+    verdict = difference < EDGE_FRAME_DIFF
+    _note(
+        trace,
+        "credible",
+        {
+            "response": round(response, 3),
+            "dx": round(dx, 1),
+            "difference": round(difference, 2),
+            "verdict": verdict,
+        },
+    )
+    return verdict
 
 
 def _column_phase(before: Sequence[int], after: Sequence[int], pitch: float) -> float | None:
@@ -670,24 +768,29 @@ def _resolve_columns(
     expected: float,
     constellation: float | None = None,
     correlator: float | None = None,
+    edge: float | None = None,
     limit: float = PAN_UNAMBIGUOUS,
+    trace: Trace = None,
 ) -> tuple[float, str] | None:
-    """整數欄數 k 的三重裁決：候選 ＝ frac + k×pitch，回 (位移, 證人) 或 None。
+    """整數欄數 k 的裁決：候選 ＝ frac + k×pitch，回 (位移, 證人) 或 None。
 
     候選先被指令包絡窗篩過（規則同 `envelope`，只是攤成一維）——窗外的值下游本來就
     會被拒收，先篩掉是為了讓證人在**還可能成立的** k 之間選，而不是被一票離譜的
     星座眾數（0801 t19 投出 −945）整筆帶走。
 
-    兩個獨立證人：**星座投票**（單位環是非週期訊號，格線 alias 對它無效）與
-    **相關器**（可信時才進來，見 `_correlator_credible`）。各自挑離自己最近的候選：
+    三個獨立證人，強弱有序：**終止邊**（地圖物理邊界，非週期，任何 alias 都動不了
+    它，所以排第一）、**星座投票**（單位環是非週期訊號，格線 alias 對它無效，但同型
+    機編隊自己就是週期陣列）、**相關器**（可信時才進來，見 `_correlator_credible`）。
+    各自挑離自己最近的候選：
 
-    - 兩個都有選、選的是同一格 → 採用（0801 東向 t21-t24 就是這一支）。
-    - **兩個都有選、選的不是同一格 → 誠實回 None。** 星座名義上較強，但它錯起來
-      是整整一個眾數的錯（0801 t11 投 21.5、t13 投 4.7，離真值一整欄），而
-      「量錯寫入」那條路徑不准存在，所以獨立證人互相矛盾時寧可斷鏈。
-    - 只有一個有選 → 採用它（0801 t28-t32 靜態峰鎖死時只剩星座，那正是本批要救的）。
+    - 有選的都選同一格 → 採用（0801 東向 t21-t24 就是這一支）。
+    - **選的不是同一格 → 誠實回 None。** 名次只決定誰的名字進 source，不決定誰對：
+      星座錯起來是整整一個眾數的錯（0801 t11 投 21.5、t13 投 4.7，離真值一整欄），
+      而「量錯寫入」那條路徑不准存在，所以獨立證人互相矛盾時寧可斷鏈。
+    - 只有一個有選 → 採用它（0801 t28-t32 靜態峰鎖死時只剩星座，t36-t53 相關器與
+      星座雙缺席時只剩終止邊，那兩批正是本批要救的）。
 
-    指令只在兩個獨立證人都缺席時兜底，而且要求**窗內只剩唯一候選**：0801 實測增益
+    指令只在三個獨立證人都缺席時兜底，而且要求**窗內只剩唯一候選**：0801 實測增益
     還沒學會時 expected 是真值的 2.5 倍（指令 −350 對真值 −142），「取離 expected
     最近的候選」會回一個差兩整欄的自信錯值。窗比一個欄距寬就代表指令分不出 k，那就
     誠實回 None——指令永遠只閘量測，不寫進位置（0719 紅線）。
@@ -698,22 +801,23 @@ def _resolve_columns(
     first = math.ceil((max(-limit, low) - frac) / pitch)
     last = math.floor((min(limit, high) - frac) / pitch)
     candidates = [frac + k * pitch for k in range(first, last + 1)]
+    _note(trace, "window", [round(low, 1), round(high, 1)])
+    _note(trace, "candidates", len(candidates))
     if not candidates:
         return None
     tolerance = LATTICE_WITNESS_TOLERANCE * pitch
+    order = (WITNESS_EDGE, WITNESS_CONSTELLATION, WITNESS_PHASE)
     spoken: dict[str, float] = {}
-    for witness, value in (
-        (WITNESS_CONSTELLATION, constellation),
-        (WITNESS_PHASE, correlator),
-    ):
+    for witness, value in zip(order, (edge, constellation, correlator), strict=True):
         if value is None:
             continue
         pick = _nearest_candidate(candidates, value, tolerance)
         if pick is not None:
             spoken[witness] = pick
+    _note(trace, "spoken", {witness: round(pick, 1) for witness, pick in spoken.items()})
     if len(set(spoken.values())) > 1:
         return None
-    for witness in (WITNESS_CONSTELLATION, WITNESS_PHASE):
+    for witness in order:
         if witness in spoken:
             return (spoken[witness], witness)
     if len(candidates) != 1:
@@ -743,33 +847,121 @@ def _envelope_window(expected: float) -> tuple[float, float]:
 
 CONSTELLATION_TOLERANCE = 24
 CONSTELLATION_MIN_VOTES = 2
+# 一致性打分只罰「該在畫面裡卻對不上」的單位：離偵測帶邊緣這麼近的位置，平移之後
+# 本來就可能滑出去，配不上是物理不是矛盾。
+CONSTELLATION_MARGIN = 70.0
+# 星座棄權的三個口，逐筆進遙測——票數多寡分不出「沒得投」與「投了但分不出來」。
+CONSTELLATION_VETO_UNITS = "too_few_units"
+CONSTELLATION_VETO_TALLY = "max_tally_1"
+CONSTELLATION_VETO_TIE = "tie"
 
 
 def _constellation_shift(
-    before: Sequence[Point], after: Sequence[Point]
+    before: Sequence[Point], after: Sequence[Point], trace: Trace = None
 ) -> tuple[float, float, float] | None:
-    """每一對單位配對投一個平移，被兩台以上支持的唯一眾數勝。平手＝不知道。"""
+    """每一對單位配對投一個平移，支持最多的那一團勝，取團內中位數。
+
+    **不用固定桶**：`round(delta / 容差)` 的桶邊界會把容差內的兩個 delta 切進不同的
+    桶。0801 第 7 輪實測——t49 的 (−129,0) 與 (−130,+20) 只差 20px 卻分家，t50 的
+    (136,−11) 與 (125,1) 同理，兩邊各剩一票，最高票 1 於是整條星座證人缺席八腿。
+    改成 seed-and-recollect：每一個 delta 當一次種子、收所有落在它 ±容差內的 delta，
+    收得最多的那一團勝——桶邊界就不存在了。
+
+    最高票並列時不直接棄權，先用雙向一致性打分裁（`_pairing_score`）。票數只數支持
+    不數矛盾，週期編隊的錯位候選照樣拿得到票；分數把矛盾算進去，仍平才回 None。
+    """
     if len(before) < CONSTELLATION_MIN_VOTES or len(after) < CONSTELLATION_MIN_VOTES:
+        _note(trace, "constellation", {"veto": CONSTELLATION_VETO_UNITS,
+                                       "units": [len(before), len(after)]})
         return None
-    votes: dict[tuple[int, int], list[Point]] = {}
-    for ax, ay in before:
-        for bx, by in after:
-            delta = (bx - ax, by - ay)
-            key = (
-                round(delta[0] / CONSTELLATION_TOLERANCE),
-                round(delta[1] / CONSTELLATION_TOLERANCE),
-            )
-            votes.setdefault(key, []).append(delta)
-    best = max(votes.values(), key=len)
-    tallies = sorted((len(group) for group in votes.values()), reverse=True)
-    if len(best) < CONSTELLATION_MIN_VOTES:
+    deltas = np.array(
+        [(bx - ax, by - ay) for ax, ay in before for bx, by in after], dtype=np.float64
+    )
+    near = (np.abs(deltas[:, 0, None] - deltas[None, :, 0]) <= CONSTELLATION_TOLERANCE) & (
+        np.abs(deltas[:, 1, None] - deltas[None, :, 1]) <= CONSTELLATION_TOLERANCE
+    )
+    tally = near.sum(axis=1)
+    best = int(tally.max())
+    groups: list[tuple[Point, int]] = []
+    for seed in np.argsort(-tally, kind="stable"):
+        if int(tally[seed]) < best and len(groups) >= 3:
+            break
+        members = deltas[near[seed]]
+        centre = (float(np.median(members[:, 0])), float(np.median(members[:, 1])))
+        if any(
+            abs(centre[0] - x) <= CONSTELLATION_TOLERANCE
+            and abs(centre[1] - y) <= CONSTELLATION_TOLERANCE
+            for (x, y), _ in groups
+        ):
+            continue
+        groups.append((centre, int(tally[seed])))
+    detail: dict[str, Any] = {
+        "units": [len(before), len(after)],
+        "top": [[round(x, 1), round(y, 1), count] for (x, y), count in groups[:3]],
+    }
+    winners = [centre for centre, count in groups if count == best]
+    if best < CONSTELLATION_MIN_VOTES:
+        _note(trace, "constellation", {**detail, "veto": CONSTELLATION_VETO_TALLY})
         return None
-    if len(tallies) > 1 and tallies[1] == tallies[0]:
+    if len(winners) > 1:
+        scored = [(_pairing_score(before, after, centre), centre) for centre in winners]
+        detail["scores"] = [[round(x, 1), round(y, 1), score] for score, (x, y) in scored]
+        top = max(score for score, _ in scored)
+        winners = [centre for score, centre in scored if score == top]
+    if len(winners) != 1:
+        _note(trace, "constellation", {**detail, "veto": CONSTELLATION_VETO_TIE})
         return None
+    dx, dy = winners[0]
+    _note(trace, "constellation", {**detail, "vote": [round(dx, 1), round(dy, 1)]})
+    return (dx, dy, best / max(len(before), len(after)))
+
+
+def _pairing_score(
+    before: Sequence[Point],
+    after: Sequence[Point],
+    delta: Point,
+    region: Region = UNIT_DENSITY_REGION,
+) -> int:
+    """候選平移的雙向一致性：配得上的對數減去解釋不掉的單位數。
+
+    票數只數支持不數矛盾——週期編隊裡「錯一個編隊間距」的候選拿得到票，但它會留下
+    一整排落在畫面裡卻沒有對應者的單位。那些矛盾才分得出真假（0801 第 7 輪 t21：
+    正解得 2 分，差一整欄的候選得 −3）。
+    """
+    matched = 0
+    unexplained = 0
+    used: set[int] = set()
+    for source in before:
+        target = (source[0] + delta[0], source[1] + delta[1])
+        hit = next(
+            (
+                index
+                for index, seen in enumerate(after)
+                if index not in used
+                and abs(seen[0] - target[0]) <= CONSTELLATION_TOLERANCE
+                and abs(seen[1] - target[1]) <= CONSTELLATION_TOLERANCE
+            ),
+            None,
+        )
+        if hit is not None:
+            matched += 1
+            used.add(hit)
+        elif _well_inside(target, region) and _well_inside(source, region):
+            unexplained += 1
+    for index, seen in enumerate(after):
+        if index in used:
+            continue
+        origin = (seen[0] - delta[0], seen[1] - delta[1])
+        if _well_inside(seen, region) and _well_inside(origin, region):
+            unexplained += 1
+    return matched - unexplained
+
+
+def _well_inside(point: Point, region: Region) -> bool:
+    x, y, w, h = region
+    margin = CONSTELLATION_MARGIN
     return (
-        sum(delta[0] for delta in best) / len(best),
-        sum(delta[1] for delta in best) / len(best),
-        len(best) / max(len(before), len(after)),
+        x + margin <= point[0] <= x + w - margin and y + margin <= point[1] <= y + h - margin
     )
 
 
@@ -793,13 +985,20 @@ def null_check(
     delta: Point,
     points: Sequence[Point] | None = None,
     region: Region = MAP_REGION,
+    reference: Point = (0.0, 0.0),
 ) -> str:
-    """「內容位移了 delta」與「根本沒動」兩個假設，拿畫面對質。
+    """「內容位移了 delta」與「內容位移了 reference」兩個假設，拿畫面對質。
 
-    逐個精靈開一個窗，比 `current` 的窗對上 `previous` 同位置（原地假設）與
-    `previous` 平移 delta 之後那個位置（位移假設）的平均絕對差，明顯低的那個假設
-    得一票。票數要過門檻又要勝過對手才算數，否則回 `NULL_UNCLEAR`＝看過了但兩個
-    假設都對不上；窗湊不到門檻數（鏡頭底下沒幾台）回 `NULL_BLIND`＝沒得看。
+    `reference` 預設 (0,0)＝原地假設，所以預設語意就是「動了 delta 沒有」；回
+    `NULL_STILL` 一律讀成「reference 那一邊勝」。呼叫端要驗的如果是「我量到的這個
+    小位移對不對」，就把量到的值放進 reference——**兩個假設要在同一個粒度上比**：
+    真的滑了 20px 的幀拿「原地」當對手一定輸（環偏 20px 的差比對上另一塊背景還大），
+    那不是「動了指令那麼多」的證據。
+
+    逐個精靈開一個窗，比 `current` 的窗對上 `previous` 平移 reference 之後那個位置
+    與 `previous` 平移 delta 之後那個位置的平均絕對差，明顯低的那個假設得一票。
+    票數要過門檻又要勝過對手才算數，否則回 `NULL_UNCLEAR`＝看過了但兩個假設都對
+    不上；窗湊不到門檻數（鏡頭底下沒幾台）回 `NULL_BLIND`＝沒得看。
 
     **為什麼是逐精靈窗而不是整個 region 取一個平均**：畫面有兩層，星空背景不隨鏡頭
     動、地圖層才動。整區平均由面積大的那一層說了算，0801 實測（run 20260801-080213）
@@ -810,10 +1009,10 @@ def null_check(
     取樣窗的中心限在 `region` 內（預設地圖區）：卡條與畫面下緣那一帶的密度峰品質
     差，放進來會把 0801 t24 這種本該 unclear 的幀投成 still（實測 4:6）。
 
-    delta 小於一次平移的判準門檻時兩個假設在畫面上根本分不開（窗幾乎重疊），直接
+    兩個假設差不到一次平移的判準門檻時它們在畫面上根本分不開（窗幾乎重疊），直接
     回 blind——那種量值下游本來就當沒動處理。
     """
-    if math.hypot(delta[0], delta[1]) < EDGE_SHIFT_PX:
+    if math.hypot(delta[0] - reference[0], delta[1] - reference[1]) < EDGE_SHIFT_PX:
         return NULL_BLIND
     x, y, w, h = region
     before = cv2.cvtColor(previous, cv2.COLOR_BGR2GRAY).astype(np.float32)
@@ -825,7 +1024,7 @@ def null_check(
         if not (x <= px <= x + w and y <= py <= y + h):
             continue
         here = _window(after, px, py)
-        origin = _window(before, px, py)
+        origin = _window(before, px - reference[0], py - reference[1])
         shifted = _window(before, px - delta[0], py - delta[1])
         if here is None or origin is None or shifted is None:
             continue
@@ -854,7 +1053,10 @@ def _window(image: np.ndarray, x: float, y: float, half: int = NULL_PATCH_HALF) 
 
 
 def _constellation_witness(
-    previous: np.ndarray, current: np.ndarray, region: Region = MAP_REGION
+    previous: np.ndarray,
+    current: np.ndarray,
+    region: Region = MAP_REGION,
+    trace: Trace = None,
 ) -> Shift | None:
     """星座票過影像複驗才算數；原地假設勝出時回「確定沒動」。
 
@@ -864,10 +1066,11 @@ def _constellation_witness(
     STALLED 正軌，不必靠 `frame_difference`（待機動畫實測 5.8-12.5，恆高於
     EDGE_FRAME_DIFF，原地幀永遠走不進那一支）。
     """
-    vote = _constellation_shift(find_units(previous), find_units(current))
+    vote = _constellation_shift(find_units(previous), find_units(current), trace)
     if vote is None:
         return None
     verdict = null_check(previous, current, (vote[0], vote[1]), region=region)
+    _note(trace, "vote_null_check", verdict)
     if verdict == NULL_STILL:
         return Shift(0.0, 0.0, vote[2], CONSTELLATION_STILL)
     if verdict == NULL_UNCLEAR:

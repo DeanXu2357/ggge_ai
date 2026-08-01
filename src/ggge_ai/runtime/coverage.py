@@ -150,6 +150,9 @@ class FrameView:
     # 不敢說那裡有格子——EMPTY 毯一格都不鋪。
     lattice: Region | None = None
     edges: frozenset[str] = frozenset()
+    # 生這張 view 的那一次 observe 的序號。島嶼緩衝可以攢好幾幀再整批合併，事後光看
+    # 合併偏移分不出哪一幀是哪一 tick 收的；序號與流水帳同一列，join 得回 tick／probe。
+    sequence: int = 0
 
     def shifted(self, delta: Point) -> FrameView:
         return replace(self, offset=(self.offset[0] + delta[0], self.offset[1] + delta[1]))
@@ -166,6 +169,9 @@ class Reading:
     shift: Shift
     offset: Point
     reason: str = ""
+    # 量測鏈的逐步驟自述（`board` 那一側填的 trace ＋里程計自己的兩個閘）。純觀察者：
+    # 沒有任何判斷讀它，流水帳讀它。
+    detail: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -402,25 +408,71 @@ class Odometer:
         if self.previous is None:
             self.previous = frame
             return Reading(ACCEPTED, _STILL, self.offset, "anchor")
-        shift = board.measure_pan(self.previous, frame, expected)
+        previous = self.previous
+        detail: dict[str, object] = {}
+        shift = board.measure_pan(previous, frame, expected, trace=detail)
         # 兩幀幾乎同一張＝畫面真的沒動，位移取準確的 0。相位相關對零位移有半像素
         # 的系統偏差（實測 identical frames 回 dy=+0.5），停滯一多就會累成整格漂移。
         if shift.magnitude < board.EDGE_SHIFT_PX or not shift.known:
-            if board.frame_difference(self.previous, frame) < board.EDGE_FRAME_DIFF:
+            if board.frame_difference(previous, frame) < board.EDGE_FRAME_DIFF:
                 shift = _STILL
             elif not shift.known:
-                return Reading(BROKEN, shift, self.offset, "unmeasurable")
+                return Reading(BROKEN, shift, self.offset, "unmeasurable", detail)
         gate = board.envelope(shift, expected)
         if gate == board.ENVELOPE_REFUSED:
-            return Reading(BROKEN, shift, self.offset, "envelope")
+            return Reading(BROKEN, shift, self.offset, "envelope", detail)
         candidate = (self.offset[0] - shift.dx, self.offset[1] - shift.dy)
         snapped = self._snap(frame, candidate)
         if snapped is None:
-            return Reading(BROKEN, shift, self.offset, "phase")
+            return Reading(BROKEN, shift, self.offset, "phase", detail)
+        if shift.magnitude < board.EDGE_SHIFT_PX and _commanded(expected):
+            still = self._still(previous, frame, shift, expected, detail)
+            if still != board.NULL_STILL:
+                return Reading(BROKEN, shift, self.offset, f"stall_{still}", detail)
+            self.offset = snapped
+            self.previous = frame
+            return Reading(STALLED, shift, snapped, gate, detail)
         self.offset = snapped
         self.previous = frame
-        stalled = shift.magnitude < board.EDGE_SHIFT_PX and _commanded(expected)
-        return Reading(STALLED if stalled else ACCEPTED, shift, snapped, gate)
+        return Reading(ACCEPTED, shift, snapped, gate, detail)
+
+    def _still(
+        self,
+        previous: np.ndarray,
+        frame: np.ndarray,
+        shift: Shift,
+        expected: Point,
+        detail: dict[str, object],
+    ) -> str:
+        """量到「沒動」時要有人**指著畫面**說沒動，否則整筆降 BROKEN 隔離。
+
+        0801 第 7 輪離線鑑識：那一輪六次 STALLED 六次都真的動了，t13／t16／t25 的
+        真實位移是 −172／−186／+164——量錯照樣 absorb，同一片場景以錯的 offset 疊進
+        大陸，那是「量錯寫入」紅線最直接的路徑。縱軸沒有相位閘，攔不住它。
+
+        三種說法算數：兩幀幾乎逐像素相同（`_STILL`）、影像複驗判「確定沒動」
+        （`CONSTELLATION_STILL`）、終止邊這個絕對地標沒挪窩。都不是的話當場再問一次
+        畫面——**對手是量到的值不是原地**：真滑了 20px 的幀拿原地當對手一定輸，那
+        不是「動了指令那麼多」的證據（見 `board.null_check` 的 reference）。
+
+        **代價與補償**：稀疏區（鏡頭底下不到兩台）真停滯會被判 BLIND 而降 BROKEN，
+        多繞一次島；但真停滯最常發生在邊界上，而那正是終止邊證人讀得到的地方——
+        它量到 ~0 就是名正言順的靜止證言，把成本吃回來。
+        """
+        conclusive = (
+            _STILL.source,
+            board.CONSTELLATION_STILL,
+            f"{board.LATTICE_SOURCE}:{board.WITNESS_EDGE}",
+        )
+        verdict = (
+            board.NULL_STILL
+            if shift.source in conclusive
+            else board.null_check(
+                previous, frame, expected, reference=(shift.dx, shift.dy)
+            )
+        )
+        detail["stall"] = {"source": shift.source, "verdict": verdict}
+        return verdict
 
     def rephase(self, frame: np.ndarray) -> None:
         """把 offset 對齊到這一幀的格線相位（不設容差）。
@@ -548,6 +600,12 @@ class Survey:
     legs: int = 0
     generation: int = 0
     adrift: bool = False
+    # observe 的呼叫序號（從 1 起）。純識別用：每一張 view 帶著它出生的序號，遙測
+    # 才把「這一批合併的是哪幾幀」講得出來。
+    observes: int = 0
+    # 最近一次生出來的 view。遙測要它的格線框與終止邊——那是「這一幀敢說哪裡有格子」
+    # 的原始證據，斷鏈時尤其要看得到。
+    last_view: FrameView | None = None
     # 大陸最後一張收下的幀與它的 offset。島嶼合併前拿它跟島當下幀對質（影像複驗
     # 閘）——量測層要自己留一份：driver 的 previous 是 stage 層的取幀紀錄，而
     # `Odometer.previous` 在斷鏈時刻意不推進，兩者都不是「大陸最後的權威幀」。
@@ -555,8 +613,9 @@ class Survey:
     # 這一次 observe 有沒有合併島嶼，合併在哪個偏移、併進幾個 view。每次 observe
     # 開頭清成 None：它是「這一幀發生了什麼」的遙測，留著跨 tick 會讓同一次合併
     # 重複入帳。delta 寫錯時整批島 view 以錯格吸收，事後光看 islands 的累計次數
-    # 分不出是哪一次錯、錯多少。
-    last_merge: tuple[Point, int] | None = None
+    # 分不出是哪一次錯、錯多少——所以併進去的每一張 view 連同出生序號與自身 offset
+    # 一起記，錯的那一格才追得回是哪一 tick 收的。
+    last_merge: tuple[Point, tuple[tuple[int, Point], ...]] | None = None
 
     @property
     def anchored(self) -> bool:
@@ -573,6 +632,7 @@ class Survey:
     def observe(self, frame: np.ndarray, leg: Leg | None = None) -> Reading:
         """吃一幀：量位移、過雙閘，寫進權威圖或側緩衝。"""
         self.last_merge = None
+        self.observes += 1
         if self.chart is None:
             return self._anchor(frame)
         if self.adrift:
@@ -596,7 +656,7 @@ class Survey:
         else:
             clash = self._edge_clash(view)
             if clash is not None:
-                reading = Reading(BROKEN, reading.shift, reading.offset, clash)
+                reading = Reading(BROKEN, reading.shift, reading.offset, clash, reading.detail)
                 self._isolate(frame, reading, odometer, expected)
                 return reading
             self.chart.absorb(view)
@@ -732,14 +792,17 @@ class Survey:
 
     def _view(self, frame: np.ndarray, offset: Point) -> FrameView:
         span = board.read_span(frame)
-        return FrameView(
+        view = FrameView(
             offset=offset,
             units=board.find_sightings(frame, self.region),
             region=self.region,
             holes=self.holes,
             lattice=None if span is None else span.box,
             edges=frozenset() if span is None else span.edges,
+            sequence=self.observes,
         )
+        self.last_view = view
+        return view
 
     def _sight_edges(self, view: FrameView) -> None:
         """目視終止邊定旗：格網在畫面上就到這裡，那一側的邊界是**看到的**，不是從
@@ -924,7 +987,10 @@ class Survey:
             )
             self.island = None
             self.islands["merged"] += 1
-            self.last_merge = (delta, len(island.views))
+            self.last_merge = (
+                delta,
+                tuple((buffered.sequence, buffered.offset) for buffered in island.views),
+            )
             log.info("island of %d frames re-anchored at %s", len(island.views), delta)
             return
         if len(island.views) >= ISLAND_BUDGET:
