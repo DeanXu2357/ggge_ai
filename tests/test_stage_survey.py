@@ -534,7 +534,7 @@ def test_the_telemetry_files_one_row_per_observe_with_the_measurement():
         }
         assert set(row["shift"]) == {"dx", "dy", "magnitude", "confidence", "source"}
         assert set(row["island"]) == {"open", "views"}
-        assert set(row["islands"]) == {"isolated", "merged", "discarded", "reset"}
+        assert set(row["islands"]) == {"isolated", "merged", "discarded", "reset", "refused"}
         assert set(row["settle"]) == {"waits", "quiet"}
         assert len(row["offset"]) == 2
         # 沒合併就是 null——它是單幀事件，不是累計欄位
@@ -918,6 +918,7 @@ def test_the_journal_gets_the_coverage_numbers_every_tick(tmp_path):
         "merged": 0,
         "discarded": 0,
         "reset": 0,
+        "refused": 0,
         "open": False,
     }
 

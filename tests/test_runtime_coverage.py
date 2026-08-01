@@ -32,6 +32,7 @@ from ggge_ai.runtime.perceive import Observation
 from ggge_ai.stage.actions import SurveyBoard
 from ggge_ai.stage.survey import survey_drivers
 from tests.fixtures.synthetic_map import (
+    COL_PITCH,
     World,
     animated,
     blind_correlator,
@@ -621,18 +622,31 @@ def test_an_unlocalisable_frame_is_isolated_and_never_written_blind():
     assert got == want
 
 
-def test_a_camera_jump_is_refused_then_re_anchored_by_the_constellation():
-    """鏡頭莫名跳走＝繞回混疊的實機版本：包絡閘先擋下來，島嶼再靠已記目擊重錨。"""
+def test_a_camera_jump_sideways_is_refused_and_the_world_restarts_honestly():
+    """鏡頭往**沒被推過的那一軸**莫名跳走：量測包絡閘先擋下來（島嶼隔離），合併包絡
+    閘再擋掉重錨——南向腿推不出 512px 的橫向偏移，那個 delta 只可能是星座的編隊
+    alias。處置是整批丟棄、世界誠實重開：座標換一套原點，但一格都沒寫錯。"""
     world = _synthetic()
 
     _, ledger = sweep(Rig(world, jumps={4: (900.0, 0.0)}))
 
     summary = ledger.summary()
     assert summary["islands"]["isolated"] == 1
-    assert summary["islands"]["merged"] == 1
+    assert summary["islands"]["merged"] == 0
+    assert summary["islands"]["refused"] >= 1
+    assert summary["islands"]["reset"] == 1
     assert ledger.synced
     want, got = unit_cells(ledger, world)
-    assert got == want
+    assert _rebased(got) == _rebased(want)
+
+
+def _rebased(cells: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """把整組格座標移到左上角原點：世界重開之後原點換了一套，格與格的相對關係
+    才是「一格都沒寫錯」的內容。"""
+    if not cells:
+        return []
+    base = (min(cell[0] for cell in cells), min(cell[1] for cell in cells))
+    return sorted((cell[0] - base[0], cell[1] - base[1]) for cell in cells)
 
 
 def test_an_idle_animation_no_longer_blocks_the_stall_verdict(monkeypatch):
@@ -676,6 +690,52 @@ def test_a_frame_whose_only_lattice_is_in_a_corner_still_gets_a_phase_check(monk
     survey.observe(world.canvas[0:1080, 0:2340])
 
     assert survey.observe(edge, leg).verdict == BROKEN
+
+
+def test_a_merge_offset_the_commands_could_not_have_produced_is_refused():
+    """重錨解出來的偏移得對得起指令：南向腿推不出橫向 400px，那個 delta 只可能是
+    星座的編隊 alias。整批島 view 以錯格吸收一次，UNIT 滯後就把鬼影保到跨代。"""
+    truth = (400.0, 0.0)
+    marks = ((350.0, 290.0), (550.0, 490.0), (950.0, 690.0))
+    survey = _islanded(marks, truth)
+    survey.island.lost = {"x": 0.0, "y": 155.0}
+
+    survey._reanchor(None, _reading(ACCEPTED), survey.island.views[0], _blank())
+
+    assert survey.islands["merged"] == 0
+    assert survey.islands["refused"] == 1
+    assert survey.island is not None
+    assert survey.last_merge is None
+
+
+def test_a_merge_offset_within_the_commanded_travel_still_goes_through():
+    """守成：包絡是上界不是等式，指令範圍內的重錨照併。"""
+    truth = (0.0, 60.0)
+    marks = ((350.0, 290.0), (550.0, 490.0), (950.0, 690.0))
+    survey = _islanded(marks, truth)
+    survey.island.lost = {"x": 0.0, "y": 155.0}
+
+    survey._reanchor(None, _reading(ACCEPTED), survey.island.views[0], _blank())
+
+    assert survey.islands["merged"] == 1
+    assert survey.islands["refused"] == 0
+
+
+def test_a_merge_that_lands_on_a_frame_that_never_moved_is_refused():
+    """合併偏移隱含一個螢幕位移：把大陸最後一張幀依它平移之後要比「鏡頭沒動」更像
+    島當下這一幀，不然那個偏移就是幽靈。"""
+    world = World(cols=22, rows=12, units=((3, 3), (4, 3), (5, 3), (6, 3)))
+    frame = world.frame()
+    survey = Survey()
+    survey.observe(frame)
+    survey.mainland = (frame, (0.0, 0.0))
+    grid = survey.chart.grid
+    survey.island = Island(reason="test", odometer=Odometer(grid=grid), lost=None)
+    seen = FrameView(offset=(0.0, 0.0), units=board.find_sightings(frame))
+    survey.island.views = [seen]
+
+    assert not survey._admits(survey.island, (COL_PITCH * 3, 0.0), seen, frame)
+    assert survey._admits(survey.island, (0.0, 0.0), seen, frame)
 
 
 def test_an_island_that_never_re_anchors_is_dropped_and_the_world_restarts():
@@ -745,7 +805,14 @@ def test_the_summary_carries_the_numbers_the_journal_needs_every_tick():
         "unreachable",
         "bounded",
     }
-    assert set(summary["islands"]) == {"isolated", "merged", "discarded", "reset", "open"}
+    assert set(summary["islands"]) == {
+        "isolated",
+        "merged",
+        "discarded",
+        "reset",
+        "refused",
+        "open",
+    }
 
 
 def test_a_leg_never_commands_more_than_half_the_unambiguous_range():
@@ -858,7 +925,7 @@ def test_a_merged_island_records_the_offset_it_was_merged_at():
     marks = ((350.0, 290.0), (550.0, 490.0), (950.0, 690.0))
     survey = _islanded(marks, truth)
 
-    survey._reanchor(None, _reading(ACCEPTED), survey.island.views[0])
+    survey._reanchor(None, _reading(ACCEPTED), survey.island.views[0], _blank())
 
     assert survey.islands["merged"] == 1
     delta, views = survey.last_merge
@@ -870,7 +937,7 @@ def test_a_re_anchored_island_hands_its_offset_to_the_telemetry():
     """界內台數膨脹的鑑識輸入：`islands` 只有累計次數，答不了哪一次錯、錯多少。
     合併是單幀事件，所以只有那一列遙測帶得到它。"""
     world = _synthetic()
-    rig = Rig(world, jumps={4: (900.0, 0.0)})
+    rig = Rig(world, blank=(18, 20, 22))
     rows: list[dict] = []
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, telemetry=rows.append)
     ledger.zoomed = True
@@ -1129,6 +1196,11 @@ def _stalling_island() -> Survey:
     survey.chart = chart(boundary={"west": 0})
     survey.island = Island(reason="test", odometer=Odometer(grid=GRID))
     return survey
+
+
+def _blank() -> np.ndarray:
+    """單元層用的空白幀：影像複驗閘在上面一個精靈都取樣不到＝沒得看，不表態。"""
+    return np.zeros((1080, 2340, 3), np.uint8)
 
 
 def _reading(verdict: str) -> Reading:

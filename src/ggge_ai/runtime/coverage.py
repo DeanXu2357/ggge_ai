@@ -21,6 +21,9 @@
 4. 星座匹配（`board.relocalise`）＝全域重定位器，斷鏈後重錨用，不是主里程計。
 5. 撞邊重錨＝絕對參考：島嶼在已知邊界上撞邊就把那一軸釘死。
 
+島嶼合併另有兩道閘（`Survey._admits`）：指令包絡（合併偏移不能大過斷鏈期間沒入帳
+的指令位移）與影像複驗（合併偏移隱含的螢幕位移要在畫面上勝過「鏡頭沒動」）。
+
 兩條安全網不變式：**無「量錯寫入」路徑**（雙閘沒過就斷鏈，該幀的觀測進側緩衝
 不進權威圖）、**無「無聲丟失」路徑**（沒觀測到的界內格永遠是 UNKNOWN，前緣一定
 把它排回補掃）。
@@ -462,6 +465,12 @@ class Island:
     # 島嶼模式的停滯計數（方向別）。掛在島上而不是 Survey 上：島一丟棄就跟著滅，
     # 上一座島的停滯不能拿來釘下一座島的軸。
     stalls: dict[str, int] = field(default_factory=dict)
+    # 島嶼存活期間發出過的指令位移（軸別絕對值和）＝合併偏移的物理上界來源。斷鏈
+    # 那一腿與島內每一腿都算進來：島內的腿即使被判 STALLED 也可能是量錯（相關器
+    # 鎖靜態峰），那段位移一樣要靠合併偏移補回來。跨島嶼累加——島內再斷鏈會換一座島
+    # 但**沿用同一個局部原點**，前一次的帳還掛在這個原點上。None ＝ 沒有指令可當
+    # 包絡（回合交界鏡頭被遊戲拉走）。
+    lost: dict[str, float] | None = None
 
     @property
     def sightings(self) -> tuple[Point, ...]:
@@ -505,12 +514,22 @@ class Survey:
     # 撞邊當下的世界座標（軸別）：鏡頭離開就不再是夾住的狀態，見 _clamped。
     clamps: dict[str, float] = field(default_factory=dict)
     islands: dict[str, int] = field(
-        default_factory=lambda: {"isolated": 0, "merged": 0, "discarded": 0, "reset": 0}
+        default_factory=lambda: {
+            "isolated": 0,
+            "merged": 0,
+            "discarded": 0,
+            "reset": 0,
+            "refused": 0,
+        }
     )
     unlocalised: int = 0
     legs: int = 0
     generation: int = 0
     adrift: bool = False
+    # 大陸最後一張收下的幀與它的 offset。島嶼合併前拿它跟島當下幀對質（影像複驗
+    # 閘）——量測層要自己留一份：driver 的 previous 是 stage 層的取幀紀錄，而
+    # `Odometer.previous` 在斷鏈時刻意不推進，兩者都不是「大陸最後的權威幀」。
+    mainland: tuple[np.ndarray, Point] | None = None
     # 這一次 observe 有沒有合併島嶼，合併在哪個偏移、併進幾個 view。每次 observe
     # 開頭清成 None：它是「這一幀發生了什麼」的遙測，留著跨 tick 會讓同一次合併
     # 重複入帳。delta 寫錯時整批島 view 以錯格吸收，事後光看 islands 的累計次數
@@ -537,23 +556,26 @@ class Survey:
         if self.adrift:
             self.adrift = False
             reading = Reading(BROKEN, _STILL, self.odometer.offset, "generation")
-            self._isolate(frame, reading, self.odometer, counted=False)
+            self._isolate(frame, reading, self.odometer, None, counted=False, metered=False)
             return reading
         odometer = self.island.odometer if self.island is not None else self.odometer
-        reading = odometer.feed(frame, None if leg is None else leg.expected)
+        expected = None if leg is None else leg.expected
+        reading = odometer.feed(frame, expected)
         if reading.verdict == BROKEN:
-            self._isolate(frame, reading, odometer)
+            self._isolate(frame, reading, odometer, expected)
             return reading
         if leg is not None:
             self._learn_gain(leg, reading)
         view = self._view(frame, reading.offset)
         if self.island is not None:
             self.island.views.append(view)
-            self._reanchor(leg, reading, view)
+            self._reanchor(leg, reading, view, frame)
         else:
             self.chart.absorb(view)
             if leg is not None:
                 self._boundary(leg, reading, view)
+        if self.island is None:
+            self.mainland = (frame, self.odometer.offset)
         return reading
 
     def plan_leg(self) -> Leg | None:
@@ -672,6 +694,7 @@ class Survey:
         self.chart = KnowledgeMap(grid=grid)
         self.odometer = Odometer(grid=grid, offset=(0.0, 0.0), previous=frame)
         self.chart.absorb(self._view(frame, (0.0, 0.0)))
+        self.mainland = (frame, (0.0, 0.0))
         return Reading(ACCEPTED, _STILL, (0.0, 0.0), "anchor")
 
     def _view(self, frame: np.ndarray, offset: Point) -> FrameView:
@@ -754,31 +777,51 @@ class Survey:
         log.info("boundary %s fixed at %s after %d stalls", leg.direction, line, hits)
 
     def _isolate(
-        self, frame: np.ndarray, reading: Reading, odometer: Odometer, *, counted: bool = True
+        self,
+        frame: np.ndarray,
+        reading: Reading,
+        odometer: Odometer,
+        expected: Point | None,
+        *,
+        counted: bool = True,
+        metered: bool = True,
     ) -> None:
         """斷鏈：這一幀之後的觀測進側緩衝，不進權威圖。島內再斷鏈就把舊島丟掉
         （那一區留 UNKNOWN，前緣會回來補）。
 
         counted=False 是回合交界的預期斷鏈——那不是量測失敗，不該算進 unlocalised。
+        metered=False 是同一件事的另一面：鏡頭被遊戲拉走，沒有指令可以當合併偏移的
+        上界，`lost` 於是留 None（不設包絡）。
         """
         if counted:
             self.unlocalised += 1
+        carried = (
+            None
+            if not metered
+            else (self.island.lost if self.island is not None else {"x": 0.0, "y": 0.0})
+        )
         if self.island is not None:
             self.islands["discarded"] += 1
         log.warning("odometry chain broke (%s); isolating the frame", reading.reason)
         seed = Odometer(grid=odometer.grid, offset=odometer.offset, previous=frame)
         seed.rephase(frame)
-        self.island = Island(reason=reading.reason, odometer=seed)
+        self.island = Island(reason=reading.reason, odometer=seed, lost=_lost(carried, expected))
         self.island.views.append(self._view(frame, seed.offset))
         self.islands["isolated"] += 1
 
-    def _reanchor(self, leg: Leg | None, reading: Reading, view: FrameView) -> None:
+    def _reanchor(
+        self, leg: Leg | None, reading: Reading, view: FrameView, frame: np.ndarray
+    ) -> None:
         island = self.island
         if island is None or self.chart is None:
             return
         if leg is not None:
+            island.lost = _lost(island.lost, leg.expected)
             self._pin(leg, reading, view)
         delta = self._solve()
+        if delta is not None and not self._admits(island, delta, view, frame):
+            self.islands["refused"] += 1
+            delta = None
         if delta is not None:
             for buffered in island.views:
                 self.chart.absorb(buffered.shifted(delta))
@@ -794,6 +837,50 @@ class Survey:
             return
         if len(island.views) >= ISLAND_BUDGET:
             self._abandon(island)
+
+    def _admits(
+        self, island: Island, delta: Point, view: FrameView, frame: np.ndarray
+    ) -> bool:
+        """合併偏移的兩道複驗：指令包絡與影像複驗。過不了就不併（島照舊攢或丟棄）。
+
+        重錨解錯一次，整批島 view 就以錯格吸收，而 UNIT 滯後（v2.3）會把那些鬼影
+        保到跨代——0801 第 5 輪台數 80 對真值 28 就是這樣長出來的。兩道閘都只否決、
+        不修正偏移：改寫偏移等於再造一條「量錯寫入」的路。
+        """
+        if not self._metered(island, delta):
+            log.warning("merge offset %s exceeds what the commanded legs could have moved", delta)
+            return False
+        if self.mainland is None:
+            return True
+        anchor, offset = self.mainland
+        implied = (
+            offset[0] - view.offset[0] - delta[0],
+            offset[1] - view.offset[1] - delta[1],
+        )
+        verdict = board.null_check(
+            anchor, frame, implied, [sighting.point for sighting in view.units]
+        )
+        if verdict == board.NULL_STILL:
+            log.warning("merge offset %s lands where the picture says the camera never moved", delta)
+            return False
+        return True
+
+    def _metered(self, island: Island, delta: Point) -> bool:
+        """合併偏移的每軸絕對值上界＝該軸的指令位移和 ×1.5 ＋一格裕度。
+
+        1.5 與包絡閘的單次上限同一個數（`board.ENVELOPE_SINGLE`）：增益學不準時一腿
+        推得比預期遠，但推不到兩倍。一格裕度給重錨本來就該有的整格吸附餘裕。
+        0801 t22 的 (546, −670)：島只發過一條東向腿（expected (−342, 0)），y 軸沒有
+        任何指令位移可言，上界就是一格，670 當場出局。
+        """
+        lost = island.lost
+        if lost is None or self.chart is None:
+            return True
+        grid = self.chart.grid
+        return (
+            abs(delta[0]) <= board.ENVELOPE_SINGLE * lost["x"] + grid.col_pitch
+            and abs(delta[1]) <= board.ENVELOPE_SINGLE * lost["y"] + grid.row_pitch
+        )
 
     def _pin(self, leg: Leg, reading: Reading, view: FrameView) -> None:
         """撞邊重錨：島嶼在一條已知的邊界線上停住，那一軸的偏移就被絕對釘死。
@@ -891,6 +978,7 @@ class Survey:
         self.island = None
         self.chart = None
         self.odometer = Odometer()
+        self.mainland = None
         self.stalls.clear()
         self.clamps.clear()
         if frame is not None:
@@ -905,6 +993,7 @@ class Survey:
         self.chart = None
         self.odometer = Odometer()
         self.island = None
+        self.mainland = None
         self.adrift = False
         self.stalls.clear()
         self.clamps.clear()
@@ -997,6 +1086,15 @@ def _axis_of(direction: str) -> str:
 
 def _commanded(expected: Point | None) -> bool:
     return expected is not None and math.hypot(*expected) >= board.EDGE_SHIFT_PX
+
+
+def _lost(carried: dict[str, float] | None, expected: Point | None) -> dict[str, float] | None:
+    """島嶼沒入帳的指令位移。None 一路傳染：沒有指令可當包絡的島，往後也沒有。"""
+    if carried is None:
+        return None
+    if expected is None:
+        return dict(carried)
+    return {"x": carried["x"] + abs(expected[0]), "y": carried["y"] + abs(expected[1])}
 
 
 def _within(box: tuple[float, float, float, float], region: Region) -> bool:
