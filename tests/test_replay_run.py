@@ -11,6 +11,8 @@ import tarfile
 import pytest
 
 from scripts.replay_run import (
+    build_payload,
+    collect_attachments,
     find_journal,
     load_entries,
     resolve_run,
@@ -177,6 +179,58 @@ def test_load_entries_survives_a_truncated_line(tmp_path, capsys):
 
     assert [entry["seq"] for entry in entries] == [0, 1, 2]
     assert "跳過" in capsys.readouterr().err
+
+
+SURVEY_LINES = (
+    {"seq": 10, "t": 1.0, "kind": "stage", "name": "select"},
+    {"seq": 11, "t": 2.0, "kind": "survey_tick", "tick": 1, "probe": "precheck"},
+    {"seq": 12, "t": 3.0, "kind": "survey_tick", "tick": 1, "probe": "leg"},
+    {"seq": 13, "t": 4.0, "kind": "survey_tick", "tick": 2},
+    {"seq": 14, "t": 5.0, "kind": "survey_broken", "tick": 1, "probe": "precheck"},
+)
+
+
+def make_survey_run(root, dumped=("t1-precheck.png",)):
+    run_dir = make_run(root, lines=SURVEY_LINES)
+    survey = run_dir / "frames" / "survey"
+    survey.mkdir(parents=True)
+    for name in dumped:
+        (survey / name).write_bytes(b"\x89PNG\r\n\x1a\n fake")
+    return run_dir
+
+
+def test_collect_attachments_hangs_dump_on_matching_index(tmp_path):
+    run_dir = make_survey_run(tmp_path / "runs")
+
+    entries = load_entries(run_dir / "dry_run.jsonl")
+
+    assert collect_attachments(run_dir, entries) == {1: ["frames/survey/t1-precheck.png"]}
+
+
+def test_collect_attachments_skips_records_without_a_dumped_file(tmp_path):
+    run_dir = make_survey_run(tmp_path / "runs", dumped=())
+
+    assert collect_attachments(run_dir, load_entries(run_dir / "dry_run.jsonl")) == {}
+
+
+def test_collect_attachments_ignores_other_kinds_and_partial_records(tmp_path):
+    """survey_broken 也有 tick／probe，但側傾印只對 survey_tick 存檔。"""
+    run_dir = make_survey_run(tmp_path / "runs", dumped=("t1-precheck.png", "t2-.png"))
+
+    attachments = collect_attachments(run_dir, load_entries(run_dir / "dry_run.jsonl"))
+
+    assert sorted(attachments) == [1]
+
+
+def test_build_payload_keeps_entries_verbatim_and_adds_attachments(tmp_path):
+    run_dir = make_survey_run(tmp_path / "runs")
+
+    payload = build_payload(run_dir, run_dir / "dry_run.jsonl")
+
+    assert payload["name"] == run_dir.name
+    assert payload["journal"] == "dry_run.jsonl"
+    assert payload["entries"] == [dict(line) for line in SURVEY_LINES]
+    assert payload["attachments"] == {"1": ["frames/survey/t1-precheck.png"]}
 
 
 def test_safe_frame_path_resolves_inside_run(tmp_path):
