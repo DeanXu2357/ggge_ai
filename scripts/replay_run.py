@@ -16,8 +16,8 @@ usage:
   uv run python scripts/replay_run.py --host 0.0.0.0 --port 9000
   uv run python scripts/replay_run.py 20260731-170423 --journal stage.jsonl
 
-網頁兩種模式：投影片（逐筆前後翻，沒有自帶幀的紀錄沿用前一張並壓暗）與條漫
-（所有紀錄由上往下一路排開，點任一筆跳回投影片）。
+網頁兩種模式：投影片（逐筆前後翻，沒有自帶幀的紀錄沿用前一張並壓暗；←/j 上一筆、
+→/l 下一筆）與直頁顯示（所有紀錄由上往下一路排開，點任一筆跳回投影片）。
 """
 
 from __future__ import annotations
@@ -302,14 +302,14 @@ PAGE_HTML = r"""<!doctype html>
   </div>
   <div>
     <button id="mode-slide" class="on">投影片</button>
-    <button id="mode-comic">條漫</button>
+    <button id="mode-comic">直頁顯示</button>
   </div>
 </header>
 <main>
   <section id="slide">
     <div class="nav">
-      <button id="prev">◀ 上一筆</button>
-      <button id="next">下一筆 ▶</button>
+      <button id="prev" title="快捷鍵：← 或 j">◀ 上一筆</button>
+      <button id="next" title="快捷鍵：→ 或 l">下一筆 ▶</button>
       <span id="position"></span>
       <label><input type="checkbox" id="frames-only"> 只停在有圖的紀錄</label>
     </div>
@@ -554,8 +554,8 @@ el("frames-only").addEventListener("change", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (state.mode !== "slide") return;
-  if (event.key === "ArrowLeft") step(-1);
-  else if (event.key === "ArrowRight") step(1);
+  if (event.key === "ArrowLeft" || event.key === "j") step(-1);
+  else if (event.key === "ArrowRight" || event.key === "l") step(1);
 });
 
 fetch("/api/run")
