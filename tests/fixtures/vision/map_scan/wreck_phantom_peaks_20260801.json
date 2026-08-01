@@ -1,0 +1,14 @@
+{
+  "image": "wreck_phantom_peaks_20260801.png",
+  "check": "map_scan_peaks",
+  "canvas_size": [2340, 1080],
+  "box": [0, 0, 2340, 1080],
+  "source": "data/runs/20260801-125930/frames/survey/t73-leg.png（複驗輪第 6 輪，最小縮放，欄距 89）",
+  "expect": {
+    "units": [[1696, 300], [1875, 300], [2052, 300]],
+    "tolerance": 40,
+    "exact": true
+  },
+  "xfail_reason": "佔位假陽性未修：find_units 在這一幀吐 8 個峰，真單位只有 3 台。多出來的 5 個＝西南大型殘骸艦下緣的淡藍發光船緣（752,327）(857,322)(979,307)、左上「變更初期配置」HUD 鈕（389,273）、右上角 HUD（2021,90）。v2.7 量過密度上限與環形度兩族判別式都切不開（見 docs/reviews/scan-v2_7-review.md 第二節校準表），待使用者裁示判別式後才動碼。",
+  "note": "0801 複驗輪第 6 輪的佔位污染主因幀。藍帶 HSV 撞上殘骸艦船緣紋理，整輪約 13 個假佔位（blue 23 對實際我方約 10）。修法落地後這個案例會 XPASS，屆時把 xfail_reason 拿掉。"
+}

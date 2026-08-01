@@ -26,6 +26,7 @@ import pytest
 from ggge_ai.battle import map_view, panels, settings, vision
 from ggge_ai.battle.controller import DISTRACTOR_LABELS, MODE_LABELS, resolve_mode
 from ggge_ai.actuation.keyguard import Keyguard
+from ggge_ai.runtime import board
 from ggge_ai.vision import digits
 from ggge_ai.vision.manifest import TemplateManifest
 
@@ -222,6 +223,29 @@ def _check_grid_lattice(frame: np.ndarray, expect: dict[str, Any] | None) -> Non
     assert list(got[1]) == expect["rows"], f"rows {got[1]}"
 
 
+def _check_map_scan_peaks(frame: np.ndarray, expect: dict[str, Any]) -> None:
+    """The minimum-zoom density-peak unit detector (runtime/board.find_units).
+
+    expect.units is the hand-adjudicated truth for the frame. exact=false
+    pins recall only (these units must never be lost); exact=true also pins
+    precision (no peak may sit anywhere else) and is how a phantom-placement
+    fixture stays red until the discriminant lands.
+    """
+    found = board.find_units(frame)
+    tolerance = expect.get("tolerance", 40)
+    units = [tuple(unit) for unit in expect["units"]]
+
+    def near(unit, point):
+        return (unit[0] - point[0]) ** 2 + (unit[1] - point[1]) ** 2 <= tolerance**2
+
+    missed = [unit for unit in units if not any(near(unit, point) for point in found)]
+    assert not missed, f"missed {missed} of {units}; found {found}"
+    if not expect.get("exact"):
+        return
+    phantom = [point for point in found if not any(near(unit, point) for unit in units)]
+    assert not phantom, f"phantom peaks {phantom}; want only {units}"
+
+
 def _check_grid_setting(frame: np.ndarray, expect: str | None) -> None:
     """The 顯示方格 settings-toggle reader (design principle 5, T2). expect is
     "on"/"off"/null -- null pins a decline (the frame is not the battle-tab
@@ -306,6 +330,7 @@ CHECKS = {
     "defender_avatar_slot": _check_defender_slot,
     "grid_lattice": _check_grid_lattice,
     "grid_setting": _check_grid_setting,
+    "map_scan_peaks": _check_map_scan_peaks,
     "enemy_summary": _forecast_check(vision.read_enemy_summary),
     "unit_stats": _forecast_check(panels.parse_unit_stats),
     "weapon_rows": _check_weapon_rows,

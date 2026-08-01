@@ -1,0 +1,13 @@
+{
+  "image": "wreck_phantom_peaks_20260801.png",
+  "check": "map_scan_peaks",
+  "canvas_size": [2340, 1080],
+  "box": [0, 0, 2340, 1080],
+  "source": "data/runs/20260801-125930/frames/survey/t73-leg.png（複驗輪第 6 輪，最小縮放，欄距 89）",
+  "expect": {
+    "units": [[1696, 300], [1875, 300], [2052, 300]],
+    "tolerance": 40,
+    "exact": false
+  },
+  "note": "召回契約：這一幀畫面上真的只有右側三台紅弧薩克（主 session 親看定讞）。任何佔位假陽性的修法都不准把這三台弄丟——本案例與 wreck_phantom_peaks 共用同一張幀，一個管召回、一個管精確率。"
+}
