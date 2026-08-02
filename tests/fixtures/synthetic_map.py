@@ -4,7 +4,7 @@
 所以掃描的整段行為對著這個假世界跑：單位擺在哪一格是我們定的，鏡頭移了多少也是
 我們定的，於是「四態逐格正確」「跳過的帶被回補」這種話才有意義。
 
-地圖四周留一圈星空虛空，鏡頭夾在畫布內（實機的鏡頭同樣推到底就不動）。所以「推
+地圖四周留一圈虛空（實機上是地圖以外那片無特徵的深色背景，下稱星空），鏡頭夾在畫布內（實機的鏡頭同樣推到底就不動）。所以「推
 到底卡住」與「畫面裡看得到地圖終止邊」都是世界的性質，不是腳本插旗——v3 的座標
 全部從這兩件事解出來，假世界要先有得看。
 
@@ -41,8 +41,8 @@ UNIT_HSV = (5, 160, 220)
 def freeze_correlator(monkeypatch, response: float = 0.3) -> None:
     """把 phaseCorrelate 的水平分量鎖在靜態峰——0801 t27/t28/t30 的實機情境。
 
-    垂直分量照實回：實機證據是南北向量測健康，只有水平被格線 alias 與 HUD 靜態成分
-    搶峰。response 壓在 `SHIFT_MIN_RESPONSE` 之上，所以退星座的 fallback 不會觸發
+    垂直分量照實回：實機證據是南北向量測健康，只有水平被格線差整數個週期的誤配與 HUD 靜態成分
+    搶峰。response 壓在 `SHIFT_MIN_RESPONSE` 之上，所以退去用單位排列比對的那條路不會觸發
     ——那正是舊碼在這個情境下救不回來的原因。
     """
     real = board._phase_shift
@@ -57,7 +57,7 @@ def freeze_correlator(monkeypatch, response: float = 0.3) -> None:
 def blind_correlator(monkeypatch) -> None:
     """相位相關整個瞎掉（信賴度 0）——無特徵星空的實機情境。
 
-    這是星座 fallback 唯一會被叫到的路徑，影像複驗閘要在這裡受測。
+    這是單位排列比對唯一會被叫到的路徑，影像複驗閘要在這裡受測。
     """
     monkeypatch.setattr(board, "_phase_shift", lambda *args, **kwargs: (0.0, 0.0, 0.0))
 

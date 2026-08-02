@@ -21,11 +21,11 @@
   事實，STALE（前代有單位、這代還沒重掃）是第三件。混在一起就沒有缺口可言。
 - **界線**：四個方向各自「未發現／已定於某一格線」，一律目視（看到地圖終止邊），
   不從「推不動了」推論。地圖幾何不衰效，只有單位知識衰效。
-- **前緣**：界內、與已測繪區相鄰、還不是現況的格。前緣空且四面界線都定＝完成。
+- **待掃格**：界內、與已測繪區相鄰、還不是現況的格。沒有待掃格且四面界線都定＝完成。
 
 兩條安全網不變式原樣保留：**無「量錯寫入」路徑**（定位不出來、或與已記地標矛盾的
 幀整張丟棄，一格都不寫）、**無「無聲丟失」路徑**（沒觀測到的界內格永遠是 UNKNOWN，
-前緣一定把它排回補掃）。
+待掃格一定把它排回補掃）。
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ class Knowledge(Enum):
     STALE = "stale"
 
 
-# 還不是現況的兩態：完成判準要求界內一格都不剩，前緣也只挑這兩態。
+# 還不是現況的兩態：完成判準要求界內一格都不剩，待掃格也只挑這兩態。
 GAPS = (Knowledge.UNKNOWN, Knowledge.STALE)
 COMPASS: tuple[str, ...] = ("west", "east", "north", "south")
 
@@ -90,7 +90,7 @@ EDGE_TOLERANCE = 0.5
 # 八成以上的重疊（中央帶才對得回已知地圖），而補位用的幀對幀量測不能超出它的
 # 無歧義範圍（0719 教訓：1050px 窗量 600px 位移量出 −505 反號）。
 LEG_LIMIT: dict[str, float] = {"x": board.MAP_REGION[2] / 4.0, "y": board.MAP_REGION[3] / 4.0}
-# 補位量測（`_drift`）敢採信的位移上限＝該軸量測窗的一半。超過就是繞回混疊，不採信。
+# 補位量測（`_drift`）敢採信的位移上限＝該軸量測窗的一半。超過就是量測窗繞回誤判，不採信。
 DRIFT_LIMIT: dict[str, float] = {"x": board.MAP_REGION[2] / 2.0, "y": board.MAP_REGION[3] / 2.0}
 # 手指行程換算內容位移的固定比例（0730 實測 250px 手勢推出約 570-600px）。v3 不再
 # 逐次修正它——推移只需要「往那個方向推一把」，距離準不準不影響座標。
@@ -102,7 +102,7 @@ STALL_CONFIRM = 2
 LOST_PATIENCE = 3
 # 角落讀不出格網時退一步再回來的次數上限。用完就誠實停在沒掃完。
 ZERO_TRIES = 3
-# 前緣選目標時 STALE 聚類的距離折扣（含 STALE ＝ 單位大概率在附近，威脅評估最需要）。
+# 挑待掃格目標時 STALE 聚類的距離折扣（含 STALE ＝ 單位大概率在附近，威脅評估最需要）。
 STALE_WEIGHT = 0.5
 # 推移次數的保險絲：只防**單一回合**內的失控，不是整場戰鬥的額度，也不是完成判準。
 # 跨回合累積的話十幾回合就燒斷，之後 fused 恆真、掃描永遠完不成＝整關卡死。
@@ -214,7 +214,7 @@ class KnowledgeMap:
     boundary: dict[str, int] = field(default_factory=dict)
     # 界內但**從任何推得到的鏡頭位置都看不清楚**的格：地圖角落壓在回合橫幅底下
     # 的那幾格就是這樣（鏡頭夾在界線上，橫幅在螢幕座標固定不動）。它們不是被
-    # 忘掉——退休是明寫的事實，逐 tick 進流水帳，只是不再要求前緣去補。
+    # 忘掉——退休是明寫的事實，逐 tick 進流水帳，只是不再要求待掃格去補。
     unreachable: set[Cell] = field(default_factory=set)
     # 目擊的**世界像素**座標，不是格心：對回已知地圖那一步要拿它跟當下的密度峰
     # 配對投票，量化到格心會讓靜態單位的票散進不同的桶、眾數湊不出來。
@@ -314,7 +314,7 @@ class KnowledgeMap:
         return tuple(sorted(out))
 
     def gaps(self) -> tuple[Cell, ...]:
-        """四面界線都定之後界內每一格的缺口。還沒定滿時界內無限大，退回前緣。"""
+        """四面界線都定之後界內每一格的缺口。還沒定滿時界內無限大，退回待掃格。"""
         if not self.bounded:
             return self.frontier()
         return tuple(
@@ -328,7 +328,7 @@ class KnowledgeMap:
         return self.frontier() or self.gaps()
 
     def choose(self, viewport: Point) -> tuple[Cell, ...] | None:
-        """挑一個前緣聚類：近者優先，含 STALE 的聚類加權優先。"""
+        """挑一個待掃格聚類：近者優先，含 STALE 的聚類加權優先。"""
         pockets = clusters(self.targets())
         if not pockets:
             return None
@@ -424,6 +424,8 @@ class Survey:
     stalls: dict[str, int] = field(default_factory=dict)
     # 推不動當下的世界座標（軸別）：鏡頭離開就不再是夾住的狀態，見 `_clamped`。
     clamps: dict[str, float] = field(default_factory=dict)
+    # 那個方向被確認推不動幾輪。退休格子是跨代生效的，所以要兩輪才算數。
+    bumped: dict[str, int] = field(default_factory=dict)
     # 最近一張 view 目視到終止邊的那幾側。存側名不存座標：終止邊在不在畫面上是
     # 螢幕事實，與解出什麼座標無關。
     sighted: frozenset[str] = frozenset()
@@ -515,7 +517,7 @@ class Survey:
         return () if self.chart is None else self.chart.units()
 
     def summary(self) -> dict[str, object]:
-        """逐 tick 進流水帳的覆蓋自述：覆蓋率、前緣聚類、階段、丟棄與歸零次數。"""
+        """逐 tick 進流水帳的覆蓋自述：覆蓋率、待掃格聚類、階段、丟棄與歸零次數。"""
         chart = self.chart
         census = chart.census() if chart is not None else {known.value: 0 for known in Knowledge}
         scope = sum(census.values())
@@ -628,9 +630,6 @@ class Survey:
         if offset is None:
             return self._discard(source, detail)
         placed = view.shifted(offset)
-        clash = self._clash(placed)
-        if clash is not None:
-            return self._discard(clash, detail)
         assert self.chart is not None
         shift = self._shift(offset, source)
         self.chart.absorb(placed)
@@ -699,7 +698,7 @@ class Survey:
         **重疊區先問、單位排列後問**：每一把推移都壓在量測窗的四分之一以內，前後幀
         留得下八成以上的重疊，那一段影像是最直接的證據；單位排列在單位稀疏的地帶會
         被巧合的配對投出差幾十像素的眾數（0802 合成世界實測投出 68px 的偏差，害整
-        段補中央連環丟幀）。反過來，星空這種無特徵背景重疊區量不出來，那時就輪到
+        段補中央連環丟幀）。反過來，地圖以外那片無特徵的深色背景（下稱星空）重疊區量不出來，那時就輪到
         單位排列扛——兩條路互補，不是互相取代。
         """
         if still and self.located is not None and self.located[0] is self.previous:
@@ -779,8 +778,8 @@ class Survey:
     ) -> bool:
         """重疊區影像比對：候選座標隱含一個螢幕位移，拿重疊區量到的位移對答案。
 
-        只驗**沒有地標背書的那幾軸**——地標是絕對量，不需要證人；而重疊區量測在那一
-        軸上正好是獨立的第二證人。兩個證人差超過半格就是至少一個錯了，當場裁不出是
+        只驗**沒有地標背書的那幾軸**——地標是絕對量，不需要佐證來源；而重疊區量測在那一
+        軸上正好是獨立的第二佐證來源。兩個佐證來源差超過半格就是至少一個錯了，當場裁不出是
         哪一個，所以兩個都不採信（v2.10 就是這條規則救回整批死幀的）。單位排列與
         重疊區量測都對到同一格，整數格歧義才算消掉——單靠「動了沒」那種問法分不出
         差一整列的候選（0802 合成世界實測長出三格差一列的鬼影）。
@@ -870,10 +869,11 @@ class Survey:
                 log.info("boundary %s sighted at cell %s", direction, line)
 
     def _clash(self, view: FrameView) -> str | None:
-        """這一幀目視的終止邊與已記地標差超過半格＝地標與座標至少有一個錯了。
+        """角落這一幀目視的終止邊與上一代留下的地標差超過半格。
 
-        當場裁不出是哪一個，所以**兩個都不改**——誠實把這一幀丟掉。改地標的代價是
-        跨代永久的，改座標就是「量錯寫入」。
+        只有歸零那條路用得到：那裡的座標是被定義成 (0,0) 的，不是從地標算回來的，
+        所以地標有沒有跟著對得上是獨立的問題。走定位那條路的幀不需要這一關——地標
+        算出來的座標必然貼著地標，而同軸兩側對不對得上在 `_from_landmarks` 就裁了。
         """
         if self.chart is None:
             return None
@@ -897,7 +897,7 @@ class Survey:
     def _unchanged(self, previous: np.ndarray, frame: np.ndarray, leg: Leg | None) -> bool:
         """畫面到底有沒有動——v3 唯一還做的幀對幀比對，而且只回布林不回位移。
 
-        三個證人依序：兩幀幾乎逐像素相同、相位相關量得到位移（量到多少就是多少）、
+        三路佐證依序：兩幀幾乎逐像素相同、相位相關量得到位移（量到多少就是多少）、
         影像複驗拿「動了指令那麼多」對「鏡頭沒動」問畫面。待機動畫讓幀差恆高於門檻
         （實機 5.8-12.5 對 2.5），所以第一關過不了很正常，證言要靠後兩關。
 
@@ -916,16 +916,21 @@ class Survey:
         return board.null_check(previous, frame, leg.expected) == board.NULL_STILL
 
     def _tally(self, direction: str, still: bool) -> None:
-        """推不動的次數（方向別）。連兩次才算卡住——一次可能只是手勢被吃掉。"""
+        """推不動的次數（方向別）。連兩次才算卡住——一次可能只是手勢被吃掉。
+
+        推得動就把那個方向的帳全部歸零：會動的方向不是地圖邊。
+        """
         if not still:
             self.stalls.pop(direction, None)
             self.clamps.pop(direction, None)
+            self.bumped.pop(direction, None)
             return
         hits = self.stalls.get(direction, 0) + 1
         self.stalls[direction] = hits
         offset = self.offset
-        if hits >= STALL_CONFIRM and offset is not None:
+        if hits == STALL_CONFIRM and offset is not None:
             self.clamps[direction] = offset[0 if _axis_of(direction) == "x" else 1]
+            self.bumped[direction] = self.bumped.get(direction, 0) + 1
 
     # ---- 推去哪 ----
 
@@ -953,7 +958,7 @@ class Survey:
         return None
 
     def _aim(self) -> Leg | None:
-        """挑一個前緣聚類推一把。推不動（該推的方向都夾在邊上）就把目標退休——那一格
+        """挑一個待掃格聚類推一把。推不動（該推的方向都夾在邊上）就把目標退休——那一格
         從任何到得了的鏡頭位置都看不清楚，硬要它只會原地空轉。
 
         退休的一定是**聚類成員**：L 形聚類的質心根本不在聚類裡，退休它既不會讓目標
@@ -1048,7 +1053,7 @@ class Survey:
         )
 
     def _probe(self) -> Leg | None:
-        """沒有前緣格可挑時，還沒定界線的方向自己就是強制前緣——往那邊推去找邊。"""
+        """沒有待掃格可挑時，還沒定界線的方向自己就是強制待掃格——往那邊推去找邊。"""
         fixed = self.chart.boundary if self.chart is not None else {}
         open_sides = [
             direction
@@ -1065,8 +1070,10 @@ class Survey:
 
         1. **目視終止邊**：畫面看得到那一側的格網終止邊，邊外是虛空，再推只是把虛空
            推進畫面。鏡頭移開之後那一側自然讀不到，下一幀就解除。
-        2. **推不動當下的世界座標**：連兩次推不動的那一點。同樣不記成旗子，離開之後
-           同一個方向當然又推得動。
+        2. **推不動當下的世界座標**：連兩次推不動的那一點，而且那個方向要**被確認過
+           兩輪**。起手點連續兩次都落在單位精靈上就是連兩次推不動，跟到邊長得一模
+           一樣；認一輪就封死的話，被吃掉兩把手勢會讓整欄格子當場退休（0802 合成
+           世界實測退掉最東一整欄）。認第二輪最多多花兩把，而退休是跨代生效的。
 
         這是**規劃層**的節流——定位與簿記一概不看它。
         """
@@ -1074,7 +1081,7 @@ class Survey:
             return True
         line = self.clamps.get(direction)
         offset = self.offset
-        if line is None or offset is None:
+        if line is None or offset is None or self.bumped.get(direction, 0) < STALL_CONFIRM:
             return False
         return abs(offset[0 if _axis_of(direction) == "x" else 1] - line) < board.EDGE_SHIFT_PX
 
@@ -1181,7 +1188,7 @@ def _pitch_of(grid: WorldGrid, direction: str) -> float:
 
 
 def clusters(cells: Sequence[Cell]) -> tuple[tuple[Cell, ...], ...]:
-    """四鄰接的連通分量。前緣要成塊處理才不會在兩個缺口之間來回跑。"""
+    """四鄰接的連通分量。待掃格要成塊處理才不會在兩個缺口之間來回跑。"""
     remaining = set(cells)
     out: list[tuple[Cell, ...]] = []
     while remaining:

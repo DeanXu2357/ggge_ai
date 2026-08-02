@@ -215,7 +215,7 @@ def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
 
     summary = [line for line in run.journal.entries() if line["kind"] == "survey_summary"]
     assert [line["unlocalised"] for line in summary] == [2]
-    assert summary[0]["survey"]["islands"]["open"] is False
+    assert summary[0]["survey"]["stance"] == coverage.ZERO
     assert "coverage" in summary[0]["survey"]
 
 

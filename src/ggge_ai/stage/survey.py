@@ -15,7 +15,7 @@ roster_collapsed 是掃描的前置條件，所以規劃器自然把 show_grid�
 模型的三個階段：推去西北角歸零、沿邊繞一圈、補中央的缺口。
 
 **覆蓋進度的落點**：世界模型住 `runtime/coverage.Survey`（四態知識圖＋界線＋地標
-＋前緣，覆蓋模型 v3），CoverageLedger 只是簿記側的門面，SurveyPerceiver 把它折進
+＋待掃格，覆蓋模型 v3），CoverageLedger 只是簿記側的門面，SurveyPerceiver 把它折進
 StageState 的 board_synced——因為完成判定走 progressed(state)，恢復點不能只活在
 執行器的內部變數裡（否則換一個執行器實例就看不出掃到哪了）。**分段進度不再進
 符號狀態**：進度是逐格的知識圖，壓不成搜尋鍵放得下的東西，也沒有任何
@@ -50,7 +50,7 @@ ZERO_STEP = coverage.ZERO
 TOUR_STEP = coverage.TOUR
 FILL_STEP = coverage.FILL
 STANCE_STEPS: tuple[str, ...] = (ZERO_STEP, TOUR_STEP, FILL_STEP)
-# 前緣空＝掃完了；保險絲燒斷或角落讀不出世界都是「這一 tick 沒得推」，但三者的成因
+# 沒有待掃格＝掃完了；保險絲燒斷或角落讀不出世界都是「這一 tick 沒得推」，但三者的成因
 # 完全不同，所以微步驟名分開記——流水帳要看得出來是掃完還是掃不動。
 DONE_STEP = "done"
 FUSE_STEP = "fuse"
@@ -168,7 +168,7 @@ class BoardDriver:
 
     zoom_out 是注入的（實作在 runtime/zoom.py，需要 uiautomator 注入通道，與截圖
     ／點擊的 adb 通道分開）：沒給就只記一次警告照樣往下走——**掃描成功不依賴
-    縮小**，縮不動只是截圖次數變多（覆蓋模型 v2 的核心目的）。
+    縮小**，縮不動只是截圖次數變多（覆蓋模型 v3 的核心立場）。
 
     telemetry 是逐 observe 的遙測水槽（A5 儀器化）：解出來的座標、這一幀的座標是
     怎麼來的、靜止閘等了幾輪都只在這裡看得到，流水帳的微步驟名答不了「那一把推移
@@ -292,7 +292,7 @@ class BoardDriver:
         reading: coverage.Reading,
         settled: SettledFrame,
     ) -> None:
-        """斷鏈的前後幀對交給存證水槽；dump_frames 打開時每一次 observe 都交。
+        """定位中斷的前後幀對交給存證水槽；dump_frames 打開時每一次 observe 都交。
 
         兩個水槽各包各的 try：遙測炸了不該連帶讓存證失效，反之亦然。
         """

@@ -399,9 +399,9 @@ def find_lattice(frame: np.ndarray | None) -> Lattice | None:
     直接放行，t11／t12 兩腿實際各滑了 200px 以上卻被記成停滯，同一片場景以同一個
     offset 重複吸收——台數膨脹的第一顆齒輪。
 
-    **回的是線位，不是新的量測**：呼叫端（`Odometer._snap`／`rephase`）只拿它跟世界
-    格網的相位對答案，pitch 仍取世界格網的。錨定（`Survey._anchor`）刻意不走這裡，
-    新世界的格距要全幀帶那種取樣量才敢定。
+    **回的是線位，不是新的量測**：呼叫端（`coverage.Survey._snap`）只拿它跟世界格網的
+    相位對答案，pitch 仍取世界格網的。錨定（`Survey._anchor`）刻意不走這裡，新世界的
+    格距要全幀帶那種取樣量才敢定。
     """
     for band, minimum in _lattice_bands():
         lattice = read_lattice(frame, band, minimum=minimum)
@@ -1062,9 +1062,9 @@ def _constellation_witness(
 
     同型薩克與我方編隊是週期陣列（0801 實測幀內縱距 90/93/96），配對投票因此會把
     「錯一個編隊間距」的組合投成票數十足的幽靈位移——票數多寡分不出真假，畫面分得
-    出來。原地勝出時刻意回一個零位移但 `known` 的 Shift：`Odometer.feed` 於是走
-    STALLED 正軌，不必靠 `frame_difference`（待機動畫實測 5.8-12.5，恆高於
-    EDGE_FRAME_DIFF，原地幀永遠走不進那一支）。
+    出來。原地勝出時刻意回一個零位移但 `known` 的 Shift：上層判「畫面沒動」於是走得通，
+    不必靠 `frame_difference`（待機動畫實測 5.8-12.5，恆高於 EDGE_FRAME_DIFF，原地幀
+    永遠走不進那一支）。
     """
     vote = _constellation_shift(find_units(previous), find_units(current), trace)
     if vote is None:

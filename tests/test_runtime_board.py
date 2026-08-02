@@ -24,6 +24,10 @@ from tests.fixtures.synthetic_map import (
     void_outside,
 )
 
+# 這一批對著 board.py 的像素機制，地圖鋪滿畫布最單純：要造地圖終止邊時各案例自己
+# 用 void_outside 挖，不靠世界外圍那一圈虛空。
+NO_VOID = (0, 0)
+
 SERIES = Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
 MATCH_RADIUS = 60
 UNITS = ((3, 2), (5, 4), (9, 6), (14, 3))
@@ -153,7 +157,7 @@ def test_phase_correlation_recovers_a_nudge_sized_pan(dx, dy):
 
 
 def test_the_constellation_vote_measures_a_pan_without_any_texture():
-    """星空上相位相關會瞎掉，單位星座還在。"""
+    """地圖以外那片無特徵的深色背景（下稱星空）上相位相關會瞎掉，單位排列比對還在。"""
     before = ((100.0, 100.0), (400.0, 300.0), (700.0, 500.0))
     after = tuple((x + 250, y + 10) for x, y in before)
 
@@ -175,8 +179,8 @@ def test_too_few_units_is_no_constellation_at_all():
 
 
 def test_two_deltas_inside_the_tolerance_land_in_the_same_group():
-    """0801 第 7 輪的八腿殺手：固定桶 `round(delta/24)` 把差 20px 的兩對切進不同的
-    桶（t49 的 (−129,0) 與 (−130,+20)），最高票掉到 1，整條星座證人缺席。"""
+    """0801 第 7 輪的八把殺手：固定桶 `round(delta/24)` 把差 20px 的兩對切進不同的
+    桶（t49 的 (−129,0) 與 (−130,+20)），最高票掉到 1，整條單位排列比對的佐證缺席。"""
     before = ((400.0, 400.0), (900.0, 380.0))
     after = ((271.0, 400.0), (770.0, 400.0))
 
@@ -216,7 +220,7 @@ def test_an_unmeasurable_shift_says_so_instead_of_returning_zero():
 
 def test_the_column_phase_reads_the_fraction_a_pan_leaves_on_the_grid():
     """格線是貫穿全圖的細亮脊，兩幀線集合對位的訊噪比極高——但只給得出 mod pitch。"""
-    world = World(cols=22, rows=12, units=())
+    world = World(margin=NO_VOID, cols=22, rows=12, units=())
     before = world.frame()
     world.move(300.0, 0.0)
     after = world.frame()
@@ -242,8 +246,8 @@ def test_the_correlator_carries_the_column_count_when_nobody_voted():
 
 
 def test_two_independent_witnesses_pointing_at_different_columns_refuse_to_guess():
-    """星座錯起來是整整一個眾數的錯（0801 t11 投 21.5、t13 投 4.7，離真值一整欄），
-    所以獨立證人互相矛盾時寧可斷鏈——「量錯寫入」那條路徑不准存在。"""
+    """單位排列比對錯起來是整整一個眾數的錯（0801 t11 投 21.5、t13 投 4.7，離真值一整欄），
+    所以獨立佐證來源互相矛盾時寧可定位中斷——「量錯寫入」那條路徑不准存在。"""
     assert board._resolve_columns(16.0, 128.0, -350.0, -236.0, -100.0) is None
 
 
@@ -252,7 +256,7 @@ def test_a_witness_sitting_between_two_columns_is_no_witness():
 
 
 def test_the_command_alone_only_speaks_when_it_leaves_a_single_column():
-    """真實腿長的包絡窗寬得下好幾欄，指令根本分不出 k——0801 實測增益還沒學會時
+    """真實平移距離的合理範圍窗寬得下好幾欄，指令根本分不出 k——0801 實測增益還沒學會時
     expected 是真值的 2.5 倍，取最近的候選會回一個差兩整欄的自信錯值。"""
     assert board._resolve_columns(60.0, 128.0, -30.0) == (-68.0, board.WITNESS_COMMANDED)
     assert board._resolve_columns(60.0, 128.0, -350.0) is None
@@ -266,9 +270,9 @@ def test_the_column_vote_keeps_the_westward_sign():
 
 def test_a_correlator_locked_on_the_static_peak_no_longer_freezes_the_measurement(monkeypatch):
     """本批的核心迴歸，復刻 0801 t27/t28/t30：內容實際移動上百 px，phaseCorrelate
-    完全鎖在靜態峰，而 response 照樣過 SHIFT_MIN_RESPONSE——退星座的 fallback 連
+    完全鎖在靜態峰，而 response 照樣過 SHIFT_MIN_RESPONSE——退去用單位排列比對的那條路連
     觸發的機會都沒有。格線相位通道要在這種相關器底下照樣量對。"""
-    world = World(cols=22, rows=12, units=UNITS)
+    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
     before = world.frame()
     world.move(240.0, 0.0)
     after = world.frame()
@@ -284,7 +288,7 @@ def test_a_correlator_locked_on_the_static_peak_no_longer_freezes_the_measuremen
 
 def test_the_lattice_channel_stands_down_without_a_horizontal_command(monkeypatch):
     """靜止閘的取幀比對與 precheck 都沒有指令可帶，行為必須逐字照舊。"""
-    world = World(cols=22, rows=12, units=UNITS)
+    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
     before = world.frame()
     world.move(240.0, 0.0)
     after = world.frame()
@@ -296,7 +300,7 @@ def test_the_lattice_channel_stands_down_without_a_horizontal_command(monkeypatc
 
 def test_a_frame_without_a_lattice_falls_straight_back_to_the_old_path(monkeypatch):
     """星空虛空讀不出格網，那裡沒有相位可用。"""
-    world = World(cols=22, rows=12, units=UNITS)
+    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
     before = world.frame()
     world.move(240.0, 0.0)
     after = world.frame()
@@ -312,7 +316,7 @@ def test_the_lattice_channel_reads_the_two_frames_from_different_windows():
     取樣，線位都落在同一族相位上。這裡兩組線位在螢幕上整整差 728px、一條都不重疊，
     frac 仍然回真值（-40）。
     """
-    world = World(cols=22, rows=12, units=UNITS)
+    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
     before = void_outside(world.frame(), board.LATTICE_WINDOWS[2])
     world.move(40.0, 0.0)
     after = void_outside(world.frame(), board.LATTICE_WINDOWS[3])
@@ -338,7 +342,7 @@ def test_the_lattice_channel_no_longer_stands_down_at_the_map_edge():
     那裡的相關器拿虛空噪點湊出 +472 的自信錯值（真值 -40）。接上象限窗之後
     `measure_pan` 不再等於 `measure_shift`——量不出來就誠實回 none，由上層隔離。
     """
-    world = World(cols=22, rows=12, units=UNITS)
+    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
     before = void_outside(world.frame(), board.LATTICE_WINDOWS[2])
     world.move(40.0, 0.0)
     after = void_outside(world.frame(), board.LATTICE_WINDOWS[3])
@@ -354,9 +358,8 @@ def test_the_lattice_channel_no_longer_stands_down_at_the_map_edge():
 
 
 def test_a_terminal_edge_seen_in_both_frames_measures_the_pan_on_its_own():
-    """v2.10 的第三證人：地圖的物理邊界不是週期訊號，格線 alias 與編隊 alias 都動
-    不了它。這裡整幀沒有半台單位、相關器也只有虛空噪點可看，位移仍然量得出來。"""
-    world = World(cols=22, rows=12, units=())
+    """v2.10 的第三路佐證：地圖的物理邊界不是週期訊號，格線與同型機編隊那種「差整數個週期」的誤配都動不了它。這裡整幀沒有半台單位、相關器也只有虛空噪點可看，位移仍然量得出來。"""
+    world = World(margin=NO_VOID, cols=22, rows=12, units=())
     # 虛空從最外一條線的右邊開始：地圖到此為止，那條線就是物理邊界
     lit = COL_PITCH * 12 + 8
     step = COL_PITCH * 2
@@ -386,8 +389,8 @@ def test_two_terminal_edges_that_disagree_are_both_dropped():
 
 
 def _formation(cells: tuple[tuple[int, int], ...]) -> World:
-    """同一張畫布、只換單位擺位：背景逐像素相同，星座卻換了一批。"""
-    return World(cols=22, rows=12, units=cells)
+    """同一張畫布、只換單位擺位：背景逐像素相同，單位排列比對卻換了一批。"""
+    return World(margin=NO_VOID, cols=22, rows=12, units=cells)
 
 
 ROW = ((3, 3), (4, 3), (5, 3), (6, 3))
@@ -395,7 +398,7 @@ ROW_SHIFTED = ((4, 3), (5, 3), (6, 3), (7, 3))
 
 
 def test_a_formation_alias_vote_is_overruled_by_the_picture(monkeypatch):
-    """週期陣列的幽靈票：偵測到的那一排薩克整批往右錯一個編隊間距，配對投票就投出
+    """週期陣列投出的幽靈票（票數十足、位置整批錯開一個週期的票）：偵測到的那一排薩克整批往右錯一個編隊間距，配對投票就投出
     票數十足的 +一格位移——但畫面根本沒動。0801 台數膨脹的第二顆齒輪。"""
     blind_correlator(monkeypatch)
     before = _formation(ROW).frame()
@@ -414,7 +417,7 @@ def test_a_formation_alias_vote_is_overruled_by_the_picture(monkeypatch):
 
 
 def test_a_real_pan_still_beats_the_null_hypothesis(monkeypatch):
-    """守成：複驗閘只否決對不上畫面的票，真移動照過（不然掃描全程斷鏈）。"""
+    """守成：複驗閘只否決對不上畫面的票，真移動照過（不然掃描全程定位中斷）。"""
     blind_correlator(monkeypatch)
     world = _formation(ROW)
     before = world.frame()
@@ -430,7 +433,7 @@ def test_a_real_pan_still_beats_the_null_hypothesis(monkeypatch):
 
 def test_the_null_check_says_nothing_when_there_is_nothing_to_look_at():
     """鏡頭底下沒幾台＝裁判沒得看。這時要回 blind（呼叫端照舊處置），不是 unclear
-    ——把「裁判缺席」當成「兩個假設都不對」會讓空曠地帶整段斷鏈。"""
+    ——把「裁判缺席」當成「兩個假設都不對」會讓空曠地帶整段定位中斷。"""
     world = _formation(((3, 3),))
     before = world.frame()
     world.move(0.0, 150.0)
@@ -440,7 +443,7 @@ def test_the_null_check_says_nothing_when_there_is_nothing_to_look_at():
 
 def test_the_lattice_falls_back_to_a_sub_window_when_the_band_runs_out_of_lines():
     """地圖走到邊緣只剩右下一角有格線：全幀帶的線數湊不到門檻，相位閘於是整段
-    停擺（0801 t7-t13 七幀全 None，兩腿各滑了 200px 卻被記成停滯）。"""
+    停擺（0801 t7-t13 七幀全 None，兩把各滑了 200px 卻被記成停滯）。"""
     frame = void_outside(_formation(ROW).frame(), board.LATTICE_WINDOWS[3])
 
     assert board.read_lattice(frame) is None
@@ -488,7 +491,7 @@ def test_the_pan_gesture_drags_the_content_the_other_way():
 
 
 def test_the_pan_gesture_takes_the_reach_the_caller_worked_out():
-    """腿長由掃描端依無歧義量測範圍算，不是固定的 PAN_HALF。"""
+    """平移距離由掃描端依無歧義量測範圍算，不是固定的 PAN_HALF。"""
     x1, _, x2, _ = board.pan_gesture("west", (1170.0, 500.0), 140.0)
 
     assert x2 - x1 == 140
@@ -512,7 +515,7 @@ def test_the_lattice_reader_still_reads_the_minimum_zoom_grid():
 
 
 def test_the_coarse_band_alone_would_have_gone_blind_on_the_zoomed_out_grid():
-    """細帶先試是防混疊的關鍵：粗帶的最小間距套在細格網上會隔行取線，湊出翻倍的
+    """細帶先試是防「差整數個週期誤配」的關鍵：粗帶的最小間距套在細格網上會隔行取線，湊出翻倍的
     「均勻」格距——那是自信錯值，不是讀不到。"""
     expect = json.loads((SERIES.parent / "min_zoom_grid_20260731.json").read_text(encoding="utf-8"))
     crop = cv2.imread(str(SERIES.parent / "min_zoom_grid_20260731.png"))
@@ -536,12 +539,43 @@ def test_the_default_zoom_lattice_is_untouched_by_the_extra_band():
     assert list(lattice.rows) == expected["rows"]
 
 
-def test_replaying_the_real_series_keeps_the_bookkeeping_honest():
-    """半真實案例：0719 的九幀是用舊腿長拍的（一腿約 600px，量測窗 620 高），
-    所以縱向那幾腿本來就量不準——重點不是它掃得完，而是**量不到的時候不會亂寫**：
-    斷鏈一律進島嶼，重錨不成就丟掉，出來的每一格都有實際覆蓋過的幀撐著。
-    """
+# 這一幀在真實截圖上讀得到北側的地圖終止邊（其餘八幀四側都讀不到）。
+CORNER_FRAME = "05_pt5_pan_up_small.png"
+
+
+def test_a_real_frame_can_anchor_the_world_and_hand_over_a_landmark():
+    """歸零那一關要的是真畫面：連續兩次推不動，而且角落那一側的地圖終止邊看得見。
+    這裡整段都用實機截圖跑，證明目視的邊在真實像素上撐得住定位的起點。"""
+    corner = dict(series())[CORNER_FRAME]
     survey = coverage.Survey()
+
+    survey.observe(corner)
+    for direction in coverage.ZERO_CORNER:
+        for _ in range(coverage.STALL_CONFIRM):
+            survey.observe(corner, coverage.Leg(direction, 260.0, (0.0, 0.0)))
+
+    assert survey.anchored
+    assert survey.offset == (0.0, 0.0)
+    assert "north" in survey.landmarks
+    assert survey.chart.boundary["north"] == coverage._border_cell(
+        survey.chart.grid, "north", survey.landmarks["north"]
+    )
+
+
+def test_replaying_the_real_series_never_writes_a_frame_it_could_not_place():
+    """半真實案例：0719 的九幀是用舊的大步幅拍的（一把約 600px），v3 的定位窗根本
+    收不下——重點不是它掃得完，而是**收不下的時候不會亂寫**：定位不出來的幀整張
+    丟掉，出來的每一格都有實際覆蓋過的幀撐著。
+    """
+    corner = dict(series())[CORNER_FRAME]
+    survey = coverage.Survey()
+    survey.observe(corner)
+    for direction in coverage.ZERO_CORNER:
+        for _ in range(coverage.STALL_CONFIRM):
+            survey.observe(corner, coverage.Leg(direction, 260.0, (0.0, 0.0)))
+    assert survey.anchored
+
+    placed = 0
     for name, frame in series():
         direction = (
             "north" if "up" in name else "south" if "down" in name else "east" if "right" in name else None
@@ -550,14 +584,14 @@ def test_replaying_the_real_series_keeps_the_bookkeeping_honest():
         if direction is not None:
             dx, dy = board.DIRECTIONS[direction]
             leg = coverage.Leg(direction, 250.0, (-dx * 575.0, -dy * 575.0))
-        survey.observe(frame, leg)
+        if survey.observe(frame, leg).verdict != coverage.BROKEN:
+            placed += 1
 
     summary = survey.summary()
-    islands = summary["islands"]
 
-    assert survey.anchored
-    assert summary["units"] > 10
     assert summary["unlocalised"] > 0
-    assert islands["isolated"] == islands["merged"] + islands["discarded"] + bool(islands["open"])
+    # 收得下的每一幀都寫得出格子；一格都沒有的話這條斷言就只是在測「什麼都沒做」
+    assert placed >= 1
+    assert summary["cells"]["unit"] == len(survey.units())
     # STALE 是換代才有的狀態，一輪掃描裡不該冒出來
     assert summary["cells"]["stale"] == 0
