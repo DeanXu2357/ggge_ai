@@ -16,7 +16,18 @@
 | commit | 工作 |
 | --- | --- |
 | `11f6422` | v3 骨架：`runtime/coverage.py` 重寫、`stage/survey.py` 接線、合成世界加虛空外圍 |
-| （待補） | 測試改寫到 v3 語意、術語清理、本導覽 |
+| `007459f` | 測試改寫到 v3 語意＋四條骨架迴歸、術語清理、本導覽 |
+
+閘門（親跑，worktree `agent-a0b70753e1278d749`）：
+
+```
+1592 passed, 4 skipped, 4 xfailed in 236.42s
+All checks passed!            ← ruff check src tests scripts
+```
+
+相對基底 `9d072c7`，測試檔淨少 60 個、淨增 32 個 `def test_`（多數是同一件事改寫成
+v3 語意的重寫，不是純粹刪除）：整批消失的是島嶼、里程計、增益學習、釘軸與合併那幾
+組——機制退場，案例跟著退場。逐檔對照見第八節。
 
 ---
 
