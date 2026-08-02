@@ -4,8 +4,13 @@
 所以掃描的整段行為對著這個假世界跑：單位擺在哪一格是我們定的，鏡頭移了多少也是
 我們定的，於是「四態逐格正確」「跳過的帶被回補」這種話才有意義。
 
-畫布邊界就是地圖邊界——鏡頭夾在畫布內（實機的鏡頭同樣推到邊就不動），所以撞邊
-事件是世界的性質，不是腳本插旗。
+地圖四周留一圈虛空（實機上是地圖以外那片無特徵的深色背景，下稱星空），鏡頭夾在畫布
+內（實機的鏡頭同樣推到底就不動）。所以「推到底卡住」與「畫面裡看得到地圖終止邊」都是
+世界的性質，不是腳本插旗——v3 的座標全部從這兩件事解出來，假世界要先有得看。
+
+虛空寬度（`MARGIN`）不是隨便挑的：它要讓四側的終止邊在各自的角落都落進格線取樣帶
+（`board.GRID_REGION` 是 x150-1750／y250-780），不然讀不到那條邊就等於沒有地標。
+`test_the_synthetic_world_shows_every_border_at_its_own_corner` 守著這個性質。
 """
 
 from __future__ import annotations
@@ -20,6 +25,10 @@ from ggge_ai.runtime import board
 SCREEN = (2340, 1080)
 COL_PITCH = 128
 ROW_PITCH = 115
+# 地圖外圍的虛空寬度（橫、縱）。橫向 600 讓東界推到底時落在 x1740（取樣帶到 1750）、
+# 西界落在 x600；縱向 310 讓北界推到底時落在 y310、南界落在 y770（取樣帶 250-780）。
+MARGIN = (600, 310)
+VOID_LEVEL = (6, 14)
 LINE_COLOUR = (196, 196, 196)
 # 實機最小縮放下 HP 弧與隊徽環併成一個 ~90-110px 的環，密度峰對著那個尺寸調過
 # 門檻；畫成實心小圓的話密度高原會攤平成兩個峰，假世界要跟真世界同一個形狀。
@@ -32,8 +41,8 @@ UNIT_HSV = (5, 160, 220)
 def freeze_correlator(monkeypatch, response: float = 0.3) -> None:
     """把 phaseCorrelate 的水平分量鎖在靜態峰——0801 t27/t28/t30 的實機情境。
 
-    垂直分量照實回：實機證據是南北向量測健康，只有水平被格線 alias 與 HUD 靜態成分
-    搶峰。response 壓在 `SHIFT_MIN_RESPONSE` 之上，所以退星座的 fallback 不會觸發
+    垂直分量照實回：實機證據是南北向量測健康，只有水平被格線差整數個週期的誤配與 HUD 靜態成分
+    搶峰。response 壓在 `SHIFT_MIN_RESPONSE` 之上，所以退去用單位排列比對的那條路不會觸發
     ——那正是舊碼在這個情境下救不回來的原因。
     """
     real = board._phase_shift
@@ -48,7 +57,7 @@ def freeze_correlator(monkeypatch, response: float = 0.3) -> None:
 def blind_correlator(monkeypatch) -> None:
     """相位相關整個瞎掉（信賴度 0）——無特徵星空的實機情境。
 
-    這是星座 fallback 唯一會被叫到的路徑，影像複驗閘要在這裡受測。
+    這是單位排列比對唯一會被叫到的路徑，影像複驗閘要在這裡受測。
     """
     monkeypatch.setattr(board, "_phase_shift", lambda *args, **kwargs: (0.0, 0.0, 0.0))
 
@@ -85,27 +94,30 @@ def _bgr(hsv: tuple[int, int, int]) -> tuple[int, int, int]:
 
 @dataclass
 class World:
-    """已知擺位的假地圖。cell (0,0) 的左上角就是畫布原點。"""
+    """已知擺位的假地圖，四周包一圈虛空。cell (0,0) 的左上角在畫布的 MARGIN 處。"""
 
     cols: int = 22
     rows: int = 12
     units: tuple[tuple[int, int], ...] = ()
     camera: tuple[float, float] = (0.0, 0.0)
+    margin: tuple[int, int] = MARGIN
     canvas: np.ndarray = field(init=False)
 
     def __post_init__(self) -> None:
-        width = max(self.cols * COL_PITCH, SCREEN[0])
-        height = max(self.rows * ROW_PITCH, SCREEN[1])
+        mx, my = self.margin
+        width = max(self.cols * COL_PITCH + 2 * mx, SCREEN[0])
+        height = max(self.rows * ROW_PITCH + 2 * my, SCREEN[1])
         rng = np.random.default_rng(7)
-        canvas = rng.integers(24, 46, size=(height, width, 3), dtype=np.uint8)
+        canvas = rng.integers(*VOID_LEVEL, size=(height, width, 3), dtype=np.uint8)
+        ground = rng.integers(24, 46, size=(self.rows * ROW_PITCH, self.cols * COL_PITCH, 3),
+                              dtype=np.uint8)
+        canvas[my : my + ground.shape[0], mx : mx + ground.shape[1]] = ground
         for col in range(self.cols + 1):
-            x = col * COL_PITCH
-            if x < width:
-                canvas[:, x : x + 2] = LINE_COLOUR
+            x = mx + col * COL_PITCH
+            canvas[my : my + self.rows * ROW_PITCH + 2, x : x + 2] = LINE_COLOUR
         for row in range(self.rows + 1):
-            y = row * ROW_PITCH
-            if y < height:
-                canvas[y : y + 2, :] = LINE_COLOUR
+            y = my + row * ROW_PITCH
+            canvas[y : y + 2, mx : mx + self.cols * COL_PITCH + 2] = LINE_COLOUR
         for cell in self.units:
             cv2.circle(canvas, self.centre(cell), UNIT_RADIUS, _bgr(UNIT_HSV), UNIT_THICKNESS)
         self.canvas = canvas
@@ -116,9 +128,18 @@ class World:
 
     def centre(self, cell: tuple[int, int]) -> tuple[int, int]:
         return (
-            int(cell[0] * COL_PITCH + COL_PITCH // 2),
-            int(cell[1] * ROW_PITCH + ROW_PITCH // 2),
+            int(self.margin[0] + cell[0] * COL_PITCH + COL_PITCH // 2),
+            int(self.margin[1] + cell[1] * ROW_PITCH + ROW_PITCH // 2),
         )
+
+    def corner(self, *sides: str) -> None:
+        """把鏡頭推到某幾側推不動的位置（測試要一個確定的角落時用）。"""
+        span = self.span
+        x, y = self.camera
+        for side in sides:
+            x = 0.0 if side == "west" else float(span[0]) if side == "east" else x
+            y = 0.0 if side == "north" else float(span[1]) if side == "south" else y
+        self.camera = (x, y)
 
     def frame(self) -> np.ndarray:
         """當下鏡頭位置的一張截圖（世界像素 ＝ 螢幕像素 ＋ camera）。"""

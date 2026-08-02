@@ -24,8 +24,8 @@ from ggge_ai.stage.planner import PlannerConfig, plan
 from ggge_ai.stage.run import JOURNAL_NAME
 from ggge_ai.stage.state import Phase, StageState, next_player_phase
 from ggge_ai.stage.survey import (
-    BLIND_STEP,
     DONE_STEP,
+    FILL_STEP,
     FUSE_STEP,
     LEG_PROBE,
     PRECHECK_PROBE,
@@ -34,8 +34,10 @@ from ggge_ai.stage.survey import (
     ROSTER_UNREADABLE,
     SETTLE_POLL_S,
     SETTLE_ROUNDS,
+    STANCE_STEPS,
     STUCK_STEP,
-    SWEEP_STEP,
+    TOUR_STEP,
+    ZERO_STEP,
     ZOOM_STEP,
     BoardDriver,
     CoverageLedger,
@@ -62,10 +64,10 @@ def map_frame() -> np.ndarray:
 
 @dataclass
 class Rig:
-    """腳本化鏡頭：手指行程乘上增益推鏡頭，畫布邊界就是地圖邊界。
+    """腳本化鏡頭：手指行程乘上比例推鏡頭，虛空外緣就是鏡頭推得到的界。
 
     blank 數的是截圖次數（靜止閘讓每次 observe 花掉兩張，見 test_runtime_coverage
-    的同名替身）：空白幀量不出位移＝斷鏈。
+    的同名替身）：空白幀定位不出來，那一幀整張丟掉。
     """
 
     world: World
@@ -366,13 +368,13 @@ def test_the_ledger_zooms_first_and_only_once():
 
     step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
 
-    assert step.startswith(SWEEP_STEP)
+    assert step.startswith(ZERO_STEP)
     assert zooms == [1]
     assert rig.swipes == 1
 
 
 def test_the_survey_carries_on_without_a_zoom_backend():
-    """成功不依賴縮小：接不上後端照樣掃得完，只是截圖與腿數變多。"""
+    """成功不依賴縮小：接不上後端照樣掃得完，只是截圖與平移次數變多。"""
     world = World(cols=22, rows=12, units=((3, 5), (9, 6)))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
@@ -380,7 +382,7 @@ def test_the_survey_carries_on_without_a_zoom_backend():
     assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == ZOOM_STEP
     assert ledger.zoomed
 
-    for _ in range(40):
+    for _ in range(45):
         driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
         if ledger.synced:
             break
@@ -411,13 +413,13 @@ def test_the_micro_step_says_which_way_it_went():
 
     step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
 
-    assert step.split(":")[0] == SWEEP_STEP
+    assert step.split(":")[0] in STANCE_STEPS
     assert step.split(":")[1] in board.DIRECTIONS
 
 
-def test_an_unreadable_world_still_moves_and_says_it_was_blind():
-    """地圖邊緣的半幅虛空讀不出格網。待在原地只會永遠讀不到，所以照樣推一步——
-    但那一腿沒有座標可信，微步驟名要分得出來。"""
+def test_an_unreadable_world_keeps_pushing_towards_the_corner_and_writes_nothing():
+    """讀不出格網的畫面（地圖邊緣的半幅虛空）待在原地只會永遠讀不到，所以照樣推。
+    但那幾幀還在歸零段——微步驟名說得出來，而且一格都沒寫進知識圖。"""
     blank = np.zeros((1080, 2340, 3), np.uint8)
     actuator = FakeActuator()
     driver, ledger = survey_drivers(lambda: blank, actuator, sleep=lambda _: None)
@@ -425,9 +427,10 @@ def test_an_unreadable_world_still_moves_and_says_it_was_blind():
 
     step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
 
-    assert step.startswith(BLIND_STEP)
+    assert step.startswith(ZERO_STEP)
     assert len(actuator.swipes) == 1
     assert not ledger.survey.anchored
+    assert ledger.survey.chart is None
 
 
 # ---- v2.2 取幀靜止閘與逐 observe 遙測（0801 複驗 14 次 BROKEN(phase) 的修正） ----
@@ -438,7 +441,7 @@ def _glider(drifts: list[float]) -> Glide:
 
 
 def test_the_scan_waits_for_the_glide_to_stop_before_it_takes_the_frame():
-    """pan 的慣性滑行拖過 PAN_SETTLE_S 時，殘餘位移剛好過得了包絡閘（<40px）又過
+    """pan 的慣性滑行拖過 PAN_SETTLE_S 時，殘餘位移剛好過得了合理範圍閘（<40px）又過
     不了相位閘（>22.5px）＝BROKEN(phase)。所以取幀前先等畫面靜下來。"""
     glide = _glider([0.0, 40.0, 15.0])
     naps: list[float] = []
@@ -465,29 +468,25 @@ def test_a_frame_that_never_goes_quiet_is_observed_anyway():
     assert settled.frame.any()
 
 
-def test_the_settle_gate_never_goes_through_the_commanded_channel(monkeypatch):
-    """v2.4 守成：格線相位通道只在帶 x 分量的指令腿上接手。靜止閘的取幀比對沒有
-    指令可帶，整段行為必須逐字照舊。"""
-    handed: list = []
-    monkeypatch.setattr(
-        board,
-        "measure_pan",
-        lambda previous, current, expected, *args, **kwargs: handed.append(expected),
-    )
+def test_the_settle_gate_never_lets_a_command_near_the_measurement():
+    """取幀靜止閘只問「畫面還在滑嗎」，沒有指令可帶也不該有——手勢的量在 v3 完全
+    退出座標計算，連量測都不閘（`board.envelope` 與 `measure_pan` 已隨骨架退場）。"""
+    assert not hasattr(board, "envelope")
+    assert not hasattr(board, "measure_pan")
+
     glide = _glider([0.0, 40.0, 15.0])
     driver, _ = survey_drivers(glide.capture, FakeActuator(), sleep=lambda _: None)
 
     settled = driver._settled_capture()
 
-    assert handed == []
     assert settled.quiet
     assert settled.waits == 3
     assert glide.shots == 4
 
 
 def test_an_unmeasurable_frame_counts_as_quiet_and_is_handed_straight_on():
-    """量不出位移不是「還在動」的證據（無特徵星空就量不出來），而下一步 observe
-    自己會把它隔離進島嶼——在這裡硬等只是白燒截圖。"""
+    """量不出位移不是「還在動」的證據（地圖以外那片無特徵的深色背景就量不出來），
+    而下一步 observe 自己會把那一幀整張丟掉——在這裡硬等只是白燒截圖。"""
     blank = np.zeros((1080, 2340, 3), np.uint8)
     frames = [World(cols=22, rows=12, units=((3, 5), (9, 6))).frame(), blank]
     driver, _ = survey_drivers(lambda: frames.pop(0), FakeActuator(), sleep=lambda _: None)
@@ -509,7 +508,7 @@ def _traced(ticks: int, **kwargs) -> tuple[BoardDriver, Rig]:
 
 
 def test_the_telemetry_files_one_row_per_observe_with_the_measurement():
-    """A5 儀器化：微步驟名答不了「那一腿到底移了多少」，位移量與閘門裁決只有這一種
+    """A5 儀器化：微步驟名答不了「那一把到底移了多少」，位移量與閘門裁決只有這一種
     紀錄看得到。"""
     rows: list[dict] = []
     _traced(3, telemetry=rows.append)
@@ -521,6 +520,7 @@ def test_the_telemetry_files_one_row_per_observe_with_the_measurement():
             "tick",
             "probe",
             "sequence",
+            "stance",
             "direction",
             "reach",
             "expected",
@@ -529,31 +529,25 @@ def test_the_telemetry_files_one_row_per_observe_with_the_measurement():
             "shift",
             "offset",
             "span",
-            "measure",
-            "island",
-            "islands",
-            "merge",
+            "locate",
             "settle",
         }
         assert set(row["shift"]) == {"dx", "dy", "magnitude", "confidence", "source"}
         assert set(row["span"]) == {"sequence", "box", "edges"}
-        assert set(row["island"]) == {"open", "views"}
-        assert set(row["islands"]) == {"isolated", "merged", "discarded", "reset", "refused"}
         assert set(row["settle"]) == {"waits", "quiet"}
         assert len(row["offset"]) == 2
         assert row["sequence"] == row["span"]["sequence"]
-        # 沒合併就是 null——它是單幀事件，不是累計欄位
-        assert row["merge"] is None
+        assert row["stance"] in STANCE_STEPS
 
     prechecks = [row for row in rows if row["probe"] == PRECHECK_PROBE]
     legs = [row for row in rows if row["probe"] == LEG_PROBE]
-    # 前置複核幀無指令，所以 leg 三欄全空——包絡閘那時只能要求「幾乎沒動」
+    # 前置複核幀沒有推移指令，所以那三欄全空
     assert all(row["direction"] is None and row["expected"] is None for row in prechecks)
     assert all(row["reach"] is None for row in prechecks)
     assert all(row["direction"] in board.DIRECTIONS for row in legs)
     assert all(len(row["expected"]) == 2 for row in legs)
-    assert legs[0]["verdict"] == coverage.ACCEPTED
-    assert legs[0]["shift"]["magnitude"] > board.EDGE_SHIFT_PX
+    # 開頭這幾把是往西北角推的歸零段：那裡本來就不談座標
+    assert legs[0]["verdict"] == coverage.ZEROING
 
 
 def test_the_telemetry_reports_how_long_the_quiescence_gate_had_to_wait():
@@ -589,11 +583,11 @@ def test_a_failing_telemetry_sink_never_stops_the_scan():
 
     driver, rig = _traced(2, telemetry=boom)
 
-    assert [step.split(":")[0] for step in driver.steps] == [SWEEP_STEP] * 2
+    assert [step.split(":")[0] for step in driver.steps] == [ZERO_STEP] * 2
     assert rig.swipes == 2
 
 
-# ---- v2.3 斷鏈原生存證（0801 複驗第 2 輪 37 次 BROKEN 幾乎全在東西向，根因未定） ----
+# ---- v2.3 定位中斷原生存證（0801 複驗第 2 輪 37 次 BROKEN 幾乎全在東西向，根因未定） ----
 
 
 def _witnessed(
@@ -612,25 +606,25 @@ def _witnessed(
     return driver, kept
 
 
-def test_a_broken_reading_hands_both_frames_to_the_evidence_sink():
-    """水平向斷鏈的根因（量測系統性欠讀 vs 相位參考漂移）在幀存下來之前定不了讞
-    ——遙測只有數字，離線重放要的是那一對幀本身。"""
-    driver, kept = _witnessed(blank=(4,))
+def test_a_discarded_frame_hands_both_frames_to_the_evidence_sink():
+    """丟棄一幀的根因在幀存下來之前定不了讞——遙測只有數字，離線重放要的是那一對
+    幀本身。空白幀落在第 9 次 observe（＝錨定之後的第一張），那時才談得上定位。"""
+    driver, kept = _witnessed(blank=(18,))
 
-    driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+    for _ in range(5):
+        driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
 
     assert len(kept) == 1
     record, previous, current = kept[0]
     assert record["verdict"] == coverage.BROKEN
-    assert (record["tick"], record["probe"]) == (1, LEG_PROBE)
-    assert record["direction"] in board.DIRECTIONS
+    assert (record["probe"], record["direction"]) == (PRECHECK_PROBE, None)
     assert not current.any()
-    # 前一幀來自執行器自己留的引用：Odometer.feed 判 BROKEN 時刻意不推進 previous
+    # 前一幀來自執行器自己留的引用：世界模型丟棄一幀時刻意不動它記的定位基準
     assert previous is not None and previous.any()
 
 
 def test_the_evidence_sink_stays_silent_while_the_chain_holds():
-    """存證只在斷鏈時發射：整輪都好好的就不該留下任何一對幀。"""
+    """存證只在定位中斷時發射：整輪都好好的就不該留下任何一對幀。"""
     driver, kept = _witnessed()
 
     for _ in range(3):
@@ -640,7 +634,7 @@ def test_the_evidence_sink_stays_silent_while_the_chain_holds():
 
 
 def test_dumping_survey_frames_hands_over_every_observe_in_order():
-    """離線重放量測要的是整輪的 settled 幀，不只斷鏈那幾張。"""
+    """離線重放量測要的是整輪的 settled 幀，不只定位中斷那幾張。"""
     driver, kept = _witnessed(dump_frames=True)
 
     for _ in range(2):
@@ -659,39 +653,42 @@ def test_a_failing_evidence_sink_never_stops_the_scan():
     def boom(record: dict, previous, current) -> None:
         raise RuntimeError("the disk is on fire")
 
-    rig = Rig(World(cols=22, rows=12, units=((3, 5), (9, 6))), blank=(4,))
+    rig = Rig(World(cols=22, rows=12, units=((3, 5), (9, 6))), blank=(18,))
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, evidence=boom)
     ledger.zoomed = True
 
-    step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
+    for _ in range(5):
+        step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
 
-    assert step.startswith(SWEEP_STEP)
-    assert rig.swipes == 1
+    assert step.split(":")[0] in STANCE_STEPS
+    assert rig.swipes == 5
 
 
-def test_the_survey_completes_when_the_frontier_empties():
+def test_the_survey_completes_when_there_is_nothing_left_to_scan():
     world = World(cols=22, rows=12, units=((3, 5), (9, 6), (14, 3)))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
     ledger.zoomed = True
 
-    for _ in range(40):
+    for _ in range(45):
         step = driver.survey_board(SurveyBoard(), Observation(screen="battle_map"))
         if ledger.synced:
             break
 
     assert ledger.synced
-    # 收尾那一 tick 可能是掃描腿，也可能是「HUD 挖洞蓋住的角落格退休」——後者同樣
-    # 讓前緣清空，只是回 DONE_STEP。真正要釘的是這一輪確實走了掃描腿。
-    assert any(name.startswith(SWEEP_STEP) for name in driver.steps)
-    assert step.startswith(SWEEP_STEP) or step == DONE_STEP
+    # 三個階段都要走過：推去角落歸零、沿邊繞一圈，中央有缺口才補
+    assert any(name.startswith(ZERO_STEP) for name in driver.steps)
+    assert any(name.startswith(TOUR_STEP) for name in driver.steps)
+    # 收尾那一 tick 可能是掃描平移，也可能是「HUD 挖洞蓋住的角落格退休」——後者同樣
+    # 讓待掃格清空，只是回 DONE_STEP。
+    assert step.split(":")[0] in STANCE_STEPS or step == DONE_STEP
     assert len(ledger.cells()) == len(world.units)
-    # 再叫一次也不會亂動：前緣已空
+    # 再叫一次也不會亂動：沒有待掃格了
     assert driver.survey_board(SurveyBoard(), Observation(screen="battle_map")) == DONE_STEP
 
 
-def test_the_leg_fuse_stops_instead_of_burning_the_whole_tick_budget():
-    """腿數上限只是防失控的保險絲，不是完成判準——燒斷了就誠實停在沒同步。"""
+def test_the_gesture_fuse_stops_instead_of_burning_the_whole_tick_budget():
+    """平移次數上限只是防失控的保險絲，不是完成判準——燒斷了就誠實停在沒同步。"""
     world = World(cols=22, rows=12, units=())
     rig = Rig(world)
     ledger = CoverageLedger(survey=coverage.Survey(budget=1))
@@ -713,13 +710,12 @@ def test_the_driver_resumes_from_the_ledger_not_from_its_own_variables():
     ledger.zoomed = True
     first, _ = survey_drivers(rig.capture, rig, ledger=ledger, sleep=lambda _: None)
     first.survey_board(SurveyBoard(), Observation(screen="battle_map"))
-    charted = len(ledger.survey.chart.charted)
 
     second, _ = survey_drivers(rig.capture, rig, ledger=ledger, sleep=lambda _: None)
     second.survey_board(SurveyBoard(), Observation(screen="battle_map"))
 
-    assert second.steps[0].startswith(SWEEP_STEP)
-    assert len(ledger.survey.chart.charted) >= charted
+    assert second.steps[0].startswith(ZERO_STEP)
+    assert ledger.survey.observes > 0
 
 
 def test_expiry_downgrades_the_board_and_keeps_the_map_geometry():
@@ -897,7 +893,7 @@ def test_the_journal_records_the_board_symbols_every_tick(tmp_path):
 
 
 def test_the_journal_gets_the_coverage_numbers_every_tick(tmp_path):
-    """規格要求逐 tick 記覆蓋率、前緣聚類數、unlocalised 與島嶼事件。它們壓不成
+    """規格要求逐 tick 記覆蓋率、待掃格聚類數、丟棄幀數與歸零次數。它們壓不成
     搜尋鍵，所以走 evidence——迴圈本來就逐 tick 把 evidence 抄進流水帳。"""
     ledger = CoverageLedger()
     order = StageOrder(
@@ -920,19 +916,14 @@ def test_the_journal_gets_the_coverage_numbers_every_tick(tmp_path):
     loop.tick()
 
     survey = journal.entries()[0]["evidence"]["survey"]
-    assert set(survey) >= {"coverage", "clusters", "frontier", "unlocalised", "islands"}
-    assert survey["islands"] == {
-        "isolated": 0,
-        "merged": 0,
-        "discarded": 0,
-        "reset": 0,
-        "refused": 0,
-        "open": False,
-    }
+    assert set(survey) >= {"coverage", "clusters", "frontier", "unlocalised", "stance", "zeroings"}
+    assert survey["stance"] == coverage.ZERO
+    assert survey["zeroings"] == 0
+    assert survey["landmarks"] == {}
 
 
 @pytest.mark.parametrize(
-    "step", [ZOOM_STEP, SWEEP_STEP, DONE_STEP, FUSE_STEP, STUCK_STEP, BLIND_STEP]
+    "step", [ZOOM_STEP, ZERO_STEP, TOUR_STEP, FILL_STEP, DONE_STEP, FUSE_STEP, STUCK_STEP]
 )
 def test_the_micro_step_names_are_stable_for_the_journal(step):
     assert isinstance(step, str) and step

@@ -6,22 +6,25 @@ roster_collapsed 是掃描的前置條件，所以規劃器自然把 show_grid�
 排在 survey_board 之前；掃描程序內部不翻開關、不收卡條，也沒有降級掃。
 
 掃描是**一個**行動，留在計畫佇列頭跨 tick 重入。執行器每次進來先感知複核（等畫面
-靜止再收一張新圖、對回上一幀量位移），再挑下一個微步驟：縮放 → 往缺口推一步 →
-逐幀量測吸附。所以反射可以在任何一個 tick 插進來收彈窗，之後接著掃；一個 tick 只做
-一個微步驟，迴圈「一 tick 至多一次操作」的紀律不變。兩處取幀都走 `_settled_capture`
-——慣性滑行拖過 pan 的 settle 時，收下的幀會被相位閘拒收＝斷鏈（見常數區）。
+靜止再收一張新圖交給世界模型定位），再挑下一個微步驟：縮放 → 往角落／邊／缺口推
+一把 → 收幀定位。所以反射可以在任何一個 tick 插進來收彈窗，之後接著掃；一個 tick
+只做一個微步驟，迴圈「一 tick 至多一次操作」的紀律不變。兩處取幀都走
+`_settled_capture`——慣性滑行拖過推移的緩動時，收下的幀定位會歪（見常數區）。
 
-**覆蓋進度的落點**：世界模型住 `runtime/coverage.Survey`（四態知識圖＋邊界旗＋
-前緣，覆蓋模型 v2），CoverageLedger 只是簿記側的門面，SurveyPerceiver 把它折進
+**微步驟名**＝掃描階段加方向（`zero:west`／`tour:east`／`fill:north`），對應世界
+模型的三個階段：推去西北角歸零、沿邊繞一圈、補中央的缺口。
+
+**覆蓋進度的落點**：世界模型住 `runtime/coverage.Survey`（四態知識圖＋界線＋地標
+＋待掃格，覆蓋模型 v3），CoverageLedger 只是簿記側的門面，SurveyPerceiver 把它折進
 StageState 的 board_synced——因為完成判定走 progressed(state)，恢復點不能只活在
 執行器的內部變數裡（否則換一個執行器實例就看不出掃到哪了）。**分段進度不再進
-符號狀態**：v2 的進度是逐格的知識圖，壓不成搜尋鍵放得下的東西，也沒有任何
+符號狀態**：進度是逐格的知識圖，壓不成搜尋鍵放得下的東西，也沒有任何
 applicable／progressed 讀它；它逐 tick 走 `evidence["survey"]` 進流水帳。
 
 **生命週期**：board_synced 在敵方回合過完就過期——敵人動過，站位全部作廢。
 衰效由這裡的接縫執行（它是唯一同時看得到簿記與觀測的地方），與搜尋側
 next_player_phase 的同一條規則對齊。衰效只降級單位知識（UNIT→STALE、
-EMPTY→UNKNOWN），地圖幾何與邊界旗留著。
+EMPTY→UNKNOWN），地圖幾何、界線與地標留著。
 """
 
 from __future__ import annotations
@@ -42,21 +45,24 @@ from .state import Phase, StageState
 log = logging.getLogger(__name__)
 
 ZOOM_STEP = "zoom"
-SWEEP_STEP = "sweep"
-# 前緣空＝掃完了；保險絲燒斷或錨不到世界都是「這一 tick 沒得推」，但三者的成因
+# 掃描三階段的微步驟前綴（世界模型的 stance 直接當名字用）。
+ZERO_STEP = coverage.ZERO
+TOUR_STEP = coverage.TOUR
+FILL_STEP = coverage.FILL
+STANCE_STEPS: tuple[str, ...] = (ZERO_STEP, TOUR_STEP, FILL_STEP)
+# 沒有待掃格＝掃完了；保險絲燒斷或角落讀不出世界都是「這一 tick 沒得推」，但三者的成因
 # 完全不同，所以微步驟名分開記——流水帳要看得出來是掃完還是掃不動。
 DONE_STEP = "done"
 FUSE_STEP = "fuse"
 STUCK_STEP = "stuck"
-BLIND_STEP = "blind"
 ROSTER_SETTLE_S = 1.2
 ROSTER_ALREADY = "already"
 ROSTER_TAPPED = "tapped"
 ROSTER_UNREADABLE = "unreadable"
 
 # 取幀靜止閘。0801 複驗實證：重手勢的慣性滑行會拖過 PAN_SETTLE_S，殘餘滑行落在
-# PHASE_TOLERANCE×col_pitch（22.5px）到 EDGE_SHIFT_PX（40px）這個窗口時，包絡閘
-# （expected=None 只擋 >40px）放行、相位閘拒收＝BROKEN(phase)，40 tick 裡斷了 14 次。
+# 格線相位容差（22.5px）到 EDGE_SHIFT_PX（40px）這個窗口時，收下的幀會被格線相位
+# 那一關拒收，40 tick 裡斷了 14 次。
 # 靜止判準用相位相關的位移量而**不是** frame_difference：單位待機動畫逐幀都在動，
 # 幀差永遠安靜不下來；滑行是全域同調位移，相位相關量得到、待機動畫量不到。
 SETTLE_POLL_S = 0.25
@@ -80,7 +86,7 @@ class CoverageLedger:
 
     @property
     def synced(self) -> bool:
-        """四旗全定 ∧ 界內無 UNKNOWN／STALE ——建構性的完成判準，不是腿數。"""
+        """四面界線都定 ∧ 界內無 UNKNOWN／STALE ——建構性的完成判準，不是推了幾把。"""
         return self.survey.complete
 
     @property
@@ -95,7 +101,7 @@ class CoverageLedger:
         return {**self.survey.summary(), "zoomed": self.zoomed}
 
     def expire(self) -> None:
-        """回合交界的衰效：單位知識降級，地圖幾何與縮放留著（鏡頭沒被動過）。"""
+        """回合交界的衰效：單位知識降級，地圖幾何、地標與縮放留著。"""
         self.survey.expire()
 
 
@@ -162,19 +168,18 @@ class BoardDriver:
 
     zoom_out 是注入的（實作在 runtime/zoom.py，需要 uiautomator 注入通道，與截圖
     ／點擊的 adb 通道分開）：沒給就只記一次警告照樣往下走——**掃描成功不依賴
-    縮小**，縮不動只是截圖次數變多（覆蓋模型 v2 的核心目的）。
+    縮小**，縮不動只是截圖次數變多（覆蓋模型 v3 的核心立場）。
 
-    telemetry 是逐 observe 的量測遙測水槽（A5 儀器化）：位移量、閘門裁決、島嶼合併
-    的偏移與靜止閘等了幾輪都只在這裡看得到，流水帳的微步驟名答不了「那一腿到底移了
-    多少」。它是純觀察者——寫失敗只記一次警告，掃描照跑。
+    telemetry 是逐 observe 的遙測水槽（A5 儀器化）：解出來的座標、這一幀的座標是
+    怎麼來的、靜止閘等了幾輪都只在這裡看得到，流水帳的微步驟名答不了「那一把推移
+    實際走了多遠」。它是純觀察者——寫失敗只記一次警告，掃描照跑。
 
-    evidence 是斷鏈的**存證**水槽：observe 判 BROKEN 時把上一張與這一張 settled
-    幀連同那一筆遙測交出去，離線才重放得了量測。水平向斷鏈的根因（量測系統性
-    欠讀 vs 相位參考漂移）在幀存下來之前定不了讞。`dump_frames` 打開時每一次
-    observe 都發射，供離線把整輪掃描重跑一遍。同樣是純觀察者。
+    evidence 是丟棄幀的**存證**水槽：observe 判 BROKEN（定位不出來）時把上一張與
+    這一張 settled 幀連同那一筆遙測交出去，離線才重放得了定位。`dump_frames` 打開
+    時每一次 observe 都發射，供離線把整輪掃描重跑一遍。同樣是純觀察者。
 
-    上一幀由執行器自己留：`Odometer.feed` 判 BROKEN 時刻意不推進它的 previous
-    （斷鏈的處置是呼叫端的事），所以量測層的 previous 未必是時間上的前一張。
+    上一幀由執行器自己留：世界模型丟棄一幀時刻意不動它記的「最近一張定位成功的
+    幀」，所以那一側的 previous 未必是時間上的前一張。
     """
 
     capture: Callable[[], np.ndarray]
@@ -221,12 +226,11 @@ class BoardDriver:
             if survey.complete:
                 return self._step(DONE_STEP)
             return self._step(FUSE_STEP if survey.fused else STUCK_STEP)
-        # 錨不到世界（地圖邊緣的半幅虛空讀不出格網）也照樣推一步換視野，但那一腿
-        # 是盲推——流水帳要分得出來，不然事後看不出這一段有沒有座標可信。
-        prefix = SWEEP_STEP if survey.anchored else BLIND_STEP
+        # stance 要在 plan_leg 之後讀：那一步可能剛把繞邊換成補中央。
+        stance = survey.stance
         self._pan(leg, board.pick_pan_origin(board.find_sightings(settled.frame)))
         self._read(LEG_PROBE, leg, self._settled_capture())
-        return self._step(f"{prefix}:{leg.direction}")
+        return self._step(f"{stance}:{leg.direction}")
 
     def drivers(self) -> dict[type, Callable[[Any, Observation[Any]], Any]]:
         return {
@@ -243,8 +247,9 @@ class BoardDriver:
         """等畫面靜止再收幀——掃描的兩處取幀都走這裡。
 
         重試用盡就收最後一幀照常 observe：這個閘只降污染率，不保證零污染，而停在
-        原地不收幀會把整個 tick 空轉掉。量不出位移（known=False，無特徵星空）視為
-        靜止：量不出來不是「還在動」的證據，下一步 observe 自己會處置那一幀。
+        原地不收幀會把整個 tick 空轉掉。量不出位移（known=False，地圖以外那片無特徵的
+        深色背景，下稱星空）視為靜止：量不出來不是「還在動」的證據，下一步 observe
+        自己會處置那一幀。
         """
         frame = self.capture()
         for waits in range(1, SETTLE_ROUNDS + 1):
@@ -288,7 +293,7 @@ class BoardDriver:
         reading: coverage.Reading,
         settled: SettledFrame,
     ) -> None:
-        """斷鏈的前後幀對交給存證水槽；dump_frames 打開時每一次 observe 都交。
+        """定位中斷的前後幀對交給存證水槽；dump_frames 打開時每一次 observe 都交。
 
         兩個水槽各包各的 try：遙測炸了不該連帶讓存證失效，反之亦然。
         """
@@ -309,13 +314,13 @@ class BoardDriver:
         settled: SettledFrame,
     ) -> dict[str, Any]:
         survey = self.ledger.survey
-        island = survey.island
         shift = reading.shift
         view = survey.last_view
         return {
             "tick": self.ticks,
             "probe": probe,
             "sequence": survey.observes,
+            "stance": survey.stance,
             "direction": None if leg is None else leg.direction,
             "reach": None if leg is None else round(leg.reach, 1),
             "expected": None if leg is None else [round(value, 1) for value in leg.expected],
@@ -336,13 +341,7 @@ class BoardDriver:
                 "box": None if view.lattice is None else list(view.lattice),
                 "edges": sorted(view.edges),
             },
-            "measure": reading.detail,
-            "island": {
-                "open": island is not None,
-                "views": 0 if island is None else len(island.views),
-            },
-            "islands": dict(survey.islands),
-            "merge": _merge_row(survey.last_merge),
+            "locate": reading.detail,
             "settle": {"waits": settled.waits, "quiet": settled.quiet},
         }
 
@@ -362,28 +361,6 @@ class BoardDriver:
         x1, y1, x2, y2 = board.pan_gesture(leg.direction, origin, leg.reach)
         self.actuator.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
         self.sleep(board.PAN_SETTLE_S)
-
-
-def _merge_row(
-    merge: tuple[board.Point, tuple[tuple[int, board.Point], ...]] | None,
-) -> dict[str, Any] | None:
-    """這一次 observe 的島嶼合併（偏移與併進的每一張 view），沒合併就是 null。
-
-    界內台數膨脹的鑑識輸入：重錨偏移寫錯時整批島 view 以錯格吸收，`islands` 只有
-    累計次數，答不了「哪一次錯、錯多少」。`buffered` 的序號對得回同一份流水帳的
-    `sequence` 欄，所以錯的那一格追得到是哪一 tick／哪一個 probe 收的。
-    """
-    if merge is None:
-        return None
-    delta, views = merge
-    return {
-        "delta": [round(value, 1) for value in delta],
-        "views": len(views),
-        "buffered": [
-            {"sequence": sequence, "offset": [round(value, 1) for value in offset]}
-            for sequence, offset in views
-        ],
-    }
 
 
 def survey_drivers(

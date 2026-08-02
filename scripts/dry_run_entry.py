@@ -78,7 +78,7 @@ BROKEN_PAIRS = 20
 SURVEY_DIRNAME = "survey"
 SURVEY_DONE = "survey_done"
 # 步數帳（0801 複驗實測）：南 11＋北 2＋東 18＋西 ~10 已 41 把平移，40 tick 連一輪
-# 都走不完。80 給殘餘與西側補掃留裕度；真正的上限仍是 coverage.LEG_BUDGET。
+# 都走不完。80 給丟棄重來與補中央留裕度；真正的上限仍是 coverage.LEG_BUDGET。
 # 這是**上限**不是目標——掃完就停（DryRun.sweep）。
 SURVEY_TICKS = 80
 # 只有真的進到地圖才有戰鬥可棄；停在更早的段落就交給人自己收。
@@ -315,9 +315,8 @@ class DryRun:
         ledger = self.driver.ledger
         cells = ledger.cells()
         summary = ledger.summary()
-        # unlocalised＝那一幀的位移量不出來、觀測被隔離進島嶼（定位中斷後位置
-        # 不明的觀測暫存區，等重新定位才併回）。>0 就代表這一輪發生過定位中斷，
-        # 要跟結果放在同一筆紀錄裡，不是只留在 log。
+        # unlocalised＝那一幀的位置解不出來、整張被丟掉。>0 就代表這一輪有幀定位
+        # 失敗，要跟結果放在同一筆紀錄裡，不是只留在 log。
         self.journal.record(
             "survey_summary",
             steps=list(self.driver.steps),
@@ -328,13 +327,14 @@ class DryRun:
         )
         log.info("survey steps: %s", self.driver.steps)
         log.info(
-            "synced=%s coverage=%s bounded=%s cells=%d unlocalised=%s islands=%s",
+            "synced=%s coverage=%s bounded=%s cells=%d unlocalised=%s stance=%s zeroings=%s",
             ledger.synced,
             summary["coverage"],
             summary["bounded"],
             len(cells),
             summary["unlocalised"],
-            summary["islands"],
+            summary["stance"],
+            summary["zeroings"],
         )
 
 
