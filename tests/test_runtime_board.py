@@ -20,7 +20,6 @@ from tests.fixtures.synthetic_map import (
     COL_PITCH,
     World,
     blind_correlator,
-    freeze_correlator,
     void_outside,
 )
 
@@ -30,7 +29,6 @@ NO_VOID = (0, 0)
 
 SERIES = Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
 MATCH_RADIUS = 60
-UNITS = ((3, 2), (5, 4), (9, 6), (14, 3))
 
 
 @functools.cache
@@ -215,150 +213,12 @@ def test_an_unmeasurable_shift_says_so_instead_of_returning_zero():
     assert not shift.known
 
 
-# ---- v2.4 水平量測的格線相位通道（0801 複驗輪第 3 輪 18 對 broken 幀的定讞） ----
-
-
-def test_the_column_phase_reads_the_fraction_a_pan_leaves_on_the_grid():
-    """格線是貫穿全圖的細亮脊，兩幀線集合對位的訊噪比極高——但只給得出 mod pitch。"""
-    world = World(margin=NO_VOID, cols=22, rows=12, units=())
-    before = world.frame()
-    world.move(300.0, 0.0)
-    after = world.frame()
-
-    frac = board._column_phase(
-        board.read_lattice(before).cols, board.read_lattice(after).cols, COL_PITCH
-    )
-
-    # 內容左移 300：300 mod 128 = 44，帶號相位差 −44
-    assert frac == pytest.approx(-44.0, abs=3.0)
-
-
-def test_the_constellation_outranks_the_correlator_for_the_column_count():
-    pick = board._resolve_columns(16.0, 128.0, -350.0, constellation=-236.0)
-
-    assert pick == (-240.0, board.WITNESS_CONSTELLATION)
-
-
-def test_the_correlator_carries_the_column_count_when_nobody_voted():
-    pick = board._resolve_columns(16.0, 128.0, -350.0, constellation=None, correlator=-205.0)
-
-    assert pick == (-240.0, board.WITNESS_PHASE)
-
-
-def test_two_independent_witnesses_pointing_at_different_columns_refuse_to_guess():
-    """單位排列比對錯起來是整整一個眾數的錯（0801 t11 投 21.5、t13 投 4.7，離真值一整欄），
-    所以獨立佐證來源互相矛盾時寧可定位中斷——「量錯寫入」那條路徑不准存在。"""
-    assert board._resolve_columns(16.0, 128.0, -350.0, -236.0, -100.0) is None
-
-
-def test_a_witness_sitting_between_two_columns_is_no_witness():
-    assert board._resolve_columns(16.0, 128.0, -350.0, correlator=-48.0) is None
-
-
-def test_the_command_alone_only_speaks_when_it_leaves_a_single_column():
-    """真實平移距離的合理範圍窗寬得下好幾欄，指令根本分不出 k——0801 實測增益還沒學會時
-    expected 是真值的 2.5 倍，取最近的候選會回一個差兩整欄的自信錯值。"""
-    assert board._resolve_columns(60.0, 128.0, -30.0) == (-68.0, board.WITNESS_COMMANDED)
-    assert board._resolve_columns(60.0, 128.0, -350.0) is None
-
-
-def test_the_column_vote_keeps_the_westward_sign():
-    pick = board._resolve_columns(-16.0, 128.0, 350.0, constellation=236.0)
-
-    assert pick == (240.0, board.WITNESS_CONSTELLATION)
-
-
-def test_a_correlator_locked_on_the_static_peak_no_longer_freezes_the_measurement(monkeypatch):
-    """本批的核心迴歸，復刻 0801 t27/t28/t30：內容實際移動上百 px，phaseCorrelate
-    完全鎖在靜態峰，而 response 照樣過 SHIFT_MIN_RESPONSE——退去用單位排列比對的那條路連
-    觸發的機會都沒有。格線相位通道要在這種相關器底下照樣量對。"""
-    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
-    before = world.frame()
-    world.move(240.0, 0.0)
-    after = world.frame()
-    freeze_correlator(monkeypatch)
-
-    assert board.measure_shift(before, after).dx == 0.0
-
-    shift = board.measure_pan(before, after, (-350.0, 0.0))
-
-    assert shift.source == f"{board.LATTICE_SOURCE}:{board.WITNESS_CONSTELLATION}"
-    assert shift.dx == pytest.approx(-240.0, abs=4.0)
-
-
-def test_the_lattice_channel_stands_down_without_a_horizontal_command(monkeypatch):
-    """靜止閘的取幀比對與 precheck 都沒有指令可帶，行為必須逐字照舊。"""
-    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
-    before = world.frame()
-    world.move(240.0, 0.0)
-    after = world.frame()
-    freeze_correlator(monkeypatch)
-
-    for expected in (None, (0.0, -155.0)):
-        assert board.measure_pan(before, after, expected) == board.measure_shift(before, after)
-
-
-def test_a_frame_without_a_lattice_falls_straight_back_to_the_old_path(monkeypatch):
-    """星空虛空讀不出格網，那裡沒有相位可用。"""
-    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
-    before = world.frame()
-    world.move(240.0, 0.0)
-    after = world.frame()
-    monkeypatch.setattr(board, "read_lattice", lambda *args, **kwargs: None)
-
-    assert board.measure_pan(before, after, (-350.0, 0.0)) == board.measure_shift(before, after)
-
-
-def test_the_lattice_channel_reads_the_two_frames_from_different_windows():
-    """v2.7(3) 的論證：兩幀由**不同**象限窗讀出線位，小數相位照樣量得對。
-
-    `_column_phase` 拿的是環狀中位殘差＝mod pitch 的量，而同一張格網不論從哪一角
-    取樣，線位都落在同一族相位上。這裡兩組線位在螢幕上整整差 728px、一條都不重疊，
-    frac 仍然回真值（-40）。
-    """
-    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
-    before = void_outside(world.frame(), board.LATTICE_WINDOWS[2])
-    world.move(40.0, 0.0)
-    after = void_outside(world.frame(), board.LATTICE_WINDOWS[3])
-
-    assert board.read_lattice(before) is None
-    assert board.read_lattice(after) is None
-
-    lattices = (board.find_lattice(before), board.find_lattice(after))
-    assert all(lattice is not None for lattice in lattices)
-    for lattice, window in zip(lattices, board.LATTICE_WINDOWS[2:4], strict=True):
-        x, _, w, _ = window
-        assert all(x <= col <= x + w for col in lattice.cols)
-    assert not set(lattices[0].cols) & set(lattices[1].cols)
-
-    frac = board._column_phase(lattices[0].cols, lattices[1].cols, COL_PITCH)
-
-    assert frac == pytest.approx(-40.0, abs=4.0)
-
-
-def test_the_lattice_channel_no_longer_stands_down_at_the_map_edge():
-    """v2.6 爭點 5：邊緣區全幀帶讀不出格線時，格線通道整條讓位給相關器。
-
-    那裡的相關器拿虛空噪點湊出 +472 的自信錯值（真值 -40）。接上象限窗之後
-    `measure_pan` 不再等於 `measure_shift`——量不出來就誠實回 none，由上層隔離。
-    """
-    world = World(margin=NO_VOID, cols=22, rows=12, units=UNITS)
-    before = void_outside(world.frame(), board.LATTICE_WINDOWS[2])
-    world.move(40.0, 0.0)
-    after = void_outside(world.frame(), board.LATTICE_WINDOWS[3])
-
-    fallback = board.measure_shift(before, after)
-    assert fallback.source == "phase"
-    assert fallback.dx > 400.0
-
-    shift = board.measure_pan(before, after, (-350.0, 0.0))
-
-    assert shift != fallback
-    assert not shift.known
+# ---- 目視終止邊的位移（v2.10，v3 拿它當獨立於像素量測的佐證來源） ----
 
 
 def test_a_terminal_edge_seen_in_both_frames_measures_the_pan_on_its_own():
-    """v2.10 的第三路佐證：地圖的物理邊界不是週期訊號，格線與同型機編隊那種「差整數個週期」的誤配都動不了它。這裡整幀沒有半台單位、相關器也只有虛空噪點可看，位移仍然量得出來。"""
+    """地圖的物理邊界不是週期訊號，格線與同型機編隊那種「差整數個週期」的誤配都動不了
+    它。這裡整幀沒有半台單位、相關器也只有虛空噪點可看，位移仍然量得出來。"""
     world = World(margin=NO_VOID, cols=22, rows=12, units=())
     # 虛空從最外一條線的右邊開始：地圖到此為止，那條線就是物理邊界
     lit = COL_PITCH * 12 + 8
@@ -370,22 +230,21 @@ def test_a_terminal_edge_seen_in_both_frames_measures_the_pan_on_its_own():
     spans = (board.read_span(before), board.read_span(after))
     assert all("east" in span.edges for span in spans)
 
-    shift = board.measure_pan(before, after, (-350.0, 0.0))
+    borders = [{side: span.border(side) for side in span.edges} for span in spans]
 
-    assert shift.source == f"{board.LATTICE_SOURCE}:{board.WITNESS_EDGE}"
-    assert shift.dx == pytest.approx(-step, abs=4.0)
+    assert board.edge_shift(borders[0], borders[1], "x") == pytest.approx(-step, abs=4.0)
 
 
 def test_two_terminal_edges_that_disagree_are_both_dropped():
     """兩側各量一次同一個剛體平移，差太多就代表至少一側不是地圖邊——挑一個信
     等於再開一條「量錯寫入」的路。"""
-    lattice = board.Lattice(tuple(range(200, 1400, 100)), tuple(range(300, 700, 100)))
-    seen = board.GridSpan(lattice, (200, 300, 1100, 300), frozenset({"west", "east"}))
+    seen = {"west": 200.0, "east": 1300.0}
     # 西邊挪了 100、東邊一步沒動＝至少一側量的不是同一件事
-    drifted = board.GridSpan(lattice, (100, 300, 1200, 300), frozenset({"west", "east"}))
+    drifted = {"west": 100.0, "east": 1300.0}
 
-    assert board._edge_shift(seen, drifted, "x") is None
-    assert board._edge_shift(seen, seen, "x") == 0.0
+    assert board.edge_shift(seen, drifted, "x") is None
+    assert board.edge_shift(seen, seen, "x") == 0.0
+    assert board.edge_shift(seen, {"north": 0.0}, "x") is None
 
 
 def _formation(cells: tuple[tuple[int, int], ...]) -> World:
@@ -467,7 +326,6 @@ def test_the_median_residual_shrugs_off_one_jittery_line():
     """0801 逐幀實測單線位置抖動 ±10px，而相位閘的容差只有 0.25 pitch。"""
     lines = [110.0, 190.0, 280.0, 370.0, 460.0]
 
-    assert board.phase_residual(lines[0], 90.0, 100.0) == pytest.approx(10.0)
     assert board.median_residual(lines, 90.0, 100.0) == pytest.approx(0.0, abs=0.01)
 
 

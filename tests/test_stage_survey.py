@@ -468,21 +468,17 @@ def test_a_frame_that_never_goes_quiet_is_observed_anyway():
     assert settled.frame.any()
 
 
-def test_the_settle_gate_never_goes_through_the_commanded_channel(monkeypatch):
-    """v2.4 守成：格線相位通道只在帶 x 分量的指令平移上接手。靜止閘的取幀比對沒有
-    指令可帶，整段行為必須逐字照舊。"""
-    handed: list = []
-    monkeypatch.setattr(
-        board,
-        "measure_pan",
-        lambda previous, current, expected, *args, **kwargs: handed.append(expected),
-    )
+def test_the_settle_gate_never_lets_a_command_near_the_measurement():
+    """取幀靜止閘只問「畫面還在滑嗎」，沒有指令可帶也不該有——手勢的量在 v3 完全
+    退出座標計算，連量測都不閘（`board.envelope` 與 `measure_pan` 已隨骨架退場）。"""
+    assert not hasattr(board, "envelope")
+    assert not hasattr(board, "measure_pan")
+
     glide = _glider([0.0, 40.0, 15.0])
     driver, _ = survey_drivers(glide.capture, FakeActuator(), sleep=lambda _: None)
 
     settled = driver._settled_capture()
 
-    assert handed == []
     assert settled.quiet
     assert settled.waits == 3
     assert glide.shots == 4
