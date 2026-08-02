@@ -247,8 +247,9 @@ class BoardDriver:
         """等畫面靜止再收幀——掃描的兩處取幀都走這裡。
 
         重試用盡就收最後一幀照常 observe：這個閘只降污染率，不保證零污染，而停在
-        原地不收幀會把整個 tick 空轉掉。量不出位移（known=False，無特徵星空）視為
-        靜止：量不出來不是「還在動」的證據，下一步 observe 自己會處置那一幀。
+        原地不收幀會把整個 tick 空轉掉。量不出位移（known=False，地圖以外那片無特徵的
+        深色背景，下稱星空）視為靜止：量不出來不是「還在動」的證據，下一步 observe
+        自己會處置那一幀。
         """
         frame = self.capture()
         for waits in range(1, SETTLE_ROUNDS + 1):
