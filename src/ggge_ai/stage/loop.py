@@ -179,15 +179,14 @@ class StageLoop:
                 return self._record(
                     observation, TickOutcome.NO_PLAN, note=self.stop_reason, **bookkeeping
                 )
+            if not result.steps:
+                return self._record(
+                    observation,
+                    TickOutcome.WAITING,
+                    note="plan stops at the phase boundary",
+                    **bookkeeping,
+                )
             self.queue = list(result.steps)
-
-        if not self.queue:
-            return self._record(
-                observation,
-                TickOutcome.WAITING,
-                note="plan stops at the phase boundary",
-                **bookkeeping,
-            )
 
         head = self.queue[0]
         self.executor.perform(head.action, observation)
