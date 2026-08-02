@@ -85,21 +85,25 @@ observe(frame, leg)
       ├─ _locate(...)
       │    ├─ _from_landmarks(view, "x") / (…, "y")
       │    │    同軸兩側都看得到而差超過半格 → 丟棄（edge_mismatch）
-      │    ├─ 兩軸都讀得到 → 座標定案（source=edge）
-      │    ├─ _recall(...)  ← 只補讀不到地標的那一軸
+      │    ├─ _candidates(...)  由強到弱，**逐個各自複驗**
+      │    │    ├─ 兩軸都讀得到地標 → (座標, source=edge)
       │    │    ├─ 畫面沒動且上一張定位成功 → 沿用它（source=still）
-      │    │    ├─ _drift：跟最近一張定位成功的幀量重疊區位移（source=drift）
-      │    │    └─ _constellation：單位排列比對回已記目擊（source=match）
-      │    ├─ 直線軸沒有地標時走 _snap（格線相位交叉驗證＋吸附），對不上就丟棄
-      │    └─ _corroborated：重疊區量到的位移要和候選座標對得上（半格內）
-      │         量不出重疊位移時退回 null_check（只問「這個位移是不是根本沒發生」）
+      │    │    ├─ _constellation：單位排列比對回已記目擊（source=match）
+      │    │    └─ _drift：跟最近一張定位成功的幀量一次位移（source=drift）
+      │    ├─ 直線軸沒有地標時走 _snap（格線相位交叉驗證＋吸附），讀不出格線就拒收
+      │    ├─ _corroborated：候選座標套上去，機體要落回已記的目擊，而且要贏過
+      │    │    差一整格的鄰居（佔位一致性；判準與量測不同源）
+      │    │    └─ 沒有材料／候選出自排列比對 → _pictured：終止邊位移 → 重疊區
+      │    │         量測（只給排列比對用）→ _outbids（逐窗對質差一整格的鄰居）
+      │    └─ 這個候選過不了就換下一個，全部過不了才丟整幀
       ├─ 解不出來 → _discard()：unlocalised+1、知識圖一格不動、連丟三張推回角落
-      └─ 解得出來 → chart.absorb(placed) → _learn_edges(placed) → located 更新
+      │    （若丟棄理由是佔位一致性且有地標背書 → _contest，連三次整張圖作廢重來）
+      └─ 解得出來 → chart.absorb(placed) → _learn_edges(placed, source) → located 更新
 ```
 
 **地標**（`Survey.landmarks`）＝四側地圖終止邊的世界像素。定位成功的幀看到哪一側就
-記哪一側；往後任何一幀看得到同一側，那一軸就是 `地標 − 它在螢幕上的位置`。第一次
-記下就不再改。
+記哪一側（沿用上一張座標的幀除外）；往後任何一幀看得到同一側，那一軸就是
+`地標 − 它在螢幕上的位置`。第一次記下就不再改，錯了的回收路徑見第九節 9.5。
 
 ---
 
