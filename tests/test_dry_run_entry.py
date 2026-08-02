@@ -337,7 +337,7 @@ def scripted_sweep(tmp_path, stop_at: int, ticks: int) -> DryRun:
 
 
 def test_the_survey_loop_stops_the_moment_the_board_is_synced(tmp_path):
-    """0801 複驗第 2 輪 29 腿就 synced，剩下的 50 tick 每 tick 白燒兩張截圖。"""
+    """0801 複驗第 2 輪 29 把平移就 synced，剩下的 50 tick 每 tick 白燒兩張截圖。"""
     run = scripted_sweep(tmp_path, stop_at=3, ticks=20)
 
     spent = run.sweep()
@@ -357,7 +357,7 @@ def test_the_survey_loop_still_spends_the_whole_budget_when_it_never_syncs(tmp_p
 
 
 def test_the_default_survey_budget_is_the_raised_one(monkeypatch):
-    """0801 複驗的步數帳：南 11＋北 2＋東 18＋西 ~10 已 41 腿，40 tick 沒有餘裕。"""
+    """0801 複驗的步數帳：南 11＋北 2＋東 18＋西 ~10 已 41 把平移，40 tick 沒餘裕。"""
     monkeypatch.setattr(sys, "argv", ["dry_run_entry", "--stage-node", "544,667"])
 
     assert parse_args().survey_ticks == SURVEY_TICKS == 80

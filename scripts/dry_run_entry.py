@@ -66,7 +66,7 @@ log = logging.getLogger("dry_run_entry")
 RUNS_ROOT = Path("data/runs")
 JOURNAL_NAME = "dry_run.jsonl"
 STAGES = ("select", "prep", "stage_info", "map", "grid", "survey")
-# 逐 observe 的量測遙測（A5 儀器化）：微步驟名答不了「那一腿到底移了多少」，
+# 逐 observe 的量測遙測（A5 儀器化）：微步驟名答不了「那一把平移到底移了多少」，
 # 位移量、閘門裁決與靜止閘輪數只有這一種紀錄看得到。
 SURVEY_TICK = "survey_tick"
 # 斷鏈存證：0801 複驗第 2 輪兩輪共 37 次 BROKEN(phase) 幾乎全在東西向，候選假說
@@ -77,8 +77,8 @@ BROKEN_DIRNAME = "broken"
 BROKEN_PAIRS = 20
 SURVEY_DIRNAME = "survey"
 SURVEY_DONE = "survey_done"
-# 步數帳（0801 複驗實測）：南 11＋北 2＋東 18＋西 ~10 已 41 腿，40 tick 連一輪都
-# 走不完。80 給斷鏈殘餘與西側補掃留裕度；真正的上限仍是 coverage.LEG_BUDGET。
+# 步數帳（0801 複驗實測）：南 11＋北 2＋東 18＋西 ~10 已 41 把平移，40 tick 連一輪
+# 都走不完。80 給殘餘與西側補掃留裕度；真正的上限仍是 coverage.LEG_BUDGET。
 # 這是**上限**不是目標——掃完就停（DryRun.sweep）。
 SURVEY_TICKS = 80
 # 只有真的進到地圖才有戰鬥可棄；停在更早的段落就交給人自己收。
@@ -252,7 +252,7 @@ class DryRun:
         """掃到 synced 就停，回傳花掉幾個 tick。
 
         完成判準是建構性的（四旗全定 ∧ 界內無缺口），達成之後每多跑一 tick 都是
-        白燒截圖——0801 複驗第 2 輪 29 腿就 synced，剩下的 50 tick 各燒兩張。
+        白燒截圖——0801 複驗第 2 輪 29 把平移就 synced，剩下的 50 tick 各燒兩張。
         """
         for index in range(self.survey_ticks):
             self.perform(SurveyBoard(), f"survey_board#{index + 1}")
@@ -396,7 +396,7 @@ def zoom_driver(
 ) -> Callable[[], None] | None:
     """縮放走 uiautomator 注入（本裝置唯一可行的後端，見 runtime/zoom.py），與截圖
     ／點擊的 adb 通道各自獨立。接不上就回 None——掃描在當下縮放照樣跑得完，只是
-    腿數與截圖次數變多，所以這裡不讓它擋任何事。"""
+    平移次數與截圖次數變多，所以這裡不讓它擋任何事。"""
     if not args.zoom:
         journal.record("zoom_backend", available=False, reason="disabled")
         return None
