@@ -34,7 +34,7 @@ map.md），沿用「現在選著的那一關」會打到別關去，所以每�
 證據：data/runs/<時間戳>/dry_run.jsonl＋frames/（每段界線、每次觀測與每次失敗各存
 一張原生幀）。截圖只有 Camera 一個來源——感知器也吃它，所以存下來的幀就是當下判定
 用的那張。掃描每 tick 另出兩筆 survey_tick（前置複核幀與 leg 幀各一），帶位移量、
-閘門裁決與靜止閘輪數；斷鏈那幾次另存 frames/broken/ 的前後幀對（上限 20 對），
+閘門裁決與靜止閘輪數；定位中斷那幾次另存 frames/broken/ 的前後幀對（上限 20 對），
 `--dump-survey-frames` 則把每次 observe 的幀全留在 frames/survey/ 供離線重放量測。
 任何 expect 失敗就停在原地不再點，印出畫面名與當下截圖路徑。
 """
@@ -69,9 +69,9 @@ STAGES = ("select", "prep", "stage_info", "map", "grid", "survey")
 # 逐 observe 的量測遙測（A5 儀器化）：微步驟名答不了「那一把平移到底移了多少」，
 # 位移量、閘門裁決與靜止閘輪數只有這一種紀錄看得到。
 SURVEY_TICK = "survey_tick"
-# 斷鏈存證：0801 複驗第 2 輪兩輪共 37 次 BROKEN(phase) 幾乎全在東西向，候選假說
-# （量測系統性欠讀 vs 相位參考漂移）在幀存下來之前定不了讞。上限擋的是 80 tick
-# 全斷鏈時把 run 目錄塞爆——超過只記流水帳。
+# 定位中斷存證：0801 複驗第 2 輪兩輪共 37 次 BROKEN(phase) 幾乎全在東西向，候選
+# 假說（量測系統性欠讀 vs 相位參考漂移）在幀存下來之前定不了讞。上限擋的是
+# 80 tick 全程定位中斷時把 run 目錄塞爆——超過只記流水帳。
 SURVEY_BROKEN = "survey_broken"
 BROKEN_DIRNAME = "broken"
 BROKEN_PAIRS = 20
@@ -119,7 +119,7 @@ class Camera:
 
 @dataclass
 class SurveyFrames:
-    """掃描的幀存證水槽：斷鏈的前後幀對，外加可選的全幀傾印。
+    """掃描的幀存證水槽：定位中斷的前後幀對，外加可選的全幀傾印。
 
     存的是 `cv2.imencode` 重編的 PNG——PNG 無失真，像素與裝置那張逐點相同，只有
     檔案位元組不同（幀在 driver 那一層已經是解碼過的陣列，拿不到原始位元組）。
@@ -315,8 +315,9 @@ class DryRun:
         ledger = self.driver.ledger
         cells = ledger.cells()
         summary = ledger.summary()
-        # unlocalised＝那一幀的位移量不出來、觀測被隔離進島嶼。>0 就代表這一輪
-        # 斷過鏈，要跟結果放在同一筆紀錄裡，不是只留在 log。
+        # unlocalised＝那一幀的位移量不出來、觀測被隔離進島嶼（定位中斷後位置
+        # 不明的觀測暫存區，等重新定位才併回）。>0 就代表這一輪發生過定位中斷，
+        # 要跟結果放在同一筆紀錄裡，不是只留在 log。
         self.journal.record(
             "survey_summary",
             steps=list(self.driver.steps),

@@ -206,8 +206,9 @@ def test_the_assembled_run_pipes_the_survey_telemetry_into_the_journal(tmp_path,
 
 
 def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
-    """位移量不出來的那一幀會被隔離進島嶼，不進權威圖。次數要跟結果同一筆——
-    看到 >0 就代表這一輪斷過鏈，不能只留在 log 裡。"""
+    """位移量不出來的那一幀會被隔離進島嶼（定位中斷後位置不明的觀測暫存區，等
+    重新定位才併回），不進權威圖。次數要跟結果同一筆——看到 >0 就代表這一輪發生
+    過定位中斷，不能只留在 log 裡。"""
     run, _ = dry_run(tmp_path, load(STAGE_LIST), node=NODE)
     run.driver.ledger.survey.unlocalised = 2
 
@@ -219,7 +220,7 @@ def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
     assert "coverage" in summary[0]["survey"]
 
 
-# ---- v2.3 斷鏈存證 ----
+# ---- v2.3 定位中斷存證 ----
 
 
 def broken(tick: int, reason: str = "phase") -> dict[str, object]:
@@ -233,7 +234,7 @@ def broken(tick: int, reason: str = "phase") -> dict[str, object]:
 
 
 def test_a_broken_pair_lands_on_disk_as_two_full_frames(tmp_path):
-    """斷鏈根因未定讞：離線重放量測要的是那一對幀本身，遙測的數字答不了。"""
+    """定位中斷根因未定讞：離線重放量測要的是那一對幀本身，遙測的數字答不了。"""
     journal = Journal(tmp_path / JOURNAL_NAME)
     sink = SurveyFrames(journal=journal)
     frame = np.zeros((1080, 2340, 3), np.uint8)
@@ -260,7 +261,7 @@ def test_the_very_first_observe_has_no_previous_frame_to_keep(tmp_path):
 
 
 def test_past_the_pair_ceiling_the_break_is_journalled_but_not_photographed(tmp_path):
-    """80 tick 全斷鏈時 run 目錄會被幀塞爆；上限之後只記流水帳。"""
+    """80 tick 全程定位中斷時 run 目錄會被幀塞爆；上限之後只記流水帳。"""
     journal = Journal(tmp_path / JOURNAL_NAME)
     sink = SurveyFrames(journal=journal)
     frame = np.zeros((1080, 2340, 3), np.uint8)

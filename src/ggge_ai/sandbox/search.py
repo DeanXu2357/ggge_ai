@@ -373,9 +373,10 @@ def _expectation(
 ) -> tuple[float, list[Decision]]:
     """機率加權期望，帶 Star1 子窗。
 
-    每個分支依「已結算的精確質量＋剩餘質量的 [vmin, vmax] 包絡」推出自己的
-    (ax, bx)；子值觸窗即證明本節點過不了父窗，fail-soft 回傳保證界（fail-high
-    把剩餘質量計成 vmin、fail-low 計成 vmax）。關掉 Star1 時子窗全開、總和精確。
+    每個分支依「已結算的精確質量＋剩餘質量落在 [vmin, vmax] 的合理範圍」推出
+    自己的 (ax, bx)；子值觸窗即證明本節點過不了父窗，fail-soft 回傳保證界
+    （fail-high 把剩餘質量計成 vmin、fail-low 計成 vmax）。關掉 Star1 時子窗
+    全開、總和精確。
     """
     total = sum(prob for prob, _ in branches)
     if total <= 0.0:
