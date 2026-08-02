@@ -41,7 +41,7 @@
 | `coverage.py:813-833` | `_abandon()` **不**歸零，理由寫進 docstring |
 
 `expire()` 的歸零放在早退之前：還沒錨定的世界同樣每回合重開一輪掃描，沒有理由
-讓它繼承上一回合的腿數。
+讓它繼承上一回合的平移次數。
 
 ### 缺陷 2（high）：島嶼合併的列整格捨入
 
@@ -60,7 +60,7 @@ x 仍然吸附整欄——那條保證來自 `_isolate()` 對島嶼種子做的 
 |---|---|
 | `coverage.py:413` | `Island.stalls`（方向別停滯計數）新欄位 |
 | `coverage.py:734-760` | `_pin(leg, reading, view)`：非 STALLED 清該方向計數，連 `STALL_CONFIRM` 次才釘 |
-| `coverage.py:712-715` | `_reanchor()` 改成每一腿都呼叫 `_pin`（不再只在 STALLED 時），非 STALLED 那條路徑才有機會清計數 |
+| `coverage.py:712-715` | `_reanchor()` 改成每一把平移都呼叫 `_pin`（不再只在 STALLED 時），非 STALLED 那條路徑才有機會清計數 |
 | `coverage.py:761-773` | `_solve()`：pins 齊時先過 `_agrees`，過不了就 fall through 到 relocalise 並記一筆 warning |
 | `coverage.py:775-798` | 新增 `_agrees()`：pins delta 平移島目擊，與 chart marks 逐軸半格容差配對計支持數 |
 
@@ -107,7 +107,7 @@ x 仍然吸附整欄——那條保證來自 `_isolate()` 對島嶼種子做的 
 BoardDriver.survey_board()                       stage/survey.py（未改）
  ├─ survey.observe(frame, leg)
  │   └─ island 開著 → _reanchor(leg, reading, view)
- │        ├─ _pin(leg, reading, view)            ★缺陷 3：每腿都進來，連兩次才釘
+ │        ├─ _pin(leg, reading, view)            ★缺陷 3：每把平移都進來，連兩次才釘
  │        └─ _solve()
  │             ├─ pins 齊 → _agrees(pinned)      ★缺陷 3：新的支持數複驗
  │             │    └─ island.sightings          ★缺陷 6：去重後的票數
@@ -131,8 +131,8 @@ _reanchor 耐心用盡    → _abandon(island)                    ★缺陷 5
 3. **島嶼重錨變嚴**：pins 路徑多一關、單次停滯不再釘軸。合成世界的既有整段行為
    測試（`test_a_camera_jump_is_refused_then_re_anchored_by_the_constellation`、
    `test_a_turn_boundary_downgrades_the_board_and_the_next_turn_re_anchors`）全數
-   照過，但實機上有可能多花幾腿才重錨、或多走一次 `_abandon` 全掃。**這是本批
-   最需要實機複驗的一點。**
+   照過，但實機上有可能多花幾把平移才重錨、或多走一次 `_abandon` 全掃。
+   **這是本批最需要實機複驗的一點。**
 
 ---
 
@@ -161,13 +161,14 @@ _reanchor 耐心用盡    → _abandon(island)                    ★缺陷 5
 四支復現腳本在修正後的碼上重跑：
 
 - `repro1_legs.py`：11 回合的 legs 由 16/26/34/…/106（單調累積）變成
-  16/10/8/10/8/…（每回合各自從 0 起算，穩定在 8-10 腿）。每回合仍然 `synced`，
-  `steps_tail` 與修正前逐回合相同——`_probe` 方向輪替的起點變動沒有外顯影響。
+  16/10/8/10/8/…（每回合各自從 0 起算，穩定在 8-10 把平移）。每回合仍然
+  `synced`，`steps_tail` 與修正前逐回合相同——`_probe` 方向輪替的起點變動沒有
+  外顯影響。
 - `repro3_solve.py`：3a 的 merged y error 由 **−50px → 0px**；3b 的
   `island.sightings` 由三點 → 一點；3c 因 `_pin` 簽名改變而 TypeError（腳本是
   存檔證據，依指示未改）。
 - `repro4_stuck.py`：4a 退休 `(1,0)`（∈ pocket）且第一次 `plan_leg` 就拿到往西
-  一腿、`legs` 前進；4b `reset()` 後 clamps 空、`_clamped("east")` 為 False。
+  一把平移、`legs` 前進；4b `reset()` 後 clamps 空、`_clamped("east")` 為 False。
 - `repro2_ydrift.py`：**修正前後都印 ok**（見第六節爭點）。
 
 ---
@@ -176,7 +177,7 @@ _reanchor 耐心用盡    → _abandon(island)                    ★缺陷 5
 
 1. **`expire()` 的 legs 歸零放在 `chart is None` 早退之前**。備選是放在早退之後
    （只有已錨定的世界才重置）。取前者：還沒錨定就是連格網都讀不到，那一回合更
-   需要完整的腿數額度。
+   需要完整的平移次數額度。
 2. **`_abandon()` 不歸零 legs，但清 clamps**。指示明寫不歸零 legs；clamps 一起清
    是因為 `_abandon` 會 `_anchor` 到當下這一幀，世界原點換了，舊的世界座標值失去
    意義——跟 `reset()` 同一個理由。

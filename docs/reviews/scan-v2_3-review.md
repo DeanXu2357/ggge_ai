@@ -64,7 +64,7 @@ EMPTY 重置與 `marks.pop`，本幀若有目擊則照常更新 mark。
 
 ## 二、(2) 增益學習死鎖：缺陷鏈與 root fix
 
-第 2 輪遙測（`survey_tick` 逐腿）：
+第 2 輪遙測（`survey_tick` 逐次平移）：
 
 | 方向 | measured | expected | 比值 |
 |---|---|---|---|
@@ -79,8 +79,8 @@ if measured < 0.5 * wanted:      # 舊碼
     return
 ```
 
-`measured/wanted` 恆是 1/3 < 1/2 → **這條保護恆真 → 增益永遠學不到 → 每一腿都
-照著錯的增益超推**。自我封閉的死鎖：越高估越學不到，越學不到越高估。
+`measured/wanted` 恆是 1/3 < 1/2 → **這條保護恆真 → 增益永遠學不到 → 每一把
+平移都照著錯的增益超推**。自我封閉的死鎖：越高估越學不到，越學不到越高估。
 
 **Root fix**（`coverage.py:677-696`）：入帳條件改為「`verdict == ACCEPTED` 且
 `measured >= board.EDGE_SHIFT_PX`」——真的動了就學。撞邊污染改由三件既有機制
@@ -88,21 +88,22 @@ if measured < 0.5 * wanted:      # 舊碼
 
 1. 真撞邊時 `shift.magnitude < EDGE_SHIFT_PX` 已經被 `Odometer.feed` 判 STALLED，
    而 STALLED 進不了增益帳（新條件第一關）。
-2. `GAIN_BLEND = 0.5` 的指數混合：半推半就的一腿只帶走一半權重，下一腿就修回來。
+2. `GAIN_BLEND = 0.5` 的指數混合：半推半就的那一把只帶走一半權重，下一把就修
+   回來。
 3. `GAIN_RANGE = (0.5, 8.0)` 夾住極端值。
 
-**BROKEN 腿不會污染**：`Survey.observe` 在 `verdict == BROKEN` 時就 `_isolate` 並
+**定位中斷的平移不會污染**：`Survey.observe` 在 `verdict == BROKEN` 時就 `_isolate` 並
 提早返回，`_learn_gain` 根本沒被呼叫（迴歸 `test_a_broken_leg_never_reaches_the
 _gain_ledger` 把這條路徑釘住）。
 
-合成情境的收斂實測（真實增益 0.76、起手 2.3，逐腿 measured/commanded）：
+合成情境的收斂實測（真實增益 0.76、起手 2.3，逐次平移的 measured/commanded）：
 
 ```
 0.33 → 0.50 → 0.67 → 0.80 → 0.89 → 0.95 → 0.97 → 0.99 → 1.00
 ```
 
-六腿內 travel ≈ commanded。**這同時是效率修**：每一腿走到指令要的距離，同一輪
-掃描的腿數會明顯下降（第 2 輪南向 9 腿只走了 3 腿的距離）。
+六把平移內 travel ≈ commanded。**這同時是效率修**：每一把都走到指令要的距離，
+同一輪掃描的平移次數會明顯下降（第 2 輪南向 9 把平移只走了 3 把的距離）。
 
 ## 三、(3) BROKEN 原生存證：呼叫鏈
 
@@ -155,7 +156,7 @@ data/runs/<時間戳>/
 
 ## 四、(4) synced 提前結束
 
-第 2 輪實測 **29 腿就 synced**，剩下的 50 tick 每 tick 兩張截圖全是白燒
+第 2 輪實測 **29 把平移就 synced**，剩下的 50 tick 每 tick 兩張截圖全是白燒
 （約 100 張圖、~40 秒截圖 I/O ＋ 25 秒 settle sleep）。完成判準是建構性的，
 達成之後再跑一 tick 不會讓它更完成。
 
@@ -176,8 +177,8 @@ survey 迴圈抽成 `DryRun.sweep()`（`dry_run_entry.py:251-263`）：`ledger.s
 | (1) | `test_a_fresh_sighting_on_the_same_cell_still_updates_the_mark`（coverage） | 同格本幀有目擊 → mark 換成本幀量到的世界像素與 hint | — |
 | (1) | `test_a_stale_cell_is_downgraded_by_an_empty_view_because_the_enemy_did_move`（coverage） | `expire()` 之後同款 view → 降 EMPTY、marks 清空（既有語意不變） | — |
 | (1) | `test_a_scan_that_misses_units_on_some_frames_still_ends_with_all_of_them`（coverage） | 合成世界每 3 次 observe 漏檢一次：單位數單調不減、收尾格座標＝世界真值 | ✅ 實測（單位數序列 `[4,3,1,3,4,0,…]` ＝ A6 簽名） |
-| (2) | `test_a_three_fold_overestimated_gain_is_learned_down_within_a_few_legs`（coverage） | 真實 0.76 對預設 2.3：兩軸各 6 腿內 measured/commanded 從 <0.4 收斂到 >0.85，增益 <1.0 | ✅ 實測 |
-| (2) | `test_a_leg_that_hit_the_map_edge_never_teaches_the_gain`（coverage） | STALLED 不入帳；同一腿判 ACCEPTED 就入帳，值＝`GAIN_BLEND` 混合 | ✅ 實測 |
+| (2) | `test_a_three_fold_overestimated_gain_is_learned_down_within_a_few_legs`（coverage） | 真實 0.76 對預設 2.3：兩軸各 6 把平移內 measured/commanded 從 <0.4 收斂到 >0.85，增益 <1.0 | ✅ 實測 |
+| (2) | `test_a_leg_that_hit_the_map_edge_never_teaches_the_gain`（coverage） | STALLED 不入帳；同一把平移判 ACCEPTED 就入帳，值＝`GAIN_BLEND` 混合 | ✅ 實測 |
 | (2) | `test_a_broken_leg_never_reaches_the_gain_ledger`（coverage） | 走 `observe` 真實路徑：BROKEN → 增益逐字不變 | — |
 | (3) | `test_a_broken_reading_hands_both_frames_to_the_evidence_sink`（stage） | 斷鏈交出 (record, prev, curr)；record 帶 tick／probe／direction／reason；prev 非空 | — |
 | (3) | `test_the_evidence_sink_stays_silent_while_the_chain_holds`（stage） | 三個 tick 都 ACCEPTED → 水槽零發射 | — |
@@ -214,12 +215,13 @@ survey 迴圈抽成 `DryRun.sweep()`（`dry_run_entry.py:251-263`）：`ledger.s
    STALLED、`envelope` 判無指令幀都用它），再造一個同義常數會讓兩處各自漂移。
 5. **`verdict != ACCEPTED` 擋在 `measured` 判斷之前。** 兩個條件在實務上高度重疊
    （STALLED 的定義就是位移 < `EDGE_SHIFT_PX` 且有指令），但**語意不同**：
-   verdict 是量測層的裁決，measured 是這一腿的原始量。兩條都留，讓「STALLED
+   verdict 是量測層的裁決，measured 是這一把平移的原始量。兩條都留，讓「STALLED
    不入帳」這件事在程式碼裡是明寫的，不是從別的常數推出來的。
 6. **`GAIN_DEFAULT = 2.3` 不動。** 備選是直接改成 0.76（第 2 輪量到的實值）。
    不取：那是**內容**（那一關那一個縮放層級的實測值），寫死進程式碼違反紅線；
-   起手值的職責只是「第一腿不超出無歧義範圍」，而修好的學習機制六腿內就收斂。
-7. **`GAIN_BLEND`／`GAIN_RANGE` 不動。** 收斂速度已經夠（六腿），調快只會讓
+   起手值的職責只是「第一把平移不超出無歧義範圍」，而修好的學習機制六把平移
+   內就收斂。
+7. **`GAIN_BLEND`／`GAIN_RANGE` 不動。** 收斂速度已經夠（六把平移），調快只會讓
    單一髒量測的權重變大。
 8. **存證水槽走 callback 注入，與 telemetry 同一個模式。** 指示明寫。理由備查：
    `stage/survey.py` 不該知道 run 目錄、PNG 編碼或流水帳 kind 名——那是 Runner
@@ -259,7 +261,7 @@ survey 迴圈抽成 `DryRun.sweep()`（`dry_run_entry.py:251-263`）：`ledger.s
 19. **`survey_done` 這個 kind 名定在 script（`SURVEY_DONE`），不在 stage 層。**
     同 v2.2 決定 14：「這件事在流水帳裡叫什麼」是 Runner 的事。
 20. **`SURVEY_TICKS = 80` 不動。** 提前結束之後它回到它本來的職責＝**上限**。
-    第 2 輪的 29 腿是修好增益之前的數字，修好之後只會更少，但西側補掃與斷鏈
+    第 2 輪的 29 把平移是修好增益之前的數字，修好之後只會更少，但西側補掃與斷鏈
     殘餘仍需要裕度。
 
 ---
@@ -288,7 +290,7 @@ All checks passed!
    `survey_summary` 的 `cells` 數量若明顯超過人工目視的台數，就是滯後在收假票。
 2. **水平向斷鏈的根因本批沒動也沒修。** 37 次 BROKEN 仍會照樣發生，只是這次會
    留下幀。**驗收標準不該包含「斷鏈率下降」**——本批對量測鏈零改動，唯一可能的
-   間接影響是增益修好之後每腿位移變大（相位相關的訊噪比反而變好）。
+   間接影響是增益修好之後每把平移的位移變大（相位相關的訊噪比反而變好）。
    下一輪拿到 `frames/broken/` 之後的離線工作：對每一對幀親跑
    `board.measure_shift`，看量到的值與遙測記的是否一致（一致＝量測本身欠讀，
    不一致＝取幀與量測之間有東西動過），再對 `read_lattice` 的相位逐對比。
@@ -305,8 +307,9 @@ All checks passed!
 6. **實機未驗證。** 本批純程式碼，四件工作全部要進 `docs/live-verification-queue.md`：
    - 同一關同一節點重跑 `dry_run_entry`（不加 `--dump-survey-frames`），比對
      `survey_summary.cells` 的單位數與人工目視台數（爭點 3）。
-   - `survey_tick` 的 `shift.magnitude` ÷ `expected`：第一腿仍應是 ~0.33，
-     **第 5-6 腿之後要接近 1.0**（增益學到了）；若仍恆在 0.33，就是還有第二個
+   - `survey_tick` 的 `shift.magnitude` ÷ `expected`：第一把平移仍應是 ~0.33，
+     **第 5-6 把之後要接近 1.0**（增益學到了）；若仍恆在 0.33，就是還有第二個
      死鎖點。
-   - 整輪腿數與 `survey_done.tick`：修好增益之後預期明顯少於第 2 輪的 29 腿。
+   - 整輪平移次數與 `survey_done.tick`：修好增益之後預期明顯少於第 2 輪的
+     29 把。
    - `frames/broken/` 的幀對數量與 `survey_broken` 的筆數（後者才是真實斷鏈次數）。

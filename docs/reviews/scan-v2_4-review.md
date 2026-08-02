@@ -37,7 +37,7 @@
 
 | tick | `measure_shift().dx` | response | 格線輪廓真值 |
 |---|---|---|---|
-| t18-t24（東向 7 腿） | **−108.0 ± 0.3** | 0.20-0.32 | −141 ~ −143 |
+| t18-t24（東向 7 把平移） | **−108.0 ± 0.3** | 0.20-0.32 | −141 ~ −143 |
 | t17／t28／t29／t30／t31 | **~0** | 0.12-0.18 | −140 ~ −146 |
 | t10-t13（西向） | +92 ~ +115 | 0.46-0.49 | +120 ~ +148 |
 
@@ -69,8 +69,8 @@
 
 判準是交叉比對：**星座投票（點集合、對靜態家具不敏感）與格線在每一個有票的 tick
 上都吻合到 3px 以內**（t21 −139.0/−142、t24 −140.7/−141.5、t31 −142.3/−142.5），
-而遮罩相關器是唯一的離群者。物理上也只有格線說得通——同一個 reach 152.2 的東向腿
-連走 7 次，位移該是常數，格線給 −142±1，遮罩給 −106~−121 亂跳。
+而遮罩相關器是唯一的離群者。物理上也只有格線說得通——同一個 reach 152.2 的東向
+平移連走 7 次，位移該是常數，格線給 −142±1，遮罩給 −106~−121 亂跳。
 
 **結論不變，而且更強**：格線是唯一剛性的參考，星座是最好的獨立證人，兩者互相
 佐證。指示的設計方向正確。
@@ -139,8 +139,8 @@ Odometer.feed(frame, expected)                      coverage.py:354  ← 本批�
 | 32 | +0.2 | **−125.2** | lattice:constellation | −121.2 |
 
 **14/18 從「原本全數 BROKEN」變成量得出來，且每一筆都與星座這個獨立估計量吻合到
-1.5px 以內**（t19 的 −945 是離譜票，被包絡窗篩掉後改由相關器定 k，結果與鄰近腿
-一致）。3 筆（t11／t13／t17）誠實回不知道＝維持今天的 BROKEN，零退步。
+1.5px 以內**（t19 的 −945 是離譜票，被包絡窗篩掉後改由相關器定 k，結果與鄰近幾
+把平移一致）。3 筆（t11／t13／t17）誠實回不知道＝維持今天的 BROKEN，零退步。
 t27 因為 prev 幀讀不出格網走 fallback，與今天逐字相同。
 
 **沒有任何一筆的新結果與獨立證人矛盾。**
@@ -190,12 +190,12 @@ STALLED 判定、`self.offset`／`self.previous` 的推進時機全部原樣。
 | (1) | `test_the_correlator_carries_the_column_count_when_nobody_voted`（board） | 無票時相關器定 k | 新函式 |
 | (1) | `test_two_independent_witnesses_pointing_at_different_columns_refuse_to_guess`（board） | 獨立證人矛盾 → None | 新函式 |
 | (1) | `test_a_witness_sitting_between_two_columns_is_no_witness`（board） | 證人卡在兩候選正中間 → None | 新函式 |
-| (1) | `test_the_command_alone_only_speaks_when_it_leaves_a_single_column`（board） | 窄窗＝唯一候選才降級採用；真實腿長 → None | 新函式 |
+| (1) | `test_the_command_alone_only_speaks_when_it_leaves_a_single_column`（board） | 窄窗＝唯一候選才降級採用；真實的單次平移距離 → None | 新函式 |
 | (1) | `test_the_column_vote_keeps_the_westward_sign`（board） | 西向（正號）照樣裁對 | 新函式 |
 | (1) | `test_a_correlator_locked_on_the_static_peak_no_longer_freezes_the_measurement`（board） | 說謊相關器下 `measure_shift().dx == 0` 而 `measure_pan` 量到 −240 | ✅ 實測 |
 | (1) | `test_the_lattice_channel_stands_down_without_a_horizontal_command`（board） | `expected=None`／無 x 分量 → 與 `measure_shift` **逐值相等** | — |
 | (1) | `test_a_frame_without_a_lattice_falls_straight_back_to_the_old_path`（board） | 讀不出格網 → 與 `measure_shift` 逐值相等 | — |
-| (1) | `test_a_correlator_frozen_on_the_static_peak_no_longer_freezes_the_odometer`（coverage） | 4 腿全 ACCEPTED、dx≈−300、source 走 lattice、offset 累到 1200 | ✅ 實測（全 `broken`） |
+| (1) | `test_a_correlator_frozen_on_the_static_peak_no_longer_freezes_the_odometer`（coverage） | 4 把平移全 ACCEPTED、dx≈−300、source 走 lattice、offset 累到 1200 | ✅ 實測（全 `broken`） |
 | (1) | `test_a_whole_scan_still_converges_under_a_frozen_correlator`（coverage） | 30×16 世界整輪 synced、單位格＝世界真值 | ✅ 實測（never synced；24 unlocalised／23 島嶼丟棄／5 次重開世界） |
 | (1) | `test_the_settle_gate_never_goes_through_the_commanded_channel`（stage） | `_settled_capture` 一次都沒碰 `measure_pan`；waits／shots 逐字照舊 | — |
 | (2) | `test_the_median_residual_shrugs_off_one_jittery_line`（board） | 單線 +10px 離群 → 中位數 0 | 新函式 |
@@ -242,7 +242,7 @@ STALLED 判定、`self.offset`／`self.previous` 的推進時機全部原樣。
 5. **候選先被包絡窗篩過，再交給證人挑。** 備選是讓證人在全部候選裡挑、由下游
    `envelope` 拒收。取前者：t19 的星座票是 −945（離譜眾數），不篩就會選到 −951.5
    然後被下游拒收＝白白丟掉一筆本來救得回來的量測（篩過之後改由相關器定 k，
-   得到 −141.5，與鄰近腿一致）。**保護沒有變弱**：真的落在窗外的位移，兩個證人都會
+   得到 −141.5，與鄰近幾把平移一致）。**保護沒有變弱**：真的落在窗外的位移，兩個證人都會
    指向窗外，窗內就不會有候選在容差內，照樣回 None。
 6. **獨立證人矛盾時回 None，而不是「星座最強所以星座贏」（偏離指示）。** 見爭點 1。
 7. **指令兜底要求「窗內唯一候選」，而不是「取離 expected 最近的候選」（偏離指示）。**
@@ -262,7 +262,7 @@ STALLED 判定、`self.offset`／`self.previous` 的推進時機全部原樣。
     都沒有就 0.0——這正是 `measure_shift` 原本的優先序，只是攤開寫。
 13. **`limit = MAP_REGION[2] / 2` 當候選枚舉界。** 相位相關的無歧義範圍就是 ±窗長/2；
     超出去的候選本來就沒有任何證人能證實。實務上包絡窗一定更窄，這一層是保險。
-14. **多花的計算：每條水平腿多 2 次 `read_lattice` ＋ 2 次 `find_units`（粗估
+14. **多花的計算：每把水平向的平移多 2 次 `read_lattice` ＋ 2 次 `find_units`（粗估
     100-150ms）。** 沒有做快取。理由：一個 tick 本來就有 2 次截圖（~0.5s）＋
     `PAN_SETTLE_S = 1.5s` 的等待，多這一百毫秒量不出來；而跨呼叫快取幀的解析結果
     需要一個 id→結果的環形緩衝，那是為了省 3% 引入的狀態與失效風險。
@@ -304,10 +304,11 @@ All checks passed!
    零退步）。**若主 session 認為星座該無條件優先，改動只有一行**（把
    `if len(set(spoken.values())) > 1: return None` 拿掉）。
 2. **指令兜底收緊成「窗內唯一候選」，實務上等於停用（偏離指示的「包絡窗內兜底」）。**
-   實機數字：東向腿 `expected = −350.1`，包絡窗 `[−875, +40]`，欄距 90 → **窗內有
+   實機數字：東向平移 `expected = −350.1`，包絡窗 `[−875, +40]`，欄距 90 → **窗內有
    11 個候選**，而真值是 −142（指令是真值的 2.5 倍，因為增益還在學）。取「離
-   expected 最近」會回 −324，差兩整欄。所以我要求窗內只剩一個候選才採用——真實腿長
-   下這個條件幾乎永不成立，`lattice:commanded` 這條路在正式掃描裡等於不會走。
+   expected 最近」會回 −324，差兩整欄。所以我要求窗內只剩一個候選才採用——真實的
+   單次平移距離下這個條件幾乎永不成立，`lattice:commanded` 這條路在正式掃描裡
+   等於不會走。
    **這是刻意的**：兩個獨立證人都缺席時，誠實回不知道比拿手勢當位置安全（0719 紅線）。
    若主 session 要恢復「最近候選」語意，落點是 `_resolve_columns` 最後三行。
 3. **`t27` 這類「prev 幀讀不出格網」的斷鏈本批沒救。** 18 對裡有 1 對，
@@ -321,14 +322,15 @@ All checks passed!
    里程計修好之後斷鏈期的座標漂移消失，鬼影的源頭跟著消失。**這是預測不是保證**
    ——若第 4 輪台數仍然偏高，就是 UNIT 滯後在收假票（v2.3 爭點 1），要另案處理。
 6. **實機未驗證。** 本批純程式碼。要進 `docs/live-verification-queue.md` 的對帳項：
-   - `survey_tick` 的 `shift.source` 分布：水平腿應該大量出現 `lattice:constellation`
-     ／`lattice:phase`；若出現 `lattice:commanded` 就代表爭點 2 的假設錯了（窗內
+   - `survey_tick` 的 `shift.source` 分布：水平向的平移應該大量出現
+     `lattice:constellation`／`lattice:phase`；若出現 `lattice:commanded` 就代表
+     爭點 2 的假設錯了（窗內
      真的只剩一個候選），要回頭看增益是不是已經收斂到讓窗變窄。
    - 水平向 BROKEN 次數：第 3 輪 18 次（幾乎全水平）。以離線復算推估應降到 3-4 次，
      **但這是對同一批幀的推估，不是對新一輪的保證**——鏡頭位置不同，星座票的品質
      會不同。
-   - `shift.magnitude ÷ expected`：修好之後水平腿應該從 0.31 跳到 ~0.4（真值 142
+   - `shift.magnitude ÷ expected`：修好之後水平向的平移應該從 0.31 跳到 ~0.4（真值 142
      對指令 350），接著增益學習會把它推向 1.0。**兩件事同時在動**，對帳時要看
      `gain` 欄位而不是只看比值。
-   - 整輪腿數與 `survey_done.tick`：預期明顯少於第 3 輪。
+   - 整輪平移次數與 `survey_done.tick`：預期明顯少於第 3 輪。
    - `survey_summary.cells` 的單位數 vs 人工目視台數（承 v2.3 爭點 3、本批爭點 5）。

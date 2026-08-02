@@ -44,15 +44,17 @@ All checks passed!
    讀不到格線是**無條件放行**——於是那一段完全沒有相位交叉驗證。
    逐幀實測（`t*-precheck`／`t*-leg` 全 74 張）：t7-leg 到 t13-precheck 七幀全幀帶
    一律 None，而 `MAP_REGION` 下半窗讀得到 pitch 92-93 的格線。
-2. **量測在同一段時間說謊。** t11／t12 兩腿的 phaseCorrelate 回 (2.0, 0.5)／
-   (1.3, 0.4)，response 0.10／0.096（過得了 `SHIFT_MIN_RESPONSE`），於是兩腿被
-   判 STALLED。逐精靈模板比對（離線，本批的鑑識工具）量到的真位移是 +220／+199。
+2. **量測在同一段時間說謊。** t11／t12 那兩把平移的 phaseCorrelate 回 (2.0,
+   0.5)／(1.3, 0.4)，response 0.10／0.096（過得了 `SHIFT_MIN_RESPONSE`），於是
+   兩把都被判 STALLED。逐精靈模板比對（離線，本批的鑑識工具）量到的真位移是
+   +220／+199。
    **鏡頭實際走了 400px，里程計原地不動**——同一片場景以同一個 offset 反覆吸收，
    單位因此落在錯格，而 UNIT 滯後（v2.3）把每一份鬼影都保到跨代。連兩次 STALLED
    還把西界旗釘在地圖中央。
 3. **斷鏈之後的重錨把錯誤放大。** 島嶼合併偏移出現 (546, −670.3) 與四次 +273。
-   前者的 y 分量沒有任何指令推過（島只斷了一條東向腿）；`relocalise` 走的是同一個
-   `_constellation_shift`，而同型薩克與我方編隊是週期陣列（幀內單位縱距實測
+   前者的 y 分量沒有任何指令推過（島只斷了一把東向的平移）；`relocalise` 走的是
+   同一個 `_constellation_shift`，而同型薩克與我方編隊是週期陣列（幀內單位縱距
+   實測
    90/93/96），「錯一個編隊間距」的配對投得出票數十足的幽靈位移。
 
 **裁判已驗證**：直接影像比對分得出真移動與幽靈。t7 的真移動（星座 7 台一致
@@ -132,7 +134,7 @@ board.find_lattice(frame) ★新 = 第一個過三重閘的帶
 Survey.observe
  ├─ 非 BROKEN 且沒有島 → self.mainland = (frame, odometer.offset)      ★新
  └─ Survey._reanchor(leg, reading, view, frame)         ← 簽名多一個 frame
-      ├─ island.lost = _lost(island.lost, leg.expected) ★新（島內每一腿都累加）
+      ├─ island.lost = _lost(island.lost, leg.expected) ★新（島內每一把都累加）
       ├─ delta = self._solve()                          （既有，未改）
       └─ self._admits(island, delta, view, frame)       ★新
            ├─ _metered(island, delta)：|delta軸| ≤ 1.5×lost[軸] ＋ 一格
@@ -145,9 +147,9 @@ Survey.observe
 stage 層的取幀紀錄，`Odometer.previous` 在斷鏈時刻意不推進，兩者都不是「大陸最後
 的權威幀」。`_abandon`／`reset` 會清掉它。
 
-`lost` 是軸別的指令位移絕對值和，**島內每一腿都累加**（不只斷鏈那一腿）：島內的腿
-即使被判 STALLED 也可能是量錯，那段位移一樣要靠合併偏移補回來。跨島嶼繼承——島內
-再斷鏈會換一座島但沿用同一個局部原點。回合交界的島 `lost=None`＝不設包絡。
+`lost` 是軸別的指令位移絕對值和，**島內每一把平移都累加**（不只斷鏈那一把）：島內
+的平移即使被判 STALLED 也可能是量錯，那段位移一樣要靠合併偏移補回來。跨島嶼繼承
+——島內再斷鏈會換一座島但沿用同一個局部原點。回合交界的島 `lost=None`＝不設包絡。
 
 ---
 
@@ -159,15 +161,15 @@ stage 層的取幀紀錄，`Odometer.previous` 在斷鏈時刻意不推進，兩
 
 | tick | journal（v2.5） | replay（v2.6） | 判讀 |
 |---|---|---|---|
-| t11-leg | stalled/ok phase | **broken/phase** | ✅ 本批要救的那一腿：真位移 +220px 被記成停滯，象限窗補回相位閘後誠實斷鏈 |
+| t11-leg | stalled/ok phase | **broken/phase** | ✅ 本批要救的那一把平移：真位移 +220px 被記成停滯，象限窗補回相位閘後誠實斷鏈 |
 | t12-leg | stalled/ok phase | **broken/phase** | ✅ 同上（真位移 +199px）。連兩次 STALLED 不再發生 → 西界旗不會被釘在地圖中央 |
-| t13-prec | accepted/ok still | **broken/phase** | ✅ 前兩腿的錯位還在 offset 裡，相位閘接著把它擋下來 |
-| t23-leg | broken/unmeasurable | accepted/ok lattice:phase | 下游分歧（世界狀態已不同）；本批沒有針對這一腿的機制 |
+| t13-prec | accepted/ok still | **broken/phase** | ✅ 前兩把平移的錯位還在 offset 裡，相位閘接著把它擋下來 |
+| t23-leg | broken/unmeasurable | accepted/ok lattice:phase | 下游分歧（世界狀態已不同）；本批沒有針對這一把平移的機制 |
 | t24-leg | accepted/ok constellation | **broken/unmeasurable** | ✅ 星座票 (−18,−192) 被影像複驗判 unclear（真值 y≈−116），錯值不再入帳 |
 | t31-leg／t32-leg | stalled／broken | broken／stalled | 下游分歧（相位閘的判定挪了一格） |
 
-其餘 67 筆逐字相同（含全部 accepted/constellation 的真移動腿：t3-t7、t10、t15、
-t16、t33-t35 —— **複驗閘沒有誤殺任何一次真移動**）。
+其餘 67 筆逐字相同（含全部 accepted/constellation 真的有移動的平移：t3-t7、t10、
+t15、t16、t33-t35 —— **複驗閘沒有誤殺任何一次真移動**）。
 
 島嶼帳：journal `isolated 7 / merged 7 / discarded 0 / reset 0`，replay
 `isolated 10 / merged 5 / discarded 5 / reset 2 / refused 0`。journal 那七次合併
@@ -175,8 +177,8 @@ t16、t33-t35 —— **複驗閘沒有誤殺任何一次真移動**）。
 先漂掉），所以包絡閘在這條軌跡上一次都沒被用到（`refused 0`）——它的效力由單元
 迴歸釘住，見第七節。
 
-**replay 的最終台數（43）不是本批的成績**：重放的腿序是舊碼規劃的，新碼中途重開
-世界之後不會重新規劃補掃，末尾那個世界只吃到序列的尾巴。台數軸只有實機一輪才
+**replay 的最終台數（43）不是本批的成績**：重放的平移順序是舊碼規劃的，新碼中途
+重開世界之後不會重新規劃補掃，末尾那個世界只吃到序列的尾巴。台數軸只有實機一輪才
 判得了，見第九節爭點 1。
 
 ### 終止邊目擊（本批第四件工作）在同一批實幀上的表現
@@ -227,7 +229,8 @@ KnowledgeMap.set_boundary(direction, line) ★新 ＝ 定旗＋_trim()
 
 **遮罩只切有目擊的那幾側，不是整個線位矩形。** 交辦單的字面是「格框須落在該矩形
 內」，實測不可行：`GRID_REGION` 是取樣帶不是格網的邊界，拿帶緣當界會讓單幀的
-EMPTY 毯從 2100×930 縮到 1600×530（約四成），掃描腿數跟著翻倍，而且那些被排除的
+EMPTY 毯從 2100×930 縮到 1600×530（約四成），掃描的平移次數跟著翻倍，而且那些被
+排除的
 格明明有格線、只是帶外沒去取樣。半平面版本在「格線填滿畫面」時與 v2.5 逐字相同，
 只有真的看到終止邊才切——與 `_terminal_edges` 的空間閘同一條原則。設計決定 11。
 
@@ -246,7 +249,7 @@ EMPTY 毯從 2100×930 縮到 1600×530（約四成），掃描腿數跟著翻�
 | (2) | `test_the_lattice_falls_back_to_a_sub_window_when_the_band_runs_out_of_lines`（board） | 只剩右下有格線的幀：`read_lattice` None、`find_lattice` 讀得到且線位都在該窗內 | ✅ 實測 |
 | (2) | `test_the_sub_window_lattice_is_only_a_fallback`（board） | 全幀帶讀得出來時 `find_lattice == read_lattice` | —（守成：pitch 不該由子窗決定） |
 | (2) | `test_a_frame_whose_only_lattice_is_in_a_corner_still_gets_a_phase_check`（coverage） | 同一幀：`find_lattice` 換回 `read_lattice` 時判 STALLED（舊行為），本批判 BROKEN(phase) | ✅ 實測（測試自帶對照） |
-| (3) | `test_a_merge_offset_the_commands_could_not_have_produced_is_refused`（coverage） | 南向腿的島收到橫向 400px 的 delta → 拒併、`refused` 遞增、島還在 | ✅ 實測 |
+| (3) | `test_a_merge_offset_the_commands_could_not_have_produced_is_refused`（coverage） | 南向平移的島收到橫向 400px 的 delta → 拒併、`refused` 遞增、島還在 | ✅ 實測 |
 | (3) | `test_a_merge_offset_within_the_commanded_travel_still_goes_through`（coverage） | 界內的 delta 照併 | —（守成：包絡是上界不是等式） |
 | (3) | `test_a_merge_that_lands_on_a_frame_that_never_moved_is_refused`（coverage） | 同一張幀當大陸與島：三欄位移的 delta 被畫面否決，零位移過關 | ✅ 實測 |
 | (3) | `test_a_camera_jump_sideways_is_refused_and_the_world_restarts_honestly`（coverage，**改寫**） | 沒被推過的軸跳 512px → merged 0／refused ≥1／reset 1，重掃後格與格的相對關係一格不錯 | —（契約改變，見設計決定 8） |
@@ -261,7 +264,7 @@ EMPTY 毯從 2100×930 縮到 1600×530（約四成），掃描腿數跟著翻�
 
 1. `test_a_camera_jump_is_refused_then_re_anchored_by_the_constellation` →
    `test_a_camera_jump_sideways_is_refused_and_the_world_restarts_honestly`。
-   舊測試注入「南向腿卻橫move 900px」的鏡頭跳走，期望島嶼靠已記目擊重錨。那正是
+   舊測試注入「南向平移卻橫move 900px」的鏡頭跳走，期望島嶼靠已記目擊重錨。那正是
    (3) 要擋的東西（沒有指令推過的軸不會憑空跑出幾百 px），所以契約改成「拒併 →
    誠實重開世界，一格都沒寫錯」。合併成功的路徑改由空白幀那組（`blank=(18,20,22)`）
    守成——它照樣 merged 1。
@@ -305,8 +308,9 @@ EMPTY 毯從 2100×930 縮到 1600×530（約四成），掃描腿數跟著翻�
 6. **象限窗只供 `_snap`／`rephase`，不供 `_anchor`／`measure_pan`。** 前者只用線位
    （相位是 mod pitch 的量，子窗一樣驗得了），後兩者要 pitch 與小數相位，取樣量
    不足會把錯的格距寫進世界。這也讓本批維持「只加閘、不改既有量測值」。
-7. **`lost` 累加島內每一腿，不只斷鏈那一腿。** 交辦單寫的是「各 BROKEN 腿的
-   expected」。實測合成迴歸（相關器凍結那一條）示範了為什麼不夠：島內的腿被判
+7. **`lost` 累加島內每一把平移，不只斷鏈那一把。** 交辦單寫的是「各 BROKEN 平移
+   的 expected」。實測合成迴歸（相關器凍結那一條）示範了為什麼不夠：島內的平移
+   被判
    STALLED 但實際移動了，那段位移沒進島的局部 offset，合併偏移必須補得回來，
    上界就得包含它。跨島嶼繼承的理由同構（新島沿用舊島的原點）。
 8. **鏡頭往「沒被推過的軸」跳走 → 拒併 → 重開世界。** 這是既有測試的契約改變。
@@ -339,12 +343,13 @@ EMPTY 毯從 2100×930 縮到 1600×530（約四成），掃描腿數跟著翻�
 
 ## 九、爭點
 
-1. **台數軸本批沒有量到。** 離線重放的最終台數（43）不是成績：重放的腿序是舊碼
+1. **台數軸本批沒有量到。** 離線重放的最終台數（43）不是成績：重放的平移順序是
+   舊碼
    規劃的，新碼中途重開世界之後不會重新規劃補掃。本批的證據只到「機制鏈的三顆
    齒輪各自被擋住了」（第五節逐 tick 對照＋單元迴歸），**台數是否收斂到 ≈28 必須
    實機一輪才判得了**。
 2. **新閘把「寫錯」換成「斷鏈」，斷鏈換成世界重開的頻率會上升。** 重放裡 reset 2
-   次（舊碼 0 次）。世界重開＝那一輪全部重掃，腿數保險絲（`LEG_BUDGET` 200）在
+   次（舊碼 0 次）。世界重開＝那一輪全部重掃，平移次數保險絲（`LEG_BUDGET` 200）在
    單一回合內還撐得住，但實機一輪要盯 `islands.reset` 與 `legs`。如果 reset 變成
    常態，下一批該做的是「開到最近已知邊歸零」那套 steering（v2.2 就記過的更好復原
    路徑），不是放鬆閘。
@@ -356,7 +361,8 @@ EMPTY 毯從 2100×930 縮到 1600×530（約四成），掃描腿數跟著翻�
    早裁剪＝早收斂），但它也把「旗釘錯」的風險提前：`fix_boundary` 的線外裁剪是
    破壞性的（v2.5 設計決定 1）。目前的保護只有終止邊的三道閘。實機一輪要對照
    `boundary` 定案的 tick 與當時的畫面。
-5. **`measure_pan` 的格線通道仍只吃全幀帶。** t11／t12 那兩腿如果讓格線通道也用
+5. **`measure_pan` 的格線通道仍只吃全幀帶。** t11／t12 那兩把平移如果讓格線通道
+   也用
    象限窗，很可能當場就量對了（星座證人投 +220，`_correlator_credible` 會擋掉說謊
    的相關器）——但那會改到量測值，超出「只加閘」的授權。**建議列為 v2.7 候選**，
    要另附實幀證據與迴歸。
@@ -369,7 +375,7 @@ EMPTY 毯從 2100×930 縮到 1600×530（約四成），掃描腿數跟著翻�
      （應為 STALLED）。
    - `reason` 出現 `phase` 的次數在北緣那一段應該明顯增加（象限窗補回相位閘）。
    - `islands.refused` 與 `merge.delta`：拒併一次就該有一列遙測，delta 的量級要與
-     當時的腿長對得起來。
+     當時的單次平移距離對得起來。
    - `reason` 有沒有 `edge_mismatch:*`（爭點 3）。
-   - `boundary` 各旗定案的 tick——目視定旗應該比撞邊早好幾腿（爭點 4）。
+   - `boundary` 各旗定案的 tick——目視定旗應該比撞邊早好幾把平移（爭點 4）。
    - `survey_summary.cells.unit` 對真值 28（爭點 1）。

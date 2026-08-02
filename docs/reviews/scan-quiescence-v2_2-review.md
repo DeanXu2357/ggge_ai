@@ -2,7 +2,7 @@
 
 基底 `feat/inner-goap` @ `3238d2c`（v2.1 修正批入庫之後）。來源＝0801 首輪實機
 複驗 `data/runs/20260801-033746/` 的 FAIL：40 tick 打滿 `synced=false`、西邊界未定、
-**14 次 BROKEN(phase) 斷鏈（36% 腿數）**、6 座島被再斷鏈丟棄＝14 個觀測流失。
+**14 次 BROKEN(phase) 斷鏈（36% 的平移次數）**、6 座島被再斷鏈丟棄＝14 個觀測流失。
 
 範圍三個檔：`src/ggge_ai/stage/survey.py`、`scripts/dry_run_entry.py`、
 `tests/`（三支）。**`src/ggge_ai/runtime/coverage.py` 一個字都沒動**（量測層剛過
@@ -140,7 +140,7 @@ DryRun.build()                                    scripts/dry_run_entry.py
 | `settle.quiet` | bool | 最後是真的靜下來，還是重試用盡硬收 |
 
 「40 tick 打滿還沒 synced」這類問題，靠 `shift.magnitude` × `direction` 就能算出
-逐腿的實際行程與增益，`settle.waits` 的分佈則直接回答「滑行到底有多久」。
+逐次平移的實際行程與增益，`settle.waits` 的分佈則直接回答「滑行到底有多久」。
 
 ---
 
@@ -223,7 +223,8 @@ DryRun.build()                                    scripts/dry_run_entry.py
 15. **`show_grid`／`collapse_roster` 不走靜止閘。** 指示明寫；理由是它們讀固定 UI
     位置、不餵里程計，滑行對它們沒有語意，多兩張截圖是純成本。
 16. **`SURVEY_TICKS = 80`，`LEG_BUDGET = 200` 不動。** 指示明寫。tick 預算是
-    「這支 script 願意跑多久」，腿數保險絲是「單一回合內失控的上界」，兩者不同層。
+    「這支 script 願意跑多久」，平移次數保險絲是「單一回合內失控的上界」，
+    兩者不同層。
 
 ---
 
@@ -248,7 +249,7 @@ All checks passed!
 1. **靜止閘只降污染率，不保證零污染（誠實聲明）。** 滑行速率衰減到 <3px/0.25s
    之後閘就放行，殘餘位移仍可能累積幾個像素。它遠小於 22.5px 的相位閘容差，但
    「BROKEN(phase) 歸零」不是本批能保證的事——**驗收標準應該是斷鏈率明顯下降
-   （14/40 腿 → 個位數），不是 0**。
+   （14/40 把平移 → 個位數），不是 0**。
 
 2. **`SETTLE_QUIET_PX = 3.0` 與 `SETTLE_ROUNDS = 4` 沒有實機標定。** 3.0 的下界
    有離線證據（相同兩幀回 0.5px），上界靠推理；4 輪（最長 1.0s 額外等待）夠不夠
@@ -267,14 +268,14 @@ All checks passed!
    `Odometer.feed` 判 BROKEN(phase) 之後，`self.previous` **不更新**——下一幀會
    拿更舊的那張當基準。主圖那條路徑上這是對的（斷鏈後幀進島嶼，島嶼自己帶新的
    `Odometer(previous=frame)`），所以不是缺陷；但滑行情境下同一個 odometer 若
-   連續兩次 BROKEN，第二次量的是跨兩幀的位移，包絡閘的「同軸倍率」會用單腿的
-   expected 去衡量兩腿的位移。0801 的流水帳裡連續 BROKEN 出現過兩次
+   連續兩次 BROKEN，第二次量的是跨兩幀的位移，包絡閘的「同軸倍率」會用單次
+   平移的 expected 去衡量兩次平移的位移。0801 的流水帳裡連續 BROKEN 出現過兩次
    （`isolated=14` 對 `merged=8`），**要不要在量測層補一條「BROKEN 也推進
    previous」的規則，請主 session 裁示**——本批依指示對 `coverage.py` 零改動。
 
 5. **實機未驗證。** 本批純程式碼。需要排進 `docs/live-verification-queue.md`：
    - 同一關同一節點重跑 `dry_run_entry --survey-ticks 80`，比對
      `unlocalised`／`islands.isolated` 與 0801 的 14／14。
-   - `survey_tick` 的 `settle.waits` 分佈（爭點 2）與 `shift.magnitude` 逐腿值
-     （A5 的原始問題：一腿到底移了多少、增益學得對不對）。
+   - `survey_tick` 的 `settle.waits` 分佈（爭點 2）與 `shift.magnitude` 的逐次
+     平移值（A5 的原始問題：一把平移到底移了多少、增益學得對不對）。
    - 西邊界能不能在 80 tick 內定下來（0801 是唯一沒定的旗）。
