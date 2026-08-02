@@ -16,7 +16,7 @@
 |---|---|---|
 | `c2a3a3d` | 1＋5 | `expire()`／`reset()` 歸零 `legs`，`reset()`／`_abandon()` 清 `clamps` |
 | `6436c7d` | 2 | `_whole_cells` → `_whole_columns`：只吸附欄，列保留量到的原值 |
-| `3d5f41e` | 3 | 島嶼釘軸要連兩次停滯；pins 路徑加支持數複驗 `_agrees` |
+| `3d5f41e` | 3 | 島嶼（定位中斷後位置不明的觀測暫存區，等重新定位才併回）釘軸要連兩次停滯；pins 路徑加支持數複驗 `_agrees` |
 | `01881b2` | 4 | 退休格改取聚類內離質心最近的成員格 |
 | `da6a396` | 6 | `Island.sightings` 近鄰去重 |
 | （本檔） | — | review 導覽＋設計決定清單 |
@@ -196,8 +196,9 @@ _reanchor 耐心用盡    → _abandon(island)                    ★缺陷 5
    代價寫在爭點 (2)。
 7. **`_agrees` 在「島上零目擊」或「權威圖零目擊」時回 True**。指示只寫了前者；
    後者同理——權威圖沒有 marks 就沒有可矛盾之物，硬要複驗會讓空曠地圖永遠釘不了。
-8. **pins 複驗失敗時 fall through 到 relocalise，不是直接回 None**。指示兩者皆可。
-   取 fall through：pins 錯不代表星座也錯，多一條路能重錨就少一次全掃。
+8. **pins 複驗失敗時 fall through 到 relocalise，不是直接回 None**。指示兩者
+   皆可。取 fall through：pins 錯不代表單位排列比對也錯，多一條路能重錨就少
+   一次全掃。
 9. **`_nearest` 的距離用格空間歐氏平方，平手取 `(col, row)` 字典序**。備選是用
    `grid.centre_of` 的像素距離。取格空間：pocket 成員本來就是格，像素距離只是同一
    個排序乘上格距（非等比時才有差，而那個差沒有意義）。字典序 tie-break 讓同一個

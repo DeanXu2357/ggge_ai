@@ -185,10 +185,9 @@ switch`；是 ON 才帶 `auto_switch` intent 去點）→ TAP TO NEXT
 1. 縮放檢查（pinch 未搬，`zoom_out` 注入點留白記 skipped——
    decisions.md 0730 延後裁定）
 2. 平移一把（`ScanCursor`；起手點避單位）
-3. 該幀：`board.read_lattice`（高通投影＋三重閘）→
-   `find_unit_density_peaks`（密度峰單位偵測，召回 103/104）→
-   吸附格心 → `measure_shift`（相位相關＋星座投票雙模態）→
-   目擊合併進 `CoverageLedger`
+3. 該幀：`board.read_lattice`（高通投影＋三重閘）→ `find_unit_density_peaks`
+   （密度峰單位偵測，召回 103/104）→ 吸附格心 → `measure_shift`（相位相關＋
+   單位排列比對投票雙模態）→ 目擊合併進 `CoverageLedger`
 4. 邊界判定（平移後幀不變 ≤40px＝到邊；每方向 8 把平移上限）
 
 **覆蓋簿記（0730 必答題）**：`CoverageLedger`＝權威

@@ -19,97 +19,102 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   actionable 先天 flaky（time.time 同值 71% 走錯支）待使用者裁
   示**（導覽第五節有鑑識）。裝置現況不變（本批未碰實機）。
 
-- **0802 鑑識三翻案＋v2.9 作廢＋v2.10 入庫＋使用者定 v3 方向**
-  （`e503d50`，1603 passed；全文 decisions.md 0802 五條）：離線
-  鑑識定讞「致動雙態不存在」（53 次平移全部推動畫面 97-107%、
-  手勢被吃 0 次）＝拖曳假說與競態假說同證偽、v2.9 四 commit 作
-  廢；死因＝量測層投票分桶錯誤＋稀疏區證人不足；85 台=29 個真
-  實實體（≈真值 28）沿座標誤差階梯拖影。v2.10（投票聚類修正＋
-  地圖邊緣位移當量測依據＋停滯判定須影像佐證＋儀器化）重放對
-  照：量測失敗 23→5、救回 18、錯誤寫入 6→0、同時點單位 79→
-  39。**使用者裁示：逐步指定移動距離的做法先天不穩→v3 重設計
-  「位置一律來自畫面內容」提案已寫（docs/survey-anchor-v3-
-  proposal.md），核可前不動工**；C4 指令兜底否決；v2.10 三爭
-  點併入 v3。另：說明文字禁英文直翻術語（leg／envelope 之類的
-  直譯）與縮寫。
+- **0802 鑑識三翻案＋v2.9 作廢＋v2.10 入庫＋使用者定 v3 方
+  向**（`e503d50`，1603 passed；全文 decisions.md 0802 五
+  條）：離線鑑識定讞「致動雙態不存在」（53 次平移全部推動畫
+  面 97-107%、手勢被吃 0 次）＝拖曳假說與競態假說同證偽、v2.9
+  四 commit 作廢；死因＝量測層投票分桶錯誤＋稀疏區佐證來源不
+  足；85 台=29 個真實實體（≈真值 28）沿座標誤差階梯拖出重複
+  殘影。v2.10（投票聚類修正＋地圖邊緣位移當量測依據＋停滯判
+  定須影像佐證＋儀器化）重放對照：量測失敗 23→5、救回 18、錯
+  誤寫入 6→0、同時點單位 79→39。**使用者裁示：逐步指定移動距
+  離的做法先天不穩→v3 重設計「位置一律來自畫面內容」提案已寫
+  （docs/survey-anchor-v3-proposal.md），核可前不動工**；C4 指
+  令兜底否決；v2.10 三爭點併入 v3。另：說明文字禁英文直翻術語
+  （leg／envelope 之類的直譯）與縮寫。
 
-- **0801 第 6 輪＋v2.7＋v2.8 入庫**（`acbf59d`/`d8d40b2`，1597
-  passed／4 xfailed；判讀與裁決全文 decisions.md 0801 午後/傍
-  晚/晚三條）：第 6 輪座標重複吸收軸實質解（紅 17/18、merge 全
-  包絡、無邊界暴衝；**遊戲更新 2.4.1** 插曲已處置）；佔位假峰
-  鑑識＝3 船體＋2 HUD 鈕（誤判幀入 fixture wreck_*）；**密度上
-  限判別式被校準數據證偽（反向）**；**掃不完＝致動層**（18/18
-  把定位中斷的平移真位移僅指令 6-29%、橡皮筋；37 把平移東西震
-  盪 clamp 0/37 攔不到）。v2.7＝measure_pan 接象限窗＋fixture＋
-  校準表；v2.8＝目視終止邊 clamp＋HUD 兩鈕挖洞（左上洞代價備
-  案、觸發器＝第 7 輪西北退休暴增改只留右上）＋船體假峰裁定留
-  2e phantom-drop。**still-witness k=0 回收使用者裁示緩收**。
+- **0801 第 6 輪＋v2.7＋v2.8 入庫**（`acbf59d`/`d8d40b2`，
+  1597 passed／4 xfailed；判讀與裁決全文 decisions.md 0801 午
+  後/傍晚/晚三條）：第 6 輪座標重複吸收軸實質解（紅 17/18、
+  merge 全在合理範圍、無邊界暴衝；**遊戲更新 2.4.1** 插
+  曲已處置）；佔位假峰鑑識＝3 船體＋2 HUD 鈕（誤判幀入
+  fixture wreck_*）；**密度上限判別式被校準數據證偽（反
+  向）**；**掃不完＝致動層**（18/18 把定位中斷的平移真位移
+  僅指令 6-29%、屬邊緣回彈；37 把平移東西震盪 clamp 0/37 攔
+  不到）。v2.7＝measure_pan 接象限窗＋fixture＋校準表；
+  v2.8＝目視終止邊 clamp＋HUD 兩鈕挖洞（左上洞代價備案、觸
+  發器＝第 7 輪西北退休暴增改只留右上）＋船體假峰裁定留 2e
+  phantom-drop。**still-witness k=0 回收使用者裁示緩收**。
   reset 成因鏈＝ISLAND_BUDGET 耗盡 relocalise 無解、旗跨 reset
   遺失未治（等實機資料）。
 
 - **0801 使用者診斷解除停工＋v2.6 四件套入庫**（`27f6e12`，
-  1587 passed／ruff 綠；裁決全文 decisions.md 0801 使用者診斷/
-  追問/v2.6 三條）：使用者親看幀定調「同場景被當不同區域重複
-  吸收」＋兩追問釘死缺口（covered() 純幾何星空蓋 EMPTY、四態無
-  「是不是格子」、邊界推論制偏離目視教義）。v2.6＝①影像複驗閘
-  （逐精靈窗，星座票與合併 delta 須勝原地假設）②邊帶格線
-  fallback（象限窗補相位閘死區）③merge delta 包絡閘（Island.
-  lost 跨島累加）④格子存在遮罩（EMPTY 毯要格線背書）＋格線終止
-  邊界目擊（目視定旗、edge_mismatch 隔離不改旗）。**74 幀實幀
-  重放：7/74 裁決改變全數為目標（t11/t12 真滑動、t24 幽靈票）、
-  零誤殺、零假邊**。導覽 docs/reviews/scan-v2_6-review.md。
+  1587 passed／ruff 綠；裁決全文 decisions.md 0801 使用者
+  診斷/追問/v2.6 三條）：使用者親看幀定調「同場景被當不同區
+  域重複吸收」＋兩追問釘死缺口（covered() 純幾何把地圖外的
+  星空背景也蓋 EMPTY、四態無「是不是格子」、邊界推論制偏離
+  目視教義）。v2.6＝①影像複驗閘（逐精靈窗，排列比對的票與合
+  併 delta 須勝原地假設）②邊帶格線 fallback（象限窗補相位閘死
+  區）③merge delta 合理範圍閘（Island.lost 跨島累加）④格子存
+  在遮罩（EMPTY 毯要格線背書）＋格線終止邊界目擊（目視定旗、
+  edge_mismatch 隔離不改旗）。**74 幀實幀重放：7/74 裁決改變
+  全數為目標（t11/t12 真滑動、t24 幽靈票——幽靈＝週期圖案錯位配
+  對出的假位移候選，畫面上無真實對應）、零誤殺、零假邊**。導覽
+  docs/reviews/scan-v2_6-review.md。
 
-- **0801 第 5 輪判定＋停工（已解除）**（run 20260801-080213；判讀、鑑識
-  線索與候選方向 A/B/C 全文 decisions.md 0801 第 5 輪條）：
-  W1 PASS（帳面一致、裁剪生效）／**W2 FAIL：80 台 vs 期望 28**
-  ＝台數軸連兩次針對性修正未解，**依紀律停工、discord 已通知
-  使用者**。根因假說＝同型單位編隊的星座 alias 讓 relocalise
-  錯位重錨（merge delta +273×4、(546,−670) 出格、邊界撐到
-  48 欄）。**恢復點：使用者裁示方向（A merge delta 包絡閘／
-  B relocalise 眾數邊際／C 丟棄不合併）後派 v2.6**；斷鏈軸
-  已完結（第 4 輪 broken 18→0）不受影響。
+- **0801 第 5 輪判定＋停工（已解除）**（run 20260801-080213；
+  判讀、鑑識線索與候選方向 A/B/C 全文 decisions.md 0801 第
+  5 輪條）：W1 PASS（帳面一致、裁剪生效）／**W2 FAIL：80 台
+  vs 期望 28**＝台數軸連兩次針對性修正未解，**依紀律停工、
+  discord 已通知使用者**。根因假說＝同型單位編隊使單位排列比對
+  產生 alias，讓 relocalise 錯位重錨（merge delta +273×4、
+  (546,−670) 出格、邊界撐到 48 欄）。**恢復點：使用者裁示方向
+  （A merge delta 合理範圍閘／B relocalise 眾數邊際／C 丟棄不
+  合併）後派 v2.6**；定位中斷軸已完結（第 4 輪 broken 18→0）
+  不受影響。
 
-- **0801 第 4 輪決勝過關＋v2.5 入庫**（run 20260801-071055；判讀
-  全文 decisions.md）：**水平斷鏈軸完結——東西向 broken 18→0**、
-  lattice:constellation 通道實機接通（保留觀察：9/13 把水平向
-  的平移退舊路徑、lattice:phase 零出現）、增益 0.44→0.75 爬升。
-  V5 台數 FAIL 定位第二軸：cells 84 vs census 55 vs 期望 28、
-  29 筆在東界外＝邊界定案/重錨後 marks 不裁剪。**v2.5 入庫**
-  （`d056004`：fix_boundary 裁剪線外知識＋units/sightings
-  bounded 界內＋merge delta 遙測；1571 passed／ruff 綠；設計決
-  定 10 條備案，導覽 docs/reviews/scan-v2_5-review.md）。
+- **0801 第 4 輪決勝過關＋v2.5 入庫**（run 20260801-071055；
+  判讀全文 decisions.md）：**水平向定位中斷軸完結——東西
+  向 broken 18→0**、lattice:constellation 通道實機接通（保
+  留觀察：9/13 把水平向的平移退舊路徑、lattice:phase 零出
+  現）、增益 0.44→0.75 爬升。V5 台數 FAIL 定位第二軸：cells
+  84 vs census 55 vs 期望 28、29 筆在東界外＝邊界定案/重錨
+  後 marks 不裁剪。**v2.5 入庫**（`d056004`：fix_boundary
+  裁剪線外知識＋units/sightings bounded 界內＋merge delta
+  遙測；1571 passed／ruff 綠；設計決定 10 條備案，導覽
+  docs/reviews/scan-v2_5-review.md）。
 
-- **0801 複驗輪第 2 輪**（Phase A run 20260801-042733、Phase B
-  20260801-044436-phaseB；判讀與鑑識全文 decisions.md 0801 條）：
-  A1/A4 PASS（29 把平移就 synced、四旗全定）、expire 語意實機
-  驗證、**結束回合鈕標定完成**（(300,185)→(997,562) 待機並結束
-  →(1365,850) 執行）、應戰彈窗 18 連發正確應答、卡條不彈回。
-  三定讞：A6 漏記＝absorb 無條件覆寫（偵測器單幀 23 目擊 vs 最
-  終記 10）、增益學習死鎖（0.5×wanted 保護恆真）、東緣橡皮筋
-  回彈由 STALL 吸收不修。**水平向斷鏈根因未定**（37 次幾乎全
-  east/west、靜止閘 waits 全=1 滑行假說出局）→v2.3 補 BROKEN
-  存證待第 3 輪資料定讞。**v2.3 入庫**（`fb2f806`：absorb 同代
-  UNIT 滯後＋增益入帳 ACCEPTED≥40px＋BROKEN 幀對存證〔上限 20〕
-  ＋--dump-survey-frames＋synced 提前結束；1547 passed／ruff 綠；
-  設計決定 20 條＋六爭點裁決備案 decisions.md，導覽
-  docs/reviews/scan-v2_3-review.md）。注意：兩輪
-  --stage-node 544,667 實際打的都是 UC HARD 1（截圖證實），
-  map_scan 基準有效。
+- **0801 複驗輪第 2 輪**（Phase A run 20260801-042733、Phase
+  B 20260801-044436-phaseB；判讀與鑑識全文 decisions.md 0801
+  條）：A1/A4 PASS（29 把平移就 synced、四旗全定）、expire 語
+  意實機驗證、**結束回合鈕標定完成**（(300,185)→(997,562) 待
+  機並結束→(1365,850) 執行）、應戰彈窗 18 連發正確應答、卡條
+  不彈回。三定讞：A6 漏記＝absorb 無條件覆寫（偵測器單幀 23 目
+  擊 vs 最終記 10）、增益學習死鎖（0.5×wanted 保護恆真）、東
+  緣邊緣回彈由 STALL 吸收不修。**水平向定位中斷根因未定**（37
+  次幾乎全 east/west、靜止閘 waits 全=1 滑行假說出局）→v2.3
+  補 BROKEN 存證待第 3 輪資料定讞。**v2.3 入庫**（`fb2f806`：
+  absorb 同代 UNIT 滯後＋增益入帳 ACCEPTED≥40px＋BROKEN 幀
+  對存證〔上限 20〕＋--dump-survey-frames＋synced 提前結
+  束；1547 passed／ruff 綠；設計決定 20 條＋六爭點裁決備案
+  decisions.md，導覽 docs/reviews/scan-v2_3-review.md）。注
+  意：兩輪 --stage-node 544,667 實際打的都是 UC HARD 1（截圖證
+  實），map_scan 基準有效。
 
 - **0801 掃描複驗輪第 1 輪 Phase A FAIL＋診斷定讞**（run
   data/runs/20260801-033746；判讀與 v2.2 裁決全文 decisions.md
-  0801 條）：40 tick 不夠、36% 的平移次數 BROKEN(phase) 斷鏈＝
-  pan 慣性滑行殘餘落進相位閘窗口（22.5–40px）；恢復機制（島嶼
-  ＋relocalise 整欄修正）照設計運作。Phase B 未跑（依規格跳
-  過）；結束回合鈕目視 (300,185) 待 tap 覆核；棄戰零耗三度實
-  證；裝置收尾乾淨。**v2.2 入庫**（`94fa54a`：靜止閘
-  measure_shift 判準＋逐 observe 遙測 survey_tick＋
-  SURVEY_TICKS 80；coverage.py 零改動；1525 passed／ruff 綠；
-  設計決定 16 條＋五爭點裁決備案 decisions.md，導覽
-  docs/reviews/scan-quiescence-v2_2-review.md）。
-  **紀律：下一輪複驗同款斷鏈簽名再敗＝連兩輪，停下問使用者。
-  驗收標準＝斷鏈率降到個位數（非零）；首要觀察 settle.waits
-  分佈。**
+  0801 條）：40 tick 不夠、36% 的平移次數 BROKEN(phase)
+  定位中斷＝pan 慣性滑行殘餘落進相位閘窗口（22.5–40px）；
+  恢復機制（島嶼〔定位中斷後位置不明的觀測暫存區，等重新定
+  位才併回〕＋relocalise 整欄修正）照設計運作。Phase B 未跑
+  （依規格跳過）；結束回合鈕目視 (300,185) 待 tap 覆核；棄
+  戰零耗三度實證；裝置收尾乾淨。**v2.2 入庫**（`94fa54a`：
+  靜止閘 measure_shift 判準＋逐 observe 遙測 survey_tick
+  ＋SURVEY_TICKS 80；coverage.py 零改動；1525 passed／ruff
+  綠；設計決定 16 條＋五爭點裁決備案 decisions.md，導覽
+  docs/reviews/scan-quiescence-v2_2-review.md）。**紀律：下一
+  輪複驗同款定位中斷簽名再敗＝連兩輪，停下問使用者。驗收標準＝
+  定位中斷率降到個位數（非零）；首要觀察 settle.waits 分佈。**
 
 - **0801 v2.1 修正批入庫**（`42d8f77`，六 commit fast-forward；
   opus worktree 交付、主 session 親審）：①legs 保險絲改單回合

@@ -1,15 +1,15 @@
 # Review 導覽：掃描 v2.3 小批（2026-08-01）
 
 基底 `feat/inner-goap` @ `ac82338`（v2.2 入庫之後）。來源＝掃描複驗輪第 2 輪
-（`data/runs/20260801-042733` 與 `20260801-044436-phaseB`）的主 session 鑑識結論：
-兩件實機定讞的正確性缺陷（A6 單位漏記、增益學習死鎖）＋一件根因未定的斷鏈只補
-存證＋一件效率修。
+（`data/runs/20260801-042733` 與 `20260801-044436-phaseB`）的主 session 鑑識
+結論：兩件實機定讞的正確性缺陷（A6 單位漏記、增益學習死鎖）＋一件根因未定的
+定位中斷只補存證＋一件效率修。
 
 範圍四個檔：`src/ggge_ai/runtime/coverage.py`（**只動 `absorb` 與 `_learn_gain`
-兩個方法**）、`src/ggge_ai/stage/survey.py`、`scripts/dry_run_entry.py`、`tests/`
-（三支）。**量測鏈（`Odometer.feed`／`_snap`／`envelope`／相位）一個字沒動**——
-水平向斷鏈的根因未定讞前不碰；`runtime/board.py` 也沒動。符號層語意零改動：
-`SurveyBoard` 的微步驟名、行動詞彙、`Survey`／`Odometer` 的介面一律照舊。
+兩個方法**）、`src/ggge_ai/stage/survey.py`、`scripts/dry_run_entry.py`、
+`tests/`（三支）。**量測鏈（`Odometer.feed`／`_snap`／`envelope`／相位）一個字沒
+動**——水平向定位中斷的根因未定讞前不碰；`runtime/board.py` 也沒動。符號層語意零
+改動：`SurveyBoard` 的微步驟名、行動詞彙、`Survey`／`Odometer` 的介面一律照舊。
 `battle/` 凍結層沒碰。
 
 **設計決定清單在第六節**，審過再由主 session 併進 `docs/decisions.md`。
@@ -47,9 +47,10 @@ KnowledgeMap.absorb(view)                  coverage.py:209
         state[cell] = UNIT
 ```
 
-任何一幀漏檢那一格（弧被精靈／特效遮住、密度峰沒過門檻），先前記下的 UNIT 就
-被自己抹掉。斷鏈期的座標誤差再放大一輪：島嶼合併進來的 view 帶著半格偏移，
-鋪出去的 EMPTY 毯蓋掉的是**隔壁**那些正確的 UNIT 格。
+任何一幀漏檢那一格（弧被精靈／特效遮住、密度峰沒過門檻），先前記下的 UNIT 就被自
+己抹掉。定位中斷期間的座標誤差再放大一輪：島嶼（定位中斷後位置不明的觀測暫存區，
+等重新定位才併回）合併進來的 view 帶著半格偏移，鋪出去的 EMPTY 毯蓋掉的是**隔
+壁**那些正確的 UNIT 格。
 
 **Root fix ＝ 同代滯後**（`coverage.py:209-241`）：`seen` 裡已經是 UNIT 的格跳過
 EMPTY 重置與 `marks.pop`，本幀若有目擊則照常更新 mark。
@@ -132,8 +133,8 @@ DryRun.build()                                  scripts/dry_run_entry.py
 ```
 
 **上一幀為什麼由執行器自己留**：`Odometer.feed` 判 BROKEN 時刻意**不推進**
-`self.previous`（斷鏈的處置是呼叫端的事，量測層只負責誠實），所以量測層的
-previous 未必是時間上的前一張。存證要的是時間序上相鄰的那一對，所以
+`self.previous`（定位中斷的處置是呼叫端的事，量測層只負責誠實），所以量測
+層的 previous 未必是時間上的前一張。存證要的是時間序上相鄰的那一對，所以
 `BoardDriver.previous` 是自己的欄位——`coverage.py` 的 previous 語意一個字沒改。
 
 落點：`survey.py:167-175`（docstring）、`:187-189`（三個新欄位）、`:215/:228`
@@ -180,13 +181,13 @@ survey 迴圈抽成 `DryRun.sweep()`（`dry_run_entry.py:251-263`）：`ledger.s
 | (2) | `test_a_three_fold_overestimated_gain_is_learned_down_within_a_few_legs`（coverage） | 真實 0.76 對預設 2.3：兩軸各 6 把平移內 measured/commanded 從 <0.4 收斂到 >0.85，增益 <1.0 | ✅ 實測 |
 | (2) | `test_a_leg_that_hit_the_map_edge_never_teaches_the_gain`（coverage） | STALLED 不入帳；同一把平移判 ACCEPTED 就入帳，值＝`GAIN_BLEND` 混合 | ✅ 實測 |
 | (2) | `test_a_broken_leg_never_reaches_the_gain_ledger`（coverage） | 走 `observe` 真實路徑：BROKEN → 增益逐字不變 | — |
-| (3) | `test_a_broken_reading_hands_both_frames_to_the_evidence_sink`（stage） | 斷鏈交出 (record, prev, curr)；record 帶 tick／probe／direction／reason；prev 非空 | — |
+| (3) | `test_a_broken_reading_hands_both_frames_to_the_evidence_sink`（stage） | 定位中斷交出 (record, prev, curr)；record 帶 tick／probe／direction／reason；prev 非空 | — |
 | (3) | `test_the_evidence_sink_stays_silent_while_the_chain_holds`（stage） | 三個 tick 都 ACCEPTED → 水槽零發射 | — |
 | (3) | `test_dumping_survey_frames_hands_over_every_observe_in_order`（stage） | 傾印時逐 observe 發射、順序 precheck/leg 交替、**prev 恰是上一次的 curr**（執行器自己的鏈） | — |
 | (3) | `test_a_failing_evidence_sink_never_stops_the_scan`（stage） | 水槽拋例外 → 微步驟名照舊、手勢照打 | — |
 | (3) | `test_a_broken_pair_lands_on_disk_as_two_full_frames`（dry_run） | 檔名 `t7-leg-no_lattice-{prev,curr}.png`、`saved=true`、讀回來的圖尺寸不變 | — |
 | (3) | `test_the_very_first_observe_has_no_previous_frame_to_keep`（dry_run） | prev=None → 流水帳的 `prev` 是 null、curr 照存 | — |
-| (3) | `test_past_the_pair_ceiling_the_break_is_journalled_but_not_photographed`（dry_run） | 23 次斷鏈 → 23 筆流水帳、只有 20 筆 `saved=true`、磁碟上 40 個檔 | — |
+| (3) | `test_past_the_pair_ceiling_the_break_is_journalled_but_not_photographed`（dry_run） | 23 次定位中斷 → 23 筆流水帳、只有 20 筆 `saved=true`、磁碟上 40 個檔 | — |
 | (3) | `test_an_intact_reading_is_only_photographed_when_dumping_is_on`（dry_run） | 非 BROKEN：預設不留檔也不記帳；`dump=True` 才寫 frames/survey/ | — |
 | (3) | `test_the_assembled_run_wires_the_evidence_sink_and_the_dump_flag`（dry_run） | `build()` 真的接上水槽；旗標同時吃到 driver 與水槽兩側 | — |
 | (4) | `test_the_survey_loop_stops_the_moment_the_board_is_synced`（dry_run） | 第 3 tick synced → `sweep()` 回 3、留下 `survey_done{tick:3,budget:20}` | — |
@@ -226,13 +227,13 @@ survey 迴圈抽成 `DryRun.sweep()`（`dry_run_entry.py:251-263`）：`ledger.s
 8. **存證水槽走 callback 注入，與 telemetry 同一個模式。** 指示明寫。理由備查：
    `stage/survey.py` 不該知道 run 目錄、PNG 編碼或流水帳 kind 名——那是 Runner
    的事，換一個 Runner（正式 `StageLoop`）可以完全不接。
-9. **兩個水槽各包各的 `try`，各自建構一次 record。** 備選是共用一份 record 省
-   一次建構。取前者：遙測炸了不該連帶讓存證失效（反之亦然），而 record 建構
-   本身也在 try 裡（沿用 v2.2 的決定 9）。代價是斷鏈那幾次多建一個 dict。
-10. **`dump_frames` 是 driver 的旗標，`dump` 是水槽的旗標，兩者由同一個 CLI 參數
-    餵。** 看起來冗餘，但職責不同：driver 決定**何時發射**，水槽決定**寫成哪一
-    種檔**。合併成一個的話，水槽就得對 BROKEN 的幀多寫一份 survey/ 副本（或讓
-    frames/survey/ 缺掉斷鏈那幾張＝重放序列不完整）。
+9. **兩個水槽各包各的 `try`，各自建構一次 record。** 備選是共用一份 record 省一
+   次建構。取前者：遙測炸了不該連帶讓存證失效（反之亦然），而 record 建構本身也
+   在 try 裡（沿用 v2.2 的決定 9）。代價是定位中斷那幾次多建一個 dict。
+10. **`dump_frames` 是 driver 的旗標，`dump` 是水槽的旗標，兩者由同一個 CLI 參
+    數餵。** 看起來冗餘，但職責不同：driver 決定**何時發射**，水槽決定**寫成哪
+    一種檔**。合併成一個的話，水槽就得對 BROKEN 的幀多寫一份 survey/ 副本（或讓
+    frames/survey/ 缺掉定位中斷那幾張＝重放序列不完整）。
 11. **`BoardDriver.previous` 存的是 ndarray 引用，不是複本。** 幀在 driver 手上是
     唯讀的（`observe` 之後沒人改它），複製一張 2340×1080×3 只為了保險是 7MB／幀
     的浪費。
@@ -242,12 +243,12 @@ survey 迴圈抽成 `DryRun.sweep()`（`dry_run_entry.py:251-263`）：`ledger.s
     **像素逐點相同**，離線重放量測要的正是像素。若主 session 認為必須是裝置那
     一份位元組（例如要驗截圖通道本身），改法是讓 `Camera` 存 raw、driver 改吃
     `(bytes, ndarray)` 對——本批不做，因為那會動到感知通道的介面。
-13. **`BROKEN_PAIRS = 20`（指示的值原樣採用）。** 上限擋的是 80 tick 全斷鏈時
-    把 run 目錄塞爆（40 張全解析度 PNG ≈ 60-120MB）。超過只記流水帳，所以
-    **斷鏈次數的統計不受上限影響**，只有取樣的圖有上限。
+13. **`BROKEN_PAIRS = 20`（指示的值原樣採用）。** 上限擋的是 80 tick 全程
+    定位中斷時把 run 目錄塞爆（40 張全解析度 PNG ≈ 60-120MB）。超過只記流水帳，
+    所以**定位中斷次數的統計不受上限影響**，只有取樣的圖有上限。
 14. **超過上限時仍逐筆記 `survey_broken`（`saved=false`）。** 備選是安靜跳過。
     不取：`survey_tick` 那邊本來就有 verdict，但 `survey_broken` 是「該不該去看
-    圖」的索引，缺一筆會讓事後對帳以為那次斷鏈沒發生。
+    圖」的索引，缺一筆會讓事後對帳以為那次定位中斷沒發生。
 15. **`reason` 進檔名前用 `_slug` 洗過**（`no lattice` → `no_lattice`）。檔名不
     准帶空白，否則事後的 shell 一行流就得處處引號。
 16. **`frames/broken/` 與 `frames/survey/` 是 `frames/` 的子目錄，不是平輩目錄。**
@@ -260,8 +261,8 @@ survey 迴圈抽成 `DryRun.sweep()`（`dry_run_entry.py:251-263`）：`ledger.s
     花掉幾個 tick，讓測試不必去解析流水帳就斷言得了。
 19. **`survey_done` 這個 kind 名定在 script（`SURVEY_DONE`），不在 stage 層。**
     同 v2.2 決定 14：「這件事在流水帳裡叫什麼」是 Runner 的事。
-20. **`SURVEY_TICKS = 80` 不動。** 提前結束之後它回到它本來的職責＝**上限**。
-    第 2 輪的 29 把平移是修好增益之前的數字，修好之後只會更少，但西側補掃與斷鏈
+20. **`SURVEY_TICKS = 80` 不動。** 提前結束之後它回到它本來的職責＝**上限**。第
+    2 輪的 29 把平移是修好增益之前的數字，修好之後只會更少，但西側補掃與定位中斷
     殘餘仍需要裕度。
 
 ---
@@ -283,24 +284,25 @@ All checks passed!
 
 ## 八、爭點
 
-1. **UNIT 滯後把誤判也一起保住（誠實聲明）。** 密度峰在特效／爆炸／選單陰影上
-   假命中一次，那一格就會維持 UNIT 到這一代結束。舊碼會被下一幀洗掉，新碼不會。
-   **取捨的理由是不對稱**：漏記一台敵人 → 戰術層拿到錯的盤面去規劃；多記一台
-   幽靈 → 多算一次威脅（保守方向）。但**下一輪複驗要對帳的正是這件事**：
-   `survey_summary` 的 `cells` 數量若明顯超過人工目視的台數，就是滯後在收假票。
-2. **水平向斷鏈的根因本批沒動也沒修。** 37 次 BROKEN 仍會照樣發生，只是這次會
-   留下幀。**驗收標準不該包含「斷鏈率下降」**——本批對量測鏈零改動，唯一可能的
-   間接影響是增益修好之後每把平移的位移變大（相位相關的訊噪比反而變好）。
-   下一輪拿到 `frames/broken/` 之後的離線工作：對每一對幀親跑
-   `board.measure_shift`，看量到的值與遙測記的是否一致（一致＝量測本身欠讀，
-   不一致＝取幀與量測之間有東西動過），再對 `read_lattice` 的相位逐對比。
+1. **UNIT 滯後把誤判也一起保住（誠實聲明）。** 密度峰在特效／爆炸／選單陰影
+   上假命中一次，那一格就會維持 UNIT 到這一代結束。舊碼會被下一幀洗掉，新碼不
+   會。**取捨的理由是不對稱**：漏記一台敵人 → 戰術層拿到錯的盤面去規劃；多記一
+   台幽靈（假命中生出、畫面上沒有對應實體的單位）→ 多算一次威脅（保守方向）。
+   但**下一輪複驗要對帳的正是這件事**：`survey_summary` 的 `cells` 數量若明顯超
+   過人工目視的台數，就是滯後在收假票。
+2. **水平向定位中斷的根因本批沒動也沒修。** 37 次 BROKEN 仍會照樣發生，只
+   是這次會留下幀。**驗收標準不該包含「定位中斷率下降」**——本批對量測鏈零
+   改動，唯一可能的間接影響是增益修好之後每把平移的位移變大（相位相關的訊噪
+   比反而變好）。下一輪拿到 `frames/broken/` 之後的離線工作：對每一對幀親跑
+   `board.measure_shift`，看量到的值與遙測記的是否一致（一致＝量測本身欠讀，不一
+   致＝取幀與量測之間有東西動過），再對 `read_lattice` 的相位逐對比。
 3. **A6 修好之後單位數會上升，但「上升到多少才對」沒有地面真相。** 第 2 輪的
    23 個目擊是**單幀**的數字（含重複計數與第三方單位），不是全圖的台數。下一輪
    請人工目視點一次台數作為對照——否則「10 → 20」是修好了還是收了假票，分不出來。
-4. **`--dump-survey-frames` 的成本沒在實機量過。** 80 tick × 2 張全解析度 PNG
-   ≈ 160 張 ≈ 250-500MB，加上每張 `cv2.imencode` 的時間（粗估 30-80ms，掃描
-   一輪多 5-13 秒）。**建議只在要做離線重放的那一輪打開**，常規複驗不用開——
-   斷鏈存證預設就會留，那才是 A5/A7 的主要證據。
+4. **`--dump-survey-frames` 的成本沒在實機量過。** 80 tick × 2 張全解析度 PNG ≈
+   160 張 ≈ 250-500MB，加上每張 `cv2.imencode` 的時間（粗估 30-80ms，掃描一輪多
+   5-13 秒）。**建議只在要做離線重放的那一輪打開**，常規複驗不用開——定位中斷存證
+   預設就會留，那才是 A5/A7 的主要證據。
 5. **`DryRun.sweep()` 的提前結束只影響這支 script，不影響正式迴圈。**
    `StageLoop` 走的是 `progressed(state)`，本來就掃完即彈；這裡修的是 script
    自己的固定 tick 迴圈。
@@ -312,4 +314,5 @@ All checks passed!
      死鎖點。
    - 整輪平移次數與 `survey_done.tick`：修好增益之後預期明顯少於第 2 輪的
      29 把。
-   - `frames/broken/` 的幀對數量與 `survey_broken` 的筆數（後者才是真實斷鏈次數）。
+   - `frames/broken/` 的幀對數量與 `survey_broken` 的筆數（後者才是真實的
+     定位中斷次數）。

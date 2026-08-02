@@ -1,8 +1,9 @@
 # Review 導覽：掃描靜止閘＋遙測小批（v2.2，2026-08-01）
 
 基底 `feat/inner-goap` @ `3238d2c`（v2.1 修正批入庫之後）。來源＝0801 首輪實機
-複驗 `data/runs/20260801-033746/` 的 FAIL：40 tick 打滿 `synced=false`、西邊界未定、
-**14 次 BROKEN(phase) 斷鏈（36% 的平移次數）**、6 座島被再斷鏈丟棄＝14 個觀測流失。
+複驗 `data/runs/20260801-033746/` 的 FAIL：40 tick 打滿 `synced=false`、西邊界未
+定、**14 次 BROKEN(phase) 定位中斷（36% 的平移次數）**、6 座島因再次定位中斷被丟
+棄＝14 個觀測流失。
 
 範圍三個檔：`src/ggge_ai/stage/survey.py`、`scripts/dry_run_entry.py`、
 `tests/`（三支）。**`src/ggge_ai/runtime/coverage.py` 一個字都沒動**（量測層剛過
@@ -45,9 +46,9 @@ capture()                                   ← 舊碼：殘餘滑行 22.5-40px
 ```
 
 窗口寬度只有 `22.5 < |殘餘| < 40` 這 17.5px：小於 22.5 相位閘吸得回來，大於 40
-包絡閘會直接拒收（一樣斷鏈，但那是另一種故障）。斷鏈本身的恢復機制照設計運作
-（`islands.merged=8`、重錨偏移全是 180/270/360px 的整欄），問題純粹是頻率——
-40 tick 的預算被燒光。
+合理範圍閘會直接拒收（一樣是定位中斷，但那是另一種故障）。定位中斷本身的恢復機制
+照設計運作（`islands.merged=8`、重錨偏移全是 180/270/360px 的整欄），問題純粹是
+頻率——40 tick 的預算被燒光。
 
 **Root fix 落在取幀，不在量測**：滑行中的幀本來就不該被 observe 收下。
 
@@ -68,9 +69,10 @@ capture()                                   ← 舊碼：殘餘滑行 22.5-40px
 幀差永遠安靜不下來（會把 `SETTLE_ROUNDS` 每次燒滿＝每 tick 多 4 張截圖還是收到
 髒幀）；滑行是全域同調位移，相位相關量得到、待機動畫量不到。
 
-`shift.known == False`（相位信賴度低＋星座湊不出票，例如無特徵星空）視為靜止收幀：
-量不出來不是「還在動」的證據，而下一步 `Survey.observe` 自己會把它判 BROKEN
-（`unmeasurable`）隔離進島嶼——在取幀這一層硬等只是白燒截圖。
+`shift.known == False`（相位信賴度低＋單位排列比對湊不出票，例如地圖外無特徵的
+星空背景）視為靜止收幀：量不出來不是「還在動」的證據，而下一步 `Survey.observe`
+自己會把它判 BROKEN（`unmeasurable`）隔離進島嶼——島嶼＝定位中斷後位置不明的觀測
+暫存區，等重新定位才併回；在取幀這一層硬等只是白燒截圖。
 
 ---
 
@@ -127,10 +129,10 @@ DryRun.build()                                    scripts/dry_run_entry.py
 | `reach` | float / null | 手指行程（螢幕像素）；precheck 為 null |
 | `expected` | [dx, dy] / null | 指令預期的內容位移（世界像素，帶號）；precheck 為 null |
 | `verdict` | str | `accepted` / `stalled` / `broken` |
-| `reason` | str | BROKEN 時是失敗原因（`phase`／`envelope`／`unmeasurable`／`generation`／`no lattice`），否則是包絡閘等級（`ok`／`repeat`）或 `anchor` |
+| `reason` | str | BROKEN 時是失敗原因（`phase`／`envelope`／`unmeasurable`／`generation`／`no lattice`），否則是合理範圍閘等級（`ok`／`repeat`）或 `anchor` |
 | `shift.dx` `shift.dy` | float | 量到的內容位移（螢幕像素） |
 | `shift.magnitude` | float | 同上的長度——**A5 的核心量測** |
-| `shift.confidence` | float | 相位相關的響應值／星座票數比 |
+| `shift.confidence` | float | 相位相關的響應值／排列比對的票數比 |
 | `shift.source` | str | `phase` / `constellation` / `still` / `none` |
 | `offset` | [x, y] | 這一幀之後的里程計偏移（世界 ＝ 螢幕 ＋ offset） |
 | `island.open` | bool | 島嶼緩衝開著沒 |
@@ -205,9 +207,10 @@ DryRun.build()                                    scripts/dry_run_entry.py
 9. **`_trace`／`_record` 分兩層，`try` 包住整段（含 record 建構）。** 備選是只包
    `telemetry()` 呼叫。取前者：建構本身也可能爆（未來加欄位時），而掃描不該因為
    一個觀察者而停。
-10. **`islands` 四計數器每筆都記，不是只在 tick 尾記一次。** 指示允許「只在 tick
-    尾記一次」。取每筆：本批要回答的正是「14 次斷鏈落在 precheck 還是 leg」，
-    計數器逐筆才對得上是哪一次 observe 觸發的隔離。成本是每 tick 多 8 個整數。
+10. **`islands` 四計數器每筆都記，不是只在 tick 尾記一次。** 指示允許「只在
+    tick 尾記一次」。取每筆：本批要回答的正是「14 次定位中斷落在 precheck 還
+    是 leg」，計數器逐筆才對得上是哪一次 observe 觸發的隔離。成本是每 tick 多 8
+    個整數。
 11. **`tick` 由 `BoardDriver.ticks` 自己數，不從 Runner 傳入。** 備選是 Runner 把
     迴圈索引塞進來。取前者：驅動型行動在正式迴圈（`StageLoop`）裡沒有「掃描第幾
     tick」這種外部索引，計數器留在驅動器上兩條路徑才一致。`zoom` 那一 tick 不計，
@@ -248,7 +251,7 @@ All checks passed!
 
 1. **靜止閘只降污染率，不保證零污染（誠實聲明）。** 滑行速率衰減到 <3px/0.25s
    之後閘就放行，殘餘位移仍可能累積幾個像素。它遠小於 22.5px 的相位閘容差，但
-   「BROKEN(phase) 歸零」不是本批能保證的事——**驗收標準應該是斷鏈率明顯下降
+   「BROKEN(phase) 歸零」不是本批能保證的事——**驗收標準應該是定位中斷率明顯下降
    （14/40 把平移 → 個位數），不是 0**。
 
 2. **`SETTLE_QUIET_PX = 3.0` 與 `SETTLE_ROUNDS = 4` 沒有實機標定。** 3.0 的下界
@@ -257,20 +260,20 @@ All checks passed!
    分佈**：若大量落在 4 且 `quiet=false`，就是輪數不夠（或該把 `PAN_SETTLE_S`
    一起調），若幾乎全是 1，反而要懷疑閘沒抓到滑行、該把門檻壓低。
 
-3. **截圖成本翻倍未在實機量過。** 每 tick 4 張起跳 × 80 tick，加上滑行時的額外
-   輪數。0801 那一輪是 40 tick／168 張圖跑完全程；本批粗估 80 tick 需要 320+ 張。
-   若整段掃描的牆鐘時間變得不可接受，第一個該砍的是「precheck 幀也走靜止閘」——
-   但那一幀正是 14 次斷鏈的發生地，砍掉等於退回原點。**替代省法是把
-   `PAN_SETTLE_S` 從 1.5 降下來，讓靜止閘接手等待**（閘量得到什麼時候該收，
-   固定 sleep 量不到），本批沒有動它，因為那會同時改兩個變因。
+3. **截圖成本翻倍未在實機量過。** 每 tick 4 張起跳 × 80 tick，加上滑行時的額
+   外輪數。0801 那一輪是 40 tick／168 張圖跑完全程；本批粗估 80 tick 需要 320+
+   張。若整段掃描的牆鐘時間變得不可接受，第一個該砍的是「precheck 幀也走靜止
+   閘」——但那一幀正是 14 次定位中斷的發生地，砍掉等於退回原點。**替代省法是把
+   `PAN_SETTLE_S` 從 1.5 降下來，讓靜止閘接手等待**（閘量得到什麼時候該收，固定
+   sleep 量不到），本批沒有動它，因為那會同時改兩個變因。
 
 4. **`coverage.py` 有一處看起來可疑但本批沒動（依紀律停在這裡標爭點）。**
    `Odometer.feed` 判 BROKEN(phase) 之後，`self.previous` **不更新**——下一幀會
-   拿更舊的那張當基準。主圖那條路徑上這是對的（斷鏈後幀進島嶼，島嶼自己帶新的
-   `Odometer(previous=frame)`），所以不是缺陷；但滑行情境下同一個 odometer 若
-   連續兩次 BROKEN，第二次量的是跨兩幀的位移，包絡閘的「同軸倍率」會用單次
-   平移的 expected 去衡量兩次平移的位移。0801 的流水帳裡連續 BROKEN 出現過兩次
-   （`isolated=14` 對 `merged=8`），**要不要在量測層補一條「BROKEN 也推進
+   拿更舊的那張當基準。主圖那條路徑上這是對的（定位中斷後幀進島嶼，島嶼自己帶
+   新的 `Odometer(previous=frame)`），所以不是缺陷；但滑行情境下同一個 odometer
+   若連續兩次 BROKEN，第二次量的是跨兩幀的位移，合理範圍閘的「同軸倍率」會用
+   單次平移的 expected 去衡量兩次平移的位移。0801 的流水帳裡連續 BROKEN 出現過
+   兩次（`isolated=14` 對 `merged=8`），**要不要在量測層補一條「BROKEN 也推進
    previous」的規則，請主 session 裁示**——本批依指示對 `coverage.py` 零改動。
 
 5. **實機未驗證。** 本批純程式碼。需要排進 `docs/live-verification-queue.md`：
