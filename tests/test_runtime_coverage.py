@@ -28,7 +28,14 @@ from ggge_ai.runtime.coverage import (
 from ggge_ai.runtime.perceive import Observation
 from ggge_ai.stage.actions import SurveyBoard
 from ggge_ai.stage.survey import survey_drivers
-from tests.fixtures.synthetic_map import COL_PITCH, ROW_PITCH, World, animated, void_outside
+from tests.fixtures.synthetic_map import (
+    COL_PITCH,
+    ROW_PITCH,
+    World,
+    animated,
+    freeze_correlator,
+    void_outside,
+)
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 # 一格 100px 的小視窗：手算得出來哪幾格「整格看得清楚」。
@@ -37,6 +44,8 @@ UNITS = ((3, 5), (5, 4), (9, 6), (14, 3), (18, 9))
 # 大世界的擺位：欄距固定但**列位刻意不成等差**。等差擺位會讓好幾對單位共用同一個
 # 平移量，配對投票湊出並列眾數就直接棄權。
 SPREAD = ((2, 5), (5, 7), (8, 12), (11, 4), (14, 9), (17, 13), (20, 3), (23, 8), (26, 11))
+# 三台擠在西北角那一屏裡：地標與已記目擊要對得起來，得先有三台對得上的機體。
+WESTERN = ((1, 2), (2, 5), (5, 4), (9, 7), (14, 2))
 
 SCREEN = (0, 0, 2340, 1080)
 
@@ -599,6 +608,141 @@ def test_an_enemy_phase_sends_the_scan_back_to_the_corner_instead_of_re_anchorin
     assert got == want
 
 
+# ---- 複驗：候選座標要和已獲取的佔位資訊對得起來 ----
+
+
+def _misreport(monkeypatch, dx: float = 0.0, dy: float = 0.0) -> None:
+    """重疊區位移量測整整多報一段——0801 相關器凍在靜態峰的合成版，但錯得更精確。"""
+    real = board.measure_shift
+
+    def wrong(previous, current, region=board.MAP_REGION, trace=None):
+        shift = real(previous, current, region, trace)
+        return board.Shift(shift.dx + dx, shift.dy + dy, shift.confidence, shift.source)
+
+    monkeypatch.setattr(board, "measure_shift", wrong)
+
+
+def _to_the_middle(world: World) -> Survey:
+    """歸零之後把鏡頭推到四側終止邊都讀不到的地方：那裡的定位沒有地標可靠。"""
+    survey = zeroed(world)
+    for _ in range(3):
+        world.move(300.0, 200.0)
+        assert survey.observe(world.frame()).verdict == ACCEPTED
+    assert survey.sighted == frozenset()
+    return survey
+
+
+def test_a_pan_the_recorded_units_say_is_impossible_is_refused(monkeypatch):
+    """重疊區量測說內容整整多滑了一列，而畫面上的機體按那個座標放下去會落在別的
+    格——已獲取的佔位資訊裁得出來，這一幀不准寫圖。"""
+    world = _synthetic()
+    survey = _to_the_middle(world)
+    charted = dict(survey.chart.state)
+
+    world.move(200.0, 0.0)
+    _misreport(monkeypatch, dy=ROW_PITCH)
+    reading = survey.observe(world.frame(), Leg("east", 100.0, (-200.0, 0.0)))
+
+    assert reading.verdict == BROKEN
+    assert reading.reason == coverage.OCCUPANCY_REFUSED
+    assert survey.chart.state == charted
+
+
+def test_the_same_measurement_can_never_corroborate_itself(monkeypatch):
+    """複驗不得與候選同源：0802 定讞——舊碼拿產生候選的那一次 `measure_shift` 回頭
+    當佐證，注入 0／230／256／300px 的錯誤，閘門餘裕一律 1.0px，與錯誤大小無關。"""
+    world = _synthetic()
+    survey = _to_the_middle(world)
+
+    for error in (2.0 * ROW_PITCH, 300.0, 2.0 * COL_PITCH):
+        world.move(200.0, 0.0)
+        with monkeypatch.context() as patch:
+            _misreport(patch, dx=error if error == 2.0 * COL_PITCH else 0.0,
+                       dy=0.0 if error == 2.0 * COL_PITCH else error)
+            reading = survey.observe(world.frame(), Leg("east", 100.0, (-200.0, 0.0)))
+        assert reading.verdict == BROKEN, error
+        survey.observe(world.frame())
+
+
+def test_a_correlator_frozen_on_the_static_peak_never_writes_a_place_it_guessed(monkeypatch):
+    """0801 t27/t28/t30 的合成版：內容實際移動上百 px，水平相位相關整個鎖在靜態峰，
+    而信賴度照樣過門檻。v3 沒有里程計了，但「凍住的量測不准變成座標」這條紅線沒變
+    ——收下的幀座標要對，對不出來就整張丟掉，一格都不寫錯。"""
+    world = World(cols=40, rows=24, units=SPREAD)
+    survey = zeroed(world)
+    freeze_correlator(monkeypatch)
+
+    truth = 0.0
+    for _ in range(4):
+        truth += world.move(300.0, 0.0)[0]
+        reading = survey.observe(world.frame(), Leg("east", 152.0, (-300.0, 0.0)))
+        if reading.verdict != BROKEN:
+            assert reading.offset[0] == pytest.approx(truth, abs=COL_PITCH / 2.0)
+
+    grid = survey.chart.grid
+    real = {grid.cell_of(world.centre(cell)) for cell in world.units}
+    assert {cell for cell, _ in survey.chart.units()} <= real
+
+
+def test_a_whole_scan_under_a_frozen_correlator_grows_no_ghosts(monkeypatch):
+    """整輪掃描版。凍住的相關器底下掃**不完**是誠實的失敗（流水帳看得到 unlocalised
+    與重新歸零的次數）；不誠實的是掃完了卻多出真實盤面沒有的單位格。"""
+    world = World(cols=30, rows=16, units=SPREAD)
+    freeze_correlator(monkeypatch)
+
+    _, ledger = sweep(Rig(world), ticks=90)
+
+    want, got = unit_cells(ledger, world)
+    assert set(got) <= set(want)
+    assert ledger.summary()["unlocalised"] > 0
+    assert not ledger.synced
+
+
+def test_a_landmark_one_cell_out_is_caught_by_the_units_it_should_line_up_with():
+    """地標算出來的軸不會跟自己矛盾，唯一驗得到它的是已獲取的佔位資訊：整整差一格的
+    地標會讓畫面上的機體整批落在隔壁那一欄，而隔壁那個候選配得比較好。"""
+    world = World(cols=22, rows=12, units=WESTERN)
+    survey = zeroed(world)
+    charted = dict(survey.chart.state)
+    survey.landmarks["west"] = survey.landmarks["west"] + COL_PITCH
+
+    reading = survey.observe(world.frame())
+
+    assert reading.verdict == BROKEN
+    assert reading.reason == coverage.OCCUPANCY_REFUSED
+    assert survey.chart.state == charted
+
+
+def test_a_landmark_that_keeps_being_contradicted_starts_the_world_over():
+    """東／南地標必然是在該側還沒有地標時記下的，座標來自補位來源；地標跨代保留、
+    界線一定案就把線外的知識整批裁掉，所以寫錯了要有回收路徑。"""
+    world = World(cols=22, rows=12, units=WESTERN)
+    survey = zeroed(world)
+    survey.landmarks["west"] = survey.landmarks["west"] + COL_PITCH
+
+    for _ in range(coverage.LOST_PATIENCE):
+        survey.observe(world.frame())
+
+    assert survey.stance == coverage.ZERO
+    assert survey.chart is None
+    assert survey.landmarks == {}
+
+
+def test_a_frame_that_only_reuses_the_last_offset_never_writes_a_landmark():
+    """沿用上一張座標的幀沒有帶來任何新的位置證據，不該讓一次「畫面沒動」的判斷
+    定死一條跨代不改的線。"""
+    world = _synthetic()
+    survey = zeroed(world)
+    survey.landmarks.clear()
+    view = survey._view(world.frame(), (0.0, 0.0))
+
+    survey._learn_edges(view, coverage.SOURCE_STILL)
+    assert survey.landmarks == {}
+
+    survey._learn_edges(view, coverage.SOURCE_DRIFT)
+    assert set(survey.landmarks) == {"west", "north"}
+
+
 # ---- 感知與遮罩（v2 資產，v3 原樣保留） ----
 
 
@@ -814,7 +958,9 @@ def test_a_retired_target_is_always_a_cell_of_the_pocket_itself():
     assert (1, 1) not in survey.chart.unreachable
 
 
-def test_a_pocket_no_camera_position_can_expose_retires_cell_by_cell_and_stops():
+def test_the_cells_the_camera_can_never_expose_are_retired_out_loud():
+    """退休格同時退出待掃格與缺口，所以 `complete` 可以在那幾格從沒被觀測的情況下
+    成立——那正是「無聲丟失」的路。只記個數不夠，流水帳要逐格點名。"""
     survey = _boxed()
     survey.sighted = frozenset(coverage.COMPASS)
 
@@ -826,6 +972,25 @@ def test_a_pocket_no_camera_position_can_expose_retires_cell_by_cell_and_stops()
     assert survey.chart.unreachable == set(_POCKET)
     assert survey.complete
     assert not survey.fused
+
+    summary = survey.summary()
+    assert summary["unreachable"] == len(_POCKET)
+    assert summary["retired"] == [list(cell) for cell in sorted(_POCKET)]
+    assert summary["cells"]["unknown"] == len(_POCKET)
+
+
+def test_a_confirmed_bump_never_survives_the_world_it_was_counted_in():
+    """退休格子要「推不動兩輪」才算數，而退休是跨代生效的。重新歸零與縮放都換了一套
+    座標，舊世界數到的那一輪不該併進新世界——不然兩輪的規則被弱化成一輪。"""
+    survey = Survey()
+    survey.bumped["east"] = 1
+
+    survey._rezero("test")
+    assert survey.bumped == {}
+
+    survey.bumped["east"] = 1
+    survey.reset()
+    assert survey.bumped == {}
 
 
 def test_the_sighted_clamp_lifts_as_soon_as_the_camera_leaves_the_edge():

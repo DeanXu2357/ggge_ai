@@ -713,8 +713,8 @@ class Survey:
             if self._corroborated(frame, view, merged, recalled, source, note):
                 return (merged, source)
             refusal = str(note.get("gate", PICTURE_REFUSED))
-            if source == SOURCE_EDGE:
-                self._contest()
+        if refusal == OCCUPANCY_REFUSED and axes:
+            self._contest()
         return (None, refusal)
 
     def _from_landmarks(self, view: FrameView, axis: str) -> tuple[float | None, bool]:
@@ -859,7 +859,9 @@ class Survey:
         pitches = {"x": self.chart.grid.col_pitch, "y": self.chart.grid.row_pitch}
         support = _fits(marks, seen, candidate, pitches)
         rivals: dict[str, int] = {}
-        for axis in recalled or ("x", "y"):
+        # 鄰居**兩軸都要試**，不只補位那幾軸：地標算出來的軸不會跟自己矛盾，唯一驗得到
+        # 它的地方就是這裡（東／南地標必然是在那一側還沒有地標時記下的，來自補位來源）。
+        for axis in ("x", "y"):
             for sign in (1.0, -1.0):
                 nudged = (
                     (candidate[0] + sign * pitches["x"], candidate[1])
@@ -1008,14 +1010,17 @@ class Survey:
         return moved
 
     def _contest(self) -> None:
-        """地標算出來的座標與已記目擊對不上：地標本身可能就是錯的。
+        """有地標背書的幀連著被佔位一致性判否：地標本身可能就是錯的。
 
-        東側與南側的地標必然是在該側還沒有地標時記下的，所以它的座標來自補位來源；
-        寫錯了沒有別的路可以回收（地標跨代保留、界線一定案就把線外全裁掉）。連兩幀
-        都對不上就整張圖作廢、推回角落重來——第一次可能只是偵測漏，第二次就不是了。
+        東側與南側的地標必然是在該側還沒有地標時記下的，那時該軸的座標只能來自補位
+        來源。地標跨代保留、界線一定案就把線外的知識整批裁掉，所以寫錯了要有回收路徑
+        ——`_forget` 之後整張圖從角落重來。
+
+        單獨一幀對不上可能只是偵測漏，代價是丟一幀；連著 `LOST_PATIENCE` 幀都有兩台
+        以上的機體指著隔壁那一格，就不是巧合了。
         """
         self.contested += 1
-        if self.contested < STALL_CONFIRM:
+        if self.contested < LOST_PATIENCE:
             return
         log.warning("the landmarks keep contradicting the recorded sightings; starting the world over")
         self._forget()
