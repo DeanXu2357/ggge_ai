@@ -615,8 +615,14 @@ def _misreport(monkeypatch, dx: float = 0.0, dy: float = 0.0) -> None:
     """重疊區位移量測整整多報一段——0801 相關器凍在靜態峰的合成版，但錯得更精確。"""
     real = board.measure_shift
 
-    def wrong(previous, current, region=board.MAP_REGION, trace=None):
-        shift = real(previous, current, region, trace)
+    def wrong(
+        previous,
+        current,
+        region=board.MAP_REGION,
+        trace=None,
+        min_response=board.SHIFT_MIN_RESPONSE,
+    ):
+        shift = real(previous, current, region, trace, min_response)
         return board.Shift(shift.dx + dx, shift.dy + dy, shift.confidence, shift.source)
 
     monkeypatch.setattr(board, "measure_shift", wrong)

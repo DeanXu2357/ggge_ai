@@ -144,6 +144,13 @@ DIRECTIONS: dict[str, tuple[int, int]] = {
 EDGE_SHIFT_PX = 40.0
 # 相位相關在無特徵的星空上會瞎掉；信賴度低於此就不信它的數字，改看幀差。
 SHIFT_MIN_RESPONSE = 0.05
+# 要拿近乎零的讀數去背書「畫面沒動」時改用這一條，門檻高得多。相關器凍住的失效樣態
+# 與「真的沒動」的正解在數值上完全重合——兩邊都是近乎零的位移，`known` 都是真——所以
+# 唯一分得出兩者的是讀數本身的強度。0803 第 8 輪 157 對實幀：凍住的回應落在
+# 0.055-0.162（t15/t16 各推動 178px 卻讀成 0.8px），量得動的落在 0.413-0.993，中間
+# 0.162 到 0.413 整段是空的；取兩端的幾何中點。大位移不必過這一關——凍住的相關器
+# 不會憑空生出 170px，所以 SHIFT_MIN_RESPONSE 那條線對它仍然夠用。
+STILL_MIN_RESPONSE = 0.25
 EDGE_FRAME_DIFF = 2.5
 
 # 格線相位交叉驗證的容差（欄距的比例）。只用在直線軸：直線 pitch 穩定約 128，
@@ -531,6 +538,7 @@ def measure_shift(
     current: np.ndarray,
     region: Region = MAP_REGION,
     trace: Trace = None,
+    min_response: float = SHIFT_MIN_RESPONSE,
 ) -> Shift:
     """地圖內容從前一幀到這一幀移動了多少（螢幕像素）。
 
@@ -538,10 +546,14 @@ def measure_shift(
     （無特徵的星空、或平移過大導致重疊帶不足）就退單位排列比對的投票——**那張票要先
     過影像複驗**（`_constellation_witness`）。兩個都不給答案就回 source="none"——寧可承認
     不知道，也不要拿手勢當位置（0719 西緣鬼影座標就是這樣長出來的）。
+
+    `min_response` ＝ 採信相位相關的門檻。呼叫端要拿近乎零的讀數去斷言「畫面沒動」時
+    傳 `STILL_MIN_RESPONSE`：那個問題的正解與相關器凍住的失效樣態長得一模一樣，把門檻
+    提高等於強迫弱讀數改走單位排列比對那條路，而那條路有影像複驗背書。
     """
     dx, dy, response = _phase_shift(previous, current, region)
     _note(trace, "correlator", {"dx": round(dx, 1), "dy": round(dy, 1), "response": round(response, 3)})
-    if response >= SHIFT_MIN_RESPONSE:
+    if response >= min_response:
         _note(trace, "path", "phase")
         return Shift(dx, dy, response, "phase")
     witness = _constellation_witness(previous, current, region, trace)

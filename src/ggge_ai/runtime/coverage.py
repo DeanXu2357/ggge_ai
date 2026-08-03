@@ -1113,18 +1113,25 @@ class Survey:
     def _unchanged(self, previous: np.ndarray, frame: np.ndarray, leg: Leg | None) -> bool:
         """畫面到底有沒有動——v3 唯一還做的幀對幀比對，而且只回布林不回位移。
 
-        三路佐證依序：兩幀幾乎逐像素相同、相位相關量得到位移（量到多少就是多少）、
-        影像複驗拿「動了指令那麼多」對「鏡頭沒動」問畫面。待機動畫讓幀差恆高於門檻
-        （實機 5.8-12.5 對 2.5），所以第一關過不了很正常，證言要靠後兩關。
+        三路佐證依序：兩幀幾乎逐像素相同、量得出位移（量到多少就是多少）、影像複驗拿
+        「動了指令那麼多」對「鏡頭沒動」問畫面。待機動畫讓幀差恆高於門檻（實機 5.8-12.5
+        對 2.5），所以第一關過不了很正常，證言要靠後兩關。
 
         **「沒動」要有人指著畫面說沒動**：量不出來一律當作動過。反過來寫（量不出來
         就算沒動）會讓空白幀被判靜止，而靜止的處置是沿用上一張的座標——下一張真的
         移動過的幀於是以舊座標寫進圖，那正是「量錯寫入」（0802 合成世界實測，空白
         幀之後長出兩格鬼影）。
+
+        量測用 `STILL_MIN_RESPONSE` 而不是預設門檻：**近乎零的讀數只有在夠強時才算
+        佐證**。相關器凍住時輸出的就是近乎零，與「真的沒動」的正解重合，弱讀數因此
+        什麼都證明不了——0803 第 8 輪東向 t15、t16 各真的推動了 178px，回應 0.058/0.063
+        卻讀成 0.8px，兩把都被算成推不動，繞邊於是在鏡頭還沒到東緣時就把東側從路線裡
+        拿掉（南向 t29、t30 同型）。門檻提高之後那種讀數改走單位排列比對，那條路有
+        影像複驗背書，這四把全部改判成推得動。
         """
         if board.frame_difference(previous, frame) < board.EDGE_FRAME_DIFF:
             return True
-        shift = board.measure_shift(previous, frame)
+        shift = board.measure_shift(previous, frame, min_response=board.STILL_MIN_RESPONSE)
         if shift.known:
             return shift.magnitude < board.EDGE_SHIFT_PX
         if leg is None:
