@@ -36,11 +36,17 @@ UNIT_RADIUS = 45
 UNIT_THICKNESS = 10
 # 弧色帶內的紅（HSV 5,160,220）：find_units 只認 ARC_BANDS 的三個色帶。
 UNIT_HSV = (5, 160, 220)
-# 西北角那一屏必須站得住的兩台。推不動的判定只剩逐精靈窗（board.null_check），而一個
+# 西北角那一屏必須站得住的兩台。推不動的判定退回逐精靈窗（board.null_check）時，一個
 # 窗要成立，「動了指令那麼多」那個假設得把它映回前一幀的畫面內——一把推移 598px，所以
 # 角落幀裡 x 或 y 小於 643 的機體全部落到幀外，湊不到兩個窗就是「裁判沒得看」。
 # c2-7／r3-4 這兩格同時滿足「在 MAP_REGION 內」與「往西、往北各退 598px 仍在幀內」。
 CORNER: tuple[tuple[int, int], ...] = ((2, 3), (7, 4))
+# 標記格的填色。刻意選在 ARC_BANDS 三個色帶之外（S=255 超出弧的 S<=210 上界），
+# 這樣「填色會不會被密度峰讀成一台機體」是測得出來的事實而不是巧合。
+MARKER_HSV = (30, 255, 255)
+# 填色離格線內縮幾個像素：實機的填色蓋不蓋得住格線還沒標定，假世界取保守的一邊
+# （格線留著），格網讀取才不會因為多了一格填色就換一套線位。
+MARKER_INSET = 8
 
 
 def pan_leg(direction: str, reach: float = 260.0) -> coverage.Leg:
@@ -91,6 +97,60 @@ def dim_outside(
     return np.ascontiguousarray(out.astype(np.uint8))
 
 
+def mark_world(survey: coverage.Survey, world: World) -> bool:
+    """走一次完整的放標記流程：問世界模型要點哪裡、點下去、把前後幀交回去學色簽。
+
+    這就是 `stage/survey.BoardDriver` 那個 `mark` 微步驟做的事，只是不經過執行器
+    ——直接對 `Survey.observe` 說話的案例照樣需要標記，不然角落根本確認不了推到底。
+    """
+    spot = survey.marker_request()
+    if spot is None:
+        return False
+    before = world.frame()
+    if world.tap(*spot) is None:
+        return False
+    return survey.learn_marker(before, world.frame(), spot)
+
+
+def mark_frame(survey: coverage.Survey, frame: np.ndarray) -> np.ndarray | None:
+    """實幀語料的同一件事：借真畫面的格線挑一格，把填色合成上去。
+
+    實機的填色像素還沒標定（`scripts/probe_marker.py` 就是去標它的），所以實幀案例
+    只借真畫面的格網、終止邊與機體，填色本身是合成的。回傳蓋了填色的那一張。
+    """
+    spot = survey.marker_request()
+    if spot is None:
+        return None
+    after = stamped(frame, spot)
+    if after is None or not survey.learn_marker(frame, after, spot):
+        return None
+    return after
+
+
+def stamped(frame: np.ndarray, point: tuple[float, float]) -> np.ndarray | None:
+    """把 point 所在的那一格填成標記色。讀不到格線或點落在線 span 外就 None。"""
+    lattice = board.find_lattice(frame)
+    if lattice is None:
+        return None
+    x = _bracket(lattice.cols, point[0])
+    y = _bracket(lattice.rows, point[1])
+    if x is None or y is None:
+        return None
+    out = frame.copy()
+    out[y[0] + MARKER_INSET : y[1] - MARKER_INSET, x[0] + MARKER_INSET : x[1] - MARKER_INSET] = (
+        _bgr(MARKER_HSV)
+    )
+    return out
+
+
+def _bracket(positions: tuple[int, ...], value: float) -> tuple[int, int] | None:
+    return next(
+        ((low, high) for low, high in zip(positions, positions[1:], strict=False)
+         if low <= value <= high),
+        None,
+    )
+
+
 def _bgr(hsv: tuple[int, int, int]) -> tuple[int, int, int]:
     patch = np.array([[list(hsv)]], np.uint8)
     b, g, r = cv2.cvtColor(patch, cv2.COLOR_HSV2BGR)[0][0]
@@ -99,13 +159,18 @@ def _bgr(hsv: tuple[int, int, int]) -> tuple[int, int, int]:
 
 @dataclass
 class World:
-    """已知擺位的假地圖，四周包一圈虛空。cell (0,0) 的左上角在畫布的 MARGIN 處。"""
+    """已知擺位的假地圖，四周包一圈虛空。cell (0,0) 的左上角在畫布的 MARGIN 處。
+
+    marker ＝ 被點過的那一格（填色）。它畫在取景之後而不是畫進畫布：點一下就換一格，
+    而畫布是建構時就固定的。
+    """
 
     cols: int = 22
     rows: int = 12
     units: tuple[tuple[int, int], ...] = ()
     camera: tuple[float, float] = (0.0, 0.0)
     margin: tuple[int, int] = MARGIN
+    marker: tuple[int, int] | None = None
     canvas: np.ndarray = field(init=False)
 
     def __post_init__(self) -> None:
@@ -149,7 +214,42 @@ class World:
     def frame(self) -> np.ndarray:
         """當下鏡頭位置的一張截圖（世界像素 ＝ 螢幕像素 ＋ camera）。"""
         x, y = int(round(self.camera[0])), int(round(self.camera[1]))
-        return np.ascontiguousarray(self.canvas[y : y + SCREEN[1], x : x + SCREEN[0]])
+        view = np.ascontiguousarray(self.canvas[y : y + SCREEN[1], x : x + SCREEN[0]])
+        if self.marker is not None:
+            self._fill(view, (x, y))
+        return view
+
+    def _fill(self, view: np.ndarray, camera: tuple[int, int]) -> None:
+        assert self.marker is not None
+        mx, my = self.margin
+        x0 = mx + self.marker[0] * COL_PITCH - camera[0] + MARKER_INSET
+        y0 = my + self.marker[1] * ROW_PITCH - camera[1] + MARKER_INSET
+        x1 = x0 + COL_PITCH - 2 * MARKER_INSET
+        y1 = y0 + ROW_PITCH - 2 * MARKER_INSET
+        left, top = max(0, x0), max(0, y0)
+        right, bottom = min(SCREEN[0], x1), min(SCREEN[1], y1)
+        if left < right and top < bottom:
+            view[top:bottom, left:right] = _bgr(MARKER_HSV)
+
+    def cell_at(self, point: tuple[float, float]) -> tuple[int, int] | None:
+        """螢幕點落在哪一格（地圖外回 None）。"""
+        mx, my = self.margin
+        col = int((point[0] + self.camera[0] - mx) // COL_PITCH)
+        row = int((point[1] + self.camera[1] - my) // ROW_PITCH)
+        if 0 <= col < self.cols and 0 <= row < self.rows:
+            return (col, row)
+        return None
+
+    def tap(self, x: float, y: float) -> tuple[int, int] | None:
+        """點一下的遊戲反應：空格＝填色搬到那一格，有單位的格＝變成選取單位（不填色）。
+
+        回傳標記落在哪一格，沒搬就 None。點擊**不會**讓鏡頭置中（使用者實機確認）。
+        """
+        cell = self.cell_at((x, y))
+        if cell is None or cell in self.units:
+            return None
+        self.marker = cell
+        return cell
 
     def move(self, dx: float, dy: float) -> tuple[float, float]:
         """把鏡頭推一段，夾在畫布內。回傳實際移動量（撞邊時比要求的少）。"""

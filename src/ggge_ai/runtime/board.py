@@ -15,6 +15,9 @@
 4. **終止邊**：`edge_shift` 讀同一側地圖終止邊在兩幀之間的螢幕位移。地圖邊界不
    週期，格線與同型機編隊那種差整數個週期的誤配動不了它。
 5. **影像複驗**：`null_check` 逐窗把「內容位移了這麼多」拿去對畫面問話。
+6. **標記格**：點地圖上沒有單位的空格，那一格會填滿顏色，之後只要不再點別的東西
+   就留在原格。`learn_marker` 從點擊前後幀學它的色簽，`find_marker` 在往後的幀
+   重找它——那是我們自己放上去的絕對地標，一次解出兩軸。
 
 世界座標與四態知識圖在 `runtime/coverage.py`——這裡只做像素。**指令的量永遠
 不寫進位置**（0719 紅線）：手勢只決定往哪推，位置一律解自畫面內容。
@@ -1107,6 +1110,168 @@ def relocalise(
         for sx, sy in seen
     )
     return delta if support >= minimum else None
+
+
+MARKER_PITCH_SPAN = (0.5, 1.5)
+# 讀不到格線時的退路格距（實測最小縮放 86-92）。
+MARKER_FALLBACK_PITCH = 90.0
+# 前後幀相減算「這裡變了」的門檻。待機動畫整幀抖一階，填色是整格換色。
+MARKER_CHANGE_LEVEL = 30
+# 學色簽時只認點擊點附近的色塊（格距的倍數）：同一幀別處的變化不是我們點出來的。
+MARKER_NEAR_PITCH = 1.5
+# 色簽的容差（HSV 三軸）。**實機標定會調**，所以集中在這裡不散落。
+MARKER_TOLERANCE: tuple[int, int, int] = (10, 60, 60)
+# 重找時第二名的面積佔比上限：兩塊差不多大就沒有唯一贏家，不敢說哪一塊是標記。
+MARKER_RUNNER_UP = 0.5
+
+
+@dataclass(frozen=True)
+class MarkerSignature:
+    """標記格（點空格填出來的那一格顏色）的色簽與參考尺寸。
+
+    尺寸留著當往後每一次重找的尺規：色簽容差內的色塊要跟放置當下差不多大，才算
+    同一格填色而不是同色系的美術。
+    """
+
+    hsv: tuple[int, int, int]
+    tolerance: tuple[int, int, int]
+    size: tuple[float, float]
+
+
+def marker_pitch(frame: np.ndarray) -> tuple[float, float]:
+    lattice = find_lattice(frame)
+    if lattice is None or lattice.col_pitch <= 0 or lattice.row_pitch <= 0:
+        return (MARKER_FALLBACK_PITCH, MARKER_FALLBACK_PITCH)
+    return (lattice.col_pitch, lattice.row_pitch)
+
+
+def learn_marker(
+    before: np.ndarray,
+    after: np.ndarray,
+    tap_point: Point,
+    region: Region = MAP_REGION,
+) -> MarkerSignature | None:
+    """剛點下去的那一格填了什麼色。學不到合格色塊就 None（點到單位或點擊被吃掉）。
+
+    只看前後幀相減：填色是我們自己弄出來的變化，所以「哪一塊是標記」不必猜，變化
+    本身就指得出來。點擊點附近＋一格大小兩個閘擋掉待機動畫與 HUD 計時那類雜訊。
+    """
+    pitch = marker_pitch(after)
+    diff = cv2.absdiff(before, after).max(axis=2)
+    mask = np.zeros(diff.shape, np.uint8)
+    x, y, w, h = region
+    mask[y : y + h, x : x + w] = (diff[y : y + h, x : x + w] > MARKER_CHANGE_LEVEL).astype(
+        np.uint8
+    )
+    block = _largest_block(mask, pitch, tap_point)
+    if block is None:
+        return None
+    x0, y0, bw, bh, patch = block
+    hsv = cv2.cvtColor(after, cv2.COLOR_BGR2HSV)[y0 : y0 + bh, x0 : x0 + bw][patch]
+    if not hsv.size:
+        return None
+    middle = np.median(hsv, axis=0)
+    return MarkerSignature(
+        hsv=(int(middle[0]), int(middle[1]), int(middle[2])),
+        tolerance=MARKER_TOLERANCE,
+        size=(float(bw), float(bh)),
+    )
+
+
+def find_marker(
+    frame: np.ndarray,
+    signature: MarkerSignature,
+    region: Region = MAP_REGION,
+    holes: Sequence[Region] = (),
+) -> Point | None:
+    """色簽容差內、一格大小、而且沒有第二名的那一塊填色的中心。找不到就 None。
+
+    唯一贏家是硬性的：同色系的美術或另一格殘留的填色會讓「最大的那一塊」變成擲
+    骰子，而標記解出來的是整幀的座標——認錯一塊就是整幀寫進錯的世界位置。
+
+    `holes` 挖掉固定位置的 HUD 鈕：那幾塊跟著螢幕不跟著地圖，一旦有一塊撞進色簽的
+    容差，唯一贏家這一關就會永遠判「兩塊差不多大」，標記從此再也認不回來。
+    """
+    mask = _signature_mask(frame, signature)
+    x, y, w, h = region
+    bounded = np.zeros_like(mask)
+    bounded[y : y + h, x : x + w] = mask[y : y + h, x : x + w]
+    for hx, hy, hw, hh in holes:
+        bounded[hy : hy + hh, hx : hx + hw] = 0
+    count, _, stats, centroids = cv2.connectedComponentsWithStats(bounded, 8)
+    sized = sorted(
+        (
+            (int(stats[index, cv2.CC_STAT_AREA]), centroids[index])
+            for index in range(1, count)
+            if _marker_sized(
+                int(stats[index, cv2.CC_STAT_WIDTH]),
+                int(stats[index, cv2.CC_STAT_HEIGHT]),
+                signature.size,
+            )
+        ),
+        key=lambda entry: -entry[0],
+    )
+    if not sized:
+        return None
+    if len(sized) > 1 and sized[1][0] >= MARKER_RUNNER_UP * sized[0][0]:
+        return None
+    centre = sized[0][1]
+    return (float(centre[0]), float(centre[1]))
+
+
+def _signature_mask(frame: np.ndarray, signature: MarkerSignature) -> np.ndarray:
+    hue, sat, val = signature.hsv
+    span, sat_span, val_span = signature.tolerance
+    low = (max(0, sat - sat_span), max(0, val - val_span))
+    high = (min(255, sat + sat_span), min(255, val + val_span))
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask = np.zeros(hsv.shape[:2], np.uint8)
+    # 色相是環狀量：接近 0／180 的色簽要拆成兩段問，不然容差在環的接縫上憑空縮一半。
+    for start, end in _hue_bands(hue, span):
+        mask |= cv2.inRange(hsv, (start, low[0], low[1]), (end, high[0], high[1]))
+    return (mask > 0).astype(np.uint8)
+
+
+def _hue_bands(hue: int, span: int) -> tuple[tuple[int, int], ...]:
+    low, high = hue - span, hue + span
+    if low < 0:
+        return ((0, high), (180 + low, 179))
+    if high > 179:
+        return ((low, 179), (0, high - 180))
+    return ((low, high),)
+
+
+def _largest_block(
+    mask: np.ndarray, pitch: tuple[float, float], near: Point
+) -> tuple[int, int, int, int, np.ndarray] | None:
+    count, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 8)
+    reach = MARKER_NEAR_PITCH * max(pitch)
+    best: tuple[int, int, int, int, np.ndarray] | None = None
+    area = 0
+    for index in range(1, count):
+        x0 = int(stats[index, cv2.CC_STAT_LEFT])
+        y0 = int(stats[index, cv2.CC_STAT_TOP])
+        width = int(stats[index, cv2.CC_STAT_WIDTH])
+        height = int(stats[index, cv2.CC_STAT_HEIGHT])
+        if not _marker_sized(width, height, pitch):
+            continue
+        centre = centroids[index]
+        if math.hypot(centre[0] - near[0], centre[1] - near[1]) > reach:
+            continue
+        size = int(stats[index, cv2.CC_STAT_AREA])
+        if size <= area:
+            continue
+        area = size
+        best = (x0, y0, width, height, labels[y0 : y0 + height, x0 : x0 + width] == index)
+    return best
+
+
+def _marker_sized(width: int, height: int, reference: tuple[float, float]) -> bool:
+    low, high = MARKER_PITCH_SPAN
+    return (
+        low * reference[0] <= width <= high * reference[0]
+        and low * reference[1] <= height <= high * reference[1]
+    )
 
 
 def pick_pan_origin(

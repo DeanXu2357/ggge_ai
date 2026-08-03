@@ -18,8 +18,11 @@ from ggge_ai.runtime import board, coverage
 from tests.fixtures.frames import load
 from tests.fixtures.synthetic_map import (
     COL_PITCH,
+    MARKER_HSV,
     World,
+    mark_frame,
     pan_leg,
+    stamped,
     void_outside,
 )
 
@@ -190,6 +193,110 @@ def test_a_tied_tally_is_broken_by_the_side_that_leaves_no_stragglers():
     assert board._pairing_score(before, after, (500.0, 0.0)) > board._pairing_score(
         before, after, (0.0, 0.0)
     )
+
+
+# ---- 標記格：我們自己點出來的絕對地標 ----
+
+
+MARK_CELL = (8, 5)
+
+
+def _marked(cells: tuple[tuple[int, int], ...] = ()) -> tuple[World, np.ndarray, np.ndarray]:
+    """同一張畫布的前後幀：後面那一張多了一格填色（＝剛點過一個空格）。"""
+    world = _formation(cells)
+    before = world.frame()
+    world.marker = MARK_CELL
+    return (world, before, world.frame())
+
+
+def test_learning_a_marker_reads_the_colour_the_tap_just_filled_in():
+    """填色是我們自己弄出來的變化，所以「哪一塊是標記」不必猜——前後幀相減指得出來。"""
+    world, before, after = _marked()
+
+    signature = board.learn_marker(before, after, world.centre(MARK_CELL))
+
+    assert signature is not None
+    assert signature.hsv[0] == pytest.approx(MARKER_HSV[0], abs=2)
+    assert signature.size[0] == pytest.approx(COL_PITCH, abs=20)
+
+
+def test_a_tap_that_filled_nothing_teaches_no_marker():
+    """點到有單位的格＝變成選取單位，沒有填色。學不到就是學不到，不許硬湊一塊。"""
+    world = _formation(ROW)
+    frame = world.frame()
+
+    assert board.learn_marker(frame, frame, world.centre(MARK_CELL)) is None
+
+
+def test_a_change_far_from_the_tap_is_not_the_marker():
+    """同一幀別處的變化（待機動畫、HUD 計時）不是我們點出來的。"""
+    world, before, after = _marked()
+
+    assert board.learn_marker(before, after, (300.0, 300.0)) is None
+
+
+def test_the_marker_is_found_again_after_the_map_moved():
+    """推移之後標記還在原格：色簽把它從新畫面裡認回來，一次解出兩軸。"""
+    world, before, after = _marked()
+    signature = board.learn_marker(before, after, world.centre(MARK_CELL))
+    assert signature is not None
+    world.move(256.0, 0.0)
+
+    spot = board.find_marker(world.frame(), signature)
+
+    assert spot is not None
+    assert spot[0] == pytest.approx(world.centre(MARK_CELL)[0] - 256.0, abs=4.0)
+    assert spot[1] == pytest.approx(world.centre(MARK_CELL)[1], abs=4.0)
+
+
+def test_two_blocks_of_the_same_colour_leave_no_unique_winner():
+    """認錯一塊就是整幀寫進錯的世界座標，所以沒有唯一贏家時寧可說找不到。"""
+    world, before, after = _marked()
+    signature = board.learn_marker(before, after, world.centre(MARK_CELL))
+    assert signature is not None
+    doubled = stamped(after, world.centre((3, 5)))
+
+    assert doubled is not None
+    assert board.find_marker(after, signature) is not None
+    assert board.find_marker(doubled, signature) is None
+
+
+def test_a_hud_hole_hides_a_look_alike_instead_of_killing_the_marker():
+    """固定位置的 HUD 鈕跟著螢幕不跟著地圖：撞進色簽容差的話唯一贏家這一關會永遠
+    判「兩塊差不多大」，標記從此再也認不回來。"""
+    world, before, after = _marked()
+    signature = board.learn_marker(before, after, world.centre(MARK_CELL))
+    assert signature is not None
+    cx, cy = world.centre(MARK_CELL)
+    patch = after[int(cy) - 40 : int(cy) + 40, int(cx) - 40 : int(cx) + 40]
+    hx, hy, _, _ = board.UNIT_DENSITY_HUD_HOLES[1]
+    decoy = after.copy()
+    decoy[hy + 2 : hy + 82, hx + 4 : hx + 84] = patch
+
+    assert board.find_marker(decoy, signature, board.UNIT_DENSITY_REGION) is None
+    assert (
+        board.find_marker(
+            decoy, signature, board.UNIT_DENSITY_REGION, board.UNIT_DENSITY_HUD_HOLES
+        )
+        is not None
+    )
+
+
+def test_the_fill_shows_up_as_neither_a_unit_nor_a_new_grid_line():
+    """填色塊不得污染其他偵測：它既不是一台機體，也不該讓格網換一套線位。
+
+    線位比的是條數與格距而不是逐像素相等：填色的邊緣讓兩條線的峰各挪了 1px，而單線
+    位置本來就抖 ±10px（0801 逐幀實測），拿逐像素相等當判準是在測雜訊。
+    """
+    world, before, after = _marked(ROW)
+    lattices = (board.find_lattice(before), board.find_lattice(after))
+
+    assert board.find_sightings(after) == board.find_sightings(before)
+    assert all(lattice is not None for lattice in lattices)
+    assert len(lattices[1].cols) == len(lattices[0].cols)
+    assert len(lattices[1].rows) == len(lattices[0].rows)
+    assert lattices[1].col_pitch == pytest.approx(lattices[0].col_pitch, abs=2.0)
+    assert lattices[1].row_pitch == pytest.approx(lattices[0].row_pitch, abs=2.0)
 
 
 # ---- 目視終止邊的位移（v3 拿它當複驗的第一選擇） ----
@@ -375,14 +482,20 @@ CORNER_FRAME = "05_pt5_pan_up_small.png"
 
 def test_a_real_frame_can_anchor_the_world_and_hand_over_a_landmark():
     """歸零那一關要的是真畫面：連續兩次推不動，而且角落那一側的地圖終止邊看得見。
-    這裡整段都用實機截圖跑，證明目視的邊在真實像素上撐得住定位的起點。"""
+    這裡整段都用實機截圖跑，證明目視的邊在真實像素上撐得住定位的起點。
+
+    「推不動」的證言由標記格供給——實機的填色像素還沒標定，所以填色是合成疊上去的，
+    格線、終止邊、機體與整條錨定鏈全部是真畫面。逐精靈窗那一路在這一幀上是瞎的
+    （偵測到 5 台、MAP_REGION 內 0 台），標記補的正是這個洞。"""
     corner = dict(series())[CORNER_FRAME]
     survey = coverage.Survey()
 
     survey.observe(corner)
+    marked = mark_frame(survey, corner)
+    assert marked is not None
     for direction in coverage.ZERO_CORNER:
         for _ in range(coverage.STALL_CONFIRM):
-            survey.observe(corner, pan_leg(direction))
+            survey.observe(marked, pan_leg(direction))
 
     assert survey.anchored
     assert survey.offset == (0.0, 0.0)
@@ -428,9 +541,11 @@ def test_replaying_the_real_series_never_writes_a_frame_it_could_not_place():
     corner = dict(series())[CORNER_FRAME]
     survey = coverage.Survey()
     survey.observe(corner)
+    marked = mark_frame(survey, corner)
+    assert marked is not None
     for direction in coverage.ZERO_CORNER:
         for _ in range(coverage.STALL_CONFIRM):
-            survey.observe(corner, pan_leg(direction))
+            survey.observe(marked, pan_leg(direction))
     assert survey.anchored
 
     placed = 0
