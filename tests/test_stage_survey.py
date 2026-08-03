@@ -41,12 +41,13 @@ from ggge_ai.stage.survey import (
     ZOOM_STEP,
     BoardDriver,
     CoverageLedger,
+    SettledFrame,
     SurveyPerceiver,
     survey_drivers,
 )
 from tests.fixtures.frames import load
 from tests.fixtures.stage_offline import MockAdvisor, ScriptedPerceiver, battle, frame
-from tests.fixtures.synthetic_map import World
+from tests.fixtures.synthetic_map import CORNER, World
 
 SERIES = Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
 FREE = Pricing(1.0)
@@ -354,7 +355,7 @@ def test_a_turn_boundary_expires_the_board_sync():
 def test_the_ledger_zooms_first_and_only_once():
     """縮放是最佳化不是前提，但它改的是比例——所以它排在最前面，掃描的世界錨點
     才不會在半路作廢。"""
-    world = World(cols=22, rows=12, units=((3, 5), (9, 6)))
+    world = World(cols=22, rows=12, units=CORNER + ((3, 5), (9, 6)))
     rig = Rig(world)
     zooms: list[int] = []
     driver, ledger = survey_drivers(
@@ -375,7 +376,7 @@ def test_the_ledger_zooms_first_and_only_once():
 
 def test_the_survey_carries_on_without_a_zoom_backend():
     """成功不依賴縮小：接不上後端照樣掃得完，只是截圖與平移次數變多。"""
-    world = World(cols=22, rows=12, units=((3, 5), (9, 6)))
+    world = World(cols=22, rows=12, units=CORNER + ((3, 5), (9, 6)))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
 
@@ -393,7 +394,7 @@ def test_the_survey_carries_on_without_a_zoom_backend():
 
 def test_the_driver_does_exactly_one_micro_step_per_call():
     """一 tick 一個微步驟：反射才插得進來。"""
-    world = World(cols=22, rows=12, units=((3, 5),))
+    world = World(cols=22, rows=12, units=CORNER + ((3, 5),))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
     ledger.zoomed = True
@@ -433,73 +434,53 @@ def test_an_unreadable_world_keeps_pushing_towards_the_corner_and_writes_nothing
     assert ledger.survey.chart is None
 
 
-# ---- v2.2 取幀靜止閘與逐 observe 遙測（0801 複驗 14 次 BROKEN(phase) 的修正） ----
+# ---- 取幀的固定等待節奏與逐 observe 遙測 ----
 
 
 def _glider(drifts: list[float]) -> Glide:
-    return Glide(World(cols=22, rows=12, units=((3, 5), (9, 6))), drifts=drifts)
+    return Glide(World(cols=22, rows=12, units=CORNER + ((3, 5), (9, 6))), drifts=drifts)
 
 
-def test_the_scan_waits_for_the_glide_to_stop_before_it_takes_the_frame():
-    """pan 的慣性滑行拖過 PAN_SETTLE_S 時，殘餘位移剛好過得了合理範圍閘（<40px）又過
-    不了相位閘（>22.5px）＝BROKEN(phase)。所以取幀前先等畫面靜下來。"""
+def test_the_scan_waits_out_the_glide_before_it_takes_the_frame():
+    """pan 的慣性滑行拖過 PAN_SETTLE_S，所以取幀前多等幾輪，收下的是最後那一幀
+    ——滑行已經停了的那一張。"""
     glide = _glider([0.0, 40.0, 15.0])
     naps: list[float] = []
     driver, _ = survey_drivers(glide.capture, FakeActuator(), sleep=naps.append)
 
     settled = driver._settled_capture()
 
-    assert settled.quiet
-    assert settled.waits == 3
-    assert glide.shots == 4
-    assert naps == [SETTLE_POLL_S] * 3
+    assert settled.waits == SETTLE_ROUNDS
+    assert glide.shots == SETTLE_ROUNDS + 1
+    assert naps == [SETTLE_POLL_S] * SETTLE_ROUNDS
+    assert glide.drifts == []
+    assert np.array_equal(settled.frame, glide.world.frame())
 
 
-def test_a_frame_that_never_goes_quiet_is_observed_anyway():
-    """閘只降污染率，不保證零污染：停在原地不收幀會把整個 tick 空轉掉。"""
+def test_a_frame_that_is_still_moving_is_observed_anyway():
+    """多等只降污染率，不保證零污染：停在原地不收幀會把整個 tick 空轉掉。"""
     glide = _glider([30.0] * 12)
     driver, _ = survey_drivers(glide.capture, FakeActuator(), sleep=lambda _: None)
 
     settled = driver._settled_capture()
 
-    assert not settled.quiet
     assert settled.waits == SETTLE_ROUNDS
     assert glide.shots == SETTLE_ROUNDS + 1
     assert settled.frame.any()
 
 
-def test_the_settle_gate_never_lets_a_command_near_the_measurement():
-    """取幀靜止閘只問「畫面還在滑嗎」，沒有指令可帶也不該有——手勢的量在 v3 完全
-    退出座標計算，連量測都不閘（`board.envelope` 與 `measure_pan` 已隨骨架退場）。"""
-    assert not hasattr(board, "envelope")
-    assert not hasattr(board, "measure_pan")
+def test_the_frame_grab_never_asks_the_background_whether_the_screen_stopped():
+    """0803 第 10 輪定讞：整區灰階量測讀到的是不隨鏡頭動的星空層，拿它問「畫面停了
+    沒」是背景在答話。取幀這一步於是沒有判準，也不准長回來——連同手勢的量早就退出
+    座標計算（`board.envelope` 與 `measure_pan` 隨骨架退場）。"""
+    for gone in ("envelope", "measure_pan", "measure_shift", "_phase_shift"):
+        assert not hasattr(board, gone), gone
 
-    glide = _glider([0.0, 40.0, 15.0])
-    driver, _ = survey_drivers(glide.capture, FakeActuator(), sleep=lambda _: None)
-
-    settled = driver._settled_capture()
-
-    assert settled.quiet
-    assert settled.waits == 3
-    assert glide.shots == 4
-
-
-def test_an_unmeasurable_frame_counts_as_quiet_and_is_handed_straight_on():
-    """量不出位移不是「還在動」的證據（地圖以外那片無特徵的深色背景就量不出來），
-    而下一步 observe 自己會把那一幀整張丟掉——在這裡硬等只是白燒截圖。"""
-    blank = np.zeros((1080, 2340, 3), np.uint8)
-    frames = [World(cols=22, rows=12, units=((3, 5), (9, 6))).frame(), blank]
-    driver, _ = survey_drivers(lambda: frames.pop(0), FakeActuator(), sleep=lambda _: None)
-
-    settled = driver._settled_capture()
-
-    assert settled.quiet
-    assert settled.waits == 1
-    assert not settled.frame.any()
+    assert not hasattr(SettledFrame(np.zeros((1, 1, 3), np.uint8), 1), "quiet")
 
 
 def _traced(ticks: int, **kwargs) -> tuple[BoardDriver, Rig]:
-    rig = Rig(World(cols=22, rows=12, units=((3, 5), (9, 6))))
+    rig = Rig(World(cols=22, rows=12, units=CORNER + ((3, 5), (9, 6))))
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, **kwargs)
     ledger.zoomed = True
     for _ in range(ticks):
@@ -534,7 +515,7 @@ def test_the_telemetry_files_one_row_per_observe_with_the_measurement():
         }
         assert set(row["shift"]) == {"dx", "dy", "magnitude", "confidence", "source"}
         assert set(row["span"]) == {"sequence", "box", "edges"}
-        assert set(row["settle"]) == {"waits", "quiet"}
+        assert set(row["settle"]) == {"waits"}
         assert len(row["offset"]) == 2
         assert row["sequence"] == row["span"]["sequence"]
         assert row["stance"] in STANCE_STEPS
@@ -550,13 +531,12 @@ def test_the_telemetry_files_one_row_per_observe_with_the_measurement():
     assert legs[0]["verdict"] == coverage.ZEROING
 
 
-def test_the_telemetry_reports_how_long_the_quiescence_gate_had_to_wait():
-    """合成世界是瞬時靜止的：第一輪就過閘、零重試。實機上這個數字才是滑行的量尺。"""
+def test_the_telemetry_reports_how_many_polls_the_frame_grab_spent():
+    """節奏是固定的，所以這個數字現在只記「等了幾輪」，不再宣稱畫面停了沒。"""
     rows: list[dict] = []
     _traced(2, telemetry=rows.append)
 
-    assert {row["settle"]["waits"] for row in rows} == {1}
-    assert all(row["settle"]["quiet"] for row in rows)
+    assert {row["settle"]["waits"] for row in rows} == {SETTLE_ROUNDS}
 
 
 def test_the_telemetry_lands_in_the_journal_as_numbers_not_strings(tmp_path):
@@ -593,7 +573,7 @@ def test_a_failing_telemetry_sink_never_stops_the_scan():
 def _witnessed(
     *, dump_frames: bool = False, **kwargs
 ) -> tuple[BoardDriver, list[tuple[dict, np.ndarray | None, np.ndarray]]]:
-    rig = Rig(World(cols=22, rows=12, units=((3, 5), (9, 6))), **kwargs)
+    rig = Rig(World(cols=22, rows=12, units=CORNER + ((3, 5), (9, 6))), **kwargs)
     kept: list[tuple[dict, np.ndarray | None, np.ndarray]] = []
     driver, ledger = survey_drivers(
         rig.capture,
@@ -653,7 +633,7 @@ def test_a_failing_evidence_sink_never_stops_the_scan():
     def boom(record: dict, previous, current) -> None:
         raise RuntimeError("the disk is on fire")
 
-    rig = Rig(World(cols=22, rows=12, units=((3, 5), (9, 6))), blank=(18,))
+    rig = Rig(World(cols=22, rows=12, units=CORNER + ((3, 5), (9, 6))), blank=(18,))
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, evidence=boom)
     ledger.zoomed = True
 
@@ -665,7 +645,7 @@ def test_a_failing_evidence_sink_never_stops_the_scan():
 
 
 def test_the_survey_completes_when_there_is_nothing_left_to_scan():
-    world = World(cols=22, rows=12, units=((3, 5), (9, 6), (14, 3)))
+    world = World(cols=22, rows=12, units=CORNER + ((3, 5), (9, 6), (14, 3)))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
     ledger.zoomed = True
@@ -704,7 +684,7 @@ def test_the_gesture_fuse_stops_instead_of_burning_the_whole_tick_budget():
 
 def test_the_driver_resumes_from_the_ledger_not_from_its_own_variables():
     """換一個執行器實例也接得下去——恢復點在簿記，不在執行器內部。"""
-    world = World(cols=22, rows=12, units=((3, 5),))
+    world = World(cols=22, rows=12, units=CORNER + ((3, 5),))
     rig = Rig(world)
     ledger = CoverageLedger()
     ledger.zoomed = True
@@ -720,7 +700,7 @@ def test_the_driver_resumes_from_the_ledger_not_from_its_own_variables():
 
 def test_expiry_downgrades_the_board_and_keeps_the_map_geometry():
     """衰效降級不抹除：UNIT→STALE、EMPTY→UNKNOWN，邊界旗與縮放留著。"""
-    world = World(cols=22, rows=12, units=((3, 5), (9, 6), (14, 3)))
+    world = World(cols=22, rows=12, units=CORNER + ((3, 5), (9, 6), (14, 3)))
     rig = Rig(world)
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None)
     ledger.zoomed = True

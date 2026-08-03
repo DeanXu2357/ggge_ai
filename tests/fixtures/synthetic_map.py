@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import cv2
 import numpy as np
 
-from ggge_ai.runtime import board
+from ggge_ai.runtime import board, coverage
 
 SCREEN = (2340, 1080)
 COL_PITCH = 128
@@ -36,36 +36,27 @@ UNIT_RADIUS = 45
 UNIT_THICKNESS = 10
 # 弧色帶內的紅（HSV 5,160,220）：find_units 只認 ARC_BANDS 的三個色帶。
 UNIT_HSV = (5, 160, 220)
+# 西北角那一屏必須站得住的兩台。推不動的判定只剩逐精靈窗（board.null_check），而一個
+# 窗要成立，「動了指令那麼多」那個假設得把它映回前一幀的畫面內——一把推移 598px，所以
+# 角落幀裡 x 或 y 小於 643 的機體全部落到幀外，湊不到兩個窗就是「裁判沒得看」。
+# c2-7／r3-4 這兩格同時滿足「在 MAP_REGION 內」與「往西、往北各退 598px 仍在幀內」。
+CORNER: tuple[tuple[int, int], ...] = ((2, 3), (7, 4))
 
 
-def freeze_correlator(monkeypatch, response: float = 0.3) -> None:
-    """把 phaseCorrelate 的水平分量鎖在靜態峰——0801 t27/t28/t30 的實機情境。
+def pan_leg(direction: str, reach: float = 260.0) -> coverage.Leg:
+    """一把推移的指令，內容位移與 `Survey._leg` 同一條算式。
 
-    垂直分量照實回：實機證據是南北向量測健康，只有水平被格線差整數個週期的誤配與 HUD 靜態成分
-    搶峰。response 壓在 `SHIFT_MIN_RESPONSE` 之上，所以退去用單位排列比對的那條路不會觸發
-    ——那正是舊碼在這個情境下救不回來的原因。
+    推不動的判定拿 `expected` 當「動了這麼多」的假設去問畫面，所以 (0,0) 這種佔位值
+    問不出東西——兩個假設重合，`board.null_check` 直接回 blind。
     """
-    real = board._phase_shift
-
-    def frozen(previous, current, region=board.MAP_REGION):
-        _, dy, measured = real(previous, current, region)
-        return (0.0, dy, max(measured, response))
-
-    monkeypatch.setattr(board, "_phase_shift", frozen)
-
-
-def blind_correlator(monkeypatch) -> None:
-    """相位相關整個瞎掉（信賴度 0）——無特徵星空的實機情境。
-
-    這是單位排列比對唯一會被叫到的路徑，影像複驗閘要在這裡受測。
-    """
-    monkeypatch.setattr(board, "_phase_shift", lambda *args, **kwargs: (0.0, 0.0, 0.0))
+    dx, dy = board.DIRECTIONS[direction]
+    travel = reach * coverage.NOMINAL_GAIN
+    return coverage.Leg(direction, reach, (-dx * travel, -dy * travel))
 
 
 def animated(frame: np.ndarray, step: int = 4) -> np.ndarray:
-    """待機動畫的合成版：整幀亮度抖一階。位移是零，但 frame_difference 過得了門檻
-    ——實機待機動畫實測 5.8-12.5，恆高於 EDGE_FRAME_DIFF（2.5），原地幀因此永遠
-    走不進靜止那一支。"""
+    """待機動畫的合成版：整幀亮度抖一階。位移是零，但整幀逐像素都變了——任何
+    「兩幀像不像」的比法都會把它讀成動過。"""
     return cv2.add(frame, step)
 
 

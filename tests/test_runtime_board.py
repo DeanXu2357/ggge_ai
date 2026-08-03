@@ -1,4 +1,4 @@
-"""盤面全覽掃描：格網、密度峰單位偵測、平移量測、邊界、走訪控制流。
+"""盤面全覽掃描：格網、密度峰單位偵測、單位排列比對、邊界、走訪控制流。
 
 單位偵測的召回率對著 map_scan/ex2if_20260719 的逐幀人工轉錄量（ground_truth.json，
 四分塊窮舉抄寫）——只算 status=full 的，被螢幕邊切與被 HUD 蓋住的不列入。
@@ -19,7 +19,7 @@ from tests.fixtures.frames import load
 from tests.fixtures.synthetic_map import (
     COL_PITCH,
     World,
-    blind_correlator,
+    pan_leg,
     void_outside,
 )
 
@@ -142,18 +142,6 @@ def test_the_arc_hint_is_reported_but_never_a_faction():
     assert not hasattr(sightings[0], "faction")
 
 
-@pytest.mark.parametrize(("dx", "dy"), [(250, 0), (-250, 0), (0, 170), (0, -170)])
-def test_phase_correlation_recovers_a_nudge_sized_pan(dx, dy):
-    base = dict(series())["03_pt3_pan_up.png"]
-    moved = np.roll(np.roll(base, dy, axis=0), dx, axis=1)
-
-    shift = board.measure_shift(base, moved)
-
-    assert shift.source == "phase"
-    assert shift.dx == pytest.approx(dx, abs=2)
-    assert shift.dy == pytest.approx(dy, abs=2)
-
-
 def test_the_constellation_vote_measures_a_pan_without_any_texture():
     """地圖以外那片無特徵的深色背景（下稱星空）上相位相關會瞎掉，單位排列比對還在。"""
     before = ((100.0, 100.0), (400.0, 300.0), (700.0, 500.0))
@@ -204,16 +192,7 @@ def test_a_tied_tally_is_broken_by_the_side_that_leaves_no_stragglers():
     )
 
 
-def test_an_unmeasurable_shift_says_so_instead_of_returning_zero():
-    flat = np.zeros((1080, 2340, 3), np.uint8)
-
-    shift = board.measure_shift(flat, flat)
-
-    assert shift.source == "none"
-    assert not shift.known
-
-
-# ---- 目視終止邊的位移（v2.10，v3 拿它當獨立於像素量測的佐證來源） ----
+# ---- 目視終止邊的位移（v3 拿它當複驗的第一選擇） ----
 
 
 def test_a_terminal_edge_seen_in_both_frames_measures_the_pan_on_its_own():
@@ -256,10 +235,9 @@ ROW = ((3, 3), (4, 3), (5, 3), (6, 3))
 ROW_SHIFTED = ((4, 3), (5, 3), (6, 3), (7, 3))
 
 
-def test_a_formation_alias_vote_is_overruled_by_the_picture(monkeypatch):
+def test_a_formation_alias_vote_is_overruled_by_the_picture():
     """週期陣列投出的幽靈票（票數十足、位置整批錯開一個週期的票）：偵測到的那一排薩克整批往右錯一個編隊間距，配對投票就投出
     票數十足的 +一格位移——但畫面根本沒動。0801 台數膨脹的第二顆齒輪。"""
-    blind_correlator(monkeypatch)
     before = _formation(ROW).frame()
     after = _formation(ROW_SHIFTED).frame()
 
@@ -269,25 +247,19 @@ def test_a_formation_alias_vote_is_overruled_by_the_picture(monkeypatch):
 
     assert board.null_check(before, after, (vote[0], vote[1])) == board.NULL_STILL
 
-    shift = board.measure_shift(before, after)
-    assert shift.source == board.CONSTELLATION_STILL
-    assert (shift.dx, shift.dy) == (0.0, 0.0)
-    assert shift.known
 
-
-def test_a_real_pan_still_beats_the_null_hypothesis(monkeypatch):
+def test_a_real_pan_still_beats_the_null_hypothesis():
     """守成：複驗閘只否決對不上畫面的票，真移動照過（不然掃描全程定位中斷）。"""
-    blind_correlator(monkeypatch)
     world = _formation(ROW)
     before = world.frame()
     world.move(0.0, 150.0)
     after = world.frame()
 
-    assert board.null_check(before, after, (0.0, -150.0)) == board.NULL_MOVED
+    vote = board._constellation_shift(board.find_units(before), board.find_units(after))
+    assert vote is not None
+    assert vote[1] == pytest.approx(-150.0, abs=6.0)
 
-    shift = board.measure_shift(before, after)
-    assert shift.source == board.WITNESS_CONSTELLATION
-    assert shift.dy == pytest.approx(-150.0, abs=6.0)
+    assert board.null_check(before, after, (vote[0], vote[1])) == board.NULL_MOVED
 
 
 def test_the_null_check_says_nothing_when_there_is_nothing_to_look_at():
@@ -410,7 +382,7 @@ def test_a_real_frame_can_anchor_the_world_and_hand_over_a_landmark():
     survey.observe(corner)
     for direction in coverage.ZERO_CORNER:
         for _ in range(coverage.STALL_CONFIRM):
-            survey.observe(corner, coverage.Leg(direction, 260.0, (0.0, 0.0)))
+            survey.observe(corner, pan_leg(direction))
 
     assert survey.anchored
     assert survey.offset == (0.0, 0.0)
@@ -437,7 +409,7 @@ def test_the_round_9_deadlock_frame_now_anchors_through_the_quadrant_fallback():
     survey.observe(corner)
     for direction in coverage.ZERO_CORNER:
         for _ in range(coverage.STALL_CONFIRM):
-            survey.observe(corner, coverage.Leg(direction, 260.0, (0.0, 0.0)))
+            survey.observe(corner, pan_leg(direction))
 
     assert survey.anchored
     assert survey.tries == 0
@@ -458,7 +430,7 @@ def test_replaying_the_real_series_never_writes_a_frame_it_could_not_place():
     survey.observe(corner)
     for direction in coverage.ZERO_CORNER:
         for _ in range(coverage.STALL_CONFIRM):
-            survey.observe(corner, coverage.Leg(direction, 260.0, (0.0, 0.0)))
+            survey.observe(corner, pan_leg(direction))
     assert survey.anchored
 
     placed = 0

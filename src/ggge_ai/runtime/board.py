@@ -10,18 +10,19 @@
    東西」、以一格大小的方框平均後取局部極大。門檻對著 ex2if 系列的逐幀人工
    轉錄調出來（本批重測：完整可見的 103/104，九幀共吐 176 個峰——多出來的是
    靜態 HUD 家具與戰艦這類多格精靈的額外峰，合併與人工複核在下游）。
-3. **位移量測**：相位相關給位移與信賴度；地圖以外那片無特徵的深色背景（下稱星空）
-   信賴度會掉到接近 0，改投票制——畫面上的單位排列每一對配對投一個平移、有兩台
-   以上支持的眾數勝。量測窗要 ≥2× 最大平移，否則循環相關會繞回（0719 實測：
-   1050px 窗量 600px 位移量出 −505 反號），所以平移一律走小步：短推才留得住重疊帶。
-4. **獨立的第三條路**：`edge_shift` 讀同一側地圖終止邊在兩幀之間的螢幕位移。地圖
-   邊界不週期，格線與同型機編隊那種差整數個週期的誤配動不了它——所以它是唯一
-   與像素位移量測互相獨立的位移佐證來源，`coverage` 的複驗拿它當第一選擇。
-5. **影像複驗**：`null_check` 逐窗把「內容位移了這麼多」拿去對畫面問話。它與相位
-   相關獨立：量測凍在靜態峰或差整數個週期的誤配都答不出 `NULL_MOVED`。
+3. **單位排列比對**：畫面上的單位排列每一對配對投一個平移、有兩台以上支持的眾數
+   勝（`relocalise`：拿當下的密度峰對已記目擊解偏移，解出來還要回頭驗支持台數）。
+4. **終止邊**：`edge_shift` 讀同一側地圖終止邊在兩幀之間的螢幕位移。地圖邊界不
+   週期，格線與同型機編隊那種差整數個週期的誤配動不了它。
+5. **影像複驗**：`null_check` 逐窗把「內容位移了這麼多」拿去對畫面問話。
 
 世界座標與四態知識圖在 `runtime/coverage.py`——這裡只做像素。**指令的量永遠
 不寫進位置**（0719 紅線）：手勢只決定往哪推，位置一律解自畫面內容。
+
+**背景圖案不是位置證據**（0803 第 10 輪定讞）：畫面有兩層，星空那一層不隨鏡頭動，
+而它在整區灰階量測裡面積佔優——同一對幀星空帶 response 0.766、地圖帶 0.041，真實
+位移 −184px 只在近排帶量得到。所以這裡不再有整區相位相關；問「這一幀在哪」只准
+問單位、終止邊與逐精靈窗，格線只答「格網幾何長什麼樣」。
 
 單位一律**不帶陣營**出去。腳下弧的顏色不是陣營的權威——我方回合未行動的我方
 單位弧色偏紅、與敵紅在同一幀上 HSV 幾乎重合（fixtures hp_arc/*，定案 5）。掃描
@@ -179,29 +180,9 @@ DIRECTIONS: dict[str, tuple[int, int]] = {
 # 一次平移的位移小於這個像素數就算沒動＝停滯（到邊或指令被吃掉）。實測推一把約
 # 570-600px，半格已是巨大差距，取 40 對量測雜訊有餘裕。
 EDGE_SHIFT_PX = 40.0
-# 相位相關在無特徵的星空上會瞎掉；信賴度低於此就不信它的數字，改看幀差。
-SHIFT_MIN_RESPONSE = 0.05
-# 要拿近乎零的讀數去背書「畫面沒動」時改用這一條，門檻高得多。相關器凍住的失效樣態
-# 與「真的沒動」的正解在數值上完全重合——兩邊都是近乎零的位移，`known` 都是真——所以
-# 唯一分得出兩者的是讀數本身的強度。0803 第 8 輪 157 對實幀：凍住的回應落在
-# 0.055-0.162（t15/t16 各推動 178px 卻讀成 0.8px），量得動的落在 0.413-0.993，中間
-# 0.162 到 0.413 整段是空的；取兩端的幾何中點。大位移不必過這一關——凍住的相關器
-# 不會憑空生出 170px，所以 SHIFT_MIN_RESPONSE 那條線對它仍然夠用。
-STILL_MIN_RESPONSE = 0.25
-EDGE_FRAME_DIFF = 2.5
-
-# 格線相位交叉驗證的容差（欄距的比例）。只用在直線軸：直線 pitch 穩定約 128，
-# 橫線間距隨 y 從 108 遞增到 123（縱向透視），對橫軸取模的相位本來就不是不變量。
-PHASE_TOLERANCE = 0.25
-
-# 單位排列比對的來源名（`_constellation_witness` 的回傳 source）。
-WITNESS_CONSTELLATION = "constellation"
 # 兩側終止邊各量一次同一個剛體平移，差超過這個像素數就是至少一側不是地圖邊——
 # 兩個都不採信（誠實承認定位中斷勝過挑一個信）。
 EDGE_WITNESS_AGREEMENT = EDGE_SHIFT_PX
-# 排列比對的票被影像複驗判成「確定沒動」——與 `_STILL` 分開記名，遙測才看得出這一幀的
-# 停滯是誰認定的。
-CONSTELLATION_STILL = "constellation:still"
 
 
 def crop(frame: np.ndarray, region: Region) -> np.ndarray:
@@ -780,47 +761,6 @@ class Shift:
         return self.source != "none"
 
 
-def measure_shift(
-    previous: np.ndarray,
-    current: np.ndarray,
-    region: Region = MAP_REGION,
-    trace: Trace = None,
-    min_response: float = SHIFT_MIN_RESPONSE,
-) -> Shift:
-    """地圖內容從前一幀到這一幀移動了多少（螢幕像素）。
-
-    內容位移是鏡頭位移的反號：鏡頭往東走，地形往西滑。相位相關優先；信賴度太低
-    （無特徵的星空、或平移過大導致重疊帶不足）就退單位排列比對的投票——**那張票要先
-    過影像複驗**（`_constellation_witness`）。兩個都不給答案就回 source="none"——寧可承認
-    不知道，也不要拿手勢當位置（0719 西緣鬼影座標就是這樣長出來的）。
-
-    `min_response` ＝ 採信相位相關的門檻。呼叫端要拿近乎零的讀數去斷言「畫面沒動」時
-    傳 `STILL_MIN_RESPONSE`：那個問題的正解與相關器凍住的失效樣態長得一模一樣，把門檻
-    提高等於強迫弱讀數改走單位排列比對那條路，而那條路有影像複驗背書。
-    """
-    dx, dy, response = _phase_shift(previous, current, region)
-    _note(trace, "correlator", {"dx": round(dx, 1), "dy": round(dy, 1), "response": round(response, 3)})
-    if response >= min_response:
-        _note(trace, "path", "phase")
-        return Shift(dx, dy, response, "phase")
-    witness = _constellation_witness(previous, current, region, trace)
-    if witness is not None:
-        _note(trace, "path", "constellation")
-        return witness
-    _note(trace, "path", "none")
-    return Shift(0.0, 0.0, response, "none")
-
-
-def _phase_shift(
-    previous: np.ndarray, current: np.ndarray, region: Region = MAP_REGION
-) -> tuple[float, float, float]:
-    a = cv2.cvtColor(crop(previous, region), cv2.COLOR_BGR2GRAY).astype(np.float32)
-    b = cv2.cvtColor(crop(current, region), cv2.COLOR_BGR2GRAY).astype(np.float32)
-    window = cv2.createHanningWindow((a.shape[1], a.shape[0]), cv2.CV_32F)
-    (dx, dy), response = cv2.phaseCorrelate(a, b, window)
-    return (float(dx), float(dy), float(response))
-
-
 def edge_shift(
     before: Mapping[str, float], after: Mapping[str, float], axis: str
 ) -> float | None:
@@ -831,8 +771,7 @@ def edge_shift(
     地圖的物理邊界是**絕對地標**：它不週期，所以格線（欄距 92）與同型機編隊
     （縱距 90-96）那種差整數個週期的誤配對它都無效，靜態的深色背景與 HUD 也搶不走
     它。0801 第 7 輪離線鑑識：東西向 17 條定位中斷的平移有 15 條至少一側可用，與
-    真值差 3.5-8px。所以它是與像素位移量測完全獨立的佐證來源（`coverage` 的複驗
-    拿它當「不得與候選同源」那一關的第一選擇）。
+    真值差 3.5-8px。`coverage` 的複驗拿它當「不得與候選同源」那一關的第一選擇。
 
     兩側都讀得到就要互相對得上（`EDGE_WITNESS_AGREEMENT`）——差太多代表至少一側
     不是地圖邊（脊偵測在取樣帶緣多撿或漏撿一條線），兩個都不採信。
@@ -1090,33 +1029,6 @@ def _window(image: np.ndarray, x: float, y: float, half: int = NULL_PATCH_HALF) 
     return image[y0 : y0 + 2 * half, x0 : x0 + 2 * half]
 
 
-def _constellation_witness(
-    previous: np.ndarray,
-    current: np.ndarray,
-    region: Region = MAP_REGION,
-    trace: Trace = None,
-) -> Shift | None:
-    """排列比對的票過影像複驗才算數；原地假設勝出時回「確定沒動」。
-
-    同型薩克與我方編隊是週期陣列（0801 實測幀內縱距 90/93/96），配對投票因此會把
-    「錯一個編隊間距」的組合投成票數十足的假位移（週期圖案錯位配對出來、畫面上無真實
-    對應，下稱幽靈）——票數多寡分不出真假，畫面分得
-    出來。原地勝出時刻意回一個零位移但 `known` 的 Shift：上層判「畫面沒動」於是走得通，
-    不必靠 `frame_difference`（待機動畫實測 5.8-12.5，恆高於 EDGE_FRAME_DIFF，原地幀
-    永遠走不進那一支）。
-    """
-    vote = _constellation_shift(find_units(previous), find_units(current), trace)
-    if vote is None:
-        return None
-    verdict = null_check(previous, current, (vote[0], vote[1]), region=region)
-    _note(trace, "vote_null_check", verdict)
-    if verdict == NULL_STILL:
-        return Shift(0.0, 0.0, vote[2], CONSTELLATION_STILL)
-    if verdict == NULL_UNCLEAR:
-        return None
-    return Shift(vote[0], vote[1], vote[2], WITNESS_CONSTELLATION)
-
-
 def frame_difference(
     previous: np.ndarray, current: np.ndarray, region: Region = MAP_REGION
 ) -> float:
@@ -1128,8 +1040,7 @@ def frame_difference(
 def median_residual(lines: Sequence[float], pitch: float, anchor: float) -> float:
     """整組線位對世界相位的殘差，取（環狀）中位數。
 
-    單線取樣會被格線讀取的抖動整支帶走——0801 複驗輪逐幀實測單線位置抖動 ±10px，
-    而相位閘的容差只有 0.25 pitch（~22px），一條抖過頭的線就能讓整幀被拒收。
+    單線取樣會被格線讀取的抖動整支帶走：0801 複驗輪逐幀實測單線位置抖動 ±10px。
     """
     if not lines:
         return 0.0

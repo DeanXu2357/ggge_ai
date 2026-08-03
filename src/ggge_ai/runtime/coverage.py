@@ -12,8 +12,9 @@
   任何一幀只要看得到同一側，那一軸的座標直接讀出來——單側可見鎖一軸、角落可見
   鎖兩軸。
 - **對回已知地圖**：兩軸都讀不到地標時（中央帶），拿畫面裡的單位排列對回已記目擊
-  （`board.relocalise`），格線相位吸掉小數位置，影像複驗消掉整數格歧義。幀對幀的
-  位移量測退居最後一手（`_drift`），只在單位排列對不上時補位。
+  （`board.relocalise`），影像複驗消掉整數格歧義。**背景圖案不當位置證據**（0803
+  第 10 輪定讞）：不隨鏡頭動的星空層在整區量測裡面積佔優，它給的是「畫面沒動」
+  的高信心錯答，會把唯一正確的候選否掉。
 - **每一個候選各自複驗**：候選座標套上去之後，這一幀的機體要落回知識圖已記的目擊
   （佔位一致性）。複驗**絕不與產生候選的那一次量測同源**——拿量測回頭替自己背書是
   恆等式不是複驗。一個候選過不了就換下一個，全部過不了才丟整幀。
@@ -77,19 +78,16 @@ TOUR_ROUTE: tuple[str, ...] = ("east", "south", "west")
 # 這一幀的座標是怎麼來的（進遙測的 shift.source）。
 SOURCE_EDGE = "edge"
 SOURCE_MATCH = "match"
-SOURCE_DRIFT = "drift"
 SOURCE_STILL = "still"
 SOURCE_ANCHOR = "anchor"
 
 # 丟棄的理由。
 EDGE_MISMATCH = "edge_mismatch"
 UNMATCHED = "unmatched"
-PHASE_REFUSED = "phase"
 PICTURE_REFUSED = "picture"
 OCCUPANCY_REFUSED = "occupancy"
 # 複驗是誰放行的（進遙測，流水帳才看得出這一幀憑什麼被收下）。
 BY_OCCUPANCY = "occupancy"
-BY_OVERLAP = "overlap"
 BY_EDGES = "edges"
 BY_PICTURE = "picture"
 BY_LANDMARK = "landmark"
@@ -102,12 +100,9 @@ OCCUPANCY_QUORUM = 2
 # 而候選本身帶著幾個像素的量測誤差——逐像素硬比會連正確的假設一起判否。
 PICTURE_SLACK = 3
 
-# 一次推移手勢的內容位移上限（世界像素）。上限由兩件事夾出來：前後幀要留得下
-# 八成以上的重疊（中央帶才對得回已知地圖），而補位用的幀對幀量測不能超出它的
-# 無歧義範圍（0719 教訓：1050px 窗量 600px 位移量出 −505 反號）。
+# 一次推移手勢的內容位移上限（世界像素）。前後幀要留得下八成以上的重疊，中央帶
+# 才對得回已知地圖。
 LEG_LIMIT: dict[str, float] = {"x": board.MAP_REGION[2] / 4.0, "y": board.MAP_REGION[3] / 4.0}
-# 補位量測（`_drift`）敢採信的位移上限＝該軸量測窗的一半。超過就是量測窗繞回誤判，不採信。
-DRIFT_LIMIT: dict[str, float] = {"x": board.MAP_REGION[2] / 2.0, "y": board.MAP_REGION[3] / 2.0}
 # 手指行程換算內容位移的固定比例（0730 實測 250px 手勢推出約 570-600px）。v3 不再
 # 逐次修正它——推移只需要「往那個方向推一把」，距離準不準不影響座標。
 NOMINAL_GAIN = 2.3
@@ -699,19 +694,12 @@ class Survey:
         tried: list[dict[str, object]] = []
         detail["tried"] = tried
         refusal = UNMATCHED
-        for candidate, source in self._candidates(frame, view, still, axes, detail):
+        for candidate, source in self._candidates(view, still, axes, detail):
             note: dict[str, object] = {"source": source}
             tried.append(note)
             # 讀得到地標的那一軸由地標說了算，候選只補另一軸——地標是絕對量，拿它去
             # 否決整幀等於連確定的那一軸也一起丟掉。合起來對不對由複驗裁。
             merged = (axes.get("x", candidate[0]), axes.get("y", candidate[1]))
-            if "x" in recalled:
-                snapped = self._snap(frame, merged)
-                if snapped is None:
-                    note["gate"] = PHASE_REFUSED
-                    refusal = PHASE_REFUSED
-                    continue
-                merged = snapped
             note["offset"] = [round(value, 1) for value in merged]
             if self._corroborated(frame, view, merged, recalled, source, note):
                 return (merged, source)
@@ -743,18 +731,15 @@ class Survey:
 
     def _candidates(
         self,
-        frame: np.ndarray,
         view: FrameView,
         still: bool,
         axes: dict[str, float],
         detail: dict[str, object],
     ) -> Iterable[tuple[Point, str]]:
-        """位置的候選來源，由強到弱。**單位排列比對排在重疊區位移量測之前**（提案
-        第四節）：已記的單位排列是這一代真的看過的東西，而幀對幀的位移量測會凍值、
-        會被週期內容差整數個週期地誤配——它是補位，不是主力。
+        """位置的候選來源，由強到弱：兩軸地標 → 沿用上一張 → 單位排列比對。
 
-        兩條路互補不互相取代：中央帶剛好空曠無單位時排列比對沒有材料，那時才輪到
-        重疊區量測扛，而它扛得動與否由複驗那一關裁。
+        三個都讀的是畫面裡的東西——地圖終止邊與已記的單位排列。中央帶剛好空曠無
+        單位時排列比對沒有材料，那一幀就是沒有候選，誠實丟掉。
         """
         if len(axes) == 2:
             yield ((axes["x"], axes["y"]), SOURCE_EDGE)
@@ -764,9 +749,6 @@ class Survey:
         match = self._constellation(view, detail)
         if match is not None:
             yield (match, SOURCE_MATCH)
-        drift = self._drift(frame, detail)
-        if drift is not None:
-            yield (drift, SOURCE_DRIFT)
 
     def _constellation(self, view: FrameView, detail: dict[str, object]) -> Point | None:
         """拿畫面裡的單位排列對回這一代已記的目擊。全域比對，不是逐步累加。"""
@@ -783,52 +765,6 @@ class Survey:
             return None
         return (-drift[0], -drift[1])
 
-    def _drift(self, frame: np.ndarray, detail: dict[str, object]) -> Point | None:
-        """最後一手：跟最近一張定位成功的幀比一次位移。
-
-        中央帶剛好空曠無單位時單位排列給不出答案，而重疊區還在（每一把推移都壓在
-        量測窗的四分之一以內），所以這裡量得到。它是 v2 那條逐步量測鏈的殘骸，v3
-        把它降級成補位：解出來的座標還要過格線相位，再過一道**不是它自己給的**佐證
-        （佔位一致性、目視終止邊位移，或逐窗影像複驗），過不了就丟棄。
-        """
-        if self.located is None:
-            return None
-        before, offset = self.located
-        shift = board.measure_shift(before, frame)
-        detail["drift"] = {
-            "dx": round(shift.dx, 1),
-            "dy": round(shift.dy, 1),
-            "source": shift.source,
-        }
-        if not shift.known:
-            return None
-        if abs(shift.dx) > DRIFT_LIMIT["x"] or abs(shift.dy) > DRIFT_LIMIT["y"]:
-            log.warning("a drift of %.0f,%.0f is beyond what one pan can do", shift.dx, shift.dy)
-            return None
-        return (offset[0] - shift.dx, offset[1] - shift.dy)
-
-    def _snap(self, frame: np.ndarray, candidate: Point) -> Point | None:
-        """格線相位交叉驗證＋吸附。對不上就回 None（拒收），對得上就把小數吃掉。
-
-        只驗直線軸：橫線間距隨 y 遞增（縱向透視），對它取模的相位不是不變量。殘差
-        取**全線中位數**而不是單線：單線抖動 ±10px 實測在案，容差只有 0.25 格距。
-
-        **讀不出格線就拒收**，不是放行：地圖邊緣與無特徵背景正是重疊區量測最不可靠
-        的場合，而那一軸唯一的閘就是這一關（0802 定讞：舊碼在 `find_lattice` 回 None
-        時直接放行，等於閘在最需要的時候缺席）。
-        """
-        assert self.chart is not None
-        lattice = board.find_lattice(frame)
-        if lattice is None:
-            return None
-        pitch = self.chart.grid.col_pitch
-        residual = board.median_residual(
-            [col + candidate[0] for col in lattice.cols], pitch, self.chart.grid.phase[0]
-        )
-        if abs(residual) > board.PHASE_TOLERANCE * pitch:
-            return None
-        return (candidate[0] - residual, candidate[1])
-
     def _corroborated(
         self,
         frame: np.ndarray,
@@ -841,18 +777,14 @@ class Survey:
         """複驗：把候選座標套上去，看這一幀的機體落不落回知識圖已記的目擊。
 
         **佔位一致性是主判準**。位置對了，畫面上的機體就落回上一輪記下的那幾格；差
-        一整格就對不上。它讀的是**已獲取的佔位資訊**，與幀對幀的像素量測完全不同源
-        ——量測凍值、差整數個週期的誤配都騙不過它（0802 定讞：舊碼拿產生候選的那
-        一次量測回頭當佐證，注入 0／230／256／300px 的錯誤，餘裕一律 1.0px，等於沒閘）。
-
-        判準是**和差一整格的鄰居比**，不是固定的支持數門檻：往沒看過的地方推的那幾
-        幀，畫面上多數機體本來就還沒被記過，湊不到固定門檻是物理不是矛盾。鄰居配得
-        比較好就代表這個候選差了一整格，當場拒收。
+        一整格就對不上。判準是**和差一整格的鄰居比**，不是固定的支持數門檻：往沒看過
+        的地方推的那幾幀，畫面上多數機體本來就還沒被記過，湊不到固定門檻是物理不是
+        矛盾。鄰居配得比較好就代表這個候選差了一整格，當場拒收。
 
         兩種例外走影像比對，兩種都在遙測裡記名：
 
         - **單位排列比對導出的候選**本身就是拿已記目擊解出來的，佔位一致性對它同源
-          （而且門檻更鬆），所以它的第二佐證是重疊區的像素量測——那才是獨立的。
+          （而且門檻更鬆），背書不算數。
         - **對得上的一台都沒有**（空曠的中央帶，或整片都是沒記過的新機體）時佔位
           一致性沒有材料。
         """
@@ -885,7 +817,7 @@ class Survey:
         if support > best and source != SOURCE_MATCH:
             note["gate"] = BY_OCCUPANCY
             return True
-        return self._pictured(frame, view, candidate, recalled, source, note)
+        return self._pictured(frame, view, candidate, recalled, note)
 
     def _pictured(
         self,
@@ -893,14 +825,13 @@ class Survey:
         view: FrameView,
         candidate: Point,
         recalled: tuple[str, ...],
-        source: str,
         note: dict[str, object],
     ) -> bool:
         """影像比對這一路。**佐證不得與候選同源**——拿產生候選的那一次量測回頭背書
         是恆等式，不是複驗。
 
-        由強到弱：目視終止邊的位移（絕對量，任何週期內容都動不了它）→ 排列比對的
-        候選才問得起的重疊區量測 → 逐窗影像複驗（只答得出「這個位移到底發生了沒」）。
+        由強到弱：目視終止邊的位移（絕對量，任何週期內容都動不了它）→ 逐窗影像
+        複驗（只答得出「這個位移到底發生了沒」）。
         """
         if not recalled:
             note["gate"] = BY_LANDMARK
@@ -908,7 +839,7 @@ class Survey:
         if self.located is None:
             note["gate"] = PICTURE_REFUSED
             return False
-        before, offset = self.located
+        offset = self.located[1]
         implied = {"x": offset[0] - candidate[0], "y": offset[1] - candidate[1]}
         pitches = {"x": self.chart.grid.col_pitch, "y": self.chart.grid.row_pitch}
 
@@ -919,21 +850,6 @@ class Survey:
                 abs(moved[axis] - implied[axis]) <= EDGE_TOLERANCE * pitches[axis]
                 for axis in recalled
             )
-        if source == SOURCE_MATCH:
-            shift = board.measure_shift(before, frame)
-            note["overlap"] = {
-                "dx": round(shift.dx, 1),
-                "dy": round(shift.dy, 1),
-                "source": shift.source,
-                "implied": [round(implied["x"], 1), round(implied["y"], 1)],
-            }
-            if shift.known:
-                note["gate"] = BY_OVERLAP
-                measured = {"x": shift.dx, "y": shift.dy}
-                return all(
-                    abs(measured[axis] - implied[axis]) <= EDGE_TOLERANCE * pitches[axis]
-                    for axis in recalled
-                )
         return self._outbids(frame, view, implied, recalled, pitches, note)
 
     def _outbids(
@@ -1115,29 +1031,18 @@ class Survey:
     # ---- 畫面有沒有動 ----
 
     def _unchanged(self, previous: np.ndarray, frame: np.ndarray, leg: Leg | None) -> bool:
-        """畫面到底有沒有動——v3 唯一還做的幀對幀比對，而且只回布林不回位移。
+        """畫面到底有沒有動——只回布林不回位移。
 
-        三路佐證依序：兩幀幾乎逐像素相同、量得出位移（量到多少就是多少）、影像複驗拿
-        「動了指令那麼多」對「鏡頭沒動」問畫面。待機動畫讓幀差恆高於門檻（實機 5.8-12.5
-        對 2.5），所以第一關過不了很正常，證言要靠後兩關。
+        唯一的佐證是逐精靈窗的影像複驗：拿「動了指令那麼多」對「鏡頭沒動」問畫面。
+        整區灰階比對一律不用——不隨鏡頭動的星空層在整區裡面積佔優，它答的是背景沒動
+        不是地圖沒動（0803 第 10 輪：星空帶 response 0.766、地圖帶 0.041，而真實位移
+        −184px 只在近排帶量得到）。
 
-        **「沒動」要有人指著畫面說沒動**：量不出來一律當作動過。反過來寫（量不出來
-        就算沒動）會讓空白幀被判靜止，而靜止的處置是沿用上一張的座標——下一張真的
-        移動過的幀於是以舊座標寫進圖，那正是「量錯寫入」（0802 合成世界實測，空白
+        **「沒動」要有人指著畫面說沒動**：問不出來（沒有指令可問、或裁判沒得看）一律
+        當作動過。反過來寫會讓空白幀被判靜止，而靜止的處置是沿用上一張的座標——下一張
+        真的移動過的幀於是以舊座標寫進圖，那正是「量錯寫入」（0802 合成世界實測，空白
         幀之後長出兩格鬼影）。
-
-        量測用 `STILL_MIN_RESPONSE` 而不是預設門檻：**近乎零的讀數只有在夠強時才算
-        佐證**。相關器凍住時輸出的就是近乎零，與「真的沒動」的正解重合，弱讀數因此
-        什麼都證明不了——0803 第 8 輪東向 t15、t16 各真的推動了 178px，回應 0.058/0.063
-        卻讀成 0.8px，兩把都被算成推不動，繞邊於是在鏡頭還沒到東緣時就把東側從路線裡
-        拿掉（南向 t29、t30 同型）。門檻提高之後那種讀數改走單位排列比對，那條路有
-        影像複驗背書，這四把全部改判成推得動。
         """
-        if board.frame_difference(previous, frame) < board.EDGE_FRAME_DIFF:
-            return True
-        shift = board.measure_shift(previous, frame, min_response=board.STILL_MIN_RESPONSE)
-        if shift.known:
-            return shift.magnitude < board.EDGE_SHIFT_PX
         if leg is None:
             return False
         return board.null_check(previous, frame, leg.expected) == board.NULL_STILL
