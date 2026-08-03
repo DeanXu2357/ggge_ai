@@ -628,7 +628,7 @@ class Survey:
             log.warning("the corner contradicts the landmarks we kept; starting the world over")
             self._forget()
         if self.chart is None:
-            lattice = board.read_lattice(frame)
+            lattice = board.find_lattice(frame)
             grid = None if lattice is None else WorldGrid.anchor(lattice)
             if grid is None:
                 return False

@@ -420,6 +420,34 @@ def test_a_real_frame_can_anchor_the_world_and_hand_over_a_landmark():
     )
 
 
+CORNER_DEADLOCK_FIXTURES = (
+    Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "edges_20260803"
+)
+
+
+def test_the_round_9_deadlock_frame_now_anchors_through_the_quadrant_fallback():
+    """第 9 輪死因幀（`t21-leg.png`）：`read_lattice` 的全幀取樣帶在這裡讀不到格網
+    （格線只填滿取樣帶右下一角），`_anchor` 曾經因此永遠回 False、連三次 ZERO_TRIES
+    耗盡卡死。改吃 `find_lattice`（有象限退路）之後這裡要能錨定；北緣是象限窗搆不到
+    的那一列，靠邊界目擊補回負格列，不是憑空消失。"""
+    corner = cv2.imread(str(CORNER_DEADLOCK_FIXTURES / "t21-leg.png"))
+    assert corner is not None
+    survey = coverage.Survey()
+
+    survey.observe(corner)
+    for direction in coverage.ZERO_CORNER:
+        for _ in range(coverage.STALL_CONFIRM):
+            survey.observe(corner, coverage.Leg(direction, 260.0, (0.0, 0.0)))
+
+    assert survey.anchored
+    assert survey.tries == 0
+    assert {"north", "west"} <= set(survey.landmarks)
+    north_line = coverage._border_cell(survey.chart.grid, "north", survey.landmarks["north"])
+    assert north_line < 0
+    assert survey.chart.boundary["north"] == north_line
+    assert survey.chart.in_bounds((3, north_line))
+
+
 def test_replaying_the_real_series_never_writes_a_frame_it_could_not_place():
     """半真實案例：0719 的九幀是用舊的大步幅拍的（一把約 600px），v3 的定位窗根本
     收不下——重點不是它掃得完，而是**收不下的時候不會亂寫**：定位不出來的幀整張
