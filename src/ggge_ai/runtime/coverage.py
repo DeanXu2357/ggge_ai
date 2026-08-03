@@ -183,6 +183,9 @@ class FrameView:
     # 不敢說那裡有格子——EMPTY 毯一格都不鋪。
     lattice: Region | None = None
     edges: frozenset[str] = frozenset()
+    # 目擊到的那幾側終止邊在**螢幕**上的位置（所以 shifted() 同樣不必動它）。它與
+    # lattice 框各說各話：框是取樣帶讀到的線位，邊界來自全幀掃描，看得到框外。
+    borders: tuple[tuple[str, float], ...] = ()
     # 生這張 view 的那一次 observe 的序號，與流水帳同一列，join 得回 tick／probe。
     sequence: int = 0
 
@@ -998,8 +1001,8 @@ class Survey:
         before = self.located_view
         if before is None:
             return {}
-        first = _borders(before)
-        now = _borders(view)
+        first = dict(before.borders)
+        now = dict(view.borders)
         moved: dict[str, float] = {}
         for axis in ("x", "y"):
             value = board.edge_shift(first, now, axis)
@@ -1055,6 +1058,7 @@ class Survey:
             holes=self.holes,
             lattice=None if span is None else span.box,
             edges=frozenset() if span is None else span.edges,
+            borders=() if span is None else span.borders,
             sequence=self.observes,
         )
         self.last_view = view
@@ -1355,22 +1359,25 @@ def covered(grid: WorldGrid, view: FrameView) -> tuple[Cell, ...]:
     以內的超出仍是界內那一格，真正在線外的格子由界線定案後的裁剪收拾。
 
     整幀讀不出格線＝零遮罩，這一幀一格都不蓋——單位目擊照收（密度峰不依賴格線）。
+
+    切線用的是**邊界目擊的位置**，不是線位框的邊：邊界掃描讀得到取樣帶以外（實測東緣
+    框到 1680、邊界在 1763），拿框當界會把那之間明明有格子的地方一起漏掉。
     """
     if view.lattice is None:
         return ()
-    x, y, w, h = view.lattice
     ox, oy = view.offset
+    walls = dict(view.borders)
     slack = (EDGE_TOLERANCE * grid.col_pitch, EDGE_TOLERANCE * grid.row_pitch)
     out: list[Cell] = []
     for cell in readable(grid, view):
         box = _screen_box(grid, cell, (ox, oy))
-        if "west" in view.edges and box[0] < x - slack[0]:
+        if "west" in walls and box[0] < walls["west"] - slack[0]:
             continue
-        if "east" in view.edges and box[2] > x + w + slack[0]:
+        if "east" in walls and box[2] > walls["east"] + slack[0]:
             continue
-        if "north" in view.edges and box[1] < y - slack[1]:
+        if "north" in walls and box[1] < walls["north"] - slack[1]:
             continue
-        if "south" in view.edges and box[3] > y + h + slack[1]:
+        if "south" in walls and box[3] > walls["south"] + slack[1]:
             continue
         out.append(cell)
     return tuple(out)
@@ -1383,10 +1390,7 @@ def _screen_box(grid: WorldGrid, cell: Cell, offset: Point) -> tuple[float, floa
 
 def screen_border(view: FrameView, direction: str) -> float | None:
     """目視終止邊在**螢幕像素**上的位置。定位讀的是這個——它不需要先知道座標。"""
-    if view.lattice is None or direction not in view.edges:
-        return None
-    x, y, w, h = view.lattice
-    return {"west": x, "east": x + w, "north": y, "south": y + h}[direction]
+    return dict(view.borders).get(direction)
 
 
 def _fits(
@@ -1401,16 +1405,6 @@ def _fits(
         )
         for point in seen
     )
-
-
-def _borders(view: FrameView) -> dict[str, float]:
-    """這一幀目視到的每一側終止邊，螢幕像素。沒目擊的側不進去。"""
-    return {
-        side: border
-        for side in COMPASS
-        for border in (screen_border(view, side),)
-        if border is not None
-    }
 
 
 def sighted_border(view: FrameView, direction: str) -> float | None:

@@ -1,0 +1,23 @@
+{
+  "source": {
+    "t1-precheck.png": "data/runs/20260803-075745（第 8 輪）frames/survey——第 1 個 tick 推移之前的原始鏡頭位置",
+    "t2-leg.png": "同上，第 2 把西向推移之後",
+    "t15-leg.png": "同上，第 15 把東向推移之後",
+    "t16-leg.png": "同上，第 16 把東向推移之後",
+    "t58-leg.png": "同上，繞邊回到北緣",
+    "t21-leg.png": "data/runs/20260803-091231（第 9 輪）frames/survey——鏡頭卡在西北角、格線只剩右下一角"
+  },
+  "crop": null,
+  "crop_note": "原尺寸 2340x1080 直接存。邊界掃描的縱線軸取滿整幀寬、橫線軸投影讀全幀高，裁切會改掉輸入。",
+  "expect": {
+    "t21-leg": {"west": ["EDGE", 1175], "north": ["EDGE", 544], "east": null, "south": null},
+    "t2-leg": {"west": ["EDGE", 1162], "east": null, "north": null, "south": null},
+    "t16-leg": {"east": ["EDGE", 1771], "west": null, "north": null, "south": null},
+    "t58-leg": {"north": ["EDGE", 307], "west": ["EDGE", 1175], "east": null, "south": null},
+    "t15-leg": {"east": ["EDGE", 1943], "west": null, "south": null},
+    "t1-precheck": {"west": ["EDGE", 667], "east": null, "north": null, "south": null}
+  },
+  "expect_note": "null ＝ 那一側不得回 EDGE（truncated／blocked 都行）。位置是校正空間的 x／螢幕的 y，容差 ±20px。",
+  "contested": "t1-precheck 的西側：本批規格原本要求它 ≠EDGE（沿用未校正原型的 blocked）。投影校正之後判成 EDGE@667，而畫面本身站在 EDGE 這一邊——見 tests/test_board_edge_witness.py 的 t1-precheck 兩條測試。待使用者複核。",
+  "regression": "tests/test_board_edge_witness.py"
+}

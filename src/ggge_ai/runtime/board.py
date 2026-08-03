@@ -77,6 +77,43 @@ LATTICE_WINDOW_FLOOR = 3
 # 而且過得了合理性閘——那正是「自信錯值」，寧可先問細帶。
 SPACING_BANDS: tuple[tuple[int, int], ...] = ((60, 105), (90, 160))
 
+# 終止邊掃描窗。上緣 330 避開左上「變更初期配置」鈕（實測 y≤315 的藍框會被當成脊），
+# 下緣 970 停在底部鈕列之上；橫向取滿整幀——縱線的終止邊常落在 GRID_REGION（到 x1750）
+# 之外，0803 語料實測東緣讀到 1763。
+EDGE_SCAN_REGION: Region = (0, 330, 2340, 640)
+
+# 實機投影是固定的單消失點透視（0803 兩輪 14 幀、多個鏡頭位置擬合）：縱線的斜率場
+# slope(x) = K·(x − XV)，XV 的 IQR 1164~1171、K 的 IQR ±5%、逐幀 rms ≤0.006；橫線
+# 平行（k≈0）、列距均勻 87-88，所以只有縱線要校正。
+#
+# 校正映射把縱線轉正：x_rect = XV + (x − XV) / (1 + K·(y − Y_REF))。Y_REF 取掃描窗
+# 中心，於是映射在 y=Y_REF 上是恆等——**校正空間的 x 就是螢幕在參考列上的 x**，位置
+# 回報不必再換算回去。
+PERSPECTIVE_VP_X = 1166.0
+PERSPECTIVE_K = 1.10e-4
+PERSPECTIVE_REF_Y = 650.0
+
+# 終止邊三分裁決的門檻（0803 原型 edge_scan_v2 對 259 幀語料掃描定出來的）。
+# 短繩延伸：候選要有脊列中位峰高的三成才算一條線。檢驗帶：外側一格寬的帶沿線方向
+# 切四帶各自檢驗，≥3/4 帶過關才算虛空——**全帶取一個平均會被星空稀釋**，斜邊界外
+# 殘留的格線因此溜過門檻（t1-precheck 的假西邊界），分帶後有線的那一帶自己不及格。
+# 單帶硬帽是第二道保險：任何一帶的平均超過 CAP 就一票否決。
+EDGE_EXTEND_RATIO = 0.30
+EDGE_VOID_MEAN_RATIO = 0.25
+EDGE_VOID_MAX_RATIO = 0.60
+EDGE_VOID_MEAN_CAP = 0.50
+EDGE_VOID_BANDS = 4
+EDGE_VOID_BANDS_MIN_PASS = 3
+# 脊列末端離取樣範圍邊不足這麼多格就算被切斷（地圖還沒看完，不是邊界）。
+EDGE_MARGIN_PITCH = 0.8
+# 短繩：延伸只准伸出取樣窗一個格距。夠撿回貼著窗外的終止線（0803 r8 北緣 307），
+# 又搆不到回合橫幅那條強邊緣。
+EDGE_LEASH_PITCH = 1.0
+
+EDGE_SEEN = "EDGE"
+EDGE_TRUNCATED = "truncated"
+EDGE_BLOCKED = "blocked"
+
 RED_HINT = "red"
 BLUE_HINT = "blue"
 TEAL_HINT = "teal"
@@ -249,8 +286,7 @@ def read_lattice(
     patch = crop(frame, region)
     if patch.shape[0] < h or patch.shape[1] < w:
         return None
-    gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY).astype(np.float32)
-    highpass = np.abs(gray - cv2.GaussianBlur(gray, (0, 0), 6))
+    highpass = _highpass(patch)
     columns = highpass.mean(axis=0)
     lines = highpass.mean(axis=1)
     for low, high in bands:
@@ -278,29 +314,24 @@ LATTICE_WINDOWS: tuple[Region, ...] = lattice_windows()
 class GridSpan:
     """這一幀格線實際覆蓋的螢幕矩形，外加四側有沒有看到「格網到此為止」。
 
-    `box` 是線位圍出來的矩形（不是格心）；`edges` 只收有證據的那幾側，看不出來就
+    `box` 是線位圍出來的矩形（不是格心）；`borders` 只收有證據的那幾側，看不出來就
     不出證言——半幅星空虛空與「地圖還沒看完」在幾何上長得一樣。
+
+    **邊界位置與 box 是兩回事**：box 來自 `GRID_REGION` 帶讀到的線位，終止邊來自
+    `scan_edges` 的全幀掃描，後者看得到帶外（實測東緣 box 1680、邊界 1763）。
     """
 
     lattice: Lattice
     box: Region
-    edges: frozenset[str]
+    borders: tuple[tuple[str, float], ...] = ()
+
+    @property
+    def edges(self) -> frozenset[str]:
+        return frozenset(side for side, _ in self.borders)
 
     def border(self, side: str) -> float | None:
         """該側終止邊的螢幕座標。沒有目擊就 None。"""
-        if side not in self.edges:
-            return None
-        x, y, w, h = self.box
-        return {"west": x, "east": x + w, "north": y, "south": y + h}[side]
-
-
-# 終止邊的三道閘（0801 run 20260801-080213 逐幀實測，見 docs/reviews/scan-v2_6-review.md）：
-# 真終止邊外側的高通能量 3.9-8.5、內側 17.3-21.3；灰階 26-34 對 43-52。地圖還沒看完
-# 的那幾側外側高通 17-24＝與內側同級。**兩個比值＋一個絕對上限**：批 7 的星空假邊界
-# 前科就是只看單一絕對值，這裡要求外側同時安靜、暗、而且比內側安靜得多。
-EDGE_QUIET_HIGH = 10.0
-EDGE_TEXTURE_RATIO = 0.5
-EDGE_BRIGHTNESS_RATIO = 0.75
+        return dict(self.borders).get(side)
 
 
 def read_span(frame: np.ndarray | None) -> GridSpan | None:
@@ -315,7 +346,13 @@ def read_span(frame: np.ndarray | None) -> GridSpan | None:
             lattice.cols[-1] - lattice.cols[0],
             lattice.rows[-1] - lattice.rows[0],
         )
-        return GridSpan(lattice, box, _terminal_edges(frame, lattice))
+        witnessed = scan_edges(frame)
+        borders = tuple(
+            (side, position)
+            for side, (verdict, position, _) in sorted(witnessed.items())
+            if verdict == EDGE_SEEN
+        )
+        return GridSpan(lattice, box, borders)
     return None
 
 
@@ -325,57 +362,267 @@ def _lattice_bands() -> Iterable[tuple[Region, tuple[int, int]]]:
         yield (window, _window_minimum(window))
 
 
-def _terminal_edges(frame: np.ndarray, lattice: Lattice) -> frozenset[str]:
-    """哪幾側的最外一條線之外是虛空。
+def _highpass(patch: np.ndarray) -> np.ndarray:
+    gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    return np.abs(gray - cv2.GaussianBlur(gray, (0, 0), 6))
 
-    檢驗帶**只受幀邊界約束，不受取樣帶約束**：取樣帶是找脊的窗，三閘讀的是原始
-    像素，帶外照樣讀得到。舊碼要求「帶內留得下一整格」，於是最外一條線貼著帶緣
-    的那幾側一律棄權——0801 第 7 輪實測那正是東西向平移量不出來的常態（東緣落在 1697-1711、
-    取樣帶到 1750，差一格的餘裕），15 條可用的邊證言被這條含蓄假設全數擋掉。
-    「線到帶緣為止、地圖其實還沒完」由三閘自己擋：那種側的外側是地圖紋理，安靜
-    與暗兩閘都過不了。
+
+def rectify_columns(
+    patch: np.ndarray, region: Region = EDGE_SCAN_REGION
+) -> tuple[np.ndarray, tuple[float, float]]:
+    """把 patch 逐列水平重取樣，讓實機的斜縱線在輸出裡變成真的垂直線。
+
+    回 (校正後的 patch, 校正空間的有效 x 範圍)。輸出的第 j 欄對應校正座標 x0+j，而
+    x0+j 在 y=PERSPECTIVE_REF_Y 上就是螢幕 x，所以位置不必再換算回螢幕。
+
+    **有效範圍以外不可取樣**：每一列的源範圍只有 [x0, x0+w)，映到校正空間之後各列
+    的可視範圍不同（最寬與最窄差約 41px），交集之外的欄只有部分列有內容——那裡的
+    投影是被虛假地稀釋過的，拿去比門檻會把真線讀成虛空。
     """
-    out: set[str] = set()
-    for side, outside, inside in _edge_strips(lattice):
-        beyond = _strip_stats(frame, outside)
-        within = _strip_stats(frame, inside)
-        if beyond is None or within is None:
-            continue
-        gray, texture = beyond
-        if texture > EDGE_QUIET_HIGH:
-            continue
-        if texture > EDGE_TEXTURE_RATIO * within[1]:
-            continue
-        if gray > EDGE_BRIGHTNESS_RATIO * within[0]:
-            continue
-        out.add(side)
-    return frozenset(out)
+    x0, y0, w, h = region
+    rows = np.arange(patch.shape[0], dtype=np.float32)
+    scale = 1.0 + PERSPECTIVE_K * (rows + y0 - PERSPECTIVE_REF_Y)
+    columns = np.arange(patch.shape[1], dtype=np.float32) + x0
+    map_x = (
+        PERSPECTIVE_VP_X + (columns[None, :] - PERSPECTIVE_VP_X) * scale[:, None] - x0
+    ).astype(np.float32)
+    map_y = np.repeat(rows[:, None], patch.shape[1], axis=1)
+    rectified = cv2.remap(
+        patch, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0
+    )
+    ends = (float(scale.min()), float(scale.max()))
+    low = max(PERSPECTIVE_VP_X + (x0 - PERSPECTIVE_VP_X) / s for s in ends)
+    high = min(PERSPECTIVE_VP_X + (x0 + w - 1 - PERSPECTIVE_VP_X) / s for s in ends)
+    return (rectified, (low, high))
 
 
-def _edge_strips(lattice: Lattice) -> Iterable[tuple[str, Region, Region]]:
-    cols, rows = lattice.cols, lattice.rows
-    span = (cols[-1] - cols[0], rows[-1] - rows[0])
-    across = (int(lattice.col_pitch), int(lattice.row_pitch))
-    if span[0] <= 0 or span[1] <= 0 or across[0] <= 0 or across[1] <= 0:
-        return
-    yield ("west", (cols[0] - across[0], rows[0], across[0], span[1]),
-           (cols[0], rows[0], across[0], span[1]))
-    yield ("east", (cols[-1], rows[0], across[0], span[1]),
-           (cols[-1] - across[0], rows[0], across[0], span[1]))
-    yield ("north", (cols[0], rows[0] - across[1], span[0], across[1]),
-           (cols[0], rows[0], span[0], across[1]))
-    yield ("south", (cols[0], rows[-1], span[0], across[1]),
-           (cols[0], rows[-1] - across[1], span[0], across[1]))
+def scan_edges(
+    frame: np.ndarray, region: Region = EDGE_SCAN_REGION
+) -> dict[str, tuple[str, float, dict[str, Any]]]:
+    """四側的終止邊目擊：{側: (裁決, 位置, 統計)}。讀不出脊列的那個軸整個缺席。
+
+    裁決三分——把「看到邊」與「看不出來」分開，是這一層唯一該說的話：
+
+    - `EDGE`      脊列在取樣範圍內收尾，外側一格寬的檢驗帶分帶都平整＝邊外是虛空
+    - `truncated` 脊列（含延伸）頂到取樣範圍邊——多條線被切斷，地圖還沒看完
+    - `blocked`   脊列收尾但外側不平整（美術、斜的地形交界、UI），不表態
+
+    **縱線軸在校正過的空間讀**：未校正的全窗投影會把離消失點遠的線攤成 40px 寬的
+    低矮丘（斜率 K·(x−XV) 乘上 640 的窗高），最外側幾條線因此讀不到，真邊界漏報、
+    斜的地形交界誤判成邊界——那正是舊的三閘錨在「最外偵測格線」上失敗的兩個樣態。
+    橫線軸不校正（橫線平行），但投影讀**全幀高度**：種子脊限在窗內、延伸只放一個
+    格距的短繩，這樣撿得回貼著窗外的終止線又搆不到回合橫幅。
+    """
+    x0, y0, w, h = region
+    image, valid = _column_space(_highpass(crop(frame, region)), region)
+    columns = _axis_edges(
+        image, valid, valid, offset=x0, along=1, leash=0.0, sides=("west", "east")
+    )
+    strip = _highpass(frame[:, x0 : x0 + w])
+    rows = _axis_edges(
+        strip,
+        (float(y0), float(y0 + h - 1)),
+        (0.0, float(frame.shape[0] - 1)),
+        offset=0,
+        along=0,
+        leash=EDGE_LEASH_PITCH,
+        sides=("north", "south"),
+    )
+    return {**columns, **rows}
 
 
-def _strip_stats(frame: np.ndarray, strip: Region) -> tuple[float, float] | None:
-    x, y, w, h = strip
-    height, width = frame.shape[:2]
-    if x < 0 or y < 0 or w < 4 or h < 4 or x + w > width or y + h > height:
+def _column_space(
+    highpass: np.ndarray, region: Region
+) -> tuple[np.ndarray, tuple[float, float]]:
+    """縱線軸要在校正過的空間讀還是原樣讀，回 (影像, 可用的 x 範圍)。
+
+    **投影模型對不對，由畫面自己裁**：模型對了，每條線的能量收進同一欄，脊的中位
+    峰高就高；模型錯了，校正只是把本來就正的線攤平。實機語料校正後峰高是原樣的兩倍
+    （t15 甚至多讀到九條線），沒有透視的輸入（合成世界）則反過來差五倍。硬套校正會
+    讓後者的位置讀數抖到 ±10px，硬不套則實機的最外側幾條線永遠讀不到。
+    """
+    x0, _, w, _ = region
+    candidates = (
+        (highpass, (float(x0), float(x0 + w - 1))),
+        rectify_columns(highpass, region),
+    )
+    ranked = [
+        (0.0 if seen is None else seen[2], image, limits)
+        for image, limits in candidates
+        for seen in (_ridge_run(image.mean(axis=0), x0, limits),)
+    ]
+    _, image, limits = max(ranked, key=lambda entry: entry[0])
+    return (image, limits)
+
+
+def _ridge_run(
+    profile: np.ndarray, offset: int, seeds: tuple[float, float]
+) -> tuple[list[int], float, float] | None:
+    """種子脊列＝間距均勻的最長連續段，回 (線位, 格距, 中位峰高)。
+
+    格距帶由細到粗逐帶試，第一個湊得出三條線的贏——與 `read_lattice` 同一條理由
+    （粗帶的最小間距套在細格網上會隔行取線、湊出翻倍的假格距）。
+    """
+    for low, high in SPACING_BANDS:
+        found = [
+            ridge for ridge in _ridges(profile, offset, low) if seeds[0] <= ridge <= seeds[1]
+        ]
+        run = _longest_run(found, low, high)
+        if len(run) < 3:
+            continue
+        pitch = _median_gap(run)
+        if pitch > 0:
+            return (run, pitch, float(np.median([profile[p - offset] for p in run])))
+    return None
+
+
+def _axis_edges(
+    highpass: np.ndarray,
+    seeds: tuple[float, float],
+    limits: tuple[float, float],
+    offset: int,
+    along: int,
+    leash: float,
+    sides: tuple[str, str],
+) -> dict[str, tuple[str, float, dict[str, Any]]]:
+    """一個軸的兩端各裁一次。種子脊列限在 seeds 內，延伸與截斷判準看 limits。"""
+    profile = highpass.mean(axis=0 if along == 1 else 1)
+    seen = _ridge_run(profile, offset, seeds)
+    if seen is None:
+        return {}
+    run, pitch, peak = seen
+    return {
+        side: _judge_side(
+            profile, highpass, offset, along, run, pitch, peak, direction, seeds, limits, leash
+        )
+        for side, direction in ((sides[0], -1), (sides[1], 1))
+    }
+
+
+def _longest_run(ridges: Sequence[int], low: int, high: int) -> list[int]:
+    """間距全落在格距帶內的最長連續脊段。"""
+    best: list[int] = []
+    current: list[int] = []
+    for position in ridges:
+        if current and not (low <= position - current[-1] <= high):
+            if len(current) > len(best):
+                best = current
+            current = []
+        current.append(position)
+    return current if len(current) > len(best) else best
+
+
+def _judge_side(
+    profile: np.ndarray,
+    highpass: np.ndarray,
+    offset: int,
+    along: int,
+    run: Sequence[int],
+    pitch: float,
+    peak: float,
+    direction: int,
+    seeds: tuple[float, float],
+    limits: tuple[float, float],
+    leash: float,
+) -> tuple[str, float, dict[str, Any]]:
+    reach = (
+        max(limits[0], seeds[0] - leash * pitch),
+        min(limits[1], seeds[1] + leash * pitch),
+    )
+    picked, end, stop = _extend_line(profile, offset, run, pitch, peak, direction, reach)
+    distance = abs((limits[1] if direction > 0 else limits[0]) - end)
+    stats: dict[str, Any] = {
+        "stop": stop,
+        "distance": round(distance, 1),
+        "pitch": round(pitch, 1),
+        "peak": round(peak, 1),
+        "extended": picked,
+    }
+    if distance < EDGE_MARGIN_PITCH * pitch:
+        return (EDGE_TRUNCATED, float(end), stats)
+    bands = _banded_void(highpass, along, end - offset, pitch, peak, direction, limits, offset)
+    if bands is None:
+        return (EDGE_TRUNCATED, float(end), stats)
+    stats["bands"] = bands
+    passed = sum(1 for band in bands if band["ok"])
+    stats["bands_passed"] = passed
+    if passed >= EDGE_VOID_BANDS_MIN_PASS and not any(band["capped"] for band in bands):
+        return (EDGE_SEEN, float(end), stats)
+    return (EDGE_BLOCKED, float(end), stats)
+
+
+def _extend_line(
+    profile: np.ndarray,
+    offset: int,
+    run: Sequence[int],
+    pitch: float,
+    peak: float,
+    direction: int,
+    reach: tuple[float, float],
+) -> tuple[list[int], int, str]:
+    """從脊列末端往 direction 一格一格外推，撿回種子帶漏掉的線。
+
+    候選只准落在 `reach` 內，而且要有中位峰高的 EDGE_EXTEND_RATIO——沒有線就停，
+    停在哪裡就是那一側的終端。
+    """
+    picked: list[int] = []
+    position = run[-1] if direction > 0 else run[0]
+    for _ in range(30):
+        expected = position + direction * pitch
+        low = max(offset, int(reach[0]), int(expected - GRID_GAP_RANGE))
+        high = min(offset + len(profile) - 1, int(reach[1]), int(expected + GRID_GAP_RANGE))
+        if low > high:
+            return (picked, position, "reach")
+        window = profile[low - offset : high - offset + 1]
+        candidate = low + int(np.argmax(window))
+        if profile[candidate - offset] < EDGE_EXTEND_RATIO * peak:
+            return (picked, position, "no line")
+        picked.append(candidate)
+        position = candidate
+    return (picked, position, "cap")
+
+
+def _banded_void(
+    highpass: np.ndarray,
+    along: int,
+    end: int,
+    pitch: float,
+    peak: float,
+    direction: int,
+    limits: tuple[float, float],
+    offset: int,
+) -> list[dict[str, Any]] | None:
+    """終端外側一格寬的檢驗帶，沿線方向切 EDGE_VOID_BANDS 帶各自檢驗。
+
+    `along=1` ＝線是縱的（帶沿 y 切）。帶落到取樣範圍外就回 None ＝沒得檢驗。
+    """
+    near, far = int(0.25 * pitch), int(1.25 * pitch)
+    low, high = (end + near, end + far) if direction > 0 else (end - far, end - near)
+    if low < limits[0] - offset or high > limits[1] - offset + 1:
         return None
-    patch = cv2.cvtColor(crop(frame, strip), cv2.COLOR_BGR2GRAY).astype(np.float32)
-    texture = np.abs(patch - cv2.GaussianBlur(patch, (0, 0), 6))
-    return (float(patch.mean()), float(texture.mean()))
+    span = highpass[:, low:high] if along == 1 else highpass[low:high, :]
+    if (span.shape[1] if along == 1 else span.shape[0]) < 4:
+        return None
+    total = span.shape[0] if along == 1 else span.shape[1]
+    step = total // EDGE_VOID_BANDS
+    bands: list[dict[str, Any]] = []
+    for index in range(EDGE_VOID_BANDS):
+        chunk = (
+            span[index * step : (index + 1) * step, :]
+            if along == 1
+            else span[:, index * step : (index + 1) * step]
+        )
+        line = chunk.mean(axis=0 if along == 1 else 1)
+        mean, top = float(line.mean()), float(line.max())
+        bands.append(
+            {
+                "mean": round(mean, 2),
+                "max": round(top, 2),
+                "ok": mean < EDGE_VOID_MEAN_RATIO * peak and top < EDGE_VOID_MAX_RATIO * peak,
+                "capped": mean >= EDGE_VOID_MEAN_CAP * peak,
+            }
+        )
+    return bands
 
 
 def find_lattice(frame: np.ndarray | None) -> Lattice | None:

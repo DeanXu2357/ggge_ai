@@ -33,6 +33,7 @@ from tests.fixtures.synthetic_map import (
     ROW_PITCH,
     World,
     animated,
+    dim_outside,
     freeze_correlator,
     void_outside,
 )
@@ -50,8 +51,13 @@ WESTERN = ((1, 2), (2, 5), (5, 4), (9, 7), (14, 2))
 SCREEN = (0, 0, 2340, 1080)
 
 
-def view(offset=(0.0, 0.0), units=(), region=WINDOW, holes=(), lattice=SCREEN, edges=()):
-    """預設「整幀都有格線、四側都沒看到終止邊」＝格線遮罩不裁任何格。"""
+def view(offset=(0.0, 0.0), units=(), region=WINDOW, holes=(), lattice=SCREEN, edges=(),
+         borders=None):
+    """預設「整幀都有格線、四側都沒看到終止邊」＝格線遮罩不裁任何格。
+
+    borders 不給就擺在 lattice 框的那一邊：手寫案例談的是「這一側的邊在框緣」，實幀
+    才會出現邊界落在框外的情形。
+    """
     return FrameView(
         offset=offset,
         units=tuple(units),
@@ -59,7 +65,16 @@ def view(offset=(0.0, 0.0), units=(), region=WINDOW, holes=(), lattice=SCREEN, e
         holes=tuple(holes),
         lattice=lattice,
         edges=frozenset(edges),
+        borders=tuple(borders) if borders is not None else _box_borders(lattice, edges),
     )
+
+
+def _box_borders(lattice, edges):
+    if lattice is None:
+        return ()
+    x, y, w, h = lattice
+    at = {"west": float(x), "east": float(x + w), "north": float(y), "south": float(y + h)}
+    return tuple((side, at[side]) for side in sorted(edges))
 
 
 def chart(**kwargs) -> KnowledgeMap:
@@ -628,6 +643,13 @@ def _misreport(monkeypatch, dx: float = 0.0, dy: float = 0.0) -> None:
     monkeypatch.setattr(board, "measure_shift", wrong)
 
 
+def _open_world() -> World:
+    """比 `_synthetic` 寬的世界，中央帶才真的推得遠：邊界掃描讀得到取樣帶以外，22 欄
+    的世界從中央再推兩把東緣就進畫面了，那幾幀於是有地標可讀、不再是「無地標」的情境。
+    """
+    return World(cols=34, rows=12, units=UNITS)
+
+
 def _to_the_middle(world: World) -> Survey:
     """歸零之後把鏡頭推到四側終止邊都讀不到的地方：那裡的定位沒有地標可靠。"""
     survey = zeroed(world)
@@ -641,7 +663,7 @@ def _to_the_middle(world: World) -> Survey:
 def test_a_pan_the_recorded_units_say_is_impossible_is_refused(monkeypatch):
     """重疊區量測說內容整整多滑了一列，而畫面上的機體按那個座標放下去會落在別的
     格——已獲取的佔位資訊裁得出來，這一幀不准寫圖。"""
-    world = _synthetic()
+    world = _open_world()
     survey = _to_the_middle(world)
     charted = dict(survey.chart.state)
 
@@ -657,7 +679,7 @@ def test_a_pan_the_recorded_units_say_is_impossible_is_refused(monkeypatch):
 def test_the_same_measurement_can_never_corroborate_itself(monkeypatch):
     """複驗不得與候選同源：0802 定讞——舊碼拿產生候選的那一次 `measure_shift` 回頭
     當佐證，注入 0／230／256／300px 的錯誤，閘門餘裕一律 1.0px，與錯誤大小無關。"""
-    world = _synthetic()
+    world = _open_world()
     survey = _to_the_middle(world)
 
     for error in (2.0 * ROW_PITCH, 300.0, 2.0 * COL_PITCH):
@@ -785,6 +807,21 @@ def test_the_lattice_mask_only_cuts_the_sides_that_were_seen_to_end():
     assert set(coverage.covered(GRID, view(lattice=box))) == set(coverage.readable(GRID, view()))
 
 
+def test_the_empty_carpet_is_cut_at_the_sighted_border_not_at_the_line_box():
+    """裁切線是邊界目擊的位置，不是線位框的邊。
+
+    邊界掃描讀得到格線取樣帶以外（實測東緣框到 1680、邊界在 1763），拿框當界會把
+    那之間明明有格子的地方一起漏掉——那幾格於是永遠留在 UNKNOWN 等一次補掃。
+    """
+    box = (0, 0, 200, 300)
+    beyond = view(lattice=box, edges=("east",), borders=(("east", 400.0),))
+
+    assert (3, 0) in coverage.covered(GRID, beyond)
+    assert (3, 0) not in coverage.covered(GRID, view(lattice=box, edges=("east",)))
+    assert coverage.screen_border(beyond, "east") == 400.0
+    assert coverage.screen_border(beyond, "west") is None
+
+
 def test_the_outermost_row_survives_a_few_pixels_of_coordinate_error():
     """最外那一排格子的外緣**就是**終止邊，座標差幾個像素就會把它整排切掉。半格
     以內的超出仍是界內那一格，真正在線外的由界線定案後的裁剪收拾。"""
@@ -831,18 +868,22 @@ def test_a_corner_that_contradicts_the_kept_landmarks_starts_the_world_over():
     assert survey.landmarks["west"] == pytest.approx(600.0, abs=2.0)
 
 
-def test_a_bright_strip_beyond_the_last_line_is_no_edge_at_all():
-    """只看「線到這裡為止」會把「這一帶剛好沒讀到線」當成地圖邊。外側要同時安靜、
-    暗、而且比內側安靜得多。"""
+def test_a_map_that_still_has_gridlines_outside_is_no_edge_at_all():
+    """「線到這裡為止」不等於「地圖到此為止」：判準是外側一格寬的檢驗帶還有沒有格線。
+
+    壓暗的那一張整片地圖都還在（格線只是變暗），舊碼的亮度閘會放它過去；掃描沿著
+    脊列一路延伸過去，四側因此一側都不表態。
+    """
     world = _synthetic()
     world.camera = (900.0, 400.0)
     assert board.read_span(world.frame()).edges == frozenset()
 
     dark = board.read_span(void_outside(world.frame(), VOID_WEST))
-    lit = board.read_span(void_outside(world.frame(), VOID_WEST, level=(60, 90)))
+    dimmed = board.read_span(dim_outside(world.frame(), VOID_WEST))
 
     assert "west" in dark.edges
-    assert lit is not None and lit.edges == frozenset()
+    assert dark.border("west") == pytest.approx(VOID_WEST[0], abs=2.0)
+    assert dimmed is not None and dimmed.edges == frozenset()
 
 
 def test_an_idle_animation_never_makes_a_still_picture_look_like_a_moving_one():

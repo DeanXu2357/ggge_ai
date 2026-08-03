@@ -86,6 +86,20 @@ def void_outside(
     return np.ascontiguousarray(out)
 
 
+def dim_outside(
+    frame: np.ndarray, box: tuple[int, int, int, int], factor: float = 0.35
+) -> np.ndarray:
+    """框外整片壓暗：地圖還在、格線也還在，只是亮度掉到虛空那一級。
+
+    「線到這裡為止」與「地圖到此為止」的分野在**外面還有沒有格線**，不在亮度——
+    這張圖就是拿來守著那條分野的。
+    """
+    out = frame.astype(np.float32) * factor
+    x, y, w, h = box
+    out[y : y + h, x : x + w] = frame[y : y + h, x : x + w]
+    return np.ascontiguousarray(out.astype(np.uint8))
+
+
 def _bgr(hsv: tuple[int, int, int]) -> tuple[int, int, int]:
     patch = np.array([[list(hsv)]], np.uint8)
     b, g, r = cv2.cvtColor(patch, cv2.COLOR_HSV2BGR)[0][0]
