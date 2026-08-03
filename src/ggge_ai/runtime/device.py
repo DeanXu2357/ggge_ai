@@ -113,6 +113,12 @@ DANGER_BANDS: tuple[DangerBand, ...] = (
     DangerBand("bottom_right_confirm", (1960, 2080), (895, 955), intent="confirm"),
     # AUTO 開關本身 (1815,52)：暗＝OFF 勿點，只有閘門流程確認過是 ON 才准碰。
     DangerBand("auto_switch", (1770, 1960), (15, 90), intent="auto_switch"),
+    # 戰鬥地圖左上「變更初期配置」（鈕身 bbox x 153-438 y 250-319，0803 八幀
+    # 像素量測一致）。誤點會**無聲**切進部隊配置編輯頁，畫面分類沒有這個名字，
+    # 後續腳本仍以為自己在地圖上，接下來每一次點擊都打在別的東西上（0803 實機
+    # 連鎖污染兩項量測）。鈕畫在地圖上層，帶內的格子本來就點不到——點下去命中
+    # 的是鈕不是格，所以設帶不會多擋掉任何合法的格點擊。
+    DangerBand("deploy_change", (145, 447), (242, 328), intent="deploy_change"),
 )
 
 

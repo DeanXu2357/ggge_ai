@@ -128,6 +128,9 @@ def test_off_screen_coordinates_are_refused_before_they_reach_adb():
         ((2042, 924), "bottom_right_confirm"),
         ((1496, 1010), "auto_deploy"),
         ((1815, 52), "auto_switch"),
+        ((295, 285), "deploy_change"),
+        ((153, 250), "deploy_change"),
+        ((438, 319), "deploy_change"),
     ],
 )
 def test_the_danger_bands_refuse_an_unintended_tap(point, band):
@@ -138,9 +141,18 @@ def test_the_danger_bands_refuse_an_unintended_tap(point, band):
 def test_only_the_declared_intent_gets_through_a_danger_band():
     check_tap(410, 860, intent="abandon")
     check_tap(1815, 52, intent="auto_switch")
+    check_tap(295, 285, intent="deploy_change")
 
     with pytest.raises(TapRefused):
         check_tap(410, 860, intent="auto_switch")
+
+
+def test_the_deploy_change_band_clears_the_cells_just_outside_the_button():
+    """帶只包住鈕身：鈕外的格子還是要點得到，不然掃描在地圖左上角會整片啞掉。"""
+    check_tap(140, 285)
+    check_tap(452, 285)
+    check_tap(295, 237)
+    check_tap(295, 333)
     with pytest.raises(TapRefused):
         # 自動戰鬥三選一沒有任何放行 intent——那是紅線，不是需要小心的操作。
         check_tap(1487, 295, intent="auto_battle_tristate")
