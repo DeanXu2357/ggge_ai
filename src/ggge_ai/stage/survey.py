@@ -5,14 +5,15 @@
 roster_collapsed 是掃描的前置條件，所以規劃器自然把 show_grid／collapse_roster
 排在 survey_board 之前；掃描程序內部不翻開關、不收卡條，也沒有降級掃。
 
-掃描是**一個**行動，留在計畫佇列頭跨 tick 重入。執行器每次進來先感知複核（等畫面
-靜止再收一張新圖交給世界模型定位），再挑下一個微步驟：縮放 → 往角落／邊／缺口推
-一把 → 收幀定位。所以反射可以在任何一個 tick 插進來收彈窗，之後接著掃；一個 tick
-只做一個微步驟，迴圈「一 tick 至多一次操作」的紀律不變。兩處取幀都走
+掃描是**一個**行動，留在計畫佇列頭跨 tick 重入。執行器每次進來先感知複核（等完固定
+節奏再收一張新圖交給世界模型定位），再挑下一個微步驟：縮放 → 放標記格 → 往角落
+／邊／缺口推一把 → 收幀定位。所以反射可以在任何一個 tick 插進來收彈窗，之後接著
+掃；一個 tick 只做一個微步驟，迴圈「一 tick 至多一次操作」的紀律不變。兩處取幀都走
 `_settled_capture`——慣性滑行拖過推移的緩動時，收下的幀定位會歪（見常數區）。
 
 **微步驟名**＝掃描階段加方向（`zero:west`／`tour:east`／`fill:north`），對應世界
-模型的三個階段：推去西北角歸零、沿邊繞一圈、補中央的缺口。
+模型的三個階段：推去西北角歸零、沿邊繞一圈、補中央的缺口；外加 `mark`／`mark:miss`
+——那一 tick 花在點一個空格放標記格，不推移。
 
 **覆蓋進度的落點**：世界模型住 `runtime/coverage.Survey`（四態知識圖＋界線＋地標
 ＋待掃格，覆蓋模型 v3），CoverageLedger 只是簿記側的門面，SurveyPerceiver 把它折進
@@ -55,18 +56,20 @@ STANCE_STEPS: tuple[str, ...] = (ZERO_STEP, TOUR_STEP, FILL_STEP)
 DONE_STEP = "done"
 FUSE_STEP = "fuse"
 STUCK_STEP = "stuck"
+# 放標記格的微步驟：點一個空格讓它填色，那一格就是我們自己放的絕對地標。
+# 這一 tick 只點擊、不推移——一 tick 至多一次操作。
+MARK_STEP = "mark"
+MARK_MISS_STEP = "mark:miss"
+MARK_INTENT = "mark"
 ROSTER_SETTLE_S = 1.2
 ROSTER_ALREADY = "already"
 ROSTER_TAPPED = "tapped"
 ROSTER_UNREADABLE = "unreadable"
 
-# 取幀靜止閘。0801 複驗實證：重手勢的慣性滑行會拖過 PAN_SETTLE_S，殘餘滑行落在
-# 格線相位容差（22.5px）到 EDGE_SHIFT_PX（40px）這個窗口時，收下的幀會被格線相位
-# 那一關拒收，40 tick 裡斷了 14 次。
-# 靜止判準用相位相關的位移量而**不是** frame_difference：單位待機動畫逐幀都在動，
-# 幀差永遠安靜不下來；滑行是全域同調位移，相位相關量得到、待機動畫量不到。
+# 取幀前的固定等待節奏：重手勢的慣性滑行會拖過 PAN_SETTLE_S，多等這幾輪再收最後
+# 一幀。**沒有靜止判準**——整區灰階比對讀到的是不隨鏡頭動的星空層（0803 第 10 輪
+# 定讞），拿它問「畫面停了沒」是背景在答話，所以這裡只等，不表態。
 SETTLE_POLL_S = 0.25
-SETTLE_QUIET_PX = 3.0
 SETTLE_ROUNDS = 4
 PRECHECK_PROBE = "precheck"
 LEG_PROBE = "leg"
@@ -155,11 +158,14 @@ class SurveyPerceiver:
 
 @dataclass(frozen=True)
 class SettledFrame:
-    """等靜止之後收下的那一幀，連同等了幾輪、最後有沒有真的靜下來。"""
+    """等完固定節奏之後收下的那一幀，連同等了幾輪。
+
+    沒有「靜下來了沒」這一欄：目前沒有判得動它的畫面證據，寫一個永遠為真的欄位
+    等於偽造證言。
+    """
 
     frame: np.ndarray
     waits: int
-    quiet: bool
 
 
 @dataclass
@@ -221,6 +227,9 @@ class BoardDriver:
         self.ticks += 1
         settled = self._settled_capture()
         self._read(PRECHECK_PROBE, None, settled)
+        spot = survey.marker_request()
+        if spot is not None:
+            return self._step(self._mark(spot, settled))
         leg = survey.plan_leg()
         if leg is None:
             if survey.complete:
@@ -243,24 +252,28 @@ class BoardDriver:
         self.steps.append(name)
         return name
 
-    def _settled_capture(self) -> SettledFrame:
-        """等畫面靜止再收幀——掃描的兩處取幀都走這裡。
+    def _mark(self, spot: board.Point, before: SettledFrame) -> str:
+        """點一個空格放標記，再收一張確認幀問世界模型學到色簽沒有。
 
-        重試用盡就收最後一幀照常 observe：這個閘只降污染率，不保證零污染，而停在
-        原地不收幀會把整個 tick 空轉掉。量不出位移（known=False，地圖以外那片無特徵的
-        深色背景，下稱星空）視為靜止：量不出來不是「還在動」的證據，下一步 observe
-        自己會處置那一幀。
+        確認幀不進 observe：那一張的作用是「剛剛那一下有沒有填出顏色」，不是位置證據
+        ——點擊不會動鏡頭，把它當成一次定位只是憑空多一筆同座標的紀錄。
+        """
+        self._tap(int(spot[0]), int(spot[1]), intent=MARK_INTENT)
+        after = self._settled_capture()
+        learned = self.ledger.survey.learn_marker(before.frame, after.frame, spot)
+        return MARK_STEP if learned else MARK_MISS_STEP
+
+    def _settled_capture(self) -> SettledFrame:
+        """等完固定節奏再收幀——掃描的兩處取幀都走這裡。
+
+        收下的是最後一幀：多等只降污染率，不保證零污染，而停在原地不收幀會把整個
+        tick 空轉掉。那一幀對不對得回世界由下一步 observe 自己裁。
         """
         frame = self.capture()
-        for waits in range(1, SETTLE_ROUNDS + 1):
+        for _ in range(SETTLE_ROUNDS):
             self.sleep(SETTLE_POLL_S)
-            later = self.capture()
-            shift = board.measure_shift(frame, later)
-            frame = later
-            if not shift.known or shift.magnitude < SETTLE_QUIET_PX:
-                return SettledFrame(frame, waits, True)
-        log.warning("frame never went quiet in %d rounds; observing it anyway", SETTLE_ROUNDS)
-        return SettledFrame(frame, SETTLE_ROUNDS, False)
+            frame = self.capture()
+        return SettledFrame(frame, SETTLE_ROUNDS)
 
     def _read(
         self, probe: str, leg: coverage.Leg | None, settled: SettledFrame
@@ -342,7 +355,8 @@ class BoardDriver:
                 "edges": sorted(view.edges),
             },
             "locate": reading.detail,
-            "settle": {"waits": settled.waits, "quiet": settled.quiet},
+            "settle": {"waits": settled.waits},
+            "marker": survey.marker(),
         }
 
     def _zoom(self) -> None:

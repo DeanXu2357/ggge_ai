@@ -27,26 +27,29 @@ from ggge_ai.runtime.coverage import (
 )
 from ggge_ai.runtime.perceive import Observation
 from ggge_ai.stage.actions import SurveyBoard
-from ggge_ai.stage.survey import survey_drivers
+from ggge_ai.stage.survey import MARK_INTENT, survey_drivers
 from tests.fixtures.synthetic_map import (
     COL_PITCH,
+    CORNER,
     ROW_PITCH,
     World,
     animated,
     dim_outside,
-    freeze_correlator,
+    mark_world,
+    pan_leg,
     void_outside,
 )
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 # 一格 100px 的小視窗：手算得出來哪幾格「整格看得清楚」。
 WINDOW = (0, 0, 400, 300)
-UNITS = ((3, 5), (5, 4), (9, 6), (14, 3), (18, 9))
+UNITS = CORNER + ((3, 5), (5, 4), (9, 6), (14, 3), (18, 9))
 # 大世界的擺位：欄距固定但**列位刻意不成等差**。等差擺位會讓好幾對單位共用同一個
 # 平移量，配對投票湊出並列眾數就直接棄權。
-SPREAD = ((2, 5), (5, 7), (8, 12), (11, 4), (14, 9), (17, 13), (20, 3), (23, 8), (26, 11))
+SPREAD = CORNER + ((2, 5), (5, 7), (8, 12), (11, 4), (14, 9), (17, 13), (20, 3), (23, 8),
+                   (26, 11))
 # 三台擠在西北角那一屏裡：地標與已記目擊要對得起來，得先有三台對得上的機體。
-WESTERN = ((1, 2), (2, 5), (5, 4), (9, 7), (14, 2))
+WESTERN = CORNER + ((1, 2), (2, 5), (5, 4), (9, 7), (14, 2))
 
 SCREEN = (0, 0, 2340, 1080)
 
@@ -360,6 +363,7 @@ class Rig:
     world: World
     gain: float = 2.0
     swipes: int = 0
+    taps: int = 0
     shots: int = 0
     eaten: tuple[int, ...] = ()
     doubled: tuple[int, ...] = ()
@@ -380,10 +384,14 @@ class Rig:
         if self.bare is None:
             self.bare = World(cols=self.world.cols, rows=self.world.rows, units=())
         self.bare.camera = self.world.camera
+        self.bare.marker = self.world.marker
         return self.bare.frame()
 
     def tap(self, x: int, y: int, intent: str = "") -> None:
-        raise AssertionError("掃描不點任何東西")
+        """掃描只點一種東西：空格（放標記格）。點到別的地方就是這一批的錯。"""
+        assert intent == MARK_INTENT
+        self.taps += 1
+        self.world.tap(x, y)
 
     def swipe(self, x1: int, y1: int, x2: int, y2: int, duration_s: float) -> None:
         self.swipes += 1
@@ -397,7 +405,7 @@ class Rig:
         self.world.move((x1 - x2) * self.gain * scale, (y1 - y2) * self.gain * scale)
 
 
-def sweep(rig: Rig, ticks: int = 45, telemetry=None):
+def sweep(rig: Rig, ticks: int = 60, telemetry=None):
     driver, ledger = survey_drivers(rig.capture, rig, sleep=lambda _: None, telemetry=telemetry)
     ledger.zoomed = True
     for _ in range(ticks):
@@ -414,13 +422,18 @@ def unit_cells(ledger, world: World) -> tuple[list, list]:
 
 
 def zeroed(world: World) -> Survey:
-    """把一個世界推到西北角錨定好，回傳已經進入繞邊階段的世界模型。"""
+    """把一個世界推到西北角錨定好，回傳已經進入繞邊階段的世界模型。
+
+    放標記格是這條路的一部分：角落幀的逐精靈窗是瞎的（一把推移把精靈映回前一幀就
+    落到幀外），標記是那裡唯一說得出「推不動了」的證言。
+    """
     survey = Survey()
     world.corner("west", "north")
     frame = world.frame()
     survey.observe(frame)
+    assert mark_world(survey, world)
     for direction in coverage.ZERO_CORNER:
-        leg = Leg(direction, 260.0, (0.0, 0.0))
+        leg = pan_leg(direction)
         for _ in range(coverage.STALL_CONFIRM):
             survey.observe(world.frame(), leg)
     assert survey.stance == coverage.TOUR
@@ -626,106 +639,6 @@ def test_an_enemy_phase_sends_the_scan_back_to_the_corner_instead_of_re_anchorin
 # ---- 複驗：候選座標要和已獲取的佔位資訊對得起來 ----
 
 
-def _misreport(monkeypatch, dx: float = 0.0, dy: float = 0.0) -> None:
-    """重疊區位移量測整整多報一段——0801 相關器凍在靜態峰的合成版，但錯得更精確。"""
-    real = board.measure_shift
-
-    def wrong(
-        previous,
-        current,
-        region=board.MAP_REGION,
-        trace=None,
-        min_response=board.SHIFT_MIN_RESPONSE,
-    ):
-        shift = real(previous, current, region, trace, min_response)
-        return board.Shift(shift.dx + dx, shift.dy + dy, shift.confidence, shift.source)
-
-    monkeypatch.setattr(board, "measure_shift", wrong)
-
-
-def _open_world() -> World:
-    """比 `_synthetic` 寬的世界，中央帶才真的推得遠：邊界掃描讀得到取樣帶以外，22 欄
-    的世界從中央再推兩把東緣就進畫面了，那幾幀於是有地標可讀、不再是「無地標」的情境。
-    """
-    return World(cols=34, rows=12, units=UNITS)
-
-
-def _to_the_middle(world: World) -> Survey:
-    """歸零之後把鏡頭推到四側終止邊都讀不到的地方：那裡的定位沒有地標可靠。"""
-    survey = zeroed(world)
-    for _ in range(3):
-        world.move(300.0, 200.0)
-        assert survey.observe(world.frame()).verdict == ACCEPTED
-    assert survey.sighted == frozenset()
-    return survey
-
-
-def test_a_pan_the_recorded_units_say_is_impossible_is_refused(monkeypatch):
-    """重疊區量測說內容整整多滑了一列，而畫面上的機體按那個座標放下去會落在別的
-    格——已獲取的佔位資訊裁得出來，這一幀不准寫圖。"""
-    world = _open_world()
-    survey = _to_the_middle(world)
-    charted = dict(survey.chart.state)
-
-    world.move(200.0, 0.0)
-    _misreport(monkeypatch, dy=ROW_PITCH)
-    reading = survey.observe(world.frame(), Leg("east", 100.0, (-200.0, 0.0)))
-
-    assert reading.verdict == BROKEN
-    assert reading.reason == coverage.OCCUPANCY_REFUSED
-    assert survey.chart.state == charted
-
-
-def test_the_same_measurement_can_never_corroborate_itself(monkeypatch):
-    """複驗不得與候選同源：0802 定讞——舊碼拿產生候選的那一次 `measure_shift` 回頭
-    當佐證，注入 0／230／256／300px 的錯誤，閘門餘裕一律 1.0px，與錯誤大小無關。"""
-    world = _open_world()
-    survey = _to_the_middle(world)
-
-    for error in (2.0 * ROW_PITCH, 300.0, 2.0 * COL_PITCH):
-        world.move(200.0, 0.0)
-        with monkeypatch.context() as patch:
-            _misreport(patch, dx=error if error == 2.0 * COL_PITCH else 0.0,
-                       dy=0.0 if error == 2.0 * COL_PITCH else error)
-            reading = survey.observe(world.frame(), Leg("east", 100.0, (-200.0, 0.0)))
-        assert reading.verdict == BROKEN, error
-        survey.observe(world.frame())
-
-
-def test_a_correlator_frozen_on_the_static_peak_never_writes_a_place_it_guessed(monkeypatch):
-    """0801 t27/t28/t30 的合成版：內容實際移動上百 px，水平相位相關整個鎖在靜態峰，
-    而信賴度照樣過門檻。v3 沒有里程計了，但「凍住的量測不准變成座標」這條紅線沒變
-    ——收下的幀座標要對，對不出來就整張丟掉，一格都不寫錯。"""
-    world = World(cols=40, rows=24, units=SPREAD)
-    survey = zeroed(world)
-    freeze_correlator(monkeypatch)
-
-    truth = 0.0
-    for _ in range(4):
-        truth += world.move(300.0, 0.0)[0]
-        reading = survey.observe(world.frame(), Leg("east", 152.0, (-300.0, 0.0)))
-        if reading.verdict != BROKEN:
-            assert reading.offset[0] == pytest.approx(truth, abs=COL_PITCH / 2.0)
-
-    grid = survey.chart.grid
-    real = {grid.cell_of(world.centre(cell)) for cell in world.units}
-    assert {cell for cell, _ in survey.chart.units()} <= real
-
-
-def test_a_whole_scan_under_a_frozen_correlator_grows_no_ghosts(monkeypatch):
-    """整輪掃描版。凍住的相關器底下掃**不完**是誠實的失敗（流水帳看得到 unlocalised
-    與重新歸零的次數）；不誠實的是掃完了卻多出真實盤面沒有的單位格。"""
-    world = World(cols=30, rows=16, units=SPREAD)
-    freeze_correlator(monkeypatch)
-
-    _, ledger = sweep(Rig(world), ticks=90)
-
-    want, got = unit_cells(ledger, world)
-    assert set(got) <= set(want)
-    assert ledger.summary()["unlocalised"] > 0
-    assert not ledger.synced
-
-
 def test_a_landmark_one_cell_out_is_caught_by_the_units_it_should_line_up_with():
     """地標算出來的軸不會跟自己矛盾，唯一驗得到它的是已獲取的佔位資訊：整整差一格的
     地標會讓畫面上的機體整批落在隔壁那一欄，而隔壁那個候選配得比較好。"""
@@ -767,8 +680,186 @@ def test_a_frame_that_only_reuses_the_last_offset_never_writes_a_landmark():
     survey._learn_edges(view, coverage.SOURCE_STILL)
     assert survey.landmarks == {}
 
-    survey._learn_edges(view, coverage.SOURCE_DRIFT)
+    survey._learn_edges(view, coverage.SOURCE_MATCH)
     assert set(survey.landmarks) == {"west", "north"}
+
+
+# ---- 標記格：我們自己點出來的絕對地標 ----
+
+
+def test_only_the_marker_can_confirm_the_push_stalled_in_the_corner():
+    """角落幀的逐精靈窗是瞎的——一把推移 598px，把精靈映回前一幀就落到幀外，湊不到
+    兩個窗一律回 blind。沒有標記就永遠確認不了推到底，歸零卡在原地。"""
+    bare = World(cols=22, rows=12, units=())
+    bare.corner("west", "north")
+    blind = Survey()
+    blind.observe(bare.frame())
+    for direction in coverage.ZERO_CORNER:
+        for _ in range(coverage.STALL_CONFIRM):
+            blind.observe(bare.frame(), pan_leg(direction))
+
+    assert blind.stance == coverage.ZERO
+    assert not blind.anchored
+
+    # 同一個世界、同一組手勢，差別只在先點一格放標記
+    assert zeroed(World(cols=22, rows=12, units=())).anchored
+
+
+def test_a_marker_that_moved_says_the_screen_moved():
+    """停滯證言是雙向的：標記留在原地＝畫面沒動，標記跟著跑＝畫面動了。"""
+    world = _synthetic()
+    survey = zeroed(world)
+    leg = pan_leg("east")
+
+    assert survey.observe(world.frame(), leg).verdict == STALLED
+
+    world.move(300.0, 0.0)
+
+    assert survey.observe(world.frame(), leg).verdict == ACCEPTED
+
+
+# 這個鏡頭位置四側都讀不到終止邊（西 600／北 310／東 4440／南 2150 全在畫面外）。
+SPARSE_CAMERA = (1200.0, 600.0)
+
+
+def _walk(survey: Survey, world: World, target: tuple[float, float]) -> None:
+    """一步一步把鏡頭挪到 target，路上照顧標記——實機的執行器就是這樣走的：一 tick
+    要嘛放標記要嘛推一把，而放置的位置保證撐得過一把推移。"""
+    for _ in range(40):
+        mark_world(survey, world)
+        if world.camera == target:
+            return
+        world.move(
+            min(max(target[0] - world.camera[0], -coverage.LEG_LIMIT["x"]), coverage.LEG_LIMIT["x"]),
+            min(max(target[1] - world.camera[1], -coverage.LEG_LIMIT["y"]), coverage.LEG_LIMIT["y"]),
+        )
+        assert survey.observe(world.frame()).verdict != BROKEN
+    raise AssertionError("鏡頭走不到指定位置")
+
+
+def test_a_sparse_frame_places_itself_on_the_marker_alone():
+    """中央帶沒有單位、四側都讀不到終止邊：排列比對沒有材料、逐窗複驗沒得看。標記
+    是那一幀唯一有話說的證人，所以它走完複驗的最後一關直接放行。"""
+    world = World(cols=30, rows=16, units=())
+    survey = zeroed(world)
+    _walk(survey, world, SPARSE_CAMERA)
+
+    reading = survey.observe(world.frame())
+
+    assert survey.last_view.edges == frozenset()
+    assert survey.last_view.units == ()
+    assert reading.reason == coverage.SOURCE_MARKER
+    assert reading.detail["tried"][-1]["gate"] == coverage.BY_MARKER
+    assert reading.offset == pytest.approx(SPARSE_CAMERA, abs=3.0)
+
+
+def test_a_marker_one_cell_out_is_still_caught_by_the_units_it_should_line_up_with():
+    """標記與目擊不同源，所以佔位一致性對標記候選有否決權：整整差一格的標記會讓畫面
+    上的機體整批落在隔壁那一欄。"""
+    world = World(cols=22, rows=12, units=WESTERN)
+    survey = zeroed(world)
+    survey.landmarks.clear()
+    survey.marker_cell = (survey.marker_cell[0] + 1, survey.marker_cell[1])
+
+    reading = survey.observe(world.frame())
+
+    notes = {note["source"]: note for note in reading.detail["tried"]}
+    assert notes[coverage.SOURCE_MARKER]["gate"] == coverage.OCCUPANCY_REFUSED
+
+
+def test_a_marker_that_jumped_against_the_gesture_is_treated_as_lost():
+    """推移手勢被遊戲吃成點擊時標記會搬到手勢起手點：那是一次貨真價實的偵測，卻是
+    徹底的錯地標。稀疏幀上沒有佔位一致性擋得住它，所以這裡問方向。"""
+    world = World(cols=30, rows=16, units=())
+    survey = zeroed(world)
+    _walk(survey, world, SPARSE_CAMERA)
+    east = coverage.Leg("east", 174.0, (-400.0, 0.0))
+
+    # 鏡頭沒動，標記卻往東搬了一格＝手勢被吃成點擊
+    world.tap(survey.marker_screen[0] + COL_PITCH, survey.marker_screen[1])
+    reading = survey.observe(world.frame(), east)
+
+    assert survey.marker_screen is None
+    assert reading.verdict == BROKEN
+    assert reading.reason == coverage.UNMATCHED
+
+
+def test_the_marker_spot_dodges_the_danger_bands_and_the_units():
+    """點錯地方的代價是整批停下來（AUTO 三選一把單位交給內建 AI），而點到有單位的格
+    只會變成選取單位、放不出填色。兩種都在挑格那一步就濾掉。"""
+    survey = Survey(region=(0, 0, 2340, 1080), holes=())
+    lattice = board.Lattice(cols=(1400, 1500, 1600), rows=(250, 340, 430, 520, 610))
+    seen = view(units=[board.Sighting((1500.0, 385.0))], region=(0, 0, 2340, 1080))
+
+    # 上面兩列的格心落在 AUTO 三選一那一帶（y245-345），中間兩列的格連同周邊半格
+    # 都碰得到那台機體，所以只剩最下面那一列。
+    assert survey._marker_spot(lattice, seen) == (1450.0, 565.0)
+    assert survey._marker_spot(board.Lattice(cols=(1400, 1500), rows=(250, 340)), seen) is None
+
+
+def test_the_marker_is_asked_for_again_once_it_drifts_towards_the_edge():
+    """離掃描帶邊不到「一把推移＋一格」的標記下一把就出畫面。補放不算失敗——實機上
+    填色很容易被移動地圖弄掉，那是常態路徑。"""
+    world = _synthetic()
+    survey = zeroed(world)
+    settled = survey.marker_screen
+
+    assert survey.marker_request() is not None
+    assert mark_world(survey, world)
+    assert survey.marker_screen != settled
+    assert survey.marker_request() is None
+    assert survey.marker_misses == 0
+
+
+def test_the_enemy_phase_takes_the_marker_but_keeps_its_colour():
+    """填色敵方回合過完就沒了，所以位置與世界格作廢；色簽留著——同一個縮放檔位下
+    顏色不變，下一代重放一次就接得回去。"""
+    world = _synthetic()
+    survey = zeroed(world)
+    assert survey.marker_cell is not None
+
+    survey.expire()
+
+    assert survey.marker_cell is None
+    assert survey.marker_screen is None
+    assert survey.marker_signature is not None
+
+
+def test_a_zoom_step_throws_the_marker_colour_away_too():
+    """色簽記著一格填色的參考尺寸，換一個縮放檔位那個尺寸就是錯的。"""
+    world = _synthetic()
+    survey = zeroed(world)
+
+    survey.reset()
+
+    assert survey.marker_signature is None
+    assert survey.marker_cell is None
+
+
+def test_re_zeroing_keeps_the_marker_because_it_is_still_on_the_screen():
+    """鏡頭迷路的時候標記還在畫面上——它的候選會讓下一幀直接重新定位，這正是它比
+    終止邊強的地方。"""
+    world = _synthetic()
+    survey = zeroed(world)
+    signature = survey.marker_signature
+
+    survey._rezero("test")
+
+    assert survey.marker_signature is signature
+    assert survey.marker_cell is not None
+
+
+def test_the_summary_counts_how_the_marker_fared():
+    """放了幾次、活了幾把、丟了幾次——實機微調容差與放置位置只有這組數字可看。"""
+    world = _synthetic()
+    _, ledger = sweep(Rig(world))
+
+    marker = ledger.summary()["marker"]
+
+    assert set(marker) == {"cell", "screen", "seen", "placed", "survived", "lost"}
+    assert marker["placed"] >= 1
+    assert marker["survived"] >= 1
+    assert marker["survived"] + marker["lost"] > 0
 
 
 # ---- 感知與遮罩（v2 資產，v3 原樣保留） ----
@@ -860,7 +951,7 @@ def test_a_corner_that_contradicts_the_kept_landmarks_starts_the_world_over():
     survey.observe(world.frame())
     for direction in coverage.ZERO_CORNER:
         for _ in range(coverage.STALL_CONFIRM):
-            survey.observe(world.frame(), Leg(direction, 260.0, (0.0, 0.0)))
+            survey.observe(world.frame(), pan_leg(direction))
 
     assert survey.stance == coverage.TOUR
     assert survey.offset == (0.0, 0.0)
@@ -887,14 +978,12 @@ def test_a_map_that_still_has_gridlines_outside_is_no_edge_at_all():
 
 
 def test_an_idle_animation_never_makes_a_still_picture_look_like_a_moving_one():
-    """待機動畫讓幀差恆高於門檻（實機 5.8-12.5 對 2.5），原地幀因此走不進「逐像素
-    幾乎相同」那一支——證言要靠相位相關與影像複驗。"""
+    """待機動畫讓整幀逐像素都變了，「兩幀像不像」那種問法一律讀成動過。逐精靈窗
+    問的是別的問題——「動了指令那麼多沒有」——所以它答得出原地。"""
     world = _synthetic()
     survey = zeroed(world)
     frame = world.frame()
     survey.observe(frame)
-
-    assert board.frame_difference(frame, animated(frame)) > board.EDGE_FRAME_DIFF
 
     reading = survey.observe(animated(frame), Leg("south", 70.0, (0.0, -155.0)))
 
@@ -922,13 +1011,19 @@ def test_the_tour_walks_east_then_south_then_west_before_it_fills_the_middle():
 
     order: list[str] = []
     for _ in range(60):
+        # 標記格的保養跟推移是同一條迴圈上的兩件事（執行器那邊是兩個微步驟）：
+        # 沒有標記的幀在中央帶沒有候選，定位一斷就退回角落重來，繞邊的順序也就無從談起。
+        mark_world(survey, world)
         leg = survey.plan_leg()
         if leg is None or survey.stance == coverage.FILL:
             break
         if not order or order[-1] != leg.direction:
             order.append(leg.direction)
+        # 鏡頭走的就是這一把指令的量：推得比指令遠（縱向的上限只有橫向的四成）會把
+        # 標記推出偵測帶，那是「手勢失控」的案例要問的事，不是繞邊順序要問的事。
         moved = board.DIRECTIONS[leg.direction]
-        world.move(moved[0] * 300.0, moved[1] * 300.0)
+        travel = leg.reach * coverage.NOMINAL_GAIN
+        world.move(moved[0] * travel, moved[1] * travel)
         survey.observe(world.frame(), leg)
 
     assert order == ["east", "south", "west"]
@@ -942,6 +1037,7 @@ def test_a_gesture_never_commands_more_than_a_quarter_of_the_measuring_window():
 
     checked = 0
     for _ in range(10):
+        mark_world(survey, world)
         leg = survey.plan_leg()
         if leg is None:
             break

@@ -11,9 +11,14 @@
 - **地標**：定位成功的幀看到哪一側的地圖終止邊，就把那一側的世界像素記下來。往後
   任何一幀只要看得到同一側，那一軸的座標直接讀出來——單側可見鎖一軸、角落可見
   鎖兩軸。
+- **標記格**：點地圖上沒有單位的空格會把那一格填滿顏色，移動地圖時填色留在原格。
+  那是我們主動放置的絕對地標——放置時知道它站哪一格，推移後在新幀找到填色就一次
+  解出兩軸。它同時是角落幀唯一有話說的停滯證言（逐精靈窗在那裡是瞎的）。填色很
+  容易被移動地圖弄掉，所以**遺失是常態不是異常**：不在就退回既有的路，下一 tick 補放。
 - **對回已知地圖**：兩軸都讀不到地標時（中央帶），拿畫面裡的單位排列對回已記目擊
-  （`board.relocalise`），格線相位吸掉小數位置，影像複驗消掉整數格歧義。幀對幀的
-  位移量測退居最後一手（`_drift`），只在單位排列對不上時補位。
+  （`board.relocalise`），影像複驗消掉整數格歧義。**背景圖案不當位置證據**（0803
+  第 10 輪定讞）：不隨鏡頭動的星空層在整區量測裡面積佔優，它給的是「畫面沒動」
+  的高信心錯答，會把唯一正確的候選否掉。
 - **每一個候選各自複驗**：候選座標套上去之後，這一幀的機體要落回知識圖已記的目擊
   （佔位一致性）。複驗**絕不與產生候選的那一次量測同源**——拿量測回頭替自己背書是
   恆等式不是複驗。一個候選過不了就換下一個，全部過不了才丟整幀。
@@ -42,7 +47,8 @@ from enum import Enum
 import numpy as np
 
 from . import board
-from .board import Cell, Lattice, Point, Region, Shift, Sighting
+from .board import Cell, Lattice, MarkerSignature, Point, Region, Shift, Sighting
+from .device import TapRefused, check_tap
 
 log = logging.getLogger(__name__)
 
@@ -76,23 +82,22 @@ TOUR_ROUTE: tuple[str, ...] = ("east", "south", "west")
 
 # 這一幀的座標是怎麼來的（進遙測的 shift.source）。
 SOURCE_EDGE = "edge"
+SOURCE_MARKER = "marker"
 SOURCE_MATCH = "match"
-SOURCE_DRIFT = "drift"
 SOURCE_STILL = "still"
 SOURCE_ANCHOR = "anchor"
 
 # 丟棄的理由。
 EDGE_MISMATCH = "edge_mismatch"
 UNMATCHED = "unmatched"
-PHASE_REFUSED = "phase"
 PICTURE_REFUSED = "picture"
 OCCUPANCY_REFUSED = "occupancy"
 # 複驗是誰放行的（進遙測，流水帳才看得出這一幀憑什麼被收下）。
 BY_OCCUPANCY = "occupancy"
-BY_OVERLAP = "overlap"
 BY_EDGES = "edges"
 BY_PICTURE = "picture"
 BY_LANDMARK = "landmark"
+BY_MARKER = "marker"
 # 目視終止邊與已記地標容許的落差（格距的比例）。半格＝格座標還指得到同一格。
 EDGE_TOLERANCE = 0.5
 # 佔位一致性要幾台機體才裁得動「這個候選差了一整格」。一台配得上可能只是巧合
@@ -102,12 +107,9 @@ OCCUPANCY_QUORUM = 2
 # 而候選本身帶著幾個像素的量測誤差——逐像素硬比會連正確的假設一起判否。
 PICTURE_SLACK = 3
 
-# 一次推移手勢的內容位移上限（世界像素）。上限由兩件事夾出來：前後幀要留得下
-# 八成以上的重疊（中央帶才對得回已知地圖），而補位用的幀對幀量測不能超出它的
-# 無歧義範圍（0719 教訓：1050px 窗量 600px 位移量出 −505 反號）。
+# 一次推移手勢的內容位移上限（世界像素）。前後幀要留得下八成以上的重疊，中央帶
+# 才對得回已知地圖。
 LEG_LIMIT: dict[str, float] = {"x": board.MAP_REGION[2] / 4.0, "y": board.MAP_REGION[3] / 4.0}
-# 補位量測（`_drift`）敢採信的位移上限＝該軸量測窗的一半。超過就是量測窗繞回誤判，不採信。
-DRIFT_LIMIT: dict[str, float] = {"x": board.MAP_REGION[2] / 2.0, "y": board.MAP_REGION[3] / 2.0}
 # 手指行程換算內容位移的固定比例（0730 實測 250px 手勢推出約 570-600px）。v3 不再
 # 逐次修正它——推移只需要「往那個方向推一把」，距離準不準不影響座標。
 NOMINAL_GAIN = 2.3
@@ -123,6 +125,12 @@ STALE_WEIGHT = 0.5
 # 推移次數的保險絲：只防**單一回合**內的失控，不是整場戰鬥的額度，也不是完成判準。
 # 跨回合累積的話十幾回合就燒斷，之後 fused 恆真、掃描永遠完不成＝整關卡死。
 LEG_BUDGET = 200
+# 標記格前後兩幀的位置差在這個比例的格距以內就算沒動。半格會把「滑了半格」讀成
+# 停滯，四分之一格仍遠大於偵測中心的抖動。
+MARKER_STILL_TOLERANCE = 0.25
+# 點下去學不到填色的連續次數上限。**只數點擊本身失敗**（點到單位、點擊被吃掉）；
+# 「放好了之後被推移弄丟」是常態不是失敗，永遠不計入。用完就這一代不再嘗試。
+MARKER_TRIES = 3
 
 _STILL = Shift(0.0, 0.0, 1.0, "still")
 _SIDES: dict[str, tuple[str, str]] = {"x": ("west", "east"), "y": ("north", "south")}
@@ -463,6 +471,19 @@ class Survey:
     # observe 的呼叫序號（從 1 起）。純識別用：每一張 view 帶著它出生的序號。
     observes: int = 0
     last_view: FrameView | None = None
+    # 最近一張 view 讀到的格線線位。挑標記格要的是格子的**螢幕**框，而那正是這一份
+    # 線位——重讀一次是同一個答案，只是白花一次全幀取峰。
+    last_lattice: Lattice | None = None
+    # 標記格：我們自己點出來的絕對地標。cell 是它站的世界格、screen 是最近一幀偵測
+    # 到的螢幕中心（偵測不到就 None，但 cell 留著——下一幀可能又看得到）。
+    marker_cell: Cell | None = None
+    marker_screen: Point | None = None
+    marker_signature: MarkerSignature | None = None
+    marker_misses: int = 0
+    marker_declined: bool = False
+    marker_placed: int = 0
+    marker_survived: int = 0
+    marker_lost: int = 0
 
     @property
     def offset(self) -> Point | None:
@@ -484,7 +505,11 @@ class Survey:
     def observe(self, frame: np.ndarray, leg: Leg | None = None) -> Reading:
         """吃一幀：解它的座標，解得出來就寫進知識圖，解不出來就丟掉。"""
         self.observes += 1
-        still = self.previous is not None and self._unchanged(self.previous, frame, leg)
+        spotted = self._spot_marker(frame, leg)
+        still = self.previous is not None and self._unchanged(self.previous, frame, leg, spotted)
+        # 標記的螢幕位置要在停滯判定之後才更新：那一關問的正是「上一幀記到的位置
+        # 和這一幀偵測到的位置是不是同一點」。
+        self.marker_screen = spotted
         if leg is not None:
             self._tally(leg.direction, still)
         reading = self._zeroing(frame) if self.stance == ZERO else self._place(frame, still)
@@ -529,9 +554,16 @@ class Survey:
 
         推移次數的保險絲跟著歸零：衰效之後整張圖都要重掃，這一回合不該由上一回合
         預付。不歸零的話十幾回合就燒斷，之後每一回合都直接判掃不完。
+
+        標記格的填色敵方回合過完就沒了，所以位置與世界格作廢——**色簽留著**：同一個
+        縮放檔位下顏色不變，下一代重放一次就接得回去，不必再學一次。
         """
         self.generation += 1
         self.legs = 0
+        self.marker_cell = None
+        self.marker_screen = None
+        self.marker_misses = 0
+        self.marker_declined = False
         if self.chart is None:
             return
         self.chart.expire()
@@ -570,11 +602,34 @@ class Survey:
             "legs": self.legs,
             "units": len(self.units()),
             "complete": self.complete,
+            # 存活統計是實機微調（色簽容差、放置位置偏好）唯一的材料：填色很容易被
+            # 移動地圖弄掉，「放了幾次、活了幾把、丟了幾次」得逐輪數得出來。
+            "marker": self.marker(),
+        }
+
+    def marker(self) -> dict[str, object]:
+        return {
+            "cell": None if self.marker_cell is None else list(self.marker_cell),
+            "screen": None
+            if self.marker_screen is None
+            else [round(value, 1) for value in self.marker_screen],
+            "seen": self.marker_screen is not None,
+            "placed": self.marker_placed,
+            "survived": self.marker_survived,
+            "lost": self.marker_lost,
         }
 
     def reset(self) -> None:
-        """鏡頭的比例被動過（縮放）：舊世界的像素座標與地標全部作廢，整個重來。"""
+        """鏡頭的比例被動過（縮放）：舊世界的像素座標與地標全部作廢，整個重來。
+
+        標記連色簽一起清：色簽記著一格填色的參考尺寸，換一個縮放檔位那個尺寸就是錯的。
+        """
         self._forget()
+        self.marker_cell = None
+        self.marker_screen = None
+        self.marker_signature = None
+        self.marker_misses = 0
+        self.marker_declined = False
         self.stance = ZERO
         self.route = list(TOUR_ROUTE)
         self.previous = None
@@ -589,6 +644,209 @@ class Survey:
         self.retreat = False
         self.contested = 0
         self.legs = 0
+
+    # ---- 標記格 ----
+
+    def marker_request(self) -> Point | None:
+        """下一 tick 該不該去點一個空格放標記，要的話點哪裡（螢幕座標）。
+
+        兩種情形要放：這一幀根本偵測不到標記，或者它離掃描帶邊已經近到下一把推移
+        可能把它推出畫面。**推移之後標記消失是常態不是異常**（實機上填色很容易被
+        移動地圖弄掉），所以補放不記罰；只有「點下去卻沒出現填色」才數在放棄門檻裡。
+
+        掃完了或保險絲燒斷就不要了：那之後沒有下一把推移，標記沒有任何人要讀它，
+        再點只是白白動一次畫面。挑不到合格的格子同樣回 None，照舊流程走——標記是
+        增強，不是硬依賴。
+        """
+        if self.complete or self.fused or self.marker_declined or not self._marker_wanted():
+            return None
+        view, lattice = self.last_view, self.last_lattice
+        if view is None or lattice is None:
+            return None
+        return self._marker_spot(lattice, view)
+
+    def learn_marker(self, before: np.ndarray, after: np.ndarray, tap_point: Point) -> bool:
+        """剛點下去的那一格有沒有填色。學到了就記色簽、螢幕位置與世界格。
+
+        學到色簽還要當場用 `find_marker` 重找一次：往後每一幀都靠重找認人，放置當下
+        就重找不到的色簽是學了也不能用的。
+        """
+        signature = board.learn_marker(before, after, tap_point)
+        spot = (
+            None
+            if signature is None
+            else board.find_marker(after, signature, self.region, self.holes)
+        )
+        if signature is None or spot is None:
+            self.marker_misses += 1
+            if self.marker_misses >= MARKER_TRIES:
+                log.warning("tapping an empty cell never produced a marker; giving up this turn")
+                self.marker_declined = True
+            return False
+        self.marker_signature = signature
+        self.marker_screen = spot
+        self.marker_cell = self._marker_world_cell(spot)
+        self.marker_misses = 0
+        self.marker_placed += 1
+        return True
+
+    def _spot_marker(self, frame: np.ndarray, leg: Leg | None) -> Point | None:
+        """這一幀的標記在螢幕哪裡。連同「推移之後它還在不在」的存活統計。
+
+        推移手勢被遊戲吃成點擊時標記會**搬到手勢起手點**，那是一次貨真價實的偵測
+        卻是徹底的錯地標。所以有推移指令時還要問方向：標記隱含的內容位移在那一軸
+        上要與指令同號，對不上就把這一幀的標記當作遺失。
+        """
+        if self.marker_signature is None:
+            return None
+        spot = board.find_marker(frame, self.marker_signature, self.region, self.holes)
+        if spot is not None and leg is not None and self.marker_screen is not None:
+            spot = None if self._jumped(spot, leg) else spot
+        if leg is not None and self.marker_screen is not None:
+            if spot is None:
+                self.marker_lost += 1
+            else:
+                self.marker_survived += 1
+        return spot
+
+    def _jumped(self, spot: Point, leg: Leg) -> bool:
+        assert self.marker_screen is not None
+        implied = (spot[0] - self.marker_screen[0], spot[1] - self.marker_screen[1])
+        if self._marker_settled(implied):
+            return False
+        axis = 0 if _axis_of(leg.direction) == "x" else 1
+        if implied[axis] * leg.expected[axis] > 0:
+            return False
+        log.warning("the marker moved against the %s gesture; treating it as lost", leg.direction)
+        return True
+
+    def _marker_settled(self, implied: Point) -> bool:
+        pitches = self._marker_pitches()
+        return (
+            abs(implied[0]) <= MARKER_STILL_TOLERANCE * pitches[0]
+            and abs(implied[1]) <= MARKER_STILL_TOLERANCE * pitches[1]
+        )
+
+    def _marker_pitches(self) -> tuple[float, float]:
+        """判「標記動了沒」用的格距。錨定之前沒有世界格網，退用色簽的參考尺寸——
+        它本來就是一格量出來的。"""
+        if self.chart is not None:
+            return (self.chart.grid.col_pitch, self.chart.grid.row_pitch)
+        if self.marker_signature is not None:
+            return self.marker_signature.size
+        return (board.MARKER_FALLBACK_PITCH, board.MARKER_FALLBACK_PITCH)
+
+    def _from_marker(self) -> Point | None:
+        """標記解出來的座標：它的世界格心減掉它在這一幀螢幕上的位置。一次兩軸。"""
+        if self.chart is None or self.marker_cell is None or self.marker_screen is None:
+            return None
+        centre = self.chart.grid.centre_of(self.marker_cell)
+        return (centre[0] - self.marker_screen[0], centre[1] - self.marker_screen[1])
+
+    def _marker_world_cell(self, spot: Point) -> Cell | None:
+        """標記站哪一格。**最近一幀沒定位成功就不記**：那時候「鏡頭在哪」是過期的
+        信念，拿它換算出來的格座標會把一個絕對地標寫成絕對錯誤（0803 合成世界實測：
+        丟了兩幀之後放的標記差了一整列，下一幀照它定位就直接被佔位一致性判否）。
+        沒記到的格由定位成功的那一幀補（`_adopt_marker`）。"""
+        offset = self.offset
+        if self.chart is None or offset is None or self.lost:
+            return None
+        return self.chart.grid.cell_of((spot[0] + offset[0], spot[1] + offset[1]))
+
+    def _adopt_marker(self) -> None:
+        """定位成功那一幀補算標記的世界格：放置當時還沒錨定（歸零段）或信念過期就
+        只有螢幕位置，那時它是純停滯證言，補上格座標之後才當得了定位候選。"""
+        if self.marker_cell is None and self.marker_screen is not None:
+            self.marker_cell = self._marker_world_cell(self.marker_screen)
+
+    def _marker_box(self) -> tuple[float, float, float, float] | None:
+        if self.marker_screen is None or self.marker_signature is None:
+            return None
+        half = (self.marker_signature.size[0] / 2.0, self.marker_signature.size[1] / 2.0)
+        x, y = self.marker_screen
+        return (x - half[0], y - half[1], x + half[0], y + half[1])
+
+    def _marker_wanted(self) -> bool:
+        spot = self.marker_screen
+        if spot is None:
+            return True
+        x, y, w, h = self.region
+        limits = self._marker_margins()
+        return (
+            spot[0] - x < limits[0]
+            or x + w - spot[0] < limits[0]
+            or spot[1] - y < limits[1]
+            or y + h - spot[1] < limits[1]
+        )
+
+    def _marker_margins(self) -> tuple[float, float]:
+        """離掃描帶邊要留的餘裕：一把推移的上限再加一格。這麼近的標記下一把就出畫面。"""
+        pitches = self._marker_pitches()
+        return (LEG_LIMIT["x"] + pitches[0], LEG_LIMIT["y"] + pitches[1])
+
+    def _marker_spot(self, lattice: Lattice, view: FrameView) -> Point | None:
+        """挑一格放標記：帶內、讀得清楚、沒有單位、點得下去，而且離邊夠遠。
+
+        **離邊夠遠用的是放置後就不想再換的那條線**（`_marker_wanted` 同一組餘裕），
+        不然挑在邊上的標記下一 tick 立刻又要重放，掃描永遠只在點格子。
+
+        偏好內容即將流入的那一側：往東推的時候內容往西走，放在東邊的標記多活幾把。
+        """
+        limits = self._marker_margins()
+        x, y, w, h = self.region
+        band = (x + limits[0], y + limits[1], x + w - limits[0], y + h - limits[1])
+        spots = [
+            centre
+            for box in _lattice_boxes(lattice)
+            for centre in (((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0),)
+            if band[0] <= centre[0] <= band[2] and band[1] <= centre[1] <= band[3]
+            if self._tappable(box, centre, view)
+        ]
+        if not spots:
+            return None
+        return min(spots, key=lambda spot: self._marker_rank(spot))
+
+    def _tappable(
+        self, box: tuple[float, float, float, float], centre: Point, view: FrameView
+    ) -> bool:
+        """**放得保守、找得寬鬆**：放置限在地圖區內（那裡上下都不是 HUD，點下去打得到
+        格子），偵測則整條掃描帶都認——標記被推出地圖區還看得見的話就不必重放。"""
+        if not _within(box, self.region) or not _within(box, board.MAP_REGION):
+            return False
+        if any(_overlaps(box, hole) for hole in self.holes):
+            return False
+        pitches = self._marker_pitches()
+        margin = (pitches[0] / 2.0, pitches[1] / 2.0)
+        near = (box[0] - margin[0], box[1] - margin[1], box[2] + margin[0], box[3] + margin[1])
+        if any(
+            near[0] <= sighting.point[0] <= near[2] and near[1] <= sighting.point[1] <= near[3]
+            for sighting in view.units
+        ):
+            return False
+        try:
+            check_tap(int(centre[0]), int(centre[1]))
+        except TapRefused:
+            return False
+        return True
+
+    def _marker_rank(self, spot: Point) -> tuple[float, float, float]:
+        direction = self._inflow()
+        if direction is None:
+            x, y, w, h = self.region
+            middle = (x + w / 2.0, y + h / 2.0)
+            return (math.hypot(spot[0] - middle[0], spot[1] - middle[1]), spot[0], spot[1])
+        dx, dy = board.DIRECTIONS[direction]
+        return (-(dx * spot[0] + dy * spot[1]), spot[0], spot[1])
+
+    def _inflow(self) -> str | None:
+        """新內容即將從哪一側流進畫面＝下一把推移的方向。挑不出來就 None。"""
+        if self.stance == ZERO:
+            return next(
+                (side for side in ZERO_CORNER if self.stalls.get(side, 0) < STALL_CONFIRM), None
+            )
+        if self.stance == TOUR and self.route:
+            return self.route[0]
+        return None
 
     # ---- 歸零 ----
 
@@ -636,6 +894,7 @@ class Survey:
         self.located = (frame, (0.0, 0.0))
         self.located_view = view
         self.contested = 0
+        self._adopt_marker()
         return True
 
     def _forget(self) -> None:
@@ -676,6 +935,7 @@ class Survey:
         self.located_view = placed
         self.lost = 0
         self.contested = 0
+        self._adopt_marker()
         return Reading(STALLED if still else ACCEPTED, shift, offset, source, detail)
 
     def _locate(
@@ -699,19 +959,12 @@ class Survey:
         tried: list[dict[str, object]] = []
         detail["tried"] = tried
         refusal = UNMATCHED
-        for candidate, source in self._candidates(frame, view, still, axes, detail):
+        for candidate, source in self._candidates(view, still, axes, detail):
             note: dict[str, object] = {"source": source}
             tried.append(note)
             # 讀得到地標的那一軸由地標說了算，候選只補另一軸——地標是絕對量，拿它去
             # 否決整幀等於連確定的那一軸也一起丟掉。合起來對不對由複驗裁。
             merged = (axes.get("x", candidate[0]), axes.get("y", candidate[1]))
-            if "x" in recalled:
-                snapped = self._snap(frame, merged)
-                if snapped is None:
-                    note["gate"] = PHASE_REFUSED
-                    refusal = PHASE_REFUSED
-                    continue
-                merged = snapped
             note["offset"] = [round(value, 1) for value in merged]
             if self._corroborated(frame, view, merged, recalled, source, note):
                 return (merged, source)
@@ -743,30 +996,30 @@ class Survey:
 
     def _candidates(
         self,
-        frame: np.ndarray,
         view: FrameView,
         still: bool,
         axes: dict[str, float],
         detail: dict[str, object],
     ) -> Iterable[tuple[Point, str]]:
-        """位置的候選來源，由強到弱。**單位排列比對排在重疊區位移量測之前**（提案
-        第四節）：已記的單位排列是這一代真的看過的東西，而幀對幀的位移量測會凍值、
-        會被週期內容差整數個週期地誤配——它是補位，不是主力。
+        """位置的候選來源，由強到弱：兩軸地標 → 標記格 → 沿用上一張 → 單位排列比對。
 
-        兩條路互補不互相取代：中央帶剛好空曠無單位時排列比對沒有材料，那時才輪到
-        重疊區量測扛，而它扛得動與否由複驗那一關裁。
+        四個都讀的是畫面裡的東西——地圖終止邊、我們自己放的標記格、已記的單位排列。
+        標記排在地標之後：地標是地圖自己的邊，標記是我們放上去的，兩者都絕對，但標記
+        會被移動地圖弄掉，地標不會。中央帶剛好空曠無單位又沒有標記時排列比對沒有材料，
+        那一幀就是沒有候選，誠實丟掉。
         """
         if len(axes) == 2:
             yield ((axes["x"], axes["y"]), SOURCE_EDGE)
+        marker = self._from_marker()
+        if marker is not None:
+            yield (marker, SOURCE_MARKER)
+        if len(axes) == 2:
             return
         if still and self.located is not None and self.located[0] is self.previous:
             yield (self.located[1], SOURCE_STILL)
         match = self._constellation(view, detail)
         if match is not None:
             yield (match, SOURCE_MATCH)
-        drift = self._drift(frame, detail)
-        if drift is not None:
-            yield (drift, SOURCE_DRIFT)
 
     def _constellation(self, view: FrameView, detail: dict[str, object]) -> Point | None:
         """拿畫面裡的單位排列對回這一代已記的目擊。全域比對，不是逐步累加。"""
@@ -783,52 +1036,6 @@ class Survey:
             return None
         return (-drift[0], -drift[1])
 
-    def _drift(self, frame: np.ndarray, detail: dict[str, object]) -> Point | None:
-        """最後一手：跟最近一張定位成功的幀比一次位移。
-
-        中央帶剛好空曠無單位時單位排列給不出答案，而重疊區還在（每一把推移都壓在
-        量測窗的四分之一以內），所以這裡量得到。它是 v2 那條逐步量測鏈的殘骸，v3
-        把它降級成補位：解出來的座標還要過格線相位，再過一道**不是它自己給的**佐證
-        （佔位一致性、目視終止邊位移，或逐窗影像複驗），過不了就丟棄。
-        """
-        if self.located is None:
-            return None
-        before, offset = self.located
-        shift = board.measure_shift(before, frame)
-        detail["drift"] = {
-            "dx": round(shift.dx, 1),
-            "dy": round(shift.dy, 1),
-            "source": shift.source,
-        }
-        if not shift.known:
-            return None
-        if abs(shift.dx) > DRIFT_LIMIT["x"] or abs(shift.dy) > DRIFT_LIMIT["y"]:
-            log.warning("a drift of %.0f,%.0f is beyond what one pan can do", shift.dx, shift.dy)
-            return None
-        return (offset[0] - shift.dx, offset[1] - shift.dy)
-
-    def _snap(self, frame: np.ndarray, candidate: Point) -> Point | None:
-        """格線相位交叉驗證＋吸附。對不上就回 None（拒收），對得上就把小數吃掉。
-
-        只驗直線軸：橫線間距隨 y 遞增（縱向透視），對它取模的相位不是不變量。殘差
-        取**全線中位數**而不是單線：單線抖動 ±10px 實測在案，容差只有 0.25 格距。
-
-        **讀不出格線就拒收**，不是放行：地圖邊緣與無特徵背景正是重疊區量測最不可靠
-        的場合，而那一軸唯一的閘就是這一關（0802 定讞：舊碼在 `find_lattice` 回 None
-        時直接放行，等於閘在最需要的時候缺席）。
-        """
-        assert self.chart is not None
-        lattice = board.find_lattice(frame)
-        if lattice is None:
-            return None
-        pitch = self.chart.grid.col_pitch
-        residual = board.median_residual(
-            [col + candidate[0] for col in lattice.cols], pitch, self.chart.grid.phase[0]
-        )
-        if abs(residual) > board.PHASE_TOLERANCE * pitch:
-            return None
-        return (candidate[0] - residual, candidate[1])
-
     def _corroborated(
         self,
         frame: np.ndarray,
@@ -841,18 +1048,14 @@ class Survey:
         """複驗：把候選座標套上去，看這一幀的機體落不落回知識圖已記的目擊。
 
         **佔位一致性是主判準**。位置對了，畫面上的機體就落回上一輪記下的那幾格；差
-        一整格就對不上。它讀的是**已獲取的佔位資訊**，與幀對幀的像素量測完全不同源
-        ——量測凍值、差整數個週期的誤配都騙不過它（0802 定讞：舊碼拿產生候選的那
-        一次量測回頭當佐證，注入 0／230／256／300px 的錯誤，餘裕一律 1.0px，等於沒閘）。
-
-        判準是**和差一整格的鄰居比**，不是固定的支持數門檻：往沒看過的地方推的那幾
-        幀，畫面上多數機體本來就還沒被記過，湊不到固定門檻是物理不是矛盾。鄰居配得
-        比較好就代表這個候選差了一整格，當場拒收。
+        一整格就對不上。判準是**和差一整格的鄰居比**，不是固定的支持數門檻：往沒看過
+        的地方推的那幾幀，畫面上多數機體本來就還沒被記過，湊不到固定門檻是物理不是
+        矛盾。鄰居配得比較好就代表這個候選差了一整格，當場拒收。
 
         兩種例外走影像比對，兩種都在遙測裡記名：
 
         - **單位排列比對導出的候選**本身就是拿已記目擊解出來的，佔位一致性對它同源
-          （而且門檻更鬆），所以它的第二佐證是重疊區的像素量測——那才是獨立的。
+          （而且門檻更鬆），背書不算數。
         - **對得上的一台都沒有**（空曠的中央帶，或整片都是沒記過的新機體）時佔位
           一致性沒有材料。
         """
@@ -899,8 +1102,8 @@ class Survey:
         """影像比對這一路。**佐證不得與候選同源**——拿產生候選的那一次量測回頭背書
         是恆等式，不是複驗。
 
-        由強到弱：目視終止邊的位移（絕對量，任何週期內容都動不了它）→ 排列比對的
-        候選才問得起的重疊區量測 → 逐窗影像複驗（只答得出「這個位移到底發生了沒」）。
+        由強到弱：目視終止邊的位移（絕對量，任何週期內容都動不了它）→ 逐窗影像
+        複驗（只答得出「這個位移到底發生了沒」）。
         """
         if not recalled:
             note["gate"] = BY_LANDMARK
@@ -908,7 +1111,7 @@ class Survey:
         if self.located is None:
             note["gate"] = PICTURE_REFUSED
             return False
-        before, offset = self.located
+        offset = self.located[1]
         implied = {"x": offset[0] - candidate[0], "y": offset[1] - candidate[1]}
         pitches = {"x": self.chart.grid.col_pitch, "y": self.chart.grid.row_pitch}
 
@@ -919,22 +1122,7 @@ class Survey:
                 abs(moved[axis] - implied[axis]) <= EDGE_TOLERANCE * pitches[axis]
                 for axis in recalled
             )
-        if source == SOURCE_MATCH:
-            shift = board.measure_shift(before, frame)
-            note["overlap"] = {
-                "dx": round(shift.dx, 1),
-                "dy": round(shift.dy, 1),
-                "source": shift.source,
-                "implied": [round(implied["x"], 1), round(implied["y"], 1)],
-            }
-            if shift.known:
-                note["gate"] = BY_OVERLAP
-                measured = {"x": shift.dx, "y": shift.dy}
-                return all(
-                    abs(measured[axis] - implied[axis]) <= EDGE_TOLERANCE * pitches[axis]
-                    for axis in recalled
-                )
-        return self._outbids(frame, view, implied, recalled, pitches, note)
+        return self._outbids(frame, view, implied, recalled, pitches, source, note)
 
     def _outbids(
         self,
@@ -943,6 +1131,7 @@ class Survey:
         implied: dict[str, float],
         recalled: tuple[str, ...],
         pitches: dict[str, float],
+        source: str,
         note: dict[str, object],
     ) -> bool:
         """最後一關：這個位移要**贏過自己差一整格的鄰居**，畫面才算背書。
@@ -953,7 +1142,14 @@ class Survey:
         差一整格的鄰居問法就分得出來：只有真值那一個位移能讓地表紋理也對上。
 
         鄰居也對不上（兩邊都爛）＝這一幀誰都放不下，拒收。
+
+        **標記格的候選走到這裡直接放行**：逐窗複驗在稀疏幀上就是瞎的，而那正是標記
+        要補的洞——拿一個答不出話的裁判去否決唯一有話說的證人，等於白放這個標記。
+        佔位一致性與地標的否決權都在前面，不在這一關。
         """
+        if source == SOURCE_MARKER:
+            note["gate"] = BY_MARKER
+            return True
         assert self.located is not None
         before = self.located[0]
         probes = self._probes(view)
@@ -1053,7 +1249,7 @@ class Survey:
         span = board.read_span(frame)
         view = FrameView(
             offset=offset,
-            units=board.find_sightings(frame, self.region),
+            units=self._unmarked(board.find_sightings(frame, self.region)),
             region=self.region,
             holes=self.holes,
             lattice=None if span is None else span.box,
@@ -1062,7 +1258,22 @@ class Survey:
             sequence=self.observes,
         )
         self.last_view = view
+        self.last_lattice = None if span is None else span.lattice
         return view
+
+    def _unmarked(self, sightings: tuple[Sighting, ...]) -> tuple[Sighting, ...]:
+        """濾掉落在標記框裡的目擊：那一格放標記的時候確認過沒有單位，而我方回合裡
+        沒有人會移進去。填色本身可能被密度峰讀成一台機體，放著就是憑空多一台。"""
+        box = self._marker_box()
+        if box is None:
+            return sightings
+        return tuple(
+            sighting
+            for sighting in sightings
+            if not (
+                box[0] <= sighting.point[0] <= box[2] and box[1] <= sighting.point[1] <= box[3]
+            )
+        )
 
     def _learn_edges(self, view: FrameView, source: str) -> None:
         """定位成功的幀看到哪一側的終止邊，就把那一側記成地標並定下界線。
@@ -1114,30 +1325,33 @@ class Survey:
 
     # ---- 畫面有沒有動 ----
 
-    def _unchanged(self, previous: np.ndarray, frame: np.ndarray, leg: Leg | None) -> bool:
-        """畫面到底有沒有動——v3 唯一還做的幀對幀比對，而且只回布林不回位移。
+    def _unchanged(
+        self,
+        previous: np.ndarray,
+        frame: np.ndarray,
+        leg: Leg | None,
+        spotted: Point | None = None,
+    ) -> bool:
+        """畫面到底有沒有動——只回布林不回位移。
 
-        三路佐證依序：兩幀幾乎逐像素相同、量得出位移（量到多少就是多少）、影像複驗拿
-        「動了指令那麼多」對「鏡頭沒動」問畫面。待機動畫讓幀差恆高於門檻（實機 5.8-12.5
-        對 2.5），所以第一關過不了很正常，證言要靠後兩關。
+        **標記格優先**：兩幀都看得到它就直接比它的螢幕位置，這是純螢幕空間的問法，
+        歸零段（還沒有世界座標）照樣成立。逐精靈窗那一路在角落幀上是瞎的——一把推移
+        598px，把精靈映回前一幀就落到幀外，湊不到兩個窗一律回 blind，歸零於是永遠
+        確認不了推到底。標記補的正是這個洞。
 
-        **「沒動」要有人指著畫面說沒動**：量不出來一律當作動過。反過來寫（量不出來
-        就算沒動）會讓空白幀被判靜止，而靜止的處置是沿用上一張的座標——下一張真的
-        移動過的幀於是以舊座標寫進圖，那正是「量錯寫入」（0802 合成世界實測，空白
+        兩幀有一幀看不到標記就退回逐精靈窗的影像複驗：拿「動了指令那麼多」對「鏡頭
+        沒動」問畫面。整區灰階比對一律不用——不隨鏡頭動的星空層在整區裡面積佔優，
+        它答的是背景沒動不是地圖沒動（0803 第 10 輪：星空帶 response 0.766、地圖帶
+        0.041，而真實位移 −184px 只在近排帶量得到）。
+
+        **「沒動」要有人指著畫面說沒動**：問不出來（沒有指令可問、或裁判沒得看）一律
+        當作動過。反過來寫會讓空白幀被判靜止，而靜止的處置是沿用上一張的座標——下一張
+        真的移動過的幀於是以舊座標寫進圖，那正是「量錯寫入」（0802 合成世界實測，空白
         幀之後長出兩格鬼影）。
-
-        量測用 `STILL_MIN_RESPONSE` 而不是預設門檻：**近乎零的讀數只有在夠強時才算
-        佐證**。相關器凍住時輸出的就是近乎零，與「真的沒動」的正解重合，弱讀數因此
-        什麼都證明不了——0803 第 8 輪東向 t15、t16 各真的推動了 178px，回應 0.058/0.063
-        卻讀成 0.8px，兩把都被算成推不動，繞邊於是在鏡頭還沒到東緣時就把東側從路線裡
-        拿掉（南向 t29、t30 同型）。門檻提高之後那種讀數改走單位排列比對，那條路有
-        影像複驗背書，這四把全部改判成推得動。
         """
-        if board.frame_difference(previous, frame) < board.EDGE_FRAME_DIFF:
-            return True
-        shift = board.measure_shift(previous, frame, min_response=board.STILL_MIN_RESPONSE)
-        if shift.known:
-            return shift.magnitude < board.EDGE_SHIFT_PX
+        before = self.marker_screen
+        if before is not None and spotted is not None:
+            return self._marker_settled((spotted[0] - before[0], spotted[1] - before[1]))
         if leg is None:
             return False
         return board.null_check(previous, frame, leg.expected) == board.NULL_STILL
@@ -1381,6 +1595,15 @@ def covered(grid: WorldGrid, view: FrameView) -> tuple[Cell, ...]:
             continue
         out.append(cell)
     return tuple(out)
+
+
+def _lattice_boxes(lattice: Lattice) -> tuple[tuple[float, float, float, float], ...]:
+    """這一幀格線圍出來的每一格（螢幕像素）。線位相鄰兩條就是一格的兩邊。"""
+    return tuple(
+        (float(x0), float(y0), float(x1), float(y1))
+        for x0, x1 in zip(lattice.cols, lattice.cols[1:], strict=False)
+        for y0, y1 in zip(lattice.rows, lattice.rows[1:], strict=False)
+    )
 
 
 def _screen_box(grid: WorldGrid, cell: Cell, offset: Point) -> tuple[float, float, float, float]:

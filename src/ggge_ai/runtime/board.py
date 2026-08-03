@@ -10,18 +10,22 @@
    東西」、以一格大小的方框平均後取局部極大。門檻對著 ex2if 系列的逐幀人工
    轉錄調出來（本批重測：完整可見的 103/104，九幀共吐 176 個峰——多出來的是
    靜態 HUD 家具與戰艦這類多格精靈的額外峰，合併與人工複核在下游）。
-3. **位移量測**：相位相關給位移與信賴度；地圖以外那片無特徵的深色背景（下稱星空）
-   信賴度會掉到接近 0，改投票制——畫面上的單位排列每一對配對投一個平移、有兩台
-   以上支持的眾數勝。量測窗要 ≥2× 最大平移，否則循環相關會繞回（0719 實測：
-   1050px 窗量 600px 位移量出 −505 反號），所以平移一律走小步：短推才留得住重疊帶。
-4. **獨立的第三條路**：`edge_shift` 讀同一側地圖終止邊在兩幀之間的螢幕位移。地圖
-   邊界不週期，格線與同型機編隊那種差整數個週期的誤配動不了它——所以它是唯一
-   與像素位移量測互相獨立的位移佐證來源，`coverage` 的複驗拿它當第一選擇。
-5. **影像複驗**：`null_check` 逐窗把「內容位移了這麼多」拿去對畫面問話。它與相位
-   相關獨立：量測凍在靜態峰或差整數個週期的誤配都答不出 `NULL_MOVED`。
+3. **單位排列比對**：畫面上的單位排列每一對配對投一個平移、有兩台以上支持的眾數
+   勝（`relocalise`：拿當下的密度峰對已記目擊解偏移，解出來還要回頭驗支持台數）。
+4. **終止邊**：`edge_shift` 讀同一側地圖終止邊在兩幀之間的螢幕位移。地圖邊界不
+   週期，格線與同型機編隊那種差整數個週期的誤配動不了它。
+5. **影像複驗**：`null_check` 逐窗把「內容位移了這麼多」拿去對畫面問話。
+6. **標記格**：點地圖上沒有單位的空格，那一格會填滿顏色，之後只要不再點別的東西
+   就留在原格。`learn_marker` 從點擊前後幀學它的色簽，`find_marker` 在往後的幀
+   重找它——那是我們自己放上去的絕對地標，一次解出兩軸。
 
 世界座標與四態知識圖在 `runtime/coverage.py`——這裡只做像素。**指令的量永遠
 不寫進位置**（0719 紅線）：手勢只決定往哪推，位置一律解自畫面內容。
+
+**背景圖案不是位置證據**（0803 第 10 輪定讞）：畫面有兩層，星空那一層不隨鏡頭動，
+而它在整區灰階量測裡面積佔優——同一對幀星空帶 response 0.766、地圖帶 0.041，真實
+位移 −184px 只在近排帶量得到。所以這裡不再有整區相位相關；問「這一幀在哪」只准
+問單位、終止邊與逐精靈窗，格線只答「格網幾何長什麼樣」。
 
 單位一律**不帶陣營**出去。腳下弧的顏色不是陣營的權威——我方回合未行動的我方
 單位弧色偏紅、與敵紅在同一幀上 HSV 幾乎重合（fixtures hp_arc/*，定案 5）。掃描
@@ -179,29 +183,9 @@ DIRECTIONS: dict[str, tuple[int, int]] = {
 # 一次平移的位移小於這個像素數就算沒動＝停滯（到邊或指令被吃掉）。實測推一把約
 # 570-600px，半格已是巨大差距，取 40 對量測雜訊有餘裕。
 EDGE_SHIFT_PX = 40.0
-# 相位相關在無特徵的星空上會瞎掉；信賴度低於此就不信它的數字，改看幀差。
-SHIFT_MIN_RESPONSE = 0.05
-# 要拿近乎零的讀數去背書「畫面沒動」時改用這一條，門檻高得多。相關器凍住的失效樣態
-# 與「真的沒動」的正解在數值上完全重合——兩邊都是近乎零的位移，`known` 都是真——所以
-# 唯一分得出兩者的是讀數本身的強度。0803 第 8 輪 157 對實幀：凍住的回應落在
-# 0.055-0.162（t15/t16 各推動 178px 卻讀成 0.8px），量得動的落在 0.413-0.993，中間
-# 0.162 到 0.413 整段是空的；取兩端的幾何中點。大位移不必過這一關——凍住的相關器
-# 不會憑空生出 170px，所以 SHIFT_MIN_RESPONSE 那條線對它仍然夠用。
-STILL_MIN_RESPONSE = 0.25
-EDGE_FRAME_DIFF = 2.5
-
-# 格線相位交叉驗證的容差（欄距的比例）。只用在直線軸：直線 pitch 穩定約 128，
-# 橫線間距隨 y 從 108 遞增到 123（縱向透視），對橫軸取模的相位本來就不是不變量。
-PHASE_TOLERANCE = 0.25
-
-# 單位排列比對的來源名（`_constellation_witness` 的回傳 source）。
-WITNESS_CONSTELLATION = "constellation"
 # 兩側終止邊各量一次同一個剛體平移，差超過這個像素數就是至少一側不是地圖邊——
 # 兩個都不採信（誠實承認定位中斷勝過挑一個信）。
 EDGE_WITNESS_AGREEMENT = EDGE_SHIFT_PX
-# 排列比對的票被影像複驗判成「確定沒動」——與 `_STILL` 分開記名，遙測才看得出這一幀的
-# 停滯是誰認定的。
-CONSTELLATION_STILL = "constellation:still"
 
 
 def crop(frame: np.ndarray, region: Region) -> np.ndarray:
@@ -780,47 +764,6 @@ class Shift:
         return self.source != "none"
 
 
-def measure_shift(
-    previous: np.ndarray,
-    current: np.ndarray,
-    region: Region = MAP_REGION,
-    trace: Trace = None,
-    min_response: float = SHIFT_MIN_RESPONSE,
-) -> Shift:
-    """地圖內容從前一幀到這一幀移動了多少（螢幕像素）。
-
-    內容位移是鏡頭位移的反號：鏡頭往東走，地形往西滑。相位相關優先；信賴度太低
-    （無特徵的星空、或平移過大導致重疊帶不足）就退單位排列比對的投票——**那張票要先
-    過影像複驗**（`_constellation_witness`）。兩個都不給答案就回 source="none"——寧可承認
-    不知道，也不要拿手勢當位置（0719 西緣鬼影座標就是這樣長出來的）。
-
-    `min_response` ＝ 採信相位相關的門檻。呼叫端要拿近乎零的讀數去斷言「畫面沒動」時
-    傳 `STILL_MIN_RESPONSE`：那個問題的正解與相關器凍住的失效樣態長得一模一樣，把門檻
-    提高等於強迫弱讀數改走單位排列比對那條路，而那條路有影像複驗背書。
-    """
-    dx, dy, response = _phase_shift(previous, current, region)
-    _note(trace, "correlator", {"dx": round(dx, 1), "dy": round(dy, 1), "response": round(response, 3)})
-    if response >= min_response:
-        _note(trace, "path", "phase")
-        return Shift(dx, dy, response, "phase")
-    witness = _constellation_witness(previous, current, region, trace)
-    if witness is not None:
-        _note(trace, "path", "constellation")
-        return witness
-    _note(trace, "path", "none")
-    return Shift(0.0, 0.0, response, "none")
-
-
-def _phase_shift(
-    previous: np.ndarray, current: np.ndarray, region: Region = MAP_REGION
-) -> tuple[float, float, float]:
-    a = cv2.cvtColor(crop(previous, region), cv2.COLOR_BGR2GRAY).astype(np.float32)
-    b = cv2.cvtColor(crop(current, region), cv2.COLOR_BGR2GRAY).astype(np.float32)
-    window = cv2.createHanningWindow((a.shape[1], a.shape[0]), cv2.CV_32F)
-    (dx, dy), response = cv2.phaseCorrelate(a, b, window)
-    return (float(dx), float(dy), float(response))
-
-
 def edge_shift(
     before: Mapping[str, float], after: Mapping[str, float], axis: str
 ) -> float | None:
@@ -831,8 +774,7 @@ def edge_shift(
     地圖的物理邊界是**絕對地標**：它不週期，所以格線（欄距 92）與同型機編隊
     （縱距 90-96）那種差整數個週期的誤配對它都無效，靜態的深色背景與 HUD 也搶不走
     它。0801 第 7 輪離線鑑識：東西向 17 條定位中斷的平移有 15 條至少一側可用，與
-    真值差 3.5-8px。所以它是與像素位移量測完全獨立的佐證來源（`coverage` 的複驗
-    拿它當「不得與候選同源」那一關的第一選擇）。
+    真值差 3.5-8px。`coverage` 的複驗拿它當「不得與候選同源」那一關的第一選擇。
 
     兩側都讀得到就要互相對得上（`EDGE_WITNESS_AGREEMENT`）——差太多代表至少一側
     不是地圖邊（脊偵測在取樣帶緣多撿或漏撿一條線），兩個都不採信。
@@ -1090,33 +1032,6 @@ def _window(image: np.ndarray, x: float, y: float, half: int = NULL_PATCH_HALF) 
     return image[y0 : y0 + 2 * half, x0 : x0 + 2 * half]
 
 
-def _constellation_witness(
-    previous: np.ndarray,
-    current: np.ndarray,
-    region: Region = MAP_REGION,
-    trace: Trace = None,
-) -> Shift | None:
-    """排列比對的票過影像複驗才算數；原地假設勝出時回「確定沒動」。
-
-    同型薩克與我方編隊是週期陣列（0801 實測幀內縱距 90/93/96），配對投票因此會把
-    「錯一個編隊間距」的組合投成票數十足的假位移（週期圖案錯位配對出來、畫面上無真實
-    對應，下稱幽靈）——票數多寡分不出真假，畫面分得
-    出來。原地勝出時刻意回一個零位移但 `known` 的 Shift：上層判「畫面沒動」於是走得通，
-    不必靠 `frame_difference`（待機動畫實測 5.8-12.5，恆高於 EDGE_FRAME_DIFF，原地幀
-    永遠走不進那一支）。
-    """
-    vote = _constellation_shift(find_units(previous), find_units(current), trace)
-    if vote is None:
-        return None
-    verdict = null_check(previous, current, (vote[0], vote[1]), region=region)
-    _note(trace, "vote_null_check", verdict)
-    if verdict == NULL_STILL:
-        return Shift(0.0, 0.0, vote[2], CONSTELLATION_STILL)
-    if verdict == NULL_UNCLEAR:
-        return None
-    return Shift(vote[0], vote[1], vote[2], WITNESS_CONSTELLATION)
-
-
 def frame_difference(
     previous: np.ndarray, current: np.ndarray, region: Region = MAP_REGION
 ) -> float:
@@ -1128,8 +1043,7 @@ def frame_difference(
 def median_residual(lines: Sequence[float], pitch: float, anchor: float) -> float:
     """整組線位對世界相位的殘差，取（環狀）中位數。
 
-    單線取樣會被格線讀取的抖動整支帶走——0801 複驗輪逐幀實測單線位置抖動 ±10px，
-    而相位閘的容差只有 0.25 pitch（~22px），一條抖過頭的線就能讓整幀被拒收。
+    單線取樣會被格線讀取的抖動整支帶走：0801 複驗輪逐幀實測單線位置抖動 ±10px。
     """
     if not lines:
         return 0.0
@@ -1196,6 +1110,168 @@ def relocalise(
         for sx, sy in seen
     )
     return delta if support >= minimum else None
+
+
+MARKER_PITCH_SPAN = (0.5, 1.5)
+# 讀不到格線時的退路格距（實測最小縮放 86-92）。
+MARKER_FALLBACK_PITCH = 90.0
+# 前後幀相減算「這裡變了」的門檻。待機動畫整幀抖一階，填色是整格換色。
+MARKER_CHANGE_LEVEL = 30
+# 學色簽時只認點擊點附近的色塊（格距的倍數）：同一幀別處的變化不是我們點出來的。
+MARKER_NEAR_PITCH = 1.5
+# 色簽的容差（HSV 三軸）。**實機標定會調**，所以集中在這裡不散落。
+MARKER_TOLERANCE: tuple[int, int, int] = (10, 60, 60)
+# 重找時第二名的面積佔比上限：兩塊差不多大就沒有唯一贏家，不敢說哪一塊是標記。
+MARKER_RUNNER_UP = 0.5
+
+
+@dataclass(frozen=True)
+class MarkerSignature:
+    """標記格（點空格填出來的那一格顏色）的色簽與參考尺寸。
+
+    尺寸留著當往後每一次重找的尺規：色簽容差內的色塊要跟放置當下差不多大，才算
+    同一格填色而不是同色系的美術。
+    """
+
+    hsv: tuple[int, int, int]
+    tolerance: tuple[int, int, int]
+    size: tuple[float, float]
+
+
+def marker_pitch(frame: np.ndarray) -> tuple[float, float]:
+    lattice = find_lattice(frame)
+    if lattice is None or lattice.col_pitch <= 0 or lattice.row_pitch <= 0:
+        return (MARKER_FALLBACK_PITCH, MARKER_FALLBACK_PITCH)
+    return (lattice.col_pitch, lattice.row_pitch)
+
+
+def learn_marker(
+    before: np.ndarray,
+    after: np.ndarray,
+    tap_point: Point,
+    region: Region = MAP_REGION,
+) -> MarkerSignature | None:
+    """剛點下去的那一格填了什麼色。學不到合格色塊就 None（點到單位或點擊被吃掉）。
+
+    只看前後幀相減：填色是我們自己弄出來的變化，所以「哪一塊是標記」不必猜，變化
+    本身就指得出來。點擊點附近＋一格大小兩個閘擋掉待機動畫與 HUD 計時那類雜訊。
+    """
+    pitch = marker_pitch(after)
+    diff = cv2.absdiff(before, after).max(axis=2)
+    mask = np.zeros(diff.shape, np.uint8)
+    x, y, w, h = region
+    mask[y : y + h, x : x + w] = (diff[y : y + h, x : x + w] > MARKER_CHANGE_LEVEL).astype(
+        np.uint8
+    )
+    block = _largest_block(mask, pitch, tap_point)
+    if block is None:
+        return None
+    x0, y0, bw, bh, patch = block
+    hsv = cv2.cvtColor(after, cv2.COLOR_BGR2HSV)[y0 : y0 + bh, x0 : x0 + bw][patch]
+    if not hsv.size:
+        return None
+    middle = np.median(hsv, axis=0)
+    return MarkerSignature(
+        hsv=(int(middle[0]), int(middle[1]), int(middle[2])),
+        tolerance=MARKER_TOLERANCE,
+        size=(float(bw), float(bh)),
+    )
+
+
+def find_marker(
+    frame: np.ndarray,
+    signature: MarkerSignature,
+    region: Region = MAP_REGION,
+    holes: Sequence[Region] = (),
+) -> Point | None:
+    """色簽容差內、一格大小、而且沒有第二名的那一塊填色的中心。找不到就 None。
+
+    唯一贏家是硬性的：同色系的美術或另一格殘留的填色會讓「最大的那一塊」變成擲
+    骰子，而標記解出來的是整幀的座標——認錯一塊就是整幀寫進錯的世界位置。
+
+    `holes` 挖掉固定位置的 HUD 鈕：那幾塊跟著螢幕不跟著地圖，一旦有一塊撞進色簽的
+    容差，唯一贏家這一關就會永遠判「兩塊差不多大」，標記從此再也認不回來。
+    """
+    mask = _signature_mask(frame, signature)
+    x, y, w, h = region
+    bounded = np.zeros_like(mask)
+    bounded[y : y + h, x : x + w] = mask[y : y + h, x : x + w]
+    for hx, hy, hw, hh in holes:
+        bounded[hy : hy + hh, hx : hx + hw] = 0
+    count, _, stats, centroids = cv2.connectedComponentsWithStats(bounded, 8)
+    sized = sorted(
+        (
+            (int(stats[index, cv2.CC_STAT_AREA]), centroids[index])
+            for index in range(1, count)
+            if _marker_sized(
+                int(stats[index, cv2.CC_STAT_WIDTH]),
+                int(stats[index, cv2.CC_STAT_HEIGHT]),
+                signature.size,
+            )
+        ),
+        key=lambda entry: -entry[0],
+    )
+    if not sized:
+        return None
+    if len(sized) > 1 and sized[1][0] >= MARKER_RUNNER_UP * sized[0][0]:
+        return None
+    centre = sized[0][1]
+    return (float(centre[0]), float(centre[1]))
+
+
+def _signature_mask(frame: np.ndarray, signature: MarkerSignature) -> np.ndarray:
+    hue, sat, val = signature.hsv
+    span, sat_span, val_span = signature.tolerance
+    low = (max(0, sat - sat_span), max(0, val - val_span))
+    high = (min(255, sat + sat_span), min(255, val + val_span))
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask = np.zeros(hsv.shape[:2], np.uint8)
+    # 色相是環狀量：接近 0／180 的色簽要拆成兩段問，不然容差在環的接縫上憑空縮一半。
+    for start, end in _hue_bands(hue, span):
+        mask |= cv2.inRange(hsv, (start, low[0], low[1]), (end, high[0], high[1]))
+    return (mask > 0).astype(np.uint8)
+
+
+def _hue_bands(hue: int, span: int) -> tuple[tuple[int, int], ...]:
+    low, high = hue - span, hue + span
+    if low < 0:
+        return ((0, high), (180 + low, 179))
+    if high > 179:
+        return ((low, 179), (0, high - 180))
+    return ((low, high),)
+
+
+def _largest_block(
+    mask: np.ndarray, pitch: tuple[float, float], near: Point
+) -> tuple[int, int, int, int, np.ndarray] | None:
+    count, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 8)
+    reach = MARKER_NEAR_PITCH * max(pitch)
+    best: tuple[int, int, int, int, np.ndarray] | None = None
+    area = 0
+    for index in range(1, count):
+        x0 = int(stats[index, cv2.CC_STAT_LEFT])
+        y0 = int(stats[index, cv2.CC_STAT_TOP])
+        width = int(stats[index, cv2.CC_STAT_WIDTH])
+        height = int(stats[index, cv2.CC_STAT_HEIGHT])
+        if not _marker_sized(width, height, pitch):
+            continue
+        centre = centroids[index]
+        if math.hypot(centre[0] - near[0], centre[1] - near[1]) > reach:
+            continue
+        size = int(stats[index, cv2.CC_STAT_AREA])
+        if size <= area:
+            continue
+        area = size
+        best = (x0, y0, width, height, labels[y0 : y0 + height, x0 : x0 + width] == index)
+    return best
+
+
+def _marker_sized(width: int, height: int, reference: tuple[float, float]) -> bool:
+    low, high = MARKER_PITCH_SPAN
+    return (
+        low * reference[0] <= width <= high * reference[0]
+        and low * reference[1] <= height <= high * reference[1]
+    )
 
 
 def pick_pan_origin(
