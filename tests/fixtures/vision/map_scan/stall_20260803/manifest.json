@@ -1,0 +1,15 @@
+{
+  "source": "data/runs/20260803-075745/frames/survey（實機第 8 輪，繞邊東向段）",
+  "crop": [150, 250, 1600, 620],
+  "crop_note": "原幀 2340x1080；裁到 board.MAP_REGION，也就是 frame_difference 與相位相關真正取樣的那一塊。測試把它貼回同座標的全尺寸黑底畫布，所以量測輸入與原幀逐像素相同（已複驗：裁切前後 _unchanged 的裁決與走的那條路都一致）。",
+  "frames": {
+    "t15-leg.png": "第 15 把推移之後。與 t16-precheck 之間沒有任何手勢。",
+    "t16-precheck.png": "第 16 個 tick 推移之前。畫面與 t15-leg 相同（MAP_REGION 內逐像素平均差 0.12，全幀 0.34）。",
+    "t16-leg.png": "第 16 把東向推移之後。單位排列比對量到內容西移 177px，相位相關卻讀成 0.8px、回應 0.063（MAP_REGION 內逐像素平均差 26.91，全幀 19.36）。"
+  },
+  "pairs": {
+    "t15-leg -> t16-precheck": "真的沒動。幀差 0.12，回應 0.965。必須判成沒動。",
+    "t16-precheck -> t16-leg": "真的推動了約 178px。相位相關凍住（回應 0.063、讀數 0.8px），舊碼因此判成沒動。必須判成動過。"
+  },
+  "regression": "tests/test_coverage_stall_witness.py"
+}
