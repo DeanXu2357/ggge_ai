@@ -131,7 +131,7 @@ class SweepRun:
     max_taps: int = MAX_TAPS
     tap_interval: float = TAP_INTERVAL_S
     empty_frame_every: int = EMPTY_FRAME_EVERY
-    filter_mode: str = sweep.FILTER_CANDIDATES
+    filter_mode: str = sweep.FILTER_FULL
     sleep: Callable[[float], None] = time.sleep
     zoom_out: Callable[[], None] | None = None
 
@@ -671,6 +671,9 @@ class SweepRun:
         發出去的手勢不等於生效的手勢：省電觸控鎖會無聲吞掉整把。相位沒動＝被吃，
         先做解鎖檢查再把同一把原樣重發；連吃就停在原地，不再對著吞點空轉。手勢
         日誌只是導航提示，不在信任鏈裡。
+
+        相位不動還有第二種解釋：推過地圖邊緣之後遊戲根本不動鏡頭。所以先問界線
+        （本幀看得見／帳本記過且窗已貼著），是到邊就記行程 0 收工，不算被吃。
         """
         wanted = board.PAN_MAX_REACH if reach is None else reach
         origin, stroke = board.pan_stroke(direction, wanted, board.find_sightings(frame))
@@ -698,6 +701,17 @@ class SweepRun:
             )
             if landed:
                 return stroke, frame
+            borders = sweep.read_borders(frame)
+            if sweep.at_border(direction, borders, ledger=self.ledger, offset=self.offset):
+                self.journal.record(
+                    "pan_exhausted",
+                    direction=direction,
+                    attempt=attempt,
+                    borders=sorted(borders),
+                )
+                if self.ledger is not None:
+                    self.witness(frame)
+                return 0.0, frame
             self.device.ensure_unlocked(force=True)
         raise Halt(f"推鏡連吃 {sweep.GESTURE_EATEN_LIMIT} 把（格線相位不動）：手勢沒生效")
 
@@ -803,8 +817,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--filter-mode",
         choices=(sweep.FILTER_FULL, sweep.FILTER_CANDIDATES),
-        default=sweep.FILTER_CANDIDATES,
-        help="candidates＝只點單位候選格、其餘推斷為空；full＝舊行為全格點（對照用）",
+        default=sweep.FILTER_FULL,
+        help=(
+            "full＝全格點（預設，真值來源）；candidates＝只點單位候選格、其餘推斷為空"
+            "（候選門檻尚無真值背書，等 eval_candidate_recall 報 100% 召回才翻回預設）"
+        ),
     )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--zoom", action=argparse.BooleanOptionalAction, default=True)

@@ -203,6 +203,7 @@ def test_a_lost_camera_re_anchors_at_the_corner_before_any_clearing_resumes(tmp_
 def swiping_run(tmp_path) -> SweepRun:
     """推鏡的相位驗收骨架：手勢與解鎖呼叫全部記下來，不碰任何裝置。"""
     run = build_run(tmp_path, {})
+    run.ledger = None  # 到邊判準不介入，這裡量的是純「被吃」鏈
     run.swipes = []
     run.unlocks = []
     run.device = SimpleNamespace(
@@ -241,6 +242,39 @@ def test_a_gesture_eaten_every_time_halts_instead_of_spinning(tmp_path, monkeypa
         SweepRun.pan(run, "east", _blank(), 200.0)
 
     assert len(run.swipes) == sweep.GESTURE_EATEN_LIMIT
+
+
+def test_pushing_past_a_visible_border_is_exhaustion_not_an_eaten_gesture(
+    tmp_path, monkeypatch
+):
+    run = swiping_run(tmp_path)
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (90.0, 90.0)))
+    monkeypatch.setattr(board, "find_sightings", lambda frame: ())
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: {"north": 120.0})
+
+    stroke, _ = SweepRun.pan(run, "north", _blank(), 200.0)
+
+    assert stroke == 0.0
+    assert len(run.swipes) == 1  # 不重發、不 Halt
+    assert run.unlocks == []
+
+
+def test_a_border_already_in_the_ledger_ends_the_push_without_seeing_it(
+    tmp_path, monkeypatch
+):
+    run = swiping_run(tmp_path)
+    run.ledger = sweep.SweepLedger(grid=GRID)
+    run.ledger.boundary["north"] = 2  # 鏡位 (0,0) 的窗最北就是第 2 列
+    run.offset = (0.0, 0.0)
+    run.witness = lambda frame: None
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (90.0, 90.0)))
+    monkeypatch.setattr(board, "find_sightings", lambda frame: ())
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: {})
+
+    stroke, _ = SweepRun.pan(run, "north", _blank(), 200.0)
+
+    assert stroke == 0.0
+    assert len(run.swipes) == 1
 
 
 def test_homing_walks_one_station_per_screen_and_never_re_clears_a_cell(tmp_path):

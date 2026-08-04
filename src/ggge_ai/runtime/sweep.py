@@ -155,6 +155,33 @@ def gesture_landed(
     return abs(shift[axis]) >= minimum
 
 
+def at_border(
+    direction: str,
+    borders: Mapping[str, float],
+    *,
+    ledger: SweepLedger | None = None,
+    offset: Point | None = None,
+    region: Region = TAP_REGION,
+) -> bool:
+    """推進方向這一側是不是已經到邊。
+
+    實機定讞：鏡頭推到地圖某緣之外，遊戲直接不動鏡頭，格線相位跟被吞掉的手勢一
+    模一樣——相位這個證人分不出兩者，得另外問界線。看得見界線，或帳本記過界線且
+    當前窗已經吃到那一格，就是到邊。
+    """
+    if direction in borders:
+        return True
+    if ledger is None or offset is None:
+        return False
+    edge = ledger.boundary.get(direction)
+    if edge is None:
+        return False
+    first, last = window_bounds(ledger.grid, offset, region)
+    reached = {"east": last[0] >= edge, "west": first[0] <= edge,
+               "south": last[1] >= edge, "north": first[1] <= edge}
+    return reached[direction]
+
+
 def frontier_cell(ledger: SweepLedger, heading: str = "east") -> Cell | None:
     """帳本上還沒裁決、蛇形順序最先輪到的那一格＝掃描鋒面。"""
     pending = ledger.pending()

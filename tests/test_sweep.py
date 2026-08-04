@@ -401,6 +401,16 @@ def test_a_gesture_that_did_not_move_the_lattice_phase_counts_as_eaten():
     assert sweep.gesture_landed((0.5, 40.0), "north")
 
 
+def test_a_stalled_push_is_read_as_the_edge_only_when_the_border_says_so():
+    ledger = sweep.SweepLedger(grid=GRID)
+    assert not sweep.at_border("north", {}, ledger=ledger, offset=(0.0, 0.0))
+    assert sweep.at_border("north", {"north": 120.0}, ledger=ledger, offset=(0.0, 0.0))
+
+    ledger.boundary["north"] = 2  # 鏡位 (0,0) 的窗最北就是第 2 列
+    assert sweep.at_border("north", {}, ledger=ledger, offset=(0.0, 0.0))
+    assert not sweep.at_border("north", {}, ledger=ledger, offset=(0.0, 1000.0))
+
+
 def test_an_unreadable_lattice_is_not_read_as_a_dead_gesture():
     assert sweep.gesture_landed(None, "east")
 
