@@ -157,6 +157,13 @@ def test_the_battle_tab_underline_is_a_line_not_a_pixel():
     assert screens.is_battle_tab_selected(load("settings/hub_battletab_fp_20260705")) is False
 
 
+def test_the_red_attack_range_block_is_not_the_battle_tab_underline():
+    """紅色攻擊範圍塊湊得出「整列鮭色＋護欄乾淨」，端點對不上才擋得住（0805 南緣讀卡）。"""
+    frame = load("settings/hub_redrange_battletab_fp_20260805")
+
+    assert screens.is_battle_tab_selected(frame) is False
+
+
 def test_the_frame_signature_is_stable_and_discriminating():
     a = load("grid/hub_grid_on_20260719")
     b = load("grid/hub_grid_on_panned_20260719")

@@ -1,0 +1,19 @@
+{
+  "check": "map_view_state",
+  "expect": {
+    "state": "hub"
+  },
+  "box": [
+    0,
+    0,
+    2340,
+    300
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "hub_redrange_battletab_fp_20260805.png",
+  "source": "data/runs/20260805-064355/frames/00136-tick1464.png",
+  "note": "0805 實機南緣讀敵卡：紅色攻擊範圍塊蓋住戰鬥籤底線列、地圖格線讓上下護欄列乾淨，舊的列＋護欄幾何把 hub 誤判成 settings，strict escape 空等到 Halt。"
+}

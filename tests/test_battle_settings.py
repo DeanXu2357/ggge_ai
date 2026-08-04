@@ -16,9 +16,9 @@ def _settings_frame(*, grid_on: bool, auto_off: bool = True, tab: bool = True) -
     if auto_off:
         frame[ay, ax] = (250, 240, 120)
     if tab:
-        # paint the selected-tab underline as a line (the detector now demands a
-        # salmon run with clear guard rows, not a single salmon pixel)
-        x0, x1 = settings.BATTLE_TAB_UNDERLINE_SPAN
+        # 底線畫成「有邊界的色塊」：偵測器要的是端點落在籤寬上的鮭色連續段，
+        # 不是單一鮭色像素，也不是無限延伸的一列
+        x0, x1 = settings.BATTLE_TAB_UNDERLINE_EDGES
         frame[settings.BATTLE_TAB_UNDERLINE[1], x0 : x1 + 1] = (160, 180, 240)
     return frame
 

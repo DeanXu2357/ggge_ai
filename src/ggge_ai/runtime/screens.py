@@ -76,6 +76,8 @@ _ABANDON_BODY_FLAT_MAX = 8.0
 BATTLE_TAB_UNDERLINE = (1613, 201)
 BATTLE_TAB_UNDERLINE_SPAN = (1605, 1651)
 BATTLE_TAB_UNDERLINE_GUARDS = (14, 18)
+BATTLE_TAB_UNDERLINE_EDGES = (1600, 1669)
+_UNDERLINE_EDGE_TOL = 6
 _UNDERLINE_LINE_MIN = 0.85
 _UNDERLINE_GUARD_MAX = 0.25
 
@@ -329,13 +331,33 @@ def _row_salmon_fraction(frame: np.ndarray, y: int, x0: int, x1: int) -> float:
     return hits / len(xs)
 
 
+def _salmon_run(frame: np.ndarray, y: int, x: int) -> tuple[int, int] | None:
+    if frame is None or y < 0 or y >= frame.shape[0] or x >= frame.shape[1]:
+        return None
+    if not _is_salmon(tuple(int(v) for v in frame[y, x])):
+        return None
+    left = right = x
+    while left - 1 >= 0 and _is_salmon(tuple(int(v) for v in frame[y, left - 1])):
+        left -= 1
+    while right + 1 < frame.shape[1] and _is_salmon(tuple(int(v) for v in frame[y, right + 1])):
+        right += 1
+    return left, right
+
+
 def is_battle_tab_selected(frame: np.ndarray) -> bool:
-    """設定頁的「戰鬥」籤選中底線。底線是一條線不是一點：單點探針會被鮭色
-    地形斑點與實心紅 UI 誤命中（0721 收斂），所以要求整列鮭色而上下護欄列
-    不鮭色。"""
+    """設定頁的「戰鬥」籤選中底線。底線是一塊有邊界的色塊，不是一點也不只是
+    一條列：單點探針會被鮭色地形斑點誤命中（0721 收斂），只驗列＋上下護欄還會
+    被戰鬥地圖的紅色攻擊範圍塊誤命中（格線剛好讓護欄列乾淨，0805 南緣讀卡），
+    所以再要求這條鮭色連續段的左右端點就落在籤本身的寬度上。"""
     x0, x1 = BATTLE_TAB_UNDERLINE_SPAN
     y = BATTLE_TAB_UNDERLINE[1]
     if _row_salmon_fraction(frame, y, x0, x1) < _UNDERLINE_LINE_MIN:
+        return False
+    run = _salmon_run(frame, y, BATTLE_TAB_UNDERLINE[0])
+    if run is None:
+        return False
+    if any(abs(got - want) > _UNDERLINE_EDGE_TOL
+           for got, want in zip(run, BATTLE_TAB_UNDERLINE_EDGES, strict=True)):
         return False
     above_dy, below_dy = BATTLE_TAB_UNDERLINE_GUARDS
     above = _row_salmon_fraction(frame, y - above_dy, x0, x1)

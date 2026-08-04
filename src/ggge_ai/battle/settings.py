@@ -39,6 +39,11 @@ AUTO_BATTLE_OFF_PROBE = (1179, 295)
 BATTLE_TAB_UNDERLINE = (1613, 201)
 BATTLE_TAB_UNDERLINE_SPAN = (1605, 1651)
 BATTLE_TAB_UNDERLINE_GUARDS = (14, 18)
+# 選中籤的鮭色塊兩端是固定的（0706/0711 兩張設定頁量到同一組），戰鬥地圖的紅色
+# 攻擊範圍塊也能湊出「整列鮭色、上下護欄不鮭色」，只有端點對不上（0805 實機
+# 南緣讀卡誤判 settings、escape 空等到 Halt）。
+BATTLE_TAB_UNDERLINE_EDGES = (1600, 1669)
+_UNDERLINE_EDGE_TOL = 6
 _UNDERLINE_LINE_MIN = 0.85
 _UNDERLINE_GUARD_MAX = 0.25
 
@@ -96,21 +101,42 @@ def _row_salmon_frac(frame: np.ndarray, y: int, x0: int, x1: int) -> float:
     return hits / len(xs)
 
 
-def is_battle_tab_selected(frame: np.ndarray) -> bool:
-    """True when the 戰鬥 tab's thin salmon underline sits at BATTLE_TAB_UNDERLINE.
+def _salmon_run(frame: np.ndarray, y: int, x: int) -> tuple[int, int] | None:
+    """The contiguous salmon run on row y containing x, as (left, right)."""
+    if frame is None or y < 0 or y >= frame.shape[0] or x >= frame.shape[1]:
+        return None
+    if not _is_salmon(tuple(int(v) for v in frame[y, x])):
+        return None
+    left = right = x
+    while left - 1 >= 0 and _is_salmon(tuple(int(v) for v in frame[y, left - 1])):
+        left -= 1
+    while right + 1 < frame.shape[1] and _is_salmon(tuple(int(v) for v in frame[y, right + 1])):
+        right += 1
+    return left, right
 
-    The underline is a line, not a point: probing the single pixel (1613,201)
-    false-positives on any salmon terrain speckle or filled red UI block that
-    happens to cover it -- a hub map, the stage page's 機體 3D preview,
-    supply/sortie panels (9 corpus frames collapsed to the 2 real settings
-    pages, 2026-07-21). Recognise the geometry instead: salmon must run along
-    the underline row yet clear the guard rows a fixed distance above and below,
-    so a filled block (salmon through the guards) and a lone speckle (no run)
-    are both rejected. Pure frame recognition; the panel reopens on the
-    last-used tab."""
+
+def is_battle_tab_selected(frame: np.ndarray) -> bool:
+    """True when the 戰鬥 tab's salmon selected-state underline sits at
+    BATTLE_TAB_UNDERLINE with the tab's own width.
+
+    The underline is a bounded block, not a point and not merely a run: probing
+    the single pixel (1613,201) false-positives on salmon terrain speckle
+    (9 corpus frames collapsed to the 2 real settings pages, 2026-07-21), and
+    the row/guard geometry alone still false-positives on the battle map's red
+    attack-range overlay, whose block edge happens to cover the row while the
+    map grid lines keep the guard rows clear (0805 南緣讀卡). So the run through
+    the tab centre must also END where the tab ends: both edges within
+    _UNDERLINE_EDGE_TOL of BATTLE_TAB_UNDERLINE_EDGES. Pure frame recognition;
+    the panel reopens on the last-used tab."""
     x0, x1 = BATTLE_TAB_UNDERLINE_SPAN
     y = BATTLE_TAB_UNDERLINE[1]
     if _row_salmon_frac(frame, y, x0, x1) < _UNDERLINE_LINE_MIN:
+        return False
+    run = _salmon_run(frame, y, BATTLE_TAB_UNDERLINE[0])
+    if run is None:
+        return False
+    if any(abs(got - want) > _UNDERLINE_EDGE_TOL
+           for got, want in zip(run, BATTLE_TAB_UNDERLINE_EDGES, strict=True)):
         return False
     above_dy, below_dy = BATTLE_TAB_UNDERLINE_GUARDS
     above = _row_salmon_frac(frame, y - above_dy, x0, x1)
