@@ -395,20 +395,49 @@ def abandon_battle(
     capture: Capture,
     tap: Tapper,
     *,
+    attempts: int = 2,
     sleep: Callable[[float], None] = time.sleep,
+    on_tap: Callable[[str, tuple[int, int]], None] | None = None,
 ) -> GateReport:
-    """棄戰：☰ → 放棄 → 確認。放棄鈕落在危險帶內，只有這條流程帶得動
-    intent="abandon"；棄戰不耗 AP／挑戰次數／EN（0730 實證）。"""
+    """棄戰：☰ → 放棄 → 確認 → **看到關卡列表才算數**。棄戰不耗 AP／挑戰次數／EN
+    （0730 實證）。
+
+    確認鈕 (1400,865) 與戰鬥選單下排的「幫助」(1327,865) 同列、水平相距 73px，而
+    「幫助」的鈕格橫跨 1189-1466（同列鈕距 277-283 量出來的）——**確認彈窗沒出來
+    的時候，這一下就是打在「幫助」上**。舊版三下盲點、盲報 ok，所以一旦 (410,860)
+    那一下被吃掉（選單動畫還沒畫完），下一下必然開幫助頁而流水帳上什麼都看不出來。
+    所以這裡改成閉環：每一下都回報座標給呼叫端存證，收尾用畫面驗收，沒到關卡列表
+    就先關掉手上這個面板再重跑整條鏈，跑完還沒到就明說失敗。
+    """
     report = GateReport()
     screen, _ = expect_screen(capture, screens.MAP_SCREENS, sleep=sleep)
     if screen not in screens.MAP_SCREENS:
         report.add("abandon", "not_on_map", screen)
         return report
-    tap(*BATTLE_MENU_TAP)
-    sleep(1.5)
-    tap(*BATTLE_MENU_ABANDON_TAP, intent="abandon")
-    sleep(1.5)
-    tap(*ABANDON_CONFIRM_TAP)
-    sleep(3.0)
-    report.add("abandon", "ok")
+    for attempt in range(attempts):
+        for label, point, intent in (
+            ("menu", BATTLE_MENU_TAP, ""),
+            ("abandon", BATTLE_MENU_ABANDON_TAP, "abandon"),
+            ("confirm", ABANDON_CONFIRM_TAP, ""),
+        ):
+            if on_tap is not None:
+                on_tap(label, point)
+            tap(*point, intent=intent)
+            sleep(3.0 if label == "confirm" else 1.5)
+        screen, _ = expect_screen(capture, (screens.STAGE_LIST,), attempts=3, sleep=sleep)
+        if screen == screens.STAGE_LIST:
+            report.add("abandon", "ok", f"attempt={attempt + 1}")
+            return report
+        # 鏈沒走完就卡住了：手上停著的可能是戰鬥選單、也可能是誤點開的幫助頁，
+        # 兩者的關閉鈕同位。關掉再從頭來，不要對著未知畫面繼續往下點。
+        if on_tap is not None:
+            on_tap("close", BATTLE_MENU_CLOSE_TAP)
+        tap(*BATTLE_MENU_CLOSE_TAP)
+        sleep(1.5)
+        # 關完還在地圖上才敢重跑：人已經被帶去別的畫面時，整條鏈的座標全部失去
+        # 意義，繼續點只會把污染擴大。
+        screen, _ = expect_screen(capture, screens.MAP_SCREENS, attempts=2, sleep=sleep)
+        if screen not in screens.MAP_SCREENS:
+            break
+    report.add("abandon", "unconfirmed", screen)
     return report

@@ -382,9 +382,12 @@ def test_the_sortie_gate_refuses_to_start_off_the_prep_page():
 
 
 def test_the_abandon_flow_is_the_only_thing_allowed_in_the_abandon_band():
-    screen = Screen([load(MAP_AUTO_OFF)])
+    screen = Screen([load(MAP_AUTO_OFF), load(STAGE_LIST)])
+    seen: list[tuple[str, tuple[int, int]]] = []
 
-    report = entry.abandon_battle(screen.capture, screen.tap, sleep=lambda _: None)
+    report = entry.abandon_battle(
+        screen.capture, screen.tap, sleep=lambda _: None, on_tap=lambda *row: seen.append(row)
+    )
 
     assert report.ok
     assert screen.points() == [
@@ -393,6 +396,29 @@ def test_the_abandon_flow_is_the_only_thing_allowed_in_the_abandon_band():
         entry.ABANDON_CONFIRM_TAP,
     ]
     assert screen.taps[1][2] == "abandon"
+    assert [label for label, _ in seen] == ["menu", "abandon", "confirm"]
+
+
+def test_the_confirm_tap_shares_its_row_with_the_battle_menu_help_button():
+    """確認鈕與「幫助」同列（0719 標定 幫助 1327／設定 1604／使命 1887，鈕距 277-283）。
+    彈窗沒出來時這一下就落在幫助的鈕格內——所以棄戰不准盲點盲報。"""
+    x, y = entry.ABANDON_CONFIRM_TAP
+    half = (1604 - 1327) / 2
+
+    assert y == 865
+    assert 1327 - half < x < 1327 + half
+
+
+def test_an_abandon_that_never_reaches_the_stage_list_closes_the_panel_and_says_so():
+    screen = Screen([load(MAP_AUTO_OFF)])
+
+    report = entry.abandon_battle(screen.capture, screen.tap, sleep=lambda _: None)
+
+    assert not report.ok
+    assert report.trail == ("abandon:unconfirmed",)
+    # 每一輪收尾都關掉手上停著的面板（誤點開的幫助頁與戰鬥選單關閉鈕同位）
+    assert screen.points().count(entry.BATTLE_MENU_CLOSE_TAP) == 2
+    assert screen.points().count(entry.ABANDON_CONFIRM_TAP) == 2
 
 
 def test_the_abandon_flow_refuses_when_we_are_not_on_the_map():
