@@ -708,9 +708,18 @@ def _band_masks(frame: np.ndarray) -> dict[str, np.ndarray]:
 
 
 def find_units(
-    frame: np.ndarray | None, region: Region = UNIT_DENSITY_REGION
+    frame: np.ndarray | None,
+    region: Region = UNIT_DENSITY_REGION,
+    *,
+    min_count: int = UNIT_DENSITY_MIN_COUNT,
+    local_max: int = UNIT_DENSITY_LOCAL_MAX,
+    min_dist: float = UNIT_DENSITY_MIN_DIST,
 ) -> tuple[Point, ...]:
-    """單位腳下環的位置，只論存在不論陣營。"""
+    """單位腳下環的位置，只論存在不論陣營。
+
+    三個門檻開成參數是給「候選過濾」用的：那邊要的是零漏報，寧可多吐幾個假峰
+    （多點一次）也不能漏（漏＝假帳）。預設值仍是校出來的定位用值，不要改。
+    """
     if frame is None:
         return ()
     masks = _band_masks(frame)
@@ -727,12 +736,12 @@ def find_units(
     x0, y0, w, h = region
     bounded = np.zeros_like(density)
     bounded[y0 : y0 + h, x0 : x0 + w] = density[y0 : y0 + h, x0 : x0 + w]
-    dilated = cv2.dilate(bounded, np.ones((UNIT_DENSITY_LOCAL_MAX,) * 2, np.uint8))
-    ys, xs = np.nonzero((bounded >= UNIT_DENSITY_MIN_COUNT) & (bounded >= dilated))
+    dilated = cv2.dilate(bounded, np.ones((local_max,) * 2, np.uint8))
+    ys, xs = np.nonzero((bounded >= min_count) & (bounded >= dilated))
     kept: list[Point] = []
     for x, y in sorted(zip(xs, ys, strict=True), key=lambda p: -int(bounded[p[1], p[0]])):
         if all(
-            (x - px) ** 2 + (y - py) ** 2 >= UNIT_DENSITY_MIN_DIST**2 for px, py in kept
+            (x - px) ** 2 + (y - py) ** 2 >= min_dist**2 for px, py in kept
         ):
             kept.append((float(x), float(y)))
     return tuple(kept)

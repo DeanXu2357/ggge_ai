@@ -432,3 +432,67 @@ def test_the_frontier_is_the_first_undecided_cell_in_serpentine_order():
 
     assert sweep.frontier_cell(book, "east") == (2, 0)
     assert sweep.frontier_cell(ledger(west=0, east=0, north=0, south=0)) == (0, 0)
+
+
+def test_a_density_peak_spreads_over_the_cells_it_could_belong_to():
+    cells = sweep.candidate_cells(GRID, (0.0, 0.0), [(150.0, 150.0)], halo=0.75)
+
+    assert cells == frozenset({(col, row) for col in range(3) for row in range(3)})
+
+
+def test_a_peak_well_inside_one_cell_only_claims_that_cell():
+    cells = sweep.candidate_cells(GRID, (0.0, 0.0), [(250.0, 350.0)], halo=0.4)
+
+    assert cells == frozenset({(2, 3)})
+
+
+def test_the_candidate_filter_taps_the_candidates_and_infers_the_rest_empty():
+    book = ledger()
+
+    plan = sweep.plan_window(
+        book, (0.0, 0.0), region=REGION, holes=(), bands=(), candidates={(1, 1), (9, 9)}
+    )
+
+    assert [target.cell for target in plan.taps] == [(1, 1)]
+    assert (1, 1) not in plan.inferred
+    assert set(plan.inferred) == {
+        (col, row) for col in range(4) for row in range(3)
+    } - {(1, 1)}
+
+
+def test_a_blocked_cell_is_never_inferred_empty():
+    band = DangerBand("test", (0, 150), (0, 150), intent="")
+
+    plan = sweep.plan_window(
+        ledger(), (0.0, 0.0), region=REGION, holes=(), bands=(band,), candidates=set()
+    )
+
+    assert (0, 0) in plan.blocked
+    assert (0, 0) not in plan.inferred
+
+
+def test_the_ledger_keeps_clicked_and_inferred_empties_apart():
+    book = ledger(west=0, east=1, north=0, south=0)
+    book.record((0, 0), sweep.EMPTY)
+    book.record((1, 0), sweep.EMPTY_INFERRED, reason="candidate_filter")
+
+    counts = book.summary()["counts"]
+
+    assert counts[sweep.EMPTY] == 1
+    assert counts[sweep.EMPTY_INFERRED] == 1
+    assert book.complete
+
+
+def test_the_marker_can_be_carried_onto_an_inferred_empty_when_asked():
+    book = ledger()
+    book.record((1, 0), sweep.EMPTY_INFERRED)
+
+    plain = sweep.frontier_tap(book, (0.0, 0.0), (0, 0), "east", region=REGION, holes=(),
+                               bands=())
+    widened = sweep.frontier_tap(
+        book, (0.0, 0.0), (0, 0), "east", region=REGION, holes=(), bands=(),
+        accept=(sweep.EMPTY, sweep.EMPTY_INFERRED),
+    )
+
+    assert plain is None
+    assert widened is not None and widened.cell == (1, 0)

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -32,10 +32,27 @@ log = logging.getLogger(__name__)
 
 UNKNOWN = "unknown"
 EMPTY = "empty"
+# 視覺主張的空格：候選過濾說「這一格沒有單位」，沒有點擊背書。與 EMPTY 分級，
+# 帳本與 summary 都要看得出來哪一格是點出來的、哪一格是推斷的。
+EMPTY_INFERRED = "empty_inferred"
 ENEMY = "enemy"
 ALLY = "ally"
 UNSURE = "unsure"
-DECIDED: tuple[str, ...] = (EMPTY, ENEMY, ALLY, UNSURE)
+DECIDED: tuple[str, ...] = (EMPTY, EMPTY_INFERRED, ENEMY, ALLY, UNSURE)
+# UNIT 級事實永遠只來自點擊：視覺這一層只准說「空」。
+INFERABLE: tuple[str, ...] = (EMPTY_INFERRED,)
+
+FILTER_FULL = "full"
+FILTER_CANDIDATES = "candidates"
+
+# 候選檢測的門檻：調參目標是**零漏報**。密度門檻放到最寬、去重距離放鬆，寧可誤報
+# （多點一次，成本 4.4s）不可漏報（漏＝該格被推斷成空＝假帳）。
+CANDIDATE_MIN_COUNT = 90
+CANDIDATE_LOCAL_MAX = board.UNIT_DENSITY_LOCAL_MAX
+CANDIDATE_MIN_DIST = 40.0
+# 一個密度峰要暈開成候選格的半徑（格距倍數）：峰心是弧環的密度重心，不保證落在
+# 單位站的那一格中央，暈開到鄰格才不會漏。
+CANDIDATE_HALO_PITCH = 0.75
 
 COMPASS: tuple[str, ...] = ("west", "east", "north", "south")
 _SIDES: dict[str, tuple[str, str]] = {"x": ("west", "east"), "y": ("north", "south")}
@@ -319,11 +336,15 @@ class TapTarget:
 
 @dataclass(frozen=True)
 class WindowPlan:
-    """本鏡位下要點的格（蛇形）與擋掉的格。blocked 是這個鏡位的事實，不是永久的。"""
+    """本鏡位下要點的格（蛇形）與擋掉的格。blocked 是這個鏡位的事實，不是永久的。
+
+    `inferred` 只在候選過濾模式下非空：窗內、點得下去、但視覺說沒有單位的格。
+    """
 
     taps: tuple[TapTarget, ...]
     blocked: tuple[Cell, ...]
     window: tuple[Cell, Cell] | None = None
+    inferred: tuple[Cell, ...] = ()
 
 
 def _tap_blocked(point: Point, bands: Sequence[DangerBand]) -> bool:
@@ -379,6 +400,40 @@ def window_targets(
     return out
 
 
+def candidate_points(
+    frame: np.ndarray,
+    *,
+    region: Region = board.UNIT_DENSITY_REGION,
+    min_count: int = CANDIDATE_MIN_COUNT,
+    local_max: int = CANDIDATE_LOCAL_MAX,
+    min_dist: float = CANDIDATE_MIN_DIST,
+) -> tuple[Point, ...]:
+    """這一幀裡「可能站著單位」的密度峰。門檻放到最寬——這是過濾器不是裁決者。"""
+    return board.find_units(
+        frame, region, min_count=min_count, local_max=local_max, min_dist=min_dist
+    )
+
+
+def candidate_cells(
+    grid: WorldGrid,
+    offset: Point,
+    points: Iterable[Point],
+    *,
+    halo: float = CANDIDATE_HALO_PITCH,
+) -> frozenset[Cell]:
+    """密度峰（螢幕座標）→ 要點的世界格。每個峰暈開 halo 格，寧可多不可漏。"""
+    out: set[Cell] = set()
+    dx, dy = halo * grid.col_pitch, halo * grid.row_pitch
+    for x, y in points:
+        world = (x + offset[0], y + offset[1])
+        low = grid.cell_of((world[0] - dx, world[1] - dy))
+        high = grid.cell_of((world[0] + dx, world[1] + dy))
+        for row in range(low[1], high[1] + 1):
+            for col in range(low[0], high[0] + 1):
+                out.add((col, row))
+    return frozenset(out)
+
+
 def plan_window(
     ledger: SweepLedger,
     offset: Point,
@@ -387,13 +442,20 @@ def plan_window(
     region: Region = TAP_REGION,
     holes: Sequence[Region] = board.UNIT_DENSITY_HUD_HOLES,
     bands: Sequence[DangerBand] = DANGER_BANDS,
+    candidates: Collection[Cell] | None = None,
 ) -> WindowPlan:
-    """本鏡位裡還沒裁決、點得下去的格，蛇形排序。"""
+    """本鏡位裡還沒裁決、點得下去的格，蛇形排序。
+
+    `candidates` 給了就進過濾模式：只有候選格排進 taps，其餘的格列進 `inferred`
+    交給呼叫端入帳 EMPTY_INFERRED。擋掉的格（HUD 洞／危險帶／窗邊切一半）不算
+    推斷——那些格連「視覺看得清楚」都不成立。
+    """
     grid = ledger.grid
     first, last = window_bounds(grid, offset, region)
     targets = window_targets(grid, offset, region=region, holes=holes, bands=bands)
     taps: list[TapTarget] = []
     blocked: list[Cell] = []
+    inferred: list[Cell] = []
     for index, row in enumerate(range(first[1], last[1] + 1)):
         cols = list(range(first[0], last[0] + 1))
         if (heading == "west") != (index % 2 == 1):
@@ -409,8 +471,11 @@ def plan_window(
             if point is None:
                 blocked.append(cell)
                 continue
+            if candidates is not None and cell not in candidates:
+                inferred.append(cell)
+                continue
             taps.append(TapTarget(cell, point))
-    return WindowPlan(tuple(taps), tuple(blocked), (first, last))
+    return WindowPlan(tuple(taps), tuple(blocked), (first, last), tuple(inferred))
 
 
 @dataclass(frozen=True)
@@ -506,18 +571,20 @@ def frontier_tap(
     region: Region = TAP_REGION,
     holes: Sequence[Region] = board.UNIT_DENSITY_HUD_HOLES,
     bands: Sequence[DangerBand] = DANGER_BANDS,
+    accept: tuple[str, ...] = (EMPTY,),
 ) -> TapTarget | None:
     """推鏡前把標記搬到本窗靠推進方向的前緣格。已經在前緣就 None。
 
-    只點**已判 EMPTY** 的格：搬標記是定位動作不是裁決動作，不拿一格未知的裁決機會
-    去換（那一格的回饋會被當成搬標記的結果讀掉）。
+    只點**已判空**的格：搬標記是定位動作不是裁決動作，不拿一格未知的裁決機會去換
+    （那一格的回饋會被當成搬標記的結果讀掉）。過濾模式下窗內多半只有推斷空格，
+    呼叫端把 EMPTY_INFERRED 也放進 `accept`——點下去反而是替那一格補上點擊背書。
     """
     forward = _ADVANCE[direction]
     targets = window_targets(ledger.grid, offset, region=region, holes=holes, bands=bands)
     movable = [
         (cell, point)
         for cell, point in targets.items()
-        if point is not None and ledger.verdict(cell) == EMPTY and cell != marker_cell
+        if point is not None and ledger.verdict(cell) in accept and cell != marker_cell
     ]
     if not movable:
         return None

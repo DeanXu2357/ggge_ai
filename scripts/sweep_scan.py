@@ -10,6 +10,7 @@ usage:
   uv run python scripts/sweep_scan.py --serial R5CRC37JBYJ --stage-node 544,667 \
       --stop-after zero
   uv run python scripts/sweep_scan.py … --max-taps 200 --tap-interval 0.5
+  uv run python scripts/sweep_scan.py … --filter-mode full   # 全格點對照組
   uv run python scripts/sweep_scan.py … --no-abandon
 
 前提：手機已經停在目標系列的關卡列表。--stage-node X,Y 必填（棄戰回來游標會飄）。
@@ -130,6 +131,7 @@ class SweepRun:
     max_taps: int = MAX_TAPS
     tap_interval: float = TAP_INTERVAL_S
     empty_frame_every: int = EMPTY_FRAME_EVERY
+    filter_mode: str = sweep.FILTER_CANDIDATES
     sleep: Callable[[float], None] = time.sleep
     zoom_out: Callable[[], None] | None = None
 
@@ -141,6 +143,7 @@ class SweepRun:
     marker_cell: sweep.Cell | None = field(default=None, init=False)
     walk: sweep.NodeWalk = field(default_factory=sweep.NodeWalk, init=False)
     fix: sweep.Fix = field(default_factory=sweep.Fix, init=False)
+    peaks: tuple[sweep.Point, ...] = field(default=(), init=False)
     empties: int = field(default=0, init=False)
     started: float = field(default_factory=time.monotonic, init=False)
 
@@ -256,7 +259,10 @@ class SweepRun:
                 continue
             frame = self.settled()
             self.witness(frame)
-            plan = sweep.plan_window(ledger, self.offset, heading=self.heading)
+            candidates = self.candidates(frame)
+            plan = sweep.plan_window(
+                ledger, self.offset, heading=self.heading, candidates=candidates
+            )
             for cell in plan.blocked:
                 ledger.defer(cell)
             self.journal.record(
@@ -266,7 +272,9 @@ class SweepRun:
                 taps=len(plan.taps),
                 blocked=[list(cell) for cell in plan.blocked],
                 window=None if plan.window is None else [list(plan.window[0]), list(plan.window[1])],
+                frame=self.camera.keep("window"),
             )
+            self.infer_empties(plan, candidates)
             if plan.taps and self.work(plan, frame):
                 continue
             direction, self.heading = sweep.plan_pan(ledger, self.offset, self.heading)
@@ -275,6 +283,36 @@ class SweepRun:
                 break
             self.expand(direction)
         self.retire_deferred()
+
+    def candidates(self, frame: np.ndarray) -> frozenset[sweep.Cell] | None:
+        """本窗要點哪些格。full 模式回 None（全格點，舊行為）。
+
+        推斷空格要有格線背書：讀不出格線的幀不准推斷，那一窗退回全格點。
+        """
+        if self.filter_mode != sweep.FILTER_CANDIDATES:
+            return None
+        self.peaks = ()
+        if board.find_lattice(frame) is None:
+            return None
+        self.peaks = sweep.candidate_points(frame)
+        return sweep.candidate_cells(self._ledger().grid, self.offset, self.peaks)
+
+    def infer_empties(self, plan: sweep.WindowPlan, cells: frozenset[sweep.Cell] | None) -> None:
+        """候選以外的窗內格入帳 EMPTY_INFERRED——視覺主張，明白標示沒有點擊背書。"""
+        if self.filter_mode != sweep.FILTER_CANDIDATES:
+            return
+        ledger = self._ledger()
+        for cell in plan.inferred:
+            ledger.record(cell, sweep.EMPTY_INFERRED, reason="candidate_filter")
+        self.journal.record(
+            "candidates",
+            mode=self.filter_mode,
+            reason="no_lattice" if cells is None else None,
+            peaks=[[round(value, 1) for value in point] for point in self.peaks],
+            cells=None if cells is None else [list(cell) for cell in sorted(cells)],
+            inferred=len(plan.inferred),
+            inferred_cells=[list(cell) for cell in plan.inferred],
+        )
 
     def expand(self, direction: str) -> None:
         """往 direction 擴張一段：前緣搬標記 → 推鏡 → 找標記重錨；丟了就局部回退。
@@ -338,18 +376,41 @@ class SweepRun:
 
     def carry_marker(self, direction: str, frame: np.ndarray) -> None:
         """標記不在推進方向的前緣格就主動搬過去——新窗看不見它就無從重認。"""
-        target = sweep.frontier_tap(self._ledger(), self.offset, self.marker_cell, direction)
+        ledger = self._ledger()
+        target = sweep.frontier_tap(
+            ledger, self.offset, self.marker_cell, direction, accept=self.carriable
+        )
         if target is None:
             return
+        was = ledger.verdict(target.cell)
         outcome = self.tap_cell(target, frame)
         self.journal.record(
-            "carry_marker", cell=list(target.cell), verdict=outcome.verdict, direction=direction
+            "carry_marker",
+            cell=list(target.cell),
+            verdict=outcome.verdict,
+            direction=direction,
+            was=was,
         )
         if outcome.verdict == sweep.TAP_EMPTY:
+            ledger.record(target.cell, sweep.EMPTY)
             self.marker_cell = target.cell
             return
         if outcome.verdict in (sweep.TAP_CARD, sweep.TAP_SHIFTED):
+            # 推斷成空的格點下去卻出卡／置中＝候選過濾漏報了一台，帳本改回點擊事實。
+            if was == sweep.EMPTY_INFERRED:
+                self.journal.record("inference_broken", cell=list(target.cell))
+                if outcome.verdict == sweep.TAP_CARD:
+                    self.sentence_card(target)
+                    return
+                self.sentence_shift(target, outcome)
+                return
             self.escape()
+
+    @property
+    def carriable(self) -> tuple[str, ...]:
+        if self.filter_mode == sweep.FILTER_CANDIDATES:
+            return (sweep.EMPTY, sweep.EMPTY_INFERRED)
+        return (sweep.EMPTY,)
 
     def stride(self, direction: str) -> float:
         """這一把推多遠：節點鏈想要的步幅，被「標記仍在新窗視野內」硬上限夾住。"""
@@ -739,6 +800,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-taps", type=int, default=MAX_TAPS)
     parser.add_argument("--tap-interval", type=float, default=TAP_INTERVAL_S)
     parser.add_argument("--empty-frame-every", type=int, default=EMPTY_FRAME_EVERY)
+    parser.add_argument(
+        "--filter-mode",
+        choices=(sweep.FILTER_FULL, sweep.FILTER_CANDIDATES),
+        default=sweep.FILTER_CANDIDATES,
+        help="candidates＝只點單位候選格、其餘推斷為空；full＝舊行為全格點（對照用）",
+    )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--zoom", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--run-dir", type=Path, default=None)
@@ -818,6 +885,7 @@ def build(args: argparse.Namespace, journal: Journal) -> SweepRun:
         max_taps=args.max_taps,
         tap_interval=args.tap_interval,
         empty_frame_every=args.empty_frame_every,
+        filter_mode=args.filter_mode,
         zoom_out=zoom_driver(args, camera, journal),
     )
 
@@ -835,6 +903,7 @@ def main() -> int:
         stage_node=args.stage_node,
         max_taps=args.max_taps,
         tap_interval=args.tap_interval,
+        filter_mode=args.filter_mode,
     )
     try:
         run.run()

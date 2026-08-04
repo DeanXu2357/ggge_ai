@@ -296,3 +296,51 @@ def test_zeroing_reads_the_borders_off_the_pan_verdict_frame_instead_of_reshooti
 
     assert legs == ["west", "north"]
     assert shots == ["settled"]
+
+
+def filtered_run(tmp_path, candidates, outcomes=None):
+    run = build_run(tmp_path, outcomes or {})
+    run.filter_mode = sweep.FILTER_CANDIDATES
+    run.candidates = lambda frame: frozenset(candidates)
+    return run
+
+
+def test_the_filter_only_taps_candidates_and_books_the_rest_as_inferred_empty(tmp_path):
+    run = filtered_run(tmp_path, {(3, 4)})
+    tapped: list[tuple[int, int]] = []
+    run.tap_cell = lambda target, before: (
+        tapped.append(target.cell),
+        sweep.TapOutcome(sweep.TAP_EMPTY, marker=target.point),
+    )[1]
+
+    run.tour()
+
+    assert tapped == [(3, 4)]
+    assert run.ledger.verdict((3, 4)) == sweep.EMPTY
+    assert run.ledger.verdict((2, 4)) == sweep.EMPTY_INFERRED
+    assert run.ledger.reasons[(2, 4)] == "candidate_filter"
+    assert run.ledger.complete
+
+
+def test_the_filter_falls_back_to_tapping_every_cell_when_the_grid_is_unreadable(tmp_path):
+    run = build_run(tmp_path, {})
+    run.filter_mode = sweep.FILTER_CANDIDATES
+
+    run.tour()  # 合成幀讀不出格線 → candidates() 回 None
+
+    assert not run.ledger.cells_of(sweep.EMPTY_INFERRED)
+    assert len(run.ledger.cells_of(sweep.EMPTY)) == 6
+
+
+def test_a_card_under_an_inferred_empty_rewrites_the_ledger_with_the_click(tmp_path):
+    run = filtered_run(tmp_path, set())
+    run.ledger.record((3, 4), sweep.EMPTY_INFERRED, reason="candidate_filter")
+    run.tap_cell = lambda target, before: sweep.TapOutcome(sweep.TAP_CARD)
+    run.sentence_card = lambda target: run.ledger.record(target.cell, sweep.ENEMY)
+    run.marker_cell = (2, 4)
+    run.signature = object()
+
+    run.carry_marker("east", _blank())
+
+    assert run.ledger.verdict((3, 4)) == sweep.ENEMY
+    assert run.marker_cell == (2, 4)
