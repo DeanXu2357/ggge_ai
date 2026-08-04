@@ -302,6 +302,26 @@ def test_a_marker_behind_the_leading_edge_is_carried_to_the_furthest_empty_cell(
     assert target.cell == (2, 0)
 
 
+def test_a_marker_left_outside_the_window_is_replanted_instead_of_trusted():
+    # 返航實況：回角落歸零後標記還在遠方舊鋒面（20,0），本窗看不見它。
+    book = ledger()
+    for col in range(4):
+        book.record((col, 0), sweep.EMPTY)
+
+    target = sweep.frontier_tap(book, (0.0, 0.0), (20, 0), "east", region=REGION,
+                                holes=(), bands=())
+
+    assert target is not None
+    assert target.cell == (3, 0)
+
+
+def test_the_window_membership_test_follows_the_camera():
+    assert sweep.in_window(GRID, (0.0, 0.0), (3, 0), REGION)
+    assert not sweep.in_window(GRID, (0.0, 0.0), (20, 0), REGION)
+    assert sweep.in_window(GRID, (1700.0, 0.0), (20, 0), REGION)
+    assert not sweep.in_window(GRID, (0.0, 0.0), None, REGION)
+
+
 def test_carrying_the_marker_never_spends_an_undecided_cell():
     book = ledger()
     book.record((0, 0), sweep.EMPTY)

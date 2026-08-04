@@ -399,6 +399,15 @@ def window_bounds(
     return (first, last)
 
 
+def in_window(
+    grid: WorldGrid, offset: Point, cell: Cell | None, region: Region = TAP_REGION
+) -> bool:
+    if cell is None:
+        return False
+    first, last = window_bounds(grid, offset, region)
+    return first[0] <= cell[0] <= last[0] and first[1] <= cell[1] <= last[1]
+
+
 def window_targets(
     grid: WorldGrid,
     offset: Point,
@@ -615,10 +624,13 @@ def frontier_tap(
     ]
     if not movable:
         return None
-    cell, point = max(
-        movable, key=lambda entry: (forward(entry[0]), -_span(entry[0], marker_cell))
-    )
-    if marker_cell is not None and forward(cell) <= forward(marker_cell):
+    # 「已經在前緣」只有標記看得見時才說得通。回角落歸零後標記還留在遠方舊鋒面，
+    # 拿它當前緣會判定不用搬——推完鏡新窗裡一個標記都沒有，重認必定落空。窗外就
+    # 當沒有標記：本窗重新種一顆。
+    visible = in_window(ledger.grid, offset, marker_cell, region)
+    anchor = marker_cell if visible else None
+    cell, point = max(movable, key=lambda entry: (forward(entry[0]), -_span(entry[0], anchor)))
+    if anchor is not None and forward(cell) <= forward(anchor):
         return None
     return TapTarget(cell, point)
 

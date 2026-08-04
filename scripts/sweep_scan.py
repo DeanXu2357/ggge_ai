@@ -367,21 +367,29 @@ class SweepRun:
         self.journal.record("homing", target=list(target), legs=list(route))
         for direction in route:
             frame = self.settled()
-            self.carry_marker(direction, frame)
+            planted = self.carry_marker(direction, frame)
+            if not planted and not sweep.in_window(ledger.grid, self.offset, self.marker_cell):
+                # 本窗種不出標記、舊標記又在窗外＝這一把推完沒有證人。與其推出去失位，
+                # 不如停在角落讓正規掃描從這裡重新長出鋒面（角落的鏡位是可信的）。
+                self.journal.record("homing_blocked", direction=direction)
+                return
             self.pan(direction, self.camera.grab(), self.stride(direction))
             if self.anchor_on_marker() is None:
                 self.fix.lose()
                 self.journal.record("homing_lost", direction=direction)
                 return
 
-    def carry_marker(self, direction: str, frame: np.ndarray) -> None:
-        """標記不在推進方向的前緣格就主動搬過去——新窗看不見它就無從重認。"""
+    def carry_marker(self, direction: str, frame: np.ndarray) -> bool:
+        """標記不在推進方向的前緣格就主動搬過去——新窗看不見它就無從重認。
+
+        回傳「標記現在確實落在本窗」。
+        """
         ledger = self._ledger()
         target = sweep.frontier_tap(
             ledger, self.offset, self.marker_cell, direction, accept=self.carriable
         )
         if target is None:
-            return
+            return sweep.in_window(ledger.grid, self.offset, self.marker_cell)
         was = ledger.verdict(target.cell)
         outcome = self.tap_cell(target, frame)
         self.journal.record(
@@ -394,17 +402,18 @@ class SweepRun:
         if outcome.verdict == sweep.TAP_EMPTY:
             ledger.record(target.cell, sweep.EMPTY)
             self.marker_cell = target.cell
-            return
+            return True
         if outcome.verdict in (sweep.TAP_CARD, sweep.TAP_SHIFTED):
             # 推斷成空的格點下去卻出卡／置中＝候選過濾漏報了一台，帳本改回點擊事實。
             if was == sweep.EMPTY_INFERRED:
                 self.journal.record("inference_broken", cell=list(target.cell))
                 if outcome.verdict == sweep.TAP_CARD:
                     self.sentence_card(target)
-                    return
+                    return False
                 self.sentence_shift(target, outcome)
-                return
+                return False
             self.escape()
+        return False
 
     @property
     def carriable(self) -> tuple[str, ...]:
@@ -445,7 +454,15 @@ class SweepRun:
         borders = sweep.read_borders(frame)
         clash = sweep.contradicts(ledger, self.landmarks, borders, offset)
         if clash is not None:
-            self.journal.record("marker_clash", side=clash)
+            # 撞色簽是唯一沒有幀就診斷不了的失敗（要親看東側是什麼被認成填色），必存。
+            self.journal.record(
+                "marker_clash",
+                side=clash,
+                at=[round(value, 1) for value in found],
+                offset=[round(value, 1) for value in offset],
+                borders={side: round(value, 1) for side, value in borders.items()},
+                frame=self.camera.keep("clash"),
+            )
             return None
         self.offset = offset
         self.fix.regain()
