@@ -61,8 +61,11 @@ ZERO_LEGS = 24
 # 連續這麼多次「回角落＋接力返航」都沒能推進任何一格裁決就停手：再繞下去只是
 # 把同一段路重走。
 STRANDINGS_LIMIT = 3
-SETTLE_POLL_S = 0.25
-SETTLE_ROUNDS = 4
+# 推鏡後的緩動等待。輪數是「多等一點降污染率」的保險，不是靜止判準（0803 第 10
+# 輪定讞：整區灰階讀到的是不隨鏡頭動的星空層，不准拿它問畫面停了沒）。一張截圖
+# 在實機要 ~2.4s，所以保險買一輪就好，改用較長的間隔補回真實靜置時間。
+SETTLE_POLL_S = 0.5
+SETTLE_ROUNDS = 1
 CARD_SETTLE_S = 1.0
 
 
@@ -205,8 +208,7 @@ class SweepRun:
             if "west" in borders and "north" in borders:
                 break
             direction = "west" if "west" not in borders else "north"
-            self.pan(direction, frame)
-            frame = self.settled()
+            _, frame = self.pan(direction, frame)
             borders = sweep.read_borders(frame)
         self.journal.record("zero_borders", borders={k: round(v, 1) for k, v in borders.items()})
         if "west" not in borders or "north" not in borders:
@@ -288,7 +290,7 @@ class SweepRun:
         self.carry_marker(direction, frame)
         while True:
             reach = self.stride(direction)
-            stroke = self.pan(direction, self.camera.grab(), reach)
+            stroke, _ = self.pan(direction, self.camera.grab(), reach)
             node = self.anchor_on_marker()
             if node is not None:
                 self.walk.expanded(node)
@@ -596,8 +598,14 @@ class SweepRun:
                 "verdict", cell=list(cell), verdict=sweep.UNSURE, reason="never_tappable"
             )
 
-    def pan(self, direction: str, frame: np.ndarray, reach: float | None = None) -> float:
-        """一把推鏡，**逐手勢用格線相位驗收**。回傳實際打出去的行程。
+    def pan(
+        self, direction: str, frame: np.ndarray, reach: float | None = None
+    ) -> tuple[float, np.ndarray]:
+        """一把推鏡，**逐手勢用格線相位驗收**。回傳（實際打出去的行程, 驗收幀）。
+
+        驗收幀交回去給呼叫端接著用：它是 swipe 之後 PAN_SETTLE_S ＋一次 screencap
+        往返（實測 ~2.4s）才取的，比再跑一次 settled() 的第一張還晚，重拍只是多付
+        截圖錢（0804 那輪 zero 段 24 張裡有 16 張是這樣浪費掉的）。
 
         發出去的手勢不等於生效的手勢：省電觸控鎖會無聲吞掉整把。相位沒動＝被吃，
         先做解鎖檢查再把同一把原樣重發；連吃就停在原地，不再對著吞點空轉。手勢
@@ -628,7 +636,7 @@ class SweepRun:
                 phase=None if shift is None else [round(v, 1) for v in shift],
             )
             if landed:
-                return stroke
+                return stroke, frame
             self.device.ensure_unlocked(force=True)
         raise Halt(f"推鏡連吃 {sweep.GESTURE_EATEN_LIMIT} 把（格線相位不動）：手勢沒生效")
 

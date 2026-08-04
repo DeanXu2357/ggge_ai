@@ -40,7 +40,7 @@ def build_run(tmp_path, outcomes: dict) -> SweepRun:
     run.ledger.boundary.update(west=2, east=4, north=4, south=5)
     run.settled = _blank
     run.witness = lambda frame: None
-    run.pan = lambda direction, frame, reach=None: reach or 0.0
+    run.pan = lambda direction, frame, reach=None: (reach or 0.0, _blank())
     run.relocate = lambda candidate=None: None
     run.escape = lambda: None
     run.on_hub = lambda: True
@@ -111,7 +111,7 @@ def marked_run(tmp_path, sightings: list[bool]) -> SweepRun:
     run.legs = []
     run.pan = lambda direction, frame, reach=None: (
         run.legs.append((direction, reach)),
-        reach,
+        (reach, _blank()),
     )[1]
     answers = list(sightings)
     run.anchor_on_marker = lambda: (
@@ -224,7 +224,7 @@ def test_an_eaten_gesture_is_unlocked_and_resent_unchanged(tmp_path, monkeypatch
     monkeypatch.setattr(board, "lattice_phase", lambda frame: next(reads))
     monkeypatch.setattr(board, "find_sightings", lambda frame: ())
 
-    stroke = SweepRun.pan(run, "east", _blank(), 200.0)
+    stroke, _ = SweepRun.pan(run, "east", _blank(), 200.0)
 
     assert stroke == 200.0
     assert len(run.swipes) == 2
@@ -253,7 +253,7 @@ def test_homing_walks_one_station_per_screen_and_never_re_clears_a_cell(tmp_path
         run.ledger.record((col, 4), sweep.EMPTY)  # 鋒面在 (40,4)，一路都已裁決
     run.legs = []
     run.carried = []
-    run.pan = lambda direction, frame, reach=None: run.legs.append(direction)
+    run.pan = lambda direction, frame, reach=None: (run.legs.append(direction), (0.0, _blank()))[1]
     run.stride = lambda direction: 200.0
     run.carry_marker = lambda direction, frame: run.carried.append(direction)
     run.anchor_on_marker = lambda: sweep.TrustNode(cell=run.marker_cell, offset=run.offset)
@@ -274,3 +274,25 @@ def test_homing_that_never_reaches_the_frontier_halts_instead_of_looping(tmp_pat
 
     with pytest.raises(Halt):
         run.tour()
+
+
+def test_zeroing_reads_the_borders_off_the_pan_verdict_frame_instead_of_reshooting(
+    tmp_path, monkeypatch
+):
+    """一張截圖實機要 ~2.4s；驗收幀比重跑一次 settled() 的第一張還晚，重拍純浪費
+    （0804 那輪 zero 段 24 張裡 16 張是這樣花掉的）。"""
+    run = build_run(tmp_path, {})
+    run.ledger = None
+    shots = []
+    run.settled = lambda: (shots.append("settled"), _blank())[1]
+    legs = []
+    run.pan = lambda direction, frame, reach=None: (legs.append(direction), (0.0, _blank()))[1]
+    borders = iter([{}, {"west": 1.0}, {"west": 1.0, "north": 2.0}])
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: next(borders))
+    monkeypatch.setattr(board, "find_lattice", lambda frame: GRID)
+    monkeypatch.setattr(sweep, "anchor_northwest", lambda lattice, seen: (GRID, (0.0, 0.0)))
+
+    run.zero()
+
+    assert legs == ["west", "north"]
+    assert shots == ["settled"]
