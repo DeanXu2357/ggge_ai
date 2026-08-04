@@ -25,7 +25,7 @@ import argparse
 import logging
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -139,6 +139,9 @@ class SweepRun:
     offset: sweep.Point = field(default=(0.0, 0.0), init=False)
     heading: str = field(default="east", init=False)
     landmarks: dict[str, float] = field(default_factory=dict, init=False)
+    sightings: dict[str, list[float]] = field(default_factory=dict, init=False)
+    clashes: dict[str, list[float]] = field(default_factory=dict, init=False)
+    grounded: bool = field(default=False, init=False)
     signature: board.MarkerSignature | None = field(default=None, init=False)
     marker_cell: sweep.Cell | None = field(default=None, init=False)
     walk: sweep.NodeWalk = field(default_factory=sweep.NodeWalk, init=False)
@@ -219,6 +222,7 @@ class SweepRun:
             raise Halt(f"推不到西北角：同一幀只看到 {sorted(borders)}")
         # 角落是絕對根：看到它就是錨上了，零里程計需求。
         self.fix.regain()
+        self.grounded = True
         if self.ledger is None:
             lattice = board.find_lattice(frame)
             if lattice is None:
@@ -473,8 +477,15 @@ class SweepRun:
                 borders={side: round(value, 1) for side, value in borders.items()},
                 frame=self.camera.keep("clash"),
             )
-            return None
+            if self.revoke(clash, borders, offset):
+                clash = sweep.contradicts(ledger, self.landmarks, borders, offset)
+            if clash is not None:
+                return None
+        for side in borders:
+            if side in self.landmarks:
+                self.clashes.pop(side, None)
         self.offset = offset
+        self.grounded = True
         self.fix.regain()
         self.witness(frame)
         node = sweep.TrustNode(
@@ -627,15 +638,68 @@ class SweepRun:
             raise Halt("escape 回不到 hub，選擇狀態下不再點任何東西")
 
     def witness(self, frame: np.ndarray) -> None:
-        """這一幀目視到的終止邊 → 地標與界線。界線第一次記下就不再改。"""
+        """這一幀目視到的終止邊 → 地標與界線。界線第一次記下就不再改。
+
+        地標是**整幀座標的絕對真值**，所以寫入資格要審，這一點與帳本只收點擊事實
+        同一條紅線：推斷出來的鏡位（置中反推）算得出世界座標，但那個座標繼承了
+        推斷的錯，沒有資格開新地標——它只能拿既有地標覆核界線。
+        """
         ledger = self._ledger()
         for side, screen_position in sweep.read_borders(frame).items():
             axis = 0 if side in ("west", "east") else 1
             world = screen_position + self.offset[axis]
-            if side not in self.landmarks:
-                self.landmarks[side] = world
-                self.journal.record("landmark", side=side, world=round(world, 1))
-            ledger.see_border(side, self.landmarks[side])
+            if side in self.landmarks:
+                ledger.see_border(side, self.landmarks[side])
+                continue
+            if not self.grounded:
+                continue
+            readings = self.sightings.setdefault(side, [])
+            readings.append(world)
+            del readings[: -sweep.LANDMARK_VOTES]
+            settled = sweep.settled_reading(readings, self.slack(side))
+            if settled is None:
+                continue
+            self.landmarks[side] = settled
+            self.journal.record(
+                "landmark",
+                side=side,
+                world=round(settled, 1),
+                votes=[round(value, 1) for value in readings],
+            )
+            self.sightings.pop(side, None)
+            ledger.see_border(side, settled)
+
+    def slack(self, side: str) -> float:
+        grid = self._ledger().grid
+        pitch = grid.col_pitch if side in ("west", "east") else grid.row_pitch
+        return sweep.EDGE_AGREEMENT_PITCH * pitch
+
+    def revoke(self, side: str, borders: Mapping[str, float], offset: sweep.Point) -> bool:
+        """同一側累積 N 次互相對得上的反證＝錯的是舊地標，撤換。回傳有沒有翻案。
+
+        反證的鏡位是標記錨定解出來的（填色是我們自己種下去的絕對地標），比一次寫死
+        的舊地標可信。計數只由「那一側目視到而且對得上」清零——不然回退途中的成功
+        重錨（那些鏡位根本看不到這一側）會把計數洗掉，活鎖就永遠等不到第 N 次。
+        """
+        axis = 0 if side in ("west", "east") else 1
+        readings = self.clashes.setdefault(side, [])
+        readings.append(borders[side] + offset[axis])
+        del readings[: -sweep.LANDMARK_REVOKE_CLASHES]
+        settled = sweep.settled_reading(readings, self.slack(side), sweep.LANDMARK_REVOKE_CLASHES)
+        if settled is None:
+            return False
+        was = self.landmarks[side]
+        self.landmarks[side] = settled
+        self.journal.record(
+            "landmark_revoked",
+            side=side,
+            was=round(was, 1),
+            world=round(settled, 1),
+            votes=[round(value, 1) for value in readings],
+        )
+        self.clashes.pop(side, None)
+        self._ledger().see_border(side, settled, replace=True)
+        return True
 
     def relocate(self, candidate: sweep.Point | None = None) -> None:
         """推鏡／置中之後重定鏡位：地標優先，標記填色補位，都沒有才回角落歸零。"""
@@ -643,23 +707,29 @@ class SweepRun:
         frame = self.settled()
         borders = sweep.read_borders(frame)
         marker = self.marker_offset(frame)
+        # 置中反推的鏡位是**假設**（被點的我方格落在螢幕正中心），標記填色解出來的
+        # 才是量到的。兩者在 reanchor 的來源標籤裡同叫 centre，這裡自己分得出來。
+        from_marker = candidate is None and marker is not None
         offset, source = sweep.reanchor(
             ledger.grid,
             landmarks=self.landmarks,
             borders=borders,
             candidate=candidate if candidate is not None else marker,
         )
+        grounded = source == sweep.SOURCE_EDGE or (from_marker and source != sweep.SOURCE_LOST)
         self.journal.record(
             "relocate",
             source=source,
             offset=None if offset is None else [round(value, 1) for value in offset],
             borders=sorted(borders),
             marker=marker is not None,
+            grounded=grounded,
         )
         if offset is None:
             self.zero()
             return
         self.offset = offset
+        self.grounded = grounded
         self.fix.regain()
         self.witness(frame)
 

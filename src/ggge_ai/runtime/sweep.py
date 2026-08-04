@@ -79,6 +79,13 @@ CENTRE_SHIFT_PX = 60.0
 # 同軸兩側地標各算一次偏移，差超過半格就是至少一側不是地圖邊，整軸不採信。
 EDGE_AGREEMENT_PITCH = 0.5
 
+# 地標一次目擊就凍住的代價是永久的：0805 那輪 east 被一次「置中反推」的鏡位寫成
+# 世界 2529，其後 96 次目擊一致指向 2318.9（標準差 2.9），每一次都撞成 clash、
+# 每一次回退又都成功，保險絲抓不到，兩小時只前進 6 格。所以升格要 K 次互相對得上
+# 的目擊，撤換要 N 次一致的反證——K=N=3 在那輪的數據下第一次撞完三輪就會翻案。
+LANDMARK_VOTES = 3
+LANDMARK_REVOKE_CLASHES = 3
+
 HEADINGS: tuple[str, str] = ("east", "west")
 
 # 推鏡後標記要留在點擊窗內、再往內縮這麼多格才算「還看得見」——量測誤差與透視
@@ -322,9 +329,13 @@ class SweepLedger:
         if not self.decided(cell):
             self.blocked[cell] = self.blocked.get(cell, 0) + 1
 
-    def see_border(self, direction: str, world: float) -> None:
-        """界線一律目視。第一次記下就不再改——寫錯的代價是永久的。"""
-        if direction in self.boundary:
+    def see_border(self, direction: str, world: float, *, replace: bool = False) -> None:
+        """界線一律目視。第一次記下就不再改——寫錯的代價是永久的。
+
+        `replace` 只給地標撤換用：地標翻案時界線跟著翻，否則帳本會留著一條由已被
+        推翻的地標算出來的界線。
+        """
+        if direction in self.boundary and not replace:
             return
         self.boundary[direction] = border_cell(self.grid, direction, world)
 
@@ -696,6 +707,21 @@ def contradicts(
         if abs(screen + offset[axis] - known) > slack * pitch:
             return side
     return None
+
+
+def settled_reading(
+    readings: Sequence[float], slack: float, votes: int = LANDMARK_VOTES
+) -> float | None:
+    """一疊同側目擊收斂成一個世界座標：夠多次、而且彼此對得上，才給答案。
+
+    只看最近 `votes` 次——舊的目擊可能來自已經被推翻的鏡位。
+    """
+    if len(readings) < votes:
+        return None
+    recent = sorted(readings[-votes:])
+    if recent[-1] - recent[0] > slack:
+        return None
+    return recent[len(recent) // 2]
 
 
 def plan_pan(

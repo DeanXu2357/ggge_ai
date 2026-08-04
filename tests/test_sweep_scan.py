@@ -447,3 +447,63 @@ def test_a_carry_tap_with_no_fill_is_retried_and_never_moves_the_marker_cell(tmp
     assert not SweepRun.carry_marker(run, "east", _blank())
     assert taps == [(3, 4), (3, 4)]
     assert run.marker_cell == (2, 4)
+
+
+def witnessing_run(tmp_path):
+    run = build_run(tmp_path, {})
+    del run.witness  # build_run 把 witness 換成假件，這幾支要試的正是它
+    run.offset = (10.0, 0.0)
+    return run
+
+
+def test_an_inferred_camera_may_not_open_a_new_landmark(tmp_path, monkeypatch):
+    run = witnessing_run(tmp_path)
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: {"east": 100.0})
+
+    run.grounded = False
+    for _ in range(sweep.LANDMARK_VOTES + 2):
+        run.witness(_blank())
+
+    assert run.landmarks == {}
+    assert run.sightings == {}
+
+
+def test_a_landmark_needs_several_sightings_that_agree_with_each_other(
+    tmp_path, monkeypatch
+):
+    run = witnessing_run(tmp_path)
+    run.grounded = True
+    run.ledger.boundary.pop("east")
+    seen = [100.0, 900.0, 100.0, 100.0, 100.0]
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: {"east": seen.pop(0)})
+
+    for _ in range(3):
+        run.witness(_blank())
+    assert run.landmarks == {}  # 三次目擊裡有一次對不上，不升格
+
+    for _ in range(2):
+        run.witness(_blank())
+    assert run.landmarks == {"east": 110.0}
+    assert run.ledger.boundary["east"] == sweep.border_cell(run.ledger.grid, "east", 110.0)
+
+
+def test_a_side_that_keeps_contradicting_with_one_voice_unseats_the_landmark(tmp_path):
+    run = build_run(tmp_path, {})
+    run.signature = object()
+    run.marker_cell = (2, 2)
+    run.landmarks = {"east": 500.0}  # 一次寫死的髒地標
+    run.ledger.boundary.pop("east")
+    board_find = board.find_marker
+    try:
+        board.find_marker = lambda frame, signature, region=None, holes=(): (100.0, 100.0)
+        sweep_borders = sweep.read_borders
+        sweep.read_borders = lambda frame: {"east": 1000.0}
+        nodes = [run.anchor_on_marker() for _ in range(sweep.LANDMARK_REVOKE_CLASHES)]
+    finally:
+        board.find_marker = board_find
+        sweep.read_borders = sweep_borders
+
+    assert nodes[:-1] == [None] * (sweep.LANDMARK_REVOKE_CLASHES - 1)
+    assert nodes[-1] is not None  # 第 N 次一致的反證翻案，擴張就地接回去
+    assert run.landmarks["east"] == 1150.0
+    assert run.offset == (150.0, 150.0)
