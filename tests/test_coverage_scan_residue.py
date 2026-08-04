@@ -29,7 +29,6 @@ def _no_modal(monkeypatch):
     monkeypatch.setattr(vision, "is_unit_detail_modal", lambda f: False)
 
 
-# --- residue at the scan start (輪七) ---------------------------------------
 
 
 def _residue_source(world, state, events, taps):
@@ -104,7 +103,6 @@ def test_unclearable_residue_fails_loud_before_anchor(monkeypatch):
     assert not any(e["kind"] == "frame_localized" for e in events)
 
 
-# --- localisation-starving brake (輪七) -------------------------------------
 
 
 def _starving_source(events, *, diag_save=None):
@@ -186,7 +184,6 @@ def test_normal_convergence_never_starves(monkeypatch):
     assert report["outcome"] in ("complete", "unreachable_only")
 
 
-# --- refused-frame forensics ------------------------------------------------
 
 
 def test_refused_evidence_is_throttled_and_pathed(monkeypatch):

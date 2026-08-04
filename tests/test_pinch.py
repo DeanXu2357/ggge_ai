@@ -28,7 +28,6 @@ from ggge_ai.actuation.pinch import (
 IDENTITY = lambda x, y: (int(round(x)), int(round(y)))  # noqa: E731
 
 
-# --- raw coordinate mapping (direction is the derived ROTATION_90 default) ---
 
 def test_screen_to_raw_center_maps_to_center():
     assert screen_to_raw(1170, 540) == (2048, 2048)
@@ -65,7 +64,6 @@ def test_screen_to_raw_clamps_into_range():
     assert 0 <= rx <= 4095 and 0 <= ry <= 4095
 
 
-# --- protocol-B event series ---
 
 def _events():
     return pinch_events(
@@ -114,7 +112,6 @@ def test_pinch_syn_frame_count():
 
 def test_pinch_trajectory_reaches_endpoints():
     ev = _events()
-    # collect the x position emitted per slot across the whole series
     slot = None
     a_xs, b_xs = [], []
     for e in ev:
@@ -143,16 +140,13 @@ def test_pinch_rejects_bad_args():
         pinch_events(((0, 0), (0, 0)), ((1, 1), (1, 1)), tracking_ids=(5, 5), map_fn=IDENTITY)
 
 
-# --- single-command renderer ---
 
 def test_render_is_one_command_with_paced_syn():
     ev = pinch_events(((0, 0), (10, 0)), ((20, 0), (10, 0)), steps=2, map_fn=IDENTITY)
     cmd = render_sendevent(ev, device="/dev/input/event7", frame_pause_s=0.005)
     calls = cmd.split("; ")
-    # every event becomes exactly one sendevent line
     sendevents = [c for c in calls if c.startswith("sendevent ")]
     assert len(sendevents) == len(ev)
-    # a sleep is inserted after each SYN frame
     syns = sum(1 for e in ev if e[0] == EV_SYN and e[1] == SYN_REPORT)
     assert sum(1 for c in calls if c.startswith("sleep ")) == syns
     assert all(c.startswith("sendevent /dev/input/event7 ") for c in sendevents)
@@ -164,7 +158,6 @@ def test_render_no_sleep_when_pause_zero():
     assert "sleep" not in cmd
 
 
-# --- executors (dependency-injected seams) ---
 
 def test_sendevent_pincher_runs_single_shell_call():
     calls = []
@@ -192,7 +185,6 @@ def test_zoom_out_fingers_pinch_in_geometry():
     assert a[0][1] == 500 and b[0][1] == 500  # horizontal by default
 
 
-# --- zoom_out_max convergence ---
 
 def test_zoom_out_max_stops_after_two_non_shrinking_pinches():
     seq = [128.0, 118.0, 108.0, 100.0, 99.0, 99.0, 99.0]
@@ -271,7 +263,6 @@ def test_zoom_out_max_source_reports_wide_band_reader():
     assert [s.source for s in steps] == ["grid", "map_lattice", "map_lattice", "map_lattice"]
 
 
-# --- pick_pinch_center (dynamic pinch center) ---
 
 def _four_point_clearance(center, peaks):
     a, b = zoom_out_fingers(center)

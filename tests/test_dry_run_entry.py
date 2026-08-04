@@ -220,7 +220,6 @@ def test_the_survey_summary_carries_the_unlocalised_count(tmp_path):
     assert "coverage" in summary[0]["survey"]
 
 
-# ---- v2.3 定位中斷存證 ----
 
 
 def broken(tick: int, reason: str = "phase") -> dict[str, object]:
@@ -311,7 +310,6 @@ def test_the_assembled_run_wires_the_evidence_sink_and_the_dump_flag(tmp_path, m
     assert dumping.driver.evidence.dump is True
 
 
-# ---- v2.3 synced 提前結束 ----
 
 
 @dataclass

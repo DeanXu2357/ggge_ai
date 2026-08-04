@@ -77,7 +77,6 @@ _PAGE_DETECTORS: tuple[tuple[str, Callable[..., bool]], ...] = (
     (SETTINGS, lambda frame: settings.is_battle_tab_selected(frame)),
 )
 
-# the full closed set of legal classify_frame return values
 VIEW_STATES: tuple[str, ...] = (
     *(state for state, _ in _PAGE_DETECTORS),
     HUB,

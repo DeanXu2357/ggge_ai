@@ -28,14 +28,12 @@ from .solver import (
 )
 
 __all__ = [
-    # enemy_model
     "MODE_MIN",
     "MODE_POLICY",
     "EnemyModel",
     "MinimaxEnemy",
     "NearestTargetPolicy",
     "ReachProvider",
-    # solver
     "SearchContext",
     "SearchStats",
     "SolverConfig",

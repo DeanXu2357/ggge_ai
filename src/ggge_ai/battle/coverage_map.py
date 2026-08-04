@@ -233,8 +233,6 @@ class CellMap:
         self._col_pitch: float | None = None
         self._row_pitch: float | None = None
 
-    # -- bootstrap ----------------------------------------------------------
-
     def is_empty(self) -> bool:
         return not self._terrain and not self._units
 
@@ -243,8 +241,6 @@ class CellMap:
         an empty map has nothing to localise against (定位紅線 -- no gesture
         prior), so the first frame is registered directly."""
         self.integrate(obs, (0, 0))
-
-    # -- localisation -------------------------------------------------------
 
     def _axis_pin(
         self, obs: FrameObservation, low: str, high: str
@@ -392,8 +388,6 @@ class CellMap:
         dcol, drow = offset
         return self._edge_consistent(obs, dcol, drow, self._covered_bbox())
 
-    # -- integration --------------------------------------------------------
-
     def integrate(self, obs: FrameObservation, offset: Cell) -> int:
         """Fold a localised frame into the map at `offset`: unit support with
         px refinement, terrain fingerprints, coverage, and first-seen boundary
@@ -462,8 +456,6 @@ class CellMap:
         self._check_hint()
         return terrain_conflict
 
-    # -- cache size hint ----------------------------------------------------
-
     def _check_hint(self) -> None:
         """Drop the cache size hint the moment the SEEN geometry contradicts it
         (架構紅線): both opposing edges registered at a span that disagrees with
@@ -525,8 +517,6 @@ class CellMap:
     @property
     def hint_drop_reason(self) -> str | None:
         return self._hint_drop_reason
-
-    # -- frontier -----------------------------------------------------------
 
     def _covered_bbox(self) -> tuple[int, int, int, int]:
         cols = [c[0] for c in self._covered]
@@ -601,8 +591,6 @@ class CellMap:
         cx = sum(c[0] for c in best) // len(best)
         cy = sum(c[1] for c in best) // len(best)
         return (cx, cy)
-
-    # -- reporting / export -------------------------------------------------
 
     @property
     def bounds(self) -> dict[str, int | None]:

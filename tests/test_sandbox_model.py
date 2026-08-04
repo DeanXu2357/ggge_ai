@@ -47,7 +47,6 @@ def _attack(unit_id, target_id, weapon="rifle", **kw):
     return Decision(unit_id, MoveKind.ATTACK, target_id=target_id, weapon=weapon, **kw)
 
 
-# --- 相位、次數與 EN 經濟 -------------------------------------------------
 
 
 def test_phase_rotates_when_a_faction_finishes_and_skips_the_empty_third_party():
@@ -112,7 +111,6 @@ def test_dead_unit_leaves_the_board():
     assert step(state, _attack("a", "e0", hit=True)).unit("e0") is None
 
 
-# --- CHANCE STEP（擊殺再動）----------------------------------------------
 
 
 def test_kill_grants_a_chance_step_and_spends_one_charge():
@@ -137,7 +135,6 @@ def test_kill_without_a_chance_step_charge_ends_the_activation():
     assert after.phase is Faction.ENEMY
 
 
-# --- 防禦反應 -------------------------------------------------------------
 
 
 def test_defense_action_multipliers_reduce_damage():
@@ -194,7 +191,6 @@ def test_counter_stance_damages_the_attacker():
     assert after.unit("boss") is None
 
 
-# --- 交戰結算順序（實測案例）--------------------------------------------
 
 
 def _mech(uid, faction, pos, hp, **kw):
@@ -500,7 +496,6 @@ def test_a_plain_support_defender_does_not_intercept_the_counter():
     assert after.unit("g").support_defend_charges == 1
 
 
-# --- 地圖炮 ---------------------------------------------------------------
 
 
 def _map_gun(blast=1, en_cost=0):
@@ -560,7 +555,6 @@ def test_map_weapon_without_ammo_is_a_no_op():
     assert after.unit("a_t").hp == 1
 
 
-# --- debuff ---------------------------------------------------------------
 
 
 def test_a_support_debuff_lands_before_and_amplifies_the_main_strike():
@@ -612,7 +606,6 @@ def test_the_larger_magnitude_of_the_same_debuff_kind_wins():
     assert debuffs[0].magnitude == 0.5
 
 
-# --- 技能 -----------------------------------------------------------------
 
 
 def test_en_refill_skill_spends_a_use_and_the_activation():
@@ -644,7 +637,6 @@ def test_a_non_activation_ending_skill_keeps_the_unit_pending():
     assert after.phase is Faction.ALLY
 
 
-# --- 劇本事件與轉置表鍵 ---------------------------------------------------
 
 
 def _kill_spawn_event(event_id="ev1", victim="e", within_turn=None, spawn_uid="e9",

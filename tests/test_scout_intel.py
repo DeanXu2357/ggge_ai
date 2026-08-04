@@ -492,7 +492,6 @@ def test_surplus_arc_becomes_a_recorded_reinforcement(tmp_path, monkeypatch):
     assert len(saved_again.events) == 1
 
 
-# ---- identify mode (定案 5): factionless points, dock side decides ----
 
 RIGHT = _canvas("faction/right_dock_hard1_20260714.png", (0, 0, 2340, 300))
 BLANK = np.zeros((1080, 2340, 3), np.uint8)
@@ -597,7 +596,6 @@ def test_identify_survey_bannerless_point_alone_fails_loud(tmp_path):
         )
 
 
-# ---- Round 1.5: identify view gate over selection overlays ----
 
 
 class _GatedWorld:
@@ -731,7 +729,6 @@ def test_move_overlay_finish_frame_gate_overrides_the_false_dock_ally():
     assert map_view.RETURN_BUTTON in probe([map_view.RETURN_BUTTON], frame=frame)
 
 
-# ---- Round 1.9: identify live re-verify (peak recheck + snap + phantom drop) ----
 
 
 class _RecheckWorld:

@@ -83,7 +83,6 @@ def answer() -> dict:
     return json.loads((SERIES / "standard_answer.json").read_text(encoding="utf-8"))
 
 
-# --- boundaries ------------------------------------------------------------
 
 @pytest.mark.parametrize("name", list(FRAMES))
 def test_boundary_presence_matches_truth(lattices, name):
@@ -115,7 +114,6 @@ def test_pt2_west_and_pt9_south_are_caught(lattices):
     assert lattices["pt9"].edges["south"] is not None
 
 
-# --- 07-23 輪三 anomaly A: west-in-view starfield phantom columns (批7) ------
 
 MAP_SCAN = Path(__file__).parent / "fixtures" / "vision" / "map_scan"
 
@@ -214,7 +212,6 @@ def test_phase_pressure_midcell_start_no_false_edge(images):
         assert got is None, f"mid-cell start dir={direction} gave false edge {got}"
 
 
-# --- lattice ---------------------------------------------------------------
 
 def test_pitch_matches_standard_answer(lattices, answer):
     col_truth, row_truth = answer["pitch"]
@@ -235,7 +232,6 @@ def test_lattice_covers_full_frame(lattices):
         assert list(lat.rows) == sorted(lat.rows)
 
 
-# --- zoom_at_max wide-band fallback (批6) -----------------------------------
 
 GRID_DIR = Path(__file__).parent / "fixtures" / "vision" / "grid"
 
@@ -290,7 +286,6 @@ def test_pick_pinch_center_beats_fixed_on_dense_frame(images):
     assert clearance(chosen) > 1.8 * clearance(pinch.PINCH_CENTER_DEFAULT)
 
 
-# --- fingerprints ----------------------------------------------------------
 
 def _distinctive(fps: dict, thr: float = 12.0) -> set:
     """Cells whose colour stands clear of the frame's uniform-space median --

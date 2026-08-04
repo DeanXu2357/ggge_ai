@@ -576,8 +576,6 @@ def zoom_at_max(frame: np.ndarray) -> bool | None:
     return col <= ZOOM_MAX_COL_PITCH_CEIL
 
 
-# --- coverage-scan visual primitives (#26 批1) -----------------------------
-#
 # read_map_lattice extends read_grid_lattice's highpass-ridge idea to the whole
 # frame and adds boundary evidence. read_grid_lattice reads only a small central
 # band, which a dense unit formation buries (frame pt2 of the 20260719 ex2if
@@ -1269,8 +1267,6 @@ def centroid(points: list[tuple[int, int]]) -> tuple[int, int] | None:
     return (sum(xs) // len(points), sum(ys) // len(points))
 
 
-# --- game-forecast readers (reconciliation chain, M2) -----------------------
-#
 # Field regions below were calibrated on full-resolution PNG captures
 # (20260712-182654 weapon select, 20260705-180119 battle prep 應戰,
 # 20260711-214425 unit_move) by measuring white-text component boxes.

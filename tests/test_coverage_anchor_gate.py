@@ -52,7 +52,6 @@ def _no_obstruction(monkeypatch):
     monkeypatch.setattr(vision, "enemy_selection_active", lambda f: False)
 
 
-# --- 1. anchor-evidence gate: seek out of the void, converge ----------------
 
 
 class _VoidStartWorld(_World):
@@ -147,7 +146,6 @@ def test_old_code_strands_on_the_void_without_the_gate(monkeypatch):
     assert not any(e["kind"] == "anchor_seek" for e in events)  # gate never ran
 
 
-# --- 2. anchor-evidence gate: nowhere to anchor, honest loud stop -----------
 
 
 class _VoidEverywhereWorld(_World):
@@ -188,7 +186,6 @@ def test_unit_free_map_fails_loud_without_drift_burning():
     assert report["nudges"] <= ANCHOR_MAX_NUDGES
 
 
-# --- 3. anchor-phase brake: stop starving on the drive to the corner --------
 
 
 class _CornerNeverReanchors:
@@ -287,7 +284,6 @@ def test_anchor_phase_without_brake_burns_past_the_corner(monkeypatch):
     assert nudges > ANCHOR_MAX_NUDGES * (1 + RELOC_MAX_NUDGES)
 
 
-# --- 4. units-present start (輪九型) is unchanged ----------------------------
 
 
 def test_units_present_start_skips_the_gate():

@@ -33,7 +33,6 @@ class Recorder:
         self.calls.append((finger_a, finger_b))
 
 
-# --- 手勢幾何 ---
 
 
 def test_zoom_out_fingers_is_a_pinch_in():
@@ -51,7 +50,6 @@ def test_zoom_out_fingers_vertical_variant_swaps_the_axis():
     assert abs(b[0][1] - a[0][1]) == 400
 
 
-# --- 中心挑選（純函式） ---
 
 
 def test_no_peaks_falls_back_to_the_fixed_center():
@@ -84,7 +82,6 @@ def test_every_chosen_center_keeps_its_four_points_in_the_safe_region():
         assert rx <= px <= rx + rw and ry <= py <= ry + rh
 
 
-# --- 後端注入接縫 ---
 
 
 def test_the_gesture_backend_maps_finger_pairs_onto_one_call():
@@ -116,7 +113,6 @@ def test_the_backend_is_wired_onto_the_game_surface_view():
     assert seen[0][-1] == 12
 
 
-# --- 收斂迴圈 ---
 
 
 def _measured(sequence):
@@ -210,7 +206,6 @@ def test_the_pinch_budget_caps_a_camera_that_never_settles():
     assert [step.index for step in steps] == [0, 1, 2, 3]
 
 
-# --- 組裝件 ---
 
 
 def blank() -> np.ndarray:

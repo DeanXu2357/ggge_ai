@@ -146,7 +146,6 @@ def test_a_border_may_sit_outside_the_box_the_lattice_band_could_read():
     assert dict(span.borders) == {"east": span.border("east")}
 
 
-# ---- 投影校正本身 ----
 
 LINE_SPACING = 93
 LINE_VALUE = 210

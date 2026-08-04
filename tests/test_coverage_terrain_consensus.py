@@ -41,7 +41,6 @@ from ggge_ai.battle.coverage_map import (
 from ggge_ai.battle.vision import MapLattice
 from tests.test_coverage_scan import _World, _source
 
-# --- synthetic 1-row world (CellMap-level distillation) --------------------
 
 # a residue-blob colour that matches no real world cell (the 輪七/輪八 red
 # threat-range swath): far past TERRAIN_MATCH from every _fp(c) below.
@@ -104,7 +103,6 @@ def _reference_strip(width: int = 12) -> CellMap:
     return cmap
 
 
-# --- B: terrain first-write-wins localisation (輪八, red-then-green) --------
 
 
 def test_first_write_wins_localises_after_a_wrong_offset_integration():
@@ -142,7 +140,6 @@ def test_last_write_wins_would_have_refused_the_same_probe(monkeypatch):
     assert rep.source is None
 
 
-# --- B: terrain_conflict count ---------------------------------------------
 
 
 def test_wrong_offset_integration_reports_high_conflict():
@@ -201,7 +198,6 @@ def test_first_write_wins_still_fills_unseen_cells():
         assert np.array_equal(cmap._terrain[(c, 0)], _fp(c))
 
 
-# --- A: refused telemetry + terrain_conflict on the live loop --------------
 
 
 @pytest.fixture(autouse=True)

@@ -84,7 +84,6 @@ class _World:
             for r in range(rows)
         }
 
-    # -- device seam --------------------------------------------------------
 
     def capture(self):
         return tuple(self.nw)
@@ -203,7 +202,6 @@ def _found_cells(census):
     return {(round((x - FOOT) / PITCH), round((y - FOOT) / PITCH)) for x, y in census.units}
 
 
-# --- convergence -----------------------------------------------------------
 
 def test_converges_and_syncs_every_unit():
     """The full malicious cocktail (truncation + a no-op + a delayed leg +
@@ -256,7 +254,6 @@ def test_threats_export_to_census_world_px():
     assert census.threat_centroid() is not None
 
 
-# --- 07-23 false-south regression (named, permanent) -----------------------
 
 def test_never_fabricates_a_south_edge_from_a_blocked_push():
     """THE 07-23 regression, locked. Southward pushes are eaten wholesale (the
@@ -333,7 +330,6 @@ def test_inconsistent_map_state_fails_loud_not_complete():
     assert src.bounds is None and src.census is None
 
 
-# --- recovery protocol -----------------------------------------------------
 
 def test_recovery_relocates_after_an_overmove_loses_the_lock():
     """An over-move drops the overlap localize needs, so the frame is refused;
@@ -357,7 +353,6 @@ def test_recovery_relocates_after_an_overmove_loses_the_lock():
     assert _found_cells(census) == {(1, 1), (10, 5), (6, 3)}
 
 
-# --- localize gate stress (batch2 note 1) ----------------------------------
 
 def test_ambiguous_terrain_refuses_then_recovers():
     """A periodic terrain band with no distinctive cells aliases across offsets:
@@ -400,7 +395,6 @@ def test_ambiguous_terrain_refuses_then_recovers():
     assert any(e["kind"] == "scan_recovery" for e in events), "gate never forced a refusal"
 
 
-# --- budget fail-fast ------------------------------------------------------
 
 def test_budget_exhaustion_fails_fast_without_fabrication():
     """A huge map cannot be covered within SCAN_MAX_NUDGES; the scan fails loud
@@ -421,7 +415,6 @@ def test_budget_exhaustion_fails_fast_without_fabrication():
     )
 
 
-# --- unreachable hole honesty (batch2 note 3) ------------------------------
 
 def test_permanent_hole_is_reported_unreachable_not_silently_capped():
     """A cell that never appears in any frame (a permanent HUD occlusion) leaves
@@ -464,7 +457,6 @@ def test_permanent_hole_is_reported_unreachable_not_silently_capped():
     assert census is not None  # unreachable-only completion still publishes
 
 
-# --- controller cutover wiring ---------------------------------------------
 
 import time as _time  # noqa: E402
 

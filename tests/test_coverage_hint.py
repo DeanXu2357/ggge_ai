@@ -39,7 +39,6 @@ def _lattice(ncols: int, nrows: int, pitch: int = 100) -> MapLattice:
     )
 
 
-# --- frontier projection (hint acceleration) -------------------------------
 
 def test_frontier_hint_points_at_projected_edge():
     """With west registered and a wide hint, the frontier steers toward the
@@ -68,7 +67,6 @@ def test_frontier_projects_from_opposite_registered_edge():
     assert cmap.frontier() == (2, 15)
 
 
-# --- hint drop (conflict) --------------------------------------------------
 
 def test_hint_dropped_on_span_mismatch():
     """Both opposing edges seen at a span that disagrees with the hint drops
@@ -102,7 +100,6 @@ def test_hint_kept_when_consistent():
     assert cmap.size_hint == (10, 8)
 
 
-# --- source-level: hint through the real loop ------------------------------
 
 def test_source_consistent_hint_completes_without_drop():
     """A correct hint neither changes the outcome nor gets dropped: the scan
@@ -133,7 +130,7 @@ def test_source_wrong_hint_dropped_and_still_completes():
     census = src.collect()
 
     drops = [e for e in events if e["kind"] == "cache_bounds_dropped"]
-    assert len(drops) == 1  # logged exactly once
+    assert len(drops) == 1
     assert drops[0]["hint"] == [4, 4]
     assert src.bounds == {"west": 0.0, "north": 0.0, "east": 900.0, "south": 700.0}
     assert _found_cells(census) == units
@@ -169,7 +166,6 @@ def test_scan_budget_scales_with_large_hint():
     assert src._scan_budget(obs) > SCAN_MAX_NUDGES
 
 
-# --- stage definition round-trip -------------------------------------------
 
 def test_stage_def_map_size_round_trip(tmp_path):
     defn = sd.StageDefinition(stage_id="ex-2-if", map_cols=23, map_rows=24)
@@ -186,7 +182,6 @@ def test_stage_def_map_size_absent_is_none(tmp_path):
     assert loaded.map_cols is None and loaded.map_rows is None
 
 
-# --- controller cache read -------------------------------------------------
 
 class _Dummy:
     def capture(self):

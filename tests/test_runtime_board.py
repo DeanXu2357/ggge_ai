@@ -195,7 +195,6 @@ def test_a_tied_tally_is_broken_by_the_side_that_leaves_no_stragglers():
     )
 
 
-# ---- 標記格：我們自己點出來的絕對地標 ----
 
 
 MARK_CELL = (8, 5)
@@ -299,7 +298,6 @@ def test_the_fill_shows_up_as_neither_a_unit_nor_a_new_grid_line():
     assert lattices[1].row_pitch == pytest.approx(lattices[0].row_pitch, abs=2.0)
 
 
-# ---- 目視終止邊的位移（v3 拿它當複驗的第一選擇） ----
 
 
 def test_a_terminal_edge_seen_in_both_frames_measures_the_pan_on_its_own():

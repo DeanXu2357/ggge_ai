@@ -506,7 +506,6 @@ def test_an_unreadable_world_keeps_pushing_towards_the_corner_and_writes_nothing
     assert ledger.survey.chart is None
 
 
-# ---- 取幀的固定等待節奏與逐 observe 遙測 ----
 
 
 def _glider(drifts: list[float]) -> Glide:
@@ -652,7 +651,6 @@ def test_a_failing_telemetry_sink_never_stops_the_scan():
     assert rig.swipes == 2
 
 
-# ---- v2.3 定位中斷原生存證（0801 複驗第 2 輪 37 次 BROKEN 幾乎全在東西向，根因未定） ----
 
 
 def _witnessed(

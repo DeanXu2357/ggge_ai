@@ -59,7 +59,6 @@ def _guarded_source(world, *, events=None, guard=None, diag_save=None):
     )
 
 
-# --- 1. dark ANCHOR READ (collect entry) ------------------------------------
 
 
 class _DarkEntryWorld(_World):
@@ -124,7 +123,6 @@ def test_dark_entry_without_guard_aborts_and_saves_native_diag():
     assert src.census is None
 
 
-# --- 2. dark ANCHOR SEEK step -----------------------------------------------
 
 
 class _DarkSeekWorld(_World):
@@ -202,7 +200,6 @@ def test_dark_seek_step_without_guard_starves_like_legacy():
     assert src.census is None
 
 
-# --- 3. dark FILL-LOOP refusal ----------------------------------------------
 
 
 def _starving_guarded_source(events, *, guard=None):
@@ -280,7 +277,6 @@ def test_guard_does_not_consume_nudge_budget():
     assert r_with["nudges"] == r_without["nudges"]
 
 
-# --- 4. legacy (guard未接) healthy path unchanged ----------------------------
 
 
 def test_guard_none_healthy_scan_is_unchanged():

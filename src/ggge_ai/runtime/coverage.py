@@ -645,8 +645,6 @@ class Survey:
         self.contested = 0
         self.legs = 0
 
-    # ---- 標記格 ----
-
     def marker_request(self) -> Point | None:
         """下一 tick 該不該去點一個空格放標記，要的話點哪裡（螢幕座標）。
 
@@ -848,8 +846,6 @@ class Survey:
             return self.route[0]
         return None
 
-    # ---- 歸零 ----
-
     def _zeroing(self, frame: np.ndarray) -> Reading:
         """往西北推的那幾幀：不談座標，只問「推到底了沒」。
 
@@ -915,8 +911,6 @@ class Survey:
         self.tries = 0
         self.retreat = False
         self.contested = 0
-
-    # ---- 定位與寫圖 ----
 
     def _place(self, frame: np.ndarray, still: bool) -> Reading:
         view = self._view(frame, (0.0, 0.0))
@@ -1323,8 +1317,6 @@ class Survey:
                 return f"{EDGE_MISMATCH}:{direction}"
         return None
 
-    # ---- 畫面有沒有動 ----
-
     def _unchanged(
         self,
         previous: np.ndarray,
@@ -1372,8 +1364,6 @@ class Survey:
         if hits == STALL_CONFIRM and offset is not None:
             self.clamps[direction] = offset[0 if _axis_of(direction) == "x" else 1]
             self.bumped[direction] = self.bumped.get(direction, 0) + 1
-
-    # ---- 推去哪 ----
 
     def _zero_leg(self) -> Leg | None:
         """往西北角推。兩個方向輪流推到卡住，卡住了還讀不出世界就退一步再來。"""

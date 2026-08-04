@@ -1690,7 +1690,6 @@ class ManualBattleController:
             if state == vision.UNIT_LIST_UNKNOWN:
                 self._clear_scan_obstruction(frame)
             else:
-                # the definite opposite state: tap its toggle to flip it
                 self.actuator.tap(
                     *(
                         UNIT_LIST_COLLAPSE

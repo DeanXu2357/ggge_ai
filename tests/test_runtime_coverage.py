@@ -342,7 +342,6 @@ def test_the_relocaliser_refuses_to_guess_without_a_unique_mode():
     assert board.relocalise(((0.0, 0.0),), ((10.0, 0.0),)) is None
 
 
-# ---- 合成世界的整段行為 ----
 
 
 def _synthetic() -> World:
@@ -509,7 +508,6 @@ def test_a_doubled_command_lands_where_the_picture_says_it_landed():
     assert got == want
 
 
-# ---- v3 的四條骨架迴歸 ----
 
 
 def test_the_world_is_anchored_by_pushing_into_the_corner_not_by_the_first_frame():
@@ -636,7 +634,6 @@ def test_an_enemy_phase_sends_the_scan_back_to_the_corner_instead_of_re_anchorin
     assert got == want
 
 
-# ---- 複驗：候選座標要和已獲取的佔位資訊對得起來 ----
 
 
 def test_a_landmark_one_cell_out_is_caught_by_the_units_it_should_line_up_with():
@@ -684,7 +681,6 @@ def test_a_frame_that_only_reuses_the_last_offset_never_writes_a_landmark():
     assert set(survey.landmarks) == {"west", "north"}
 
 
-# ---- 標記格：我們自己點出來的絕對地標 ----
 
 
 def test_only_the_marker_can_confirm_the_push_stalled_in_the_corner():
@@ -862,7 +858,6 @@ def test_the_summary_counts_how_the_marker_fared():
     assert marker["survived"] + marker["lost"] > 0
 
 
-# ---- 感知與遮罩（v2 資產，v3 原樣保留） ----
 
 
 # 鏡頭停在地圖中央（四側都讀不到終止邊）時，把這個框以外挖成虛空造一條西側邊：
@@ -1002,7 +997,6 @@ def test_an_unmeasurable_frame_is_never_called_still():
     assert not survey._unchanged(world.frame(), blank, Leg("east", 200.0, (-400.0, 0.0)))
 
 
-# ---- 規劃：繞邊、補中央與退休 ----
 
 
 def test_the_tour_walks_east_then_south_then_west_before_it_fills_the_middle():

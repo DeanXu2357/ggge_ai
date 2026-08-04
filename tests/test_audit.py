@@ -73,7 +73,6 @@ def _pending(*, expect_kill=None, quality="grounded", game_damage=5000,
     )
 
 
-# --- pure function ---------------------------------------------------------
 
 def test_first_read_has_no_prior_to_reconcile():
     assert check_hp_divergence(
@@ -138,7 +137,6 @@ def test_default_constants_record_any_nonzero_residual():
     assert div is not None and div.delta == -1
 
 
-# --- tracker mount ---------------------------------------------------------
 
 def _sink() -> tuple[BoardTracker, list[HpDivergence]]:
     seen: list[HpDivergence] = []
@@ -213,7 +211,6 @@ def test_callback_none_is_safe():
     assert t.beliefs[ENEMY_UID].hp == 1000
 
 
-# --- controller wiring -----------------------------------------------------
 
 class _Perception:
     def capture(self):

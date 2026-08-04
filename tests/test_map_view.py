@@ -193,11 +193,10 @@ def test_clear_obstruction_passes_through_without_modal():
     a = FakeActuator(p)
     frame = object()
     out = map_view.clear_obstruction(p, a, frame, sleep=lambda s: None)
-    assert a.taps == []  # nothing tapped
+    assert a.taps == []
     assert out is frame  # same frame, no recapture
 
 
-# --- Round 1.7: enemy-selection residue leg of the chain --------------------
 
 
 def test_clear_obstruction_dismisses_selection_residue_with_empty_land_tap():
@@ -366,7 +365,6 @@ def test_ensure_max_view_reaches_hub_and_collapses_list():
     _bind(p)
     a = FakeActuator(p)
 
-    # once the strip is collapsed, the toggle reads collapsed
     def tap(x, y):
         a.taps.append((x, y))
         if p.i < len(p.views) - 1:

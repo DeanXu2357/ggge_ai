@@ -69,7 +69,6 @@ def gt_nw(observations, answer) -> dict[int, tuple[int, int]]:
     return truth
 
 
-# --- observe_frame ---------------------------------------------------------
 
 def test_observe_frame_shape(observations):
     for obs in observations:
@@ -99,7 +98,6 @@ def test_observe_frame_detector_injected():
     assert obs is not None and obs.units == []
 
 
-# --- pairwise localisation -------------------------------------------------
 
 MUST_SOLVE_PAIRS = {(2, 3), (7, 8)}
 
@@ -136,7 +134,6 @@ def test_terrain_only_localize(observations, gt_nw, pair):
     assert cmap.localize(target) == expected
 
 
-# --- synthetic: margin refusal & edge hard constraint ----------------------
 
 def _lattice(ncols: int, nrows: int, pitch: int = 100) -> MapLattice:
     cols = tuple(range(0, (ncols + 1) * pitch, pitch))
@@ -245,7 +242,6 @@ def test_edge_consistency_culls_contradicting_candidate():
     assert not cmap._edge_consistent(east_edge, -3, 0, bbox)  # boundary col 1, covered 2/3 east of it
 
 
-# --- end to end ------------------------------------------------------------
 
 @pytest.fixture(scope="module")
 def built_map(observations) -> CellMap:
@@ -291,7 +287,6 @@ def test_end_to_end_to_tacmap(built_map):
         assert 0.0 <= y <= bounds["south"] + built_map._row_pitch
 
 
-# --- frontier priority -----------------------------------------------------
 
 def _map_with_coverage(
     covered: set[tuple[int, int]], reg: dict[str, int | None]
@@ -352,7 +347,7 @@ def test_frontier_raises_on_inconsistent_starved_coverage():
     )
     cmap = CellMap()
     cmap.anchor(starved)
-    assert not cmap.is_empty()  # terrain integrated
+    assert not cmap.is_empty()
     assert cmap.coverage()[0] == 0  # yet nothing covered
     with pytest.raises(cm.MapStateInconsistent):
         cmap.frontier()

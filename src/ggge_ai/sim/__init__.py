@@ -75,10 +75,8 @@ from .objective import (
 __all__ = [
     "formulas",
     "tension",
-    # vocab
     "DecisionKind",
     "Faction",
-    # core
     "DEFAULT_PARAMS",
     "DEFENSE_STANCES",
     "PHASE_ORDER",
@@ -111,14 +109,12 @@ __all__ = [
     "standby",
     "step",
     "targets_of",
-    # grid
     "blocking_cells",
     "grid_move_validator",
     "nearest_free_cell",
     "occupied_cells",
     "reach_provider",
     "reachable_cells",
-    # objective
     "EvalContext",
     "EvalWeights",
     "Evaluator",

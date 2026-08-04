@@ -164,7 +164,6 @@ def pinch_events(
 
     ev: list[Event] = []
 
-    # contact: open both slots, latch the touch buttons once
     ev.append((EV_ABS, ABS_MT_SLOT, 0))
     ev.append((EV_ABS, ABS_MT_TRACKING_ID, id_a))
     ev.append((EV_KEY, BTN_TOUCH, 1))
@@ -178,7 +177,6 @@ def pinch_events(
     ev.append((EV_ABS, ABS_MT_POSITION_Y, path_b[0][1]))
     ev.append((EV_SYN, SYN_REPORT, 0))
 
-    # travel: one SYN-terminated frame per step, only emitting moved axes
     prev_a, prev_b = path_a[0], path_b[0]
     for i in range(1, steps + 1):
         ax, ay = path_a[i]
@@ -196,7 +194,6 @@ def pinch_events(
         ev.append((EV_SYN, SYN_REPORT, 0))
         prev_a, prev_b = (ax, ay), (bx, by)
 
-    # release: lift both slots, then drop the touch buttons
     ev.append((EV_ABS, ABS_MT_SLOT, 0))
     ev.append((EV_ABS, ABS_MT_TRACKING_ID, RELEASE_ID))
     ev.append((EV_ABS, ABS_MT_SLOT, 1))

@@ -229,7 +229,6 @@ class CoverageScanSource:
     # every path bit-identical; it never counts as a nudge (spends no scan budget).
     guard: Callable[[], None] | None = None
 
-    # -- outputs (set by a successful collect) ------------------------------
     census: TacticalMap | None = field(default=None, repr=False)
     bounds: dict | None = None
     size: tuple[int | None, int | None] | None = None
@@ -244,8 +243,6 @@ class CoverageScanSource:
         # them to the same values (behaviour unchanged).
         self._nudges = 0
         self._last_nudge: Direction = (0, 0)
-
-    # -- public loop --------------------------------------------------------
 
     def collect(self) -> TacticalMap:
         """Scan the whole map and return the census, or raise SurveyIncomplete.
@@ -371,8 +368,6 @@ class CoverageScanSource:
                     self._unreachable.add(target)
                     self._stuck = 0
         return self._finish(outcome)
-
-    # -- localisation seam --------------------------------------------------
 
     def _place(self, frame: np.ndarray, obs: FrameObservation | None) -> LocalizeReport:
         """Localise obs against the map: the deterministic report (edge_pin /
@@ -530,8 +525,6 @@ class CoverageScanSource:
         an outward-extrapolation refusal with no visible edge reads differently
         from one that saw an edge and still could not clear the margin."""
         return {s: obs.edges[s] for s in SIDES} if obs is not None else {s: None for s in SIDES}
-
-    # -- phases -------------------------------------------------------------
 
     @staticmethod
     def _anchorable(obs: FrameObservation | None) -> bool:
@@ -775,8 +768,6 @@ class CoverageScanSource:
             f"{stats}"
         )
 
-    # -- steering (belief picks direction only, never a coordinate) ---------
-
     def _direction_to(self, target: tuple[int, int], obs: FrameObservation | None) -> Direction:
         """The cardinal push from the last localised frame toward `target`. The
         offset supplies a direction only -- it never enters the swipe geometry
@@ -815,8 +806,6 @@ class CoverageScanSource:
 
     def _all_edges_seen(self) -> bool:
         return all(self._map.bounds[s] is not None for s in SIDES)
-
-    # -- operation (dumb: pushes the camera, measures nothing) --------------
 
     def nudge(self, direction: Direction, frame: np.ndarray) -> None:
         """One conservative swipe in `direction` from an obstruction-clear
@@ -944,8 +933,6 @@ class CoverageScanSource:
             terrain_fraction=report.terrain_fraction,
             edges=self._edges_visibility(obs),
         )
-
-    # -- survey navigation --------------------------------------------------
 
     def bring_to_view(
         self, world: Point, start_camera: Point | None = None

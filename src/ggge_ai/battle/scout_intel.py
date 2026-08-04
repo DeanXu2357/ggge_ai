@@ -496,14 +496,11 @@ def survey_stage(
         except SurveyIncomplete as exc:
             if not str(exc).startswith("no summary card"):
                 raise
-            # legacy path (no detector): untouched behaviour, no extra capture
             if detect is None:
                 if ghost_of_ally(point):
                     drop_ghost(i, point, "no_card_near_ally")
                     continue
                 raise
-            # Round 1.9: same live re-verify as the identify path -- diag the
-            # failure, keep ghost-of-ally priority, drop an empty tap as a phantom
             frame = capture()
             diag = save_diag(frame, f"summary_fail_i{i}")
             if ghost_of_ally(point):

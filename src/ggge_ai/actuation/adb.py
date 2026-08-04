@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-REFERENCE_RESOLUTION = (2340, 1080)  # 遊戲為橫向
+REFERENCE_RESOLUTION = (2340, 1080)
 
 
 class AdbActuator:

@@ -94,7 +94,6 @@ def _cell(col, row):
     return {"col": col, "row": row}
 
 
-# --- accept ---------------------------------------------------------------
 
 def test_assist_accepts_a_patch_verified_edge_consistent_hypothesis():
     """The anchor and current frames share world cell (4,4); the reader points at
@@ -118,7 +117,6 @@ def test_assist_accepts_a_patch_verified_edge_consistent_hypothesis():
     assert src.llm.calls[0][2] is True  # force=True bypasses the 60s rate limit
 
 
-# --- patch rejection ------------------------------------------------------
 
 def test_assist_rejects_when_the_two_claimed_patches_are_different_content():
     """Same camera, but the reader names cells that are DIFFERENT world content
@@ -149,7 +147,6 @@ def test_assist_rejects_a_flat_patch_it_cannot_verify():
     assert src._llm_assist(flat, _obs()) is None
 
 
-# --- edge rejection -------------------------------------------------------
 
 def test_assist_rejects_an_offset_that_contradicts_a_seen_edge():
     """Patches match, but the hypothesised offset would place already-covered
@@ -170,7 +167,6 @@ def test_assist_rejects_an_offset_that_contradicts_a_seen_edge():
     assert ev["patch"] >= ls.LLM_PATCH_MIN  # the patch matched; only the edge failed
 
 
-# --- unparseable / absent reader ------------------------------------------
 
 def test_assist_none_on_unparseable_reply():
     src = _source(_FakeLlm({"landmark": "only prose, no coords"}))
@@ -191,7 +187,6 @@ def test_assist_none_without_an_anchor_frame():
     assert src._llm_assist(_render((0, 0)), _obs()) is None
 
 
-# --- llm=None equivalence (plan: bit-identical to the deterministic loop) --
 
 def _abstract_world_source(llm, events):
     """A batch3-style abstract world (opaque camera token, injected observe) so
