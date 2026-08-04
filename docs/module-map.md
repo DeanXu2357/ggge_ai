@@ -122,8 +122,9 @@ src/ggge_ai/
 
 ## 舊碼處置
 
-- `agent/`、`domain/`、`bot/`、`app.py`：即刻凍結（新碼不得
-  import）；批 1 完成刪 `bot/`，批 3 端到端通過刪其餘。
+- `bot/`：已刪除（舊單層原型）。
+- `agent/`、`domain/`、`app.py`：即刻凍結（新碼不得 import）；
+  批 3 端到端通過刪其餘。
 - 其餘舊包（`sim/`、`planner/`、`goap/`、`vision/`、`battle/`…）
   ＝參考材料：邏輯隨各批搬入新模組（測試同步搬寫），搬完刪舊檔
   與舊測試。過渡期舊測試照跑。
