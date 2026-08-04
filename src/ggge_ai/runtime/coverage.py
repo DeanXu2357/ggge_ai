@@ -1,6 +1,6 @@
 """世界空間的四態知識圖：位置一律解自畫面內容，永不由上一張位置加上移動量累加。
 
-覆蓋模型 v3（0802 使用者核可，docs/survey-anchor-v3-proposal.md）。第 1 到第 7 輪
+覆蓋模型 v3（0802 使用者核可，docs/survey-coverage-v3.md）。第 1 到第 7 輪
 實機驗證修掉的問題——量測凍值、靜態畫面誤判成移動、拼接錯位、單位數膨脹到真實
 數量的三倍——全部是累加骨架的病：位置靠累加，每一次量測都是單點故障。v3 把位置
 的來源換成畫面裡看得見的東西：
@@ -60,76 +60,48 @@ class Knowledge(Enum):
     STALE = "stale"
 
 
-# 還不是現況的兩態：完成判準要求界內一格都不剩，待掃格也只挑這兩態。
 GAPS = (Knowledge.UNKNOWN, Knowledge.STALE)
 COMPASS: tuple[str, ...] = ("west", "east", "north", "south")
 
-# 一幀的處置。ZEROING ＝ 還在往角落推、本來就不談座標，與「試著定位但定不出來」
-# （BROKEN）分開記，流水帳才看得出這一幀是沒必要定位還是定位失敗。
 ACCEPTED = "accepted"
 STALLED = "stalled"
 BROKEN = "broken"
 ZEROING = "zeroing"
 
-# 掃描的三個階段：推去角落歸零 → 沿邊繞一圈 → 補中央的缺口。
 ZERO = "zero"
 TOUR = "tour"
 FILL = "fill"
 
-# 歸零推去的角落（兩個方向都推到卡住才算到角），與繞邊的順序。
 ZERO_CORNER: tuple[str, ...] = ("west", "north")
 TOUR_ROUTE: tuple[str, ...] = ("east", "south", "west")
 
-# 這一幀的座標是怎麼來的（進遙測的 shift.source）。
 SOURCE_EDGE = "edge"
 SOURCE_MARKER = "marker"
 SOURCE_MATCH = "match"
 SOURCE_STILL = "still"
 SOURCE_ANCHOR = "anchor"
 
-# 丟棄的理由。
 EDGE_MISMATCH = "edge_mismatch"
 UNMATCHED = "unmatched"
 PICTURE_REFUSED = "picture"
 OCCUPANCY_REFUSED = "occupancy"
-# 複驗是誰放行的（進遙測，流水帳才看得出這一幀憑什麼被收下）。
 BY_OCCUPANCY = "occupancy"
 BY_EDGES = "edges"
 BY_PICTURE = "picture"
 BY_LANDMARK = "landmark"
 BY_MARKER = "marker"
-# 目視終止邊與已記地標容許的落差（格距的比例）。半格＝格座標還指得到同一格。
 EDGE_TOLERANCE = 0.5
-# 佔位一致性要幾台機體才裁得動「這個候選差了一整格」。一台配得上可能只是巧合
-# （盤面上二十幾台，隔壁格剛好也站著一台的機率不低）；兩台一起指向同一格才是證據。
 OCCUPANCY_QUORUM = 2
-# 逐窗影像複驗給兩個假設的對位餘裕（像素）。問的是「差一整格的兩個位置哪個對」，
-# 而候選本身帶著幾個像素的量測誤差——逐像素硬比會連正確的假設一起判否。
 PICTURE_SLACK = 3
 
-# 一次推移手勢的內容位移上限（世界像素）。前後幀要留得下八成以上的重疊，中央帶
-# 才對得回已知地圖。
 LEG_LIMIT: dict[str, float] = {"x": board.MAP_REGION[2] / 4.0, "y": board.MAP_REGION[3] / 4.0}
-# 手指行程換算內容位移的固定比例（0730 實測 250px 手勢推出約 570-600px）。v3 不再
-# 逐次修正它——推移只需要「往那個方向推一把」，距離準不準不影響座標。
 NOMINAL_GAIN = 2.3
-# 一次畫面沒動不算卡住：起手點落在單位精靈上會被遊戲吃掉，畫面同樣不動。連兩次
-# 才算數（提案第二節的「連續兩次畫面不再變化」）。
 STALL_CONFIRM = 2
-# 連續丟掉這麼多幀就推回角落重新歸零：帶著不知道位置的鏡頭繼續走沒有上界。
 LOST_PATIENCE = 3
-# 角落讀不出格網時退一步再回來的次數上限。用完就誠實停在沒掃完。
 ZERO_TRIES = 3
-# 挑待掃格目標時 STALE 聚類的距離折扣（含 STALE ＝ 單位大概率在附近，威脅評估最需要）。
 STALE_WEIGHT = 0.5
-# 推移次數的保險絲：只防**單一回合**內的失控，不是整場戰鬥的額度，也不是完成判準。
-# 跨回合累積的話十幾回合就燒斷，之後 fused 恆真、掃描永遠完不成＝整關卡死。
 LEG_BUDGET = 200
-# 標記格前後兩幀的位置差在這個比例的格距以內就算沒動。半格會把「滑了半格」讀成
-# 停滯，四分之一格仍遠大於偵測中心的抖動。
 MARKER_STILL_TOLERANCE = 0.25
-# 點下去學不到填色的連續次數上限。**只數點擊本身失敗**（點到單位、點擊被吃掉）；
-# 「放好了之後被推移弄丟」是常態不是失敗，永遠不計入。用完就這一代不再嘗試。
 MARKER_TRIES = 3
 
 _STILL = Shift(0.0, 0.0, 1.0, "still")
@@ -186,15 +158,9 @@ class FrameView:
     units: tuple[Sighting, ...] = ()
     region: Region = board.UNIT_DENSITY_REGION
     holes: tuple[Region, ...] = board.UNIT_DENSITY_HUD_HOLES
-    # 這一幀格線覆蓋的**螢幕**矩形（所以 shifted() 不必動它）與看到終止邊的側。
-    # None ＝ 這一幀讀不出格線：幾何上「整格在帶內」照樣成立，但沒有格線背書就
-    # 不敢說那裡有格子——EMPTY 毯一格都不鋪。
     lattice: Region | None = None
     edges: frozenset[str] = frozenset()
-    # 目擊到的那幾側終止邊在**螢幕**上的位置（所以 shifted() 同樣不必動它）。它與
-    # lattice 框各說各話：框是取樣帶讀到的線位，邊界來自全幀掃描，看得到框外。
     borders: tuple[tuple[str, float], ...] = ()
-    # 生這張 view 的那一次 observe 的序號，與流水帳同一列，join 得回 tick／probe。
     sequence: int = 0
 
     def shifted(self, delta: Point) -> FrameView:
@@ -212,8 +178,6 @@ class Reading:
     shift: Shift
     offset: Point
     reason: str = ""
-    # 定位的逐步驟自述（讀到哪幾側的地標、單位排列對上沒、影像複驗怎麼說）。純
-    # 觀察者：沒有任何判斷讀它，流水帳讀它。
     detail: dict[str, object] = field(default_factory=dict)
 
 
@@ -239,12 +203,7 @@ class KnowledgeMap:
     state: dict[Cell, Knowledge] = field(default_factory=dict)
     charted: set[Cell] = field(default_factory=set)
     boundary: dict[str, int] = field(default_factory=dict)
-    # 界內但**從任何推得到的鏡頭位置都看不清楚**的格：地圖角落壓在回合橫幅底下
-    # 的那幾格就是這樣（鏡頭夾在界線上，橫幅在螢幕座標固定不動）。它們不是被
-    # 忘掉——退休是明寫的事實，逐 tick 進流水帳，只是不再要求待掃格去補。
     unreachable: set[Cell] = field(default_factory=set)
-    # 目擊的**世界像素**座標，不是格心：對回已知地圖那一步要拿它跟當下的密度峰
-    # 配對投票，量化到格心會讓靜態單位的票散進不同的桶、眾數湊不出來。
     marks: dict[Cell, Sighting] = field(default_factory=dict)
 
     def knowledge(self, cell: Cell) -> Knowledge:
@@ -437,45 +396,27 @@ class Survey:
     holes: tuple[Region, ...] = board.UNIT_DENSITY_HUD_HOLES
     budget: int = LEG_BUDGET
     chart: KnowledgeMap | None = None
-    # 四側地圖終止邊的世界像素。定位成功的幀看到哪一側就記哪一側，從此那一側就是
-    # 那一軸的絕對讀數。地圖幾何不衰效，所以它跨回合保留——角落可重現，重新歸零
-    # 回到的是同一套座標。
     landmarks: dict[str, float] = field(default_factory=dict)
     stance: str = ZERO
     route: list[str] = field(default_factory=lambda: list(TOUR_ROUTE))
-    # 最近一張收下的幀（判「畫面有沒有動」用）。
     previous: np.ndarray | None = None
-    # 最近一張**定位成功**的幀連同它的座標：對回已知地圖與影像複驗的對手。定位
-    # 失敗的幀不會動它——丟棄就是丟棄，不留半套狀態。
     located: tuple[np.ndarray, Point] | None = None
-    # 那一幀讀到的螢幕事實（終止邊在螢幕上的位置）。複驗要拿它跟這一幀的同一側
-    # 相減，量出一個與像素位移量測互相獨立的內容位移。
     located_view: FrameView | None = None
     stalls: dict[str, int] = field(default_factory=dict)
-    # 推不動當下的世界座標（軸別）：鏡頭離開就不再是夾住的狀態，見 `_clamped`。
     clamps: dict[str, float] = field(default_factory=dict)
-    # 那個方向被確認推不動幾輪。退休格子是跨代生效的，所以要兩輪才算數。
     bumped: dict[str, int] = field(default_factory=dict)
-    # 最近一張 view 目視到終止邊的那幾側。存側名不存座標：終止邊在不在畫面上是
-    # 螢幕事實，與解出什麼座標無關。
     sighted: frozenset[str] = frozenset()
     lost: int = 0
     tries: int = 0
     retreat: bool = False
-    # 地標算出來的座標與已記目擊對不上的連續次數，見 `_contest`。
     contested: int = 0
     unlocalised: int = 0
     zeroings: int = 0
     legs: int = 0
     generation: int = 0
-    # observe 的呼叫序號（從 1 起）。純識別用：每一張 view 帶著它出生的序號。
     observes: int = 0
     last_view: FrameView | None = None
-    # 最近一張 view 讀到的格線線位。挑標記格要的是格子的**螢幕**框，而那正是這一份
-    # 線位——重讀一次是同一個答案，只是白花一次全幀取峰。
     last_lattice: Lattice | None = None
-    # 標記格：我們自己點出來的絕對地標。cell 是它站的世界格、screen 是最近一幀偵測
-    # 到的螢幕中心（偵測不到就 None，但 cell 留著——下一幀可能又看得到）。
     marker_cell: Cell | None = None
     marker_screen: Point | None = None
     marker_signature: MarkerSignature | None = None
@@ -592,8 +533,6 @@ class Survey:
             "frontier": len(chart.targets()) if chart is not None else 0,
             "clusters": len(pockets),
             "unreachable": len(chart.unreachable) if chart is not None else 0,
-            # 退休格逐格明寫：它們同時退出待掃格與缺口，所以 complete 可以在那幾格
-            # 從沒被觀測的情況下成立。只記個數的話那條路就是無聲丟失。
             "retired": [list(cell) for cell in sorted(chart.unreachable)]
             if chart is not None
             else [],
@@ -602,8 +541,6 @@ class Survey:
             "legs": self.legs,
             "units": len(self.units()),
             "complete": self.complete,
-            # 存活統計是實機微調（色簽容差、放置位置偏好）唯一的材料：填色很容易被
-            # 移動地圖弄掉，「放了幾次、活了幾把、丟了幾次」得逐輪數得出來。
             "marker": self.marker(),
         }
 
@@ -956,8 +893,6 @@ class Survey:
         for candidate, source in self._candidates(view, still, axes, detail):
             note: dict[str, object] = {"source": source}
             tried.append(note)
-            # 讀得到地標的那一軸由地標說了算，候選只補另一軸——地標是絕對量，拿它去
-            # 否決整幀等於連確定的那一軸也一起丟掉。合起來對不對由複驗裁。
             merged = (axes.get("x", candidate[0]), axes.get("y", candidate[1]))
             note["offset"] = [round(value, 1) for value in merged]
             if self._corroborated(frame, view, merged, recalled, source, note):
@@ -1059,8 +994,6 @@ class Survey:
         pitches = {"x": self.chart.grid.col_pitch, "y": self.chart.grid.row_pitch}
         support = _fits(marks, seen, candidate, pitches)
         rivals: dict[str, int] = {}
-        # 鄰居**兩軸都要試**，不只補位那幾軸：地標算出來的軸不會跟自己矛盾，唯一驗得到
-        # 它的地方就是這裡（東／南地標必然是在那一側還沒有地標時記下的，來自補位來源）。
         for axis in ("x", "y"):
             for sign in (1.0, -1.0):
                 nudged = (
@@ -1467,8 +1400,6 @@ class Survey:
                     ("y", box[1] - (hy + hh) - 1.0),
                 ]
             )
-        # 每個候選都要**真的**把格子挪到看得清楚的地方：躲開一個洞卻掉進另一個洞或
-        # 掉出偵測帶的候選一律不算數，不然兩個洞會把規劃器夾在中間來回空推。
         clear = [move for move in wanted if self._exposes(box, move)]
         return sorted(clear, key=lambda item: abs(item[1]))
 

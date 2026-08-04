@@ -30,6 +30,8 @@ src/ggge_ai/
   runtime/        兩層共用執行底盤
     device.py     adb 截圖與觸控
     perceive.py   畫面分類與讀數（吃實機標定成果：模板、座標）
+    board.py      盤面感知原語：格線、密度峰、地圖終止邊、標記格
+    coverage.py   盤面掃描與四態知識圖（規格 docs/survey-coverage-v3.md）
     journal.py    流水帳 jsonl＋逐 tick 原生截圖（同 run 目錄；
                   舊 run 壓縮輪替、只留最新未壓縮）
 ```
