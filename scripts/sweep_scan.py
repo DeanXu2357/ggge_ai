@@ -55,8 +55,12 @@ IN_BATTLE_STAGES = (None, "map", "grid", "zero", "sweep")
 MAX_TAPS = 600
 TAP_INTERVAL_S = 0.4
 EMPTY_FRAME_EVERY = 20
-# 歸零往西北推的上限。一把約 570px 內容位移，地圖再大也用不到這麼多把。
+# 歸零往西北推的上限。一把約 240px 內容位移（0804 逐把量測，board.PAN_GAIN），
+# 地圖再大也用不到這麼多把。
 ZERO_LEGS = 24
+# 連續這麼多次「回角落＋接力返航」都沒能推進任何一格裁決就停手：再繞下去只是
+# 把同一段路重走。
+STRANDINGS_LIMIT = 3
 SETTLE_POLL_S = 0.25
 SETTLE_ROUNDS = 4
 CARD_SETTLE_S = 1.0
@@ -132,6 +136,8 @@ class SweepRun:
     landmarks: dict[str, float] = field(default_factory=dict, init=False)
     signature: board.MarkerSignature | None = field(default=None, init=False)
     marker_cell: sweep.Cell | None = field(default=None, init=False)
+    walk: sweep.NodeWalk = field(default_factory=sweep.NodeWalk, init=False)
+    fix: sweep.Fix = field(default_factory=sweep.Fix, init=False)
     empties: int = field(default=0, init=False)
     started: float = field(default_factory=time.monotonic, init=False)
 
@@ -187,7 +193,12 @@ class SweepRun:
         self.end("sweep")
 
     def zero(self) -> None:
-        """往西北推到同一幀看得到北界＋西界，世界座標由那一幀**定義**。"""
+        """往西北推到同一幀看得到北界＋西界，世界座標由那一幀**定義**。
+
+        角落是根節點：走到這裡代表節點鏈已經救不回來，整條鏈作廢重新長。**帳本
+        不清**——帳本記的是世界格事實，重錨不是重掃。
+        """
+        self.walk.rooted()
         frame = self.settled()
         borders = sweep.read_borders(frame)
         for _ in range(ZERO_LEGS):
@@ -200,6 +211,8 @@ class SweepRun:
         self.journal.record("zero_borders", borders={k: round(v, 1) for k, v in borders.items()})
         if "west" not in borders or "north" not in borders:
             raise Halt(f"推不到西北角：同一幀只看到 {sorted(borders)}")
+        # 角落是絕對根：看到它就是錨上了，零里程計需求。
+        self.fix.regain()
         if self.ledger is None:
             lattice = board.find_lattice(frame)
             if lattice is None:
@@ -227,7 +240,18 @@ class SweepRun:
 
     def tour(self) -> None:
         ledger = self._ledger()
+        strandings = 0
+        progress = ledger.taps
         while not ledger.complete and ledger.taps < self.max_taps:
+            if not self.fix.anchored:
+                # 失位中一格都不點：先回角落重錨、接力返航，才准回到清算。
+                strandings = 0 if ledger.taps > progress else strandings + 1
+                progress = ledger.taps
+                if strandings > STRANDINGS_LIMIT:
+                    raise Halt(f"連續 {strandings} 次回角落返航都接不回鋒面，停手")
+                self.zero()
+                self.home()
+                continue
             frame = self.settled()
             self.witness(frame)
             plan = sweep.plan_window(ledger, self.offset, heading=self.heading)
@@ -247,9 +271,147 @@ class SweepRun:
             self.journal.record("pan_plan", direction=direction, heading=self.heading)
             if direction is None:
                 break
+            self.expand(direction)
+        self.retire_deferred()
+
+    def expand(self, direction: str) -> None:
+        """往 direction 擴張一段：前緣搬標記 → 推鏡 → 找標記重錨；丟了就局部回退。
+
+        沒有標記可用時（第一格空格還沒點出來）退回舊路：推完靠地標重錨，重錨不成
+        才回角落歸零。
+        """
+        frame = self.settled()
+        if self.signature is None or self.marker_cell is None:
             self.pan(direction, frame)
             self.relocate()
-        self.retire_deferred()
+            return
+        self.carry_marker(direction, frame)
+        while True:
+            reach = self.stride(direction)
+            stroke = self.pan(direction, self.camera.grab(), reach)
+            node = self.anchor_on_marker()
+            if node is not None:
+                self.walk.expanded(node)
+                return
+            self.fix.lose()
+            self.journal.record("expand_lost", direction=direction, reach=round(stroke, 1))
+            if self.retreat(direction, stroke) == sweep.STEP_ROOT:
+                self.zero()
+                self.home()
+                return
+
+    def retreat(self, direction: str, stroke: float) -> str:
+        """反向等幅推回上一個信任節點。回程也丟就沿節點鏈繼續退，到角落為止。
+
+        整條回程都在 LOST 態：只推鏡與全幀重認，一下都不點。
+        """
+        back = sweep.OPPOSITE[direction]
+        step = self.walk.lost()
+        while step == sweep.STEP_RETREAT:
+            self.pan(back, self.camera.grab(), stroke)
+            node = self.anchor_on_marker()
+            self.journal.record("retreat", direction=back, found=node is not None)
+            if node is not None:
+                return self.walk.recovered()
+            step = self.walk.lost()
+        return step
+
+    def home(self) -> None:
+        """歸零後沿已裁決區接力返航回鋒面：每站點一個已知空格搬標記＋一把推鏡＋
+        重認。帳本不清，一格都不重掃。"""
+        ledger = self._ledger()
+        target = sweep.frontier_cell(ledger, self.heading)
+        if target is None or self.signature is None or self.marker_cell is None:
+            return
+        route = sweep.homing_route(ledger.grid, self.offset, target)
+        self.journal.record("homing", target=list(target), legs=list(route))
+        for direction in route:
+            frame = self.settled()
+            self.carry_marker(direction, frame)
+            self.pan(direction, self.camera.grab(), self.stride(direction))
+            if self.anchor_on_marker() is None:
+                self.fix.lose()
+                self.journal.record("homing_lost", direction=direction)
+                return
+
+    def carry_marker(self, direction: str, frame: np.ndarray) -> None:
+        """標記不在推進方向的前緣格就主動搬過去——新窗看不見它就無從重認。"""
+        target = sweep.frontier_tap(self._ledger(), self.offset, self.marker_cell, direction)
+        if target is None:
+            return
+        outcome = self.tap_cell(target, frame)
+        self.journal.record(
+            "carry_marker", cell=list(target.cell), verdict=outcome.verdict, direction=direction
+        )
+        if outcome.verdict == sweep.TAP_EMPTY:
+            self.marker_cell = target.cell
+            return
+        if outcome.verdict in (sweep.TAP_CARD, sweep.TAP_SHIFTED):
+            self.escape()
+
+    def stride(self, direction: str) -> float:
+        """這一把推多遠：節點鏈想要的步幅，被「標記仍在新窗視野內」硬上限夾住。"""
+        ledger = self._ledger()
+        grid = ledger.grid
+        pitch = grid.col_pitch if direction in ("east", "west") else grid.row_pitch
+        cap = sweep.stride_cap(
+            sweep.screen_of(grid, self.marker_cell, self.offset),
+            direction,
+            margin=sweep.MARKER_KEEP_PITCH * pitch,
+        )
+        return max(board.PAN_MIN_REACH, min(self.walk.reach, cap))
+
+    def anchor_on_marker(self) -> sweep.TrustNode | None:
+        """推鏡後的定位：**找到標記在哪一格**就是鏡位，位移量測不參與。
+
+        錨完還要用當下看得見的終止邊回頭質詢——認錯一塊同色美術就是整幀寫進錯的
+        世界位置，而帳本記的是世界格。
+        """
+        ledger = self._ledger()
+        if self.signature is None or self.marker_cell is None:
+            return None
+        frame = self.settled()
+        found = board.find_marker(
+            frame, self.signature, holes=board.UNIT_DENSITY_HUD_HOLES
+        )
+        if found is None:
+            self.journal.record("marker_lost")
+            return None
+        world = ledger.grid.centre_of(self.marker_cell)
+        offset = (world[0] - found[0], world[1] - found[1])
+        borders = sweep.read_borders(frame)
+        clash = sweep.contradicts(ledger, self.landmarks, borders, offset)
+        if clash is not None:
+            self.journal.record("marker_clash", side=clash)
+            return None
+        self.offset = offset
+        self.fix.regain()
+        self.witness(frame)
+        node = sweep.TrustNode(
+            cell=self.marker_cell,
+            offset=offset,
+            borders=tuple(sorted(borders)),
+            units=self.units_in_window(offset),
+        )
+        self.journal.record(
+            "node",
+            cell=list(node.cell),
+            offset=[round(value, 1) for value in offset],
+            borders=list(node.borders),
+            units=[list(cell) for cell in node.units],
+            depth=len(self.walk.nodes) + 1,
+        )
+        return node
+
+    def units_in_window(self, offset: sweep.Point) -> tuple[sweep.Cell, ...]:
+        """本窗內已裁決的單位格＝節點的星座證據（我方回合內單位不動）。"""
+        ledger = self._ledger()
+        inside = sweep.window_targets(ledger.grid, offset)
+        return tuple(
+            cell
+            for cell in sorted(ledger.cells_of(sweep.ENEMY) + ledger.cells_of(sweep.ALLY))
+            if cell in inside
+        )
 
     def work(self, plan: sweep.WindowPlan, frame: np.ndarray) -> bool:
         """本窗逐格點擊。回傳「被中斷了」——出卡或置中之後幾何要重讀才算數。"""
@@ -296,6 +458,7 @@ class SweepRun:
 
     def tap_cell(self, target: sweep.TapTarget, before: np.ndarray) -> sweep.TapOutcome:
         ledger = self._ledger()
+        self.fix.allow_tap()
         self.device.tap(int(target.point[0]), int(target.point[1]))
         ledger.taps += 1
         self.sleep(self.tap_interval)
@@ -407,6 +570,7 @@ class SweepRun:
             self.zero()
             return
         self.offset = offset
+        self.fix.regain()
         self.witness(frame)
 
     def marker_offset(self, frame: np.ndarray) -> sweep.Point | None:
@@ -432,12 +596,41 @@ class SweepRun:
                 "verdict", cell=list(cell), verdict=sweep.UNSURE, reason="never_tappable"
             )
 
-    def pan(self, direction: str, frame: np.ndarray) -> None:
-        origin = board.pick_pan_origin(board.find_sightings(frame))
-        x1, y1, x2, y2 = board.pan_gesture(direction, origin)
-        self.device.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
-        self.sleep(board.PAN_SETTLE_S)
-        self.journal.record("pan", direction=direction, origin=[round(v, 1) for v in origin])
+    def pan(self, direction: str, frame: np.ndarray, reach: float | None = None) -> float:
+        """一把推鏡，**逐手勢用格線相位驗收**。回傳實際打出去的行程。
+
+        發出去的手勢不等於生效的手勢：省電觸控鎖會無聲吞掉整把。相位沒動＝被吃，
+        先做解鎖檢查再把同一把原樣重發；連吃就停在原地，不再對著吞點空轉。手勢
+        日誌只是導航提示，不在信任鏈裡。
+        """
+        wanted = board.PAN_MAX_REACH if reach is None else reach
+        origin, stroke = board.pan_stroke(direction, wanted, board.find_sightings(frame))
+        x1, y1, x2, y2 = board.pan_gesture(direction, origin, stroke)
+        for attempt in range(sweep.GESTURE_EATEN_LIMIT):
+            before = board.lattice_phase(frame)
+            self.device.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
+            self.sleep(board.PAN_SETTLE_S)
+            frame = self.camera.grab()
+            after = board.lattice_phase(frame)
+            shift = (
+                None
+                if before is None or after is None
+                else board.phase_shift(before[0], after[0], before[1])
+            )
+            landed = sweep.gesture_landed(shift, direction)
+            self.journal.record(
+                "pan",
+                direction=direction,
+                origin=[round(v, 1) for v in origin],
+                reach=round(stroke, 1),
+                attempt=attempt,
+                landed=landed,
+                phase=None if shift is None else [round(v, 1) for v in shift],
+            )
+            if landed:
+                return stroke
+            self.device.ensure_unlocked(force=True)
+        raise Halt(f"推鏡連吃 {sweep.GESTURE_EATEN_LIMIT} 把（格線相位不動）：手勢沒生效")
 
     def settled(self) -> np.ndarray:
         frame = self.camera.grab()
@@ -447,9 +640,22 @@ class SweepRun:
         return frame
 
     def abandon(self) -> None:
+        """棄戰鏈逐下存證：確認鈕與戰鬥選單「幫助」同列相距 73px，鏈一旦錯拍就是
+        打在幫助上，而流水帳裡看不出來——所以每一下的座標與當下畫面都存。"""
         self.begin("abandon")
-        report = entry.abandon_battle(self.camera.grab, self.device.tap, sleep=self.sleep)
+
+        def witness_tap(label: str, point: tuple[int, int]) -> None:
+            self.camera.grab()
+            self.journal.record(
+                "abandon_tap", label=label, point=list(point), frame=self.camera.keep(f"abandon:{label}")
+            )
+
+        report = entry.abandon_battle(
+            self.camera.grab, self.device.tap, sleep=self.sleep, on_tap=witness_tap
+        )
         self.gate_report("abandon", report)
+        self.camera.grab()
+        self.camera.keep("abandon:landed")
         self.end("abandon")
 
     def begin(self, name: str) -> None:

@@ -64,6 +64,122 @@ EDGE_AGREEMENT_PITCH = 0.5
 
 HEADINGS: tuple[str, str] = ("east", "west")
 
+# 推鏡後標記要留在點擊窗內、再往內縮這麼多格才算「還看得見」——量測誤差與透視
+# 校正的殘差都吃在這個餘裕裡。
+MARKER_KEEP_PITCH = 0.75
+# 同一個節點連續兩次擴張失敗才升級回角落歸零。角落是根節點、最後防線，不是預設救援。
+NODE_FAIL_LIMIT = 2
+STRIDE_HALVING = 0.5
+
+STEP_EXPAND = "expand"
+STEP_RETREAT = "retreat"
+STEP_ROOT = "root"
+
+_ADVANCE: dict[str, Callable[[Cell], int]] = {
+    "east": lambda cell: cell[0],
+    "west": lambda cell: -cell[0],
+    "south": lambda cell: cell[1],
+    "north": lambda cell: -cell[1],
+}
+
+OPPOSITE: dict[str, str] = {"east": "west", "west": "east", "north": "south", "south": "north"}
+
+ANCHORED = "anchored"
+LOST = "lost"
+
+# 一把推鏡後格線相位至少要走這麼多像素才算「手勢生效」。取半格的一小截：真的推
+# 一把走 150-240px，被吃掉的那把是 0。
+GESTURE_PHASE_PX = 8.0
+# 連續被吃這麼多把就 Halt——再推下去只是對著同一個吞點空轉。
+GESTURE_EATEN_LIMIT = 3
+
+
+class Adrift(RuntimeError):
+    """失位（LOST）時送進來的格點擊請求。
+
+    紅線不是啟發式：世界格未知時點下去既錨不了新標記，又會把唯一的舊證人搬到一
+    個記不下來的地方，還可能誤觸單位指令。LOST 的唯一出路是推鏡與**全幀視覺重
+    認**（找標記／邊界／星座都是「看」不是「點」）。
+    """
+
+
+@dataclass
+class Fix:
+    """定位狀態機，兩態：ANCHORED／LOST。"""
+
+    state: str = ANCHORED
+
+    @property
+    def anchored(self) -> bool:
+        return self.state == ANCHORED
+
+    def lose(self) -> None:
+        self.state = LOST
+
+    def regain(self) -> None:
+        self.state = ANCHORED
+
+    def allow_tap(self) -> None:
+        if self.state != ANCHORED:
+            raise Adrift("失位中不點任何格：只准推鏡與視覺重認")
+
+
+def gesture_landed(
+    shift: Point | None, direction: str, minimum: float = GESTURE_PHASE_PX
+) -> bool:
+    """這一把推鏡到底生效了沒（格線相位說了算）。
+
+    相位讀不出來（`shift is None`）時回 True：那是「不知道」不是「沒動」，交給後面
+    的重錨去問——在這裡當成沒動會讓腳本對著讀不到格線的畫面無限重發手勢。
+    """
+    if shift is None:
+        return True
+    axis = 0 if direction in ("east", "west") else 1
+    return abs(shift[axis]) >= minimum
+
+
+def frontier_cell(ledger: SweepLedger, heading: str = "east") -> Cell | None:
+    """帳本上還沒裁決、蛇形順序最先輪到的那一格＝掃描鋒面。"""
+    pending = ledger.pending()
+    if not pending:
+        return None
+    return serpentine(pending, heading)[0]
+
+
+def homing_route(
+    grid: WorldGrid,
+    offset: Point,
+    frontier: Cell,
+    *,
+    region: Region = TAP_REGION,
+    stride: float = board.PAN_GAIN * board.PAN_MAX_REACH,
+    limit: int = 40,
+) -> tuple[str, ...]:
+    """從現在的鏡位回到鋒面格要推的方向序列，每站一把。看得到就空序列。
+
+    歸零＝重錨不＝重掃：帳本記的是世界格事實，回角落不清帳，返航沿已裁決區走，
+    每站只要「點已知空格搬標記＋一把推鏡＋重認」，不重複清算任何一格。
+    """
+    legs: list[str] = []
+    cursor = offset
+    for _ in range(limit):
+        first, last = window_bounds(grid, cursor, region)
+        if first[0] <= frontier[0] <= last[0] and first[1] <= frontier[1] <= last[1]:
+            break
+        if frontier[0] > last[0]:
+            legs.append("east")
+            cursor = (cursor[0] + stride, cursor[1])
+        elif frontier[0] < first[0]:
+            legs.append("west")
+            cursor = (cursor[0] - stride, cursor[1])
+        elif frontier[1] > last[1]:
+            legs.append("south")
+            cursor = (cursor[0], cursor[1] + stride)
+        else:
+            legs.append("north")
+            cursor = (cursor[0], cursor[1] - stride)
+    return tuple(legs)
+
 
 def screen_of(grid: WorldGrid, cell: Cell, offset: Point) -> Point:
     centre = grid.centre_of(cell)
@@ -235,6 +351,34 @@ def window_bounds(
     return (first, last)
 
 
+def window_targets(
+    grid: WorldGrid,
+    offset: Point,
+    *,
+    region: Region = TAP_REGION,
+    holes: Sequence[Region] = board.UNIT_DENSITY_HUD_HOLES,
+    bands: Sequence[DangerBand] = DANGER_BANDS,
+) -> dict[Cell, Point | None]:
+    """本鏡位下整格框**完整**落在點擊窗內的格 → 螢幕點；點不下去的格是 None。
+
+    完整落入是硬條件：被窗邊切一半的格點下去可能命中隔壁那一格，而帳本收的是
+    「這一格的事實」。
+    """
+    first, last = window_bounds(grid, offset, region)
+    out: dict[Cell, Point | None] = {}
+    for row in range(first[1], last[1] + 1):
+        for col in range(first[0], last[0] + 1):
+            cell = (col, row)
+            bx0, by0, bx1, by1 = grid.box_of(cell)
+            box = (bx0 - offset[0], by0 - offset[1], bx1 - offset[0], by1 - offset[1])
+            if not _box_within(box, region):
+                continue
+            point = ((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
+            blocked = any(_box_overlaps(box, hole) for hole in holes) or _tap_blocked(point, bands)
+            out[cell] = None if blocked else point
+    return out
+
+
 def plan_window(
     ledger: SweepLedger,
     offset: Point,
@@ -244,37 +388,175 @@ def plan_window(
     holes: Sequence[Region] = board.UNIT_DENSITY_HUD_HOLES,
     bands: Sequence[DangerBand] = DANGER_BANDS,
 ) -> WindowPlan:
-    """本鏡位裡還沒裁決、點得下去的格，蛇形排序。
-
-    整格框要**完整**落在點擊窗內：被窗邊切一半的格點下去可能命中隔壁那一格，而
-    帳本收的是「這一格的事實」。
-    """
+    """本鏡位裡還沒裁決、點得下去的格，蛇形排序。"""
     grid = ledger.grid
     first, last = window_bounds(grid, offset, region)
+    targets = window_targets(grid, offset, region=region, holes=holes, bands=bands)
     taps: list[TapTarget] = []
     blocked: list[Cell] = []
-    rows = range(first[1], last[1] + 1)
-    for index, row in enumerate(rows):
+    for index, row in enumerate(range(first[1], last[1] + 1)):
         cols = list(range(first[0], last[0] + 1))
         if (heading == "west") != (index % 2 == 1):
             cols.reverse()
         for col in cols:
             cell = (col, row)
-            bx0, by0, bx1, by1 = grid.box_of(cell)
-            box = (bx0 - offset[0], by0 - offset[1], bx1 - offset[0], by1 - offset[1])
-            if not _box_within(box, region):
-                continue
-            if not ledger.in_bounds(cell):
+            if cell not in targets or not ledger.in_bounds(cell):
                 continue
             ledger.chart(cell)
             if ledger.decided(cell):
                 continue
-            point = ((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
-            if any(_box_overlaps(box, hole) for hole in holes) or _tap_blocked(point, bands):
+            point = targets[cell]
+            if point is None:
                 blocked.append(cell)
                 continue
             taps.append(TapTarget(cell, point))
     return WindowPlan(tuple(taps), tuple(blocked), (first, last))
+
+
+@dataclass(frozen=True)
+class TrustNode:
+    """一個能被視覺重認的已知世界格，附重認所需的最小證據。
+
+    `cell` 是標記所在的世界格（標記全圖唯一、可攜、點別格會搬移）；`borders` 與
+    `units` 是入帳當下那一窗的邊界可見性與已裁決單位格，回退時交叉驗證，防同色
+    美術冒充標記。
+    """
+
+    cell: Cell
+    offset: Point
+    borders: tuple[str, ...] = ()
+    units: tuple[Cell, ...] = ()
+
+
+@dataclass
+class NodeWalk:
+    """節點鏈上的擴張／回退狀態機。**只管決策，不碰裝置**。
+
+    丟失是常態，所以救援是局部的：反向等幅推回上一節點（成本一把推鏡），回到節點
+    後半步幅重試；同一節點連兩敗才升級回角落歸零；回程也丟就沿鏈往回走。
+    """
+
+    full_reach: float = board.PAN_MAX_REACH
+    nodes: list[TrustNode] = field(default_factory=list)
+    reach: float = 0.0
+    failures: int = 0
+    retreating: bool = False
+
+    def __post_init__(self) -> None:
+        self.reach = self.reach or self.full_reach
+
+    def expanded(self, node: TrustNode) -> None:
+        self.nodes.append(node)
+        self.failures = 0
+        self.reach = self.full_reach
+        self.retreating = False
+
+    def recovered(self) -> str:
+        """回程重見標記＝回到上一節點。這一次擴張記一敗。"""
+        self.retreating = False
+        self.failures += 1
+        if self.failures >= NODE_FAIL_LIMIT:
+            return STEP_ROOT
+        self.reach = max(board.PAN_MIN_REACH, self.reach * STRIDE_HALVING)
+        return STEP_EXPAND
+
+    def lost(self) -> str:
+        if not self.retreating:
+            self.retreating = True
+            return STEP_RETREAT
+        if self.nodes:
+            self.nodes.pop()
+            return STEP_RETREAT
+        return STEP_ROOT
+
+    def rooted(self) -> None:
+        self.nodes.clear()
+        self.failures = 0
+        self.reach = self.full_reach
+        self.retreating = False
+
+
+def stride_cap(
+    marker: Point,
+    direction: str,
+    *,
+    region: Region = TAP_REGION,
+    gain: float = board.PAN_GAIN,
+    margin: float = 0.0,
+) -> float:
+    """推鏡步幅的硬上限＝推完標記仍留在新窗視野內的最長行程。
+
+    位移量測不參與定位，但**推多遠**還是要算得出來，否則新窗裡沒有東西可以重認。
+    """
+    x, y, w, h = region
+    dx, dy = board.DIRECTIONS[direction]
+    if dx:
+        room = marker[0] - (x + margin) if dx > 0 else (x + w - margin) - marker[0]
+    else:
+        room = (y + h - margin) - marker[1] if dy < 0 else marker[1] - (y + margin)
+    return max(0.0, room / gain)
+
+
+def frontier_tap(
+    ledger: SweepLedger,
+    offset: Point,
+    marker_cell: Cell | None,
+    direction: str,
+    *,
+    region: Region = TAP_REGION,
+    holes: Sequence[Region] = board.UNIT_DENSITY_HUD_HOLES,
+    bands: Sequence[DangerBand] = DANGER_BANDS,
+) -> TapTarget | None:
+    """推鏡前把標記搬到本窗靠推進方向的前緣格。已經在前緣就 None。
+
+    只點**已判 EMPTY** 的格：搬標記是定位動作不是裁決動作，不拿一格未知的裁決機會
+    去換（那一格的回饋會被當成搬標記的結果讀掉）。
+    """
+    forward = _ADVANCE[direction]
+    targets = window_targets(ledger.grid, offset, region=region, holes=holes, bands=bands)
+    movable = [
+        (cell, point)
+        for cell, point in targets.items()
+        if point is not None and ledger.verdict(cell) == EMPTY and cell != marker_cell
+    ]
+    if not movable:
+        return None
+    cell, point = max(
+        movable, key=lambda entry: (forward(entry[0]), -_span(entry[0], marker_cell))
+    )
+    if marker_cell is not None and forward(cell) <= forward(marker_cell):
+        return None
+    return TapTarget(cell, point)
+
+
+def _span(cell: Cell, other: Cell | None) -> int:
+    if other is None:
+        return 0
+    return abs(cell[0] - other[0]) + abs(cell[1] - other[1])
+
+
+def contradicts(
+    ledger: SweepLedger,
+    landmarks: Mapping[str, float],
+    borders: Mapping[str, float],
+    offset: Point,
+    *,
+    slack: float = EDGE_AGREEMENT_PITCH,
+) -> str | None:
+    """這一幀目視到的終止邊對不對得上帳本的界線。回矛盾的那一側，沒有就 None。
+
+    標記重認解出來的鏡位是整幀的座標，認錯一塊同色美術就是整幀寫進錯的世界位置——
+    所以錨定之後還要用當下看得見的邊界回頭質詢它。
+    """
+    for side, screen in borders.items():
+        known = landmarks.get(side)
+        if known is None:
+            continue
+        axis = 0 if side in ("west", "east") else 1
+        pitch = ledger.grid.col_pitch if axis == 0 else ledger.grid.row_pitch
+        if abs(screen + offset[axis] - known) > slack * pitch:
+            return side
+    return None
 
 
 def plan_pan(

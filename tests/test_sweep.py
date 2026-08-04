@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from ggge_ai.runtime import board, sweep
 from ggge_ai.runtime.coverage import WorldGrid
@@ -259,3 +260,175 @@ def test_the_summary_lists_every_sentenced_cell_by_kind():
     assert summary["enemies"] == [{"cell": [0, 0], "name": "sig-a"}]
     assert summary["allies"] == [[1, 0]]
     assert summary["taps"] == 12
+
+
+def test_the_stride_is_capped_by_the_marker_staying_inside_the_next_window():
+    # 窗 (0,0,400,300)，標記在 x=300：往東推的內容往西走，標記走到窗左緣就是上限。
+    cap = sweep.stride_cap((300.0, 150.0), "east", region=REGION, gain=1.0)
+
+    assert cap == 300.0
+    assert sweep.stride_cap((300.0, 150.0), "west", region=REGION, gain=1.0) == 100.0
+    assert sweep.stride_cap((300.0, 150.0), "north", region=REGION, gain=1.0) == 150.0
+    assert sweep.stride_cap((300.0, 150.0), "south", region=REGION, gain=1.0) == 150.0
+
+
+def test_the_stride_cap_shrinks_by_the_gain_and_the_keep_margin():
+    cap = sweep.stride_cap((300.0, 150.0), "east", region=REGION, gain=0.5, margin=50.0)
+
+    assert cap == 500.0
+    assert sweep.stride_cap((0.0, 150.0), "east", region=REGION, gain=1.0) == 0.0
+
+
+def test_a_marker_already_on_the_leading_edge_is_not_carried_again():
+    book = ledger()
+    for col in range(4):
+        book.record((col, 0), sweep.EMPTY)
+
+    assert sweep.frontier_tap(book, (0.0, 0.0), (3, 0), "east", region=REGION,
+                              holes=(), bands=()) is None
+
+
+def test_a_marker_behind_the_leading_edge_is_carried_to_the_furthest_empty_cell():
+    book = ledger()
+    for col in range(4):
+        book.record((col, 0), sweep.EMPTY)
+    book.record((3, 0), sweep.ENEMY)
+
+    target = sweep.frontier_tap(book, (0.0, 0.0), (0, 0), "east", region=REGION,
+                                holes=(), bands=())
+
+    # (3,0) 是敵方格不能拿來搬標記，前緣退到 (2,0)
+    assert target is not None
+    assert target.cell == (2, 0)
+
+
+def test_carrying_the_marker_never_spends_an_undecided_cell():
+    book = ledger()
+    book.record((0, 0), sweep.EMPTY)
+
+    assert sweep.frontier_tap(book, (0.0, 0.0), (0, 0), "east", region=REGION,
+                              holes=(), bands=()) is None
+
+
+def test_a_border_that_does_not_match_the_ledger_refuses_the_anchor():
+    book = ledger()
+    landmarks = {"north": 0.0}
+
+    assert sweep.contradicts(book, landmarks, {"north": 40.0}, (0.0, -40.0)) is None
+    assert sweep.contradicts(book, landmarks, {"north": 40.0}, (0.0, 200.0)) == "north"
+    # 帳本沒記過的那一側說不了話
+    assert sweep.contradicts(book, landmarks, {"east": 900.0}, (0.0, -40.0)) is None
+
+
+def test_the_node_chain_grows_on_every_successful_expansion():
+    walk = sweep.NodeWalk(full_reach=200.0)
+
+    walk.expanded(sweep.TrustNode(cell=(1, 0), offset=(0.0, 0.0)))
+    walk.expanded(sweep.TrustNode(cell=(5, 0), offset=(400.0, 0.0)))
+
+    assert [node.cell for node in walk.nodes] == [(1, 0), (5, 0)]
+    assert walk.reach == 200.0
+    assert walk.failures == 0
+
+
+def test_a_lost_marker_retreats_the_same_amount_and_then_halves_the_stride():
+    walk = sweep.NodeWalk(full_reach=200.0)
+    walk.expanded(sweep.TrustNode(cell=(1, 0), offset=(0.0, 0.0)))
+
+    assert walk.lost() == sweep.STEP_RETREAT
+    assert walk.recovered() == sweep.STEP_EXPAND
+    assert walk.reach == 100.0
+    assert walk.failures == 1
+    assert len(walk.nodes) == 1
+
+
+def test_two_failures_on_the_same_node_escalate_to_the_corner():
+    walk = sweep.NodeWalk(full_reach=200.0)
+    walk.expanded(sweep.TrustNode(cell=(1, 0), offset=(0.0, 0.0)))
+
+    walk.lost()
+    walk.recovered()
+    walk.lost()
+
+    assert walk.recovered() == sweep.STEP_ROOT
+
+
+def test_losing_the_marker_on_the_way_back_walks_the_chain_down_to_the_corner():
+    walk = sweep.NodeWalk(full_reach=200.0)
+    walk.expanded(sweep.TrustNode(cell=(1, 0), offset=(0.0, 0.0)))
+    walk.expanded(sweep.TrustNode(cell=(5, 0), offset=(400.0, 0.0)))
+
+    assert walk.lost() == sweep.STEP_RETREAT
+    assert walk.lost() == sweep.STEP_RETREAT
+    assert len(walk.nodes) == 1
+    assert walk.lost() == sweep.STEP_RETREAT
+    assert walk.nodes == []
+    assert walk.lost() == sweep.STEP_ROOT
+
+
+def test_the_corner_reset_throws_the_whole_chain_away():
+    walk = sweep.NodeWalk(full_reach=200.0)
+    walk.expanded(sweep.TrustNode(cell=(1, 0), offset=(0.0, 0.0)))
+    walk.lost()
+    walk.recovered()
+
+    walk.rooted()
+
+    assert walk.nodes == []
+    assert walk.reach == 200.0
+    assert walk.failures == 0
+    assert walk.lost() == sweep.STEP_RETREAT
+
+
+def test_a_tap_request_while_lost_is_refused_outright():
+    fix = sweep.Fix()
+
+    fix.allow_tap()
+    fix.lose()
+
+    assert not fix.anchored
+    with pytest.raises(sweep.Adrift):
+        fix.allow_tap()
+
+    fix.regain()
+    fix.allow_tap()
+
+
+def test_a_gesture_that_did_not_move_the_lattice_phase_counts_as_eaten():
+    assert not sweep.gesture_landed((0.5, 40.0), "east")
+    assert sweep.gesture_landed((40.0, 0.5), "east")
+    assert not sweep.gesture_landed((40.0, 0.5), "north")
+    assert sweep.gesture_landed((0.5, 40.0), "north")
+
+
+def test_an_unreadable_lattice_is_not_read_as_a_dead_gesture():
+    assert sweep.gesture_landed(None, "east")
+
+
+def test_the_phase_difference_wraps_into_half_a_pitch_each_axis():
+    shift = board.phase_shift((80.0, 10.0), (10.0, 80.0), (90.0, 90.0))
+
+    assert shift == (20.0, -20.0)
+
+
+def test_the_homing_route_walks_one_leg_per_screen_back_to_the_frontier():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
+
+    route = sweep.homing_route(grid, (0.0, 0.0), (9, 0), region=REGION, stride=200.0)
+
+    assert route == ("east", "east", "east")
+
+
+def test_a_frontier_already_in_the_window_needs_no_homing():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
+
+    assert sweep.homing_route(grid, (0.0, 0.0), (1, 1), region=REGION, stride=200.0) == ()
+
+
+def test_the_frontier_is_the_first_undecided_cell_in_serpentine_order():
+    book = ledger(west=0, east=2, north=0, south=1)
+    book.record((0, 0), sweep.EMPTY)
+    book.record((1, 0), sweep.EMPTY)
+
+    assert sweep.frontier_cell(book, "east") == (2, 0)
+    assert sweep.frontier_cell(ledger(west=0, east=0, north=0, south=0)) == (0, 0)
