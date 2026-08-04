@@ -109,6 +109,14 @@ LOST = "lost"
 GESTURE_PHASE_PX = 8.0
 # 連續被吃這麼多把就 Halt——再推下去只是對著同一個吞點空轉。
 GESTURE_EATEN_LIMIT = 3
+# 標記位移至少要走到預期行程的這個比例才算真的推動了鏡頭。
+GESTURE_TRAVEL_RATIO = 1.0 / 3.0
+# 兩把都夾停才敢說夾停——一把可能只是那一幀標記認錯。
+GESTURE_PINNED_LIMIT = 2
+
+PAN_LANDED = "landed"
+PAN_PINNED = "pinned"
+PAN_EATEN = "eaten"
 
 
 class Adrift(RuntimeError):
@@ -153,6 +161,31 @@ def gesture_landed(
         return True
     axis = 0 if direction in ("east", "west") else 1
     return abs(shift[axis]) >= minimum
+
+
+def gesture_verdict(
+    shift: Point | None,
+    direction: str,
+    *,
+    travel: float,
+    moved: Point | None = None,
+    minimum: float = GESTURE_PHASE_PX,
+    ratio: float = GESTURE_TRAVEL_RATIO,
+) -> str:
+    """一把推鏡的驗收：LANDED／PINNED／EATEN。
+
+    相位是 mod 格距的量（`phase_shift` 收進 ±半格），量得出「有沒有動」，量不出
+    整把行程——0805 run 那三把「相位不動」的南推，標記其實各走了一整把 ~250px。
+    所以真行程問標記像素位移這個未包裝的證人；標記看不見才退回相位獨撐。
+
+    夾停與被吃的差別在**再推有沒有意義**：夾停是遊戲不肯再動鏡頭（改方向即可），
+    被吃是手勢沒送達（原樣重發）。分不出來的時候（沒有標記）一律當被吃，保留
+    Halt 保險絲。
+    """
+    axis = 0 if direction in ("east", "west") else 1
+    if moved is not None:
+        return PAN_LANDED if abs(moved[axis]) >= travel * ratio else PAN_PINNED
+    return PAN_LANDED if gesture_landed(shift, direction, minimum) else PAN_EATEN
 
 
 def at_border(
@@ -671,21 +704,25 @@ def plan_pan(
     heading: str = "east",
     *,
     region: Region = TAP_REGION,
+    pinned: Collection[str] = (),
 ) -> tuple[str | None, str]:
     """下一段推鏡方向與更新後的橫向朝向。沒得推就 (None, heading)。
 
     沿列帶蛇形推進；**界線未見的方向優先探**——那個方向的格還沒被枚舉過，
     「界內沒有待裁決的格」在那裡不成立。
+
+    `pinned` 是這個鏡位上已經證實推不動的方向：不寫界線（界線只由目視寫入），
+    只是這一站不再往那邊推。鏡頭一動就作廢——透視斜邊讓同一側在別的鏡位可能
+    重新推得動、界線也可能升進可讀帶。
     """
     if heading not in HEADINGS:
         heading = "east"
-    if _more_that_way(ledger, offset, heading, region):
+    if heading not in pinned and _more_that_way(ledger, offset, heading, region):
         return (heading, heading)
     flipped = "west" if heading == "east" else "east"
-    if _more_that_way(ledger, offset, "south", region):
-        return ("south", flipped)
-    if _more_that_way(ledger, offset, "north", region):
-        return ("north", flipped)
+    for side in ("south", "north"):
+        if side not in pinned and _more_that_way(ledger, offset, side, region):
+            return (side, flipped)
     return (None, heading)
 
 

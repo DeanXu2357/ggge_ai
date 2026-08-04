@@ -526,3 +526,30 @@ def test_the_marker_can_be_carried_onto_an_inferred_empty_when_asked():
 
     assert plain is None
     assert widened is not None and widened.cell == (1, 0)
+
+
+def test_the_marker_displacement_outranks_the_wrapped_lattice_phase():
+    # 0805 死因：整把 ~250px 的南推被 mod 格距的相位讀成 9.5px＝沒動。
+    assert (
+        sweep.gesture_verdict((0.0, 9.5), "south", travel=247.0, moved=(-6.0, 250.0))
+        == sweep.PAN_LANDED
+    )
+    assert (
+        sweep.gesture_verdict((0.0, 40.0), "south", travel=247.0, moved=(1.0, 12.0))
+        == sweep.PAN_PINNED
+    )
+
+
+def test_without_a_marker_the_phase_alone_still_calls_a_gesture_eaten():
+    assert sweep.gesture_verdict((0.0, 1.0), "south", travel=247.0) == sweep.PAN_EATEN
+    assert sweep.gesture_verdict((0.0, 40.0), "south", travel=247.0) == sweep.PAN_LANDED
+
+
+def test_a_pinned_direction_is_skipped_by_the_pan_plan_without_becoming_a_border():
+    ledger = sweep.SweepLedger(grid=GRID)
+    ledger.boundary.update(west=0, east=1, north=0)
+    ledger.chart((0, 9))
+
+    assert sweep.plan_pan(ledger, (0.0, 0.0), "east")[0] == "south"
+    assert sweep.plan_pan(ledger, (0.0, 0.0), "east", pinned={"south"})[0] is None
+    assert "south" not in ledger.boundary

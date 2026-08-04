@@ -144,6 +144,7 @@ class SweepRun:
     walk: sweep.NodeWalk = field(default_factory=sweep.NodeWalk, init=False)
     fix: sweep.Fix = field(default_factory=sweep.Fix, init=False)
     peaks: tuple[sweep.Point, ...] = field(default=(), init=False)
+    pinned: set[str] = field(default_factory=set, init=False)
     empties: int = field(default=0, init=False)
     started: float = field(default_factory=time.monotonic, init=False)
 
@@ -277,7 +278,9 @@ class SweepRun:
             self.infer_empties(plan, candidates)
             if plan.taps and self.work(plan, frame):
                 continue
-            direction, self.heading = sweep.plan_pan(ledger, self.offset, self.heading)
+            direction, self.heading = sweep.plan_pan(
+                ledger, self.offset, self.heading, pinned=self.pinned
+            )
             self.journal.record("pan_plan", direction=direction, heading=self.heading)
             if direction is None:
                 break
@@ -383,6 +386,10 @@ class SweepRun:
         """標記不在推進方向的前緣格就主動搬過去——新窗看不見它就無從重認。
 
         回傳「標記現在確實落在本窗」。
+
+        點擊生效與手勢生效同一條紀律：發出≠生效。`classify_tap` 只有在填色**確實
+        出現在被點的那一格**才回 EMPTY，所以驗收就是它；沒驗過就更新 `marker_cell`
+        會讓下一次重錨拿舊填色配新格號，整幀寫進差一格距整數倍的世界位置。
         """
         ledger = self._ledger()
         target = sweep.frontier_tap(
@@ -392,6 +399,9 @@ class SweepRun:
             return sweep.in_window(ledger.grid, self.offset, self.marker_cell)
         was = ledger.verdict(target.cell)
         outcome = self.tap_cell(target, frame)
+        if outcome.verdict == sweep.TAP_NONE:
+            self.journal.record("carry_failed", cell=list(target.cell), direction=direction)
+            outcome = self.tap_cell(target, self.camera.grab())
         self.journal.record(
             "carry_marker",
             cell=list(target.cell),
@@ -679,24 +689,28 @@ class SweepRun:
     def pan(
         self, direction: str, frame: np.ndarray, reach: float | None = None
     ) -> tuple[float, np.ndarray]:
-        """一把推鏡，**逐手勢用格線相位驗收**。回傳（實際打出去的行程, 驗收幀）。
+        """一把推鏡，**逐手勢驗收行程**。回傳（實際打出去的行程, 驗收幀）。
 
         驗收幀交回去給呼叫端接著用：它是 swipe 之後 PAN_SETTLE_S ＋一次 screencap
         往返（實測 ~2.4s）才取的，比再跑一次 settled() 的第一張還晚，重拍只是多付
         截圖錢（0804 那輪 zero 段 24 張裡有 16 張是這樣浪費掉的）。
 
-        發出去的手勢不等於生效的手勢：省電觸控鎖會無聲吞掉整把。相位沒動＝被吃，
-        先做解鎖檢查再把同一把原樣重發；連吃就停在原地，不再對著吞點空轉。手勢
-        日誌只是導航提示，不在信任鏈裡。
+        發出去的手勢不等於生效的手勢：省電觸控鎖會無聲吞掉整把。沒生效就先做解鎖
+        檢查再把同一把原樣重發；連吃就停在原地，不再對著吞點空轉。手勢日誌只是
+        導航提示，不在信任鏈裡。
 
-        相位不動還有第二種解釋：推過地圖邊緣之後遊戲根本不動鏡頭。所以先問界線
-        （本幀看得見／帳本記過且窗已貼著），是到邊就記行程 0 收工，不算被吃。
+        行程由標記像素位移驗收（未包裝），相位只在標記看不見時撐場。沒走到預期
+        行程＝夾停：先問界線（本幀看得見／帳本記過且窗已貼著），是到邊就記行程 0
+        收工；界線讀不出來也不 Halt、不寫界線，改記這個方向在本鏡位推盡，讓呼叫端
+        轉向——推不動**永遠不等於**有界線。
         """
         wanted = board.PAN_MAX_REACH if reach is None else reach
         origin, stroke = board.pan_stroke(direction, wanted, board.find_sightings(frame))
         x1, y1, x2, y2 = board.pan_gesture(direction, origin, stroke)
+        pinned = 0
         for attempt in range(sweep.GESTURE_EATEN_LIMIT):
             before = board.lattice_phase(frame)
+            was = self.marker_point(frame)
             self.device.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
             self.sleep(board.PAN_SETTLE_S)
             frame = self.camera.grab()
@@ -706,17 +720,23 @@ class SweepRun:
                 if before is None or after is None
                 else board.phase_shift(before[0], after[0], before[1])
             )
-            landed = sweep.gesture_landed(shift, direction)
+            now = self.marker_point(frame)
+            moved = None if was is None or now is None else (now[0] - was[0], now[1] - was[1])
+            verdict = sweep.gesture_verdict(
+                shift, direction, travel=stroke * board.PAN_GAIN, moved=moved
+            )
             self.journal.record(
                 "pan",
                 direction=direction,
                 origin=[round(v, 1) for v in origin],
                 reach=round(stroke, 1),
                 attempt=attempt,
-                landed=landed,
+                verdict=verdict,
                 phase=None if shift is None else [round(v, 1) for v in shift],
+                moved=None if moved is None else [round(v, 1) for v in moved],
             )
-            if landed:
+            if verdict == sweep.PAN_LANDED:
+                self.pinned.clear()
                 return stroke, frame
             borders = sweep.read_borders(frame)
             if sweep.at_border(direction, borders, ledger=self.ledger, offset=self.offset):
@@ -729,8 +749,26 @@ class SweepRun:
                 if self.ledger is not None:
                     self.witness(frame)
                 return 0.0, frame
+            if verdict == sweep.PAN_PINNED:
+                pinned += 1
+                if pinned >= sweep.GESTURE_PINNED_LIMIT:
+                    self.pinned.add(direction)
+                    self.journal.record(
+                        "pan_pinned",
+                        direction=direction,
+                        attempt=attempt,
+                        borders=sorted(borders),
+                    )
+                    return 0.0, frame
+                continue
             self.device.ensure_unlocked(force=True)
-        raise Halt(f"推鏡連吃 {sweep.GESTURE_EATEN_LIMIT} 把（格線相位不動）：手勢沒生效")
+        raise Halt(f"推鏡連吃 {sweep.GESTURE_EATEN_LIMIT} 把：手勢沒生效")
+
+    def marker_point(self, frame: np.ndarray) -> sweep.Point | None:
+        """填色標記在這一幀的螢幕位置——推鏡前後各問一次就是未包裝的真實位移。"""
+        if self.signature is None:
+            return None
+        return board.find_marker(frame, self.signature, holes=board.UNIT_DENSITY_HUD_HOLES)
 
     def settled(self) -> np.ndarray:
         frame = self.camera.grab()

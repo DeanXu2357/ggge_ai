@@ -378,3 +378,55 @@ def test_a_card_under_an_inferred_empty_rewrites_the_ledger_with_the_click(tmp_p
 
     assert run.ledger.verdict((3, 4)) == sweep.ENEMY
     assert run.marker_cell == (2, 4)
+
+
+def pinning_run(tmp_path, monkeypatch, marks: list[tuple[float, float]]) -> SweepRun:
+    """夾停骨架：相位永遠不動，標記位移由 marks 逐幀給。"""
+    run = swiping_run(tmp_path)
+    run.signature = object()
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (90.0, 90.0)))
+    monkeypatch.setattr(board, "find_sightings", lambda frame: ())
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: {})
+    points = iter(marks)
+    monkeypatch.setattr(board, "find_marker", lambda frame, sig, **kw: next(points))
+    return run
+
+
+def test_a_full_stroke_the_phase_could_not_see_is_still_a_landed_gesture(
+    tmp_path, monkeypatch
+):
+    run = pinning_run(tmp_path, monkeypatch, [(1400.0, 800.0), (1400.0, 550.0)])
+
+    stroke, _ = SweepRun.pan(run, "south", _blank(), 260.0)
+
+    assert stroke == 260.0
+    assert len(run.swipes) == 1
+    assert run.pinned == set()
+
+
+def test_a_pinned_camera_turns_instead_of_halting_and_writes_no_border(
+    tmp_path, monkeypatch
+):
+    marks = [(1400.0, 800.0), (1400.0, 806.0)] * sweep.GESTURE_PINNED_LIMIT
+    run = pinning_run(tmp_path, monkeypatch, marks)
+
+    stroke, _ = SweepRun.pan(run, "south", _blank(), 260.0)
+
+    assert stroke == 0.0
+    assert run.pinned == {"south"}
+    assert run.unlocks == []  # 夾停不是被吃，不做解鎖重發
+    assert len(run.swipes) == sweep.GESTURE_PINNED_LIMIT
+
+
+def test_a_carry_tap_with_no_fill_is_retried_and_never_moves_the_marker_cell(tmp_path):
+    silent = sweep.TapOutcome(sweep.TAP_NONE)
+    run = build_run(tmp_path, {})
+    run.signature = object()
+    run.marker_cell = (2, 4)
+    run.ledger.record((3, 4), sweep.EMPTY)
+    taps: list[tuple[int, int]] = []
+    run.tap_cell = lambda target, before: (taps.append(target.cell), silent)[1]
+
+    assert not SweepRun.carry_marker(run, "east", _blank())
+    assert taps == [(3, 4), (3, 4)]
+    assert run.marker_cell == (2, 4)
