@@ -171,3 +171,10 @@ def test_the_frame_signature_survives_a_single_pixel_of_animation():
     nudged[500, 500] = (0, 0, 0)
 
     assert screens.frame_signature(frame) == screens.frame_signature(nudged)
+
+
+def test_the_abandon_dialog_probe_separates_the_dialog_from_the_battle_menu():
+    """戰鬥選單也是白面板，只有本體平坦度與確認鈕的藍分得開（0804 實機幀）。"""
+    assert screens.is_abandon_confirm_dialog(load("popups/abandon_confirm_20260804")) is True
+    assert screens.is_abandon_confirm_dialog(load("popups/battle_menu_20260804")) is False
+    assert screens.is_abandon_confirm_dialog(load("grid/hub_grid_on_20260719")) is False

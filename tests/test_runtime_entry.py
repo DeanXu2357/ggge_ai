@@ -21,6 +21,8 @@ MAP_AUTO_ACTIVE = "stage_panels/battle_map_turn1"
 PREP = "stage_panels/prep_screen"
 SETTINGS_GRID_ON = "settings/grid_on_20260706"
 STAGE_LIST = "popups/stage_list_dim_20260719"
+ABANDON_CONFIRM = "popups/abandon_confirm_20260804"
+BATTLE_MENU = "popups/battle_menu_20260804"
 
 
 @dataclass
@@ -382,7 +384,7 @@ def test_the_sortie_gate_refuses_to_start_off_the_prep_page():
 
 
 def test_the_abandon_flow_is_the_only_thing_allowed_in_the_abandon_band():
-    screen = Screen([load(MAP_AUTO_OFF), load(STAGE_LIST)])
+    screen = Screen([load(MAP_AUTO_OFF), load(ABANDON_CONFIRM), load(STAGE_LIST)])
     seen: list[tuple[str, tuple[int, int]]] = []
 
     report = entry.abandon_battle(
@@ -415,10 +417,32 @@ def test_an_abandon_that_never_reaches_the_stage_list_closes_the_panel_and_says_
     report = entry.abandon_battle(screen.capture, screen.tap, sleep=lambda _: None)
 
     assert not report.ok
-    assert report.trail == ("abandon:unconfirmed",)
+    assert report.trail[-1] == "abandon:unconfirmed"
     # 每一輪收尾都關掉手上停著的面板（誤點開的幫助頁與戰鬥選單關閉鈕同位）
     assert screen.points().count(entry.BATTLE_MENU_CLOSE_TAP) == 2
-    assert screen.points().count(entry.ABANDON_CONFIRM_TAP) == 2
+    # 彈窗從沒出現過，確認鈕一次都不准按——那一下會落在「幫助」的鈕格裡
+    assert screen.points().count(entry.ABANDON_CONFIRM_TAP) == 0
+
+
+def test_the_confirm_tap_waits_for_the_dialog_instead_of_firing_into_the_battle_menu():
+    screen = Screen([load(MAP_AUTO_OFF), load(BATTLE_MENU), load(ABANDON_CONFIRM), load(STAGE_LIST)])
+
+    report = entry.abandon_battle(screen.capture, screen.tap, sleep=lambda _: None)
+
+    assert report.ok
+    assert screen.points().count(entry.ABANDON_CONFIRM_TAP) == 1
+
+
+def test_the_settle_check_polls_through_the_transition_instead_of_judging_once():
+    """0804：最後一下之後 3.3 秒就判畫面，轉場中讀成 unknown 而誤報失敗。"""
+    frames = [load(MAP_AUTO_OFF), load(ABANDON_CONFIRM)]
+    frames += [blank()] * 4 + [load(STAGE_LIST)]
+    screen = Screen(frames)
+
+    report = entry.abandon_battle(screen.capture, screen.tap, sleep=lambda _: None)
+
+    assert report.ok
+    assert entry.ABANDON_SETTLE_ATTEMPTS * entry.ABANDON_SETTLE_INTERVAL_S >= 15.0
 
 
 def test_the_abandon_flow_refuses_when_we_are_not_on_the_map():

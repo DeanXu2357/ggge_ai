@@ -391,6 +391,25 @@ def enter_stage(
     return advance_to_map(capture, tap, report, sleep=sleep)
 
 
+ABANDON_DIALOG_ATTEMPTS = 4
+ABANDON_DIALOG_INTERVAL_S = 1.0
+ABANDON_SETTLE_ATTEMPTS = 8
+ABANDON_SETTLE_INTERVAL_S = 2.0
+
+
+def _await_abandon_dialog(
+    capture: Capture,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bool:
+    for index in range(ABANDON_DIALOG_ATTEMPTS):
+        if screens.is_abandon_confirm_dialog(capture()):
+            return True
+        if index + 1 < ABANDON_DIALOG_ATTEMPTS:
+            sleep(ABANDON_DIALOG_INTERVAL_S)
+    return False
+
+
 def abandon_battle(
     capture: Capture,
     tap: Tapper,
@@ -404,10 +423,12 @@ def abandon_battle(
 
     確認鈕 (1400,865) 與戰鬥選單下排的「幫助」(1327,865) 同列、水平相距 73px，而
     「幫助」的鈕格橫跨 1189-1466（同列鈕距 277-283 量出來的）——**確認彈窗沒出來
-    的時候，這一下就是打在「幫助」上**。舊版三下盲點、盲報 ok，所以一旦 (410,860)
-    那一下被吃掉（選單動畫還沒畫完），下一下必然開幫助頁而流水帳上什麼都看不出來。
-    所以這裡改成閉環：每一下都回報座標給呼叫端存證，收尾用畫面驗收，沒到關卡列表
-    就先關掉手上這個面板再重跑整條鏈，跑完還沒到就明說失敗。
+    的時候，這一下就是打在「幫助」上**。所以確認那一下前面擋一道彈窗探針，彈窗不
+    在場就完全不點，直接關面板回頭重走選單那一下；(1400,865) 從此只在彈窗在場時
+    按得下去。
+
+    收尾驗收要輪詢：0804 那輪最後一下之後 3.3 秒就判畫面，轉場中讀成 unknown 而
+    誤報失敗（事後探針 stage_list 0.992，裝置其實早就回關卡列表了）。
     """
     report = GateReport()
     screen, _ = expect_screen(capture, screens.MAP_SCREENS, sleep=sleep)
@@ -418,16 +439,28 @@ def abandon_battle(
         for label, point, intent in (
             ("menu", BATTLE_MENU_TAP, ""),
             ("abandon", BATTLE_MENU_ABANDON_TAP, "abandon"),
-            ("confirm", ABANDON_CONFIRM_TAP, ""),
         ):
             if on_tap is not None:
                 on_tap(label, point)
             tap(*point, intent=intent)
-            sleep(3.0 if label == "confirm" else 1.5)
-        screen, _ = expect_screen(capture, (screens.STAGE_LIST,), attempts=3, sleep=sleep)
-        if screen == screens.STAGE_LIST:
-            report.add("abandon", "ok", f"attempt={attempt + 1}")
-            return report
+            sleep(1.5)
+        if _await_abandon_dialog(capture, sleep=sleep):
+            if on_tap is not None:
+                on_tap("confirm", ABANDON_CONFIRM_TAP)
+            tap(*ABANDON_CONFIRM_TAP)
+            sleep(3.0)
+            screen, _ = expect_screen(
+                capture,
+                (screens.STAGE_LIST,),
+                attempts=ABANDON_SETTLE_ATTEMPTS,
+                sleep=sleep,
+                settle_s=ABANDON_SETTLE_INTERVAL_S,
+            )
+            if screen == screens.STAGE_LIST:
+                report.add("abandon", "ok", f"attempt={attempt + 1}")
+                return report
+        else:
+            report.add("abandon", ADVISORY, f"no_dialog attempt={attempt + 1}")
         # 鏈沒走完就卡住了：手上停著的可能是戰鬥選單、也可能是誤點開的幫助頁，
         # 兩者的關閉鈕同位。關掉再從頭來，不要對著未知畫面繼續往下點。
         if on_tap is not None:

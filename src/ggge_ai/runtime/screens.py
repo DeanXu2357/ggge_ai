@@ -69,6 +69,10 @@ GRID_TOGGLE_TAP = (1898, 591)
 GRID_PROBE = (1963, 591)
 ROSTER_TOGGLE_TAP = (1970, 780)
 AUTO_BATTLE_OFF_PROBE = (1179, 295)
+ABANDON_DIALOG_BODY: Region = (800, 300, 800, 80)
+ABANDON_DIALOG_CONFIRM: Region = (1390, 855, 21, 21)
+_ABANDON_BODY_MIN = 170.0
+_ABANDON_BODY_FLAT_MAX = 8.0
 BATTLE_TAB_UNDERLINE = (1613, 201)
 BATTLE_TAB_UNDERLINE_SPAN = (1605, 1651)
 BATTLE_TAB_UNDERLINE_GUARDS = (14, 18)
@@ -288,6 +292,26 @@ def is_auto_battle_off(frame: np.ndarray) -> bool:
         return False
     b, g, r = px
     return g > 180 and b > 180
+
+
+def is_abandon_confirm_dialog(frame: np.ndarray) -> bool:
+    """「確認放棄」彈窗在不在場。棄戰確認鈕 (1400,865) 與戰鬥選單的「幫助」同列
+    同格，彈窗不在場時按下去就是開幫助頁（0804 實機），所以這一下必須先過探針。
+
+    戰鬥選單本身也是白面板（本體區亮度 206），只有平坦度與確認鈕的藍分得開：
+    彈窗本體是無字純白（std 0.1 對選單的 24.1）、確認鈕實心藍（B255 對 214/199/193）。
+    """
+    if frame is None:
+        return False
+    body = crop(frame, ABANDON_DIALOG_BODY)
+    button = crop(frame, ABANDON_DIALOG_CONFIRM)
+    if body.size == 0 or button.size == 0:
+        return False
+    gray = cv2.cvtColor(body, cv2.COLOR_BGR2GRAY)
+    if gray.mean() < _ABANDON_BODY_MIN or gray.std() > _ABANDON_BODY_FLAT_MAX:
+        return False
+    b, _, r = (float(v) for v in np.median(button.reshape(-1, 3), axis=0))
+    return b > 200 and b - r > 80
 
 
 def _is_salmon(bgr: tuple[int, int, int]) -> bool:
