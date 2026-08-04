@@ -820,7 +820,7 @@ def parse_args() -> argparse.Namespace:
         default=sweep.FILTER_FULL,
         help=(
             "full＝全格點（預設，真值來源）；candidates＝只點單位候選格、其餘推斷為空"
-            "（候選門檻尚無真值背書，等 eval_candidate_recall 報 100% 召回才翻回預設）"
+            "（候選門檻尚無真值背書，等 eval_candidate_recall 報 100%% 召回才翻回預設）"
         ),
     )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
