@@ -699,17 +699,21 @@ class SweepRun:
         檢查再把同一把原樣重發；連吃就停在原地，不再對著吞點空轉。手勢日誌只是
         導航提示，不在信任鏈裡。
 
-        行程由標記像素位移驗收（未包裝），相位只在標記看不見時撐場。沒走到預期
+        行程由標記像素位移驗收（未包裝），相位只在標記看不見時撐場——所以行程先
+        過 legible_reach，把相位殘量調離 0，免得走了一整把讀起來像沒動。沒走到預期
         行程＝夾停：先問界線（本幀看得見／帳本記過且窗已貼著），是到邊就記行程 0
         收工；界線讀不出來也不 Halt、不寫界線，改記這個方向在本鏡位推盡，讓呼叫端
         轉向——推不動**永遠不等於**有界線。
         """
         wanted = board.PAN_MAX_REACH if reach is None else reach
         origin, stroke = board.pan_stroke(direction, wanted, board.find_sightings(frame))
+        seen = board.lattice_phase(frame)
+        if seen is not None:
+            stroke = board.legible_reach(direction, stroke, seen[1])
         x1, y1, x2, y2 = board.pan_gesture(direction, origin, stroke)
         pinned = 0
+        before = seen
         for attempt in range(sweep.GESTURE_EATEN_LIMIT):
-            before = board.lattice_phase(frame)
             was = self.marker_point(frame)
             self.device.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
             self.sleep(board.PAN_SETTLE_S)
@@ -720,6 +724,7 @@ class SweepRun:
                 if before is None or after is None
                 else board.phase_shift(before[0], after[0], before[1])
             )
+            before = after
             now = self.marker_point(frame)
             moved = None if was is None or now is None else (now[0] - was[0], now[1] - was[1])
             verdict = sweep.gesture_verdict(

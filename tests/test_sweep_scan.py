@@ -217,10 +217,9 @@ def swiping_run(tmp_path) -> SweepRun:
 def test_an_eaten_gesture_is_unlocked_and_resent_unchanged(tmp_path, monkeypatch):
     run = swiping_run(tmp_path)
     reads = iter([
-        ((0.0, 0.0), (90.0, 90.0)),  # 推之前
-        ((0.0, 0.0), (90.0, 90.0)),  # 推之後：相位沒動＝被吃
-        ((0.0, 0.0), (90.0, 90.0)),
-        ((40.0, 0.0), (90.0, 90.0)),  # 重發之後：動了
+        ((0.0, 0.0), (80.0, 80.0)),  # 推之前
+        ((0.0, 0.0), (80.0, 80.0)),  # 推之後：相位沒動＝被吃
+        ((40.0, 0.0), (80.0, 80.0)),  # 重發之後：動了
     ])
     monkeypatch.setattr(board, "lattice_phase", lambda frame: next(reads))
     monkeypatch.setattr(board, "find_sightings", lambda frame: ())
@@ -235,7 +234,7 @@ def test_an_eaten_gesture_is_unlocked_and_resent_unchanged(tmp_path, monkeypatch
 
 def test_a_gesture_eaten_every_time_halts_instead_of_spinning(tmp_path, monkeypatch):
     run = swiping_run(tmp_path)
-    monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (90.0, 90.0)))
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (80.0, 80.0)))
     monkeypatch.setattr(board, "find_sightings", lambda frame: ())
 
     with pytest.raises(Halt):
@@ -384,7 +383,7 @@ def pinning_run(tmp_path, monkeypatch, marks: list[tuple[float, float]]) -> Swee
     """夾停骨架：相位永遠不動，標記位移由 marks 逐幀給。"""
     run = swiping_run(tmp_path)
     run.signature = object()
-    monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (90.0, 90.0)))
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (100.0, 100.0)))
     monkeypatch.setattr(board, "find_sightings", lambda frame: ())
     monkeypatch.setattr(sweep, "read_borders", lambda frame: {})
     points = iter(marks)
@@ -416,6 +415,24 @@ def test_a_pinned_camera_turns_instead_of_halting_and_writes_no_border(
     assert run.pinned == {"south"}
     assert run.unlocks == []  # 夾停不是被吃，不做解鎖重發
     assert len(run.swipes) == sweep.GESTURE_PINNED_LIMIT
+
+
+def test_a_vertical_push_is_shortened_so_the_row_pitch_cannot_hide_it(
+    tmp_path, monkeypatch
+):
+    """0805-031635 的 Halt：row_pitch 85 上推滿 260，相位殘量落回 0 附近＝真的走了
+    卻讀成被吃，重發到 Halt。行程先讓路給相位，這條鏈才判得出來。"""
+    run = swiping_run(tmp_path)
+    reads = iter([((0.0, 0.0), (90.5, 85.0)), ((0.0, -27.0), (90.5, 85.0))])
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: next(reads))
+    monkeypatch.setattr(board, "find_sightings", lambda frame: ())
+
+    stroke, _ = SweepRun.pan(run, "north", _blank(), 260.0)
+
+    assert stroke < 260.0
+    assert abs(board._wrap_phase(board.PAN_GAIN * stroke, 85.0)) >= board.PHASE_LEGIBLE_MARGIN
+    x1, y1, _, y2 = run.swipes[0][:4]
+    assert y2 - y1 == round(stroke)  # 手勢真的照縮過的行程打出去
 
 
 def test_a_carry_tap_with_no_fill_is_retried_and_never_moves_the_marker_cell(tmp_path):

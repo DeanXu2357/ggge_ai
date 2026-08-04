@@ -169,6 +169,10 @@ PAN_ORIGIN_GRID: tuple[Point, ...] = tuple(
 PAN_HALF = {"x": 250, "y": 170}
 PAN_MIN_REACH = 50.0
 PAN_MAX_REACH = 260.0
+# 相位殘量至少要離 0 這麼遠，一把推鏡才判得出「走了」還是「被吞了」。門檻
+# GESTURE_PHASE_PX 是 8，量測散布實測約 ±8（同一種行程的殘量落在 -31..-39），
+# 取 25 留三倍餘裕；上限是半格（85/2），25 還撐得住。
+PHASE_LEGIBLE_MARGIN = 25.0
 # 拖得慢比較不會被吃掉：0719 星圖上 500ms 的拖曳整段被吞（動作後的鏡頭緩動
 # ＋adb 掉線）。呼叫端把手勢打出去時用這兩個值。
 PAN_DURATION_S = 0.7
@@ -1343,6 +1347,37 @@ def pick_pan_origin(
 def pan_shift(reach: float, gain: float = PAN_GAIN) -> float:
     """行程 → 內容位移。兩軸同一個增益（0804 逐把量測）。"""
     return gain * reach
+
+
+def legible_reach(
+    direction: str,
+    reach: float,
+    pitch: Point,
+    *,
+    gain: float = PAN_GAIN,
+    margin: float = PHASE_LEGIBLE_MARGIN,
+    floor: float = PAN_MIN_REACH,
+    step: float = 5.0,
+) -> float:
+    """把行程縮到相位驗收讀得出來的長度。
+
+    相位是模格距的量：位移落在格距整數倍附近時，走了一整把跟整把被吞掉的相位
+    差同樣接近 0。0805-031635 那三把北推就死在這個盲點——row_pitch 85、行程
+    260（位移 247）殘量只剩 -5，三把各自真的走了約 250px 卻被判 eaten，重發到
+    Halt（同 run seq 539 有標記背書：相位 y=0.0、實際位移 -259.8）。
+
+    所以寧可少走一點路，換一個離 0 夠遠的殘量：行程由要求值往下找，第一個殘量
+    夠大的就用。找不到（格距太小或已到下限）就原樣回傳，讓後面的判準自己收。
+    """
+    period = pitch[0] if direction in ("east", "west") else pitch[1]
+    if period <= 0.0 or margin >= period / 2.0:
+        return reach
+    candidate = reach
+    while candidate >= floor:
+        if abs(_wrap_phase(gain * candidate, period)) >= margin:
+            return candidate
+        candidate -= step
+    return reach
 
 
 def pan_headroom(direction: str, origin: Point, bounds: Region = PAN_GESTURE_BOUNDS) -> float:

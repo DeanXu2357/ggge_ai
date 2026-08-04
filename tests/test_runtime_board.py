@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import board, coverage
+from ggge_ai.runtime import board, coverage, sweep
 from tests.fixtures.frames import load
 from tests.fixtures.synthetic_map import (
     COL_PITCH,
@@ -595,6 +595,33 @@ def test_the_stroke_still_dodges_the_units_among_the_origins_that_have_room():
     origin, _ = board.pan_stroke("east", 200.0, crowd)
 
     assert origin != (760.0, 360.0)
+
+
+def test_a_stroke_whose_phase_residue_lands_on_zero_is_shortened_until_it_is_readable():
+    """0805-031635 的死因：row_pitch 85 上推滿的 260，殘量只剩 -5＝讀起來像沒動。"""
+    pitch = (90.5, 85.0)
+
+    # run 實測那三把各走了約 250px，殘量 -5：跟整把被吞掉的 0 分不出來。
+    assert abs(board._wrap_phase(250.0, 85.0)) < sweep.GESTURE_PHASE_PX
+
+    reach = board.legible_reach("north", 260.0, pitch)
+
+    assert reach < 260.0
+    assert (
+        abs(board._wrap_phase(board.PAN_GAIN * reach, 85.0)) >= board.PHASE_LEGIBLE_MARGIN
+    )
+
+
+def test_a_stroke_the_phase_already_reads_clearly_keeps_its_full_reach():
+    reach = board.legible_reach("north", 130.0, (90.5, 85.0))
+
+    assert reach == 130.0
+
+
+def test_no_readable_stroke_at_all_leaves_the_reach_alone_instead_of_bottoming_out():
+    reach = board.legible_reach("north", 260.0, (90.5, 20.0))
+
+    assert reach == 260.0
 
 
 def test_the_content_shift_of_a_stroke_is_the_measured_gain_times_the_reach():
