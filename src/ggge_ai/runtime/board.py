@@ -173,6 +173,17 @@ PAN_MAX_REACH = 260.0
 # ＋adb 掉線）。呼叫端把手勢打出去時用這兩個值。
 PAN_DURATION_S = 0.7
 PAN_SETTLE_S = 1.5
+
+# 一把推鏡換到的內容位移／手指行程。run 20260804-221825 逐把量測：東推（行程
+# PAN_HALF["x"]=250）四把換到 233.6／236／238／240px；北推（行程 PAN_HALF["y"]=170）
+# zero 段四把總位移 622 與 641.5，每把 155.5／160px。兩軸同一個比例 0.94-0.95，
+# **遊戲不吃慣性甩動**（舊註解的「一把 570-600px」是別的縮放層級留下的），所以北推
+# 慢的唯一原因就是 y 行程只有 x 的 68%——每把同樣吃掉 15-18s 卻少走三分之一的路。
+PAN_GAIN = 0.95
+# 手勢兩端都要留在這個框內：起手落在鈕上整把會被吃掉，終點掉進底部鈕列會誤點。
+# 框比 PAN_ORIGIN_GRID 大出一個 PAN_MAX_REACH 有餘，所以縱向也吃得下滿行程。
+PAN_GESTURE_BOUNDS: Region = (500, 300, 1340, 530)
+
 DIRECTIONS: dict[str, tuple[int, int]] = {
     "east": (1, 0),
     "west": (-1, 0),
@@ -1274,6 +1285,36 @@ def _marker_sized(width: int, height: int, reference: tuple[float, float]) -> bo
     )
 
 
+def lattice_phase(frame: np.ndarray | None) -> tuple[Point, Point] | None:
+    """(格線相位, 格距)。讀不出格線就 None。
+
+    相位＝第一條線的位置模格距。格線是遊戲**渲染的 UI 層**，不受星空動畫與待機
+    精靈干擾，所以「手勢到底生效了沒」問它最準——發出去的手勢不等於生效的手勢
+    （省電觸控鎖無聲吞掉整把是實證教訓）。
+    """
+    lattice = find_lattice(frame)
+    if lattice is None or lattice.col_pitch <= 0 or lattice.row_pitch <= 0:
+        return None
+    pitch = (lattice.col_pitch, lattice.row_pitch)
+    return ((lattice.cols[0] % pitch[0], lattice.rows[0] % pitch[1]), pitch)
+
+
+def phase_shift(before: Point, after: Point, pitch: Point) -> Point:
+    """兩幀的格線相位差，逐軸取進 ±半格的最小代表。
+
+    相位是模量：位移剛好是格距整數倍時差會回到 0，看起來像「沒動」。方向是安全
+    的——只會多推一把（重錨那一關會把真實鏡位問回來），不會把沒動誤判成動了。
+    """
+    return (
+        _wrap_phase(after[0] - before[0], pitch[0]),
+        _wrap_phase(after[1] - before[1], pitch[1]),
+    )
+
+
+def _wrap_phase(value: float, period: float) -> float:
+    return (value + period / 2.0) % period - period / 2.0
+
+
 def pick_pan_origin(
     sightings: Iterable[Sighting], candidates: Sequence[Point] = PAN_ORIGIN_GRID
 ) -> Point:
@@ -1288,6 +1329,44 @@ def pick_pan_origin(
             (candidate[0] - x) ** 2 + (candidate[1] - y) ** 2 for x, y in points
         ),
     )
+
+
+def pan_shift(reach: float, gain: float = PAN_GAIN) -> float:
+    """行程 → 內容位移。兩軸同一個增益（0804 逐把量測）。"""
+    return gain * reach
+
+
+def pan_headroom(direction: str, origin: Point, bounds: Region = PAN_GESTURE_BOUNDS) -> float:
+    """從這個起手點往 direction 推，行程最多能拉多長還留在安全框內。"""
+    dx, dy = DIRECTIONS[direction]
+    x, y, w, h = bounds
+    # 手指往推進方向的反向拉，所以吃掉的是反向那一側的餘裕。
+    if dx:
+        return origin[0] - x if dx > 0 else x + w - origin[0]
+    return y + h - origin[1] if dy < 0 else origin[1] - y
+
+
+def pan_stroke(
+    direction: str,
+    reach: float,
+    sightings: Iterable[Sighting],
+    *,
+    candidates: Sequence[Point] = PAN_ORIGIN_GRID,
+    bounds: Region = PAN_GESTURE_BOUNDS,
+) -> tuple[Point, float]:
+    """要推 reach 這麼長時的起手點與**真的推得動**的行程。
+
+    先篩掉行程會拉出安全框的起手點，再在剩下的裡挑離所有單位最遠的（起手抓到精靈
+    整把會被吃掉）。全部都不夠長就退而求其次挑餘裕最大的那一個，並把行程縮到它撐
+    得住的長度——回報縮過的行程，讓呼叫端算得出實際位移，不要以為推滿了。
+    """
+    reach = min(max(reach, PAN_MIN_REACH), PAN_MAX_REACH)
+    roomy = [point for point in candidates if pan_headroom(direction, point, bounds) >= reach]
+    if roomy:
+        return (pick_pan_origin(sightings, roomy), reach)
+    origin = max(candidates, key=lambda point: pan_headroom(direction, point, bounds))
+    room = pan_headroom(direction, origin, bounds)
+    return (origin, max(PAN_MIN_REACH, min(reach, room)))
 
 
 def pan_gesture(direction: str, origin: Point, reach: float | None = None) -> tuple[int, int, int, int]:

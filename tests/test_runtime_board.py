@@ -566,3 +566,37 @@ def test_replaying_the_real_series_never_writes_a_frame_it_could_not_place():
     assert summary["cells"]["unit"] == len(survey.units())
     # STALE 是換代才有的狀態，一輪掃描裡不該冒出來
     assert summary["cells"]["stale"] == 0
+
+
+def test_the_gesture_origin_is_picked_so_the_full_reach_stays_inside_the_safe_box():
+    origin, reach = board.pan_stroke("north", board.PAN_MAX_REACH, ())
+
+    x, y, w, h = board.PAN_GESTURE_BOUNDS
+    assert board.pan_headroom("north", origin, board.PAN_GESTURE_BOUNDS) >= reach
+    assert reach == board.PAN_MAX_REACH
+    assert y <= board.pan_gesture("north", origin, reach)[3] <= y + h
+
+
+def test_a_direction_with_no_roomy_origin_shortens_the_stroke_instead_of_leaving_the_box():
+    cramped = ((700.0, 730.0),)
+
+    origin, reach = board.pan_stroke(
+        "north", board.PAN_MAX_REACH, (), candidates=cramped
+    )
+
+    assert origin == cramped[0]
+    assert reach == board.pan_headroom("north", origin, board.PAN_GESTURE_BOUNDS)
+    assert reach < board.PAN_MAX_REACH
+
+
+def test_the_stroke_still_dodges_the_units_among_the_origins_that_have_room():
+    crowd = [board.Sighting(point=(760.0, 360.0), hint=board.RED_HINT)]
+
+    origin, _ = board.pan_stroke("east", 200.0, crowd)
+
+    assert origin != (760.0, 360.0)
+
+
+def test_the_content_shift_of_a_stroke_is_the_measured_gain_times_the_reach():
+    assert board.pan_shift(250.0) == 237.5
+    assert board.pan_shift(170.0) == 161.5
