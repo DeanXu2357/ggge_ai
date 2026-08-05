@@ -160,6 +160,37 @@ def test_no_blank_cell_when_the_whole_window_is_red():
     assert jumpscan.blank_cell_tap(frame, GRID, (0.0, 0.0), []) is None
 
 
+def test_the_blank_cell_never_lands_under_the_ui_that_covers_the_map():
+    """「離畫面中心最遠」天生指向四角，而四角全是 UI：0806 實機挑到 (2238,1011)，
+    壓在右下「單位列表」鈕上（被 device 的 weapon_dial 危險帶攔下才發現）。"""
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+    frame[:, :] = (60, 60, 60)
+
+    tap = jumpscan.blank_cell_tap(frame, GRID, (0.0, 0.0), [])
+
+    assert tap is not None
+    assert not jumpscan.in_ui_zone(tap)
+
+
+def test_the_unit_list_button_and_the_top_bar_are_inside_the_mask():
+    assert jumpscan.in_ui_zone((2238.0, 1011.0))
+    assert jumpscan.in_ui_zone((1170.0, 60.0))
+    assert jumpscan.in_ui_zone((1900.0, 60.0))
+    assert jumpscan.in_ui_zone((300.0, 200.0))
+    assert jumpscan.in_ui_zone((400.0, 1000.0))
+    assert not jumpscan.in_ui_zone((1170.0, 540.0))
+
+
+def test_no_blank_cell_when_the_mask_swallows_every_survivor():
+    """遮罩之外全紅、遮罩之內乾淨——挑不出來就是挑不出來，不准退回遮罩裡。"""
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+    frame[:, :] = (30, 30, 200)
+    for x, y, w, h in jumpscan.UI_EXCLUSION_ZONES:
+        frame[y : y + h, x : x + w] = (60, 60, 60)
+
+    assert jumpscan.blank_cell_tap(frame, GRID, (0.0, 0.0), []) is None
+
+
 def test_the_report_keeps_roster_order_and_marks_the_unresolved():
     ledger = jumpscan.JumpLedger()
     ledger.record(_jump(("ally", 0), (3, 4), (0.0, 0.0), ()))

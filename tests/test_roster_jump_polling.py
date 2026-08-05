@@ -5,14 +5,17 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import screens
+from ggge_ai.runtime import board, jumpscan, roster, screens
 from ggge_ai.runtime.journal import Journal
 from scripts.scan_roster_jump import Halt, Scan
+
+LATTICE = board.Lattice(cols=tuple(range(0, 2340, 128)), rows=tuple(range(0, 1080, 120)))
 
 
 def build_scan(tmp_path, sequence: list[str]) -> Scan:
@@ -86,3 +89,16 @@ def test_the_expected_screen_never_arriving_halts(tmp_path, classify):
 
     with pytest.raises(Halt):
         scan.tap((1172, 992), expect=screens.BATTLE_MENU)
+
+
+def test_no_blank_cell_halts_and_leaves_a_journal_line(tmp_path, monkeypatch):
+    """挑不出解除點就停在原地——但要留下流水帳，不然實機只看到一行 Halt。"""
+    scan = build_scan(tmp_path, [])
+    monkeypatch.setattr(jumpscan, "blank_cell_tap", lambda *a, **k: None)
+    monkeypatch.setattr(board, "find_lattice", lambda frame: LATTICE)
+
+    with pytest.raises(Halt):
+        scan.dismiss(roster.ENEMY, np.zeros((1080, 2340, 3), np.uint8), [])
+
+    kinds = [json.loads(line)["kind"] for line in scan.journal.path.read_text().splitlines()]
+    assert "no_blank_cell" in kinds

@@ -383,6 +383,12 @@ class Scan:
             raise Halt("落點幀讀不出格網，挑不出解除用的空白格")
         blank = jumpscan.blank_cell_tap(frame, screen_grid, (0.0, 0.0), peaks)
         if blank is None:
+            self.journal.record(
+                "no_blank_cell",
+                faction=faction,
+                peaks=[[round(v, 1) for v in peak] for peak in peaks],
+                phase=[round(v, 1) for v in screen_grid.phase],
+            )
             raise Halt("落點幀找不到任何空白格可以解除敵方指定")
         self.device.tap(*blank)
 

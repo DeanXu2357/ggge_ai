@@ -33,6 +33,30 @@ ALLY_DISMISS_INTENT = "ally_dismiss"
 # 共現複核的容差：另一台單位的格心投影到本窗，附近要真的有一個密度峰。
 CO_SIGHTING_PITCH = 0.6
 
+# 疊在地圖上層的 UI：這些矩形底下的「格」點不到，點下去命中的是 UI。0806 實機
+# run 挑到 (2238,1011) 撞上 device 的 weapon_dial 帶才發現——空白格挑選原本完全
+# 沒有覆蓋區概念，而它專挑離畫面中心最遠的格，等於專挑四角的 UI。
+# 矩形量自 assets/screenshots/20260806-013329.png（敵方指定中）與 20260806-013000.png
+# （我方回合地圖），(x, y, w, h) 螢幕座標，各邊留了一格餘裕。
+UI_EXCLUSION_ZONES: tuple[Region, ...] = (
+    # 頂部狀態帶：回合旗／TURN／破壞數／勝利條件字樣，橫貫全寬。
+    (0, 0, 2340, 130),
+    # 右上 AUTO ＋快進 ＋☰。
+    (1700, 0, 640, 140),
+    # 左上單位資訊卡：跳轉到某一台之後這裡會長出駕駛員／HP／EN 兩張卡。
+    (140, 120, 840, 180),
+    # 左側「回合結束」與「變更初期配置」兩顆鈕（對齊 device 的同名危險帶）。
+    (140, 130, 320, 210),
+    # 左下訊息列。
+    (0, 940, 1560, 140),
+    # 右下「單位列表」鈕：點下去會展開卡條，之後每一幀的 find_units 都被污染。
+    (1740, 930, 600, 150),
+)
+
+
+def in_ui_zone(point: Point, zones: Sequence[Region] = UI_EXCLUSION_ZONES) -> bool:
+    return any(x <= point[0] <= x + w and y <= point[1] <= y + h for x, y, w, h in zones)
+
 
 @dataclass(frozen=True)
 class Jump:
@@ -179,10 +203,12 @@ def blank_cell_tap(
     *,
     region: Region = board.UNIT_DENSITY_REGION,
     red_max: float = RED_CELL_FRACTION,
+    zones: Sequence[Region] = UI_EXCLUSION_ZONES,
 ) -> tuple[int, int] | None:
-    """解除敵方指定用的空白格：窗內離畫面中心最遠的乾淨格（離峰遠、不紅）。
+    """解除敵方指定用的空白格：窗內離畫面中心最遠的乾淨格（離峰遠、不紅、不在 UI 底下）。
 
-    挑最遠的是為了離目標與它的攻擊範圍越遠越好——貼著目標點下去等於在紅格裡賭。
+    挑最遠的是為了離目標與它的攻擊範圍越遠越好——貼著目標點下去等於在紅格裡賭；
+    但「最遠」天生指向四角，所以 UI 遮罩要在算距離之前先濾掉。
     """
     x, y, w, h = region
     keep_out = PEAK_KEEP_OUT_PITCH * max(grid.col_pitch, grid.row_pitch)
@@ -200,6 +226,8 @@ def blank_cell_tap(
                 abs(peak[0] - point[0]) <= keep_out and abs(peak[1] - point[1]) <= keep_out
                 for peak in peaks
             ):
+                continue
+            if in_ui_zone(point, zones):
                 continue
             if red_fraction(frame, point, half) >= red_max:
                 continue
