@@ -1211,10 +1211,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--filter-mode",
         choices=(sweep.FILTER_FULL, sweep.FILTER_CANDIDATES),
-        default=sweep.FILTER_FULL,
+        default=sweep.FILTER_CANDIDATES,
         help=(
-            "full＝全格點（預設，真值來源）；candidates＝只點單位候選格、其餘推斷為空"
-            "（候選門檻尚無真值背書，等 eval_candidate_recall 報 100%% 召回才翻回預設）"
+            "candidates＝只點單位候選格、其餘推斷為空（預設；run 20260805-152346"
+            " 召回 100%% GO）；full＝全格點（真值來源，重建真值時用）"
         ),
     )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
