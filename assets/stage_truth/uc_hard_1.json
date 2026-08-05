@@ -3,13 +3,14 @@
   "coordinates": "cell=[x,y]，0 起算，西北角=[0,0]，x 往東、y 往南",
   "scope": "turn-1 初始盤面；敵配置為關卡內容（跨 run 恆定），我方格位取決於出擊配置",
   "board": {"cols": 25, "rows": 20, "boundary": {"west": 0, "north": 0, "east": 24, "south": 19}},
-  "enemies": [
+  "enemy_count": 18,
+  "enemies_verified": [
     {
       "cell": [9, 4],
       "hp": 83811,
       "en": 513,
       "sig": "4aea8a4aafa92bea",
-      "note": "MS 單位（佔一格）。字模曾誤讀 hp=93811（8→9 混淆）",
+      "note": "MS 單位。字模曾誤讀 hp=93811（8→9 混淆）",
       "verified": "使用者實機目視 2026-08-05；格位由第 9/12 輪獨立掃描一致"
     },
     {
@@ -21,8 +22,35 @@
       "verified": "使用者實機目視 2026-08-05（第 12 輪 seq 300 當下）"
     }
   ],
-  "allies_session_note": "第 11 輪 [2,2]、第 12 輪 [1,3] 等 ALLY 裁決經使用者目視正確，但我方格位隨出擊配置變動，不列入關卡斷言",
-  "enemy_count": 18,
+  "enemies_pending_verification": {
+    "source": "run 20260805-152346（第 12 輪完掃，敵 18/18 台數與使用者清點一致）",
+    "caveat": "格位與 sig 可信度高（目視直讀）；hp/en 帶已知字模錯型，逐筆標嫌疑，校對前不得當真值用",
+    "known_reader_bugs": ["開頭插 1（框線誤認，[18,5] 已定讞）", "8→9 混淆（[9,4] 已定讞）"],
+    "roster": [
+      {"cell": [6, 4],   "hp": 109440,  "en": 750,  "sig": "7565c75534a66545", "suspect": null},
+      {"cell": [16, 6],  "hp": 129265,  "en": 1424, "sig": "2d25ae342e24aeae", "suspect": "hp/en 開頭插 1？（vs 29265/424 同族 sig）"},
+      {"cell": [20, 6],  "hp": 129265,  "en": 1424, "sig": "2d25ae342e24aeae", "suspect": "同上"},
+      {"cell": [15, 7],  "hp": 129265,  "en": 1424, "sig": "2d25ae342e24aeae", "suspect": "同上"},
+      {"cell": [17, 7],  "hp": 129265,  "en": 1424, "sig": "2d25ae342e24aeae", "suspect": "同上"},
+      {"cell": [19, 7],  "hp": 129265,  "en": 1424, "sig": "2d25ae342e24aeae", "suspect": "同上"},
+      {"cell": [21, 7],  "hp": 129265,  "en": 1424, "sig": "2d25ae342e24aeae", "suspect": "同上"},
+      {"cell": [13, 9],  "hp": 129265,  "en": 424,  "sig": "2c25ae342624a6ae", "suspect": "hp 插 1 而 en 沒插的混搭，最可疑"},
+      {"cell": [23, 9],  "hp": 615064,  "en": 510,  "sig": "5456d7d6d6d6d654", "suspect": "數字形狀怪（61506+4？）"},
+      {"cell": [12, 10], "hp": 29265,   "en": 424,  "sig": "d5d5d5d4d6d5d755", "suspect": "sig 與 2d25… 族不同但 hp/en 同 29265/424 型"},
+      {"cell": [13, 11], "hp": 29265,   "en": 424,  "sig": "2d25ae342e24aeaf", "suspect": null},
+      {"cell": [23, 11], "hp": 161506,  "en": 1510, "sig": "2425a6352525a6ac", "suspect": "hp/en 開頭插 1？（vs 61506/510）"},
+      {"cell": [23, 13], "hp": 61506,   "en": 510,  "sig": "2425a635a5a5a6ac", "suspect": null},
+      {"cell": [15, 16], "hp": 61506,   "en": 510,  "sig": "2425a635a5a5a6a4", "suspect": null},
+      {"cell": [17, 16], "hp": 61506,   "en": 510,  "sig": "2425a635a5a5a6a4", "suspect": null},
+      {"cell": [19, 16], "hp": 61506,   "en": 510,  "sig": "2425a635a5a5a6a5", "suspect": "sig 尾碼與 [15,16][17,16] 差 1 位元，同型渲染抖動或不同個體待確認"}
+    ]
+  },
+  "allies_session_note": "第 12 輪我方 10 台：西北群 [1,3][1,5][2,2][2,6][3,4]＋東南群 [15,10][16,11][17,9][18,11][19,10]。兩個降落區是否符合出擊配置待使用者確認；我方格位不入關卡斷言",
+  "unresolved": {
+    "unsure": [[10, 15]],
+    "pending": 2,
+    "note": "第 12 輪收尾未裁決殘餘"
+  },
   "meta": {
     "destroy_target": "破壞數 x/18（HUD 讀值）",
     "enemy_count_verified": "使用者實機逐台清點 2026-08-05，與 HUD 分母一致",
