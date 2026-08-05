@@ -138,17 +138,53 @@ def test_a_card_on_the_after_frame_settles_the_verdict_before_anything_else():
     assert outcome.verdict == sweep.TAP_CARD
 
 
-def test_a_large_content_displacement_reads_as_the_camera_recentring():
+def _recentring(target: sweep.Point) -> sweep.Point:
+    return (sweep.SCREEN_CENTRE[0] - target[0], sweep.SCREEN_CENTRE[1] - target[1])
+
+
+def test_a_displacement_that_recentres_the_tapped_cell_with_selection_ui_is_an_ally():
+    target = (400.0, 300.0)
+    moved = _recentring(target)
+
     outcome = sweep.classify_tap(
         _blank(),
         _blank(),
-        (800.0, 500.0),
+        target,
         card=lambda frame: False,
-        displace=lambda before, after: (-240.0, 30.0),
+        displace=lambda before, after: moved,
+        selected=lambda frame: True,
     )
 
     assert outcome.verdict == sweep.TAP_SHIFTED
-    assert outcome.delta == (-240.0, 30.0)
+    assert outcome.delta == moved
+
+
+def test_a_recentring_displacement_without_selection_ui_is_not_sentenced_as_ally():
+    target = (400.0, 300.0)
+
+    outcome = sweep.classify_tap(
+        _blank(),
+        _blank(),
+        target,
+        card=lambda frame: False,
+        displace=lambda before, after: _recentring(target),
+        selected=lambda frame: False,
+    )
+
+    assert outcome.verdict == sweep.TAP_SHIFTED_UNSURE
+
+
+def test_a_half_cell_displacement_is_no_feedback_not_a_recentring():
+    outcome = sweep.classify_tap(
+        _blank(),
+        _blank(),
+        (400.0, 300.0),
+        card=lambda frame: False,
+        displace=lambda before, after: (107.0, -8.0),
+        selected=lambda frame: True,
+    )
+
+    assert outcome.verdict == sweep.TAP_NONE
 
 
 def test_the_first_empty_tap_learns_the_marker_signature_and_later_taps_reuse_it():

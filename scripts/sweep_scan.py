@@ -478,7 +478,7 @@ class SweepRun:
             ledger.record(target.cell, sweep.EMPTY)
             self.marker_cell = target.cell
             return True
-        if outcome.verdict in (sweep.TAP_CARD, sweep.TAP_SHIFTED):
+        if outcome.verdict == sweep.TAP_CARD or outcome.verdict in sweep.TAP_SHIFTS:
             # 推斷成空的格點下去卻出卡／置中＝候選過濾漏報了一台，帳本改回點擊事實。
             if was == sweep.EMPTY_INFERRED:
                 self.journal.record("inference_broken", cell=list(target.cell))
@@ -587,7 +587,7 @@ class SweepRun:
             if ledger.taps >= self.max_taps:
                 return False
             outcome = self.decide(target, before)
-            if outcome in (sweep.TAP_CARD, sweep.TAP_SHIFTED):
+            if outcome == sweep.TAP_CARD or outcome in sweep.TAP_SHIFTS:
                 return True
             before = self.camera.grab()
         return False
@@ -614,7 +614,7 @@ class SweepRun:
         if outcome.verdict == sweep.TAP_CARD:
             self.sentence_card(target)
             return outcome.verdict
-        if outcome.verdict == sweep.TAP_SHIFTED:
+        if outcome.verdict in sweep.TAP_SHIFTS:
             self.sentence_shift(target, outcome)
             return outcome.verdict
         ledger.record(target.cell, sweep.UNSURE, reason="no_feedback")
@@ -635,8 +635,12 @@ class SweepRun:
             target.point,
             signature=self.signature,
             card=_card_present,
+            selected=self.in_selection,
             pitch=(ledger.grid.col_pitch, ledger.grid.row_pitch),
         )
+
+    def in_selection(self, frame: np.ndarray) -> bool:
+        return map_view.classify_view(self.gate, frame) in map_view.SELECTION_SUBSTATES
 
     def sentence_card(self, target: sweep.TapTarget) -> None:
         """出卡：橫幅停靠側判陣營（定案 5），讀完 escape。名字讀不到仍記 ENEMY。"""
@@ -673,15 +677,21 @@ class SweepRun:
         self.escape()
 
     def sentence_shift(self, target: sweep.TapTarget, outcome: sweep.TapOutcome) -> None:
-        """置中＝點到我方（只有未行動的我方單位吃得下這一下）。escape 後重錨。"""
+        """置中＝點到我方（只有未行動的我方單位吃得下這一下）。escape 後重錨。
+
+        幾何對得上但選擇態 UI 沒背書時只重錨鏡頭，陣營記 UNSURE 留白。
+        """
         ledger = self._ledger()
         path = self.camera.keep("shift")
-        ledger.record(target.cell, sweep.ALLY, frame=path, reason="recentred")
+        confirmed = outcome.verdict == sweep.TAP_SHIFTED
+        verdict = sweep.ALLY if confirmed else sweep.UNSURE
+        reason = "recentred" if confirmed else "recentred_unconfirmed"
+        ledger.record(target.cell, verdict, frame=path, reason=reason)
         self.journal.record(
             "verdict",
             cell=list(target.cell),
-            verdict=sweep.ALLY,
-            reason="recentred",
+            verdict=verdict,
+            reason=reason,
             delta=None if outcome.delta is None else [round(v, 1) for v in outcome.delta],
             frame=path,
         )

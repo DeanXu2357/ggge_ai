@@ -43,6 +43,9 @@ SORTIE_PREP = "sortie_prep"
 BATTLE_RESULT = "battle_result"
 BATTLE_DEFEAT = "battle_defeat"
 STAGE_LIST = "stage_list"
+STAGE_TYPE_SELECT = "stage_type_select"
+SERIES_SELECT = "series_select"
+SERIES_CONFIRM = "series_confirm"
 
 LOGIN_BONUS = "login_bonus"
 NOTICE = "notice"
@@ -142,6 +145,11 @@ SIGNATURES: tuple[Signature, ...] = (
     # 「選擇關卡」標頭。NORMAL 與 HARD 節點在同一條軸上（難度不是分頁），所以這個
     # 名字只說「人在關卡列表」，選了哪一關讀不出來。
     Signature(STAGE_LIST, "screens/stage_list.png", (310, 0, 340, 140), 9, 0.85),
+    # 棄戰會落在關卡模式選擇頁而不是關卡列表（0805 兩輪實證），回列表的路要認得出
+    # 這三張中繼畫面才走得下去。
+    Signature(STAGE_TYPE_SELECT, "screens/stage_type_select.png", (135, 0, 210, 140), 9, 0.85),
+    Signature(SERIES_SELECT, "screens/series_select.png", (495, 835, 420, 160), 9, 0.85),
+    Signature(SERIES_CONFIRM, "screens/series_confirm.png", (1775, 820, 425, 155), 9, 0.85),
 )
 
 

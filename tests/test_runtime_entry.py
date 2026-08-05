@@ -452,3 +452,53 @@ def test_the_abandon_flow_refuses_when_we_are_not_on_the_map():
 
     assert not report.ok
     assert screen.taps == []
+
+
+STAGE_TYPE_SELECT = "popups/stage_type_select_20260805"
+
+
+def _screen_of(signature_screen: str) -> np.ndarray:
+    """把該畫面的簽名模板貼回它的搜尋區——回程路上兩張中繼畫面沒有實幀樣本，
+    測的是接線與座標，不是視覺門檻（門檻由模板本身固定）。"""
+    signature = next(sig for sig in screens.SIGNATURES if sig.screen == signature_screen)
+    template = cv2.imread(str(screens.TEMPLATE_ROOT / signature.template))
+    frame = blank()
+    x, y, _, _ = signature.region
+    frame[y : y + template.shape[0], x : x + template.shape[1]] = template
+    return frame
+
+
+def test_an_abandon_that_lands_on_the_mode_page_navigates_back_to_the_stage_list():
+    """0805 兩輪：棄戰成功但落在關卡模式選擇頁，收尾驗收報 unconfirmed。"""
+    screen = Screen(
+        [
+            load(MAP_AUTO_OFF),
+            load(ABANDON_CONFIRM),
+            load(STAGE_TYPE_SELECT),
+            _screen_of(screens.SERIES_SELECT),
+            _screen_of(screens.SERIES_CONFIRM),
+            load(STAGE_LIST),
+        ]
+    )
+
+    report = entry.abandon_battle(screen.capture, screen.tap, sleep=lambda _: None)
+
+    assert report.ok, report.trail
+    assert screen.points()[-3:] == [
+        entry.MAIN_STAGE_TAP,
+        entry.SERIES_FOCUSED_TAP,
+        entry.SERIES_SELECT_TAP,
+    ]
+
+
+def test_a_navigation_that_stalls_stops_instead_of_tapping_on_blind():
+    screen = Screen(
+        [load(MAP_AUTO_OFF), load(ABANDON_CONFIRM), load(STAGE_TYPE_SELECT), blank()]
+    )
+
+    report = entry.abandon_battle(screen.capture, screen.tap, sleep=lambda _: None)
+
+    assert not report.ok
+    assert report.trail[-1] == "abandon:unconfirmed"
+    assert screen.points()[-1] == entry.MAIN_STAGE_TAP
+    assert entry.BATTLE_MENU_CLOSE_TAP not in screen.points()

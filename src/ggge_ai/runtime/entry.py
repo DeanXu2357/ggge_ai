@@ -397,6 +397,48 @@ ABANDON_SETTLE_ATTEMPTS = 8
 ABANDON_SETTLE_INTERVAL_S = 2.0
 
 
+MAIN_STAGE_TAP = (1030, 800)
+SERIES_FOCUSED_TAP = (1230, 590)
+SERIES_SELECT_TAP = (1990, 890)
+NAV_SETTLE_ATTEMPTS = 5
+NAV_SETTLE_INTERVAL_S = 1.5
+
+
+def _back_to_stage_list(
+    capture: Capture,
+    tap: Tapper,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+    on_tap: Callable[[str, tuple[int, int]], None] | None = None,
+) -> str:
+    """關卡模式選擇頁 → 關卡列表：MAIN STAGE → 系列選擇 → 系列詳情的選擇。
+
+    每一下都要先確認人在該站的畫面才點——這條路固定走「置中的那個系列」，前提是
+    進場前就在那個系列的列表；前提破了就停在原地讓呼叫端報 unconfirmed，不瞎點。
+    """
+    chain = (
+        ("main_stage", MAIN_STAGE_TAP, screens.SERIES_SELECT),
+        ("series", SERIES_FOCUSED_TAP, screens.SERIES_CONFIRM),
+        ("series_select", SERIES_SELECT_TAP, screens.STAGE_LIST),
+    )
+    screen = screens.STAGE_TYPE_SELECT
+    for label, point, wanted in chain:
+        if on_tap is not None:
+            on_tap(label, point)
+        tap(*point)
+        sleep(NAV_SETTLE_INTERVAL_S)
+        screen, _ = expect_screen(
+            capture,
+            (wanted,),
+            attempts=NAV_SETTLE_ATTEMPTS,
+            sleep=sleep,
+            settle_s=NAV_SETTLE_INTERVAL_S,
+        )
+        if screen != wanted:
+            return screen
+    return screen
+
+
 def _await_abandon_dialog(
     capture: Capture,
     *,
@@ -429,6 +471,9 @@ def abandon_battle(
 
     收尾驗收要輪詢：0804 那輪最後一下之後 3.3 秒就判畫面，轉場中讀成 unknown 而
     誤報失敗（事後探針 stage_list 0.992，裝置其實早就回關卡列表了）。
+
+    落點不保證是關卡列表：0805 兩輪都落在關卡模式選擇頁，由 `_back_to_stage_list`
+    導航回來。
     """
     report = GateReport()
     screen, _ = expect_screen(capture, screens.MAP_SCREENS, sleep=sleep)
@@ -451,11 +496,18 @@ def abandon_battle(
             sleep(3.0)
             screen, _ = expect_screen(
                 capture,
-                (screens.STAGE_LIST,),
+                (screens.STAGE_LIST, screens.STAGE_TYPE_SELECT),
                 attempts=ABANDON_SETTLE_ATTEMPTS,
                 sleep=sleep,
                 settle_s=ABANDON_SETTLE_INTERVAL_S,
             )
+            if screen == screens.STAGE_TYPE_SELECT:
+                report.add("abandon", ADVISORY, "landed_on_stage_type_select")
+                screen = _back_to_stage_list(capture, tap, sleep=sleep, on_tap=on_tap)
+                if screen != screens.STAGE_LIST:
+                    # 棄戰本身成功了，人只是停在回程半路。戰鬥選單那組座標在這些
+                    # 頁上是別的東西，重跑棄戰鏈只會亂點。
+                    break
             if screen == screens.STAGE_LIST:
                 report.add("abandon", "ok", f"attempt={attempt + 1}")
                 return report

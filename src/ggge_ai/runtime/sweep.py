@@ -65,7 +65,11 @@ SCREEN_CENTRE: Point = (board.MAP_REGION[0] + board.MAP_REGION[2] / 2.0, 540.0)
 TAP_EMPTY = "empty"
 TAP_CARD = "card"
 TAP_SHIFTED = "shifted"
+# 幾何對得上置中、但畫面沒給出我方選擇態證據：鏡頭要重錨，陣營不記。
+TAP_SHIFTED_UNSURE = "shifted_unsure"
 TAP_NONE = "none"
+# 鏡頭被拉走的兩種結局：陣營記不記得下另說，重錨都躲不掉。
+TAP_SHIFTS: tuple[str, ...] = (TAP_SHIFTED, TAP_SHIFTED_UNSURE)
 
 SOURCE_EDGE = "edge"
 SOURCE_CENTRE = "centre"
@@ -76,6 +80,10 @@ SOURCE_LOST = "lost"
 MARKER_HIT_PITCH = 0.5
 # 內容位移超過這麼多像素＝鏡頭被置中拉走。一格約 90，六成格已遠大於偵測抖動。
 CENTRE_SHIFT_PX = 60.0
+# 光看位移量級不夠：20260805-122213 的 seq 528／547 兩格量到 107px 的半格級位移就被
+# 判成 ALLY，實際是空格。真置中是「被點的那一格跳到螢幕中心」，位移向量必須與
+# centre - target 對得上（逐軸容差半格）。
+CENTRE_MATCH_PITCH = 0.5
 # 同軸兩側地標各算一次偏移，差超過半格就是至少一側不是地圖邊，整軸不採信。
 EDGE_AGREEMENT_PITCH = 0.5
 
@@ -797,13 +805,19 @@ def classify_tap(
     signature: MarkerSignature | None = None,
     card: Callable[[np.ndarray], bool] | None = None,
     displace: Callable[[np.ndarray, np.ndarray], Point | None] | None = None,
+    selected: Callable[[np.ndarray], bool] | None = None,
     pitch: tuple[float, float] | None = None,
+    centre: Point = SCREEN_CENTRE,
     region: Region = board.MAP_REGION,
 ) -> TapOutcome:
-    """點擊前後幀 → EMPTY／CARD／SHIFTED／NONE。
+    """點擊前後幀 → EMPTY／CARD／SHIFTED／SHIFTED_UNSURE／NONE。
 
     順序有意義：出卡先問（卡片本身就是答案），置中次之（鏡頭一動，「填色在不在被
     點的那一格」這個問法就失去意義），最後才問填色。
+
+    置中要兩道背書才算我方：位移向量與「被點格移到螢幕中心」吻合（幾何），且 after
+    幀確實在我方選擇態（UI）。幾何過、UI 不明只回 SHIFTED_UNSURE——鏡頭照樣要重錨，
+    但陣營不記。
 
     還沒有色簽時用 `learn_marker` 現學：**第一次點到空格**同時是學色簽的唯一機會，
     學到了就回傳給呼叫端收下。
@@ -811,8 +825,9 @@ def classify_tap(
     if card is not None and card(after):
         return TapOutcome(TAP_CARD)
     moved = (displace or _displacement)(before, after)
-    if moved is not None and math.hypot(*moved) >= CENTRE_SHIFT_PX:
-        return TapOutcome(TAP_SHIFTED, delta=moved)
+    if moved is not None and _recentres(moved, target, centre, pitch):
+        verdict = TAP_SHIFTED if selected is not None and selected(after) else TAP_SHIFTED_UNSURE
+        return TapOutcome(verdict, delta=moved)
     if signature is not None:
         found = board.find_marker(after, signature, region=region)
         if found is not None and _near(found, target, pitch or signature.size):
@@ -822,6 +837,19 @@ def classify_tap(
     if learned is not None:
         return TapOutcome(TAP_EMPTY, marker=target, learned=learned)
     return TapOutcome(TAP_NONE)
+
+
+def _recentres(
+    moved: Point, target: Point, centre: Point, pitch: tuple[float, float] | None
+) -> bool:
+    if math.hypot(*moved) < CENTRE_SHIFT_PX:
+        return False
+    span = pitch or (board.MARKER_FALLBACK_PITCH, board.MARKER_FALLBACK_PITCH)
+    expected = (centre[0] - target[0], centre[1] - target[1])
+    return all(
+        abs(moved[axis] - expected[axis]) <= CENTRE_MATCH_PITCH * span[axis]
+        for axis in (0, 1)
+    )
 
 
 def _near(point: Point, target: Point, pitch: tuple[float, float]) -> bool:
