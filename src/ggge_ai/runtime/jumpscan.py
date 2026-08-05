@@ -6,13 +6,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
 
 from ggge_ai.runtime import board
 from ggge_ai.runtime.coverage import WorldGrid
+from ggge_ai.runtime.device import blocked_for_map_tap
 
 Point = tuple[float, float]
 Cell = tuple[int, int]
@@ -204,6 +205,7 @@ def blank_cell_tap(
     region: Region = board.UNIT_DENSITY_REGION,
     red_max: float = RED_CELL_FRACTION,
     zones: Sequence[Region] = UI_EXCLUSION_ZONES,
+    blocked: Callable[[Point], bool] = blocked_for_map_tap,
 ) -> tuple[int, int] | None:
     """解除敵方指定用的空白格：窗內離畫面中心最遠的乾淨格（離峰遠、不紅、不在 UI 底下）。
 
@@ -227,7 +229,7 @@ def blank_cell_tap(
                 for peak in peaks
             ):
                 continue
-            if in_ui_zone(point, zones):
+            if in_ui_zone(point, zones) or blocked(point):
                 continue
             if red_fraction(frame, point, half) >= red_max:
                 continue

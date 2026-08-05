@@ -151,6 +151,19 @@ DANGER_BANDS: tuple[DangerBand, ...] = (
 )
 
 
+def blocked_for_map_tap(
+    point: tuple[float, float], bands: Sequence[DangerBand] = DANGER_BANDS
+) -> bool:
+    """這一點在「地圖裸露、不帶 intent」的視角下可不可點。
+
+    帶的範圍比可見鈕大（帶要包住鈕在各畫面的所有位置），所以挑地圖格的時候要問的
+    是帶而不是鈕的形狀——0806 兩輪實機各撞一次才收斂成這條：先問帶，不要逐一補
+    遮罩去追帶的形狀。
+    """
+    x, y = int(round(point[0])), int(round(point[1]))
+    return any(band.contains(x, y) for band in bands)
+
+
 class TapRefused(RuntimeError):
     pass
 

@@ -26,7 +26,7 @@ import numpy as np
 from . import board
 from .board import Cell, MarkerSignature, Point, Region
 from .coverage import WorldGrid
-from .device import DANGER_BANDS, DangerBand
+from .device import DANGER_BANDS, DangerBand, blocked_for_map_tap
 
 log = logging.getLogger(__name__)
 
@@ -498,9 +498,7 @@ class WindowPlan:
 
 
 def _tap_blocked(point: Point, bands: Sequence[DangerBand]) -> bool:
-    x, y = int(round(point[0])), int(round(point[1]))
-    # 格點擊不帶 intent，所以帶內一律不放行（白名單制）。
-    return any(band.contains(x, y) for band in bands)
+    return blocked_for_map_tap(point, bands)
 
 
 def _box_overlaps(box: tuple[float, float, float, float], region: Region) -> bool:

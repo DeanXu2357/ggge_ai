@@ -6,6 +6,7 @@ import numpy as np
 
 from ggge_ai.runtime import jumpscan, roster
 from ggge_ai.runtime.coverage import WorldGrid
+from ggge_ai.runtime.device import check_tap
 from tests.fixtures.frames import load
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
@@ -170,6 +171,31 @@ def test_the_blank_cell_never_lands_under_the_ui_that_covers_the_map():
 
     assert tap is not None
     assert not jumpscan.in_ui_zone(tap)
+
+
+def test_the_blank_cell_also_clears_the_danger_bands_not_just_the_visible_buttons():
+    """帶比可見鈕大，遮罩追不上帶的形狀——0806 第五輪挑到 (2199,260)，遮罩讓它過了
+    但 `auto_battle_tristate` 帶擋下來。候選要直接問帶（無 intent 視角）。"""
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+    frame[:, :] = (60, 60, 60)
+
+    tap = jumpscan.blank_cell_tap(frame, GRID, (0.0, 0.0), [])
+
+    assert tap is not None
+    check_tap(*tap)
+
+
+def test_a_candidate_outside_every_mask_is_still_dropped_when_a_band_covers_it():
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+    frame[:, :] = (60, 60, 60)
+    reaches_the_band = jumpscan.blank_cell_tap(
+        frame, GRID, (0.0, 0.0), [], zones=(), blocked=lambda point: False
+    )
+
+    assert reaches_the_band is not None
+    assert jumpscan.blank_cell_tap(
+        frame, GRID, (0.0, 0.0), [], zones=(), blocked=lambda point: True
+    ) is None
 
 
 def test_the_unit_list_button_and_the_top_bar_are_inside_the_mask():
