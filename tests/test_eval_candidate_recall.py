@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 from ggge_ai.runtime import sweep
 from scripts.eval_candidate_recall import (
+    detector,
     entries_of,
     evaluate,
     grid_of,
@@ -68,7 +70,7 @@ def test_full_recall_is_the_go_signal_and_needs_every_window_scored():
 
 
 def test_a_window_without_a_saved_frame_is_skipped_not_scored_as_a_hit():
-    report = evaluate(windows_of(ENTRIES), truth_of(ENTRIES), lambda window: None)
+    report = evaluate(windows_of(ENTRIES), truth_of(ENTRIES), lambda window: "no_frame")
 
     assert [score.skipped for score in report.scores] == ["no_frame", "no_frame"]
     assert report.missed == 0
@@ -79,8 +81,18 @@ def test_an_unscored_window_blocks_the_go_signal():
     report = evaluate(
         windows_of(ENTRIES),
         truth_of(ENTRIES),
-        lambda window: frozenset({(1, 0), (2, 1)}) if window.index == 0 else None,
+        lambda window: frozenset({(1, 0), (2, 1)}) if window.index == 0 else "frame_unreadable",
     )
 
     assert report.missed == 0
     assert not report.go
+
+
+def test_the_detector_tells_a_missing_path_apart_from_an_unreadable_file(tmp_path):
+    grid = grid_of(ENTRIES)
+    assert grid is not None
+    detect = detector(tmp_path, grid, halo=1.0, min_count=60, min_dist=8.0)
+    recorded, unrecorded = windows_of(ENTRIES)
+
+    assert detect(recorded) == "frame_unreadable"
+    assert detect(replace(unrecorded, frame=None)) == "no_frame"

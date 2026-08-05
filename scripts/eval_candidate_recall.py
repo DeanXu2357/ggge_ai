@@ -8,6 +8,10 @@ go/no-go 工具——`--filter-mode candidates` 上實機當預設之前，總�
 指到的 frames/ 檔。舊 run 的 window 事件沒有 frame 欄位，評不了，要重跑一輪
 `--filter-mode full` 產真值。
 
+評不到的窗一律擋住 GO，但原因要分得開：`no_frame`＝流水帳沒記幀路徑（舊 run），
+`frame_unreadable`＝路徑記了但檔案讀不出來。後者多半是拿還在被 rotate_runs 壓縮
+／刪除的 run 目錄來評——先解開 tar.gz 再評。
+
 usage:
   uv run python scripts/eval_candidate_recall.py data/runs/20260805-003753
   uv run python scripts/eval_candidate_recall.py <run> --halo 1.0 --min-count 60
@@ -29,6 +33,8 @@ from ggge_ai.runtime import sweep
 from ggge_ai.runtime.coverage import WorldGrid
 
 UNITS: tuple[str, ...] = (sweep.ENEMY, sweep.ALLY)
+
+Detector = Callable[["Window"], "frozenset[sweep.Cell] | str"]
 
 
 @dataclass(frozen=True)
@@ -138,13 +144,13 @@ def inside(window: Window, cell: sweep.Cell) -> bool:
 def score_window(
     window: Window,
     truth: dict[sweep.Cell, str],
-    detect: Callable[[Window], frozenset[sweep.Cell] | None],
+    detect: Detector,
 ) -> WindowScore:
     units = tuple(sorted(cell for cell, verdict in truth.items()
                          if verdict in UNITS and inside(window, cell)))
     candidates = detect(window)
-    if candidates is None:
-        return WindowScore(window=window, units=units, skipped="no_frame")
+    if isinstance(candidates, str):
+        return WindowScore(window=window, units=units, skipped=candidates)
     missed = tuple(cell for cell in units if cell not in candidates)
     empties = tuple(
         sorted(
@@ -164,13 +170,13 @@ def score_window(
 
 def detector(
     run_dir: Path, grid: WorldGrid, *, halo: float, min_count: int, min_dist: float
-) -> Callable[[Window], frozenset[sweep.Cell] | None]:
-    def detect(window: Window) -> frozenset[sweep.Cell] | None:
+) -> Detector:
+    def detect(window: Window) -> frozenset[sweep.Cell] | str:
         if window.frame is None:
-            return None
+            return "no_frame"
         image = cv2.imread(str(run_dir / window.frame), cv2.IMREAD_COLOR)
         if image is None:
-            return None
+            return "frame_unreadable"
         points = sweep.candidate_points(
             np.asarray(image), min_count=min_count, min_dist=min_dist
         )
@@ -182,7 +188,7 @@ def detector(
 def evaluate(
     windows: Sequence[Window],
     truth: dict[sweep.Cell, str],
-    detect: Callable[[Window], frozenset[sweep.Cell] | None],
+    detect: Detector,
 ) -> Report:
     return Report([score_window(window, truth, detect) for window in windows])
 
@@ -196,7 +202,7 @@ def render(report: Report, run_dir: Path) -> str:
             f"bounds={window.bounds[0]}-{window.bounds[1]}"
         )
         if score.skipped:
-            lines.append(f"{head}  skipped={score.skipped}")
+            lines.append(f"{head}  skipped={score.skipped} frame={window.frame}")
             continue
         recall = "n/a" if score.recall is None else f"{score.recall:.0%}"
         lines.append(
