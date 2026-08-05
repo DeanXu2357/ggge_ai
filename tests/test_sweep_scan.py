@@ -13,7 +13,7 @@ import pytest
 from ggge_ai.runtime import board, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.journal import Journal
-from scripts.sweep_scan import STRANDINGS_LIMIT, Halt, SweepRun
+from scripts.sweep_scan import STRANDINGS_LIMIT, Halt, SweepRun, load_target
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 
@@ -748,3 +748,215 @@ def test_the_constellation_takes_over_when_the_marker_is_gone_and_the_edges_are_
     assert run.offset == pytest.approx(truth)
     # 星座是假說級：grounded 維持 False，下一步得靠 confirm() 拿強證人背書。
     assert not run.grounded
+
+
+def roster_run(tmp_path, candidates, outcomes=None, counter=(0, 1)):
+    run = filtered_run(tmp_path, candidates, outcomes)
+    run.filter_mode = sweep.FILTER_ROSTER
+    run.target = sweep.Census(enemies=counter[1], allies=0, npcs=0) if counter else None
+    run.kill_counter = lambda frame: counter
+    run.roster_check = lambda: True
+    return run
+
+
+def test_the_kill_counter_denominator_is_read_and_must_agree_with_the_truth(tmp_path):
+    run = roster_run(tmp_path, set(), counter=(3, 18))
+
+    run.take_census()
+
+    assert run.enemy_total == 18
+    assert run.target == sweep.Census(18, 0, 0)
+
+
+def test_a_kill_counter_that_disagrees_with_the_truth_file_cancels_the_early_close(tmp_path):
+    run = roster_run(tmp_path, set(), counter=(3, 18))
+    run.target = sweep.Census(enemies=17, allies=0, npcs=0)
+
+    run.take_census()
+
+    assert run.target is None
+
+
+def test_a_stage_without_a_truth_file_taps_every_candidate_instead_of_closing(tmp_path):
+    run = roster_run(tmp_path, set(), counter=None)
+    run.take_census()
+
+    run.tour()
+
+    assert run.target is None
+    assert not run.closed
+    # 早收條件不成立就是照舊掃：每一格都收到裁決
+    assert run.ledger.complete
+
+
+def test_a_closed_census_exempts_the_rest_of_the_board_without_tapping_it(tmp_path):
+    run = roster_run(tmp_path, set())
+    run.target = sweep.Census(1, 0, 0)
+    run.ledger.record((3, 4), sweep.ENEMY, name="a")
+
+    assert run.close_census()
+
+    assert run.closed
+    assert run.ledger.verdict((2, 5)) == sweep.EMPTY_INFERRED
+    assert run.ledger.reasons[(2, 5)] == sweep.CENSUS_CLOSED
+    assert run.ledger.complete
+
+
+def test_an_open_census_exempts_nothing(tmp_path):
+    run = roster_run(tmp_path, set())
+    run.target = sweep.Census(2, 0, 0)
+    run.ledger.record((3, 4), sweep.ENEMY, name="a")
+
+    assert not run.close_census()
+    assert not run.ledger.cells_of(sweep.EMPTY_INFERRED)
+
+
+def test_a_roster_check_that_cannot_see_a_booked_unit_keeps_the_sweep_going(tmp_path):
+    run = roster_run(tmp_path, {(3, 4)})
+    checks: list[bool] = []
+
+    def check() -> bool:
+        checks.append(True)
+        return False
+
+    run.roster_check = check
+    run.tap_cell = lambda target, before: (
+        sweep.TapOutcome(sweep.TAP_CARD)
+        if target.cell == (3, 4)
+        else sweep.TapOutcome(sweep.TAP_EMPTY, marker=target.point)
+    )
+    run.sentence_card = lambda target: run.ledger.record(target.cell, sweep.ENEMY)
+    run.candidates = lambda frame: frozenset(run.ledger.pending())
+
+    run.tour()
+
+    assert checks
+    assert not run.closed
+    assert not run.ledger.cells_of(sweep.EMPTY_INFERRED)
+
+
+def test_the_window_plan_is_handed_the_peak_ranking(tmp_path, monkeypatch):
+    run = build_run(tmp_path, {})
+    run.filter_mode = sweep.FILTER_CANDIDATES
+    monkeypatch.setattr(board, "find_lattice", lambda frame: True)
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: None)
+    monkeypatch.setattr(sweep, "candidate_points", lambda frame: ((350.0, 450.0), (150.0, 450.0)))
+    orders: list[dict] = []
+    plan_window = sweep.plan_window
+    monkeypatch.setattr(
+        sweep,
+        "plan_window",
+        lambda *args, order=None, **kw: (orders.append(order), plan_window(*args, **kw))[1],
+    )
+
+    cells = run.candidates(_blank())
+
+    assert (3, 4) in cells
+    assert run.ranking[(3, 4)] == 0
+    # 弱峰獨佔的格排在強峰之後
+    assert run.ranking[(1, 4)] == 1
+
+    run.tour()
+
+    assert orders and orders[0] is run.ranking
+
+
+def test_a_cell_seen_again_takes_its_inferred_empty_back_and_is_tapped(tmp_path):
+    run = filtered_run(tmp_path, {(3, 4)})
+    run.ledger.record((3, 4), sweep.EMPTY_INFERRED, reason="candidate_filter")
+    run.inferred_at[(3, 4)] = 7
+    tapped: list[tuple[int, int]] = []
+    run.tap_cell = lambda target, before: (
+        tapped.append(target.cell),
+        sweep.TapOutcome(sweep.TAP_SHIFTED),
+    )[1]
+    run.sentence_shift = lambda target, outcome: run.ledger.record(target.cell, sweep.ALLY)
+
+    run.tour()
+
+    assert (3, 4) in tapped
+    assert run.ledger.verdict((3, 4)) == sweep.ALLY
+    retracted = [
+        entry for entry in _entries(run) if entry["kind"] == "inference_retracted"
+    ]
+    assert retracted[0]["cell"] == [3, 4]
+    assert retracted[0]["inferred_at"] == 7
+
+
+def _entries(run) -> list[dict]:
+    import json
+
+    return [json.loads(line) for line in run.journal.path.read_text().splitlines()]
+
+
+def test_a_card_that_does_not_dock_on_the_enemy_side_is_booked_as_a_third_party(tmp_path):
+    from ggge_ai.battle.state import Faction
+
+    run = build_run(tmp_path, {})
+    run.identifier = SimpleNamespace(
+        identify=lambda frame: SimpleNamespace(faction=Faction.ALLY, side="right")
+    )
+
+    run.sentence_card(sweep.TapTarget((3, 4), (350.0, 450.0)))
+
+    assert run.ledger.verdict((3, 4)) == sweep.NPC
+    assert run.ledger.reasons[(3, 4)] == "right"
+
+
+def test_the_truth_file_supplies_the_closing_target(tmp_path):
+    import json
+
+    root = tmp_path / "truth"
+    root.mkdir()
+    (root / "uc_x.json").write_text(
+        json.dumps({"enemy_count": 18, "npc_count": 0}), encoding="utf-8"
+    )
+    journal = Journal(tmp_path / "sweep.jsonl")
+
+    assert load_target("uc_x", 10, journal, root) == sweep.Census(18, 10, 0)
+    # 我方台數屬出擊配置：檔案沒寫、CLI 也沒給就不早收
+    assert load_target("uc_x", None, journal, root) is None
+    # 首刷：沒有真值檔一律不早收
+    assert load_target("uc_new", 10, journal, root) is None
+    assert load_target(None, 10, journal, root) is None
+
+
+def test_a_truth_file_without_a_third_party_count_does_not_close(tmp_path):
+    import json
+
+    root = tmp_path / "truth"
+    root.mkdir()
+    (root / "uc_x.json").write_text(json.dumps({"enemy_count": 18}), encoding="utf-8")
+    journal = Journal(tmp_path / "sweep.jsonl")
+
+    assert load_target("uc_x", 10, journal, root) is None
+
+
+def test_a_candidate_on_an_exempted_cell_fails_the_roster_check(tmp_path, monkeypatch):
+    run = roster_run(tmp_path, set())
+    run.roster_check = SweepRun.roster_check.__get__(run)
+    run.ledger.record((3, 4), sweep.EMPTY_INFERRED, reason=sweep.CENSUS_CLOSED)
+    run.inferred_at[(3, 4)] = 11
+    monkeypatch.setattr(sweep, "candidate_points", lambda frame: ((350.0, 450.0),))
+
+    assert not run.roster_check()
+
+    assert run.ledger.verdict((3, 4)) == sweep.UNKNOWN
+    retracted = [e for e in _entries(run) if e["kind"] == "inference_retracted"]
+    assert retracted[0]["cell"] == [3, 4]
+    assert retracted[0]["reason"] == "roster_check"
+    # 帳本自己沒有虛帳，所以這一次不算總驗失敗次數
+    assert run.roster_failures == 0
+
+
+def test_two_failed_roster_checks_close_the_early_exit_for_good(tmp_path, monkeypatch):
+    run = roster_run(tmp_path, set())
+    run.roster_check = SweepRun.roster_check.__get__(run)
+    run.ledger.record((3, 4), sweep.ENEMY, name="a")
+    monkeypatch.setattr(sweep, "candidate_points", lambda frame: ())
+
+    assert not run.roster_check()
+    assert run.target is not None
+
+    assert not run.roster_check()
+    assert run.target is None

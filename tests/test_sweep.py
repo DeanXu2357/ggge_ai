@@ -735,3 +735,102 @@ def test_the_star_chart_only_trusts_enemies_whose_name_was_read():
     book.record((3, 3), sweep.EMPTY)
 
     assert sweep.identified_units(book) == ((1, 1), (4, 2))
+
+
+def test_the_census_closes_only_when_all_three_sides_and_all_four_borders_are_in():
+    book = ledger(west=0, east=2, north=0, south=0)
+    book.record((0, 0), sweep.ENEMY, name="a")
+    book.record((1, 0), sweep.ALLY)
+    book.record((2, 0), sweep.NPC, name="c")
+
+    assert sweep.census(book) == sweep.Census(1, 1, 1)
+    assert sweep.census_closed(book, sweep.Census(1, 1, 1))
+    assert not sweep.census_closed(book, sweep.Census(2, 1, 1))
+    assert not sweep.census_closed(book, sweep.Census(1, 2, 1))
+    assert not sweep.census_closed(book, sweep.Census(1, 1, 0))
+
+
+def test_a_stage_with_no_truth_file_never_closes_the_census():
+    book = ledger(west=0, east=0, north=0, south=0)
+    book.record((0, 0), sweep.ENEMY, name="a")
+
+    assert not sweep.census_closed(book, None)
+
+
+def test_an_over_counted_ledger_never_closes_the_census():
+    book = ledger(west=0, east=2, north=0, south=0)
+    book.record((0, 0), sweep.ENEMY)
+    book.record((1, 0), sweep.ENEMY)
+
+    assert not sweep.census_closed(book, sweep.Census(1, 0, 0))
+
+
+def test_the_census_stays_open_while_a_border_is_still_missing():
+    book = ledger(west=0, east=2, north=0)
+    book.record((0, 0), sweep.ENEMY)
+
+    assert not sweep.census_closed(book, sweep.Census(1, 0, 0))
+
+
+def test_a_third_party_unit_is_asked_for_a_peak_like_any_other():
+    book = ledger(west=0, east=2, north=0, south=0)
+    book.record((0, 0), sweep.NPC, name="c")
+
+    assert sweep.roster_missing(book, (), (-150.0, -150.0)) == ((0, 0),)
+
+
+def test_the_strongest_peak_is_tapped_first_no_matter_where_the_serpentine_put_it():
+    book = ledger(west=0, east=3, north=0, south=0)
+    peaks = ((250.0, 50.0), (50.0, 50.0))
+    order = sweep.candidate_ranking(GRID, (0.0, 0.0), peaks, halo=0.0)
+
+    assert order[(2, 0)] < order[(0, 0)]
+
+    plan = sweep.plan_window(
+        book, (0.0, 0.0), region=REGION, holes=(), bands=(),
+        candidates=set(order), order=order,
+    )
+
+    assert [target.cell for target in plan.taps] == [(2, 0), (0, 0)]
+
+
+def test_a_cell_covered_by_two_peaks_ranks_by_the_stronger_one():
+    order = sweep.candidate_ranking(GRID, (0.0, 0.0), ((250.0, 50.0), (60.0, 50.0)), halo=0.5)
+
+    assert order[(0, 0)] == 1
+    assert order[(2, 0)] == 0
+
+
+def test_the_roster_check_passes_when_every_booked_unit_has_a_peak_under_it():
+    book = ledger(west=0, east=2, north=0, south=0)
+    book.record((0, 0), sweep.ENEMY, name="a")
+    book.record((1, 0), sweep.ALLY)
+
+    peaks = ((200.0, 200.0), (300.0, 200.0), (900.0, 900.0))
+
+    assert sweep.roster_missing(book, peaks, (-150.0, -150.0)) == ()
+
+
+def test_a_booked_unit_with_no_sprite_under_it_fails_the_roster_check():
+    book = ledger(west=0, east=2, north=0, south=0)
+    book.record((0, 0), sweep.ENEMY, name="a")
+    book.record((1, 0), sweep.ENEMY, name="b")
+
+    assert sweep.roster_missing(book, ((200.0, 200.0),), (-150.0, -150.0)) == ((1, 0),)
+
+
+def test_a_unit_projected_outside_the_detection_region_is_not_asked_for_a_peak():
+    book = ledger(west=0, east=2, north=0, south=0)
+    book.record((0, 0), sweep.ENEMY, name="a")
+
+    assert sweep.roster_missing(book, (), (5000.0, 5000.0)) == ()
+
+
+def test_two_booked_units_may_not_share_one_peak():
+    book = ledger(west=0, east=2, north=0, south=0)
+    book.record((0, 0), sweep.ENEMY, name="a")
+    book.record((1, 0), sweep.ENEMY, name="b")
+
+    missing = sweep.roster_missing(book, ((250.0, 200.0),), (-150.0, -150.0))
+
+    assert len(missing) == 1

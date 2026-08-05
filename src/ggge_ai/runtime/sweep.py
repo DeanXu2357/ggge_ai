@@ -3,7 +3,7 @@
 與 `runtime/coverage.py` 的弧色掃描完全並行，兩邊互不呼叫。三分裁決：
 
 - 點空格 → 那一格填出半透明填色（全圖唯一，點別格會搬走）＝ EMPTY
-- 點到單位 → 出摘要卡，橫幅停靠側判陣營 ＝ ENEMY／ALLY
+- 點到單位 → 出摘要卡，橫幅停靠敵側＝ENEMY，非敵側＝NPC（第三方，不當我方）
 - 點到我方 → 進選擇狀態、鏡頭自動置中 ＝ SHIFTED（重錨後仍記 ALLY）
 
 不變量：帳本**只收點擊裁決過的事實，一律記世界格**。分不出結果的格記 UNSURE
@@ -37,13 +37,23 @@ EMPTY = "empty"
 EMPTY_INFERRED = "empty_inferred"
 ENEMY = "enemy"
 ALLY = "ally"
+# 第三方（協力 NPC 機體）：出了卡、停靠側說不是敵方，但「是我方」沒有被選擇態背書。
+# 盤面不保證只有敵我兩方，分不出來的一律留在這一類，不硬塞進二分。
+NPC = "npc"
 UNSURE = "unsure"
-DECIDED: tuple[str, ...] = (EMPTY, EMPTY_INFERRED, ENEMY, ALLY, UNSURE)
+DECIDED: tuple[str, ...] = (EMPTY, EMPTY_INFERRED, ENEMY, ALLY, NPC, UNSURE)
 # UNIT 級事實永遠只來自點擊：視覺這一層只准說「空」。
 INFERABLE: tuple[str, ...] = (EMPTY_INFERRED,)
 
 FILTER_FULL = "full"
 FILTER_CANDIDATES = "candidates"
+# 帳齊即收：候選過濾之上再加人口普查閘。三方台數都對上真值檔就不再逐格確認空格。
+FILTER_ROSTER = "roster"
+FILTER_MODES: tuple[str, ...] = (FILTER_FULL, FILTER_CANDIDATES, FILTER_ROSTER)
+FILTERED: tuple[str, ...] = (FILTER_CANDIDATES, FILTER_ROSTER)
+
+# 早收豁免的理由碼：這一格從沒被視覺質疑過，也沒被點過，是算術把它劃掉的。
+CENSUS_CLOSED = "census_closed"
 
 # 候選檢測的門檻：調參目標是**零漏報**。密度門檻放到最寬、去重距離放鬆，寧可誤報
 # （多點一次，成本 4.4s）不可漏報（漏＝該格被推斷成空＝假帳）。
@@ -376,6 +386,20 @@ class SweepLedger:
         if reason:
             self.reasons[cell] = reason
 
+    def retract(self, cell: Cell) -> bool:
+        """把一格的推斷空格退回未裁決。回傳有沒有真的退。
+
+        推斷是暫定的，點擊裁決才是終審：視覺只要再一次說這一格可能有單位，那筆沒有
+        點擊背書的空格就得讓位。單幀漏檢本來就會發生（run 20260805-180518 的 [1,5]
+        ／[2,6] 在數十個窗都是候選，只因 seq 373 那一幀沒偵測到就被一次性寫成空、
+        之後永不翻案，我方 10 台只記到 8）——不可逆的推斷就是這樣把單位吞掉的。
+        """
+        if self.state.get(cell) != EMPTY_INFERRED:
+            return False
+        del self.state[cell]
+        self.reasons.pop(cell, None)
+        return True
+
     def defer(self, cell: Cell) -> None:
         """這個鏡位下進不了安全窗；等推鏡把它輪過來。"""
         self.chart(cell)
@@ -469,6 +493,8 @@ class WindowPlan:
     blocked: tuple[Cell, ...]
     window: tuple[Cell, Cell] | None = None
     inferred: tuple[Cell, ...] = ()
+    # 這一窗被視覺翻案、退回點擊佇列的推斷空格。
+    retracted: tuple[Cell, ...] = ()
 
 
 def _tap_blocked(point: Point, bands: Sequence[DangerBand]) -> bool:
@@ -547,6 +573,32 @@ def candidate_points(
     )
 
 
+def candidate_ranking(
+    grid: WorldGrid,
+    offset: Point,
+    points: Iterable[Point],
+    *,
+    halo: float = CANDIDATE_HALO_PITCH,
+) -> dict[Cell, int]:
+    """密度峰（螢幕座標）→ 要點的世界格，值是「最強的那個峰排第幾」。
+
+    `find_units` 吐出來的順序就是密度由強到弱，所以名次直接用序號。名次是給點擊
+    排序用的：峰強的先點，真單位早出帳，誤報留在隊尾等著被算術豁免。
+    """
+    out: dict[Cell, int] = {}
+    dx, dy = halo * grid.col_pitch, halo * grid.row_pitch
+    for rank, (x, y) in enumerate(points):
+        world = (x + offset[0], y + offset[1])
+        low = grid.cell_of((world[0] - dx, world[1] - dy))
+        high = grid.cell_of((world[0] + dx, world[1] + dy))
+        for row in range(low[1], high[1] + 1):
+            for col in range(low[0], high[0] + 1):
+                cell = (col, row)
+                if cell not in out:
+                    out[cell] = rank
+    return out
+
+
 def candidate_cells(
     grid: WorldGrid,
     offset: Point,
@@ -555,16 +607,7 @@ def candidate_cells(
     halo: float = CANDIDATE_HALO_PITCH,
 ) -> frozenset[Cell]:
     """密度峰（螢幕座標）→ 要點的世界格。每個峰暈開 halo 格，寧可多不可漏。"""
-    out: set[Cell] = set()
-    dx, dy = halo * grid.col_pitch, halo * grid.row_pitch
-    for x, y in points:
-        world = (x + offset[0], y + offset[1])
-        low = grid.cell_of((world[0] - dx, world[1] - dy))
-        high = grid.cell_of((world[0] + dx, world[1] + dy))
-        for row in range(low[1], high[1] + 1):
-            for col in range(low[0], high[0] + 1):
-                out.add((col, row))
-    return frozenset(out)
+    return frozenset(candidate_ranking(grid, offset, points, halo=halo))
 
 
 def plan_window(
@@ -576,12 +619,15 @@ def plan_window(
     holes: Sequence[Region] = board.UNIT_DENSITY_HUD_HOLES,
     bands: Sequence[DangerBand] = DANGER_BANDS,
     candidates: Collection[Cell] | None = None,
+    order: Mapping[Cell, int] | None = None,
 ) -> WindowPlan:
     """本鏡位裡還沒裁決、點得下去的格，蛇形排序。
 
     `candidates` 給了就進過濾模式：只有候選格排進 taps，其餘的格列進 `inferred`
     交給呼叫端入帳 EMPTY_INFERRED。擋掉的格（HUD 洞／危險帶／窗邊切一半）不算
     推斷——那些格連「視覺看得清楚」都不成立。
+
+    `order` 給了就改成峰強度優先（同名次仍照蛇形，排序是穩定的）。
     """
     grid = ledger.grid
     first, last = window_bounds(grid, offset, region)
@@ -589,6 +635,7 @@ def plan_window(
     taps: list[TapTarget] = []
     blocked: list[Cell] = []
     inferred: list[Cell] = []
+    retracted: list[Cell] = []
     for index, row in enumerate(range(first[1], last[1] + 1)):
         cols = list(range(first[0], last[0] + 1))
         if (heading == "west") != (index % 2 == 1):
@@ -599,7 +646,10 @@ def plan_window(
                 continue
             ledger.chart(cell)
             if ledger.decided(cell):
-                continue
+                # 候選名單再次點到這一格＝視覺翻案：推斷退場，重排點擊佇列。
+                if candidates is None or cell not in candidates or not ledger.retract(cell):
+                    continue
+                retracted.append(cell)
             point = targets[cell]
             if point is None:
                 blocked.append(cell)
@@ -608,7 +658,11 @@ def plan_window(
                 inferred.append(cell)
                 continue
             taps.append(TapTarget(cell, point))
-    return WindowPlan(tuple(taps), tuple(blocked), (first, last), tuple(inferred))
+    if order is not None:
+        taps.sort(key=lambda target: order.get(target.cell, len(order)))
+    return WindowPlan(
+        tuple(taps), tuple(blocked), (first, last), tuple(inferred), tuple(retracted)
+    )
 
 
 @dataclass(frozen=True)
@@ -1019,6 +1073,86 @@ def identified_units(ledger: SweepLedger) -> tuple[Cell, ...]:
         for cell in ledger.cells_of(ENEMY)
         if ledger.names.get(cell)
     )
+
+
+def unit_cells(ledger: SweepLedger) -> tuple[Cell, ...]:
+    """帳本上已確認站著單位的格，不分陣營。"""
+    return tuple(
+        sorted(ledger.cells_of(ENEMY) + ledger.cells_of(ALLY) + ledger.cells_of(NPC))
+    )
+
+
+def retract_inferred(ledger: SweepLedger, cells: Iterable[Cell]) -> tuple[Cell, ...]:
+    """這批候選格裡，哪幾格的推斷空格被翻掉了（翻案已就地生效）。"""
+    return tuple(sorted(cell for cell in set(cells) if ledger.retract(cell)))
+
+
+@dataclass(frozen=True)
+class Census:
+    """一張盤面的三方台數。"""
+
+    enemies: int
+    allies: int
+    npcs: int
+
+
+def census(ledger: SweepLedger) -> Census:
+    """帳本上已確認的三方台數。UNSURE 不算——那是留白不是單位。"""
+    return Census(
+        len(ledger.cells_of(ENEMY)), len(ledger.cells_of(ALLY)), len(ledger.cells_of(NPC))
+    )
+
+
+def census_closed(ledger: SweepLedger, target: Census | None) -> bool:
+    """帳齊了嗎：三方台數都對上，而且四界都定得出來。
+
+    `target` 是 None 就永遠不收——那是「這一關沒有真值可比對」（首刷）。目標數只
+    能來自真值檔，猜出來的數會把還沒清完的區域一起劃掉。
+
+    台數用等號不用大於等於：超計代表帳本裡有假帳（同一台被記兩格之類），那種情況
+    下早收一樣危險。四界是硬條件——界線沒湊齊連「剩下哪些格」都枚舉不出來。
+    """
+    if target is None or not ledger.bounded:
+        return False
+    return census(ledger) == target
+
+
+def roster_missing(
+    ledger: SweepLedger,
+    peaks: Sequence[Point],
+    offset: Point,
+    *,
+    region: Region = board.UNIT_DENSITY_REGION,
+    tolerance: float = CONSTELLATION_TOLERANCE_PITCH,
+) -> tuple[Cell, ...]:
+    """收尾閘：帳本裡投影進這一幀偵測區的單位格，哪幾格在幀上找不到峰。
+
+    方向是帳→幀，與 `_covers` 同一條紀律：帳本說有的東西，畫面就該看得見。空集合
+    ＝這一幀背書了帳本。幀側多餘的峰不計較（它們可能是視野外還沒裁決的東西，或是
+    誤報）——這裡問的是「帳有沒有虛」，不是「幀有沒有多」。
+    """
+    grid = ledger.grid
+    span = (tolerance * grid.col_pitch, tolerance * grid.row_pitch)
+    x0, y0, w, h = region
+    remaining = list(peaks)
+    missing: list[Cell] = []
+    for cell in sorted(unit_cells(ledger)):
+        centre = grid.centre_of(cell)
+        screen = (centre[0] - offset[0], centre[1] - offset[1])
+        if not (x0 <= screen[0] <= x0 + w and y0 <= screen[1] <= y0 + h):
+            continue
+        best: tuple[float, int] | None = None
+        for index, peak in enumerate(remaining):
+            dx, dy = abs(peak[0] - screen[0]), abs(peak[1] - screen[1])
+            if dx > span[0] or dy > span[1]:
+                continue
+            if best is None or dx + dy < best[0]:
+                best = (dx + dy, index)
+        if best is None:
+            missing.append(cell)
+            continue
+        remaining.pop(best[1])
+    return tuple(missing)
 
 
 @dataclass(frozen=True)

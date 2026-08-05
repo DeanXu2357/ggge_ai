@@ -37,7 +37,7 @@ import numpy as np
 from ggge_ai.runtime import sweep
 from ggge_ai.runtime.coverage import WorldGrid
 
-UNITS: tuple[str, ...] = (sweep.ENEMY, sweep.ALLY)
+UNITS: tuple[str, ...] = (sweep.ENEMY, sweep.ALLY, sweep.NPC)
 
 Detector = Callable[["Window"], "frozenset[sweep.Cell] | str"]
 

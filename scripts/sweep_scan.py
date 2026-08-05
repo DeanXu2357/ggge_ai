@@ -11,6 +11,8 @@ usage:
       --stop-after zero
   uv run python scripts/sweep_scan.py … --max-taps 200 --tap-interval 0.5
   uv run python scripts/sweep_scan.py … --filter-mode full   # 全格點對照組
+  # 帳齊即收（需要 assets/stage_truth/<關卡>.json；首刷沒有真值檔就照舊全掃）
+  uv run python scripts/sweep_scan.py … --filter-mode roster --ally-count 10
   uv run python scripts/sweep_scan.py … --no-abandon
 
 前提：手機已經停在目標系列的關卡列表。--stage-node X,Y 必填（棄戰回來游標會飄）。
@@ -22,6 +24,7 @@ usage:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 import time
@@ -48,6 +51,7 @@ log = logging.getLogger("sweep_scan")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_ROOT = PROJECT_ROOT / "assets" / "templates"
+STAGE_TRUTH_ROOT = PROJECT_ROOT / "assets" / "stage_truth"
 RUNS_ROOT = Path("data/runs")
 JOURNAL_NAME = "sweep.jsonl"
 STAGES = ("select", "prep", "stage_info", "map", "grid", "zero", "sweep")
@@ -72,6 +76,12 @@ ZERO_CORNER = ("west", "north")
 SETTLE_POLL_S = 0.5
 SETTLE_ROUNDS = 1
 CARD_SETTLE_S = 1.0
+# 敵方總數只在開掃時讀一次。破壞數分母是 HUD 直接寫著的數，但白字疊在亮底上會讀
+# 不出來（vision.read_kill_counter 的已知限制），所以多給幾張幀。
+CENSUS_READ_TRIES = 3
+# 星座總驗連續失敗這麼多次就不再嘗試早收，退回照舊逐格掃到底。
+ROSTER_CHECK_TRIES = 2
+
 
 
 class Halt(RuntimeError):
@@ -137,6 +147,11 @@ class SweepRun:
     tap_interval: float = TAP_INTERVAL_S
     empty_frame_every: int = EMPTY_FRAME_EVERY
     filter_mode: str = sweep.FILTER_FULL
+    # 早收的目標台數。None＝這一關沒有真值（首刷）＝老實掃到底。
+    target: sweep.Census | None = None
+    # 破壞數 k/m 的讀取器。runtime 不得 import battle/，所以比照 ViewGate 由這支
+    # 腳本注入。
+    kill_counter: Callable[[np.ndarray], tuple[int, int] | None] | None = None
     sleep: Callable[[float], None] = time.sleep
     zoom_out: Callable[[], None] | None = None
 
@@ -154,6 +169,11 @@ class SweepRun:
     walk: sweep.NodeWalk = field(default_factory=sweep.NodeWalk, init=False)
     fix: sweep.Fix = field(default_factory=sweep.Fix, init=False)
     peaks: tuple[sweep.Point, ...] = field(default=(), init=False)
+    ranking: dict[sweep.Cell, int] | None = field(default=None, init=False)
+    enemy_total: int | None = field(default=None, init=False)
+    roster_failures: int = field(default=0, init=False)
+    inferred_at: dict[sweep.Cell, int] = field(default_factory=dict, init=False)
+    closed: bool = field(default=False, init=False)
     pinned: set[str] = field(default_factory=set, init=False)
     empties: int = field(default=0, init=False)
     strandings: int = field(default=0, init=False)
@@ -315,7 +335,10 @@ class SweepRun:
 
     def tour(self) -> None:
         ledger = self._ledger()
+        self.take_census()
         while not ledger.complete and ledger.taps < self.max_taps:
+            if self.close_census():
+                break
             if not self.fix.anchored:
                 # 失位中一格都不點：先回角落重錨、接力返航，才准回到清算。
                 self.reroot("lost")
@@ -328,7 +351,11 @@ class SweepRun:
             self.witness(frame)
             candidates = self.candidates(frame)
             plan = sweep.plan_window(
-                ledger, self.offset, heading=self.heading, candidates=candidates
+                ledger,
+                self.offset,
+                heading=self.heading,
+                candidates=candidates,
+                order=self.ranking,
             )
             for cell in plan.blocked:
                 ledger.defer(cell)
@@ -354,6 +381,100 @@ class SweepRun:
                 break
             self.expand(direction)
         self.retire_deferred()
+
+    def take_census(self) -> None:
+        """早收的目標台數：真值檔說了算，HUD 破壞數分母只讀來對照。
+
+        分母是遊戲自己寫在畫面上的數，但它涵蓋的到底是不是「敵方全部」（協力 NPC
+        算不算、會不會有增援）沒有查證過，所以它不單獨當豁免依據；與真值檔的敵方
+        台數對得上才准參與早收。真值檔不存在＝首刷，一律不早收：老實掃一輪把真值
+        建出來，之後的 run 才有東西可以吃。
+        """
+        if self.filter_mode != sweep.FILTER_ROSTER:
+            return
+        if self.kill_counter is not None:
+            for _ in range(CENSUS_READ_TRIES):
+                reading = self.kill_counter(self.neutral())
+                if reading is not None:
+                    self.enemy_total = reading[1]
+                    break
+        agrees = self.target is not None and self.enemy_total == self.target.enemies
+        if self.target is not None and not agrees:
+            self.journal.record(
+                "census_target_rejected",
+                truth=asdict(self.target),
+                kill_counter=self.enemy_total,
+            )
+            self.target = None
+        self.journal.record(
+            "census_target",
+            target=None if self.target is None else asdict(self.target),
+            kill_counter=self.enemy_total,
+        )
+
+    def close_census(self) -> bool:
+        """帳齊即收：三方台數都對上真值檔、星座總驗過關，剩下的格豁免為推斷空格。
+
+        總驗是收尾閘不是加分項——台數對得上也可能是「多記一台假的、漏掉一台真的」
+        剛好相抵，所以要另拍一張中性幀回頭質詢帳本。不過就不早收。
+        """
+        ledger = self._ledger()
+        if self.closed or not sweep.census_closed(ledger, self.target):
+            return False
+        if not self.roster_check():
+            return False
+        exempt = ledger.pending()
+        for cell in exempt:
+            ledger.record(cell, sweep.EMPTY_INFERRED, reason=sweep.CENSUS_CLOSED)
+            self.inferred_at[cell] = self.journal.seq
+        self.closed = True
+        self.journal.record(
+            "census_closed",
+            target=asdict(self.target),
+            counted=asdict(sweep.census(ledger)),
+            kill_counter=self.enemy_total,
+            exempt=len(exempt),
+            taps=ledger.taps,
+            elapsed_s=round(time.monotonic() - self.started, 1),
+        )
+        return True
+
+    def roster_check(self) -> bool:
+        """帳→幀全覆蓋：已確認單位中投影在畫面內的每一台，這一幀都要有峰。
+
+        反向也要問一次：這一幀的候選落在推斷空格上就是那筆推斷被翻案，早收作廢，
+        退回照舊掃（翻掉的格會重新排進點擊佇列）。
+        """
+        ledger = self._ledger()
+        frame = self.neutral()
+        peaks = sweep.candidate_points(frame)
+        missing = sweep.roster_missing(ledger, peaks, self.offset)
+        seen = sweep.candidate_cells(ledger.grid, self.offset, peaks)
+        retracted = sweep.retract_inferred(ledger, seen)
+        for cell in retracted:
+            self.journal.record(
+                "inference_retracted",
+                cell=list(cell),
+                inferred_at=self.inferred_at.pop(cell, None),
+                reason="roster_check",
+            )
+        ok = not missing and not retracted
+        if missing:
+            self.roster_failures += 1
+        self.journal.record(
+            "roster_check",
+            ok=ok,
+            peaks=len(peaks),
+            missing=[list(cell) for cell in missing],
+            retracted=[list(cell) for cell in retracted],
+            failures=self.roster_failures,
+            reason=None if ok else "roster_check_failed",
+            frame=None if ok else self.camera.keep("roster_check"),
+        )
+        if missing and self.roster_failures >= ROSTER_CHECK_TRIES:
+            # 連續兩次都對不上＝帳本自己有虛帳，早收這條路關掉，照舊掃到底。
+            self.target = None
+        return ok
 
     def confirm(self) -> bool:
         """非 grounded 鏡位下的復權關卡：強證人背書才恢復裁決，否則當失位處理。
@@ -415,21 +536,31 @@ class SweepRun:
 
         推斷空格要有格線背書：讀不出格線的幀不准推斷，那一窗退回全格點。
         """
-        if self.filter_mode != sweep.FILTER_CANDIDATES:
+        self.ranking = None
+        if self.filter_mode not in sweep.FILTERED:
             return None
         self.peaks = ()
         if board.find_lattice(frame) is None:
             return None
         self.peaks = sweep.candidate_points(frame)
-        return sweep.candidate_cells(self._ledger().grid, self.offset, self.peaks)
+        self.ranking = sweep.candidate_ranking(self._ledger().grid, self.offset, self.peaks)
+        return frozenset(self.ranking)
 
     def infer_empties(self, plan: sweep.WindowPlan, cells: frozenset[sweep.Cell] | None) -> None:
         """候選以外的窗內格入帳 EMPTY_INFERRED——視覺主張，明白標示沒有點擊背書。"""
-        if self.filter_mode != sweep.FILTER_CANDIDATES:
+        if self.filter_mode not in sweep.FILTERED:
             return
         ledger = self._ledger()
+        for cell in plan.retracted:
+            self.journal.record(
+                "inference_retracted",
+                cell=list(cell),
+                inferred_at=self.inferred_at.pop(cell, None),
+                reason="seen_again",
+            )
         for cell in plan.inferred:
             ledger.record(cell, sweep.EMPTY_INFERRED, reason="candidate_filter")
+            self.inferred_at[cell] = self.journal.seq
         self.journal.record(
             "candidates",
             mode=self.filter_mode,
@@ -574,7 +705,7 @@ class SweepRun:
 
     @property
     def carriable(self) -> tuple[str, ...]:
-        if self.filter_mode == sweep.FILTER_CANDIDATES:
+        if self.filter_mode in sweep.FILTERED:
             return (sweep.EMPTY, sweep.EMPTY_INFERRED)
         return (sweep.EMPTY,)
 
@@ -656,7 +787,7 @@ class SweepRun:
         inside = sweep.window_targets(ledger.grid, offset)
         return tuple(
             cell
-            for cell in sorted(ledger.cells_of(sweep.ENEMY) + ledger.cells_of(sweep.ALLY))
+            for cell in sweep.unit_cells(ledger)
             if cell in inside
         )
 
@@ -788,7 +919,12 @@ class SweepRun:
         return map_view.classify_view(self.gate, frame) in map_view.SELECTION_SUBSTATES
 
     def sentence_card(self, target: sweep.TapTarget) -> None:
-        """出卡：橫幅停靠側判陣營（定案 5），讀完 escape。名字讀不到仍記 ENEMY。"""
+        """出卡：橫幅停靠側判陣營（定案 5），讀完 escape。名字讀不到仍記 ENEMY。
+
+        停靠側只證得了「是不是敵方」。非敵側的卡記 NPC——盤面可能有協力機體，而
+        「這一台是我方」在這條路上沒有證人（我方的證人是選擇態置中，走 SHIFTED
+        那條路）。硬把非敵側塞成我方會讓台數帳收在錯的地方。
+        """
         ledger = self._ledger()
         self.sleep(CARD_SETTLE_S)
         frame = self.camera.grab()
@@ -797,7 +933,13 @@ class SweepRun:
         summary = vision.read_enemy_summary(frame)
         side = None if verdict is None else verdict.side
         if verdict is not None and verdict.faction is Faction.ALLY:
-            ledger.record(target.cell, sweep.ALLY, frame=path, reason=side)
+            ledger.record(
+                target.cell,
+                sweep.NPC,
+                name=None if summary is None else summary.name_sig,
+                frame=path,
+                reason=side,
+            )
         elif verdict is not None:
             ledger.record(
                 target.cell,
@@ -1181,6 +1323,10 @@ class SweepRun:
             "sweep_summary",
             elapsed_s=round(time.monotonic() - self.started, 1),
             shots=self.camera.shots,
+            filter_mode=self.filter_mode,
+            target=None if self.target is None else asdict(self.target),
+            kill_counter=self.enemy_total,
+            census_closed=self.closed,
             **summary,
         )
         log.info(
@@ -1221,12 +1367,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--empty-frame-every", type=int, default=EMPTY_FRAME_EVERY)
     parser.add_argument(
         "--filter-mode",
-        choices=(sweep.FILTER_FULL, sweep.FILTER_CANDIDATES),
+        choices=sweep.FILTER_MODES,
         default=sweep.FILTER_CANDIDATES,
         help=(
             "candidates＝只點單位候選格、其餘推斷為空（預設；run 20260805-152346"
-            " 召回 100%% GO）；full＝全格點（真值來源，重建真值時用）"
+            " 召回 100%% GO）；roster＝candidates 再加帳齊即收（敵數對上 HUD 破壞數"
+            "分母、我方對上 --ally-count 就豁免剩餘格）；full＝全格點（真值來源）"
         ),
+    )
+    parser.add_argument(
+        "--ally-count",
+        type=int,
+        default=None,
+        help=(
+            "出擊的我方台數（roster 模式的早收判準之一，無預設）。真值檔寫了"
+            " ally_count 就以檔案為準；兩邊都沒有就不早收"
+        ),
+    )
+    parser.add_argument(
+        "--stage-truth",
+        default=None,
+        help=f"本關真值檔名（{STAGE_TRUTH_ROOT} 下的 <名稱>.json），預設取 --expect-title",
     )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--zoom", action=argparse.BooleanOptionalAction, default=True)
@@ -1246,6 +1407,38 @@ def point(text: str | None) -> tuple[int, int] | None:
         return None
     x, y = (int(value) for value in text.split(","))
     return x, y
+
+
+def load_target(
+    stage: str | None,
+    ally_count: int | None,
+    journal: Journal,
+    root: Path = STAGE_TRUTH_ROOT,
+) -> sweep.Census | None:
+    """本關真值檔 → 早收的目標台數。缺檔／缺欄位一律 None＝不早收。
+
+    敵方與 NPC 是關卡內容（跨 run 恆定，真值檔說了算）；我方台數屬出擊配置，檔案
+    沒寫就吃 --ally-count。三個數缺一個都不算術豁免——湊不齊的那一項會讓「帳齊」
+    這個判準失去意義。
+    """
+    path = None if stage is None else root / f"{stage}.json"
+    if path is None or not path.exists():
+        journal.record("stage_truth", stage=stage, found=False)
+        return None
+    truth = json.loads(path.read_text(encoding="utf-8"))
+    # 真值檔把出擊配置寫成 ally_count_deployed（那是「上次出擊站了幾台」不是關卡
+    # 內容），兩個鍵都認，CLI 值優先權最低。
+    allies = truth.get("ally_count", truth.get("ally_count_deployed", ally_count))
+    enemies, npcs = truth.get("enemy_count"), truth.get("npc_count")
+    missing = [
+        name
+        for name, value in (("enemy_count", enemies), ("ally_count", allies), ("npc_count", npcs))
+        if value is None
+    ]
+    journal.record("stage_truth", stage=stage, found=True, missing=missing)
+    if missing:
+        return None
+    return sweep.Census(enemies=enemies, allies=allies, npcs=npcs)
 
 
 def open_run(run_dir: Path | None) -> Journal:
@@ -1316,6 +1509,10 @@ def build(args: argparse.Namespace, journal: Journal) -> SweepRun:
         tap_interval=args.tap_interval,
         empty_frame_every=args.empty_frame_every,
         filter_mode=args.filter_mode,
+        target=load_target(
+            args.stage_truth or _title(args.expect_title), args.ally_count, journal
+        ),
+        kill_counter=vision.read_kill_counter,
         zoom_out=zoom_driver(args, camera, journal),
     )
 
@@ -1335,6 +1532,8 @@ def main() -> int:
         max_taps=args.max_taps,
         tap_interval=args.tap_interval,
         filter_mode=args.filter_mode,
+        ally_count=args.ally_count,
+        stage_truth=args.stage_truth,
     )
     try:
         run.run()
