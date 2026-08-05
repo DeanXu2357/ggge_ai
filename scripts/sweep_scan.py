@@ -586,10 +586,35 @@ class SweepRun:
         for target in plan.taps:
             if ledger.taps >= self.max_taps:
                 return False
+            if not self.aimed(before):
+                return True
             outcome = self.decide(target, before)
             if outcome == sweep.TAP_CARD or outcome in sweep.TAP_SHIFTS:
                 return True
+            if outcome == sweep.TAP_ADRIFT:
+                return True
             before = self.camera.grab()
+        return False
+
+    def aimed(self, frame: np.ndarray) -> bool:
+        """這一幀的格線相位對不對得上當前鏡位。對不上就停手重錨，一格都不點。
+
+        讀不出格線回 True：那是「不知道」不是「偏了」，別讓沒有格線的畫面把掃描
+        鎖死；那條路上還有標記與界線兩個證人。
+        """
+        grid = self._ledger().grid
+        reading = board.lattice_phase(frame)
+        if reading is None:
+            return True
+        drift = sweep.aim_drift(reading[0], grid, self.offset)
+        if sweep.aimed(drift, grid):
+            return True
+        self.journal.record(
+            "aim_drift",
+            drift=[round(value, 1) for value in drift],
+            offset=[round(value, 1) for value in self.offset],
+        )
+        self.grounded = False
         return False
 
     def decide(self, target: sweep.TapTarget, before: np.ndarray) -> str:
@@ -601,7 +626,12 @@ class SweepRun:
             # 格點擊會變成移動指令——重試之前先確認人在 hub。
             if not self.on_hub():
                 self.escape()
-            outcome = self.tap_cell(target, self.camera.grab())
+            retry = self.camera.grab()
+            # escape 回得了 hub，回不了鏡位：選擇態把鏡頭拉走之後同一個螢幕點已經
+            # 是別的世界格，照樣重點就是拿鄰格的回饋替目標格背書（假 EMPTY 的來源）。
+            if not self.aimed(retry):
+                return sweep.TAP_ADRIFT
+            outcome = self.tap_cell(target, retry)
         if outcome.verdict == sweep.TAP_EMPTY:
             if outcome.learned is not None:
                 self.signature = outcome.learned

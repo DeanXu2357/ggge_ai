@@ -156,7 +156,19 @@ def test_a_displacement_that_recentres_the_tapped_cell_with_selection_ui_is_an_a
     )
 
     assert outcome.verdict == sweep.TAP_SHIFTED
-    assert outcome.delta == moved
+
+
+def test_selection_ui_settles_the_ally_verdict_even_when_nothing_seems_to_have_moved():
+    outcome = sweep.classify_tap(
+        _blank(),
+        _blank(),
+        (940.0, 530.0),
+        card=lambda frame: False,
+        displace=NO_SHIFT,
+        selected=lambda frame: True,
+    )
+
+    assert outcome.verdict == sweep.TAP_SHIFTED
 
 
 def test_a_recentring_displacement_without_selection_ui_is_not_sentenced_as_ally():
@@ -181,7 +193,7 @@ def test_a_half_cell_displacement_is_no_feedback_not_a_recentring():
         (400.0, 300.0),
         card=lambda frame: False,
         displace=lambda before, after: (107.0, -8.0),
-        selected=lambda frame: True,
+        selected=lambda frame: False,
     )
 
     assert outcome.verdict == sweep.TAP_NONE
@@ -219,6 +231,20 @@ def test_a_tap_that_changed_nothing_is_no_feedback_not_an_empty_cell():
     outcome = sweep.classify_tap(_blank(), _blank(), (800.0, 500.0), displace=NO_SHIFT)
 
     assert outcome.verdict == sweep.TAP_NONE
+
+
+def test_the_grid_phase_of_a_frame_measures_how_far_the_camera_slipped():
+    drift = sweep.aim_drift((35.0, 0.0), GRID, offset=(-500.0, -300.0))
+
+    assert drift == (35.0, 0.0)
+    assert not sweep.aimed(drift, GRID)
+
+
+def test_a_phase_that_matches_the_camera_leaves_the_aim_untouched():
+    drift = sweep.aim_drift((0.0, 0.0), GRID, offset=(-500.0, -300.0))
+
+    assert drift == (0.0, 0.0)
+    assert sweep.aimed(drift, GRID)
 
 
 def test_the_recentred_camera_is_reconstructed_from_the_cell_that_was_tapped():

@@ -68,6 +68,8 @@ TAP_SHIFTED = "shifted"
 # 幾何對得上置中、但畫面沒給出我方選擇態證據：鏡頭要重錨，陣營不記。
 TAP_SHIFTED_UNSURE = "shifted_unsure"
 TAP_NONE = "none"
+# 鏡位對不上這一幀的格線：這一格不裁決，先把鏡位問回來。
+TAP_ADRIFT = "adrift"
 # 鏡頭被拉走的兩種結局：陣營記不記得下另說，重錨都躲不掉。
 TAP_SHIFTS: tuple[str, ...] = (TAP_SHIFTED, TAP_SHIFTED_UNSURE)
 
@@ -77,7 +79,16 @@ SOURCE_MIXED = "mixed"
 SOURCE_LOST = "lost"
 
 # 填色要落在**被點的那一格**：半格容差內才算數，落到隔壁就是認錯了地標。
+#
+# 這一關對「鏡頭被拉走」是瞎的：填色永遠出現在手指按下去的地方，所以它比的是同一
+# 個點。鏡位偏掉時它照樣過關，帳本就把鄰格的空記到目標格頭上（20260805-140958 第
+# 一窗實證）。管鏡位偏移的是 `aim_drift`。
 MARKER_HIT_PITCH = 0.5
+
+# 瞄準閘：點之前先問這一幀的格線相位對不對得上當前鏡位。20260805-140958 十一張
+# 剛錨定的 window 幀殘差最大 0.17 格，同一輪鏡頭被選擇態無聲拉走 219px 時是 0.38
+# 格——0.25 格剛好把量測噪音與真的偏掉分開。
+AIM_SLACK_PITCH = 0.25
 # 內容位移超過這麼多像素＝鏡頭被置中拉走。一格約 90，六成格已遠大於偵測抖動。
 CENTRE_SHIFT_PX = 60.0
 # 光看位移量級不夠：20260805-122213 的 seq 528／547 兩格量到 107px 的半格級位移就被
@@ -812,22 +823,24 @@ def classify_tap(
 ) -> TapOutcome:
     """點擊前後幀 → EMPTY／CARD／SHIFTED／SHIFTED_UNSURE／NONE。
 
-    順序有意義：出卡先問（卡片本身就是答案），置中次之（鏡頭一動，「填色在不在被
-    點的那一格」這個問法就失去意義），最後才問填色。
+    順序有意義：出卡先問（卡片本身就是答案），選擇態 UI 次之，再來是幾何（鏡頭一
+    動，「填色在不在被點的那一格」這個問法就失去意義），最後才問填色。
 
-    置中要兩道背書才算我方：位移向量與「被點格移到螢幕中心」吻合（幾何），且 after
-    幀確實在我方選擇態（UI）。幾何過、UI 不明只回 SHIFTED_UNSURE——鏡頭照樣要重錨，
-    但陣營不記。
+    選擇態 UI 一出現就是我方，位移量不再有發言權：站在螢幕中心附近的我方單位被點
+    到時位移接近 0，過不了 `_recentres`，20260805-140958 那一輪就是這樣一路把我方
+    格記成 NONE、鏡頭卻已經被拉走。UI 沒背書、幾何過的仍回 SHIFTED_UNSURE——鏡頭
+    照樣要重錨，但陣營不記。
 
     還沒有色簽時用 `learn_marker` 現學：**第一次點到空格**同時是學色簽的唯一機會，
     學到了就回傳給呼叫端收下。
     """
     if card is not None and card(after):
         return TapOutcome(TAP_CARD)
+    if selected is not None and selected(after):
+        return TapOutcome(TAP_SHIFTED)
     moved = (displace or _displacement)(before, after)
     if moved is not None and _recentres(moved, target, centre, pitch):
-        verdict = TAP_SHIFTED if selected is not None and selected(after) else TAP_SHIFTED_UNSURE
-        return TapOutcome(verdict, delta=moved)
+        return TapOutcome(TAP_SHIFTED_UNSURE, delta=moved)
     if signature is not None:
         found = board.find_marker(after, signature, region=region)
         if found is not None and _near(found, target, pitch or signature.size):
@@ -857,6 +870,25 @@ def _near(point: Point, target: Point, pitch: tuple[float, float]) -> bool:
         abs(point[0] - target[0]) <= MARKER_HIT_PITCH * pitch[0]
         and abs(point[1] - target[1]) <= MARKER_HIT_PITCH * pitch[1]
     )
+
+
+def aim_drift(phase: Point, grid: WorldGrid, offset: Point) -> Point:
+    """這一幀的格線相位與當前鏡位推出來的相位差，逐軸收進 ±半格。
+
+    鏡位在一個窗裡是**假設**：選擇態會無聲把鏡頭拉走，而點擊回饋（填色）永遠出現
+    在手指按下去的地方，一格都測不出偏移。格線是遊戲自己渲染的，相位就是畫面直接
+    給的證人——半格以內的偏它量得到，整數格距的偏它看不見（那一段靠標記與界線）。
+    """
+    pitch = (grid.col_pitch, grid.row_pitch)
+    expected = (
+        (grid.phase[0] - offset[0]) % pitch[0],
+        (grid.phase[1] - offset[1]) % pitch[1],
+    )
+    return board.phase_shift(expected, phase, pitch)
+
+
+def aimed(drift: Point, grid: WorldGrid, slack: float = AIM_SLACK_PITCH) -> bool:
+    return abs(drift[0]) <= slack * grid.col_pitch and abs(drift[1]) <= slack * grid.row_pitch
 
 
 def recentre_offset(grid: WorldGrid, cell: Cell, centre: Point = SCREEN_CENTRE) -> Point:
