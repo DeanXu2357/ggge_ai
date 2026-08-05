@@ -84,14 +84,29 @@ def test_the_scheduler_falls_back_to_roster_order_and_stops_at_the_end():
     assert jumpscan.next_target(ledger, roster_keys) is None
 
 
-def test_two_failures_retire_a_unit_from_the_schedule():
+def test_a_failure_sends_the_unit_to_the_back_of_the_queue():
+    """開機保護：換一台就換一個落點，原地重試同一台是把同一個死局再跑一次。"""
     ledger = jumpscan.JumpLedger()
     roster_keys = [("enemy", 0), ("enemy", 1)]
     ledger.fail(("enemy", 0))
+
+    assert jumpscan.next_target(ledger, roster_keys) == ("enemy", 1)
+
+    ledger.fail(("enemy", 1))
     assert jumpscan.next_target(ledger, roster_keys) == ("enemy", 0)
 
-    ledger.fail(("enemy", 0))
+
+def test_two_failures_retire_a_unit_from_the_schedule():
+    ledger = jumpscan.JumpLedger()
+    roster_keys = [("enemy", 0), ("enemy", 1)]
+    for _ in range(2):
+        ledger.fail(("enemy", 0))
+
     assert jumpscan.next_target(ledger, roster_keys) == ("enemy", 1)
+
+    for _ in range(2):
+        ledger.fail(("enemy", 1))
+    assert jumpscan.next_target(ledger, roster_keys) is None
 
 
 def test_a_co_sighted_pair_that_agrees_raises_nothing():

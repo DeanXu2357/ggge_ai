@@ -102,16 +102,23 @@ def next_target(
     give_up_after: int = 2,
 ) -> Key | None:
     """樹狀機會主義：先挑手上已經有候選格的未解單位（落點必定看得到已解單位，
-    星座重認才立得住），沒有就照名冊順序往下走。"""
+    星座重認才立得住），其次挑敗過最少次的，同分照名冊順序。
+
+    「敗過最少次的優先」就是開機保護：第一台跳過去時參考集是空的，星座必然解不出，
+    而**換一台就換一個落點**——原地重試同一台是把同一個死局再跑一次，先把整份名冊
+    輪過一遍才有機會撞上看得見界線的那一台。
+    """
     pending = [
         key
         for key in roster
         if not ledger.resolved(key) and ledger.failures.get(key, 0) < give_up_after
     ]
-    for key in pending:
-        if ledger.candidates.get(key):
-            return key
-    return pending[0] if pending else None
+    if not pending:
+        return None
+    return min(
+        pending,
+        key=lambda key: (0 if ledger.candidates.get(key) else 1, ledger.failures.get(key, 0)),
+    )
 
 
 def audit(

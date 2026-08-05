@@ -192,29 +192,18 @@ class Scan:
         self.grid, self.offset = anchored
         self.landmarks = {"west": 0.0, "north": 0.0}
         self.camera.keep("borders:northwest")
-        # 東界與南界只為了把地圖範圍記進帳：推到看見就回頭，不做巡迴。
-        for side in ("east", "south"):
-            seen = self.reach_border(side)
-            if seen is not None:
-                self.landmarks[side] = seen
+        # 東界與南界**不在這裡量**。這一段沒有追蹤推鏡位移，`borders[side] + offset`
+        # 的 offset 還是西北角那一幀的值，量出來的東南地標是錯的（0806 實機 run
+        # 20260806-022510 記到 east=1717 / south=409，真值 25x20 的東界該在 ~3200
+        # 世界像素）。錯的地標比沒有更危險：jump 段單側看到東界時 border_offsets
+        # 會拿它當鏡位直接用。改由 jump 段 `learn_landmarks()` 機會主義補——那裡的
+        # offset 是星座裁決出來的，語意才立得住。
         self.journal.record(
             "world_anchored",
             phase=[round(v, 1) for v in self.grid.phase],
             pitch=[round(self.grid.col_pitch, 1), round(self.grid.row_pitch, 1)],
             landmarks={k: round(v, 1) for k, v in self.landmarks.items()},
         )
-
-    def reach_border(self, side: str) -> float | None:
-        frame = self.camera.grab()
-        for _ in range(BORDER_LEGS):
-            borders = sweep.read_borders(frame)
-            if side in borders:
-                return borders[side] + (
-                    self.offset[0] if side in ("east", "west") else self.offset[1]
-                )
-            frame = self.pan(side)
-        self.journal.record("border_missing", side=side)
-        return None
 
     def pan(self, direction: str) -> np.ndarray:
         """一把推鏡。這一段只要「界出現了沒」，不做逐手勢行程驗收——定位不靠它。"""
@@ -276,6 +265,9 @@ class Scan:
             if not self.jump(key):
                 count = self.ledger.fail(key)
                 self.journal.record("jump_failed", key=list(key), failures=count)
+        # 全名冊輪完一輪還是零已解＝鏈根本沒長出來，後面每一步都建在空氣上。
+        if not self.ledger.jumps:
+            raise Halt("整份名冊都跳過了仍然沒有任何一台定得出位置，鏈起不了頭")
 
     def jump(self, key: jumpscan.Key) -> bool:
         faction, index = key
@@ -322,6 +314,7 @@ class Scan:
         found = sweep.constellation_offset(self.ledger.references(), board.find_units(frame), grid)
         if found.offset is not None:
             self.last_source = jumpscan.SOURCE_CONSTELLATION
+            self.learn_landmarks(frame, found.offset)
             return found.offset
         axes = sweep.border_offsets(grid, self.landmarks, sweep.read_borders(frame))
         if "x" in axes and "y" in axes:
@@ -330,12 +323,44 @@ class Scan:
         self.journal.record("lost", reason=found.reason, axes=sorted(axes))
         return None
 
+    def learn_landmarks(self, frame: np.ndarray, offset: tuple[float, float]) -> None:
+        """星座裁決過的鏡位＋這一幀看得到的界＝一條地標。**只吃星座的 offset**：
+        拿界線解出來的 offset 回頭寫界線是循環論證。
+
+        已經有的側不覆寫，只做一致性檢查——地標一旦寫錯，之後每一次單側重認都跟著
+        錯，而且沒有任何後手察覺得到。對不上就記進流水帳等人看。
+        """
+        grid = self.world()
+        for side, position in sweep.read_borders(frame).items():
+            axis = 0 if side in ("west", "east") else 1
+            pitch = grid.col_pitch if axis == 0 else grid.row_pitch
+            world = position + offset[axis]
+            known = self.landmarks.get(side)
+            if known is None:
+                self.landmarks[side] = world
+                self.journal.record("landmark_learned", side=side, world=round(world, 1))
+            elif abs(known - world) > sweep.EDGE_AGREEMENT_PITCH * pitch:
+                self.journal.record(
+                    "landmark_conflict",
+                    side=side,
+                    known=round(known, 1),
+                    saw=round(world, 1),
+                    slack=round(sweep.EDGE_AGREEMENT_PITCH * pitch, 1),
+                )
+
     def dismiss(self, faction: str, frame: np.ndarray, peaks) -> None:
         """敵方＝點一個空白格；我方＝右下「返回」（移動格點下去是真的下移動指令）。"""
         if faction == roster.ALLY:
             self.device.tap(*jumpscan.ALLY_DISMISS_TAP, intent=jumpscan.ALLY_DISMISS_INTENT)
             return
-        blank = jumpscan.blank_cell_tap(frame, self.world(), self.offset, peaks)
+        # 這裡還沒定位（解除要在 locate 之前，紅格會污染密度峰），所以格心不能用
+        # 世界鏡位換算——`self.offset` 是西北角那一幀的值，跳轉之後早就過期了。
+        # 改用落點幀自己的格線相位：空白格只需要「螢幕上哪一點是格心」。
+        lattice = board.find_lattice(frame)
+        screen_grid = None if lattice is None else WorldGrid.anchor(lattice)
+        if screen_grid is None:
+            raise Halt("落點幀讀不出格網，挑不出解除用的空白格")
+        blank = jumpscan.blank_cell_tap(frame, screen_grid, (0.0, 0.0), peaks)
         if blank is None:
             raise Halt("落點幀找不到任何空白格可以解除敵方指定")
         self.device.tap(*blank)
