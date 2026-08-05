@@ -6,7 +6,10 @@ from dataclasses import dataclass, field
 
 import pytest
 
+from ggge_ai.runtime import roster
 from ggge_ai.runtime.device import (
+    ROSTER_CELL_INTENT,
+    ROSTER_JUMP_INTENT,
     Adb,
     Key,
     LiveDevice,
@@ -163,7 +166,7 @@ def test_the_top_left_button_bands_clear_the_cells_around_them():
     check_tap(295, 135)
     check_tap(295, 234)
     with pytest.raises(TapRefused):
-        # 自動戰鬥三選一沒有任何放行 intent——那是紅線，不是需要小心的操作。
+        # 自動戰鬥三選一只放行名冊格；拿別的 intent 敲它一律擋。
         check_tap(1487, 295, intent="auto_battle_tristate")
 
 
@@ -175,6 +178,32 @@ def test_the_sortie_button_sits_clear_of_the_auto_deploy_band():
     for intent in ("", "confirm", "abandon"):
         with pytest.raises(TapRefused, match="auto_deploy"):
             check_tap(1496, 1010, intent=intent)
+
+
+def test_every_roster_panel_tap_gets_through_the_bands_it_only_looks_like_it_hits():
+    """名冊面板蓋住地圖與設定列，帶內的鈕點不到——全部格座標與面板固定鈕都要放行，
+    不然實機每撞一個才補一個（0806 run 20260806-033304 就撞在我軍第 4 格）。"""
+    for faction in (roster.ALLY, roster.ENEMY):
+        for x, y in roster.cell_taps(faction):
+            check_tap(x, y, intent=ROSTER_CELL_INTENT)
+    check_tap(*roster.DETAIL_SELECT_TAP, intent=ROSTER_JUMP_INTENT)
+    for point in (
+        roster.BATTLE_MENU_TROOP_INFO_TAP,
+        roster.TROOP_INFO_CLOSE_TAP,
+        roster.TROOP_INFO_ALLY_TAB_TAP,
+        roster.TROOP_INFO_ENEMY_TAB_TAP,
+        roster.DETAIL_CLOSE_TAP,
+    ):
+        check_tap(*point)
+
+
+def test_the_roster_intents_do_not_unlock_the_buttons_they_are_not_for():
+    with pytest.raises(TapRefused, match="auto_deploy"):
+        check_tap(1496, 1010, intent=ROSTER_CELL_INTENT)
+    with pytest.raises(TapRefused, match="auto_battle_tristate"):
+        check_tap(1487, 295, intent=ROSTER_JUMP_INTENT)
+    with pytest.raises(TapRefused, match="battle_menu_abandon"):
+        check_tap(410, 860, intent=ROSTER_JUMP_INTENT)
 
 
 def test_the_keyguard_hook_is_throttled_not_per_tap():

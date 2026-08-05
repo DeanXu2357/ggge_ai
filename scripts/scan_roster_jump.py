@@ -33,7 +33,12 @@ import numpy as np
 
 from ggge_ai.runtime import board, entry, jumpscan, roster, screens, sweep
 from ggge_ai.runtime.coverage import WorldGrid
-from ggge_ai.runtime.device import Adb, LiveDevice
+from ggge_ai.runtime.device import (
+    ROSTER_CELL_INTENT,
+    ROSTER_JUMP_INTENT,
+    Adb,
+    LiveDevice,
+)
 from ggge_ai.runtime.journal import Journal, rotate_runs
 from ggge_ai.runtime.keyguard import Keyguard
 from ggge_ai.runtime.perceive import decode
@@ -250,7 +255,7 @@ class Scan:
 
         盡頭要連續兩輪讀到部隊資訊才算數：一輪可能只是詳情頁的轉場還沒蓋滿。
         """
-        self.device.tap(*point)
+        self.device.tap(*point, intent=ROSTER_CELL_INTENT)
         seen = screens.UNKNOWN
         settled = 0
         for _ in range(SCREEN_ATTEMPTS):
@@ -291,7 +296,7 @@ class Scan:
         point = roster.cell_taps(faction)[index]
         if self.open_detail(point) is None:
             raise Halt(f"{faction}#{index} 點不開詳情頁——名冊順序與跳轉對不上")
-        self.device.tap(*roster.DETAIL_SELECT_TAP)
+        self.device.tap(*roster.DETAIL_SELECT_TAP, intent=ROSTER_JUMP_INTENT)
         landing = self.camera.settled(JUMP_SETTLE_S, self.sleep)
         self.camera.keep(f"jump:{faction}:{index}:landing")
         peaks = board.find_units(landing)

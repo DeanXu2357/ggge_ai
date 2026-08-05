@@ -81,7 +81,7 @@ def test_cells_only_half_inside_the_click_window_are_not_offered():
 
 def test_a_danger_band_or_a_hud_hole_defers_the_cell_instead_of_tapping_it():
     book = ledger()
-    band = DangerBand("test", (0, 150), (0, 150), intent="")
+    band = DangerBand("test", (0, 150), (0, 150), intents=())
 
     plan = sweep.plan_window(book, (0.0, 0.0), region=REGION, holes=((200, 0, 100, 100),),
                              bands=(band,))
@@ -553,7 +553,7 @@ def test_the_candidate_filter_taps_the_candidates_and_infers_the_rest_empty():
 
 
 def test_a_blocked_cell_is_never_inferred_empty():
-    band = DangerBand("test", (0, 150), (0, 150), intent="")
+    band = DangerBand("test", (0, 150), (0, 150), intents=())
 
     plan = sweep.plan_window(
         ledger(), (0.0, 0.0), region=REGION, holes=(), bands=(band,), candidates=set()
