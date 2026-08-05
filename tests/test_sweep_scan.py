@@ -13,7 +13,7 @@ import pytest
 from ggge_ai.runtime import board, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.journal import Journal
-from scripts.sweep_scan import Halt, SweepRun
+from scripts.sweep_scan import STRANDINGS_LIMIT, Halt, SweepRun
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 
@@ -46,6 +46,7 @@ def build_run(tmp_path, outcomes: dict) -> SweepRun:
     run.on_hub = lambda frame=None: True
     run.neutral = _blank
     run.grounded = True
+    run.marker_point = lambda frame: None if run.signature is None else (0.0, 0.0)
     run.tap_cell = lambda target, before: outcomes.get(
         target.cell, sweep.TapOutcome(sweep.TAP_EMPTY, marker=target.point)
     )
@@ -315,14 +316,17 @@ def test_zeroing_reads_the_borders_off_the_pan_verdict_frame_instead_of_reshooti
     tmp_path, monkeypatch
 ):
     """一張截圖實機要 ~2.4s；驗收幀比重跑一次 settled() 的第一張還晚，重拍純浪費
-    （0804 那輪 zero 段 24 張裡 16 張是這樣花掉的）。"""
+    （0804 那輪 zero 段 24 張裡 16 張是這樣花掉的）。逐把不重拍，只有寫世界座標
+    前的那一次角落複驗另拍一幀。"""
     run = build_run(tmp_path, {})
     run.ledger = None
     shots = []
     run.settled = lambda: (shots.append("settled"), _blank())[1]
     legs = []
     run.pan = lambda direction, frame, reach=None: (legs.append(direction), (0.0, _blank()))[1]
-    borders = iter([{}, {"west": 1.0}, {"west": 1.0, "north": 2.0}])
+    borders = iter(
+        [{}, {"west": 1.0}, {"west": 1.0, "north": 2.0}, {"west": 1.0, "north": 2.0}]
+    )
     monkeypatch.setattr(sweep, "read_borders", lambda frame: next(borders))
     monkeypatch.setattr(board, "find_lattice", lambda frame: GRID)
     monkeypatch.setattr(sweep, "anchor_northwest", lambda lattice, seen: (GRID, (0.0, 0.0)))
@@ -330,7 +334,7 @@ def test_zeroing_reads_the_borders_off_the_pan_verdict_frame_instead_of_reshooti
     run.zero()
 
     assert legs == ["west", "north"]
-    assert shots == ["settled"]
+    assert shots == ["settled", "settled"]
 
 
 def filtered_run(tmp_path, candidates, outcomes=None):
@@ -385,6 +389,7 @@ def pinning_run(tmp_path, monkeypatch, marks: list[tuple[float, float]]) -> Swee
     """夾停骨架：相位永遠不動，標記位移由 marks 逐幀給。"""
     run = swiping_run(tmp_path)
     run.signature = object()
+    run.marker_point = SweepRun.marker_point.__get__(run)
     monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (100.0, 100.0)))
     monkeypatch.setattr(board, "find_sightings", lambda frame: ())
     monkeypatch.setattr(sweep, "read_borders", lambda frame: {})
@@ -449,6 +454,62 @@ def test_a_carry_tap_with_no_fill_is_retried_and_never_moves_the_marker_cell(tmp
     assert not SweepRun.carry_marker(run, "east", _blank())
     assert taps == [(3, 4), (3, 4)]
     assert run.marker_cell == (2, 4)
+
+
+def test_a_marker_that_vanished_is_replanted_before_the_camera_is_pushed(tmp_path):
+    """窗內看不到填色就當標記沒了：不准把「幾何上在窗內」當成推鏡後有證人。"""
+    run = build_run(tmp_path, {})
+    run.signature = object()
+    run.marker_cell = (4, 4)  # 前緣格，舊行為在這裡會判定不用搬
+    run.ledger.record((4, 4), sweep.EMPTY)
+    run.marker_point = lambda frame: None
+    taps: list[tuple[int, int]] = []
+    run.tap_cell = lambda target, before: (
+        taps.append(target.cell),
+        sweep.TapOutcome(sweep.TAP_EMPTY, marker=target.point),
+    )[1]
+
+    assert SweepRun.carry_marker(run, "east", _blank())
+    assert taps == [(4, 4)]
+    assert run.marker_cell == (4, 4)
+
+
+def test_a_root_recovery_inside_an_expansion_counts_towards_the_stranding_fuse(tmp_path):
+    """expand 自己走的 zero＋home 也會把錨補回來，計數不掛在這裡就永遠是 0
+    （20260805-144856：十五圈原地空轉一次都沒攔到）。"""
+    run = marked_run(tmp_path, [False] * 40)
+    run.home = lambda: None
+
+    with pytest.raises(Halt):
+        for _ in range(STRANDINGS_LIMIT + 2):
+            run.expand("east")
+
+
+def test_a_corner_whose_second_reading_disagrees_never_writes_the_world(
+    tmp_path, monkeypatch
+):
+    run = build_run(tmp_path, {})
+    run.landmarks = {"west": 0.0, "north": 0.0}
+    seen = iter([{"west": 100.0, "north": north} for north in (200.0, 500.0) * 4])
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: next(seen))
+
+    with pytest.raises(Halt):
+        run.zero()
+
+    assert run.offset == (0.0, 0.0)  # 對不上的讀數一格都不寫進鏡位
+
+
+def test_a_corner_confirmed_by_a_second_frame_rezeroes_from_that_reading(
+    tmp_path, monkeypatch
+):
+    run = build_run(tmp_path, {})
+    run.landmarks = {"west": 0.0, "north": 0.0}
+    seen = iter([{"west": 100.0, "north": 200.0}, {"west": 104.0, "north": 206.0}])
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: next(seen))
+
+    run.zero()
+
+    assert run.offset == (-104.0, -206.0)
 
 
 def test_a_centre_anchor_taps_nothing_until_a_strong_witness_backs_it(tmp_path):

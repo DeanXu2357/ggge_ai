@@ -62,6 +62,10 @@ ZERO_LEGS = 24
 # 連續這麼多次「回角落＋接力返航」都沒能推進任何一格裁決就停手：再繞下去只是
 # 把同一段路重走。
 STRANDINGS_LIMIT = 3
+# 角落界線的複驗：另拍一幀重讀，兩幀差在半格內才准拿去寫世界座標。
+ZERO_CONFIRM_TRIES = 2
+ZERO_CONFIRM_PITCH = 0.5
+ZERO_CORNER = ("west", "north")
 # 推鏡後的緩動等待。輪數是「多等一點降污染率」的保險，不是靜止判準（0803 第 10
 # 輪定讞：整區灰階讀到的是不隨鏡頭動的星空層，不准拿它問畫面停了沒）。一張截圖
 # 在實機要 ~2.4s，所以保險買一輪就好，改用較長的間隔補回真實靜置時間。
@@ -150,6 +154,8 @@ class SweepRun:
     peaks: tuple[sweep.Point, ...] = field(default=(), init=False)
     pinned: set[str] = field(default_factory=set, init=False)
     empties: int = field(default=0, init=False)
+    strandings: int = field(default=0, init=False)
+    progress: int = field(default=0, init=False)
     started: float = field(default_factory=time.monotonic, init=False)
 
     def run(self) -> None:
@@ -221,6 +227,7 @@ class SweepRun:
         self.journal.record("zero_borders", borders={k: round(v, 1) for k, v in borders.items()})
         if "west" not in borders or "north" not in borders:
             raise Halt(f"推不到西北角：同一幀只看到 {sorted(borders)}")
+        frame, borders = self.corner_confirmed(borders)
         # 角落是絕對根：看到它就是錨上了，零里程計需求。
         self.fix.regain()
         self.grounded = True
@@ -250,19 +257,61 @@ class SweepRun:
         )
         self.journal.record("rezeroed", offset=[round(value, 1) for value in self.offset])
 
+    def corner_confirmed(self, borders: dict[str, float]) -> tuple[np.ndarray, dict[str, float]]:
+        """角落的兩側界線要**兩幀讀數對得上**才准拿去定義／重寫世界座標。
+
+        世界座標一旦寫錯，帳本記的每一格都跟著錯，而且沒有任何後手察覺得到；界線
+        只由目視寫入這條紅線不動，所以複驗就是「再看一次」——同一個鏡位、另一張幀。
+
+        回的是複驗幀與它自己的讀數：格網相位與界線要出自同一張幀，錯開就是把兩個
+        鏡位的量測混寫進世界座標。
+        """
+        for _ in range(ZERO_CONFIRM_TRIES):
+            frame = self.settled()
+            again = sweep.read_borders(frame)
+            slack = ZERO_CONFIRM_PITCH * self._corner_pitch()
+            agreed = all(
+                side in again and abs(again[side] - borders[side]) <= slack
+                for side in ZERO_CORNER
+            )
+            if agreed:
+                return (frame, again)
+            self.journal.record(
+                "zero_suspect",
+                first={k: round(v, 1) for k, v in borders.items()},
+                second={k: round(v, 1) for k, v in again.items()},
+                slack=round(slack, 1),
+            )
+            borders = again
+            if not all(side in borders for side in ZERO_CORNER):
+                raise Halt(f"角落複驗看不到兩側界線：只看到 {sorted(borders)}")
+        raise Halt("角落界線連續兩幀對不上，不拿它寫世界座標")
+
+    def _corner_pitch(self) -> float:
+        return board.MARKER_FALLBACK_PITCH if self.ledger is None else self.ledger.grid.row_pitch
+
+    def reroot(self, reason: str) -> None:
+        """回角落重錨＋接力返航。**唯一的入口**——活鎖偵測掛在這裡。
+
+        以前計數只掛在 tour 的失位分支上，而 expand 自己走的 STEP_ROOT 也會 zero＋
+        home 並且把錨補回來，於是 tour 每一圈看到的都是「已錨定」，計數永遠是 0
+        （20260805-144856 的第 103～219 序：十五圈原地空轉沒有任何一次被攔）。
+        """
+        ledger = self._ledger()
+        self.strandings = 0 if ledger.taps > self.progress else self.strandings + 1
+        self.progress = ledger.taps
+        self.journal.record("reroot", reason=reason, strandings=self.strandings)
+        if self.strandings > STRANDINGS_LIMIT:
+            raise Halt(f"連續 {self.strandings} 次回角落返航都沒能推進裁決，停手")
+        self.zero()
+        self.home()
+
     def tour(self) -> None:
         ledger = self._ledger()
-        strandings = 0
-        progress = ledger.taps
         while not ledger.complete and ledger.taps < self.max_taps:
             if not self.fix.anchored:
                 # 失位中一格都不點：先回角落重錨、接力返航，才准回到清算。
-                strandings = 0 if ledger.taps > progress else strandings + 1
-                progress = ledger.taps
-                if strandings > STRANDINGS_LIMIT:
-                    raise Halt(f"連續 {strandings} 次回角落返航都接不回鋒面，停手")
-                self.zero()
-                self.home()
+                self.reroot("lost")
                 continue
             if not self.grounded and not self.confirm():
                 # 背書不了就當失位——迴圈不留「錨不上又繼續轉」這條空轉路。
@@ -394,6 +443,10 @@ class SweepRun:
             self.relocate()
             return
         self.carry_marker(direction, frame)
+        if self.marker_cell is None:
+            self.pan(direction, self.camera.grab())
+            self.relocate()
+            return
         while True:
             reach = self.stride(direction)
             stroke, _ = self.pan(direction, self.camera.grab(), reach)
@@ -404,8 +457,7 @@ class SweepRun:
             self.fix.lose()
             self.journal.record("expand_lost", direction=direction, reach=round(stroke, 1))
             if self.retreat(direction, stroke) == sweep.STEP_ROOT:
-                self.zero()
-                self.home()
+                self.reroot("expand")
                 return
 
     def retreat(self, direction: str, stroke: float) -> str:
@@ -457,6 +509,7 @@ class SweepRun:
         會讓下一次重錨拿舊填色配新格號，整幀寫進差一格距整數倍的世界位置。
         """
         ledger = self._ledger()
+        self.drop_stale_marker(frame)
         target = sweep.frontier_tap(
             ledger, self.offset, self.marker_cell, direction, accept=self.carriable
         )
@@ -489,6 +542,24 @@ class SweepRun:
                 return False
             self.escape()
         return False
+
+    def drop_stale_marker(self, frame: np.ndarray) -> None:
+        """記著的標記格在窗內卻**看不到填色**＝那顆標記已經沒了，當場作廢。
+
+        `in_window` 只是幾何，`frontier_tap` 拿它當「前緣已經有證人」的證據，於是
+        填色早就消失的鏡位會判定不用搬，推完鏡新窗裡沒有任何可重認的東西——推鏡、
+        丟標記、退回、回角落、再推同一把（20260805-144856 第 114 序種下的標記到第
+        124 序的窗幀已經不在畫面上，之後十圈都沒有再種過）。
+        """
+        ledger = self._ledger()
+        if self.signature is None or self.marker_cell is None:
+            return
+        if not sweep.in_window(ledger.grid, self.offset, self.marker_cell):
+            return
+        if self.marker_point(frame) is not None:
+            return
+        self.journal.record("marker_stale", cell=list(self.marker_cell))
+        self.marker_cell = None
 
     @property
     def carriable(self) -> tuple[str, ...]:
