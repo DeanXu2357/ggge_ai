@@ -1,0 +1,15 @@
+{
+  "box": [
+    1000,
+    40,
+    400,
+    120
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "unit_setup_detail_ally_20260806.png",
+  "source": "assets/screenshots/20260806-013433.png",
+  "note": "unit setup detail title band, ally unit; pins that the two new panel titles do not steal it"
+}

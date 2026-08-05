@@ -36,6 +36,8 @@ BATTLE_SKILL = "battle_skill"
 BATTLE_PREP = "battle_prep"
 BATTLE_PREP_REACTION = "battle_prep_reaction"
 UNIT_DETAIL = "unit_detail"
+BATTLE_MENU = "battle_menu"
+TROOP_INFO = "troop_info"
 END_TURN_DIALOG = "end_turn_dialog"
 BATTLE_SETTINGS = "battle_settings"
 STAGE_INFO = "stage_info"
@@ -130,6 +132,11 @@ UNIT_DETAIL_SIGNATURE = Signature(
     UNIT_DETAIL, "elements/unit_detail_modal.png", (1000, 50, 380, 100), 1, 0.75
 )
 
+# 戰鬥選單／部隊資訊：兩張全螢幕面板，標題都畫在同一條標題帶上（0806 六幀量測
+# y 75-110 逐幀一致）。互比最高只到 0.34，門檻拉到 0.85 仍留很寬的餘裕。與
+# 「單位設置詳情」同 group——三張都是蓋住地圖的面板，同層比 argmax。
+PANEL_TITLE_REGION: Region = (1040, 65, 290, 58)
+
 SIGNATURES: tuple[Signature, ...] = (
     # 三個彈窗的簽名都取「一定畫得出來的元素」而不是內容：公告有近 1.5 秒的載入
     # 空窗（內容出現前畫面近全黑），標題列與關閉鈕在空窗前後都在。空窗連框都還沒
@@ -140,6 +147,8 @@ SIGNATURES: tuple[Signature, ...] = (
     # 的，按鈕文字既是這張對話框的識別、也正是反射要點的那一顆。
     Signature(DATE_CHANGED, "elements/btn_to_main_screen.png", (1050, 810, 275, 90), 0, 0.80),
     UNIT_DETAIL_SIGNATURE,
+    Signature(BATTLE_MENU, "elements/label_battle_menu.png", PANEL_TITLE_REGION, 1, 0.85),
+    Signature(TROOP_INFO, "elements/label_troop_info.png", PANEL_TITLE_REGION, 1, 0.85),
     Signature(END_TURN_DIALOG, "elements/dlg_end_turn.png", (990, 165, 370, 135), 2, 0.75),
     Signature(
         BATTLE_PREP_REACTION, "elements/label_prep_reaction.png", (250, 0, 450, 100), 3, 0.80

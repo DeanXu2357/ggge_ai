@@ -1,0 +1,15 @@
+{
+  "box": [
+    1000,
+    40,
+    400,
+    120
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "troop_info_enemy_20260806.png",
+  "source": "assets/screenshots/20260806-013226.png",
+  "note": "troop info title band on the enemy tab; template was cut from the ally tab frame"
+}

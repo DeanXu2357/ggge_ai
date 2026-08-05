@@ -1,0 +1,15 @@
+{
+  "box": [
+    1000,
+    40,
+    400,
+    120
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "battle_menu_20260806.png",
+  "source": "assets/screenshots/20260806-013659.png",
+  "note": "battle menu title band; template was cut from 20260806-013133"
+}

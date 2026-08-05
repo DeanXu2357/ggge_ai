@@ -37,6 +37,9 @@ AUTO_BOX = (1770, 15, 190, 75)
         ("popups/notice_loading_20260729", screens.NOTICE),
         ("popups/date_changed_hub_20260730", screens.DATE_CHANGED),
         ("popups/stage_list_dim_20260719", screens.STAGE_LIST),
+        ("panels/battle_menu_20260806", screens.BATTLE_MENU),
+        ("panels/troop_info_enemy_20260806", screens.TROOP_INFO),
+        ("panels/unit_setup_detail_ally_20260806", screens.UNIT_DETAIL),
     ],
 )
 def test_the_classifier_names_the_screen(case, expected):
@@ -185,3 +188,19 @@ def test_the_abandon_dialog_probe_separates_the_dialog_from_the_battle_menu():
     assert screens.is_abandon_confirm_dialog(load("popups/abandon_confirm_20260804")) is True
     assert screens.is_abandon_confirm_dialog(load("popups/battle_menu_20260804")) is False
     assert screens.is_abandon_confirm_dialog(load("grid/hub_grid_on_20260719")) is False
+
+
+def test_the_three_map_panels_do_not_steal_each_other():
+    """戰鬥選單／部隊資訊／單位設置詳情共用同一條標題帶，分開只靠同 group argmax。
+    這三張都不是各自模板的來源幀（選單取自 013133、部隊資訊取自我軍分頁的 013200、
+    詳情的模板早就在庫裡），所以是留出樣本。"""
+    for case, expected in (
+        ("panels/battle_menu_20260806", screens.BATTLE_MENU),
+        ("panels/troop_info_enemy_20260806", screens.TROOP_INFO),
+        ("panels/unit_setup_detail_ally_20260806", screens.UNIT_DETAIL),
+    ):
+        measured = screens.scores(load(case))
+        others = {screens.BATTLE_MENU, screens.TROOP_INFO, screens.UNIT_DETAIL} - {expected}
+        assert measured[expected] >= 0.85, (case, measured[expected])
+        for name in others:
+            assert measured[name] < 0.70, (case, name, measured[name])
