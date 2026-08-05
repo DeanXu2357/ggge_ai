@@ -113,6 +113,34 @@ UNGROUNDED_ANCHOR_LIMIT = 1
 
 HEADINGS: tuple[str, str] = ("east", "west")
 
+# 單位星座重認：帳本裡已裁決的單位格是現成星圖（我方回合內單位不動），失位時拿當
+# 下幀的密度峰去對齊它。別名（aliasing）寧可漏認不可錯認——同型機外觀不可分辨，唯
+# 一能背書的是「多台的相對格距組合」，所以峰太少構不成獨特圖形就直接認不出。
+#
+# 五顆是量出來的門檻，不是猜的。三支歷史 run 的 window 幀離線重跑（收下的筆數／其中
+# 錯超過半格的筆數）：122213 三顆 8/2、四顆 6/0、五顆 1/0；075310 三顆 24/19、四顆
+# 5/4、五顆 0/0；091621 三顆 35/26、四顆 4/3、五顆 1/1。後兩支的帳本本身就有錯格
+# （offset 累積誤差那兩輪），而現場失位時帳本本來就可能帶著錯格——門檻要撐得住那個
+# 情境，所以取五顆。代價是召回低（122213 的 47 張只認得出 1 張），這是刻意的：認不
+# 出來只是少一個備援，認錯是整幀寫進錯的世界位置。
+CONSTELLATION_MIN_PEAKS = 5
+CONSTELLATION_MIN_MATCH = 5
+CONSTELLATION_TOLERANCE_PITCH = 0.5
+
+CONSTELLATION_OK = "ok"
+CONSTELLATION_FEW_PEAKS = "few_peaks"
+CONSTELLATION_FEW_UNITS = "few_units"
+CONSTELLATION_NO_MATCH = "no_match"
+CONSTELLATION_AMBIGUOUS = "ambiguous"
+
+# 窗基準：開窗那一幀的標記螢幕位置。格線相位閘是 mod 格距的量，整數格的漂移它看
+# 不見（20260805 那幾輪的假帳都在這個盲區裡）；標記位置是未包裝的像素證人，補得上。
+# 我們自己點空格會把標記搬走，所以基準逐點更新——搬去哪一格是我們自己下的令。
+MARKER_DRIFT_PITCH = 0.5
+# 基準附近開這麼多格距的小窗找標記：夠寬吃得下半格容差與偵測抖動，夠窄不會撈到
+# 遠處另一塊同色美術。
+MARKER_SEARCH_PITCH = 1.5
+
 # 推鏡後標記要留在點擊窗內、再往內縮這麼多格才算「還看得見」——量測誤差與透視
 # 校正的殘差都吃在這個餘裕裡。
 MARKER_KEEP_PITCH = 0.75
@@ -872,6 +900,38 @@ def _near(point: Point, target: Point, pitch: tuple[float, float]) -> bool:
     )
 
 
+def marker_search(
+    baseline: Point,
+    pitch: tuple[float, float],
+    *,
+    region: Region = TAP_REGION,
+    radius: float = MARKER_SEARCH_PITCH,
+) -> Region:
+    """基準位置附近的小搜尋窗（夾在安全窗內），給 `find_marker` 用。"""
+    x, y, w, h = region
+    half = (radius * pitch[0], radius * pitch[1])
+    x0 = max(x, baseline[0] - half[0])
+    y0 = max(y, baseline[1] - half[1])
+    x1 = min(x + w, baseline[0] + half[0])
+    y1 = min(y + h, baseline[1] + half[1])
+    return (int(x0), int(y0), max(0, int(x1 - x0)), max(0, int(y1 - y0)))
+
+
+def window_steady(
+    baseline: Point,
+    found: Point | None,
+    pitch: tuple[float, float],
+    *,
+    slack: float = MARKER_DRIFT_PITCH,
+) -> bool | None:
+    """本窗的畫面還停在基準上嗎。標記找不到就回 None——那是「不知道」，交給相位閘。"""
+    if found is None:
+        return None
+    return abs(found[0] - baseline[0]) <= slack * pitch[0] and (
+        abs(found[1] - baseline[1]) <= slack * pitch[1]
+    )
+
+
 def aim_drift(phase: Point, grid: WorldGrid, offset: Point) -> Point:
     """這一幀的格線相位與當前鏡位推出來的相位差，逐軸收進 ±半格。
 
@@ -944,6 +1004,124 @@ def reanchor(
     return (
         (axes.get("x", candidate[0]), axes.get("y", candidate[1])),
         SOURCE_MIXED,
+    )
+
+
+def identified_units(ledger: SweepLedger) -> tuple[Cell, ...]:
+    """星座的參考集：點擊出卡、名字讀得出來的 ENEMY 格。
+
+    ALLY（置中反推）不夠格當座標基準——那一類裁決本身就是幾何推斷來的，拿它當星圖
+    等於讓一個推斷替另一個推斷背書。名字讀不到的 ENEMY 也排除：那一格只證明「有東
+    西」，證不了它是同一台。
+    """
+    return tuple(
+        cell
+        for cell in ledger.cells_of(ENEMY)
+        if ledger.names.get(cell)
+    )
+
+
+@dataclass(frozen=True)
+class Constellation:
+    """星座重認的結果。`offset` 是 None 就看 `reason`，不猜。"""
+
+    offset: Point | None
+    matched: int = 0
+    reason: str = CONSTELLATION_NO_MATCH
+
+
+def _covers(
+    references: Sequence[Cell],
+    peaks: Sequence[Point],
+    grid: WorldGrid,
+    offset: Point,
+    tolerance: tuple[float, float],
+    region: Region,
+) -> tuple[int, Point] | None:
+    """這個鏡位假說下，**每一個投影進偵測區的參考格都有峰**才算數。
+
+    方向是帳→幀：參考集是已確認身分的格，它們該出現的地方沒有精靈就是假說錯了。
+    投影落在偵測區外的參考格不苛求（那一格根本不在這一幀裡）。幀側多餘的峰不計分，
+    它們可能是還沒裁決的單位。
+    """
+    x0, y0, w, h = region
+    remaining = list(peaks)
+    residuals: list[Point] = []
+    for cell in references:
+        centre = grid.centre_of(cell)
+        screen = (centre[0] - offset[0], centre[1] - offset[1])
+        if not (x0 <= screen[0] <= x0 + w and y0 <= screen[1] <= y0 + h):
+            continue
+        best: tuple[float, int, Point] | None = None
+        for index, peak in enumerate(remaining):
+            dx, dy = peak[0] - screen[0], peak[1] - screen[1]
+            if abs(dx) > tolerance[0] or abs(dy) > tolerance[1]:
+                continue
+            score = abs(dx) + abs(dy)
+            if best is None or score < best[0]:
+                best = (score, index, (dx, dy))
+        if best is None:
+            return None
+        remaining.pop(best[1])
+        residuals.append(best[2])
+    if not residuals:
+        return None
+    refined = (
+        offset[0] - sum(value[0] for value in residuals) / len(residuals),
+        offset[1] - sum(value[1] for value in residuals) / len(residuals),
+    )
+    return (len(residuals), refined)
+
+
+def constellation_offset(
+    references: Sequence[Cell],
+    peaks: Sequence[Point],
+    grid: WorldGrid,
+    *,
+    region: Region = board.UNIT_DENSITY_REGION,
+    tolerance: float = CONSTELLATION_TOLERANCE_PITCH,
+    min_peaks: int = CONSTELLATION_MIN_PEAKS,
+    min_match: int = CONSTELLATION_MIN_MATCH,
+) -> Constellation:
+    """帳本身分確認格（世界格）對幀內密度峰（螢幕像素）→ 唯一鏡位，或 None＋原因。
+
+    第三備援證人：填色標記會被推鏡手勢誤判成點擊而搬走或消滅，邊界只在圖緣說得上
+    話，中央帶失位時就只剩這張星圖。
+
+    唯一性是硬條件——能構成第二個全覆蓋解（規則陣列的別名）就整體拒收，寧可漏認不
+    可錯認。輸出是**假說級**：呼叫端必須沿既有 `confirm()` 機制拿強證人背書才恢復
+    裁決。
+    """
+    references = tuple(dict.fromkeys(references))
+    peaks = tuple(peaks)
+    if len(peaks) < min_peaks:
+        return Constellation(None, 0, CONSTELLATION_FEW_PEAKS)
+    if len(references) < min_match:
+        return Constellation(None, 0, CONSTELLATION_FEW_UNITS)
+    span = (tolerance * grid.col_pitch, tolerance * grid.row_pitch)
+    solutions: list[tuple[int, Point]] = []
+    for cell in references:
+        centre = grid.centre_of(cell)
+        for peak in peaks:
+            seed = (centre[0] - peak[0], centre[1] - peak[1])
+            covered = _covers(references, peaks, grid, seed, span, region)
+            if covered is not None and covered[0] >= min_match:
+                solutions.append(covered)
+    if not solutions:
+        return Constellation(None, 0, CONSTELLATION_NO_MATCH)
+    matched = max(count for count, _ in solutions)
+    offsets = [offset for _, offset in solutions]
+    first = offsets[0]
+    for other in offsets[1:]:
+        if abs(other[0] - first[0]) > span[0] or abs(other[1] - first[1]) > span[1]:
+            return Constellation(None, matched, CONSTELLATION_AMBIGUOUS)
+    return Constellation(
+        (
+            sum(offset[0] for offset in offsets) / len(offsets),
+            sum(offset[1] for offset in offsets) / len(offsets),
+        ),
+        matched,
+        CONSTELLATION_OK,
     )
 
 

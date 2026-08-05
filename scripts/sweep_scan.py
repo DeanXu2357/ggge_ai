@@ -149,6 +149,7 @@ class SweepRun:
     ungrounded: int = field(default=0, init=False)
     signature: board.MarkerSignature | None = field(default=None, init=False)
     marker_cell: sweep.Cell | None = field(default=None, init=False)
+    baseline: sweep.Point | None = field(default=None, init=False)
     walk: sweep.NodeWalk = field(default_factory=sweep.NodeWalk, init=False)
     fix: sweep.Fix = field(default_factory=sweep.Fix, init=False)
     peaks: tuple[sweep.Point, ...] = field(default=(), init=False)
@@ -332,6 +333,8 @@ class SweepRun:
                 taps=len(plan.taps),
                 blocked=[list(cell) for cell in plan.blocked],
                 window=None if plan.window is None else [list(plan.window[0]), list(plan.window[1])],
+                marker_at=None if self.baseline is None else
+                [round(value, 1) for value in self.baseline],
                 frame=self.camera.keep("window"),
             )
             self.infer_empties(plan, candidates)
@@ -530,6 +533,7 @@ class SweepRun:
         if outcome.verdict == sweep.TAP_EMPTY:
             ledger.record(target.cell, sweep.EMPTY)
             self.marker_cell = target.cell
+            self.baseline = outcome.marker or target.point
             return True
         if outcome.verdict == sweep.TAP_CARD or outcome.verdict in sweep.TAP_SHIFTS:
             # 推斷成空的格點下去卻出卡／置中＝候選過濾漏報了一台，帳本改回點擊事實。
@@ -560,6 +564,7 @@ class SweepRun:
             return
         self.journal.record("marker_stale", cell=list(self.marker_cell))
         self.marker_cell = None
+        self.baseline = None
 
     @property
     def carriable(self) -> tuple[str, ...]:
@@ -620,6 +625,8 @@ class SweepRun:
         self.grounded = True
         self.ungrounded = 0
         self.fix.regain()
+        # 錨定成立的這一幀就是本窗基準：標記在螢幕上的位置，之後逐格點擊拿它比對。
+        self.baseline = found
         self.witness(frame)
         node = sweep.TrustNode(
             cell=self.marker_cell,
@@ -657,6 +664,8 @@ class SweepRun:
         for target in plan.taps:
             if ledger.taps >= self.max_taps:
                 return False
+            if not self.steady(before):
+                return True
             if not self.aimed(before):
                 return True
             outcome = self.decide(target, before)
@@ -665,6 +674,33 @@ class SweepRun:
             if outcome == sweep.TAP_ADRIFT:
                 return True
             before = self.camera.grab()
+        return False
+
+    def steady(self, frame: np.ndarray) -> bool:
+        """本窗的畫面還停在基準上嗎——基準幀標記位置 vs 這一幀標記位置，直接比像素。
+
+        相位閘是 mod 格距的量，整數格的漂移它一輩子看不見；標記位置沒有取模，補得上
+        那個盲區。找不到標記回 True（那是「不知道」不是「飄了」），第二道相位閘接手。
+        """
+        if self.signature is None or self.baseline is None:
+            return True
+        grid = self._ledger().grid
+        pitch = (grid.col_pitch, grid.row_pitch)
+        found = board.find_marker(
+            frame,
+            self.signature,
+            region=sweep.marker_search(self.baseline, pitch),
+            holes=board.UNIT_DENSITY_HUD_HOLES,
+        )
+        if sweep.window_steady(self.baseline, found, pitch) is not False:
+            return True
+        self.journal.record(
+            "window_drift",
+            baseline=[round(value, 1) for value in self.baseline],
+            at=[round(value, 1) for value in found],
+            drift=[round(found[axis] - self.baseline[axis], 1) for axis in (0, 1)],
+        )
+        self.grounded = False
         return False
 
     def aimed(self, frame: np.ndarray) -> bool:
@@ -707,6 +743,8 @@ class SweepRun:
             if outcome.learned is not None:
                 self.signature = outcome.learned
             self.marker_cell = target.cell
+            # 標記被我們自己搬到剛點的那一格：基準跟著走，不然下一格的比對必然誤報。
+            self.baseline = outcome.marker or target.point
             self.empties += 1
             keep = self.empties % max(1, self.empty_frame_every) == 0
             ledger.record(target.cell, sweep.EMPTY, frame=self.camera.keep("empty") if keep else None)
@@ -885,17 +923,23 @@ class SweepRun:
         裁決。
         """
         ledger = self._ledger()
+        # 鏡頭動過了，舊基準是別的鏡位的螢幕位置：作廢，等下一次錨定重建。
+        self.baseline = None
         frame = self.settled()
         borders = sweep.read_borders(frame)
         marker = self.marker_offset(frame)
         # 置中反推的鏡位是**假設**（被點的我方格落在螢幕正中心），標記填色解出來的
         # 才是量到的。兩者在 reanchor 的來源標籤裡同叫 centre，這裡自己分得出來。
         from_marker = candidate is None and marker is not None
+        stars = None
+        if candidate is None and marker is None:
+            stars = self.constellation(frame, borders)
+        guess = candidate if candidate is not None else (marker if marker is not None else stars)
         offset, source = sweep.reanchor(
             ledger.grid,
             landmarks=self.landmarks,
             borders=borders,
-            candidate=candidate if candidate is not None else marker,
+            candidate=guess,
         )
         grounded = source == sweep.SOURCE_EDGE or (from_marker and source != sweep.SOURCE_LOST)
         self.journal.record(
@@ -921,6 +965,37 @@ class SweepRun:
             else:
                 self.fix.regain()
         self.witness(frame)
+
+    def constellation(
+        self, frame: np.ndarray, borders: Mapping[str, float]
+    ) -> sweep.Point | None:
+        """第三備援證人：帳本已裁決的單位格＝星圖，拿當下幀的密度峰對齊重建鏡位。
+
+        排在標記與邊界之後——只有標記不見、邊界又解不出整幀鏡位時才輪到它。解出來的
+        鏡位是**假說**（grounded 維持 False），下一步得靠 `confirm()` 拿強證人背書。
+        """
+        ledger = self._ledger()
+        axes = sweep.border_offsets(ledger.grid, self.landmarks, borders)
+        if "x" in axes and "y" in axes:
+            return None
+        peaks = board.find_units(frame)
+        units = sweep.identified_units(ledger)
+        fix = sweep.constellation_offset(units, peaks, ledger.grid)
+        clash = (
+            None
+            if fix.offset is None
+            else sweep.contradicts(ledger, self.landmarks, borders, fix.offset)
+        )
+        self.journal.record(
+            "constellation",
+            reason=fix.reason,
+            matched=fix.matched,
+            peaks=len(peaks),
+            units=len(units),
+            offset=None if fix.offset is None else [round(value, 1) for value in fix.offset],
+            clash=clash,
+        )
+        return None if clash is not None else fix.offset
 
     def marker_offset(self, frame: np.ndarray) -> sweep.Point | None:
         """填色是我們自己放的絕對地標：找得到就一次解出兩軸。"""

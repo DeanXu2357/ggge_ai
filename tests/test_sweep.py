@@ -615,3 +615,123 @@ def test_a_pinned_direction_is_skipped_by_the_pan_plan_without_becoming_a_border
     assert sweep.plan_pan(ledger, (0.0, 0.0), "east")[0] == "south"
     assert sweep.plan_pan(ledger, (0.0, 0.0), "east", pinned={"south"})[0] is None
     assert "south" not in ledger.boundary
+
+
+def stars(cells, offset, jitter=()):
+    """帳本單位格 → 該鏡位下的螢幕峰點（可逐點加抖動）。"""
+    points = []
+    for index, cell in enumerate(cells):
+        centre = GRID.centre_of(cell)
+        dx, dy = jitter[index] if index < len(jitter) else (0.0, 0.0)
+        points.append((centre[0] - offset[0] + dx, centre[1] - offset[1] + dy))
+    return tuple(points)
+
+
+REGION_STARS = (0, 0, 2000, 1000)
+
+
+def constellation(references, peaks, stars_needed=3):
+    """圖形規則的測試用三顆門檻；正式門檻另有一支測試鎖住。"""
+    return sweep.constellation_offset(
+        references, peaks, GRID, region=REGION_STARS,
+        min_peaks=stars_needed, min_match=stars_needed,
+    )
+
+
+def test_the_shipped_threshold_refuses_a_four_star_figure():
+    refs = ((2, 1), (5, 3), (7, 2), (3, 6))
+    fix = sweep.constellation_offset(refs, stars(refs, (250.0, 120.0)), GRID, region=REGION_STARS)
+
+    assert fix.offset is None
+    assert fix.reason == sweep.CONSTELLATION_FEW_PEAKS
+
+    wide = refs + ((9, 5),)
+    lit = sweep.constellation_offset(
+        wide, stars(wide, (250.0, 120.0)), GRID, region=REGION_STARS
+    )
+
+    assert lit.reason == sweep.CONSTELLATION_OK
+    assert lit.offset == pytest.approx((250.0, 120.0))
+
+
+def test_a_unique_constellation_alignment_rebuilds_the_camera_offset():
+    refs = ((2, 1), (5, 3), (7, 2), (3, 6))
+    fix = constellation(refs, stars(refs, (250.0, 120.0)))
+
+    assert fix.reason == sweep.CONSTELLATION_OK
+    assert fix.matched == 4
+    assert fix.offset == pytest.approx((250.0, 120.0))
+
+
+def test_a_constellation_alignment_tolerates_half_a_cell_of_peak_wobble():
+    refs = ((2, 1), (5, 3), (7, 2), (3, 6))
+    jitter = ((40.0, -30.0), (-45.0, 20.0), (10.0, 44.0), (0.0, 0.0))
+    fix = constellation(refs, stars(refs, (250.0, 120.0), jitter))
+
+    assert fix.reason == sweep.CONSTELLATION_OK
+    assert fix.matched == 4
+    # 精修取殘差平均：抖動互相抵銷後仍落在真值半格內。
+    assert fix.offset == pytest.approx((250.0 - 1.25, 120.0 - 8.5))
+
+
+def test_a_repeating_row_of_references_aligns_two_ways_and_is_refused():
+    refs = ((0, 0), (1, 0), (2, 0))
+    peaks = stars(((0, 0), (1, 0), (2, 0), (3, 0), (4, 0)), (0.0, 0.0))
+    fix = constellation(refs, peaks)
+
+    assert fix.offset is None
+    assert fix.reason == sweep.CONSTELLATION_AMBIGUOUS
+
+
+def test_too_few_peaks_never_form_a_recognisable_figure():
+    refs = ((2, 1), (5, 3), (7, 2), (3, 6))
+    fix = constellation(refs, stars(((2, 1), (5, 3)), (0.0, 0.0)))
+
+    assert fix.offset is None
+    assert fix.reason == sweep.CONSTELLATION_FEW_PEAKS
+
+
+def test_a_ledger_with_too_few_confirmed_units_has_no_star_chart():
+    fix = constellation(((2, 1), (5, 3)), stars(((2, 1), (5, 3), (7, 2)), (0.0, 0.0)))
+
+    assert fix.offset is None
+    assert fix.reason == sweep.CONSTELLATION_FEW_UNITS
+
+
+def test_a_reference_cell_without_a_peak_sinks_the_hypothesis():
+    # 帳→幀全覆蓋：參考格投影進偵測區卻沒有精靈＝這個鏡位假說是錯的。
+    refs = ((2, 1), (5, 3), (7, 2), (3, 6))
+    peaks = stars(((2, 1), (5, 3), (7, 2)), (250.0, 120.0)) + ((900.0, 700.0),)
+    fix = constellation(refs, peaks)
+
+    assert fix.offset is None
+    assert fix.reason == sweep.CONSTELLATION_NO_MATCH
+
+
+def test_extra_undecided_peaks_do_not_score_and_do_not_block_the_alignment():
+    refs = ((2, 1), (5, 3), (7, 2), (3, 6))
+    peaks = stars(refs, (250.0, 120.0)) + ((900.0, 700.0), (1500.0, 40.0))
+    fix = constellation(refs, peaks)
+
+    assert fix.reason == sweep.CONSTELLATION_OK
+    assert fix.matched == 4
+    assert fix.offset == pytest.approx((250.0, 120.0))
+
+
+def test_reference_cells_projected_off_frame_are_excused_from_coverage():
+    refs = ((2, 1), (5, 3), (7, 2), (3, 6), (60, 40))
+    fix = constellation(refs, stars(refs[:4], (250.0, 120.0)))
+
+    assert fix.reason == sweep.CONSTELLATION_OK
+    assert fix.matched == 4
+
+
+def test_the_star_chart_only_trusts_enemies_whose_name_was_read():
+    book = ledger()
+    book.record((1, 1), sweep.ENEMY, name="sig-a")
+    book.record((4, 2), sweep.ENEMY, name="sig-b")
+    book.record((6, 5), sweep.ENEMY, reason="card_without_dock")
+    book.record((2, 3), sweep.ALLY, reason="recentred")
+    book.record((3, 3), sweep.EMPTY)
+
+    assert sweep.identified_units(book) == ((1, 1), (4, 2))

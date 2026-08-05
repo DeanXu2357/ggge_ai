@@ -659,3 +659,92 @@ def test_a_side_that_keeps_contradicting_with_one_voice_unseats_the_landmark(tmp
     assert nodes[-1] is not None  # 第 N 次一致的反證翻案，擴張就地接回去
     assert run.landmarks["east"] == 1150.0
     assert run.offset == (150.0, 150.0)
+
+
+def drifting_run(tmp_path, found):
+    run = build_run(tmp_path, {})
+    run.signature = object()
+    run.baseline = (500.0, 500.0)
+    run.grounded = True
+    run.marker_point = lambda frame: found
+    return run
+
+
+def test_an_integer_cell_drift_is_caught_even_though_the_phase_gate_is_blind(tmp_path):
+    run = drifting_run(tmp_path, None)
+    board_find = board.find_marker
+    try:
+        # 整整一格的漂移：相位取模後是 0，相位閘一輩子看不見。
+        board.find_marker = lambda frame, signature, region=None, holes=(): (600.0, 500.0)
+        steady = run.steady(_blank())
+    finally:
+        board.find_marker = board_find
+
+    assert run.aimed(_blank())  # 第二道閘讀不出格線就放行——盲區實證
+    assert not steady
+    assert not run.grounded
+
+
+def test_a_marker_the_search_window_cannot_find_falls_back_to_the_phase_gate(tmp_path):
+    run = drifting_run(tmp_path, None)
+    board_find = board.find_marker
+    try:
+        board.find_marker = lambda frame, signature, region=None, holes=(): None
+        steady = run.steady(_blank())
+    finally:
+        board.find_marker = board_find
+
+    assert steady
+    assert run.grounded
+
+
+def test_the_window_baseline_follows_the_marker_cell_by_cell(tmp_path):
+    run = build_run(tmp_path, {})
+    run.signature = object()
+    run.baseline = (500.0, 500.0)
+    target = sweep.TapTarget((3, 4), (250.0, 450.0))
+    run.tap_cell = lambda tapped, before: sweep.TapOutcome(
+        sweep.TAP_EMPTY, marker=tapped.point
+    )
+
+    assert run.decide(target, _blank()) == sweep.TAP_EMPTY
+    assert run.baseline == (250.0, 450.0)
+
+
+def test_a_drifted_window_stops_tapping_and_leaves_the_cell_unsentenced(tmp_path):
+    run = build_run(tmp_path, {})
+    run.signature = object()
+    run.baseline = (500.0, 500.0)
+    plan = sweep.plan_window(run.ledger, (0.0, 0.0), heading="east")
+    board_find = board.find_marker
+    try:
+        board.find_marker = lambda frame, signature, region=None, holes=(): (600.0, 500.0)
+        interrupted = run.work(plan, _blank())
+    finally:
+        board.find_marker = board_find
+
+    assert interrupted
+    assert not run.grounded
+    assert run.ledger.cells_of(sweep.EMPTY) == ()
+
+
+def test_the_constellation_takes_over_when_the_marker_is_gone_and_the_edges_are_mute(tmp_path):
+    run = build_run(tmp_path, {})
+    del run.relocate
+    for index, cell in enumerate(((3, 2), (6, 3), (9, 2), (4, 6), (8, 7))):
+        run.ledger.record(cell, sweep.ENEMY, name=f"sig-{index}")
+    truth = (200.0, 100.0)
+    peaks = tuple(
+        (GRID.centre_of(cell)[0] - truth[0], GRID.centre_of(cell)[1] - truth[1])
+        for cell in sweep.identified_units(run.ledger)
+    )
+    board_units = board.find_units
+    try:
+        board.find_units = lambda frame, *args, **kwargs: peaks
+        run.relocate()
+    finally:
+        board.find_units = board_units
+
+    assert run.offset == pytest.approx(truth)
+    # 星座是假說級：grounded 維持 False，下一步得靠 confirm() 拿強證人背書。
+    assert not run.grounded
