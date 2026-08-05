@@ -26,9 +26,9 @@ usage:
 
 **--stage-node X,Y 是必填的**：棄戰回來的關卡列表游標會飄（見 docs/ui-navigation-
 map.md），沿用「現在選著的那一關」會打到別關去，所以每次都要明示要打哪個節點。
-選中的是哪一關畫面上讀不出來（右欄標題還沒接文字讀取），所以選完會多存一張右欄
-截圖（frames 的 select:right_panel）供事後比對。0730 的 UC HARD 1 節點平台約在
-(544,872)，**那個點撞上戰鬥選單「放棄」的危險帶會被拒點**——要點就點編號／星列
+選完會讀右欄標題複驗選中的關卡（`--expect-title`，預設 uc_hard_1；不合重點一次再
+不合就停），並照舊存一張右欄截圖（frames 的 select:right_panel）。
+0730 的 UC HARD 1 節點平台約在 (544,872)，**那個點撞上戰鬥選單「放棄」的危險帶會被拒點**——要點就點編號／星列
 那一列（y 較高，例如 544,667）。
 
 證據：data/runs/<時間戳>/dry_run.jsonl＋frames/（每段界線、每次觀測與每次失敗各存
@@ -198,15 +198,19 @@ class DryRun:
     stop_after: str | None = None
     survey_ticks: int = SURVEY_TICKS
     node: tuple[int, int] | None = None
+    expect_title: str | None = entry.DEFAULT_EXPECTED_TITLE
     sleep: Callable[[float], None] = time.sleep
 
     def run(self) -> None:
         capture, tap, nap = self.camera.grab, self.device.tap, self.sleep
 
         self.begin("select")
-        self.gate("select", entry.select_stage(capture, tap, node=self.node, sleep=nap))
-        # 選中哪一關畫面上讀不出來，所以留一張右欄的圖給人事後核對——棄戰回來
-        # 游標會飄，盲選會打到別關。
+        self.gate(
+            "select",
+            entry.select_stage(
+                capture, tap, node=self.node, expect_title=self.expect_title, sleep=nap
+            ),
+        )
         self.camera.grab()
         self.camera.keep("select:right_panel")
         if self.end("select"):
@@ -348,6 +352,11 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="X,Y：要打的關卡節點。必填——棄戰回來游標會飄，沿用現選會打到別關",
     )
+    parser.add_argument(
+        "--expect-title",
+        default=entry.DEFAULT_EXPECTED_TITLE,
+        help="選關後右欄標題要讀到的關卡（例 uc_hard_1）；none = 不驗",
+    )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
         "--zoom",
@@ -362,6 +371,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--run-dir", type=Path, default=None)
     return parser.parse_args()
+
+
+def _title(text: str | None) -> str | None:
+    """--expect-title none = 明示放棄關卡複驗（照舊只留右欄截圖給人核）。"""
+    if text is None or text.lower() == "none":
+        return None
+    return text
 
 
 def point(text: str | None) -> tuple[int, int] | None:
@@ -440,6 +456,7 @@ def build(args: argparse.Namespace, journal: Journal) -> DryRun:
         stop_after=args.stop_after,
         survey_ticks=args.survey_ticks,
         node=point(args.stage_node),
+        expect_title=_title(args.expect_title),
     )
 
 
@@ -456,6 +473,7 @@ def main() -> int:
         stop_after=args.stop_after,
         survey_ticks=args.survey_ticks,
         stage_node=args.stage_node,
+        expect_title=args.expect_title,
     )
     try:
         dry.run()

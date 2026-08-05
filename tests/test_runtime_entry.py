@@ -21,6 +21,9 @@ MAP_AUTO_ACTIVE = "stage_panels/battle_map_turn1"
 PREP = "stage_panels/prep_screen"
 SETTINGS_GRID_ON = "settings/grid_on_20260706"
 STAGE_LIST = "popups/stage_list_dim_20260719"
+STAGE_LIST_HARD_1 = "popups/stage_list_uc_hard_1_20260805"
+STAGE_LIST_HARD_2 = "popups/stage_list_uc_hard_2_20260805"
+DOWNLOAD_DIALOG = "popups/download_dialog_20260805"
 ABANDON_CONFIRM = "popups/abandon_confirm_20260804"
 BATTLE_MENU = "popups/battle_menu_20260804"
 
@@ -247,7 +250,7 @@ def test_selecting_a_stage_taps_the_node_the_caller_supplied():
     screen = Screen([load(STAGE_LIST), load(STAGE_LIST)])
 
     report = entry.select_stage(
-        screen.capture, screen.tap, node=(544, 667), sleep=lambda _: None
+        screen.capture, screen.tap, node=(544, 667), expect_title=None, sleep=lambda _: None
     )
 
     assert report.ok, report.trail
@@ -261,7 +264,9 @@ def test_a_stage_node_inside_the_abandon_band_is_refused_not_quietly_tapped():
     screen = Screen([load(STAGE_LIST)])
 
     with pytest.raises(TapRefused):
-        entry.select_stage(screen.capture, screen.tap, node=(544, 872), sleep=lambda _: None)
+        entry.select_stage(
+            screen.capture, screen.tap, node=(544, 872), expect_title=None, sleep=lambda _: None
+        )
 
 
 def test_selecting_a_stage_refuses_to_tap_when_we_are_not_on_the_list():
@@ -309,10 +314,12 @@ def test_the_sortie_step_stops_on_the_stage_info_page_without_advancing():
 
 def sortie_script() -> Screen:
     """AUTO 從 ON 關成 OFF 之後還會被重新確認一次所在頁（推進前的複核），所以
-    OFF 態的關卡資訊頁在腳本裡出現兩次。"""
+    OFF 態的關卡資訊頁在腳本裡出現兩次。出擊那一下之後另有一幀是下載彈窗探針吃掉
+    的（彈窗不在場）。"""
     return Screen(
         [
             load(PREP),
+            stage_info_with_auto("on"),
             stage_info_with_auto("on"),
             stage_info_with_auto("on"),
             stage_info_with_auto("off"),
@@ -502,3 +509,120 @@ def test_a_navigation_that_stalls_stops_instead_of_tapping_on_blind():
     assert report.trail[-1] == "abandon:unconfirmed"
     assert screen.points()[-1] == entry.MAIN_STAGE_TAP
     assert entry.BATTLE_MENU_CLOSE_TAP not in screen.points()
+
+
+TITLE_BOX = (1400, 100, 720, 100)
+
+
+def stage_list_showing(case: str) -> np.ndarray:
+    """關卡列表 + 指定關卡的右欄標題。0805 的標題樣本是右欄裁片，貼回既有的列表
+    整幀才同時滿足「畫面名＝關卡列表」與「標題讀得出來」兩件事。"""
+    frame = load(STAGE_LIST).copy()
+    x, y, w, h = TITLE_BOX
+    frame[y : y + h, x : x + w] = load(case)[y : y + h, x : x + w]
+    return frame
+
+
+def test_the_right_panel_title_names_the_stage_that_is_actually_selected():
+    """整條標題的模板在 STAGE 1／STAGE 2 之間 raw 1.000 對 0.996 分不開；尾碼
+    數字單獨比才有 0.982 對 0.399（0805 實幀量測）。"""
+    assert screens.read_stage_title(load(STAGE_LIST_HARD_1)) == "uc_hard_1"
+    assert screens.read_stage_title(load(STAGE_LIST_HARD_2)) == "uc_hard_2"
+
+
+def test_an_unreadable_title_is_never_guessed_into_a_stage():
+    assert screens.read_stage_title(blank()) is None
+    assert screens.read_stage_title(load(MAP_GRID_ON)) is None
+
+
+def test_selecting_a_stage_confirms_the_title_before_moving_on():
+    titled = stage_list_showing(STAGE_LIST_HARD_1)
+    screen = Screen([load(STAGE_LIST), titled])
+
+    report = entry.select_stage(
+        screen.capture, screen.tap, node=(544, 667), sleep=lambda _: None
+    )
+
+    assert report.ok, report.trail
+    assert report.trail == ("stage_list:ok", "stage_title:ok", "stage_node:ok")
+    assert screen.points() == [(544, 667)]
+
+
+def test_a_drifted_cursor_gets_one_retry_then_halts_instead_of_fighting_hard_2():
+    """0805 第 13 輪：(544,667) 因游標飄移實際選中 HARD 2，整輪打錯關。"""
+    wrong = stage_list_showing(STAGE_LIST_HARD_2)
+    screen = Screen([load(STAGE_LIST), wrong])
+
+    report = entry.select_stage(
+        screen.capture, screen.tap, node=(544, 667), sleep=lambda _: None
+    )
+
+    assert not report.ok
+    assert "stage_title:wrong_stage" in report.trail
+    assert "stage_node:ok" not in report.trail
+    assert screen.points() == [(544, 667), (544, 667)]
+
+
+def test_a_title_that_comes_right_on_the_second_tap_is_accepted():
+    screen = Screen(
+        [
+            load(STAGE_LIST),
+            stage_list_showing(STAGE_LIST_HARD_2),
+            stage_list_showing(STAGE_LIST_HARD_2),
+            stage_list_showing(STAGE_LIST_HARD_2),
+            stage_list_showing(STAGE_LIST_HARD_1),
+            stage_list_showing(STAGE_LIST_HARD_1),
+        ]
+    )
+
+    report = entry.select_stage(
+        screen.capture, screen.tap, node=(544, 667), sleep=lambda _: None
+    )
+
+    assert report.ok, report.trail
+    assert screen.points() == [(544, 667), (544, 667)]
+
+
+def test_the_download_dialog_is_recognised_and_nothing_else_is():
+    assert screens.is_download_dialog(load(DOWNLOAD_DIALOG))
+    for other in (blank(), load(PREP), load(STAGE_LIST), load(ABANDON_CONFIRM)):
+        assert not screens.is_download_dialog(other)
+
+
+def test_the_download_dialog_is_confirmed_and_waited_out():
+    screen = Screen([load(DOWNLOAD_DIALOG), load(DOWNLOAD_DIALOG), load(PREP)])
+    report = entry.GateReport()
+
+    step = entry.clear_download_dialog(
+        screen.capture, screen.tap, report, sleep=lambda _: None, now=lambda: 0.0
+    )
+
+    assert step is not None and step.ok
+    assert screen.points() == [screens.DOWNLOAD_CONFIRM_TAP]
+
+
+def test_no_download_dialog_means_not_a_single_tap():
+    """(1372,848) 在出擊準備頁上是別的東西——彈窗不在場就完全不點。"""
+    screen = Screen([load(PREP)])
+    report = entry.GateReport()
+
+    step = entry.clear_download_dialog(
+        screen.capture, screen.tap, report, sleep=lambda _: None, now=lambda: 0.0
+    )
+
+    assert step is None
+    assert screen.taps == []
+    assert report.steps == []
+
+
+def test_a_download_that_never_finishes_is_reported_not_ignored():
+    clock = iter([0.0, 0.0, 10.0, 99.0])
+    screen = Screen([load(DOWNLOAD_DIALOG)])
+    report = entry.GateReport()
+
+    step = entry.clear_download_dialog(
+        screen.capture, screen.tap, report, wait_s=60.0, sleep=lambda _: None, now=lambda: next(clock)
+    )
+
+    assert step is not None and not step.ok
+    assert step.outcome == "stuck"

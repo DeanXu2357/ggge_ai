@@ -76,6 +76,29 @@ ABANDON_DIALOG_BODY: Region = (800, 300, 800, 80)
 ABANDON_DIALOG_CONFIRM: Region = (1390, 855, 21, 21)
 _ABANDON_BODY_MIN = 170.0
 _ABANDON_BODY_FLAT_MAX = 8.0
+DOWNLOAD_DIALOG_TITLE: Region = (1020, 200, 300, 80)
+DOWNLOAD_DIALOG_BODY: Region = (700, 292, 940, 60)
+DOWNLOAD_DIALOG_TEMPLATE = "elements/dlg_download.png"
+DOWNLOAD_DIALOG_MIN = 0.80
+_DOWNLOAD_BODY_MIN = 170.0
+_DOWNLOAD_BODY_FLAT_MAX = 10.0
+DOWNLOAD_CONFIRM_TAP = (1372, 848)
+
+# 關卡列表右欄的標題帶。系列＋難度的字串與尾碼數字分開讀：整條標題的模板在
+# 「STAGE 1」與「STAGE 2」之間只差一個字元，raw 分數 1.000 對 0.996——**分不開**
+# （0805 實幀量測）。數字單獨切出來再比才有 0.982 對 0.399 的差距。
+STAGE_TITLE_REGION: Region = (1440, 118, 660, 60)
+STAGE_TITLE_NUMBER_REGION: Region = (2005, 118, 75, 60)
+STAGE_TITLE_MIN = 0.85
+STAGE_NUMBER_MIN = 0.70
+STAGE_TITLE_SERIES: dict[str, str] = {"uc_hard": "elements/stage_title_uc_hard.png"}
+# 尾碼數字是定寬字模比對，只認得標定過的個位數。兩位數（STAGE 10）會讓置中的標題
+# 整條左移，數字帶要重新標定才能加。
+STAGE_TITLE_NUMBERS: dict[str, str] = {
+    "1": "elements/stage_number_1.png",
+    "2": "elements/stage_number_2.png",
+}
+
 BATTLE_TAB_UNDERLINE = (1613, 201)
 BATTLE_TAB_UNDERLINE_SPAN = (1605, 1651)
 BATTLE_TAB_UNDERLINE_GUARDS = (14, 18)
@@ -143,7 +166,7 @@ SIGNATURES: tuple[Signature, ...] = (
     Signature(BATTLE_RESULT, "screens/battle_result.png", (160, 300, 290, 125), 7, 0.75),
     Signature(BATTLE_DEFEAT, "screens/battle_failed.png", (980, 0, 400, 175), 8, 0.60),
     # 「選擇關卡」標頭。NORMAL 與 HARD 節點在同一條軸上（難度不是分頁），所以這個
-    # 名字只說「人在關卡列表」，選了哪一關讀不出來。
+    # 名字只說「人在關卡列表」；選了哪一關要另外走 read_stage_title 讀右欄標題。
     Signature(STAGE_LIST, "screens/stage_list.png", (310, 0, 340, 140), 9, 0.85),
     # 棄戰會落在關卡模式選擇頁而不是關卡列表（0805 兩輪實證），回列表的路要認得出
     # 這三張中繼畫面才走得下去。
@@ -322,6 +345,46 @@ def is_abandon_confirm_dialog(frame: np.ndarray) -> bool:
         return False
     b, _, r = (float(v) for v in np.median(button.reshape(-1, 3), axis=0))
     return b > 200 and b - r > 80
+
+
+def is_download_dialog(frame: np.ndarray) -> bool:
+    """「下載關卡資料」彈窗在不在場。
+
+    標題字模＋白底本體兩道都過才算。這個判定會授權去按「下載」鈕，按錯位置的代價
+    落在出擊準備頁的其他按鈕上，所以寧可漏判。
+    """
+    if frame is None:
+        return False
+    if match(frame, DOWNLOAD_DIALOG_TEMPLATE, DOWNLOAD_DIALOG_TITLE) < DOWNLOAD_DIALOG_MIN:
+        return False
+    body = crop(frame, DOWNLOAD_DIALOG_BODY)
+    if body.size == 0:
+        return False
+    gray = cv2.cvtColor(body, cv2.COLOR_BGR2GRAY)
+    return gray.mean() >= _DOWNLOAD_BODY_MIN and gray.std() <= _DOWNLOAD_BODY_FLAT_MAX
+
+
+def read_stage_title(frame: np.ndarray) -> str | None:
+    """關卡列表右欄選中的是哪一關，回 "<系列>_<編號>"（例 "uc_hard_1"）；讀不出來回 None。
+
+    系列用門檻、編號用同組 argmax——兩者都標定過才回值，任一段落空就是不知道。
+    """
+    if frame is None:
+        return None
+    series = max(
+        STAGE_TITLE_SERIES,
+        key=lambda key: match(frame, STAGE_TITLE_SERIES[key], STAGE_TITLE_REGION),
+    )
+    if match(frame, STAGE_TITLE_SERIES[series], STAGE_TITLE_REGION) < STAGE_TITLE_MIN:
+        return None
+    measured = {
+        digit: match(frame, template, STAGE_TITLE_NUMBER_REGION, True)
+        for digit, template in STAGE_TITLE_NUMBERS.items()
+    }
+    digit = max(measured, key=lambda key: measured[key])
+    if measured[digit] < STAGE_NUMBER_MIN:
+        return None
+    return f"{series}_{digit}"
 
 
 def _is_salmon(bgr: tuple[int, int, int]) -> bool:

@@ -75,6 +75,9 @@ class FakeDevice:
 
 
 def dry_run(tmp_path, frame, transitions=None, **kwargs) -> tuple[DryRun, FakeDevice]:
+    # 這一檔的腳本畫面是 0719 的關卡列表整幀，右欄標題讀不出來。關卡複驗本身的
+    # 測試在 test_runtime_entry；這裡只有明講 expect_title 的那幾條要驗它。
+    kwargs.setdefault("expect_title", None)
     device = FakeDevice(frame=frame, transitions=transitions or {})
     journal = Journal(tmp_path / JOURNAL_NAME)
     camera = Camera(device=device, journal=journal)
@@ -147,7 +150,7 @@ def test_a_failed_gate_halts_in_place_without_tapping(tmp_path):
 
 
 def test_the_select_stage_keeps_a_shot_of_the_right_hand_panel(tmp_path):
-    """選中哪一關畫面上讀不出來，而棄戰回來游標會飄——所以留圖給人事後核對。"""
+    """右欄標題已有程式複驗，這張圖仍然留著：複驗只認標定過的關卡，其餘全靠人核。"""
     run, _ = dry_run(tmp_path, load(STAGE_LIST), stop_after="select", node=NODE)
 
     run.run()
@@ -366,3 +369,20 @@ def test_the_default_survey_budget_is_the_raised_one(monkeypatch):
 def test_the_node_argument_is_parsed_as_a_point():
     assert point("544,667") == (544, 667)
     assert point(None) is None
+
+
+def test_the_wrong_stage_halts_the_run_before_anything_is_spent(tmp_path):
+    """0805 第 13 輪：游標飄移讓 (544,667) 選中 HARD 2，整輪打錯關。選關複驗不過
+    就停在關卡列表——出擊那一下起才花 EN 與挑戰次數。"""
+    wrong = load(STAGE_LIST).copy()
+    x, y, w, h = (1400, 100, 720, 100)
+    wrong[y : y + h, x : x + w] = load("popups/stage_list_uc_hard_2_20260805")[
+        y : y + h, x : x + w
+    ]
+    run, device = dry_run(tmp_path, wrong, node=NODE, expect_title="uc_hard_1")
+
+    with pytest.raises(Halt):
+        run.run()
+
+    assert [(x, y) for x, y, _ in device.taps] == [NODE, NODE]
+    assert entry.STAGE_LIST_PREP_TAP not in [(x, y) for x, y, _ in device.taps]

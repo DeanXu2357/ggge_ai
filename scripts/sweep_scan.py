@@ -132,6 +132,7 @@ class SweepRun:
     identifier: faction_mod.FactionIdentifier
     stop_after: str | None = None
     node: tuple[int, int] | None = None
+    expect_title: str | None = entry.DEFAULT_EXPECTED_TITLE
     max_taps: int = MAX_TAPS
     tap_interval: float = TAP_INTERVAL_S
     empty_frame_every: int = EMPTY_FRAME_EVERY
@@ -163,7 +164,12 @@ class SweepRun:
         capture, tap, nap = self.camera.grab, self.device.tap, self.sleep
 
         self.begin("select")
-        self.gate_report("select", entry.select_stage(capture, tap, node=self.node, sleep=nap))
+        self.gate_report(
+            "select",
+            entry.select_stage(
+                capture, tap, node=self.node, expect_title=self.expect_title, sleep=nap
+            ),
+        )
         self.camera.grab()
         self.camera.keep("select:right_panel")
         if self.end("select"):
@@ -1205,6 +1211,11 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="X,Y：要打的關卡節點。必填——棄戰回來游標會飄，沿用現選會打到別關",
     )
+    parser.add_argument(
+        "--expect-title",
+        default=entry.DEFAULT_EXPECTED_TITLE,
+        help="選關後右欄標題要讀到的關卡（例 uc_hard_1）；none = 不驗",
+    )
     parser.add_argument("--max-taps", type=int, default=MAX_TAPS)
     parser.add_argument("--tap-interval", type=float, default=TAP_INTERVAL_S)
     parser.add_argument("--empty-frame-every", type=int, default=EMPTY_FRAME_EVERY)
@@ -1221,6 +1232,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--zoom", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--run-dir", type=Path, default=None)
     return parser.parse_args()
+
+
+def _title(text: str | None) -> str | None:
+    """--expect-title none = 明示放棄關卡複驗（照舊只留右欄截圖給人核）。"""
+    if text is None or text.lower() == "none":
+        return None
+    return text
 
 
 def point(text: str | None) -> tuple[int, int] | None:
@@ -1293,6 +1311,7 @@ def build(args: argparse.Namespace, journal: Journal) -> SweepRun:
         identifier=faction_mod.DockBannerIdentifier(),
         stop_after=args.stop_after,
         node=point(args.stage_node),
+        expect_title=_title(args.expect_title),
         max_taps=args.max_taps,
         tap_interval=args.tap_interval,
         empty_frame_every=args.empty_frame_every,
@@ -1312,6 +1331,7 @@ def main() -> int:
         "sweep_start",
         stop_after=args.stop_after,
         stage_node=args.stage_node,
+        expect_title=args.expect_title,
         max_taps=args.max_taps,
         tap_interval=args.tap_interval,
         filter_mode=args.filter_mode,

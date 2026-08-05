@@ -263,20 +263,41 @@ def confirm_in_map(
     return report
 
 
+DEFAULT_EXPECTED_TITLE = "uc_hard_1"
+STAGE_TITLE_ATTEMPTS = 3
+STAGE_TITLE_INTERVAL_S = 1.0
+
+
+def _await_stage_title(
+    capture: Capture,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+) -> str | None:
+    for index in range(STAGE_TITLE_ATTEMPTS):
+        title = screens.read_stage_title(capture())
+        if title is not None:
+            return title
+        if index + 1 < STAGE_TITLE_ATTEMPTS:
+            sleep(STAGE_TITLE_INTERVAL_S)
+    return None
+
+
 def select_stage(
     capture: Capture,
     tap: Tapper,
     *,
     node: tuple[int, int] | None = None,
+    expect_title: str | None = DEFAULT_EXPECTED_TITLE,
     sleep: Callable[[float], None] = time.sleep,
 ) -> GateReport:
-    """關卡列表上選一關。不花任何資源。
+    """關卡列表上選一關，並讀右欄標題複驗選中的真的是那一關。不花任何資源。
 
     node 是**呼叫端給的**：哪一關的節點落在哪個像素是關卡內容（而且隨節點軸捲動
     位置變），不進 runtime。不給就什麼都不點，沿用現在選著的那一關。
 
-    點完只複驗「還在關卡列表」——選中的是哪一關畫面上讀不出來（右欄標題還沒接文字
-    讀取），所以呼叫端要自己看落檔的截圖確認。
+    節點座標對不上選中的關卡是實害不是理論風險：0805 第 13 輪 (544,667) 因游標
+    飄移實際選中 HARD 2，整輪打錯關。所以點完要讀標題；不合就重點一次，再不合
+    就報 wrong_stage 讓呼叫端停手——絕不「先出擊再說」。
     """
     report = GateReport()
     screen, _ = expect_screen(capture, (screens.STAGE_LIST,), sleep=sleep)
@@ -287,12 +308,25 @@ def select_stage(
     if node is None:
         return report
 
-    tap(*node)
-    sleep(1.5)
-    screen, _ = expect_screen(capture, (screens.STAGE_LIST,), sleep=sleep)
-    if screen != screens.STAGE_LIST:
-        report.add("stage_node", "left_the_page", screen)
-        return report
+    title = None
+    for attempt in range(2):
+        tap(*node)
+        sleep(1.5)
+        screen, _ = expect_screen(capture, (screens.STAGE_LIST,), sleep=sleep)
+        if screen != screens.STAGE_LIST:
+            report.add("stage_node", "left_the_page", screen)
+            return report
+        if expect_title is None:
+            break
+        title = _await_stage_title(capture, sleep=sleep)
+        if title == expect_title:
+            break
+        log.warning("stage title %s != %s (attempt %d)", title, expect_title, attempt + 1)
+    if expect_title is not None:
+        if title != expect_title:
+            report.add("stage_title", "wrong_stage", f"want={expect_title} got={title}")
+            return report
+        report.add("stage_title", "ok", title)
     report.add("stage_node", "ok", f"{node[0]},{node[1]}")
     return report
 
@@ -319,6 +353,36 @@ def open_sortie_prep(
     return report
 
 
+DOWNLOAD_WAIT_S = 60.0
+DOWNLOAD_POLL_S = 2.0
+
+
+def clear_download_dialog(
+    capture: Capture,
+    tap: Tapper,
+    report: GateReport,
+    *,
+    wait_s: float = DOWNLOAD_WAIT_S,
+    sleep: Callable[[float], None] = time.sleep,
+    now: Callable[[], float] = time.monotonic,
+) -> Step | None:
+    """出擊後可能跳出的「下載關卡資料」彈窗：按下載、等它自己消失。
+
+    彈窗不在場就整個跳過（回 None），一下都不點——(1372,848) 在出擊準備頁上是別的
+    東西。呼叫順序上這一步永遠排在選關標題複驗之後：確認打的是目標關卡，才有資格
+    替它下載資料。
+    """
+    if not screens.is_download_dialog(capture()):
+        return None
+    tap(*screens.DOWNLOAD_CONFIRM_TAP)
+    deadline = now() + wait_s
+    while now() < deadline:
+        sleep(DOWNLOAD_POLL_S)
+        if not screens.is_download_dialog(capture()):
+            return report.add("download", "ok")
+    return report.add("download", "stuck", f"dialog still up after {wait_s:.0f}s")
+
+
 def sortie(
     capture: Capture,
     tap: Tapper,
@@ -339,6 +403,7 @@ def sortie(
     tap(*SORTIE_TAP)
     sleep(3.0)
 
+    clear_download_dialog(capture, tap, report, sleep=sleep)
     screen, _ = expect_screen(
         capture, (screens.STAGE_INFO, *screens.MAP_SCREENS), sleep=sleep, attempts=10
     )
