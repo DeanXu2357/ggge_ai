@@ -142,6 +142,7 @@ class SweepRun:
     sightings: dict[str, list[float]] = field(default_factory=dict, init=False)
     clashes: dict[str, list[float]] = field(default_factory=dict, init=False)
     grounded: bool = field(default=False, init=False)
+    ungrounded: int = field(default=0, init=False)
     signature: board.MarkerSignature | None = field(default=None, init=False)
     marker_cell: sweep.Cell | None = field(default=None, init=False)
     walk: sweep.NodeWalk = field(default_factory=sweep.NodeWalk, init=False)
@@ -223,6 +224,7 @@ class SweepRun:
         # 角落是絕對根：看到它就是錨上了，零里程計需求。
         self.fix.regain()
         self.grounded = True
+        self.ungrounded = 0
         if self.ledger is None:
             lattice = board.find_lattice(frame)
             if lattice is None:
@@ -262,7 +264,11 @@ class SweepRun:
                 self.zero()
                 self.home()
                 continue
-            frame = self.settled()
+            if not self.grounded and not self.confirm():
+                # 背書不了就當失位——迴圈不留「錨不上又繼續轉」這條空轉路。
+                self.fix.lose()
+                continue
+            frame = self.neutral()
             self.witness(frame)
             candidates = self.candidates(frame)
             plan = sweep.plan_window(
@@ -290,6 +296,61 @@ class SweepRun:
                 break
             self.expand(direction)
         self.retire_deferred()
+
+    def confirm(self) -> bool:
+        """非 grounded 鏡位下的復權關卡：強證人背書才恢復裁決，否則當失位處理。
+
+        強證人＝標記填色（我們自己種下去的絕對地標）或與帳本對得上的界線。置中反推
+        算得出座標，但那個座標繼承了推斷的錯，而帳本記的是世界格——錯了就是永久的。
+        """
+        ledger = self._ledger()
+        frame = self.settled()
+        borders = sweep.read_borders(frame)
+        marker = self.marker_offset(frame)
+        offset, source = sweep.reanchor(
+            ledger.grid, landmarks=self.landmarks, borders=borders, candidate=marker
+        )
+        backed = offset is not None and (
+            source == sweep.SOURCE_EDGE or (marker is not None and source != sweep.SOURCE_LOST)
+        )
+        if backed and sweep.contradicts(ledger, self.landmarks, borders, offset) is None:
+            self.offset = offset
+            self.grounded = True
+            self.ungrounded = 0
+            self.journal.record(
+                "anchor_backed",
+                source=source,
+                offset=[round(value, 1) for value in offset],
+                marker=marker is not None,
+            )
+            self.witness(frame)
+            return True
+        self.ungrounded += 1
+        self.journal.record(
+            "anchor_unbacked",
+            source=source,
+            streak=self.ungrounded,
+            marker=marker is not None,
+            borders=sorted(borders),
+        )
+        if self.ungrounded > sweep.UNGROUNDED_ANCHOR_LIMIT:
+            self.fix.lose()
+        return False
+
+    def neutral(self) -> np.ndarray:
+        """窗幀要在中性態拍：單位卡／選取覆蓋還蓋在圖上時，候選檢測會讀出上萬個假峰
+        （20260805-075310 的 window 幀有 50/101 張是這樣拍的），線上過濾與離線評分
+        一起被騙。"""
+        frame = self.settled()
+        for _ in range(2):
+            hub = self.on_hub(frame)
+            if hub and not _card_present(frame):
+                return frame
+            self.journal.record("window_not_neutral", hub=hub)
+            self.escape()
+            frame = self.settled()
+        self.journal.record("window_dirty", frame=self.camera.keep("dirty"))
+        return frame
 
     def candidates(self, frame: np.ndarray) -> frozenset[sweep.Cell] | None:
         """本窗要點哪些格。full 模式回 None（全格點，舊行為）。
@@ -486,6 +547,7 @@ class SweepRun:
                 self.clashes.pop(side, None)
         self.offset = offset
         self.grounded = True
+        self.ungrounded = 0
         self.fix.regain()
         self.witness(frame)
         node = sweep.TrustNode(
@@ -517,6 +579,9 @@ class SweepRun:
     def work(self, plan: sweep.WindowPlan, frame: np.ndarray) -> bool:
         """本窗逐格點擊。回傳「被中斷了」——出卡或置中之後幾何要重讀才算數。"""
         ledger = self._ledger()
+        if not self.grounded:
+            self.journal.record("work_blocked", reason="ungrounded")
+            return False
         before = frame
         for target in plan.taps:
             if ledger.taps >= self.max_taps:
@@ -624,8 +689,8 @@ class SweepRun:
         candidate = sweep.recentre_offset(ledger.grid, target.cell)
         self.relocate(candidate=candidate)
 
-    def on_hub(self) -> bool:
-        return map_view.classify_view(self.gate) == map_view.HUB
+    def on_hub(self, frame: np.ndarray | None = None) -> bool:
+        return map_view.classify_view(self.gate, frame) == map_view.HUB
 
     def escape(self) -> None:
         """選擇狀態下任何非「返回」的點擊都可能誤下移動指令，所以 escape 走
@@ -702,7 +767,12 @@ class SweepRun:
         return True
 
     def relocate(self, candidate: sweep.Point | None = None) -> None:
-        """推鏡／置中之後重定鏡位：地標優先，標記填色補位，都沒有才回角落歸零。"""
+        """推鏡／置中之後重定鏡位：地標優先，標記填色補位，都沒有才回角落歸零。
+
+        置中反推的鏡位照舊寫進 offset（那一步是既有流程），但它是假說：連續這樣錨定
+        超過 `UNGROUNDED_ANCHOR_LIMIT` 次就當失位，而在被 `confirm` 背書之前一格都不
+        裁決。
+        """
         ledger = self._ledger()
         frame = self.settled()
         borders = sweep.read_borders(frame)
@@ -730,7 +800,15 @@ class SweepRun:
             return
         self.offset = offset
         self.grounded = grounded
-        self.fix.regain()
+        if grounded:
+            self.ungrounded = 0
+            self.fix.regain()
+        else:
+            self.ungrounded += 1
+            if self.ungrounded > sweep.UNGROUNDED_ANCHOR_LIMIT:
+                self.fix.lose()
+            else:
+                self.fix.regain()
         self.witness(frame)
 
     def marker_offset(self, frame: np.ndarray) -> sweep.Point | None:

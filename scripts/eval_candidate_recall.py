@@ -8,6 +8,11 @@ go/no-go 工具——`--filter-mode candidates` 上實機當預設之前，總�
 指到的 frames/ 檔。舊 run 的 window 事件沒有 frame 欄位，評不了，要重跑一輪
 `--filter-mode full` 產真值。
 
+兩種口徑，go/no-go 只看**同幀**那一種：同幀＝每一格只對「當初裁決它的那一窗」的幀
+評分，這才是線上過濾真正要做的那個判斷；全窗＝把窗界內所有裁決過的格都算進去，
+包含別的鏡位才點到的格，鏡位一飄它就把不相干的漏報算到這一窗頭上。`--fresh-only`
+只印同幀那一段。
+
 評不到的窗一律擋住 GO，但原因要分得開：`no_frame`＝流水帳沒記幀路徑（舊 run），
 `frame_unreadable`＝路徑記了但檔案讀不出來。後者多半是拿還在被 rotate_runs 壓縮
 ／刪除的 run 目錄來評——先解開 tar.gz 再評。
@@ -88,9 +93,15 @@ class Report:
         return None if not self.units else (self.units - self.missed) / self.units
 
     @property
+    def blind(self) -> int:
+        """評不到、而且本來有東西要評的窗。同幀口徑下有些窗一格都沒裁決，那種窗評不到
+        也沒有漏報可言。"""
+        return sum(1 for score in self.scores if score.skipped and score.units)
+
+    @property
     def go(self) -> bool:
         """評不到的窗不算過：那一窗的漏報只是沒被看見，不是不存在。"""
-        return bool(self.units) and self.missed == 0 and self.skipped == 0
+        return bool(self.units) and self.missed == 0 and self.blind == 0
 
 
 def entries_of(run_dir: Path, name: str = "sweep.jsonl") -> list[dict]:
@@ -136,18 +147,50 @@ def windows_of(entries: Iterable[dict]) -> list[Window]:
     return out
 
 
+def fresh_of(entries: Iterable[dict]) -> dict[sweep.Cell, int]:
+    """格 → 裁決它的那一窗（window 事件的序號，與 `windows_of` 同一套編號）。
+
+    一格被重判時以最後一次為準，與 `truth_of` 同步。
+    """
+    out: dict[sweep.Cell, int] = {}
+    index = -1
+    for entry in entries:
+        kind = entry.get("kind")
+        if kind == "window" and entry.get("window"):
+            index += 1
+        elif kind == "verdict" and index >= 0:
+            out[(int(entry["cell"][0]), int(entry["cell"][1]))] = index
+    return out
+
+
 def inside(window: Window, cell: sweep.Cell) -> bool:
     (x0, y0), (x1, y1) = window.bounds
     return x0 <= cell[0] <= x1 and y0 <= cell[1] <= y1
+
+
+def units_of(
+    window: Window,
+    truth: dict[sweep.Cell, str],
+    fresh: dict[sweep.Cell, int] | None = None,
+) -> tuple[sweep.Cell, ...]:
+    return tuple(
+        sorted(
+            cell
+            for cell, verdict in truth.items()
+            if verdict in UNITS
+            and inside(window, cell)
+            and (fresh is None or fresh.get(cell) == window.index)
+        )
+    )
 
 
 def score_window(
     window: Window,
     truth: dict[sweep.Cell, str],
     detect: Detector,
+    fresh: dict[sweep.Cell, int] | None = None,
 ) -> WindowScore:
-    units = tuple(sorted(cell for cell, verdict in truth.items()
-                         if verdict in UNITS and inside(window, cell)))
+    units = units_of(window, truth, fresh)
     candidates = detect(window)
     if isinstance(candidates, str):
         return WindowScore(window=window, units=units, skipped=candidates)
@@ -156,7 +199,9 @@ def score_window(
         sorted(
             cell
             for cell in candidates
-            if truth.get(cell) == sweep.EMPTY and inside(window, cell)
+            if truth.get(cell) == sweep.EMPTY
+            and inside(window, cell)
+            and (fresh is None or fresh.get(cell) == window.index)
         )
     )
     return WindowScore(
@@ -189,12 +234,25 @@ def evaluate(
     windows: Sequence[Window],
     truth: dict[sweep.Cell, str],
     detect: Detector,
+    fresh: dict[sweep.Cell, int] | None = None,
 ) -> Report:
-    return Report([score_window(window, truth, detect) for window in windows])
+    return Report([score_window(window, truth, detect, fresh) for window in windows])
 
 
-def render(report: Report, run_dir: Path) -> str:
-    lines = [f"run: {run_dir}", ""]
+def cached(detect: Detector) -> Detector:
+    """兩種口徑共用同一次檢測——幀解碼與峰值偵測是這支工具的全部成本。"""
+    memo: dict[int, frozenset[sweep.Cell] | str] = {}
+
+    def wrapped(window: Window) -> frozenset[sweep.Cell] | str:
+        if window.index not in memo:
+            memo[window.index] = detect(window)
+        return memo[window.index]
+
+    return wrapped
+
+
+def render(report: Report, run_dir: Path, title: str = "全窗口徑", gate: bool = False) -> str:
+    lines = [f"run: {run_dir}", f"[{title}]", ""]
     for score in report.scores:
         window = score.window
         head = (
@@ -215,9 +273,13 @@ def render(report: Report, run_dir: Path) -> str:
     lines += [
         "",
         f"units={report.units} missed={report.missed} recall={total} "
-        f"false_positives={report.false_positives} skipped_windows={report.skipped}",
-        "GO：召回 100%" if report.go else "NO-GO：有漏報、有評不到的窗，或根本沒有真值",
+        f"false_positives={report.false_positives} "
+        f"skipped_windows={report.skipped}（有真值待評的 {report.blind}）",
     ]
+    if gate:
+        lines.append(
+            "GO：召回 100%" if report.go else "NO-GO：有漏報、有評不到的窗，或根本沒有真值"
+        )
     return "\n".join(lines)
 
 
@@ -228,6 +290,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--halo", type=float, default=sweep.CANDIDATE_HALO_PITCH)
     parser.add_argument("--min-count", type=int, default=sweep.CANDIDATE_MIN_COUNT)
     parser.add_argument("--min-dist", type=float, default=sweep.CANDIDATE_MIN_DIST)
+    parser.add_argument(
+        "--fresh-only",
+        action="store_true",
+        help="只印同幀口徑那一段（go/no-go 本來就只看它）",
+    )
     return parser.parse_args()
 
 
@@ -242,19 +309,22 @@ def main() -> int:
     if not windows:
         print("這個 run 沒有 window 事件")
         return 1
-    report = evaluate(
-        windows,
-        truth_of(entries),
+    truth = truth_of(entries)
+    detect = cached(
         detector(
             args.run_dir,
             grid,
             halo=args.halo,
             min_count=args.min_count,
             min_dist=args.min_dist,
-        ),
+        )
     )
-    print(render(report, args.run_dir))
-    return 0 if report.go else 1
+    fresh = evaluate(windows, truth, detect, fresh_of(entries))
+    if not args.fresh_only:
+        print(render(evaluate(windows, truth, detect), args.run_dir))
+        print()
+    print(render(fresh, args.run_dir, title="同幀口徑", gate=True))
+    return 0 if fresh.go else 1
 
 
 if __name__ == "__main__":

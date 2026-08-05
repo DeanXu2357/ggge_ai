@@ -86,6 +86,12 @@ EDGE_AGREEMENT_PITCH = 0.5
 LANDMARK_VOTES = 3
 LANDMARK_REVOKE_CLASHES = 3
 
+# 置中反推的鏡位是**假說**，不是量到的。20260805-075310 第 17 窗起連續 centre 錨定
+# 卻照常逐格裁決，offset 誤差累積超過一格，後段整段記錯世界格（敵 32／我 17 超計就
+# 是這麼來的）。所以非 grounded 錨定只准連著出現這麼多次，而且在被強證人（標記填色
+# ／與帳本對得上的界線）背書之前一格都不裁決；超過就當失位，走既有回退。
+UNGROUNDED_ANCHOR_LIMIT = 1
+
 HEADINGS: tuple[str, str] = ("east", "west")
 
 # 推鏡後標記要留在點擊窗內、再往內縮這麼多格才算「還看得見」——量測誤差與透視

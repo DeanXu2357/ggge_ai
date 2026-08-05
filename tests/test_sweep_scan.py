@@ -43,7 +43,9 @@ def build_run(tmp_path, outcomes: dict) -> SweepRun:
     run.pan = lambda direction, frame, reach=None: (reach or 0.0, _blank())
     run.relocate = lambda candidate=None: None
     run.escape = lambda: None
-    run.on_hub = lambda: True
+    run.on_hub = lambda frame=None: True
+    run.neutral = _blank
+    run.grounded = True
     run.tap_cell = lambda target, before: outcomes.get(
         target.cell, sweep.TapOutcome(sweep.TAP_EMPTY, marker=target.point)
     )
@@ -447,6 +449,95 @@ def test_a_carry_tap_with_no_fill_is_retried_and_never_moves_the_marker_cell(tmp
     assert not SweepRun.carry_marker(run, "east", _blank())
     assert taps == [(3, 4), (3, 4)]
     assert run.marker_cell == (2, 4)
+
+
+def test_a_centre_anchor_taps_nothing_until_a_strong_witness_backs_it(tmp_path):
+    run = build_run(tmp_path, {})
+    run.grounded = False
+    run.confirm = lambda: False
+    tapped: list[tuple[int, int]] = []
+    run.tap_cell = lambda target, before: (tapped.append(target.cell), None)[1]
+    run.zero = lambda: run.fix.regain()
+    run.home = lambda: run.fix.lose()
+
+    with pytest.raises(Halt):  # 一直背書不了＝失位，走既有回退直到停手
+        run.tour()
+
+    assert tapped == []
+
+
+def test_a_backed_anchor_resumes_the_clearing(tmp_path):
+    run = build_run(tmp_path, {})
+    run.grounded = False
+    backed = []
+
+    def confirm() -> bool:
+        backed.append(True)
+        run.grounded = True
+        return True
+
+    run.confirm = confirm
+
+    run.tour()
+
+    assert backed == [True]
+    assert run.ledger.complete
+
+
+def test_a_second_ungrounded_anchor_in_a_row_is_treated_as_lost(tmp_path, monkeypatch):
+    run = build_run(tmp_path, {})
+    run.marker_cell = None
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: {})
+    monkeypatch.setattr(
+        sweep, "reanchor", lambda grid, **kw: ((5.0, 5.0), sweep.SOURCE_CENTRE)
+    )
+
+    SweepRun.relocate(run, candidate=(5.0, 5.0))
+    assert run.fix.anchored and not run.grounded  # 置中反推那一步照舊
+
+    assert not SweepRun.confirm(run)
+    assert not run.fix.anchored  # 背書不了的下一步就當失位
+
+
+def test_a_marker_backed_anchor_clears_the_ungrounded_streak(tmp_path, monkeypatch):
+    run = build_run(tmp_path, {})
+    run.grounded = False
+    run.ungrounded = 1
+    run.signature = object()
+    run.marker_cell = (2, 4)
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: {})
+    monkeypatch.setattr(board, "find_marker", lambda frame, sig, **kw: (100.0, 100.0))
+
+    assert SweepRun.confirm(run)
+    assert run.grounded and run.ungrounded == 0
+    assert run.offset == (GRID.centre_of((2, 4))[0] - 100.0, GRID.centre_of((2, 4))[1] - 100.0)
+
+
+def test_the_window_frame_is_taken_only_after_the_hub_is_neutral(tmp_path, monkeypatch):
+    run = build_run(tmp_path, {})
+    del run.neutral
+    views = iter([False, True])
+    escapes: list[bool] = []
+    run.on_hub = lambda frame=None: next(views)
+    run.escape = lambda: escapes.append(True)
+    monkeypatch.setattr("scripts.sweep_scan._card_present", lambda frame: False)
+
+    SweepRun.neutral(run)
+
+    assert escapes == [True]
+
+
+def test_a_unit_card_still_up_is_escaped_before_the_window_frame(tmp_path, monkeypatch):
+    run = build_run(tmp_path, {})
+    del run.neutral
+    cards = iter([True, False])
+    escapes: list[bool] = []
+    run.escape = lambda: escapes.append(True)
+    monkeypatch.setattr("scripts.sweep_scan._card_present", lambda frame: next(cards))
+
+    SweepRun.neutral(run)
+
+    assert escapes == [True]
 
 
 def witnessing_run(tmp_path):
