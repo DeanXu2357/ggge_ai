@@ -4,9 +4,27 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-08-06 清晨，scan_roster_jump 七輪迭代：全程跑通、鏈已成形、待錨定）
+## 暫停快照（2026-08-06 晨，scan_roster_jump 八輪收攤：流程全穩、定位鏈三個未解問題待裁決）
 
 ### 恢復點
+
+- **0806 晨第八輪收攤（分支 `feat/sweep-nodes`，`8a529c5`）**：流程層完全穩定
+  ——borders/roster/jump/settle/棄戰連三輪（6/7/8）零 crash 全程，單輪約 8-10
+  分鐘，roster 28/28 讀值每輪全中，棄戰 stage_type_select 落點正名後 abandon
+  連兩輪 ok。**定位鏈三個未解問題（下輪先裁決再跑）**：
+  ①**邊產率跨輪變異大**——同一計分制（cov≥0.8/lead≥2/hit≥3）：run7 重放 14
+  邊/元件[10,3,3]、run8 實跑 7 邊/元件[4,3,2]、pattern 23/28（grid_unreadable
+  2＋target_unsnappable 2）；主嫌 find_units 峰逐輪不穩，候選解法＝pattern 改
+  用帶高亮幀＋乾淨幀雙幀聯集、或峰偵測參數穩定化。
+  ②**錨定補跳前提被否定**——6 次補跳（含最北 enemy）read_borders 全部無界；
+  「跳轉置中貼邊單位會把界拉進畫面」不成立，可能鏡頭不夾邊或界特徵在該縮放
+  不觸發；y 軸絕對錨至今零筆。候選解法＝補跳後朝缺軸方向推 1-2 把再讀界（回
+  到有限推鏡，但只在錨定 pass、有鏈保底）。
+  ③**±1 欄軸錨矛盾**——run8 兩筆 x 錨 known=0 saw=1；西界像素→欄 0 的換算與
+  FrameGrid 欄相位差半格級，需對齊定義。
+  變更帳：計分制配對＋anchor pass＋部分軸錨定誠實帳（`8a529c5`）、相對星座鏈
+  ＋FrameGrid（`a9ea775`）、詳見 docs/reviews/roster-jump-scan.md。裝置現況：
+  UC 關卡列表，八輪皆棄戰收尾，資源零消耗。真值檔已校對（`1e91985`）。
 
 - **0806 清晨名冊跳轉掃描七輪實機迭代（分支 `feat/sweep-nodes`）**：新腳本
   `scripts/scan_roster_jump.py`（borders→roster→jump→settle 分段停點）＋
