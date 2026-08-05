@@ -22,8 +22,10 @@
     }
   ],
   "allies_session_note": "第 11 輪 [2,2]、第 12 輪 [1,3] 等 ALLY 裁決經使用者目視正確，但我方格位隨出擊配置變動，不列入關卡斷言",
+  "enemy_count": 18,
   "meta": {
-    "destroy_target": "破壞數 x/18（HUD 讀值，敵方可破壞單位總數 18 的旁證）",
+    "destroy_target": "破壞數 x/18（HUD 讀值）",
+    "enemy_count_verified": "使用者實機逐台清點 2026-08-05，與 HUD 分母一致",
     "victory_condition_display": "敵軍全滅"
   }
 }
