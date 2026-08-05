@@ -32,10 +32,15 @@ MATCH_AMBIGUOUS = "ambiguous"
 MATCH_NO_MATCH = "no_match"
 MATCH_FEW_PEAKS = "few_peaks"
 
-# 兩窗要靠幾個共同單位才敢定案格差。2 在幾何上是下限（一個共同峰時任何平移都自洽），
-# 但實測不夠：0806 run 20260806-042858 的 25 張 clean 幀重放，門檻 2 長出 31 條邊、
-# 環一致性撞出 8 筆矛盾；門檻 3 只剩 17 條邊而矛盾歸零（4~8 再往上只是繼續掉邊）。
+# 判別式是「比例＋領先差」，不是固定的共同峰數。固定門檻跨輪不穩：run
+# 20260806-042858 用門檻 2 長出 31 條邊、環一致性撞出 8 筆矛盾，門檻 3 才歸零；但同一
+# 個 3 到了 run 20260806-052235 又把好邊砍掉一半（9 條，最大元件 6），而該輪門檻 2 的
+# 15 條邊一筆矛盾都沒有。安全值逐輪不同＝這個量本來就不是判別依據。
+# 改成：重疊區內覆蓋率 ≥ 0.8、最優解的命中數領先次優 ≥ 2、命中數 ≥ 3。唯一性語意沒
+# 有放寬——領先差就是唯一性，只是從「不准有第二解」變成「第二解要明顯更差」。
 PATTERN_MIN_OVERLAP = 3
+PATTERN_MIN_COVERAGE = 0.8
+PATTERN_MIN_LEAD = 2
 # 重疊區四邊各丟掉一格：窗邊的單位在另一窗只露半身，峰時有時無。
 PATTERN_EDGE_MARGIN = 1
 
@@ -108,6 +113,28 @@ class ChainEdge:
 
 
 @dataclass(frozen=True)
+class AxisAnchor:
+    """單軸絕對值：某一台在世界座標上的絕對行或列。
+
+    單窗同時解出兩軸太苛（0806 run 20260806-052235 全場 0 個雙軸錨，border 常常只
+    給得出 ['x']——西界常入鏡、北界很少）。單軸照樣是硬證據：鏈把整個元件綁成一
+    塊剛體之後，元件裡**任何一台**的 x 就定得了全元件的 x，y 可以來自另一台。
+    """
+
+    key: Key
+    axis: int
+    value: int
+
+
+@dataclass(frozen=True)
+class AxisConflict:
+    key: Key
+    axis: int
+    known: int
+    saw: int
+
+
+@dataclass(frozen=True)
 class ChainConflict:
     """同一台由兩條路徑到達的格不一致。記下來，不覆寫任何一邊。"""
 
@@ -117,11 +144,42 @@ class ChainConflict:
     via: Key
 
 
+AXIS_NAMES = ("x", "y")
+
+
 @dataclass(frozen=True)
 class ChainSolution:
+    """鏈的結算：元件內的相對格 ＋ 每個元件逐軸的全域平移。
+
+    平移只有在該元件該軸拿得到絕對值時才有；拿不到就是拿不到，相對格照樣有用。
+    """
+
     cells: dict[Key, Cell]
-    anchored: bool
+    components: dict[Key, int]
+    shifts: dict[int, dict[int, int]]
+    linked: frozenset[Key]
     conflicts: tuple[ChainConflict, ...]
+    axis_conflicts: tuple[AxisConflict, ...]
+
+    def axes(self, key: Key) -> tuple[str, ...]:
+        shift = self.shifts.get(self.components.get(key, -1), {})
+        return tuple(AXIS_NAMES[axis] for axis in sorted(shift))
+
+    def world(self, key: Key) -> tuple[int | None, int | None]:
+        cell = self.cells.get(key)
+        if cell is None:
+            return (None, None)
+        shift = self.shifts.get(self.components.get(key, -1), {})
+        return tuple(  # type: ignore[return-value]
+            None if axis not in shift else cell[axis] + shift[axis] for axis in (0, 1)
+        )
+
+    def anchored(self, key: Key) -> bool:
+        return all(value is not None for value in self.world(key))
+
+    @property
+    def any_anchor(self) -> bool:
+        return any(shift for shift in self.shifts.values())
 
 
 @dataclass(frozen=True)
@@ -152,6 +210,7 @@ class JumpLedger:
     candidates: dict[Key, tuple[Cell, ...]] = field(default_factory=dict)
     patterns: dict[Key, Pattern] = field(default_factory=dict)
     edges: list[ChainEdge] = field(default_factory=list)
+    axis_anchors: list[AxisAnchor] = field(default_factory=list)
 
     def record(self, jump: Jump) -> None:
         self.jumps[jump.key] = jump
@@ -180,12 +239,16 @@ class JumpLedger:
         self.failures.pop(key, None)
         return out
 
-    def anchors(self) -> dict[Key, Cell]:
-        return {key: jump.cell for key, jump in self.jumps.items()}
+    def anchor_axis(self, key: Key, axis: int, value: int) -> None:
+        self.axis_anchors.append(AxisAnchor(key, axis, value))
+        self.failures.pop(key, None)
 
     def solve(self) -> ChainSolution:
         """名冊上沒有圖樣的單位不進來——它們是「沒看過」，不是「相對原點」。"""
-        return propagate(self.anchors(), self.edges, nodes=tuple(self.patterns))
+        anchors = list(self.axis_anchors)
+        for key, jump in self.jumps.items():
+            anchors.extend((AxisAnchor(key, 0, jump.cell[0]), AxisAnchor(key, 1, jump.cell[1])))
+        return propagate(self.edges, anchors, nodes=(*self.patterns, *self.jumps))
 
     def fail(self, key: Key) -> int:
         self.failures[key] = self.failures.get(key, 0) + 1
@@ -276,83 +339,157 @@ def match_patterns(
     *,
     min_overlap: int = PATTERN_MIN_OVERLAP,
     margin: int = PATTERN_EDGE_MARGIN,
+    min_coverage: float = PATTERN_MIN_COVERAGE,
+    min_lead: int = PATTERN_MIN_LEAD,
 ) -> PatternMatch:
     """兩窗圖樣的平移配對：回傳「b 的目標落在 a 的座標系哪一格」。
 
     候選平移只取 a 的峰——b 的目標在 a 的窗裡必定也是一個峰（兩窗看得到彼此才配得
-    起來）。自洽的判準是重疊區內**全覆蓋**：平移後兩邊的框相交的那塊，一邊有峰另一
-    邊就必須也有，缺一個就否決。唯一性是硬條件，兩個以上可行平移一律 ambiguous 拒
-    收——語意向 `sweep.constellation_offset` 看齊，寧可漏認不可錯認。
+    起來）。每個候選在重疊區（兩窗 window 相交、四邊各內縮 margin）內算覆蓋率
+    命中／聯集，過門檻的才是可行解；最優解要領先次優 `min_lead` 個命中才收，不然
+    ambiguous 拒收——寧可漏認不可錯認。
+
+    覆蓋率而不是全覆蓋，是因為 `board.find_units` 兩幀給的峰集本身就會差一兩個
+    （同一台在一幀有峰、另一幀沒有）；全覆蓋對這種偵測級差異零容忍，實測會把整叢
+    我軍的正樣本全部否決掉。
     """
     if len(a.cells) < min_overlap or len(b.cells) < min_overlap:
         return PatternMatch(None, 0, MATCH_FEW_PEAKS)
     mine = set(a.cells)
-    feasible: list[tuple[Cell, int]] = []
+    scored: list[tuple[int, Cell]] = []
     for delta in a.cells:
-        moved = _shift(b.cells, delta)
         shared = _overlap_box(a.window, _shift_box(b.window, delta), margin=margin)
         if shared is None:
             continue
-        if any(_inside(cell, shared) and cell not in moved for cell in mine):
+        here = {cell for cell in mine if _inside(cell, shared)}
+        there = {cell for cell in _shift(b.cells, delta) if _inside(cell, shared)}
+        union = here | there
+        if not union:
             continue
-        if any(_inside(cell, shared) and cell not in mine for cell in moved):
+        hit = len(here & there)
+        if hit < min_overlap or hit / len(union) < min_coverage:
             continue
-        overlap = len(moved & mine)
-        if overlap >= min_overlap:
-            feasible.append((delta, overlap))
-    if not feasible:
+        scored.append((hit, delta))
+    if not scored:
         return PatternMatch(None, 0, MATCH_NO_MATCH)
-    if len(feasible) > 1:
-        return PatternMatch(None, max(count for _, count in feasible), MATCH_AMBIGUOUS)
-    delta, overlap = feasible[0]
-    return PatternMatch(delta, overlap, MATCH_OK)
+    scored.sort(key=lambda found: -found[0])
+    best = scored[0]
+    second = scored[1][0] if len(scored) > 1 else 0
+    if best[0] - second < min_lead:
+        return PatternMatch(None, best[0], MATCH_AMBIGUOUS)
+    return PatternMatch(best[1], best[0], MATCH_OK)
 
 
 def propagate(
-    anchors: Mapping[Key, Cell],
     edges: Sequence[ChainEdge],
+    axis_anchors: Sequence[AxisAnchor] = (),
     *,
     nodes: Sequence[Key] = (),
 ) -> ChainSolution:
-    """錨點沿鏈邊傳播出全體座標；零錨點就挑一個節點當相對原點。
+    """鏈邊 → 元件內相對格；單軸絕對值 → 元件的全域平移。
 
-    先擴散完錨點再走無錨的連通塊，這樣有錨的那一塊不會被相對原點污染。走到已經有
-    座標的節點時只做一致性檢查——環走一圈回來對不上就記矛盾，**不覆寫**（覆寫等於
-    讓最後一條路徑說了算，而我們根本不知道哪一條錯）。
+    先把每個連通元件當成一塊剛體排好（元件內第一個節點是 (0,0)），再逐軸把整塊平
+    移到世界座標。走到已經有座標的節點時只做一致性檢查——環走一圈回來對不上就記
+    矛盾，**不覆寫**（覆寫等於讓最後一條路徑說了算，而我們根本不知道哪一條錯）。
     """
-    links: dict[Key, list[tuple[Key, Cell, int]]] = {}
+    links: dict[Key, list[tuple[Key, Cell]]] = {}
     for edge in edges:
-        links.setdefault(edge.frm, []).append((edge.to, edge.delta, edge.overlap))
-        links.setdefault(edge.to, []).append(
-            (edge.frm, (-edge.delta[0], -edge.delta[1]), edge.overlap)
-        )
-    cells: dict[Key, Cell] = dict(anchors)
+        links.setdefault(edge.frm, []).append((edge.to, edge.delta))
+        links.setdefault(edge.to, []).append((edge.frm, (-edge.delta[0], -edge.delta[1])))
+    cells: dict[Key, Cell] = {}
+    components: dict[Key, int] = {}
     conflicts: list[ChainConflict] = []
     # 每條邊都是雙向走的，同一個不一致會從兩頭各撞一次；記一次就夠。
     seen: set[frozenset[Key]] = set()
-
-    def spread(seeds: Sequence[Key]) -> None:
-        queue = list(seeds)
+    for root in (*nodes, *links):
+        if root in cells:
+            continue
+        component = len(set(components.values()))
+        cells[root] = (0, 0)
+        components[root] = component
+        queue = [root]
         while queue:
             here = queue.pop(0)
             base = cells[here]
-            for there, delta, _ in links.get(here, ()):
+            for there, delta in links.get(here, ()):
                 found = (base[0] + delta[0], base[1] + delta[1])
                 known = cells.get(there)
                 if known is None:
                     cells[there] = found
+                    components[there] = component
                     queue.append(there)
                 elif known != found and frozenset((here, there)) not in seen:
                     seen.add(frozenset((here, there)))
                     conflicts.append(ChainConflict(there, known, found, here))
+    shifts: dict[int, dict[int, int]] = {}
+    axis_conflicts: list[AxisConflict] = []
+    for anchor in axis_anchors:
+        cell = cells.get(anchor.key)
+        if cell is None:
+            continue
+        component = components[anchor.key]
+        shift = anchor.value - cell[anchor.axis]
+        known = shifts.setdefault(component, {}).get(anchor.axis)
+        if known is None:
+            shifts[component][anchor.axis] = shift
+        elif known != shift:
+            axis_conflicts.append(
+                AxisConflict(anchor.key, anchor.axis, known + cell[anchor.axis], anchor.value)
+            )
+    return ChainSolution(
+        cells,
+        components,
+        shifts,
+        frozenset(links),
+        tuple(conflicts),
+        tuple(axis_conflicts),
+    )
 
-    spread(list(anchors))
-    anchored = bool(anchors)
-    for key in (*nodes, *links):
-        if key not in cells:
-            cells[key] = (0, 0)
-            spread([key])
-    return ChainSolution(cells, anchored, tuple(conflicts))
+
+# 補跳只對「接上鏈且夠大」的元件划算：size<3 的元件補到了也只定得了自己那幾台，
+# 而每次補跳都是一趟完整的選單→列表→跳轉→解除。
+ANCHOR_COMPONENT_MIN = 3
+ANCHOR_ATTEMPTS = 2
+
+
+def needy_axes(
+    solution: ChainSolution, *, min_size: int = ANCHOR_COMPONENT_MIN
+) -> list[tuple[int, int]]:
+    """還缺絕對錨的（元件, 軸），元件序、軸序。"""
+    sizes: dict[int, int] = {}
+    for key in solution.linked:
+        component = solution.components[key]
+        sizes[component] = sizes.get(component, 0) + 1
+    out: list[tuple[int, int]] = []
+    for component, size in sorted(sizes.items()):
+        if size < min_size:
+            continue
+        shift = solution.shifts.get(component, {})
+        out.extend((component, axis) for axis in (0, 1) if axis not in shift)
+    return out
+
+
+def axis_frontier(
+    solution: ChainSolution,
+    component: int,
+    axis: int,
+    *,
+    roster: Sequence[Key] = (),
+    limit: int = ANCHOR_ATTEMPTS,
+) -> tuple[Key, ...]:
+    """元件裡該軸相對座標最小的前 limit 台——缺 y 就挑最靠北的、缺 x 挑最靠西的。
+
+    跳轉會把目標帶到畫面中心，所以跳最邊緣那台最有機會把那一側的界拉進畫面。
+    並列取名冊序小者（名冊序就是巡迴序，先跳到的先用）。
+    """
+    order = {key: index for index, key in enumerate(roster)}
+    members = [
+        key
+        for key in solution.linked
+        if solution.components.get(key) == component and key in solution.cells
+    ]
+    members.sort(key=lambda key: (solution.cells[key][axis], order.get(key, len(order)), key))
+    return tuple(members[:limit])
 
 
 def world_cells(grid: WorldGrid, offset: Point, peaks: Iterable[Point]) -> tuple[Cell, ...]:
@@ -485,30 +622,35 @@ def ledger_report(
     roster: Sequence[Key],
     solution: ChainSolution | None = None,
 ) -> list[Mapping[str, object]]:
-    """最終座標帳：cell=[x,y]，0 起算西北原點（對齊 assets/stage_truth 慣例）。
-
-    有錨點時 cell 是世界格；零錨點時整張圖是**相對格**（anchored=false），照樣輸出
-    ——鏈的形狀本身就是成果，錨可以下一輪再補。
+    """最終座標帳。誠實三分：沒看過的 unresolved、看過但沒接上鏈的也是 unresolved
+    （相對格只對自己成立，寫出來會被當成座標讀），接上鏈的給元件編號與相對格，
+    兩軸都錨到才寫絕對 `cell`——只錨到一軸就只在 `anchored_axes` 上說話。
     """
     solution = ledger.solve() if solution is None else solution
     out: list[Mapping[str, object]] = []
     for faction, index in roster:
         key = (faction, index)
         cell = solution.cells.get(key)
+        linked = key in solution.linked
         jump = ledger.jumps.get(key)
         if jump is not None:
             source = jump.source
-        elif cell is not None:
+        elif linked and cell is not None:
             source = SOURCE_CHAIN
         else:
             source = UNRESOLVED
+        world = solution.world(key)
         out.append(
             {
                 "faction": faction,
                 "index": index,
-                "cell": None if cell is None else [cell[0], cell[1]],
+                "component": None if not linked else solution.components.get(key),
+                "relative_cell": None if not linked or cell is None else [cell[0], cell[1]],
+                "cell": None if not solution.anchored(key) else [world[0], world[1]],
+                # 單軸絕對值是關於這一台的事實，跟它有沒有接上鏈無關——孤立節點
+                # 量到了西界就是量到了，照樣說出來。
+                "anchored_axes": list(solution.axes(key)),
                 "source": source,
-                "anchored": solution.anchored and cell is not None,
             }
         )
     return out

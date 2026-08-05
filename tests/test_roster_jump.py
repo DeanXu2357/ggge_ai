@@ -280,26 +280,30 @@ def test_a_window_with_only_its_own_target_cannot_anchor_anything():
     assert jumpscan.match_patterns(lonely, lonely).reason == jumpscan.MATCH_FEW_PEAKS
 
 
+def _anchor(key, cell):
+    return [jumpscan.AxisAnchor(key, 0, cell[0]), jumpscan.AxisAnchor(key, 1, cell[1])]
+
+
 def test_the_chain_propagates_world_cells_from_a_single_anchor():
     edges = [
         jumpscan.ChainEdge(("ally", 0), ("ally", 1), (1, 0), 3),
         jumpscan.ChainEdge(("ally", 1), ("enemy", 0), (2, 3), 4),
     ]
 
-    solution = jumpscan.propagate({("ally", 0): (5, 5)}, edges)
+    solution = jumpscan.propagate(edges, _anchor(("ally", 0), (5, 5)))
 
-    assert solution.anchored
-    assert solution.cells[("ally", 1)] == (6, 5)
-    assert solution.cells[("enemy", 0)] == (8, 8)
+    assert solution.anchored(("ally", 0))
+    assert solution.world(("ally", 1)) == (6, 5)
+    assert solution.world(("enemy", 0)) == (8, 8)
     assert solution.conflicts == ()
 
 
 def test_the_chain_walks_edges_backwards_too():
     edges = [jumpscan.ChainEdge(("ally", 0), ("ally", 1), (1, 0), 3)]
 
-    solution = jumpscan.propagate({("ally", 1): (4, 4)}, edges)
+    solution = jumpscan.propagate(edges, _anchor(("ally", 1), (4, 4)))
 
-    assert solution.cells[("ally", 0)] == (3, 4)
+    assert solution.world(("ally", 0)) == (3, 4)
 
 
 def test_a_cycle_that_does_not_close_records_a_conflict_and_overwrites_nothing():
@@ -310,7 +314,7 @@ def test_a_cycle_that_does_not_close_records_a_conflict_and_overwrites_nothing()
         jumpscan.ChainEdge(("ally", 0), ("ally", 2), (5, 0), 3),
     ]
 
-    solution = jumpscan.propagate({("ally", 0): (0, 0)}, edges)
+    solution = jumpscan.propagate(edges, _anchor(("ally", 0), (0, 0)))
 
     assert len(solution.conflicts) == 1
     conflict = solution.conflicts[0]
@@ -319,35 +323,82 @@ def test_a_cycle_that_does_not_close_records_a_conflict_and_overwrites_nothing()
     assert solution.cells[("ally", 2)] == conflict.known
 
 
-def test_two_anchors_that_disagree_are_a_conflict_not_a_silent_overwrite():
+def test_two_axis_anchors_that_disagree_are_a_conflict_not_a_silent_overwrite():
     edges = [jumpscan.ChainEdge(("ally", 0), ("ally", 1), (1, 0), 3)]
 
-    solution = jumpscan.propagate({("ally", 0): (0, 0), ("ally", 1): (9, 9)}, edges)
+    solution = jumpscan.propagate(
+        edges, [*_anchor(("ally", 0), (0, 0)), *_anchor(("ally", 1), (9, 9))]
+    )
 
-    assert [conflict.key for conflict in solution.conflicts] == [("ally", 1)]
-    assert solution.cells[("ally", 1)] == (9, 9)
+    assert [(c.key, c.axis) for c in solution.axis_conflicts] == [(("ally", 1), 0), (("ally", 1), 1)]
+    # 先到的說了算，後到的只記帳：我們不知道哪一個界讀錯了。
+    assert solution.world(("ally", 1)) == (1, 0)
 
 
 def test_zero_anchors_still_produce_a_relative_map_marked_unanchored():
-    """錨可以下一輪再補，鏈的形狀本身就是成果——不 Halt，標 anchored=false 交出去。"""
+    """錨可以下一輪再補，鏈的形狀本身就是成果——不 Halt，交相對格出去。"""
     edges = [jumpscan.ChainEdge(("ally", 0), ("ally", 1), (2, 1), 3)]
 
-    solution = jumpscan.propagate({}, edges)
+    solution = jumpscan.propagate(edges)
 
-    assert not solution.anchored
+    assert not solution.any_anchor
+    assert solution.world(("ally", 1)) == (None, None)
     assert solution.cells[("ally", 1)][0] - solution.cells[("ally", 0)][0] == 2
     assert solution.cells[("ally", 1)][1] - solution.cells[("ally", 0)][1] == 1
 
 
-def test_a_unit_that_was_never_jumped_to_stays_unresolved():
-    solution = jumpscan.propagate({}, [], nodes=[("ally", 0)])
+def test_one_axis_from_one_window_anchors_that_axis_for_the_whole_component():
+    """單軸也是硬證據：西界只給 x，整個元件的 x 就定了，y 仍然是 None。"""
+    edges = [
+        jumpscan.ChainEdge(("ally", 0), ("ally", 1), (2, 1), 3),
+        jumpscan.ChainEdge(("ally", 1), ("ally", 2), (1, 1), 3),
+    ]
+
+    solution = jumpscan.propagate(edges, [jumpscan.AxisAnchor(("ally", 1), 0, 10)])
+
+    assert solution.axes(("ally", 2)) == ("x",)
+    assert solution.world(("ally", 0)) == (8, None)
+    assert solution.world(("ally", 2)) == (11, None)
+    assert not solution.anchored(("ally", 2))
+    assert solution.any_anchor
+
+
+def test_the_two_axes_may_come_from_different_windows():
+    edges = [jumpscan.ChainEdge(("ally", 0), ("ally", 1), (2, 1), 3)]
+
+    solution = jumpscan.propagate(
+        edges,
+        [jumpscan.AxisAnchor(("ally", 0), 0, 5), jumpscan.AxisAnchor(("ally", 1), 1, 7)],
+    )
+
+    assert solution.axes(("ally", 0)) == ("x", "y")
+    assert solution.world(("ally", 0)) == (5, 6)
+    assert solution.world(("ally", 1)) == (7, 7)
+
+
+def test_an_anchor_only_moves_its_own_component():
+    edges = [
+        jumpscan.ChainEdge(("ally", 0), ("ally", 1), (1, 0), 3),
+        jumpscan.ChainEdge(("enemy", 0), ("enemy", 1), (1, 0), 3),
+    ]
+
+    solution = jumpscan.propagate(edges, _anchor(("ally", 0), (4, 4)))
+
+    assert solution.components[("ally", 0)] != solution.components[("enemy", 0)]
+    assert solution.world(("ally", 1)) == (5, 4)
+    assert solution.world(("enemy", 1)) == (None, None)
+
+
+def test_a_window_that_never_linked_to_anything_is_reported_unresolved():
+    """孤立節點的相對格只對自己成立，寫出來會被當成座標讀——所以不寫。"""
     ledger = jumpscan.JumpLedger()
     ledger.patterns[("ally", 0)] = _pattern({(0, 0), (1, 0)})
 
-    report = jumpscan.ledger_report(ledger, [("ally", 0), ("ally", 1)], solution)
+    report = jumpscan.ledger_report(ledger, [("ally", 0), ("ally", 1)])
 
-    assert report[0]["source"] == jumpscan.SOURCE_CHAIN
-    assert report[0]["anchored"] is False
+    assert report[0]["source"] == jumpscan.UNRESOLVED
+    assert report[0]["component"] is None
+    assert report[0]["relative_cell"] is None
     assert report[1]["cell"] is None
     assert report[1]["source"] == jumpscan.UNRESOLVED
 
@@ -365,7 +416,23 @@ def test_the_report_keeps_the_absolute_source_for_anchors_and_marks_the_rest_cha
     assert report[0]["cell"] == [3, 4]
     assert report[1]["source"] == jumpscan.SOURCE_CHAIN
     assert report[1]["cell"] == [4, 4]
-    assert report[1]["anchored"] is True
+    assert report[1]["anchored_axes"] == ["x", "y"]
+    assert report[0]["component"] == report[1]["component"]
+
+
+def test_a_component_anchored_on_one_axis_reports_that_axis_and_no_absolute_cell():
+    ledger = jumpscan.JumpLedger()
+    ledger.patterns[("ally", 0)] = _pattern({(0, 0), (1, 0)})
+    ledger.patterns[("ally", 1)] = _pattern({(0, 0), (-1, 0)})
+    ledger.edges.append(jumpscan.ChainEdge(("ally", 0), ("ally", 1), (1, 0), 3))
+    ledger.anchor_axis(("ally", 0), 0, 12)
+
+    report = jumpscan.ledger_report(ledger, [("ally", 0), ("ally", 1)])
+
+    assert report[1]["anchored_axes"] == ["x"]
+    assert report[1]["cell"] is None
+    assert report[1]["relative_cell"] == [1, 0]
+    assert report[1]["source"] == jumpscan.SOURCE_CHAIN
 
 
 def test_linking_a_window_records_the_pattern_and_grows_the_edges():
@@ -378,3 +445,87 @@ def test_linking_a_window_records_the_pattern_and_grows_the_edges():
     assert ledger.edges[0].frm == ("ally", 0)
     assert ledger.edges[0].to == ("ally", 1)
     assert ledger.resolved(("ally", 1))
+
+
+def test_an_isolated_window_still_reports_the_axis_it_measured():
+    """接不上鏈不等於什麼都不知道：量到西界就是量到了，那一軸照樣說出來。"""
+    ledger = jumpscan.JumpLedger()
+    ledger.patterns[("ally", 0)] = _pattern({(0, 0), (1, 0)})
+    ledger.anchor_axis(("ally", 0), 0, 7)
+
+    report = jumpscan.ledger_report(ledger, [("ally", 0)])
+
+    assert report[0]["source"] == jumpscan.UNRESOLVED
+    assert report[0]["component"] is None
+    assert report[0]["anchored_axes"] == ["x"]
+    assert report[0]["cell"] is None
+
+
+def _chain(*edges):
+    return [jumpscan.ChainEdge(frm, to, delta, 5) for frm, to, delta in edges]
+
+
+LINE = _chain(
+    (("ally", 0), ("ally", 1), (0, -2)),
+    (("ally", 1), ("ally", 2), (0, -3)),
+    (("ally", 2), ("ally", 3), (1, 5)),
+)
+
+
+def test_the_frontier_for_a_missing_axis_is_the_unit_furthest_along_it():
+    """缺 y 就挑相對 row 最小的那台——最靠北，跳過去最有機會把北界拉進畫面。"""
+    solution = jumpscan.propagate(LINE)
+    component = solution.components[("ally", 0)]
+
+    assert jumpscan.axis_frontier(solution, component, 1) == (("ally", 2), ("ally", 1))
+    assert jumpscan.axis_frontier(solution, component, 0)[0] == ("ally", 0)
+
+
+def test_a_tie_on_the_frontier_goes_to_the_earlier_roster_entry():
+    edges = _chain(
+        (("enemy", 5), ("ally", 3), (0, 0)),
+        (("enemy", 5), ("enemy", 1), (0, 4)),
+    )
+    solution = jumpscan.propagate(edges)
+    component = solution.components[("enemy", 5)]
+    roster = [("ally", 3), ("enemy", 5), ("enemy", 1)]
+
+    assert jumpscan.axis_frontier(solution, component, 1, roster=roster, limit=1) == (("ally", 3),)
+
+
+def test_the_frontier_never_offers_more_than_the_retry_budget():
+    solution = jumpscan.propagate(LINE)
+    component = solution.components[("ally", 0)]
+
+    assert len(jumpscan.axis_frontier(solution, component, 1)) == jumpscan.ANCHOR_ATTEMPTS
+    assert len(jumpscan.axis_frontier(solution, component, 1, limit=1)) == 1
+
+
+def test_only_the_axis_that_is_still_missing_is_worth_a_second_jump():
+    solution = jumpscan.propagate(LINE, [jumpscan.AxisAnchor(("ally", 0), 0, 4)])
+    component = solution.components[("ally", 0)]
+
+    assert jumpscan.needy_axes(solution) == [(component, 1)]
+
+
+def test_a_component_too_small_to_be_worth_the_trip_is_not_offered():
+    """size<3 的元件補到了也只定得了自己那幾台，不值一趟完整的選單→跳轉→解除。"""
+    solution = jumpscan.propagate(_chain((("ally", 0), ("ally", 1), (1, 1))))
+
+    assert jumpscan.needy_axes(solution) == []
+    assert len(jumpscan.needy_axes(solution, min_size=2)) == 2
+
+
+def test_an_axis_that_stays_unreadable_leaves_the_ledger_partially_anchored():
+    """補跳兩台都讀不到北界就放棄那一軸——帳面維持部分錨定，不是失敗。"""
+    ledger = jumpscan.JumpLedger()
+    for index, cells in enumerate(({(0, 0), (1, 0)}, {(0, 0), (-1, 0)}, {(0, 0), (2, 0)})):
+        ledger.patterns[("ally", index)] = _pattern(cells)
+    ledger.edges.extend(LINE[:2])
+    ledger.anchor_axis(("ally", 0), 0, 9)
+
+    report = jumpscan.ledger_report(ledger, [("ally", 0), ("ally", 1), ("ally", 2)])
+
+    assert [row["anchored_axes"] for row in report] == [["x"], ["x"], ["x"]]
+    assert [row["cell"] for row in report] == [None, None, None]
+    assert [row["relative_cell"] for row in report] == [[0, 0], [0, -2], [0, -5]]

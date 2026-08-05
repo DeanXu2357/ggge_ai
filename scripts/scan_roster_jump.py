@@ -142,6 +142,7 @@ class Scan:
     ledger: jumpscan.JumpLedger = field(default_factory=jumpscan.JumpLedger)
     entries: list[roster.RosterEntry] = field(default_factory=list)
     last_source: str = jumpscan.SOURCE_CONSTELLATION
+    last_axes: dict[str, float] = field(default_factory=dict)
 
     # ---------- 流程 ----------
 
@@ -173,6 +174,7 @@ class Scan:
             return
 
         self.begin("settle")
+        self.anchor_pass()
         self.settle()
         self.end("settle")
 
@@ -341,6 +343,7 @@ class Scan:
         if not self.learn_pattern(key, clean, clean_peaks, target):
             return False
         offset = self.locate(clean)
+        self.record_axes(key, target, self.last_axes)
         if offset is None:
             # 沒有絕對解不算失敗：圖樣已經記下，這一台的座標由鏈在結算時補。
             return True
@@ -423,11 +426,78 @@ class Scan:
             self.learn_landmarks(frame, found.offset)
             return found.offset
         axes = sweep.border_offsets(grid, self.landmarks, sweep.read_borders(frame))
+        self.last_axes = axes
         if "x" in axes and "y" in axes:
             self.last_source = jumpscan.SOURCE_BORDER
             return (axes["x"], axes["y"])
         self.journal.record("lost", reason=found.reason, axes=sorted(axes))
         return None
+
+    def record_axes(
+        self,
+        key: jumpscan.Key,
+        target: tuple[float, float],
+        axes: dict[str, float],
+        *,
+        only: int | None = None,
+    ) -> tuple[str, ...]:
+        """單軸絕對值也要收。單窗同時解出兩軸太苛（0806 run 20260806-052235 全場
+        0 個雙軸錨，界線常常只給得出 x——西界常入鏡、北界很少）；鏈把元件綁成剛體
+        之後，x 與 y 可以來自不同的窗。
+        """
+        grid = self.world()
+        got: list[str] = []
+        for axis, name in enumerate(jumpscan.AXIS_NAMES):
+            if name not in axes or (only is not None and axis != only):
+                continue
+            offset = axes[name]
+            point = (target[0] + offset, target[1]) if axis == 0 else (target[0], target[1] + offset)
+            world = grid.cell_of(point)[axis]
+            self.ledger.anchor_axis(key, axis, world)
+            self.journal.record("axis_anchor", key=list(key), axis=name, value=world)
+            got.append(name)
+        return tuple(got)
+
+    # ---------- 錨定補跳 ----------
+
+    def anchor_pass(self) -> None:
+        """鏈排好之後，對還缺某軸的大元件補跳它那一側最邊緣的單位。
+
+        y 軸荒是結構性的：巡迴照名冊順序跳，落點落在哪就讀哪，北界很少入鏡。跳到
+        最北那台會把北界拉進畫面（跳轉置中），這是「去把界找出來」而不是等它出現。
+        """
+        solution = self.ledger.solve()
+        for component, axis in jumpscan.needy_axes(solution):
+            for key in jumpscan.axis_frontier(solution, component, axis, roster=self.keys()):
+                if self.anchor_jump(key, axis):
+                    break
+
+    def anchor_jump(self, key: jumpscan.Key, axis: int) -> bool:
+        """只為了讀一條界的跳轉：不記圖樣、不配對，落幀讀 border 就走。"""
+        faction, index = key
+        name = jumpscan.AXIS_NAMES[axis]
+        self.open_troop_info(faction)
+        if self.open_detail(roster.cell_taps(faction)[index]) is None:
+            self.journal.record("anchor_jump", key=list(key), axis=name, ok=False, reason="no_detail")
+            self.close_panel()
+            return False
+        self.device.tap(*roster.DETAIL_SELECT_TAP, intent=ROSTER_JUMP_INTENT)
+        landing = self.camera.settled(JUMP_SETTLE_S, self.sleep)
+        self.camera.keep(f"anchor:{faction}:{index}:landing")
+        peaks = board.find_units(landing)
+        target = jumpscan.target_peak(peaks)
+        self.dismiss(faction, landing, peaks)
+        clean = self.camera.settled(JUMP_SETTLE_S, self.sleep)
+        self.camera.keep(f"anchor:{faction}:{index}:clean")
+        if target is None:
+            self.journal.record("anchor_jump", key=list(key), axis=name, ok=False, reason="no_target")
+            return False
+        axes = sweep.border_offsets(self.world(), self.landmarks, sweep.read_borders(clean))
+        got = self.record_axes(key, target, axes, only=axis)
+        self.journal.record(
+            "anchor_jump", key=list(key), axis=name, ok=bool(got), seen=sorted(axes)
+        )
+        return bool(got)
 
     def learn_landmarks(self, frame: np.ndarray, offset: tuple[float, float]) -> None:
         """星座裁決過的鏡位＋這一幀看得到的界＝一條地標。**只吃星座的 offset**：
@@ -493,21 +563,40 @@ class Scan:
     def settle(self) -> None:
         grid = self.world()
         solution = self.ledger.solve()
-        flags = jumpscan.audit(self.ledger, grid, cells=solution.cells)
+        cells = {key: solution.world(key) for key in solution.cells}
+        absolute = {key: value for key, value in cells.items() if None not in value}
+        flags = jumpscan.audit(self.ledger, grid, cells=absolute)
         report = jumpscan.ledger_report(self.ledger, self.keys(), solution)
+        sizes: dict[int, int] = {}
+        for key in solution.linked:
+            component = solution.components[key]
+            sizes[component] = sizes.get(component, 0) + 1
+        components = {
+            str(component): {
+                "size": size,
+                "anchored_axes": [
+                    jumpscan.AXIS_NAMES[axis]
+                    for axis in sorted(solution.shifts.get(component, {}))
+                ],
+            }
+            for component, size in sorted(sizes.items())
+        }
         self.journal.record(
             "settle",
-            resolved=len(solution.cells),
-            anchors=len(self.ledger.jumps),
-            anchored=solution.anchored,
+            patterns=len(self.ledger.patterns),
+            linked=len(solution.linked),
+            anchored=len(absolute),
+            components=components,
             edges=len(self.ledger.edges),
+            axis_anchors=len(self.ledger.axis_anchors),
             chain_conflicts=len(solution.conflicts),
+            axis_conflicts=len(solution.axis_conflicts),
             contradictions=len(flags),
         )
         self.write_json(
             "coords.json",
             {
-                "anchored": solution.anchored,
+                "components": components,
                 "units": report,
                 "chain_conflicts": [
                     {
@@ -517,6 +606,15 @@ class Scan:
                         "via": list(conflict.via),
                     }
                     for conflict in solution.conflicts
+                ],
+                "axis_conflicts": [
+                    {
+                        "key": list(conflict.key),
+                        "axis": jumpscan.AXIS_NAMES[conflict.axis],
+                        "known": conflict.known,
+                        "saw": conflict.saw,
+                    }
+                    for conflict in solution.axis_conflicts
                 ],
                 "contradictions": [
                     {
@@ -530,12 +628,11 @@ class Scan:
             },
         )
         log.info(
-            "resolved %d units (%d anchors, anchored=%s), %d chain conflicts, %d contradictions",
-            len(solution.cells),
-            len(self.ledger.jumps),
-            solution.anchored,
-            len(solution.conflicts),
-            len(flags),
+            "%d patterns, %d linked, %d fully anchored, components %s",
+            len(self.ledger.patterns),
+            len(solution.linked),
+            len(absolute),
+            components,
         )
 
     def abandon(self) -> None:
