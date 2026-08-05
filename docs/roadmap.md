@@ -4,9 +4,26 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-08-06 凌晨，部隊資訊跳轉探針全數定讞：sweep 改走「名冊跳轉＋星座鏈」）
+## 暫停快照（2026-08-06 清晨，scan_roster_jump 七輪迭代：全程跑通、鏈已成形、待錨定）
 
 ### 恢復點
+
+- **0806 清晨名冊跳轉掃描七輪實機迭代（分支 `feat/sweep-nodes`）**：新腳本
+  `scripts/scan_roster_jump.py`（borders→roster→jump→settle 分段停點）＋
+  `runtime/roster.py`／`runtime/jumpscan.py`。逐輪修復鏈：①單發 classify 誤判
+  列表盡頭→輪詢（`d48c58e`）②名冊格/選擇鈕撞危險帶→intent 白名單（`1cea0ec`）
+  ③空白格挑選撞 UI→排除遮罩（`7745f40`）→危險帶共用權威 `blocked_for_map_tap`
+  （`00f5fbf`）④絕對星座 few_units 死結→**相對星座鏈**（pattern=各峰相對目標
+  峰格差、窗對窗配對、錨點傳播；`a9ea775`）⑤固定 pitch 透視誤差→FrameGrid
+  對格（map_grid.read_frame_grid，邊界規則：轉格放腳本層）。**第 6/7 輪四段全
+  程跑通含棄戰收尾 ok**（第 7 輪約 8 分鐘、幀 94 張；棄戰 stage_type_select 落
+  點已正名）。第 7 輪成績：roster 28/28 讀值、pattern 27/28（1 張
+  GridUnreadable）、chain_edge 9、元件 [6,3,2,2]、**絕對錨 0**（border 常只解
+  x 軸）。**進行中**：部分軸錨定（單軸絕對值入帳、元件級傳播）＋coords.json
+  誠實化（孤立節點回 unresolved）＋邊產率診斷（run7 27 pattern 離線重放 vs
+  run6 的 17 邊，判 find_units 峰穩定性 vs 窗交集 vs min_overlap）。驗收判準
+  不變：敵 18＋我 10 對真值檔全中＋共現零矛盾＋零誤觸。真值檔已使用者校對
+  （`1e91985`）。裝置現況：UC 關卡列表，今日全部進出皆棄戰，資源零消耗。
 
 - **0806 凌晨部隊資訊探針輪（分支 `feat/sweep-nodes`，唯讀、棄戰收尾）**：
   使用者發現戰鬥選單「部隊資訊」可依陣營表列單位、詳情頁「選擇」直接跳轉
