@@ -24,7 +24,20 @@ SCREEN_CENTRE: Point = (1170.0, 540.0)
 
 SOURCE_CONSTELLATION = "constellation"
 SOURCE_BORDER = "border"
+SOURCE_CHAIN = "chain"
 UNRESOLVED = "unresolved"
+
+MATCH_OK = "ok"
+MATCH_AMBIGUOUS = "ambiguous"
+MATCH_NO_MATCH = "no_match"
+MATCH_FEW_PEAKS = "few_peaks"
+
+# 兩窗要靠幾個共同單位才敢定案格差。2 在幾何上是下限（一個共同峰時任何平移都自洽），
+# 但實測不夠：0806 run 20260806-042858 的 25 張 clean 幀重放，門檻 2 長出 31 條邊、
+# 環一致性撞出 8 筆矛盾；門檻 3 只剩 17 條邊而矛盾歸零（4~8 再往上只是繼續掉邊）。
+PATTERN_MIN_OVERLAP = 3
+# 重疊區四邊各丟掉一格：窗邊的單位在另一窗只露半身，峰時有時無。
+PATTERN_EDGE_MARGIN = 1
 
 # 我方跳轉會進入「單位移動」行動模式，解除只能點右下「返回」；移動格點下去是真的
 # 下移動指令。返回鈕帶自己的 intent 過危險帶（見 device.DANGER_BANDS）。
@@ -60,6 +73,58 @@ def in_ui_zone(point: Point, zones: Sequence[Region] = UI_EXCLUSION_ZONES) -> bo
 
 
 @dataclass(frozen=True)
+class Pattern:
+    """一窗的相對圖樣：窗內每個峰相對**目標峰**的整數格差，含目標自己的 (0,0)。
+
+    用落點幀自己的格線相位算，所以完全不需要世界 offset——這正是它能在「一台都還
+    沒定位」的時候就開始長鏈的原因（0806 run 20260806-042858：48 筆 lost 全是
+    constellation few_units，絕對解的參考集永遠湊不滿，鏈起不了頭）。
+    """
+
+    cells: tuple[Cell, ...]
+    # 這一窗看得到的格範圍（同樣相對目標）。重疊區要用窗算，不能用峰的外框——
+    # 峰的外框是「偵測到什麼」，窗才是「看得到哪裡」，拿前者當重疊區會把「這一格
+    # 在窗外所以沒峰」誤判成「這一格該有峰卻沒有」。
+    window: tuple[int, int, int, int]
+
+
+@dataclass(frozen=True)
+class PatternMatch:
+    """兩窗配對的結果：delta＝窗 b 的目標相對窗 a 的目標的整數格差。"""
+
+    delta: Cell | None
+    overlap: int
+    reason: str
+
+
+@dataclass(frozen=True)
+class ChainEdge:
+    """一條鏈邊：to 的世界格 ＝ frm 的世界格 ＋ delta。"""
+
+    frm: Key
+    to: Key
+    delta: Cell
+    overlap: int
+
+
+@dataclass(frozen=True)
+class ChainConflict:
+    """同一台由兩條路徑到達的格不一致。記下來，不覆寫任何一邊。"""
+
+    key: Key
+    known: Cell
+    saw: Cell
+    via: Key
+
+
+@dataclass(frozen=True)
+class ChainSolution:
+    cells: dict[Key, Cell]
+    anchored: bool
+    conflicts: tuple[ChainConflict, ...]
+
+
+@dataclass(frozen=True)
 class Jump:
     """一台單位的落點記帳：世界格、解出它的證人、當時鏡位與同窗看到的峰。"""
 
@@ -85,10 +150,42 @@ class JumpLedger:
     jumps: dict[Key, Jump] = field(default_factory=dict)
     failures: dict[Key, int] = field(default_factory=dict)
     candidates: dict[Key, tuple[Cell, ...]] = field(default_factory=dict)
+    patterns: dict[Key, Pattern] = field(default_factory=dict)
+    edges: list[ChainEdge] = field(default_factory=list)
 
     def record(self, jump: Jump) -> None:
         self.jumps[jump.key] = jump
         self.failures.pop(jump.key, None)
+
+    def link(
+        self,
+        key: Key,
+        pattern: Pattern,
+        *,
+        min_overlap: int = PATTERN_MIN_OVERLAP,
+    ) -> list[tuple[Key, PatternMatch]]:
+        """記下這一窗的圖樣，並與所有既有窗配對。回傳逐窗的配對結果供落帳。
+
+        配對成功的才長邊；ambiguous／no_match 一樣回報，那是給人看的證據不是失敗。
+        """
+        out: list[tuple[Key, PatternMatch]] = []
+        for other, known in self.patterns.items():
+            if other == key:
+                continue
+            found = match_patterns(known, pattern, min_overlap=min_overlap)
+            out.append((other, found))
+            if found.delta is not None:
+                self.edges.append(ChainEdge(other, key, found.delta, found.overlap))
+        self.patterns[key] = pattern
+        self.failures.pop(key, None)
+        return out
+
+    def anchors(self) -> dict[Key, Cell]:
+        return {key: jump.cell for key, jump in self.jumps.items()}
+
+    def solve(self) -> ChainSolution:
+        """名冊上沒有圖樣的單位不進來——它們是「沒看過」，不是「相對原點」。"""
+        return propagate(self.anchors(), self.edges, nodes=tuple(self.patterns))
 
     def fail(self, key: Key) -> int:
         self.failures[key] = self.failures.get(key, 0) + 1
@@ -99,7 +196,8 @@ class JumpLedger:
         self.candidates[key] = tuple(dict.fromkeys(cells))
 
     def resolved(self, key: Key) -> bool:
-        return key in self.jumps
+        """跳過就算解過：圖樣本身就是成果，絕對座標由鏈在結算時補。"""
+        return key in self.jumps or key in self.patterns
 
     def cells(self) -> tuple[Cell, ...]:
         return tuple(jump.cell for jump in self.jumps.values())
@@ -114,6 +212,147 @@ def target_peak(peaks: Sequence[Point], centre: Point = SCREEN_CENTRE) -> Point 
     if not peaks:
         return None
     return min(peaks, key=lambda peak: (peak[0] - centre[0]) ** 2 + (peak[1] - centre[1]) ** 2)
+
+
+def frame_pattern(cells: Iterable[Cell], target: Cell, window: tuple[int, int, int, int]) -> Pattern:
+    """幀內格 → 相對圖樣：全部減掉目標的格，幀座標系就消掉了。
+
+    像素→幀內格的那一步**不在這裡**：固定 pitch 的除法會被縱向透視咬掉一列
+    （0806 重放實測列座標 ±1 漂移，整數集合的精確比對全數落空），要走
+    `battle.map_grid` 的逐線對格。runtime 不得 import battle（見
+    tests/test_package_boundary.py），所以轉換由腳本層做完再餵進來——這也讓這支
+    留在純函式。
+
+    目標未必在 cells 裡（它是從落點幀鎖定的，乾淨幀重找可能差一個像素），所以
+    (0,0) 一律補進去——目標自己永遠是圖樣的一員。
+    """
+    origin = {(0, 0)}
+    for cell in cells:
+        origin.add((cell[0] - target[0], cell[1] - target[1]))
+    return Pattern(
+        tuple(sorted(origin)),
+        (
+            window[0] - target[0],
+            window[1] - target[1],
+            window[2] - target[0],
+            window[3] - target[1],
+        ),
+    )
+
+
+def _shift(cells: Iterable[Cell], delta: Cell) -> set[Cell]:
+    return {(cell[0] + delta[0], cell[1] + delta[1]) for cell in cells}
+
+
+def _inside(cell: Cell, box: tuple[int, int, int, int]) -> bool:
+    return box[0] <= cell[0] <= box[2] and box[1] <= cell[1] <= box[3]
+
+
+def _shift_box(box: tuple[int, int, int, int], delta: Cell) -> tuple[int, int, int, int]:
+    return (box[0] + delta[0], box[1] + delta[1], box[2] + delta[0], box[3] + delta[1])
+
+
+def _overlap_box(
+    a: tuple[int, int, int, int], b: tuple[int, int, int, int], *, margin: int
+) -> tuple[int, int, int, int] | None:
+    """兩窗相交的那一塊，四邊各內縮 margin。
+
+    內縮是因為窗邊那一圈本來就不可靠：貼著邊的單位在另一窗可能只露半個身子，
+    `board.find_units` 的密度峰跟著時有時無，拿它當「該有卻沒有」的證據會把好的
+    平移一路否決掉。
+    """
+    box = (
+        max(a[0], b[0]) + margin,
+        max(a[1], b[1]) + margin,
+        min(a[2], b[2]) - margin,
+        min(a[3], b[3]) - margin,
+    )
+    return None if box[0] > box[2] or box[1] > box[3] else box
+
+
+def match_patterns(
+    a: Pattern,
+    b: Pattern,
+    *,
+    min_overlap: int = PATTERN_MIN_OVERLAP,
+    margin: int = PATTERN_EDGE_MARGIN,
+) -> PatternMatch:
+    """兩窗圖樣的平移配對：回傳「b 的目標落在 a 的座標系哪一格」。
+
+    候選平移只取 a 的峰——b 的目標在 a 的窗裡必定也是一個峰（兩窗看得到彼此才配得
+    起來）。自洽的判準是重疊區內**全覆蓋**：平移後兩邊的框相交的那塊，一邊有峰另一
+    邊就必須也有，缺一個就否決。唯一性是硬條件，兩個以上可行平移一律 ambiguous 拒
+    收——語意向 `sweep.constellation_offset` 看齊，寧可漏認不可錯認。
+    """
+    if len(a.cells) < min_overlap or len(b.cells) < min_overlap:
+        return PatternMatch(None, 0, MATCH_FEW_PEAKS)
+    mine = set(a.cells)
+    feasible: list[tuple[Cell, int]] = []
+    for delta in a.cells:
+        moved = _shift(b.cells, delta)
+        shared = _overlap_box(a.window, _shift_box(b.window, delta), margin=margin)
+        if shared is None:
+            continue
+        if any(_inside(cell, shared) and cell not in moved for cell in mine):
+            continue
+        if any(_inside(cell, shared) and cell not in mine for cell in moved):
+            continue
+        overlap = len(moved & mine)
+        if overlap >= min_overlap:
+            feasible.append((delta, overlap))
+    if not feasible:
+        return PatternMatch(None, 0, MATCH_NO_MATCH)
+    if len(feasible) > 1:
+        return PatternMatch(None, max(count for _, count in feasible), MATCH_AMBIGUOUS)
+    delta, overlap = feasible[0]
+    return PatternMatch(delta, overlap, MATCH_OK)
+
+
+def propagate(
+    anchors: Mapping[Key, Cell],
+    edges: Sequence[ChainEdge],
+    *,
+    nodes: Sequence[Key] = (),
+) -> ChainSolution:
+    """錨點沿鏈邊傳播出全體座標；零錨點就挑一個節點當相對原點。
+
+    先擴散完錨點再走無錨的連通塊，這樣有錨的那一塊不會被相對原點污染。走到已經有
+    座標的節點時只做一致性檢查——環走一圈回來對不上就記矛盾，**不覆寫**（覆寫等於
+    讓最後一條路徑說了算，而我們根本不知道哪一條錯）。
+    """
+    links: dict[Key, list[tuple[Key, Cell, int]]] = {}
+    for edge in edges:
+        links.setdefault(edge.frm, []).append((edge.to, edge.delta, edge.overlap))
+        links.setdefault(edge.to, []).append(
+            (edge.frm, (-edge.delta[0], -edge.delta[1]), edge.overlap)
+        )
+    cells: dict[Key, Cell] = dict(anchors)
+    conflicts: list[ChainConflict] = []
+    # 每條邊都是雙向走的，同一個不一致會從兩頭各撞一次；記一次就夠。
+    seen: set[frozenset[Key]] = set()
+
+    def spread(seeds: Sequence[Key]) -> None:
+        queue = list(seeds)
+        while queue:
+            here = queue.pop(0)
+            base = cells[here]
+            for there, delta, _ in links.get(here, ()):
+                found = (base[0] + delta[0], base[1] + delta[1])
+                known = cells.get(there)
+                if known is None:
+                    cells[there] = found
+                    queue.append(there)
+                elif known != found and frozenset((here, there)) not in seen:
+                    seen.add(frozenset((here, there)))
+                    conflicts.append(ChainConflict(there, known, found, here))
+
+    spread(list(anchors))
+    anchored = bool(anchors)
+    for key in (*nodes, *links):
+        if key not in cells:
+            cells[key] = (0, 0)
+            spread([key])
+    return ChainSolution(cells, anchored, tuple(conflicts))
 
 
 def world_cells(grid: WorldGrid, offset: Point, peaks: Iterable[Point]) -> tuple[Cell, ...]:
@@ -150,12 +389,16 @@ def audit(
     ledger: JumpLedger,
     grid: WorldGrid,
     *,
+    cells: Mapping[Key, Cell] | None = None,
     region: Region = board.UNIT_DENSITY_REGION,
     tolerance: float = CO_SIGHTING_PITCH,
 ) -> list[Contradiction]:
     """共現對逐對複核：B 的最終世界格投影回 A 的窗裡，那裡就該有一個峰。
 
     投影落在窗外的對子不算共現，跳過；落在窗內卻沒有峰＝兩台至少有一台的格是錯的。
+
+    `cells` 給鏈傳播後的座標；投影還是只從有絕對鏡位的窗（`ledger.jumps`）出發——
+    沒有 offset 的窗根本不知道自己在世界的哪裡，投影無從算起。
     """
     span = tolerance * max(grid.col_pitch, grid.row_pitch)
     x, y, w, h = region
@@ -164,7 +407,8 @@ def audit(
         for about, guest in ledger.jumps.items():
             if seen_from == about:
                 continue
-            centre = grid.centre_of(guest.cell)
+            guest_cell = guest.cell if cells is None else cells.get(about, guest.cell)
+            centre = grid.centre_of(guest_cell)
             expected = (centre[0] - host.offset[0], centre[1] - host.offset[1])
             if not (x <= expected[0] <= x + w and y <= expected[1] <= y + h):
                 continue
@@ -198,10 +442,11 @@ def red_fraction(frame: np.ndarray, centre: Point, half: float) -> float:
 
 def blank_cell_tap(
     frame: np.ndarray,
-    grid: WorldGrid,
-    offset: Point,
+    centres: Iterable[Point],
     peaks: Sequence[Point],
     *,
+    keep_out: float,
+    red_half: float,
     region: Region = board.UNIT_DENSITY_REGION,
     red_max: float = RED_CELL_FRACTION,
     zones: Sequence[Region] = UI_EXCLUSION_ZONES,
@@ -209,47 +454,61 @@ def blank_cell_tap(
 ) -> tuple[int, int] | None:
     """解除敵方指定用的空白格：窗內離畫面中心最遠的乾淨格（離峰遠、不紅、不在 UI 底下）。
 
+    `centres` 是**這一幀自己的**格心（螢幕像素），由呼叫端用 `battle.map_grid` 的逐線
+    格網算——固定 pitch 除法會被縱向透視咬掉一列，挑出來的「格心」其實壓在格線上。
+
     挑最遠的是為了離目標與它的攻擊範圍越遠越好——貼著目標點下去等於在紅格裡賭；
-    但「最遠」天生指向四角，所以 UI 遮罩要在算距離之前先濾掉。
+    但「最遠」天生指向四角，所以 UI 遮罩與危險帶要在算距離之前先濾掉。
     """
     x, y, w, h = region
-    keep_out = PEAK_KEEP_OUT_PITCH * max(grid.col_pitch, grid.row_pitch)
-    half = min(grid.col_pitch, grid.row_pitch) / 3.0
-    first = grid.cell_of((x + offset[0], y + offset[1]))
-    last = grid.cell_of((x + w + offset[0], y + h + offset[1]))
     best: tuple[float, tuple[int, int]] | None = None
-    for col in range(first[0], last[0] + 1):
-        for row in range(first[1], last[1] + 1):
-            centre = grid.centre_of((col, row))
-            point = (centre[0] - offset[0], centre[1] - offset[1])
-            if not (x <= point[0] <= x + w and y <= point[1] <= y + h):
-                continue
-            if any(
-                abs(peak[0] - point[0]) <= keep_out and abs(peak[1] - point[1]) <= keep_out
-                for peak in peaks
-            ):
-                continue
-            if in_ui_zone(point, zones) or blocked(point):
-                continue
-            if red_fraction(frame, point, half) >= red_max:
-                continue
-            score = float(np.hypot(point[0] - SCREEN_CENTRE[0], point[1] - SCREEN_CENTRE[1]))
-            if best is None or score > best[0]:
-                best = (score, (int(round(point[0])), int(round(point[1]))))
+    for point in centres:
+        if not (x <= point[0] <= x + w and y <= point[1] <= y + h):
+            continue
+        if any(
+            abs(peak[0] - point[0]) <= keep_out and abs(peak[1] - point[1]) <= keep_out
+            for peak in peaks
+        ):
+            continue
+        if in_ui_zone(point, zones) or blocked(point):
+            continue
+        if red_fraction(frame, point, red_half) >= red_max:
+            continue
+        score = float(np.hypot(point[0] - SCREEN_CENTRE[0], point[1] - SCREEN_CENTRE[1]))
+        if best is None or score > best[0]:
+            best = (score, (int(round(point[0])), int(round(point[1]))))
     return None if best is None else best[1]
 
 
-def ledger_report(ledger: JumpLedger, roster: Sequence[Key]) -> list[Mapping[str, object]]:
-    """最終座標帳：cell=[x,y]，0 起算西北原點（對齊 assets/stage_truth 慣例）。"""
+def ledger_report(
+    ledger: JumpLedger,
+    roster: Sequence[Key],
+    solution: ChainSolution | None = None,
+) -> list[Mapping[str, object]]:
+    """最終座標帳：cell=[x,y]，0 起算西北原點（對齊 assets/stage_truth 慣例）。
+
+    有錨點時 cell 是世界格；零錨點時整張圖是**相對格**（anchored=false），照樣輸出
+    ——鏈的形狀本身就是成果，錨可以下一輪再補。
+    """
+    solution = ledger.solve() if solution is None else solution
     out: list[Mapping[str, object]] = []
     for faction, index in roster:
-        jump = ledger.jumps.get((faction, index))
+        key = (faction, index)
+        cell = solution.cells.get(key)
+        jump = ledger.jumps.get(key)
+        if jump is not None:
+            source = jump.source
+        elif cell is not None:
+            source = SOURCE_CHAIN
+        else:
+            source = UNRESOLVED
         out.append(
             {
                 "faction": faction,
                 "index": index,
-                "cell": None if jump is None else [jump.cell[0], jump.cell[1]],
-                "source": UNRESOLVED if jump is None else jump.source,
+                "cell": None if cell is None else [cell[0], cell[1]],
+                "source": source,
+                "anchored": solution.anchored and cell is not None,
             }
         )
     return out

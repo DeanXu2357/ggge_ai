@@ -517,6 +517,33 @@ def _await_abandon_dialog(
     return False
 
 
+ABANDON_LANDINGS = (screens.STAGE_LIST, screens.STAGE_TYPE_SELECT)
+
+
+def _leave_battle(
+    capture: Capture,
+    tap: Tapper,
+    report: GateReport,
+    screen: str,
+    attempt: int,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+    on_tap: Callable[[str, tuple[int, int]], None] | None = None,
+) -> bool:
+    """已經離開戰鬥了嗎——關卡模式選擇頁也算數（0805 兩輪實證的合法落點）。
+
+    導不回關卡列表就回 False 讓呼叫端停手：棄戰本身成功了，人只是停在回程半路，
+    而戰鬥選單那組座標在這些頁上是別的東西，重跑棄戰鏈只會亂點。
+    """
+    if screen == screens.STAGE_TYPE_SELECT:
+        report.add("abandon", ADVISORY, "landed_on_stage_type_select")
+        screen = _back_to_stage_list(capture, tap, sleep=sleep, on_tap=on_tap)
+    if screen == screens.STAGE_LIST:
+        report.add("abandon", "ok", f"attempt={attempt + 1}")
+        return True
+    return False
+
+
 def abandon_battle(
     capture: Capture,
     tap: Tapper,
@@ -561,21 +588,15 @@ def abandon_battle(
             sleep(3.0)
             screen, _ = expect_screen(
                 capture,
-                (screens.STAGE_LIST, screens.STAGE_TYPE_SELECT),
+                ABANDON_LANDINGS,
                 attempts=ABANDON_SETTLE_ATTEMPTS,
                 sleep=sleep,
                 settle_s=ABANDON_SETTLE_INTERVAL_S,
             )
-            if screen == screens.STAGE_TYPE_SELECT:
-                report.add("abandon", ADVISORY, "landed_on_stage_type_select")
-                screen = _back_to_stage_list(capture, tap, sleep=sleep, on_tap=on_tap)
-                if screen != screens.STAGE_LIST:
-                    # 棄戰本身成功了，人只是停在回程半路。戰鬥選單那組座標在這些
-                    # 頁上是別的東西，重跑棄戰鏈只會亂點。
-                    break
-            if screen == screens.STAGE_LIST:
-                report.add("abandon", "ok", f"attempt={attempt + 1}")
-                return report
+            if screen in ABANDON_LANDINGS:
+                if _leave_battle(capture, tap, report, screen, attempt, sleep=sleep, on_tap=on_tap):
+                    return report
+                break
         else:
             report.add("abandon", ADVISORY, f"no_dialog attempt={attempt + 1}")
         # 鏈沒走完就卡住了：手上停著的可能是戰鬥選單、也可能是誤點開的幫助頁，
@@ -585,8 +606,16 @@ def abandon_battle(
         tap(*BATTLE_MENU_CLOSE_TAP)
         sleep(1.5)
         # 關完還在地圖上才敢重跑：人已經被帶去別的畫面時，整條鏈的座標全部失去
-        # 意義，繼續點只會把污染擴大。
-        screen, _ = expect_screen(capture, screens.MAP_SCREENS, attempts=2, sleep=sleep)
+        # 意義，繼續點只會把污染擴大。這裡也可能讀到棄戰其實已經成功——確認之後
+        # 的落幀輪詢撞上轉場就會走到這裡（0806 run 20260806-042858 四次全是這條
+        # 路徑，每次收尾都讀到 stage_type_select 卻報 unconfirmed）。
+        screen, _ = expect_screen(
+            capture, (*screens.MAP_SCREENS, *ABANDON_LANDINGS), attempts=2, sleep=sleep
+        )
+        if screen in ABANDON_LANDINGS:
+            if _leave_battle(capture, tap, report, screen, attempt, sleep=sleep, on_tap=on_tap):
+                return report
+            break
         if screen not in screens.MAP_SCREENS:
             break
     report.add("abandon", "unconfirmed", screen)

@@ -136,6 +136,60 @@
    import 凍結包 `vision`）。`runtime.glyphs.read_int` 的 panel 字模在這七個欄位上
    讀數與 `read_number(invert=True)` 完全一致（29265/424/4、55/38311/148/5）。
 
+## 相對星座鏈（0806 第六輪之後）
+
+絕對解起不了頭：run `20260806-042858` 四段全跑通，28 台只解出 1 台，48 筆 lost 全是
+`constellation few_units`——參考集起步 0~1 台，`constellation_offset` 的 `min_match`
+永遠不滿足，而邊界解只在落點剛好看得到界時成立。改成不需要世界 offset 的相對鏈：
+
+- `jumpscan.frame_pattern(grid, peaks, target)` → `Pattern`：用**落點幀自己的**格線
+  相位（`WorldGrid.anchor(find_lattice(frame))`）把每個峰對到幀內格，全部減掉目標峰
+  的格。同時記 `window`（這一窗看得到的格範圍，同樣相對目標）。
+- `jumpscan.match_patterns(a, b, *, min_overlap=2, margin=1)` → `PatternMatch`：候選
+  平移取 a 的峰，判準是**重疊區內全覆蓋**（重疊區＝兩窗 window 相交、四邊各內縮
+  margin 格），唯一解才收，兩個以上 ambiguous 拒收。回傳的 `delta` 是「b 的目標落在
+  a 的座標系哪一格」。
+- `jumpscan.propagate(anchors, edges, *, nodes)` → `ChainSolution`：錨點沿鏈邊雙向
+  傳播；走到已有座標的節點只做一致性檢查，不一致記 `ChainConflict` 而**不覆寫**。零
+  錨點時挑節點當相對原點，`anchored=False` 照樣輸出。
+- `coords.json` 每筆加 `source`（`border`／`constellation`／`chain`／`unresolved`）與
+  `anchored`；另加 `chain_conflicts` 清單。
+
+### 像素→格走 `battle.map_grid`，不是固定 pitch 除法
+
+第一版用 `WorldGrid`（固定 `row_pitch` 除法）把峰對到格，實幀重放 300 對窗只長出 3 條
+邊；293 對有共同峰的窗**沒有一對完全一致**，275 對的殘差可以用「列座標差 ±1」解釋。
+根因是 `WorldGrid` 自己 docstring 就寫明的事：橫線間距隨 y 遞增（縱向透視），固定
+pitch 的除法必然咬掉一列。**裁決是不放寬容差**——±1 列容忍會把 `match_patterns` 的
+唯一性語意變成泥巴——改走既有的逐線對格 `battle.map_grid.read_frame_grid` ／
+`snap_cell`（慢，但不受透視影響）。
+
+相依方向照 `tests/test_package_boundary.py`：`runtime` 屬新包、`battle` 在 FROZEN 名單
+裡，runtime 不得 import battle。所以「幀 → 幀內格」這一步放在腳本層
+（`scripts/scan_roster_jump.py` 的 `frame_grid()`／`grid_window()`／`grid_centres()`／
+`grid_pitch()`，scripts 兩邊都能 import），`jumpscan.frame_pattern(cells, target, window)`
+改吃已經轉好的格——純函式，離線測試也更好寫。同一個理由，`blank_cell_tap` 改吃
+呼叫端算好的**幀內格心**（`centres`）與 `keep_out`／`red_half`，不再自己用 pitch 推格。
+
+### 實幀重放（run `20260806-042858` 的 25 張 clean 幀）
+
+| | 固定 pitch | FrameGrid |
+| --- | --- | --- |
+| 可用幀 | 25 | 24（`ally#1` seed spacing implausible） |
+| 鏈邊 | 3 | 17 |
+| 環矛盾 | 0（因為鏈根本沒接起來） | 0 |
+| 最大連通塊 | 2 | **14** |
+
+`min_overlap` 由 2 提到 **3**：門檻 2 會長出 31 條邊但撞出 8 筆環矛盾，門檻 3 剩 17 條
+邊而矛盾歸零（再往上只是繼續掉邊）。14 個節點的連通塊裡有多條獨立路徑互相驗證
+（`enemy#15` 由 `ally#0`／`ally#3`／`enemy#4`／`enemy#10`／`enemy#13` 五條路到達，格差
+全部一致），這是鏈自己給自己的背書。
+
+殘留：我軍那一叢彼此仍多半 `no_match`，但殘差**不再是列向的**——例如 `ally#3` 與
+`ally#4` 在平移 (0,2) 下 10 格對上 8 格，剩下 3 格是 `board.find_units` 兩幀給的峰集本
+身不同（同一台在一幀有峰、另一幀沒有）。全覆蓋準則對這種偵測級差異零容忍。要不要
+為此再放寬，等 `find_units` 的穩定性有結論再說，不在這一批動。
+
 ## 留給實機驗證
 
 - 部隊資訊分頁座標（我軍 460,440／敵軍 460,600）取自任務給的探針值，未在截圖上覆核

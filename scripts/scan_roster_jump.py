@@ -31,6 +31,7 @@ from pathlib import Path
 
 import numpy as np
 
+from ggge_ai.battle.map_grid import FrameGrid, GridUnreadable, read_frame_grid, snap_cell
 from ggge_ai.runtime import board, entry, jumpscan, roster, screens, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.device import (
@@ -64,6 +65,35 @@ ROSTER_SETTLE_S = 1.0
 # 部隊資訊（0806 run 20260806-024307 就是這樣把第一格誤判成列表盡頭）。
 SCREEN_ATTEMPTS = 5
 END_OF_LIST_CONFIRMATIONS = 2
+
+
+def frame_grid(frame: np.ndarray) -> FrameGrid | None:
+    """逐線對格（battle.map_grid）：慢，但不會被縱向透視咬掉一列。"""
+    try:
+        return read_frame_grid(frame)
+    except GridUnreadable:
+        log.warning("frame grid unreadable", exc_info=True)
+        return None
+
+
+def grid_window(grid: FrameGrid) -> tuple[int, int, int, int]:
+    return (0, 0, len(grid.cols) - 2, len(grid.rows) - 2)
+
+
+def grid_pitch(grid: FrameGrid) -> tuple[float, float]:
+    cols, rows = grid.cols, grid.rows
+    return (
+        (cols[-1] - cols[0]) / (len(cols) - 1),
+        (rows[-1] - rows[0]) / (len(rows) - 1),
+    )
+
+
+def grid_centres(grid: FrameGrid) -> list[tuple[float, float]]:
+    return [
+        ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+        for x0, x1 in zip(grid.cols, grid.cols[1:])
+        for y0, y1 in zip(grid.rows, grid.rows[1:])
+    ]
 
 
 class Halt(RuntimeError):
@@ -286,9 +316,10 @@ class Scan:
             if not self.jump(key):
                 count = self.ledger.fail(key)
                 self.journal.record("jump_failed", key=list(key), failures=count)
-        # 全名冊輪完一輪還是零已解＝鏈根本沒長出來，後面每一步都建在空氣上。
-        if not self.ledger.jumps:
-            raise Halt("整份名冊都跳過了仍然沒有任何一台定得出位置，鏈起不了頭")
+        # 一張圖樣都沒記到＝連「窗長什麼樣」都沒讀到，後面每一步都建在空氣上。
+        # 零錨點不是這一條——沒有絕對錨照樣有相對鏈，結算會標 anchored=false。
+        if not self.ledger.patterns:
+            raise Halt("整份名冊都跳過了仍然讀不出任何一窗的圖樣，鏈起不了頭")
 
     def jump(self, key: jumpscan.Key) -> bool:
         faction, index = key
@@ -306,9 +337,13 @@ class Scan:
         self.camera.keep(f"jump:{faction}:{index}:clean")
         if target is None:
             return False
+        clean_peaks = tuple(board.find_units(clean))
+        if not self.learn_pattern(key, clean, clean_peaks, target):
+            return False
         offset = self.locate(clean)
         if offset is None:
-            return False
+            # 沒有絕對解不算失敗：圖樣已經記下，這一台的座標由鏈在結算時補。
+            return True
         grid = self.world()
         cell = grid.cell_of((target[0] + offset[0], target[1] + offset[1]))
         self.ledger.record(
@@ -317,15 +352,65 @@ class Scan:
                 cell=cell,
                 source=self.last_source,
                 offset=offset,
-                peaks=tuple(board.find_units(clean)),
+                peaks=clean_peaks,
             )
         )
         self.journal.record(
-            "jump",
+            "anchor",
             key=list(key),
             cell=list(cell),
             source=self.last_source,
             offset=[round(v, 1) for v in offset],
+        )
+        return True
+
+    def learn_pattern(
+        self,
+        key: jumpscan.Key,
+        frame: np.ndarray,
+        peaks: tuple[tuple[float, float], ...],
+        target: tuple[float, float],
+    ) -> bool:
+        """這一窗的相對圖樣＋與既有窗的配對。全程幀內格，不需要世界鏡位。"""
+        screen_grid = frame_grid(frame)
+        if screen_grid is None:
+            self.journal.record("pattern_failed", key=list(key), reason="grid_unreadable")
+            return False
+        anchor = snap_cell(screen_grid, target)
+        if anchor is None:
+            self.journal.record("pattern_failed", key=list(key), reason="target_unsnappable")
+            return False
+        cells, dropped = [], 0
+        for peak in peaks:
+            cell = snap_cell(screen_grid, peak)
+            if cell is None:
+                dropped += 1
+                continue
+            cells.append(cell)
+        pattern = jumpscan.frame_pattern(cells, anchor, grid_window(screen_grid))
+        matches = self.ledger.link(key, pattern)
+        self.journal.record(
+            "pattern",
+            key=list(key),
+            cells=[list(cell) for cell in pattern.cells],
+            window=list(pattern.window),
+            dropped=dropped,
+        )
+        for other, found in matches:
+            if found.delta is None:
+                continue
+            self.journal.record(
+                "chain_edge",
+                frm=list(other),
+                to=list(key),
+                delta=list(found.delta),
+                overlap=found.overlap,
+            )
+        self.journal.record(
+            "pattern_matches",
+            key=list(key),
+            reasons=sorted({found.reason for _, found in matches}),
+            edges=sum(1 for _, found in matches if found.delta is not None),
         )
         return True
 
@@ -376,18 +461,24 @@ class Scan:
             return
         # 這裡還沒定位（解除要在 locate 之前，紅格會污染密度峰），所以格心不能用
         # 世界鏡位換算——`self.offset` 是西北角那一幀的值，跳轉之後早就過期了。
-        # 改用落點幀自己的格線相位：空白格只需要「螢幕上哪一點是格心」。
-        lattice = board.find_lattice(frame)
-        screen_grid = None if lattice is None else WorldGrid.anchor(lattice)
+        # 改用落點幀自己的逐線格網：空白格只需要「螢幕上哪一點是格心」。
+        screen_grid = frame_grid(frame)
         if screen_grid is None:
             raise Halt("落點幀讀不出格網，挑不出解除用的空白格")
-        blank = jumpscan.blank_cell_tap(frame, screen_grid, (0.0, 0.0), peaks)
+        pitch = grid_pitch(screen_grid)
+        blank = jumpscan.blank_cell_tap(
+            frame,
+            grid_centres(screen_grid),
+            peaks,
+            keep_out=jumpscan.PEAK_KEEP_OUT_PITCH * max(pitch),
+            red_half=min(pitch) / 3.0,
+        )
         if blank is None:
             self.journal.record(
                 "no_blank_cell",
                 faction=faction,
                 peaks=[[round(v, 1) for v in peak] for peak in peaks],
-                phase=[round(v, 1) for v in screen_grid.phase],
+                grid=list(grid_window(screen_grid)),
             )
             raise Halt("落點幀找不到任何空白格可以解除敵方指定")
         self.device.tap(*blank)
@@ -401,13 +492,32 @@ class Scan:
 
     def settle(self) -> None:
         grid = self.world()
-        flags = jumpscan.audit(self.ledger, grid)
-        report = jumpscan.ledger_report(self.ledger, self.keys())
-        self.journal.record("settle", resolved=len(self.ledger.jumps), contradictions=len(flags))
+        solution = self.ledger.solve()
+        flags = jumpscan.audit(self.ledger, grid, cells=solution.cells)
+        report = jumpscan.ledger_report(self.ledger, self.keys(), solution)
+        self.journal.record(
+            "settle",
+            resolved=len(solution.cells),
+            anchors=len(self.ledger.jumps),
+            anchored=solution.anchored,
+            edges=len(self.ledger.edges),
+            chain_conflicts=len(solution.conflicts),
+            contradictions=len(flags),
+        )
         self.write_json(
             "coords.json",
             {
+                "anchored": solution.anchored,
                 "units": report,
+                "chain_conflicts": [
+                    {
+                        "key": list(conflict.key),
+                        "known": list(conflict.known),
+                        "saw": list(conflict.saw),
+                        "via": list(conflict.via),
+                    }
+                    for conflict in solution.conflicts
+                ],
                 "contradictions": [
                     {
                         "seen_from": list(flag.seen_from),
@@ -419,7 +529,14 @@ class Scan:
                 ],
             },
         )
-        log.info("resolved %d units, %d contradictions", len(self.ledger.jumps), len(flags))
+        log.info(
+            "resolved %d units (%d anchors, anchored=%s), %d chain conflicts, %d contradictions",
+            len(solution.cells),
+            len(self.ledger.jumps),
+            solution.anchored,
+            len(solution.conflicts),
+            len(flags),
+        )
 
     def abandon(self) -> None:
         self.begin("abandon")

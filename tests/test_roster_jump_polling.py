@@ -11,11 +11,13 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import board, jumpscan, roster, screens
+from ggge_ai.battle.map_grid import FrameGrid
+from ggge_ai.runtime import jumpscan, roster, screens
 from ggge_ai.runtime.journal import Journal
+from scripts import scan_roster_jump
 from scripts.scan_roster_jump import Halt, Scan
 
-LATTICE = board.Lattice(cols=tuple(range(0, 2340, 128)), rows=tuple(range(0, 1080, 120)))
+GRID = FrameGrid(cols=list(range(140, 2260, 128)), rows=list(range(90, 1020, 120)))
 
 
 def build_scan(tmp_path, sequence: list[str]) -> Scan:
@@ -95,7 +97,7 @@ def test_no_blank_cell_halts_and_leaves_a_journal_line(tmp_path, monkeypatch):
     """挑不出解除點就停在原地——但要留下流水帳，不然實機只看到一行 Halt。"""
     scan = build_scan(tmp_path, [])
     monkeypatch.setattr(jumpscan, "blank_cell_tap", lambda *a, **k: None)
-    monkeypatch.setattr(board, "find_lattice", lambda frame: LATTICE)
+    monkeypatch.setattr(scan_roster_jump, "frame_grid", lambda frame: GRID)
 
     with pytest.raises(Halt):
         scan.dismiss(roster.ENEMY, np.zeros((1080, 2340, 3), np.uint8), [])
