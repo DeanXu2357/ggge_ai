@@ -55,6 +55,10 @@ JUMP_SETTLE_S = 1.5
 JUMP_ATTEMPTS = 2
 ROSTER_ATTEMPTS = 3
 ROSTER_SETTLE_S = 1.0
+# 面板判定一律輪詢：詳情頁開場有轉場動畫，單發 classify 會在動畫中途讀到底下的
+# 部隊資訊（0806 run 20260806-024307 就是這樣把第一格誤判成列表盡頭）。
+SCREEN_ATTEMPTS = 5
+END_OF_LIST_CONFIRMATIONS = 2
 
 
 class Halt(RuntimeError):
@@ -242,10 +246,22 @@ class Scan:
         self.tap(roster.TAB_TAPS[faction], expect=screens.TROOP_INFO)
 
     def open_detail(self, point: tuple[int, int]) -> np.ndarray | None:
-        """點一格開詳情。開不出來（畫面還是部隊資訊）＝列表盡頭，不是錯誤。"""
+        """點一格開詳情。開不出來（畫面還是部隊資訊）＝列表盡頭，不是錯誤。
+
+        盡頭要連續兩輪讀到部隊資訊才算數：一輪可能只是詳情頁的轉場還沒蓋滿。
+        """
         self.device.tap(*point)
-        frame = self.camera.settled(PANEL_SETTLE_S, self.sleep)
-        return frame if screens.classify(frame) == screens.UNIT_DETAIL else None
+        seen = screens.UNKNOWN
+        settled = 0
+        for _ in range(SCREEN_ATTEMPTS):
+            frame = self.camera.settled(PANEL_SETTLE_S, self.sleep)
+            seen = screens.classify(frame)
+            if seen == screens.UNIT_DETAIL:
+                return frame
+            settled = settled + 1 if seen == screens.TROOP_INFO else 0
+            if settled >= END_OF_LIST_CONFIRMATIONS:
+                return None
+        raise Halt(f"點 {point} 之後畫面停在 {seen}，既不是詳情頁也不是名冊盡頭")
 
     def close_panel(self) -> None:
         self.tap(roster.TROOP_INFO_CLOSE_TAP, expect=screens.BATTLE_MENU)
@@ -405,11 +421,15 @@ class Scan:
 
     def tap(self, point: tuple[int, int], *, expect: str | None, intent: str = "") -> np.ndarray:
         self.device.tap(*point, intent=intent)
-        frame = self.camera.settled(PANEL_SETTLE_S, self.sleep)
-        seen = screens.classify(frame)
-        if expect is not None and seen != expect:
-            raise Halt(f"點 {point} 之後畫面是 {seen}，期望 {expect}")
-        return frame
+        if expect is None:
+            return self.camera.settled(PANEL_SETTLE_S, self.sleep)
+        seen = screens.UNKNOWN
+        for _ in range(SCREEN_ATTEMPTS):
+            frame = self.camera.settled(PANEL_SETTLE_S, self.sleep)
+            seen = screens.classify(frame)
+            if seen == expect:
+                return frame
+        raise Halt(f"點 {point} 之後畫面是 {seen}，期望 {expect}")
 
     def write_json(self, name: str, payload: object) -> None:
         path = self.journal.path.parent / name

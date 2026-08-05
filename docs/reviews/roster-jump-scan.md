@@ -31,8 +31,9 @@
    `landmarks` 出場只有 `west=0`／`north=0`，其餘由 jump 段機會主義學。
 2. **roster** — 對我軍／敵軍各走一次：`entry.BATTLE_MENU_TAP` →
    `roster.BATTLE_MENU_TROOP_INFO_TAP` → `roster.TAB_TAPS[faction]` →
-   逐格 `roster.cell_taps(faction)` → `Scan.open_detail()`（`screens.classify`
-   判是不是開出詳情頁；沒開出來＝列表盡頭）→ `roster.read_detail()` → 存幀 →
+   逐格 `roster.cell_taps(faction)` → `Scan.open_detail()`（輪詢 `screens.classify`，
+   讀到 `unit_detail` 立刻回幀；連續兩輪 `troop_info` 才算列表盡頭，輪詢用盡且兩者
+   都不是才 Halt）→ `roster.read_detail()` → 存幀 →
    `roster.DETAIL_CLOSE_TAP`。收工 `roster.TROOP_INFO_CLOSE_TAP` ＋
    `entry.BATTLE_MENU_CLOSE_TAP`。名冊落 `roster.json`。
 3. **jump** — `jumpscan.next_target()` 挑下一台 → 同一條開列表的路 →
@@ -119,7 +120,8 @@
 - 部隊資訊分頁座標（我軍 460,440／敵軍 460,600）取自任務給的探針值，未在截圖上覆核
   （0806 兩張列表幀的分頁鈕位置與這兩點一致，但沒有點擊回饋可證）。
 - 「開不出詳情頁＝列表盡頭」這條停止條件只在敵軍末列（第 4 列第 4、5 格）會用到，
-  未實機跑過。
+  未實機跑過。0806 run 20260806-024307 曾在第一格誤判（詳情頁轉場中途讀到
+  `troop_info`），已改成連兩輪才成立，仍待實機覆核。
 - 我方跳轉後 `screens.classify` 應該是 `battle_unit_move`；腳本目前不驗這一點，直接
   點返回。若落點是別的模式（例如已行動完的單位），返回鈕位置可能不同。
 - `blank_cell_tap` 的紅色門檻（佔比 0.12、`red>90 且比 B/G 高 30`）沒有實機紅格樣本，
