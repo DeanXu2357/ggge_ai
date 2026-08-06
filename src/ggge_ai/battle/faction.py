@@ -47,7 +47,7 @@ log = logging.getLogger(__name__)
 # hit alone never proves a map summary card -- the survey loop provides
 # hub context, and a double hit is refused below.
 LEFT_DOCK_REGION = vision.ENEMY_SUMMARY_ANCHOR_REGION
-RIGHT_DOCK_SHIFT = 818
+RIGHT_DOCK_SHIFT = vision.SUMMARY_RIGHT_DOCK_SHIFT
 RIGHT_DOCK_REGION: tuple[int, int, int, int] | None = (
     LEFT_DOCK_REGION[0] + RIGHT_DOCK_SHIFT,
     LEFT_DOCK_REGION[1],

@@ -341,6 +341,7 @@ CHECKS = {
     "grid_setting": _check_grid_setting,
     "map_scan_peaks": _check_map_scan_peaks,
     "enemy_summary": _forecast_check(vision.read_enemy_summary),
+    "ally_summary": _forecast_check(vision.read_ally_summary),
     "unit_stats": _forecast_check(panels.parse_unit_stats),
     "weapon_rows": _check_weapon_rows,
     "unit_detail_kind": _check_unit_detail_kind,

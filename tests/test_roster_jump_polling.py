@@ -120,11 +120,13 @@ def test_a_pan_that_cannot_be_read_never_reaches_the_grid_as_none(tmp_path, monk
     scan = build_scan(tmp_path, [])
     marker = board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
     monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
-    monkeypatch.setattr(scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(
+        scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0), False)
+    )
     monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: None)
     monkeypatch.setattr(scan, "look", lambda: None)
 
-    assert scan.march_axis(("ally", 0), _view(), (5, 5), 0, "west") is None
+    assert scan.march_axis(("ally", 0), _view(), (5, 5), 0, "west") == scan_roster_jump.AxisResult()
 
     kinds = [json.loads(line)["kind"] for line in scan.journal.path.read_text().splitlines()]
     assert "march_reread" in kinds
@@ -137,12 +139,14 @@ def test_an_unreadable_pan_recovers_on_the_reread_instead_of_giving_up(tmp_path,
     scan = build_scan(tmp_path, [])
     marker = board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
     monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
-    monkeypatch.setattr(scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(
+        scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0), False)
+    )
     monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: None)
     monkeypatch.setattr(scan, "look", lambda: _view(bounded_grid))
 
     # 界那一幀的幀格 0 就是世界 0，所以目標的欄索引直接就是世界欄。
-    assert scan.march_axis(("ally", 0), _view(), (5, 5), 0, "west") == 5
+    assert scan.march_axis(("ally", 0), _view(), (5, 5), 0, "west").world == 5
 
 
 def _kinds(scan) -> list[str]:
@@ -390,6 +394,110 @@ def test_the_marker_is_reseeded_at_the_frontier_before_every_pan(tmp_path, monke
 
     assert seeds and all(toward == "west" for toward in seeds[1:])
     assert len(seeds) > 1
+
+
+def _met_scan(tmp_path, monkeypatch, values, *, solved=("enemy", 9), world=(12, 3)):
+    scan = build_scan(tmp_path, [])
+    scan.entries = [
+        roster.RosterEntry(faction="enemy", index=9, hp=83811, en=513, mobility=6),
+        roster.RosterEntry(faction="enemy", index=3, hp=29265, en=424, mobility=6),
+        roster.RosterEntry(faction="enemy", index=4, hp=29265, en=424, mobility=6),
+    ]
+    if solved is not None:
+        scan.ledger.anchor(solved, world)
+    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (_marker(), (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(
+        scan, "carry_marker", lambda *a, **k: (_marker(), (3, 4), (900.0, 500.0), False)
+    )
+    monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: None)
+    monkeypatch.setattr(scan, "look", lambda: None)
+    scan.encounter = ((7, 2), values)
+    return scan
+
+
+def test_a_unit_bumped_into_while_seeding_settles_both_axes_on_the_spot(tmp_path, monkeypatch):
+    """種標記那一下點到單位＝免費的辨識機會：數值唯一又已解，幀內格差直接出世界格。"""
+    scan = _met_scan(tmp_path, monkeypatch, (83811, 513))
+
+    result = scan.march_axis(("enemy", 0), _view(), (5, 5), 0, "west")
+
+    # 認出來的那台在世界 (12,3)、這一幀的 (7,2)；目標在同一幀的 (5,5)。
+    assert result == scan_roster_jump.AxisResult(met=(10, 6))
+    assert "march_meet" in _kinds(scan)
+
+
+def test_a_number_that_the_whole_squad_shares_names_nobody(tmp_path, monkeypatch):
+    """同型雜魚整批 29265/424：撞名就是撞名，不猜，繼續推到界。"""
+    scan = _met_scan(tmp_path, monkeypatch, (29265, 424))
+
+    result = scan.march_axis(("enemy", 0), _view(), (5, 5), 0, "west")
+
+    assert result.met is None
+    assert "march_meet" in _kinds(scan)
+
+
+def test_bumping_into_a_unit_before_anything_is_solved_settles_nothing(tmp_path, monkeypatch):
+    """帳面空的時候認出誰都沒用——那台的世界格自己都還不知道。"""
+    scan = _met_scan(tmp_path, monkeypatch, (83811, 513), solved=None)
+
+    assert scan.march_axis(("enemy", 0), _view(), (5, 5), 0, "west").met is None
+
+
+def _dock_scan(tmp_path, monkeypatch, seen, *, left=None, right=None):
+    scan = build_scan(tmp_path, [seen])
+    monkeypatch.setattr(screens, "classify", scan.classified)
+    monkeypatch.setattr(scan_roster_jump.vision, "read_enemy_summary", lambda frame: left)
+    monkeypatch.setattr(scan_roster_jump.vision, "read_ally_summary", lambda frame: right)
+    scan.note_encounter((3, 3), np.zeros((4, 4, 3), np.uint8))
+    return scan
+
+
+def _summary(hp, en):
+    return SimpleNamespace(hp=hp, en=en, name_sig="x")
+
+
+def test_our_own_unit_is_read_off_the_right_dock_in_move_mode(tmp_path, monkeypatch):
+    """我方點下去進單位移動模式，摘要卡在右塢（實幀 20260806-013500：38311/148）。"""
+    scan = _dock_scan(
+        tmp_path, monkeypatch, screens.BATTLE_UNIT_MOVE, right=_summary(38311, 148)
+    )
+
+    assert scan.encounter == ((3, 3), (38311, 148))
+
+
+def test_the_weapon_select_lookalike_panel_is_never_read_as_an_encounter(tmp_path, monkeypatch):
+    """battle-prep／選擇武裝的右面板長得一樣，讀到的卻是攻擊目標的數值——那是毒帳。"""
+    scan = _dock_scan(
+        tmp_path,
+        monkeypatch,
+        screens.BATTLE_WEAPON_SELECT,
+        left=_summary(1, 2),
+        right=_summary(3, 4),
+    )
+
+    assert scan.encounter is None
+
+
+def test_a_reseeded_marker_moves_the_odometer_but_carrying_the_old_one_does_not(
+    tmp_path, monkeypatch
+):
+    """新種的一顆才要把兩顆的幀格差入帳；沿用同一顆是同一個實體，世界格差不變。"""
+    scan = build_scan(tmp_path, [])
+    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (_marker(), (3, 4), (900.0, 500.0)))
+    carried = iter([(_marker(), (1, 6), (900.0, 500.0), True)])
+    monkeypatch.setattr(scan, "carry_marker", lambda *a, **k: next(carried, None))
+    monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: _view())
+    monkeypatch.setattr(scan_roster_jump.board, "find_marker", lambda *a, **k: (900.0, 500.0))
+    seen: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        scan, "meet", lambda key, target_frame, axis, legs: seen.append(target_frame) or None
+    )
+
+    scan.march_axis(("enemy", 0), _view(), (5, 5), 0, "west")
+
+    # 第一次是出發幀的目標格；重種到 (1,6) 之後，目標在同一幀仍然是 (5,5)。推完一把
+    # 標記重認在 (5,3)，帶著重種補的 (-2,+2) 才算得出目標在新幀的 (9,2)。
+    assert seen[:3] == [(5, 5), (5, 5), (9, 2)]
 
 
 def test_the_stroke_is_capped_so_the_marker_cannot_be_pushed_out_of_view(tmp_path):

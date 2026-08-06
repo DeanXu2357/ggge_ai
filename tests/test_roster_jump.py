@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ggge_ai.battle import vision
 from ggge_ai.runtime import board, jumpscan, roster
 from ggge_ai.runtime.device import check_tap
 from tests.fixtures.frames import load
@@ -244,6 +245,194 @@ def test_reseeding_needs_no_extra_leg_because_it_happens_inside_one_frame():
 
 def test_a_march_that_never_left_the_border_frame_reads_the_cell_straight_off():
     assert jumpscan.march_world(4, [], border_cell=0) == 4
+
+
+# ---------- 路徑 B'：march 順路結帳（點到單位就地認人） ----------
+
+# 真值檔 assets/stage_truth/uc_hard_1.json 的敵方數值：頭目三台各自唯一，雜魚整批撞名。
+TRUTH_HP_EN = {
+    ("enemy", 0): (83811, 513),
+    ("enemy", 1): (167817, 594),
+    ("enemy", 2): (109440, 750),
+    ("enemy", 3): (29265, 424),
+    ("enemy", 4): (29265, 424),
+    ("enemy", 5): (61506, 510),
+    ("enemy", 6): (61506, 510),
+}
+
+
+def test_a_boss_number_names_exactly_one_unit():
+    match = jumpscan.roster_lookup((167817, 594), TRUTH_HP_EN, [("enemy", 1)])
+
+    assert match == jumpscan.MeetMatch(("enemy", 1), jumpscan.MEET_UNIQUE)
+
+
+def test_a_number_the_whole_squad_shares_names_nobody():
+    """同型量產機整批 29265/424：撞名就是撞名，身分不猜。"""
+    match = jumpscan.roster_lookup((29265, 424), TRUTH_HP_EN, TRUTH_HP_EN)
+
+    assert match.key is None and match.reason == jumpscan.MEET_COLLISION
+
+
+def test_a_unique_number_whose_unit_is_not_solved_yet_is_no_anchor():
+    match = jumpscan.roster_lookup((83811, 513), TRUTH_HP_EN, [("enemy", 1)])
+
+    assert match == jumpscan.MeetMatch(("enemy", 0), jumpscan.MEET_UNSOLVED)
+
+
+def test_a_half_read_summary_is_not_a_lookup_key():
+    """摘要窗只讀到一半（字模吐 None）就不反查——湊數的鍵會對到別台。"""
+    match = jumpscan.roster_lookup((83811, None), TRUTH_HP_EN, TRUTH_HP_EN)
+
+    assert match.key is None and match.reason == jumpscan.MEET_NO_READ
+
+
+def test_numbers_that_belong_to_nobody_are_not_forced_onto_the_nearest_unit():
+    match = jumpscan.roster_lookup((1, 2), TRUTH_HP_EN, TRUTH_HP_EN)
+
+    assert match.key is None and match.reason == jumpscan.MEET_NO_MATCH
+
+
+def test_only_three_of_this_stage_s_enemies_can_be_named_by_their_numbers():
+    """本關的反查上限：18 台敵方裡只有三台頭目的 HP/EN 組合唯一，其餘整批撞名。"""
+    named = [
+        key
+        for key, values in TRUTH_HP_EN.items()
+        if jumpscan.roster_lookup(values, TRUTH_HP_EN, TRUTH_HP_EN).reason
+        == jumpscan.MEET_UNIQUE
+    ]
+
+    assert named == [("enemy", 0), ("enemy", 1), ("enemy", 2)]
+
+
+def test_the_two_factions_dock_their_summary_on_opposite_sides():
+    """摘要列分側：敵方在左上、我方在右上，兩張實幀各驗一次。
+
+    兩側各有自己的區域（我方＝左側版面整體右移 `SUMMARY_RIGHT_DOCK_SHIFT`），**不共用**：
+    共用就等於在我方畫面上拿左上那塊當數值讀，讀到的是別的東西。反向也要拒讀，否則
+    「哪一側有卡」這個訊號本身就沒了。
+    """
+    enemy = load("panels/enemy_summary_designation_20260806")
+    ally = load("panels/ally_summary_unit_move_20260806")
+
+    theirs = vision.read_enemy_summary(enemy)
+    ours = vision.read_ally_summary(ally)
+
+    assert (theirs.hp, theirs.en) == (29265, 424)
+    assert (ours.hp, ours.en) == (38311, 148)
+    assert vision.read_ally_summary(enemy) is None
+    assert vision.read_enemy_summary(ally) is None
+
+
+def test_the_frame_gap_between_the_named_unit_and_the_target_is_the_world_gap():
+    """認出來的那台在世界 (12,3)、這一幀的 (7,2)，目標在同一幀的 (5,5)：兩軸同時出帳。"""
+    assert jumpscan.meet_cell((12, 3), (7, 2), (5, 5)) == (10, 6)
+
+
+# ---------- （已下架）指派驗證版的順路結帳 ----------
+
+MEET_WINDOW = (0, 0, 15, 9)
+
+
+def _meet_scene(target_world, marker_frame, target_frame, worlds):
+    """造一個鏡位：里程計（標記相對目標的世界格差）＋各世界格在這一幀的格。"""
+    odometer = jumpscan.MarkerOdometer.seeded(marker_frame, target_frame)
+    shift = (target_world[0] - target_frame[0], target_world[1] - target_frame[1])
+    frames = [(world[0] - shift[0], world[1] - shift[1]) for world in worlds]
+    return odometer, frames
+
+
+def test_a_unique_assignment_settles_both_axes_without_reaching_the_border():
+    """里程計把平移鎖死，剩下的只有配對；撐得住的假設唯一就結帳。"""
+    resolved = [(12, 3), (14, 6), (11, 8)]
+    odometer, hints = _meet_scene((9, 4), (7, 5), (5, 5), resolved)
+
+    fix = jumpscan.march_meet(hints, (7, 5), odometer, resolved, window=MEET_WINDOW)
+
+    assert fix.cell == (9, 4)
+    assert (fix.reason, fix.hypotheses) == (jumpscan.MEET_OK, 1)
+    assert fix.hint in hints
+
+
+def test_two_surviving_assignments_settle_nothing():
+    """等距排開的隊形（同型量產機列陣）對兩種指派一樣自洽：拒收，繼續推。"""
+    resolved = [(10, 4), (12, 4), (14, 4)]
+    odometer, hints = _meet_scene((9, 6), (6, 6), (5, 6), resolved)
+
+    fix = jumpscan.march_meet(hints, (6, 6), odometer, resolved, window=MEET_WINDOW)
+
+    assert fix.cell is None and fix.reason == jumpscan.MEET_AMBIGUOUS
+    assert fix.hypotheses > 1
+
+
+def test_a_hint_one_cell_off_does_not_kill_the_right_assignment():
+    """hint 是啟發式候選，圖示中心壓在格線上是常態——差一格仍算命中，否則對的假設先死。
+
+    抖一格的代價是它同時生出一個整體平移一格的對手假設，於是這一幀不結帳（保守）：
+    容忍度換來的是「不會冤枉對的那個」，不是「照樣收得下去」。
+    """
+    resolved = [(12, 3), (14, 6), (11, 8)]
+    odometer, hints = _meet_scene((9, 4), (7, 5), (5, 5), resolved)
+    nudged = [hints[0], (hints[1][0] + 1, hints[1][1]), (hints[2][0], hints[2][1] + 1)]
+
+    strict = jumpscan.march_meet(
+        nudged, (7, 5), odometer, resolved, window=MEET_WINDOW, tolerance=0
+    )
+    lenient = jumpscan.march_meet(nudged, (7, 5), odometer, resolved, window=MEET_WINDOW)
+
+    assert strict.reason == jumpscan.MEET_NO_HYPOTHESIS
+    assert lenient.reason == jumpscan.MEET_AMBIGUOUS and lenient.hypotheses > 1
+
+
+def test_a_missing_unit_is_tolerated_once_but_not_twice():
+    """圖示被地形蓋掉一台就漏檢一台，容忍；漏到第二台就不是同一個盤面了。"""
+    resolved = [(12, 3), (14, 6), (11, 8)]
+    odometer, hints = _meet_scene((9, 4), (7, 5), (5, 5), resolved)
+
+    one_missing = jumpscan.march_meet(hints[:2], (7, 5), odometer, resolved, window=MEET_WINDOW)
+    two_missing = jumpscan.march_meet(hints[:1], (7, 5), odometer, resolved, window=MEET_WINDOW)
+
+    assert one_missing.cell == (9, 4)
+    assert two_missing.cell is None
+
+
+def test_hints_that_line_up_with_nothing_settle_nothing():
+    resolved = [(12, 3), (14, 6), (11, 8)]
+    odometer, _ = _meet_scene((9, 4), (7, 5), (5, 5), resolved)
+
+    fix = jumpscan.march_meet([(0, 0)], (7, 5), odometer, resolved, window=MEET_WINDOW)
+
+    assert fix.cell is None and fix.reason == jumpscan.MEET_NO_HYPOTHESIS
+
+
+def test_the_seed_unit_has_nothing_to_meet():
+    """帳面空的時候（第一台）沒有任何已解單位可撞，直接推到界。"""
+    odometer = jumpscan.MarkerOdometer.seeded((7, 5), (5, 5))
+
+    fix = jumpscan.march_meet([(3, 3)], (7, 5), odometer, [], window=MEET_WINDOW)
+
+    assert fix.cell is None and fix.reason == jumpscan.MEET_NO_LEDGER
+
+
+def test_the_odometer_books_both_axes_when_reseeding_drifts_sideways():
+    """西推時 y 名義不變，但重種挑的前緣格常常換一列——兩軸都要入帳才不會斜漂。"""
+    odometer = jumpscan.MarkerOdometer.seeded((7, 5), (5, 5))
+    odometer = odometer.reseeded((7, 5), (2, 7))
+
+    assert odometer.offset == (-3, 2)
+    assert odometer.target_frame((9, 3)) == (12, 1)
+    assert odometer.delta((9, 3), (9, 3)) == (-3, 2)
+
+
+def test_a_reseed_that_drifts_still_names_the_same_world_cell():
+    """同一個盤面，換了兩次標記（各差一列）之後結帳的答案必須不變。"""
+    resolved = [(12, 3), (14, 6), (11, 8)]
+    odometer, hints = _meet_scene((9, 4), (7, 5), (5, 5), resolved)
+    drifted = odometer.reseeded((7, 5), (4, 8))
+
+    fix = jumpscan.march_meet(hints, (4, 8), drifted, resolved, window=MEET_WINDOW)
+
+    assert fix.cell == (9, 4) and fix.reason == jumpscan.MEET_OK
 
 
 # ---------- 帳：接力回填、排程、互驗 ----------

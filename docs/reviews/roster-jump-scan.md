@@ -14,7 +14,7 @@ constellation（點擊確認過的格做平移唯一配對）與 march（標記�
 | `src/ggge_ai/runtime/screens.py` | `BATTLE_MENU`／`TROOP_INFO` 兩個畫面名與簽名 |
 | `assets/templates/elements/label_battle_menu.png`、`label_troop_info.png` | 標題字模（0806 實幀裁） |
 | `src/ggge_ai/runtime/roster.py` | 列表格座標產生器＋詳情頁讀值（兩種佈局） |
-| `src/ggge_ai/runtime/jumpscan.py` | **改寫**：敵方攻擊範圍菱形／我方移動範圍菱形／平移唯一配對（窗位）／march 計格帳／排程／解除點挑選 |
+| `src/ggge_ai/runtime/jumpscan.py` | **改寫**：敵方攻擊範圍菱形／我方移動範圍菱形／平移唯一配對（窗位）／march 計格帳／**里程計＋順路結帳（`MarkerOdometer`／`march_meet`）**／排程／解除點挑選 |
 | `src/ggge_ai/runtime/board.py` | `find_units` → **`find_unit_screen_hints`**（純改名＋首行語意：啟發式候選，輸出螢幕像素座標，不是已驗證世界座標） |
 | `src/ggge_ai/runtime/device.py` | `weapon_dial` 危險帶；`DangerBand.intents` 多值白名單，`roster_cell`／`roster_jump` 放行面板底下的假重疊 |
 | `scripts/scan_roster_jump.py` | **改寫**：四段停點改成 prepare／roster／jump／settle |
@@ -35,7 +35,8 @@ constellation（點擊確認過的格做平移唯一配對）與 march（標記�
    `roster.BATTLE_MENU_TROOP_INFO_TAP` → `roster.TAB_TAPS[faction]` → 逐格
    `roster.cell_taps(faction)` → `Scan.open_detail()`（輪詢 `screens.classify`；連續兩輪
    `troop_info` 才算列表盡頭）→ `roster.read_detail()` → `roster.json`。
-3. **jump** — `jumpscan.next_target()` 挑下一台 → `Scan.visit()`：
+3. **jump** — `jumpscan.next_target()` 挑下一台 → `Scan.visit()`（0806 第十六輪起：跳轉 →
+   定格 → march（含順路結帳）→ 收尾，**路徑 A 星座配對已從流程摘除**）：
    - `Scan.land()`：`close_panels()` → 開列表 → `roster.DETAIL_SELECT_TAP` 跳轉 →
      `await_map()` 確認面板真的收了 → `steady()` 等鏡頭落定＝**落點幀** →
      依陣營分兩條：
@@ -45,15 +46,15 @@ constellation（點擊確認過的格做平移唯一配對）與 march（標記�
      **我方**＝`Scan.land_ally()`，落點幀必須是 `battle_unit_move`，直接讀移動範圍
      （`jumpscan.range_marks` → `jumpscan.diamond_centre(半徑=移動力)`）＝目標格，
      再按返回鈕退出，**一下地圖都不點**。
-   - 路徑 A `Scan.constellation()`：已解帳 ≥2 台才啟動。`jumpscan.probe_order()` 用密度峰
-     **只挑要點哪一格** → `Scan.confirm_occupied()` 逐格點擊確認「這裡有單位」（出卡或進
-     行動模式都算，立刻收掉，**不讀卡面**）→ 確認 ≥2 格後 `jumpscan.window_offset()` 與
-     已解世界格做平移唯一配對 → 唯一解就鎖窗，目標幀格加平移＝世界格。
+   - （已下架，程式仍在）路徑 A `Scan.constellation()`：點擊確認有單位的格與已解世界格做
+     平移唯一配對（`jumpscan.window_offset`）。0806 第十六輪起不再被 `visit()` 呼叫。
    - 路徑 B `Scan.march()`：`Scan.seed_marker()` 在乾淨空白格種標記（`sweep.classify_tap`
      驗收 TAP_EMPTY 才算數）→ 往西逐把 `Scan.pan()` ＋ `board.find_marker` ＋
      `snap_cell` 記 `jumpscan.MarchLeg(before, after)`，標記快出視野就在同一幀重種 →
      `FrameGrid.west_bound` 為真時 `jumpscan.march_world(target, legs, border_cell=0)`
      ＝世界欄。跳回同一台重置鏡頭，往北同樣拿世界列 → `JumpLedger.anchor(..., "march")`。
+     途中種標記若點到單位，`Scan.note_encounter()` ＋ `Scan.meet()` 反查名冊，唯一且已解就
+     兩軸同時結帳（`source="march_meet"`），不必推到界。
    - 任何一步不成就交回 `tour()`：`close_panels()` 收乾淨、記 `jump_failed`、換下一台。
 4. **settle** — `jumpscan.ledger_report()` → `coords.json`（含 `clean_run`／`mistaps`／
    `sources`）；預設 `entry.abandon_battle` 收尾。
@@ -126,6 +127,96 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    幀、`dismiss()` 的落點幀）一併補上重讀一次再放棄，`land()` 重讀後指定標示的比對改用
    重讀那張幀（`land_reread`／`dismiss_reread`）。離線回歸：pan 連續 `None` 到
    `MARCH_LOST_LIMIT` 應該記 `march_failed` 而不是 crash；重讀讀得出來就繼續走。
+
+## 0806 第十六輪：march 順路結帳（`march_meet`）＝點到單位就地認人；星座配對下架
+
+使用者裁決：`visit()` 的節奏改成**跳轉 → 定格 → march（含順路結帳）→ 收尾**。星座配對
+（`jumpscan.window_offset`／`Scan.constellation`／`Scan.confirm_occupied`）**從 visit 流程
+摘除**——程式與離線測試保留不刪，只是不再被任何腳本呼叫，待日後疊加。
+
+### 機制：把「種標記點到單位」這條失敗路徑翻成免費的辨識機會
+
+**零額外點擊**是這條路的成本紀律。march 本來就一路在點格種標記（`seed_marker`／前緣重種），
+其中一部分點擊本來就會落在單位上——現行邏輯只把它記成 `verdict != empty` 的失敗、按返回鈕
+換一格。現在改成順勢認人：
+
+1. `Scan.note_encounter()`：那一下的畫面若讀得出簡化資訊窗（`vision.read_enemy_summary`），
+   把（幀格, (HP, EN)）記進 `Scan.encounter`，journal `met_unit`。讀不出來（我方點下去是進
+   行動模式，沒有這張卡）就不記，照舊按返回鈕退出。
+2. `Scan.meet()`：取走那筆 encounter，用 `jumpscan.roster_lookup` 拿 (HP, EN) 反查
+   `roster.json` 的 28 台。掃描輪是 turn 1、還沒開打，所以摘要窗的數值就是名冊詳情頁的
+   滿血值，兩邊直接對。
+   - **唯一且已解** → 目標世界格 = `jumpscan.meet_cell(該台世界格, 遇見的幀格, 目標在這一幀
+     的格)`，兩軸同時入帳、`source="march_meet"`、提早收工。
+   - **撞名／未解／讀不齊／對不到** → 什麼都不做，照舊換一格種標繼續推到界（界是兜底）。
+   - 已解帳空（種子台）→ 認出誰都沒用，直接推到界。
+3. 目標在當下那一幀的格由里程計 `MarkerOdometer.target_frame(標記幀格)` 給。里程計**兩軸都
+   記**：西推時 y 名義不變，但每一把重種挑的前緣格常常換一列，只記推進那一軸就會靜靜累積
+   斜漂。重種＝同一幀內兩顆標記的幀格差入帳（`reseeded`，`carry_marker` 因此多回一個 `fresh`
+   旗標）；沿用同一顆＝offset 不變。**重種那一輪的結帳要在里程計被新標記更新之前算**，混用
+   就是錯一個重種位移（離線測試釘住）。
+4. 里程計失去接力點就停用順路結帳：pan 讀不出格網、標記重認不到、重拍重讀（`look()`）之後
+   ——鏡頭動了而這一把沒有標記帳，`odometer = None`。
+5. journal：`met_unit`（幀格＋數值）、`march_meet`（key／axis／legs／met／values／reason／
+   via／cell）。`reason` 就是反查裁決：`unique`／`collision`／`unsolved`／`no_match`／`no_read`。
+
+### 實幀確認：簡化資訊窗有哪些欄位（兩個陣營都有，塢位不同）
+
+摘要列**分側**：敵方在畫面左上、我方在右上，各有自己的區域，**不共用**。
+
+**敵方（左上）**——`assets/screenshots/20260806-013329.png`（敵方指定幀）與 run
+`20260806-130539` 的 `frames/00109`（舊 `relay_probe` 點到 `enemy#17`
+出的卡，正是 march 種標點到敵方會看到的畫面）：
+
+- 左卡＝駕駛員：姓名、`MP 0/12`、`一般`（性格）、一排彩色格。
+- 右卡＝機體：機體名（`吉拉・德卡（帶袖的）`）、**HP 29265**、**EN 424**，各帶一條量條。
+- `vision.read_enemy_summary` 直接讀出 `hp=29265, en=424`。
+
+**我方（右上）**——`assets/screenshots/20260806-013500.png`（單位移動模式）：同一張版面**整體
+右移 818px**（`vision.SUMMARY_RIGHT_DOCK_SHIFT`，本來就是 `faction.py` 用 20260714 四張右塢
+樣本標定的常數）。實測右塢錨 **0.980**、讀出 **HP 38311／EN 148**，與該台名冊頁一致；同一張
+幀的左塢錨只有 0.267，所以左右不會互相誤讀。新增 `vision.read_ally_summary`（**自己的區域**，
+同模板／同門檻／同字高），回歸 fixture 兩側各一張實幀：
+`panels/enemy_summary_designation_20260806`（左，29265/424）與
+`panels/ally_summary_unit_move_20260806`（右，38311/148），離線測試同時釘住**反向必須拒讀**
+——否則「哪一側有卡」這個訊號本身就沒了。
+
+- 兩塢都**沒有移動力、沒有 LV**，所以反查鍵只能是 (HP, EN)。
+- `name_sig` 兩邊都讀得到，但依既有裁決不參與身分。
+- **塢位由畫面狀態決定，不是兩邊都試**：`battle_unit_move` → 右塢；`MAP_SUBSTATES` 的其他
+  子模式（選擇武裝／技能）→ **直接不記**——battle-prep／weapon-select 的右面板長得一樣，
+  在那裡讀到的是攻擊目標的數值，記進來就是毒帳；其餘（地圖 hub）→ 左塢。
+
+### 反查的實際辨識力（run14 的 `roster.json` 28 台）
+
+| (HP, EN) | 台數 |
+| --- | --- |
+| 29265/424 | 9 |
+| 61506/510 | 6 |
+| 38311/148 | 2 |
+| (None, 188) | 2 |
+| 其餘 9 種 | 各 1 |
+
+- **唯一組合 9 種**：敵方三台頭目（83811/513、167817/594、109440/750）＋我方五台。我方現在
+  也是可反查的錨點（右塢可讀），撞名只有 38311/148 ×2。
+- 雜魚 15 台整批撞名，反查對它們永遠是 `collision`——這是機制的天花板，不是 bug。
+- 兩個數值都讀齊才反查（`MEET_NO_READ`）：run12 的淡入轉場已經證明字模會整排吐 None，湊數的
+  鍵會對到別台。
+
+### 順帶查出來的名冊讀取缺陷：第三種詳情頁版面（未修，另案）
+
+run14 的 `roster.json` 有三筆殘缺：`ally#6`／`ally#7` 讀成 `(None, 188)`、`ally#9` 全 None，
+而且三筆的 `faction` 都寫成 `enemy`。證據幀 `frames/00011-tick0064.png`（`roster:ally:6`）：
+
+- 那一頁的內容完整可見（LV 100、HP 118208、EN 379、移動力 5），但**每一列比 `ALLY_REGIONS`
+  低 60px**（把區域整體 +60 就一次讀齊上面四個數值），陣營帶更低 **+78px**。
+- 於是 `FACTION_BAND_REGION` 落在 EN 條／移動力那一帶：灰底，red 0.139 vs blue 0.108，
+  **紅險勝** → 判成 `enemy` → 套敵方版面 → hp 讀不到、en 讀到隔壁列的 188。把帶下移 78px
+  重量：red 0.000／blue 0.269，乾淨的我軍。
+- 也就是說這不是字模問題，是**存在第三種詳情頁版面**（那三台上方多一排分頁圖示），
+  `read_faction`／`read_detail` 只認兩種。`detail_retry` 三次都失敗正是因為重拍解決不了版面。
+- 對本批次的影響：那三台的名冊值殘缺 → `roster_lookup` 永遠對不到它們（少三個可能的錨點），
+  但不會產生錯帳（帶 None 的鍵一律拒查）。修法要新增 fixture 與第三版面偵測，本批未做。
 
 ## 0806 第十五輪：定位改由「位置」背書，relay 重寫（run `20260806-141615`）
 
@@ -359,6 +450,20 @@ march。可行的等價寫法是：**某台已解出 x 的單位，其幀內同�
 `TOUR_ORDERS` ＋ `--tour-first {enemy,ally}`，預設 `enemy`。敵 18 台是驗收大頭，而敵方那條
 路（紅圈指定→點出卡→`name_sig`）才是接力鏈唯一的證人來源；我方只出得了驗證格、出不了
 身分，排後面。`Scan.keys()` 的順序同時就是排程「名冊相鄰」的定義。
+
+## 留給實機驗證（第十六輪之後）
+
+- **`march_meet` 從沒在實機跑過**：第一輪看 journal 的 `met_unit` 筆數（種標到底多常點到
+  單位）與 `march_meet` 的 `reason` 分佈。預期 `collision` 佔大宗（雜魚整批同數值），
+  `unique` 落在三台頭目與五台我方身上。
+- **右塢那條路只有靜態幀證據**：`read_ally_summary` 在 20260806-013500 這張移動模式幀上讀得
+  乾淨，但「march 種標點到我方 → 進移動模式 → 讀右塢 → 按返回」這條連續動作沒實跑過。
+- **`met_unit` 的 `dock` 欄位**（記當下 `classify`）是這條路的體檢表：若出現
+  `battle_weapon_select` 而我們仍記到 encounter，代表狀態閘漏了。
+- **出卡之後的收拾**照舊走既有路徑（下一次種標點到真正的空白格才算數），沒有為 meet 新增
+  任何點擊；但那一下的填色仍可能干擾 `find_marker`（既有顧慮，未新增緩解）。
+- **摘要窗與名冊數值必須逐位相等**才反查得到：字模的已知錯型（開頭插 1、8→9）會讓唯一的
+  頭目反查成 `no_match`，實機第一輪要對照 `met_unit` 的 values 與 `roster.json` 核。
 
 ## 留給實機驗證（第十五輪之後）
 

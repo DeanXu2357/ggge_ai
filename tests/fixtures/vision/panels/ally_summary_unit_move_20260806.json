@@ -1,0 +1,20 @@
+{
+  "check": "ally_summary",
+  "expect": {
+    "hp": 38311,
+    "en": 148
+  },
+  "box": [
+    1300,
+    100,
+    700,
+    180
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "ally_summary_unit_move_20260806.png",
+  "source": "assets/screenshots/20260806-013500.png",
+  "note": "我方單位移動模式頂列的摘要卡（右塢）：march 種標點到我方時就是這張。右塢＝左塢平移 +818px，錨 0.980、數值 38311/148 對得上該台名冊頁。"
+}

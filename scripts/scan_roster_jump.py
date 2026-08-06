@@ -227,6 +227,14 @@ class View:
         return grid_pitch(self.grid)
 
 
+@dataclass(frozen=True)
+class AxisResult:
+    """一軸推鏡的結果：推到界拿到的該軸世界格，或順路結帳直接拿到的整格。"""
+
+    world: int | None = None
+    met: Cell | None = None
+
+
 @dataclass
 class Scan:
     device: LiveDevice
@@ -244,6 +252,8 @@ class Scan:
     marker: Cell | None = None
     # 本輪所有「非預期進入地圖子模式」事件，供驗收判準的零誤觸機器檢查。
     mistaps: list[dict] = field(default_factory=list)
+    # 種標記那一下偶然點到單位：（幀格, 摘要窗讀到的數值），由 march_axis 取走反查。
+    encounter: tuple[Cell, tuple[int | None, ...]] | None = None
 
     # ---------- 流程 ----------
 
@@ -425,19 +435,15 @@ class Scan:
             raise Halt("整份名冊都跳過了仍然一台都定位不了，帳面沒有任何絕對座標")
 
     def visit(self, key: jumpscan.Key) -> bool:
-        """一台的一趟，固定節奏、失敗即棄：跳轉 → 定格 → 星座鎖窗或 march → 收尾。
+        """一台的一趟，固定節奏、失敗即棄：跳轉 → 定格 → march（順路結帳）→ 收尾。
 
         中間不做 escape 重試迴圈（0806 run 20260806-141615 就是在原地空轉燒掉一整輪）：
-        任何一步不成就交回 `tour()`，那裡會把面板收乾淨換下一台。
+        任何一步不成就交回 `tour()`，那裡會把面板收乾淨換下一台。星座配對（`constellation`）
+        0806 使用者裁決下架，不再擋在 march 前面。
         """
         view, target = self.land(key, label="jump")
         if view is None or target is None:
             return False
-        cell = self.constellation(key, view, target)
-        if cell is not None:
-            self.ledger.anchor(key, cell, jumpscan.SOURCE_CONSTELLATION)
-            self.journal.record("constellation", key=list(key), cell=list(cell))
-            return True
         return self.march(key, view, target)
 
     def land(
@@ -735,7 +741,10 @@ class Scan:
     # ---------- 路徑 B：標記接力平移 ----------
 
     def march(self, key: jumpscan.Key, view: View, target: Cell) -> bool:
-        """兩軸各推到界：西界定 x、北界定 y。兩軸之間跳回同一台重置鏡頭（O(1)）。"""
+        """兩軸各推到界：西界定 x、北界定 y。兩軸之間跳回同一台重置鏡頭（O(1)）。
+
+        推的途中撞見已解單位就地結帳（`march_meet`）：那一路兩軸同時入帳，界只是兜底。
+        """
         found: dict[int, int] = {}
         for axis, direction in MARCH_AXES:
             if axis > 0:
@@ -743,10 +752,14 @@ class Scan:
                 if view is None or target is None:
                     self.journal.record("march_failed", key=list(key), axis=axis, reason="reland")
                     return False
-            value = self.march_axis(key, view, target, axis, direction)
-            if value is None:
+            result = self.march_axis(key, view, target, axis, direction)
+            if result.met is not None:
+                self.ledger.anchor(key, result.met, jumpscan.SOURCE_MARCH_MEET)
+                self.journal.record("march_meet_anchor", key=list(key), cell=list(result.met))
+                return True
+            if result.world is None:
                 return False
-            found[axis] = value
+            found[axis] = result.world
         cell = (found[0], found[1])
         self.ledger.anchor(key, cell, jumpscan.SOURCE_MARCH)
         self.journal.record("march", key=list(key), cell=list(cell))
@@ -754,7 +767,7 @@ class Scan:
 
     def march_axis(
         self, key: jumpscan.Key, view: View, target: Cell, axis: int, direction: str
-    ) -> int | None:
+    ) -> AxisResult:
         """往 direction 推到界，逐把靠標記重認算累計格數，回傳目標在該軸的世界格。
 
         每一把都在**推進方向的前緣**重種標記（往西推就種在畫面西側），不是等它快被推出
@@ -764,13 +777,20 @@ class Scan:
 
         重種發生在同一幀內（鏡位沒變），所以計格帳不受影響：下一把的 `before` 用新標記
         在**這一幀**的格就好。
+
+        種標記的點擊偶然落在單位上時順勢認人（`Scan.meet`）：反查得出唯一且已解的那台，
+        幀內格差就是世界格差，兩軸同時收工，不必推到界。這不多點任何一下。
         """
         name = jumpscan.AXIS_NAMES[axis]
         seeded = self.seed_marker(view, avoid=target, toward=direction)
         if seeded is None:
             self.journal.record("march_lost", key=list(key), axis=name, reason="no_seed")
-            return None
+            return AxisResult()
         signature, marker, spot = seeded
+        odometer: jumpscan.MarkerOdometer | None = jumpscan.MarkerOdometer.seeded(marker, target)
+        met = self.meet(key, target, name, 0)
+        if met is not None:
+            return AxisResult(met=met)
         legs: list[jumpscan.MarchLeg] = []
         lost = 0
         current: View | None = view
@@ -787,14 +807,21 @@ class Scan:
                     if lost >= MARCH_LOST_LIMIT:
                         break
                     continue
+                odometer = None
             view = current
             if bounded(view.grid, direction):
                 world = jumpscan.march_world(target[axis], legs, border_cell=0)
                 self.journal.record(
                     "march_axis", key=list(key), axis=name, legs=len(legs), world=world
                 )
-                return world
+                return AxisResult(world=world)
             carried = self.carry_marker(view, signature, direction)
+            if odometer is not None:
+                # 重種那一輪點到的單位要用**這一幀**的目標格結帳，而且要在里程計被新標記
+                # 更新之前算——同一幀內兩者等價，但混用就是錯一個重種位移。
+                met = self.meet(key, odometer.target_frame(marker), name, len(legs))
+                if met is not None:
+                    return AxisResult(met=met)
             if carried is None:
                 lost += 1
                 self.journal.record(
@@ -803,11 +830,17 @@ class Scan:
                 if lost >= MARCH_LOST_LIMIT:
                     break
                 continue
-            signature, marker, spot = carried
+            signature, fresh_marker, spot, fresh = carried
+            if fresh and odometer is not None:
+                odometer = odometer.reseeded(marker, fresh_marker)
+            marker = fresh_marker
             before = marker[axis]
             current = self.pan(direction, reach=self.stride(view, spot, direction))
             if current is None:
                 lost += 1
+                # 鏡頭動了而這一把沒有標記帳：里程計失去接力點，順路結帳停用（推到界的
+                # 那條路本來就只認界，見 march_world）。
+                odometer = None
                 if lost >= MARCH_LOST_LIMIT:
                     break
                 continue
@@ -818,6 +851,7 @@ class Scan:
             cell = None if spot is None else snap_cell(view.grid, spot)
             if cell is None:
                 lost += 1
+                odometer = None
                 self.journal.record("march_lost", key=list(key), axis=name, legs=len(legs))
                 if lost >= MARCH_LOST_LIMIT:
                     break
@@ -826,24 +860,62 @@ class Scan:
             legs.append(jumpscan.MarchLeg(before, cell[axis]))
             marker = cell
         self.journal.record("march_failed", key=list(key), axis=name, legs=len(legs))
-        return None
+        return AxisResult()
+
+    def meet(self, key: jumpscan.Key, target_frame: Cell, axis: str, legs: int) -> Cell | None:
+        """順路結帳：種標記時**偶然點到單位**的那一下，順勢認人。
+
+        零額外點擊——march 本來就一路在點格種標記，這裡只是把「點到單位」這條原本的失敗
+        路徑翻轉成免費的辨識機會：讀簡化資訊窗的 HP／EN 去名冊反查，唯一且已解就用幀內
+        格差兩軸同時出帳。撞名（同型雜魚整批同數值）或反查到的那台還沒解，就什麼都不做，
+        照舊換一格種標繼續推。
+        """
+        met = self.encounter
+        self.encounter = None
+        if met is None or not self.ledger.cells:
+            return None
+        cell, values = met
+        match = jumpscan.roster_lookup(values, self.roster_table(), self.ledger.cells)
+        anchor = None if match.key is None else self.ledger.cells.get(match.key)
+        world = None if anchor is None else jumpscan.meet_cell(anchor, cell, target_frame)
+        self.journal.record(
+            "march_meet",
+            key=list(key),
+            axis=axis,
+            legs=legs,
+            met=list(cell),
+            values=list(values),
+            reason=match.reason,
+            via=None if match.key is None else list(match.key),
+            cell=None if world is None else list(world),
+        )
+        return world
+
+    def roster_table(self) -> dict[jumpscan.Key, tuple[int | None, ...]]:
+        """名冊的反查表。摘要窗只有 HP／EN 兩個數字可讀（0806 實幀 run 20260806-130539
+        的 frames/00109 敵方卡、assets/screenshots/20260806-013500.png 我方卡：一邊是機體名
+        ＋HP＋EN，另一邊是駕駛員與 MP，沒有移動力也沒有 LV），所以反查鍵只能是這兩欄。"""
+        return {(unit.faction, unit.index): (unit.hp, unit.en) for unit in self.entries}
 
     def carry_marker(
         self, view: View, signature: board.MarkerSignature, direction: str
-    ) -> tuple[board.MarkerSignature, Cell, Point] | None:
+    ) -> tuple[board.MarkerSignature, Cell, Point, bool] | None:
         """推之前把標記搬到前緣。搬不動就沿用舊的——但舊的必須在這一幀上找得到。
 
         「找得到」是硬條件：記著的格看不到填色，代表那顆標記已經沒了，再拿它當證人會讓
         下一次重認拿舊填色配新格號（sweep_scan 的 `drop_stale_marker` 同一條）。
+
+        末項 `fresh` 說的是「這是不是新種的一顆」：新的一顆才要把兩顆的幀格差記進里程計，
+        沿用舊的那一顆是同一個實體，世界格差不變。
         """
         seeded = self.seed_marker(view, signature=signature, toward=direction)
         if seeded is not None:
-            return seeded
+            return (*seeded, True)
         found = board.find_marker(view.frame, signature, holes=board.UNIT_DENSITY_HUD_HOLES)
         cell = None if found is None else snap_cell(view.grid, found)
         if cell is None:
             return None
-        return (signature, cell, found)
+        return (signature, cell, found, False)
 
     def stride(self, view: View, spot: Point | None, direction: str) -> float:
         """這一把推多遠：滿行程，被「推完標記仍在視野內」的硬上限夾住。"""
@@ -901,6 +973,7 @@ class Scan:
             )
             self.journal.record("seed_marker", cell=list(cell), verdict=outcome.verdict)
             if outcome.verdict != sweep.TAP_EMPTY:
+                self.note_encounter(cell, after)
                 self.note_state(after, expect=None, where="seed_marker")
                 # 說不出結果的那一下可能已經把畫面帶進選擇／移動態，而移動態下的下一次
                 # 格點擊就是真的下移動指令（0806 run 20260806-103335 的 ally#4：連四下
@@ -914,6 +987,30 @@ class Scan:
             self.marker = cell
             return (learned, cell, point)
         return None
+
+    def note_encounter(self, cell: Cell, frame: np.ndarray) -> None:
+        """種標記那一下點到單位了：把簡化資訊窗的數值記下來給 `meet()` 反查。
+
+        這是免費的——那一下本來就要點，本來也只會被記成一筆失敗。兩個陣營都有卡，只是
+        塢位不同：敵方在左，我方（點下去進單位移動模式）在右，同一張版面平移 818px
+        （實幀 assets/screenshots/20260806-013500.png：右塢錨 0.980、讀出 38311/148）。
+
+        **哪一塢由畫面狀態決定，不是兩邊都試**：battle-prep／選擇武裝的右面板長得一樣，
+        在那些畫面上讀到的是攻擊目標的數值，記進來就是毒帳。
+        """
+        seen = screens.classify(frame)
+        if seen == screens.BATTLE_UNIT_MOVE:
+            summary = vision.read_ally_summary(frame)
+        elif seen in screens.MAP_SUBSTATES:
+            return
+        else:
+            summary = vision.read_enemy_summary(frame)
+        if summary is None:
+            return
+        self.encounter = (cell, (summary.hp, summary.en))
+        self.journal.record(
+            "met_unit", cell=list(cell), values=[summary.hp, summary.en], dock=seen
+        )
 
     def leave_action_mode(self) -> bool:
         """把畫面帶回地圖 hub。**不盲點**：返回鈕只有在行動模式下才存在。

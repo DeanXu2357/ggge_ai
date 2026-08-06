@@ -1345,6 +1345,15 @@ ENEMY_SUMMARY_ANCHOR_REGION = (570, 175, 100, 65)
 ENEMY_SUMMARY_ANCHOR_THRESHOLD = 0.88
 ENEMY_SUMMARY_HP_REGION = (680, 182, 140, 44)
 ENEMY_SUMMARY_EN_REGION = (865, 182, 100, 44)
+# Our own units dock the same card on the RIGHT: the layout is the left one
+# TRANSLATED +818px in x, y identical (measured on the 20260714 HARD-1 right-dock
+# samples, anchor 0.918-0.997 across four maps; faction.py rides this constant).
+# Live check on the 20260806-013500 unit-move frame: right anchor 0.980 and the
+# digits read 38311/148, matching that ally's roster page, while the left anchor
+# stays at 0.267. Caveat inherited from faction.py: battle-prep / weapon-select
+# right panels share this geometry, so a right hit alone never proves a map
+# summary card -- callers must supply the screen context.
+SUMMARY_RIGHT_DOCK_SHIFT = 818
 
 # 支援防禦 pill on the defender (our, right) panel of -應戰- prep screens.
 # 1.000 / 0.968 on the two 20260719 captures that carry it, <=0.58 on every
@@ -1812,6 +1821,38 @@ def read_enemy_summary(frame: np.ndarray) -> EnemySummary | None:
             frame, ENEMY_SUMMARY_EN_REGION, digit_height=30, allow_minus=False
         ),
     )
+
+
+def read_ally_summary(frame: np.ndarray) -> EnemySummary | None:
+    """The same summary card for one of our own units, which docks on the
+    right (a unit-move overlay carries it for the moving unit). Same
+    template, threshold and digit height as the enemy card, regions shifted
+    by SUMMARY_RIGHT_DOCK_SHIFT. Callers must already know the screen is a
+    map summary: battle-prep and weapon-select dock a lookalike panel here."""
+    shifted = _shift_x(ENEMY_SUMMARY_ANCHOR_REGION, SUMMARY_RIGHT_DOCK_SHIFT)
+    if summary_anchor_score(frame, shifted) < ENEMY_SUMMARY_ANCHOR_THRESHOLD:
+        return None
+    return EnemySummary(
+        name_sig=name_signature(
+            frame, _shift_x(FORECAST_LEFT_NAME_REGION, SUMMARY_RIGHT_DOCK_SHIFT)
+        ),
+        hp=digits.read_number(
+            frame,
+            _shift_x(ENEMY_SUMMARY_HP_REGION, SUMMARY_RIGHT_DOCK_SHIFT),
+            digit_height=30,
+            allow_minus=False,
+        ),
+        en=digits.read_number(
+            frame,
+            _shift_x(ENEMY_SUMMARY_EN_REGION, SUMMARY_RIGHT_DOCK_SHIFT),
+            digit_height=30,
+            allow_minus=False,
+        ),
+    )
+
+
+def _shift_x(region: tuple[int, int, int, int], dx: int) -> tuple[int, int, int, int]:
+    return (region[0] + dx, region[1], region[2], region[3])
 
 
 def read_weapon_select_forecast(frame: np.ndarray) -> WeaponSelectForecast | None:

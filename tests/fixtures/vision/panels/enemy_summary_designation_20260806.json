@@ -1,0 +1,20 @@
+{
+  "check": "enemy_summary",
+  "expect": {
+    "hp": 29265,
+    "en": 424
+  },
+  "box": [
+    400,
+    100,
+    700,
+    180
+  ],
+  "canvas_size": [
+    2340,
+    1080
+  ],
+  "image": "enemy_summary_designation_20260806.jpg",
+  "source": "assets/screenshots/20260806-013329.png",
+  "note": "敵方指定幀的摘要卡（左塢）：march 種標點到敵方時就是這張。與我方右塢那張 panels/ally_summary_unit_move_20260806 成對——左右各一，互相不誤讀。"
+}

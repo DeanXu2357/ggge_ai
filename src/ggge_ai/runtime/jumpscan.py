@@ -4,12 +4,17 @@
 的跨窗圖樣比對」——那是拿兩張圖片猜對齊，沒有任何一端是被驗證過的格子。落點的世界
 座標只有兩條路：
 
-- **constellation**：把整個窗掛回世界——幀內**點擊確認過有單位**的格與已解單位的世界格
-  做平移配對，唯一解才採信。窗位一鎖住，目標的幀格自然落出世界座標。目標的幀格讀的是
+- **march**：自力用標記接力往西／往北推到界，逐把重認標記算累計格數。目標的幀格讀的是
   **遊戲自己畫出來的範圍**：敵方＝攻擊範圍紅菱形的中心（`attack_centre`，半徑未知，取
   最小包覆），我方＝移動範圍菱形的中心（`diamond_centre`，半徑＝名冊讀到的移動力）。
 
-- **march**：自力用標記接力往西／往北推到界，逐把重認標記算累計格數。
+- **march_meet**：march 的順路結帳，**零額外點擊**。march 本來就一路在點格種標記，這些點
+  偶然落在單位上時（回應不是空格填色而是出卡／出行動 UI），順勢讀簡化資訊窗的 HP／EN 去
+  `roster_lookup` 反查名冊：唯一且已解就用幀內格差（`meet_cell`，里程計 `MarkerOdometer`
+  給目標在這一幀的格）兩軸同時結帳。撞名或未解就照舊換一格種標繼續推。
+
+- **constellation**（`window_offset`／平移唯一配對）：0806 使用者裁決**從 visit 流程下架**，
+  程式與測試留著待日後疊加，現在不被任何腳本呼叫。
 
 **身分靠位置認，不靠圖案認**：卡面 `name_sig` 完全退出定位——同型量產機的卡面不可分，認錯
 一台就是毒帳。點擊只取「這一格有東西」這個 bit，不讀卡面內容。
@@ -38,6 +43,7 @@ SCREEN_CENTRE: Point = (1170.0, 540.0)
 
 SOURCE_CONSTELLATION = "constellation"
 SOURCE_MARCH = "march"
+SOURCE_MARCH_MEET = "march_meet"
 UNRESOLVED = "unresolved"
 
 AXIS_NAMES = ("x", "y")
@@ -342,6 +348,209 @@ def march_origin(legs: Sequence[MarchLeg], border_cell: int) -> int:
 def march_world(target_cell: int, legs: Sequence[MarchLeg], border_cell: int) -> int:
     """目標在出發幀的格索引 → 它的世界格索引。"""
     return target_cell + march_origin(legs, border_cell)
+
+
+# ---------- march 順路結帳：種標點到單位就地認人 ----------
+
+# 名冊反查的裁決。數值撞名（同型雜魚整批 29265/424）就是撞名，不猜。
+MEET_UNIQUE = "unique"
+MEET_COLLISION = "collision"
+MEET_UNSOLVED = "unsolved"
+MEET_NO_MATCH = "no_match"
+MEET_NO_READ = "no_read"
+
+
+@dataclass(frozen=True)
+class MeetMatch:
+    """摘要窗數值 → 名冊上的哪一台，以及說得出口的理由。"""
+
+    key: Key | None
+    reason: str
+
+
+def roster_lookup(
+    values: Sequence[int | None],
+    table: Mapping[Key, Sequence[int | None]],
+    resolved: Iterable[Key],
+) -> MeetMatch:
+    """簡化資訊窗讀到的數值 → 名冊上的那一台，唯一且已解才算數。
+
+    掃描輪是 turn 1、還沒開打，所以摘要窗的 HP／EN 就是名冊詳情頁的滿血值，兩邊直接對。
+    對到多台（同型量產機整批同數值）就是撞名——身分不猜，交回去繼續推到界。
+    """
+    if not values or any(value is None for value in values):
+        return MeetMatch(None, MEET_NO_READ)
+    wanted = tuple(values)
+    hits = [key for key, row in table.items() if tuple(row) == wanted]
+    if not hits:
+        return MeetMatch(None, MEET_NO_MATCH)
+    if len(hits) > 1:
+        return MeetMatch(None, MEET_COLLISION)
+    found = hits[0]
+    if found not in set(resolved):
+        return MeetMatch(found, MEET_UNSOLVED)
+    return MeetMatch(found, MEET_UNIQUE)
+
+
+def meet_cell(anchor: Cell, met: Cell, target_frame: Cell) -> Cell:
+    """認出來的那台在世界的 `anchor`、它在這一幀的 `met` 格、目標在這一幀的 `target_frame`
+    格 → 目標的世界格。兩軸同時出帳；幀內格差就是世界格差（同一幀＝同一個鏡位）。"""
+    return (
+        anchor[0] - (met[0] - target_frame[0]),
+        anchor[1] - (met[1] - target_frame[1]),
+    )
+
+
+# ---------- （已下架）march 順路結帳：里程計 × 已解帳的指派驗證 ----------
+
+# 幀格對格有抖動（格線偵測在邊緣多裁／少裁一條、圖示中心不在格心），所以 hint 與
+# 「該假設下應該在的格」相差一格仍算命中。
+MEET_TOLERANCE = 1
+# 已解單位落在窗內卻連一個 hint 都沒有：圖示被地形／彈窗蓋掉是常事，容忍一台。
+MEET_MISS_ALLOW = 1
+# 假設本身一定自我命中（被指派的那台就站在那個 hint 上），所以命中數要 ≥2 才叫「有佐證」。
+# 少了這一條，把其他已解單位全推出視野的假設就無從否證——它們沒有任何預測會被檢查到，
+# 於是每個 (hint, 已解單位) 配對都活著，指派永遠不唯一。
+MEET_MIN_HITS = 2
+
+MEET_OK = "ok"
+MEET_NO_LEDGER = "no_ledger"
+MEET_NO_HINT = "no_hint"
+MEET_NO_HYPOTHESIS = "no_hypothesis"
+MEET_AMBIGUOUS = "ambiguous"
+
+
+@dataclass(frozen=True)
+class MarkerOdometer:
+    """標記相對目標的累計格差（世界格差），二維都記。
+
+    西推時 y 名義上不變，但每一把重種標記算出來的格差兩軸都要入帳——只記推進那一軸，
+    斜漂（重種挑的前緣格常常不同列）會靜靜累積成一個沒人看見的偏移。
+    """
+
+    offset: Cell
+
+    @classmethod
+    def seeded(cls, marker: Cell, target: Cell) -> MarkerOdometer:
+        return cls((marker[0] - target[0], marker[1] - target[1]))
+
+    def reseeded(self, old: Cell, new: Cell) -> MarkerOdometer:
+        """同一幀內把證人換成另一顆標記：兩顆的幀格差就是世界格差。"""
+        return MarkerOdometer(
+            (self.offset[0] + new[0] - old[0], self.offset[1] + new[1] - old[1])
+        )
+
+    def target_frame(self, marker_frame: Cell) -> Cell:
+        """目標自己在這一幀的格（可能已經出視野，格號照樣算得出來）。"""
+        return (marker_frame[0] - self.offset[0], marker_frame[1] - self.offset[1])
+
+    def delta(self, cell: Cell, marker_frame: Cell) -> Cell:
+        """這一幀的格 `cell` 相對目標的世界格差。"""
+        return (
+            cell[0] - marker_frame[0] + self.offset[0],
+            cell[1] - marker_frame[1] + self.offset[1],
+        )
+
+
+@dataclass(frozen=True)
+class MeetFix:
+    """順路結帳的裁決：目標的世界格、被指派的那個 hint 格，以及說得出口的理由。"""
+
+    cell: Cell | None
+    hint: Cell | None
+    hypotheses: int
+    reason: str
+
+
+def march_meet(  # 已下架：0806 使用者裁決改走「點擊讀摘要反查名冊」，留著待日後疊加
+    hints: Iterable[Cell],
+    marker_frame: Cell,
+    odometer: MarkerOdometer,
+    resolved: Iterable[Cell],
+    *,
+    window: tuple[int, int, int, int] | None = None,
+    tolerance: int = MEET_TOLERANCE,
+    miss_allow: int = MEET_MISS_ALLOW,
+    min_hits: int = MEET_MIN_HITS,
+) -> MeetFix:
+    """推鏡途中撞見已解單位就地結帳：**指派驗證**，不是平移搜索。
+
+    里程計已經把平移量死了——這一幀的每一格相對目標差多少格是算得出來的，剩下的自由度
+    只有「幀內哪一個 hint 是哪一台已解單位」。逐一假設 (hint, 已解單位)，反推目標的世界
+    格，再拿同一個假設去問幀內其他已解單位「你該在的那一格有沒有 hint」：撐得住的假設
+    唯一才收，否則繼續推到界（界是兜底，不是這條路的替代品）。
+
+    `hints` 是 `board.find_unit_screen_hints` 對格後的候選——啟發式、會漏會多，所以命中
+    容 `tolerance` 格、漏檢容 `miss_allow` 台；它們在這裡只當**驗證證據**，座標仍由里程計
+    給。`window` 是這一幀看得見的格範圍（幀格），用來判斷某台已解單位「應該入鏡」。
+    """
+    world = sorted(set(resolved))
+    seen = sorted(set(hints))
+    if not world:
+        return MeetFix(None, None, 0, MEET_NO_LEDGER)
+    if not seen:
+        return MeetFix(None, None, 0, MEET_NO_HINT)
+    survivors: dict[Cell, Cell] = {}
+    for hint in seen:
+        shift = odometer.delta(hint, marker_frame)
+        for anchor in world:
+            target = (anchor[0] - shift[0], anchor[1] - shift[1])
+            if target[0] < 0 or target[1] < 0 or target in survivors:
+                continue
+            if not _meet_consistent(
+                seen, marker_frame, odometer, world, target, window, tolerance, miss_allow,
+                min_hits,
+            ):
+                continue
+            survivors[target] = hint
+    if not survivors:
+        return MeetFix(None, None, 0, MEET_NO_HYPOTHESIS)
+    if len(survivors) > 1:
+        return MeetFix(None, None, len(survivors), MEET_AMBIGUOUS)
+    cell, hint = next(iter(survivors.items()))
+    return MeetFix(cell, hint, 1, MEET_OK)
+
+
+def _meet_consistent(
+    hints: Sequence[Cell],
+    marker_frame: Cell,
+    odometer: MarkerOdometer,
+    world: Sequence[Cell],
+    target: Cell,
+    window: tuple[int, int, int, int] | None,
+    tolerance: int,
+    miss_allow: int,
+    min_hits: int,
+) -> bool:
+    """這個「目標在 target」的假設撐不撐得住幀內所有已解單位的檢查。"""
+    if any(
+        _meet_world(hint, marker_frame, odometer, target)[axis] < 0
+        for hint in hints
+        for axis in (0, 1)
+    ):
+        return False
+    hits = 0
+    misses = 0
+    for anchor in world:
+        shift = odometer.delta((0, 0), marker_frame)
+        cell = (anchor[0] - target[0] - shift[0], anchor[1] - target[1] - shift[1])
+        if window is not None and not _inside_box(cell, window):
+            continue
+        if any(
+            abs(hint[0] - cell[0]) <= tolerance and abs(hint[1] - cell[1]) <= tolerance
+            for hint in hints
+        ):
+            hits += 1
+        else:
+            misses += 1
+    return hits >= min_hits and misses <= miss_allow
+
+
+def _meet_world(
+    cell: Cell, marker_frame: Cell, odometer: MarkerOdometer, target: Cell
+) -> Cell:
+    shift = odometer.delta(cell, marker_frame)
+    return (target[0] + shift[0], target[1] + shift[1])
 
 
 # ---------- 窗位：平移唯一配對 ----------
