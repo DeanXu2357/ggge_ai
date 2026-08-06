@@ -128,6 +128,52 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    重讀那張幀（`land_reread`／`dismiss_reread`）。離線回歸：pan 連續 `None` 到
    `MARCH_LOST_LIMIT` 應該記 `march_failed` 而不是 crash；重讀讀得出來就繼續走。
 
+## 0806 第十九輪：run19 兩修（基準幀／收軸雙訊號）
+
+### 1. 「西推被打成垂直手勢」的根因：不是手勢，是基準幀
+
+先說結論：**手勢幾何沒有接錯**。`marchkit.Marcher.pan` 的
+`board.pan_stroke(direction, …)` → `board.pan_gesture(direction, origin, stroke)` →
+`device.swipe(x1, y1, x2, y2, …)` 與 `sweep_scan.pan` 逐字相同；離線實測
+`pan_gesture("west", (760,360), 240) == (760, 360, 1000, 360)`（純橫向），新的參數化測試
+`test_a_push_only_ever_drags_along_its_own_axis` 把四側「行程整條落在自己的軸上、另一軸
+一個像素都不准動」釘死。
+
+真正接錯的是**基準幀**，在 `scripts/scan_roster_jump.py` 的 march 迴圈：
+
+```python
+carried = self.carry_marker(view, signature, direction)   # ← 這裡種了一顆新填色
+...
+result = self.marcher.pan(direction, view.frame, reach=stride)  # ← 交出去的卻是種標之前那張
+```
+
+`Marcher.pan` 的基準讀數是 `was = self.marker_point(frame)`，拿到舊幀就讀到**舊**填色，
+而 `now` 是重種後的新填色——`moved` ＝ 鏡頭位移 ＋ **重種那一跳**。第一台卡在西界、鏡頭
+根本推不動，剩下的就純粹是重種那一跳：前緣重種在同一欄的不同列，於是 x≈0、y≈一大跳
+（−236.6／+236.6 交替＝兩顆種點來回），看起來就像「西推變成垂直手勢」。`sweep_scan` 沒有
+這個病，是因為它交給 `pan` 的永遠是搬完標記之後才 grab 的那張。
+
+修法：`marchkit.MarkerPlacement` 多帶**驗收幀**，`Scan.seed_marker`／`carry_marker` 改回
+`Seed`（色簽／格／螢幕點／驗收幀／是不是新種的），march 迴圈把 `Seed.frame` 交給 `pan`。
+**基準幀與驗收幀必須是同一張，中間不准有任何點擊。**離線測試
+`test_the_baseline_marker_reading_comes_from_the_frame_it_was_handed` 釘住這個契約。
+
+（順帶查證：北推同樣沒有軸向問題，同一支參數化測試涵蓋四側。）
+
+### 2. 收軸條件：四側都改雙訊號
+
+`pan_exhausted` 明明記著 `borders:["west"]`，`at_border` 卻只問 `FrameGrid.west_bound`
+——界那一列的格線常常裁不出來，於是「看得見界卻不承認到界」，種標→推鏡→夾停無限迴圈，
+一台燒掉 800 秒。
+
+- `Scan.at_border` 四側都問兩個訊號：`sweep.read_borders` 看得到該側就**成立**，
+  `FrameGrid` 的 bound 是佐證（北界因為 HUD 假脊的前科，仍然**只認**終止邊）。
+  兩個訊號都寫進 `march_axis` 的 `border` 欄。
+- **推不動＋界可見＝收軸**（下一輪的 `at_border` 直接收）；**推不動＋界不可見＝連兩把就
+  放棄這一軸**（`MARCH_STALL_LIMIT`，journal `march_stalled`），不對著推不動的方向空轉。
+
+坑冊補了 10b（基準幀）與 10c（夾停≠到界，但界可見＋推不動＝收軸）。
+
 ## 0806 第十八輪：抽出 `runtime/marchkit.py`（搬運不重寫）＋ run18 三修
 
 ### 為什麼是重構而不是繼續補洞

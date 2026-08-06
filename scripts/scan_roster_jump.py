@@ -85,6 +85,8 @@ MARCH_LEGS = 40
 MARCH_SEED_ATTEMPTS = 3
 # 標記連兩把認不回來就放棄該軸——重種一次是自癒，兩次是這一帶認不出填色。
 MARCH_LOST_LIMIT = 2
+# 推不動而界又看不見：連兩把就放棄該軸，不要對著推不動的方向空轉（run19 燒了 800 秒）。
+MARCH_STALL_LIMIT = 2
 
 # 面板逐層關閉：詳情頁→部隊資訊→戰鬥選單。開選單前一律先跑一遍。
 PANEL_LAYERS = 3
@@ -169,16 +171,20 @@ def bounded(grid: FrameGrid, side: str) -> bool:
 def at_border(view: "View", side: str) -> tuple[bool, dict[str, bool]]:
     """這一幀有沒有真的推到 `side` 的界，以及兩個訊號各說了什麼。
 
-    北界不能只信 `FrameGrid.north_bound`：頂帶 HUD 蓋掉格線時，HUD 下緣的脊會被當成
-    北界（0806 run 20260806-173300 的 enemy#3 就是假北界＋travel=0 互鎖出一個看起來很
-    自洽的錯答案）。北界改以 `sweep.read_borders`（舊 sweep 十二輪驗證過的終止邊特徵）
-    為權威，格網的 `north_bound` 只當佐證記帳。其餘三側維持格網判定。
+    **四側都問兩個訊號**：`sweep.read_borders` 的終止邊特徵（舊 sweep 十二輪驗證過）
+    看得到該側就成立，`FrameGrid` 的 bound 是佐證。兩件事各補對方的洞：
+
+    - 格網的 bound 在頂帶 HUD 蓋住格線時會把 HUD 下緣的脊讀成北界（0806 run
+      20260806-173300 的 enemy#3：假北界＋travel=0 互鎖成自洽的錯答案），所以北界
+      **只認終止邊**。
+    - 反過來，界那一列的格線常常裁不出來，格網因此說不出西界；0806 run19 的第一台就
+      死在這裡——`pan_exhausted` 明明記著 `borders:["west"]`，收軸卻只問格網，於是
+      「看得見界卻不承認到界」，種標→推鏡→夾停無限迴圈，一台燒掉 800 秒。
     """
     grid_says = bounded(view.grid, side)
-    if side != "north":
-        return (grid_says, {"grid": grid_says})
-    edge_says = "north" in sweep.read_borders(view.frame)
-    return (edge_says, {"grid": grid_says, "edge": edge_says})
+    edge_says = side in sweep.read_borders(view.frame)
+    hit = edge_says if side == "north" else (edge_says or grid_says)
+    return (hit, {"grid": grid_says, "edge": edge_says})
 
 
 def card_present(frame: np.ndarray) -> bool:
@@ -243,6 +249,20 @@ class View:
     @property
     def pitch(self) -> tuple[float, float]:
         return grid_pitch(self.grid)
+
+
+@dataclass(frozen=True)
+class Seed:
+    """一顆種好（或沿用）的標記：色簽、它在這一幀的格與螢幕點、**驗收幀**、是不是新種的。
+
+    驗收幀要一路帶著：下一把推鏡的基準幀就是它，否則量到的位移混進重種那一跳。
+    """
+
+    signature: board.MarkerSignature
+    cell: Cell
+    spot: Point
+    frame: np.ndarray | None
+    fresh: bool
 
 
 @dataclass(frozen=True)
@@ -896,13 +916,14 @@ class Scan:
         if seeded is None:
             self.journal.record("march_lost", key=list(key), axis=name, reason="no_seed")
             return AxisResult()
-        signature, marker, spot = seeded
+        signature, marker, spot = seeded.signature, seeded.cell, seeded.spot
         odometer: jumpscan.MarkerOdometer | None = jumpscan.MarkerOdometer.seeded(marker, target)
         met = self.meet(key, target, name, 0)
         if met is not None:
             return AxisResult(met=met)
         legs: list[jumpscan.MarchLeg] = []
         pans = 0
+        stalled = 0
         suspect = 0
         lost = 0
         current: View | None = view
@@ -958,23 +979,32 @@ class Scan:
                 if lost >= MARCH_LOST_LIMIT:
                     break
                 continue
-            signature, fresh_marker, spot, fresh = carried
-            if fresh and odometer is not None:
-                odometer = odometer.reseeded(marker, fresh_marker)
-            marker = fresh_marker
+            if carried.fresh and odometer is not None:
+                odometer = odometer.reseeded(marker, carried.cell)
+            signature, marker, spot = carried.signature, carried.cell, carried.spot
             before = marker[axis]
             pitch = view.pitch[axis]
             stride = self.marcher.stride(spot, direction, pitch, board.PAN_MAX_REACH)
-            result = self.marcher.pan(direction, view.frame, reach=stride)
+            # **基準幀是種標記的驗收幀**，不是種標之前那張：拿舊幀當基準，量到的位移
+            # 會把重種那一跳也算進去（0806 run19 西推被讀成垂直位移的根因）。
+            base = view.frame if carried.frame is None else carried.frame
+            result = self.marcher.pan(direction, base, reach=stride)
             pans += 1
             if result.verdict in (marchkit.PAN_BORDER, sweep.PAN_PINNED):
-                # 推不動不等於有界線：界由呼叫端自己的證據說了算（`at_border`），這裡
-                # 只是這一把沒走——沒有位移就沒有這一腿，帳不記。
+                # 推不動不等於有界線——但**推不動＋界看得見＝到界**（下一輪的 at_border
+                # 就會收軸）。界看不見的夾停連兩次就放棄這一軸：0806 run19 的第一台在
+                # 西界外種標、夾停、再種再推，一台燒掉 800 秒。
                 pans -= 1
                 current = self.reread(key, name, result.frame)
                 if current is None:
                     break
                 view = current
+                stalled = 0 if at_border(view, direction)[0] else stalled + 1
+                if stalled >= MARCH_STALL_LIMIT:
+                    self.journal.record(
+                        "march_stalled", key=list(key), axis=name, legs=len(legs)
+                    )
+                    break
                 continue
             if result.verdict != sweep.PAN_LANDED:
                 self.journal.record("pan_eaten", key=list(key), axis=name)
@@ -1072,7 +1102,7 @@ class Scan:
 
     def carry_marker(
         self, view: View, signature: board.MarkerSignature, direction: str
-    ) -> tuple[board.MarkerSignature, Cell, Point, bool] | None:
+    ) -> "Seed | None":
         """推之前把標記搬到前緣。搬不動就沿用舊的——但舊的必須在這一幀上找得到。
 
         「找得到」是硬條件：記著的格看不到填色，代表那顆標記已經沒了，再拿它當證人會讓
@@ -1083,12 +1113,13 @@ class Scan:
         """
         seeded = self.seed_marker(view, signature=signature, toward=direction)
         if seeded is not None:
-            return (*seeded, True)
+            return seeded
         found = self.marcher.marker_point(view.frame)
         cell = None if found is None else snap_cell(view.grid, found)
         if cell is None:
             return None
-        return (signature, cell, found, False)
+        # 沿用同一顆：這一幀就是它的驗收幀（填色本來就在上面）。
+        return Seed(signature, cell, found, view.frame, False)
 
     def seed_marker(
         self,
@@ -1097,7 +1128,7 @@ class Scan:
         avoid: Cell | None = None,
         signature: board.MarkerSignature | None = None,
         toward: str | None = None,
-    ) -> tuple[board.MarkerSignature, Cell, Point] | None:
+    ) -> "Seed | None":
         """在一個乾淨空白格種標記：點下去、驗收填色真的出現在被點的那一格才算數。
 
         沒驗收就記 `marker` 會讓下一把重認拿舊填色配新格號，整幀寫進差一格距整數倍的
@@ -1158,8 +1189,7 @@ class Scan:
                 continue
             self.signature = placed.signature
             self.marker = cell
-
-            return (placed.signature, cell, placed.point or point)
+            return Seed(placed.signature, cell, placed.point or point, placed.frame, True)
         return None
 
     def note_encounter(self, cell: Cell, frame: np.ndarray, seen: str) -> None:

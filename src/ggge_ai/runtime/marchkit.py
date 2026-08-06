@@ -47,11 +47,17 @@ class PanResult:
 
 @dataclass(frozen=True)
 class MarkerPlacement:
-    """一次種標記的驗收結果（`sweep_scan.carry_marker` 的驗收段）。"""
+    """一次種標記的驗收結果（`sweep_scan.carry_marker` 的驗收段）。
+
+    `frame` 是驗收用的那一張（填色已經在上面）。**下一把推鏡的基準幀必須是它**：
+    拿種標之前的舊幀當基準，量到的「位移」會把重種的位移也算進去（0806 run19 的
+    西推就是這樣被讀成垂直位移——鏡頭在西界推不動，殘下的全是重種那一跳）。
+    """
 
     verdict: str
     signature: board.MarkerSignature | None
     point: Point | None
+    frame: np.ndarray | None = None
 
     @property
     def ok(self) -> bool:
@@ -111,20 +117,20 @@ class Marcher:
         重認拿舊填色配新格號。說不出結果的那一下（`TAP_NONE`）**重拍重點一次**再判——
         `sweep_scan` 的 `carry_failed` 就是這一步。
         """
-        outcome = self._tap_once(point, frame, pitch=pitch, card=card, signature=signature,
-                                 settle=settle)
+        outcome, after = self._tap_once(point, frame, pitch=pitch, card=card,
+                                        signature=signature, settle=settle)
         if outcome.verdict == sweep.TAP_NONE:
             self.journal.record("carry_failed", point=[round(v, 1) for v in point])
-            outcome = self._tap_once(point, self.camera.grab(), pitch=pitch, card=card,
-                                     signature=signature, settle=settle)
+            outcome, after = self._tap_once(point, self.camera.grab(), pitch=pitch, card=card,
+                                            signature=signature, settle=settle)
         learned = outcome.learned or signature
         self.journal.record(
             "place_marker", point=[round(v, 1) for v in point], verdict=outcome.verdict
         )
         if outcome.verdict != sweep.TAP_EMPTY or learned is None:
-            return MarkerPlacement(outcome.verdict, None, outcome.marker)
+            return MarkerPlacement(outcome.verdict, None, outcome.marker, after)
         self.signature = learned
-        return MarkerPlacement(outcome.verdict, learned, outcome.marker or point)
+        return MarkerPlacement(outcome.verdict, learned, outcome.marker or point, after)
 
     def _tap_once(
         self,
@@ -135,13 +141,14 @@ class Marcher:
         card: Callable[[np.ndarray], bool],
         signature: board.MarkerSignature | None,
         settle: float,
-    ) -> sweep.TapOutcome:
+    ) -> tuple[sweep.TapOutcome, np.ndarray]:
         self.device.tap(int(point[0]), int(point[1]))
         self.sleep(settle)
         after = self.camera.grab()
-        return sweep.classify_tap(
+        outcome = sweep.classify_tap(
             before, after, point, signature=signature, card=card, pitch=pitch
         )
+        return (outcome, after)
 
     # ---------- 推鏡 ----------
 

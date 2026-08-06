@@ -71,6 +71,45 @@ def test_an_eaten_gesture_is_unlocked_and_resent_unchanged(tmp_path, monkeypatch
     assert marcher.unlocks == [True]  # 重發之前先做解鎖檢查
 
 
+@pytest.mark.parametrize(
+    ("direction", "axis"), [("west", 0), ("east", 0), ("north", 1), ("south", 1)]
+)
+def test_a_push_only_ever_drags_along_its_own_axis(tmp_path, monkeypatch, direction, axis):
+    """0806 run19：西推的位移量成 (−1.8, −236.6)＝整個行程跑到 y 軸上。手勢本身必須
+    嚴格同軸——另一軸一個像素都不准動，否則「往西推」與「往北推」根本分不出來。"""
+    marcher = _marcher(tmp_path)
+    _phase_only(monkeypatch, iter([((0.0, 0.0), (90.0, 90.0)), ((40.0, 40.0), (90.0, 90.0))]))
+
+    result = marcher.pan(direction, _blank(), 200.0)
+
+    x1, y1, x2, y2 = marcher.swipes[0][:4]
+    moved = (x2 - x1, y2 - y1)
+    assert abs(moved[axis]) == round(result.stroke)  # 行程整條落在自己的軸上
+    assert moved[1 - axis] == 0  # 另一軸紋風不動
+
+
+def test_the_baseline_marker_reading_comes_from_the_frame_it_was_handed(tmp_path, monkeypatch):
+    """0806 run19 的根因：呼叫端把**種標記之前**那張幀當基準交進來，於是量到的位移
+    ＝鏡頭位移＋重種那一跳。契約在這裡釘死：`pan` 的基準讀數只來自 `frame` 參數。"""
+    marcher = _marcher(tmp_path)
+    marcher.signature = object()
+    stale, verified = _blank(), _blank()
+    stale[0, 0, 0] = 1
+    seen: list[int] = []
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: None)
+    monkeypatch.setattr(board, "find_sightings", lambda frame: ())
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: {})
+
+    def find(frame, sig, **kw):
+        seen.append(int(frame[0, 0, 0]))
+        return (1400.0, 800.0) if seen[-1] == 0 else (1400.0, 300.0)
+
+    monkeypatch.setattr(board, "find_marker", find)
+    marcher.pan("south", verified, 260.0)
+
+    assert seen[0] == 0  # 基準讀的是交進來的那張，不是相機當下那張
+
+
 def test_a_gesture_eaten_every_time_stops_instead_of_spinning(tmp_path, monkeypatch):
     """sweep_scan 在這裡 raise Halt；模組層改回 `PAN_EATEN` 讓呼叫端裁決，次數不變。"""
     marcher = _marcher(tmp_path)

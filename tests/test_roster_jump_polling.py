@@ -118,10 +118,9 @@ def test_a_pan_that_cannot_be_read_never_reaches_the_grid_as_none(tmp_path, monk
     """0806 第九輪實機 CRASH：`pan()` 回 None 之後 continue，下一輪開頭拿 None.grid
     炸 AttributeError。讀不出來要重拍重讀，還是讀不出來才計 lost。"""
     scan = build_scan(tmp_path, [])
-    marker = board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
-    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: _seed((3, 4)))
     monkeypatch.setattr(
-        scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0), False)
+        scan, "carry_marker", lambda *a, **k: _seed((3, 4))
     )
     monkeypatch.setattr(scan.marcher, "pan", _landing_pan())
     monkeypatch.setattr(scan, "view", lambda frame: None)
@@ -142,10 +141,9 @@ def test_an_unreadable_pan_recovers_on_the_reread_instead_of_giving_up(tmp_path,
     """
     bounded_grid = FrameGrid(cols=list(GRID.cols), rows=list(GRID.rows), west_bound=True)
     scan = build_scan(tmp_path, [])
-    marker = board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
-    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: _seed((3, 4)))
     monkeypatch.setattr(
-        scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0), False)
+        scan, "carry_marker", lambda *a, **k: _seed((3, 4))
     )
     monkeypatch.setattr(scan.marcher, "pan", _landing_pan())
     monkeypatch.setattr(scan, "view", lambda frame: None)
@@ -381,6 +379,11 @@ def _marker():
     return board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
 
 
+def _seed(cell, *, fresh=False, spot=(900.0, 500.0)):
+    """種好的標記：驗收幀一路帶著，下一把推鏡的基準就是它。"""
+    return scan_roster_jump.Seed(_marker(), cell, spot, np.zeros((4, 4, 3), np.uint8), fresh)
+
+
 def _landing_result(stroke=260.0):
     """marchkit 的推鏡結果：手勢驗收過了（LANDED），驗收幀交回呼叫端。"""
     return scan_roster_jump.marchkit.PanResult(
@@ -400,7 +403,7 @@ def test_the_marker_is_reseeded_at_the_frontier_before_every_pan(tmp_path, monke
     monkeypatch.setattr(
         scan,
         "seed_marker",
-        lambda view, **kw: seeds.append(kw.get("toward")) or (_marker(), (3, 4), (900.0, 500.0)),
+        lambda view, **kw: seeds.append(kw.get("toward")) or _seed((3, 4)),
     )
     pans: list[float] = []
 
@@ -428,9 +431,9 @@ def _met_scan(tmp_path, monkeypatch, values, *, solved=("enemy", 9), world=(12, 
     ]
     if solved is not None:
         scan.ledger.anchor(solved, world)
-    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (_marker(), (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: _seed((3, 4)))
     monkeypatch.setattr(
-        scan, "carry_marker", lambda *a, **k: (_marker(), (3, 4), (900.0, 500.0), False)
+        scan, "carry_marker", lambda *a, **k: _seed((3, 4))
     )
     monkeypatch.setattr(scan.marcher, "pan", _landing_pan())
     monkeypatch.setattr(scan, "view", lambda frame: None)
@@ -506,6 +509,54 @@ def test_nothing_to_compare_against_means_no_neighbour_probe_at_all(tmp_path, mo
     assert "neighbor_probe" not in _kinds(scan)
 
 
+def test_a_visible_border_ends_the_axis_even_when_the_grid_cannot_see_it(tmp_path, monkeypatch):
+    """0806 run19：`pan_exhausted` 記著 borders:["west"]，收軸卻只問格網＝看得見界卻不
+    承認到界，種標→推鏡→夾停無限迴圈。四側都改雙訊號之後這一幀就收軸。"""
+    scan = build_scan(tmp_path, [])
+    monkeypatch.setattr(scan_roster_jump.sweep, "read_borders", lambda frame: {"west": 300.0})
+
+    hit, signals = scan_roster_jump.at_border(_view(), "west")
+
+    assert hit and signals == {"grid": False, "edge": True}
+    assert scan is not None
+
+
+def test_a_fake_north_ridge_still_needs_the_edge_feature(tmp_path, monkeypatch):
+    """北界只認終止邊：頂帶 HUD 蓋住格線時格網會把 HUD 下緣的脊讀成北界。"""
+    monkeypatch.setattr(scan_roster_jump.sweep, "read_borders", lambda frame: {})
+    grid = FrameGrid(cols=list(GRID.cols), rows=list(GRID.rows), north_bound=True)
+
+    hit, signals = scan_roster_jump.at_border(_view(grid), "north")
+
+    assert not hit and signals == {"grid": True, "edge": False}
+
+
+def test_a_camera_that_will_not_move_and_no_border_in_sight_gives_up_that_axis(
+    tmp_path, monkeypatch
+):
+    """推不動又看不見界＝不知道自己在哪，連兩把就換下一台（run19 在這裡燒了 800 秒）。"""
+    scan = build_scan(tmp_path, [])
+    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: _seed((3, 4)))
+    monkeypatch.setattr(scan, "carry_marker", lambda *a, **k: _seed((3, 4)))
+    monkeypatch.setattr(scan_roster_jump.sweep, "read_borders", lambda frame: {})
+    pans: list[str] = []
+
+    def pan(direction, frame, reach=None):
+        pans.append(direction)
+        return scan_roster_jump.marchkit.PanResult(
+            0.0, np.zeros((4, 4, 3), np.uint8), scan_roster_jump.sweep.PAN_PINNED, 2
+        )
+
+    monkeypatch.setattr(scan.marcher, "pan", pan)
+    monkeypatch.setattr(scan, "view", lambda frame: _view())
+
+    result = scan.march_axis(("enemy", 0), _view(), (5, 5), 0, "west")
+
+    assert result == scan_roster_jump.AxisResult()
+    assert len(pans) == scan_roster_jump.MARCH_STALL_LIMIT
+    assert "march_stalled" in _kinds(scan)
+
+
 def _dock_scan(tmp_path, monkeypatch, seen, *, left=None, right=None):
     scan = build_scan(tmp_path, [])
     monkeypatch.setattr(scan_roster_jump.vision, "read_enemy_summary", lambda frame: left)
@@ -545,8 +596,8 @@ def test_a_reseeded_marker_moves_the_odometer_but_carrying_the_old_one_does_not(
 ):
     """新種的一顆才要把兩顆的幀格差入帳；沿用同一顆是同一個實體，世界格差不變。"""
     scan = build_scan(tmp_path, [])
-    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (_marker(), (3, 4), (900.0, 500.0)))
-    carried = iter([(_marker(), (1, 6), (900.0, 500.0), True)])
+    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: _seed((3, 4)))
+    carried = iter([_seed((1, 6), fresh=True)])
     monkeypatch.setattr(scan, "carry_marker", lambda *a, **k: next(carried, None))
     monkeypatch.setattr(scan.marcher, "pan", _landing_pan())
     monkeypatch.setattr(scan, "view", lambda frame: _view())
