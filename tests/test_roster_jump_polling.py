@@ -195,54 +195,51 @@ def test_a_camera_that_never_settles_says_so_instead_of_pretending(tmp_path):
     assert "camera_unsteady" in _kinds(scan)
 
 
-def _ally_scan(tmp_path, monkeypatch, sequence):
-    scan = build_scan(tmp_path, sequence)
-    monkeypatch.setattr(screens, "classify", scan.classified)
+def test_an_ally_that_did_not_enter_unit_move_is_left_alone(tmp_path, classify):
+    """已行動的單位跳不進移動模式。不猜、不點地圖、把面板收乾淨。"""
+    scan = build_scan(tmp_path, [screens.BATTLE_MAP, screens.BATTLE_MAP])
+    classify(scan)
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+
+    view, target, sig = scan.land_ally(
+        ("ally", 0), np.zeros((4, 4, 3), np.uint8), None, "jump"
+    )
+
+    assert (view, target) == (None, None)
+    assert taps == []
+    assert "jump_not_taken" in _kinds(scan)
+
+
+def test_the_ally_cell_is_the_centre_of_the_move_range_diamond(tmp_path, monkeypatch):
+    """跳轉直接進單位移動模式，遊戲自己把可抵達格畫成以該台為中心、半徑＝移動力的
+    菱形——中心就是它站的格，全程零 map tap。"""
+    scan = build_scan(tmp_path, [])
+    scan.entries = [
+        roster.RosterEntry(faction=roster.ALLY, index=0, hp=1, en=1, mobility=2, lv=1)
+    ]
+    centres = scan_roster_jump.grid_centres(GRID)
+    reach = {
+        cell for cell in centres if abs(cell[0] - 4) + abs(cell[1] - 3) <= 2 and cell != (4, 3)
+    }
     monkeypatch.setattr(
-        scan_roster_jump.board, "find_unit_screen_hints", lambda frame: ((1170.0, 540.0),)
+        scan_roster_jump.jumpscan,
+        "range_marks",
+        lambda frame, pitch: tuple(centres[cell] for cell in sorted(reach)),
     )
-    monkeypatch.setattr(scan, "steady", lambda: np.zeros((4, 4, 3), np.uint8))
-    monkeypatch.setattr(scan_roster_jump.jumpscan, "changed_fraction", lambda a, b: 0.0)
-    return scan, taps
+    moving = _view()
+
+    assert scan.range_cell(("ally", 0), moving) == (4, 3)
 
 
-def test_an_ally_cell_is_confirmed_by_the_game_entering_unit_move(tmp_path, monkeypatch):
-    """我方沒有指定標示：點下去進入「單位移動」＝這一格有那台，與敵方點出卡同構。"""
-    scan, taps = _ally_scan(
-        tmp_path, monkeypatch, [screens.BATTLE_UNIT_MOVE, screens.BATTLE_MAP]
-    )
-    view = _view()
+def test_an_ally_whose_mobility_was_never_read_stays_unresolved(tmp_path):
+    scan = build_scan(tmp_path, [])
+    scan.entries = [
+        roster.RosterEntry(faction=roster.ALLY, index=0, hp=1, en=1, mobility=None, lv=1)
+    ]
 
-    found = scan.ally_target(("ally", 0), view)
-
-    assert found == scan_roster_jump.snap_cell(GRID, (1170.0, 540.0))
-    # 確認之後一定要按返回退出，不能把單位留在移動模式裡。
-    assert jumpscan.ALLY_DISMISS_TAP in taps
-    assert scan.mistaps == []
-
-
-def test_an_ally_probe_that_never_enters_unit_move_stays_unresolved(tmp_path, monkeypatch):
-    scan, _ = _ally_scan(tmp_path, monkeypatch, [screens.BATTLE_MAP] * 6)
-    monkeypatch.setattr(
-        scan_roster_jump.board,
-        "find_unit_screen_hints",
-        lambda frame: ((1170.0, 540.0), (1400.0, 560.0), (1600.0, 700.0)),
-    )
-
-    assert scan.ally_target(("ally", 0), _view()) is None
-
-
-def test_landing_in_the_weapon_menu_is_recorded_as_a_mistap(tmp_path, monkeypatch):
-    """驗收判準的「零誤觸」要機器查得到：非預期的地圖子模式一律進 run 級帳。"""
-    scan, _ = _ally_scan(
-        tmp_path, monkeypatch, [screens.BATTLE_WEAPON_SELECT, screens.BATTLE_MAP] * 4
-    )
-
-    assert scan.ally_target(("ally", 0), _view()) is None
-    assert [flag["seen"] for flag in scan.mistaps] == [screens.BATTLE_WEAPON_SELECT]
-    assert "mistap" in _kinds(scan)
+    assert scan.range_cell(("ally", 0), _view()) is None
+    assert "range_fit" in _kinds(scan)
 
 
 def test_the_tour_runs_the_enemy_roster_first_by_default(tmp_path):

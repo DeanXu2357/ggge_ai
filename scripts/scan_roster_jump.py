@@ -3,9 +3,10 @@
 不推鏡找單位——名冊是完整的（我軍 10、敵軍 18），每一台都點得開、跳得到，剩下的
 問題只是「跳過去那一台在世界的哪一格」。兩條路，都不含無標記的圖片比對：
 
-- **relay**：同幀接力。目標端＝跳轉指定標示所在格（落點幀與乾淨幀的變化指出來的，
-  不是密度峰猜的），鄰居端＝我們點下去而且真的出卡的那一格。兩端都是驗證過的格，
-  幀內格差由同一張 FrameGrid 算。鄰居的身分還沒有座標就先記帳，`settle` 回填。
+- **relay**：同幀接力。目標端敵方＝跳轉指定標示所在格（落點幀與乾淨幀的變化指出來的，
+  不是密度峰猜的）、我方＝移動範圍菱形的中心（跳轉直接進單位移動模式，**一下地圖都不
+  點**）；鄰居端＝我們點下去而且真的出卡的那一格。兩端都是驗證過的格，幀內格差由同一張
+  FrameGrid 算。鄰居的身分還沒有座標就先記帳，`settle` 回填。
 - **march**：自力。在目標旁種標記，往西推到 FrameGrid 讀到西界，逐把靠標記重認累計
   格數；往北同理（先跳回同一台重置鏡頭）。
 
@@ -73,8 +74,6 @@ ROSTER_SETTLE_S = 1.0
 SCREEN_ATTEMPTS = 5
 END_OF_LIST_CONFIRMATIONS = 2
 
-# 我方的驗證格：最多點兩個候選（離畫面中心最近的兩個），都不進移動模式就記 unresolved。
-ALLY_PROBES = 2
 # 路徑 A：最多問兩台鄰居的身分，都問不到就走自力。
 RELAY_PROBES = 2
 # 路徑 B：一軸最多推幾把（一把約一格半，地圖再大也用不到這麼多）。
@@ -419,6 +418,8 @@ class Scan:
         landing = self.steady()
         self.camera.keep(f"{label}:{faction}:{index}:landing")
         sig = read_signature(landing)
+        if faction == roster.ALLY:
+            return self.land_ally(key, landing, sig, label)
         self.dismiss(faction, landing)
         clean = self.camera.settled(JUMP_SETTLE_S, self.sleep)
         self.camera.keep(f"{label}:{faction}:{index}:clean")
@@ -429,19 +430,14 @@ class Scan:
         if view is None:
             self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
             return (None, None, sig)
-        if faction == roster.ALLY:
-            # 我方跳轉不畫任何指定標示（0806 run 20260806-103335 的 00055：跳轉後的鏡位
-            # 仍是純 hub 地圖），所以目標端改用「點擊即驗證」——與敵方點出卡同構。
-            target = self.ally_target(key, view)
-        else:
-            # 指定標示的比對一定要用**這張視圖自己的幀**：重讀過的話 clean 已經換人了。
-            target = jumpscan.designation_cell(
-                landing,
-                view.frame,
-                view.centres,
-                half=min(view.pitch) / 3.0,
-                exclude=self.own_marks(view, landing),
-            )
+        # 指定標示的比對一定要用**這張視圖自己的幀**：重讀過的話 clean 已經換人了。
+        target = jumpscan.designation_cell(
+            landing,
+            view.frame,
+            view.centres,
+            half=min(view.pitch) / 3.0,
+            exclude=self.own_marks(view, landing),
+        )
         self.journal.record(
             "landed",
             key=list(key),
@@ -453,48 +449,78 @@ class Scan:
             return (view, None, sig)
         return (view, target, sig)
 
-    def ally_target(self, key: jumpscan.Key, view: View) -> Cell | None:
-        """我方的驗證格：點離畫面中心最近的候選格，畫面進入「單位移動」就是它。
+    def land_ally(
+        self, key: jumpscan.Key, landing: np.ndarray, sig: str | None, label: str
+    ) -> tuple[View | None, Cell | None, str | None]:
+        """我方：跳轉本來就直接進「單位移動」，所以**一下地圖都不點**。
 
-        點擊產生了系統回應＝這一格有那台單位，語意與敵方「點下去出卡」完全同構；密度峰
-        一樣只用來排要點哪一格。確認後立刻按返回鈕退出，並要求**鏡位沒有變**——選擇態
-        會把鏡頭往單位拉，鏡頭一動這一幀的格號就全部作廢。
+        目標格從高亮的移動範圍讀出來——那是遊戲自己以該台為中心、以移動力為半徑畫的
+        菱形，中心就是它站的格。讀完按返回鈕回地圖。
         """
-        peaks = board.find_unit_screen_hints(view.frame)
-        order = sorted(
-            peaks,
-            key=lambda peak: (peak[0] - jumpscan.SCREEN_CENTRE[0]) ** 2
-            + (peak[1] - jumpscan.SCREEN_CENTRE[1]) ** 2,
+        faction, index = key
+        seen = screens.classify(landing)
+        self.journal.record("ally_landing_state", key=list(key), seen=seen)
+        if seen != screens.BATTLE_UNIT_MOVE:
+            # 已行動的單位跳不進移動模式（詳情頁連「選擇」鈕都沒有）。不猜、不點地圖。
+            self.journal.record("jump_not_taken", key=list(key), reason=seen)
+            self.close_panels()
+            return (None, None, sig)
+        moving = self.view(landing)
+        target = None if moving is None else self.range_cell(key, moving)
+        self.device.tap(*jumpscan.ALLY_DISMISS_TAP, intent=jumpscan.ALLY_DISMISS_INTENT)
+        self.sleep(TAP_SETTLE_S)
+        if not self.await_map():
+            self.journal.record("ally_stuck_in_move", key=list(key))
+            self.close_panels()
+            return (None, None, sig)
+        clean = self.steady()
+        self.camera.keep(f"{label}:{faction}:{index}:clean")
+        view = self.view(clean)
+        if view is None or moving is None:
+            self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
+            return (None, None, sig)
+        if (view.grid.cols, view.grid.rows) != (moving.grid.cols, moving.grid.rows):
+            # 退出移動模式之後格線對不上＝鏡頭動過，菱形算出來的格號不能跨鏡位用。
+            self.journal.record("ally_grid_shifted", key=list(key))
+            return (view, None, sig)
+        self.journal.record(
+            "landed",
+            key=list(key),
+            target=None if target is None else list(target),
+            sig=sig,
+            bounds=view.grid.bounds(),
         )
-        tried: set[Cell] = set()
-        for peak in order:
-            if len(tried) >= ALLY_PROBES:
-                break
-            cell = snap_cell(view.grid, peak)
-            point = None if cell is None else view.centres.get(cell)
-            if cell is None or point is None or cell in tried:
-                continue
-            tried.add(cell)
-            self.device.tap(int(point[0]), int(point[1]))
-            self.sleep(TAP_SETTLE_S)
-            seen = self.note_state(self.camera.grab(), expect=screens.BATTLE_UNIT_MOVE, where="ally_probe")
-            self.journal.record("ally_probe", key=list(key), cell=list(cell), seen=seen)
-            if seen != screens.BATTLE_UNIT_MOVE:
-                self.escape_map()
-                continue
-            self.device.tap(*jumpscan.ALLY_DISMISS_TAP, intent=jumpscan.ALLY_DISMISS_INTENT)
-            self.sleep(TAP_SETTLE_S)
-            if not self.await_map():
-                self.journal.record("ally_probe_stuck", key=list(key), cell=list(cell))
-                self.close_panels()
-                return None
-            after = self.steady()
-            moved = jumpscan.changed_fraction(view.frame, after)
-            self.journal.record("ally_confirmed", key=list(key), cell=list(cell), moved=round(moved, 3))
-            if moved >= CAMERA_STEADY_FRACTION:
-                # 退出後的鏡位跟確認當下不是同一個：格號不能跨鏡位用。
-                return None
-            return cell
+        return (view, target, sig)
+
+    def range_cell(self, key: jumpscan.Key, moving: View) -> Cell | None:
+        """移動範圍的菱形中心＝那台單位站的格。半徑用名冊讀到的移動力。"""
+        reach = self.reach(key)
+        if reach is None:
+            self.journal.record("range_fit", key=list(key), reason="no_mobility")
+            return None
+        marks = jumpscan.range_marks(moving.frame, moving.pitch)
+        cells = {snap_cell(moving.grid, point) for point in marks}
+        seen = sorted(cell for cell in cells if cell is not None)
+        window = (0, 0, len(moving.grid.cols) - 2, len(moving.grid.rows) - 2)
+        found = jumpscan.diamond_centre(
+            seen,
+            reach,
+            window=window,
+            prefer=snap_cell(moving.grid, jumpscan.SCREEN_CENTRE),
+        )
+        self.journal.record(
+            "range_fit",
+            key=list(key),
+            reach=reach,
+            marks=len(seen),
+            cell=None if found is None else list(found),
+        )
+        return found
+
+    def reach(self, key: jumpscan.Key) -> int | None:
+        for unit in self.entries:
+            if (unit.faction, unit.index) == key:
+                return unit.mobility
         return None
 
     def note_state(self, frame: np.ndarray, *, expect: str | None, where: str) -> str:
@@ -797,17 +823,7 @@ class Scan:
     # ---------- 解除 ----------
 
     def dismiss(self, faction: str, frame: np.ndarray) -> None:
-        """敵方＝點一個空白格；我方＝只有真的在移動模式才按返回。
-
-        我方跳轉在 0806 run 20260806-103335 落在純 hub 地圖，那時候按下去的「返回」其實
-        是點在地圖上，會留下一顆選取填色去污染下一輪的比對——先問畫面再決定。
-        """
-        if faction == roster.ALLY:
-            seen = screens.classify(frame)
-            self.journal.record("ally_landing_state", seen=seen)
-            if seen == screens.BATTLE_UNIT_MOVE:
-                self.device.tap(*jumpscan.ALLY_DISMISS_TAP, intent=jumpscan.ALLY_DISMISS_INTENT)
-            return
+        """敵方的解除：點一個空白格。我方走 `land_ally`，這裡不該收到我方。"""
         view = self.view(frame)
         if view is None:
             # 落點幀讀不出格網可能只是轉場沒停穩：鏡頭沒動，重拍一張再試一次。

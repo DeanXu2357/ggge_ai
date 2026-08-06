@@ -13,7 +13,7 @@ relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗
 | `src/ggge_ai/runtime/screens.py` | `BATTLE_MENU`／`TROOP_INFO` 兩個畫面名與簽名 |
 | `assets/templates/elements/label_battle_menu.png`、`label_troop_info.png` | 標題字模（0806 實幀裁） |
 | `src/ggge_ai/runtime/roster.py` | 列表格座標產生器＋詳情頁讀值（兩種佈局） |
-| `src/ggge_ai/runtime/jumpscan.py` | **改寫**：指定標示定格／march 計格帳／接力帳與回填／排程／解除點挑選 |
+| `src/ggge_ai/runtime/jumpscan.py` | **改寫**：敵方指定標示定格／我方移動範圍菱形擬合／march 計格帳／接力帳與回填／排程／解除點挑選 |
 | `src/ggge_ai/runtime/board.py` | `find_units` → **`find_unit_screen_hints`**（純改名＋首行語意：啟發式候選，輸出螢幕像素座標，不是已驗證世界座標） |
 | `src/ggge_ai/runtime/device.py` | `weapon_dial` 危險帶；`DangerBand.intents` 多值白名單，`roster_cell`／`roster_jump` 放行面板底下的假重疊 |
 | `scripts/scan_roster_jump.py` | **改寫**：四段停點改成 prepare／roster／jump／settle |
@@ -35,11 +35,14 @@ relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗
    `roster.cell_taps(faction)` → `Scan.open_detail()`（輪詢 `screens.classify`；連續兩輪
    `troop_info` 才算列表盡頭）→ `roster.read_detail()` → `roster.json`。
 3. **jump** — `jumpscan.next_target()` 挑下一台 → `Scan.visit()`：
-   - `Scan.land()`：開列表 → `roster.DETAIL_SELECT_TAP` 跳轉 → **落點幀**（帶指定標示）
-     → `read_signature()` 讀左上單位卡拿目標自己的 `name_sig` → `Scan.dismiss()`
-     （敵＝`jumpscan.blank_cell_tap` 挑空白格；我＝`jumpscan.ALLY_DISMISS_TAP`）→
-     **乾淨幀** → `read_frame_grid` → `jumpscan.designation_cell(落點幀, 乾淨幀, 格心)`
-     ＝**目標格**。
+   - `Scan.land()`：`close_panels()` → 開列表 → `roster.DETAIL_SELECT_TAP` 跳轉 →
+     `await_map()` 確認面板真的收了 → `steady()` 等鏡頭落定＝**落點幀** →
+     `read_signature()` 讀左上單位卡拿目標自己的 `name_sig` → 依陣營分兩條：
+     **敵方**＝`Scan.dismiss()`（`jumpscan.blank_cell_tap` 挑空白格）→ 乾淨幀 →
+     `jumpscan.designation_cell(落點幀, 乾淨幀, 格心, exclude=自家標記)`＝目標格；
+     **我方**＝`Scan.land_ally()`，落點幀必須是 `battle_unit_move`，直接讀移動範圍
+     （`jumpscan.range_marks` → `jumpscan.diamond_centre(半徑=移動力)`）＝目標格，
+     再按返回鈕退出，**一下地圖都不點**。
    - 路徑 A `Scan.relay()`：`jumpscan.probe_order()` 用密度峰**只挑要點哪一格** →
      `Scan.ask_identity()` 點該格心 → `sweep.classify_tap` 判 CARD → `read_signature`
      拿鄰居身分 → `JumpLedger.relay(key, sig, 幀內格差)`。點到我方（SHIFTED）＝鏡頭被
@@ -57,8 +60,9 @@ relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗
 
 相對偏移的**兩個端點都必須是驗證過的格**：
 
-- 目標端＝跳轉指定狀態下**系統標示**的那一格，從帶高亮的落點幀讀出來
-  （`designation_cell` 比對落點幀與乾淨幀的變化；解除不移動鏡頭，所以兩幀共用格網）。
+- 目標端＝跳轉之後**系統自己畫出來**的那一格：敵方看指定標示（`designation_cell` 比對
+  落點幀與乾淨幀的變化；解除不移動鏡頭，所以兩幀共用格網），我方看移動範圍菱形
+  （`diamond_centre`，半徑＝名冊讀到的移動力）。兩者都不需要我們對地圖點任何一下。
 - 鄰居端＝**我們點下去而且真的出卡**的那一格。點擊座標落在格 c、卡開了，記的就是格
   c；卡沒開這一格就不算，換一格。
 - `find_unit_screen_hints` 的候選點只准拿來排「先問哪一格」（`probe_order`），一律不
@@ -155,25 +159,36 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    跳轉成功，沒收就記 `jump_not_taken` ＋收面板收乾淨再回失敗。
 6. `GridUnreadable` 的 WARNING 降成單行（原本整個 traceback 進 log）。
 
-### 裁決：我方的目標端＝「點擊即驗證」（使用者 0806 定案）
+### 裁決（0806 最終）：我方的目標端＝移動範圍菱形，全程零 map tap
 
-我方跳轉只把鏡頭帶過去，畫面上沒有任何系統標示可讀（實幀證據見上）。定案是把點擊即驗證
-的語意用到底——`Scan.ally_target()`：對乾淨幀上離畫面中心最近的候選格點一下，畫面若進入
-**單位移動模式**，「被點的那一格」就是該台的驗證格；點擊產生了系統回應，與敵方點出卡完全
-同構。確認後立刻按返回鈕退出、`await_map()` 驗面板收乾淨。不進移動模式就 `escape_map()`
-換下一格，最多兩格，都不中記 `unresolved`——不硬猜。
+使用者推翻下一節的「點候選格確認」版本：我方跳轉（詳情頁「選擇」）**本來就直接進入單位
+移動模式**，所以不必也不該對地圖點任何一下。新流程 `Scan.land_ally()`：
 
-- **移動模式的判準不新開字模**：`screens.classify` 既有的 `BATTLE_UNIT_MOVE`
-  （`elements/label_unit_move.png`）在使用者指定的 `assets/screenshots/20260806-013500.png`
-  上直接回 `battle_unit_move`，而 0806 的兩張 hub 地圖幀回 `battle_map`。已經標定過的東西
-  不重做一份。
-- **退出後要求鏡位沒變**：選擇態會把鏡頭往單位拉，鏡頭一動這一幀的格號就作廢。退出後
-  `steady()` 再與確認當下的幀比 `changed_fraction`，超過門檻就回 `None`（journal
-  `ally_confirmed` 記 `moved`）。
-- **我方的解除也改成有條件**：只有 `classify` 真的讀到 `battle_unit_move` 才按返回。純 hub
-  地圖上那一下「返回」其實是點在地圖上，會留下一顆選取填色去污染下一輪的比對。
-- 已行動單位（詳情頁只剩「關閉」）在掃描輪照理不會出現；出現就是 `jump_not_taken` 進帳
-  ＋該台 `unresolved`。
+跳轉 → `steady()` → `screens.classify` 必須是 `battle_unit_move`（不是就記 `jump_not_taken`
+＋`unresolved`，不點地圖）→ 就用那張移動模式幀讀高亮的可抵達格 → 菱形擬合出中心格 →
+按返回鈕 (1798,971) → `await_map()` → `steady()`，並要求退出後的格線與移動模式幀**完全
+相同**（`ally_grid_shifted` 否則作廢，格號不跨鏡位用）。
+
+- **可抵達格有兩種徽章，都要收**（`jumpscan.range_marks`）：藍＝可走、紅「!」＝可走但會
+  被敵方打到。實幀 `assets/screenshots/20260806-013500.png` 量：藍 45x43／填充 0.62-0.75／
+  長寬比 ~1，紅 45x63／填充 0.44-0.59／長寬比 ~0.67，尺寸一律用格距的比例表示。
+  **只收藍的會讓菱形缺一整側**——只用藍格的最小包覆菱形給出 (1,5)，藍紅聯集才唯一解出
+  (3,4)＝那台實際站的格。右側敵方那條同色的 34x64 HUD 條靠長寬比擋掉，放它進來菱形無解。
+- **擬合**（`jumpscan.diamond_centre`）：硬條件是每一個看到的可抵達格都在半徑
+  `reach`＝名冊讀到的**移動力**之內（標記是遊戲畫的，不可能超出移動力；漏看不罰、多看否決）。
+  貼邊時菱形被截斷、可行中心不只一個，改用「預測最少沒看到的區域」收尾（Occam：同樣的
+  觀測下預測範圍愈小愈可信），仍並列才用「離畫面中心最近」當先驗，還並列就回 `None`。
+  實幀（移動力 5、31 個標記、單位自己那格沒有徽章）：**可行中心唯一，就是 (3,4)**。
+- 移動模式的判準沿用既有的 `screens.BATTLE_UNIT_MOVE`（該幀 `classify` 直接回
+  `battle_unit_move`），沒有新開字模。
+- 順手把 `designation_cell` 的「滿版就取離中心最近」退路**刪掉**——那條退路本來是為我方
+  覆蓋層加的，現在我方不走它了；敵方寧可漏認也不要猜。
+
+### （已被推翻）「點候選格開移動模式」
+
+上一版曾實作 `ally_target()`／`ally_probe`：點離畫面中心最近的候選格，畫面進入移動模式就
+算驗證。使用者裁決改走上面的零 map tap 版本後整段拆除——地圖上少一下點擊就少一次誤下
+指令的機會，而移動範圍本來就把答案畫在畫面上了。
 
 ### 誤觸帳：run 級旗標
 

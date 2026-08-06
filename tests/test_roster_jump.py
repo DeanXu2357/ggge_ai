@@ -167,15 +167,14 @@ def test_no_designation_mark_means_no_target_cell():
     assert jumpscan.designation_cell(clean, clean, _scene({(0, 0), (1, 0)}), half=20.0) is None
 
 
-def test_a_full_screen_overlay_falls_back_to_the_cell_the_game_centred():
-    """我方移動範圍是一整片同色覆蓋，好幾格一起滿版變化——領先差裁不出來時，
-    由「系統自己置中的那一格」收尾。"""
+def test_a_full_screen_overlay_is_refused_rather_than_guessed():
+    """好幾格一起滿版變化時領先差裁不出來——回 None，不要拿「離中心最近」硬猜。"""
     clean = np.full((1080, 2340, 3), 60, np.uint8)
     landing = np.full((1080, 2340, 3), 200, np.uint8)
 
     found = jumpscan.designation_cell(landing, clean, _scene({(0, 0), (1, 0), (0, 1)}), half=20.0)
 
-    assert found == (0, 0)
+    assert found is None
 
 
 def test_the_peaks_only_pick_which_cell_to_ask_never_the_coordinates():
@@ -344,7 +343,7 @@ def test_the_designation_ignores_the_marks_we_made_ourselves():
     landing[520:560, 1250:1290] = (200, 200, 60)
     scene = _scene({(0, 0), (1, 0), (0, 1)})
 
-    assert jumpscan.designation_cell(landing, clean, scene, half=20.0) == (0, 0)
+    assert jumpscan.designation_cell(landing, clean, scene, half=20.0) is None
     assert jumpscan.designation_cell(landing, clean, scene, half=20.0, exclude=[(0, 0)]) == (1, 0)
 
 
@@ -358,3 +357,71 @@ def test_a_moving_camera_shows_up_as_a_whole_screen_change():
 
     assert jumpscan.changed_fraction(quiet, twitch) < 0.01
     assert jumpscan.changed_fraction(quiet, moved) > 0.9
+
+
+# ---------- 我方的目標端：移動範圍菱形 ----------
+
+
+def _diamond(centre, reach, window=None):
+    cells = set()
+    for x in range(centre[0] - reach, centre[0] + reach + 1):
+        for y in range(centre[1] - reach, centre[1] + reach + 1):
+            if abs(x - centre[0]) + abs(y - centre[1]) > reach:
+                continue
+            if window and not (window[0] <= x <= window[2] and window[1] <= y <= window[3]):
+                continue
+            cells.add((x, y))
+    return cells
+
+
+def test_the_move_range_diamond_names_the_cell_the_unit_stands_on():
+    """實幀 assets/screenshots/20260806-013500.png 的形狀：中心那一格自己沒有徽章
+    （單位圖示蓋著），一堆格被圖示與地形擋掉，剩下的仍然唯一定出中心。"""
+    marks = _diamond((6, 5), 5) - {(6, 5), (5, 5), (7, 5), (6, 4), (4, 3), (8, 6)}
+
+    assert jumpscan.diamond_centre(marks, 5) == (6, 5)
+
+
+def test_a_mark_beyond_the_move_range_vetoes_that_centre():
+    """標記是遊戲自己畫的，畫出來的格不可能超過移動力——多看到一格就否決那個中心。"""
+    marks = _diamond((6, 5), 3) | {(6, 12)}
+
+    assert jumpscan.diamond_centre(marks, 3) is None
+
+
+def test_a_unit_against_the_west_edge_is_fitted_with_the_mobility_prior():
+    """貼邊的菱形被截掉半個，硬條件下可行中心不只一個；預測最少沒看到的區域的那個才對
+    ——單純取重心會被截斷拉往東邊。"""
+    window = (0, 0, 12, 9)
+    marks = _diamond((1, 4), 4, window)
+
+    assert sum(cell[0] for cell in marks) / len(marks) > 1.5
+    assert jumpscan.diamond_centre(marks, 4, window=window) == (1, 4)
+
+
+def test_a_shape_that_two_centres_explain_equally_well_is_refused():
+    """裁不出唯一解就別猜：兩個中心一樣好的時候回 None，那台等下一輪。"""
+    marks = {(5, 5)}
+
+    assert jumpscan.diamond_centre(marks, 2) is None
+
+
+def test_no_marks_at_all_is_not_a_fit():
+    assert jumpscan.diamond_centre([], 4) is None
+
+
+def test_the_range_marks_take_the_badges_and_leave_the_hud_bars():
+    """右側敵方那條 34x64 的藍色 HUD 條與徽章同色，靠長寬比擋掉——放它進來菱形就無解。"""
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+    badge = (200, 120, 60)
+    # 徽章是圓角的，填充率 0.62-0.75；實心方塊在實幀裡不存在，填充率閘也會擋掉。
+    frame[400:443, 800:845] = badge
+    for x, y in ((800, 400), (833, 400), (800, 431), (833, 431)):
+        frame[y : y + 12, x : x + 12] = 0
+    frame[400:464, 1600:1634] = badge
+    pitch = (128.0, 120.0)
+
+    found = jumpscan.range_marks(frame, pitch)
+
+    assert len(found) == 1
+    assert abs(found[0][0] - 822) < 3 and abs(found[0][1] - 421) < 3

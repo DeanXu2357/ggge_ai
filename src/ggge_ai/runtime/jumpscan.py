@@ -4,8 +4,10 @@
 的跨窗圖樣比對」——那是拿兩張圖片猜對齊，沒有任何一端是被驗證過的格子。落點的世界
 座標只有兩條路：
 
-- **relay**：同一幀裡另有一台**已知世界座標**的單位，兩端都是驗證過的格
-  （目標端＝跳轉指定標示所在格、鄰居端＝點下去真的出卡的那一格），幀內格差直接搬。
+- **relay**：同一幀裡另有一台**已知世界座標**的單位，兩端都是驗證過的格，幀內格差直接
+  搬。目標端的定位點分陣營：敵方＝跳轉指定標示所在格（`designation_cell`），我方＝移動
+  範圍菱形的中心（`diamond_centre`，半徑就是名冊讀到的移動力）；鄰居端＝點下去真的
+  出卡的那一格。
   身分還沒有座標時先記成 `Relay`，`settle()` 反覆回填到不動點。
 - **march**：自力用標記接力往西／往北推到界，逐把重認標記算累計格數。
 
@@ -75,9 +77,6 @@ DESIGNATION_LEVEL = 40
 DESIGNATION_RADIUS_PX = 260.0
 DESIGNATION_MIN_CHANGE = 0.25
 DESIGNATION_MIN_LEAD = 0.15
-# 我方移動範圍是一整片同樣的藍色覆蓋，好幾格會一起滿版變化；這種時候領先差不會成立，
-# 改用「離畫面中心最近」在滿版的那幾格之間裁決（置中是系統自己做的事）。
-DESIGNATION_SATURATED = 0.75
 
 
 def _change_fraction(before: np.ndarray, after: np.ndarray, centre: Point, half: float) -> float:
@@ -116,12 +115,14 @@ def designation_cell(
     radius: float = DESIGNATION_RADIUS_PX,
     min_change: float = DESIGNATION_MIN_CHANGE,
     min_lead: float = DESIGNATION_MIN_LEAD,
-    saturated: float = DESIGNATION_SATURATED,
 ) -> Cell | None:
     """指定標示落在哪一格：落點幀與乾淨幀的變化量，畫面中心附近取最強的那一格。
 
     兩幀必須是同一個鏡位（解除不移動鏡頭）。裁不出唯一解就回 None——寧可讓這一台
     走自力路徑，也不要把座標建在猜測上。
+
+    好幾格一起滿版變化（大片覆蓋層）時領先差不會成立，那就回 None——「離畫面中心最近」
+    這種退路是猜的，我方那條路已經改成讀移動範圍菱形，敵方寧可漏認也不要錯認。
 
     `exclude` 是**我們自己弄出來的變化**：解除時點的那一格、以及上一台留下的選取填色
     所在格。0806 run 20260806-103335 的 ally#4 就是這樣被自家標記騙走
@@ -142,11 +143,144 @@ def designation_cell(
     best = scored[0]
     if best[0] < min_change:
         return None
-    full = [found for found in scored if found[0] >= saturated]
-    if len(full) > 1:
-        return min(full, key=lambda found: found[1])[2]
     second = scored[1][0] if len(scored) > 1 else 0.0
     return None if best[0] - second < min_lead else best[2]
+
+
+# ---------- 我方的目標端：移動範圍菱形 ----------
+
+# 我方跳轉直接進入「單位移動」模式（screens.BATTLE_UNIT_MOVE），畫面把**可抵達格**逐格
+# 標出來：可走的畫藍徽章、被敵方攻擊範圍蓋到的畫紅「!」徽章。兩種都是可抵達格，聯集才是
+# 完整的菱形（0806 assets/screenshots/20260806-013500.png：藍 19 格、紅 18 格，聯集對
+# 半徑 5＝該台移動力的菱形唯一吻合，中心正是那台的格）。
+@dataclass(frozen=True)
+class MarkKind:
+    """一種可抵達格徽章的量測規格：色域，以及相對格距的尺寸／填充率／長寬比。
+
+    數字全部量自 0806 實幀 assets/screenshots/20260806-013500.png（格距 128x120）：
+    藍徽章 45x43、填充 0.62-0.75、長寬比 ~1；紅「!」45x63、填充 0.44-0.59、長寬比 ~0.67。
+    形狀開成區間是留給縮放誤差，不是留給「差不多的美術」——右側敵方那條 34x64 的藍色
+    HUD 條就是靠長寬比擋掉的，放它進來菱形就無解。
+    """
+
+    hsv: tuple[tuple[int, int, int], tuple[int, int, int]]
+    width: tuple[float, float]
+    height: tuple[float, float]
+    fill: tuple[float, float]
+    aspect: tuple[float, float]
+
+
+# 藍＝可走，紅「!」＝可走但站上去會被敵方打到。兩種都是可抵達格，少收一種菱形就缺一整
+# 側，中心跟著往另一側偏（實幀：只用藍的最小包覆菱形給出 (1,5)，聯集才唯一解出 (3,4)）。
+RANGE_REACHABLE = MarkKind(((90, 80, 130), (120, 255, 255)), (0.28, 0.42), (0.28, 0.45),
+                           (0.55, 0.85), (0.85, 1.20))
+RANGE_THREATENED = MarkKind(((160, 120, 50), (179, 255, 140)), (0.28, 0.42), (0.42, 0.62),
+                            (0.38, 0.70), (0.50, 0.85))
+RANGE_MARKS: tuple[MarkKind, ...] = (RANGE_REACHABLE, RANGE_THREATENED)
+
+
+def _mark_points(
+    frame: np.ndarray, kind: MarkKind, pitch: tuple[float, float], region: Region
+) -> list[Point]:
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, np.array(kind.hsv[0], np.uint8), np.array(kind.hsv[1], np.uint8))
+    x, y, w, h = region
+    bounded = np.zeros_like(mask)
+    bounded[y : y + h, x : x + w] = mask[y : y + h, x : x + w]
+    for hx, hy, hw, hh in board.UNIT_DENSITY_HUD_HOLES:
+        bounded[hy : hy + hh, hx : hx + hw] = 0
+    count, _, stats, centroids = cv2.connectedComponentsWithStats(bounded, 8)
+    out: list[Point] = []
+    for index in range(1, count):
+        width = int(stats[index, cv2.CC_STAT_WIDTH])
+        height = int(stats[index, cv2.CC_STAT_HEIGHT])
+        area = int(stats[index, cv2.CC_STAT_AREA])
+        if width <= 0 or height <= 0:
+            continue
+        spans = (width / pitch[0], height / pitch[1])
+        if not kind.width[0] <= spans[0] <= kind.width[1]:
+            continue
+        if not kind.height[0] <= spans[1] <= kind.height[1]:
+            continue
+        if not kind.fill[0] <= area / float(width * height) <= kind.fill[1]:
+            continue
+        if not kind.aspect[0] <= spans[0] / spans[1] <= kind.aspect[1]:
+            continue
+        out.append((float(centroids[index][0]), float(centroids[index][1])))
+    return out
+
+
+def range_marks(
+    frame: np.ndarray,
+    pitch: tuple[float, float],
+    *,
+    region: Region = board.UNIT_DENSITY_REGION,
+) -> tuple[Point, ...]:
+    """單位移動模式下每一個可抵達格的徽章中心（螢幕像素）。藍與紅都收。
+
+    回傳的是點，對格由呼叫端用 `battle.map_grid` 做（runtime 不得 import battle）。
+    """
+    out: list[Point] = []
+    for kind in RANGE_MARKS:
+        out.extend(_mark_points(frame, kind, pitch, region))
+    return tuple(out)
+
+
+def _manhattan(a: Cell, b: Cell) -> int:
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+
+def diamond_centre(
+    marks: Iterable[Cell],
+    reach: int,
+    *,
+    window: tuple[int, int, int, int] | None = None,
+    prefer: Cell | None = None,
+) -> Cell | None:
+    """可抵達格 → 那台單位站的格：以移動力為半徑的菱形中心。
+
+    硬條件是**每一個看到的可抵達格都要落在半徑 reach 之內**——標記是遊戲自己畫的，畫出
+    來的格不可能超出移動力。漏看的格不罰（單位圖示、地形、紅格都會蓋掉徽章），多看到的
+    格直接否決那個中心。
+
+    貼邊的單位菱形會被截掉，這時候可行中心不只一個：改用「預測最少沒看到的區域」收尾
+    ——同樣的觀測下，預測範圍愈小的假設愈該被採信（`window` 給的是看得到的格範圍，
+    截斷就在這裡發生）。仍然並列時取離 `prefer`（跳轉把目標帶到畫面中心，那一格就是
+    先驗）最近的。
+    """
+    seen = sorted(set(marks))
+    if not seen or reach < 0:
+        return None
+    lo_x = min(cell[0] for cell in seen) - reach
+    hi_x = max(cell[0] for cell in seen) + reach
+    lo_y = min(cell[1] for cell in seen) - reach
+    hi_y = max(cell[1] for cell in seen) + reach
+    scored: list[tuple[int, int, Cell]] = []
+    for x in range(lo_x, hi_x + 1):
+        for y in range(lo_y, hi_y + 1):
+            centre = (x, y)
+            if any(_manhattan(cell, centre) > reach for cell in seen):
+                continue
+            predicted = sum(
+                1
+                for cx in range(x - reach, x + reach + 1)
+                for cy in range(y - reach, y + reach + 1)
+                if _manhattan((cx, cy), centre) <= reach
+                and (window is None or _inside_box((cx, cy), window))
+            )
+            away = 0 if prefer is None else _manhattan(centre, prefer)
+            scored.append((predicted, away, centre))
+    if not scored:
+        return None
+    scored.sort()
+    best = scored[0]
+    if len(scored) > 1 and scored[1][:2] == best[:2]:
+        return None
+    return best[2]
+
+
+def _inside_box(cell: Cell, box: tuple[int, int, int, int]) -> bool:
+    return box[0] <= cell[0] <= box[2] and box[1] <= cell[1] <= box[3]
 
 
 def probe_order(peaks: Iterable[Point], target: Point, *, limit: int = 2) -> tuple[Point, ...]:
