@@ -10,7 +10,8 @@
 - **march**：自力。在目標旁種標記，往西推到 FrameGrid 讀到西界，逐把靠標記重認累計
   格數；往北同理（先跳回同一台重置鏡頭）。
 
-`board.find_unit_screen_hints` 的峰只拿來挑「要點哪一格問身分」，不進任何座標計算。
+`board.find_unit_screen_hints` 的峰只拿來**避開單位**（挑乾淨格種標記／挑空白格解除），
+不進任何座標計算，也不拿來主動探測身分——身分只來自種標偶然點到單位時的摘要反查。
 
 usage:
   uv run python scripts/scan_roster_jump.py --serial R5CRC37JBYJ --stage-node 544,667 \
