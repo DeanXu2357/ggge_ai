@@ -78,6 +78,8 @@ END_OF_LIST_CONFIRMATIONS = 2
 
 # 路徑 A：最多點幾格確認「有單位」——確認 ≥2 格才配得起來，點太多只是浪費。
 CONFIRM_PROBES = 4
+# 落地鄰居反查：最多問幾格。一趟一兩次點擊就要換掉整段推鏡，問太多就不划算了。
+NEIGHBOR_PROBES = 2
 # 路徑 B：一軸最多推幾把（一把約一格半，地圖再大也用不到這麼多）。
 MARCH_LEGS = 40
 MARCH_SEED_ATTEMPTS = 3
@@ -162,6 +164,21 @@ def same_view(a: FrameGrid, b: FrameGrid) -> bool:
 
 def bounded(grid: FrameGrid, side: str) -> bool:
     return bool(grid.bounds()[side])
+
+
+def at_border(view: "View", side: str) -> tuple[bool, dict[str, bool]]:
+    """這一幀有沒有真的推到 `side` 的界，以及兩個訊號各說了什麼。
+
+    北界不能只信 `FrameGrid.north_bound`：頂帶 HUD 蓋掉格線時，HUD 下緣的脊會被當成
+    北界（0806 run 20260806-173300 的 enemy#3 就是假北界＋travel=0 互鎖出一個看起來很
+    自洽的錯答案）。北界改以 `sweep.read_borders`（舊 sweep 十二輪驗證過的終止邊特徵）
+    為權威，格網的 `north_bound` 只當佐證記帳。其餘三側維持格網判定。
+    """
+    grid_says = bounded(view.grid, side)
+    if side != "north":
+        return (grid_says, {"grid": grid_says})
+    edge_says = "north" in sweep.read_borders(view.frame)
+    return (edge_says, {"grid": grid_says, "edge": edge_says})
 
 
 def card_present(frame: np.ndarray) -> bool:
@@ -255,6 +272,8 @@ class Scan:
     mistaps: list[dict] = field(default_factory=list)
     # 種標記那一下偶然點到單位：（幀格, 摘要窗讀到的數值），由 march_axis 取走反查。
     encounter: tuple[Cell, tuple[int | None, ...]] | None = None
+    # 最後一把推鏡真正送出的行程（像素）。不進帳，只當每一把標記位移的合理性對照。
+    stroke: float = 0.0
 
     # ---------- 流程 ----------
 
@@ -445,7 +464,69 @@ class Scan:
         view, target = self.land(key, label="jump")
         if view is None or target is None:
             return False
+        cell = self.neighbor(key, view, target)
+        if cell is not None:
+            self.ledger.anchor(key, cell, jumpscan.SOURCE_NEIGHBOR)
+            self.journal.record("neighbor_anchor", key=list(key), cell=list(cell))
+            return True
         return self.march(key, view, target)
+
+    def neighbor(self, key: jumpscan.Key, view: View, target: Cell) -> Cell | None:
+        """落地就先問鄰居：離目標最近的一兩格點下去讀摘要，反查名冊唯一且已解就出帳。
+
+        這條路一趟只花一兩次點擊，省掉整段推鏡（0806 run 20260806-173300 每台 march
+        要 5-9 把推鏡）。與「不用 hint 猜位置」不衝突：hint 只決定**去哪問**，身分由點下去
+        讀到的數值回答，位置由**同幀格差**算——三件事各有各的證據。
+        """
+        if not self.ledger.cells:
+            return None
+        hints = {snap_cell(view.grid, peak) for peak in board.find_unit_screen_hints(view.frame)}
+        window = (0, 0, len(view.grid.cols) - 2, len(view.grid.rows) - 2)
+        cells = jumpscan.probe_cells(
+            (cell for cell in hints if cell is not None),
+            target,
+            window=window,
+            limit=NEIGHBOR_PROBES,
+        )
+        for cell in cells:
+            values = self.probe_identity(view, cell)
+            match = jumpscan.roster_lookup(
+                values or (), self.roster_table(), self.ledger.cells
+            )
+            self.journal.record(
+                "neighbor_probe",
+                key=list(key),
+                cell=list(cell),
+                values=None if values is None else list(values),
+                reason=match.reason,
+                via=None if match.key is None else list(match.key),
+            )
+            anchor = None if match.reason != jumpscan.MEET_UNIQUE else self.ledger.cells[match.key]
+            if anchor is not None:
+                return jumpscan.meet_cell(anchor, cell, target)
+        return None
+
+    def probe_identity(self, view: View, cell: Cell) -> tuple[int | None, ...] | None:
+        """點一格問身分：讀摘要（敵在左上、我在右上，塢位由畫面狀態分派）再收拾乾淨。
+
+        收拾照既有路徑：出卡就點一個空白格收掉，進了行動模式就按返回鈕——那顆鈕在行動
+        模式下才真的存在（0806 run 20260806-141615 的盲點教訓）。
+        """
+        point = view.centres.get(cell)
+        if point is None or not self.ready_for_map_tap():
+            return None
+        self.device.tap(int(point[0]), int(point[1]))
+        self.sleep(TAP_SETTLE_S)
+        after = self.camera.grab()
+        seen = screens.classify(after)
+        self.note_encounter(cell, after, seen)
+        met = self.encounter
+        self.encounter = None
+        if seen in screens.MAP_SUBSTATES:
+            self.leave_action_mode()
+        elif card_present(after):
+            self.clear_card(view)
+        return None if met is None else met[1]
 
     def land(
         self, key: jumpscan.Key, *, label: str
@@ -606,13 +687,12 @@ class Scan:
         self.sleep(ROSTER_SETTLE_S)
         return screens.read_roster_strip(self.camera.grab()) == screens.ROSTER_COLLAPSED
 
-    def note_state(self, frame: np.ndarray, *, expect: str | None, where: str) -> str:
+    def note_state(self, seen: str, *, expect: str | None, where: str) -> str:
         """點完之後畫面在哪：進了非預期的地圖子模式就是誤觸，記進 run 級帳。
 
         「零誤觸」要機器查得到，不能靠人翻幀（0806 run 20260806-103335 誤下了一次移動
         指令，事後只能從詳情頁少一顆鈕反推）。
         """
-        seen = screens.classify(frame)
         if seen in screens.MAP_SUBSTATES and seen != expect:
             self.mistaps.append({"where": where, "seen": seen})
             self.journal.record("mistap", where=where, seen=seen, expected=expect)
@@ -715,7 +795,7 @@ class Scan:
         seen = screens.classify(after)
         if seen in screens.MAP_SUBSTATES:
             # 點到我方＝進了行動模式：返回鈕在這個模式下才是真的存在，按它退出。
-            self.note_state(after, expect=screens.BATTLE_UNIT_MOVE, where="confirm_occupied")
+            self.note_state(seen, expect=screens.BATTLE_UNIT_MOVE, where="confirm_occupied")
             self.leave_action_mode()
             return True
         if card_present(after):
@@ -727,7 +807,7 @@ class Scan:
         if outcome.verdict == sweep.TAP_EMPTY:
             # 填色出現在被點的那一格＝那是空格，這一格不算證人。
             return False
-        self.note_state(after, expect=None, where="confirm_occupied")
+        self.note_state(screens.classify(after), expect=None, where="confirm_occupied")
         return False
 
     def clear_card(self, view: View) -> None:
@@ -793,6 +873,8 @@ class Scan:
         if met is not None:
             return AxisResult(met=met)
         legs: list[jumpscan.MarchLeg] = []
+        pans = 0
+        suspect = 0
         lost = 0
         current: View | None = view
         for _ in range(MARCH_LEGS):
@@ -810,11 +892,27 @@ class Scan:
                     continue
                 odometer = None
             view = current
-            if bounded(view.grid, direction):
+            hit, signals = at_border(view, direction)
+            if hit:
+                audit = jumpscan.audit_march(legs, pans, suspect=suspect)
                 world = jumpscan.march_world(target[axis], legs, border_cell=0)
                 self.journal.record(
-                    "march_axis", key=list(key), axis=name, legs=len(legs), world=world
+                    "march_axis",
+                    key=list(key),
+                    axis=name,
+                    legs=len(legs),
+                    world=world if audit.ok else None,
+                    travel=audit.travel,
+                    pans=audit.pans,
+                    suspect=suspect,
+                    reason=audit.reason,
+                    border=signals,
                 )
+                if not audit.ok:
+                    # 見界但帳不自洽（假界／缺一把的位移／存疑的腿）：寧可 unresolved。
+                    self.journal.record("march_inconsistent", key=list(key), axis=name,
+                                        reason=audit.reason)
+                    return AxisResult()
                 return AxisResult(world=world)
             carried = self.carry_marker(view, signature, direction)
             if odometer is not None:
@@ -836,7 +934,9 @@ class Scan:
                 odometer = odometer.reseeded(marker, fresh_marker)
             marker = fresh_marker
             before = marker[axis]
+            pitch = view.pitch[axis]
             current = self.pan(direction, reach=self.stride(view, spot, direction))
+            pans += 1
             if current is None:
                 lost += 1
                 # 鏡頭動了而這一把沒有標記帳：里程計失去接力點，順路結帳停用（推到界的
@@ -857,6 +957,28 @@ class Scan:
                 if lost >= MARCH_LOST_LIMIT:
                     break
                 continue
+            if jumpscan.leg_suspect(cell[axis] - before, self.stroke, pitch):
+                # 名義行程與標記位移對不上：先當成 snap 抖了一格，重拍重認一次。
+                again = self.look()
+                spot = None if again is None else board.find_marker(
+                    again.frame, signature, holes=board.UNIT_DENSITY_HUD_HOLES
+                )
+                recell = None if spot is None or again is None else snap_cell(again.grid, spot)
+                if recell is not None:
+                    view, current, cell = again, again, recell
+                if recell is None or jumpscan.leg_suspect(
+                    cell[axis] - before, self.stroke, pitch
+                ):
+                    suspect += 1
+                    self.journal.record(
+                        "leg_suspect",
+                        key=list(key),
+                        axis=name,
+                        legs=len(legs),
+                        moved=cell[axis] - before,
+                        stroke=round(self.stroke, 1),
+                        pitch=round(pitch, 1),
+                    )
             lost = 0
             legs.append(jumpscan.MarchLeg(before, cell[axis]))
             marker = cell
@@ -948,6 +1070,8 @@ class Scan:
             peaks,
             keep_out=jumpscan.PEAK_KEEP_OUT_PITCH * max(view.pitch),
             red_half=min(view.pitch) / 3.0,
+            # 填色的 learn／find 只看 MAP_REGION，區外種下去的標記哪一幀都找不到。
+            inside=board.MAP_REGION,
         )
         if toward is None:
             points.sort(
@@ -974,12 +1098,16 @@ class Scan:
             )
             self.journal.record("seed_marker", cell=list(cell), verdict=outcome.verdict)
             if outcome.verdict != sweep.TAP_EMPTY:
-                self.note_encounter(cell, after)
-                self.note_state(after, expect=None, where="seed_marker")
+                seen = screens.classify(after)
+                self.note_encounter(cell, after, seen)
+                self.note_state(seen, expect=None, where="seed_marker")
                 # 說不出結果的那一下可能已經把畫面帶進選擇／移動態，而移動態下的下一次
                 # 格點擊就是真的下移動指令（0806 run 20260806-103335 的 ally#4：連四下
                 # verdict=none，之後那台的詳情頁只剩「關閉」＝它已經行動過了）。
-                self.leave_action_mode()
+                # 已經在地圖上就不必逃：0806 run 20260806-173300 的 192 筆 escape_map
+                # 清一色 was=battle_map，每筆燒掉 4.8 秒卻什麼都沒做。
+                if seen != screens.BATTLE_MAP:
+                    self.leave_action_mode()
                 continue
             learned = outcome.learned or signature
             if learned is None:
@@ -989,7 +1117,7 @@ class Scan:
             return (learned, cell, point)
         return None
 
-    def note_encounter(self, cell: Cell, frame: np.ndarray) -> None:
+    def note_encounter(self, cell: Cell, frame: np.ndarray, seen: str) -> None:
         """種標記那一下點到單位了：把簡化資訊窗的數值記下來給 `meet()` 反查。
 
         這是免費的——那一下本來就要點，本來也只會被記成一筆失敗。兩個陣營都有卡，只是
@@ -999,7 +1127,6 @@ class Scan:
         **哪一塢由畫面狀態決定，不是兩邊都試**：battle-prep／選擇武裝的右面板長得一樣，
         在那些畫面上讀到的是攻擊目標的數值，記進來就是毒帳。
         """
-        seen = screens.classify(frame)
         if seen == screens.BATTLE_UNIT_MOVE:
             summary = vision.read_ally_summary(frame)
         elif seen in screens.MAP_SUBSTATES:
@@ -1036,10 +1163,13 @@ class Scan:
     def pan(self, direction: str, reach: float = board.PAN_MAX_REACH) -> View | None:
         """一把推鏡。行程量不參與定位——世界座標只由標記重認的格數與界線決定。
 
-        `reach` 只管「推多遠」：推過頭標記就出視野，新窗裡一個證人都沒有。
+        `reach` 只管「推多遠」：推過頭標記就出視野，新窗裡一個證人都沒有。實際送出的
+        行程另記在 `Scan.stroke`：它不進帳，只當**這一把的標記位移合不合理**的對照
+        （`jumpscan.leg_suspect`）。
         """
         frame = self.camera.grab()
         origin, stroke = board.pan_stroke(direction, reach, board.find_sightings(frame))
+        self.stroke = stroke
         x1, y1, x2, y2 = board.pan_gesture(direction, origin, stroke)
         self.device.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
         self.journal.record("pan", direction=direction, reach=round(stroke, 1))

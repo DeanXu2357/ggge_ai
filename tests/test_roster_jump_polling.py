@@ -134,7 +134,11 @@ def test_a_pan_that_cannot_be_read_never_reaches_the_grid_as_none(tmp_path, monk
 
 
 def test_an_unreadable_pan_recovers_on_the_reread_instead_of_giving_up(tmp_path, monkeypatch):
-    """重拍讀得出來就繼續走：鏡頭已經動了，重讀的是**新**視圖，不是推鏡前那張。"""
+    """重拍讀得出來就繼續走：鏡頭已經動了，重讀的是**新**視圖，不是推鏡前那張。
+
+    但那一把推鏡的位移沒人記帳（pan 回 None ＝ 沒有 leg），所以就算下一幀就見界也
+    **不准出帳**——0806 run 20260806-173300 的假北界正是「缺一把位移」長出來的。
+    """
     bounded_grid = FrameGrid(cols=list(GRID.cols), rows=list(GRID.rows), west_bound=True)
     scan = build_scan(tmp_path, [])
     marker = board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
@@ -145,8 +149,11 @@ def test_an_unreadable_pan_recovers_on_the_reread_instead_of_giving_up(tmp_path,
     monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: None)
     monkeypatch.setattr(scan, "look", lambda: _view(bounded_grid))
 
-    # 界那一幀的幀格 0 就是世界 0，所以目標的欄索引直接就是世界欄。
-    assert scan.march_axis(("ally", 0), _view(), (5, 5), 0, "west").world == 5
+    result = scan.march_axis(("ally", 0), _view(), (5, 5), 0, "west")
+
+    assert result == scan_roster_jump.AxisResult()
+    kinds = _kinds(scan)
+    assert "march_reread" in kinds and "march_inconsistent" in kinds
 
 
 def _kinds(scan) -> list[str]:
@@ -443,12 +450,50 @@ def test_bumping_into_a_unit_before_anything_is_solved_settles_nothing(tmp_path,
     assert scan.march_axis(("enemy", 0), _view(), (5, 5), 0, "west").met is None
 
 
+def _neighbor_scan(tmp_path, monkeypatch, values):
+    scan = build_scan(tmp_path, [])
+    scan.entries = [
+        roster.RosterEntry(faction="enemy", index=9, hp=83811, en=513, mobility=6),
+        roster.RosterEntry(faction="enemy", index=3, hp=29265, en=424, mobility=6),
+        roster.RosterEntry(faction="enemy", index=4, hp=29265, en=424, mobility=6),
+    ]
+    scan.ledger.anchor(("enemy", 9), (12, 3))
+    grid = _view().grid
+    peak = scan_roster_jump.grid_centres(grid)[(7, 2)]
+    monkeypatch.setattr(scan_roster_jump.board, "find_unit_screen_hints", lambda frame: [peak])
+    monkeypatch.setattr(scan, "probe_identity", lambda view, cell: values)
+    return scan
+
+
+def test_a_named_neighbour_anchors_the_target_without_marching(tmp_path, monkeypatch):
+    """落地就問鄰居：反查唯一且已解，同幀格差直接出帳，一把推鏡都不用。"""
+    scan = _neighbor_scan(tmp_path, monkeypatch, (83811, 513))
+
+    assert scan.neighbor(("enemy", 0), _view(), (5, 5)) == (10, 6)
+    assert "neighbor_probe" in _kinds(scan)
+
+
+def test_a_neighbour_whose_numbers_collide_sends_us_marching(tmp_path, monkeypatch):
+    """撞名不猜——落回 march。"""
+    scan = _neighbor_scan(tmp_path, monkeypatch, (29265, 424))
+
+    assert scan.neighbor(("enemy", 0), _view(), (5, 5)) is None
+
+
+def test_nothing_to_compare_against_means_no_neighbour_probe_at_all(tmp_path, monkeypatch):
+    """帳面空的時候問了也沒用，連點都不點。"""
+    scan = _neighbor_scan(tmp_path, monkeypatch, (83811, 513))
+    scan.ledger.cells.clear()
+
+    assert scan.neighbor(("enemy", 0), _view(), (5, 5)) is None
+    assert "neighbor_probe" not in _kinds(scan)
+
+
 def _dock_scan(tmp_path, monkeypatch, seen, *, left=None, right=None):
-    scan = build_scan(tmp_path, [seen])
-    monkeypatch.setattr(screens, "classify", scan.classified)
+    scan = build_scan(tmp_path, [])
     monkeypatch.setattr(scan_roster_jump.vision, "read_enemy_summary", lambda frame: left)
     monkeypatch.setattr(scan_roster_jump.vision, "read_ally_summary", lambda frame: right)
-    scan.note_encounter((3, 3), np.zeros((4, 4, 3), np.uint8))
+    scan.note_encounter((3, 3), np.zeros((4, 4, 3), np.uint8), seen)
     return scan
 
 

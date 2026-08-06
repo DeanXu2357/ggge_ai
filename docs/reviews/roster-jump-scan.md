@@ -128,6 +128,58 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    重讀那張幀（`land_reread`／`dismiss_reread`）。離線回歸：pan 連續 `None` 到
    `MARCH_LOST_LIMIT` 應該記 `march_failed` 而不是 crash；重讀讀得出來就繼續走。
 
+## 0806 第十七輪：run17 離線診斷的四項修理（run `20260806-173300`）
+
+run17 全程跑完（seed_marker 478、pan 248、escape_map 192、march_axis 39），使用者離線診斷
+定讞四個問題，本批全部修掉。
+
+### 1. 頂帶盲區：種標記種在標記看不見的地方
+
+`board.MAP_REGION = (150, 250, 1600, 620)` 是填色 learn／find 的**權威區**，但北向 frontier
+排序專挑最北的 row 0/1（格心 y≈90-203，在 y=250 之上）——點下去填色是真的出現了，
+`find_marker` 卻在區外看不見它 → `verdict=none` → 36 筆 `no_seed`。
+
+- 修法：`jumpscan.clean_points` 收 `inside=` 硬框，`Scan.seed_marker` 傳 `board.MAP_REGION`；
+  格心在區外的一律不列候選（北向 frontier 因此變成「區內最北的一列」）。
+- 順帶：192 筆 `escape_map` 清一色 `was=battle_map` 的空跑，每筆 4.8 秒。`seed_marker` 現在
+  只 `classify` 一次，**已經在地圖上就不呼叫 `leave_action_mode`**（`note_state` 改收
+  classify 結果，不再自己重拍重判）。
+
+### 2. 假北界：HUD 下緣的脊被當成界
+
+`read_frame_grid` 的 `north_bound` 在頂帶 HUD 蓋掉格線時會把 HUD 下緣的脊誤判成北界；
+`enemy#3` 因此「推了兩把、travel=0、見北界」，假界與零行程互鎖成一個看起來很自洽的錯答案。
+兩層修：
+
+- **出帳前的自洽守門** `jumpscan.audit_march(legs, pans, suspect)`：每一把 pan 都要留下一筆
+  leg（`unaccounted_pan`），而且推過就該走過（`pans≥1` 而 `travel<pans` ＝ `no_travel`）。
+  不過關就記 `march_inconsistent` 並回 `unresolved`，**不出帳**。
+- **北界改由 `sweep.read_borders` 當權威**（舊 sweep 十二輪驗證過的終止邊特徵），
+  `FrameGrid.north_bound` 降為佐證，兩個訊號都記進 `march_axis` 的 `border` 欄。其餘三側
+  維持格網判定（`Scan.at_border`）。
+
+### 3. x ±1：單腿 mis-snap
+
+`enemy#2`／`enemy#3` 同落點幾何卻 travel 差 1（16 vs 17）。修：每一把推鏡把**標記位移**與
+**名義行程**（實際送出的 stroke ÷ 該軸格距）對照，差超過 `LEG_TOLERANCE_CELLS = 0.6` 格就
+重拍重認一次；仍對不上記 `leg_suspect`，該軸出帳時只要含存疑的腿就降級 `unresolved`
+（`AUDIT_SUSPECT_LEG`）。`Scan.stroke` 只是這個對照用的，**不進帳**。
+
+### 4. 落地鄰居反查（新的主路徑）
+
+落地定格之後、march 之前，已解帳非空就先問鄰居（`Scan.neighbor`）：
+
+- `jumpscan.probe_cells` 從乾淨幀窗內的 hints 挑**離目標最近的 1-2 格**（`NEIGHBOR_PROBES`）。
+- `Scan.probe_identity` 逐格點下去讀摘要（敵左上／我右上，塢位分派同 `note_encounter`），
+  收拾照既有路徑（出卡→點空白格、行動模式→返回鈕）。
+- `jumpscan.roster_lookup` 唯一且已解 → `jumpscan.meet_cell` 用**同幀格差**出帳，
+  `source="neighbor"`，整段推鏡省掉；撞名／未解／沒讀到 → 落回 march。
+- 點擊前 `ready_for_map_tap` 硬閘照舊。journal：`neighbor_probe`（cell/values/reason/via）、
+  `neighbor_anchor`。
+
+**與「不要用 hint 猜位置」不衝突**：hint 只決定**去哪問**，身分由點下去讀到的數值回答，
+位置由同幀格差計算——三件事各有各的證據，沒有一項是猜的。
+
 ## 0806 第十六輪：march 順路結帳（`march_meet`）＝點到單位就地認人；星座配對下架
 
 使用者裁決：`visit()` 的節奏改成**跳轉 → 定格 → march（含順路結帳）→ 收尾**。星座配對
@@ -450,6 +502,16 @@ march。可行的等價寫法是：**某台已解出 x 的單位，其幀內同�
 `TOUR_ORDERS` ＋ `--tour-first {enemy,ally}`，預設 `enemy`。敵 18 台是驗收大頭，而敵方那條
 路（紅圈指定→點出卡→`name_sig`）才是接力鏈唯一的證人來源；我方只出得了驗證格、出不了
 身分，排後面。`Scan.keys()` 的順序同時就是排程「名冊相鄰」的定義。
+
+## 留給實機驗證（第十七輪之後）
+
+- **鄰居反查的命中率**：`neighbor_probe` 的 `reason` 分佈就是這條路的吞吐量。雜魚整批撞名，
+  所以命中集中在三台頭目與五台我方；問不到就落回 march，最差只是多兩次點擊。
+- **北界改吃 `sweep.read_borders` 之後 y 軸還收不收得到**：若北界特徵在這一關讀不出來，
+  y 軸會一路 `march_failed`（誠實的失敗），要看實機分佈決定要不要補第二個北界特徵。
+- **`leg_suspect` 的量**：重拍重認救不回來的比例若很高，代表 snap 本身在某些鏡位不穩，
+  那要回頭修 `snap_cell`，不是繼續放寬容忍。
+- **`march_inconsistent` 的量**：這是新的失敗出口，第一輪要確認它擋掉的是假界而不是好帳。
 
 ## 留給實機驗證（第十六輪之後）
 

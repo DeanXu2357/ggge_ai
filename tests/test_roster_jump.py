@@ -324,6 +324,67 @@ def test_the_two_factions_dock_their_summary_on_opposite_sides():
     assert vision.read_enemy_summary(ally) is None
 
 
+def test_the_seed_candidates_never_leave_the_region_the_marker_can_be_found_in():
+    """填色的 learn／find 只看 MAP_REGION——區外種下去的標記哪一幀都找不到。
+
+    0806 run 20260806-173300：北向 frontier 專挑 row 0/1（格心 y≈90-203，在 MAP_REGION
+    的 y=250 之上），36 筆 no_seed 全部出在這裡。
+    """
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+    top_row = (900.0, 150.0)
+    inside = (900.0, 500.0)
+
+    points = jumpscan.clean_points(
+        frame, [top_row, inside], [], keep_out=10.0, red_half=RED_HALF, inside=board.MAP_REGION
+    )
+
+    assert points == [inside]
+
+
+def test_the_nearest_hints_are_the_ones_worth_asking():
+    """hint 只決定去哪問（近的先問），身分與位置都不由它回答。"""
+    hints = [(5, 5), (9, 9), (6, 4), (3, 3)]
+
+    assert jumpscan.probe_cells(hints, (5, 5), limit=2) == ((6, 4), (3, 3))
+
+
+def test_a_pan_whose_travel_was_never_booked_blocks_the_border_reading():
+    """推了兩把卻只記到一把的位移：帳是缺的，見界也不准出。"""
+    audit = jumpscan.audit_march(_legs((2, 4)), pans=2)
+
+    assert not audit.ok and audit.reason == jumpscan.AUDIT_UNACCOUNTED_PAN
+
+
+def test_a_border_reached_without_moving_at_all_is_a_fake_border():
+    """0806 run 20260806-173300 的 enemy#3：假北界＋travel=0 互鎖成自洽的錯答案。"""
+    audit = jumpscan.audit_march(_legs((3, 3), (4, 4)), pans=2)
+
+    assert not audit.ok and audit.reason == jumpscan.AUDIT_NO_TRAVEL
+
+
+def test_a_clean_march_passes_its_own_audit():
+    audit = jumpscan.audit_march(_legs((2, 4), (1, 3)), pans=2)
+
+    assert audit.ok and (audit.travel, audit.pans) == (4, 2)
+
+
+def test_one_suspect_leg_downgrades_the_whole_axis():
+    """含存疑的腿就不出帳——寧可 unresolved，不要差一格的毒帳。"""
+    audit = jumpscan.audit_march(_legs((2, 4), (1, 3)), pans=2, suspect=1)
+
+    assert not audit.ok and audit.reason == jumpscan.AUDIT_SUSPECT_LEG
+
+
+def test_a_leg_that_moved_nothing_like_the_stroke_is_suspect():
+    """名義行程 260px／格距 130 ＝ 2 格；標記只走 1 格就是對不上。"""
+    assert jumpscan.leg_suspect(1, stroke=260.0, pitch=130.0)
+    assert not jumpscan.leg_suspect(2, stroke=260.0, pitch=130.0)
+    # 半格以內的誤差是 snap 的正常抖動，不罰。
+    assert not jumpscan.leg_suspect(2, stroke=195.0, pitch=130.0)
+    # 格距讀不出來就不表態，不冤枉。
+    assert not jumpscan.leg_suspect(5, stroke=260.0, pitch=0.0)
+
+
 def test_the_frame_gap_between_the_named_unit_and_the_target_is_the_world_gap():
     """認出來的那台在世界 (12,3)、這一幀的 (7,2)，目標在同一幀的 (5,5)：兩軸同時出帳。"""
     assert jumpscan.meet_cell((12, 3), (7, 2), (5, 5)) == (10, 6)

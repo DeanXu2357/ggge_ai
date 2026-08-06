@@ -44,6 +44,7 @@ SCREEN_CENTRE: Point = (1170.0, 540.0)
 SOURCE_CONSTELLATION = "constellation"
 SOURCE_MARCH = "march"
 SOURCE_MARCH_MEET = "march_meet"
+SOURCE_NEIGHBOR = "neighbor"
 UNRESOLVED = "unresolved"
 
 AXIS_NAMES = ("x", "y")
@@ -350,6 +351,52 @@ def march_world(target_cell: int, legs: Sequence[MarchLeg], border_cell: int) ->
     return target_cell + march_origin(legs, border_cell)
 
 
+# 一把推鏡的標記位移與名義行程（stroke/pitch）可以差多少格還算同一件事。超過就是
+# snap 存疑：0806 run 20260806-173300 的 enemy#2／#3 同落點幾何卻差一格（travel 16 vs 17）。
+LEG_TOLERANCE_CELLS = 0.6
+
+AUDIT_OK = "ok"
+AUDIT_UNACCOUNTED_PAN = "unaccounted_pan"
+AUDIT_NO_TRAVEL = "no_travel"
+AUDIT_SUSPECT_LEG = "suspect_leg"
+
+
+@dataclass(frozen=True)
+class MarchAudit:
+    """出帳前的自洽檢查：推了幾把、走了幾格、有沒有存疑的腿。"""
+
+    ok: bool
+    reason: str
+    travel: int
+    pans: int
+
+
+def audit_march(legs: Sequence[MarchLeg], pans: int, *, suspect: int = 0) -> MarchAudit:
+    """帳能不能出：鏡頭動過幾把，帳上就要有幾把的位移。
+
+    0806 run 20260806-173300 的 enemy#3：`bounded(north)` 在頂帶 HUD 遮住格線時把 HUD 下緣
+    的脊誤判成北界，於是「推了兩把卻 travel=0」照樣出帳——假界與零行程互鎖成一個看起來
+    很自洽的錯答案。這裡把兩件事拆開問：**每一把 pan 都要留下一筆 leg**（沒留下的那把
+    位移沒人記，帳就是缺的），而且**推過就該走過**（pans≥1 而 travel<pans＝矛盾）。
+    存疑的腿（`LEG_TOLERANCE_CELLS`）一律不出帳——寧可 unresolved，不要差一格的毒帳。
+    """
+    travel = sum(leg.after - leg.before for leg in legs)
+    if len(legs) != pans:
+        return MarchAudit(False, AUDIT_UNACCOUNTED_PAN, travel, pans)
+    if suspect > 0:
+        return MarchAudit(False, AUDIT_SUSPECT_LEG, travel, pans)
+    if pans >= 1 and travel < pans:
+        return MarchAudit(False, AUDIT_NO_TRAVEL, travel, pans)
+    return MarchAudit(True, AUDIT_OK, travel, pans)
+
+
+def leg_suspect(moved: int, stroke: float, pitch: float, *, tolerance: float = LEG_TOLERANCE_CELLS) -> bool:
+    """這一把的標記位移與名義行程對不對得上。pitch 讀不出來就不表態（不冤枉）。"""
+    if pitch <= 0:
+        return False
+    return abs(abs(moved) - abs(stroke) / pitch) > tolerance
+
+
 # ---------- march 順路結帳：種標點到單位就地認人 ----------
 
 # 名冊反查的裁決。數值撞名（同型雜魚整批 29265/424）就是撞名，不猜。
@@ -390,6 +437,29 @@ def roster_lookup(
     if found not in set(resolved):
         return MeetMatch(found, MEET_UNSOLVED)
     return MeetMatch(found, MEET_UNIQUE)
+
+
+def probe_cells(
+    hints: Iterable[Cell],
+    target: Cell,
+    *,
+    window: tuple[int, int, int, int] | None = None,
+    limit: int = 2,
+) -> tuple[Cell, ...]:
+    """要點哪幾格去問身分：離目標最近的幾格，目標自己那格不算。
+
+    hint 只決定**去哪問**，答案由點下去讀到的數值給、位置由同幀格差算——密度峰一如既往
+    不進座標計算。
+    """
+    seen = {
+        cell
+        for cell in hints
+        if cell != target and (window is None or _inside_box(cell, window))
+    }
+    ordered = sorted(
+        seen, key=lambda cell: ((cell[0] - target[0]) ** 2 + (cell[1] - target[1]) ** 2, cell)
+    )
+    return tuple(ordered[:limit])
 
 
 def meet_cell(anchor: Cell, met: Cell, target_frame: Cell) -> Cell:
@@ -709,11 +779,16 @@ def clean_points(
     keep_out: float,
     red_half: float,
     region: Region = board.UNIT_DENSITY_REGION,
+    inside: Region | None = None,
     red_max: float = RED_CELL_FRACTION,
     zones: Sequence[Region] = UI_EXCLUSION_ZONES,
     blocked: Callable[[Point], bool] = blocked_for_map_tap,
 ) -> list[Point]:
     """點得下去的空白格心：離峰遠、不紅、不在 UI 遮罩底下、不撞危險帶。
+
+    `inside` 是額外的硬框，種標記要傳 `board.MAP_REGION`：**填色的 learn／find 只看那個
+    區**，區外種下去的標記在任何一幀都找不到。0806 run 20260806-173300 的北向 frontier
+    專挑 row 0/1（格心 y≈90-203，在 MAP_REGION 的 y=250 之上）＝36 筆 no_seed 的全部來源。
 
     `centres` 是**這一幀自己的**格心（螢幕像素），由呼叫端用 `battle.map_grid` 的逐線
     格網算——固定 pitch 除法會被縱向透視咬掉一列，挑出來的「格心」其實壓在格線上。
@@ -725,6 +800,11 @@ def clean_points(
     out: list[Point] = []
     for point in centres:
         if not (x <= point[0] <= x + w and y <= point[1] <= y + h):
+            continue
+        if inside is not None and not (
+            inside[0] <= point[0] <= inside[0] + inside[2]
+            and inside[1] <= point[1] <= inside[1] + inside[3]
+        ):
             continue
         if any(
             abs(peak[0] - point[0]) <= keep_out and abs(peak[1] - point[1]) <= keep_out
