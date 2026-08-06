@@ -13,7 +13,7 @@ relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗
 | `src/ggge_ai/runtime/screens.py` | `BATTLE_MENU`／`TROOP_INFO` 兩個畫面名與簽名 |
 | `assets/templates/elements/label_battle_menu.png`、`label_troop_info.png` | 標題字模（0806 實幀裁） |
 | `src/ggge_ai/runtime/roster.py` | 列表格座標產生器＋詳情頁讀值（兩種佈局） |
-| `src/ggge_ai/runtime/jumpscan.py` | **改寫**：敵方指定標示定格／我方移動範圍菱形擬合／march 計格帳／接力帳與回填／排程／解除點挑選 |
+| `src/ggge_ai/runtime/jumpscan.py` | **改寫**：敵方攻擊範圍菱形／我方移動範圍菱形／march 計格帳／接力帳與回填／排程／解除點挑選 |
 | `src/ggge_ai/runtime/board.py` | `find_units` → **`find_unit_screen_hints`**（純改名＋首行語意：啟發式候選，輸出螢幕像素座標，不是已驗證世界座標） |
 | `src/ggge_ai/runtime/device.py` | `weapon_dial` 危險帶；`DangerBand.intents` 多值白名單，`roster_cell`／`roster_jump` 放行面板底下的假重疊 |
 | `scripts/scan_roster_jump.py` | **改寫**：四段停點改成 prepare／roster／jump／settle |
@@ -38,8 +38,9 @@ relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗
    - `Scan.land()`：`close_panels()` → 開列表 → `roster.DETAIL_SELECT_TAP` 跳轉 →
      `await_map()` 確認面板真的收了 → `steady()` 等鏡頭落定＝**落點幀** →
      `read_signature()` 讀左上單位卡拿目標自己的 `name_sig` → 依陣營分兩條：
-     **敵方**＝`Scan.dismiss()`（`jumpscan.blank_cell_tap` 挑空白格）→ 乾淨幀 →
-     `jumpscan.designation_cell(落點幀, 乾淨幀, 格心, exclude=自家標記)`＝目標格；
+     **敵方**＝落點幀讀攻擊範圍紅菱形（`jumpscan.attack_cells` →
+     `jumpscan.attack_centre`）＝目標格，再 `Scan.dismiss()`（`jumpscan.blank_cell_tap`
+     挑空白格）→ 乾淨幀，兩張幀的格網相位要對得上（`same_view`）；
      **我方**＝`Scan.land_ally()`，落點幀必須是 `battle_unit_move`，直接讀移動範圍
      （`jumpscan.range_marks` → `jumpscan.diamond_centre(半徑=移動力)`）＝目標格，
      再按返回鈕退出，**一下地圖都不點**。
@@ -60,9 +61,9 @@ relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗
 
 相對偏移的**兩個端點都必須是驗證過的格**：
 
-- 目標端＝跳轉之後**系統自己畫出來**的那一格：敵方看指定標示（`designation_cell` 比對
-  落點幀與乾淨幀的變化；解除不移動鏡頭，所以兩幀共用格網），我方看移動範圍菱形
-  （`diamond_centre`，半徑＝名冊讀到的移動力）。兩者都不需要我們對地圖點任何一下。
+- 目標端＝跳轉之後**系統自己畫出來的範圍**的中心：敵方是攻擊範圍紅菱形
+  （`attack_centre`，半徑未知，取最小包覆），我方是移動範圍菱形（`diamond_centre`，
+  半徑＝名冊讀到的移動力）。兩者都不需要我們對地圖點任何一下。
 - 鄰居端＝**我們點下去而且真的出卡**的那一格。點擊座標落在格 c、卡開了，記的就是格
   c；卡沒開這一格就不算，換一格。
 - `find_unit_screen_hints` 的候選點只准拿來排「先問哪一格」（`probe_order`），一律不
@@ -127,6 +128,50 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    幀、`dismiss()` 的落點幀）一併補上重讀一次再放棄，`land()` 重讀後指定標示的比對改用
    重讀那張幀（`land_reread`／`dismiss_reread`）。離線回歸：pan 連續 `None` 到
    `MARCH_LOST_LIMIT` 應該記 `march_failed` 而不是 crash；重讀讀得出來就繼續走。
+
+## 0806 第十三輪：敵方定位改讀攻擊範圍（run `20260806-121910`）
+
+18 台敵方 `landed` 全部 `target=null`、41 筆 `jump_failed`。**根因不是門檻，是機制選錯了**：
+以「落點幀 vs 乾淨幀的變化」找指定標示（`designation_cell`）在敵方身上必敗——敵方跳轉會把
+**整片攻擊範圍染紅**（20-37 格），解除之後整片一起消失，於是幾十格的變化量一樣大，領先差
+永遠不成立（第十二輪把「滿版取離中心最近」那條退路刪掉之後，結果就是清一色 `None`）。
+
+改法：**不再比兩幀的差，直接讀落點幀上遊戲畫的紅範圍**——那是以該台為中心的菱形，中心
+就是它站的格。與我方那條路同一個原理，只是形狀與已知條件不同：
+
+| | 我方 | 敵方 |
+| --- | --- | --- |
+| 證據 | 可抵達格徽章（稀疏，圖示會蓋掉） | 攻擊範圍實心紅（近乎完整） |
+| 半徑 | 已知＝名冊的移動力 | 未知（移動力＋射程，名冊讀不到） |
+| 判準 | 硬條件（全部落在半徑內）＋預測面積最小 | **最小包覆半徑**，並列再比面積 |
+| 函式 | `jumpscan.diamond_centre` | `jumpscan.attack_centre` |
+
+### 實幀重放（36 張 `jump:enemy:*:landing`）
+
+- 紅格偵測沿用既有的 `red_fraction`，門檻 `ATTACK_FILL_MIN = 0.35`：**範圍內的格量到 0.5
+  以上、範圍外不到 0.05**，0.35 落在那條溝的中間。UI 遮罩先濾——左上單位卡的 HP 紅條就
+  疊在地圖上層，不濾每張都會多出兩三格假紅。
+- **36/36 解出中心，零 `None`、零 miss**；每一張的中心都與「跳轉把目標帶到畫面中心」這個
+  獨立線索一致（`snap_cell(SCREEN_CENTRE)`），兩條互不相干的證據對上了。
+- **判準之所以是最小包覆半徑**：先試過 IoU（預測與觀測的交聯比），最佳與次佳只差
+  0.027-0.03——菱形夠大時往旁邊挪一格幾乎不損失重疊，那是另一種 ±1。改用最小包覆半徑之後
+  **36/36 都由半徑本身唯一裁決**（次佳中心一律要多一格半徑：25 格 vs 36-37 格的預測面積），
+  面積與 `prefer` 兩個後備判準一次都沒有被用到。
+- 這 36 張裡有 24 張的 `bounds` 看得到界，修好之後這些台可以直接單軸 march。
+
+`designation_cell`／`own_marks`／`Scan.dismissed` 一併拆除——兩個陣營現在都讀「遊戲自己畫的
+範圍」，幀差那條路連同它招來的「自家標記污染」問題一起退場。
+
+### 另外兩件
+
+- **`ally_grid_shifted` 放寬**（`scan_roster_jump.same_view`）：原本要求兩張 FrameGrid 的
+  線位逐條全等，三次 `range_fit` 成功全被作廢，實際上只是格線偵測在邊緣多裁／少裁一條。
+  比較的目的只是「鏡頭沒被拉走」，所以改成只問**原點相位差 < 半格**；格號一律以做擬合的
+  那張幀為準（返回後的幀只用來確認鏡頭沒大位移，不參與格號計算）。敵方那條路也套同一支。
+- **截圖逾時重試一次**（`Camera.screenshot`）：`adb exec-out screencap` 30 秒
+  `TimeoutExpired` 直接滅團（0805 一例、本輪一例，通道 2.5 秒就恢復）。只對
+  `TimeoutExpired` 重試（間隔 2 秒）——那是「這一下沒回來」，掉線是 `RuntimeError`，照樣
+  往上拋；截圖唯讀且冪等，重試不會多按到任何東西。journal 記 `capture_retry`。
 
 ## 0806 第十二輪：名冊段的淡入轉場（run `20260806-120326`）
 

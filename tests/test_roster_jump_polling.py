@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from types import SimpleNamespace
 
 import numpy as np
@@ -97,10 +98,9 @@ def test_no_blank_cell_halts_and_leaves_a_journal_line(tmp_path, monkeypatch):
     """挑不出解除點就停在原地——但要留下流水帳，不然實機只看到一行 Halt。"""
     scan = build_scan(tmp_path, [])
     monkeypatch.setattr(jumpscan, "blank_cell_tap", lambda *a, **k: None)
-    monkeypatch.setattr(scan_roster_jump, "frame_grid", lambda frame: GRID)
 
     with pytest.raises(Halt):
-        scan.dismiss(roster.ENEMY, np.zeros((1080, 2340, 3), np.uint8))
+        scan.dismiss(roster.ENEMY, _view())
 
     kinds = [json.loads(line)["kind"] for line in scan.journal.path.read_text().splitlines()]
     assert "no_blank_cell" in kinds
@@ -304,3 +304,55 @@ def test_the_steady_gate_only_watches_the_region_it_was_given(tmp_path):
     scan.steady(scan_roster_jump.DETAIL_REGION)
 
     assert "camera_unsteady" not in _kinds(scan)
+
+
+def test_two_grids_one_line_apart_at_the_far_edge_are_still_the_same_view():
+    """0806 run 20260806-121910：三次 range_fit 成功全被「逐線全等」作廢，實際上只是
+    格線偵測在邊緣多裁一條。格號對位只看原點相位。"""
+    trimmed = FrameGrid(cols=list(GRID.cols[:-1]), rows=list(GRID.rows))
+
+    assert scan_roster_jump.same_view(GRID, trimmed)
+
+
+def test_a_grid_shifted_by_a_whole_cell_is_not_the_same_view():
+    moved = FrameGrid(
+        cols=[x + 130 for x in GRID.cols], rows=list(GRID.rows)
+    )
+
+    assert not scan_roster_jump.same_view(GRID, moved)
+
+
+def test_a_capture_timeout_is_retried_once_before_giving_up(tmp_path):
+    """adb exec-out screencap 偶發逾時，通道旋即恢復——截圖唯讀且冪等，重試一次。"""
+    calls = []
+
+    def shot():
+        calls.append(1)
+        if len(calls) == 1:
+            raise subprocess.TimeoutExpired(cmd="adb exec-out screencap -p", timeout=30)
+        return b"png"
+
+    camera = scan_roster_jump.Camera(
+        device=SimpleNamespace(screenshot=shot),
+        journal=Journal(tmp_path / "roster_jump.jsonl"),
+        sleep=lambda _: None,
+    )
+
+    assert camera.screenshot() == b"png"
+    assert camera.shots == 1
+    kinds = [json.loads(line)["kind"] for line in camera.journal.path.read_text().splitlines()]
+    assert kinds == ["capture_retry"]
+
+
+def test_a_second_capture_timeout_is_not_swallowed(tmp_path):
+    def shot():
+        raise subprocess.TimeoutExpired(cmd="adb exec-out screencap -p", timeout=30)
+
+    camera = scan_roster_jump.Camera(
+        device=SimpleNamespace(screenshot=shot),
+        journal=Journal(tmp_path / "roster_jump.jsonl"),
+        sleep=lambda _: None,
+    )
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        camera.screenshot()

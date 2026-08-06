@@ -5,9 +5,9 @@
 座標只有兩條路：
 
 - **relay**：同一幀裡另有一台**已知世界座標**的單位，兩端都是驗證過的格，幀內格差直接
-  搬。目標端的定位點分陣營：敵方＝跳轉指定標示所在格（`designation_cell`），我方＝移動
-  範圍菱形的中心（`diamond_centre`，半徑就是名冊讀到的移動力）；鄰居端＝點下去真的
-  出卡的那一格。
+  搬。目標端讀的都是**遊戲自己畫出來的範圍**，只是形狀不同：敵方＝攻擊範圍紅菱形的中心
+  （`attack_centre`，半徑未知，取最小包覆），我方＝移動範圍菱形的中心（`diamond_centre`，
+  半徑＝名冊讀到的移動力）；鄰居端＝點下去真的出卡的那一格。
   身分還沒有座標時先記成 `Relay`，`settle()` 反覆回填到不動點。
 - **march**：自力用標記接力往西／往北推到界，逐把重認標記算累計格數。
 
@@ -69,82 +69,23 @@ def in_ui_zone(point: Point, zones: Sequence[Region] = UI_EXCLUSION_ZONES) -> bo
     return any(x <= point[0] <= x + w and y <= point[1] <= y + h for x, y, w, h in zones)
 
 
-# ---------- 指定標示：目標端的定位點 ----------
-
-# 跳轉會在目標那一格畫系統指定標示（敵＝紅圈、我＝選取態），解除之後那塊標示消失，
-# 所以「落點幀 vs 乾淨幀的變化」指得出目標格——不必去猜哪個密度峰是它。
+# 兩幀在地圖區的變化佔比：鏡頭在動＝整片都在變，待機動畫＝只有幾個百分點。
 DESIGNATION_LEVEL = 40
-DESIGNATION_RADIUS_PX = 260.0
-DESIGNATION_MIN_CHANGE = 0.25
-DESIGNATION_MIN_LEAD = 0.15
-
-
-def _change_fraction(before: np.ndarray, after: np.ndarray, centre: Point, half: float) -> float:
-    x0, y0 = max(int(centre[0] - half), 0), max(int(centre[1] - half), 0)
-    span = int(half * 2)
-    lhs = before[y0 : y0 + span, x0 : x0 + span]
-    rhs = after[y0 : y0 + span, x0 : x0 + span]
-    if lhs.size == 0 or lhs.shape != rhs.shape:
-        return 0.0
-    diff = cv2.absdiff(lhs, rhs).max(axis=2)
-    return float((diff > DESIGNATION_LEVEL).mean())
 
 
 def changed_fraction(
     before: np.ndarray, after: np.ndarray, region: Region = board.UNIT_DENSITY_REGION
 ) -> float:
-    """兩幀在地圖區的變化佔比。鏡頭在動＝整片都在變，待機動畫＝只有幾個百分點。
+    """兩幀在 `region` 內的變化佔比。
 
-    0806 run 20260806-103335 量到的分界：同鏡位的兩張乾淨幀 0.007-0.04，鏡頭剛跳完
-    還沒落定的兩張 0.15-0.37。
+    0806 run 20260806-103335 量到的分界：同鏡位的兩張乾淨幀 0.007-0.04，鏡頭剛跳完還沒
+    落定的兩張 0.15-0.37。面板的淡入轉場也用同一把尺（換一個 region）。
     """
     x, y, w, h = region
     lhs, rhs = before[y : y + h, x : x + w], after[y : y + h, x : x + w]
     if lhs.shape != rhs.shape or lhs.size == 0:
         return 1.0
     return float((cv2.absdiff(lhs, rhs).max(axis=2) > DESIGNATION_LEVEL).mean())
-
-
-def designation_cell(
-    highlighted: np.ndarray,
-    clean: np.ndarray,
-    centres: Mapping[Cell, Point],
-    *,
-    half: float,
-    exclude: Sequence[Cell] = (),
-    radius: float = DESIGNATION_RADIUS_PX,
-    min_change: float = DESIGNATION_MIN_CHANGE,
-    min_lead: float = DESIGNATION_MIN_LEAD,
-) -> Cell | None:
-    """指定標示落在哪一格：落點幀與乾淨幀的變化量，畫面中心附近取最強的那一格。
-
-    兩幀必須是同一個鏡位（解除不移動鏡頭）。裁不出唯一解就回 None——寧可讓這一台
-    走自力路徑，也不要把座標建在猜測上。
-
-    好幾格一起滿版變化（大片覆蓋層）時領先差不會成立，那就回 None——「離畫面中心最近」
-    這種退路是猜的，我方那條路已經改成讀移動範圍菱形，敵方寧可漏認也不要錯認。
-
-    `exclude` 是**我們自己弄出來的變化**：解除時點的那一格、以及上一台留下的選取填色
-    所在格。0806 run 20260806-103335 的 ally#4 就是這樣被自家標記騙走
-    （落點幀的填色在乾淨幀被搬走，變化量遠大於任何真正的指定標示）。
-    """
-    skip = set(exclude)
-    scored: list[tuple[float, float, Cell]] = []
-    for cell, point in centres.items():
-        if cell in skip:
-            continue
-        away = float(np.hypot(point[0] - SCREEN_CENTRE[0], point[1] - SCREEN_CENTRE[1]))
-        if away > radius:
-            continue
-        scored.append((_change_fraction(clean, highlighted, point, half), away, cell))
-    if not scored:
-        return None
-    scored.sort(key=lambda found: (-found[0], found[1]))
-    best = scored[0]
-    if best[0] < min_change:
-        return None
-    second = scored[1][0] if len(scored) > 1 else 0.0
-    return None if best[0] - second < min_lead else best[2]
 
 
 # ---------- 我方的目標端：移動範圍菱形 ----------
@@ -281,6 +222,77 @@ def diamond_centre(
 
 def _inside_box(cell: Cell, box: tuple[int, int, int, int]) -> bool:
     return box[0] <= cell[0] <= box[2] and box[1] <= cell[1] <= box[3]
+
+
+# ---------- 敵方的目標端：攻擊範圍紅菱形 ----------
+
+# 跳轉指定敵方時，畫面把該台的攻擊範圍**整片染紅**（以它為中心的菱形），目標自己那一格
+# 還多一圈亮環。紅格的填色遠比任何美術強：0806 run 20260806-121910 的 36 張落點幀，範圍
+# 內的格紅色佔比 0.5 以上、範圍外不到 0.05。
+ATTACK_FILL_MIN = 0.35
+
+
+def attack_cells(
+    frame: np.ndarray,
+    centres: Mapping[Cell, Point],
+    *,
+    half: float,
+    min_fill: float = ATTACK_FILL_MIN,
+    zones: Sequence[Region] = UI_EXCLUSION_ZONES,
+) -> tuple[Cell, ...]:
+    """落點幀上被攻擊範圍染紅的格。UI 遮罩先濾——左上單位卡的 HP 紅條就在地圖上層。"""
+    return tuple(
+        sorted(
+            cell
+            for cell, point in centres.items()
+            if not in_ui_zone(point, zones) and red_fraction(frame, point, half) >= min_fill
+        )
+    )
+
+
+def attack_centre(
+    marks: Iterable[Cell],
+    *,
+    window: tuple[int, int, int, int] | None = None,
+    prefer: Cell | None = None,
+) -> Cell | None:
+    """紅格 → 那台敵方站的格：**最小包覆菱形**的中心，唯一才收。
+
+    與我方那條路的差別在證據形狀，不是喜好：我方的可抵達格是稀疏徽章（圖示會蓋掉一堆）
+    而半徑已知（移動力），所以走「硬條件＋預測面積最小」；敵方的紅範圍是**整片實心**、
+    半徑未知（移動力＋射程，名冊讀不到），所以「能把所有紅格包進去的最小半徑」就是最利的
+    刀——0806 run 20260806-121910 的 36 張落點幀，最小半徑的中心**每一張都唯一**，而且
+    與「跳轉把目標帶到畫面中心」這個獨立線索完全一致（36/36）。
+
+    半徑並列時再比預測面積（同樣的觀測下預測愈小愈可信），還並列就回 None：那時候
+    `prefer` 只當最後的排序，不當裁決。
+    """
+    seen = sorted(set(marks))
+    if not seen:
+        return None
+    lo_x = min(cell[0] for cell in seen) - 1
+    hi_x = max(cell[0] for cell in seen) + 1
+    lo_y = min(cell[1] for cell in seen) - 1
+    hi_y = max(cell[1] for cell in seen) + 1
+    scored: list[tuple[int, int, int, Cell]] = []
+    for x in range(lo_x, hi_x + 1):
+        for y in range(lo_y, hi_y + 1):
+            centre = (x, y)
+            reach = max(_manhattan(cell, centre) for cell in seen)
+            predicted = sum(
+                1
+                for cx in range(x - reach, x + reach + 1)
+                for cy in range(y - reach, y + reach + 1)
+                if _manhattan((cx, cy), centre) <= reach
+                and (window is None or _inside_box((cx, cy), window))
+            )
+            away = 0 if prefer is None else _manhattan(centre, prefer)
+            scored.append((reach, predicted, away, centre))
+    scored.sort()
+    best = scored[0]
+    if len(scored) > 1 and scored[1][:2] == best[:2]:
+        return None
+    return best[3]
 
 
 def probe_order(peaks: Iterable[Point], target: Point, *, limit: int = 2) -> tuple[Point, ...]:

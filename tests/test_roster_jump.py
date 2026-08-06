@@ -143,38 +143,71 @@ def test_no_blank_cell_when_the_mask_swallows_every_survivor():
 
 
 
-# ---------- 目標端定位點：指定標示 ----------
+# ---------- 敵方的目標端：攻擊範圍紅菱形 ----------
 
 
 def _scene(cells, pitch=100.0):
     return {cell: (1170.0 + pitch * cell[0], 540.0 + pitch * cell[1]) for cell in cells}
 
 
-def test_the_designation_mark_names_the_target_cell():
-    """目標格由「落點幀 vs 乾淨幀的變化」指出來，不是拿密度峰猜的。"""
-    clean = np.full((1080, 2340, 3), 60, np.uint8)
-    landing = clean.copy()
-    landing[520:560, 1250:1290] = (30, 30, 220)
-
-    found = jumpscan.designation_cell(landing, clean, _scene({(0, 0), (1, 0), (0, 1)}), half=20.0)
-
-    assert found == (1, 0)
+def _red_frame(cells, scene, half=30):
+    frame = np.full((1080, 2340, 3), 60, np.uint8)
+    for cell in cells:
+        x, y = scene[cell]
+        frame[int(y - half) : int(y + half), int(x - half) : int(x + half)] = (30, 30, 200)
+    return frame
 
 
-def test_no_designation_mark_means_no_target_cell():
-    clean = np.full((1080, 2340, 3), 60, np.uint8)
+def _ring(centre, reach):
+    return {
+        (x, y)
+        for x in range(centre[0] - reach, centre[0] + reach + 1)
+        for y in range(centre[1] - reach, centre[1] + reach + 1)
+        if abs(x - centre[0]) + abs(y - centre[1]) <= reach
+    }
 
-    assert jumpscan.designation_cell(clean, clean, _scene({(0, 0), (1, 0)}), half=20.0) is None
+
+def test_the_attack_range_diamond_names_the_enemy_cell():
+    """0806 run 20260806-121910 的 36 張敵方落點幀：紅範圍是整片實心菱形，最小包覆
+    半徑的中心每一張都唯一，而且與「跳轉把目標帶到畫面中心」完全一致（36/36）。"""
+    scene = _scene({(x, y) for x in range(-4, 5) for y in range(-4, 5)})
+    marks = _ring((0, 0), 3)
+
+    assert jumpscan.attack_centre(marks) == (0, 0)
+    assert jumpscan.attack_cells(_red_frame(marks, scene), scene, half=20.0) == tuple(
+        sorted(marks)
+    )
 
 
-def test_a_full_screen_overlay_is_refused_rather_than_guessed():
-    """好幾格一起滿版變化時領先差裁不出來——回 None，不要拿「離中心最近」硬猜。"""
-    clean = np.full((1080, 2340, 3), 60, np.uint8)
-    landing = np.full((1080, 2340, 3), 200, np.uint8)
+def test_units_standing_in_the_range_punch_holes_that_do_not_move_the_centre():
+    """紅格會被單位圖示蓋掉幾格（目標自己那一格幾乎一定被蓋）——包覆半徑不受影響。"""
+    marks = _ring((2, 3), 4) - {(2, 3), (3, 3), (1, 3), (2, 2)}
 
-    found = jumpscan.designation_cell(landing, clean, _scene({(0, 0), (1, 0), (0, 1)}), half=20.0)
+    assert jumpscan.attack_centre(marks) == (2, 3)
 
-    assert found is None
+
+def test_the_ui_cards_over_the_map_are_not_attack_range():
+    """左上單位卡的 HP 紅條就疊在地圖上層，實幀重放時它每次都吐兩三格假紅。"""
+    scene = _scene({(0, 0), (1, 0)})
+    scene[(-9, -4)] = (300.0, 200.0)
+    frame = _red_frame({(0, 0), (1, 0), (-9, -4)}, scene)
+
+    assert jumpscan.attack_cells(frame, scene, half=20.0) == ((0, 0), (1, 0))
+
+
+def test_a_shifted_centre_needs_a_bigger_diamond_and_loses():
+    """判準是最小包覆半徑：往東挪一格就得把半徑加一才包得住西邊那幾格。"""
+    marks = _ring((5, 5), 2)
+    reach = {cell: max(abs(cell[0] - m[0]) + abs(cell[1] - m[1]) for m in marks)
+             for cell in ((5, 5), (6, 5), (5, 6))}
+
+    assert reach[(5, 5)] == 2
+    assert reach[(6, 5)] == reach[(5, 6)] == 3
+    assert jumpscan.attack_centre(marks) == (5, 5)
+
+
+def test_no_red_cells_at_all_is_not_a_fit():
+    assert jumpscan.attack_centre([]) is None
 
 
 def test_the_peaks_only_pick_which_cell_to_ask_never_the_coordinates():
@@ -332,19 +365,6 @@ def test_the_report_is_absolute_cells_or_nothing():
         jumpscan.SOURCE_RELAY,
         jumpscan.UNRESOLVED,
     ]
-
-
-def test_the_designation_ignores_the_marks_we_made_ourselves():
-    """0806 run 20260806-103335 的 ally#4：落點幀上一台留下的選取填色在乾淨幀被搬走，
-    那個「消失」比任何指定標示都大聲，整台就被自家標記騙走。"""
-    clean = np.full((1080, 2340, 3), 60, np.uint8)
-    landing = clean.copy()
-    landing[520:560, 1150:1190] = (30, 30, 220)
-    landing[520:560, 1250:1290] = (200, 200, 60)
-    scene = _scene({(0, 0), (1, 0), (0, 1)})
-
-    assert jumpscan.designation_cell(landing, clean, scene, half=20.0) is None
-    assert jumpscan.designation_cell(landing, clean, scene, half=20.0, exclude=[(0, 0)]) == (1, 0)
 
 
 def test_a_moving_camera_shows_up_as_a_whole_screen_change():

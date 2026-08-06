@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Sequence
@@ -107,6 +108,9 @@ DETAIL_READ_ATTEMPTS = 3
 CAMERA_STEADY_FRACTION = 0.06
 CAMERA_STEADY_ATTEMPTS = 6
 CAMERA_STEADY_WAIT_S = 0.6
+# adb exec-out screencap 偶發逾時（0805 一例、0806 run 20260806-121910 一例），通道旋即
+# 恢復——實測 2.5 秒就通了。截圖是唯讀且冪等的，重試一次不會多按到任何東西。
+CAPTURE_RETRY_WAIT_S = 2.0
 
 # 巡迴順序預設敵方優先：敵 18 台是驗收大頭，而敵方那條路（紅圈指定→點出卡→name_sig）
 # 才是接力鏈的證人來源；我方只出得了驗證格、出不了身分，排後面。
@@ -144,6 +148,20 @@ def grid_centres(grid: FrameGrid) -> dict[Cell, Point]:
     }
 
 
+def same_view(a: FrameGrid, b: FrameGrid) -> bool:
+    """兩張格網的格號對不對得起來——只問**原點相位**，不要求兩邊裁出一樣多條線。
+
+    比較的目的只是「鏡頭沒被拉走」，格號一律以先讀到的那張為準（擬合是在那張上做的）。
+    逐線全等太嚴：0806 run 20260806-121910 三次 range_fit 成功全被作廢，實際上只是格線
+    偵測在邊緣多裁／少裁一條。相位差半格以內就是同一個鏡位。
+    """
+    pitch_a, pitch_b = grid_pitch(a), grid_pitch(b)
+    return (
+        abs(a.cols[0] - b.cols[0]) < 0.5 * min(pitch_a[0], pitch_b[0])
+        and abs(a.rows[0] - b.rows[0]) < 0.5 * min(pitch_a[1], pitch_b[1])
+    )
+
+
 def bounded(grid: FrameGrid, side: str) -> bool:
     return bool(grid.bounds()[side])
 
@@ -167,11 +185,22 @@ class Camera:
 
     device: LiveDevice
     journal: Journal
+    sleep: Callable[[float], None] = time.sleep
     raw: bytes | None = field(default=None, init=False)
     shots: int = field(default=0, init=False)
 
     def screenshot(self) -> bytes:
-        self.raw = self.device.screenshot()
+        """截圖並重試一次：通道暫態逾時不該滅團。
+
+        重試只給 `TimeoutExpired`——那是「這一下沒回來」，不是「裝置不見了」；掉線是
+        RuntimeError，照樣往上拋。截圖唯讀且冪等，重試不會多按到任何東西。
+        """
+        try:
+            self.raw = self.device.screenshot()
+        except subprocess.TimeoutExpired:
+            self.journal.record("capture_retry", wait=CAPTURE_RETRY_WAIT_S)
+            self.sleep(CAPTURE_RETRY_WAIT_S)
+            self.raw = self.device.screenshot()
         self.shots += 1
         return self.raw
 
@@ -213,10 +242,9 @@ class Scan:
     sleep: Callable[[float], None] = time.sleep
     ledger: jumpscan.JumpLedger = field(default_factory=jumpscan.JumpLedger)
     entries: list[roster.RosterEntry] = field(default_factory=list)
-    # 我們自己留在畫面上的東西：選取填色的色簽與格、以及最後一次解除點的格。
+    # march 種下的選取填色：色簽與它現在在哪一格。
     signature: board.MarkerSignature | None = None
     marker: Cell | None = None
-    dismissed: Cell | None = None
     # 本輪所有「非預期進入地圖子模式」事件，供驗收判準的零誤觸機器檢查。
     mistaps: list[dict] = field(default_factory=list)
 
@@ -425,11 +453,10 @@ class Scan:
     ) -> tuple[View | None, Cell | None, str | None]:
         """跳轉 → 落點幀（帶指定標示）→ 解除 → 乾淨幀。回傳乾淨鏡位與目標格。
 
-        目標格由**兩幀的變化**指出來（指定標示只在落點幀上），不是拿密度峰猜的；解除
-        不移動鏡頭，所以兩幀共用同一張格網。
+        目標格讀的是**遊戲自己畫在落點幀上的範圍**：敵方的攻擊範圍紅菱形、我方的移動
+        範圍菱形。解除不移動鏡頭，所以乾淨幀與落點幀共用同一張格網。
         """
         faction, index = key
-        self.dismissed = None
         self.open_troop_info(faction)
         if self.open_detail(roster.cell_taps(faction)[index]) is None:
             raise Halt(f"{faction}#{index} 點不開詳情頁——名冊順序與跳轉對不上")
@@ -448,24 +475,25 @@ class Scan:
         sig = read_signature(landing)
         if faction == roster.ALLY:
             return self.land_ally(key, landing, sig, label)
-        self.dismiss(faction, landing)
+        marked = self.view(landing)
+        if marked is None:
+            marked = self.look()
+            self.journal.record("land_reread", key=list(key), ok=marked is not None)
+        if marked is None:
+            self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
+            return (None, None, sig)
+        # 紅範圍只在解除**之前**的那一幀上，所以目標格在這裡就要讀完。
+        target = self.attack_cell(key, marked)
+        self.dismiss(faction, marked)
         clean = self.camera.settled(JUMP_SETTLE_S, self.sleep)
         self.camera.keep(f"{label}:{faction}:{index}:clean")
         view = self.view(clean)
         if view is None:
-            view = self.look()
-            self.journal.record("land_reread", key=list(key), ok=view is not None)
-        if view is None:
             self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
             return (None, None, sig)
-        # 指定標示的比對一定要用**這張視圖自己的幀**：重讀過的話 clean 已經換人了。
-        target = jumpscan.designation_cell(
-            landing,
-            view.frame,
-            view.centres,
-            half=min(view.pitch) / 3.0,
-            exclude=self.own_marks(view, landing),
-        )
+        if not same_view(marked.grid, view.grid):
+            self.journal.record("land_grid_shifted", key=list(key))
+            return (view, None, sig)
         self.journal.record(
             "landed",
             key=list(key),
@@ -507,8 +535,8 @@ class Scan:
         if view is None or moving is None:
             self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
             return (None, None, sig)
-        if (view.grid.cols, view.grid.rows) != (moving.grid.cols, moving.grid.rows):
-            # 退出移動模式之後格線對不上＝鏡頭動過，菱形算出來的格號不能跨鏡位用。
+        if not same_view(moving.grid, view.grid):
+            # 退出移動模式之後相位對不上＝鏡頭動過，菱形算出來的格號不能跨鏡位用。
             self.journal.record("ally_grid_shifted", key=list(key))
             return (view, None, sig)
         self.journal.record(
@@ -588,27 +616,23 @@ class Scan:
         self.journal.record("camera_unsteady", moved=round(moved, 3), region=list(region))
         return frame
 
-    def own_marks(self, view: View, landing: np.ndarray) -> tuple[Cell, ...]:
-        """我們自己在畫面上留下的填色：上一台的選取標記、這一台解除時點的那一格。
-
-        兩張幀都要找——標記在落點幀與乾淨幀之間會被我們自己搬走，那個「消失」比任何
-        指定標示都大聲。
-
-        只收**這個鏡位**算得出來的格：`dismissed` 是剛剛在這一幀上點的，色簽是就地重找
-        的；上一台記的格號屬於別的鏡位，一律不採用。
-        """
-        cells: list[Cell] = []
-        if self.dismissed is not None:
-            cells.append(self.dismissed)
-        if self.signature is not None:
-            for frame in (landing, view.frame):
-                found = board.find_marker(
-                    frame, self.signature, holes=board.UNIT_DENSITY_HUD_HOLES
-                )
-                cell = None if found is None else snap_cell(view.grid, found)
-                if cell is not None:
-                    cells.append(cell)
-        return tuple(dict.fromkeys(cells))
+    def attack_cell(self, key: jumpscan.Key, marked: View) -> Cell | None:
+        """敵方的目標格：攻擊範圍紅菱形的中心（最小包覆半徑，唯一才收）。"""
+        cells = jumpscan.attack_cells(
+            marked.frame, marked.centres, half=min(marked.pitch) / 3.0
+        )
+        found = jumpscan.attack_centre(
+            cells,
+            window=(0, 0, len(marked.grid.cols) - 2, len(marked.grid.rows) - 2),
+            prefer=snap_cell(marked.grid, jumpscan.SCREEN_CENTRE),
+        )
+        self.journal.record(
+            "attack_fit",
+            key=list(key),
+            cells=len(cells),
+            cell=None if found is None else list(found),
+        )
+        return found
 
     def view(self, frame: np.ndarray) -> View | None:
         grid = frame_grid(frame)
@@ -853,22 +877,13 @@ class Scan:
 
     # ---------- 解除 ----------
 
-    def dismiss(self, faction: str, frame: np.ndarray) -> None:
+    def dismiss(self, faction: str, view: View) -> None:
         """敵方的解除：點一個空白格。我方走 `land_ally`，這裡不該收到我方。"""
-        view = self.view(frame)
-        if view is None:
-            # 落點幀讀不出格網可能只是轉場沒停穩：鏡頭沒動，重拍一張再試一次。
-            view = self.look()
-            self.journal.record("dismiss_reread", ok=view is not None)
-        if view is None:
-            raise Halt("落點幀讀不出格網，挑不出解除用的空白格")
         blank = self.blank_point(view, board.find_unit_screen_hints(view.frame))
         if blank is None:
             self.journal.record("no_blank_cell", faction=faction)
             raise Halt("落點幀找不到任何空白格可以解除敵方指定")
         self.device.tap(*blank)
-        # 這一下自己會留下選取填色：記下來，指定標示的比對要把它排除。
-        self.dismissed = snap_cell(view.grid, (float(blank[0]), float(blank[1])))
 
     def blank_point(self, view: View, peaks: Sequence[Point]) -> tuple[int, int] | None:
         return jumpscan.blank_cell_tap(
