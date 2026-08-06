@@ -82,8 +82,6 @@ MARCH_LEGS = 40
 MARCH_SEED_ATTEMPTS = 3
 # 標記連兩把認不回來就放棄該軸——重種一次是自癒，兩次是這一帶認不出填色。
 MARCH_LOST_LIMIT = 2
-# 標記離推進方向的出界邊剩不到這麼多格就先重種，別等它被推出視野。
-MARCH_RESEED_PITCH = 1.5
 
 # 路徑 A 的三種下場：接上一筆帳／這一窗問不出身分／點到我方被拉走鏡頭（整幀作廢）。
 RELAY_LINKED = "linked"
@@ -119,8 +117,12 @@ TOUR_ORDERS: dict[str, tuple[str, ...]] = {
     roster.ALLY: (roster.ALLY, roster.ENEMY),
 }
 
+# 地圖點擊前的狀態閘：不是 battle_map 就先 escape 收乾淨，最多三輪。
+MAP_TAP_ATTEMPTS = 3
+
 MARCH_AXES: tuple[tuple[int, str], ...] = ((0, "west"), (1, "north"))
-LEAVING_EDGE = {"west": "east", "north": "south"}
+# 前緣種標的排序：往西推內容往東走，所以種在螢幕最西邊的格撐最久。
+FRONTIER_SORT: dict[str, tuple[int, int]] = {"west": (0, 1), "north": (1, 1)}
 
 
 def frame_grid(frame: np.ndarray) -> FrameGrid | None:
@@ -489,9 +491,10 @@ class Scan:
         self.camera.keep(f"{label}:{faction}:{index}:clean")
         view = self.view(clean)
         if view is None:
-            self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
-            return (None, None, sig)
-        if not same_view(marked.grid, view.grid):
+            # 解除只是把紅範圍收掉，鏡頭沒動：沿用落點幀的格網，不作廢已經讀到的格。
+            self.journal.record("grid_reused", key=list(key), where="enemy_clean")
+            view = View(clean, marked.grid, marked.centres)
+        elif not same_view(marked.grid, view.grid):
             self.journal.record("land_grid_shifted", key=list(key))
             return (view, None, sig)
         self.journal.record(
@@ -531,10 +534,15 @@ class Scan:
             return (None, None, sig)
         clean = self.steady()
         self.camera.keep(f"{label}:{faction}:{index}:clean")
-        view = self.view(clean)
-        if view is None or moving is None:
+        if moving is None:
             self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
             return (None, None, sig)
+        view = self.view(clean)
+        if view is None:
+            # 乾淨幀讀不出格網（我方那一叢圖示很密，seed spacing implausible 高發），
+            # 但鏡頭沒動——沿用移動模式幀的格網，別把已經擬合好的格丟掉。
+            self.journal.record("grid_reused", key=list(key), where="ally_clean")
+            return (View(clean, moving.grid, moving.centres), target, sig)
         if not same_view(moving.grid, view.grid):
             # 退出移動模式之後相位對不上＝鏡頭動過，菱形算出來的格號不能跨鏡位用。
             self.journal.record("ally_grid_shifted", key=list(key))
@@ -578,6 +586,20 @@ class Scan:
             if (unit.faction, unit.index) == key:
                 return unit.mobility
         return None
+
+    def ready_for_map_tap(self) -> bool:
+        """地圖上要點下去之前的硬閘：畫面必須確實是 `battle_map`。
+
+        0806 run 20260806-130539 的 ally#2：返回鈕退出移動模式之後沒驗狀態就繼續點，
+        選取殘留讓下一下開了**武裝選單**（三連 mistap＝誤攻擊前哨）。收不乾淨就放棄
+        這一台，絕不在未確認的狀態下點地圖。
+        """
+        for _ in range(MAP_TAP_ATTEMPTS):
+            if screens.classify(self.camera.grab()) == screens.BATTLE_MAP:
+                return True
+            self.escape_map()
+        self.journal.record("map_tap_blocked")
+        return False
 
     def note_state(self, frame: np.ndarray, *, expect: str | None, where: str) -> str:
         """點完之後畫面在哪：進了非預期的地圖子模式就是誤觸，記進 run 級帳。
@@ -678,6 +700,8 @@ class Scan:
 
         點擊座標本身就是格子的證明——點 (x,y) 落在格 c、卡開了，記的就是格 c。
         """
+        if not self.ready_for_map_tap():
+            return (sweep.TAP_NONE, None)
         before = self.camera.grab()
         self.device.tap(int(point[0]), int(point[1]))
         self.sleep(TAP_SETTLE_S)
@@ -726,13 +750,22 @@ class Scan:
     def march_axis(
         self, key: jumpscan.Key, view: View, target: Cell, axis: int, direction: str
     ) -> int | None:
-        """往 direction 推到界，逐把靠標記重認算累計格數，回傳目標在該軸的世界格。"""
+        """往 direction 推到界，逐把靠標記重認算累計格數，回傳目標在該軸的世界格。
+
+        每一把都在**推進方向的前緣**重種標記（往西推就種在畫面西側），不是等它快被推出
+        視野才補——這是 sweep_scan `carry_marker` 用了十二輪的紀律：不要求一顆標記活過
+        好幾把推鏡。0806 run 20260806-130539 的 65 筆 march_lost 有 48 筆倒在第 2 把、
+        16 筆倒在第 1 把，正是「一顆標記撐到底」撐不住的形狀。
+
+        重種發生在同一幀內（鏡位沒變），所以計格帳不受影響：下一把的 `before` 用新標記
+        在**這一幀**的格就好。
+        """
         name = jumpscan.AXIS_NAMES[axis]
-        seeded = self.seed_marker(view, avoid=target)
+        seeded = self.seed_marker(view, avoid=target, toward=direction)
         if seeded is None:
             self.journal.record("march_lost", key=list(key), axis=name, reason="no_seed")
             return None
-        signature, marker = seeded
+        signature, marker, spot = seeded
         legs: list[jumpscan.MarchLeg] = []
         lost = 0
         current: View | None = view
@@ -756,18 +789,28 @@ class Scan:
                     "march_axis", key=list(key), axis=name, legs=len(legs), world=world
                 )
                 return world
+            carried = self.carry_marker(view, signature, direction)
+            if carried is None:
+                lost += 1
+                self.journal.record(
+                    "march_lost", key=list(key), axis=name, legs=len(legs), reason="no_carry"
+                )
+                if lost >= MARCH_LOST_LIMIT:
+                    break
+                continue
+            signature, marker, spot = carried
             before = marker[axis]
-            current = self.pan(direction)
+            current = self.pan(direction, reach=self.stride(view, spot, direction))
             if current is None:
                 lost += 1
                 if lost >= MARCH_LOST_LIMIT:
                     break
                 continue
             view = current
-            point = board.find_marker(
+            spot = board.find_marker(
                 view.frame, signature, holes=board.UNIT_DENSITY_HUD_HOLES
             )
-            cell = None if point is None else snap_cell(view.grid, point)
+            cell = None if spot is None else snap_cell(view.grid, spot)
             if cell is None:
                 lost += 1
                 self.journal.record("march_lost", key=list(key), axis=name, legs=len(legs))
@@ -777,25 +820,33 @@ class Scan:
             lost = 0
             legs.append(jumpscan.MarchLeg(before, cell[axis]))
             marker = cell
-            if self.leaving(view, point, direction):
-                reseeded = self.seed_marker(view, signature=signature)
-                if reseeded is None:
-                    lost += 1
-                    if lost >= MARCH_LOST_LIMIT:
-                        break
-                    continue
-                signature, marker = reseeded
         self.journal.record("march_failed", key=list(key), axis=name, legs=len(legs))
         return None
 
-    def leaving(self, view: View, point: Point, direction: str) -> bool:
-        """標記快被推出視野了嗎——推西時它往東走，推北時它往南走。"""
-        side = LEAVING_EDGE[direction]
-        x, y, w, h = board.UNIT_DENSITY_REGION
-        pitch = view.pitch
-        if side == "east":
-            return point[0] > x + w - MARCH_RESEED_PITCH * pitch[0]
-        return point[1] > y + h - MARCH_RESEED_PITCH * pitch[1]
+    def carry_marker(
+        self, view: View, signature: board.MarkerSignature, direction: str
+    ) -> tuple[board.MarkerSignature, Cell, Point] | None:
+        """推之前把標記搬到前緣。搬不動就沿用舊的——但舊的必須在這一幀上找得到。
+
+        「找得到」是硬條件：記著的格看不到填色，代表那顆標記已經沒了，再拿它當證人會讓
+        下一次重認拿舊填色配新格號（sweep_scan 的 `drop_stale_marker` 同一條）。
+        """
+        seeded = self.seed_marker(view, signature=signature, toward=direction)
+        if seeded is not None:
+            return seeded
+        found = board.find_marker(view.frame, signature, holes=board.UNIT_DENSITY_HUD_HOLES)
+        cell = None if found is None else snap_cell(view.grid, found)
+        if cell is None:
+            return None
+        return (signature, cell, found)
+
+    def stride(self, view: View, spot: Point | None, direction: str) -> float:
+        """這一把推多遠：滿行程，被「推完標記仍在視野內」的硬上限夾住。"""
+        if spot is None:
+            return board.PAN_MAX_REACH
+        pitch = view.pitch[0] if direction in ("east", "west") else view.pitch[1]
+        cap = sweep.stride_cap(spot, direction, margin=sweep.MARKER_KEEP_PITCH * pitch)
+        return max(board.PAN_MIN_REACH, min(board.PAN_MAX_REACH, cap))
 
     def seed_marker(
         self,
@@ -803,12 +854,15 @@ class Scan:
         *,
         avoid: Cell | None = None,
         signature: board.MarkerSignature | None = None,
-    ) -> tuple[board.MarkerSignature, Cell] | None:
+        toward: str | None = None,
+    ) -> tuple[board.MarkerSignature, Cell, Point] | None:
         """在一個乾淨空白格種標記：點下去、驗收填色真的出現在被點的那一格才算數。
 
         沒驗收就記 `marker` 會讓下一把重認拿舊填色配新格號，整幀寫進差一格距整數倍的
         世界位置——這條紀律照抄 sweep_scan 的 `carry_marker`。
         """
+        if not self.ready_for_map_tap():
+            return None
         peaks = board.find_unit_screen_hints(view.frame)
         points = jumpscan.clean_points(
             view.frame,
@@ -817,11 +871,18 @@ class Scan:
             keep_out=jumpscan.PEAK_KEEP_OUT_PITCH * max(view.pitch),
             red_half=min(view.pitch) / 3.0,
         )
-        points.sort(
-            key=lambda point: float(
-                np.hypot(point[0] - jumpscan.SCREEN_CENTRE[0], point[1] - jumpscan.SCREEN_CENTRE[1])
+        if toward is None:
+            points.sort(
+                key=lambda point: float(
+                    np.hypot(
+                        point[0] - jumpscan.SCREEN_CENTRE[0],
+                        point[1] - jumpscan.SCREEN_CENTRE[1],
+                    )
+                )
             )
-        )
+        else:
+            axis, sign = FRONTIER_SORT[toward]
+            points.sort(key=lambda point: sign * point[axis])
         for point in points[:MARCH_SEED_ATTEMPTS]:
             cell = snap_cell(view.grid, point)
             if cell is None or cell == avoid:
@@ -846,7 +907,7 @@ class Scan:
                 continue
             self.signature = learned
             self.marker = cell
-            return (learned, cell)
+            return (learned, cell, point)
         return None
 
     def escape_map(self) -> None:
@@ -860,12 +921,13 @@ class Scan:
         self.sleep(TAP_SETTLE_S)
         self.journal.record("escape_map", on_map=self.close_panels())
 
-    def pan(self, direction: str) -> View | None:
-        """一把推鏡。行程量不參與定位——世界座標只由標記重認的格數與界線決定。"""
+    def pan(self, direction: str, reach: float = board.PAN_MAX_REACH) -> View | None:
+        """一把推鏡。行程量不參與定位——世界座標只由標記重認的格數與界線決定。
+
+        `reach` 只管「推多遠」：推過頭標記就出視野，新窗裡一個證人都沒有。
+        """
         frame = self.camera.grab()
-        origin, stroke = board.pan_stroke(
-            direction, board.PAN_MAX_REACH, board.find_sightings(frame)
-        )
+        origin, stroke = board.pan_stroke(direction, reach, board.find_sightings(frame))
         x1, y1, x2, y2 = board.pan_gesture(direction, origin, stroke)
         self.device.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
         self.journal.record("pan", direction=direction, reach=round(stroke, 1))
@@ -879,6 +941,9 @@ class Scan:
 
     def dismiss(self, faction: str, view: View) -> None:
         """敵方的解除：點一個空白格。我方走 `land_ally`，這裡不該收到我方。"""
+        if not self.ready_for_map_tap():
+            self.journal.record("dismiss_blocked", faction=faction)
+            return
         blank = self.blank_point(view, board.find_unit_screen_hints(view.frame))
         if blank is None:
             self.journal.record("no_blank_cell", faction=faction)

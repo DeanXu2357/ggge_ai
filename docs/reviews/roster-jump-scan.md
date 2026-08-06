@@ -129,6 +129,56 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    重讀那張幀（`land_reread`／`dismiss_reread`）。離線回歸：pan 連續 `None` 到
    `MARCH_LOST_LIMIT` 應該記 `march_failed` 而不是 crash；重讀讀得出來就繼續走。
 
+## 0806 第十四輪：march 的標記接力、移動模式洩漏、格網重用（run `20260806-130539`）
+
+全程跑完並棄戰收尾，**首次產出正確的絕對座標**：march 三台（敵 (6,4)／(9,4)、我 (3,4)）與
+真值檔完全一致——精度定讞。覆蓋只有 3/28，三個缺陷：
+
+### 1. march 的標記撐不過兩把推鏡
+
+`march_lost` 65 筆，**48 筆倒在第 2 把、16 筆倒在第 1 把**（`seed_marker` 本身很健康：44 次
+裡 41 次 `empty`）。舊寫法是「種一顆標記，等它快被推出視野（`leaving()`）才重種」，也就是
+要求同一顆標記活過好幾把推鏡；而敵群在 x 6-23，西推要 5-20 把。
+
+修法照抄 `scripts/sweep_scan.py` 的 `carry_marker`（十二輪實戰過的那套）：
+
+- **每一把推鏡之前都在前緣重種**（`Scan.carry_marker()`），不是等它快掉出去。往西推時內容
+  往東走，所以新標記種在畫面**最西側**的乾淨格（`seed_marker(toward=…)` ＋ `FRONTIER_SORT`）。
+  重種發生在同一幀內（鏡位沒變），計格帳不受影響——下一把的 `before` 用新標記在這一幀的格。
+- **搬不動就沿用舊的，但舊的必須在這一幀上找得到**（`find_marker` 找不到就是那顆標記沒了，
+  等同 sweep 的 `drop_stale_marker`）。
+- **推鏡行程夾上硬上限**（`Scan.stride()` ＝ `sweep.stride_cap`，margin ＝
+  `sweep.MARKER_KEEP_PITCH`）：推完標記必須還在視野內。`Scan.pan()` 因此收 `reach` 參數，
+  不再每次都推滿 `PAN_MAX_REACH`。
+- `leaving()`／`MARCH_RESEED_PITCH` 退場——「等它快掉出去」這個問法本身就是錯的。
+
+### 2. 移動模式洩漏（安全問題）
+
+`ally#2` 在 `range_fit` 之後 `relay_probe` 回 `empty`，接著 `seed_marker` 三連 `mistap`，
+三次都是 `battle_weapon_select`——返回鈕退出之後**沒驗狀態就繼續點**，選取殘留讓下一下開了
+武裝選單（誤攻擊的前哨）。
+
+修法：所有 map tap（`seed_marker`／`ask_identity`／`dismiss` 的空白格）前面加硬閘
+`Scan.ready_for_map_tap()`——`screens.classify` 必須是 `battle_map`，不是就 `escape_map()`
+收乾淨再問，最多三輪；收不乾淨就記 `map_tap_blocked` 並放棄這一台，**絕不在未確認的狀態下
+點地圖**。
+
+### 3. 乾淨幀讀不出格網就沿用擬合那張
+
+我方那一叢圖示很密，返回之後的乾淨幀常常 `seed spacing implausible`，而做擬合的移動模式幀
+反而讀得出來——`land_failed` 10 筆多半是這樣，把已經到手的格白白丟掉。修法：乾淨幀讀不出
+格網時**沿用移動模式幀的格網**（`grid_reused`，鏡頭沒動所以格號通用），乾淨幀只當 march／
+relay 的起點畫面。敵方那條路同理（解除只是把紅範圍收掉，鏡頭不動）。
+
+### 未做：東界反推 x（提案，待裁決）
+
+任務單提的「landed 已見東界就從東界反推 x」需要先知道 `cols`，而附加條件「同輪內某台同時
+定過東西兩界」幾乎不可能成立——一張幀同時看到東西兩界代表整張地圖塞得進畫面，那就根本不用
+march。可行的等價寫法是：**某台已解出 x 的單位，其幀內同時看得到東界**，則
+`cols = x + (東界欄 − 該台欄) + 1`，之後其他台看到東界就能反推。這是另開一個座標來源，本輪
+沒有任何實測資料可校（run14 的三台 march 成功幀都沒有東界），所以列為提案不實作——寧可先讓
+標記接力把覆蓋撐起來，再看還缺不缺這條捷徑。
+
 ## 0806 第十三輪：敵方定位改讀攻擊範圍（run `20260806-121910`）
 
 18 台敵方 `landed` 全部 `target=null`、41 筆 `jump_failed`。**根因不是門檻，是機制選錯了**：

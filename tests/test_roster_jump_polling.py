@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from ggge_ai.battle.map_grid import FrameGrid
-from ggge_ai.runtime import jumpscan, roster, screens
+from ggge_ai.runtime import board, jumpscan, roster, screens
 from ggge_ai.runtime.journal import Journal
 from scripts import scan_roster_jump
 from scripts.scan_roster_jump import Halt, Scan
@@ -96,7 +96,8 @@ def test_the_expected_screen_never_arriving_halts(tmp_path, classify):
 
 def test_no_blank_cell_halts_and_leaves_a_journal_line(tmp_path, monkeypatch):
     """挑不出解除點就停在原地——但要留下流水帳，不然實機只看到一行 Halt。"""
-    scan = build_scan(tmp_path, [])
+    scan = build_scan(tmp_path, [screens.BATTLE_MAP])
+    monkeypatch.setattr(screens, "classify", scan.classified)
     monkeypatch.setattr(jumpscan, "blank_cell_tap", lambda *a, **k: None)
 
     with pytest.raises(Halt):
@@ -116,8 +117,10 @@ def test_a_pan_that_cannot_be_read_never_reaches_the_grid_as_none(tmp_path, monk
     """0806 第九輪實機 CRASH：`pan()` 回 None 之後 continue，下一輪開頭拿 None.grid
     炸 AttributeError。讀不出來要重拍重讀，還是讀不出來才計 lost。"""
     scan = build_scan(tmp_path, [])
-    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (object(), (3, 4)))
-    monkeypatch.setattr(scan, "pan", lambda direction: None)
+    marker = board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
+    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: None)
     monkeypatch.setattr(scan, "look", lambda: None)
 
     assert scan.march_axis(("ally", 0), _view(), (5, 5), 0, "west") is None
@@ -131,8 +134,10 @@ def test_an_unreadable_pan_recovers_on_the_reread_instead_of_giving_up(tmp_path,
     """重拍讀得出來就繼續走：鏡頭已經動了，重讀的是**新**視圖，不是推鏡前那張。"""
     bounded_grid = FrameGrid(cols=list(GRID.cols), rows=list(GRID.rows), west_bound=True)
     scan = build_scan(tmp_path, [])
-    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (object(), (3, 4)))
-    monkeypatch.setattr(scan, "pan", lambda direction: None)
+    marker = board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
+    monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0)))
+    monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: None)
     monkeypatch.setattr(scan, "look", lambda: _view(bounded_grid))
 
     # 界那一幀的幀格 0 就是世界 0，所以目標的欄索引直接就是世界欄。
@@ -356,3 +361,98 @@ def test_a_second_capture_timeout_is_not_swallowed(tmp_path):
 
     with pytest.raises(subprocess.TimeoutExpired):
         camera.screenshot()
+
+
+def _marker():
+    return board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
+
+
+def test_the_marker_is_reseeded_at_the_frontier_before_every_pan(tmp_path, monkeypatch):
+    """0806 run 20260806-130539：65 筆 march_lost，48 筆倒在第 2 把、16 筆倒在第 1 把
+    ——一顆標記撐不了幾把推鏡。每一把都在前緣重種（sweep_scan carry_marker 的紀律）。"""
+    scan = build_scan(tmp_path, [])
+    seeds: list[str | None] = []
+    monkeypatch.setattr(
+        scan,
+        "seed_marker",
+        lambda view, **kw: seeds.append(kw.get("toward")) or (_marker(), (3, 4), (900.0, 500.0)),
+    )
+    pans: list[float] = []
+
+    def pan(direction, reach=0.0):
+        pans.append(reach)
+        return None if len(pans) >= 2 else _view()
+
+    monkeypatch.setattr(scan, "pan", pan)
+    monkeypatch.setattr(scan, "look", lambda: None)
+    monkeypatch.setattr(scan_roster_jump.board, "find_marker", lambda *a, **k: None)
+
+    scan.march_axis(("enemy", 0), _view(), (5, 5), 0, "west")
+
+    assert seeds and all(toward == "west" for toward in seeds[1:])
+    assert len(seeds) > 1
+
+
+def test_the_stroke_is_capped_so_the_marker_cannot_be_pushed_out_of_view(tmp_path):
+    """推過頭標記就出視野，新窗裡一個證人都沒有。"""
+    scan = build_scan(tmp_path, [])
+    view = _view()
+
+    near_edge = scan.stride(view, (2200.0, 500.0), "west")
+    room = scan.stride(view, (400.0, 500.0), "west")
+
+    assert near_edge < room
+    assert near_edge >= scan_roster_jump.board.PAN_MIN_REACH
+
+
+def test_the_frontier_seed_goes_west_when_the_camera_is_heading_west(tmp_path, monkeypatch):
+    scan = build_scan(tmp_path, [screens.BATTLE_MAP] * 4)
+    monkeypatch.setattr(screens, "classify", scan.classified)
+    taps: list[tuple[int, int]] = []
+    scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+    monkeypatch.setattr(
+        scan_roster_jump.jumpscan, "clean_points", lambda *a, **k: [(1800.0, 500.0), (300.0, 500.0)]
+    )
+    monkeypatch.setattr(scan_roster_jump.board, "find_unit_screen_hints", lambda frame: ())
+    monkeypatch.setattr(
+        scan_roster_jump.sweep,
+        "classify_tap",
+        lambda *a, **k: scan_roster_jump.sweep.TapOutcome(scan_roster_jump.sweep.TAP_EMPTY),
+    )
+
+    scan.seed_marker(_view(), signature=_marker(), toward="west")
+
+    assert taps[0][0] == 300
+
+
+def test_no_map_tap_happens_until_the_screen_is_confirmed_to_be_the_map(tmp_path, monkeypatch):
+    """0806 run 20260806-130539 的 ally#2：返回退出後沒驗狀態就繼續點，選取殘留讓下一下
+    開了武裝選單（誤攻擊前哨）。收不乾淨就放棄這一台。"""
+    scan = build_scan(tmp_path, [screens.BATTLE_WEAPON_SELECT] * 12)
+    monkeypatch.setattr(screens, "classify", scan.classified)
+    taps: list[tuple[int, int]] = []
+    scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+
+    assert scan.seed_marker(_view(), toward="west") is None
+    assert scan.ask_identity(_view(), (1170.0, 540.0)) == (scan_roster_jump.sweep.TAP_NONE, None)
+    # 只有 escape 用的返回鈕，沒有任何一下落在地圖格上。
+    assert set(taps) <= {jumpscan.ALLY_DISMISS_TAP}
+    assert "map_tap_blocked" in _kinds(scan)
+
+
+def test_an_unreadable_clean_frame_keeps_the_grid_from_the_move_mode_frame(tmp_path, monkeypatch):
+    """我方那一叢圖示很密，乾淨幀常常 seed spacing implausible；鏡頭沒動就沿用擬合那張
+    的格網，不要把已經到手的格丟掉。"""
+    scan = build_scan(tmp_path, [screens.BATTLE_UNIT_MOVE, screens.BATTLE_MAP])
+    monkeypatch.setattr(screens, "classify", scan.classified)
+    scan.device = SimpleNamespace(tap=lambda x, y, intent="": None)
+    monkeypatch.setattr(scan, "steady", lambda *a, **k: np.zeros((4, 4, 3), np.uint8))
+    monkeypatch.setattr(scan, "range_cell", lambda key, moving: (4, 3))
+    views = iter([_view(), None])
+    monkeypatch.setattr(scan, "view", lambda frame: next(views))
+
+    view, target, _ = scan.land_ally(("ally", 0), np.zeros((4, 4, 3), np.uint8), None, "jump")
+
+    assert target == (4, 3)
+    assert view is not None and view.grid is GRID
+    assert "grid_reused" in _kinds(scan)
