@@ -3,10 +3,10 @@
 不推鏡找單位——名冊是完整的（我軍 10、敵軍 18），每一台都點得開、跳得到，剩下的
 問題只是「跳過去那一台在世界的哪一格」。兩條路，都不含無標記的圖片比對：
 
-- **relay**：同幀接力。目標端敵方＝跳轉指定標示所在格（落點幀與乾淨幀的變化指出來的，
-  不是密度峰猜的）、我方＝移動範圍菱形的中心（跳轉直接進單位移動模式，**一下地圖都不
-  點**）；鄰居端＝我們點下去而且真的出卡的那一格。兩端都是驗證過的格，幀內格差由同一張
-  FrameGrid 算。鄰居的身分還沒有座標就先記帳，`settle` 回填。
+- **constellation**：把整個窗掛回世界。幀內**點擊確認過有單位**的格（點下去出卡或進行動
+  模式＝存在，卡面內容一律不讀）與已解單位的世界格做平移配對，唯一解才採信；窗位一鎖住，
+  目標的幀格就落出世界座標。目標的幀格讀的是遊戲自己畫的範圍：敵方＝攻擊範圍紅菱形中心、
+  我方＝移動範圍菱形中心（跳轉直接進單位移動模式）。
 - **march**：自力。在目標旁種標記，往西推到 FrameGrid 讀到西界，逐把靠標記重認累計
   格數；往北同理（先跳回同一台重置鏡頭）。
 
@@ -75,18 +75,13 @@ ROSTER_SETTLE_S = 1.0
 SCREEN_ATTEMPTS = 5
 END_OF_LIST_CONFIRMATIONS = 2
 
-# 路徑 A：最多問兩台鄰居的身分，都問不到就走自力。
-RELAY_PROBES = 2
+# 路徑 A：最多點幾格確認「有單位」——確認 ≥2 格才配得起來，點太多只是浪費。
+CONFIRM_PROBES = 4
 # 路徑 B：一軸最多推幾把（一把約一格半，地圖再大也用不到這麼多）。
 MARCH_LEGS = 40
 MARCH_SEED_ATTEMPTS = 3
 # 標記連兩把認不回來就放棄該軸——重種一次是自癒，兩次是這一帶認不出填色。
 MARCH_LOST_LIMIT = 2
-
-# 路徑 A 的三種下場：接上一筆帳／這一窗問不出身分／點到我方被拉走鏡頭（整幀作廢）。
-RELAY_LINKED = "linked"
-RELAY_NONE = "none"
-RELAY_ADRIFT = "adrift"
 
 # 面板逐層關閉：詳情頁→部隊資訊→戰鬥選單。開選單前一律先跑一遍。
 PANEL_LAYERS = 3
@@ -110,8 +105,8 @@ CAMERA_STEADY_WAIT_S = 0.6
 # 恢復——實測 2.5 秒就通了。截圖是唯讀且冪等的，重試一次不會多按到任何東西。
 CAPTURE_RETRY_WAIT_S = 2.0
 
-# 巡迴順序預設敵方優先：敵 18 台是驗收大頭，而敵方那條路（紅圈指定→點出卡→name_sig）
-# 才是接力鏈的證人來源；我方只出得了驗證格、出不了身分，排後面。
+# 巡迴順序預設敵方優先：敵 18 台是驗收大頭，先把它們的世界格解出來，後面的窗才有足夠的
+# 參考集可以做平移配對。
 TOUR_ORDERS: dict[str, tuple[str, ...]] = {
     roster.ENEMY: (roster.ENEMY, roster.ALLY),
     roster.ALLY: (roster.ALLY, roster.ENEMY),
@@ -169,12 +164,12 @@ def bounded(grid: FrameGrid, side: str) -> bool:
 
 
 def card_present(frame: np.ndarray) -> bool:
+    """卡開了沒——只問「有沒有這張卡」，**不讀卡面內容**。
+
+    卡面的 `name_sig` 完全退出定位：同型量產機的卡面不可分，拿它認身分等於在毒帳上簽名
+    （0806 使用者裁決）。這裡要的只是「這一格有東西」這個 bit。
+    """
     return vision.read_enemy_summary(frame) is not None
-
-
-def read_signature(frame: np.ndarray) -> str | None:
-    summary = vision.read_enemy_summary(frame)
-    return None if summary is None else summary.name_sig
 
 
 class Halt(RuntimeError):
@@ -417,42 +412,37 @@ class Scan:
             key = jumpscan.next_target(self.ledger, roster_keys, give_up_after=JUMP_ATTEMPTS)
             if key is None:
                 break
-            visited = self.visit(key)
-            self.ledger.settle()
+            self.visit(key)
             if self.ledger.resolved(key):
                 continue
-            # 記到一筆等回填的接力帳也算跑過一趟：不記次數會讓排程一直挑同一台。
+            # 失敗即棄：把面板收乾淨再換下一台，不在原地重試。
+            self.close_panels()
             count = self.ledger.fail(key)
-            self.journal.record(
-                "jump_failed", key=list(key), failures=count, pending=visited
-            )
+            self.journal.record("jump_failed", key=list(key), failures=count)
             if count >= JUMP_ATTEMPTS:
                 self.ledger.retire(key)
         if not self.ledger.cells:
             raise Halt("整份名冊都跳過了仍然一台都定位不了，帳面沒有任何絕對座標")
 
     def visit(self, key: jumpscan.Key) -> bool:
-        """一台的一趟：跳轉 → 解除 → 讀指定格 → 路徑 A（接力）→ 路徑 B（自力）。"""
-        view, target, sig = self.land(key, label="jump")
+        """一台的一趟，固定節奏、失敗即棄：跳轉 → 定格 → 星座鎖窗或 march → 收尾。
+
+        中間不做 escape 重試迴圈（0806 run 20260806-141615 就是在原地空轉燒掉一整輪）：
+        任何一步不成就交回 `tour()`，那裡會把面板收乾淨換下一台。
+        """
+        view, target = self.land(key, label="jump")
         if view is None or target is None:
             return False
-        if sig is not None:
-            self.ledger.identify(key, sig)
-            self.journal.record("identity", key=list(key), sig=sig)
-        # 第一趟才試便宜的接力：帳上一台都還沒定位就沒有可接的對象（第一台必然自力），
-        # 而重來一趟的那一台上次已經接過了——再接一次多半又是同一筆等不到的線索。
-        if self.ledger.cells and not self.ledger.failures.get(key):
-            found = self.relay(key, view, target)
-            if found == RELAY_LINKED:
-                return True
-            if found == RELAY_ADRIFT:
-                # 鏡頭被拉走了，這一幀的格號全部作廢——march 只能從新的落點重來。
-                return False
+        cell = self.constellation(key, view, target)
+        if cell is not None:
+            self.ledger.anchor(key, cell, jumpscan.SOURCE_CONSTELLATION)
+            self.journal.record("constellation", key=list(key), cell=list(cell))
+            return True
         return self.march(key, view, target)
 
     def land(
         self, key: jumpscan.Key, *, label: str
-    ) -> tuple[View | None, Cell | None, str | None]:
+    ) -> tuple[View | None, Cell | None]:
         """跳轉 → 落點幀（帶指定標示）→ 解除 → 乾淨幀。回傳乾淨鏡位與目標格。
 
         目標格讀的是**遊戲自己畫在落點幀上的範圍**：敵方的攻擊範圍紅菱形、我方的移動
@@ -468,22 +458,21 @@ class Scan:
             # 第二趟：該台的詳情頁只有一顆置中的「關閉」，(1372,995) 點在空處）。
             self.journal.record("jump_not_taken", key=list(key))
             self.close_panels()
-            return (None, None, None)
+            return (None, None)
         # 跳轉不是瞬間到位：固定 1.5 秒的落點幀常常還是**跳轉前**的鏡位（同一輪 run 的
         # ally#0 落點幀與乾淨幀根本不是同一個鏡頭），兩幀不同鏡位時指定標示的比對整個
         # 沒有意義。改成等畫面自己停下來。
         landing = self.steady()
         self.camera.keep(f"{label}:{faction}:{index}:landing")
-        sig = read_signature(landing)
         if faction == roster.ALLY:
-            return self.land_ally(key, landing, sig, label)
+            return self.land_ally(key, landing, label)
         marked = self.view(landing)
         if marked is None:
             marked = self.look()
             self.journal.record("land_reread", key=list(key), ok=marked is not None)
         if marked is None:
             self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
-            return (None, None, sig)
+            return (None, None)
         # 紅範圍只在解除**之前**的那一幀上，所以目標格在這裡就要讀完。
         target = self.attack_cell(key, marked)
         self.dismiss(faction, marked)
@@ -496,21 +485,20 @@ class Scan:
             view = View(clean, marked.grid, marked.centres)
         elif not same_view(marked.grid, view.grid):
             self.journal.record("land_grid_shifted", key=list(key))
-            return (view, None, sig)
+            return (view, None)
         self.journal.record(
             "landed",
             key=list(key),
             target=None if target is None else list(target),
-            sig=sig,
             bounds=view.grid.bounds(),
         )
         if target is None:
-            return (view, None, sig)
-        return (view, target, sig)
+            return (view, None)
+        return (view, target)
 
     def land_ally(
-        self, key: jumpscan.Key, landing: np.ndarray, sig: str | None, label: str
-    ) -> tuple[View | None, Cell | None, str | None]:
+        self, key: jumpscan.Key, landing: np.ndarray, label: str
+    ) -> tuple[View | None, Cell | None]:
         """我方：跳轉本來就直接進「單位移動」，所以**一下地圖都不點**。
 
         目標格從高亮的移動範圍讀出來——那是遊戲自己以該台為中心、以移動力為半徑畫的
@@ -523,7 +511,7 @@ class Scan:
             # 已行動的單位跳不進移動模式（詳情頁連「選擇」鈕都沒有）。不猜、不點地圖。
             self.journal.record("jump_not_taken", key=list(key), reason=seen)
             self.close_panels()
-            return (None, None, sig)
+            return (None, None)
         moving = self.view(landing)
         target = None if moving is None else self.range_cell(key, moving)
         self.device.tap(*jumpscan.ALLY_DISMISS_TAP, intent=jumpscan.ALLY_DISMISS_INTENT)
@@ -531,30 +519,29 @@ class Scan:
         if not self.await_map():
             self.journal.record("ally_stuck_in_move", key=list(key))
             self.close_panels()
-            return (None, None, sig)
+            return (None, None)
         clean = self.steady()
         self.camera.keep(f"{label}:{faction}:{index}:clean")
         if moving is None:
             self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
-            return (None, None, sig)
+            return (None, None)
         view = self.view(clean)
         if view is None:
             # 乾淨幀讀不出格網（我方那一叢圖示很密，seed spacing implausible 高發），
             # 但鏡頭沒動——沿用移動模式幀的格網，別把已經擬合好的格丟掉。
             self.journal.record("grid_reused", key=list(key), where="ally_clean")
-            return (View(clean, moving.grid, moving.centres), target, sig)
+            return (View(clean, moving.grid, moving.centres), target)
         if not same_view(moving.grid, view.grid):
             # 退出移動模式之後相位對不上＝鏡頭動過，菱形算出來的格號不能跨鏡位用。
             self.journal.record("ally_grid_shifted", key=list(key))
-            return (view, None, sig)
+            return (view, None)
         self.journal.record(
             "landed",
             key=list(key),
             target=None if target is None else list(target),
-            sig=sig,
             bounds=view.grid.bounds(),
         )
-        return (view, target, sig)
+        return (view, target)
 
     def range_cell(self, key: jumpscan.Key, moving: View) -> Cell | None:
         """移動範圍的菱形中心＝那台單位站的格。半徑用名冊讀到的移動力。"""
@@ -588,18 +575,29 @@ class Scan:
         return None
 
     def ready_for_map_tap(self) -> bool:
-        """地圖上要點下去之前的硬閘：畫面必須確實是 `battle_map`。
+        """地圖上要點下去之前的硬閘：畫面是 `battle_map`，而且卡條是收合的。
 
-        0806 run 20260806-130539 的 ally#2：返回鈕退出移動模式之後沒驗狀態就繼續點，
-        選取殘留讓下一下開了**武裝選單**（三連 mistap＝誤攻擊前哨）。收不乾淨就放棄
-        這一台，絕不在未確認的狀態下點地圖。
+        兩件事都要問。狀態：0806 run 20260806-130539 的 ally#2 在移動模式殘留下繼續點，
+        下一下開了武裝選單（誤攻擊前哨）。卡條：0806 run 20260806-141615 卡條被展開之後
+        `classify` 照樣回 `battle_map`，但地圖下緣被蓋住、格網從此讀不出來——「畫面對」
+        不等於「盤面可用」。
+
+        不在這裡做 escape 重試迴圈（那是上一輪空轉的來源）：問一次，不對就交給呼叫端
+        收尾換下一台。
         """
-        for _ in range(MAP_TAP_ATTEMPTS):
-            if screens.classify(self.camera.grab()) == screens.BATTLE_MAP:
-                return True
-            self.escape_map()
-        self.journal.record("map_tap_blocked")
-        return False
+        if screens.classify(self.camera.grab()) != screens.BATTLE_MAP:
+            self.journal.record("map_tap_blocked", reason="not_map")
+            return False
+        strip = screens.read_roster_strip(self.camera.grab())
+        if strip == screens.ROSTER_COLLAPSED:
+            return True
+        self.journal.record("map_tap_blocked", reason="strip", strip=strip)
+        if strip is None:
+            return False
+        # 卡條讀得出來是展開的：這是先讀再點，不是盲點。
+        self.device.tap(*screens.ROSTER_TOGGLE_TAP)
+        self.sleep(ROSTER_SETTLE_S)
+        return screens.read_roster_strip(self.camera.grab()) == screens.ROSTER_COLLAPSED
 
     def note_state(self, frame: np.ndarray, *, expect: str | None, where: str) -> str:
         """點完之後畫面在哪：進了非預期的地圖子模式就是誤觸，記進 run 級帳。
@@ -660,70 +658,77 @@ class Scan:
         grid = frame_grid(frame)
         return None if grid is None else View(frame, grid, grid_centres(grid))
 
-    # ---------- 路徑 A：同幀接力 ----------
+    # ---------- 路徑 A：星座鎖窗 ----------
 
-    def relay(self, key: jumpscan.Key, view: View, target: Cell) -> str:
-        """點鄰居出卡讀身分：兩端都是驗證過的格，幀內格差直接記帳。
+    def constellation(self, key: jumpscan.Key, view: View, target: Cell) -> Cell | None:
+        """把整個窗掛回世界：幀內**點擊確認有單位**的格 × 已解單位的世界格，平移唯一配對。
 
-        身分還沒有座標一樣記——`settle` 會反覆回填到不動點。
+        身分靠位置認，不靠圖案認——點擊只取「這一格有東西」這個 bit，卡面內容一律不讀
+        （同型量產機的卡面不可分，認錯一台就是毒帳）。窗位一鎖住，目標的幀格自然落出
+        世界座標。
         """
+        references = self.ledger.references()
+        if len(references) < jumpscan.CONSTELLATION_MIN_MATCH:
+            return None
         peaks = board.find_unit_screen_hints(view.frame)
-        probes = jumpscan.probe_order(peaks, view.centres[target], limit=RELAY_PROBES)
-        for peak in probes:
+        occupied: list[Cell] = []
+        for peak in jumpscan.probe_order(peaks, view.centres[target], limit=CONFIRM_PROBES):
             cell = snap_cell(view.grid, peak)
             point = None if cell is None else view.centres.get(cell)
-            if cell is None or cell == target or point is None:
+            if cell is None or cell == target or point is None or cell in occupied:
                 continue
-            verdict, sig = self.ask_identity(view, point)
-            self.journal.record(
-                "relay_probe", key=list(key), cell=list(cell), verdict=verdict, sig=sig
-            )
-            if verdict != sweep.TAP_CARD:
-                # 卡沒開就當「可能點到我方、可能已經進了移動態」處理：先按返回，
-                # 再決定要不要問下一格。verdict=none 與 shifted 在這裡沒有分別——
-                # 我方單位的身分本來就讀不到（`read_enemy_summary` 只讀敵方卡）。
-                self.escape_map()
-                if verdict in sweep.TAP_SHIFTS:
-                    # 鏡頭被拉走了，這一幀的格號全部作廢。
-                    return RELAY_ADRIFT
+            if not self.confirm_occupied(view, point):
                 continue
-            if sig is None:
-                continue
-            delta = (target[0] - cell[0], target[1] - cell[1])
-            self.ledger.relay(key, sig, delta)
-            self.journal.record("relay", key=list(key), via=sig, delta=list(delta))
-            return RELAY_LINKED
-        return RELAY_NONE
+            occupied.append(cell)
+        fix = jumpscan.window_offset(references, occupied)
+        self.journal.record(
+            "window_fix",
+            key=list(key),
+            occupied=[list(cell) for cell in occupied],
+            matched=fix.matched,
+            reason=fix.reason,
+            delta=None if fix.delta is None else list(fix.delta),
+        )
+        if fix.delta is None:
+            return None
+        return (target[0] + fix.delta[0], target[1] + fix.delta[1])
 
-    def ask_identity(self, view: View, point: Point) -> tuple[str, str | None]:
-        """點一格問身分：出卡才算數，卡沒開這一格就不算（換一格）。
+    def confirm_occupied(self, view: View, point: Point) -> bool:
+        """點一格問「這裡有沒有單位」：出卡或進行動模式都算有，讀完立刻收掉。
 
-        點擊座標本身就是格子的證明——點 (x,y) 落在格 c、卡開了，記的就是格 c。
+        只取存在這個 bit。點擊座標本身就是格子的證明——點 (x,y) 落在格 c、有反應，
+        記的就是格 c 有東西。
         """
         if not self.ready_for_map_tap():
-            return (sweep.TAP_NONE, None)
+            return False
         before = self.camera.grab()
         self.device.tap(int(point[0]), int(point[1]))
         self.sleep(TAP_SETTLE_S)
         after = self.camera.grab()
+        seen = screens.classify(after)
+        if seen in screens.MAP_SUBSTATES:
+            # 點到我方＝進了行動模式：返回鈕在這個模式下才是真的存在，按它退出。
+            self.note_state(after, expect=screens.BATTLE_UNIT_MOVE, where="confirm_occupied")
+            self.leave_action_mode()
+            return True
+        if card_present(after):
+            self.clear_card(view)
+            return True
         outcome = sweep.classify_tap(
             before, after, point, card=card_present, pitch=view.pitch
         )
-        if outcome.verdict != sweep.TAP_CARD:
-            self.note_state(after, expect=None, where="relay_probe")
-            return (outcome.verdict, None)
-        self.sleep(CARD_SETTLE_S)
-        card = self.camera.grab()
-        self.camera.keep("relay:card")
-        sig = read_signature(card)
-        self.clear_card(view)
-        return (outcome.verdict, sig)
+        if outcome.verdict == sweep.TAP_EMPTY:
+            # 填色出現在被點的那一格＝那是空格，這一格不算證人。
+            return False
+        self.note_state(after, expect=None, where="confirm_occupied")
+        return False
 
     def clear_card(self, view: View) -> None:
         """卡是疊在地圖上的浮層，點一個乾淨的空白格就收掉，鏡頭不動。"""
         blank = self.blank_point(view, board.find_unit_screen_hints(view.frame))
         if blank is None:
-            raise Halt("收不掉單位卡：這一幀找不到任何乾淨空白格")
+            self.journal.record("card_stuck")
+            return
         self.device.tap(*blank)
         self.sleep(TAP_SETTLE_S)
 
@@ -734,7 +739,7 @@ class Scan:
         found: dict[int, int] = {}
         for axis, direction in MARCH_AXES:
             if axis > 0:
-                view, target, _ = self.land(key, label="march")
+                view, target = self.land(key, label="march")
                 if view is None or target is None:
                     self.journal.record("march_failed", key=list(key), axis=axis, reason="reland")
                     return False
@@ -900,7 +905,7 @@ class Scan:
                 # 說不出結果的那一下可能已經把畫面帶進選擇／移動態，而移動態下的下一次
                 # 格點擊就是真的下移動指令（0806 run 20260806-103335 的 ally#4：連四下
                 # verdict=none，之後那台的詳情頁只剩「關閉」＝它已經行動過了）。
-                self.escape_map()
+                self.leave_action_mode()
                 continue
             learned = outcome.learned or signature
             if learned is None:
@@ -910,16 +915,25 @@ class Scan:
             return (learned, cell, point)
         return None
 
-    def escape_map(self) -> None:
-        """把畫面帶回地圖 hub：先按返回鈕（選擇／移動態唯一安全的一下），再驗面板。
+    def leave_action_mode(self) -> bool:
+        """把畫面帶回地圖 hub。**不盲點**：返回鈕只有在行動模式下才存在。
 
-        地圖上連點兩下之前一定要先跑這支——沒有 `selected=` 背書的 `classify_tap` 分不出
-        「點到我方進了移動態」與「什麼都沒發生」，而那兩者的下一下差別是會不會誤下移動
-        指令。
+        0806 run 20260806-141615 的教訓：(1798,971) 在純地圖上是「單位列表」鈕
+        （它就落在 `jumpscan.UI_EXCLUSION_ZONES` 的那個矩形裡），盲點下去把卡條展開，
+        之後每一張幀的 `read_frame_grid` 都讀不出格網——整輪 38 個 attack_fit 掉到 1。
         """
-        self.device.tap(*jumpscan.ALLY_DISMISS_TAP, intent=jumpscan.ALLY_DISMISS_INTENT)
-        self.sleep(TAP_SETTLE_S)
-        self.journal.record("escape_map", on_map=self.close_panels())
+        seen = screens.classify(self.camera.grab())
+        if seen in screens.MAP_SUBSTATES:
+            self.device.tap(*jumpscan.ALLY_DISMISS_TAP, intent=jumpscan.ALLY_DISMISS_INTENT)
+            self.sleep(TAP_SETTLE_S)
+        elif seen in PANEL_CLOSERS:
+            self.close_panels()
+        elif seen != screens.BATTLE_MAP:
+            self.journal.record("escape_unknown", seen=seen)
+            return False
+        ok = screens.classify(self.camera.grab()) == screens.BATTLE_MAP
+        self.journal.record("escape_map", was=seen, on_map=ok)
+        return ok
 
     def pan(self, direction: str, reach: float = board.PAN_MAX_REACH) -> View | None:
         """一把推鏡。行程量不參與定位——世界座標只由標記重認的格數與界線決定。
@@ -962,18 +976,16 @@ class Scan:
     # ---------- 收尾 ----------
 
     def settle(self) -> None:
-        report = self.ledger.settle()
-        flags = jumpscan.audit(self.ledger)
         units = jumpscan.ledger_report(self.ledger, self.keys())
+        sources: dict[str, int] = {}
+        for source in self.ledger.sources.values():
+            sources[source] = sources.get(source, 0) + 1
         self.journal.record(
             "settle",
             clean_run=not self.mistaps,
             mistaps=len(self.mistaps),
             resolved=len(self.ledger.cells),
-            filled=[list(key) for key in report.filled],
-            relays=len(self.ledger.relays),
-            identities=len(self.ledger.identities),
-            conflicts=len(flags),
+            sources=sources,
         )
         self.write_json(
             "coords.json",
@@ -982,24 +994,12 @@ class Scan:
                 # 非預期的地圖子模式（移動／武裝選擇／技能）。
                 "clean_run": not self.mistaps,
                 "mistaps": self.mistaps,
+                "sources": sources,
                 "units": units,
-                "conflicts": [
-                    {
-                        "key": list(flag.key),
-                        "known": list(flag.known),
-                        "saw": list(flag.saw),
-                        "via": flag.via,
-                    }
-                    for flag in flags
-                ],
             },
         )
         log.info(
-            "%d/%d resolved, %d relays, %d conflicts",
-            len(self.ledger.cells),
-            len(self.keys()),
-            len(self.ledger.relays),
-            len(flags),
+            "%d/%d resolved %s", len(self.ledger.cells), len(self.keys()), sources
         )
 
     def abandon(self) -> None:

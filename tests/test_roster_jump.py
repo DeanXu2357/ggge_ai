@@ -249,73 +249,48 @@ def test_a_march_that_never_left_the_border_frame_reads_the_cell_straight_off():
 # ---------- 帳：接力回填、排程、互驗 ----------
 
 
-def test_a_relay_lands_the_moment_its_neighbour_has_coordinates():
-    ledger = jumpscan.JumpLedger()
-    ledger.identify(("enemy", 0), "sig-a")
-    ledger.anchor(("enemy", 0), (10, 5))
-    ledger.relay(("enemy", 1), "sig-a", (2, -1))
+def test_two_confirmed_cells_lock_the_window_onto_the_world():
+    """窗位＝幀格與已解世界格之間的平移；唯一解才採信，身分完全不參與。"""
+    references = [(10, 5), (12, 4), (7, 9)]
+    occupied = [(3, 2), (5, 1)]
 
-    report = ledger.settle()
+    fix = jumpscan.window_offset(references, occupied)
 
-    assert report.filled == (("enemy", 1),)
-    assert ledger.cells[("enemy", 1)] == (12, 4)
-    assert ledger.sources[("enemy", 1)] == jumpscan.SOURCE_RELAY
+    assert fix.delta == (7, 3)
+    assert (fix.matched, fix.reason) == (2, jumpscan.MATCH_OK)
 
 
-def test_pending_relays_are_backfilled_to_a_fixed_point():
-    """點開的鄰居當時還沒有座標也照樣記帳：身分是硬的，幀內格差有格線撐。"""
-    ledger = jumpscan.JumpLedger()
-    ledger.identify(("enemy", 1), "sig-b")
-    ledger.identify(("enemy", 2), "sig-c")
-    ledger.relay(("enemy", 2), "sig-b", (1, 1))
-    ledger.relay(("enemy", 3), "sig-c", (0, 2))
+def test_one_confirmed_cell_is_not_a_constellation():
+    """一格到處都對得上——形狀要兩格才談得上。"""
+    fix = jumpscan.window_offset([(10, 5), (12, 4)], [(3, 2)])
 
-    assert ledger.settle().filled == ()
-
-    ledger.anchor(("enemy", 1), (4, 4))
-    report = ledger.settle()
-
-    assert set(report.filled) == {("enemy", 2), ("enemy", 3)}
-    assert ledger.cells[("enemy", 3)] == (5, 7)
+    assert fix.delta is None and fix.reason == jumpscan.MATCH_FEW_CELLS
 
 
-def test_a_relay_that_disagrees_with_a_known_cell_is_a_conflict_not_an_overwrite():
-    ledger = jumpscan.JumpLedger()
-    ledger.identify(("enemy", 0), "sig-a")
-    ledger.anchor(("enemy", 0), (10, 5))
-    ledger.anchor(("enemy", 1), (12, 4), jumpscan.SOURCE_MARCH)
-    ledger.relay(("enemy", 1), "sig-a", (3, -1))
+def test_a_regular_lattice_of_units_is_refused_rather_than_guessed():
+    """等距排開的隊形對兩個平移一樣自洽：拒收，不猜。"""
+    references = [(0, 0), (2, 0), (4, 0)]
+    occupied = [(0, 0), (2, 0)]
 
-    report = ledger.settle()
+    fix = jumpscan.window_offset(references, occupied)
 
-    assert [(c.key, c.saw) for c in report.conflicts] == [(("enemy", 1), (13, 4))]
-    assert ledger.cells[("enemy", 1)] == (12, 4)
-    assert ledger.sources[("enemy", 1)] == jumpscan.SOURCE_MARCH
+    assert fix.delta is None and fix.reason == jumpscan.MATCH_AMBIGUOUS
 
 
-def test_a_relay_whose_identity_was_never_seen_stays_pending_without_crashing():
-    ledger = jumpscan.JumpLedger()
-    ledger.relay(("enemy", 4), "sig-unknown", (1, 0))
+def test_a_window_whose_units_are_all_unsolved_matches_nothing():
+    fix = jumpscan.window_offset([(10, 5), (12, 4)], [(3, 2), (9, 9)])
 
-    assert ledger.settle().filled == ()
-    assert jumpscan.audit(ledger) == []
+    assert fix.delta is None and fix.reason == jumpscan.MATCH_NO_MATCH
 
 
-def test_the_same_frame_pair_audits_the_final_cells_against_what_the_frame_saw():
-    ledger = jumpscan.JumpLedger()
-    ledger.identify(("enemy", 0), "sig-a")
-    ledger.anchor(("enemy", 0), (10, 5))
-    ledger.anchor(("enemy", 1), (12, 4))
-    ledger.relay(("enemy", 1), "sig-a", (2, -1))
+def test_unsolved_units_in_the_window_do_not_veto_a_match():
+    """幀裡本來就有還沒解的單位，它們只是配不到參考，不該否決整個平移。"""
+    references = [(10, 5), (12, 4), (11, 7)]
+    occupied = [(3, 2), (5, 1), (0, 0)]
 
-    assert jumpscan.audit(ledger) == []
+    fix = jumpscan.window_offset(references, occupied)
 
-    ledger.anchor(("enemy", 1), (12, 6))
-    flags = jumpscan.audit(ledger)
-
-    assert [(flag.key, flag.known, flag.saw) for flag in flags] == [
-        (("enemy", 1), (12, 6), (12, 4))
-    ]
+    assert fix.delta == (7, 3) and fix.matched == 2
 
 
 def test_the_first_target_is_just_the_first_roster_entry():
@@ -353,16 +328,14 @@ def test_the_report_is_absolute_cells_or_nothing():
     """相對格只對自己成立，寫出去會被當座標讀——所以帳面只有絕對格與 unresolved。"""
     ledger = jumpscan.JumpLedger()
     ledger.anchor(("ally", 0), (3, 4), jumpscan.SOURCE_MARCH)
-    ledger.identify(("ally", 0), "sig-a")
-    ledger.relay(("ally", 1), "sig-a", (1, 0))
-    ledger.settle()
+    ledger.anchor(("ally", 1), (4, 4), jumpscan.SOURCE_CONSTELLATION)
 
     report = jumpscan.ledger_report(ledger, [("ally", 0), ("ally", 1), ("ally", 2)])
 
     assert [found["cell"] for found in report] == [[3, 4], [4, 4], None]
     assert [found["source"] for found in report] == [
         jumpscan.SOURCE_MARCH,
-        jumpscan.SOURCE_RELAY,
+        jumpscan.SOURCE_CONSTELLATION,
         jumpscan.UNRESOLVED,
     ]
 

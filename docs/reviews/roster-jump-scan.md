@@ -3,8 +3,9 @@
 批次目標：sweep 不再全圖推鏡找單位，改用戰鬥選單「部隊資訊」的名冊逐台「選擇」跳轉
 鏡頭，再把落點掛回世界座標。
 
-**0806 定位機制重做（本輪）**：跨窗圖樣配對整組拆除，改成「每一步都有定位點」的
-relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗圖樣配對〉。
+**0806 定位機制重做**：跨窗圖樣配對整組拆除，改成「每一步都有定位點」的兩條路——
+constellation（點擊確認過的格做平移唯一配對）與 march（標記接力推到界）。理由與拆除清單見
+〈拆除：無標記的跨窗圖樣配對〉與〈第十五輪〉。
 
 ## 檔案
 
@@ -13,11 +14,11 @@ relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗
 | `src/ggge_ai/runtime/screens.py` | `BATTLE_MENU`／`TROOP_INFO` 兩個畫面名與簽名 |
 | `assets/templates/elements/label_battle_menu.png`、`label_troop_info.png` | 標題字模（0806 實幀裁） |
 | `src/ggge_ai/runtime/roster.py` | 列表格座標產生器＋詳情頁讀值（兩種佈局） |
-| `src/ggge_ai/runtime/jumpscan.py` | **改寫**：敵方攻擊範圍菱形／我方移動範圍菱形／march 計格帳／接力帳與回填／排程／解除點挑選 |
+| `src/ggge_ai/runtime/jumpscan.py` | **改寫**：敵方攻擊範圍菱形／我方移動範圍菱形／平移唯一配對（窗位）／march 計格帳／排程／解除點挑選 |
 | `src/ggge_ai/runtime/board.py` | `find_units` → **`find_unit_screen_hints`**（純改名＋首行語意：啟發式候選，輸出螢幕像素座標，不是已驗證世界座標） |
 | `src/ggge_ai/runtime/device.py` | `weapon_dial` 危險帶；`DangerBand.intents` 多值白名單，`roster_cell`／`roster_jump` 放行面板底下的假重疊 |
 | `scripts/scan_roster_jump.py` | **改寫**：四段停點改成 prepare／roster／jump／settle |
-| `tests/test_roster_jump.py` | 離線測試：指定標示、march 計格、接力回填不動點、排程、互驗 |
+| `tests/test_roster_jump.py` | 離線測試：範圍菱形定格、march 計格、平移唯一配對、排程 |
 
 ## 呼叫鏈與執行順序
 
@@ -37,25 +38,25 @@ relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗
 3. **jump** — `jumpscan.next_target()` 挑下一台 → `Scan.visit()`：
    - `Scan.land()`：`close_panels()` → 開列表 → `roster.DETAIL_SELECT_TAP` 跳轉 →
      `await_map()` 確認面板真的收了 → `steady()` 等鏡頭落定＝**落點幀** →
-     `read_signature()` 讀左上單位卡拿目標自己的 `name_sig` → 依陣營分兩條：
+     依陣營分兩條：
      **敵方**＝落點幀讀攻擊範圍紅菱形（`jumpscan.attack_cells` →
      `jumpscan.attack_centre`）＝目標格，再 `Scan.dismiss()`（`jumpscan.blank_cell_tap`
      挑空白格）→ 乾淨幀，兩張幀的格網相位要對得上（`same_view`）；
      **我方**＝`Scan.land_ally()`，落點幀必須是 `battle_unit_move`，直接讀移動範圍
      （`jumpscan.range_marks` → `jumpscan.diamond_centre(半徑=移動力)`）＝目標格，
      再按返回鈕退出，**一下地圖都不點**。
-   - 路徑 A `Scan.relay()`：`jumpscan.probe_order()` 用密度峰**只挑要點哪一格** →
-     `Scan.ask_identity()` 點該格心 → `sweep.classify_tap` 判 CARD → `read_signature`
-     拿鄰居身分 → `JumpLedger.relay(key, sig, 幀內格差)`。點到我方（SHIFTED）＝鏡頭被
-     拉走，整幀格號作廢，按返回鈕、這一台改天再來。
+   - 路徑 A `Scan.constellation()`：已解帳 ≥2 台才啟動。`jumpscan.probe_order()` 用密度峰
+     **只挑要點哪一格** → `Scan.confirm_occupied()` 逐格點擊確認「這裡有單位」（出卡或進
+     行動模式都算，立刻收掉，**不讀卡面**）→ 確認 ≥2 格後 `jumpscan.window_offset()` 與
+     已解世界格做平移唯一配對 → 唯一解就鎖窗，目標幀格加平移＝世界格。
    - 路徑 B `Scan.march()`：`Scan.seed_marker()` 在乾淨空白格種標記（`sweep.classify_tap`
      驗收 TAP_EMPTY 才算數）→ 往西逐把 `Scan.pan()` ＋ `board.find_marker` ＋
      `snap_cell` 記 `jumpscan.MarchLeg(before, after)`，標記快出視野就在同一幀重種 →
      `FrameGrid.west_bound` 為真時 `jumpscan.march_world(target, legs, border_cell=0)`
      ＝世界欄。跳回同一台重置鏡頭，往北同樣拿世界列 → `JumpLedger.anchor(..., "march")`。
-   - 每台成功後跑一次 `ledger.settle()`，讓新座標把等著的接力帳往下推。
-4. **settle** — `JumpLedger.settle()` 回填到不動點 → `jumpscan.audit()` 同幀對互驗 →
-   `jumpscan.ledger_report()` → `coords.json`；預設 `entry.abandon_battle` 收尾。
+   - 任何一步不成就交回 `tour()`：`close_panels()` 收乾淨、記 `jump_failed`、換下一台。
+4. **settle** — `jumpscan.ledger_report()` → `coords.json`（含 `clean_run`／`mistaps`／
+   `sources`）；預設 `entry.abandon_battle` 收尾。
 
 ## 定位的硬規格（使用者裁決）
 
@@ -64,8 +65,9 @@ relay／march 兩條路。理由與拆除清單見〈拆除：無標記的跨窗
 - 目標端＝跳轉之後**系統自己畫出來的範圍**的中心：敵方是攻擊範圍紅菱形
   （`attack_centre`，半徑未知，取最小包覆），我方是移動範圍菱形（`diamond_centre`，
   半徑＝名冊讀到的移動力）。兩者都不需要我們對地圖點任何一下。
-- 鄰居端＝**我們點下去而且真的出卡**的那一格。點擊座標落在格 c、卡開了，記的就是格
-  c；卡沒開這一格就不算，換一格。
+- 參考端＝**我們點下去而且真的有反應**的那一格（出卡或進行動模式）。點擊座標落在格 c、
+  有反應，記的就是「格 c 有東西」；**只取存在這個 bit，不讀卡面內容**——同型量產機的卡面
+  不可分，拿它認身分就是毒帳（0806 使用者裁決）。沒反應就不算，換一格。
 - `find_unit_screen_hints` 的候選點只准拿來排「先問哪一格」（`probe_order`），一律不
   進座標計算。同幀 `FrameGrid` 只負責把兩個**點擊／標示座標**換算成格號。
 
@@ -106,21 +108,17 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    ——標記在推鏡前後的幀格索引，兩者都由 `snap_cell` 對格。手勢名義量照舊只用來決定
    推多遠（`board.pan_stroke`），不進帳。重種標記不另記一筆：重種發生在同一幀內，
    鏡位沒變，下一把的 `before` 用新標記的格即可（離線測試釘住這一點）。
-3. **接力帳以 `name_sig` 為鍵，不是名冊序。** 點開鄰居時我們只知道它是誰，不知道它是
-   名冊第幾台；名冊序是靠「跳轉落點幀上目標自己的卡」學進 `identities` 的。所以
-   `Relay(key, via=sig, delta)` 可以在 `via` 還沒有座標時先記，`settle()` 反覆套用到
-   不動點。
-4. **回填衝突不覆寫。** 已經有座標的一端只記 `RelayConflict`——我們不知道哪一筆錯。
-   `audit()` 在最終帳面上把每一筆接力再驗一次（含兩端各自獨立解出來的對子）。
-5. **排程「緊鄰已解優先」。** 名冊相鄰的同勢力單位大概率地圖相鄰，鄰居入鏡機率高，
+3. **（已被推翻）接力帳以 `name_sig` 為鍵。** 0806 使用者裁決：卡面圖案不得參與身分，
+   `Relay`／`identities`／`settle()`／`audit()` 整組拆除，改由平移唯一配對定窗位。
+4. **排程「緊鄰已解優先」。** 名冊相鄰的同勢力單位大概率地圖相鄰，鄰居入鏡機率高，
    路徑 A 才划算。第一台必然沒有已解單位可接，直接走 march 當種子。
-6. **`coords.json` 只有絕對格或 `unresolved`。** 相對格與元件編號全部退場——相對格只
+5. **`coords.json` 只有絕對格或 `unresolved`。** 相對格與元件編號全部退場——相對格只
    對自己成立，寫出去會被當座標讀。
-7. **`find_units` 改名 `find_unit_screen_hints`。** 名字要說出它是啟發式候選、輸出的是
+6. **`find_units` 改名 `find_unit_screen_hints`。** 名字要說出它是啟發式候選、輸出的是
    螢幕像素座標，避免再被當成已驗證的世界座標用（本輪的錯誤正是從這裡長出來的）。
    常數 `UNIT_DENSITY_*` 不動。
 
-8. **視圖讀不出來一律重拍重讀，絕不沿用推鏡前那張。** 0806 第九輪實機第一台 march 就
+7. **視圖讀不出來一律重拍重讀，絕不沿用推鏡前那張。** 0806 第九輪實機第一台 march 就
    CRASH：`pan()` 回 `None` 之後 `continue`，下一輪開頭 `bounded(view.grid, …)` 拿著
    `None` 炸 `AttributeError`。修法是把「當前視圖」與「推鏡結果」分成兩個名字，迴圈開頭
    看到 `None` 就 `Scan.look()` 重拍（journal `march_reread`），還是讀不出來才計 lost；
@@ -128,6 +126,48 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    幀、`dismiss()` 的落點幀）一併補上重讀一次再放棄，`land()` 重讀後指定標示的比對改用
    重讀那張幀（`land_reread`／`dismiss_reread`）。離線回歸：pan 連續 `None` 到
    `MARCH_LOST_LIMIT` 應該記 `march_failed` 而不是 crash；重讀讀得出來就繼續走。
+
+## 0806 第十五輪：定位改由「位置」背書，relay 重寫（run `20260806-141615`）
+
+### 空轉的根因：盲點返回鈕把卡條展開了
+
+`attack_fit` 38 → **1**、`land_failed` 37（清一色 `grid_unreadable`）、`escape_map` 31。
+證據幀 `frames/00038-tick0276.png`：**單位列表卡條是展開的**，蓋住地圖下緣。
+
+- `ALLY_DISMISS_TAP (1798, 971)` 落在 `jumpscan.UI_EXCLUSION_ZONES` 的
+  `(1740, 930, 600, 150)` 裡——那個矩形的名字就叫「右下單位列表鈕」。**返回鈕只有在行動
+  模式下才存在**；在純地圖上同一個座標是卡條開關。`escape_map()` 無條件盲點它，於是某一次
+  escape 把卡條打開，之後每一張幀 `read_frame_grid` 都吐 `seed spacing implausible`。
+- 更陰險的是 `classify` 對那張幀照樣回 `battle_map`，所以 `ready_for_map_tap()` 一路放行
+  ——「畫面對」不等於「盤面可用」。
+
+修法三條：
+
+1. `escape_map` → `leave_action_mode()`：**先看畫面再決定**。行動模式（`MAP_SUBSTATES`）才按
+   返回鈕；面板走 `close_panels()`；已經在 `battle_map` 就什麼都不做；認不出來就記
+   `escape_unknown` 並回報失敗——**一律不盲點**。
+2. `ready_for_map_tap()` 加問卡條：`screens.read_roster_strip` 必須是收合的，讀到展開就用
+   既有的「先讀再點」把它收回去（`ROSTER_TOGGLE_TAP`），讀不出來就拒絕點地圖。
+3. **固定節奏、失敗即棄**：`visit()` ＝ 跳轉 → 定格 → 星座鎖窗或 march → 收尾；中間不再有
+   escape 重試迴圈（`ready_for_map_tap` 只問一次），任何一步不成就交回 `tour()`，那裡
+   `close_panels()` 收乾淨換下一台。
+
+### relay 重寫：身分靠位置認，不靠圖案認（使用者裁決）
+
+卡面 `name_sig` **完全退出定位**——同型量產機的卡面不可分，認錯一台就是毒帳。窗的世界定位
+只剩兩種硬證據：見界（march 推邊）與**平移唯一配對**。
+
+- `jumpscan.window_offset(references, occupied)`：`references` ＝已解單位的世界格，
+  `occupied` ＝這一幀**點擊確認過有單位**的格；候選平移逐一算命中數，唯一最大且 ≥2 才收，
+  打平即拒（`MATCH_AMBIGUOUS`）。幀裡還沒解的單位只是配不到參考，不會否決平移。
+- `Scan.confirm_occupied()`：點一格，出卡或進行動模式都算「有」，立刻收掉（卡點空白格、
+  行動模式按真的存在的返回鈕）。**只取存在這個 bit，不讀卡面內容。**
+- `Scan.constellation()`：已解帳 ≥2 台才啟動，最多點 4 格，確認 ≥2 格後配對；唯一解就鎖窗，
+  目標的幀格加上平移即世界格，`source="constellation"`。鎖不住 → march → 仍不行 →
+  `unresolved` 留給回溯。
+- `JumpLedger` 因此瘦成純座標帳（`cells`／`sources`／`failures`／`retired`）：`Relay`／
+  `identities`／`settle()`／`audit()`／`SOURCE_RELAY` 全部拆除，`coords.json` 改出
+  `sources` 統計。
 
 ## 0806 第十四輪：march 的標記接力、移動模式洩漏、格網重用（run `20260806-130539`）
 
@@ -320,22 +360,18 @@ march。可行的等價寫法是：**某台已解出 x 的單位，其幀內同�
 路（紅圈指定→點出卡→`name_sig`）才是接力鏈唯一的證人來源；我方只出得了驗證格、出不了
 身分，排後面。`Scan.keys()` 的順序同時就是排程「名冊相鄰」的定義。
 
-## 留給實機驗證
+## 留給實機驗證（第十五輪之後）
 
-- **`designation_cell` 的門檻沒有實幀證據**（`DESIGNATION_MIN_CHANGE=0.25`、
-  `MIN_LEAD=0.15`、`SATURATED=0.75`、`RADIUS=260px`），只用合成幀測過。敵方紅圈應該是
-  強訊號；**我方那一格最不確定**——移動範圍是整片覆蓋，走的是「滿版時取離畫面中心最近」
-  這條退路。第一輪實跑要拿 `jump:*:landing` 與 `jump:*:clean` 兩張幀離線重放校門檻。
-- **我方跳轉的落點幀有沒有單位卡**（`read_signature` 讀不讀得到 `name_sig`）未證。讀不到
-  時我方只能當接力的**目標端**，不能當 `via`。
-- **鄰居出卡之後怎麼收掉卡**：目前用 `clear_card()` 點一個乾淨空白格，比照解除敵方指定
-  的做法；未實跑。若點空白格收不掉卡（或反而選了別的東西），要改走 `map_view` 那條
-  strict escape。
-- **`sweep.classify_tap` 在這支腳本沒有 `selected=` 背書**（那條路綁 `battle.map_view` 的
-  ViewGate），我方被點到時只能靠幾何位移判 `TAP_SHIFTED_UNSURE`；漏判的話會拿一張鏡頭
-  已經被拉走的幀繼續算格。第一輪要看 `relay_probe` 的 verdict 分佈。
-- **march 的推鏡把數**：`MARCH_LEGS=40`、`MARCH_RESEED_PITCH=1.5` 格都是估的；一台走兩軸
-  可能要好幾分鐘，28 台全靠 march 是不可接受的成本——接力命中率是這條設計能不能成立的
-  關鍵指標，第一輪就要量。
+- **`window_offset` 從沒在實機跑過**：`CONSTELLATION_MIN_MATCH=2` 是最低限度的形狀，
+  0806 run 20260806-121910 的敵群排得很整齊（同型量產機列陣），`MATCH_AMBIGUOUS` 的比例
+  是這條路能不能撐起覆蓋率的關鍵——第一輪要看 `window_fix` 的 `reason` 分佈，必要時把
+  下限提到 3。
+- **`confirm_occupied` 的「進行動模式＝有單位」未實測**：點到我方會進 `battle_unit_move`，
+  返回鈕在那個模式下是真的存在，但這條退出路徑（點→進模式→返回→回地圖）還沒跑過。
+- **`ready_for_map_tap` 的卡條自癒**：讀到展開就點 `ROSTER_TOGGLE_TAP` 收回去，未實跑；
+  若卡條在某些子模式下收不回來，該台會被放棄（比空轉好，但要看 `map_tap_blocked` 的量）。
+- **march 的推鏡把數**：`MARCH_LEGS=40` 是估的；敵群 x 6-23 要推 5-20 把，前緣重種改完
+  之後每把多一次點擊，時間成本要重新量。
 - 「名冊順序與跳轉一一對應」「部隊資訊分頁座標」「開不出詳情頁＝列表盡頭」等前一版留下
   的項目照舊。
+

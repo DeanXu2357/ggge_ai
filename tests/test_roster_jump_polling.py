@@ -98,6 +98,7 @@ def test_no_blank_cell_halts_and_leaves_a_journal_line(tmp_path, monkeypatch):
     """挑不出解除點就停在原地——但要留下流水帳，不然實機只看到一行 Halt。"""
     scan = build_scan(tmp_path, [screens.BATTLE_MAP])
     monkeypatch.setattr(screens, "classify", scan.classified)
+    monkeypatch.setattr(screens, "read_roster_strip", lambda frame: screens.ROSTER_COLLAPSED)
     monkeypatch.setattr(jumpscan, "blank_cell_tap", lambda *a, **k: None)
 
     with pytest.raises(Halt):
@@ -207,9 +208,7 @@ def test_an_ally_that_did_not_enter_unit_move_is_left_alone(tmp_path, classify):
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
 
-    view, target, sig = scan.land_ally(
-        ("ally", 0), np.zeros((4, 4, 3), np.uint8), None, "jump"
-    )
+    view, target = scan.land_ally(("ally", 0), np.zeros((4, 4, 3), np.uint8), "jump")
 
     assert (view, target) == (None, None)
     assert taps == []
@@ -408,6 +407,7 @@ def test_the_stroke_is_capped_so_the_marker_cannot_be_pushed_out_of_view(tmp_pat
 def test_the_frontier_seed_goes_west_when_the_camera_is_heading_west(tmp_path, monkeypatch):
     scan = build_scan(tmp_path, [screens.BATTLE_MAP] * 4)
     monkeypatch.setattr(screens, "classify", scan.classified)
+    monkeypatch.setattr(screens, "read_roster_strip", lambda frame: screens.ROSTER_COLLAPSED)
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
     monkeypatch.setattr(
@@ -427,17 +427,41 @@ def test_the_frontier_seed_goes_west_when_the_camera_is_heading_west(tmp_path, m
 
 def test_no_map_tap_happens_until_the_screen_is_confirmed_to_be_the_map(tmp_path, monkeypatch):
     """0806 run 20260806-130539 的 ally#2：返回退出後沒驗狀態就繼續點，選取殘留讓下一下
-    開了武裝選單（誤攻擊前哨）。收不乾淨就放棄這一台。"""
+    開了武裝選單（誤攻擊前哨）。狀態不對就放棄這一台，一下都不點地圖。"""
     scan = build_scan(tmp_path, [screens.BATTLE_WEAPON_SELECT] * 12)
     monkeypatch.setattr(screens, "classify", scan.classified)
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
 
     assert scan.seed_marker(_view(), toward="west") is None
-    assert scan.ask_identity(_view(), (1170.0, 540.0)) == (scan_roster_jump.sweep.TAP_NONE, None)
-    # 只有 escape 用的返回鈕，沒有任何一下落在地圖格上。
-    assert set(taps) <= {jumpscan.ALLY_DISMISS_TAP}
+    assert scan.confirm_occupied(_view(), (1170.0, 540.0)) is False
+    assert taps == []
     assert "map_tap_blocked" in _kinds(scan)
+
+
+def test_an_expanded_card_strip_is_collapsed_before_any_map_tap(tmp_path, monkeypatch):
+    """0806 run 20260806-141615：卡條被展開之後 classify 照樣回 battle_map，但地圖下緣
+    被蓋住、格網從此讀不出來。畫面對不等於盤面可用。"""
+    scan = build_scan(tmp_path, [screens.BATTLE_MAP] * 4)
+    monkeypatch.setattr(screens, "classify", scan.classified)
+    strips = iter([screens.ROSTER_EXPANDED, screens.ROSTER_COLLAPSED])
+    monkeypatch.setattr(screens, "read_roster_strip", lambda frame: next(strips))
+    taps: list[tuple[int, int]] = []
+    scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+
+    assert scan.ready_for_map_tap() is True
+    assert taps == [screens.ROSTER_TOGGLE_TAP]
+
+
+def test_the_return_button_is_never_tapped_on_the_plain_map(tmp_path, monkeypatch):
+    """(1798,971) 在純地圖上是「單位列表」鈕——盲點它就是 run 20260806-141615 的死因。"""
+    scan = build_scan(tmp_path, [screens.BATTLE_MAP, screens.BATTLE_MAP])
+    monkeypatch.setattr(screens, "classify", scan.classified)
+    taps: list[tuple[int, int]] = []
+    scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+
+    assert scan.leave_action_mode() is True
+    assert taps == []
 
 
 def test_an_unreadable_clean_frame_keeps_the_grid_from_the_move_mode_frame(tmp_path, monkeypatch):
@@ -451,7 +475,7 @@ def test_an_unreadable_clean_frame_keeps_the_grid_from_the_move_mode_frame(tmp_p
     views = iter([_view(), None])
     monkeypatch.setattr(scan, "view", lambda frame: next(views))
 
-    view, target, _ = scan.land_ally(("ally", 0), np.zeros((4, 4, 3), np.uint8), None, "jump")
+    view, target = scan.land_ally(("ally", 0), np.zeros((4, 4, 3), np.uint8), "jump")
 
     assert target == (4, 3)
     assert view is not None and view.grid is GRID

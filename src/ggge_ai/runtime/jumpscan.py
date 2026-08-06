@@ -4,12 +4,15 @@
 的跨窗圖樣比對」——那是拿兩張圖片猜對齊，沒有任何一端是被驗證過的格子。落點的世界
 座標只有兩條路：
 
-- **relay**：同一幀裡另有一台**已知世界座標**的單位，兩端都是驗證過的格，幀內格差直接
-  搬。目標端讀的都是**遊戲自己畫出來的範圍**，只是形狀不同：敵方＝攻擊範圍紅菱形的中心
-  （`attack_centre`，半徑未知，取最小包覆），我方＝移動範圍菱形的中心（`diamond_centre`，
-  半徑＝名冊讀到的移動力）；鄰居端＝點下去真的出卡的那一格。
-  身分還沒有座標時先記成 `Relay`，`settle()` 反覆回填到不動點。
+- **constellation**：把整個窗掛回世界——幀內**點擊確認過有單位**的格與已解單位的世界格
+  做平移配對，唯一解才採信。窗位一鎖住，目標的幀格自然落出世界座標。目標的幀格讀的是
+  **遊戲自己畫出來的範圍**：敵方＝攻擊範圍紅菱形的中心（`attack_centre`，半徑未知，取
+  最小包覆），我方＝移動範圍菱形的中心（`diamond_centre`，半徑＝名冊讀到的移動力）。
+
 - **march**：自力用標記接力往西／往北推到界，逐把重認標記算累計格數。
+
+**身分靠位置認，不靠圖案認**：卡面 `name_sig` 完全退出定位——同型量產機的卡面不可分，認錯
+一台就是毒帳。點擊只取「這一格有東西」這個 bit，不讀卡面內容。
 
 `board.find_unit_screen_hints` 的密度峰**只准拿來挑要點哪一格**（`probe_order`），一律不進座標
 計算。
@@ -33,7 +36,7 @@ Key = tuple[str, int]
 
 SCREEN_CENTRE: Point = (1170.0, 540.0)
 
-SOURCE_RELAY = "relay"
+SOURCE_CONSTELLATION = "constellation"
 SOURCE_MARCH = "march"
 UNRESOLVED = "unresolved"
 
@@ -341,35 +344,61 @@ def march_world(target_cell: int, legs: Sequence[MarchLeg], border_cell: int) ->
     return target_cell + march_origin(legs, border_cell)
 
 
-# ---------- 座標帳 ----------
+# ---------- 窗位：平移唯一配對 ----------
+
+# 配對至少要兩格才有形狀可言；一格到處都對得上。
+CONSTELLATION_MIN_MATCH = 2
+
+MATCH_OK = "ok"
+MATCH_FEW_CELLS = "few_cells"
+MATCH_NO_MATCH = "no_match"
+MATCH_AMBIGUOUS = "ambiguous"
 
 
 @dataclass(frozen=True)
-class Relay:
-    """一筆幀內接力：`key` 的世界格 ＝ 身分 `via` 的世界格 ＋ `delta`。
+class WindowFix:
+    """幀格 → 世界格的平移，以及裁決過程說得出口的理由。"""
 
-    `via` 是卡確認讀到的身分簽（`name_sig`），不是名冊序——點開鄰居的時候我們只知道
-    它是誰，不知道它是名冊第幾台。身分是硬的，幀內格差有格線撐，所以這筆帳在 `via`
-    日後拿到座標時照樣回填得了。
+    delta: Cell | None
+    matched: int
+    reason: str
+
+
+def window_offset(
+    references: Iterable[Cell],
+    occupied: Iterable[Cell],
+    *,
+    min_match: int = CONSTELLATION_MIN_MATCH,
+) -> WindowFix:
+    """已解單位的世界格 × 幀內**點擊確認有單位**的格 → 這一窗的平移。
+
+    `occupied` 的每一格都必須是點下去真的有反應的格（出卡或進選取）——只取「存在」這個
+    bit，不看是誰。配對允許幀裡有還沒解的單位（它們只是配不到參考），但**每一個對得上的
+    平移都要用命中數比大小，唯一才收**：兩個平移打平就是拒收，寧可漏認不可錯認。
     """
+    world = set(references)
+    seen = sorted(set(occupied))
+    if not world or len(seen) < min_match:
+        return WindowFix(None, 0, MATCH_FEW_CELLS)
+    scored: dict[Cell, int] = {}
+    for cell in seen:
+        for reference in world:
+            delta = (reference[0] - cell[0], reference[1] - cell[1])
+            if delta in scored:
+                continue
+            scored[delta] = sum(
+                1 for other in seen if (other[0] + delta[0], other[1] + delta[1]) in world
+            )
+    ranked = sorted(scored.items(), key=lambda item: -item[1])
+    best, hits = ranked[0]
+    if hits < min_match:
+        return WindowFix(None, hits, MATCH_NO_MATCH)
+    if len(ranked) > 1 and ranked[1][1] == hits:
+        return WindowFix(None, hits, MATCH_AMBIGUOUS)
+    return WindowFix(best, hits, MATCH_OK)
 
-    key: Key
-    via: str
-    delta: Cell
 
-
-@dataclass(frozen=True)
-class RelayConflict:
-    key: Key
-    known: Cell
-    saw: Cell
-    via: str
-
-
-@dataclass(frozen=True)
-class SettleReport:
-    filled: tuple[Key, ...]
-    conflicts: tuple[RelayConflict, ...]
+# ---------- 座標帳 ----------
 
 
 @dataclass
@@ -378,22 +407,13 @@ class JumpLedger:
 
     cells: dict[Key, Cell] = field(default_factory=dict)
     sources: dict[Key, str] = field(default_factory=dict)
-    # 身分簽 → 名冊鍵。跳轉落點幀上目標自己的卡就在左上角，所以每跳一台就學得到一筆。
-    identities: dict[str, Key] = field(default_factory=dict)
-    relays: list[Relay] = field(default_factory=list)
     failures: dict[Key, int] = field(default_factory=dict)
     retired: set[Key] = field(default_factory=set)
-
-    def identify(self, key: Key, sig: str) -> None:
-        self.identities[sig] = key
 
     def anchor(self, key: Key, cell: Cell, source: str = SOURCE_MARCH) -> None:
         self.cells[key] = cell
         self.sources[key] = source
         self.failures.pop(key, None)
-
-    def relay(self, key: Key, via: str, delta: Cell) -> None:
-        self.relays.append(Relay(key, via, delta))
 
     def fail(self, key: Key) -> int:
         self.failures[key] = self.failures.get(key, 0) + 1
@@ -405,55 +425,9 @@ class JumpLedger:
     def resolved(self, key: Key) -> bool:
         return key in self.cells
 
-    def settle(self) -> SettleReport:
-        """接力帳回填到不動點：每一輪把 `via` 已有座標的關係套上去，套到沒有新的為止。
-
-        已經有座標的一端只做一致性檢查，**不覆寫**——覆寫等於讓最後一筆說了算，而我們
-        根本不知道哪一筆錯。
-        """
-        filled: list[Key] = []
-        conflicts: list[RelayConflict] = []
-        seen: set[tuple[Key, str, Cell]] = set()
-        while True:
-            grew = False
-            for link in self.relays:
-                via = self.identities.get(link.via)
-                base = None if via is None else self.cells.get(via)
-                if base is None:
-                    continue
-                found = (base[0] + link.delta[0], base[1] + link.delta[1])
-                known = self.cells.get(link.key)
-                if known is None:
-                    self.anchor(link.key, found, SOURCE_RELAY)
-                    filled.append(link.key)
-                    grew = True
-                elif known != found:
-                    mark = (link.key, link.via, found)
-                    if mark not in seen:
-                        seen.add(mark)
-                        conflicts.append(RelayConflict(link.key, known, found, link.via))
-            if not grew:
-                break
-        return SettleReport(tuple(filled), tuple(conflicts))
-
-
-def audit(ledger: JumpLedger) -> list[RelayConflict]:
-    """同幀對互驗：兩台曾同幀出現過，最終座標的差就必須等於當時的幀內格差。
-
-    這是鏈自己給自己的背書——`settle()` 只在回填的那一刻檢查，這裡對**最終**帳面
-    再走一次，包含兩端各自獨立解出來的對子。
-    """
-    out: list[RelayConflict] = []
-    for link in ledger.relays:
-        via = ledger.identities.get(link.via)
-        base = None if via is None else ledger.cells.get(via)
-        cell = ledger.cells.get(link.key)
-        if base is None or cell is None:
-            continue
-        found = (base[0] + link.delta[0], base[1] + link.delta[1])
-        if cell != found:
-            out.append(RelayConflict(link.key, cell, found, link.via))
-    return out
+    def references(self) -> tuple[Cell, ...]:
+        """平移配對的參考集：已解單位的世界格。"""
+        return tuple(sorted(set(self.cells.values())))
 
 
 def next_target(
