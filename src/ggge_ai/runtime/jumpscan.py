@@ -91,12 +91,28 @@ def _change_fraction(before: np.ndarray, after: np.ndarray, centre: Point, half:
     return float((diff > DESIGNATION_LEVEL).mean())
 
 
+def changed_fraction(
+    before: np.ndarray, after: np.ndarray, region: Region = board.UNIT_DENSITY_REGION
+) -> float:
+    """兩幀在地圖區的變化佔比。鏡頭在動＝整片都在變，待機動畫＝只有幾個百分點。
+
+    0806 run 20260806-103335 量到的分界：同鏡位的兩張乾淨幀 0.007-0.04，鏡頭剛跳完
+    還沒落定的兩張 0.15-0.37。
+    """
+    x, y, w, h = region
+    lhs, rhs = before[y : y + h, x : x + w], after[y : y + h, x : x + w]
+    if lhs.shape != rhs.shape or lhs.size == 0:
+        return 1.0
+    return float((cv2.absdiff(lhs, rhs).max(axis=2) > DESIGNATION_LEVEL).mean())
+
+
 def designation_cell(
     highlighted: np.ndarray,
     clean: np.ndarray,
     centres: Mapping[Cell, Point],
     *,
     half: float,
+    exclude: Sequence[Cell] = (),
     radius: float = DESIGNATION_RADIUS_PX,
     min_change: float = DESIGNATION_MIN_CHANGE,
     min_lead: float = DESIGNATION_MIN_LEAD,
@@ -106,9 +122,16 @@ def designation_cell(
 
     兩幀必須是同一個鏡位（解除不移動鏡頭）。裁不出唯一解就回 None——寧可讓這一台
     走自力路徑，也不要把座標建在猜測上。
+
+    `exclude` 是**我們自己弄出來的變化**：解除時點的那一格、以及上一台留下的選取填色
+    所在格。0806 run 20260806-103335 的 ally#4 就是這樣被自家標記騙走
+    （落點幀的填色在乾淨幀被搬走，變化量遠大於任何真正的指定標示）。
     """
+    skip = set(exclude)
     scored: list[tuple[float, float, Cell]] = []
     for cell, point in centres.items():
+        if cell in skip:
+            continue
         away = float(np.hypot(point[0] - SCREEN_CENTRE[0], point[1] - SCREEN_CENTRE[1]))
         if away > radius:
             continue

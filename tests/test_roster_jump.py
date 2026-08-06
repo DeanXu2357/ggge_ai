@@ -333,3 +333,28 @@ def test_the_report_is_absolute_cells_or_nothing():
         jumpscan.SOURCE_RELAY,
         jumpscan.UNRESOLVED,
     ]
+
+
+def test_the_designation_ignores_the_marks_we_made_ourselves():
+    """0806 run 20260806-103335 的 ally#4：落點幀上一台留下的選取填色在乾淨幀被搬走，
+    那個「消失」比任何指定標示都大聲，整台就被自家標記騙走。"""
+    clean = np.full((1080, 2340, 3), 60, np.uint8)
+    landing = clean.copy()
+    landing[520:560, 1150:1190] = (30, 30, 220)
+    landing[520:560, 1250:1290] = (200, 200, 60)
+    scene = _scene({(0, 0), (1, 0), (0, 1)})
+
+    assert jumpscan.designation_cell(landing, clean, scene, half=20.0) == (0, 0)
+    assert jumpscan.designation_cell(landing, clean, scene, half=20.0, exclude=[(0, 0)]) == (1, 0)
+
+
+def test_a_moving_camera_shows_up_as_a_whole_screen_change():
+    """鏡頭在動＝整片都在變；待機動畫只有幾個百分點。0806 實幀量到的分界是
+    同鏡位 0.007-0.04 vs 跳轉途中 0.15-0.37。"""
+    quiet = np.full((1080, 2340, 3), 60, np.uint8)
+    twitch = quiet.copy()
+    twitch[500:540, 1150:1190] = (200, 200, 200)
+    moved = np.full((1080, 2340, 3), 200, np.uint8)
+
+    assert jumpscan.changed_fraction(quiet, twitch) < 0.01
+    assert jumpscan.changed_fraction(quiet, moved) > 0.9

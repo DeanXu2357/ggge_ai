@@ -124,6 +124,72 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    重讀那張幀（`land_reread`／`dismiss_reread`）。離線回歸：pan 連續 `None` 到
    `MARCH_LOST_LIMIT` 應該記 `march_failed` 而不是 crash；重讀讀得出來就繼續走。
 
+## 0806 第十輪實機診斷（run `20260806-103335`）
+
+戰果：ally#3 全程成功——落點幀同時見西界與北界，兩軸 `legs=0` 直接定 `[2,3]`，機制本體
+可行。三個壞掉的地方，根因都在**幀的時序與我們自己留下的痕跡**，不在門檻：
+
+1. **落點幀是跳轉「前」的鏡位。** ally#0 四次落地的 FrameGrid 完全相同
+   （`cols0=720`、pitch 130.1/120.0），但 `designation_cell` 給出 (3,4)/(2,4)/(4,5)/(4,3)
+   ——不是 ±1，是四個不相干的格。親看 `00035`（落點）與 `00036`（乾淨）：**兩張根本不是
+   同一個鏡頭**，地圖區變化量 0.37。固定 `JUMP_SETTLE_S=1.5` 拍到的是面板剛收、鏡頭還沒
+   跳的那一瞬。修法：`Scan.steady()`——連兩張地圖區變化 < `CAMERA_STEADY_FRACTION`(0.06)
+   才算落定（實幀量：同鏡位 0.007-0.04、跳轉途中 0.15-0.37）。
+2. **贏得比對的是我們自己的填色。** ally#4 的落點幀 `00055` 上有上一台種的青色選取格，
+   乾淨幀裡它被我們自己的解除點搬走——`designation_cell` 選中的 (0,3) 正是那一格
+   （px 1046,441 對上截圖裡的青色格）。修法：`designation_cell(exclude=…)`，把解除點的格
+   與（有色簽時）兩張幀上找得到的填色格排除。
+3. **我方跳轉沒有任何指定標示。** `00055` 已經是跳轉後的鏡位，畫面卻是純 hub 地圖
+   （訊息列「請選擇欲行動的單位。」，沒有移動範圍、沒有紅圈）。也就是**我方的目標端目前
+   沒有可讀的定位點**——這一項不是 bug，是機制缺口，待裁決（見下）。
+4. **誤下移動指令的實證。** ally#4 兩次 `relay_probe` 與兩次 `seed_marker` 連四下
+   `verdict=none`；`classify_tap` 沒有 `selected=` 背書，點到我方進了移動態它分不出來，
+   於是下一下格點擊就是真的移動指令。旁證：該台第二趟的詳情頁**只剩一顆置中的「關閉」**
+   （`00057`），沒有「選擇」鈕＝那台已經行動過了。修法：任何一下 map tap 的 verdict 不是
+   預期的（探針要 `card`、種標記要 `empty`）就**先按返回鈕再說**（`Scan.escape_map()`），
+   絕不連點第二下。
+5. **面板洩漏。** 收尾 halt「點 ☰ 之後畫面是 troop_info」的源頭就是第 4 點的後果：
+   (1372,995) 點在沒有「選擇」鈕的詳情頁空處，`land()` 直接回報失敗、面板整疊留著。
+   修法：`Scan.close_panels()` 逐層關閉（詳情頁→部隊資訊→戰鬥選單，最多三層），
+   `open_troop_info()` 開頭一定先跑；`land()` 改成先 `await_map()` 確認面板真的收了才算
+   跳轉成功，沒收就記 `jump_not_taken` ＋收面板收乾淨再回失敗。
+6. `GridUnreadable` 的 WARNING 降成單行（原本整個 traceback 進 log）。
+
+### 裁決：我方的目標端＝「點擊即驗證」（使用者 0806 定案）
+
+我方跳轉只把鏡頭帶過去，畫面上沒有任何系統標示可讀（實幀證據見上）。定案是把點擊即驗證
+的語意用到底——`Scan.ally_target()`：對乾淨幀上離畫面中心最近的候選格點一下，畫面若進入
+**單位移動模式**，「被點的那一格」就是該台的驗證格；點擊產生了系統回應，與敵方點出卡完全
+同構。確認後立刻按返回鈕退出、`await_map()` 驗面板收乾淨。不進移動模式就 `escape_map()`
+換下一格，最多兩格，都不中記 `unresolved`——不硬猜。
+
+- **移動模式的判準不新開字模**：`screens.classify` 既有的 `BATTLE_UNIT_MOVE`
+  （`elements/label_unit_move.png`）在使用者指定的 `assets/screenshots/20260806-013500.png`
+  上直接回 `battle_unit_move`，而 0806 的兩張 hub 地圖幀回 `battle_map`。已經標定過的東西
+  不重做一份。
+- **退出後要求鏡位沒變**：選擇態會把鏡頭往單位拉，鏡頭一動這一幀的格號就作廢。退出後
+  `steady()` 再與確認當下的幀比 `changed_fraction`，超過門檻就回 `None`（journal
+  `ally_confirmed` 記 `moved`）。
+- **我方的解除也改成有條件**：只有 `classify` 真的讀到 `battle_unit_move` 才按返回。純 hub
+  地圖上那一下「返回」其實是點在地圖上，會留下一顆選取填色去污染下一輪的比對。
+- 已行動單位（詳情頁只剩「關閉」）在掃描輪照理不會出現；出現就是 `jump_not_taken` 進帳
+  ＋該台 `unresolved`。
+
+### 誤觸帳：run 級旗標
+
+`Scan.note_state()` 在每一個 map tap 之後看一次 `screens.classify`：落進
+`screens.MAP_SUBSTATES`（移動／武裝選擇／技能）而又不是當下預期的那個模式，就記一筆
+`mistap`（journal ＋ `Scan.mistaps`）。`coords.json` 頂層因此有 `clean_run`（布林）與
+`mistaps`（逐筆），`settle` 那一行也帶著——驗收判準的「零誤觸」從此機器查得到，不必人翻幀
+（run10 誤下了一次移動指令，事後只能從詳情頁少一顆鈕反推）。接線點：`ally_probe`、
+`relay_probe`、`seed_marker`。
+
+### 巡迴順序：敵方優先（預設）
+
+`TOUR_ORDERS` ＋ `--tour-first {enemy,ally}`，預設 `enemy`。敵 18 台是驗收大頭，而敵方那條
+路（紅圈指定→點出卡→`name_sig`）才是接力鏈唯一的證人來源；我方只出得了驗證格、出不了
+身分，排後面。`Scan.keys()` 的順序同時就是排程「名冊相鄰」的定義。
+
 ## 留給實機驗證
 
 - **`designation_cell` 的門檻沒有實幀證據**（`DESIGNATION_MIN_CHANGE=0.25`、
