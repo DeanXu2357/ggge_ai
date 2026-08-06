@@ -566,7 +566,7 @@ def candidate_points(
     min_dist: float = CANDIDATE_MIN_DIST,
 ) -> tuple[Point, ...]:
     """這一幀裡「可能站著單位」的密度峰。門檻放到最寬——這是過濾器不是裁決者。"""
-    return board.find_units(
+    return board.find_unit_screen_hints(
         frame, region, min_count=min_count, local_max=local_max, min_dist=min_dist
     )
 
@@ -580,7 +580,7 @@ def candidate_ranking(
 ) -> dict[Cell, int]:
     """密度峰（螢幕座標）→ 要點的世界格，值是「最強的那個峰排第幾」。
 
-    `find_units` 吐出來的順序就是密度由強到弱，所以名次直接用序號。名次是給點擊
+    `find_unit_screen_hints` 吐出來的順序就是密度由強到弱，所以名次直接用序號。名次是給點擊
     排序用的：峰強的先點，真單位早出帳，誤報留在隊尾等著被算術豁免。
     """
     out: dict[Cell, int] = {}
@@ -884,7 +884,7 @@ class TapOutcome:
 
 
 def _displacement(before: np.ndarray, after: np.ndarray) -> Point | None:
-    delta = board.relocalise(board.find_units(before), board.find_units(after))
+    delta = board.relocalise(board.find_unit_screen_hints(before), board.find_unit_screen_hints(after))
     return None if delta is None else (float(delta[0]), float(delta[1]))
 
 

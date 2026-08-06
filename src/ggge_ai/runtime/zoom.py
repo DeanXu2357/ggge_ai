@@ -230,7 +230,7 @@ class ZoomOut:
 
     def _pinch(self) -> None:
         frame = self.latest if self.latest is not None else self._capture()
-        finger_a, finger_b = zoom_out_fingers(pick_pinch_center(board.find_units(frame)))
+        finger_a, finger_b = zoom_out_fingers(pick_pinch_center(board.find_unit_screen_hints(frame)))
         for x, y in (finger_a[0], finger_a[1], finger_b[0], finger_b[1]):
             check_tap(round(x), round(y))
         self.pincher.pinch(finger_a, finger_b)

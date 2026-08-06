@@ -224,7 +224,7 @@ def _check_grid_lattice(frame: np.ndarray, expect: dict[str, Any] | None) -> Non
 
 
 def _check_map_scan_peaks(frame: np.ndarray, expect: dict[str, Any]) -> None:
-    """The minimum-zoom density-peak unit detector (runtime/board.find_units).
+    """The minimum-zoom density-peak unit detector (runtime/board.find_unit_screen_hints).
 
     expect.units is the hand-adjudicated truth for the frame. exact=false
     pins recall only (these units must never be lost); exact=true also pins
@@ -236,7 +236,7 @@ def _check_map_scan_peaks(frame: np.ndarray, expect: dict[str, Any]) -> None:
     different mechanisms can pin the fixed class green while the unfixed
     class stays pinned red in its own case.
     """
-    found = board.find_units(frame)
+    found = board.find_unit_screen_hints(frame)
     tolerance = expect.get("tolerance", 40)
     units = [tuple(unit) for unit in expect["units"]]
 

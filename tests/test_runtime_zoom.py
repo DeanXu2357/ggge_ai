@@ -231,7 +231,7 @@ def test_the_driver_repicks_the_centre_from_the_frame_it_just_captured(monkeypat
     """單位會吃掉起手點，所以每一步都拿當下那張幀重挑中心——而且是迴圈剛抓的
     那一張，不是另外補截的。"""
     looked: list[int] = []
-    monkeypatch.setattr(zoom.board, "find_units", lambda frame: looked.append(frame[0, 0, 0]) or ())
+    monkeypatch.setattr(zoom.board, "find_unit_screen_hints", lambda frame: looked.append(frame[0, 0, 0]) or ())
     tint = iter(range(1, 9))
 
     def capture() -> np.ndarray:

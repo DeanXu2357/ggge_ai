@@ -711,7 +711,7 @@ def _band_masks(frame: np.ndarray) -> dict[str, np.ndarray]:
     return masks
 
 
-def find_units(
+def find_unit_screen_hints(
     frame: np.ndarray | None,
     region: Region = UNIT_DENSITY_REGION,
     *,
@@ -719,7 +719,10 @@ def find_units(
     local_max: int = UNIT_DENSITY_LOCAL_MAX,
     min_dist: float = UNIT_DENSITY_MIN_DIST,
 ) -> tuple[Point, ...]:
-    """單位腳下環的位置，只論存在不論陣營。
+    """啟發式：大地圖上疑似有單位的位置，輸出**螢幕像素座標**的候選點。
+
+    候選就只是候選——不論陣營、不保證存在，更不是已驗證的世界座標；要當座標用必須
+    另外拿點擊回饋或系統指定標示背書（命名家族同 `arc_hint`：線索就只是線索）。
 
     三個門檻開成參數是給「候選過濾」用的：那邊要的是零漏報，寧可多吐幾個假峰
     （多點一次）也不能漏（漏＝假帳）。預設值仍是校出來的定位用值，不要改。
@@ -769,7 +772,10 @@ def find_sightings(
 ) -> tuple[Sighting, ...]:
     if frame is None:
         return ()
-    return tuple(Sighting(point, arc_hint(frame, point)) for point in find_units(frame, region))
+    return tuple(
+        Sighting(point, arc_hint(frame, point))
+        for point in find_unit_screen_hints(frame, region)
+    )
 
 
 @dataclass(frozen=True)
@@ -993,7 +999,7 @@ def null_check(
     polled = 0
     moved = 0
     stayed = 0
-    for px, py in find_units(current) if points is None else points:
+    for px, py in find_unit_screen_hints(current) if points is None else points:
         if not (x <= px <= x + w and y <= py <= y + h):
             continue
         here = _window(after, px, py)

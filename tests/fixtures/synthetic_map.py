@@ -34,7 +34,7 @@ LINE_COLOUR = (196, 196, 196)
 # 門檻；畫成實心小圓的話密度高原會攤平成兩個峰，假世界要跟真世界同一個形狀。
 UNIT_RADIUS = 45
 UNIT_THICKNESS = 10
-# 弧色帶內的紅（HSV 5,160,220）：find_units 只認 ARC_BANDS 的三個色帶。
+# 弧色帶內的紅（HSV 5,160,220）：find_unit_screen_hints 只認 ARC_BANDS 的三個色帶。
 UNIT_HSV = (5, 160, 220)
 # 西北角那一屏必須站得住的兩台。推不動的判定退回逐精靈窗（board.null_check）時，一個
 # 窗要成立，「動了指令那麼多」那個假設得把它映回前一幀的畫面內——一把推移 598px，所以

@@ -100,7 +100,7 @@ def test_no_blank_cell_halts_and_leaves_a_journal_line(tmp_path, monkeypatch):
     monkeypatch.setattr(scan_roster_jump, "frame_grid", lambda frame: GRID)
 
     with pytest.raises(Halt):
-        scan.dismiss(roster.ENEMY, np.zeros((1080, 2340, 3), np.uint8), [])
+        scan.dismiss(roster.ENEMY, np.zeros((1080, 2340, 3), np.uint8))
 
     kinds = [json.loads(line)["kind"] for line in scan.journal.path.read_text().splitlines()]
     assert "no_blank_cell" in kinds

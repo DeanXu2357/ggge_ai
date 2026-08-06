@@ -94,7 +94,7 @@ def test_the_density_peaks_find_every_fully_visible_unit(image):
     frame = dict(series())[image]
     expected = [unit["pos"] for unit in ground_truth()[image] if unit["status"] == "full"]
 
-    found = board.find_units(frame)
+    found = board.find_unit_screen_hints(frame)
     missed = [
         pos
         for pos in expected
@@ -109,7 +109,7 @@ def test_the_density_peaks_find_every_fully_visible_unit(image):
 def test_the_series_recall_stays_at_the_measured_level():
     total = hits = 0
     for image, frame in series():
-        found = board.find_units(frame)
+        found = board.find_unit_screen_hints(frame)
         for unit in ground_truth()[image]:
             if unit["status"] != "full":
                 continue
@@ -127,7 +127,7 @@ def test_flat_arc_shape_gates_would_have_gone_blind_here():
     frame = dict(series())["03_pt3_pan_up.png"]
     expected = [unit for unit in ground_truth()["03_pt3_pan_up.png"] if unit["status"] == "full"]
 
-    assert len(board.find_units(frame)) >= len(expected)
+    assert len(board.find_unit_screen_hints(frame)) >= len(expected)
 
 
 def test_the_arc_hint_is_reported_but_never_a_faction():
@@ -346,7 +346,7 @@ def test_a_formation_alias_vote_is_overruled_by_the_picture():
     before = _formation(ROW).frame()
     after = _formation(ROW_SHIFTED).frame()
 
-    vote = board._constellation_shift(board.find_units(before), board.find_units(after))
+    vote = board._constellation_shift(board.find_unit_screen_hints(before), board.find_unit_screen_hints(after))
     assert vote is not None
     assert vote[0] == pytest.approx(COL_PITCH, abs=6.0)
 
@@ -360,7 +360,7 @@ def test_a_real_pan_still_beats_the_null_hypothesis():
     world.move(0.0, 150.0)
     after = world.frame()
 
-    vote = board._constellation_shift(board.find_units(before), board.find_units(after))
+    vote = board._constellation_shift(board.find_unit_screen_hints(before), board.find_unit_screen_hints(after))
     assert vote is not None
     assert vote[1] == pytest.approx(-150.0, abs=6.0)
 

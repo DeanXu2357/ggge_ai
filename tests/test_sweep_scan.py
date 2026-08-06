@@ -738,12 +738,12 @@ def test_the_constellation_takes_over_when_the_marker_is_gone_and_the_edges_are_
         (GRID.centre_of(cell)[0] - truth[0], GRID.centre_of(cell)[1] - truth[1])
         for cell in sweep.identified_units(run.ledger)
     )
-    board_units = board.find_units
+    board_units = board.find_unit_screen_hints
     try:
-        board.find_units = lambda frame, *args, **kwargs: peaks
+        board.find_unit_screen_hints = lambda frame, *args, **kwargs: peaks
         run.relocate()
     finally:
-        board.find_units = board_units
+        board.find_unit_screen_hints = board_units
 
     assert run.offset == pytest.approx(truth)
     # 星座是假說級：grounded 維持 False，下一步得靠 confirm() 拿強證人背書。

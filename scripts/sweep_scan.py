@@ -1126,7 +1126,7 @@ class SweepRun:
         axes = sweep.border_offsets(ledger.grid, self.landmarks, borders)
         if "x" in axes and "y" in axes:
             return None
-        peaks = board.find_units(frame)
+        peaks = board.find_unit_screen_hints(frame)
         units = sweep.identified_units(ledger)
         fix = sweep.constellation_offset(units, peaks, ledger.grid)
         clash = (

@@ -1,14 +1,20 @@
-"""名冊跳轉掃描：用「部隊資訊」的名冊逐台跳鏡頭，靠星座／邊界重認掛回世界座標。
+"""名冊跳轉掃描：用「部隊資訊」的名冊逐台跳鏡頭，每一台都靠定位點掛回世界座標。
 
 不推鏡找單位——名冊是完整的（我軍 10、敵軍 18），每一台都點得開、跳得到，剩下的
-問題只是「跳過去那一幀在世界的哪裡」。判斷全在 runtime.roster／runtime.jumpscan
-（都有離線測試），這支只負責組裝、迴圈與落證據。
+問題只是「跳過去那一台在世界的哪一格」。兩條路，都不含無標記的圖片比對：
+
+- **relay**：同幀接力。目標端＝跳轉指定標示所在格（落點幀與乾淨幀的變化指出來的，
+  不是密度峰猜的），鄰居端＝我們點下去而且真的出卡的那一格。兩端都是驗證過的格，
+  幀內格差由同一張 FrameGrid 算。鄰居的身分還沒有座標就先記帳，`settle` 回填。
+- **march**：自力。在目標旁種標記，往西推到 FrameGrid 讀到西界，逐把靠標記重認累計
+  格數；往北同理（先跳回同一台重置鏡頭）。
+
+`board.find_unit_screen_hints` 的峰只拿來挑「要點哪一格問身分」，不進任何座標計算。
 
 usage:
   uv run python scripts/scan_roster_jump.py --serial R5CRC37JBYJ --stage-node 544,667 \
-      --stop-after borders
-  # 分段停點：borders / roster / jump / settle
-  uv run python scripts/scan_roster_jump.py … --stop-after roster
+      --stop-after prepare
+  # 分段停點：prepare / roster / jump / settle
   uv run python scripts/scan_roster_jump.py … --no-abandon
 
 前提：手機已經停在目標系列的關卡列表（選擇關卡頁）。--stage-node 必填，理由同
@@ -25,15 +31,15 @@ import json
 import logging
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import numpy as np
 
+from ggge_ai.battle import vision
 from ggge_ai.battle.map_grid import FrameGrid, GridUnreadable, read_frame_grid, snap_cell
 from ggge_ai.runtime import board, entry, jumpscan, roster, screens, sweep
-from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.device import (
     ROSTER_CELL_INTENT,
     ROSTER_JUMP_INTENT,
@@ -46,18 +52,19 @@ from ggge_ai.runtime.perceive import decode
 
 log = logging.getLogger("scan_roster_jump")
 
+Cell = tuple[int, int]
+Point = tuple[float, float]
+
 RUNS_ROOT = Path("data/runs")
 JOURNAL_NAME = "roster_jump.jsonl"
-STAGES = ("borders", "roster", "jump", "settle")
-IN_BATTLE_STAGES = (None, "borders", "roster", "jump", "settle")
+STAGES = ("prepare", "roster", "jump", "settle")
+IN_BATTLE_STAGES = (None, "prepare", "roster", "jump", "settle")
 
-# 四界定錨的推鏡上限，逐方向各一份（沿用 sweep_scan.ZERO_LEGS 的量級：一把約
-# 240px 內容位移，地圖再大也用不到 24 把）。**不 import scripts/sweep_scan.py**。
-BORDER_LEGS = 24
-SETTLE_POLL_S = 0.5
 PANEL_SETTLE_S = 1.2
 JUMP_SETTLE_S = 1.5
-# 迷路重試：連兩敗就記 UNRESOLVED 換下一台（與 jumpscan.next_target 的 give_up 對齊）。
+TAP_SETTLE_S = 0.8
+CARD_SETTLE_S = 1.0
+# 迷路重試：連兩敗就退場記 unresolved，換下一台（與 jumpscan.next_target 對齊）。
 JUMP_ATTEMPTS = 2
 ROSTER_ATTEMPTS = 3
 ROSTER_SETTLE_S = 1.0
@@ -65,6 +72,24 @@ ROSTER_SETTLE_S = 1.0
 # 部隊資訊（0806 run 20260806-024307 就是這樣把第一格誤判成列表盡頭）。
 SCREEN_ATTEMPTS = 5
 END_OF_LIST_CONFIRMATIONS = 2
+
+# 路徑 A：最多問兩台鄰居的身分，都問不到就走自力。
+RELAY_PROBES = 2
+# 路徑 B：一軸最多推幾把（一把約一格半，地圖再大也用不到這麼多）。
+MARCH_LEGS = 40
+MARCH_SEED_ATTEMPTS = 3
+# 標記連兩把認不回來就放棄該軸——重種一次是自癒，兩次是這一帶認不出填色。
+MARCH_LOST_LIMIT = 2
+# 標記離推進方向的出界邊剩不到這麼多格就先重種，別等它被推出視野。
+MARCH_RESEED_PITCH = 1.5
+
+# 路徑 A 的三種下場：接上一筆帳／這一窗問不出身分／點到我方被拉走鏡頭（整幀作廢）。
+RELAY_LINKED = "linked"
+RELAY_NONE = "none"
+RELAY_ADRIFT = "adrift"
+
+MARCH_AXES: tuple[tuple[int, str], ...] = ((0, "west"), (1, "north"))
+LEAVING_EDGE = {"west": "east", "north": "south"}
 
 
 def frame_grid(frame: np.ndarray) -> FrameGrid | None:
@@ -76,10 +101,6 @@ def frame_grid(frame: np.ndarray) -> FrameGrid | None:
         return None
 
 
-def grid_window(grid: FrameGrid) -> tuple[int, int, int, int]:
-    return (0, 0, len(grid.cols) - 2, len(grid.rows) - 2)
-
-
 def grid_pitch(grid: FrameGrid) -> tuple[float, float]:
     cols, rows = grid.cols, grid.rows
     return (
@@ -88,12 +109,25 @@ def grid_pitch(grid: FrameGrid) -> tuple[float, float]:
     )
 
 
-def grid_centres(grid: FrameGrid) -> list[tuple[float, float]]:
-    return [
-        ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
-        for x0, x1 in zip(grid.cols, grid.cols[1:])
-        for y0, y1 in zip(grid.rows, grid.rows[1:])
-    ]
+def grid_centres(grid: FrameGrid) -> dict[Cell, Point]:
+    return {
+        (col, row): ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+        for col, (x0, x1) in enumerate(zip(grid.cols, grid.cols[1:]))
+        for row, (y0, y1) in enumerate(zip(grid.rows, grid.rows[1:]))
+    }
+
+
+def bounded(grid: FrameGrid, side: str) -> bool:
+    return bool(grid.bounds()[side])
+
+
+def card_present(frame: np.ndarray) -> bool:
+    return vision.read_enemy_summary(frame) is not None
+
+
+def read_signature(frame: np.ndarray) -> str | None:
+    summary = vision.read_enemy_summary(frame)
+    return None if summary is None else summary.name_sig
 
 
 class Halt(RuntimeError):
@@ -128,6 +162,19 @@ class Camera:
 
 
 @dataclass
+class View:
+    """一個鏡位：幀、它自己的格網、格心表。跳轉是硬切，所以每次落點都是新的一個。"""
+
+    frame: np.ndarray
+    grid: FrameGrid
+    centres: dict[Cell, Point]
+
+    @property
+    def pitch(self) -> tuple[float, float]:
+        return grid_pitch(self.grid)
+
+
+@dataclass
 class Scan:
     device: LiveDevice
     camera: Camera
@@ -136,20 +183,15 @@ class Scan:
     node: tuple[int, int] | None = None
     expect_title: str | None = entry.DEFAULT_EXPECTED_TITLE
     sleep: Callable[[float], None] = time.sleep
-    grid: WorldGrid | None = None
-    offset: tuple[float, float] = (0.0, 0.0)
-    landmarks: dict[str, float] = field(default_factory=dict)
     ledger: jumpscan.JumpLedger = field(default_factory=jumpscan.JumpLedger)
     entries: list[roster.RosterEntry] = field(default_factory=list)
-    last_source: str = jumpscan.SOURCE_CONSTELLATION
-    last_axes: dict[str, float] = field(default_factory=dict)
 
     # ---------- 流程 ----------
 
     def run(self) -> None:
         capture, tap, nap = self.camera.grab, self.device.tap, self.sleep
 
-        self.begin("borders")
+        self.begin("prepare")
         self.gate(
             "select",
             entry.select_stage(
@@ -159,8 +201,7 @@ class Scan:
         self.gate("prep", entry.open_sortie_prep(capture, tap, entry.GateReport(), sleep=nap))
         self.gate("enter", entry.enter_stage(capture, tap, sleep=nap))
         self.prepare_board()
-        self.anchor()
-        if self.end("borders"):
+        if self.end("prepare"):
             return
 
         self.begin("roster")
@@ -174,7 +215,6 @@ class Scan:
             return
 
         self.begin("settle")
-        self.anchor_pass()
         self.settle()
         self.end("settle")
 
@@ -183,18 +223,17 @@ class Scan:
     def prepare_board(self) -> None:
         """格線 ON ＋卡條收合。兩個都是這一支後面每一步的前置條件，不是可選項。
 
-        格線設定沿用上一輪，OFF 的時候 `board.find_lattice` 就是 None，四界定錨與
-        全部星座重認一起垮；展開的卡條蓋住地圖下緣，`board.find_units` 的峰與空白格
-        挑選都會被污染（sweep_scan 全程也是收攏狀態在跑）。
+        格線設定沿用上一輪，OFF 的時候 `read_frame_grid` 讀不出任何一條線，定位鏈整條
+        垮掉；展開的卡條蓋住地圖下緣，單位候選點與空白格挑選都會被污染。
         """
         report = entry.GateReport()
         entry.confirm_grid(self.camera.grab, self.device.tap, report, sleep=self.sleep)
         self.journal.record("gate", name="grid", trail=list(report.trail))
-        self.camera.keep("borders:grid")
+        self.camera.keep("prepare:grid")
         if not report.ok:
             raise Halt(f"格線閘門未過：{report.trail}")
         self.collapse_roster()
-        self.camera.keep("borders:roster_collapsed")
+        self.camera.keep("prepare:roster_collapsed")
 
     def collapse_roster(self) -> None:
         """先讀再點：切換鈕是同一顆的兩個位置，讀不出來盲點一下會把收好的又展開。"""
@@ -208,54 +247,6 @@ class Scan:
             self.device.tap(*screens.ROSTER_TOGGLE_TAP)
             self.sleep(ROSTER_SETTLE_S)
         raise Halt("卡條收不起來，掃描的前置條件不成立")
-
-    # ---------- 四界定錨 ----------
-
-    def anchor(self) -> None:
-        """四方向各推到界出現，西北那一幀定義世界原點；不清帳也不巡迴。"""
-        frame = self.camera.settled(SETTLE_POLL_S, self.sleep)
-        borders = sweep.read_borders(frame)
-        for side in ("west", "north"):
-            for _ in range(BORDER_LEGS):
-                if side in borders:
-                    break
-                frame = self.pan(side)
-                borders = sweep.read_borders(frame)
-        self.journal.record("borders", seen={k: round(v, 1) for k, v in borders.items()})
-        if "west" not in borders or "north" not in borders:
-            raise Halt(f"推不到西北角：同一幀只看到 {sorted(borders)}")
-        lattice = board.find_lattice(frame)
-        if lattice is None:
-            raise Halt("角落幀讀不出格網，世界座標無從定義")
-        anchored = sweep.anchor_northwest(lattice, borders)
-        if anchored is None:
-            raise Halt("角落幀的格距不合理，世界座標無從定義")
-        self.grid, self.offset = anchored
-        self.landmarks = {"west": 0.0, "north": 0.0}
-        self.camera.keep("borders:northwest")
-        # 東界與南界**不在這裡量**。這一段沒有追蹤推鏡位移，`borders[side] + offset`
-        # 的 offset 還是西北角那一幀的值，量出來的東南地標是錯的（0806 實機 run
-        # 20260806-022510 記到 east=1717 / south=409，真值 25x20 的東界該在 ~3200
-        # 世界像素）。錯的地標比沒有更危險：jump 段單側看到東界時 border_offsets
-        # 會拿它當鏡位直接用。改由 jump 段 `learn_landmarks()` 機會主義補——那裡的
-        # offset 是星座裁決出來的，語意才立得住。
-        self.journal.record(
-            "world_anchored",
-            phase=[round(v, 1) for v in self.grid.phase],
-            pitch=[round(self.grid.col_pitch, 1), round(self.grid.row_pitch, 1)],
-            landmarks={k: round(v, 1) for k, v in self.landmarks.items()},
-        )
-
-    def pan(self, direction: str) -> np.ndarray:
-        """一把推鏡。這一段只要「界出現了沒」，不做逐手勢行程驗收——定位不靠它。"""
-        frame = self.camera.grab()
-        origin, stroke = board.pan_stroke(
-            direction, board.PAN_MAX_REACH, board.find_sightings(frame)
-        )
-        x1, y1, x2, y2 = board.pan_gesture(direction, origin, stroke)
-        self.device.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
-        self.journal.record("pan", direction=direction, reach=round(stroke, 1))
-        return self.camera.settled(board.PAN_SETTLE_S, self.sleep)
 
     # ---------- 名冊 ----------
 
@@ -315,324 +306,335 @@ class Scan:
             key = jumpscan.next_target(self.ledger, roster_keys, give_up_after=JUMP_ATTEMPTS)
             if key is None:
                 break
-            if not self.jump(key):
-                count = self.ledger.fail(key)
-                self.journal.record("jump_failed", key=list(key), failures=count)
-        # 一張圖樣都沒記到＝連「窗長什麼樣」都沒讀到，後面每一步都建在空氣上。
-        # 零錨點不是這一條——沒有絕對錨照樣有相對鏈，結算會標 anchored=false。
-        if not self.ledger.patterns:
-            raise Halt("整份名冊都跳過了仍然讀不出任何一窗的圖樣，鏈起不了頭")
+            visited = self.visit(key)
+            self.ledger.settle()
+            if self.ledger.resolved(key):
+                continue
+            # 記到一筆等回填的接力帳也算跑過一趟：不記次數會讓排程一直挑同一台。
+            count = self.ledger.fail(key)
+            self.journal.record(
+                "jump_failed", key=list(key), failures=count, pending=visited
+            )
+            if count >= JUMP_ATTEMPTS:
+                self.ledger.retire(key)
+        if not self.ledger.cells:
+            raise Halt("整份名冊都跳過了仍然一台都定位不了，帳面沒有任何絕對座標")
 
-    def jump(self, key: jumpscan.Key) -> bool:
+    def visit(self, key: jumpscan.Key) -> bool:
+        """一台的一趟：跳轉 → 解除 → 讀指定格 → 路徑 A（接力）→ 路徑 B（自力）。"""
+        view, target, sig = self.land(key, label="jump")
+        if view is None or target is None:
+            return False
+        if sig is not None:
+            self.ledger.identify(key, sig)
+            self.journal.record("identity", key=list(key), sig=sig)
+        # 第一趟才試便宜的接力：帳上一台都還沒定位就沒有可接的對象（第一台必然自力），
+        # 而重來一趟的那一台上次已經接過了——再接一次多半又是同一筆等不到的線索。
+        if self.ledger.cells and not self.ledger.failures.get(key):
+            found = self.relay(key, view, target)
+            if found == RELAY_LINKED:
+                return True
+            if found == RELAY_ADRIFT:
+                # 鏡頭被拉走了，這一幀的格號全部作廢——march 只能從新的落點重來。
+                return False
+        return self.march(key, view, target)
+
+    def land(
+        self, key: jumpscan.Key, *, label: str
+    ) -> tuple[View | None, Cell | None, str | None]:
+        """跳轉 → 落點幀（帶指定標示）→ 解除 → 乾淨幀。回傳乾淨鏡位與目標格。
+
+        目標格由**兩幀的變化**指出來（指定標示只在落點幀上），不是拿密度峰猜的；解除
+        不移動鏡頭，所以兩幀共用同一張格網。
+        """
         faction, index = key
         self.open_troop_info(faction)
-        point = roster.cell_taps(faction)[index]
-        if self.open_detail(point) is None:
+        if self.open_detail(roster.cell_taps(faction)[index]) is None:
             raise Halt(f"{faction}#{index} 點不開詳情頁——名冊順序與跳轉對不上")
         self.device.tap(*roster.DETAIL_SELECT_TAP, intent=ROSTER_JUMP_INTENT)
         landing = self.camera.settled(JUMP_SETTLE_S, self.sleep)
-        self.camera.keep(f"jump:{faction}:{index}:landing")
-        peaks = board.find_units(landing)
-        target = jumpscan.target_peak(peaks)
-        self.dismiss(faction, landing, peaks)
+        self.camera.keep(f"{label}:{faction}:{index}:landing")
+        sig = read_signature(landing)
+        self.dismiss(faction, landing)
         clean = self.camera.settled(JUMP_SETTLE_S, self.sleep)
-        self.camera.keep(f"jump:{faction}:{index}:clean")
+        self.camera.keep(f"{label}:{faction}:{index}:clean")
+        view = self.view(clean)
+        if view is None:
+            self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
+            return (None, None, sig)
+        target = jumpscan.designation_cell(
+            landing, clean, view.centres, half=min(view.pitch) / 3.0
+        )
+        self.journal.record(
+            "landed",
+            key=list(key),
+            target=None if target is None else list(target),
+            sig=sig,
+            bounds=view.grid.bounds(),
+        )
         if target is None:
-            return False
-        clean_peaks = tuple(board.find_units(clean))
-        if not self.learn_pattern(key, clean, clean_peaks, target):
-            return False
-        offset = self.locate(clean)
-        self.record_axes(key, target, self.last_axes)
-        if offset is None:
-            # 沒有絕對解不算失敗：圖樣已經記下，這一台的座標由鏈在結算時補。
-            return True
-        grid = self.world()
-        cell = grid.cell_of((target[0] + offset[0], target[1] + offset[1]))
-        self.ledger.record(
-            jumpscan.Jump(
-                key=key,
-                cell=cell,
-                source=self.last_source,
-                offset=offset,
-                peaks=clean_peaks,
-            )
-        )
-        self.journal.record(
-            "anchor",
-            key=list(key),
-            cell=list(cell),
-            source=self.last_source,
-            offset=[round(v, 1) for v in offset],
-        )
-        return True
+            return (view, None, sig)
+        return (view, target, sig)
 
-    def learn_pattern(
-        self,
-        key: jumpscan.Key,
-        frame: np.ndarray,
-        peaks: tuple[tuple[float, float], ...],
-        target: tuple[float, float],
-    ) -> bool:
-        """這一窗的相對圖樣＋與既有窗的配對。全程幀內格，不需要世界鏡位。"""
-        screen_grid = frame_grid(frame)
-        if screen_grid is None:
-            self.journal.record("pattern_failed", key=list(key), reason="grid_unreadable")
-            return False
-        anchor = snap_cell(screen_grid, target)
-        if anchor is None:
-            self.journal.record("pattern_failed", key=list(key), reason="target_unsnappable")
-            return False
-        cells, dropped = [], 0
-        for peak in peaks:
-            cell = snap_cell(screen_grid, peak)
-            if cell is None:
-                dropped += 1
+    def view(self, frame: np.ndarray) -> View | None:
+        grid = frame_grid(frame)
+        return None if grid is None else View(frame, grid, grid_centres(grid))
+
+    # ---------- 路徑 A：同幀接力 ----------
+
+    def relay(self, key: jumpscan.Key, view: View, target: Cell) -> str:
+        """點鄰居出卡讀身分：兩端都是驗證過的格，幀內格差直接記帳。
+
+        身分還沒有座標一樣記——`settle` 會反覆回填到不動點。
+        """
+        peaks = board.find_unit_screen_hints(view.frame)
+        probes = jumpscan.probe_order(peaks, view.centres[target], limit=RELAY_PROBES)
+        for peak in probes:
+            cell = snap_cell(view.grid, peak)
+            point = None if cell is None else view.centres.get(cell)
+            if cell is None or cell == target or point is None:
                 continue
-            cells.append(cell)
-        pattern = jumpscan.frame_pattern(cells, anchor, grid_window(screen_grid))
-        matches = self.ledger.link(key, pattern)
-        self.journal.record(
-            "pattern",
-            key=list(key),
-            cells=[list(cell) for cell in pattern.cells],
-            window=list(pattern.window),
-            dropped=dropped,
-        )
-        for other, found in matches:
-            if found.delta is None:
-                continue
+            verdict, sig = self.ask_identity(view, point)
             self.journal.record(
-                "chain_edge",
-                frm=list(other),
-                to=list(key),
-                delta=list(found.delta),
-                overlap=found.overlap,
+                "relay_probe", key=list(key), cell=list(cell), verdict=verdict, sig=sig
             )
-        self.journal.record(
-            "pattern_matches",
-            key=list(key),
-            reasons=sorted({found.reason for _, found in matches}),
-            edges=sum(1 for _, found in matches if found.delta is not None),
+            if verdict in sweep.TAP_SHIFTS:
+                # 點到我方＝進了移動模式，鏡頭已經被拉走：這一幀的格號全部作廢。
+                self.device.tap(*jumpscan.ALLY_DISMISS_TAP, intent=jumpscan.ALLY_DISMISS_INTENT)
+                self.sleep(TAP_SETTLE_S)
+                return RELAY_ADRIFT
+            if sig is None:
+                continue
+            delta = (target[0] - cell[0], target[1] - cell[1])
+            self.ledger.relay(key, sig, delta)
+            self.journal.record("relay", key=list(key), via=sig, delta=list(delta))
+            return RELAY_LINKED
+        return RELAY_NONE
+
+    def ask_identity(self, view: View, point: Point) -> tuple[str, str | None]:
+        """點一格問身分：出卡才算數，卡沒開這一格就不算（換一格）。
+
+        點擊座標本身就是格子的證明——點 (x,y) 落在格 c、卡開了，記的就是格 c。
+        """
+        before = self.camera.grab()
+        self.device.tap(int(point[0]), int(point[1]))
+        self.sleep(TAP_SETTLE_S)
+        after = self.camera.grab()
+        outcome = sweep.classify_tap(
+            before, after, point, card=card_present, pitch=view.pitch
         )
+        if outcome.verdict != sweep.TAP_CARD:
+            return (outcome.verdict, None)
+        self.sleep(CARD_SETTLE_S)
+        card = self.camera.grab()
+        self.camera.keep("relay:card")
+        sig = read_signature(card)
+        self.clear_card(view)
+        return (outcome.verdict, sig)
+
+    def clear_card(self, view: View) -> None:
+        """卡是疊在地圖上的浮層，點一個乾淨的空白格就收掉，鏡頭不動。"""
+        blank = self.blank_point(view, board.find_unit_screen_hints(view.frame))
+        if blank is None:
+            raise Halt("收不掉單位卡：這一幀找不到任何乾淨空白格")
+        self.device.tap(*blank)
+        self.sleep(TAP_SETTLE_S)
+
+    # ---------- 路徑 B：標記接力平移 ----------
+
+    def march(self, key: jumpscan.Key, view: View, target: Cell) -> bool:
+        """兩軸各推到界：西界定 x、北界定 y。兩軸之間跳回同一台重置鏡頭（O(1)）。"""
+        found: dict[int, int] = {}
+        for axis, direction in MARCH_AXES:
+            if axis > 0:
+                view, target, _ = self.land(key, label="march")
+                if view is None or target is None:
+                    self.journal.record("march_failed", key=list(key), axis=axis, reason="reland")
+                    return False
+            value = self.march_axis(key, view, target, axis, direction)
+            if value is None:
+                return False
+            found[axis] = value
+        cell = (found[0], found[1])
+        self.ledger.anchor(key, cell, jumpscan.SOURCE_MARCH)
+        self.journal.record("march", key=list(key), cell=list(cell))
         return True
 
-    def locate(self, frame: np.ndarray) -> tuple[float, float] | None:
-        """乾淨幀 → 鏡位。星座優先，界線是第二註冊來源；兩個都不說話就是迷路。"""
-        grid = self.world()
-        found = sweep.constellation_offset(self.ledger.references(), board.find_units(frame), grid)
-        if found.offset is not None:
-            self.last_source = jumpscan.SOURCE_CONSTELLATION
-            self.learn_landmarks(frame, found.offset)
-            return found.offset
-        axes = sweep.border_offsets(grid, self.landmarks, sweep.read_borders(frame))
-        self.last_axes = axes
-        if "x" in axes and "y" in axes:
-            self.last_source = jumpscan.SOURCE_BORDER
-            return (axes["x"], axes["y"])
-        self.journal.record("lost", reason=found.reason, axes=sorted(axes))
+    def march_axis(
+        self, key: jumpscan.Key, view: View, target: Cell, axis: int, direction: str
+    ) -> int | None:
+        """往 direction 推到界，逐把靠標記重認算累計格數，回傳目標在該軸的世界格。"""
+        name = jumpscan.AXIS_NAMES[axis]
+        seeded = self.seed_marker(view, avoid=target)
+        if seeded is None:
+            self.journal.record("march_lost", key=list(key), axis=name, reason="no_seed")
+            return None
+        signature, marker = seeded
+        legs: list[jumpscan.MarchLeg] = []
+        lost = 0
+        for _ in range(MARCH_LEGS):
+            if bounded(view.grid, direction):
+                world = jumpscan.march_world(target[axis], legs, border_cell=0)
+                self.journal.record(
+                    "march_axis", key=list(key), axis=name, legs=len(legs), world=world
+                )
+                return world
+            before = marker[axis]
+            view = self.pan(direction)
+            if view is None:
+                lost += 1
+                if lost >= MARCH_LOST_LIMIT:
+                    break
+                continue
+            point = board.find_marker(
+                view.frame, signature, holes=board.UNIT_DENSITY_HUD_HOLES
+            )
+            cell = None if point is None else snap_cell(view.grid, point)
+            if cell is None:
+                lost += 1
+                self.journal.record("march_lost", key=list(key), axis=name, legs=len(legs))
+                if lost >= MARCH_LOST_LIMIT:
+                    break
+                continue
+            lost = 0
+            legs.append(jumpscan.MarchLeg(before, cell[axis]))
+            marker = cell
+            if self.leaving(view, point, direction):
+                reseeded = self.seed_marker(view, signature=signature)
+                if reseeded is None:
+                    lost += 1
+                    if lost >= MARCH_LOST_LIMIT:
+                        break
+                    continue
+                signature, marker = reseeded
+        self.journal.record("march_failed", key=list(key), axis=name, legs=len(legs))
         return None
 
-    def record_axes(
+    def leaving(self, view: View, point: Point, direction: str) -> bool:
+        """標記快被推出視野了嗎——推西時它往東走，推北時它往南走。"""
+        side = LEAVING_EDGE[direction]
+        x, y, w, h = board.UNIT_DENSITY_REGION
+        pitch = view.pitch
+        if side == "east":
+            return point[0] > x + w - MARCH_RESEED_PITCH * pitch[0]
+        return point[1] > y + h - MARCH_RESEED_PITCH * pitch[1]
+
+    def seed_marker(
         self,
-        key: jumpscan.Key,
-        target: tuple[float, float],
-        axes: dict[str, float],
+        view: View,
         *,
-        only: int | None = None,
-    ) -> tuple[str, ...]:
-        """單軸絕對值也要收。單窗同時解出兩軸太苛（0806 run 20260806-052235 全場
-        0 個雙軸錨，界線常常只給得出 x——西界常入鏡、北界很少）；鏈把元件綁成剛體
-        之後，x 與 y 可以來自不同的窗。
+        avoid: Cell | None = None,
+        signature: board.MarkerSignature | None = None,
+    ) -> tuple[board.MarkerSignature, Cell] | None:
+        """在一個乾淨空白格種標記：點下去、驗收填色真的出現在被點的那一格才算數。
+
+        沒驗收就記 `marker` 會讓下一把重認拿舊填色配新格號，整幀寫進差一格距整數倍的
+        世界位置——這條紀律照抄 sweep_scan 的 `carry_marker`。
         """
-        grid = self.world()
-        got: list[str] = []
-        for axis, name in enumerate(jumpscan.AXIS_NAMES):
-            if name not in axes or (only is not None and axis != only):
-                continue
-            offset = axes[name]
-            point = (target[0] + offset, target[1]) if axis == 0 else (target[0], target[1] + offset)
-            world = grid.cell_of(point)[axis]
-            self.ledger.anchor_axis(key, axis, world)
-            self.journal.record("axis_anchor", key=list(key), axis=name, value=world)
-            got.append(name)
-        return tuple(got)
-
-    # ---------- 錨定補跳 ----------
-
-    def anchor_pass(self) -> None:
-        """鏈排好之後，對還缺某軸的大元件補跳它那一側最邊緣的單位。
-
-        y 軸荒是結構性的：巡迴照名冊順序跳，落點落在哪就讀哪，北界很少入鏡。跳到
-        最北那台會把北界拉進畫面（跳轉置中），這是「去把界找出來」而不是等它出現。
-        """
-        solution = self.ledger.solve()
-        for component, axis in jumpscan.needy_axes(solution):
-            for key in jumpscan.axis_frontier(solution, component, axis, roster=self.keys()):
-                if self.anchor_jump(key, axis):
-                    break
-
-    def anchor_jump(self, key: jumpscan.Key, axis: int) -> bool:
-        """只為了讀一條界的跳轉：不記圖樣、不配對，落幀讀 border 就走。"""
-        faction, index = key
-        name = jumpscan.AXIS_NAMES[axis]
-        self.open_troop_info(faction)
-        if self.open_detail(roster.cell_taps(faction)[index]) is None:
-            self.journal.record("anchor_jump", key=list(key), axis=name, ok=False, reason="no_detail")
-            self.close_panel()
-            return False
-        self.device.tap(*roster.DETAIL_SELECT_TAP, intent=ROSTER_JUMP_INTENT)
-        landing = self.camera.settled(JUMP_SETTLE_S, self.sleep)
-        self.camera.keep(f"anchor:{faction}:{index}:landing")
-        peaks = board.find_units(landing)
-        target = jumpscan.target_peak(peaks)
-        self.dismiss(faction, landing, peaks)
-        clean = self.camera.settled(JUMP_SETTLE_S, self.sleep)
-        self.camera.keep(f"anchor:{faction}:{index}:clean")
-        if target is None:
-            self.journal.record("anchor_jump", key=list(key), axis=name, ok=False, reason="no_target")
-            return False
-        axes = sweep.border_offsets(self.world(), self.landmarks, sweep.read_borders(clean))
-        got = self.record_axes(key, target, axes, only=axis)
-        self.journal.record(
-            "anchor_jump", key=list(key), axis=name, ok=bool(got), seen=sorted(axes)
+        peaks = board.find_unit_screen_hints(view.frame)
+        points = jumpscan.clean_points(
+            view.frame,
+            view.centres.values(),
+            peaks,
+            keep_out=jumpscan.PEAK_KEEP_OUT_PITCH * max(view.pitch),
+            red_half=min(view.pitch) / 3.0,
         )
-        return bool(got)
+        points.sort(
+            key=lambda point: float(
+                np.hypot(point[0] - jumpscan.SCREEN_CENTRE[0], point[1] - jumpscan.SCREEN_CENTRE[1])
+            )
+        )
+        for point in points[:MARCH_SEED_ATTEMPTS]:
+            cell = snap_cell(view.grid, point)
+            if cell is None or cell == avoid:
+                continue
+            before = self.camera.grab()
+            self.device.tap(int(point[0]), int(point[1]))
+            self.sleep(TAP_SETTLE_S)
+            after = self.camera.grab()
+            outcome = sweep.classify_tap(
+                before, after, point, signature=signature, card=card_present, pitch=view.pitch
+            )
+            self.journal.record("seed_marker", cell=list(cell), verdict=outcome.verdict)
+            if outcome.verdict != sweep.TAP_EMPTY:
+                continue
+            learned = outcome.learned or signature
+            if learned is None:
+                continue
+            return (learned, cell)
+        return None
 
-    def learn_landmarks(self, frame: np.ndarray, offset: tuple[float, float]) -> None:
-        """星座裁決過的鏡位＋這一幀看得到的界＝一條地標。**只吃星座的 offset**：
-        拿界線解出來的 offset 回頭寫界線是循環論證。
+    def pan(self, direction: str) -> View | None:
+        """一把推鏡。行程量不參與定位——世界座標只由標記重認的格數與界線決定。"""
+        frame = self.camera.grab()
+        origin, stroke = board.pan_stroke(
+            direction, board.PAN_MAX_REACH, board.find_sightings(frame)
+        )
+        x1, y1, x2, y2 = board.pan_gesture(direction, origin, stroke)
+        self.device.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
+        self.journal.record("pan", direction=direction, reach=round(stroke, 1))
+        return self.view(self.camera.settled(board.PAN_SETTLE_S, self.sleep))
 
-        已經有的側不覆寫，只做一致性檢查——地標一旦寫錯，之後每一次單側重認都跟著
-        錯，而且沒有任何後手察覺得到。對不上就記進流水帳等人看。
-        """
-        grid = self.world()
-        for side, position in sweep.read_borders(frame).items():
-            axis = 0 if side in ("west", "east") else 1
-            pitch = grid.col_pitch if axis == 0 else grid.row_pitch
-            world = position + offset[axis]
-            known = self.landmarks.get(side)
-            if known is None:
-                self.landmarks[side] = world
-                self.journal.record("landmark_learned", side=side, world=round(world, 1))
-            elif abs(known - world) > sweep.EDGE_AGREEMENT_PITCH * pitch:
-                self.journal.record(
-                    "landmark_conflict",
-                    side=side,
-                    known=round(known, 1),
-                    saw=round(world, 1),
-                    slack=round(sweep.EDGE_AGREEMENT_PITCH * pitch, 1),
-                )
+    # ---------- 解除 ----------
 
-    def dismiss(self, faction: str, frame: np.ndarray, peaks) -> None:
+    def dismiss(self, faction: str, frame: np.ndarray) -> None:
         """敵方＝點一個空白格；我方＝右下「返回」（移動格點下去是真的下移動指令）。"""
         if faction == roster.ALLY:
             self.device.tap(*jumpscan.ALLY_DISMISS_TAP, intent=jumpscan.ALLY_DISMISS_INTENT)
             return
-        # 這裡還沒定位（解除要在 locate 之前，紅格會污染密度峰），所以格心不能用
-        # 世界鏡位換算——`self.offset` 是西北角那一幀的值，跳轉之後早就過期了。
-        # 改用落點幀自己的逐線格網：空白格只需要「螢幕上哪一點是格心」。
-        screen_grid = frame_grid(frame)
-        if screen_grid is None:
+        view = self.view(frame)
+        if view is None:
             raise Halt("落點幀讀不出格網，挑不出解除用的空白格")
-        pitch = grid_pitch(screen_grid)
-        blank = jumpscan.blank_cell_tap(
-            frame,
-            grid_centres(screen_grid),
-            peaks,
-            keep_out=jumpscan.PEAK_KEEP_OUT_PITCH * max(pitch),
-            red_half=min(pitch) / 3.0,
-        )
+        blank = self.blank_point(view, board.find_unit_screen_hints(frame))
         if blank is None:
-            self.journal.record(
-                "no_blank_cell",
-                faction=faction,
-                peaks=[[round(v, 1) for v in peak] for peak in peaks],
-                grid=list(grid_window(screen_grid)),
-            )
+            self.journal.record("no_blank_cell", faction=faction)
             raise Halt("落點幀找不到任何空白格可以解除敵方指定")
         self.device.tap(*blank)
 
-    def world(self) -> WorldGrid:
-        if self.grid is None:
-            raise Halt("世界座標還沒定錨")
-        return self.grid
+    def blank_point(self, view: View, peaks: Sequence[Point]) -> tuple[int, int] | None:
+        return jumpscan.blank_cell_tap(
+            view.frame,
+            view.centres.values(),
+            peaks,
+            keep_out=jumpscan.PEAK_KEEP_OUT_PITCH * max(view.pitch),
+            red_half=min(view.pitch) / 3.0,
+        )
 
     # ---------- 收尾 ----------
 
     def settle(self) -> None:
-        grid = self.world()
-        solution = self.ledger.solve()
-        cells = {key: solution.world(key) for key in solution.cells}
-        absolute = {key: value for key, value in cells.items() if None not in value}
-        flags = jumpscan.audit(self.ledger, grid, cells=absolute)
-        report = jumpscan.ledger_report(self.ledger, self.keys(), solution)
-        sizes: dict[int, int] = {}
-        for key in solution.linked:
-            component = solution.components[key]
-            sizes[component] = sizes.get(component, 0) + 1
-        components = {
-            str(component): {
-                "size": size,
-                "anchored_axes": [
-                    jumpscan.AXIS_NAMES[axis]
-                    for axis in sorted(solution.shifts.get(component, {}))
-                ],
-            }
-            for component, size in sorted(sizes.items())
-        }
+        report = self.ledger.settle()
+        flags = jumpscan.audit(self.ledger)
+        units = jumpscan.ledger_report(self.ledger, self.keys())
         self.journal.record(
             "settle",
-            patterns=len(self.ledger.patterns),
-            linked=len(solution.linked),
-            anchored=len(absolute),
-            components=components,
-            edges=len(self.ledger.edges),
-            axis_anchors=len(self.ledger.axis_anchors),
-            chain_conflicts=len(solution.conflicts),
-            axis_conflicts=len(solution.axis_conflicts),
-            contradictions=len(flags),
+            resolved=len(self.ledger.cells),
+            filled=[list(key) for key in report.filled],
+            relays=len(self.ledger.relays),
+            identities=len(self.ledger.identities),
+            conflicts=len(flags),
         )
         self.write_json(
             "coords.json",
             {
-                "components": components,
-                "units": report,
-                "chain_conflicts": [
+                "units": units,
+                "conflicts": [
                     {
-                        "key": list(conflict.key),
-                        "known": list(conflict.known),
-                        "saw": list(conflict.saw),
-                        "via": list(conflict.via),
-                    }
-                    for conflict in solution.conflicts
-                ],
-                "axis_conflicts": [
-                    {
-                        "key": list(conflict.key),
-                        "axis": jumpscan.AXIS_NAMES[conflict.axis],
-                        "known": conflict.known,
-                        "saw": conflict.saw,
-                    }
-                    for conflict in solution.axis_conflicts
-                ],
-                "contradictions": [
-                    {
-                        "seen_from": list(flag.seen_from),
-                        "about": list(flag.about),
-                        "expected": [round(v, 1) for v in flag.expected],
-                        "nearest": None if flag.nearest is None else round(flag.nearest, 1),
+                        "key": list(flag.key),
+                        "known": list(flag.known),
+                        "saw": list(flag.saw),
+                        "via": flag.via,
                     }
                     for flag in flags
                 ],
             },
         )
         log.info(
-            "%d patterns, %d linked, %d fully anchored, components %s",
-            len(self.ledger.patterns),
-            len(solution.linked),
-            len(absolute),
-            components,
+            "%d/%d resolved, %d relays, %d conflicts",
+            len(self.ledger.cells),
+            len(self.keys()),
+            len(self.ledger.relays),
+            len(flags),
         )
 
     def abandon(self) -> None:
