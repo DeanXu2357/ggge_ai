@@ -254,3 +254,53 @@ def test_the_tour_runs_the_enemy_roster_first_by_default(tmp_path):
 
     scan.tour_first = roster.ALLY
     assert scan.keys()[0] == ("ally", 0)
+
+
+def _entry(index=0):
+    return roster.RosterEntry(faction=roster.ENEMY, index=index, hp=1, en=2, mobility=3, lv=None)
+
+
+def test_a_detail_page_still_fading_in_is_read_again_not_halted_on(tmp_path, monkeypatch):
+    """0806 run 20260806-120326 的 enemy#16：淡入轉場中的半透明幀 classify 過得了
+    （字模形狀還在），陣營帶與 HP/EN/移動力卻一起讀成 None。"""
+    scan = build_scan(tmp_path, [])
+    readings = iter([None, _entry(16)])
+    monkeypatch.setattr(roster, "read_detail", lambda frame, index: next(readings))
+
+    found = scan.read_entry(roster.ENEMY, 16)
+
+    assert found == _entry(16)
+    assert _kinds(scan).count("detail_retry") == 1
+
+
+def test_a_detail_page_that_never_reads_clean_gives_up_after_three_tries(tmp_path, monkeypatch):
+    scan = build_scan(tmp_path, [])
+    monkeypatch.setattr(roster, "read_detail", lambda frame, index: None)
+
+    assert scan.read_entry(roster.ENEMY, 16) is None
+    assert _kinds(scan).count("detail_retry") == 3
+
+
+def test_half_read_numbers_are_retried_too_not_just_the_faction_band(tmp_path, monkeypatch):
+    """淡入吃掉的不只是陣營帶——同一張幀的數值欄一樣讀不出來，讀不齊就重來。"""
+    partial = roster.RosterEntry(faction=roster.ENEMY, index=16, hp=None, en=2, mobility=3)
+    readings = iter([partial, _entry(16)])
+    scan = build_scan(tmp_path, [])
+    monkeypatch.setattr(roster, "read_detail", lambda frame, index: next(readings))
+
+    assert scan.read_entry(roster.ENEMY, 16).complete
+    assert _kinds(scan).count("detail_retry") == 1
+
+
+def test_the_steady_gate_only_watches_the_region_it_was_given(tmp_path):
+    """面板用讀值區當尺，地圖用地圖區——區域外面的動靜不該把讀值卡住。"""
+    quiet = np.full((1080, 2340, 3), 60, np.uint8)
+    noisy = quiet.copy()
+    noisy[0:100, 0:2340] = 250
+    frames = iter([quiet, noisy, noisy])
+    scan = build_scan(tmp_path, [])
+    scan.camera = SimpleNamespace(grab=lambda: next(frames), keep=lambda label: None, shots=0)
+
+    scan.steady(scan_roster_jump.DETAIL_REGION)
+
+    assert "camera_unsteady" not in _kinds(scan)

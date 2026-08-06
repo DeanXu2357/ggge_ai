@@ -97,6 +97,12 @@ PANEL_CLOSERS: dict[str, tuple[int, int]] = {
     screens.BATTLE_MENU: entry.BATTLE_MENU_CLOSE_TAP,
 }
 
+# 詳情頁的讀值區（陣營帶＋數值欄都在裡面）。淡入轉場中整張泛白，字模形狀過得了
+# classify、顏色與筆畫卻全被稀釋（0806 run 20260806-120326 的 enemy#16：陣營帶紅色佔比
+# 0.000、HP/EN/移動力三個欄位一起讀成 None），所以讀值之前要先確認這一塊停下來了。
+DETAIL_REGION = (1100, 120, 700, 320)
+DETAIL_READ_ATTEMPTS = 3
+
 # 鏡頭落定的判準（0806 run 20260806-103335 量：同鏡位兩張 0.007-0.04，跳轉途中 0.15-0.37）。
 CAMERA_STEADY_FRACTION = 0.06
 CAMERA_STEADY_ATTEMPTS = 6
@@ -286,7 +292,7 @@ class Scan:
                 if frame is None:
                     self.journal.record("roster_end", faction=faction, index=index)
                     break
-                found = roster.read_detail(frame, index)
+                found = self.read_entry(faction, index)
                 self.camera.keep(f"roster:{faction}:{index}")
                 if found is None:
                     raise Halt(f"{faction}#{index} 的詳情頁讀不出陣營帶")
@@ -295,6 +301,28 @@ class Scan:
                 self.tap(roster.DETAIL_CLOSE_TAP, expect=screens.TROOP_INFO)
             self.close_panel()
         self.write_json("roster.json", [asdict(found) for found in self.entries])
+
+    def read_entry(self, faction: str, index: int) -> roster.RosterEntry | None:
+        """讀一台的詳情：先等這一頁畫完，讀不齊就重拍重讀。
+
+        `classify` 過了不代表畫完——淡入轉場中的半透明幀字模形狀還在，顏色與筆畫卻被
+        稀釋掉（0806 run 20260806-120326 的 enemy#16 就這樣把陣營帶與三個數值一起讀成
+        None，整輪 Halt 在第 16 台）。
+        """
+        best: roster.RosterEntry | None = None
+        for attempt in range(DETAIL_READ_ATTEMPTS):
+            found = roster.read_detail(self.steady(DETAIL_REGION), index)
+            if found is not None and found.complete:
+                return found
+            best = best or found
+            self.journal.record(
+                "detail_retry",
+                faction=faction,
+                index=index,
+                attempt=attempt + 1,
+                faction_band=found is not None,
+            )
+        return best
 
     def open_troop_info(self, faction: str) -> None:
         if not self.close_panels():
@@ -543,18 +571,21 @@ class Scan:
             self.sleep(PANEL_SETTLE_S)
         return False
 
-    def steady(self) -> np.ndarray:
-        """等畫面停下來再拍：連兩張的地圖區變化夠小才算鏡頭落定。"""
+    def steady(self, region: tuple[int, int, int, int] = board.UNIT_DENSITY_REGION) -> np.ndarray:
+        """等畫面停下來再拍：連兩張在 `region` 內的變化夠小才算落定。
+
+        地圖用它等跳轉的鏡頭，面板用它等淡入轉場——同一個問題（發出≠畫完），同一把尺。
+        """
         frame = self.camera.grab()
         moved = 1.0
         for _ in range(CAMERA_STEADY_ATTEMPTS):
             self.sleep(CAMERA_STEADY_WAIT_S)
             later = self.camera.grab()
-            moved = jumpscan.changed_fraction(frame, later)
+            moved = jumpscan.changed_fraction(frame, later, region)
             frame = later
             if moved < CAMERA_STEADY_FRACTION:
                 return frame
-        self.journal.record("camera_unsteady", moved=round(moved, 3))
+        self.journal.record("camera_unsteady", moved=round(moved, 3), region=list(region))
         return frame
 
     def own_marks(self, view: View, landing: np.ndarray) -> tuple[Cell, ...]:
