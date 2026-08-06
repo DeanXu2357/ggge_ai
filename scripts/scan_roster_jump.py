@@ -282,6 +282,8 @@ class Scan:
     node: tuple[int, int] | None = None
     expect_title: str | None = entry.DEFAULT_EXPECTED_TITLE
     tour_first: str = roster.ENEMY
+    # 人已把裝置帶到地圖上（我方回合）時的恢復模式：跳過選關/出擊閘門，直接從盤面前置開始。
+    from_map: bool = False
     sleep: Callable[[float], None] = time.sleep
     ledger: jumpscan.JumpLedger = field(default_factory=jumpscan.JumpLedger)
     entries: list[roster.RosterEntry] = field(default_factory=list)
@@ -310,14 +312,15 @@ class Scan:
         capture, tap, nap = self.camera.grab, self.device.tap, self.sleep
 
         self.begin("prepare")
-        self.gate(
-            "select",
-            entry.select_stage(
-                capture, tap, node=self.node, expect_title=self.expect_title, sleep=nap
-            ),
-        )
-        self.gate("prep", entry.open_sortie_prep(capture, tap, entry.GateReport(), sleep=nap))
-        self.gate("enter", entry.enter_stage(capture, tap, sleep=nap))
+        if not self.from_map:
+            self.gate(
+                "select",
+                entry.select_stage(
+                    capture, tap, node=self.node, expect_title=self.expect_title, sleep=nap
+                ),
+            )
+            self.gate("prep", entry.open_sortie_prep(capture, tap, entry.GateReport(), sleep=nap))
+            self.gate("enter", entry.enter_stage(capture, tap, sleep=nap))
         self.prepare_board()
         if self.end("prepare"):
             return
@@ -1354,6 +1357,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tour-first", choices=sorted(TOUR_ORDERS), default=roster.ENEMY)
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--run-dir", type=Path, default=None)
+    parser.add_argument("--from-map", action="store_true")
     return parser.parse_args()
 
 
@@ -1398,6 +1402,7 @@ def build(args: argparse.Namespace, journal: Journal) -> Scan:
         node=point(args.stage_node),
         expect_title=title(args.expect_title),
         tour_first=args.tour_first,
+        from_map=args.from_map,
     )
 
 

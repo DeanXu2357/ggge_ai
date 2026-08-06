@@ -229,6 +229,17 @@ def _near_edge(chain_end: int, edge: int | None, pitch: int) -> bool:
     return edge is not None and abs(chain_end - edge) < pitch * 0.5
 
 
+def _trim_ends(chain: list[int]) -> list[int]:
+    """端點種子的間距不合理就丟端點：貼界視角下頂帶／盤外常漏一條線或多抓一條
+    HUD 假線，只污染鏈的頭尾。中段不合理不修——那是整張讀壞，交給後面整張拒讀。"""
+    out = list(chain)
+    while len(out) >= 2 and not LINE_MIN_SPACING <= out[1] - out[0] <= 160:
+        out.pop(0)
+    while len(out) >= 2 and not LINE_MIN_SPACING <= out[-1] - out[-2] <= 160:
+        out.pop()
+    return out
+
+
 def read_frame_grid(frame: np.ndarray) -> FrameGrid:
     hp = _highpass(frame)
     col_seed = _seed_peaks(
@@ -244,6 +255,10 @@ def read_frame_grid(frame: np.ndarray) -> FrameGrid:
         gaps = [b - a for a, b in zip(chain, chain[1:])]
         return all(LINE_MIN_SPACING <= g <= 160 for g in gaps)
 
+    col_seed = _trim_ends(col_seed)
+    row_seed = _trim_ends(row_seed)
+    if len(col_seed) < 4 or len(row_seed) < 4:
+        raise GridUnreadable(f"seed too sparse (cols {len(col_seed)}, rows {len(row_seed)})")
     if not plausible(col_seed) or not plausible(row_seed):
         raise GridUnreadable("seed spacing implausible")
 

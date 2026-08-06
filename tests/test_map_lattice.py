@@ -366,3 +366,16 @@ def test_fingerprints_exclude_hud(images, lattices):
             assert not (hx <= cx <= hx + hw and hy <= cy <= hy + hh), (
                 f"cell ({i},{j}) centre falls in HUD hole"
             )
+
+
+def test_frame_grid_reads_west_edge_jump_frame():
+    """0807 run 20260807-004712: 跳轉落在西界時頂帶漏一條列種子（71→268 間距 197），
+    整張被判 seed spacing implausible，我方落幀全數 grid_unreadable。端點修剪後
+    這張要能讀出格網，且西側首欄仍在盤內（>=800，左半盤外星空不產生假欄）。"""
+    from ggge_ai.battle.map_grid import read_frame_grid
+
+    img = cv2.imread(str(GRID_DIR / "west_edge_jump_20260807.png"))
+    grid = read_frame_grid(img)
+    assert len(grid.cols) >= 8
+    assert len(grid.rows) >= 6
+    assert grid.cols[0] >= 800
