@@ -115,6 +115,15 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    螢幕像素座標，避免再被當成已驗證的世界座標用（本輪的錯誤正是從這裡長出來的）。
    常數 `UNIT_DENSITY_*` 不動。
 
+8. **視圖讀不出來一律重拍重讀，絕不沿用推鏡前那張。** 0806 第九輪實機第一台 march 就
+   CRASH：`pan()` 回 `None` 之後 `continue`，下一輪開頭 `bounded(view.grid, …)` 拿著
+   `None` 炸 `AttributeError`。修法是把「當前視圖」與「推鏡結果」分成兩個名字，迴圈開頭
+   看到 `None` 就 `Scan.look()` 重拍（journal `march_reread`），還是讀不出來才計 lost；
+   鏡頭已經動了，舊視圖的格號全部作廢，**沒有沿用這個選項**。同型路徑（`land()` 的乾淨
+   幀、`dismiss()` 的落點幀）一併補上重讀一次再放棄，`land()` 重讀後指定標示的比對改用
+   重讀那張幀（`land_reread`／`dismiss_reread`）。離線回歸：pan 連續 `None` 到
+   `MARCH_LOST_LIMIT` 應該記 `march_failed` 而不是 crash；重讀讀得出來就繼續走。
+
 ## 留給實機驗證
 
 - **`designation_cell` 的門檻沒有實幀證據**（`DESIGNATION_MIN_CHANGE=0.25`、

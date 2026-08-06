@@ -360,10 +360,14 @@ class Scan:
         self.camera.keep(f"{label}:{faction}:{index}:clean")
         view = self.view(clean)
         if view is None:
+            view = self.look()
+            self.journal.record("land_reread", key=list(key), ok=view is not None)
+        if view is None:
             self.journal.record("land_failed", key=list(key), reason="grid_unreadable")
             return (None, None, sig)
+        # 指定標示的比對一定要用**這張視圖自己的幀**：重讀過的話 clean 已經換人了。
         target = jumpscan.designation_cell(
-            landing, clean, view.centres, half=min(view.pitch) / 3.0
+            landing, view.frame, view.centres, half=min(view.pitch) / 3.0
         )
         self.journal.record(
             "landed",
@@ -472,7 +476,21 @@ class Scan:
         signature, marker = seeded
         legs: list[jumpscan.MarchLeg] = []
         lost = 0
+        current: View | None = view
         for _ in range(MARCH_LEGS):
+            if current is None:
+                # 推鏡之後讀不出格網：鏡頭已經動了，**不准沿用推鏡前的舊視圖**假裝沒動。
+                # 重拍重讀一次，還是讀不出來才計 lost。
+                current = self.look()
+                self.journal.record(
+                    "march_reread", key=list(key), axis=name, ok=current is not None
+                )
+                if current is None:
+                    lost += 1
+                    if lost >= MARCH_LOST_LIMIT:
+                        break
+                    continue
+            view = current
             if bounded(view.grid, direction):
                 world = jumpscan.march_world(target[axis], legs, border_cell=0)
                 self.journal.record(
@@ -480,12 +498,13 @@ class Scan:
                 )
                 return world
             before = marker[axis]
-            view = self.pan(direction)
-            if view is None:
+            current = self.pan(direction)
+            if current is None:
                 lost += 1
                 if lost >= MARCH_LOST_LIMIT:
                     break
                 continue
+            view = current
             point = board.find_marker(
                 view.frame, signature, holes=board.UNIT_DENSITY_HUD_HOLES
             )
@@ -573,6 +592,10 @@ class Scan:
         x1, y1, x2, y2 = board.pan_gesture(direction, origin, stroke)
         self.device.swipe(x1, y1, x2, y2, board.PAN_DURATION_S)
         self.journal.record("pan", direction=direction, reach=round(stroke, 1))
+        return self.look()
+
+    def look(self) -> View | None:
+        """重拍重讀一張視圖。讀不出格網就是 None——沒有「沿用上一張」這個選項。"""
         return self.view(self.camera.settled(board.PAN_SETTLE_S, self.sleep))
 
     # ---------- 解除 ----------
@@ -584,8 +607,12 @@ class Scan:
             return
         view = self.view(frame)
         if view is None:
+            # 落點幀讀不出格網可能只是轉場沒停穩：鏡頭沒動，重拍一張再試一次。
+            view = self.look()
+            self.journal.record("dismiss_reread", ok=view is not None)
+        if view is None:
             raise Halt("落點幀讀不出格網，挑不出解除用的空白格")
-        blank = self.blank_point(view, board.find_unit_screen_hints(frame))
+        blank = self.blank_point(view, board.find_unit_screen_hints(view.frame))
         if blank is None:
             self.journal.record("no_blank_cell", faction=faction)
             raise Halt("落點幀找不到任何空白格可以解除敵方指定")
