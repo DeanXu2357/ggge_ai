@@ -123,7 +123,8 @@ def test_a_pan_that_cannot_be_read_never_reaches_the_grid_as_none(tmp_path, monk
     monkeypatch.setattr(
         scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0), False)
     )
-    monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: None)
+    monkeypatch.setattr(scan.marcher, "pan", _landing_pan())
+    monkeypatch.setattr(scan, "view", lambda frame: None)
     monkeypatch.setattr(scan, "look", lambda: None)
 
     assert scan.march_axis(("ally", 0), _view(), (5, 5), 0, "west") == scan_roster_jump.AxisResult()
@@ -146,7 +147,8 @@ def test_an_unreadable_pan_recovers_on_the_reread_instead_of_giving_up(tmp_path,
     monkeypatch.setattr(
         scan, "carry_marker", lambda *a, **k: (marker, (3, 4), (900.0, 500.0), False)
     )
-    monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: None)
+    monkeypatch.setattr(scan.marcher, "pan", _landing_pan())
+    monkeypatch.setattr(scan, "view", lambda frame: None)
     monkeypatch.setattr(scan, "look", lambda: _view(bounded_grid))
 
     result = scan.march_axis(("ally", 0), _view(), (5, 5), 0, "west")
@@ -171,6 +173,7 @@ def test_the_panels_are_closed_layer_by_layer_before_any_menu_tap(tmp_path, clas
     classify(scan)
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+    scan.marcher.device = scan.device
 
     assert scan.close_panels() is True
     assert taps == [
@@ -218,6 +221,7 @@ def test_an_ally_that_did_not_enter_unit_move_is_left_alone(tmp_path, classify):
     classify(scan)
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+    scan.marcher.device = scan.device
 
     view, target = scan.land_ally(("ally", 0), np.zeros((4, 4, 3), np.uint8), "jump")
 
@@ -377,6 +381,17 @@ def _marker():
     return board.MarkerSignature(hsv=(100, 200, 200), tolerance=(5, 40, 40), size=(40.0, 40.0))
 
 
+def _landing_result(stroke=260.0):
+    """marchkit 的推鏡結果：手勢驗收過了（LANDED），驗收幀交回呼叫端。"""
+    return scan_roster_jump.marchkit.PanResult(
+        stroke, np.zeros((4, 4, 3), np.uint8), scan_roster_jump.sweep.PAN_LANDED, 1
+    )
+
+
+def _landing_pan(stroke=260.0):
+    return lambda direction, frame, reach=None: _landing_result(stroke)
+
+
 def test_the_marker_is_reseeded_at_the_frontier_before_every_pan(tmp_path, monkeypatch):
     """0806 run 20260806-130539：65 筆 march_lost，48 筆倒在第 2 把、16 筆倒在第 1 把
     ——一顆標記撐不了幾把推鏡。每一把都在前緣重種（sweep_scan carry_marker 的紀律）。"""
@@ -389,11 +404,12 @@ def test_the_marker_is_reseeded_at_the_frontier_before_every_pan(tmp_path, monke
     )
     pans: list[float] = []
 
-    def pan(direction, reach=0.0):
+    def pan(direction, frame, reach=None):
         pans.append(reach)
-        return None if len(pans) >= 2 else _view()
+        return _landing_result()
 
-    monkeypatch.setattr(scan, "pan", pan)
+    monkeypatch.setattr(scan.marcher, "pan", pan)
+    monkeypatch.setattr(scan, "view", lambda frame: None if len(pans) >= 2 else _view())
     monkeypatch.setattr(scan, "look", lambda: None)
     monkeypatch.setattr(scan_roster_jump.board, "find_marker", lambda *a, **k: None)
 
@@ -416,7 +432,8 @@ def _met_scan(tmp_path, monkeypatch, values, *, solved=("enemy", 9), world=(12, 
     monkeypatch.setattr(
         scan, "carry_marker", lambda *a, **k: (_marker(), (3, 4), (900.0, 500.0), False)
     )
-    monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: None)
+    monkeypatch.setattr(scan.marcher, "pan", _landing_pan())
+    monkeypatch.setattr(scan, "view", lambda frame: None)
     monkeypatch.setattr(scan, "look", lambda: None)
     scan.encounter = ((7, 2), values)
     return scan
@@ -531,8 +548,9 @@ def test_a_reseeded_marker_moves_the_odometer_but_carrying_the_old_one_does_not(
     monkeypatch.setattr(scan, "seed_marker", lambda *a, **k: (_marker(), (3, 4), (900.0, 500.0)))
     carried = iter([(_marker(), (1, 6), (900.0, 500.0), True)])
     monkeypatch.setattr(scan, "carry_marker", lambda *a, **k: next(carried, None))
-    monkeypatch.setattr(scan, "pan", lambda direction, reach=0.0: _view())
-    monkeypatch.setattr(scan_roster_jump.board, "find_marker", lambda *a, **k: (900.0, 500.0))
+    monkeypatch.setattr(scan.marcher, "pan", _landing_pan())
+    monkeypatch.setattr(scan, "view", lambda frame: _view())
+    monkeypatch.setattr(scan.marcher, "marker_point", lambda frame: (900.0, 500.0))
     seen: list[tuple[int, int]] = []
     monkeypatch.setattr(
         scan, "meet", lambda key, target_frame, axis, legs: seen.append(target_frame) or None
@@ -550,8 +568,9 @@ def test_the_stroke_is_capped_so_the_marker_cannot_be_pushed_out_of_view(tmp_pat
     scan = build_scan(tmp_path, [])
     view = _view()
 
-    near_edge = scan.stride(view, (2200.0, 500.0), "west")
-    room = scan.stride(view, (400.0, 500.0), "west")
+    pitch = view.pitch[0]
+    near_edge = scan.marcher.stride((2200.0, 500.0), "west", pitch, board.PAN_MAX_REACH)
+    room = scan.marcher.stride((400.0, 500.0), "west", pitch, board.PAN_MAX_REACH)
 
     assert near_edge < room
     assert near_edge >= scan_roster_jump.board.PAN_MIN_REACH
@@ -563,6 +582,7 @@ def test_the_frontier_seed_goes_west_when_the_camera_is_heading_west(tmp_path, m
     monkeypatch.setattr(screens, "read_roster_strip", lambda frame: screens.ROSTER_COLLAPSED)
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+    scan.marcher.device = scan.device
     monkeypatch.setattr(
         scan_roster_jump.jumpscan, "clean_points", lambda *a, **k: [(1800.0, 500.0), (300.0, 500.0)]
     )
@@ -585,6 +605,7 @@ def test_no_map_tap_happens_until_the_screen_is_confirmed_to_be_the_map(tmp_path
     monkeypatch.setattr(screens, "classify", scan.classified)
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+    scan.marcher.device = scan.device
 
     assert scan.seed_marker(_view(), toward="west") is None
     assert scan.confirm_occupied(_view(), (1170.0, 540.0)) is False
@@ -601,6 +622,7 @@ def test_an_expanded_card_strip_is_collapsed_before_any_map_tap(tmp_path, monkey
     monkeypatch.setattr(screens, "read_roster_strip", lambda frame: next(strips))
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+    scan.marcher.device = scan.device
 
     assert scan.ready_for_map_tap() is True
     assert taps == [screens.ROSTER_TOGGLE_TAP]
@@ -612,6 +634,7 @@ def test_the_return_button_is_never_tapped_on_the_plain_map(tmp_path, monkeypatc
     monkeypatch.setattr(screens, "classify", scan.classified)
     taps: list[tuple[int, int]] = []
     scan.device = SimpleNamespace(tap=lambda x, y, intent="": taps.append((x, y)))
+    scan.marcher.device = scan.device
 
     assert scan.leave_action_mode() is True
     assert taps == []

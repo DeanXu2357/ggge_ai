@@ -680,19 +680,52 @@ def window_offset(
 # ---------- 座標帳 ----------
 
 
+AXIS_BOOKED = "booked"
+AXIS_SAME = "same"
+AXIS_CONFLICT = "conflict"
+
+
 @dataclass
 class JumpLedger:
-    """逐台的座標帳：全部是絕對世界格，沒有相對座標這種半成品。"""
+    """逐台的座標帳：全部是絕對世界格，沒有相對座標這種半成品。
+
+    **帳是軸級的**：一軸推到界就立刻入帳，不必等同一趟把兩軸都湊齊。0806 run
+    20260806-210825 的 enemy#1（x=19 兩次一致）與 enemy#2（x=23 兩次一致）就是被
+    「一趟要兩軸都齊」的規則整台扔掉的——y 失敗就重試，重試又把已經量對的 x 重推一遍，
+    再失敗整台退場。兩軸齊了自動合成 cell 出帳。
+    """
 
     cells: dict[Key, Cell] = field(default_factory=dict)
     sources: dict[Key, str] = field(default_factory=dict)
     failures: dict[Key, int] = field(default_factory=dict)
     retired: set[Key] = field(default_factory=set)
+    axes: dict[Key, dict[int, int]] = field(default_factory=dict)
+    axis_conflicts: list[tuple[Key, int, int, int]] = field(default_factory=list)
 
     def anchor(self, key: Key, cell: Cell, source: str = SOURCE_MARCH) -> None:
         self.cells[key] = cell
         self.sources[key] = source
+        self.axes[key] = {0: cell[0], 1: cell[1]}
         self.failures.pop(key, None)
+
+    def record_axis(
+        self, key: Key, axis: int, value: int, source: str = SOURCE_MARCH
+    ) -> str:
+        """一軸的量測入帳。同台同軸再量到不一樣的值就記矛盾，**不覆寫**——兩個值都不可信，
+        沿用先到的那個並把矛盾攤在帳面上，別讓後到的悄悄改寫已經出去的座標。"""
+        booked = self.axes.setdefault(key, {})
+        if axis in booked:
+            if booked[axis] == value:
+                return AXIS_SAME
+            self.axis_conflicts.append((key, axis, booked[axis], value))
+            return AXIS_CONFLICT
+        booked[axis] = value
+        if len(booked) == 2 and key not in self.cells:
+            self.anchor(key, (booked[0], booked[1]), source)
+        return AXIS_BOOKED
+
+    def axis_of(self, key: Key, axis: int) -> int | None:
+        return self.axes.get(key, {}).get(axis)
 
     def fail(self, key: Key) -> int:
         self.failures[key] = self.failures.get(key, 0) + 1
@@ -737,17 +770,24 @@ def next_target(
 
 
 def ledger_report(ledger: JumpLedger, roster: Sequence[Key]) -> list[Mapping[str, object]]:
-    """最終座標帳。寫得出來的一律是絕對格；寫不出來就是 `unresolved`，不寫半成品。"""
+    """最終座標帳。`cell` 寫得出來的一律是絕對格，寫不出來就是 `unresolved`。
+
+    **單軸帳照實出**（`axes`）：只解出 x 的那台，x 是量到的絕對世界欄，下一輪回訪只要補
+    y 就好——把它丟掉等於每次回訪都從頭推一遍。`cell` 仍然只在兩軸齊了才寫，半成品不會
+    被當成座標讀。
+    """
     out: list[Mapping[str, object]] = []
     for faction, index in roster:
         key = (faction, index)
         cell = ledger.cells.get(key)
+        booked = ledger.axes.get(key, {})
         out.append(
             {
                 "faction": faction,
                 "index": index,
                 "cell": None if cell is None else [cell[0], cell[1]],
                 "source": ledger.sources.get(key, UNRESOLVED) if cell else UNRESOLVED,
+                "axes": {AXIS_NAMES[axis]: value for axis, value in sorted(booked.items())},
             }
         )
     return out
@@ -771,6 +811,31 @@ def red_fraction(frame: np.ndarray, centre: Point, half: float) -> float:
     return float(((red > 90) & (red > blue + 30) & (red > green + 30)).mean())
 
 
+# 界線本身有寬度，而且格心離界線半格就已經在界外了：往內縮這麼多像素才算「界內」。
+BORDER_MARGIN_PX = 4.0
+
+
+def inside_borders(
+    point: Point, borders: Mapping[str, float], *, margin: float = BORDER_MARGIN_PX
+) -> bool:
+    """這個格心在不在**看得見的界**以內。看不到的那一側不表態（不當界用）。
+
+    0806 run 20260806-210825 的 enemy#0：貼近西界時前緣排序把 col 0 排到最前面，
+    (0,2)-(0,5) 連環點下去全是 `none`——那幾格在地圖界外，點的是虛空。
+    """
+    west, east = borders.get("west"), borders.get("east")
+    north, south = borders.get("north"), borders.get("south")
+    if west is not None and point[0] < west + margin:
+        return False
+    if east is not None and point[0] > east - margin:
+        return False
+    if north is not None and point[1] < north + margin:
+        return False
+    if south is not None and point[1] > south - margin:
+        return False
+    return True
+
+
 def clean_points(
     frame: np.ndarray,
     centres: Iterable[Point],
@@ -780,6 +845,7 @@ def clean_points(
     red_half: float,
     region: Region = board.UNIT_DENSITY_REGION,
     inside: Region | None = None,
+    borders: Mapping[str, float] | None = None,
     red_max: float = RED_CELL_FRACTION,
     zones: Sequence[Region] = UI_EXCLUSION_ZONES,
     blocked: Callable[[Point], bool] = blocked_for_map_tap,
@@ -805,6 +871,8 @@ def clean_points(
             inside[0] <= point[0] <= inside[0] + inside[2]
             and inside[1] <= point[1] <= inside[1] + inside[3]
         ):
+            continue
+        if borders is not None and not inside_borders(point, borders):
             continue
         if any(
             abs(peak[0] - point[0]) <= keep_out and abs(peak[1] - point[1]) <= keep_out

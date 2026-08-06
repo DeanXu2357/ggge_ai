@@ -128,6 +128,63 @@ UI 遮罩、危險帶 intent、`JumpLedger`（改造成新帳形）。
    重讀那張幀（`land_reread`／`dismiss_reread`）。離線回歸：pan 連續 `None` 到
    `MARCH_LOST_LIMIT` 應該記 `march_failed` 而不是 crash；重讀讀得出來就繼續走。
 
+## 0806 第十八輪：抽出 `runtime/marchkit.py`（搬運不重寫）＋ run18 三修
+
+### 為什麼是重構而不是繼續補洞
+
+run18 的三個病（北推手勢被吞、貼界前緣格、軸級帳）在 `scripts/sweep_scan.py` 裡**都已經有
+十二輪驗證過的解**，而 `scan_roster_jump.py` 自己重寫了一套 pan／種標記，於是同樣的病重得一遍。
+所以先把機制抽成共用模組，再讓 roster_jump 換裝。**`sweep_scan.py` 本體這次不動**——等
+roster_jump 驗收過再回頭換裝，不同時動兩條線。
+
+### 搬了什麼（對應表）
+
+| `marchkit` | 搬自 `sweep_scan` | 內容 |
+| --- | --- | --- |
+| `Marcher.pan` | `SweepRun.pan` | 逐手勢驗收：標記像素位移為準、相位撐場、`legible_reach` 調行程、被吃就 `ensure_unlocked(force=True)` ＋原手勢重發、夾停與被吃分開、見界回行程 0 |
+| `Marcher.marker_point` | `SweepRun.marker_point` | 標記在這一幀的螢幕位置（未包裝的位移證人） |
+| `Marcher.marker_gone` | `SweepRun.drop_stale_marker` 的判準段 | 看不見就是沒了，不准拿幾何上的「應該在窗內」當證人 |
+| `Marcher.place_marker` | `SweepRun.carry_marker` 的驗收段 | `classify_tap` 回 `TAP_EMPTY` 才算數；`TAP_NONE` 重拍重點一次（原 `carry_failed`） |
+| `Marcher.stride` | `SweepRun.stride` | `sweep.stride_cap` ＋ `MARKER_KEEP_PITCH`，夾在 PAN_MIN/MAX 之間 |
+| `visible_borders` | `sweep.read_borders` 的呼叫點 | 這一幀目視到的終止邊 |
+
+**沒搬**（證據來自 sweep 自己的世界帳，換一個呼叫端沒有對應物）：`frontier_tap` 的候選挑選、
+`at_border` 的帳本佐證、`anchor_on_marker` 的世界重錨、`SweepLedger`／`offset` 那一整套。
+候選要點哪一格仍由呼叫端用自己的證據決定。
+
+**唯一的行為差異**：`sweep_scan.pan` 連吃到上限是 `raise Halt`，模組層改回
+`verdict=sweep.PAN_EATEN` 交給呼叫端裁決（掃描腳本要換下一台，不是整輪停手）。次數與重發
+內容不變；要原語意呼叫端自己 Halt 即可。離線測試逐條對應 `tests/test_sweep_scan.py` 的同名
+case，見 `tests/test_marchkit.py` 的檔頭。
+
+### `scan_roster_jump.py` 換裝
+
+刪掉自製的 `Scan.pan`／`Scan.stride`，`seed_marker` 的點擊驗收改掛 `place_marker`，
+`carry_marker`／march 迴圈的標記重認改掛 `marker_point`。`march_axis` 只剩業務邏輯：
+里程帳（`MarkerOdometer`）、順路結帳（`meet`）、每腿合理性（`leg_suspect`）、出帳守門
+（`audit_march`）。推鏡的驗收幀直接拿來當下一輪的視圖（`Scan.reread`），不再多拍一張。
+
+### run18 三修的落點
+
+1. **軸級持久化**：`JumpLedger.axes`／`record_axis`／`axis_of`，兩軸齊自動 `anchor`；
+   `Scan.book_axis` 記 `axis_booked`／`axis_conflict`（**不覆寫**）；`march()` 跳過已解的軸
+   （`axis_reused`），只在真的要推下一軸時才重新落地；`ledger_report` 多一個 `axes` 欄，
+   `coords.json` 多 `partial` 與 `axis_conflicts`。
+2. **手勢被吞**：交給 `marchkit` 的驗收鏈（解鎖檢查＋原樣重發＋PINNED/EATEN 分流），
+   `march_axis` 不再自己判 `moved==0`；被吃到上限記 `pan_eaten` 換下一台，夾停或見界不記腿
+   （沒有位移就沒有這一腿）。
+   **附帶查證**：北推的起手點紀律本來就是共用的——`board.pan_stroke` 已經用
+   `PAN_GESTURE_BOUNDS = (500,300,1340,530)` 篩掉行程會拉出安全框的起手點，北推實際落在
+   y 360-470、終點 620-730，離底部鈕列（y≥940）與 `UI_EXCLUSION_ZONES` 都有距離。所以
+   run18 的吞手勢**不是起手點壓在鈕上**，重發鏈才是對症的解。
+3. **界外前緣格**：`jumpscan.inside_borders` ＋ `clean_points(borders=…)`，`seed_marker` 傳
+   `sweep.read_borders(view.frame)`。看得見的那一側排除界外格，看不見的那一側不表態。
+
+### 坑冊
+
+`docs/live-loop-pitfalls.md`：十八輪定讞的坑逐條列（現象／根因／守則／證據），17 條。
+動實機迴圈的碼之前先讀那一份。
+
 ## 0806 第十七輪：run17 離線診斷的四項修理（run `20260806-173300`）
 
 run17 全程跑完（seed_marker 478、pan 248、escape_map 192、march_axis 39），使用者離線診斷

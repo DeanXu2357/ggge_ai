@@ -543,6 +543,57 @@ def test_unsolved_units_in_the_window_do_not_veto_a_match():
     assert fix.delta == (7, 3) and fix.matched == 2
 
 
+def test_one_axis_is_booked_the_moment_it_is_measured():
+    """0806 run 20260806-210825：enemy#1 的 x=19 量對了兩次，卻因為「一趟要兩軸都齊」
+    整台被丟掉。軸級帳一量到就進帳，回訪只補缺的那一軸。"""
+    ledger = jumpscan.JumpLedger()
+
+    assert ledger.record_axis(("enemy", 1), 0, 19) == jumpscan.AXIS_BOOKED
+    assert ledger.axis_of(("enemy", 1), 0) == 19
+    assert not ledger.resolved(("enemy", 1))
+
+    assert ledger.record_axis(("enemy", 1), 1, 4) == jumpscan.AXIS_BOOKED
+    assert ledger.cells[("enemy", 1)] == (19, 4)
+
+
+def test_measuring_the_same_axis_twice_the_same_way_is_not_news():
+    ledger = jumpscan.JumpLedger()
+    ledger.record_axis(("enemy", 1), 0, 19)
+
+    assert ledger.record_axis(("enemy", 1), 0, 19) == jumpscan.AXIS_SAME
+
+
+def test_a_second_measurement_that_disagrees_never_overwrites_the_first():
+    """兩個值都不可信：記矛盾、沿用先到的，別讓後到的悄悄改寫已經出去的座標。"""
+    ledger = jumpscan.JumpLedger()
+    ledger.record_axis(("enemy", 1), 0, 19)
+
+    assert ledger.record_axis(("enemy", 1), 0, 18) == jumpscan.AXIS_CONFLICT
+    assert ledger.axis_of(("enemy", 1), 0) == 19
+    assert ledger.axis_conflicts == [(("enemy", 1), 0, 19, 18)]
+
+
+def test_the_report_shows_a_half_solved_unit_as_axes_without_a_cell():
+    ledger = jumpscan.JumpLedger()
+    ledger.record_axis(("enemy", 1), 0, 19)
+    ledger.anchor(("enemy", 2), (23, 9), jumpscan.SOURCE_NEIGHBOR)
+
+    report = jumpscan.ledger_report(ledger, [("enemy", 1), ("enemy", 2)])
+
+    assert report[0]["cell"] is None and report[0]["axes"] == {"x": 19}
+    assert report[1]["cell"] == [23, 9] and report[1]["axes"] == {"x": 23, "y": 9}
+
+
+def test_a_cell_outside_a_visible_border_is_not_a_place_to_plant_a_marker():
+    """0806 run 20260806-210825 的 enemy#0：貼近西界時 col 0 連環 none——那些格在界外。"""
+    borders = {"west": 400.0}
+
+    assert not jumpscan.inside_borders((380.0, 500.0), borders)
+    assert jumpscan.inside_borders((460.0, 500.0), borders)
+    # 看不到的那一側不表態，不拿沒有的界當界用。
+    assert jumpscan.inside_borders((2200.0, 500.0), borders)
+
+
 def test_the_first_target_is_just_the_first_roster_entry():
     ledger = jumpscan.JumpLedger()
     keys = [("ally", index) for index in range(3)]
