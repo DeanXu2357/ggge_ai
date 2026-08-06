@@ -719,3 +719,15 @@ def test_the_range_marks_take_the_badges_and_leave_the_hud_bars():
 
     assert len(found) == 1
     assert abs(found[0][0] - 822) < 3 and abs(found[0][1] - 421) < 3
+
+
+def test_odometer_books_at_border_even_when_no_lines_enter_the_frame():
+    """0807 run 20260807-010146：貼北界推鏡時頂帶盲區讀不到新進的格線，幀內索引
+    合法地整把不動（legs 位移 0），stroke/pitch 期望值把正確的帳全判成 suspect。
+    里程計的同幀離散鏈不吃這個幾何：種標幀記格差、重種同幀換證人、見界幀
+    （雙訊號、index 0＝界）標記格＋格差＝世界格。"""
+    target = (3, 4)
+    odometer = jumpscan.MarkerOdometer.seeded((0, 1), target)
+    odometer = odometer.reseeded((0, 1), (1, 0))
+    assert odometer.target_frame((1, 0)) == (3, 4)
+    assert odometer.target_frame((1, 2))[1] == 6

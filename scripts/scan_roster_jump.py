@@ -947,6 +947,31 @@ class Scan:
             view = current
             hit, signals = at_border(view, direction)
             if hit:
+                # 出帳首選：里程計同幀離散鏈。種標幀記下「標記−目標」格差，之後每把
+                # 重種都在同一幀內換證人，見界幀的標記格＋格差＝目標世界格（雙訊號界
+                # =index 0）。整條鏈只吃「同幀 snap＋標記接力」，完全不依賴推鏡途中
+                # 頂帶盲區有沒有讀到新進的格線——貼界時幀內索引合法地不動，
+                # stroke/pitch 期望值只對盤中段成立，所以 legs 帳降級為 fallback。
+                # index 0＝界線的錨定只在**兩訊號同時成立**時可信：grid 的 bound 說
+                # rows[0]/cols[0] 就是界那條線（_near_edge 對過位置），終止邊佐證那是
+                # 真界不是 HUD 假脊。單訊號見界照樣收軸，但里程計不出帳（走 legs）。
+                anchored = signals["grid"] and signals["edge"]
+                spot_now = self.marcher.marker_point(view.frame)
+                mcell = None if spot_now is None else snap_cell(view.grid, spot_now)
+                if anchored and odometer is not None and mcell is not None:
+                    world = odometer.target_frame(mcell)[axis]
+                    self.journal.record(
+                        "march_axis",
+                        key=list(key),
+                        axis=name,
+                        legs=len(legs),
+                        world=world,
+                        pans=pans,
+                        suspect=suspect,
+                        reason="odometer",
+                        border=signals,
+                    )
+                    return AxisResult(world=world)
                 audit = jumpscan.audit_march(legs, pans, suspect=suspect)
                 world = jumpscan.march_world(target[axis], legs, border_cell=0)
                 self.journal.record(
