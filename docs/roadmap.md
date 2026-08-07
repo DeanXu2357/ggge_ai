@@ -4,7 +4,7 @@ CLAUDE.md 的開工／收工紀律綁這份檔案的暫停快照。`83fce1e` 刪
 doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況＋恢復點**——
 規格不寫在這裡（「程式碼就是規格」）。
 
-## 暫停快照（2026-08-07 上午，舊迭代 session 已停止；rjscan 去留與串流輸入評估中）
+## 暫停快照（2026-08-07 上午，舊迭代 session 已停止；rjscan 已刪除 `f4d0cc7`，串流輸入評估中）
 
 ### 恢復點
 
@@ -18,10 +18,15 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   填色驗收簽名。帳面小蟲：coords.json 重複鍵（enemy 6/7/9 名冊殘缺舊案）、
   2 筆 mistap（種標誤入 battle_weapon_select，安全逃脫）。③**方向轉換（使用者
   0807 裁示）**：rjscan（scan_roster_jump）評估去留——現版又慢又不穩，49 分鐘
-  一輪只落帳 12/28；下一步改輸入方式：**不再用 adb 截圖，研究串流擷取＋已驗證
-  的 sweep 版本**，本階段任務＝評估、確認改動範圍、研究實作方向。**恢復點**：
-  接續串流輸入評估結論落檔後再決定 rjscan 存廢與實作批次。裝置現況：UC 關卡
-  列表，全程棄戰資源零消耗。
+  一輪只落帳 12/28；使用者裁定**刪除**（`f4d0cc7`：腳本＋jumpscan/roster 模組
+  ＋名冊 intent 白名單收回；marchkit 保留給 sweep 接線；還原點 `46ffb06`）。
+  下一步改輸入方式：**不再用 adb 截圖，研究串流擷取＋已驗證的 sweep 版本**。
+  評估結論：擷取單點在 `runtime/device.py` `Adb.screencap()`＋sweep_scan 腳本內
+  `Camera`；`battle/frame_source.py` 的 FrameSource 是離線重放抽象，活體幀源
+  （最新穩定幀）待建。scrcpy 走現有 adb 授權免手機操作；候選＝scrcpy+v4l2loopback
+  （主機裝 kernel module）或 py-scrcpy-client。批次切法：抽共用 Camera→串流幀源
+  ＋幀差收斂 settle→sweep 實機對照 0805 run12 基準。**恢復點**：使用者裁決
+  串流方案後開實作批次。裝置現況：UC 關卡列表，全程棄戰資源零消耗。
 
 - **0806 深夜收攤（分支 `feat/sweep-nodes` 至 `6ec6c38`）**：①**裝置沒電關機**
   （23:0x USB 失聯,使用者確認是電量耗盡,已取走充電;非凍機）。充飽回線後注意
