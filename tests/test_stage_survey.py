@@ -10,7 +10,6 @@ import cv2
 import numpy as np
 import pytest
 
-from ggge_ai.contracts import Ending, HiddenPolicy, Objective, StageOrder
 from ggge_ai.runtime import board, coverage
 from ggge_ai.runtime.device import LiveExecutor
 from ggge_ai.runtime.journal import Journal
@@ -18,10 +17,6 @@ from ggge_ai.runtime.perceive import Observation
 from ggge_ai.sandbox.advise import Guarantee, Pricing
 from ggge_ai.runtime import screens
 from ggge_ai.stage.actions import Attack, CollapseRoster, ShowGrid, SurveyBoard, candidates
-from ggge_ai.stage.goals import Annihilation
-from ggge_ai.stage.loop import StageLoop, TickOutcome
-from ggge_ai.stage.planner import PlannerConfig, plan
-from ggge_ai.stage.run import JOURNAL_NAME
 from ggge_ai.stage.state import Phase, StageState, next_player_phase
 from ggge_ai.stage.survey import (
     DONE_STEP,
@@ -49,9 +44,10 @@ from ggge_ai.stage.survey import (
     survey_drivers,
 )
 from tests.fixtures.frames import load
-from tests.fixtures.stage_offline import MockAdvisor, ScriptedPerceiver, battle, frame
+from tests.fixtures.stage_offline import ScriptedPerceiver, battle, frame
 from tests.fixtures.synthetic_map import CORNER, World
 
+JOURNAL_NAME = "stage.jsonl"
 SERIES = Path(__file__).resolve().parent / "fixtures" / "vision" / "map_scan" / "ex2if_20260719"
 FREE = Pricing(1.0)
 ROSTER_EXPANDED_FRAME = "forecast/our_turn_unit_list_20260719"
@@ -186,25 +182,6 @@ def test_collapsing_the_roster_is_a_candidate_only_while_the_strip_is_open():
     assert "collapse_roster" not in [action.label for action in candidates(collapsed)]
 
 
-def test_the_planner_collapses_the_roster_before_the_survey():
-    state = battle(
-        allies=["a1"],
-        enemies=["e1"],
-        grid_on=False,
-        roster_collapsed=False,
-        board_synced=False,
-        known=["a1", "e1"],
-    )
-
-    labels = [
-        step.action.label
-        for step in plan(
-            state, Annihilation(), MockAdvisor(_survey_then_kill), PlannerConfig()
-        ).steps
-    ]
-
-    assert labels.index("collapse_roster") < labels.index("survey_board")
-    assert labels.index("show_grid") < labels.index("survey_board")
 
 
 def test_a_turn_boundary_makes_the_collapse_stale_again():
@@ -333,20 +310,6 @@ def test_both_board_actions_show_up_as_candidates_only_when_applicable():
     assert not {"show_grid", "survey_board"} & {action.label for action in candidates(done)}
 
 
-def test_the_planner_orders_show_grid_before_the_survey():
-    """規劃器自然排序：Advisor 不替沒同步盤面的攻擊背書，計畫就自己長出
-    開格線→掃描→攻擊。"""
-    state = battle(
-        allies=["a1"], enemies=["e1"], grid_on=False, board_synced=False, known=["a1", "e1"]
-    )
-
-    result = plan(state, Annihilation(), MockAdvisor(_survey_then_kill), PlannerConfig())
-
-    assert [step.action.label for step in result.steps] == [
-        "show_grid",
-        "survey_board",
-        "attack:a1->e1",
-    ]
 
 
 def test_a_turn_boundary_expires_the_board_sync():
@@ -865,131 +828,6 @@ def test_a_screen_with_no_symbolic_reading_passes_straight_through():
     assert perceiver.look().state is None
 
 
-def test_the_survey_action_stays_at_the_queue_head_across_ticks(tmp_path):
-    """佇列頭跨 tick 重入：畫面還沒說掃完，計畫就不彈。"""
-    unsynced = battle(allies=["a1"], enemies=["e1"], board_synced=False)
-    order = StageOrder(
-        stage="S01",
-        objectives=frozenset({Objective.CLEAR}),
-        hidden_policy=HiddenPolicy.DECLINE,
-        max_ticks=5,
-    )
-
-    performed: list[str] = []
-    executor = LiveExecutor(
-        device=FakeActuator(),
-        drivers={SurveyBoard: lambda action, observation: performed.append(action.label)},
-        sleep=lambda _: None,
-    )
-    loop = StageLoop(
-        order,
-        perceiver=ScriptedPerceiver([frame(unsynced), frame(unsynced), frame(unsynced)]),
-        executor=executor,
-        advisor=MockAdvisor(_survey_then_kill),
-        victory=Annihilation(),
-        journal=Journal(tmp_path / JOURNAL_NAME),
-    )
-
-    outcomes = [loop.tick().outcome for _ in range(3)]
-
-    assert outcomes == [TickOutcome.ACTED] * 3
-    assert performed == ["survey_board"] * 3
-    assert [step.action.label for step in loop.queue][0] == "survey_board"
-
-
-def test_a_reflex_can_interrupt_the_survey_and_it_carries_on(tmp_path):
-    from ggge_ai.runtime import screens
-    from ggge_ai.runtime.reflexes import UNIT_DETAIL_FIX, PopupReflex
-
-    unsynced = battle(allies=["a1"], enemies=["e1"], board_synced=False)
-    order = StageOrder(
-        stage="S01",
-        objectives=frozenset({Objective.CLEAR}),
-        hidden_policy=HiddenPolicy.DECLINE,
-        max_ticks=5,
-    )
-    frames = [
-        frame(unsynced),
-        Observation(screen=screens.UNIT_DETAIL),
-        frame(unsynced),
-        Observation(screen="battle_result", terminal=Ending.VICTORY),
-    ]
-    performed: list[str] = []
-    executor = LiveExecutor(
-        device=FakeActuator(),
-        drivers={SurveyBoard: lambda action, observation: performed.append("survey")},
-        sleep=lambda _: None,
-    )
-    loop = StageLoop(
-        order,
-        perceiver=ScriptedPerceiver(frames),
-        executor=executor,
-        advisor=MockAdvisor(_survey_then_kill),
-        victory=Annihilation(),
-        journal=Journal(tmp_path / JOURNAL_NAME),
-        reflexes=(PopupReflex("unit_detail", screens.UNIT_DETAIL, UNIT_DETAIL_FIX),),
-    )
-
-    outcomes = [loop.tick().outcome for _ in range(3)]
-
-    assert outcomes == [TickOutcome.ACTED, TickOutcome.REFLEX, TickOutcome.ACTED]
-    assert performed == ["survey", "survey"]
-
-
-def test_the_journal_records_the_board_symbols_every_tick(tmp_path):
-    unsynced = battle(allies=["a1"], enemies=["e1"], grid_on=False, board_synced=False)
-    order = StageOrder(
-        stage="S01",
-        objectives=frozenset({Objective.CLEAR}),
-        hidden_policy=HiddenPolicy.DECLINE,
-        max_ticks=2,
-    )
-    journal = Journal(tmp_path / JOURNAL_NAME)
-    loop = StageLoop(
-        order,
-        perceiver=ScriptedPerceiver([frame(unsynced)]),
-        executor=LiveExecutor(device=FakeActuator(), sleep=lambda _: None),
-        advisor=MockAdvisor(lambda current, action: None),
-        victory=Annihilation(),
-        journal=journal,
-    )
-
-    loop.tick()
-
-    seen = journal.entries()[0]["seen"]
-    assert seen["grid_on"] is False
-    assert seen["board_synced"] is False
-    assert "swept" not in seen
-
-
-def test_the_journal_gets_the_coverage_numbers_every_tick(tmp_path):
-    """規格要求逐 tick 記覆蓋率、待掃格聚類數、丟棄幀數與歸零次數。它們壓不成
-    搜尋鍵，所以走 evidence——迴圈本來就逐 tick 把 evidence 抄進流水帳。"""
-    ledger = CoverageLedger()
-    order = StageOrder(
-        stage="S01",
-        objectives=frozenset({Objective.CLEAR}),
-        hidden_policy=HiddenPolicy.DECLINE,
-        max_ticks=2,
-    )
-    journal = Journal(tmp_path / JOURNAL_NAME)
-    unsynced = battle(allies=["a1"], enemies=["e1"], board_synced=False)
-    loop = StageLoop(
-        order,
-        perceiver=SurveyPerceiver(ScriptedPerceiver([frame(unsynced)]), ledger),
-        executor=LiveExecutor(device=FakeActuator(), sleep=lambda _: None),
-        advisor=MockAdvisor(lambda current, action: None),
-        victory=Annihilation(),
-        journal=journal,
-    )
-
-    loop.tick()
-
-    survey = journal.entries()[0]["evidence"]["survey"]
-    assert set(survey) >= {"coverage", "clusters", "frontier", "unlocalised", "stance", "zeroings"}
-    assert survey["stance"] == coverage.ZERO
-    assert survey["zeroings"] == 0
-    assert survey["landmarks"] == {}
 
 
 @pytest.mark.parametrize(

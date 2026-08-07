@@ -6,20 +6,15 @@ import ast
 from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "src" / "ggge_ai"
-NEW_MODULES = ("__main__.py", "cli.py", "contracts.py", "strategy", "stage", "sandbox", "runtime")
+NEW_MODULES = ("contracts.py", "stage", "sandbox", "runtime")
 FROZEN = {
-    "agent",
     "domain",
-    "bot",
     "app",
     "sim",
-    "planner",
-    "goap",
     "vision",
     "battle",
     "perception",
     "actuation",
-    "content",
 }
 
 
@@ -50,9 +45,6 @@ def _imported_modules(path: Path) -> list[str]:
 def test_the_new_package_files_are_all_present():
     names = {path.relative_to(PACKAGE_ROOT).as_posix() for path in _new_files()}
 
-    assert "cli.py" in names
-    assert "strategy/htn.py" in names
-    assert "stage/loop.py" in names
     assert "sandbox/advise.py" in names
     assert "runtime/journal.py" in names
 

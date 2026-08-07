@@ -11,7 +11,6 @@ import cv2
 import numpy as np
 
 from ggge_ai.battle import vision
-from ggge_ai.content.stage_def import signature_distance
 
 
 def _blank_frame() -> np.ndarray:
@@ -90,25 +89,6 @@ def test_available_stances_ordering() -> None:
     assert menu.available_stances == ("dodge", "shield", "counter")
     disarmed = vision.ReactionStanceMenu(dodge=dodge, guard=None, counters=(dead,))
     assert disarmed.available_stances == ("dodge",)
-
-
-def test_signature_distance_semantics() -> None:
-    sig = vision.name_signature(_text_frame("GUNDAM"), vision.FORECAST_LEFT_NAME_REGION)
-    assert sig is not None
-    assert signature_distance(sig, sig) == 0
-    assert signature_distance(None, sig) == 64
-    assert signature_distance(sig, None) == 64
-    assert signature_distance(None, None) == 64
-
-
-def test_signature_is_shift_invariant_and_discriminative() -> None:
-    base = vision.name_signature(_text_frame("GUNDAM"), vision.FORECAST_LEFT_NAME_REGION)
-    shifted = vision.name_signature(
-        _text_frame("GUNDAM", origin=(604, 157)), vision.FORECAST_LEFT_NAME_REGION
-    )
-    other = vision.name_signature(_text_frame("ZAKU II"), vision.FORECAST_LEFT_NAME_REGION)
-    assert signature_distance(base, shifted) <= 4
-    assert signature_distance(base, other) > 10
 
 
 def test_signature_none_on_empty_band() -> None:

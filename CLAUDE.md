@@ -17,7 +17,7 @@
 ## 開發紀律
 
 - 小步提交；`uv run pytest -q` 與 `uv run ruff check src tests scripts`
-  全過才 commit。改 `battle/vision.py`、`battle/controller.py` 要附驗證
+  全過才 commit。改 `battle/vision.py`、`scripts/sweep_scan.py` 要附驗證
   證據（實機截圖或流水帳）。
 - 同一個問題連續兩次嘗試失敗就停下來問使用者，不要繼續瞎試。
 - 每次收工：更新 `docs/roadmap.md` 暫停快照（裝置現況＋恢復點）再 commit。
@@ -28,7 +28,7 @@
 - 截圖：`uv run python scripts/capture.py`（存 assets/screenshots/，gitignored）
 - 解鎖（系統鎖＋遊戲省電觸控鎖）：`uv run python scripts/ensure_unlocked.py`
 - 實機唯讀探針（畫面名／AUTO／格網／目擊）：`uv run python scripts/probe_live_channel.py`
-- 進場乾跑（分段停點＋掃描＋棄戰）：`uv run python scripts/dry_run_entry.py --stop-after …`
+- 完整掃描輪（進場＋sweep＋棄戰）：`uv run python scripts/sweep_scan.py`（分段停點 --stop-after …）
 - 面板解析驗證：`uv run python scripts/parse_panel.py <png> [--no-llm]`
 - 流水帳輸出：`data/runs/<時間戳>/`（gitignored）
 - 模板驗證：`scripts/verify_match.py`、裁切：`scripts/crop.py`

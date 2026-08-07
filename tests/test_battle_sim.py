@@ -1,4 +1,4 @@
-from ggge_ai.battle.actions import ActionKind
+from ggge_ai.sim.vocab import DecisionKind as ActionKind
 from ggge_ai.sim import (
     DEFAULT_PARAMS,
     Decision,
