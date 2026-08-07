@@ -32,9 +32,17 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   0805 run12 基準同級。過程雜訊：rezeroed 11、inference_retracted 176
   （候選峰不穩翻案重點，機制自行消化）、省電鎖多次觸發 keyguard 皆解。
   另：凍機案結案＝Linux adb 預設 USB backend bug，ADB_LIBUSB=1 根治
-  （記憶已更新）。**恢復點**：使用者裁決串流方案（scrcpy+v4l2loopback vs
-  py-scrcpy-client）後開實作批次。裝置現況：UC 關卡列表，全程棄戰資源
-  零消耗。
+  （記憶已更新）。**改善佇列（0807 驗證輪對帳定案）**：①跨窗候選峰不穩
+  ——candidates 模式首次實跑 230 筆 inference_retracted（193 格、220 筆
+  seen_again＝A 窗非候選 B 窗又是），只耗時不吃正確性（召回離線已證 100%）；
+  候選解法＝峰偵測穩定化或帶高亮/乾淨雙幀聯集。②candidates 提速未兌現
+  ——點擊 366（full 模式 498）反而 97 分 vs 79 分：翻案重點吃回節省＋省電鎖
+  多次打斷；先量化單 tap／單 screencap 往返成本再裁。③盲睡 settle
+  （PAN_SETTLE_S=1.5 等常數）＝節奏地板，歸串流批次的幀差收斂解。④省電鎖
+  打斷頻率偏高，keyguard 偵測時延也綁截圖往返，同歸串流改善。**恢復點**：
+  使用者裁決串流方案（scrcpy+v4l2loopback vs py-scrcpy-client）後開實作
+  批次；精簡續行中（舊代 uiautomator2 通道退場評估）。裝置現況：UC 關卡
+  列表，全程棄戰資源零消耗。
 
 ## 歷史里程碑（一行一批；全文見本檔 git 歷史 `66ce53c` 與 docs/decisions.md）
 
