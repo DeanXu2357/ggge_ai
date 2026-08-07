@@ -1,0 +1,722 @@
+{
+  "format": "sandbox-scenario/1",
+  "stage": "UC HARD 1",
+  "note": "佔位數值，武裝與能力值未經實機校對；敵方格位與 HP/EN 抄 assets/stage_truth/uc_hard_1.json（其中 16 台仍待字模校對）。情報庫依 HP/EN 分成數個同規格樣板，只為讓 max_hp 對得上真值。",
+  "board": {
+    "cols": 25,
+    "rows": 20
+  },
+  "rules": {},
+  "intel": {
+    "version": 1,
+    "roster": {
+      "ally_attacker_placeholder": {
+        "unit_id": "ally_attacker_placeholder",
+        "max_hp": 42000,
+        "en_max": 240,
+        "unit_attack": 3400.0,
+        "unit_defense": 2500.0,
+        "pilot_attack": 2600.0,
+        "pilot_defense": 2200.0,
+        "reaction": 2500.0,
+        "mobility": 1400.0,
+        "move_range": 5,
+        "weapons": [
+          {
+            "name": "ビームライフル（佔位）",
+            "power": 2400.0,
+            "range_min": 1,
+            "range_max": 2,
+            "en_cost": 15,
+            "accuracy": 0.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "shooting"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          },
+          {
+            "name": "ビームサーベル（佔位）",
+            "power": 2900.0,
+            "range_min": 1,
+            "range_max": 1,
+            "en_cost": 0,
+            "accuracy": 5.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "melee"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          }
+        ],
+        "skills": [],
+        "chance_steps_max": 1,
+        "support_attack_charges_max": 1,
+        "support_defend_charges_max": 0,
+        "has_shield": false,
+        "attack_shield": false,
+        "interception_reduction": 0.0,
+        "pilot_shooting": 2600.0,
+        "pilot_melee": 2700.0,
+        "pilot_awakening": 0.0,
+        "unit_lv": 1,
+        "pilot_lv": 1,
+        "pilot_sp": 60
+      },
+      "ally_support_placeholder": {
+        "unit_id": "ally_support_placeholder",
+        "max_hp": 48000,
+        "en_max": 300,
+        "unit_attack": 2900.0,
+        "unit_defense": 2900.0,
+        "pilot_attack": 2300.0,
+        "pilot_defense": 2500.0,
+        "reaction": 2400.0,
+        "mobility": 1100.0,
+        "move_range": 4,
+        "weapons": [
+          {
+            "name": "マシンガン（佔位）",
+            "power": 1900.0,
+            "range_min": 1,
+            "range_max": 2,
+            "en_cost": 8,
+            "accuracy": 5.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "shooting"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          },
+          {
+            "name": "ヒートロッド（佔位）",
+            "power": 2200.0,
+            "range_min": 1,
+            "range_max": 1,
+            "en_cost": 0,
+            "accuracy": 0.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "melee"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          }
+        ],
+        "skills": [
+          {
+            "kind": "skill_en_refill",
+            "amount": 120.0,
+            "uses": 1,
+            "ends_activation": true
+          }
+        ],
+        "chance_steps_max": 0,
+        "support_attack_charges_max": 1,
+        "support_defend_charges_max": 1,
+        "has_shield": true,
+        "attack_shield": false,
+        "interception_reduction": 0.0,
+        "pilot_shooting": 2300.0,
+        "pilot_melee": 2200.0,
+        "pilot_awakening": 0.0,
+        "unit_lv": 1,
+        "pilot_lv": 1,
+        "pilot_sp": 80
+      }
+    },
+    "stage": {
+      "enemy_placeholder_t1": {
+        "unit_id": "enemy_placeholder_t1",
+        "max_hp": 29265,
+        "en_max": 424,
+        "unit_attack": 3000.0,
+        "unit_defense": 2600.0,
+        "pilot_attack": 2400.0,
+        "pilot_defense": 2000.0,
+        "reaction": 2300.0,
+        "mobility": 1200.0,
+        "move_range": 4,
+        "weapons": [
+          {
+            "name": "射擊武裝（佔位）",
+            "power": 2200.0,
+            "range_min": 1,
+            "range_max": 2,
+            "en_cost": 10,
+            "accuracy": 0.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "shooting"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          },
+          {
+            "name": "格鬥武裝（佔位）",
+            "power": 2600.0,
+            "range_min": 1,
+            "range_max": 1,
+            "en_cost": 0,
+            "accuracy": 5.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "melee"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          }
+        ],
+        "skills": [],
+        "chance_steps_max": 0,
+        "support_attack_charges_max": 1,
+        "support_defend_charges_max": 0,
+        "has_shield": false,
+        "attack_shield": false,
+        "interception_reduction": 0.0,
+        "pilot_shooting": 2400.0,
+        "pilot_melee": 2400.0,
+        "pilot_awakening": 0.0,
+        "unit_lv": 1,
+        "pilot_lv": 1,
+        "pilot_sp": 0
+      },
+      "enemy_placeholder_t2": {
+        "unit_id": "enemy_placeholder_t2",
+        "max_hp": 61506,
+        "en_max": 510,
+        "unit_attack": 3000.0,
+        "unit_defense": 2600.0,
+        "pilot_attack": 2400.0,
+        "pilot_defense": 2000.0,
+        "reaction": 2300.0,
+        "mobility": 1200.0,
+        "move_range": 4,
+        "weapons": [
+          {
+            "name": "射擊武裝（佔位）",
+            "power": 2200.0,
+            "range_min": 1,
+            "range_max": 2,
+            "en_cost": 10,
+            "accuracy": 0.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "shooting"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          },
+          {
+            "name": "格鬥武裝（佔位）",
+            "power": 2600.0,
+            "range_min": 1,
+            "range_max": 1,
+            "en_cost": 0,
+            "accuracy": 5.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "melee"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          }
+        ],
+        "skills": [],
+        "chance_steps_max": 0,
+        "support_attack_charges_max": 1,
+        "support_defend_charges_max": 0,
+        "has_shield": false,
+        "attack_shield": false,
+        "interception_reduction": 0.0,
+        "pilot_shooting": 2400.0,
+        "pilot_melee": 2400.0,
+        "pilot_awakening": 0.0,
+        "unit_lv": 1,
+        "pilot_lv": 1,
+        "pilot_sp": 0
+      },
+      "enemy_placeholder_t3": {
+        "unit_id": "enemy_placeholder_t3",
+        "max_hp": 83811,
+        "en_max": 513,
+        "unit_attack": 3000.0,
+        "unit_defense": 2600.0,
+        "pilot_attack": 2400.0,
+        "pilot_defense": 2000.0,
+        "reaction": 2300.0,
+        "mobility": 1200.0,
+        "move_range": 4,
+        "weapons": [
+          {
+            "name": "射擊武裝（佔位）",
+            "power": 2200.0,
+            "range_min": 1,
+            "range_max": 2,
+            "en_cost": 10,
+            "accuracy": 0.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "shooting"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          },
+          {
+            "name": "格鬥武裝（佔位）",
+            "power": 2600.0,
+            "range_min": 1,
+            "range_max": 1,
+            "en_cost": 0,
+            "accuracy": 5.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "melee"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          }
+        ],
+        "skills": [],
+        "chance_steps_max": 0,
+        "support_attack_charges_max": 1,
+        "support_defend_charges_max": 0,
+        "has_shield": false,
+        "attack_shield": false,
+        "interception_reduction": 0.0,
+        "pilot_shooting": 2400.0,
+        "pilot_melee": 2400.0,
+        "pilot_awakening": 0.0,
+        "unit_lv": 1,
+        "pilot_lv": 1,
+        "pilot_sp": 0
+      },
+      "enemy_placeholder_t4": {
+        "unit_id": "enemy_placeholder_t4",
+        "max_hp": 109440,
+        "en_max": 750,
+        "unit_attack": 3000.0,
+        "unit_defense": 2600.0,
+        "pilot_attack": 2400.0,
+        "pilot_defense": 2000.0,
+        "reaction": 2300.0,
+        "mobility": 1200.0,
+        "move_range": 4,
+        "weapons": [
+          {
+            "name": "射擊武裝（佔位）",
+            "power": 2200.0,
+            "range_min": 1,
+            "range_max": 2,
+            "en_cost": 10,
+            "accuracy": 0.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "shooting"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          },
+          {
+            "name": "格鬥武裝（佔位）",
+            "power": 2600.0,
+            "range_min": 1,
+            "range_max": 1,
+            "en_cost": 0,
+            "accuracy": 5.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "melee"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          }
+        ],
+        "skills": [],
+        "chance_steps_max": 0,
+        "support_attack_charges_max": 1,
+        "support_defend_charges_max": 0,
+        "has_shield": false,
+        "attack_shield": false,
+        "interception_reduction": 0.0,
+        "pilot_shooting": 2400.0,
+        "pilot_melee": 2400.0,
+        "pilot_awakening": 0.0,
+        "unit_lv": 1,
+        "pilot_lv": 1,
+        "pilot_sp": 0
+      },
+      "enemy_placeholder_t5": {
+        "unit_id": "enemy_placeholder_t5",
+        "max_hp": 167817,
+        "en_max": 594,
+        "unit_attack": 3000.0,
+        "unit_defense": 2600.0,
+        "pilot_attack": 2400.0,
+        "pilot_defense": 2000.0,
+        "reaction": 2300.0,
+        "mobility": 1200.0,
+        "move_range": 4,
+        "weapons": [
+          {
+            "name": "射擊武裝（佔位）",
+            "power": 2200.0,
+            "range_min": 1,
+            "range_max": 2,
+            "en_cost": 10,
+            "accuracy": 0.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "shooting"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          },
+          {
+            "name": "格鬥武裝（佔位）",
+            "power": 2600.0,
+            "range_min": 1,
+            "range_max": 1,
+            "en_cost": 0,
+            "accuracy": 5.0,
+            "can_counter": true,
+            "map_weapon": false,
+            "blast": 0,
+            "ammo": 0,
+            "debuff_kind": null,
+            "debuff_magnitude": 0.0,
+            "categories": [
+              "melee"
+            ],
+            "crit_pct": 0,
+            "level": 1
+          }
+        ],
+        "skills": [],
+        "chance_steps_max": 0,
+        "support_attack_charges_max": 1,
+        "support_defend_charges_max": 0,
+        "has_shield": false,
+        "attack_shield": false,
+        "interception_reduction": 0.0,
+        "pilot_shooting": 2400.0,
+        "pilot_melee": 2400.0,
+        "pilot_awakening": 0.0,
+        "unit_lv": 1,
+        "pilot_lv": 1,
+        "pilot_sp": 0
+      }
+    }
+  },
+  "deployment": [
+    {
+      "uid": "e1",
+      "intel_id": "enemy_placeholder_t3",
+      "faction": "enemy",
+      "cell": [
+        9,
+        4
+      ],
+      "hp": 83811,
+      "en": 513
+    },
+    {
+      "uid": "e2",
+      "intel_id": "enemy_placeholder_t5",
+      "faction": "enemy",
+      "cell": [
+        18,
+        5
+      ],
+      "hp": 167817,
+      "en": 594
+    },
+    {
+      "uid": "e3",
+      "intel_id": "enemy_placeholder_t4",
+      "faction": "enemy",
+      "cell": [
+        6,
+        4
+      ],
+      "hp": 109440,
+      "en": 750
+    },
+    {
+      "uid": "e4",
+      "intel_id": "enemy_placeholder_t1",
+      "faction": "enemy",
+      "cell": [
+        16,
+        6
+      ],
+      "hp": 29265,
+      "en": 424
+    },
+    {
+      "uid": "e5",
+      "intel_id": "enemy_placeholder_t1",
+      "faction": "enemy",
+      "cell": [
+        20,
+        6
+      ],
+      "hp": 29265,
+      "en": 424
+    },
+    {
+      "uid": "e6",
+      "intel_id": "enemy_placeholder_t1",
+      "faction": "enemy",
+      "cell": [
+        15,
+        7
+      ],
+      "hp": 29265,
+      "en": 424
+    },
+    {
+      "uid": "e7",
+      "intel_id": "enemy_placeholder_t1",
+      "faction": "enemy",
+      "cell": [
+        17,
+        7
+      ],
+      "hp": 29265,
+      "en": 424
+    },
+    {
+      "uid": "e8",
+      "intel_id": "enemy_placeholder_t1",
+      "faction": "enemy",
+      "cell": [
+        19,
+        7
+      ],
+      "hp": 29265,
+      "en": 424
+    },
+    {
+      "uid": "e9",
+      "intel_id": "enemy_placeholder_t1",
+      "faction": "enemy",
+      "cell": [
+        21,
+        7
+      ],
+      "hp": 29265,
+      "en": 424
+    },
+    {
+      "uid": "e10",
+      "intel_id": "enemy_placeholder_t1",
+      "faction": "enemy",
+      "cell": [
+        13,
+        9
+      ],
+      "hp": 29265,
+      "en": 424
+    },
+    {
+      "uid": "e11",
+      "intel_id": "enemy_placeholder_t2",
+      "faction": "enemy",
+      "cell": [
+        23,
+        9
+      ],
+      "hp": 61506,
+      "en": 510
+    },
+    {
+      "uid": "e12",
+      "intel_id": "enemy_placeholder_t1",
+      "faction": "enemy",
+      "cell": [
+        12,
+        10
+      ],
+      "hp": 29265,
+      "en": 424
+    },
+    {
+      "uid": "e13",
+      "intel_id": "enemy_placeholder_t1",
+      "faction": "enemy",
+      "cell": [
+        13,
+        11
+      ],
+      "hp": 29265,
+      "en": 424
+    },
+    {
+      "uid": "e14",
+      "intel_id": "enemy_placeholder_t2",
+      "faction": "enemy",
+      "cell": [
+        23,
+        11
+      ],
+      "hp": 61506,
+      "en": 510
+    },
+    {
+      "uid": "e15",
+      "intel_id": "enemy_placeholder_t2",
+      "faction": "enemy",
+      "cell": [
+        23,
+        13
+      ],
+      "hp": 61506,
+      "en": 510
+    },
+    {
+      "uid": "e16",
+      "intel_id": "enemy_placeholder_t2",
+      "faction": "enemy",
+      "cell": [
+        15,
+        16
+      ],
+      "hp": 61506,
+      "en": 510
+    },
+    {
+      "uid": "e17",
+      "intel_id": "enemy_placeholder_t2",
+      "faction": "enemy",
+      "cell": [
+        17,
+        16
+      ],
+      "hp": 61506,
+      "en": 510
+    },
+    {
+      "uid": "e18",
+      "intel_id": "enemy_placeholder_t2",
+      "faction": "enemy",
+      "cell": [
+        19,
+        16
+      ],
+      "hp": 61506,
+      "en": 510
+    },
+    {
+      "uid": "a1",
+      "intel_id": "ally_attacker_placeholder",
+      "faction": "ally",
+      "cell": [
+        10,
+        17
+      ]
+    },
+    {
+      "uid": "a2",
+      "intel_id": "ally_attacker_placeholder",
+      "faction": "ally",
+      "cell": [
+        11,
+        17
+      ]
+    },
+    {
+      "uid": "a3",
+      "intel_id": "ally_support_placeholder",
+      "faction": "ally",
+      "cell": [
+        12,
+        17
+      ]
+    },
+    {
+      "uid": "a4",
+      "intel_id": "ally_support_placeholder",
+      "faction": "ally",
+      "cell": [
+        13,
+        17
+      ]
+    }
+  ],
+  "victory": {
+    "type": "annihilation"
+  },
+  "defeat": {
+    "type": "ally_annihilation"
+  },
+  "events": {}
+}
