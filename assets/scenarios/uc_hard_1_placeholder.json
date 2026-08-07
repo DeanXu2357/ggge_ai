@@ -1,7 +1,7 @@
 {
   "format": "sandbox-scenario/1",
   "stage": "UC HARD 1",
-  "note": "佔位數值，武裝與能力值未經實機校對；敵方格位與 HP/EN 抄 assets/stage_truth/uc_hard_1.json（其中 16 台仍待字模校對）。情報庫依 HP/EN 分成數個同規格樣板，只為讓 max_hp 對得上真值。",
+  "note": "佔位數值，武裝與能力值未經實機校對；敵方格位與 HP/EN、我方 10 台格位抄 assets/stage_truth/uc_hard_1.json（敵方 16 台仍待字模校對，我方格位取自第 12 輪 allies_session_note，屬出擊配置而非關卡內容）。情報庫依 HP/EN 分成數個同規格樣板，只為讓 max_hp 對得上真值。",
   "board": {
     "cols": 25,
     "rows": 20
@@ -680,8 +680,8 @@
       "intel_id": "ally_attacker_placeholder",
       "faction": "ally",
       "cell": [
-        10,
-        17
+        1,
+        3
       ]
     },
     {
@@ -689,8 +689,8 @@
       "intel_id": "ally_attacker_placeholder",
       "faction": "ally",
       "cell": [
-        11,
-        17
+        1,
+        5
       ]
     },
     {
@@ -698,17 +698,71 @@
       "intel_id": "ally_support_placeholder",
       "faction": "ally",
       "cell": [
-        12,
-        17
+        2,
+        2
       ]
     },
     {
       "uid": "a4",
+      "intel_id": "ally_attacker_placeholder",
+      "faction": "ally",
+      "cell": [
+        2,
+        6
+      ]
+    },
+    {
+      "uid": "a5",
       "intel_id": "ally_support_placeholder",
       "faction": "ally",
       "cell": [
-        13,
-        17
+        3,
+        4
+      ]
+    },
+    {
+      "uid": "a6",
+      "intel_id": "ally_attacker_placeholder",
+      "faction": "ally",
+      "cell": [
+        15,
+        10
+      ]
+    },
+    {
+      "uid": "a7",
+      "intel_id": "ally_attacker_placeholder",
+      "faction": "ally",
+      "cell": [
+        16,
+        11
+      ]
+    },
+    {
+      "uid": "a8",
+      "intel_id": "ally_support_placeholder",
+      "faction": "ally",
+      "cell": [
+        17,
+        9
+      ]
+    },
+    {
+      "uid": "a9",
+      "intel_id": "ally_attacker_placeholder",
+      "faction": "ally",
+      "cell": [
+        18,
+        11
+      ]
+    },
+    {
+      "uid": "a10",
+      "intel_id": "ally_support_placeholder",
+      "faction": "ally",
+      "cell": [
+        19,
+        10
       ]
     }
   ],

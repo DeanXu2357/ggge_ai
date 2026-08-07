@@ -23,7 +23,7 @@ def test_placeholder_scenario_builds_the_turn_one_board():
     state, rules, events = scenario.build()
 
     assert len(state.enemies()) == 18
-    assert len(state.allies()) == 4
+    assert len(state.allies()) == 10
     assert state.turn == 1
     assert state.phase is Faction.ALLY
     assert state.bounds == ((0, 0), (24, 19))
@@ -41,6 +41,16 @@ def test_placeholder_enemy_matches_the_verified_truth_row():
     assert (unit.en, unit.en_max) == (513, 513)
     assert unit.unit_id == "e1"
     assert unit.faction is Faction.ENEMY
+
+
+def test_placeholder_allies_stand_on_the_recorded_sortie_cells():
+    scenario = scenario_mod.load(PLACEHOLDER)
+    state, _rules, _events = scenario.build()
+
+    cells = {u.pos for u in state.allies()}
+
+    assert (2, 6) in cells
+    assert (17, 9) in cells
 
 
 def test_unknown_format_is_rejected(placeholder):

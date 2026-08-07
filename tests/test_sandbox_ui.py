@@ -30,7 +30,7 @@ def test_serialize_state_carries_board_and_units(built):
 
     assert payload["board"] == {"cols": 25, "rows": 20}
     assert (payload["turn"], payload["phase"], payload["outcome"]) == (1, "ally", None)
-    assert len(payload["units"]) == 22
+    assert len(payload["units"]) == 28
     enemy = next(u for u in payload["units"] if u["cell"] == [9, 4])
     assert (enemy["uid"], enemy["hp"], enemy["en_max"]) == ("e1", 83811, 513)
     assert {"name", "power", "range_min", "range_max", "en_cost", "accuracy", "ammo"} <= set(
@@ -65,5 +65,5 @@ def test_server_answers_the_state_endpoint(built):
         thread.join(timeout=5)
 
     assert payload["stage"] == "UC HARD 1"
-    assert len(payload["units"]) == 22
+    assert len(payload["units"]) == 28
     assert page.startswith("<!doctype html>")
