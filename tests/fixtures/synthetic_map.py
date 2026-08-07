@@ -115,7 +115,7 @@ def mark_world(survey: coverage.Survey, world: World) -> bool:
 def mark_frame(survey: coverage.Survey, frame: np.ndarray) -> np.ndarray | None:
     """實幀語料的同一件事：借真畫面的格線挑一格，把填色合成上去。
 
-    實機的填色像素還沒標定（`scripts/probe_marker.py` 就是去標它的），所以實幀案例
+    實機的填色像素還沒標定（由已除役的 probe_marker 探針標定），所以實幀案例
     只借真畫面的格網、終止邊與機體，填色本身是合成的。回傳蓋了填色的那一張。
     """
     spot = survey.marker_request()
