@@ -88,43 +88,25 @@ class DangerBand:
     name: str
     x: tuple[int, int]
     y: tuple[int, int]
-    intents: tuple[str, ...]
+    intents: tuple[str, ...] = ()
 
     def contains(self, x: int, y: int) -> bool:
         return self.x[0] <= x <= self.x[1] and self.y[0] <= y <= self.y[1]
 
 
-# 名冊（部隊資訊）是全螢幕面板，蓋在地圖與設定列上：面板開著的時候帶內那些鈕
-# 實際點不到，點下去命中的是名冊格／面板鈕。這兩個 intent 只由「面板已開」的流程
-# 發出（scan_roster_jump 的名冊格與詳情頁跳轉鈕），地圖裸露時發的 tap 一律不帶。
-ROSTER_CELL_INTENT = "roster_cell"
-ROSTER_JUMP_INTENT = "roster_jump"
-
 DANGER_BANDS: tuple[DangerBand, ...] = (
     # 設定頁 AUTO戰鬥 三選一的「全軍自動／他軍自動」半邊：踩到就把單位交給
-    # 內建 AI（紅線）。只放行名冊格——首列第 4、5 格 (1564,267)/(1843,267) 落在
-    # 帶內，但名冊面板蓋著設定列，那兩點打得到的只有名冊格。
-    DangerBand(
-        "auto_battle_tristate",
-        (1400, SCREEN[0]),
-        (245, 345),
-        intents=(ROSTER_CELL_INTENT,),
-    ),
-    # 戰鬥選單下排左半：放棄 (410,860) 與重試 (752,865)。只有棄戰流程進得去；
-    # 敵軍名冊第 4 列第 1 格 (729,847) 也落在帶內，同樣是面板蓋住的假重疊。
-    DangerBand(
-        "battle_menu_abandon",
-        (0, 900),
-        (825, 905),
-        intents=("abandon", ROSTER_CELL_INTENT),
-    ),
+    # 內建 AI（紅線）。
+    DangerBand("auto_battle_tristate", (1400, SCREEN[0]), (245, 345)),
+    # 戰鬥選單下排左半：放棄 (410,860) 與重試 (752,865)。只有棄戰流程進得去。
+    DangerBand("battle_menu_abandon", (0, 900), (825, 905), intents=("abandon",)),
     # 出擊準備下緣按鈕列最右的「自動編制」——一鍵改隊伍編成（bbox 1369-1624
-    # x 973-1047，0731 兩幀像素量測一致）。排好的編成不容許被覆蓋，只放行詳情頁的
-    # 跳轉鈕 (1372,995)——那顆畫在名冊詳情面板上，帶內的自動編制鈕點不到。左鄰「全部編制」(~1208,1010) 與各對話框通用關閉鈕位
+    # x 973-1047，0731 兩幀像素量測一致）。排好的編成不容許被覆蓋。
+    # 左鄰「全部編制」(~1208,1010) 與各對話框通用關閉鈕位
     # (~1170,993) 重疊，設帶會擋掉所有收彈窗的點——已知殘留風險，暫不設防。
     # 帶頂 970：舊武裝選擇槽位列 y=965 貼在帶外 5px；隱藏關「挑戰」(1404,977)
     # 落在鈕面內屬跨畫面固有重疊，該流程搬上 LiveDevice 時再裁。
-    DangerBand("auto_deploy", (1360, 1635), (970, 1055), intents=(ROSTER_JUMP_INTENT,)),
+    DangerBand("auto_deploy", (1360, 1635), (970, 1055)),
     # 右下角大圓鈕槽位跨畫面是不同東西：應戰 stance 選單上是「行動選擇」確認
     # (2037,930)、關卡列表上是「出擊準備」鈕的下半。裝置層看不到畫面名，整帶
     # 只放行刻意的確認——需要按的流程自己帶 intent，手滑一律擋掉。
