@@ -45,10 +45,24 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   （app/perception/actuation 整包）、capture/ensure_unlocked port 到
   runtime 通道實機驗證過、孤兒 fixtures/模板/ollama extra 清除；
   uiautomator2 依賴剩 sweep_scan pinch 單點（純 adb sendevent 替代可另評）。
-  精簡待裁三項：①roster_panels fixtures 39M＋extract_* 腳本＋panel 讀取
-  鏈是否還在 sweep 單流程用途內 ②manifest 模板工具鏈（verify_match/crop
-  ＋pyyaml 依賴）去留 ③本地 gitignored 大目錄 assets/run-shots 5.2G
-  （寫入者 app.py 已刪＝純死資料）與 assets/screenshots 2.7G 是否清理。
+  **精簡第三波（0807 午後）**：本地資料清理約 9G（run-shots 全刪、
+  screenshots 七月檔留 5 張測試樣本、runs 七月封存 183 檔、
+  review-repros／stress-test）；probe_marker＋overlay_lattice 刪
+  （`3df6e28`）；**sim/ 整包退場**（`2e1e8c2`，使用者裁決）——sandbox
+  為交戰引擎超集，tension／objective 不搬：MP 機制明定 C2 打表後於
+  sandbox 重做（mp-tension.md 檔頭）、估值屬 solver 職責（decisions.md
+  0807）。**docs 整理批（`62d3deb` 止）**：稽核 21 份→六份搬 archive
+  （module-map／2d-closeout-review／scan-v3-review／battle-settings-ui
+  ／ui-navigation-map／sweep-node-expansion）；ui-spec.md 成立；
+  live-loop-pitfalls 重寫 14 條規則體（每條附現行程式基質）；
+  battle-prep-ui／intel-data-spec／architecture 加現況註記。
+  **紀錄紀律（使用者 0807 指正，已入記憶）**：記錄裁示禁抽象化、用
+  顯式工程敘述原話優先；盤點類指示交報告為止、動工另拿授權。
+  待裁：①面板數字讀取鏈（parse_panel＋extract_*＋runtime 三模組＋
+  stage/intel*＋roster_panels 39M）與 assets/catalog 去留 ②manifest
+  工具鏈已判留（sweep_scan 現用 TemplateManifest）③data/cache 刪除
+  ④game-mechanics 三合一合併案 ⑤sweep as-built 規格補寫。
+  GitHub Issues 待程式進度再更新（使用者裁示）。
   裝置現況：UC 關卡列表，全程棄戰資源零消耗。
 
 ## 歷史里程碑（一行一批；全文見本檔 git 歷史 `66ce53c` 與 docs/decisions.md）
