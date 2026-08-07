@@ -312,6 +312,9 @@ class Scan:
         capture, tap, nap = self.camera.grab, self.device.tap, self.sleep
 
         self.begin("prepare")
+        # 閒置起跑的第一幀常常已經在省電暗屏底下：先強制解鎖再看畫面，不然閘門
+        # 讀的是壓暗幀（0807 run 20260807-012336 卡條讀不出來 Halt 的根因）。
+        self.device.ensure_unlocked(force=True)
         if not self.from_map:
             self.gate(
                 "select",

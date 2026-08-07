@@ -23,10 +23,11 @@ log = logging.getLogger(__name__)
 #   detector pokes the neutral spot and re-checks before trusting a dim
 #   iconless frame.
 LOCK_DRAG = "input swipe 1164 430 1164 60 350"
-# top-center hosts no interactive element on any battle screen (the
-# controller's NEUTRAL_TAP spot); on the faded overlay the tap is eaten and
-# only wakes the lock UI, on a genuine black transition frame it is inert
-LOCK_POKE = "input tap 1170 90"
+# (500,75) 落在回合橫幅／各頁標題帶：0807 實測 battle_map 點了毫無反應，單位移動
+# 模式也是標題死區。舊點 (1170,90) 是地圖頂帶格子——鎖在點下前一刻自行解除時，
+# 這一戳會直接選中頂帶單位（0807 run 20260807-012336 就這樣把 GQuuuuuuX 戳進
+# 行動模式）；在單位移動模式下更可能戳成真的移動。
+LOCK_POKE = "input tap 500 75"
 LOCK_POKE_SETTLE_S = 0.8
 
 GAME_LOCK_TEMPLATE = (
