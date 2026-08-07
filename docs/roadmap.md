@@ -23,10 +23,18 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   sweep_scan 腳本內 `Camera`；`battle/frame_source.py` 的 FrameSource 是離線
   重放抽象，活體幀源（最新穩定幀）待建。scrcpy 走現有 adb 授權免手機操作；
   候選＝scrcpy+v4l2loopback（主機裝 kernel module）或 py-scrcpy-client。
-  批次切法：抽共用 Camera→串流幀源＋幀差收斂 settle→sweep 實機對照 0805
-  run12 基準。**恢復點**：使用者裁決串流方案後開實作批次；另有「收斂到
-  sweep 單流程、刪舊堆疊」與「docs archive」兩案待使用者裁。裝置現況：
-  UC 關卡列表，全程棄戰資源零消耗。
+  批次切法：抽共用 Camera→串流幀源＋幀差收斂 settle→sweep 實機對照。
+  ⑤**收斂到 sweep 單流程（使用者裁決後執行）**：舊堆疊 130 檔 28.8k 行刪除
+  （`1791aee`，導覽 docs/reviews/sweep-convergence-prune.md）、被取代文件
+  16 檔搬 docs/archive/（`9726d49`）、roadmap compact、CLAUDE.md 同步。
+  **刪後實機驗證過關**（run `20260807-111734`，~75 分鐘完整輪）：敵 18/18
+  全中零錯帳、我方 10/10、四界全定、零 Halt、棄戰 ok 資源零消耗——能力與
+  0805 run12 基準同級。過程雜訊：rezeroed 11、inference_retracted 176
+  （候選峰不穩翻案重點，機制自行消化）、省電鎖多次觸發 keyguard 皆解。
+  另：凍機案結案＝Linux adb 預設 USB backend bug，ADB_LIBUSB=1 根治
+  （記憶已更新）。**恢復點**：使用者裁決串流方案（scrcpy+v4l2loopback vs
+  py-scrcpy-client）後開實作批次。裝置現況：UC 關卡列表，全程棄戰資源
+  零消耗。
 
 ## 歷史里程碑（一行一批；全文見本檔 git 歷史 `66ce53c` 與 docs/decisions.md）
 
