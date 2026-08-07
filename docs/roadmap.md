@@ -9,6 +9,15 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 
 ### 恢復點
 
+- **0807 sandbox 前端沙盤第一階段落地（`dd81d29`，分支 `feat/sweep-nodes`）**：
+  裁定入帳 decisions.md「（0807）sandbox 前端沙盤介面」條（B1 stdlib server／
+  C3 擲骰／D1 手動敵方先行／undo／佔位資料／分期）。已交付：
+  `sandbox/scenario.py`（sandbox-scenario/1 載入器＋`build()`＋`check_outcome`）、
+  `assets/scenarios/uc_hard_1_placeholder.json`（敵 18 台格位/HP/EN 抄真值、
+  樣板五份依 HP/EN 組合、我方 4 台自編佔位）、`scripts/sandbox_ui.py`
+  （唯讀盤面，`--scenario … --port 8642`，/api/state 已驗 18+4 與 [9,4] 真值）。
+  待辦：瀏覽器目視排版（唯一未驗項）、下一階段＝step 操作＋undo＋擲骰 C3、
+  敵我完整數值等使用者另分支的搜集功能。
 - **0807 上午收帳＋方向轉換（分支 `feat/sweep-nodes`，工作樹乾淨）**：
   ①**遺失 session 事故**：8/6 起的迭代 session 在 claude code／remote control 介面
   消失但程序仍在跑（持續發 DC 通知），已定位（transcript `13e3eb9f…`）並手動
