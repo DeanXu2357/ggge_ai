@@ -9,7 +9,6 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "src" / "ggge_ai"
 NEW_MODULES = ("contracts.py", "stage", "sandbox", "runtime")
 FROZEN = {
     "domain",
-    "sim",
     "vision",
     "battle",
 }

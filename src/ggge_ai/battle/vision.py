@@ -12,7 +12,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from ..sim import DefenseKind
+from ..sandbox.model import Stance as DefenseKind
 from ..vision import digits
 from ..vision.template import PREPROCESSORS
 

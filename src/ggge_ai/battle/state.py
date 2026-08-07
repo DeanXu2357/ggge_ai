@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from ..sim.vocab import Faction
+from ..sandbox.model import Faction
 
 if TYPE_CHECKING:
     from ..domain.roster import UnitCapability

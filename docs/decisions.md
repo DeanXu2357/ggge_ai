@@ -4,6 +4,16 @@
 選項、逐筆在此備案。使用者隨時可回查與推翻；被推翻的決策劃線保留
 不刪除。格式：日期｜情境｜選項｜採用與理由。
 
+## 2026-08-07
+
+- **（0807）sim/ 前代模擬器整包退場（使用者裁決）**｜sandbox/model 為交戰引擎
+  超集重寫（測試逐條超集、公式真值零遺失），sim 獨有物全屬已刪 solver 周邊｜
+  Faction／DefenseKind(→Stance) 兩處 import 切換值集合相同零破壞；objective.py
+  隨刪不搬（估值屬 solver 職責，掛 sandbox 是分層污染）——保留知識一條：
+  **Star1 剪枝的 terminal 回報值必須落在 Objective.bounds 內，否則剪枝 unsound**，
+  重建 solver 時必須重新履行。tension 佔位隨刪，處置見 mp-tension.md 檔頭註記
+  （使用者明定：C2 打表取得確定資料後於 sandbox 重做，不沿用舊佔位）。
+
 ## 2026-08-05
 
 - **候選過濾的 77% 召回不是門檻太緊，是真值與幀不同步——參數不動**
