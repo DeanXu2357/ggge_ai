@@ -1,6 +1,6 @@
 import numpy as np
 
-from ggge_ai.perception.base import Bbox, UiElement
+from ggge_ai.vision.types import Bbox, UiElement
 from ggge_ai.vision.base import ScreenCandidate
 from ggge_ai.vision.pipeline import RecognizerPipeline, Stage
 

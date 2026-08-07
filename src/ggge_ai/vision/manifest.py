@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from ..perception.base import Bbox, ScreenId
+from .types import Bbox, ScreenId
 from .template import Template, TemplateRecognizer, load_template
 
 MANIFEST_NAME = "manifest.yaml"

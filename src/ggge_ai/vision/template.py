@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from ..perception.base import Bbox, ScreenId, UiElement
+from .types import Bbox, ScreenId, UiElement
 from .base import Image, ScreenCandidate, TextResult
 
 

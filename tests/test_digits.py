@@ -1,6 +1,6 @@
 """Semantic contract of vision/digits.py.
 
-Accuracy on real captures is pinned by tests/fixtures/vision/digits/
+Accuracy on real captures is pinned by the synthetic strips below
 (test_vision_regression.py, check "digit_read"); these tests cover the
 API semantics on synthetic bands composed from the glyph templates
 themselves, which match at score 1.0 by construction.

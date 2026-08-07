@@ -6,7 +6,7 @@ from typing import Protocol
 
 import numpy as np
 
-from ..perception.base import Bbox, ScreenId, UiElement
+from .types import Bbox, ScreenId, UiElement
 
 Image = np.ndarray  # BGR, as produced by OpenCV
 

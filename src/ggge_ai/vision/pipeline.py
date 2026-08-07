@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from ..perception.base import Bbox, UiElement
+from .types import Bbox, UiElement
 from .base import Image, Recognizer, ScreenCandidate, TextResult
 
 

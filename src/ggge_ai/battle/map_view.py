@@ -21,7 +21,7 @@ import time
 from collections.abc import Callable
 
 from . import settings, vision
-from ..actuation.pinch import pick_pinch_center
+from ..runtime.zoom import pick_pinch_center
 
 log = logging.getLogger(__name__)
 
