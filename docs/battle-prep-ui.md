@@ -6,7 +6,11 @@
 
 - 座標一律**原圖像素**；證據截圖見 `tests/fixtures/vision/forecast/`（§8 對照表）。
 - 座標多為視覺估計，標「待像素精量」者接程式前需以像素定位收斂。
-- 機制知識（§7）為使用者口述並經確認，屬 sim/solver 建模需求，非畫面標定。
+- 機制知識（§7）為使用者口述並經確認，屬沙盤／戰術層建模需求，非畫面標定。
+
+> 現況註記（2026-08-07）：讀取器（§2–§6 的 `battle/vision.py` 各函式）
+> 與 fixture 全數在樹上仍為權威；文中提及的 controller／tracker／sim
+> solver 執行接線已隨舊堆疊刪除，該類敘述保留為「重建時的需求」。
 
 ## 1. 畫面家族與識別
 
@@ -14,7 +18,7 @@
 |---|---|---|---|
 | 戰鬥準備 **-攻擊-** | 我方主動攻擊 | False | 我方選攻擊，敵方反擊 |
 | 戰鬥準備 **-應戰-** | 敵方主動攻擊我方 | True | 敵方攻，我方選應戰 stance |
-| **技能** | 攻擊/應戰中點技能按鈕 | — | 額外行動（buff/特殊），sim 未建模 |
+| **技能** | 攻擊/應戰中點技能按鈕 | — | 額外行動（buff/特殊），沙盤未建模 |
 
 `is_reaction` 判斷來源＝標題 -攻擊- vs -應戰-（`vision.is_battle_prep_reaction`）。
 
@@ -22,11 +26,9 @@
 
 - **陣營固定：右面板＝我方、左面板＝敵方**（與機種背景無關，攻擊與應戰皆然，
   已用 EN 消耗＋傷害 delta 交叉驗證）。
-  - vision `attacker`＝左面板＝**敵方**、`defender`＝右面板＝**我方**。
-  - controller `_choose_reaction_stance` 把 `attacker_name_sig` 當 enemy、
-    `defender_name_sig` 當 "ally" 解析 → **方向正確**。
-  - `tracker.on_battle_prep` 舊碼假設 -攻擊- 時左面板是我方 → **左右反貼**，
-    2026-07-19 晚已改固定映射（左恆敵、右恆我）並補測試。
+  - vision `attacker`＝左面板＝**敵方**、`defender`＝右面板＝**我方**
+    （固定映射左恆敵、右恆我；歷史上曾有假設「-攻擊- 時左面板是我方」
+    的左右反貼錯誤，7/19 定讞修正——重建消費者時勿再犯）。
 - **中央攻擊/反擊數值**：上排＝主動方傷害、下排＝被動反擊方傷害（位置固定）。
   - **顏色＝陣營色（藍＝我方動作、紅＝敵方動作），不固定於攻擊/反擊**：
     -攻擊- 時藍「攻擊」(我)＋紅「反擊」(敵)；-應戰- 時紅「攻擊」(敵)＋藍「反擊」(我)。
@@ -67,32 +69,33 @@
 ### 支援攻擊
 - 支援候選頭像排在主攻①/反擊②的**左側**；系統自動判參加與否、**無手動選擇 UI**
   （顯示「不參加」或參戰編號）。場上支援單位頭頂標「不參加」/武裝名。
-- 同時最多 3 個支援攻擊（本例 3 候選），佐證 `sim` `max_support_attackers=3`。
+- 同時最多 3 個支援攻擊（本例 3 候選），佐證沙盤 `max_support_attackers=3`。
 - 攻擊值隨支援疊加（例 163188 無支援 → 169729 +1 支援）。
 
 ### 支援反擊（應戰時）
 應戰情境我方也可有支援單位反擊：頭像順序＝①敵攻 → ②**支援反擊**（我方支援機）
 → ③被攻擊單位反擊（reaction_support_counter，命中 100/100/82）。頭像②行動類型
 標「支援反擊」（攻擊時的對應是「支援攻擊」）。支援機不列入頂部兩面板（只主交戰雙方）。
-**注意：支援反擊＝友軍多反擊一次（對應 sim 防守方 support_attack pool），
+**注意：支援反擊＝友軍多反擊一次（對應沙盤防守方 support_attack pool），
 ≠ `support_defense`（友軍替被攻擊者擋傷）——後者仍未取得畫面。**
 
 **但書：反擊階段觸發依賴被攻擊主單位存活**——①敵攻若擊殺③主單位，整個反擊階段
-取消、②支援反擊也不觸發（雖②結算在③前）。**sim 已正確建模**（`core.py:873`
-`if response is not None and target.alive:` 把 ②support_attack 齊射與 ③COUNTER 都圈在
-target 存活條件內，target 死則全跳過；core.py:38-43 註解 confirmed），此塊無需改。
-對 solver：我方主單位會被①秒時 counter 無效，應改防禦/閃避保命。
+取消、②支援反擊也不觸發（雖②結算在③前）。**沙盤已正確建模**
+（`sandbox/model.py` 把支援齊射與反擊都圈在 target 存活條件內，target 死則
+全跳過），此塊無需改。對戰術層：我方主單位會被①秒時 counter 無效，應改
+防禦/閃避保命。
 
 ### 支援防禦 support_defense（reaction_support_defense）
 應戰時我方友軍（interceptor）替被攻擊主單位**擋傷**（≠支援反擊的多打一次）。
 視覺信號：主單位面板出現**盾圖示「支援防禦」**標籤、右側疊第二個 interceptor 面板、
 底部頭像列有「支援防禦」頭像（盾圖示、**無攻擊序號**，插在①敵攻與②主單位反擊之間）、
 場上 interceptor 標「支援防禦」。→ vision 偵測盾圖示「支援防禦」標籤即 `support_defense=True`。
-機制吻合 sim interceptor（`core.py:842-846`，`struck=interceptor`）；interceptor 承受傷害
-是否已含 shield/defend 減免待與 sim 對照。順序：①敵攻 → 支援防禦(擋傷、主單位免傷) → ②主單位反擊。
+機制吻合沙盤 interceptor（`sandbox/model.py find_attack_shield`，齊射全打在
+攔截者身上）；interceptor 承受傷害是否已含 shield/defend 減免待與沙盤對照。
+順序：①敵攻 → 支援防禦(擋傷、主單位免傷) → ②主單位反擊。
 
 **互斥規則（使用者口述）**：被攻擊單位選 **defend/shield 時不能**接受支援防禦（自己擋）；
-只有選 **dodge/counter** 才能疊 support_defend。→ solver 枚舉須據此排除無效組合（見 §9）。
+只有選 **dodge/counter** 才能疊 support_defend。→ 戰術層枚舉須據此排除無效組合（見 §9）。
 
 ## 4. 應戰 stance UI（S9d 核心）
 
@@ -105,8 +108,8 @@ target 存活條件內，target 死則全跳過；core.py:38-43 註解 confirmed
 [武器N]…[武器2][武器1][防禦][閃避]   ← 右起：閃避、防禦為固定錨點
   └── 反擊武器往左、數量不定、等間距 pitch≈170
 ```
-- `DefenseKind`（`sim/core.py:108`，＝`available_stances` 值域＝`REACTION_OPTION_TAPS` key）：
-  `none / dodge / defend / shield / counter`。
+- stance 值域（`sandbox/model.py Stance`，`battle/vision.py` 以 `DefenseKind`
+  別名使用）：`none / dodge / defend / shield / counter`。
 - 選單各鈕 → stance 對應：
   - 閃避 → **dodge**（動作列最右錨點）
   - 防禦 → **defend**（無盾機體）或 **shield**（有盾機體，鈕標「防禦（盾牌）」），閃避左一格錨點；見下效果
@@ -182,9 +185,9 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
   空槽＝灰斜線。
 - 每技能：圖示＋SP 消耗；右上效果卡（例「攻擊爆裂 LV2：對敵損傷+10%（1回合）」）；
   底部「SKILL SP」資源條；右下綠色「發動」鈕（~2042,924）。
-- 技能＝額外行動（buff/特殊），**sim 尚未建模**，未來擴充。
+- 技能＝額外行動（buff/特殊），**沙盤尚未建模**，未來擴充。
 
-## 7. 戰鬥機制與策略（sim/solver 建模需求，使用者口述並確認）
+## 7. 戰鬥機制與策略（沙盤／戰術層建模需求，使用者口述並確認）
 
 ### forecast 傷害是保守下界（實際結算 ≥ 預覽）
 - **各階段獨立計算、不串聯前階段 debuff**：支援攻擊①若降敵防禦，forecast 的主攻②
@@ -192,8 +195,8 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
   實機卻擊殺**。
 - **暴擊**：非 100% 必暴時 forecast 用**非暴擊值**；只有必暴武裝才算暴擊傷害、可能顯示 KILL。
 - **KILL 字樣＝確定擊殺（可信）；無 KILL ≠ 打不死**。
-- 對 sim：KILL 可信；無 KILL 的殘血敵**不可判「打不死」**；sim 要自己串聯降防/暴擊；
-  reconcile 遇「sim 預測擊殺 vs forecast 殘血」＝forecast 保守，非 sim 錯。
+- 對沙盤：KILL 可信；無 KILL 的殘血敵**不可判「打不死」**；沙盤要自己串聯降防/暴擊；
+  對帳遇「沙盤預測擊殺 vs forecast 殘血」＝forecast 保守，非沙盤錯。
 
 ### 敵方 AI 應戰決策（保命邏輯）
 - 我方攻擊敵方、敵方選應戰時，若「反擊會死、防禦能活」→ 敵方**選防禦保命** → 打不死。
@@ -201,17 +204,17 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
 - **敵方 AI 依 forecast 下界判斷是否防禦** → 欺敵手段：
   - **賭暴擊**：用「下界不死、上界(暴擊)死」的武裝，敵方看下界判安全→選反擊→暴擊擊殺。
   - **支援降防**：敵方看未串聯降防的預覽判安全→選反擊→降防串聯後擊殺。
-- 對 solver：`enemy_model` 要建模敵方防禦決策；`solver` 選攻擊＝博弈——下界就 KILL
+- 對戰術層（重建需求）：要建模敵方防禦保命決策；選攻擊＝博弈——下界就 KILL
   反而逼敵防禦（可能打不死），刻意選「下界不 KILL、上界/降防才 KILL」騙敵反擊再擊殺。
-  sim 要能表達「下界 vs 上界傷害」與敵方 policy 的互動（不只單一期望傷害）。
+  沙盤要能表達「下界 vs 上界傷害」與敵方 policy 的互動（不只單一期望傷害）。
 
 ### 先攻（先發攻擊）
 部分機體（**主要防禦型**）的武裝有**先攻特性**：在原結算順序外**額外一個先攻 queue**，
 帶先攻武裝排最前結算；雙方都有先攻則都入先攻 queue，無先攻的照原順序（①②③）。
 視覺標記＝頭像**上方橘色「先發攻擊」標籤**（reaction_first_strike，本例①支援反擊帶先攻
 被排到最前）。戰術：先攻搶殺敵方攻擊者 → 敵攻不觸發（連上「①殺主單位取消反擊」）。
-**sim 缺口**：`core.py` 結算順序（攻擊方→反擊方，core.py:24-43）**無先攻 queue** 概念
-（core.py:28 的「first strike」是 interception 第一擊、非此），改程式要加。先攻＝武裝內容。
+**沙盤缺口**：`sandbox/model.py` 結算順序（攻擊方→反擊方）**無先攻 queue**
+概念，改程式要加。先攻＝武裝內容。
 
 > 紅線提醒：降防效果的有無/數值、暴擊率是**內容**，須從武裝面板讀（見
 > memory `llm-perception-unit-info`），不可寫死。
@@ -250,8 +253,8 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
 - ~~`available_stances`~~ → `vision.read_reaction_stance_menu`：dodge 圖示定錨、
   defend/shield 雙模板判別、EN 黃字數武器槽、V 閘門判可用；回傳各 stance 的
   tap 座標（`ReactionStanceMenu`/`StanceOption`），即「錨點+pitch 相對定位」的
-  機制實體。**controller 已接線（待實機驗證）**：`REACTION_OPTION_TAPS` 固定表
-  已刪除，`_choose_reaction_stance` 流程＝算術定位我方頭像槽
+  機制實體。**執行接線（原 controller 實作已刪，流程留作重建藍本）**：
+  算術定位我方頭像槽
   （`vision.defender_avatar_slot`：頭像列置中 963/pitch200 → token 數＋盾標籤
   ＋奇偶約束唯一解出最右槽；顏色環偵測在藍水面地圖會誤判、棄用）→ tap 開選單
   （已開則跳過）→ 讀選單 → `advise_reaction`（allowed_stances=選單集合）→
@@ -262,21 +265,22 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
 - ~~`hit_pct` region~~ → `vision.read_avatar_hits` 頭像列掃描＋`hit` 字型（缺 '3'）；
   ~~defender_hp OCR~~ → hud `6_c` 變體；中央攻/反值另修 `attack` 專用字型。
 - ~~`support_defense`~~ → `label_support_defense.png` 標籤偵測（-應戰- 回 bool；
-  -攻擊- 敵側標籤未標定、維持 None）。interceptor 承受傷害的減免語意仍待與 sim 對照。
+  -攻擊- 敵側標籤未標定、維持 None）。interceptor 承受傷害的減免語意仍待與沙盤對照。
 - ~~各鈕座標像素精量~~ → 動作列/頭像列已精量（§3/§4）；行動選擇/返回鈕仍為估計。
 - 迴歸：15 個新 fixture JSON（7 forecast 全欄位＋4 stance 選單＋4 拒讀負樣本）、
   520 tests 全綠。開放假設：SHORT 可用性 V 閘門（§4）待 S10 實戰驗證。
 
-**sim/solver**
+**沙盤／戰術層（重建需求清單；前代 solver/enemy_model 已刪）**
 - forecast 保守下界語意接進擊殺判定（KILL 可信、無 KILL 不可判打不死）。
-- `enemy_model` 建模敵方防禦保命決策。
-- `solver` 下界/上界博弈選攻擊（欺敵）。
+- 敵方防禦保命決策建模；下界/上界博弈選攻擊（欺敵）。
 - 降防串聯、暴擊上界建模；降防/暴擊率從武裝面板當內容讀。
-- **support_defend 枚舉修正**：`solver.py:110-112`／`enemy_model.py:128-132` 對每個 stance
-  都配 `support_defend=True` → 須排除 defend/shield（互斥，只配 dodge/counter；none 待確認）。
-- **先攻 queue 建模**：帶先攻特性的武裝優先於一般順序結算（雙方先攻同入先攻 queue）；
-  sim 目前無此概念（core.py:24-43）。先攻＝武裝內容、從面板讀。
-- 單位啟動順序：hub 可選**任意**可行動單位（非 UI 左到右）→ solver 規劃啟動序列、
-  controller 直接點對應卡條（對照現 pilot advise+list reorder，可省 reorder）。
+- **support_defend 枚舉互斥**：defend/shield 不可配支援防禦（只配
+  dodge/counter；none 待確認）——前代 solver 曾對每個 stance 都配
+  `support_defend=True`，重建勿再犯。
+- **先攻 queue 建模**：帶先攻特性的武裝優先於一般順序結算（雙方先攻
+  同入先攻 queue）；`sandbox/model.py` 目前無此概念。先攻＝武裝內容、
+  從面板讀。
+- 單位啟動順序：hub 可選**任意**可行動單位（非 UI 左到右）→ 戰術層
+  規劃啟動序列、執行層直接點對應卡條。
 - 單位詳細資料入口（點頂部橫幅）＝戰鬥中 intel 來源，可接進感知（buff/能力/武裝，敵我雙方）。
 - 技能為未來擴充。
