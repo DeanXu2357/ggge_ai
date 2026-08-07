@@ -41,8 +41,15 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
   （PAN_SETTLE_S=1.5 等常數）＝節奏地板，歸串流批次的幀差收斂解。④省電鎖
   打斷頻率偏高，keyguard 偵測時延也綁截圖往返，同歸串流改善。**恢復點**：
   使用者裁決串流方案（scrcpy+v4l2loopback vs py-scrcpy-client）後開實作
-  批次；精簡續行中（舊代 uiautomator2 通道退場評估）。裝置現況：UC 關卡
-  列表，全程棄戰資源零消耗。
+  批次。精簡第二波完成（`a8c772f`）：舊代 uiautomator2 通道退場
+  （app/perception/actuation 整包）、capture/ensure_unlocked port 到
+  runtime 通道實機驗證過、孤兒 fixtures/模板/ollama extra 清除；
+  uiautomator2 依賴剩 sweep_scan pinch 單點（純 adb sendevent 替代可另評）。
+  精簡待裁三項：①roster_panels fixtures 39M＋extract_* 腳本＋panel 讀取
+  鏈是否還在 sweep 單流程用途內 ②manifest 模板工具鏈（verify_match/crop
+  ＋pyyaml 依賴）去留 ③本地 gitignored 大目錄 assets/run-shots 5.2G
+  （寫入者 app.py 已刪＝純死資料）與 assets/screenshots 2.7G 是否清理。
+  裝置現況：UC 關卡列表，全程棄戰資源零消耗。
 
 ## 歷史里程碑（一行一批；全文見本檔 git 歷史 `66ce53c` 與 docs/decisions.md）
 
