@@ -7,10 +7,30 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 規格不寫在這裡（「程式碼就是規格」）。舊快照全文在本檔的 git 歷史
 （最後完整版 `66ce53c`），設計裁決在 docs/record/decisions.md。
 
-## 暫停快照（2026-08-07 上午，舊迭代 session 已停止；rjscan 已刪除 `f4d0cc7`，串流輸入評估中）
+## 暫停快照（2026-08-09 凌晨，分支 feat/stream-input；串流＋full 實測 59.8 分完整輪創紀錄）
 
 ### 恢復點
 
+- **0809 歸因三修＋實測蓋章（`e694d3c`）**：①串流成效歸帳定案——20260808-184706
+  的 83 分＝掃描本體 40 分＋尾局退化 43 分（roster 總驗連兩敗殺早收→追 15 格
+  結構性點不到→南北乒乓 132 把耗盡 tap 預算），詳 decisions.md 0809 條。
+  ②三修入庫：`--filter-mode` 預設退回 full／PAN_BARREN_LIMIT=40 無產出推鏡
+  保險絲（水位＝已裁決格數，補 strandings 只數 reroot 的盲區）／settle 耗時
+  入帳（SettleReport observe，journal `settle` 事件 ctx=nav/feedback）。
+  ③**實測 run 20260809-011740（串流＋full＋max-taps 900）：全程 59.8 分**、
+  敵 18/18、我方 10/10、unsure 1（[7,15] no_feedback）、462 空格全點擊背書、
+  四界全定、零 Halt、零保險絲觸發、16 次 reroot 全自癒、棄戰 abandon:ok。
+  歷史對照（同關全程壁鐘）：152346 全格截圖 120 分／111734 candidates+roster
+  截圖 96 分／184706 candidates 串流 83 分退化未完。**注意：roadmap 舊載
+  「run 12＝79 分」與 152346 流水帳（116 分掃描）對不上，79 分數字來源不明，
+  基準以流水帳為準**。④settle 量測實錘：nav（poll 0.5s）813 次僅 49% 收斂、
+  均 2.89s、**全程共燒 39.2 分＝最大剩餘成本**；feedback（poll 0.15s）554 次
+  97% 收斂、均 0.57s。下一刀＝nav settle 降 poll／ROI 化，估可再砍 20-30 分。
+  ⑤新發現兩缺口：東緣 col-24 九格本輪結構性點不到（窗邊切格、152346 曾點到
+  ——疑 zoom/pitch 差異，待查）；跨午夜 `date_changed` 彈窗分類器認得但進場鏈
+  無人處理（本輪手動排除：前往主畫面→登入獎勵×N→公告關閉→出擊面板回關卡列表）。
+  ⑥裝置現況：R5CRC37JBYJ 停在 uc 系列 stage_list，游標位置＝uc_hard_1
+  （node 544,667 本輪驗證有效；660,650 已飄到 uc_hard_2）。
 - **0807 sandbox 前端沙盤第一階段落地（`dd81d29`，分支 `feat/sweep-nodes`）**：
   裁定入帳 decisions.md「（0807）sandbox 前端沙盤介面」條（B1 stdlib server／
   C3 擲骰／D1 手動敵方先行／undo／佔位資料／分期）。已交付：
