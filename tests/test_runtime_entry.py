@@ -629,6 +629,49 @@ def test_a_drifted_cursor_gets_one_retry_then_halts_instead_of_fighting_hard_2()
     assert screen.points() == [(544, 667), (544, 667)]
 
 
+def stage_list_sliding_in(case: str, offset: int) -> np.ndarray:
+    """滑入動畫中的右欄：標題整條往右偏 offset，尾碼還沒到位。"""
+    frame = stage_list_showing(case)
+    x, y, w, h = TITLE_BOX
+    band = frame[y : y + h, x : x + w].copy()
+    frame[y : y + h, x : x + w] = np.roll(band, offset, axis=1)
+    return frame
+
+
+def test_a_title_still_sliding_in_is_never_the_frame_the_gate_judges():
+    """0808 串流：取幀 11ms 全落在滑入動畫窗，位移中的標題模板 0.244 讀成 None，
+    連兩輪 stage_title:wrong_stage Halt。判定幀只准取動畫收斂之後的那一張。"""
+    clock = FakeClock()
+    sliding = stage_list_sliding_in(STAGE_LIST_HARD_1, 55)
+    titled = stage_list_showing(STAGE_LIST_HARD_1)
+    screen = Screen([load(STAGE_LIST), sliding, sliding, titled, titled])
+
+    assert screens.read_stage_title(sliding) is None
+
+    report = entry.select_stage(
+        screen.capture, screen.tap, node=(544, 667), sleep=clock.sleep, now=clock.now
+    )
+
+    assert report.ok, report.trail
+    assert report.trail == ("stage_list:ok", "stage_title:ok", "stage_node:ok")
+    assert screen.points() == [(544, 667)]
+
+
+def test_a_title_that_never_settles_still_gives_the_budget_back_instead_of_spinning():
+    clock = FakeClock()
+    screen = Screen(
+        [load(STAGE_LIST)]
+        + [stage_list_sliding_in(STAGE_LIST_HARD_1, 55 + 55 * (step % 2)) for step in range(60)]
+    )
+
+    report = entry.select_stage(
+        screen.capture, screen.tap, node=(544, 667), sleep=clock.sleep, now=clock.now
+    )
+
+    assert "stage_title:wrong_stage" in report.trail
+    assert clock.t >= entry.STAGE_TITLE_SETTLE_S
+
+
 def test_a_title_that_comes_right_on_the_second_tap_is_accepted():
     screen = Screen(
         [

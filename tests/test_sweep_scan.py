@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import board, sweep
+from ggge_ai.runtime import board, settle, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.journal import Journal
 from scripts.sweep_scan import (
@@ -303,8 +303,8 @@ def test_the_settle_spends_the_sweep_budget_before_it_hands_back_a_frame(tmp_pat
     frame = run.settled()
 
     assert frame.shape == _blank().shape
-    assert now[0] >= sweep.SETTLE_WAIT_S
-    assert naps == [sweep.SETTLE_POLL_S] * int(sweep.SETTLE_WAIT_S / sweep.SETTLE_POLL_S)
+    assert now[0] >= settle.SETTLE_WAIT_S
+    assert naps == [settle.SETTLE_POLL_S] * int(settle.SETTLE_WAIT_S / settle.SETTLE_POLL_S)
 
 
 def test_a_lost_camera_re_anchors_at_the_corner_before_any_clearing_resumes(tmp_path):

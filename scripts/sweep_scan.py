@@ -38,7 +38,7 @@ import numpy as np
 from ggge_ai.battle import faction as faction_mod
 from ggge_ai.battle import map_view, vision
 from ggge_ai.battle.state import Faction
-from ggge_ai.runtime import board, entry, screens, sweep, zoom
+from ggge_ai.runtime import board, entry, screens, settle, sweep, zoom
 from ggge_ai.runtime.device import Adb, LiveDevice, LiveExecutor
 from ggge_ai.runtime.journal import Journal, rotate_runs
 from ggge_ai.runtime.keyguard import Keyguard
@@ -1289,12 +1289,12 @@ class SweepRun:
         return board.find_marker(frame, self.signature, holes=board.UNIT_DENSITY_HUD_HOLES)
 
     def settled(self) -> np.ndarray:
-        return sweep.await_still(
+        return settle.await_still(
             self.camera.grab,
             clock=self.clock,
             sleep=self.sleep,
-            deadline=self.clock() + sweep.SETTLE_WAIT_S,
-            poll=sweep.SETTLE_POLL_S,
+            deadline=self.clock() + settle.SETTLE_WAIT_S,
+            poll=settle.SETTLE_POLL_S,
         )
 
     def abandon(self) -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import board, sweep
+from ggge_ai.runtime import board, settle, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.device import DangerBand
 
@@ -866,36 +866,36 @@ def test_the_wait_holds_until_the_glide_stops_before_it_hands_back_a_frame():
         [_blank_frame(), _stirred(100_000), _stirred(200_000), landed]
     )
 
-    frame = sweep.await_still(
-        grab, clock=clock, sleep=sleep, deadline=sweep.SETTLE_WAIT_S, poll=sweep.SETTLE_POLL_S
+    frame = settle.await_still(
+        grab, clock=clock, sleep=sleep, deadline=settle.SETTLE_WAIT_S, poll=settle.SETTLE_POLL_S
     )
 
     assert frame is landed
-    assert naps == [sweep.SETTLE_POLL_S] * 3
-    assert now[0] < sweep.SETTLE_WAIT_S
+    assert naps == [settle.SETTLE_POLL_S] * 3
+    assert now[0] < settle.SETTLE_WAIT_S
 
 
 def test_a_frame_that_never_goes_quiet_is_handed_back_at_the_deadline():
     grab, sleep, clock, naps, now = waiting([_blank_frame(), _stirred(100_000)] * 20)
 
-    frame = sweep.await_still(
-        grab, clock=clock, sleep=sleep, deadline=sweep.SETTLE_WAIT_S, poll=sweep.SETTLE_POLL_S
+    frame = settle.await_still(
+        grab, clock=clock, sleep=sleep, deadline=settle.SETTLE_WAIT_S, poll=settle.SETTLE_POLL_S
     )
 
     assert frame.shape == _blank_frame().shape
-    assert now[0] >= sweep.SETTLE_WAIT_S
-    assert naps == [sweep.SETTLE_POLL_S] * int(sweep.SETTLE_WAIT_S / sweep.SETTLE_POLL_S)
+    assert now[0] >= settle.SETTLE_WAIT_S
+    assert naps == [settle.SETTLE_POLL_S] * int(settle.SETTLE_WAIT_S / settle.SETTLE_POLL_S)
 
 
 def test_a_screen_that_is_already_still_costs_one_poll():
     grab, sleep, clock, naps, now = waiting([_blank_frame(), _blank_frame()])
 
-    sweep.await_still(
-        grab, clock=clock, sleep=sleep, deadline=sweep.SETTLE_WAIT_S, poll=sweep.SETTLE_POLL_S
+    settle.await_still(
+        grab, clock=clock, sleep=sleep, deadline=settle.SETTLE_WAIT_S, poll=settle.SETTLE_POLL_S
     )
 
-    assert naps == [sweep.SETTLE_POLL_S]
-    assert now[0] == sweep.SETTLE_POLL_S
+    assert naps == [settle.SETTLE_POLL_S]
+    assert now[0] == settle.SETTLE_POLL_S
 
 
 def test_a_camera_sliding_moves_far_more_pixels_than_the_stable_threshold():
@@ -906,12 +906,12 @@ def test_a_camera_sliding_moves_far_more_pixels_than_the_stable_threshold():
     idle[500:520, 600:620] = 255  # 一隻精靈的待機動畫
     slid = np.roll(still, 60, axis=1)  # 鏡頭滑一段
 
-    assert sweep.frame_motion(still, idle) < sweep.SETTLE_STABLE_DIFF
-    assert sweep.frame_motion(still, slid) > sweep.SETTLE_STABLE_DIFF * 10
+    assert settle.frame_motion(still, idle) < settle.SETTLE_STABLE_DIFF
+    assert settle.frame_motion(still, slid) > settle.SETTLE_STABLE_DIFF * 10
 
 
 def test_a_frame_of_another_shape_counts_as_all_motion():
-    assert sweep.frame_motion(_blank_frame(), np.zeros((540, 1170, 3), np.uint8)) == 1.0
+    assert settle.frame_motion(_blank_frame(), np.zeros((540, 1170, 3), np.uint8)) == 1.0
 
 
 def test_the_judgement_only_ever_sees_frames_that_have_settled():
