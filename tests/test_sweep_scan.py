@@ -13,7 +13,18 @@ import pytest
 from ggge_ai.runtime import board, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.journal import Journal
-from scripts.sweep_scan import STRANDINGS_LIMIT, Halt, SweepRun, load_target
+from scripts.sweep_scan import (
+    FEEDBACK_POLL_S,
+    FEEDBACK_WAIT_S,
+    SETTLE_POLL_S,
+    SETTLE_STABLE_DIFF,
+    SETTLE_WAIT_S,
+    STRANDINGS_LIMIT,
+    Halt,
+    SweepRun,
+    frame_motion,
+    load_target,
+)
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 
@@ -188,6 +199,106 @@ def test_the_loop_refuses_to_tap_a_cell_while_the_camera_is_lost(tmp_path):
 
     with pytest.raises(sweep.Adrift):
         run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+
+def real_tap_run(tmp_path, verdicts: list[str]) -> tuple[SweepRun, list[float], list[float]]:
+    """真的 tap_cell＋假時鐘：裁決結果寫成一串答案，睡多久記在流水上。"""
+    run = build_run(tmp_path, {})
+    run.tap_cell = SweepRun.tap_cell.__get__(run)
+    naps: list[float] = []
+    now = [0.0]
+    run.sleep = lambda seconds: (naps.append(seconds), now.__setitem__(0, now[0] + seconds))[0]
+    run.clock = lambda: now[0]
+    answers = iter(verdicts)
+    run.classify = lambda *args, **kwargs: sweep.TapOutcome(next(answers, verdicts[-1]))
+    return run, naps, now
+
+
+def test_the_tap_polls_until_the_feedback_shows_up(tmp_path):
+    run, naps, now = real_tap_run(
+        tmp_path, [sweep.TAP_NONE, sweep.TAP_NONE, sweep.TAP_EMPTY]
+    )
+
+    outcome = run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    assert outcome.verdict == sweep.TAP_EMPTY
+    assert naps == [run.tap_interval, FEEDBACK_POLL_S, FEEDBACK_POLL_S]
+    assert now[0] < FEEDBACK_WAIT_S
+
+
+def test_the_tap_gives_up_on_feedback_at_the_deadline(tmp_path):
+    run, naps, now = real_tap_run(tmp_path, [sweep.TAP_NONE])
+
+    outcome = run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    assert outcome.verdict == sweep.TAP_NONE
+    assert now[0] >= FEEDBACK_WAIT_S
+    assert sum(naps) == pytest.approx(now[0])
+
+
+def _stirred(pixels: int) -> np.ndarray:
+    """在全黑幀上點亮一片：與 _blank() 相比就有 `pixels` 個「明顯變了」的像素。"""
+    frame = _blank()
+    frame.reshape(-1, 3)[:pixels] = 255
+    return frame
+
+
+def settle_run(tmp_path, frames: list[np.ndarray]) -> tuple[SweepRun, list[float], list[float]]:
+    """真的 settled()＋假時鐘：幀序列排好，最後一張耗盡就一直回它。"""
+    run = build_run(tmp_path, {})
+    del run.settled
+    served = iter(frames)
+    run.camera = SimpleNamespace(grab=lambda: next(served, frames[-1]), keep=lambda label: None)
+    naps: list[float] = []
+    now = [0.0]
+    run.sleep = lambda seconds: (naps.append(seconds), now.__setitem__(0, now[0] + seconds))[0]
+    run.clock = lambda: now[0]
+    return run, naps, now
+
+
+def test_the_settle_waits_for_the_glide_to_stop_before_it_hands_back_a_frame(tmp_path):
+    landed = _stirred(200_003)  # 與前一幀只差 3 px：待機動畫等級的殘動
+    run, naps, now = settle_run(
+        tmp_path, [_blank(), _stirred(100_000), _stirred(200_000), landed]
+    )
+
+    frame = run.settled()
+
+    assert frame is landed
+    assert naps == [SETTLE_POLL_S] * 3
+    assert now[0] < SETTLE_WAIT_S
+
+
+def test_a_frame_that_never_goes_quiet_is_handed_back_at_the_deadline(tmp_path):
+    stirring = [_blank(), _stirred(100_000)] * 20
+    run, naps, now = settle_run(tmp_path, stirring)
+
+    frame = run.settled()
+
+    assert frame.shape == _blank().shape
+    assert now[0] >= SETTLE_WAIT_S
+    assert naps == [SETTLE_POLL_S] * int(SETTLE_WAIT_S / SETTLE_POLL_S)
+
+
+def test_a_screen_that_is_already_still_costs_one_poll(tmp_path):
+    run, naps, now = settle_run(tmp_path, [_blank(), _blank()])
+
+    run.settled()
+
+    assert naps == [SETTLE_POLL_S]
+    assert now[0] == SETTLE_POLL_S
+
+
+def test_a_camera_sliding_moves_far_more_pixels_than_the_stable_threshold():
+    rng = np.random.default_rng(0)
+    still = _blank()
+    still[300:800, 400:1400] = rng.integers(0, 256, (500, 1000, 3), dtype=np.uint8)
+    idle = still.copy()
+    idle[500:520, 600:620] = 255  # 一隻精靈的待機動畫
+    slid = np.roll(still, 60, axis=1)  # 鏡頭滑一段
+
+    assert frame_motion(still, idle) < SETTLE_STABLE_DIFF
+    assert frame_motion(still, slid) > SETTLE_STABLE_DIFF * 10
 
 
 def test_a_lost_camera_re_anchors_at_the_corner_before_any_clearing_resumes(tmp_path):

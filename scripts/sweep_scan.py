@@ -33,6 +33,7 @@ from typing import Protocol
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+import cv2
 import numpy as np
 
 from ggge_ai.battle import faction as faction_mod
@@ -60,6 +61,12 @@ IN_BATTLE_STAGES = (None, "map", "grid", "zero", "sweep")
 
 MAX_TAPS = 600
 TAP_INTERVAL_S = 0.4
+# 點擊回饋的等待上限與輪詢間隔。上限的餘裕來自舊 screencap 路徑：那條路上有效取樣
+# 點落在點擊後 ~2.8s（tap_interval＋一張截圖 ~2.4s），回饋早就渲染完了；串流取幀
+# 只要 ~11ms，沒有等待就會在回饋出現前定案。「等滿上限仍無回饋」本身是 UNSURE 的
+# 正當證據，上限不可拿掉。
+FEEDBACK_WAIT_S = 3.0
+FEEDBACK_POLL_S = 0.15
 EMPTY_FRAME_EVERY = 20
 # 歸零往西北推的上限。一把約 240px 內容位移（0804 逐把量測，board.PAN_GAIN），
 # 地圖再大也用不到這麼多把。
@@ -71,11 +78,23 @@ STRANDINGS_LIMIT = 3
 ZERO_CONFIRM_TRIES = 2
 ZERO_CONFIRM_PITCH = 0.5
 ZERO_CORNER = ("west", "north")
-# 推鏡後的緩動等待。輪數是「多等一點降污染率」的保險，不是靜止判準（0803 第 10
-# 輪定讞：整區灰階讀到的是不隨鏡頭動的星空層，不准拿它問畫面停了沒）。一張截圖
-# 在實機要 ~2.4s，所以保險買一輪就好，改用較長的間隔補回真實靜置時間。
+# 推鏡後的緩動等待：兩幀逐像素比到穩定才收，等滿 SETTLE_WAIT_S 就放行（語意仍是
+# 「盡力靜置」，不是靜止保證，所以上限到了不 Halt）。
+#
+# 判準不准用整區灰階均值（0803 第 10 輪定讞：整區灰階讀到的是不隨鏡頭動的星空
+# 層，鏡頭在滑它也不動）。這裡問的是逐像素 absdiff：星空層靜止但單位、UI、格線
+# 動畫都會在自己的位置上變色，鏡頭滑動更是全畫面位移，逐像素差都吃得到。
+#
+# 但地圖有常駐微動畫（單位待機、水面），幀差永遠不會是零，所以量的不是差多大而是
+# 「差得夠明顯的像素佔多少」：>SETTLE_DIFF_NOISE 的像素比例。雜訊閾 8/255 濾掉編碼
+# 抖動與呼吸式明暗；比例門檻 0.5% 的取法是——待機動畫只佔盤面上少數精靈的少數像素
+# （2340x1080 的 0.5% 還有 ~12600 px 的餘裕），而鏡頭滑動是整幅位移、有紋理處全部
+# 變色，比例會衝到幾十個百分點，兩者差了兩個數量級。兩個常數都放模組層，日後拿實機
+# 流水帳校準時只改這裡。
+SETTLE_WAIT_S = 4.0
 SETTLE_POLL_S = 0.5
-SETTLE_ROUNDS = 1
+SETTLE_DIFF_NOISE = 8
+SETTLE_STABLE_DIFF = 0.005
 CARD_SETTLE_S = 1.0
 # 敵方總數只在開掃時讀一次。破壞數分母是 HUD 直接寫著的數，但白字疊在亮底上會讀
 # 不出來（vision.read_kill_counter 的已知限制），所以多給幾張幀。
@@ -87,6 +106,19 @@ ROSTER_CHECK_TRIES = 2
 
 class Halt(RuntimeError):
     """停在原地：印出原因與當下截圖，不再點任何東西。"""
+
+
+def frame_motion(before: np.ndarray, after: np.ndarray) -> float:
+    """兩幀之間「明顯變了」的像素比例（0～1），見 SETTLE_STABLE_DIFF 的取法。
+
+    形狀不同就當作全動：串流換解析度的那一幀本來就不能拿來判靜止。
+    """
+    if before.shape != after.shape:
+        return 1.0
+    diff = cv2.absdiff(
+        cv2.cvtColor(before, cv2.COLOR_BGR2GRAY), cv2.cvtColor(after, cv2.COLOR_BGR2GRAY)
+    )
+    return float(np.count_nonzero(diff > SETTLE_DIFF_NOISE)) / diff.size
 
 
 @dataclass
@@ -167,6 +199,8 @@ class SweepRun:
     # 腳本注入。
     kill_counter: Callable[[np.ndarray], tuple[int, int] | None] | None = None
     sleep: Callable[[float], None] = time.sleep
+    clock: Callable[[], float] = time.monotonic
+    classify: Callable[..., sweep.TapOutcome] = sweep.classify_tap
     zoom_out: Callable[[], None] | None = None
 
     ledger: sweep.SweepLedger | None = field(default=None, init=False)
@@ -917,17 +951,22 @@ class SweepRun:
         self.fix.allow_tap()
         self.device.tap(int(target.point[0]), int(target.point[1]))
         ledger.taps += 1
+        deadline = self.clock() + FEEDBACK_WAIT_S
         self.sleep(self.tap_interval)
-        after = self.camera.grab()
-        return sweep.classify_tap(
-            before,
-            after,
-            target.point,
-            signature=self.signature,
-            card=_card_present,
-            selected=self.in_selection,
-            pitch=(ledger.grid.col_pitch, ledger.grid.row_pitch),
-        )
+        while True:
+            after = self.camera.grab()
+            outcome = self.classify(
+                before,
+                after,
+                target.point,
+                signature=self.signature,
+                card=_card_present,
+                selected=self.in_selection,
+                pitch=(ledger.grid.col_pitch, ledger.grid.row_pitch),
+            )
+            if outcome.verdict != sweep.TAP_NONE or self.clock() >= deadline:
+                return outcome
+            self.sleep(FEEDBACK_POLL_S)
 
     def in_selection(self, frame: np.ndarray) -> bool:
         return map_view.classify_view(self.gate, frame) in map_view.SELECTION_SUBSTATES
@@ -1272,11 +1311,14 @@ class SweepRun:
         return board.find_marker(frame, self.signature, holes=board.UNIT_DENSITY_HUD_HOLES)
 
     def settled(self) -> np.ndarray:
-        frame = self.camera.grab()
-        for _ in range(SETTLE_ROUNDS):
+        deadline = self.clock() + SETTLE_WAIT_S
+        before = self.camera.grab()
+        while True:
             self.sleep(SETTLE_POLL_S)
             frame = self.camera.grab()
-        return frame
+            if frame_motion(before, frame) < SETTLE_STABLE_DIFF or self.clock() >= deadline:
+                return frame
+            before = frame
 
     def abandon(self) -> None:
         """棄戰鏈逐下存證：確認鈕與戰鬥選單「幫助」同列相距 73px，鏈一旦錯拍就是
