@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 from types import SimpleNamespace
 
@@ -276,6 +277,21 @@ def test_the_tap_gives_up_on_feedback_at_the_deadline(tmp_path):
     assert sum(probe.naps) == pytest.approx(probe.now[0])
 
 
+def test_the_tap_hands_the_classifier_the_whole_tap_window_to_search(tmp_path):
+    run, _ = real_tap_run(tmp_path, [sweep.TAP_EMPTY], GLIDE)
+    seen: list[dict] = []
+
+    def classify(*args, **kwargs) -> sweep.TapOutcome:
+        seen.append(kwargs)
+        return sweep.TapOutcome(sweep.TAP_EMPTY)
+
+    run.classify = classify
+
+    run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    assert seen[0]["region"] == sweep.TAP_REGION
+
+
 def test_the_verdict_entry_names_the_frame_it_was_read_from(tmp_path):
     run, _ = real_tap_run(tmp_path, [sweep.TAP_EMPTY], GLIDE)
 
@@ -307,7 +323,7 @@ def test_the_settle_spends_the_sweep_budget_before_it_hands_back_a_frame(tmp_pat
 
     assert frame.shape == _blank().shape
     assert now[0] >= settle.SETTLE_WAIT_S
-    assert naps == [settle.SETTLE_POLL_S] * int(settle.SETTLE_WAIT_S / settle.SETTLE_POLL_S)
+    assert naps == [settle.SETTLE_POLL_S] * math.ceil(settle.SETTLE_WAIT_S / settle.SETTLE_POLL_S)
 
 
 def test_a_lost_camera_re_anchors_at_the_corner_before_any_clearing_resumes(tmp_path):
@@ -1133,9 +1149,24 @@ def test_the_navigation_settle_books_what_the_wait_cost(tmp_path):
 
     booked = [entry for entry in _entries(run) if entry["kind"] == "settle"]
     assert [entry["ctx"] for entry in booked] == ["nav"]
-    assert booked[0]["polls"] == 1
+    assert booked[0]["polls"] == 2
     assert booked[0]["converged"]
-    assert booked[0]["waited_s"] == round(settle.SETTLE_POLL_S, 2)
+    assert booked[0]["waited_s"] == round(2 * settle.SETTLE_POLL_S, 2)
+
+
+def test_the_navigation_settle_demands_two_still_pairs_before_it_lets_go(tmp_path):
+    single = _stirred(200_003)  # 與前一幀差 3 px：一對靜止，鏡頭其實還在滑
+    run, naps, _ = settle_run(
+        tmp_path, [_blank(), _stirred(200_000), single, _stirred(100_000), _blank(), _blank()]
+    )
+
+    frame = run.settled()
+
+    assert frame.shape == _blank().shape
+    assert len(naps) == 6
+    booked = [entry for entry in _entries(run) if entry["kind"] == "settle"]
+    assert booked[0]["polls"] == 6
+    assert booked[0]["converged"]
 
 
 def test_the_feedback_settle_is_booked_under_its_own_context(tmp_path):

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
@@ -517,6 +519,24 @@ def test_a_frontier_already_in_the_window_needs_no_homing():
     assert sweep.homing_route(grid, (0.0, 0.0), (1, 1), region=REGION, stride=200.0) == ()
 
 
+def test_the_tap_window_reaches_east_of_the_map_region():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
+
+    targets = sweep.window_targets(grid, (0.0, 0.0))
+
+    assert sweep.TAP_REGION != board.MAP_REGION
+    assert targets[(17, 4)] == (1750.0, 450.0)  # 格框 1700-1800 跨舊窗右緣 1750
+    assert targets[(19, 4)] == (1950.0, 450.0)
+
+
+def test_a_cell_hanging_past_the_new_tap_window_is_still_left_out():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
+
+    targets = sweep.window_targets(grid, (0.0, 0.0))
+
+    assert (20, 4) not in targets  # 格框 2000-2100 跨窗右緣 2050
+
+
 def test_the_frontier_is_the_first_undecided_cell_in_serpentine_order():
     book = ledger(west=0, east=2, north=0, south=1)
     book.record((0, 0), sweep.EMPTY)
@@ -884,7 +904,7 @@ def test_a_frame_that_never_goes_quiet_is_handed_back_at_the_deadline():
 
     assert frame.shape == _blank_frame().shape
     assert now[0] >= settle.SETTLE_WAIT_S
-    assert naps == [settle.SETTLE_POLL_S] * int(settle.SETTLE_WAIT_S / settle.SETTLE_POLL_S)
+    assert naps == [settle.SETTLE_POLL_S] * math.ceil(settle.SETTLE_WAIT_S / settle.SETTLE_POLL_S)
 
 
 def test_a_screen_that_is_already_still_costs_one_poll():
@@ -896,6 +916,68 @@ def test_a_screen_that_is_already_still_costs_one_poll():
 
     assert naps == [settle.SETTLE_POLL_S]
     assert now[0] == settle.SETTLE_POLL_S
+
+
+def test_a_second_confirmation_pair_is_demanded_before_the_wait_lets_go():
+    landed = _blank_frame()
+    grab, sleep, clock, naps, _ = waiting([_blank_frame(), _blank_frame(), landed])
+
+    frame = settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        confirm=2,
+    )
+
+    assert frame is landed
+    assert naps == [settle.SETTLE_POLL_S] * 2
+
+
+def test_motion_between_the_pairs_restarts_the_confirmation_count():
+    landed = _blank_frame()
+    grab, sleep, clock, naps, _ = waiting(
+        [
+            _blank_frame(),
+            _stirred(200_000),
+            _stirred(200_003),  # 第一對靜止：緩動尾巴的瞬間低谷
+            _stirred(100_000),  # 鏡頭其實還在滑
+            _blank_frame(),
+            _blank_frame(),
+            landed,
+        ]
+    )
+
+    frame = settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        confirm=2,
+    )
+
+    assert frame is landed
+    assert naps == [settle.SETTLE_POLL_S] * 6
+
+
+def test_the_deadline_release_is_booked_as_unconverged():
+    grab, sleep, clock, _, now = waiting([_blank_frame(), _stirred(100_000)] * 20)
+    seen: list[settle.SettleReport] = []
+
+    settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        confirm=2,
+        observe=seen.append,
+    )
+
+    assert now[0] >= settle.SETTLE_WAIT_S
+    assert [report.converged for report in seen] == [False]
 
 
 def test_a_camera_sliding_moves_far_more_pixels_than_the_stable_threshold():

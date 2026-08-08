@@ -941,6 +941,7 @@ class SweepRun:
                 card=_card_present,
                 selected=self.in_selection,
                 pitch=(ledger.grid.col_pitch, ledger.grid.row_pitch),
+                region=sweep.TAP_REGION,
             )
 
         return sweep.judge_tap(
@@ -1319,6 +1320,7 @@ class SweepRun:
             sleep=self.sleep,
             deadline=self.clock() + settle.SETTLE_WAIT_S,
             poll=settle.SETTLE_POLL_S,
+            confirm=2,
             observe=lambda report: self.log_settle("nav", report),
         )
 

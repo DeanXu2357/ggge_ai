@@ -68,9 +68,16 @@ CANDIDATE_HALO_PITCH = 0.75
 COMPASS: tuple[str, ...] = ("west", "east", "north", "south")
 _SIDES: dict[str, tuple[str, str]] = {"x": ("west", "east"), "y": ("north", "south")}
 
-# 安全點擊窗＝地圖區：上緣避開回合橫幅帶、下緣停在鈕列之上。窗外的格不點，
-# 等推鏡把它輪進來。
-TAP_REGION: Region = board.MAP_REGION
+# 安全點擊窗：上緣避開回合橫幅帶、下緣停在鈕列之上。窗外的格不點，等推鏡把它輪進來。
+#
+# 右緣 1750 是批 2d（6c8124d）沿用 board.MAP_REGION 的初猜，沒有文件背書。0809 拿
+# run 20260809-011740 的 321 張 hub 態窗幀做逐像素變異數審計：x1750–2100（y250–870）
+# 全區沒有任何凍結像素，也就是那一帶沒有螢幕固定 HUD，於是東擴到 2050 留 50px 餘裕。
+# col-24 九格在東界鏡位只超出舊窗緣 14.6px，被這個初猜擋成結構洞。
+#
+# 刻意不動 board.MAP_REGION：SCREEN_CENTRE 與格線／相位量測都掛在它身上，整條加寬
+# 會把置中期望平移 150px、超出半格容差。
+TAP_REGION: Region = (150, 250, 1900, 620)
 SCREEN_CENTRE: Point = (board.MAP_REGION[0] + board.MAP_REGION[2] / 2.0, 540.0)
 
 TAP_EMPTY = "empty"

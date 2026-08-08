@@ -1212,6 +1212,15 @@
   抓不到）。(3) settle 耗時入帳：await_still 加 SettleReport observe，journal 落
   settle 事件（ctx=nav/feedback），供後續校準 SETTLE_POLL_S=0.5 疑似收斂不了的
   假設——先立事實再調參。對照輪＝串流＋full，直接對 79 分基準。
+- **（0809）nav settle 提速＋點擊窗東擴（使用者核准）**｜(1) SETTLE_POLL_S 0.5→0.15
+  ＋nav 路 confirm=2 連續兩對靜止才收（feedback 路維持 1，後有 classify 語意閘）；
+  依據＝0809 實測 nav 813 次 49% 收斂均 2.89s 全程燒 39.2 分 vs feedback 97% 均
+  0.57s。(2) sweep.TAP_REGION 與 board.MAP_REGION 脫鉤，右緣 1750→2050；1750 是
+  批 2d（6c8124d）無背書初猜，0809 拿 321 張 hub 態窗幀變異數審計 x1750–2100 零
+  凍結像素；col-24 九格洞只差 14.6px。刻意不動 MAP_REGION（SCREEN_CENTRE 置中期望
+  會平移 150px 超容差）；tap_cell 顯式傳 region 給 classify_tap 接標記搜尋。
+  待辦：classify_tap 簽名預設值下一批改 TAP_REGION 收陷阱；date_changed 併入
+  action 架構改版（使用者裁示）。
 - **(0811) New project text switches to English — user ruling**｜Ruling
   chain from the 2026-08-11 session: replies to the user are English by
   default (Traditional Chinese only on request; Simplified Chinese
