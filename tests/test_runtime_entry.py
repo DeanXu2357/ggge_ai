@@ -235,6 +235,72 @@ def test_expect_screen_gives_up_honestly():
     assert name == screens.UNKNOWN
 
 
+@dataclass
+class FakeClock:
+    """假時鐘：sleep 只推進時間，不真的睡。"""
+
+    t: float = 0.0
+
+    def now(self) -> float:
+        return self.t
+
+    def sleep(self, seconds: float) -> None:
+        self.t += seconds
+
+
+def test_expect_screen_keeps_polling_until_the_wall_clock_floor():
+    """attempts 的時間窗靠 adb 每張 ~2.4s 撐著；串流幀源 11ms 會塌縮，所以等轉場
+    要看壁鐘（0808 實機：出擊→關卡資訊頁 ~15s 運鏡）。"""
+    clock = FakeClock()
+    frames = [blank()] * 12 + [load(STAGE_INFO_AUTO_ON)]
+    screen = Screen(frames)
+
+    name, _ = entry.expect_screen(
+        screen.capture,
+        (screens.STAGE_INFO,),
+        attempts=3,
+        sleep=clock.sleep,
+        settle_s=1.0,
+        min_wait_s=30.0,
+        now=clock.now,
+    )
+
+    assert name == screens.STAGE_INFO
+    assert screen.looks == 13
+
+
+def test_expect_screen_gives_up_when_the_wall_clock_floor_is_reached():
+    clock = FakeClock()
+    screen = Screen([blank()])
+
+    name, _ = entry.expect_screen(
+        screen.capture,
+        (screens.STAGE_INFO,),
+        attempts=3,
+        sleep=clock.sleep,
+        settle_s=1.0,
+        min_wait_s=10.0,
+        now=clock.now,
+    )
+
+    assert name == screens.UNKNOWN
+    assert clock.t >= 10.0
+    assert screen.looks == 11
+
+
+def test_expect_screen_without_a_floor_stops_at_the_attempt_count():
+    clock = FakeClock()
+    screen = Screen([blank()])
+
+    name, _ = entry.expect_screen(
+        screen.capture, (screens.STAGE_INFO,), attempts=3, sleep=clock.sleep, now=clock.now
+    )
+
+    assert name == screens.UNKNOWN
+    assert screen.looks == 3
+    assert clock.t == 2.0
+
+
 def test_selecting_a_stage_taps_nothing_when_no_node_is_supplied():
     """哪一關的節點落在哪個像素是關卡內容（還隨節點軸捲動位置變），runtime 不猜。"""
     screen = Screen([load(STAGE_LIST)])

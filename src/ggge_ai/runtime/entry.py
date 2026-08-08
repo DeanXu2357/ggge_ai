@@ -97,22 +97,32 @@ def expect_screen(
     attempts: int = 6,
     sleep: Callable[[float], None] = time.sleep,
     settle_s: float = 1.0,
+    min_wait_s: float | None = None,
+    now: Callable[[], float] = time.monotonic,
 ) -> tuple[str, np.ndarray | None]:
     """重截到畫面是 wanted 之一，或放棄。回傳（畫面名, 幀）。
 
     每次操作前都要重新確認所在頁：解鎖用的 wake-tap 可能誤觸 TAP TO NEXT 直接
     把人推進下一頁（0730 實測發生一次），拿舊畫面推論就會對著錯的頁點下去。
+
+    attempts 的時間窗是隱含的：它靠 adb 截圖每張 ~2.4s 撐起來（10 輪 ≈ 34s）。
+    串流幀源取幀只要 11ms，同樣輪次會塌縮到 ~10s，0808 實機因此在 19.1s 就耗盡
+    重試 Halt（出擊→關卡資訊頁的開場運鏡要 ~15s）。凡是「等遊戲轉場」的呼叫點
+    都必須用 min_wait_s 給壁鐘下限，不能只靠輪次。
     """
     frame = None
     screen = screens.UNKNOWN
-    for index in range(attempts):
+    started = now()
+    index = 0
+    while True:
         frame = capture()
         screen = screens.classify(frame)
         if screen in wanted:
             return screen, frame
-        if index + 1 < attempts:
-            sleep(settle_s)
-    return screen, frame
+        index += 1
+        if index >= attempts and (min_wait_s is None or now() - started >= min_wait_s):
+            return screen, frame
+        sleep(settle_s)
 
 
 def confirm_auto_off(
@@ -405,7 +415,11 @@ def sortie(
 
     clear_download_dialog(capture, tap, report, sleep=sleep)
     screen, _ = expect_screen(
-        capture, (screens.STAGE_INFO, *screens.MAP_SCREENS), sleep=sleep, attempts=10
+        capture,
+        (screens.STAGE_INFO, *screens.MAP_SCREENS),
+        sleep=sleep,
+        attempts=10,
+        min_wait_s=30.0,
     )
     if screen == screens.STAGE_INFO:
         report.add("stage_info", "ok")
@@ -432,7 +446,11 @@ def advance_to_map(
     地圖上，再點一下就是對著地圖亂點。
     """
     screen, _ = expect_screen(
-        capture, (screens.STAGE_INFO, *screens.MAP_SCREENS), sleep=sleep, attempts=10
+        capture,
+        (screens.STAGE_INFO, *screens.MAP_SCREENS),
+        sleep=sleep,
+        attempts=10,
+        min_wait_s=30.0,
     )
     if screen == screens.STAGE_INFO:
         tap(*STAGE_INFO_ADVANCE_TAP)

@@ -29,6 +29,7 @@ import logging
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
+from typing import Protocol
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -111,6 +112,19 @@ class Camera:
         return path
 
 
+class FrameSource(Protocol):
+    """下游只認得的那一面：adb 逐張截圖與 scrcpy 串流兩種實作都滿足。"""
+
+    raw: bytes | None
+    shots: int
+
+    def screenshot(self) -> bytes: ...
+
+    def grab(self) -> np.ndarray: ...
+
+    def keep(self, label: str) -> str | None: ...
+
+
 @dataclass
 class ViewGate:
     """`battle.map_view` 要的那一面：capture()＋probe()。
@@ -119,7 +133,7 @@ class ViewGate:
     落在這支腳本上。
     """
 
-    camera: Camera
+    camera: FrameSource
     pipeline: RecognizerPipeline
 
     def capture(self) -> np.ndarray:
@@ -133,7 +147,7 @@ class ViewGate:
 @dataclass
 class SweepRun:
     device: LiveDevice
-    camera: Camera
+    camera: FrameSource
     journal: Journal
     executor: LiveExecutor
     driver: BoardDriver
@@ -1351,6 +1365,11 @@ def _card_present(frame: np.ndarray) -> bool:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--serial", default=None)
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="幀源改走 scrcpy --v4l2-sink 串流，取代逐張 adb 截圖",
+    )
     parser.add_argument("--stop-after", choices=STAGES, default=None)
     parser.add_argument(
         "--stage-node",
@@ -1449,7 +1468,7 @@ def open_run(run_dir: Path | None) -> Journal:
     return Journal(run_dir / JOURNAL_NAME)
 
 
-def soft_capture(camera: Camera) -> Callable[[], np.ndarray | None]:
+def soft_capture(camera: FrameSource) -> Callable[[], np.ndarray | None]:
     def capture() -> np.ndarray | None:
         try:
             return camera.grab()
@@ -1461,7 +1480,7 @@ def soft_capture(camera: Camera) -> Callable[[], np.ndarray | None]:
 
 
 def zoom_driver(
-    args: argparse.Namespace, camera: Camera, journal: Journal
+    args: argparse.Namespace, camera: FrameSource, journal: Journal
 ) -> Callable[[], None] | None:
     if not args.zoom:
         journal.record("zoom_backend", available=False, reason="disabled")
@@ -1485,7 +1504,15 @@ def zoom_driver(
 def build(args: argparse.Namespace, journal: Journal) -> SweepRun:
     adb = Adb(serial=args.serial)
     device = LiveDevice(adb=adb)
-    camera = Camera(device=device, journal=journal)
+    if args.stream:
+        from ggge_ai.stream import StreamCamera, StreamSource
+
+        source = StreamSource(serial=args.serial)
+        source.start()
+        camera: FrameSource = StreamCamera(source=source, journal=journal)
+    else:
+        camera = Camera(device=device, journal=journal)
+    journal.record("camera_backend", stream=args.stream)
     device.keyguard = Keyguard(shell=adb.shell, capture=soft_capture(camera))
     recognizer = TemplateManifest.load(TEMPLATE_ROOT).build_recognizer()
     pipeline = RecognizerPipeline(
@@ -1524,6 +1551,13 @@ def main() -> int:
     run_dir = journal.path.parent
     print(f"run dir: {run_dir}")
     run = build(args, journal)
+    try:
+        return drive(args, run, journal, run_dir)
+    finally:
+        getattr(run.camera, "close", lambda: None)()
+
+
+def drive(args: argparse.Namespace, run: SweepRun, journal: Journal, run_dir: Path) -> int:
     journal.record(
         "sweep_start",
         stop_after=args.stop_after,
