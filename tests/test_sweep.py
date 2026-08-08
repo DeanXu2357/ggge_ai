@@ -834,3 +834,126 @@ def test_two_booked_units_may_not_share_one_peak():
     missing = sweep.roster_missing(book, ((250.0, 200.0),), (-150.0, -150.0))
 
     assert len(missing) == 1
+
+
+def _blank_frame() -> np.ndarray:
+    return np.zeros((1080, 2340, 3), np.uint8)
+
+
+def _stirred(pixels: int) -> np.ndarray:
+    """在全黑幀上點亮一片：與全黑幀相比就有 `pixels` 個「明顯變了」的像素。"""
+    frame = _blank_frame()
+    frame.reshape(-1, 3)[:pixels] = 255
+    return frame
+
+
+def waiting(frames: list[np.ndarray]):
+    """假時鐘＋假幀序列：幀序列排好，最後一張耗盡就一直回它。"""
+    served = iter(frames)
+    naps: list[float] = []
+    now = [0.0]
+
+    def sleep(seconds: float) -> None:
+        naps.append(seconds)
+        now[0] += seconds
+
+    return (lambda: next(served, frames[-1]), sleep, (lambda: now[0]), naps, now)
+
+
+def test_the_wait_holds_until_the_glide_stops_before_it_hands_back_a_frame():
+    landed = _stirred(200_003)  # 與前一幀只差 3 px：待機動畫等級的殘動
+    grab, sleep, clock, naps, now = waiting(
+        [_blank_frame(), _stirred(100_000), _stirred(200_000), landed]
+    )
+
+    frame = sweep.await_still(
+        grab, clock=clock, sleep=sleep, deadline=sweep.SETTLE_WAIT_S, poll=sweep.SETTLE_POLL_S
+    )
+
+    assert frame is landed
+    assert naps == [sweep.SETTLE_POLL_S] * 3
+    assert now[0] < sweep.SETTLE_WAIT_S
+
+
+def test_a_frame_that_never_goes_quiet_is_handed_back_at_the_deadline():
+    grab, sleep, clock, naps, now = waiting([_blank_frame(), _stirred(100_000)] * 20)
+
+    frame = sweep.await_still(
+        grab, clock=clock, sleep=sleep, deadline=sweep.SETTLE_WAIT_S, poll=sweep.SETTLE_POLL_S
+    )
+
+    assert frame.shape == _blank_frame().shape
+    assert now[0] >= sweep.SETTLE_WAIT_S
+    assert naps == [sweep.SETTLE_POLL_S] * int(sweep.SETTLE_WAIT_S / sweep.SETTLE_POLL_S)
+
+
+def test_a_screen_that_is_already_still_costs_one_poll():
+    grab, sleep, clock, naps, now = waiting([_blank_frame(), _blank_frame()])
+
+    sweep.await_still(
+        grab, clock=clock, sleep=sleep, deadline=sweep.SETTLE_WAIT_S, poll=sweep.SETTLE_POLL_S
+    )
+
+    assert naps == [sweep.SETTLE_POLL_S]
+    assert now[0] == sweep.SETTLE_POLL_S
+
+
+def test_a_camera_sliding_moves_far_more_pixels_than_the_stable_threshold():
+    rng = np.random.default_rng(0)
+    still = _blank_frame()
+    still[300:800, 400:1400] = rng.integers(0, 256, (500, 1000, 3), dtype=np.uint8)
+    idle = still.copy()
+    idle[500:520, 600:620] = 255  # 一隻精靈的待機動畫
+    slid = np.roll(still, 60, axis=1)  # 鏡頭滑一段
+
+    assert sweep.frame_motion(still, idle) < sweep.SETTLE_STABLE_DIFF
+    assert sweep.frame_motion(still, slid) > sweep.SETTLE_STABLE_DIFF * 10
+
+
+def test_a_frame_of_another_shape_counts_as_all_motion():
+    assert sweep.frame_motion(_blank_frame(), np.zeros((540, 1170, 3), np.uint8)) == 1.0
+
+
+def test_the_judgement_only_ever_sees_frames_that_have_settled():
+    grab, sleep, clock, _, _ = waiting(
+        [_blank_frame(), _stirred(100_000), _stirred(200_000), _stirred(200_003)]
+    )
+    seen: list[np.ndarray] = []
+
+    def judge(after: np.ndarray) -> sweep.TapOutcome:
+        seen.append(after)
+        return sweep.TapOutcome(sweep.TAP_EMPTY)
+
+    outcome = sweep.judge_tap(
+        grab,
+        judge,
+        clock=clock,
+        sleep=sleep,
+        deadline=sweep.FEEDBACK_WAIT_S,
+        poll=sweep.FEEDBACK_POLL_S,
+    )
+
+    assert outcome.verdict == sweep.TAP_EMPTY
+    assert len(seen) == 1  # 中間三張動畫幀一次都沒問
+
+
+def test_a_silent_tap_is_polled_again_until_the_budget_runs_out():
+    grab, sleep, clock, _, now = waiting([_blank_frame()])
+    asked: list[float] = []
+
+    def judge(after: np.ndarray) -> sweep.TapOutcome:
+        asked.append(now[0])
+        return sweep.TapOutcome(sweep.TAP_NONE)
+
+    outcome = sweep.judge_tap(
+        grab,
+        judge,
+        clock=clock,
+        sleep=sleep,
+        deadline=sweep.FEEDBACK_WAIT_S,
+        poll=sweep.FEEDBACK_POLL_S,
+    )
+
+    assert outcome.verdict == sweep.TAP_NONE
+    assert len(asked) > 1
+    assert now[0] >= sweep.FEEDBACK_WAIT_S
