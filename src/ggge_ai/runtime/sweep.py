@@ -27,7 +27,7 @@ from . import board
 from .board import Cell, MarkerSignature, Point, Region
 from .coverage import WorldGrid
 from .device import DANGER_BANDS, DangerBand, blocked_for_map_tap
-from .settle import await_still
+from .settle import SettleReport, await_still
 
 log = logging.getLogger(__name__)
 
@@ -910,13 +910,16 @@ def judge_tap(
     sleep: Callable[[float], None],
     deadline: float,
     poll: float = FEEDBACK_POLL_S,
+    observe: Callable[[SettleReport], None] | None = None,
 ) -> TapOutcome:
     """點擊後的判定取樣：等收斂 → 問 `judge`，說不出結果就續輪到預算盡。
 
     `judge` 拿到的一律是收斂後的那一張；動畫中間幀一次都不送進去。
     """
     while True:
-        after = await_still(grab, clock=clock, sleep=sleep, deadline=deadline, poll=poll)
+        after = await_still(
+            grab, clock=clock, sleep=sleep, deadline=deadline, poll=poll, observe=observe
+        )
         outcome = judge(after)
         if outcome.verdict != TAP_NONE or clock() >= deadline:
             return outcome

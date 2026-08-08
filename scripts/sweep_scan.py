@@ -10,7 +10,7 @@ usage:
   uv run python scripts/sweep_scan.py --serial R5CRC37JBYJ --stage-node 544,667 \
       --stop-after zero
   uv run python scripts/sweep_scan.py … --max-taps 200 --tap-interval 0.5
-  uv run python scripts/sweep_scan.py … --filter-mode full   # 全格點對照組
+  uv run python scripts/sweep_scan.py … --filter-mode candidates   # 候選過濾對照組
   # 帳齊即收（需要 assets/stage_truth/<關卡>.json；首刷沒有真值檔就照舊全掃）
   uv run python scripts/sweep_scan.py … --filter-mode roster --ally-count 10
   uv run python scripts/sweep_scan.py … --no-abandon
@@ -67,6 +67,13 @@ ZERO_LEGS = 24
 # 連續這麼多次「回角落＋接力返航」都沒能推進任何一格裁決就停手：再繞下去只是
 # 把同一段路重走。
 STRANDINGS_LIMIT = 3
+# 連續這麼多把推鏡都沒讓帳本多出任何一格裁決就停手。成功輪的最長無裁決連段實測是
+# 17 把（run 20260805-152346）與 14 把（20260807-111734），取約兩倍餘裕；病態輪
+# 20260808-184706 在兩個鏡位之間乒乓 132 把、燒掉 40 分鐘，這條絲要在 3 分鐘級攔停。
+#
+# 水位用「帳本已裁決格數」不用 taps：乒乓期的搬標記照樣吃 taps 卻不長帳，那正是
+# strandings 絲的盲區（它只數 reroot，乒乓不 reroot）。
+PAN_BARREN_LIMIT = 40
 # 角落界線的複驗：另拍一幀重讀，兩幀差在半格內才准拿去寫世界座標。
 ZERO_CONFIRM_TRIES = 2
 ZERO_CONFIRM_PITCH = 0.5
@@ -191,6 +198,8 @@ class SweepRun:
     tick: int = field(default=0, init=False)
     strandings: int = field(default=0, init=False)
     progress: int = field(default=0, init=False)
+    barren_pans: int = field(default=0, init=False)
+    decided_watermark: int = field(default=0, init=False)
     started: float = field(default_factory=time.monotonic, init=False)
 
     def run(self) -> None:
@@ -941,6 +950,7 @@ class SweepRun:
             sleep=self.sleep,
             deadline=deadline,
             poll=sweep.FEEDBACK_POLL_S,
+            observe=lambda report: self.log_settle("feedback", report),
         )
 
     def in_selection(self, frame: np.ndarray) -> bool:
@@ -1218,6 +1228,20 @@ class SweepRun:
         收工；界線讀不出來也不 Halt、不寫界線，改記這個方向在本鏡位推盡，讓呼叫端
         轉向——推不動**永遠不等於**有界線。
         """
+        if self.ledger is not None:
+            decided = len(self.ledger.state)
+            if decided > self.decided_watermark:
+                self.decided_watermark = decided
+                self.barren_pans = 0
+            else:
+                self.barren_pans += 1
+                if self.barren_pans > PAN_BARREN_LIMIT:
+                    self.journal.record(
+                        "barren_pans", streak=self.barren_pans, decided=decided
+                    )
+                    raise Halt(
+                        f"連續 {self.barren_pans} 把推鏡帳本沒有任何新裁決，疑似導航活鎖"
+                    )
         wanted = board.PAN_MAX_REACH if reach is None else reach
         origin, stroke = board.pan_stroke(direction, wanted, board.find_sightings(frame))
         seen = board.lattice_phase(frame)
@@ -1295,6 +1319,17 @@ class SweepRun:
             sleep=self.sleep,
             deadline=self.clock() + settle.SETTLE_WAIT_S,
             poll=settle.SETTLE_POLL_S,
+            observe=lambda report: self.log_settle("nav", report),
+        )
+
+    def log_settle(self, ctx: str, report: settle.SettleReport) -> None:
+        self.journal.record(
+            "settle",
+            ctx=ctx,
+            waited_s=round(report.waited_s, 2),
+            polls=report.polls,
+            converged=report.converged,
+            motion=round(report.motion, 4),
         )
 
     def abandon(self) -> None:
@@ -1406,11 +1441,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--filter-mode",
         choices=sweep.FILTER_MODES,
-        default=sweep.FILTER_CANDIDATES,
+        default=sweep.FILTER_FULL,
         help=(
-            "candidates＝只點單位候選格、其餘推斷為空（預設；run 20260805-152346"
-            " 召回 100%% GO）；roster＝candidates 再加帳齊即收（敵數對上 HUD 破壞數"
-            "分母、我方對上 --ally-count 就豁免剩餘格）；full＝全格點（真值來源）"
+            "full＝全格點（預設；run 20260805-152346 的 79 分鐘基準，也是真值來源）；"
+            "candidates＝只點候選格、其餘推斷為空（實跑 97 分未兌現提速，退回實驗"
+            "選項）；roster＝candidates 再加帳齊即收（敵數對上 HUD 破壞數分母、我方"
+            "對上 --ally-count 就豁免剩餘格）"
         ),
     )
     parser.add_argument(

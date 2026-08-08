@@ -1201,6 +1201,17 @@
   預設手動。(4) 敵方回合：D1（手動操控敵方）與 D2（簡單敵方啟發式佔位）都要做，
   但先做 D1。(5) 要 undo。(6) 分期：第一階段先能呈現第一回合的盤面，其餘之後對話
   慢慢補；事件表第一回合不會用到。關卡注入資料格式由 Claude 決定（見下一條）。
+- **（0809）串流成效歸因三修（使用者核准動工）**｜背景：串流輪 20260808-184706
+  全程 83 分未勝過 full 基準 79 分（run 20260805-152346），歸帳定位＝掃描本體 40
+  分完成、後 43 分被「roster 總驗連兩敗殺早收 → 追 15 格結構性點不到的格 → 南北
+  乒乓 132 把、6 筆裁決、tap 預算耗盡」吃掉。(1) `--filter-mode` 預設 candidates
+  退回 full：candidates 轉預設（121d541）只憑離線召回評估，實跑 97 分 vs full 79
+  分從未兌現提速，降回 opt-in 實驗選項。(2) 無產出推鏡保險絲 PAN_BARREN_LIMIT=40：
+  連續 40 把推鏡帳本零新裁決即 Halt；門檻取成功輪最長連段（17／14 把）約兩倍餘裕，
+  水位用已裁決格數不用 taps（乒乓搬標記吃 taps 不長帳、又不 reroot，strandings 絲
+  抓不到）。(3) settle 耗時入帳：await_still 加 SettleReport observe，journal 落
+  settle 事件（ctx=nav/feedback），供後續校準 SETTLE_POLL_S=0.5 疑似收斂不了的
+  假設——先立事實再調參。對照輪＝串流＋full，直接對 79 分基準。
 - **(0811) New project text switches to English — user ruling**｜Ruling
   chain from the 2026-08-11 session: replies to the user are English by
   default (Traditional Chinese only on request; Simplified Chinese

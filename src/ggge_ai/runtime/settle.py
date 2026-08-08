@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -44,6 +45,16 @@ def frame_motion(before: np.ndarray, after: np.ndarray) -> float:
     return float(np.count_nonzero(diff > SETTLE_DIFF_NOISE)) / diff.size
 
 
+@dataclass(frozen=True)
+class SettleReport:
+    """一次收斂等待的耗時量測。`motion` 是最後一次量到的幀差比例。"""
+
+    waited_s: float
+    polls: int
+    converged: bool
+    motion: float
+
+
 def await_still(
     grab: Callable[[], np.ndarray],
     *,
@@ -52,15 +63,26 @@ def await_still(
     deadline: float,
     poll: float,
     stable: float = SETTLE_STABLE_DIFF,
+    observe: Callable[[SettleReport], None] | None = None,
 ) -> np.ndarray:
     """幀差收斂：連兩幀差在 `stable` 內就收，等到 deadline 就放行。
 
     放行的那一張是「等不到靜止」的最佳可得，語意不是靜止保證。
+
+    `observe` 只是耗時量測的出口，回傳前呼叫一次；這一層不認得任何語意，要落帳的
+    人自己包。
     """
+    started = clock()
     before = grab()
+    polls = 0
     while True:
         sleep(poll)
         frame = grab()
-        if frame_motion(before, frame) < stable or clock() >= deadline:
+        polls += 1
+        motion = frame_motion(before, frame)
+        converged = motion < stable
+        if converged or clock() >= deadline:
+            if observe is not None:
+                observe(SettleReport(clock() - started, polls, converged, motion))
             return frame
         before = frame

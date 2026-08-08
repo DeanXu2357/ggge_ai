@@ -957,3 +957,67 @@ def test_a_silent_tap_is_polled_again_until_the_budget_runs_out():
     assert outcome.verdict == sweep.TAP_NONE
     assert len(asked) > 1
     assert now[0] >= sweep.FEEDBACK_WAIT_S
+
+
+def test_a_settled_wait_reports_what_it_cost():
+    grab, sleep, clock, _, _ = waiting(
+        [_blank_frame(), _stirred(100_000), _stirred(200_000), _stirred(200_003)]
+    )
+    seen: list[settle.SettleReport] = []
+
+    settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        observe=seen.append,
+    )
+
+    assert len(seen) == 1
+    assert seen[0].converged
+    assert seen[0].polls == 3
+    assert seen[0].waited_s == pytest.approx(settle.SETTLE_POLL_S * 3)
+    assert seen[0].motion < settle.SETTLE_STABLE_DIFF
+
+
+def test_a_wait_that_ran_out_of_budget_reports_that_it_never_converged():
+    grab, sleep, clock, _, _ = waiting([_blank_frame(), _stirred(100_000)] * 20)
+    seen: list[settle.SettleReport] = []
+
+    settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        observe=seen.append,
+    )
+
+    assert len(seen) == 1
+    assert not seen[0].converged
+    assert seen[0].waited_s >= settle.SETTLE_WAIT_S
+    assert seen[0].motion > settle.SETTLE_STABLE_DIFF
+
+
+def test_the_tap_judgement_hands_every_wait_it_made_to_the_observer():
+    grab, sleep, clock, _, _ = waiting([_blank_frame()])
+    seen: list[settle.SettleReport] = []
+    answers = iter([sweep.TAP_NONE, sweep.TAP_NONE, sweep.TAP_EMPTY])
+
+    def judge(after: np.ndarray) -> sweep.TapOutcome:
+        return sweep.TapOutcome(next(answers))
+
+    outcome = sweep.judge_tap(
+        grab,
+        judge,
+        clock=clock,
+        sleep=sleep,
+        deadline=sweep.FEEDBACK_WAIT_S,
+        poll=sweep.FEEDBACK_POLL_S,
+        observe=seen.append,
+    )
+
+    assert outcome.verdict == sweep.TAP_EMPTY
+    assert len(seen) == 3
+    assert all(report.converged for report in seen)

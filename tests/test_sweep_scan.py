@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -14,10 +15,12 @@ from ggge_ai.runtime import board, settle, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.journal import Journal
 from scripts.sweep_scan import (
+    PAN_BARREN_LIMIT,
     STRANDINGS_LIMIT,
     Halt,
     SweepRun,
     load_target,
+    parse_args,
 )
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
@@ -1077,3 +1080,70 @@ def test_two_failed_roster_checks_close_the_early_exit_for_good(tmp_path, monkey
 
     assert not run.roster_check()
     assert run.target is None
+
+
+def test_the_default_filter_mode_is_the_full_grid(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["sweep_scan.py", "--stage-node", "544,667"])
+
+    assert parse_args().filter_mode == sweep.FILTER_FULL
+
+
+def barren_run(tmp_path, monkeypatch) -> SweepRun:
+    """推鏡永遠成功、帳本永遠不長的骨架：只量無產出保險絲。"""
+    run = swiping_run(tmp_path)
+    run.ledger = sweep.SweepLedger(grid=GRID)
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: None)
+    monkeypatch.setattr(board, "find_sightings", lambda frame: ())
+    return run
+
+
+def test_pans_that_never_add_a_verdict_halt_before_the_ping_pong_burns_the_run(
+    tmp_path, monkeypatch
+):
+    run = barren_run(tmp_path, monkeypatch)
+
+    for _ in range(PAN_BARREN_LIMIT):
+        SweepRun.pan(run, "east", _blank(), 200.0)
+
+    with pytest.raises(Halt):
+        SweepRun.pan(run, "east", _blank(), 200.0)
+
+    booked = [entry for entry in _entries(run) if entry["kind"] == "barren_pans"]
+    assert booked[-1]["streak"] == PAN_BARREN_LIMIT + 1
+    assert booked[-1]["decided"] == 0
+
+
+def test_one_new_verdict_clears_the_barren_streak(tmp_path, monkeypatch):
+    run = barren_run(tmp_path, monkeypatch)
+
+    for _ in range(PAN_BARREN_LIMIT):
+        SweepRun.pan(run, "east", _blank(), 200.0)
+    run.ledger.record((2, 4), sweep.EMPTY)
+    for _ in range(PAN_BARREN_LIMIT):
+        SweepRun.pan(run, "east", _blank(), 200.0)
+
+    assert run.barren_pans == PAN_BARREN_LIMIT - 1
+    assert run.decided_watermark == 1
+
+
+def test_the_navigation_settle_books_what_the_wait_cost(tmp_path):
+    run, _, _ = settle_run(tmp_path, [_blank(), _blank()])
+
+    run.settled()
+
+    booked = [entry for entry in _entries(run) if entry["kind"] == "settle"]
+    assert [entry["ctx"] for entry in booked] == ["nav"]
+    assert booked[0]["polls"] == 1
+    assert booked[0]["converged"]
+    assert booked[0]["waited_s"] == round(settle.SETTLE_POLL_S, 2)
+
+
+def test_the_feedback_settle_is_booked_under_its_own_context(tmp_path):
+    run, _ = real_tap_run(tmp_path, [sweep.TAP_EMPTY], GLIDE)
+
+    run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    booked = [entry for entry in _entries(run) if entry["kind"] == "settle"]
+    assert [entry["ctx"] for entry in booked] == ["feedback"]
+    assert booked[0]["polls"] == 3
+    assert booked[0]["converged"]
