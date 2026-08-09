@@ -7,6 +7,33 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 規格不寫在這裡（「程式碼就是規格」）。舊快照全文在本檔的 git 歷史
 （最後完整版 `66ce53c`），設計裁決在 docs/record/decisions.md。
 
+## 暫停快照（2026-08-09 晚間使用者重開機前，分支 feat/projection-switch；切換批①②已入庫、實測輪未跑）
+
+### 恢復點（重開機後從這裡繼續）
+
+- **重開機後開工檢查（照序做）**：①實體桌面登入一次（seat0 ACL，否則 adb
+  no permissions——見記憶 adb-permissions-seat0）；②`adb kill-server` 後靠
+  settings.json 的 ADB_LIBUSB=1 重起，`ps -T -o spid,comm -C adb` 確認無
+  device poll 執行緒；③`uv run python scripts/ensure_unlocked.py`；④probe
+  確認裝置在 uc 系列 stage_list（重開機前如此，游標 uc_hard_1、node
+  544,667 有效）。
+- **0809 第六批（單應性切換批 `5869820`，分支 feat/projection-switch 從
+  343d475 分出）**：①aim 判定已切 projection 位置空間殘差＋②錨定次像素
+  格距入庫；**③座標系縫刻意未做**（單獨換算會讓格座標更錯，需位置鏈整
+  批走 projection，缺口記在 projection.py docstring）。離線重放驗收：
+  centred 兩 run 全帶 p95 0.0555/0.0600 格雙過線。923 tests＋ruff 過。
+  **下一步＝分支上跑實測輪**（未跑）：判準用分布不用壁鐘——盯 aim_shadow
+  的 new 分布（第一風險＝②/③耦合使實看漂移變大，若 |dx| 中位 >0.2 格或
+  aim_drift 風暴且 aim_overruled 接不住 → 按劇本回退 fit_lines 改回整數
+  格距，不准調 AIM_SLACK_PITCH）、world_anchored 的 pitch（會比舊值小
+  0.6-1.1%，確認東界格號沒整體平移）、zero() 退象限窗路徑有無出現、
+  aim_failed 事件（出現要留幀）。實測過→提合併回 feat/stream-input 案
+  給使用者裁；翻車→分支存證不污染主線。
+- **合併判準（使用者 0809 裁示）**：視最終成果有無改善再決定是否合回
+  stream-input。改善的口徑＝aim 拒絕率對影子輪基準（old 38%/new 15%）、
+  帳品質對真值、保險絲零觸發；壁鐘不當判準（邊際區間三樣本 36.5/76.9/
+  55.3 分變異已實錘）。
+
 ## 暫停快照（2026-08-09 晚，分支 feat/stream-input；影子數據到手——單應性待切換裁決）
 
 ### 恢復點
