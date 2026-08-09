@@ -29,10 +29,11 @@ SPAN_COLOUR = (255, 255, 0)
 def interpret(frame: np.ndarray) -> tuple[coverage.KnowledgeMap | None, coverage.FrameView, Any]:
     """走一次程式現行的盤面解讀，回傳它的知識圖、畫面觀測與格線覆蓋。"""
     span = board.read_span(frame)
+    found = board.find_lattice_band(frame)
     view = coverage.Survey()._view(frame, (0.0, 0.0))
-    if span is None:
-        return (None, view, None)
-    grid = coverage.WorldGrid.anchor(span.lattice)
+    if span is None or found is None:
+        return (None, view, span)
+    grid = coverage.WorldGrid.anchor(found[0], found[1])
     if grid is None:
         return (None, view, span)
     chart = coverage.KnowledgeMap(grid=grid)

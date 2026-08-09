@@ -4,14 +4,27 @@
 只讀資料、不碰裝置、不改任何運行時行為。素材＝`data/runs/<run>/` 或
 `data/runs/<run>.tar.gz` 裡的 window 事件幀，鏡位取那筆事件記的 offset。
 
-三個模型並排：
-  old     等距格網＋純平移（現行 `WorldGrid` 的幾何假設）
-  new     `runtime/projection` 的單應性，格距仍取 `WorldGrid` 錨定當時的值
-  scaled  同 new，但格距換成本 run 逐幀量出來的中位（診斷用：把「模型形狀錯」
-          與「錨定的格距量錯」分開；scaled 不是提案，正式流程沒有這個數）
+五個模型並排，一步一步把差別加上去：
+  old      等距格網＋純平移＋封存的格網（切換前的整條鏈）
+  shape    單應性，格網仍照封存值（只換模型形狀）
+  new      再加次像素格距。這是切換後正式流程會有的東西，驗收線只對它。
+  borders  封存格距＋「界線讀數換算進世界座標」——本批**沒有實作**的那道縫，離線量它
+           值多少（見 `runtime/projection` 模組說明「還沒補的那道縫」）。
+  both     次像素格距＋界線換算一起上。兩者是耦合的：舊的整數格距**剛好部分抵銷**界線
+           那道縫的尺規誤差，只修一邊會比兩邊都不修還糟——這一欄就是拿來看那件事的。
+
+`new` 的格距是**重建**的：封存的流水帳只記了整數中位格距，所以相位照抄、格距換成本
+run 逐幀次像素擬合的中位（產線是在角落幀當場擬合，這裡拿不到那一幀）。centred 口徑
+對這個替身免疫；**absolute 口徑會被「換格距不換相位」放大**——相位是錨定幀第一條線的
+位置，格距一動，離錨定 n 欄的線就整體平移 n·Δpitch。絕對值因此要一欄一欄對著讀，
+不能單看 new 一欄下結論。
+
+`borders` 只動鏡位不動格網：界線鏈是從角落一路 `landmark − border` 傳下來的，換算後的
+鏡位對舊鏡位是一個閉式仿射式（`bordered_offset`），所以離線推得出來。
 
 另外附一節 shadow：完全照 `SweepRun.aimed` 的取樣路徑（`find_lattice_band` 的線位）
-算 `aim_drift`（舊）與 `projection.shadow_drift`（新），用來預估影子入帳會記到什麼。
+算 `aim_drift`（舊相位模型）與 `projection.shadow_drift`（新判定），用來預估切換後
+aim 閘會看到什麼。
 
 usage:
   uv run python scripts/validate_projection.py                       # 兩批全跑
@@ -40,7 +53,7 @@ from ggge_ai.runtime.coverage import WorldGrid
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_RUNS = (
-    PROJECT_ROOT / "data" / "runs" / "20260809-152222",
+    PROJECT_ROOT / "data" / "runs" / "20260809-152222.tar.gz",
     PROJECT_ROOT / "data" / "runs" / "20260809-133305.tar.gz",
 )
 DEFAULT_OUT = PROJECT_ROOT / "docs" / "reviews" / "projection-shadow" / "replay-residuals.json"
@@ -62,7 +75,7 @@ ACCEPT_P95 = 0.10
 SANE_OLD = (0.05, 1.0)
 
 ENDORSED_SOURCES = ("edge", "mixed")
-MODELS = ("old", "new", "scaled")
+MODELS = ("old", "shape", "new", "borders", "both")
 
 
 @dataclass(frozen=True)
@@ -116,34 +129,38 @@ def _clean(lines: Sequence[int], pitch: float) -> tuple[float, ...]:
 
 
 def _pitch_of(lines: Sequence[float]) -> float | None:
-    """線位對序號的最小平方斜率＝次像素格距（整數線位取中位差只有 1px 解析度）。"""
+    """線位對序號的最小平方斜率＝次像素格距（產線同一支估計器 `board.fit_lines`）。"""
     if len(lines) < MIN_LINES:
         return None
-    return float(np.polyfit(np.arange(len(lines)), np.asarray(lines, dtype=float), 1)[0])
+    fitted = board.fit_lines(lines)
+    return None if fitted is None else fitted[1]
 
 
 def measured_pitches(
     reading: Reading, grid: WorldGrid, shape: projection.Projection
 ) -> tuple[float | None, float | None]:
-    """這一幀量到的格距，換算到世界座標的參考高度上（跟 `WorldGrid` 同一把尺）。"""
+    """這一幀量到的世界格距：兩軸都歸一到 `world_ref_y`（＝`WorldGrid` 的尺規）。"""
     heights: list[float] = []
     pitches: list[float] = []
     for band, raw in reading.cols.items():
-        pitch = _pitch_of(_clean(raw, grid.col_pitch))
+        eval_y = (band[0] + band[1]) / 2.0
+        cleaned = _clean(raw, grid.col_pitch)
+        pitch = _pitch_of([shape.restaged(x, eval_y, shape.world_ref_y) for x in cleaned])
         if pitch is not None:
-            heights.append((band[0] + band[1]) / 2.0)
+            heights.append(eval_y)
             pitches.append(pitch)
     col = None
     if len(heights) >= 2:
+        # 換算過的欄距在各帶理應同值；仍逐帶擬合再取參考高度，是為了讓殘餘的 y 依存看得見。
         fit = np.polyfit(heights, pitches, 1)
-        col = float(np.polyval(fit, shape.grid_ref_y))
+        col = float(np.polyval(fit, shape.world_ref_y))
     rows = _clean(reading.rows, grid.row_pitch)
     row = None
     if len(rows) >= 3:
         centres = [(a + b) / 2.0 for a, b in zip(rows, rows[1:], strict=False)]
         gaps = [b - a for a, b in zip(rows, rows[1:], strict=False)]
-        if centres[0] <= shape.grid_ref_y <= centres[-1]:
-            row = float(np.interp(shape.grid_ref_y, centres, gaps))
+        if centres[0] <= shape.world_ref_y <= centres[-1]:
+            row = float(np.interp(shape.world_ref_y, centres, gaps))
     return (col, row)
 
 
@@ -158,12 +175,12 @@ def _flat_lines(
 
 
 def _row_pitch_at(grid: WorldGrid, y: float, shape: projection.Projection) -> float:
-    scale = shape.row_scale(y) / shape.row_scale(shape.grid_ref_y)
+    scale = shape.row_scale(y) / shape.row_scale(shape.world_ref_y)
     return grid.row_pitch * scale * scale
 
 
 def _col_pitch_at(grid: WorldGrid, y: float, shape: projection.Projection) -> float:
-    return grid.col_pitch * shape.col_scale(y) / shape.col_scale(shape.grid_ref_y)
+    return grid.col_pitch * shape.col_scale(y) / shape.col_scale(shape.world_ref_y)
 
 
 def _band_of(y: float) -> tuple[int, int] | None:
@@ -176,13 +193,14 @@ def _band_of(y: float) -> tuple[int, int] | None:
 def compare(
     reading: Reading,
     grids: dict[str, WorldGrid],
-    offset: tuple[float, float],
+    offsets: dict[str, tuple[float, float]],
     shape: projection.Projection,
 ) -> list[Sample]:
     samples: list[Sample] = []
     base = grids["new"]
     rows = _clean(reading.rows, base.row_pitch)
     for model, grid in grids.items():
+        offset = offsets[model]
         if not rows:
             break
         # 坑：預測窗各外擴一格。貼著窗邊的實測線沒有預測線可配就會配到窗內最後一條，
@@ -204,6 +222,7 @@ def compare(
         if not cols:
             continue
         for model, grid in grids.items():
+            offset = offsets[model]
             span = (MEAS_X[0] - grid.col_pitch, MEAS_X[1] + grid.col_pitch)
             guess = (
                 _flat_lines(grid.phase[0], grid.col_pitch, offset[0], span)
@@ -261,9 +280,13 @@ def summarise(buckets: dict[tuple, Bucket]) -> dict[str, dict]:
 
 
 def shadow_pair(
-    reading: Reading, grid: WorldGrid, offset: tuple[float, float], shape: projection.Projection
+    reading: Reading,
+    grids: dict[str, WorldGrid],
+    offset: tuple[float, float],
+    shape: projection.Projection,
 ) -> tuple[tuple[float, float], tuple[float, float]] | None:
-    """照 `SweepRun.aimed` 的取樣路徑算兩個模型的漂移，預估影子入帳會記到什麼。"""
+    """照 `SweepRun.aimed` 的取樣路徑算新舊兩個判定值：舊＝相位模型＋封存格網，
+    新＝位置空間殘差＋重建格網。"""
     if reading.lattice is None or reading.band is None:
         return None
     lattice = reading.lattice
@@ -271,22 +294,55 @@ def shadow_pair(
     if pitch[0] <= 0 or pitch[1] <= 0:
         return None
     phase = (lattice.cols[0] % pitch[0], lattice.rows[0] % pitch[1])
-    old = sweep.aim_drift(phase, grid, offset)
+    old = sweep.aim_drift(phase, grids["old"], offset)
     at = (
         sweep.TAP_REGION[0] + sweep.TAP_REGION[2] / 2.0,
         sweep.TAP_REGION[1] + sweep.TAP_REGION[3] / 2.0,
     )
-    new = projection.shadow_drift(lattice, reading.band, grid, offset, at=at, projection=shape)
+    new = projection.shadow_drift(
+        lattice, reading.band, grids["new"], offset, at=at, projection=shape
+    )
     return None if new is None else (old, new)
 
 
-def _journal_grid(entries: Sequence[dict]) -> WorldGrid | None:
+def _journal_anchor(entries: Sequence[dict]) -> tuple[WorldGrid, tuple[float, float]] | None:
+    """封存流水帳裡的世界錨定：(格網, 錨定當時的鏡位)。"""
     for entry in entries:
         if entry.get("kind") == "world_anchored":
             phase = entry["phase"]
             pitch = entry["pitch"]
-            return WorldGrid((float(phase[0]), float(phase[1])), float(pitch[0]), float(pitch[1]))
+            offset = entry["offset"]
+            return (
+                WorldGrid((float(phase[0]), float(phase[1])), float(pitch[0]), float(pitch[1])),
+                (float(offset[0]), float(offset[1])),
+            )
     return None
+
+
+def bordered_offset(
+    offset: tuple[float, float], shape: projection.Projection
+) -> tuple[float, float]:
+    """界線讀數換算進世界座標之後的鏡位。
+
+    界線鏈整條是 `landmark − border`，而 landmark 一路回溯到角落那一幀的界線，所以
+    「每個界線讀數各乘一次 restaged」對鏡位就是一個仿射式：
+    `offset' = s·offset + vp·(s−1)`，s ＝校正空間到世界高度的縮放。y 軸不動——那道縫
+    要連單位位置一起換空間才有意義（見 `runtime/projection` 模組說明）。
+    """
+    scale = shape.col_scale(shape.world_ref_y)
+    return (scale * offset[0] + shape.vp_x * (scale - 1.0), offset[1])
+
+
+def bordered_grid(
+    archived: WorldGrid, anchor_offset: tuple[float, float], shape: projection.Projection
+) -> WorldGrid:
+    """同一個換算下的世界格網：格線讀數不動，動的是它加上去的那個鏡位。"""
+    lines = archived.phase[0] - anchor_offset[0]
+    return WorldGrid(
+        (lines + bordered_offset(anchor_offset, shape)[0], archived.phase[1]),
+        archived.col_pitch,
+        archived.row_pitch,
+    )
 
 
 def _windows(entries: Sequence[dict]) -> list[dict]:
@@ -313,10 +369,10 @@ def _windows(entries: Sequence[dict]) -> list[dict]:
 
 def _load_directory(path: Path, limit: int | None) -> Iterator[tuple[dict, Reading]]:
     entries = [json.loads(line) for line in (path / "sweep.jsonl").open(encoding="utf-8")]
-    grid = _journal_grid(entries)
-    if grid is None:
+    anchored = _journal_anchor(entries)
+    if anchored is None:
         return
-    yield ({"grid": grid}, Reading((), {}, None, None))
+    yield ({"anchor": anchored}, Reading((), {}, None, None))
     for window in _windows(entries)[:limit]:
         frame = cv2.imread(str(path / window["frame"]))
         if frame is not None:
@@ -345,10 +401,10 @@ def _load_tar(path: Path, limit: int | None) -> Iterator[tuple[dict, Reading]]:
             frame = cv2.imdecode(np.frombuffer(handle.read(), np.uint8), cv2.IMREAD_COLOR)
             if frame is not None:
                 readings[Path(member.name).name] = read_frame(frame)
-    grid = _journal_grid(entries)
-    if grid is None:
+    anchored = _journal_anchor(entries)
+    if anchored is None:
         return
-    yield ({"grid": grid}, Reading((), {}, None, None))
+    yield ({"anchor": anchored}, Reading((), {}, None, None))
     for window in _windows(entries)[:limit]:
         found = readings.get(Path(window["frame"]).name)
         if found is not None:
@@ -360,24 +416,34 @@ def replay(path: Path, limit: int | None, shape: projection.Projection) -> dict:
     header = next(source, None)
     if header is None:
         return {"run": path.name, "frames": 0, "note": "journal has no world_anchored"}
-    grid: WorldGrid = header[0]["grid"]
+    grid, anchor_offset = header[0]["anchor"]
     frames = [(window, reading) for window, reading in source]
     fitted = [measured_pitches(reading, grid, shape) for _, reading in frames]
     col = [value for value, _ in fitted if value is not None]
     row = [value for _, value in fitted if value is not None]
-    scaled = WorldGrid(
-        grid.phase,
+    pitch = (
         float(np.median(col)) if col else grid.col_pitch,
         float(np.median(row)) if row else grid.row_pitch,
     )
-    grids = {"old": grid, "new": grid, "scaled": scaled}
+    fresh = WorldGrid(grid.phase, pitch[0], pitch[1])
+    grids = {
+        "old": grid,
+        "shape": grid,
+        "new": fresh,
+        "borders": bordered_grid(grid, anchor_offset, shape),
+        "both": WorldGrid(bordered_grid(grid, anchor_offset, shape).phase, pitch[0], pitch[1]),
+    }
 
     buckets: dict[tuple, Bucket] = {}
     shadows: dict[tuple[str, str], list[float]] = {}
     counted = 0
     endorsed = 0
     for window, reading in frames:
-        samples = compare(reading, grids, window["offset"], shape)
+        offsets = {model: window["offset"] for model in grids}
+        shifted = bordered_offset(window["offset"], shape)
+        offsets["borders"] = shifted
+        offsets["both"] = shifted
+        samples = compare(reading, grids, offsets, shape)
         if not samples:
             continue
         counted += 1
@@ -391,7 +457,7 @@ def replay(path: Path, limit: int | None, shape: projection.Projection) -> dict:
                     bucket = buckets.setdefault(key, Bucket())
                     bucket.px.append(sample.px)
                     bucket.grid.append(sample.px / sample.pitch)
-        pair = shadow_pair(reading, grid, window["offset"], shape)
+        pair = shadow_pair(reading, grids, window["offset"], shape)
         if pair is not None:
             for model, drift in zip(("old", "new"), pair, strict=True):
                 for scope in scopes:
@@ -406,7 +472,7 @@ def replay(path: Path, limit: int | None, shape: projection.Projection) -> dict:
             "col_pitch": grid.col_pitch,
             "row_pitch": grid.row_pitch,
         },
-        "replay_pitch": {"col": round(scaled.col_pitch, 2), "row": round(scaled.row_pitch, 2)},
+        "fitted_pitch": {"col": round(fresh.col_pitch, 2), "row": round(fresh.row_pitch, 2)},
         "bands": summarise(buckets),
         "shadow": {
             "|".join(key): {
@@ -433,7 +499,6 @@ def verdict(report: dict, scope: str = "endorsed") -> dict:
         out[variant] = {
             **{f"{model}_worst_p95_grid": round(value, 4) for model, value in worst.items()},
             "new_passes": bool(worst.get("new") and worst["new"] < ACCEPT_P95),
-            "scaled_passes": bool(worst.get("scaled") and worst["scaled"] < ACCEPT_P95),
             "harness_sane": bool(SANE_OLD[0] <= worst.get("old", 0.0) <= SANE_OLD[1]),
         }
     return out
@@ -463,7 +528,7 @@ def report_lines(report: dict) -> str:
         f"endorsed={report.get('endorsed_frames')} "
         f"anchor_pitch={report.get('grid', {}).get('col_pitch')}/"
         f"{report.get('grid', {}).get('row_pitch')} "
-        f"replay_pitch={report.get('replay_pitch')} ==="
+        f"fitted_pitch={report.get('fitted_pitch')} ==="
     ]
     for scope in ("all", "endorsed"):
         for variant in ("absolute", "centred"):
@@ -504,7 +569,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "col_k": shape.col_k,
             "row_k": shape.row_k,
             "ref_y": shape.ref_y,
-            "grid_ref_y": shape.grid_ref_y,
+            "world_ref_y": shape.world_ref_y,
         },
         "accept_p95_grid": ACCEPT_P95,
         "measure_window": {"x": list(MEAS_X), "y": list(MEAS_Y), "bands": [list(b) for b in BANDS]},

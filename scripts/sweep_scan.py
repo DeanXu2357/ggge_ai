@@ -84,9 +84,9 @@ CARD_SETTLE_S = 1.0
 CENSUS_READ_TRIES = 3
 # 星座總驗連續失敗這麼多次就不再嘗試早收，退回照舊逐格掃到底。
 ROSTER_CHECK_TRIES = 2
-# 影子入帳的評估點：點擊窗中心。殘差是螢幕像素，而像素的格價隨螢幕 y 變，講在哪裡量的
-# 才有意義。
-SHADOW_AT: sweep.Point = (
+# aim 閘的評估點：點擊窗中心。殘差是螢幕像素，而像素的格價隨螢幕 y 變，講在哪裡量的
+# 才有意義；判定的後果落在點擊窗，就量在那裡。
+AIM_AT: sweep.Point = (
     sweep.TAP_REGION[0] + sweep.TAP_REGION[2] / 2.0,
     sweep.TAP_REGION[1] + sweep.TAP_REGION[3] / 2.0,
 )
@@ -291,10 +291,10 @@ class SweepRun:
         # 角落錨定＝同一幀的西界＋北界解出兩軸，與 SOURCE_EDGE 同級。
         self.anchor_source = sweep.SOURCE_EDGE
         if self.ledger is None:
-            lattice = board.find_lattice(frame)
-            if lattice is None:
+            found = board.find_lattice_band(frame)
+            if found is None:
                 raise Halt("角落幀讀不出格網，世界座標無從定義")
-            anchored = sweep.anchor_northwest(lattice, borders)
+            anchored = sweep.anchor_northwest(found[0], found[1], borders)
             if anchored is None:
                 raise Halt("角落幀的格距不合理，世界座標無從定義")
             grid, self.offset = anchored
@@ -875,60 +875,55 @@ class SweepRun:
         return False
 
     def aimed(self, frame: np.ndarray) -> bool:
-        """這一幀的格線相位對不對得上當前鏡位。對不上就停手重錨，一格都不點。
+        """這一幀的格線對不對得上當前鏡位。對不上就停手重錨，一格都不點。
+
+        判定走單應性模型的**位置空間**逐線殘差（`projection.shadow_drift`）：相位相減
+        的兩側週期取自不同來源（量測報告 §3.4，中位 0.052、p95 0.156 格的系統項），
+        0.25 格容差有一半以上被那個假訊號吃掉；位置空間比對兩側是同一把尺。
 
         讀不出格線回 True：那是「不知道」不是「偏了」，別讓沒有格線的畫面把掃描
-        鎖死；那條路上還有標記與界線兩個證人。
+        鎖死；那條路上還有標記與界線兩個證人。模型算爆了同級處理——這一幀不表態，
+        不准把掃描帶下去。
         """
         grid = self._ledger().grid
-        reading = board.lattice_phase(frame)
-        if reading is None:
+        try:
+            found = board.find_lattice_band(frame)
+            if found is None:
+                return True
+            lattice, band = found
+            drift = projection.shadow_drift(lattice, band, grid, self.offset, at=AIM_AT)
+        except Exception as error:  # noqa: BLE001
+            self.journal.record("aim_failed", error=str(error))
             return True
-        # 坑：期望側不得改用當幀量測格距（0809 run 150152 定讞）。grid.phase 是遠錨的
-        # 世界座標、它的格線系週期就是模型格距；換週期取 mod 會把兩格距之差按「錨到
-        # 鏡位的距離÷格距」放大成幾十 px 的系統性假漂移（|dx| 中位 28px、12 分鐘
-        # anchor→aim 活鎖）。量測報告「兩側同週期」的正解＝位置空間逐線比對，歸
-        # 單應性批次；量測 pitch 只入帳當遙測。
-        phase, pitch = reading
-        drift = sweep.aim_drift(phase, grid, self.offset)
-        self.aim_shadow(frame, drift, pitch)
+        if drift is None:
+            return True
+        self.aim_shadow(lattice, drift)
         if sweep.aimed(drift, grid):
             return True
         self.journal.record(
             "aim_drift",
             drift=[round(value, 1) for value in drift],
             offset=[round(value, 1) for value in self.offset],
-            pitch=[round(value, 1) for value in pitch],
+            model="projection",
         )
         self.grounded = False
         return False
 
-    def aim_shadow(self, frame: np.ndarray, old: sweep.Point, pitch: sweep.Point) -> None:
-        """單應性模型的位置空間殘差，與現行相位殘差並排入帳。**不參與任何判定**。
+    def aim_shadow(self, lattice: board.Lattice, new: sweep.Point) -> None:
+        """新舊模型並排入帳：`new` ＝現行判定值、`old` ＝舊相位模型的遙測。**不參與判定**。
 
-        讀得出格線就記，過閘與否都記——現行 `aim_drift` 只在沒過閘時才寫，照那個
-        條件記影子會拿「已經偏了的幀」當全部樣本，配對統計整個偏掉。
-
-        坑：影子絕不可以改變行為，所以整段包在例外攔截裡。新模型算爆了只准少一筆
-        遙測，不准把掃描帶下去。
+        讀得出格線就記，過閘與否都記——`aim_drift` 只在沒過閘時才寫，照那個條件記
+        對照會拿「已經偏了的幀」當全部樣本，配對統計整個偏掉。
         """
-        try:
-            found = board.find_lattice_band(frame)
-            if found is None:
-                return
-            lattice, band = found
-            new = projection.shadow_drift(
-                lattice, band, self._ledger().grid, self.offset, at=SHADOW_AT
-            )
-        except Exception as error:  # noqa: BLE001
-            self.journal.record("aim_shadow_failed", error=str(error))
+        pitch = (lattice.col_pitch, lattice.row_pitch)
+        if pitch[0] <= 0 or pitch[1] <= 0:
             return
-        if new is None:
-            return
+        phase = (lattice.cols[0] % pitch[0], lattice.rows[0] % pitch[1])
+        old = sweep.aim_drift(phase, self._ledger().grid, self.offset)
         self.journal.record(
             "aim_shadow",
-            old=[round(value, 1) for value in old],
             new=[round(value, 1) for value in new],
+            old=[round(value, 1) for value in old],
             pitch=[round(value, 1) for value in pitch],
             offset=[round(value, 1) for value in self.offset],
         )

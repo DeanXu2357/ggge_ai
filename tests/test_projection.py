@@ -11,7 +11,7 @@ import math
 
 import pytest
 
-from ggge_ai.runtime import projection
+from ggge_ai.runtime import board, projection
 from ggge_ai.runtime.board import Lattice
 from ggge_ai.runtime.coverage import WorldGrid
 
@@ -39,10 +39,71 @@ def test_the_world_screen_round_trip_returns_the_same_point():
         assert SHAPE.screen_y(world, OFFSET[1]) == pytest.approx(y)
 
 
-def test_the_reference_height_is_where_the_grid_pitch_was_measured():
+def test_the_world_ruler_is_the_screen_at_one_declared_height():
+    """世界座標＝ `world_ref_y` 上的螢幕座標＋鏡位，兩軸同一個高度。"""
     assert SHAPE.col_scale(SHAPE.ref_y) == pytest.approx(1.0)
-    assert SHAPE.world_y(SHAPE.grid_ref_y, 0.0) == pytest.approx(SHAPE.grid_ref_y)
-    assert SHAPE.world_x(700.0, 0.0, SHAPE.grid_ref_y) == pytest.approx(700.0)
+    assert SHAPE.world_x(700.0, 0.0, SHAPE.world_ref_y) == pytest.approx(700.0)
+    assert SHAPE.world_y(SHAPE.world_ref_y, 0.0) == pytest.approx(SHAPE.world_ref_y)
+    for y in (300.0, 650.0, 900.0):
+        assert SHAPE.world_x(700.0, 0.0, y) == pytest.approx(
+            SHAPE.restaged(700.0, y, SHAPE.world_ref_y)
+        )
+
+
+def test_the_anchor_puts_every_band_on_the_same_world_ruler():
+    """主帶讀不出來時 `find_lattice` 退四象限窗，帶中線差 110px。不換算的話同一個世界
+    在兩個帶上會錨出兩套座標——「一個世界錨定只准一種座標約定」要擋的就是這件事。
+    """
+    truth = WorldGrid(phase=(1180.0, 620.0), col_pitch=91.65, row_pitch=84.58)
+    camera = (-980.0, -370.0)
+    main = (150, 250, 1600, 530)
+    quadrant = (150, 250, 800, 310)
+
+    anchors = [
+        projection.anchor(synthetic(truth, camera, band), band, camera)
+        for band in (main, quadrant)
+    ]
+
+    assert all(anchor is not None for anchor in anchors)
+    for phase, pitch in anchors:
+        assert pitch[0] == pytest.approx(truth.col_pitch, abs=0.2)
+        assert _lines_up(phase[0], truth.phase[0], truth.col_pitch) == pytest.approx(0.0, abs=1.5)
+    # 不換算的話象限窗量到的欄距小 1.2%（帶中線 405 vs 515），17 欄上就累積一格的兩成
+    raw = board.fit_lines(synthetic(truth, camera, quadrant).cols)
+    assert raw is not None
+    assert abs(raw[1] - truth.col_pitch) > 5 * abs(anchors[1][1][0] - truth.col_pitch)
+
+
+def test_the_anchored_world_reproduces_the_frame_it_was_anchored_on():
+    """錨定幀自己要對得上。縱線三個帶都收到 1px 內（帶換算就是為了這件事）。
+
+    列留 6px：世界 y 是**原始螢幕 y**（與界線讀數同一個空間），而模型的世界 y 是攤平
+    座標，兩者在相位上差幾個像素。這一項與離線重放量到的絕對列殘差（中位 1.5-3.5px）
+    同源，補它要連界線與單位位置一起換空間——見模組說明「還沒補的那道縫」。
+    """
+    truth = WorldGrid(phase=(1180.0, 620.0), col_pitch=91.65, row_pitch=84.58)
+    camera = (-980.0, -370.0)
+
+    for band in ((150, 250, 1600, 530), (150, 250, 800, 310), (950, 560, 800, 310)):
+        lattice = synthetic(truth, camera, band)
+        anchored = projection.anchor(lattice, band, camera)
+        assert anchored is not None
+        phase, pitch = anchored
+        grid = WorldGrid(phase, pitch[0], pitch[1])
+        drift = projection.shadow_drift(lattice, band, grid, camera, at=AT)
+        assert drift is not None
+        assert drift[0] == pytest.approx(0.0, abs=1.0)
+        assert drift[1] == pytest.approx(0.0, abs=6.0)
+
+
+def _lines_up(value: float, reference: float, pitch: float) -> float:
+    """兩個相位差幾個像素（模格距，取進 ±半格）。"""
+    return (value - reference + pitch / 2.0) % pitch - pitch / 2.0
+
+
+def test_an_unreadable_lattice_gives_no_anchor():
+    assert projection.anchor(Lattice((), ()), (150, 250, 1600, 530)) is None
+    assert projection.anchor(Lattice((100, 200), ()), (150, 250, 1600, 530)) is None
 
 
 def test_the_screen_pitch_grows_with_screen_y_two_to_one_between_the_axes():
@@ -81,7 +142,9 @@ def test_a_camera_that_moved_shows_up_as_the_move():
     drift = projection.shadow_drift(lattice, BAND, GRID, stale, at=AT)
 
     assert drift is not None
-    assert drift[0] == pytest.approx(30.0 * SHAPE.col_scale(AT[1]) / SHAPE.col_scale(515.0), abs=1.0)
+    assert drift[0] == pytest.approx(
+        30.0 * SHAPE.col_scale(AT[1]) / SHAPE.col_scale(SHAPE.world_ref_y), abs=1.0
+    )
     assert drift[1] == pytest.approx(20.0, abs=1.5)
 
 
@@ -113,7 +176,11 @@ def test_lines_between_stays_inside_the_range():
 
 
 def test_the_uniform_model_disagrees_most_at_the_top_and_bottom_of_the_screen():
-    """把斜格當垂直線的誤差在螢幕中段最小、頂底最大（量測報告 §3.3）。"""
+    """把斜格當垂直線的誤差在螢幕中段最小、頂底最大（量測報告 §3.3）。
+
+    等距模型在每個高度都用同一個欄距，而真正的欄距隨螢幕 y 縮放：同一帶內離消失點
+    越遠偏得越多（殘差全距），帶越往上整體偏移也越大（殘差中位）。
+    """
     lattice = synthetic(GRID, OFFSET, BAND)
     flat = tuple(
         line - OFFSET[0]
@@ -128,5 +195,9 @@ def test_the_uniform_model_disagrees_most_at_the_top_and_bottom_of_the_screen():
         flat, synthetic(GRID, OFFSET, top_band).cols
     )
 
-    assert abs(middle.median) < 2.0
+    assert _spread(top.offsets) > _spread(middle.offsets)
     assert abs(top.median) > abs(middle.median)
+
+
+def _spread(offsets: tuple[float, ...]) -> float:
+    return max(offsets) - min(offsets)

@@ -1323,16 +1323,19 @@ def constellation_offset(
 
 
 def anchor_northwest(
-    lattice: board.Lattice, borders: Mapping[str, float]
+    lattice: board.Lattice, band: Region, borders: Mapping[str, float]
 ) -> tuple[WorldGrid, Point] | None:
     """西北角幀 → 世界座標系：西界＝世界 x 0、北界＝世界 y 0。
 
     座標在這裡是被**定義**的，不是量出來的；角落可重現，所以跨輪重新歸零回到同一套。
+
+    `band` ＝格線是從哪個帶量出來的。縱線是斜的，線位隨量測高度變，錨定要先把它換算到
+    世界座標的參考高度（見 `runtime/projection` 模組說明）。
     """
     if "west" not in borders or "north" not in borders:
         return None
     offset = (-float(borders["west"]), -float(borders["north"]))
-    grid = WorldGrid.anchor(lattice, offset)
+    grid = WorldGrid.anchor(lattice, band, offset)
     if grid is None:
         return None
     return (grid, offset)

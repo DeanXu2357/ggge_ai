@@ -464,8 +464,10 @@ def test_zeroing_reads_the_borders_off_the_pan_verdict_frame_instead_of_reshooti
         [{}, {"west": 1.0}, {"west": 1.0, "north": 2.0}, {"west": 1.0, "north": 2.0}]
     )
     monkeypatch.setattr(sweep, "read_borders", lambda frame: next(borders))
-    monkeypatch.setattr(board, "find_lattice", lambda frame: GRID)
-    monkeypatch.setattr(sweep, "anchor_northwest", lambda lattice, seen: (GRID, (0.0, 0.0)))
+    monkeypatch.setattr(board, "find_lattice_band", lambda frame: (GRID, board.GRID_REGION))
+    monkeypatch.setattr(
+        sweep, "anchor_northwest", lambda lattice, band, seen: (GRID, (0.0, 0.0))
+    )
 
     run.zero()
 
@@ -865,11 +867,16 @@ def test_a_drifted_window_stops_tapping_and_leaves_the_cell_unsentenced(tmp_path
 
 
 def aim_gate_run(tmp_path, monkeypatch, borders: dict[str, float]):
-    """相位對不上（0.4 格）、界線讀數由參數決定的一窗。"""
+    """位置殘差對不上（0.4 格）、界線讀數由參數決定的一窗。"""
     run = build_run(tmp_path, {})
     run.landmarks = {"west": 0.0, "north": 0.0}
     run.anchor_source = sweep.SOURCE_EDGE
-    monkeypatch.setattr(board, "lattice_phase", lambda frame: ((40.0, 0.0), (100.0, 100.0)))
+    monkeypatch.setattr(
+        board,
+        "find_lattice_band",
+        lambda frame: (board.Lattice((100, 200, 300), (100, 200, 300)), board.GRID_REGION),
+    )
+    monkeypatch.setattr(projection, "shadow_drift", lambda *args, **kwargs: (40.0, 0.0))
     monkeypatch.setattr(sweep, "read_borders", lambda frame: dict(borders))
     decided: list[tuple[int, int]] = []
     run.decide = lambda target, before: (
@@ -1245,60 +1252,94 @@ def test_the_feedback_settle_is_booked_under_its_own_context(tmp_path):
     assert booked[0]["converged"]
 
 
-def shadow_run(tmp_path, monkeypatch, drift: tuple[float, float]) -> SweepRun:
-    """aim 閘骨架：相位由 drift 指定，格線讀數由投影模型自己生（＝完全對齊的一幀）。"""
+# 實機量級的世界格網（兩軸都在主格線帶中線那把尺上），拿來看兩個模型的差別。
+AIM_GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=91.65, row_pitch=84.58)
+# 主帶讀不出來時 find_lattice 退的四象限窗之一（西南）。帶中線離世界參考高度越遠，
+# 舊相位模型的螢幕↔世界尺規差越大——那是它在底緣系統性誤否決的來源。
+LOW_BAND = board.lattice_windows()[2]
+
+
+def aim_run(tmp_path, monkeypatch, band, offset, camera=None) -> SweepRun:
+    """aim 閘骨架：格線由投影模型自己生（＝與世界格網完全對齊的一幀）。
+
+    `camera` 給值就是「帳本以為的鏡位」，與生格線用的真鏡位分開，才做得出真漂移。
+    """
     run = build_run(tmp_path, {})
-    band = board.GRID_REGION
+    run.ledger = sweep.SweepLedger(grid=AIM_GRID)
+    run.offset = camera if camera is not None else offset
     lattice = board.Lattice(
         tuple(
             round(value)
             for value in projection.expected_columns(
-                GRID, run.offset, band[1] + band[3] / 2.0, (band[0], band[0] + band[2])
+                AIM_GRID, offset, band[1] + band[3] / 2.0, (band[0], band[0] + band[2])
             )
         ),
         tuple(
             round(value)
-            for value in projection.expected_rows(GRID, run.offset, (band[1], band[1] + band[3]))
+            for value in projection.expected_rows(
+                AIM_GRID, offset, (band[1], band[1] + band[3])
+            )
         ),
-    )
-    monkeypatch.setattr(
-        board, "lattice_phase", lambda frame: (drift, (GRID.col_pitch, GRID.row_pitch))
     )
     monkeypatch.setattr(board, "find_lattice_band", lambda frame: (lattice, band))
     return run
 
 
-def shadow_events(run: SweepRun) -> list[dict]:
+def aim_events(run: SweepRun) -> list[dict]:
     return [entry for entry in run.journal.entries() if entry["kind"].startswith("aim_")]
 
 
-def test_the_shadow_records_the_pair_without_touching_the_verdict(tmp_path, monkeypatch):
-    run = shadow_run(tmp_path, monkeypatch, (0.0, 0.0))
+def phase_verdict(run: SweepRun, frame) -> bool:
+    """同一幀交給舊相位模型會怎麼判——判定依據取自畫面，不是寫死的數。"""
+    lattice, _ = board.find_lattice_band(frame)
+    pitch = (lattice.col_pitch, lattice.row_pitch)
+    phase = (lattice.cols[0] % pitch[0], lattice.rows[0] % pitch[1])
+    return sweep.aimed(sweep.aim_drift(phase, run.ledger.grid, run.offset), run.ledger.grid)
+
+
+def test_a_frame_that_matches_the_model_passes_and_books_both_models(tmp_path, monkeypatch):
+    run = aim_run(tmp_path, monkeypatch, board.GRID_REGION, (-1000.0, -300.0))
 
     assert SweepRun.aimed(run, _blank())
 
-    assert run.grounded  # 過閘的路徑一步沒變
-    kinds = [entry["kind"] for entry in shadow_events(run)]
-    assert kinds == ["aim_shadow"]
-    shadow = shadow_events(run)[0]
-    assert shadow["old"] == [0.0, 0.0]
-    assert shadow["pitch"] == [100.0, 100.0]
-    assert shadow["offset"] == [0.0, 0.0]
-    assert shadow["new"] == pytest.approx([0.0, 0.0], abs=1.0)
+    assert run.grounded
+    booked = aim_events(run)
+    assert [entry["kind"] for entry in booked] == ["aim_shadow"]
+    assert booked[0]["new"] == pytest.approx([0.0, 0.0], abs=1.0)
+    assert booked[0]["offset"] == [-1000.0, -300.0]
 
 
-def test_a_frame_that_fails_the_gate_still_fails_it_and_records_both(tmp_path, monkeypatch):
-    run = shadow_run(tmp_path, monkeypatch, (40.0, 0.0))
+def test_the_phase_model_vetoes_a_frame_that_the_projection_lets_through(tmp_path, monkeypatch):
+    """主帶讀不出來、線位來自下方象限窗：舊相位閘誤否決，位置空間殘差放行。"""
+    run = aim_run(tmp_path, monkeypatch, LOW_BAND, (-1000.0, -300.0))
+
+    assert not phase_verdict(run, _blank())
+    assert SweepRun.aimed(run, _blank())
+
+    assert run.grounded
+    booked = aim_events(run)
+    assert [entry["kind"] for entry in booked] == ["aim_shadow"]
+    assert abs(booked[0]["old"][1]) > sweep.AIM_SLACK_PITCH * AIM_GRID.row_pitch
+    assert booked[0]["new"] == pytest.approx([0.0, 0.0], abs=1.0)
+
+
+def test_a_camera_that_really_moved_still_fails_the_gate(tmp_path, monkeypatch):
+    run = aim_run(
+        tmp_path, monkeypatch, board.GRID_REGION, (-1000.0, -300.0), camera=(-960.0, -300.0)
+    )
 
     assert not SweepRun.aimed(run, _blank())
 
     assert not run.grounded
-    kinds = [entry["kind"] for entry in shadow_events(run)]
-    assert kinds == ["aim_shadow", "aim_drift"]  # 影子先記，判定路徑照舊在後面寫
+    booked = aim_events(run)
+    # 影子先記，判定路徑在後面寫
+    assert [entry["kind"] for entry in booked] == ["aim_shadow", "aim_drift"]
+    assert booked[1]["model"] == "projection"
+    assert booked[1]["drift"][0] == pytest.approx(40.0, abs=2.0)
 
 
-def test_a_shadow_that_blows_up_never_takes_the_scan_down_with_it(tmp_path, monkeypatch):
-    run = shadow_run(tmp_path, monkeypatch, (0.0, 0.0))
+def test_a_projection_that_blows_up_never_takes_the_scan_down_with_it(tmp_path, monkeypatch):
+    run = aim_run(tmp_path, monkeypatch, board.GRID_REGION, (-1000.0, -300.0))
 
     def explode(*args, **kwargs):
         raise ValueError("boom")
@@ -1308,13 +1349,14 @@ def test_a_shadow_that_blows_up_never_takes_the_scan_down_with_it(tmp_path, monk
     assert SweepRun.aimed(run, _blank())
 
     assert run.grounded
-    assert [entry["kind"] for entry in shadow_events(run)] == ["aim_shadow_failed"]
+    assert [entry["kind"] for entry in aim_events(run)] == ["aim_failed"]
 
 
-def test_no_lattice_means_no_shadow_entry_at_all(tmp_path, monkeypatch):
-    run = shadow_run(tmp_path, monkeypatch, (0.0, 0.0))
+def test_no_lattice_is_not_a_drift(tmp_path, monkeypatch):
+    run = aim_run(tmp_path, monkeypatch, board.GRID_REGION, (-1000.0, -300.0))
     monkeypatch.setattr(board, "find_lattice_band", lambda frame: None)
 
     assert SweepRun.aimed(run, _blank())
 
-    assert shadow_events(run) == []
+    assert run.grounded
+    assert aim_events(run) == []

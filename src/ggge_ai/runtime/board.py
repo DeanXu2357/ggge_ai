@@ -244,6 +244,22 @@ def _median_gap(positions: Sequence[int]) -> float:
     return float(gaps[n // 2] if n % 2 else (gaps[n // 2 - 1] + gaps[n // 2]) / 2)
 
 
+def fit_lines(positions: Sequence[float]) -> tuple[float, float] | None:
+    """等距線列的最小平方擬合，回 (第 0 條線的位置, 格距)。線少於兩條或格距非正就 None。
+
+    坑：整數線位取中位差（`_median_gap`）只有 1px 解析度＝0.85% 的格距誤差，19 欄上
+    累積 0.16 格——離線重放（`scripts/validate_projection.py`）證實那是位置殘差的主源。
+    世界錨定要的是次像素格距，畫面內的吸附／索引照舊用線位本身。
+    """
+    if len(positions) < 2:
+        return None
+    values = np.asarray(positions, dtype=float)
+    pitch, first = np.polyfit(np.arange(len(values), dtype=float), values, 1)
+    if pitch <= 0:
+        return None
+    return (float(first), float(pitch))
+
+
 def _snap_axis(value: float, positions: Sequence[int]) -> float:
     if not positions or value < positions[0] or value > positions[-1]:
         return value

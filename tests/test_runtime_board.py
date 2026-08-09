@@ -77,6 +77,28 @@ def test_the_lattice_reports_line_positions_not_one_cell_size():
     assert 90 <= lattice.row_pitch <= 160
 
 
+def test_the_fitted_pitch_beats_the_median_gap_on_quantised_line_positions():
+    """線位是整數，中位差因此只有 1px 解析度＝0.85% 的格距誤差，19 欄上累積 0.16 格
+    （離線重放的 scaled 診斷欄）。最小平方擬合把量化噪聲攤掉。
+    """
+    pitch = 91.65
+    first = 173.4
+    lines = tuple(round(first + index * pitch) for index in range(12))
+
+    fitted = board.fit_lines(lines)
+
+    assert fitted is not None
+    assert fitted[1] == pytest.approx(pitch, abs=0.05)
+    assert fitted[0] == pytest.approx(first, abs=0.5)
+    assert abs(board._median_gap(lines) - pitch) > 0.1
+
+
+def test_a_line_run_too_short_to_fit_has_no_pitch():
+    assert board.fit_lines(()) is None
+    assert board.fit_lines((100,)) is None
+    assert board.fit_lines((300, 100)) is None
+
+
 def test_snapping_moves_a_point_to_its_cell_centre():
     lattice = board.Lattice(cols=(100, 200, 300), rows=(50, 150))
 

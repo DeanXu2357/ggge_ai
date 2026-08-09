@@ -319,12 +319,12 @@ def test_with_no_evidence_at_all_the_camera_is_lost_and_says_so():
 def test_the_northwest_corner_defines_the_world_origin():
     lattice = board.Lattice(tuple(range(100, 601, 100)), tuple(range(50, 551, 100)))
 
-    anchored = sweep.anchor_northwest(lattice, {"west": 100.0, "north": 50.0})
+    anchored = sweep.anchor_northwest(lattice, board.GRID_REGION, {"west": 100.0, "north": 50.0})
 
     assert anchored is not None
     grid, offset = anchored
     assert offset == (-100.0, -50.0)
-    assert grid.phase == (0.0, 0.0)
+    assert grid.phase == pytest.approx((0.0, 0.0), abs=1e-9)
     assert sweep.border_cell(grid, "west", 0.0) == 0
     assert sweep.border_cell(grid, "east", 1000.0) == 9
 
@@ -332,7 +332,7 @@ def test_the_northwest_corner_defines_the_world_origin():
 def test_the_corner_needs_both_sides_in_the_same_frame():
     lattice = board.Lattice(tuple(range(100, 601, 100)), tuple(range(50, 551, 100)))
 
-    assert sweep.anchor_northwest(lattice, {"west": 100.0}) is None
+    assert sweep.anchor_northwest(lattice, board.GRID_REGION, {"west": 100.0}) is None
 
 
 def test_the_summary_lists_every_sentenced_cell_by_kind():
