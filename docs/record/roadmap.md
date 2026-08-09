@@ -7,6 +7,33 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 規格不寫在這裡（「程式碼就是規格」）。舊快照全文在本檔的 git 歷史
 （最後完整版 `66ce53c`），設計裁決在 docs/record/decisions.md。
 
+## 暫停快照（2026-08-09 午後，分支 feat/stream-input；36.5 分完整輪＝歷史最佳，透視量測入庫待第三步裁量）
+
+### 恢復點
+
+- **0809 第三批（aim 讓位 `a9265ad`＋透視量測報告 `cf7bdec`）＋實測 run
+  20260809-133305：全程 36.5 分、complete、census_closed、零錯帳**。
+  ①成績：敵 18/18、我方 10 格與真值完全一致（上輪錯帳未再現）、四界全定、
+  棄戰 abandon:ok、零 Halt 零保險絲；census 早收豁免 23 格（roster 總驗
+  一次過，peaks 111 missing 0）。歷代對照：0805 full 截圖 120 分→0807
+  candidates 96 分→0808 串流 candidates 83 分退化→0809 三修 59.8 分→
+  **本輪 36.5 分**。②歸因（誠實版）：讓位規則本輪 aim_overruled=0 次
+  ＝保險未觸發（無北帶活鎖復發，anchor 多為 SOURCE_CENTRE 不適用），
+  提速主力＝settle 修（nav 93% 收斂均 1.06s 總 15.3 分）**連帶治好
+  roster 總驗**——011740 敗因確認＝target 其實一路活著，t=3402 counts
+  對上後 roster_check 連兩敗（中性幀未收斂→密度峰漏單位）殺 target；
+  本輪收斂幀一次過，census 早收復活，尾局豁免取代硬磨。③新量化缺口：
+  unsure 16 全 no_feedback，其中 12 格＝南界目視前點到 row 20 圖外格，
+  每格 ~7s 燒 ~2 分——「靜止超過實測回饋延遲 p99 即早收 no_feedback」
+  的調參案已與使用者討論，待裁；aim_drift 288 次＝透視模型噪音仍在，
+  歸第三步。④透視量測定讞（docs/reviews/perspective-measurement.md，
+  素材含圖表腳本已入庫）：固定平面單應性、消失點與既有 PERSPECTIVE_VP_X
+  =1166/K=1.10e-4 吻合、致命軸=縱線斜格（頂帶 max 0.496 格）、相位比較
+  兩側週期不一致 p95 0.156 格（模型無關 bug）、SCREEN_CENTRE 實測
+  (1170,553) vs 現行 (950,540) x 偏 220px。**第三步裁量選項已呈使用者**：
+  A 整包單應性接線／B 先拆 SCREEN_CENTRE＋週期統一兩小件／C 緩議；
+  Claude 建議 B 先行。⑤裝置：stage_list、游標 uc_hard_1（node 544,667）。
+
 ## 暫停快照（2026-08-09 清晨，分支 feat/stream-input；settle 提速＋東擴入庫，第二輪實測揭露定位鏈品質問題）
 
 ### 恢復點
