@@ -75,10 +75,14 @@ _SIDES: dict[str, tuple[str, str]] = {"x": ("west", "east"), "y": ("north", "sou
 # 全區沒有任何凍結像素，也就是那一帶沒有螢幕固定 HUD，於是東擴到 2050 留 50px 餘裕。
 # col-24 九格在東界鏡位只超出舊窗緣 14.6px，被這個初猜擋成結構洞。
 #
-# 刻意不動 board.MAP_REGION：SCREEN_CENTRE 與格線／相位量測都掛在它身上，整條加寬
-# 會把置中期望平移 150px、超出半格容差。
+# 刻意不動 board.MAP_REGION：格線／相位量測掛在它身上。
 TAP_REGION: Region = (150, 250, 1900, 620)
-SCREEN_CENTRE: Point = (board.MAP_REGION[0] + board.MAP_REGION[2] / 2.0, 540.0)
+# 置中點是遊戲把選中單位擺到的螢幕位置，跟我們的量測窗無關。舊值拿 MAP_REGION 中點
+# (950,540) 冒充螢幕中點，x 偏 220px＝2.4 格，幾何置中判定（容差半格）因此從未生效
+# 過、置中反推的鏡位假說也帶著同樣的毒。實測 21 筆置中事件（兩 run 一致、±3px）：
+# 環心 (1170,546)、環所在格的格心 (1170,553)——置中對齊的是格，取格心那組
+# （docs/reviews/perspective-measurement.md §SCREEN_CENTRE）。
+SCREEN_CENTRE: Point = (1170.0, 553.0)
 
 TAP_EMPTY = "empty"
 TAP_CARD = "card"
