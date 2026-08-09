@@ -878,9 +878,14 @@ class SweepRun:
         reading = board.lattice_phase(frame)
         if reading is None:
             return True
+        # 坑：期望側不得改用當幀量測格距（0809 run 150152 定讞）。grid.phase 是遠錨的
+        # 世界座標、它的格線系週期就是模型格距；換週期取 mod 會把兩格距之差按「錨到
+        # 鏡位的距離÷格距」放大成幾十 px 的系統性假漂移（|dx| 中位 28px、12 分鐘
+        # anchor→aim 活鎖）。量測報告「兩側同週期」的正解＝位置空間逐線比對，歸
+        # 單應性批次；量測 pitch 只入帳當遙測。
         phase, pitch = reading
-        drift = sweep.aim_drift(phase, grid, self.offset, pitch)
-        if sweep.aimed(drift, grid, pitch=pitch):
+        drift = sweep.aim_drift(phase, grid, self.offset)
+        if sweep.aimed(drift, grid):
             return True
         self.journal.record(
             "aim_drift",
