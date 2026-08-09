@@ -181,6 +181,7 @@ class SweepRun:
     clashes: dict[str, list[float]] = field(default_factory=dict, init=False)
     grounded: bool = field(default=False, init=False)
     ungrounded: int = field(default=0, init=False)
+    anchor_source: str | None = field(default=None, init=False)
     signature: board.MarkerSignature | None = field(default=None, init=False)
     marker_cell: sweep.Cell | None = field(default=None, init=False)
     baseline: sweep.Point | None = field(default=None, init=False)
@@ -281,6 +282,8 @@ class SweepRun:
         self.fix.regain()
         self.grounded = True
         self.ungrounded = 0
+        # 角落錨定＝同一幀的西界＋北界解出兩軸，與 SOURCE_EDGE 同級。
+        self.anchor_source = sweep.SOURCE_EDGE
         if self.ledger is None:
             lattice = board.find_lattice(frame)
             if lattice is None:
@@ -518,6 +521,7 @@ class SweepRun:
             self.offset = offset
             self.grounded = True
             self.ungrounded = 0
+            self.anchor_source = source
             self.journal.record(
                 "anchor_backed",
                 source=source,
@@ -783,6 +787,8 @@ class SweepRun:
         self.offset = offset
         self.grounded = True
         self.ungrounded = 0
+        # 標記錨定不是界線背書：來源在 reanchor 的詞彙裡與置中候選同一類（centre）。
+        self.anchor_source = sweep.SOURCE_CENTRE
         self.fix.regain()
         # 錨定成立的這一幀就是本窗基準：標記在螢幕上的位置，之後逐格點擊拿它比對。
         self.baseline = found
@@ -825,7 +831,7 @@ class SweepRun:
                 return False
             if not self.steady(before):
                 return True
-            if not self.aimed(before):
+            if not self.aimed(before) and not self.aim_overruled(before):
                 return True
             outcome = self.decide(target, before)
             if outcome == sweep.TAP_CARD or outcome in sweep.TAP_SHIFTS:
@@ -882,6 +888,33 @@ class SweepRun:
         )
         self.grounded = False
         return False
+
+    def aim_overruled(self, frame: np.ndarray) -> bool:
+        """本窗鏡位由界線背書、當下幀又複驗得過時，相位閘對本窗讓位（含把 grounded 復位）。
+
+        aim 閘防的是無聲漂移，而界線是絕對證人、位階高於等距近似模型推的相位。北緣
+        鏡位下等距模型的相位期望系統性偏離實際渲染格線超過 0.25 格，於是 aim 每窗否決、
+        confirm 每次用界線錨回同一個 offset，兩閘互鎖成活鎖：三分鐘零推鏡零 reroot，
+        既有兩條保險絲（strandings、barren_pans）都看不見（20260809-031256 t=524-705）。
+        """
+        if self.anchor_source != sweep.SOURCE_EDGE:
+            return False
+        grid = self._ledger().grid
+        borders = sweep.read_borders(frame)
+        axes = sweep.border_offsets(grid, self.landmarks, borders)
+        if "x" not in axes or "y" not in axes:
+            return False
+        drift = (axes["x"] - self.offset[0], axes["y"] - self.offset[1])
+        if not sweep.aimed(drift, grid, sweep.EDGE_AGREEMENT_PITCH):
+            return False
+        self.grounded = True
+        self.journal.record(
+            "aim_overruled",
+            drift=[round(value, 1) for value in drift],
+            borders=sorted(borders),
+            offset=[round(value, 1) for value in self.offset],
+        )
+        return True
 
     def decide(self, target: sweep.TapTarget, before: np.ndarray) -> str:
         """一格的一次裁決。分不出結果就重試一次，還是分不出就 UNSURE 留白。"""
@@ -1145,6 +1178,7 @@ class SweepRun:
             return
         self.offset = offset
         self.grounded = grounded
+        self.anchor_source = source
         if grounded:
             self.ungrounded = 0
             self.fix.regain()

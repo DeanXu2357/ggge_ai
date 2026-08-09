@@ -864,6 +864,71 @@ def test_a_drifted_window_stops_tapping_and_leaves_the_cell_unsentenced(tmp_path
     assert run.ledger.cells_of(sweep.EMPTY) == ()
 
 
+def aim_gate_run(tmp_path, monkeypatch, borders: dict[str, float]):
+    """相位對不上（0.4 格）、界線讀數由參數決定的一窗。"""
+    run = build_run(tmp_path, {})
+    run.landmarks = {"west": 0.0, "north": 0.0}
+    run.anchor_source = sweep.SOURCE_EDGE
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: ((40.0, 0.0), (100.0, 100.0)))
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: dict(borders))
+    decided: list[tuple[int, int]] = []
+    run.decide = lambda target, before: (
+        decided.append(target.cell),
+        sweep.TAP_EMPTY,
+    )[1]
+    return run, decided
+
+
+def test_edge_backed_borders_that_still_check_out_overrule_the_phase_gate(
+    tmp_path, monkeypatch
+):
+    run, decided = aim_gate_run(tmp_path, monkeypatch, {"west": 0.0, "north": 0.0})
+    plan = sweep.plan_window(run.ledger, (0.0, 0.0), heading="east")
+
+    interrupted = run.work(plan, _blank())
+
+    assert not interrupted
+    assert decided
+    assert run.grounded
+    overruled = [entry for entry in _entries(run) if entry["kind"] == "aim_overruled"]
+    assert overruled[0]["borders"] == ["north", "west"]
+    assert overruled[0]["drift"] == [0.0, 0.0]
+
+
+def test_a_single_axis_of_border_evidence_does_not_overrule_the_phase_gate(
+    tmp_path, monkeypatch
+):
+    run, decided = aim_gate_run(tmp_path, monkeypatch, {"west": 0.0})
+    plan = sweep.plan_window(run.ledger, (0.0, 0.0), heading="east")
+
+    assert run.work(plan, _blank())
+    assert decided == []
+    assert not run.grounded
+
+
+def test_borders_that_disagree_with_the_camera_do_not_overrule_the_phase_gate(
+    tmp_path, monkeypatch
+):
+    run, decided = aim_gate_run(tmp_path, monkeypatch, {"west": 0.0, "north": 60.0})
+    plan = sweep.plan_window(run.ledger, (0.0, 0.0), heading="east")
+
+    assert run.work(plan, _blank())
+    assert decided == []
+    assert not run.grounded
+
+
+def test_a_camera_not_anchored_by_borders_gets_no_reprieve_from_the_phase_gate(
+    tmp_path, monkeypatch
+):
+    run, decided = aim_gate_run(tmp_path, monkeypatch, {"west": 0.0, "north": 0.0})
+    run.anchor_source = sweep.SOURCE_CENTRE
+    plan = sweep.plan_window(run.ledger, (0.0, 0.0), heading="east")
+
+    assert run.work(plan, _blank())
+    assert decided == []
+    assert not run.grounded
+
+
 def test_the_constellation_takes_over_when_the_marker_is_gone_and_the_edges_are_mute(tmp_path):
     run = build_run(tmp_path, {})
     del run.relocate

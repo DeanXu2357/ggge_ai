@@ -1221,6 +1221,14 @@
   會平移 150px 超容差）；tap_cell 顯式傳 region 給 classify_tap 接標記搜尋。
   待辦：classify_tap 簽名預設值下一批改 TAP_REGION 收陷阱；date_changed 併入
   action 架構改版（使用者裁示）。
+- **（0809）aim 閘界線讓位規則（使用者核准，第二步止血）**｜北緣活鎖定讞
+  （20260809-031256 t=524-705：等距模型相位期望在透視壓縮帶系統性偏 >0.25 格，
+  aim 每窗否決、confirm 每次界線錨回同 offset，零推鏡零 reroot 兩絲皆盲）。規則：
+  錨定兩軸皆界線背書（SOURCE_EDGE）且當下幀界線複驗通過（border_offsets 兩軸
+  可解、與 offset 差 ≤EDGE_AGREEMENT_PITCH）→ aim 讓位、grounded 復位、記
+  aim_overruled 觀測事件；界線不在場或複驗不過照舊。anchor_on_marker 標記錨定
+  標 SOURCE_CENTRE 不得讓位（防過期 edge 標籤放寬豁免）。透視模型治本＝第三步
+  待量測報告與使用者裁量。
 - **(0811) New project text switches to English — user ruling**｜Ruling
   chain from the 2026-08-11 session: replies to the user are English by
   default (Traditional Chinese only on request; Simplified Chinese
