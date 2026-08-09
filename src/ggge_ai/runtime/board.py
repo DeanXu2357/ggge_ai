@@ -637,10 +637,21 @@ def find_lattice(frame: np.ndarray | None) -> Lattice | None:
     相位對答案，pitch 仍取世界格網的。錨定（`Survey._anchor`）刻意不走這裡，新世界的
     格距要全幀帶那種取樣量才敢定。
     """
+    found = find_lattice_band(frame)
+    return None if found is None else found[0]
+
+
+def find_lattice_band(frame: np.ndarray | None) -> tuple[Lattice, Region] | None:
+    """同 `find_lattice`，外加線位是從哪一個帶量出來的。
+
+    帶決定了線位的座標系：縱線是斜的，帶內投影取到的是**帶中線那個高度**上的 x
+    （`docs/reviews/perspective-measurement.md` §3.3），要把線位拿去跟幾何模型對答案
+    就得知道那個高度。
+    """
     for band, minimum in _lattice_bands():
         lattice = read_lattice(frame, band, minimum=minimum)
         if lattice is not None:
-            return lattice
+            return (lattice, band)
     return None
 
 

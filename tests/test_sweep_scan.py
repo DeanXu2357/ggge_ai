@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import board, settle, sweep
+from ggge_ai.runtime import board, projection, settle, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.journal import Journal
 from scripts.sweep_scan import (
@@ -1243,3 +1243,78 @@ def test_the_feedback_settle_is_booked_under_its_own_context(tmp_path):
     assert [entry["ctx"] for entry in booked] == ["feedback"]
     assert booked[0]["polls"] == 3
     assert booked[0]["converged"]
+
+
+def shadow_run(tmp_path, monkeypatch, drift: tuple[float, float]) -> SweepRun:
+    """aim 閘骨架：相位由 drift 指定，格線讀數由投影模型自己生（＝完全對齊的一幀）。"""
+    run = build_run(tmp_path, {})
+    band = board.GRID_REGION
+    lattice = board.Lattice(
+        tuple(
+            round(value)
+            for value in projection.expected_columns(
+                GRID, run.offset, band[1] + band[3] / 2.0, (band[0], band[0] + band[2])
+            )
+        ),
+        tuple(
+            round(value)
+            for value in projection.expected_rows(GRID, run.offset, (band[1], band[1] + band[3]))
+        ),
+    )
+    monkeypatch.setattr(
+        board, "lattice_phase", lambda frame: (drift, (GRID.col_pitch, GRID.row_pitch))
+    )
+    monkeypatch.setattr(board, "find_lattice_band", lambda frame: (lattice, band))
+    return run
+
+
+def shadow_events(run: SweepRun) -> list[dict]:
+    return [entry for entry in run.journal.entries() if entry["kind"].startswith("aim_")]
+
+
+def test_the_shadow_records_the_pair_without_touching_the_verdict(tmp_path, monkeypatch):
+    run = shadow_run(tmp_path, monkeypatch, (0.0, 0.0))
+
+    assert SweepRun.aimed(run, _blank())
+
+    assert run.grounded  # 過閘的路徑一步沒變
+    kinds = [entry["kind"] for entry in shadow_events(run)]
+    assert kinds == ["aim_shadow"]
+    shadow = shadow_events(run)[0]
+    assert shadow["old"] == [0.0, 0.0]
+    assert shadow["pitch"] == [100.0, 100.0]
+    assert shadow["offset"] == [0.0, 0.0]
+    assert shadow["new"] == pytest.approx([0.0, 0.0], abs=1.0)
+
+
+def test_a_frame_that_fails_the_gate_still_fails_it_and_records_both(tmp_path, monkeypatch):
+    run = shadow_run(tmp_path, monkeypatch, (40.0, 0.0))
+
+    assert not SweepRun.aimed(run, _blank())
+
+    assert not run.grounded
+    kinds = [entry["kind"] for entry in shadow_events(run)]
+    assert kinds == ["aim_shadow", "aim_drift"]  # 影子先記，判定路徑照舊在後面寫
+
+
+def test_a_shadow_that_blows_up_never_takes_the_scan_down_with_it(tmp_path, monkeypatch):
+    run = shadow_run(tmp_path, monkeypatch, (0.0, 0.0))
+
+    def explode(*args, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(projection, "shadow_drift", explode)
+
+    assert SweepRun.aimed(run, _blank())
+
+    assert run.grounded
+    assert [entry["kind"] for entry in shadow_events(run)] == ["aim_shadow_failed"]
+
+
+def test_no_lattice_means_no_shadow_entry_at_all(tmp_path, monkeypatch):
+    run = shadow_run(tmp_path, monkeypatch, (0.0, 0.0))
+    monkeypatch.setattr(board, "find_lattice_band", lambda frame: None)
+
+    assert SweepRun.aimed(run, _blank())
+
+    assert shadow_events(run) == []

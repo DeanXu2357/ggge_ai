@@ -38,7 +38,7 @@ import numpy as np
 from ggge_ai.battle import faction as faction_mod
 from ggge_ai.battle import map_view, vision
 from ggge_ai.battle.state import Faction
-from ggge_ai.runtime import board, entry, screens, settle, sweep, zoom
+from ggge_ai.runtime import board, entry, projection, screens, settle, sweep, zoom
 from ggge_ai.runtime.device import Adb, LiveDevice, LiveExecutor
 from ggge_ai.runtime.journal import Journal, rotate_runs
 from ggge_ai.runtime.keyguard import Keyguard
@@ -84,6 +84,12 @@ CARD_SETTLE_S = 1.0
 CENSUS_READ_TRIES = 3
 # 星座總驗連續失敗這麼多次就不再嘗試早收，退回照舊逐格掃到底。
 ROSTER_CHECK_TRIES = 2
+# 影子入帳的評估點：點擊窗中心。殘差是螢幕像素，而像素的格價隨螢幕 y 變，講在哪裡量的
+# 才有意義。
+SHADOW_AT: sweep.Point = (
+    sweep.TAP_REGION[0] + sweep.TAP_REGION[2] / 2.0,
+    sweep.TAP_REGION[1] + sweep.TAP_REGION[3] / 2.0,
+)
 
 
 
@@ -885,6 +891,7 @@ class SweepRun:
         # 單應性批次；量測 pitch 只入帳當遙測。
         phase, pitch = reading
         drift = sweep.aim_drift(phase, grid, self.offset)
+        self.aim_shadow(frame, drift, pitch)
         if sweep.aimed(drift, grid):
             return True
         self.journal.record(
@@ -895,6 +902,36 @@ class SweepRun:
         )
         self.grounded = False
         return False
+
+    def aim_shadow(self, frame: np.ndarray, old: sweep.Point, pitch: sweep.Point) -> None:
+        """單應性模型的位置空間殘差，與現行相位殘差並排入帳。**不參與任何判定**。
+
+        讀得出格線就記，過閘與否都記——現行 `aim_drift` 只在沒過閘時才寫，照那個
+        條件記影子會拿「已經偏了的幀」當全部樣本，配對統計整個偏掉。
+
+        坑：影子絕不可以改變行為，所以整段包在例外攔截裡。新模型算爆了只准少一筆
+        遙測，不准把掃描帶下去。
+        """
+        try:
+            found = board.find_lattice_band(frame)
+            if found is None:
+                return
+            lattice, band = found
+            new = projection.shadow_drift(
+                lattice, band, self._ledger().grid, self.offset, at=SHADOW_AT
+            )
+        except Exception as error:  # noqa: BLE001
+            self.journal.record("aim_shadow_failed", error=str(error))
+            return
+        if new is None:
+            return
+        self.journal.record(
+            "aim_shadow",
+            old=[round(value, 1) for value in old],
+            new=[round(value, 1) for value in new],
+            pitch=[round(value, 1) for value in pitch],
+            offset=[round(value, 1) for value in self.offset],
+        )
 
     def aim_overruled(self, frame: np.ndarray) -> bool:
         """本窗鏡位由界線背書、當下幀又複驗得過時，相位閘對本窗讓位（含把 grounded 復位）。
