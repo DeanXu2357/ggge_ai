@@ -7,6 +7,31 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 規格不寫在這裡（「程式碼就是規格」）。舊快照全文在本檔的 git 歷史
 （最後完整版 `66ce53c`），設計裁決在 docs/record/decisions.md。
 
+## 暫停快照（2026-08-10 凌晨，分支 feat/projection-switch；單應性切換實測全數過關——25.5 分完整輪，合併待裁）
+
+### 恢復點
+
+- **0810 單應性切換實測 run 20260809-232449（分支 feat/projection-switch，
+  `5869820`）：25.5 分完整輪、census_closed、敵 18/18、我方 10 格逐格對上
+  真值、零 Halt 零保險絲、aim_failed 0、棄戰 ok**。合併判準逐項對帳（全過）：
+  ①aim 拒絕率（同幀成對，507 筆）new **1%** vs old 10%；影子輪基準是
+  new 15%/old 38%——切換後實際比預測更好。②殘差：new dx 中位 2.4/p95 18.7、
+  dy 0.3/5.3；old dx 14.4/27.4、dy 12.4/16.0。③agent 標的第一風險（②/③
+  耦合使實看漂移變大）**未發生**，回退劇本未動用。④次像素格距生效
+  （world pitch 92.1/86.7 vs 舊整數 91/86），且格號零平移——boundary
+  east24/south19 與歷輪一致、我方十格與真值逐格相同。⑤壁鐘 25.5 分刷新
+  紀錄（歷輪 120/96/83/59.8/60.9(halt)/36.5/76.9/55.3），aim_drift 僅 3 次
+  （前輪 266-819）、reroot 9 次、nav settle 總耗 6.4 分。⑥殘留：unsure 12
+  全為 row-20 圖外格 no_feedback（南界目視前的已知成本，早收調參案待裁）。
+- **待辦（依序）**：①**合併 feat/projection-switch → feat/stream-input 待
+  使用者裁決**（判準已全數達標）。②未做項＝③座標系縫（需位置鏈整批走
+  projection，缺口記 projection.py docstring）、no_feedback 早收調參、
+  date_changed／游標飄移的進場恢復（歸 action 架構批）。③本輪起跑前插曲：
+  重開機後遊戲落在 SD 外傳活動關難度選單（同判 stage_list、標題讀不到），
+  標題複驗閘正確攔停，手動導航（主畫面→出擊 MAIN STAGE）回 UC 列表。
+- **裝置現況**：stage_list（UC 系列）、游標 uc_hard_1、node 544,667 有效、
+  棄戰乾淨資源零消耗、無在跑程序與監控。
+
 ## 暫停快照（2026-08-09 晚間使用者重開機前，分支 feat/projection-switch；切換批①②已入庫、實測輪未跑）
 
 ### 恢復點（重開機後從這裡繼續）
