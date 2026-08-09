@@ -1028,23 +1028,40 @@ def window_steady(
     )
 
 
-def aim_drift(phase: Point, grid: WorldGrid, offset: Point) -> Point:
+def aim_drift(
+    phase: Point,
+    grid: WorldGrid,
+    offset: Point,
+    pitch: tuple[float, float] | None = None,
+) -> Point:
     """這一幀的格線相位與當前鏡位推出來的相位差，逐軸收進 ±半格。
 
     鏡位在一個窗裡是**假設**：選擇態會無聲把鏡頭拉走，而點擊回饋（填色）永遠出現
     在手指按下去的地方，一格都測不出偏移。格線是遊戲自己渲染的，相位就是畫面直接
     給的證人——半格以內的偏它量得到，整數格距的偏它看不見（那一段靠標記與界線）。
+
+    坑：期望側與量測側必須同週期。`phase` 是當幀量出的格距取的模，拿模型格距去 mod
+    期望值，同一條格線會算出兩個相位（差 p95 0.156 格，見
+    `docs/reviews/perspective-measurement.md`），0.25 格容差有一半以上被假訊號吃掉。
+    量得出當幀格距就把它從 `board.lattice_phase` 一起傳進 `pitch`。
     """
-    pitch = (grid.col_pitch, grid.row_pitch)
+    period = pitch or (grid.col_pitch, grid.row_pitch)
     expected = (
-        (grid.phase[0] - offset[0]) % pitch[0],
-        (grid.phase[1] - offset[1]) % pitch[1],
+        (grid.phase[0] - offset[0]) % period[0],
+        (grid.phase[1] - offset[1]) % period[1],
     )
-    return board.phase_shift(expected, phase, pitch)
+    return board.phase_shift(expected, phase, period)
 
 
-def aimed(drift: Point, grid: WorldGrid, slack: float = AIM_SLACK_PITCH) -> bool:
-    return abs(drift[0]) <= slack * grid.col_pitch and abs(drift[1]) <= slack * grid.row_pitch
+def aimed(
+    drift: Point,
+    grid: WorldGrid,
+    slack: float = AIM_SLACK_PITCH,
+    pitch: tuple[float, float] | None = None,
+) -> bool:
+    """門檻要跟 `aim_drift` 用同一個週期，整條判斷才是同一把尺。"""
+    period = pitch or (grid.col_pitch, grid.row_pitch)
+    return abs(drift[0]) <= slack * period[0] and abs(drift[1]) <= slack * period[1]
 
 
 def recentre_offset(grid: WorldGrid, cell: Cell, centre: Point = SCREEN_CENTRE) -> Point:

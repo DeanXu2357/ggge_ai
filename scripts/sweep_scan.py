@@ -878,13 +878,15 @@ class SweepRun:
         reading = board.lattice_phase(frame)
         if reading is None:
             return True
-        drift = sweep.aim_drift(reading[0], grid, self.offset)
-        if sweep.aimed(drift, grid):
+        phase, pitch = reading
+        drift = sweep.aim_drift(phase, grid, self.offset, pitch)
+        if sweep.aimed(drift, grid, pitch=pitch):
             return True
         self.journal.record(
             "aim_drift",
             drift=[round(value, 1) for value in drift],
             offset=[round(value, 1) for value in self.offset],
+            pitch=[round(value, 1) for value in pitch],
         )
         self.grounded = False
         return False

@@ -249,6 +249,30 @@ def test_a_phase_that_matches_the_camera_leaves_the_aim_untouched():
     assert sweep.aimed(drift, GRID)
 
 
+def test_the_measured_pitch_is_the_period_both_sides_of_the_aim_gate_use():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=87.0, row_pitch=87.0)
+    measured = (84.0, 84.0)
+    offset = (-2000.0, -1200.0)
+    phase = (2000.0 % measured[0], 1200.0 % measured[1])
+
+    drift = sweep.aim_drift(phase, grid, offset, measured)
+
+    assert drift == (0.0, 0.0)
+    assert sweep.aimed(drift, grid, pitch=measured)
+
+    modelled = sweep.aim_drift(phase, grid, offset)
+
+    assert modelled == (-18.0, 42.0)
+    assert not sweep.aimed(modelled, grid)
+
+
+def test_the_aim_slack_scales_with_the_pitch_it_was_given():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=87.0, row_pitch=87.0)
+
+    assert sweep.aimed((20.0, 0.0), grid)
+    assert not sweep.aimed((20.0, 0.0), grid, pitch=(60.0, 60.0))
+
+
 def test_the_recentred_camera_is_reconstructed_from_the_cell_that_was_tapped():
     offset = sweep.recentre_offset(GRID, (7, 4), centre=(1000.0, 500.0))
 
