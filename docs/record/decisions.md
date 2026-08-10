@@ -1229,6 +1229,20 @@
   aim_overruled 觀測事件；界線不在場或複驗不過照舊。anchor_on_marker 標記錨定
   標 SOURCE_CENTRE 不得讓位（防過期 edge 標籤放寬豁免）。透視模型治本＝第三步
   待量測報告與使用者裁量。
+- **（0810）sweep 尾端「對答案」階段——需求裁決（使用者裁定）**｜目標：掃完盤面後
+  進部隊資訊名冊逐台讀敵我全部詳情頁，把機體／駕駛／武裝數值讀進 UnitIntel，
+  最後在該次 `data/runs/<ts>/` 產出 sandbox-scenario/1 的 `scenario.json`＋
+  `intel_report.json`。(1) 位置：sweep_scan 尾端新 stage（納 --stop-after；
+  abandon 照常在其後）。(2) 自由文字（武裝名／效果句／abilities 詞條／勝敗條件）
+  一律純文字轉錄成字串保存，「不是用 llm 轉換字義，純文字保存就好」——不做字義
+  映射進 schema（效果句不解析 debuff 欄、詞條不映射 skills）；辨識不好記空字串
+  並標注待補。數字欄照走字模 CV。(3) 身分對位鍵＝(HP,EN)+faction 數值反查（名字
+  不進身分）；同 (HP,EN) 視為同一 intel 樣板、組內格位任意指派並標記
+  group_assigned。(4) victory/defeat 結構欄先填 annihilation/ally_annihilation
+  預設並註明 source=assumed_default；另把關卡資訊畫面勝敗條件文字轉錄成字串記錄
+  （note＋report）。(5) 我方對位：核准小改實戰過的 sweep 出卡路徑——sentence_shift
+  接既有 read_ally_summary 右塢讀值，我方出卡格也記 (HP,EN)，敵我都精確對位；
+  讀值失敗或撞名退任意指派＋標 arbitrary。
 - **(0811) New project text switches to English — user ruling**｜Ruling
   chain from the 2026-08-11 session: replies to the user are English by
   default (Traditional Chinese only on request; Simplified Chinese
