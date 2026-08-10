@@ -1751,6 +1751,7 @@ def assemble_offline(journal: Journal, run_dir: Path) -> None:
     `run_offline` 自己照那筆事件找同一個真值檔。
     """
     try:
+        journal.record("intel_offline_start")
         code = roster_offline.run_offline(run_dir, reader=OllamaPanelTextReader.from_env())
         journal.record("intel_offline", exit_code=code)
     except Exception as boom:

@@ -294,5 +294,6 @@ def test_a_failed_offline_step_does_not_change_the_exit_code(tmp_path, monkeypat
 
     assert sweep_scan.drive(args, fake_run(), journal, tmp_path) == 0
     assert [item["kind"] for item in journal.entries() if item["kind"].startswith("intel_")] == [
-        "intel_offline_failed"
+        "intel_offline_start",
+        "intel_offline_failed",
     ]

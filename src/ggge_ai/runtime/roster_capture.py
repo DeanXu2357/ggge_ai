@@ -192,6 +192,10 @@ class RosterCapture:
                 shots=len(shots),
                 ok=sum(1 for shot in shots if shot.ok),
                 failed=sum(1 for shot in shots if not shot.ok),
+                ally_ok=sum(1 for shot in shots if shot.faction == ALLY and shot.ok),
+                ally_failed=sum(1 for shot in shots if shot.faction == ALLY and not shot.ok),
+                enemy_ok=sum(1 for shot in shots if shot.faction == ENEMY and shot.ok),
+                enemy_failed=sum(1 for shot in shots if shot.faction == ENEMY and not shot.ok),
             )
         return shots
 
@@ -207,9 +211,24 @@ class RosterCapture:
         return True
 
     def select_tab(self, faction: str) -> bool:
+        screen_before = self.screen_of(self.grab())
+        frame_before = self.keep(f"roster:tab:{faction}:before")
+        t0 = self.clock()
         self.tap(*TAB_TAPS[faction])
         landed = self._await_screen(screens.TROOP_INFO)
-        self.journal.record("roster_tab", faction=faction, ok=landed)
+        elapsed = round(self.clock() - t0, 3)
+        screen_after = self.screen_of(self.grab())
+        frame_after = self.keep(f"roster:tab:{faction}:after")
+        self.journal.record(
+            "roster_tab",
+            faction=faction,
+            ok=landed,
+            elapsed_s=elapsed,
+            screen_before=screen_before,
+            screen_after=screen_after,
+            frame_before=frame_before,
+            frame_after=frame_after,
+        )
         return landed
 
     def capture_unit(self, faction: str, index: int) -> list[CaptureShot]:
@@ -222,12 +241,25 @@ class RosterCapture:
         if not self.open_detail(faction, index):
             return []
         shots: list[CaptureShot] = []
-        if self.panel_of(self.grab()) not in panels.BASIC_KINDS:
+        landing_kind = self.panel_of(self.grab())
+        basic_view_tapped = landing_kind not in panels.BASIC_KINDS
+        if basic_view_tapped:
             self.tap(*BASIC_VIEW_TAP)
         shots.append(self._shot(faction, index, PAGE_BASIC, panels.BASIC_KINDS, _basic_ok))
+        t_toggle = self.clock()
         self.tap(*BASIC_VIEW_TAP)
         for tab, page in enumerate(DETAIL_TAB_PAGES):
+            gap = self.clock() - t_toggle if tab == 0 else None
             self.tap(*DETAIL_TAB_TAPS[tab])
+            if gap is not None:
+                self.journal.record(
+                    "roster_view_state",
+                    faction=faction,
+                    index=index,
+                    landing_panel=str(landing_kind),
+                    basic_view_tapped=basic_view_tapped,
+                    toggle_tab0_gap_s=round(gap, 3),
+                )
             shots.append(
                 self._shot(faction, index, page, DETAIL_TAB_KINDS[tab], DETAIL_TAB_SENTINELS[tab])
             )
@@ -250,25 +282,71 @@ class RosterCapture:
         與設定頁 AUTO戰鬥 三選一、戰鬥選單的放棄鈕同座標，面板沒開的時候同一下打
         中的是那些東西（所以裝置層也只放行帶 roster_cell intent 的點）。
         """
-        if self.screen_of(self.grab()) != screens.TROOP_INFO:
-            self.journal.record("roster_cell_blocked", faction=faction, index=index)
+        landing = self.screen_of(self.grab())
+        if landing != screens.TROOP_INFO:
+            self.journal.record(
+                "roster_cell_blocked",
+                faction=faction,
+                index=index,
+                screen=landing,
+                frame=self.keep(f"roster:cell_blocked:{faction}:{index}"),
+            )
             return False
-        self.tap(*cell_taps(faction)[index], intent=ROSTER_CELL_INTENT)
+        point = cell_taps(faction)[index]
+        self.tap(*point, intent=ROSTER_CELL_INTENT)
         start = self.clock()
         detail_deadline = start + DETAIL_OPEN_WAIT_S
         hard_deadline = start + max(PANEL_WAIT_S, DETAIL_OPEN_WAIT_S + PANEL_POLL_S)
         never_left = True
+        samples: list[list[Any]] = []
+        frame_first: str | None = None
         while True:
             frame = self.grab()
             name = self.screen_of(frame)
-            if self.panel_of(frame) is not PanelKind.UNKNOWN or name == screens.UNIT_DETAIL:
+            kind = self.panel_of(frame)
+            samples.append([round(self.clock() - start, 2), name, str(kind)])
+            if len(samples) == 1:
+                frame_first = self.keep(f"roster:detail:{faction}:{index}:first")
+            if kind is not PanelKind.UNKNOWN or name == screens.UNIT_DETAIL:
+                self.journal.record(
+                    "roster_open_detail",
+                    faction=faction,
+                    index=index,
+                    tap_point=list(point),
+                    elapsed_s=round(self.clock() - start, 2),
+                    outcome="opened",
+                    never_left=never_left,
+                    samples=samples,
+                    frame_first=frame_first,
+                    frame_last=None,
+                )
                 return True
             if name != screens.TROOP_INFO:
                 never_left = False
             now = self.clock()
             if now >= detail_deadline or now >= hard_deadline:
+                elapsed = round(now - start, 2)
+                frame_last = self.keep(f"roster:detail:{faction}:{index}:last")
                 if never_left:
-                    self.journal.record("roster_list_edge", faction=faction, index=index)
+                    self.journal.record(
+                        "roster_list_edge",
+                        faction=faction,
+                        index=index,
+                        elapsed_s=elapsed,
+                        frame=frame_last,
+                    )
+                self.journal.record(
+                    "roster_open_detail",
+                    faction=faction,
+                    index=index,
+                    tap_point=list(point),
+                    elapsed_s=elapsed,
+                    outcome="edge" if never_left else "timeout",
+                    never_left=never_left,
+                    samples=samples,
+                    frame_first=frame_first,
+                    frame_last=frame_last,
+                )
                 return False
             self.sleep(PANEL_POLL_S)
 
@@ -326,17 +404,32 @@ class RosterCapture:
         """
         kind = PanelKind.UNKNOWN
         reason: str | None = None
+        attempts: list[dict[str, Any]] = []
+        weapons_page = PanelKind.STAGE_WEAPONS in expect_kinds
         for attempt in range(SHOT_RETRIES + 1):
+            settle_start = self.clock()
             frame = self._settled()
+            settle_s = round(self.clock() - settle_start, 2)
             kind = self.panel_of(frame)
+            sentinel_ok: bool | None = None
             if kind not in expect_kinds:
                 reason = f"panel={kind}"
-            elif not sentinel(frame, kind):
+            elif not (sentinel_ok := sentinel(frame, kind)):
                 reason = "sentinel"
             else:
                 reason = None
+            record: dict[str, Any] = {
+                "kind": str(kind),
+                "settle_s": settle_s,
+                "sentinel_ok": sentinel_ok,
+            }
+            if weapons_page:
+                record["header_strips"] = len(panels.header_strips(frame))
+            attempts.append(record)
+            if reason is None:
                 break
             if attempt < SHOT_RETRIES:
+                self.keep(f"roster:{faction}:{index}:{page}:a{attempt}")
                 self.sleep(SHOT_RETRY_SLEEP_S)
         path = self.keep(f"roster:{faction}:{index}:{page}")
         shot = CaptureShot(
@@ -357,6 +450,7 @@ class RosterCapture:
             frame=shot.frame,
             ok=shot.ok,
             reason=shot.reason,
+            attempts=attempts,
         )
         return shot
 

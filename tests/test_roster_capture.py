@@ -1,6 +1,7 @@
 """名冊採集：走訪順序、列表盡頭、哨兵重拍、危險帶白名單、例外圍堵。
 
-全部打樁——假幀是 4x4 的黑圖，畫面名與面板種類由假遊戲的狀態機回答，所以這裡驗的是
+全部打樁——假幀是黑圖（寬度給滿實機解析度，武裝表頭探針才有欄位可讀，不然探到空
+切片會噴 nan），畫面名與面板種類由假遊戲的狀態機回答，所以這裡驗的是
 走位與落帳紀律，不是視覺。假遊戲的每一下 tap 都真的過一次 `device.check_tap`：採集
 流程踩到危險帶要在離線就爆，不能等上機。
 """
@@ -53,7 +54,7 @@ class FakeGame:
             self.pending_open_at = None
         if self.reveal_screen is not None and self.now >= self.reveal_at:
             self.screen, self.reveal_screen = self.reveal_screen, None
-        return np.zeros((4, 4, 3), np.uint8)
+        return np.zeros((4, 2340, 3), np.uint8)
 
     def keep(self, label: str) -> str:
         self.kept.append(label)
@@ -471,6 +472,126 @@ def test_a_blow_up_mid_walk_is_contained_and_the_panels_still_get_closed(tmp_pat
     assert "panel vanished" in failure[0]["error"]
     assert capture.closed is True
     assert game.screen in screens.MAP_SCREENS
+
+
+def test_open_detail_journals_the_open_with_its_poll_samples(tmp_path):
+    game = FakeGame(ally=1, enemy=0, screen=screens.TROOP_INFO, open_delay=2.5)
+    capture = _capture(game, tmp_path)
+
+    assert capture.open_detail(ALLY, 0) is True
+
+    opened = _kinds(capture.journal.entries(), "roster_open_detail")
+    assert len(opened) == 1
+    assert opened[0]["outcome"] == "opened"
+    assert opened[0]["tap_point"] == list(roster_capture.cell_taps(ALLY)[0])
+    assert opened[0]["never_left"] is True
+    assert opened[0]["elapsed_s"] >= 2.5
+    assert opened[0]["frame_first"] is not None
+    assert opened[0]["frame_last"] is None
+    assert [sample[1] for sample in opened[0]["samples"]][-1] == screens.UNIT_DETAIL
+    assert f"roster:detail:{ALLY}:0:first" in game.kept
+
+
+def test_open_detail_journals_the_list_edge_with_frames_and_samples(tmp_path):
+    game = FakeGame(ally=1, enemy=0, screen=screens.TROOP_INFO)
+    capture = _capture(game, tmp_path)
+
+    assert capture.open_detail(ALLY, 1) is False
+
+    entries = capture.journal.entries()
+    edge = _kinds(entries, "roster_list_edge")[0]
+    assert edge["elapsed_s"] >= roster_capture.DETAIL_OPEN_WAIT_S
+    assert edge["frame"] is not None
+    detail = _kinds(entries, "roster_open_detail")[0]
+    assert detail["outcome"] == "edge"
+    assert detail["never_left"] is True
+    assert detail["frame_last"] == edge["frame"]
+    assert len(detail["samples"]) > 1
+    assert {sample[1] for sample in detail["samples"]} == {screens.TROOP_INFO}
+    assert f"roster:detail:{ALLY}:1:last" in game.kept
+
+
+def test_the_capture_event_carries_one_entry_per_attempt(tmp_path, monkeypatch):
+    _sentinels_pass(monkeypatch)
+    game = FakeGame(ally=1, enemy=0)
+    capture = _capture(game, tmp_path)
+
+    capture.run()
+
+    first = _kinds(capture.journal.entries(), "roster_capture")[0]
+    assert [attempt["kind"] for attempt in first["attempts"]] == [PanelKind.STAGE_BASIC]
+    assert first["attempts"][0]["sentinel_ok"] is True
+    assert "header_strips" not in first["attempts"][0]
+    weapons = [
+        entry
+        for entry in _kinds(capture.journal.entries(), "roster_capture")
+        if entry["page"] == roster_capture.PAGE_WEAPONS
+    ][0]
+    assert weapons["attempts"][0]["header_strips"] == 0
+
+
+class SwallowedTabGame(FakeGame):
+    """分頁鈕的點被吞掉：畫面留在上一個面板，三拍全落在錯的頁上。"""
+
+    def tap(self, x: int, y: int, intent: str = "") -> None:
+        if (x, y) in roster_capture.DETAIL_TAB_TAPS:
+            device.check_tap(x, y, intent)
+            self.taps.append((x, y, intent))
+            return
+        super().tap(x, y, intent)
+
+
+def test_a_swallowed_tab_tap_leaves_three_wrong_page_attempts_on_record(tmp_path, monkeypatch):
+    _sentinels_pass(monkeypatch)
+    game = SwallowedTabGame(ally=1, enemy=0)
+    capture = _capture(game, tmp_path)
+
+    capture.run()
+
+    weapons = [
+        entry
+        for entry in _kinds(capture.journal.entries(), "roster_capture")
+        if entry["page"] == roster_capture.PAGE_WEAPONS
+    ][0]
+    assert weapons["ok"] is False
+    assert weapons["reason"] == f"panel={PanelKind.STAGE_COMBO}"
+    assert len(weapons["attempts"]) == roster_capture.SHOT_RETRIES + 1
+    assert [attempt["kind"] for attempt in weapons["attempts"]] == [PanelKind.STAGE_COMBO] * 3
+    assert all(attempt["sentinel_ok"] is None for attempt in weapons["attempts"])
+    assert all("header_strips" in attempt for attempt in weapons["attempts"])
+    assert f"roster:{ALLY}:0:{roster_capture.PAGE_WEAPONS}:a0" in game.kept
+
+
+def test_the_summary_splits_the_tally_by_faction(tmp_path, monkeypatch):
+    _sentinels_pass(monkeypatch, basic=lambda frame, kind: False)
+    game = FakeGame(ally=2, enemy=1)
+    capture = _capture(game, tmp_path)
+
+    shots = capture.run()
+
+    summary = _kinds(capture.journal.entries(), "roster_capture_summary")[0]
+    assert summary["ally_failed"] == 2
+    assert summary["enemy_failed"] == 1
+    assert summary["ally_ok"] == 2 * (PAGES_PER_UNIT - 1)
+    assert summary["enemy_ok"] == PAGES_PER_UNIT - 1
+    assert summary["ally_ok"] + summary["enemy_ok"] == summary["ok"]
+    assert summary["ally_failed"] + summary["enemy_failed"] == summary["failed"]
+    assert summary["shots"] == len(shots)
+
+
+def test_the_tab_event_carries_the_switch_timing_and_both_screens(tmp_path):
+    game = FakeGame(screen=screens.TROOP_INFO)
+    capture = _capture(game, tmp_path)
+
+    assert capture.select_tab(ENEMY) is True
+
+    tab = _kinds(capture.journal.entries(), "roster_tab")[0]
+    assert tab["screen_before"] == screens.TROOP_INFO
+    assert tab["screen_after"] == screens.TROOP_INFO
+    assert tab["elapsed_s"] >= 0.0
+    assert tab["frame_before"] is not None
+    assert tab["frame_after"] is not None
+    assert game.kept[:1] == [f"roster:tab:{ENEMY}:before"]
 
 
 def test_the_cell_grid_matches_the_measured_pitch():
