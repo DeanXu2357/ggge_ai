@@ -6,10 +6,11 @@
 避開精靈（那是手勢安全，不是帳本事實）。
 
 usage:
-  # 分段停點：select / prep / stage_info / map / grid / zero / sweep
+  # 分段停點：select / prep / stage_info / map / grid / zero / sweep / roster
   uv run python scripts/sweep_scan.py --serial R5CRC37JBYJ --stage-node 544,667 \
       --stop-after zero
   uv run python scripts/sweep_scan.py … --max-taps 200 --tap-interval 0.5
+  uv run python scripts/sweep_scan.py … --no-roster   # 只掃盤面，不採名冊也不組裝
   uv run python scripts/sweep_scan.py … --filter-mode candidates   # 候選過濾對照組
   # 帳齊即收（需要 assets/stage_truth/<關卡>.json；首刷沒有真值檔就照舊全掃）
   uv run python scripts/sweep_scan.py … --filter-mode roster --ally-count 10
@@ -42,7 +43,10 @@ from ggge_ai.runtime import board, entry, projection, screens, settle, sweep, zo
 from ggge_ai.runtime.device import Adb, LiveDevice, LiveExecutor
 from ggge_ai.runtime.journal import Journal, rotate_runs
 from ggge_ai.runtime.keyguard import Keyguard
+from ggge_ai.runtime.panel_text import OllamaPanelTextReader
 from ggge_ai.runtime.perceive import LivePerceiver, Observation, decode
+from ggge_ai.runtime.roster_capture import RosterCapture
+from ggge_ai.stage import roster_offline
 from ggge_ai.stage.actions import CollapseRoster, ShowGrid
 from ggge_ai.stage.survey import BoardDriver
 from ggge_ai.vision.manifest import TemplateManifest
@@ -55,8 +59,8 @@ TEMPLATE_ROOT = PROJECT_ROOT / "assets" / "templates"
 STAGE_TRUTH_ROOT = PROJECT_ROOT / "assets" / "stage_truth"
 RUNS_ROOT = Path("data/runs")
 JOURNAL_NAME = "sweep.jsonl"
-STAGES = ("select", "prep", "stage_info", "map", "grid", "zero", "sweep")
-IN_BATTLE_STAGES = (None, "map", "grid", "zero", "sweep")
+STAGES = ("select", "prep", "stage_info", "map", "grid", "zero", "sweep", "roster")
+IN_BATTLE_STAGES = (None, "map", "grid", "zero", "sweep", "roster")
 
 MAX_TAPS = 600
 TAP_INTERVAL_S = 0.4
@@ -169,6 +173,7 @@ class SweepRun:
     tap_interval: float = TAP_INTERVAL_S
     empty_frame_every: int = EMPTY_FRAME_EVERY
     filter_mode: str = sweep.FILTER_FULL
+    roster: bool = True
     # 早收的目標台數。None＝這一關沒有真值（首刷）＝老實掃到底。
     target: sweep.Census | None = None
     # 破壞數 k/m 的讀取器。runtime 不得 import battle/，所以比照 ViewGate 由這支
@@ -263,7 +268,37 @@ class SweepRun:
         self.begin("sweep")
         self.tour()
         self.summarize()
-        self.end("sweep")
+        if self.end("sweep"):
+            return
+
+        if self.roster:
+            self.begin("roster")
+            self.collect_roster()
+            self.end("roster")
+
+    def collect_roster(self) -> None:
+        """名冊採集＋帳本落檔。加值步驟：出什麼事都只記一筆，棄戰鏈照走。"""
+        try:
+            RosterCapture(
+                grab=self.camera.grab,
+                keep=self.camera.keep,
+                tap=self.device.tap,
+                journal=self.journal,
+                swipe=self.device.swipe,
+            ).run()
+        except Exception as boom:
+            self.journal.record("roster_stage_failed", error=repr(boom))
+        self.dump_ledger()
+
+    def dump_ledger(self) -> None:
+        """帳本的最終格帳。逐筆 verdict 事件記的是當下裁決，收束結果只有帳本知道。"""
+        if self.ledger is None:
+            return
+        state = self.ledger.state
+        self.journal.record(
+            "ledger_dump",
+            cells=[[cell[0], cell[1], state[cell]] for cell in sorted(state)],
+        )
 
     def zero(self) -> None:
         """往西北推到同一幀看得到北界＋西界，世界座標由那一幀**定義**。
@@ -1083,6 +1118,7 @@ class SweepRun:
         """
         ledger = self._ledger()
         path = self.camera.keep("shift")
+        hp, en = self.ally_readout()
         confirmed = outcome.verdict == sweep.TAP_SHIFTED
         verdict = sweep.ALLY if confirmed else sweep.UNSURE
         reason = "recentred" if confirmed else "recentred_unconfirmed"
@@ -1092,6 +1128,8 @@ class SweepRun:
             cell=list(target.cell),
             verdict=verdict,
             reason=reason,
+            hp=hp,
+            en=en,
             delta=None if outcome.delta is None else [round(v, 1) for v in outcome.delta],
             frame=path,
             tick=self.tick,
@@ -1099,6 +1137,18 @@ class SweepRun:
         self.escape()
         candidate = sweep.recentre_offset(ledger.grid, target.cell)
         self.relocate(candidate=candidate)
+
+    def ally_readout(self) -> tuple[int | None, int | None]:
+        """我方出卡的 HP／EN，讀的是剛存下的那一張（`camera.raw` 就是 keep 落的幀）。
+
+        加值欄位：讀不出來就留空，裁決與流程一概不受影響。
+        """
+        try:
+            summary = vision.read_ally_summary(decode(self.camera.raw))
+        except Exception:
+            log.warning("ally summary read failed", exc_info=True)
+            return (None, None)
+        return (None, None) if summary is None else (summary.hp, summary.en)
 
     def on_hub(self, frame: np.ndarray | None = None) -> bool:
         return map_view.classify_view(self.gate, frame) == map_view.HUB
@@ -1538,6 +1588,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=f"本關真值檔名（{STAGE_TRUTH_ROOT} 下的 <名稱>.json），預設取 --expect-title",
     )
+    parser.add_argument(
+        "--roster",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="掃完加採名冊（部隊資訊逐格存幀）並在收工後離線組裝 scenario.json",
+    )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--zoom", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--run-dir", type=Path, default=None)
@@ -1666,6 +1722,7 @@ def build(args: argparse.Namespace, journal: Journal) -> SweepRun:
         tap_interval=args.tap_interval,
         empty_frame_every=args.empty_frame_every,
         filter_mode=args.filter_mode,
+        roster=args.roster,
         target=load_target(
             args.stage_truth or _title(args.expect_title), args.ally_count, journal
         ),
@@ -1685,6 +1742,20 @@ def main() -> int:
         return drive(args, run, journal, run_dir)
     finally:
         getattr(run.camera, "close", lambda: None)()
+
+
+def assemble_offline(journal: Journal, run_dir: Path) -> None:
+    """採集幀 → scenario.json＋intel_report.json。純讀檔的加值步驟，失敗不改 exit code。
+
+    stage_truth 不由這裡再讀一次：`load_target` 已經把關卡名落成 stage_truth 事件，
+    `run_offline` 自己照那筆事件找同一個真值檔。
+    """
+    try:
+        code = roster_offline.run_offline(run_dir, reader=OllamaPanelTextReader.from_env())
+        journal.record("intel_offline", exit_code=code)
+    except Exception as boom:
+        log.warning("offline assembly failed", exc_info=True)
+        journal.record("intel_offline_failed", error=repr(boom))
 
 
 def drive(args: argparse.Namespace, run: SweepRun, journal: Journal, run_dir: Path) -> int:
@@ -1714,6 +1785,8 @@ def drive(args: argparse.Namespace, run: SweepRun, journal: Journal, run_dir: Pa
         journal.record("crash", reason=repr(boom), frame=frame)
         print(f"CRASH: {boom!r}")
         raise
+    if args.roster and args.stop_after in (None, "roster"):
+        assemble_offline(journal, run_dir)
     journal.record("sweep_end")
     print("ok")
     return 0
