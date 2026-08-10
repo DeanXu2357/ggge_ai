@@ -79,6 +79,10 @@ BASIC_VIEW_TAP: Point = (1936, 96)
 # 武裝分頁往下捲（武裝卡下面接技能區塊）。0.8s 是坑：0.4s 快滑帶慣性會整張武裝卡
 # 掠過去，第 4 把武裝的數值列落在首幀與捲後幀之間都拍不到；0.8s 慢滑實測完整入幀。
 WEAPON_SCROLL: tuple[Point, Point, float] = ((1400, 700), (1400, 400), 0.8)
+# 畫面最多同時容納 3 條武裝卡頭帶（0810-11 四輪實測 1-3 條）；不足 3 條表示卡片已全數
+# 在畫面內，固定 300px 慢滑只會把卡整段捲出畫面（ally:8 單卡機四輪 sentinel 全敗實
+# 錘），這時跳過 weapons_more。
+WEAPON_SCROLL_MIN_STRIPS = 3
 
 PAGE_BASIC = "basic"
 PAGE_WEAPONS = "weapons"
@@ -144,6 +148,11 @@ def tab_selected(frame: np.ndarray, faction: str) -> bool:
     return bool(blue - red >= TAB_SELECTED_MARGIN)
 
 
+def weapon_strip_count(frame: np.ndarray) -> int:
+    """武裝分頁上現在看得到幾條卡頭帶。"""
+    return len(panels.header_strips(frame))
+
+
 Sentinel = Callable[[np.ndarray, PanelKind], bool]
 
 
@@ -199,6 +208,7 @@ class RosterCapture:
     screen_of: Callable[[np.ndarray], str] = screens.classify
     panel_of: Callable[[np.ndarray], PanelKind] = panels.classify
     tab_selected_of: Callable[[np.ndarray, str], bool] = tab_selected
+    weapon_strips_of: Callable[[np.ndarray], int] = weapon_strip_count
     closed: bool = field(default=False, init=False)
 
     def run(self) -> list[CaptureShot]:
@@ -312,13 +322,22 @@ class RosterCapture:
                 self._shot(faction, index, page, DETAIL_TAB_KINDS[tab], DETAIL_TAB_SENTINELS[tab])
             )
             if page == PAGE_WEAPONS and self.swipe is not None:
-                (x1, y1), (x2, y2), duration = WEAPON_SCROLL
-                self.swipe(x1, y1, x2, y2, duration)
-                shots.append(
-                    self._shot(
-                        faction, index, PAGE_WEAPONS_MORE, panels.WEAPON_KINDS, _weapons_ok
+                strips = self.weapon_strips_of(self._settled())
+                if strips < WEAPON_SCROLL_MIN_STRIPS:
+                    self.journal.record(
+                        "roster_weapons_more_skipped",
+                        faction=faction,
+                        index=index,
+                        strips=strips,
                     )
-                )
+                else:
+                    (x1, y1), (x2, y2), duration = WEAPON_SCROLL
+                    self.swipe(x1, y1, x2, y2, duration)
+                    shots.append(
+                        self._shot(
+                            faction, index, PAGE_WEAPONS_MORE, panels.WEAPON_KINDS, _weapons_ok
+                        )
+                    )
         self.tap(*DETAIL_CLOSE_TAP)
         self._await_screen(screens.TROOP_INFO)
         return shots

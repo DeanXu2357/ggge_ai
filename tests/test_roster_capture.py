@@ -116,7 +116,9 @@ class FakeGame:
                 self.screen = screens.BATTLE_MAP
 
 
-def _capture(game: FakeGame, tmp_path, *, swipe=None) -> roster_capture.RosterCapture:
+def _capture(
+    game: FakeGame, tmp_path, *, swipe=None, strips=roster_capture.WEAPON_SCROLL_MIN_STRIPS
+) -> roster_capture.RosterCapture:
     return roster_capture.RosterCapture(
         grab=game.grab,
         keep=game.keep,
@@ -128,6 +130,7 @@ def _capture(game: FakeGame, tmp_path, *, swipe=None) -> roster_capture.RosterCa
         screen_of=game.screen_of,
         panel_of=game.panel_of,
         tab_selected_of=game.tab_selected_of,
+        weapon_strips_of=lambda frame: strips,
     )
 
 
@@ -384,6 +387,53 @@ def test_the_weapons_page_gets_a_slow_scroll_and_a_second_shot(tmp_path, monkeyp
     more = shots[3]
     assert more.panel_kind == PanelKind.STAGE_WEAPONS
     assert (more.ok, more.frame is not None) == (True, True)
+
+
+def test_a_weapons_page_that_fits_on_screen_skips_the_scroll_entirely(tmp_path, monkeypatch):
+    """卡頭帶不足 3 條＝卡片全在畫面內：滑下去只會把單卡整段捲出畫面，所以不滑不補拍。"""
+    _sentinels_pass(monkeypatch)
+    game = FakeGame(ally=1, enemy=0)
+    capture = _capture(game, tmp_path, swipe=game.swipe, strips=1)
+
+    shots = capture.run()
+
+    assert game.swipes == []
+    assert [shot.page for shot in shots] == [
+        roster_capture.PAGE_BASIC,
+        "stats0",
+        roster_capture.PAGE_WEAPONS,
+        roster_capture.PAGE_ABILITIES,
+    ]
+    entries = capture.journal.entries()
+    assert roster_capture.PAGE_WEAPONS_MORE not in [
+        entry["page"] for entry in _kinds(entries, "roster_capture")
+    ]
+    skipped = _kinds(entries, "roster_weapons_more_skipped")
+    assert [(entry["faction"], entry["index"], entry["strips"]) for entry in skipped] == [
+        (ALLY, 0, 1)
+    ]
+
+
+def test_a_full_weapons_page_still_gets_the_scroll_and_the_second_shot(tmp_path, monkeypatch):
+    """滿 3 條頭帶＝可能還有第 4 把武裝在畫面外：照舊滑一次補一張。"""
+    _sentinels_pass(monkeypatch)
+    game = FakeGame(ally=1, enemy=0)
+    capture = _capture(
+        game, tmp_path, swipe=game.swipe, strips=roster_capture.WEAPON_SCROLL_MIN_STRIPS
+    )
+
+    shots = capture.run()
+
+    (start, end, duration) = roster_capture.WEAPON_SCROLL
+    assert game.swipes == [(*start, *end, duration)]
+    assert [shot.page for shot in shots] == [
+        roster_capture.PAGE_BASIC,
+        "stats0",
+        roster_capture.PAGE_WEAPONS,
+        roster_capture.PAGE_WEAPONS_MORE,
+        roster_capture.PAGE_ABILITIES,
+    ]
+    assert _kinds(capture.journal.entries(), "roster_weapons_more_skipped") == []
 
 
 def test_a_capture_without_a_swipe_channel_skips_the_scrolled_page(tmp_path, monkeypatch):
