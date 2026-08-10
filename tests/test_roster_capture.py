@@ -33,6 +33,7 @@ class FakeGame:
 
     ally: int = 10
     enemy: int = 18
+    tab_swallow: int = 0
     screen: str = screens.BATTLE_MAP
     panel: PanelKind = PanelKind.UNKNOWN
     view: PanelKind = PanelKind.STAGE_BASIC
@@ -76,6 +77,9 @@ class FakeGame:
     def panel_of(self, frame: np.ndarray) -> PanelKind:
         return self.panel
 
+    def tab_selected_of(self, frame: np.ndarray, faction: str) -> bool:
+        return self.faction == faction
+
     def units(self, faction: str) -> int:
         return self.ally if faction == ALLY else self.enemy
 
@@ -90,7 +94,10 @@ class FakeGame:
             if self.screen == screens.BATTLE_MENU:
                 self.screen = screens.TROOP_INFO
         elif point in roster_capture.TAB_TAPS.values():
-            self.faction = ALLY if point == roster_capture.TAB_TAPS[ALLY] else ENEMY
+            if self.tab_swallow > 0:
+                self.tab_swallow -= 1
+            else:
+                self.faction = ALLY if point == roster_capture.TAB_TAPS[ALLY] else ENEMY
         elif point in cells and self.screen == screens.TROOP_INFO:
             if cells.index(point) < self.units(self.faction):
                 self.pending_open_at = self.now + self.open_delay
@@ -120,6 +127,7 @@ def _capture(game: FakeGame, tmp_path, *, swipe=None) -> roster_capture.RosterCa
         clock=game.clock,
         screen_of=game.screen_of,
         panel_of=game.panel_of,
+        tab_selected_of=game.tab_selected_of,
     )
 
 
@@ -591,7 +599,60 @@ def test_the_tab_event_carries_the_switch_timing_and_both_screens(tmp_path):
     assert tab["elapsed_s"] >= 0.0
     assert tab["frame_before"] is not None
     assert tab["frame_after"] is not None
+    assert (tab["ok"], tab["selected_before"], tab["retaps"]) == (True, False, 0)
     assert game.kept[:1] == [f"roster:tab:{ENEMY}:before"]
+
+
+def test_a_swallowed_tab_tap_gets_retapped_until_the_button_lights_up(tmp_path):
+    """關詳情動畫吞掉第一下分頁鈕：驗不到選中就再點，第二下才真的切過去。"""
+    game = FakeGame(screen=screens.TROOP_INFO, tab_swallow=1)
+    capture = _capture(game, tmp_path)
+
+    assert capture.select_tab(ENEMY) is True
+
+    assert game.faction == ENEMY
+    tab = _kinds(capture.journal.entries(), "roster_tab")[0]
+    assert (tab["ok"], tab["selected_before"], tab["retaps"]) == (True, False, 1)
+    assert len([tap for tap in game.taps if tap[:2] == roster_capture.TAB_TAPS[ENEMY]]) == 2
+
+
+def test_a_tab_that_never_lights_up_fails_the_switch_and_scans_nothing(tmp_path):
+    """每一下都被吞：驗不到選中就判失敗，不會拿我軍名冊當敵軍採。"""
+    game = FakeGame(screen=screens.TROOP_INFO, tab_swallow=99)
+    capture = _capture(game, tmp_path)
+    shots: list[roster_capture.CaptureShot] = []
+
+    capture._capture_faction(ENEMY, shots)
+
+    assert shots == []
+    assert game.faction == ALLY
+    entries = capture.journal.entries()
+    tab = _kinds(entries, "roster_tab")[0]
+    assert (tab["ok"], tab["retaps"]) == (False, roster_capture.TAB_RETAPS)
+    end = _kinds(entries, "roster_list_end")[0]
+    assert (end["faction"], end["count"]) == (ENEMY, 0)
+
+
+def test_a_tab_that_is_already_selected_lands_on_the_first_look(tmp_path):
+    game = FakeGame(screen=screens.TROOP_INFO)
+    capture = _capture(game, tmp_path)
+
+    assert capture.select_tab(ALLY) is True
+
+    tab = _kinds(capture.journal.entries(), "roster_tab")[0]
+    assert (tab["ok"], tab["selected_before"], tab["retaps"]) == (True, True, 0)
+    assert game.slept == []
+
+
+def test_tab_selected_reads_the_sidebar_button_fill():
+    """選中鈕藍底、未選中灰底：0810 實幀量測的 B-R 差距分群。"""
+    frame = np.zeros((1080, 2340, 3), np.uint8)
+    for faction, (blue, red) in ((ALLY, (200, 60)), (ENEMY, (170, 150))):
+        x, y, w, h = roster_capture.TAB_BUTTON_REGIONS[faction]
+        frame[y : y + h, x : x + w] = (blue, 0, red)
+
+    assert roster_capture.tab_selected(frame, ALLY) is True
+    assert roster_capture.tab_selected(frame, ENEMY) is False
 
 
 def test_the_cell_grid_matches_the_measured_pitch():

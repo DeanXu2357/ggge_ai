@@ -21,7 +21,7 @@ from typing import Any
 
 import numpy as np
 
-from . import entry, panels, screens, settle
+from . import entry, glyphs, panels, screens, settle
 from .device import ROSTER_CELL_INTENT
 from .panels import PanelKind
 
@@ -40,6 +40,17 @@ TROOP_INFO_ENEMY_TAB_TAP: Point = (460, 600)
 DETAIL_CLOSE_TAP: Point = (994, 995)
 
 TAB_TAPS: dict[str, Point] = {ALLY: TROOP_INFO_ALLY_TAB_TAP, ENEMY: TROOP_INFO_ENEMY_TAB_TAP}
+
+TAB_BUTTON_REGIONS: dict[str, tuple[int, int, int, int]] = {
+    ALLY: (440, 435, 90, 25),
+    ENEMY: (440, 590, 90, 25),
+}
+# 選中鈕的藍底：0810 實幀量測選中 mean(B)-mean(R) 落 118-150、未選 19-24，兩群相距一
+# 個數量級，門檻取中間的 60（與 panels.TAB_ACTIVE_MARGIN 同量級）。
+TAB_SELECTED_MARGIN = 60
+TAB_SWITCH_WAIT_S = 2.0
+# 重點已選中的分頁沒有副作用（只是重畫同一頁），所以吞點就再點，不必先判先等。
+TAB_RETAPS = 2
 
 # 列表格距（0806 兩張列表幀的圖示中心量測）。我軍是「部隊1／部隊2」兩列，每列多一
 # 條 GET SCORE 帶所以列距較大；敵軍四列連排。單位圖示與駕駛圖示成對，點的是單位那半。
@@ -119,6 +130,15 @@ def cell_taps(faction: str) -> tuple[Point, ...]:
     )
 
 
+def tab_selected(frame: np.ndarray, faction: str) -> bool:
+    """側欄那一顆陣營鈕現在是不是選中的（選中＝藍底）。"""
+    patch = glyphs.crop(frame, TAB_BUTTON_REGIONS[faction])
+    if patch.size == 0:
+        return False
+    blue, _, red = patch.reshape(-1, 3).mean(0)
+    return bool(blue - red >= TAB_SELECTED_MARGIN)
+
+
 Sentinel = Callable[[np.ndarray, PanelKind], bool]
 
 
@@ -173,6 +193,7 @@ class RosterCapture:
     clock: Callable[[], float] = time.monotonic
     screen_of: Callable[[np.ndarray], str] = screens.classify
     panel_of: Callable[[np.ndarray], PanelKind] = panels.classify
+    tab_selected_of: Callable[[np.ndarray, str], bool] = tab_selected
     closed: bool = field(default=False, init=False)
 
     def run(self) -> list[CaptureShot]:
@@ -211,19 +232,41 @@ class RosterCapture:
         return True
 
     def select_tab(self, faction: str) -> bool:
-        screen_before = self.screen_of(self.grab())
+        """切到某一陣營的名冊分頁，驗到選中為止。
+
+        這是坑：判準必須是動作會改變的狀態。原本用 `_await_screen(TROOP_INFO)` 判成
+        功，而切 tab 前後畫面本來就都是 TROOP_INFO，判準恆真——上一次關詳情的動畫吞掉
+        分頁鈕那一點也照樣算成功（0810 敵方採到 0 台的元兇）。改讀鈕自己的選中底色。
+        """
+        frame = self.grab()
+        screen_before = self.screen_of(frame)
+        selected_before = self.tab_selected_of(frame, faction)
         frame_before = self.keep(f"roster:tab:{faction}:before")
         t0 = self.clock()
-        self.tap(*TAB_TAPS[faction])
-        landed = self._await_screen(screens.TROOP_INFO)
+        landed = False
+        retaps = 0
+        for attempt in range(TAB_RETAPS + 1):
+            retaps = attempt
+            self.tap(*TAB_TAPS[faction])
+            deadline = self.clock() + TAB_SWITCH_WAIT_S
+            while True:
+                frame = self.grab()
+                landed = self.tab_selected_of(frame, faction)
+                if landed or self.clock() >= deadline:
+                    break
+                self.sleep(PANEL_POLL_S)
+            if landed:
+                break
         elapsed = round(self.clock() - t0, 3)
-        screen_after = self.screen_of(self.grab())
+        screen_after = self.screen_of(frame)
         frame_after = self.keep(f"roster:tab:{faction}:after")
         self.journal.record(
             "roster_tab",
             faction=faction,
             ok=landed,
             elapsed_s=elapsed,
+            selected_before=selected_before,
+            retaps=retaps,
             screen_before=screen_before,
             screen_after=screen_after,
             frame_before=frame_before,
