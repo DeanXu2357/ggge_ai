@@ -52,6 +52,11 @@ TAB_SWITCH_WAIT_S = 2.0
 # 重點已選中的分頁沒有副作用（只是重畫同一頁），所以吞點就再點，不必先判先等。
 TAB_RETAPS = 2
 
+# 視圖切換動畫會吞緊接著的分頁點（0810 兩輪 stats0 23/28 敗因）；重點已選中的分頁沒
+# 有副作用。
+DETAIL_TAB_WAIT_S = 2.0
+DETAIL_TAB_RETAPS = 2
+
 # 列表格距（0806 兩張列表幀的圖示中心量測）。我軍是「部隊1／部隊2」兩列，每列多一
 # 條 GET SCORE 帶所以列距較大；敵軍四列連排。單位圖示與駕駛圖示成對，點的是單位那半。
 CELL_X0 = 729
@@ -293,7 +298,7 @@ class RosterCapture:
         self.tap(*BASIC_VIEW_TAP)
         for tab, page in enumerate(DETAIL_TAB_PAGES):
             gap = self.clock() - t_toggle if tab == 0 else None
-            self.tap(*DETAIL_TAB_TAPS[tab])
+            self._select_detail_tab(faction, index, page, tab)
             if gap is not None:
                 self.journal.record(
                     "roster_view_state",
@@ -431,6 +436,41 @@ class RosterCapture:
             shots.extend(got)
             count += 1
         self.journal.record("roster_list_end", faction=faction, count=count)
+
+    def _select_detail_tab(self, faction: str, index: int, page: str, tab: int) -> bool:
+        """切到詳情的某一個分頁，驗到面板換過去為止。
+
+        判準是面板種類，跟 select_tab 同一條紀律：點完不驗就往下拍，吞掉的那一下會讓
+        整頁拍到上一個分頁（0810 stats0 敗在視圖切換動畫吞點）。
+        """
+        t0 = self.clock()
+        landed = False
+        retaps = 0
+        kind = PanelKind.UNKNOWN
+        for attempt in range(DETAIL_TAB_RETAPS + 1):
+            retaps = attempt
+            self.tap(*DETAIL_TAB_TAPS[tab])
+            deadline = self.clock() + DETAIL_TAB_WAIT_S
+            while True:
+                kind = self.panel_of(self.grab())
+                landed = kind in DETAIL_TAB_KINDS[tab]
+                if landed or self.clock() >= deadline:
+                    break
+                self.sleep(PANEL_POLL_S)
+            if landed:
+                break
+        self.journal.record(
+            "roster_tab_nav",
+            faction=faction,
+            index=index,
+            page=page,
+            tab=tab,
+            landed=landed,
+            retaps=retaps,
+            elapsed_s=round(self.clock() - t0, 3),
+            final_kind=str(kind),
+        )
+        return landed
 
     def _shot(
         self,

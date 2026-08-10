@@ -178,6 +178,9 @@ def test_a_full_walk_covers_every_cell_of_both_factions(tmp_path, monkeypatch):
     ]
     summary = _kinds(entries, "roster_capture_summary")[0]
     assert (summary["shots"], summary["ok"], summary["failed"]) == (len(shots), len(shots), 0)
+    navs = _kinds(entries, "roster_tab_nav")
+    assert len(navs) == (game.ally + game.enemy) * len(roster_capture.DETAIL_TAB_PAGES)
+    assert all((nav["landed"], nav["retaps"]) == (True, 0) for nav in navs)
     first = _kinds(entries, "roster_capture")[0]
     assert first["faction"] == ALLY
     assert first["index"] == 0
@@ -568,6 +571,81 @@ def test_a_swallowed_tab_tap_leaves_three_wrong_page_attempts_on_record(tmp_path
     assert all(attempt["sentinel_ok"] is None for attempt in weapons["attempts"])
     assert all("header_strips" in attempt for attempt in weapons["attempts"])
     assert f"roster:{ALLY}:0:{roster_capture.PAGE_WEAPONS}:a0" in game.kept
+
+
+@dataclass
+class SwallowedDetailTabGame(FakeGame):
+    """視圖切換動畫吞掉緊接著的 stats0 分頁點：面板留在記憶中的上一個分頁。"""
+
+    tab0_swallow: int = 0
+
+    def tap(self, x: int, y: int, intent: str = "") -> None:
+        if (x, y) == roster_capture.DETAIL_TAB_TAPS[0] and self.tab0_swallow > 0:
+            self.tab0_swallow -= 1
+            device.check_tap(x, y, intent)
+            self.taps.append((x, y, intent))
+            return
+        super().tap(x, y, intent)
+
+
+def _stats0(entries: list[dict]) -> dict:
+    return [entry for entry in _kinds(entries, "roster_capture") if entry["page"] == "stats0"][0]
+
+
+def _nav(entries: list[dict], tab: int) -> dict:
+    return [entry for entry in _kinds(entries, "roster_tab_nav") if entry["tab"] == tab][0]
+
+
+def test_a_swallowed_detail_tab_tap_gets_retapped_until_the_panel_turns(tmp_path, monkeypatch):
+    """記憶停在能力分頁，視圖切換動畫吞掉第一下 stats0：驗不到面板就再點，第二下才轉。"""
+    _sentinels_pass(monkeypatch)
+    game = SwallowedDetailTabGame(
+        ally=1,
+        enemy=0,
+        view=PanelKind.STAGE_ABILITIES,
+        tab=PanelKind.STAGE_ABILITIES,
+        tab0_swallow=1,
+    )
+    capture = _capture(game, tmp_path)
+
+    capture.run()
+
+    entries = capture.journal.entries()
+    nav = _nav(entries, 0)
+    assert (nav["landed"], nav["retaps"]) == (True, 1)
+    assert nav["final_kind"] == PanelKind.STAGE_COMBO
+    assert len([tap for tap in game.taps if tap[:2] == roster_capture.DETAIL_TAB_TAPS[0]]) == 2
+    stats0 = _stats0(entries)
+    assert stats0["ok"] is True
+    assert stats0["panel_kind"] == PanelKind.STAGE_COMBO
+    assert len(stats0["attempts"]) == 1
+
+
+def test_a_detail_tab_that_never_turns_still_shoots_the_wrong_page(tmp_path, monkeypatch):
+    """每一下都被吞：重點吃滿仍不轉頁，就退回原本的錯頁失敗，不多開分支。"""
+    _sentinels_pass(monkeypatch)
+    game = SwallowedDetailTabGame(
+        ally=1,
+        enemy=0,
+        view=PanelKind.STAGE_ABILITIES,
+        tab=PanelKind.STAGE_ABILITIES,
+        tab0_swallow=99,
+    )
+    capture = _capture(game, tmp_path)
+
+    capture.run()
+
+    entries = capture.journal.entries()
+    nav = _nav(entries, 0)
+    assert (nav["landed"], nav["retaps"]) == (False, roster_capture.DETAIL_TAB_RETAPS)
+    assert nav["final_kind"] == PanelKind.STAGE_ABILITIES
+    assert (
+        len([tap for tap in game.taps if tap[:2] == roster_capture.DETAIL_TAB_TAPS[0]])
+        == roster_capture.DETAIL_TAB_RETAPS + 1
+    )
+    stats0 = _stats0(entries)
+    assert stats0["ok"] is False
+    assert stats0["reason"] == f"panel={PanelKind.STAGE_ABILITIES}"
 
 
 def test_the_summary_splits_the_tally_by_faction(tmp_path, monkeypatch):
