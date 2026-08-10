@@ -19,6 +19,13 @@ sandbox:
   and only accepted when they land on one exactly or within a single character
   of exactly one entry. Anything else is kept verbatim with matched=False.
 
+Alongside that sits a second, weaker channel: verbatim transcription
+(weapon_lines / ability_lines / stage_brief). It answers "what does the panel
+say", not "which mechanic is this", so its replies are strings and no schema
+field ever consumes them -- an ability sentence read this way cannot set
+has_shield, and a weapon note cannot set debuff_kind. The same red line holds:
+numbers that the sandbox uses come from runtime.glyphs, never from here.
+
 Tests inject a fake reader or a fake transport; nothing here requires ollama to
 be running, and OllamaPanelTextReader.from_env returns None when it is not.
 
@@ -144,6 +151,49 @@ WEAPON_PROMPT = (
     "invent an effect code."
 )
 
+LINES_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["lines"],
+    "properties": {"lines": {"type": "array", "items": {"type": "string"}}},
+}
+
+BRIEF_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["victory", "defeat"],
+    "properties": {"victory": {"type": "string"}, "defeat": {"type": "string"}},
+}
+
+MAX_LINES = 40
+MAX_LINE_CHARS = 160
+
+TRANSCRIBE_RULE = (
+    " Transcribe verbatim, in Traditional Chinese exactly as printed. Do not "
+    "translate, do not convert to Simplified Chinese, do not summarise, do not "
+    "explain, and do not emit a line that is not printed in the crop."
+)
+
+ABILITY_LINES_PROMPT = (
+    "This crop lists ability entries from a Traditional Chinese mobile game "
+    "panel: each entry has an icon, a name with a level suffix, and a "
+    "description. Put every printed line of text into `lines`, top to bottom, "
+    "one array element per printed line." + TRANSCRIBE_RULE
+)
+
+WEAPON_LINES_PROMPT = (
+    "This crop is one weapon card from a Traditional Chinese mobile game panel. "
+    "The first array element is the weapon name on the top line; any effect "
+    "sentence printed under it follows as further elements." + TRANSCRIBE_RULE
+)
+
+STAGE_BRIEF_PROMPT = (
+    "This screenshot is the stage information screen of a Traditional Chinese "
+    "mobile game. Put the victory condition sentence in `victory` and the "
+    "defeat condition sentence in `defeat`, each as one string. Leave a field "
+    "as an empty string when its sentence is not on screen." + TRANSCRIBE_RULE
+)
+
 ABILITY_PROMPT = (
     "This crop lists ability entries from a Traditional Chinese mobile game "
     "panel. Each entry has an icon, a name with a level suffix, and a "
@@ -184,12 +234,34 @@ class AbilityTexts:
     unsupported: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class StageBrief:
+    victory: str = ""
+    defeat: str = ""
+
+
 class PanelTextReader(Protocol):
     """The seam every caller depends on; production and fakes both satisfy it."""
 
     def weapon(self, patch: np.ndarray, *, has_note: bool = True) -> WeaponText | None: ...
 
     def abilities(self, patch: np.ndarray) -> AbilityTexts | None: ...
+
+
+class PanelTranscriber(Protocol):
+    """The transcription-only seam: strings out, no field mapping anywhere.
+
+    Kept apart from PanelTextReader because the two answer different questions.
+    PanelTextReader asks "which implemented mechanic is this", so its replies
+    are bound to the sandbox enums; these three ask "what does the panel say",
+    so their replies are prose that no schema field ever consumes.
+    """
+
+    def weapon_lines(self, patch: np.ndarray) -> tuple[str, ...] | None: ...
+
+    def ability_lines(self, patch: np.ndarray) -> tuple[str, ...] | None: ...
+
+    def stage_brief(self, patch: np.ndarray) -> StageBrief | None: ...
 
 
 @functools.cache
@@ -328,6 +400,37 @@ def coerce_abilities(data: Any, terms: Iterable[str] = ()) -> AbilityTexts | Non
     return AbilityTexts(entries=tuple(entries), unsupported=tuple(unsupported))
 
 
+def _line(value: Any) -> str:
+    """One transcribed line: whitespace collapsed, length capped.
+
+    The cap is not cosmetic -- a reply truncated mid-string comes back as one
+    very long run-on line, and letting that into a note or a report makes the
+    truncation look like panel wording."""
+    if value is None:
+        return ""
+    return " ".join(str(value).split())[:MAX_LINE_CHARS]
+
+
+def coerce_lines(data: Any) -> tuple[str, ...] | None:
+    """Re-check a transcription reply. None means the read failed; an empty
+    tuple means the crop was read and held no text."""
+    if not isinstance(data, dict):
+        return None
+    raw = data.get("lines")
+    if not isinstance(raw, list):
+        return None
+    return tuple(line for line in (_line(item) for item in raw[:MAX_LINES]) if line)
+
+
+def coerce_brief(data: Any) -> StageBrief | None:
+    if not isinstance(data, dict):
+        return None
+    victory, defeat = _line(data.get("victory")), _line(data.get("defeat"))
+    if not victory and not defeat:
+        return None
+    return StageBrief(victory=victory, defeat=defeat)
+
+
 def _http_transport(url: str, payload: dict, timeout_s: float) -> str:
     request = urllib.request.Request(
         f"{url}/api/chat",
@@ -397,6 +500,15 @@ class OllamaPanelTextReader:
     def abilities(self, patch: np.ndarray) -> AbilityTexts | None:
         data = self._ask(patch, ABILITY_PROMPT, ABILITY_SCHEMA)
         return coerce_abilities(data, self.terms.get("abilities", ()))
+
+    def weapon_lines(self, patch: np.ndarray) -> tuple[str, ...] | None:
+        return coerce_lines(self._ask(patch, WEAPON_LINES_PROMPT, LINES_SCHEMA))
+
+    def ability_lines(self, patch: np.ndarray) -> tuple[str, ...] | None:
+        return coerce_lines(self._ask(patch, ABILITY_LINES_PROMPT, LINES_SCHEMA))
+
+    def stage_brief(self, patch: np.ndarray) -> StageBrief | None:
+        return coerce_brief(self._ask(patch, STAGE_BRIEF_PROMPT, BRIEF_SCHEMA))
 
     def _ask(self, patch: np.ndarray, prompt: str, schema: dict) -> Any:
         payload = {
