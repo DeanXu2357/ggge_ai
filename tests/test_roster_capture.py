@@ -648,6 +648,60 @@ def test_a_detail_tab_that_never_turns_still_shoots_the_wrong_page(tmp_path, mon
     assert stats0["reason"] == f"panel={PanelKind.STAGE_ABILITIES}"
 
 
+@dataclass
+class CrossfadeDetailTabGame(FakeGame):
+    """視圖切換的淡入淡出：中間幀會被讀成目標分頁，真正落在哪一頁要靜止之後才算數。
+
+    第一下 stats0 分頁點被動畫吞掉（面板其實留在能力分頁），但緊接的幾張中間幀張張不
+    同、又都讀成 stage_combo；第二下才真的切過去。
+    """
+
+    crossfade_grabs: int = 0
+    tab0_swallowed: bool = False
+
+    def grab(self) -> np.ndarray:
+        frame = super().grab()
+        if self.crossfade_grabs > 0:
+            self.crossfade_grabs -= 1
+            frame[:] = 60 if self.crossfade_grabs % 2 else 180
+        return frame
+
+    def panel_of(self, frame: np.ndarray) -> PanelKind:
+        return PanelKind.STAGE_COMBO if frame.any() else self.panel
+
+    def tap(self, x: int, y: int, intent: str = "") -> None:
+        if (x, y) == roster_capture.DETAIL_TAB_TAPS[0] and not self.tab0_swallowed:
+            self.tab0_swallowed = True
+            self.crossfade_grabs = 4
+            device.check_tap(x, y, intent)
+            self.taps.append((x, y, intent))
+            return
+        super().tap(x, y, intent)
+
+
+def test_a_detail_tab_never_lands_on_the_crossfade_middle_frames(tmp_path, monkeypatch):
+    """中間幀讀成目標分頁是假陽性（0810 run 010819 全 28 台）：判準幀收斂過才作數。"""
+    _sentinels_pass(monkeypatch)
+    game = CrossfadeDetailTabGame(
+        ally=1,
+        enemy=0,
+        view=PanelKind.STAGE_ABILITIES,
+        tab=PanelKind.STAGE_ABILITIES,
+    )
+    capture = _capture(game, tmp_path)
+
+    capture.run()
+
+    entries = capture.journal.entries()
+    nav = _nav(entries, 0)
+    assert nav["landed"] is True
+    assert nav["retaps"] >= 1
+    assert nav["final_kind"] == PanelKind.STAGE_COMBO
+    assert game.crossfade_grabs == 0
+    stats0 = _stats0(entries)
+    assert (stats0["ok"], stats0["panel_kind"]) == (True, PanelKind.STAGE_COMBO)
+
+
 def test_the_summary_splits_the_tally_by_faction(tmp_path, monkeypatch):
     _sentinels_pass(monkeypatch, basic=lambda frame, kind: False)
     game = FakeGame(ally=2, enemy=1)

@@ -442,6 +442,10 @@ class RosterCapture:
 
         判準是面板種類，跟 select_tab 同一條紀律：點完不驗就往下拍，吞掉的那一下會讓
         整頁拍到上一個分頁（0810 stats0 敗在視圖切換動畫吞點）。
+
+        判準幀一定要先收斂：拿裸 grab 判是實錘的假陽性——切換動畫中間幀會把 tab 帶讀
+        成目標分頁（0810 run 20260811-010819 全 28 台 landed=true，隨後 settle 過的
+        _shot 卻有 26 台是原本那頁），靜止之後的那一張才可信。
         """
         t0 = self.clock()
         landed = False
@@ -452,7 +456,7 @@ class RosterCapture:
             self.tap(*DETAIL_TAB_TAPS[tab])
             deadline = self.clock() + DETAIL_TAB_WAIT_S
             while True:
-                kind = self.panel_of(self.grab())
+                kind = self.panel_of(self._settled())
                 landed = kind in DETAIL_TAB_KINDS[tab]
                 if landed or self.clock() >= deadline:
                     break
