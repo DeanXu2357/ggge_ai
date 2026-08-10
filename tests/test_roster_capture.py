@@ -38,12 +38,21 @@ class FakeGame:
     tab: PanelKind = PanelKind.STAGE_COMBO
     faction: str = ALLY
     now: float = 0.0
+    open_delay: float = 0.0
+    pending_open_at: float | None = None
+    reveal_screen: str | None = None
+    reveal_at: float = 0.0
     taps: list[tuple[int, int, str]] = field(default_factory=list)
     swipes: list[tuple[int, int, int, int, float]] = field(default_factory=list)
     slept: list[float] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)
 
     def grab(self) -> np.ndarray:
+        if self.pending_open_at is not None and self.now >= self.pending_open_at:
+            self.screen, self.panel = screens.UNIT_DETAIL, self.view
+            self.pending_open_at = None
+        if self.reveal_screen is not None and self.now >= self.reveal_at:
+            self.screen, self.reveal_screen = self.reveal_screen, None
         return np.zeros((4, 4, 3), np.uint8)
 
     def keep(self, label: str) -> str:
@@ -83,7 +92,7 @@ class FakeGame:
             self.faction = ALLY if point == roster_capture.TAB_TAPS[ALLY] else ENEMY
         elif point in cells and self.screen == screens.TROOP_INFO:
             if cells.index(point) < self.units(self.faction):
-                self.screen, self.panel = screens.UNIT_DETAIL, self.view
+                self.pending_open_at = self.now + self.open_delay
         elif point in roster_capture.DETAIL_TAB_TAPS and self.panel is not PanelKind.UNKNOWN:
             self.tab = TAB_KINDS[roster_capture.DETAIL_TAB_TAPS.index(point)]
             self.panel = self.view = self.tab
@@ -188,6 +197,107 @@ def test_the_end_of_the_enemy_list_stops_the_scan_without_a_shot(tmp_path, monke
     edge = _kinds(entries, "roster_list_edge")
     assert [(entry["faction"], entry["index"]) for entry in edge] == [(ENEMY, 18)]
     assert (19, "") not in [(x, intent) for x, _, intent in game.taps]
+
+
+def test_open_detail_waits_out_the_open_animation_before_deciding(tmp_path):
+    """開詳情動畫 ~2.5s，畫面在閾值內轉出詳情：判 True，不誤記盡頭。"""
+    game = FakeGame(ally=1, enemy=0, screen=screens.TROOP_INFO, open_delay=2.5)
+    capture = _capture(game, tmp_path)
+
+    assert capture.open_detail(ALLY, 0) is True
+    assert game.now >= 2.5
+    assert _kinds(capture.journal.entries(), "roster_list_edge") == []
+
+
+def test_open_detail_calls_the_empty_last_cell_a_list_edge(tmp_path):
+    """末列空格：點下去畫面全程 troop_info，熬滿 DETAIL_OPEN_WAIT_S 才判盡頭。"""
+    game = FakeGame(ally=1, enemy=0, screen=screens.TROOP_INFO)
+    capture = _capture(game, tmp_path)
+
+    assert capture.open_detail(ALLY, 1) is False
+    assert game.now >= roster_capture.DETAIL_OPEN_WAIT_S
+    edge = _kinds(capture.journal.entries(), "roster_list_edge")
+    assert [(entry["faction"], entry["index"]) for entry in edge] == [(ALLY, 1)]
+
+
+def test_open_detail_that_opens_past_the_threshold_is_missed(tmp_path):
+    """閾值上界：開啟動畫超過 DETAIL_OPEN_WAIT_S 才轉出，會被判成盡頭。"""
+    game = FakeGame(
+        ally=1,
+        enemy=0,
+        screen=screens.TROOP_INFO,
+        open_delay=roster_capture.DETAIL_OPEN_WAIT_S + 1.0,
+    )
+    capture = _capture(game, tmp_path)
+
+    assert capture.open_detail(ALLY, 0) is False
+    edge = _kinds(capture.journal.entries(), "roster_list_edge")
+    assert [(entry["faction"], entry["index"]) for entry in edge] == [(ALLY, 0)]
+
+
+def test_a_delayed_full_walk_still_covers_every_cell_and_ends_on_an_edge(tmp_path, monkeypatch):
+    """詳情延遲開啟（~2.5s）下仍採滿兩陣營，敵軍末列空格熬滿閾值判盡頭。"""
+    _sentinels_pass(monkeypatch)
+    game = FakeGame(ally=10, enemy=18, open_delay=2.5)
+    capture = _capture(game, tmp_path)
+
+    shots = capture.run()
+
+    assert len(shots) == (game.ally + game.enemy) * PAGES_PER_UNIT
+    assert all(shot.ok for shot in shots)
+    entries = capture.journal.entries()
+    assert [entry["count"] for entry in _kinds(entries, "roster_list_end")] == [
+        game.ally,
+        game.enemy,
+    ]
+    edge = _kinds(entries, "roster_list_edge")
+    assert [(entry["faction"], entry["index"]) for entry in edge] == [(ENEMY, 18)]
+    assert game.screen in screens.MAP_SCREENS
+
+
+def test_close_to_map_heals_from_a_residual_detail_page(tmp_path):
+    """非預期殘留：起點是半開詳情，仍逐層 detail→troop_info→battle_menu→map 收回。"""
+    game = FakeGame(
+        screen=screens.UNIT_DETAIL, panel=PanelKind.STAGE_BASIC, view=PanelKind.STAGE_BASIC
+    )
+    capture = _capture(game, tmp_path)
+
+    assert capture.close_to_map() is True
+    assert game.screen in screens.MAP_SCREENS
+    assert [tap[:2] for tap in game.taps] == [
+        roster_capture.DETAIL_CLOSE_TAP,
+        roster_capture.TROOP_INFO_CLOSE_TAP,
+        roster_capture.BATTLE_MENU_CLOSE_TAP,
+    ]
+    closed = _kinds(capture.journal.entries(), "roster_closed")[-1]
+    assert closed["ok"] is True
+
+
+def test_close_to_map_from_a_clean_troop_info_start(tmp_path):
+    """正常收尾：末格採完乾淨回 troop_info，兩層關回地圖。"""
+    game = FakeGame(screen=screens.TROOP_INFO)
+    capture = _capture(game, tmp_path)
+
+    assert capture.close_to_map() is True
+    assert game.screen in screens.MAP_SCREENS
+    assert [tap[:2] for tap in game.taps] == [
+        roster_capture.TROOP_INFO_CLOSE_TAP,
+        roster_capture.BATTLE_MENU_CLOSE_TAP,
+    ]
+
+
+def test_close_to_map_waits_out_an_unrecognized_screen_instead_of_blind_tapping(tmp_path):
+    """認不出畫面（開啟動畫中）不盲點：先等一小段，畫面現形成 troop_info 再照層關。"""
+    game = FakeGame(
+        screen=screens.UNKNOWN,
+        reveal_screen=screens.TROOP_INFO,
+        reveal_at=roster_capture.PANEL_POLL_S,
+    )
+    capture = _capture(game, tmp_path)
+
+    assert capture.close_to_map() is True
+    assert game.screen in screens.MAP_SCREENS
+    assert game.taps[0][:2] == roster_capture.TROOP_INFO_CLOSE_TAP
 
 
 def test_a_detail_that_opens_on_the_basic_view_only_switches_once(tmp_path, monkeypatch):

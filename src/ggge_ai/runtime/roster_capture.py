@@ -78,21 +78,20 @@ SHOT_RETRIES = 2
 # 兩秒（0810 實機），而 read_stat_column 讀到 delta 會標旗拒收。用 PANEL_POLL_S 的
 # 0.3s 重拍等於連拍同一個相位，跨得過半個輪替才有機會拍到絕對值那一相。
 SHOT_RETRY_SLEEP_S = 1.2
-# 列表盡頭的判準：點了格畫面還停在 TROOP_INFO 這麼多輪＝那一格是空的（敵軍末列不滿格）。
-LIST_END_POLLS = 2
+# 開詳情動畫實測 2.5-3s：點格後畫面停在 TROOP_INFO 這段時間才轉出詳情，留足餘裕取
+# 3.5s。這是坑——判列表盡頭不能用輪數（串流下 0.3s×N 的計數窗會塌縮），只能熬滿這段
+# 壁鐘：正常格 ~2.5s 就開出詳情提前收工，唯有末列空格（點下去畫面永不變）才吃滿。
+DETAIL_OPEN_WAIT_S = 3.5
 
-# 由內而外的關閉層序。認得出畫面就照畫面挑關閉鈕，認不出來才照層序盲關——三層都
-# 走完還沒回到地圖就認賠，繼續亂點只會把面板下面的地圖也點壞。
-CLOSE_LAYERS: tuple[Point, ...] = (
-    DETAIL_CLOSE_TAP,
-    TROOP_INFO_CLOSE_TAP,
-    BATTLE_MENU_CLOSE_TAP,
-)
+# 逐層關閉的座標圖。認得出畫面就照畫面挑關閉鈕；認不出來（可能在開啟動畫中）先等一
+# 小段再重判，不盲點——地圖裸露時這些關閉座標打中的是格子。
 CLOSE_TAPS: dict[str, Point] = {
     screens.UNIT_DETAIL: DETAIL_CLOSE_TAP,
     screens.TROOP_INFO: TROOP_INFO_CLOSE_TAP,
     screens.BATTLE_MENU: BATTLE_MENU_CLOSE_TAP,
 }
+# 詳情→部隊資訊→戰鬥選單→地圖最多三關；多給兩步容錯開啟動畫的殘留起點。
+CLOSE_MAX_STEPS = 5
 
 
 def rows_of(faction: str) -> int:
@@ -255,38 +254,42 @@ class RosterCapture:
             self.journal.record("roster_cell_blocked", faction=faction, index=index)
             return False
         self.tap(*cell_taps(faction)[index], intent=ROSTER_CELL_INTENT)
-        deadline = self.clock() + PANEL_WAIT_S
-        stale = 0
+        start = self.clock()
+        detail_deadline = start + DETAIL_OPEN_WAIT_S
+        hard_deadline = start + max(PANEL_WAIT_S, DETAIL_OPEN_WAIT_S + PANEL_POLL_S)
+        never_left = True
         while True:
             frame = self.grab()
             name = self.screen_of(frame)
             if self.panel_of(frame) is not PanelKind.UNKNOWN or name == screens.UNIT_DETAIL:
                 return True
-            if name == screens.TROOP_INFO:
-                stale += 1
-                if stale >= LIST_END_POLLS:
+            if name != screens.TROOP_INFO:
+                never_left = False
+            now = self.clock()
+            if now >= detail_deadline or now >= hard_deadline:
+                if never_left:
                     self.journal.record("roster_list_edge", faction=faction, index=index)
-                    return False
-            if self.clock() >= deadline:
                 return False
             self.sleep(PANEL_POLL_S)
 
     def close_to_map(self) -> bool:
-        """詳情→部隊資訊→戰鬥選單逐層關回地圖。
+        """從任一起點逐層關回地圖，不假設起點。
 
-        每層先看畫面：已經在地圖上就不再點——地圖裸露時這些關閉座標打中的是格子。
+        open_detail 誤判盡頭時那一格的 tap 已經觸發詳情開啟，收尾要能從詳情頁／半開
+        詳情／部隊資訊／戰鬥選單任一殘留畫面收回地圖。每步先看畫面：已經在地圖上就
+        不再點——地圖裸露時這些關閉座標打中的是格子；認不出畫面（可能在開啟動畫中）
+        先等一小段再重判，不盲點。
         """
         self.closed = True
-        for fallback in CLOSE_LAYERS:
-            frame = self.grab()
-            name = self.screen_of(frame)
+        for _ in range(CLOSE_MAX_STEPS):
+            name = self.screen_of(self.grab())
             if name in screens.MAP_SCREENS:
-                self.journal.record("roster_closed", screen=name)
+                self.journal.record("roster_closed", screen=name, ok=True)
                 return True
-            if self.panel_of(frame) is not PanelKind.UNKNOWN:
-                point = DETAIL_CLOSE_TAP
-            else:
-                point = CLOSE_TAPS.get(name, fallback)
+            point = CLOSE_TAPS.get(name)
+            if point is None:
+                self.sleep(PANEL_POLL_S)
+                continue
             self.tap(*point)
             self._await(lambda frame, was=name: self.screen_of(frame) != was)
         name = self.screen_of(self.grab())
