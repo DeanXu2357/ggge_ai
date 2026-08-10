@@ -7,6 +7,33 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 規格不寫在這裡（「程式碼就是規格」）。舊快照全文在本檔的 git 歷史
 （最後完整版 `66ce53c`），設計裁決在 docs/record/decisions.md。
 
+## 暫停快照（2026-08-11 清晨，分支 feat/stream-input；名冊三修全數實測過關——首份敵我全量 intel 落地）
+
+### 恢復點
+
+- **0811 修理批（使用者核准逐修逐測）＋四輪實測**：①修1 `34413e9`
+  select_tab 改陣營鈕高亮判準（實幀量測 B-R 選中 118-150/未選 19-24、門檻
+  60）＋2s 壁鐘逾時重點——敵方名冊 0→18/18，四輪連穩。②修2 `7a7b811`＋
+  `6c03379` 詳情分頁點擊走 _select_detail_tab（等期望面板＋逾時重點）；v1
+  raw-grab await 被 crossfade ~0.4s 中間幀假陽性騙過（run 010819 全 28 台
+  假 landed 實錘），v2 改只信 settle 收斂幀後 stats0 0 敗兩輪連穩；
+  roster_tab_nav 量得 tab0 首點吞點率 68%（19/28）重點 1 次全救回。③修3
+  `4457b30` weapons_more 滑前數卡頭帶、<3 條跳過——ally:8 單卡機四輪
+  sentinel 敗根治；卡數對帳（025113 全滑輪 --no-llm 基準 vs 035940 skip
+  輪 scenario）逐台相同零漏卡。④**最終輪 run 20260811-035940 全綠**：
+  census_closed 18/18+10/10、roster 124/124 failed=0、abandon ok、
+  intel_offline exit 0、sweep_end 齊——首份敵我 28 台完整
+  scenario.json＋intel_report.json 落地（Ollama 28 台約 99 分）。
+- **本輪新立/殘留待辦**：①abandon 收尾偶發把長黑屏轉場判 unknown →
+  `abandon:unconfirmed` 誤報 halt（run 002819 一次、裝置實已自行回
+  stage_list）——歸 abandon 段待修。②掃描期導航活鎖保險絲又觸發一次
+  （run 033941，41 把零裁決，同 171053）——既有已知偶發。③離線對帳
+  issues 23 筆＝字模開頭插 1 錯型形成未配對樣板（既有已記錄行為）＋
+  enemy:15 LLM 漏名 2 筆。④date_changed 跨午夜彈窗的自動恢復仍未做
+  （本批手動導航復原一次：主畫面→登入獎勵×5→關卡→MAIN STAGE→UC→選擇）。
+- **裝置現況**：stage_list（UC 系列、游標 uc_hard_1、node 544,667 有效）、
+  棄戰乾淨、無在跑程序與監控。
+
 ## 暫停快照（2026-08-10 深夜，分支 feat/stream-input；名冊段回歸診斷輪定讞——三 bug 同族根因、修法待裁）
 
 ### 恢復點
