@@ -8,8 +8,8 @@
 再拿，卡在半開的面板上卻會讓整輪報廢。
 
 座標分兩級：`BATTLE_MENU_TROOP_INFO_TAP` 以下到 `cell_taps` 為止是 0806 實幀量測
-過的；`DETAIL_TAB_TAPS` 是從 panels 的帶推的，`BASIC_VIEW_TAP`／`PILOT_HALF_OFFSET`
-／`WEAPON_SCROLL` 還沒標定（None ＝那一頁這一輪不採，開場記一筆 gap）。
+過的；`DETAIL_TAB_TAPS`／`BASIC_VIEW_TAP`／`WEAPON_SCROLL` 是 0810 在 UC HARD 1
+戰場內逐點實機標定的。
 """
 
 from __future__ import annotations
@@ -52,30 +52,32 @@ ALLY_ROWS = 2
 ENEMY_ROW_PITCH = 193.4
 ENEMY_ROWS = 4
 
-# 詳情頁三個分頁的切換點，由 panels.TAB_BANDS 的帶心推得。那些帶量的是「選中分頁的
-# 藍底」而不是鈕身，推出來的點只保證落在分頁欄那一列——**未實機驗證**，第一次上機
-# 要對著實幀確認三個分頁真的切得動。
+# 詳情頁三個分頁的切換點，由 panels.TAB_BANDS 的帶心推得，0810 實機逐點驗過：
+# (985,173)／(1415,173)／(1835,173) 切出的分頁 panels.classify 全數命中。
 DETAIL_TAB_TAPS: tuple[Point, ...] = tuple(
     (x + w // 2, y + h // 2) for x, y, w, h in panels.TAB_BANDS
 )
 
-# 以下三個待實機標定。None ＝對應的頁這一輪不採，`run()` 開場落一筆 gap 說明少了什麼。
-# 標定完把值填進來，對應的採集步驟自己會開起來。
-BASIC_VIEW_TAP: Point | None = None
-PILOT_HALF_OFFSET: Point | None = None
-WEAPON_SCROLL: tuple[Point, Point, float] | None = None
+# 右上角的視圖切換鈕：基本資訊視圖顯示「詳情」、詳情視圖顯示「基本資訊」，同一點來回切。
+BASIC_VIEW_TAP: Point = (1936, 96)
+# 武裝分頁往下捲（武裝卡下面接技能區塊）。0.8s 是坑：0.4s 快滑帶慣性會整張武裝卡
+# 掠過去，第 4 把武裝的數值列落在首幀與捲後幀之間都拍不到；0.8s 慢滑實測完整入幀。
+WEAPON_SCROLL: tuple[Point, Point, float] = ((1400, 700), (1400, 400), 0.8)
 
 PAGE_BASIC = "basic"
 PAGE_WEAPONS = "weapons"
 PAGE_WEAPONS_MORE = "weapons_more"
 PAGE_ABILITIES = "abilities"
-PAGE_PILOT = "pilot"
 DETAIL_TAB_PAGES = ("stats0", PAGE_WEAPONS, PAGE_ABILITIES)
 
 # 面板等待一律壁鐘：attempts×sleep 的計數窗在串流取幀下會塌縮成幾十毫秒（0808 實機）。
 PANEL_WAIT_S = 6.0
 PANEL_POLL_S = 0.3
 SHOT_RETRIES = 2
+# 哨兵重拍的間隔要另計：詳情左欄有加成的欄位會輪替顯示絕對值與藍字 +delta，週期約
+# 兩秒（0810 實機），而 read_stat_column 讀到 delta 會標旗拒收。用 PANEL_POLL_S 的
+# 0.3s 重拍等於連拍同一個相位，跨得過半個輪替才有機會拍到絕對值那一相。
+SHOT_RETRY_SLEEP_S = 1.2
 # 列表盡頭的判準：點了格畫面還停在 TROOP_INFO 這麼多輪＝那一格是空的（敵軍末列不滿格）。
 LIST_END_POLLS = 2
 
@@ -140,10 +142,6 @@ def _abilities_ok(frame: np.ndarray, kind: PanelKind) -> bool:
     return column is not None and len(column.unread) < len(column.slots())
 
 
-def _pilot_ok(frame: np.ndarray, kind: PanelKind) -> bool:
-    return kind is PanelKind.ROSTER_PILOT
-
-
 DETAIL_TAB_SENTINELS: tuple[Sentinel, ...] = (_stats_ok, _weapons_ok, _abilities_ok)
 DETAIL_TAB_KINDS: tuple[tuple[PanelKind, ...], ...] = (
     (PanelKind.STAGE_COMBO, PanelKind.ROSTER_UNIT_INFO),
@@ -181,7 +179,6 @@ class RosterCapture:
     def run(self) -> list[CaptureShot]:
         shots: list[CaptureShot] = []
         try:
-            self._record_gaps()
             if self.open_troop_info():
                 for faction in FACTIONS:
                     self._capture_faction(faction, shots)
@@ -217,19 +214,25 @@ class RosterCapture:
         return landed
 
     def capture_unit(self, faction: str, index: int) -> list[CaptureShot]:
-        """一格單位的所有頁。回空 list ＝詳情打不開＝列表盡頭。"""
+        """一格單位的所有頁。回空 list ＝詳情打不開＝列表盡頭。
+
+        視圖是全域記憶（0810 實機）：詳情面板記住上一次看的是基本資訊還是詳情、詳情
+        又停在哪個分頁，而且跨單位跨陣營共享。所以開場落在哪一頁不能假設——先讀一張
+        判當前視圖，落在詳情就先切回基本資訊，拍完再切回詳情走分頁。
+        """
         if not self.open_detail(faction, index):
             return []
         shots: list[CaptureShot] = []
-        if BASIC_VIEW_TAP is not None:
+        if self.panel_of(self.grab()) not in panels.BASIC_KINDS:
             self.tap(*BASIC_VIEW_TAP)
         shots.append(self._shot(faction, index, PAGE_BASIC, panels.BASIC_KINDS, _basic_ok))
+        self.tap(*BASIC_VIEW_TAP)
         for tab, page in enumerate(DETAIL_TAB_PAGES):
             self.tap(*DETAIL_TAB_TAPS[tab])
             shots.append(
                 self._shot(faction, index, page, DETAIL_TAB_KINDS[tab], DETAIL_TAB_SENTINELS[tab])
             )
-            if page == PAGE_WEAPONS and WEAPON_SCROLL is not None and self.swipe is not None:
+            if page == PAGE_WEAPONS and self.swipe is not None:
                 (x1, y1), (x2, y2), duration = WEAPON_SCROLL
                 self.swipe(x1, y1, x2, y2, duration)
                 shots.append(
@@ -239,7 +242,6 @@ class RosterCapture:
                 )
         self.tap(*DETAIL_CLOSE_TAP)
         self._await_screen(screens.TROOP_INFO)
-        shots.extend(self._capture_pilot(faction, index))
         return shots
 
     def open_detail(self, faction: str, index: int) -> bool:
@@ -306,16 +308,6 @@ class RosterCapture:
             count += 1
         self.journal.record("roster_list_end", faction=faction, count=count)
 
-    def _capture_pilot(self, faction: str, index: int) -> list[CaptureShot]:
-        if PILOT_HALF_OFFSET is None:
-            return []
-        x, y = cell_taps(faction)[index]
-        self.tap(x + PILOT_HALF_OFFSET[0], y + PILOT_HALF_OFFSET[1], intent=ROSTER_CELL_INTENT)
-        shot = self._shot(faction, index, PAGE_PILOT, (PanelKind.ROSTER_PILOT,), _pilot_ok)
-        self.tap(*DETAIL_CLOSE_TAP)
-        self._await_screen(screens.TROOP_INFO)
-        return [shot]
-
     def _shot(
         self,
         faction: str,
@@ -342,7 +334,7 @@ class RosterCapture:
                 reason = None
                 break
             if attempt < SHOT_RETRIES:
-                self.sleep(PANEL_POLL_S)
+                self.sleep(SHOT_RETRY_SLEEP_S)
         path = self.keep(f"roster:{faction}:{index}:{page}")
         shot = CaptureShot(
             faction=faction,
@@ -364,19 +356,6 @@ class RosterCapture:
             reason=shot.reason,
         )
         return shot
-
-    def _record_gaps(self) -> None:
-        missing = [
-            name
-            for name, value in (
-                ("BASIC_VIEW_TAP", BASIC_VIEW_TAP),
-                ("PILOT_HALF_OFFSET", PILOT_HALF_OFFSET),
-                ("WEAPON_SCROLL", WEAPON_SCROLL),
-            )
-            if value is None
-        ]
-        if missing:
-            self.journal.record("roster_capture_gap", constants=missing, reason="uncalibrated")
 
     def _settled(self) -> np.ndarray:
         return settle.await_still(

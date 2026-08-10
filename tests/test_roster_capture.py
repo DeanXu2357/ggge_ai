@@ -24,15 +24,23 @@ PAGES_PER_UNIT = 1 + len(roster_capture.DETAIL_TAB_PAGES)
 
 @dataclass
 class FakeGame:
-    """部隊資訊面板的狀態機：戰場→戰鬥選單→部隊資訊→詳情各分頁。"""
+    """部隊資訊面板的狀態機：戰場→戰鬥選單→部隊資訊→詳情各分頁。
+
+    `view`／`tab` 是實機的全域視圖記憶：詳情關掉再開，落回的是上一台看到最後的視圖
+    與分頁，跨單位跨陣營共享。
+    """
 
     ally: int = 10
     enemy: int = 18
     screen: str = screens.BATTLE_MAP
     panel: PanelKind = PanelKind.UNKNOWN
+    view: PanelKind = PanelKind.STAGE_BASIC
+    tab: PanelKind = PanelKind.STAGE_COMBO
     faction: str = ALLY
     now: float = 0.0
     taps: list[tuple[int, int, str]] = field(default_factory=list)
+    swipes: list[tuple[int, int, int, int, float]] = field(default_factory=list)
+    slept: list[float] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)
 
     def grab(self) -> np.ndarray:
@@ -43,7 +51,11 @@ class FakeGame:
         return f"frames/{len(self.kept):05d}.png"
 
     def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
         self.now += seconds
+
+    def swipe(self, x1: int, y1: int, x2: int, y2: int, duration: float) -> None:
+        self.swipes.append((x1, y1, x2, y2, duration))
 
     def clock(self) -> float:
         return self.now
@@ -71,9 +83,13 @@ class FakeGame:
             self.faction = ALLY if point == roster_capture.TAB_TAPS[ALLY] else ENEMY
         elif point in cells and self.screen == screens.TROOP_INFO:
             if cells.index(point) < self.units(self.faction):
-                self.screen, self.panel = screens.UNIT_DETAIL, PanelKind.STAGE_BASIC
+                self.screen, self.panel = screens.UNIT_DETAIL, self.view
         elif point in roster_capture.DETAIL_TAB_TAPS and self.panel is not PanelKind.UNKNOWN:
-            self.panel = TAB_KINDS[roster_capture.DETAIL_TAB_TAPS.index(point)]
+            self.tab = TAB_KINDS[roster_capture.DETAIL_TAB_TAPS.index(point)]
+            self.panel = self.view = self.tab
+        elif point == roster_capture.BASIC_VIEW_TAP and self.panel is not PanelKind.UNKNOWN:
+            self.panel = self.tab if self.panel in panels.BASIC_KINDS else PanelKind.STAGE_BASIC
+            self.view = self.panel
         elif point == roster_capture.DETAIL_CLOSE_TAP and self.panel is not PanelKind.UNKNOWN:
             self.screen, self.panel = screens.TROOP_INFO, PanelKind.UNKNOWN
         elif point == roster_capture.TROOP_INFO_CLOSE_TAP:
@@ -83,12 +99,13 @@ class FakeGame:
                 self.screen = screens.BATTLE_MAP
 
 
-def _capture(game: FakeGame, tmp_path) -> roster_capture.RosterCapture:
+def _capture(game: FakeGame, tmp_path, *, swipe=None) -> roster_capture.RosterCapture:
     return roster_capture.RosterCapture(
         grab=game.grab,
         keep=game.keep,
         tap=game.tap,
         journal=Journal(tmp_path / "roster.jsonl"),
+        swipe=swipe,
         sleep=game.sleep,
         clock=game.clock,
         screen_of=game.screen_of,
@@ -99,11 +116,16 @@ def _capture(game: FakeGame, tmp_path) -> roster_capture.RosterCapture:
 def _sentinels_pass(monkeypatch, *, basic=None, tabs=None) -> None:
     """哨兵讀的是真幀，假幀一律讀不出值——這裡把它們換成受測案例要的答案。"""
     monkeypatch.setattr(roster_capture, "_basic_ok", basic or (lambda frame, kind: True))
+    monkeypatch.setattr(roster_capture, "_weapons_ok", lambda frame, kind: True)
     monkeypatch.setattr(
         roster_capture,
         "DETAIL_TAB_SENTINELS",
         tabs or tuple(lambda frame, kind: True for _ in TAB_KINDS),
     )
+
+
+def _view_taps(game: FakeGame) -> list[tuple[int, int, str]]:
+    return [tap for tap in game.taps if tap[:2] == roster_capture.BASIC_VIEW_TAP]
 
 
 def _kinds(entries: list[dict], kind: str) -> list[dict]:
@@ -166,6 +188,103 @@ def test_the_end_of_the_enemy_list_stops_the_scan_without_a_shot(tmp_path, monke
     edge = _kinds(entries, "roster_list_edge")
     assert [(entry["faction"], entry["index"]) for entry in edge] == [(ENEMY, 18)]
     assert (19, "") not in [(x, intent) for x, _, intent in game.taps]
+
+
+def test_a_detail_that_opens_on_the_basic_view_only_switches_once(tmp_path, monkeypatch):
+    """開場就在基本資訊：拍完基本資訊切一次進詳情，不多繞一趟。"""
+    _sentinels_pass(monkeypatch)
+    game = FakeGame(ally=1, enemy=0, view=PanelKind.STAGE_BASIC)
+    capture = _capture(game, tmp_path)
+
+    shots = capture.run()
+
+    assert len(_view_taps(game)) == 1
+    assert shots[0].page == roster_capture.PAGE_BASIC
+    assert shots[0].panel_kind == PanelKind.STAGE_BASIC
+    assert all(shot.ok for shot in shots)
+
+
+def test_a_detail_that_opens_on_a_remembered_tab_walks_back_to_the_basic_view(
+    tmp_path, monkeypatch
+):
+    """視圖是全域記憶：開場落在詳情分頁，要先切回基本資訊拍完再切回詳情。"""
+    _sentinels_pass(monkeypatch)
+    game = FakeGame(
+        ally=1, enemy=0, view=PanelKind.STAGE_WEAPONS, tab=PanelKind.STAGE_WEAPONS
+    )
+    capture = _capture(game, tmp_path)
+
+    shots = capture.run()
+
+    assert len(_view_taps(game)) == 2
+    basic = [shot for shot in shots if shot.page == roster_capture.PAGE_BASIC]
+    assert len(basic) == 1
+    assert basic[0].panel_kind == PanelKind.STAGE_BASIC
+    assert basic[0].ok is True
+    assert basic[0].frame is not None
+    assert [shot.page for shot in shots[1:]] == list(roster_capture.DETAIL_TAB_PAGES)
+    assert all(shot.ok for shot in shots)
+
+
+def test_the_second_unit_inherits_the_view_left_behind_by_the_first(tmp_path, monkeypatch):
+    """跨單位共享記憶：第一台停在最後一個分頁，第二台就得走兩次切換那條路。"""
+    _sentinels_pass(monkeypatch)
+    game = FakeGame(ally=2, enemy=0)
+    capture = _capture(game, tmp_path)
+
+    shots = capture.run()
+
+    assert len(_view_taps(game)) == 3
+    assert [shot.panel_kind for shot in shots if shot.page == roster_capture.PAGE_BASIC] == [
+        PanelKind.STAGE_BASIC,
+        PanelKind.STAGE_BASIC,
+    ]
+    assert all(shot.ok for shot in shots)
+
+
+def test_the_weapons_page_gets_a_slow_scroll_and_a_second_shot(tmp_path, monkeypatch):
+    """武裝分頁捲一次再補一張：慢滑參數照 WEAPON_SCROLL 展開發出去。"""
+    _sentinels_pass(monkeypatch)
+    game = FakeGame(ally=1, enemy=0)
+    capture = _capture(game, tmp_path, swipe=game.swipe)
+
+    shots = capture.run()
+
+    (start, end, duration) = roster_capture.WEAPON_SCROLL
+    assert game.swipes == [(*start, *end, duration)]
+    assert [shot.page for shot in shots] == [
+        roster_capture.PAGE_BASIC,
+        "stats0",
+        roster_capture.PAGE_WEAPONS,
+        roster_capture.PAGE_WEAPONS_MORE,
+        roster_capture.PAGE_ABILITIES,
+    ]
+    more = shots[3]
+    assert more.panel_kind == PanelKind.STAGE_WEAPONS
+    assert (more.ok, more.frame is not None) == (True, True)
+
+
+def test_a_capture_without_a_swipe_channel_skips_the_scrolled_page(tmp_path, monkeypatch):
+    _sentinels_pass(monkeypatch)
+    game = FakeGame(ally=1, enemy=0)
+
+    shots = _capture(game, tmp_path).run()
+
+    assert game.swipes == []
+    assert roster_capture.PAGE_WEAPONS_MORE not in [shot.page for shot in shots]
+
+
+def test_the_retry_between_shots_waits_out_the_bonus_flip(tmp_path, monkeypatch):
+    """重拍間隔要跨得過左欄絕對值↔加成值的輪替，不能用面板輪詢的 0.3s。"""
+    _sentinels_pass(monkeypatch, basic=lambda frame, kind: False)
+    game = FakeGame(ally=1, enemy=0)
+    capture = _capture(game, tmp_path)
+
+    capture.run()
+
+    retries = [seconds for seconds in game.slept if seconds == roster_capture.SHOT_RETRY_SLEEP_S]
+    assert len(retries) == roster_capture.SHOT_RETRIES
+    assert roster_capture.SHOT_RETRY_SLEEP_S > roster_capture.PANEL_POLL_S
 
 
 def test_a_sentinel_that_comes_good_on_the_third_look_is_kept(tmp_path, monkeypatch):

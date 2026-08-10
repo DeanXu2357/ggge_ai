@@ -53,7 +53,7 @@ STATS_PAGES = ("stats0", "stats1", "stats2")
 WEAPON_PAGES = ("weapons", "weapons_more")
 ABILITIES_PAGE = "abilities"
 # 詳情頁實際只有三個分頁（stats0／weapons／abilities，見 roster_capture.DETAIL_TAB_PAGES）；
-# stats1/2 與 weapons_more 是「有就吃」的加頁，pilot 頁沒有數值欄讀取器——都不算漏。
+# stats1/2 與 weapons_more 是「有就吃」的加頁，缺了不算漏。
 EXPECTED_PAGES = (BASIC_PAGE, "stats0", "weapons", ABILITIES_PAGE)
 
 ENEMY = "enemy"
