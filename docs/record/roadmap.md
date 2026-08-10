@@ -7,6 +7,33 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 規格不寫在這裡（「程式碼就是規格」）。舊快照全文在本檔的 git 歷史
 （最後完整版 `66ce53c`），設計裁決在 docs/record/decisions.md。
 
+## 暫停快照（2026-08-10 深夜，分支 feat/stream-input；名冊段回歸診斷輪定讞——三 bug 同族根因、修法待裁）
+
+### 恢復點
+
+- **0810 診斷批（診斷 log `34c23a6`）＋儀器化實測 run 20260810-230716
+  （26.6 分、census_closed 敵 18/18 我 10/10、abandon:ok、ally 43ok/7failed、
+  enemy 0 台）**。逐 bug 定罪（證據都在該 run journal 新欄位＋存證幀）：
+  ①stats0 敗 6/10（上輪 9/10、競態）＝視圖切換→tab0 兩點間隔僅 0.051-0.08s
+  落在動畫吞輸入窗，`_shot` 重試只重拍不重點；落地視圖 10/10 都
+  stage_abilities（視圖全域記憶實錘）。②敵方名冊 0 台＝`select_tab` 判準
+  `_await_screen(TROOP_INFO)` 恆真驗不出吞點；幀 00242/00244 證明 tab 點後
+  3.7s 我軍仍高亮、座標 (460,600) 本身正確；敵 tab 點在上一台詳情關閉後
+  0.086s 送出被關閉動畫吞掉，後續 cell 點也無效。批F 壁鐘只判「畫面有沒有
+  變」補不了「動作有沒有生效」（修我方 1→10、壞敵方 1→0 的完整解釋）。
+  ③weapons_more sentinel 敗（ally:8）＝該台 weapons 頁僅 1 條 header strip，
+  固定 300px 滑距超捲、三攻 strips=0,0,0 不回捲。④184555 sweep_end 缺失＝
+  非程式 bug（mtime 證據：in-run Ollama 組裝被中斷、20:01 另用
+  build_scenario.py 補產出）；已補 intel_offline_start 事件消歧。⑤掃描期
+  無回歸：上輪 aim_overruled 2/homing_lost 5 本輪 0/2＝噪音。
+- **統一根因**：名冊段拿「畫面分類到位」當同步點，但分類到位≠動畫結束≠
+  可收輸入；吞點後判斷讀舊狀態、重試不重做動作。修法方向（待裁不動工）：
+  select_tab 改陣營鈕高亮判準＋逾時重點；tab0 點後 await stage_combo＋逾時
+  重點；weapons_more 敗時回捲重滑；詳情關閉→下一動作補壁鐘下限。
+- **裝置現況**：run 230716 棄戰乾淨回 stage_list（游標 uc_hard_1、node
+  544,667）；離線組裝（Ollama）於 tmux session sweep_diag 內續跑中，跑完
+  應見 intel_offline＋sweep_end。
+
 ## 暫停快照（2026-08-10 凌晨，分支 feat/projection-switch；單應性切換實測全數過關——25.5 分完整輪，合併待裁）
 
 ### 恢復點
