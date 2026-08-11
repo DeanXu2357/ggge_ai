@@ -1243,6 +1243,15 @@
   （note＋report）。(5) 我方對位：核准小改實戰過的 sweep 出卡路徑——sentence_shift
   接既有 read_ally_summary 右塢讀值，我方出卡格也記 (HP,EN)，敵我都精確對位；
   讀值失敗或撞名退任意指派＋標 arbitrary。
+- **（0811）掃描邊界界定順序——使用者裁示**｜原話：「以流程來說，邊緣界定應該
+  是要最先做完的，不能假定有真值檔可以參考。」背景：run 20260811-092754 全盤
+  硬磨輪實錘現行行為——西北角錨定起步只先定 west/north，east/south 靠掃描途中
+  目擊邊緣／推鏡到盡頭才定案；抵達南緣前的那一帶窗口把 row-20 圖外格 (0..11,20)
+  排進 plan_window，12 格 × ~6.5s no_feedback 逾時共浪費 ~72s，記成盤外 unsure
+  殘帳。裁示含義：掃描流程改為「先完成四界界定、再開始清算盤內」，且邊界界定
+  不得以真值檔尺寸為前提（首刷無檔必須能走；檔案尺寸依既有紀律只當先驗）。
+  執行：留待下個 session 動工（使用者指示重開 session 處理）；相關但獨立的
+  no_feedback 早收調參案照舊待裁。
 - **(0811) New project text switches to English — user ruling**｜Ruling
   chain from the 2026-08-11 session: replies to the user are English by
   default (Traditional Chinese only on request; Simplified Chinese
