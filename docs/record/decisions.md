@@ -1252,6 +1252,18 @@
   不得以真值檔尺寸為前提（首刷無檔必須能走；檔案尺寸依既有紀律只當先驗）。
   執行：留待下個 session 動工（使用者指示重開 session 處理）；相關但獨立的
   no_feedback 早收調參案照舊待裁。
+- **（0811）界定先行落地——實作自裁分支（依 autonomous-conservative 授權備案）**｜
+  落實上條裁示的兩處工程決定：①veil 硬閘單幀即生效——plan_window 收本幀
+  read_borders 讀數換算的暫定界格（provisional_bounds，只補 ledger.boundary
+  缺的側），越界格這一窗不 tap／不 blocked／不 inferred／不 chart；不寫地標、
+  不入帳，landmark 三票紅線不動。依據：run 20260811-092754 肇事幀 00081 的
+  read_borders 已讀到 south:785.0（換算世界 1738.6＝最終 landmark 值），問題是
+  「看得見但票數未滿」；跳過即自癒（下一窗重枚舉），假讀最壞是延遲不是錯帳。
+  ②plan_pan 在 not bounded 時界定壓過 pending：缺界側依 heading→另一橫向→
+  south→north 取向，pinned 跳過，全被 pinned 落回原 pending 邏輯。**詮釋標待核**：
+  裁示原話「先完成四界界定、再開始清算盤內」，實作讓界定途中經過的窗**照常清算**
+  （搬標記本來就要點格，繞過反而重走）——「清算盤內」解讀為「不為清算而偏離界定
+  路線」，非「界定期間一格不點」。導覽：docs/reviews/0811-border-first-review.md。
 - **(0811) New project text switches to English — user ruling**｜Ruling
   chain from the 2026-08-11 session: replies to the user are English by
   default (Traditional Chinese only on request; Simplified Chinese

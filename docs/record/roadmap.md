@@ -7,19 +7,25 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 規格不寫在這裡（「程式碼就是規格」）。舊快照全文在本檔的 git 歷史
 （最後完整版 `66ce53c`），設計裁決在 docs/record/decisions.md。
 
-## 暫停快照（2026-08-11 上午，分支 feat/stream-input；下個 session 開工項＝四界先行）
+## 暫停快照（2026-08-11 上午，分支 feat/stream-input；四界先行已入庫、待實機驗證輪）
 
 ### 恢復點（重開 session 從這裡開始）
 
-- **下一件事（使用者 0811 裁示，原話與工程敘述見 docs/decisions.md 0811 條）**：
-  掃描流程改「先完成四界界定、再清算盤內」，邊界界定不得假定真值檔存在。
-  現行行為與證據：西北角起步只先定 west/north（zero_borders 事件）、
-  east/south 走到才定；run 20260811-092754 抵南緣前把 row-20 圖外格
-  (0..11,20) 排進窗口，12 格×~6.5s no_feedback 共浪費 ~72s。相關碼：
-  scripts/sweep_scan.py 的 tour()/plan_window/zero()/expand()；獨立待裁案＝
-  no_feedback 早收調參。
+- **0811 四界先行批已實作入庫**（裁示見 docs/decisions.md 0811 條×2、導覽
+  docs/reviews/0811-border-first-review.md）：①veil 硬閘——tour() 每窗拿本幀
+  read_borders 算 provisional_bounds（只補帳本缺的側），plan_window 越界格
+  不點不記不 chart；journal window 事件新欄位 veil。根因實錘：肇事幀 00081
+  read_borders 已見 south:785.0（＝最終 landmark 1738.6），landmark 三票未滿
+  期間 plan_window 只認定案界→row-20 十二格 unsure ~72s。②plan_pan not
+  bounded 時界定壓過 pending（heading→另一橫向→south→north，pinned 跳過）。
+  pytest 1018＋ruff 全綠。
+- **下一件事＝實機驗證輪**：跑 `uv run python scripts/sweep_scan.py
+  --no-early-close` 全盤，對帳（a）unsure 是否歸零（前次 12 全＝圖外格）、
+  （b）journal veil 欄位與最終 ledger.boundary 索引一致、（c）南界 landmark
+  定案時間應大幅提前、（d）全程時長 vs 31.4 分基準。獨立待裁案＝no_feedback
+  早收調參。
 - **裝置現況**：stage_list（UC 系列、游標 uc_hard_1、node 544,667）、棄戰
-  乾淨、無在跑程序與監控。分支領先 main 多個 commit，pytest 1013＋ruff 過。
+  乾淨、無在跑程序與監控。
 
 ## 暫停快照（2026-08-11 清晨，分支 feat/stream-input；名冊三修全數實測過關——首份敵我全量 intel 落地）
 
