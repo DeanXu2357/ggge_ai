@@ -26,7 +26,9 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 - **本輪新立待修**：東緣 expand_lost→reroot 循環——東界可見但票未滿期間
   plan_pan 續指 east，標記 carry 到最東緣格後推鏡重認失敗，三輪歸零返航共耗
   ~120s（t=201-368，證據 seq 見 journal；脆弱性早於本批，舊 plan_pan 同樣
-  回 east）。已交 issue-writer 開案。獨立待裁案＝no_feedback 早收調參。
+  回 east）。已立案 issue #28（type:fix；含機制補充：expand 過衝路徑記
+  landed 而非 pan_exhausted，不會走到 witness 投票，票只能靠窗口幀慢慢累）。
+  獨立待裁案＝no_feedback 早收調參。
 - **裝置現況**：stage_list（UC 系列、游標 uc_hard_1、node 544,667）、棄戰
   乾淨、無在跑程序與監控（tmux sweep0811 已結束、Monitor 已停）。
 
