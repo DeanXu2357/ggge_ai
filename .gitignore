@@ -18,3 +18,5 @@ data/
 !.claude/settings.json
 !.claude/agents/
 .idea/
+
+.vale/styles/Google/

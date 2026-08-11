@@ -30,6 +30,7 @@ term at its first use in each document, then use the short form.
 | sighting | 目擊 | A unit observation recorded during a scan |
 | grid | 格網 | The in-game board grid (the '顯示方格' overlay) |
 | screen name | 畫面名 | The classifier label for the current screen |
+| requirements document | 需求文件 | A document that answers "why" and states the problem as outcomes; see the CLAUDE.md section 'Requirements documents' |
 | gain | 增益 | Standard Taiwanese engineering term (0802 ruling: retained) |
 | odometry | 里程計 | Standard Taiwanese engineering term (0802 ruling: retained) |
 | island | 島嶼 | The holding area for observations whose positions are unknown after a localization break; they merge back after relocalization |

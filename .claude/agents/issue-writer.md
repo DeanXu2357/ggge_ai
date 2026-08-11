@@ -64,7 +64,7 @@ Q1 is the classification entry point: acceptance evidence not producible today
 - **`type:requirement`** — must carry enough analysis, and must spawn the
   corresponding `type:build` issues, to be closed. It is a temporary container,
   not a long-term tracker: it closes once the analysis is filed
-  (`docs/requirements.md` or `docs/architecture.md`) **and the derived tickets
+  (`docs/requirements/base.md` or `docs/architecture.md`) **and the derived tickets
   are opened** — not when those tickets are finished. Waiting for the children
   is how #17 and #10 rotted into permanent umbrella tickets.
 - **`type:build`** — closes when the acceptance criteria written in the ticket

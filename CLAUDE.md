@@ -101,6 +101,32 @@ Step 2 — style for the two types that pass the check:
    case. Write warning comments in the ASD-STE100 style: short
    sentences, active voice, one fact in each sentence.
 
+### Requirements documents
+
+Identification. A document is a requirements document when it passes
+all three tests:
+
+- The document answers "why do we build this" or "what problem does
+  it solve".
+- The document does not select a solution. A document that explains a
+  selected solution is an explanation document, not a requirements
+  document.
+- The document states each requirement as an outcome. Test procedures
+  and measured values belong in a spec document, not here.
+
+Rules:
+
+- Location: put requirements documents in `docs/requirements/`.
+- Style: write new requirements documents in English, in the Google
+  developer documentation style.
+- Gate: `vale docs/requirements/` must report zero errors before you
+  commit a change there. Install one time: put the 'vale' binary on
+  PATH, then run `vale sync` at the repo root. Project words go in
+  `.vale/styles/config/vocabularies/ggge_ai/accept.txt`.
+- The legacy document `docs/requirements/base.md` stays in
+  Traditional Chinese (frozen corpus). Vale checks only its Latin
+  words.
+
 ## Common commands
 
 - Screenshot: `uv run python scripts/capture.py` (output in

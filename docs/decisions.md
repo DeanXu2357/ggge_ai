@@ -1214,3 +1214,21 @@
   (ASD-STE100 style) the same day. Session-proposed bindings pending
   the user's veto: island (島嶼), mainland (大陸), ghost (幽靈),
   starfield (星空).
+- **(0811) Requirements documents: home, style, gate — user ruling with
+  one session refinement pending veto**｜User ruling: a requirements
+  document answers "why do we build this / what problem does it solve";
+  requirements documents use the Google developer documentation style,
+  must pass Vale, and live in a dedicated directory under docs/.
+  Implementation: docs/requirements/ created; docs/requirements.md
+  moved to docs/requirements/base.md (references updated in
+  architecture.md and .claude/agents/issue-writer.md); Vale 3.9.1
+  installed to ~/.local/bin with .vale.ini scoping the Google package
+  to docs/requirements/*.md plus a project vocabulary (Gundam, GOAP,
+  adb). Refinement pending veto: the ruling's identification test
+  excluded documents that contain verifiable list items; the session
+  replaced that criterion with "state each requirement as an outcome;
+  test procedures and measured values belong in a spec document",
+  because base.md itself contains outcome statements that are
+  verifiable in principle (the honest-stop rule) and would fail the
+  literal test. Verifiability is a virtue of a requirement; the thing
+  to exclude is verification detail.
