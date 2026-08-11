@@ -174,6 +174,7 @@ class SweepRun:
     empty_frame_every: int = EMPTY_FRAME_EVERY
     filter_mode: str = sweep.FILTER_FULL
     roster: bool = True
+    early_close: bool = True
     # 早收的目標台數。None＝這一關沒有真值（首刷）＝老實掃到底。
     target: sweep.Census | None = None
     # 破壞數 k/m 的讀取器。runtime 不得 import battle/，所以比照 ViewGate 由這支
@@ -484,6 +485,9 @@ class SweepRun:
         總驗是收尾閘不是加分項——台數對得上也可能是「多記一台假的、漏掉一台真的」
         剛好相抵，所以要另拍一張中性幀回頭質詢帳本。不過就不早收。
         """
+        # 量測／首刷用：關掉豁免就走全盤硬磨，帳齊也不收。
+        if not self.early_close:
+            return False
         ledger = self._ledger()
         if self.closed or not sweep.census_closed(ledger, self.target):
             return False
@@ -1594,6 +1598,12 @@ def parse_args() -> argparse.Namespace:
         default=True,
         help="掃完加採名冊（部隊資訊逐格存幀）並在收工後離線組裝 scenario.json",
     )
+    parser.add_argument(
+        "--early-close",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="roster 模式帳齊即收；--no-early-close 關掉豁免，掃到每一格都有裁決為止",
+    )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--zoom", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--run-dir", type=Path, default=None)
@@ -1723,6 +1733,7 @@ def build(args: argparse.Namespace, journal: Journal) -> SweepRun:
         empty_frame_every=args.empty_frame_every,
         filter_mode=args.filter_mode,
         roster=args.roster,
+        early_close=args.early_close,
         target=load_target(
             args.stage_truth or _title(args.expect_title), args.ally_count, journal
         ),
@@ -1770,6 +1781,7 @@ def drive(args: argparse.Namespace, run: SweepRun, journal: Journal, run_dir: Pa
         filter_mode=args.filter_mode,
         ally_count=args.ally_count,
         stage_truth=args.stage_truth,
+        early_close=args.early_close,
     )
     try:
         run.run()

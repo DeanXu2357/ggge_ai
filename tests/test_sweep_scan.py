@@ -1010,6 +1010,19 @@ def test_a_closed_census_exempts_the_rest_of_the_board_without_tapping_it(tmp_pa
     assert run.ledger.complete
 
 
+def test_early_close_turned_off_keeps_tapping_a_census_that_would_have_closed(tmp_path):
+    run = roster_run(tmp_path, set())
+    run.early_close = False
+    run.target = sweep.Census(1, 0, 0)
+    run.ledger.record((3, 4), sweep.ENEMY, name="a")
+
+    assert not run.close_census()
+
+    assert not run.closed
+    assert not run.ledger.cells_of(sweep.EMPTY_INFERRED)
+    assert [entry for entry in run.journal.entries() if entry["kind"] == "census_closed"] == []
+
+
 def test_an_open_census_exempts_nothing(tmp_path):
     run = roster_run(tmp_path, set())
     run.target = sweep.Census(2, 0, 0)
