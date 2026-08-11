@@ -1,4 +1,4 @@
-"""狀態轉移與交戰結算：逐條釘住 docs/combat-formulas.md 的機制。"""
+"""狀態轉移與交戰結算：逐條釘住 docs/reference/combat-formulas.md 的機制。"""
 
 from ggge_ai.sandbox.model import (
     DEFAULT_RULES,

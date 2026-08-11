@@ -1,4 +1,4 @@
-"""傷害與命中公式：逐項對 docs/combat-formulas.md 手算重推，防止搬遷漂移。"""
+"""傷害與命中公式：逐項對 docs/reference/combat-formulas.md 手算重推，防止搬遷漂移。"""
 
 import math
 

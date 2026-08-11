@@ -1,10 +1,12 @@
 # UI 規格（實機標定權威）
 
+> Type: reference—drift is a bug
+
 裝置 R5CRC37JBYJ，2340x1080 橫向；座標為實測點擊座標。本檔收錄**耐久的
-UI 規則與座標**——標定過程、事故軼事與批次脈絡在 git 與
-docs/archive/{ui-navigation-map,battle-settings-ui}.md。程式引用以樹上
-實作為準（`runtime/screens.py` 簽名、`runtime/device.py` 危險帶、
-`runtime/entry.py` 導航閘）。
+UI 規則與座標**——標定過程、事故軼事與批次脈絡在 git 歷史（原
+docs/archive/{ui-navigation-map,battle-settings-ui}.md，0811 已刪）。
+程式引用以樹上實作為準（`runtime/screens.py` 簽名、`runtime/device.py`
+危險帶、`runtime/entry.py` 導航閘）。
 
 ## 外層導航
 

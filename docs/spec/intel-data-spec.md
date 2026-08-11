@@ -1,5 +1,7 @@
 # 情報資料規格（2026-07-30 定案）
 
+> Type: spec—authoritative for the implementation; drift is a bug
+
 沙盤（`sandbox/model.py`）輸入欄位的完整需求清單與蒐集對映。
 使用者裁決：關卡內蒐集＝專門符號行動 Inspect（`stage/actions.py`，
 排程的規劃器待重建）；關卡外蒐集＝寫死流程讀強化頁；先定資料再
@@ -40,7 +42,7 @@ tag 篩選。蒐樣時順手記 tag 顯示位置，但相性機制入規劃**延
 - **資訊不全＝行為**：Advisor 對涉及 unknown 單位的戰鬥候選一律
   不背書（回 None），規劃器自然把 Inspect 排進計畫——偵察不用
   特殊機制。
-- **解析方法（0730 裁定，詳 docs/decisions.md）**：混合式——
+- **解析方法（0730 裁定，詳 docs/record/decisions.md）**：混合式——
   版面錨點定位＋**數值欄走數字字模模板匹配**（餵沙盤的數字必須
   確定性、fixtures 離線可測）；**自由文字欄**（武裝名、能力／
   技能詞條、特效說明）走本地視覺 LLM（ollama；0730 實測改判

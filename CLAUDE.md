@@ -7,7 +7,7 @@ template vision.
 
 ## Session start (do not skip)
 
-1. Read the pause snapshot at the top of `docs/roadmap.md`. The
+1. Read the pause snapshot at the top of `docs/record/roadmap.md`. The
    snapshot holds the device state and the resume point.
 
 ## Delegation & model routing (applies to every session)
@@ -29,21 +29,21 @@ template vision.
 - When two attempts at the same problem fail, stop and ask the user.
   Do not make more blind attempts.
 - At the end of each session: update the pause snapshot in
-  `docs/roadmap.md` (device state and resume point), then commit.
+  `docs/record/roadmap.md` (device state and resume point), then commit.
 - Communicate with the user in English. Use Chinese only when the user
   asks for a Chinese reply. When you use Chinese, use Traditional
   Chinese only. Do not use Simplified Chinese. Write the English in the
   ASD-STE100 style. Obey the three rules: 1. clarity, 2. simplicity,
   \3. brevity.
 - Write new text in `docs/` in English. Do not translate the frozen
-  Chinese corpus in bulk (see `docs/terminology-map.md` for the
+  Chinese corpus in bulk (see `docs/reference/terminology-map.md` for the
   corpus key).
 
 ### Terminology
 
 Use one term for one concept. Do not switch to a synonym after the
 first use. The term bindings, in English and in Traditional Chinese,
-are in `docs/terminology-map.md`. When you need the term for a
+are in `docs/reference/terminology-map.md`. When you need the term for a
 concept in the other language, look it up there. When a concept has
 no entry, add the binding in the same change that introduces the
 term.
@@ -100,6 +100,32 @@ Step 2 — style for the two types that pass the check:
 2. Warning comment: it marks a solution that applies only to a special
    case. Write warning comments in the ASD-STE100 style: short
    sentences, active voice, one fact in each sentence.
+
+### Document types
+
+Each file in `docs/` declares its type in a label line under the
+title: `> Type: <type>—<maintenance contract>`. The types and their
+contracts:
+
+- requirements: outcomes only; see the next section.
+- reference: facts about the game, the device, or the data. Drift is
+  a bug: when reality changes, change the document.
+- spec: the authoritative description of an implemented mechanism or
+  format.
+- explanation: intent and boundaries. The document must carry a
+  status note when reality diverges from the intent.
+- how-to: steps and rules for a task. The document must match the
+  current workflow.
+- record: frozen and dated, or append-only. Do not retro-edit a
+  record.
+
+Rules for reference documents:
+
+- Write new reference text in the ASD-STE100 style.
+- Accuracy comes first. State only verified facts. Mark an unverified
+  statement as a hypothesis and give its source.
+- When you introduce a proper noun or a technical name, add the entry
+  to `docs/reference/terminology-map.md` in the same change.
 
 ### Requirements documents
 

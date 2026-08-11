@@ -1,5 +1,7 @@
 # 基礎需求
 
+> Type: requirements—outcomes only; see the CLAUDE.md rules
+
 本文件只定義「要達成什麼」。任何做法、架構、階段規劃都不寫在這裡。
 
 ## 目的

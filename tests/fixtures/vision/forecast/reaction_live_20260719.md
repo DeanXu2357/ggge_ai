@@ -1,6 +1,6 @@
 # S9d live 探測記錄：戰鬥準備 -應戰- 畫面（2026-07-19）
 
-> 整理後的正式地圖見 `docs/battle-prep-ui.md`；本檔為原始逐步探測記錄。
+> 整理後的正式地圖見 `docs/reference/battle-prep-ui.md`；本檔為原始逐步探測記錄。
 
 證據截圖：`reaction_live_20260719.png`（2340x1080 PNG，實機 R5CRC37JBYJ）。
 使用者手動玩到此畫面泊住，主對話直接讀圖標定（本 session 使用者授權）。

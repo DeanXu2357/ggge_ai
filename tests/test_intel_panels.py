@@ -188,7 +188,7 @@ def test_an_enemy_panel_without_level_rows_declares_the_gap():
 
 def test_battlefield_dynamics_come_back_separately_and_never_enter_the_record():
     """MP／HP／EN 即值與敵我 faction 是戰場動態：讀得到但永不進 UnitIntel
-    （docs/intel-data-spec.md），改由 dynamics 交還呼叫端注入。"""
+    （docs/spec/intel-data-spec.md），改由 dynamics 交還呼叫端注入。"""
     _, basic, _ = read("stage_panels/ally_detail_basicinfo_ntgundam")
 
     result = unit_intel_from_panels("nt_gundam", basic=basic)

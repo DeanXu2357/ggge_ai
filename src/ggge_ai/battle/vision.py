@@ -1369,7 +1369,7 @@ SUPPORT_DEFENSE_THRESHOLD = 0.8
 # weapon count -- 閃避 at (1540,940), 防禦 one slot left at (1352,940),
 # counter weapons continuing leftward at a 187px pitch (all four 20260719
 # menu captures match the dodge icon at exactly (1540,940); the earlier
-# "anchor shifts right with more weapons" note in docs/battle-prep-ui.md was
+# "anchor shifts right with more weapons" note in docs/reference/battle-prep-ui.md was
 # a mis-scaled visual estimate). the 防禦 button repaints per mech: plain
 # shield icon = defend (-20%), boxed shield-with-crest = shield (-40%, 防禦
 # （盾牌）); the two crops anti-correlate (-0.12) so template argmax splits

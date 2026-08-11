@@ -10,7 +10,7 @@ means for the record and says so out loud. Two rules run through it:
 
 `pilot_attack` is deliberately left unset. The game splits the pilot's offence
 into 射擊值 and 格鬥值 (plus 覺醒值) while sandbox Unit carries one
-pilot_attack, and docs/decisions.md settles that the choice belongs to the
+pilot_attack, and docs/record/decisions.md settles that the choice belongs to the
 layer that knows which weapon is being priced. Callers pass pick= when they
 know, or read PanelIntel.pilot_offence and choose per weapon.
 """
@@ -53,7 +53,7 @@ class PilotOffence:
 @dataclass(frozen=True)
 class Dynamics:
     """Read off the panel yet barred from UnitIntel: battlefield state that the
-    cache must never carry (docs/intel-data-spec.md). Handed back so the caller
+    cache must never carry (docs/spec/intel-data-spec.md). Handed back so the caller
     can inject it through Intelligence.unit(hp=, en=) instead of losing it."""
 
     faction: str | None = None

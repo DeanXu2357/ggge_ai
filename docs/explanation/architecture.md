@@ -1,5 +1,7 @@
 # 架構方向（2026-07-29 定案）
 
+> Type: explanation—check the status note against reality
+
 依 `docs/requirements/base.md` 收斂出的整體方向。本文件只定方向與邊界，
 設計與實作細節留給後續設計文件與程式碼。
 
@@ -77,7 +79,7 @@ replan 風暴是形式主義錯配的症狀，此為分層的直接教訓。
   從整場戰鬥變成直接消耗體力換資源（每日次數上限），因此
   「把刷關目標關卡打到評分門檻」可由外層自主生成為資源規劃的
   前置子目標。主線無公開公式；操作先驗＝10 機全存活＋每機殘
-  HP > 50%（待實測，詳 docs/rewards-and-scoring.md）。
+  HP > 50%（待實測，詳 docs/reference/rewards-and-scoring.md）。
 - **成就（achievement）**：以特殊條件完成關卡，對應永恆之路
   （Eternal Road）關卡的逐關任務。判定權威：永恆之路任務清單
   畫面（關卡外 UI，外層查驗）。
@@ -121,7 +123,7 @@ replan 風暴是形式主義錯配的症狀，此為分層的直接教訓。
 
 - `docs/requirements/base.md` 的需求。
 - 不會變更的遊戲與裝置事實：戰鬥公式與交戰結算順序
-  （`docs/combat-formulas.md`，實機觀察定案）、實機標定的
+  （`docs/reference/combat-formulas.md`，實機觀察定案）、實機標定的
   UI 座標與模板、裝置解析度與 adb 操作方式。
 
 既有程式碼一律只是實作參考：可查閱、可借用部分邏輯，但過去的
@@ -144,4 +146,4 @@ replan 風暴是形式主義錯配的症狀，此為分層的直接教訓。
 7. 評分假設實測：10 機全存活＋每機殘 HP > 50% 通關是否得 ★3
    （批 2 順手驗；結算樣本照蒐供反推）。
 
-（調查兩項已完成定稿：docs/rewards-and-scoring.md。）
+（調查兩項已完成定稿：docs/reference/rewards-and-scoring.md。）

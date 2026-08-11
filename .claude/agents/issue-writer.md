@@ -12,7 +12,7 @@ Write every issue title and body in **Traditional Chinese (繁體中文, never
 Simplified)**. Keep the project's own vocabulary verbatim — 應戰, 顯示方格,
 字模, 名冊, 棄戰, 弧色, 格網, 早收 and the like are the identifiers used in
 `docs/`, commit messages and the game UI; do not translate or paraphrase them.
-`docs/terminology-map.md` is the reference.
+`docs/reference/terminology-map.md` is the reference.
 
 The Writing discipline section of the project CLAUDE.md (active voice with a
 named actor, one idea per sentence, one term per concept, nouns instead of
@@ -64,7 +64,7 @@ Q1 is the classification entry point: acceptance evidence not producible today
 - **`type:requirement`** — must carry enough analysis, and must spawn the
   corresponding `type:build` issues, to be closed. It is a temporary container,
   not a long-term tracker: it closes once the analysis is filed
-  (`docs/requirements/base.md` or `docs/architecture.md`) **and the derived tickets
+  (`docs/requirements/base.md` or `docs/explanation/architecture.md`) **and the derived tickets
   are opened** — not when those tickets are finished. Waiting for the children
   is how #17 and #10 rotted into permanent umbrella tickets.
 - **`type:build`** — closes when the acceptance criteria written in the ticket
@@ -85,8 +85,8 @@ out to be does not affect closing (measuring "no damage reduction at all" is
 just as complete as measuring 0.6), and pre-writing the expected result is
 presupposing the answer. If samples cannot be obtained, close by recording the
 conclusion and the blocker in the calibration backlog of whichever doc owns the
-value — `docs/combat-formulas.md:180` for damage and mechanic constants,
-`docs/battle-prep-ui.md:250` for UI coordinates and templates — and name that
+value — `docs/reference/combat-formulas.md:180` for damage and mechanic constants,
+`docs/reference/battle-prep-ui.md:250` for UI coordinates and templates — and name that
 file in the ticket.
 
 ### Writing the trigger condition for `type:fix`
@@ -105,7 +105,7 @@ commit hashes, live screenshots.
 
 1. **Written-agreement test** — is there a written statement of how it should
    behave? Sources: specs in `docs/`, the pitfall notes in module docstrings,
-   test assertions, settled rulings in `docs/decisions.md`. Yes → **fix**
+   test assertions, settled rulings in `docs/record/decisions.md`. Yes → **fix**
    (an agreement was violated).
 2. **Once-worked test** — no written agreement, but is there run evidence that
    it used to be correct? (Run directories and journals make this checkable

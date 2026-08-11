@@ -1,5 +1,7 @@
 # 決策備案
 
+> Type: record—append-only; do not retro-edit
+
 使用者授權（2026-07-30）：決策分支由 Claude 自行裁決、普遍採保守
 選項、逐筆在此備案。使用者隨時可回查與推翻；被推翻的決策劃線保留
 不刪除。格式：日期｜情境｜選項｜採用與理由。
@@ -1232,3 +1234,39 @@
   verifiable in principle (the honest-stop rule) and would fail the
   literal test. Verifiability is a virtue of a requirement; the thing
   to exclude is verification detail.
+- **(0811) Document types labeled — user ruling**｜The user rejected
+  moving battle-prep-ui.md and mp-tension.md into docs/requirements/
+  (game rules are domain facts, not our requirements) and picked the
+  type-label plan instead. Every top-level docs/ file now carries a
+  '> Type:' label line under its title: reference (battle-prep-ui,
+  combat-formulas, mp-tension, rewards-and-scoring, terminology-map,
+  ui-spec), spec (intel-data-spec, survey-coverage-v3), explanation
+  (architecture), how-to (live-loop-pitfalls), record (roadmap,
+  decisions), requirements (requirements/base). CLAUDE.md gained a
+  'Document types' section with the per-type maintenance contracts
+  and three reference-document rules: new reference text in
+  ASD-STE100 style; accuracy first, unverified statements marked as
+  hypotheses with a source; new proper nouns and technical names get
+  a terminology-map entry in the same change.
+- **(0811) Docs sorted into per-type directories — user ruling**｜
+  Every labeled doc moved into the directory that matches its type
+  label: docs/reference/ (battle-prep-ui, combat-formulas, mp-tension,
+  rewards-and-scoring, terminology-map, ui-spec), docs/spec/
+  (intel-data-spec, survey-coverage-v3), docs/explanation/
+  (architecture), docs/how-to/ (live-loop-pitfalls), docs/record/
+  (roadmap, decisions — this ledger). docs/requirements/ existed
+  already. Live references updated repo-wide (CLAUDE.md, README,
+  agents, src docstrings, test fixtures, session memory); paths
+  inside records stay historical per the no-retro-edit contract.
+- **(0811) docs/archive/ and docs/reviews/ deleted — user ruling**｜
+  Original words: 「把 reviews 和 archive 刪掉，這些之後靠 git 來找就好」.
+  Both directories removed from the tree; retrieval route is git
+  history. Live documents that pointed readers at them were corrected
+  (README documentation map rebuilt to the type-directory layout;
+  ui-spec and terminology-map now point at git history). Historical
+  paths inside records and inside code comments stay unchanged: the
+  path string remains the lookup key in git history. Session note
+  pending the user's confirmation: the 0730 merge-review-guide
+  practice wrote its guides to docs/reviews/ — with the directory
+  gone, future review guides need a new destination or the practice
+  ends; not decided here.

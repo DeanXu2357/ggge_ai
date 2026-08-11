@@ -1,5 +1,7 @@
 # 實機迴圈坑冊
 
+> Type: how-to—must match the current workflow
+
 十八輪實機燒出來的守則，逐條「守則＋為什麼」。**動實機迴圈的碼之前先讀
 這一份**。每條都有現行程式基質（括號內），事故全文與 run 證據在本檔
 git 歷史（0806 版）與 data/runs/ 流水帳。

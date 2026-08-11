@@ -1,6 +1,6 @@
 """戰局沙盤的世界模型：格盤幾何、狀態轉移、交戰結算順序、傷害與命中公式。
 
-機制事實出自 docs/combat-formulas.md；機體／駕駛／武裝的數值一律由呼叫端
+機制事實出自 docs/reference/combat-formulas.md；機體／駕駛／武裝的數值一律由呼叫端
 從畫面或快取餵入，本模組不含任何關卡或單位內容。
 """
 
@@ -192,7 +192,7 @@ def hit_probability(
 
 @dataclass(frozen=True)
 class Rules:
-    """機制倍率與上限；逐項實測狀態見 docs/combat-formulas.md 待標定清單。"""
+    """機制倍率與上限；逐項實測狀態見 docs/reference/combat-formulas.md 待標定清單。"""
 
     defend_multiplier: float = DEFEND_MULTIPLIER
     shield_multiplier: float = SHIELD_MULTIPLIER

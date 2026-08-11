@@ -1,5 +1,7 @@
 # 盤面掃描覆蓋模型 v3 實作規格（as-built）
 
+> Type: spec—authoritative for the implementation; drift is a bug
+
 2026-08-04 立檔。對應實作 `src/ggge_ai/runtime/coverage.py`（感知原語在
 `src/ggge_ai/runtime/board.py`）。提案原文 `docs/survey-anchor-v3-proposal.md`
 已實作，這份是落地後的權威敘述；程式碼裡不再重述本文件的任何內容。

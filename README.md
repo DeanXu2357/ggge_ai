@@ -7,20 +7,26 @@ expectiminimax 戰鬥模擬器，Python 3.12+/uv，OpenCV 模板視覺。
 ## 開工必讀（順序固定）
 
 1. `CLAUDE.md` — 專案守則與架構紅線。
-2. `docs/roadmap.md` — 最上方暫停快照（裝置現況與恢復點）。
-3. `docs/agent-architecture.md` — 架構全文。
+2. `docs/record/roadmap.md` — 最上方暫停快照（裝置現況與恢復點）。
+3. `docs/explanation/architecture.md` — 架構方向與邊界。
 
-## 文件地圖
+## Documentation map
 
-| 文件 | 內容 |
-|---|---|
-| `docs/agent-architecture.md` | 雙層 GOAP、機制/內容分離、模擬器與 solver 設計 |
-| `docs/stage-definition-requirements.md` | 關卡定義檔＋uid 身分制需求（待規劃） |
-| `docs/combat-formulas.md` | 戰鬥公式與交戰結算順序（模擬器的規格書） |
-| `docs/battle-phase-states.md` | 戰鬥生命週期（ACTIONABLE 二元模型） |
-| `docs/screen-map.md` | 畫面與 UI 操作文法（座標、狀態機） |
-| `docs/roadmap.md` | 進度與暫停快照 |
-| `docs/archive.md` | 歷史檔案庫——被新架構取代的舊定義與演變歷程，開發時不需要讀 |
+Each `docs/` directory holds one document type; each file declares
+its type in a label line under the title (see CLAUDE.md, section
+'Document types').
+
+| Path | Type | Content |
+|---|---|---|
+| `docs/requirements/` | requirements | Why we build this; outcomes only |
+| `docs/reference/` | reference | Facts about the game, the device, and the data (UI maps, combat formulas, terminology) |
+| `docs/spec/` | spec | Authoritative descriptions of implemented mechanisms |
+| `docs/explanation/` | explanation | Intent and boundaries |
+| `docs/how-to/` | how-to | Rules and steps for live-loop work |
+| `docs/record/` | record | Pause snapshot ('roadmap.md') and decision ledger ('decisions.md') |
+
+Retired documents live in git history only (former `docs/archive/`
+and `docs/reviews/`, both deleted 2026-08-11).
 
 ## 目錄結構
 

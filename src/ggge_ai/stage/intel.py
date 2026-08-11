@@ -90,7 +90,7 @@ class SkillIntel:
 
 @dataclass(frozen=True)
 class UnitIntel:
-    """docs/intel-data-spec.md 的欄位表，扣掉戰場動態那一列。
+    """docs/spec/intel-data-spec.md 的欄位表，扣掉戰場動態那一列。
 
     pilot_attack 是「已挑好的那一欄」，三欄原值另存 pilot_shooting／melee／
     awakening——遊戲把駕駛員攻擊拆三欄而沙盤 Unit 只有一欄，挑選發生在組裝

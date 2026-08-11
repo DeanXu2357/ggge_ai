@@ -1,5 +1,7 @@
 # Terminology map
 
+> Type: reference—drift is a bug
+
 This file is the project dictionary. Use one term for one concept.
 When you write English, use the English column. When you write
 Chinese, use the Traditional Chinese column. Do not create a new
@@ -7,8 +9,9 @@ translation for a bound concept. When a concept has no entry, add the
 binding in the same change that introduces the term.
 
 New project text is English (0811 user ruling): replies to the user,
-docs/, and commit messages. The frozen Chinese corpus (docs/archive/,
-old decisions.md entries, git history) stays in Traditional Chinese.
+docs/, and commit messages. The frozen Chinese corpus (old entries in
+docs/record/decisions.md, plus retired documents in git history)
+stays in Traditional Chinese.
 
 ## Term bindings
 
@@ -20,7 +23,7 @@ term at its first use in each document, then use the short form.
 | device | 實機 | The physical USB phone R5CRC37JBYJ |
 | device screenshot | 實機截圖 | A screenshot captured from the device |
 | run log | 流水帳 | The structured output in data/runs/<timestamp>/ |
-| pause snapshot | 暫停快照 | The device state and resume point at the top of docs/roadmap.md |
+| pause snapshot | 暫停快照 | The device state and resume point at the top of docs/record/roadmap.md |
 | resume point | 恢復點 | The step where the next session starts work |
 | session start / end of session | 開工／收工 | The start and the end of a work session |
 | gate | 閘門 | A check that must pass before a commit (pytest, ruff) |

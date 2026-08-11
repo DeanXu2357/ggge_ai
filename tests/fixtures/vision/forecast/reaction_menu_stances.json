@@ -43,5 +43,5 @@
     1080
   ],
   "image": "reaction_menu_20260719.png",
-  "note": "應戰動作選單（LONG 選中）：dodge 錨 (1540,940)、defend (1352,940)、武器往左 pitch 187、EN 黃字定佔用。SHORT enabled=false 是亮度 V 閘門的判定——所有 fixture 的 SHORT 都 V≈76 且無「確認可用」樣本，若實機出現可用但深色圖示的武器會誤判，S10 實戰驗證（見 docs/battle-prep-ui.md §9）。"
+  "note": "應戰動作選單（LONG 選中）：dodge 錨 (1540,940)、defend (1352,940)、武器往左 pitch 187、EN 黃字定佔用。SHORT enabled=false 是亮度 V 閘門的判定——所有 fixture 的 SHORT 都 V≈76 且無「確認可用」樣本，若實機出現可用但深色圖示的武器會誤判，S10 實戰驗證（見 docs/reference/battle-prep-ui.md §9）。"
 }
