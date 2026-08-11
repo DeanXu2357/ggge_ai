@@ -7,25 +7,28 @@ doc（含本檔前身）後由使用者裁決重建，範圍只有**裝置現況
 規格不寫在這裡（「程式碼就是規格」）。舊快照全文在本檔的 git 歷史
 （最後完整版 `66ce53c`），設計裁決在 docs/record/decisions.md。
 
-## 暫停快照（2026-08-11 上午，分支 feat/stream-input；四界先行已入庫、待實機驗證輪）
+## 暫停快照（2026-08-11 下午，分支 feat/stream-input；四界先行實機蓋章——unsure 12→0）
 
 ### 恢復點（重開 session 從這裡開始）
 
-- **0811 四界先行批已實作入庫**（裁示見 docs/decisions.md 0811 條×2、導覽
-  docs/reviews/0811-border-first-review.md）：①veil 硬閘——tour() 每窗拿本幀
-  read_borders 算 provisional_bounds（只補帳本缺的側），plan_window 越界格
-  不點不記不 chart；journal window 事件新欄位 veil。根因實錘：肇事幀 00081
-  read_borders 已見 south:785.0（＝最終 landmark 1738.6），landmark 三票未滿
-  期間 plan_window 只認定案界→row-20 十二格 unsure ~72s。②plan_pan not
-  bounded 時界定壓過 pending（heading→另一橫向→south→north，pinned 跳過）。
-  pytest 1018＋ruff 全綠。
-- **下一件事＝實機驗證輪**：跑 `uv run python scripts/sweep_scan.py
-  --no-early-close` 全盤，對帳（a）unsure 是否歸零（前次 12 全＝圖外格）、
-  （b）journal veil 欄位與最終 ledger.boundary 索引一致、（c）南界 landmark
-  定案時間應大幅提前、（d）全程時長 vs 31.4 分基準。獨立待裁案＝no_feedback
-  早收調參。
+- **0811 四界先行批入庫＋實機驗證過關**（`3366fe6` 程式碼、`c040066` 文件；
+  裁示 docs/decisions.md 0811 條×2、導覽 docs/reviews/0811-border-first-review.md）：
+  ①veil 硬閘——plan_window 收本幀 read_borders 暫定界（provisional_bounds
+  只補帳本缺側），越界格不點不記不 chart；journal window 事件新欄位 veil。
+  ②plan_pan not bounded 時界定壓過 pending。驗證輪 run 20260811-110638
+  （--stream --no-early-close 全盤硬磨）：**unsure 0/500**（基準輪 12 全＝
+  圖外格）、boundary E24/N0/S19/W0 與基準零誤差、veil 值（east:24／south:19）
+  與最終界一致、肇事窗複現且被 veil 擋下（t=918 窗 [[-9,14],[12,21]] 只點界
+  內 24 格）；taps 552（基準 579）；掃描 31.8 分 vs 基準 31.4 分——省下的
+  ~72s 被東緣 reroot 循環吃掉（見下）。census 18/18＋10/10、名冊 122/124 張
+  （enemy 2 張敗、名冊段本批未動）、abandon ok、scenario.json＋
+  intel_report.json 落地（issues 21 筆＝既有離線配對行為）。
+- **本輪新立待修**：東緣 expand_lost→reroot 循環——東界可見但票未滿期間
+  plan_pan 續指 east，標記 carry 到最東緣格後推鏡重認失敗，三輪歸零返航共耗
+  ~120s（t=201-368，證據 seq 見 journal；脆弱性早於本批，舊 plan_pan 同樣
+  回 east）。已交 issue-writer 開案。獨立待裁案＝no_feedback 早收調參。
 - **裝置現況**：stage_list（UC 系列、游標 uc_hard_1、node 544,667）、棄戰
-  乾淨、無在跑程序與監控。
+  乾淨、無在跑程序與監控（tmux sweep0811 已結束、Monitor 已停）。
 
 ## 暫停快照（2026-08-11 清晨，分支 feat/stream-input；名冊三修全數實測過關——首份敵我全量 intel 落地）
 
