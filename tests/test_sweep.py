@@ -97,6 +97,49 @@ def test_a_danger_band_or_a_hud_hole_defers_the_cell_instead_of_tapping_it():
     assert book.summary()["deferred"] == [[0, 0]]
 
 
+def test_a_seen_border_becomes_a_provisional_bound_only_where_the_ledger_has_none():
+    veil = sweep.provisional_bounds(
+        GRID, (0.0, 100.0), {"south": 150.0, "east": 320.0}, {"east"}
+    )
+
+    # 終止邊往界內半格：南緣世界 250 的最外一格是第 2 列
+    assert veil == {"south": 2}
+
+
+def test_a_provisional_border_keeps_the_window_plan_off_everything_beyond_it():
+    book = ledger()
+
+    plan = sweep.plan_window(
+        book,
+        (0.0, 0.0),
+        region=REGION,
+        holes=((0, 100, 100, 100),),
+        bands=(),
+        candidates={(0, 0)},
+        veil={"south": 1},
+    )
+
+    assert plan.blocked == ((0, 1),)
+    assert {target.cell[1] for target in plan.taps} <= {0, 1}
+    assert all(cell[1] <= 1 for cell in plan.inferred)
+    # 越界的格連 chart 都不記：四界未定時 pending() 收的就是 charted
+    assert all(cell[1] <= 1 for cell in book.charted)
+    assert all(cell[1] <= 1 for cell in book.pending())
+
+
+def test_a_window_plan_without_a_veil_charts_and_taps_exactly_as_before():
+    plain_book = ledger()
+    plain = sweep.plan_window(plain_book, (0.0, 0.0), region=REGION, holes=(), bands=())
+
+    veiled_book = ledger()
+    veiled = sweep.plan_window(
+        veiled_book, (0.0, 0.0), region=REGION, holes=(), bands=(), veil=None
+    )
+
+    assert veiled == plain
+    assert veiled_book.charted == plain_book.charted
+
+
 def test_an_unseen_border_is_explored_before_any_cell_bookkeeping():
     book = ledger(west=0, north=0, south=2)
 
@@ -118,6 +161,30 @@ def test_the_pan_planner_stops_when_nothing_is_left_beyond_the_window():
             book.record((col, row), sweep.EMPTY)
 
     assert sweep.plan_pan(book, (0.0, 0.0), "east", region=REGION) == (None, "east")
+
+
+def _three_sided_board() -> sweep.SweepLedger:
+    book = ledger(west=0, east=8, north=0)
+    for row in range(3):
+        for col in range(9):
+            book.chart((col, row))
+    return book
+
+
+def test_the_last_missing_border_outranks_a_backlog_of_pending_cells():
+    book = _three_sided_board()
+
+    # 鏡位 (400,0) 的窗是 4..8 欄，西邊整片還沒裁決——照舊邏輯會先回頭往西清算
+    assert sweep.plan_pan(book, (400.0, 0.0), "west", region=REGION) == ("south", "east")
+
+
+def test_a_pinned_missing_border_hands_the_pan_plan_back_to_the_pending_cells():
+    book = _three_sided_board()
+
+    assert sweep.plan_pan(
+        book, (400.0, 0.0), "west", region=REGION, pinned={"south"}
+    ) == ("west", "west")
+    assert "south" not in book.boundary
 
 
 def _blank() -> np.ndarray:

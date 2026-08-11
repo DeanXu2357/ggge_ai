@@ -415,7 +415,12 @@ class SweepRun:
                 self.fix.lose()
                 continue
             frame = self.neutral()
-            self.witness(frame)
+            borders = sweep.read_borders(frame)
+            self.witness(frame, borders)
+            veil = (
+                sweep.provisional_bounds(ledger.grid, self.offset, borders, ledger.boundary)
+                or None
+            )
             candidates = self.candidates(frame)
             plan = sweep.plan_window(
                 ledger,
@@ -423,6 +428,7 @@ class SweepRun:
                 heading=self.heading,
                 candidates=candidates,
                 order=self.ranking,
+                veil=veil,
             )
             for cell in plan.blocked:
                 ledger.defer(cell)
@@ -433,6 +439,7 @@ class SweepRun:
                 taps=len(plan.taps),
                 blocked=[list(cell) for cell in plan.blocked],
                 window=None if plan.window is None else [list(plan.window[0]), list(plan.window[1])],
+                veil=None if veil is None else dict(sorted(veil.items())),
                 marker_at=None if self.baseline is None else
                 [round(value, 1) for value in self.baseline],
                 frame=self.camera.keep("window"),
@@ -573,7 +580,7 @@ class SweepRun:
                 offset=[round(value, 1) for value in offset],
                 marker=marker is not None,
             )
-            self.witness(frame)
+            self.witness(frame, borders)
             return True
         self.ungrounded += 1
         self.journal.record(
@@ -837,7 +844,7 @@ class SweepRun:
         self.fix.regain()
         # 錨定成立的這一幀就是本窗基準：標記在螢幕上的位置，之後逐格點擊拿它比對。
         self.baseline = found
-        self.witness(frame)
+        self.witness(frame, borders)
         node = sweep.TrustNode(
             cell=self.marker_cell,
             offset=offset,
@@ -1167,15 +1174,18 @@ class SweepRun:
         if not ok:
             raise Halt("escape 回不到 hub，選擇狀態下不再點任何東西")
 
-    def witness(self, frame: np.ndarray) -> None:
+    def witness(self, frame: np.ndarray, borders: Mapping[str, float] | None = None) -> None:
         """這一幀目視到的終止邊 → 地標與界線。界線第一次記下就不再改。
+
+        `borders` 給了就用呼叫端讀好的那份，同一幀不重算第二次邊掃。
 
         地標是**整幀座標的絕對真值**，所以寫入資格要審，這一點與帳本只收點擊事實
         同一條紅線：推斷出來的鏡位（置中反推）算得出世界座標，但那個座標繼承了
         推斷的錯，沒有資格開新地標——它只能拿既有地標覆核界線。
         """
         ledger = self._ledger()
-        for side, screen_position in sweep.read_borders(frame).items():
+        seen = sweep.read_borders(frame) if borders is None else borders
+        for side, screen_position in seen.items():
             axis = 0 if side in ("west", "east") else 1
             world = screen_position + self.offset[axis]
             if side in self.landmarks:
@@ -1281,7 +1291,7 @@ class SweepRun:
                 self.fix.lose()
             else:
                 self.fix.regain()
-        self.witness(frame)
+        self.witness(frame, borders)
 
     def constellation(
         self, frame: np.ndarray, borders: Mapping[str, float]
@@ -1417,7 +1427,7 @@ class SweepRun:
                     borders=sorted(borders),
                 )
                 if self.ledger is not None:
-                    self.witness(frame)
+                    self.witness(frame, borders)
                 return 0.0, frame
             if verdict == sweep.PAN_PINNED:
                 pinned += 1

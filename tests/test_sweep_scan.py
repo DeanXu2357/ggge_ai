@@ -48,7 +48,7 @@ def build_run(tmp_path, outcomes: dict) -> SweepRun:
     run.ledger = sweep.SweepLedger(grid=GRID)
     run.ledger.boundary.update(west=2, east=4, north=4, south=5)
     run.settled = _blank
-    run.witness = lambda frame: None
+    run.witness = lambda frame, borders=None: None
     run.pan = lambda direction, frame, reach=None: (reach or 0.0, _blank())
     run.relocate = lambda candidate=None: None
     run.escape = lambda: None
@@ -404,7 +404,7 @@ def test_a_border_already_in_the_ledger_ends_the_push_without_seeing_it(
     run.ledger = sweep.SweepLedger(grid=GRID)
     run.ledger.boundary["north"] = 2  # 鏡位 (0,0) 的窗最北就是第 2 列
     run.offset = (0.0, 0.0)
-    run.witness = lambda frame: None
+    run.witness = lambda frame, borders=None: None
     monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (90.0, 90.0)))
     monkeypatch.setattr(board, "find_sightings", lambda frame: ())
     monkeypatch.setattr(sweep, "read_borders", lambda frame: {})

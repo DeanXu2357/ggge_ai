@@ -354,6 +354,43 @@ def border_cell(grid: WorldGrid, direction: str, border: float) -> int:
     return grid.cell_of((grid.phase[0], border + inward))[1]
 
 
+def _within(cell: Cell, bounds: Mapping[str, int]) -> bool:
+    """一格在不在這組界格索引之內。缺的側不設限。"""
+    col, row = cell
+    limits = (
+        ("west", col, 1),
+        ("east", col, -1),
+        ("north", row, 1),
+        ("south", row, -1),
+    )
+    for direction, value, sign in limits:
+        edge = bounds.get(direction)
+        if edge is not None and sign * (value - edge) < 0:
+            return False
+    return True
+
+
+def provisional_bounds(
+    grid: WorldGrid,
+    offset: Point,
+    borders: Mapping[str, float],
+    known: Collection[str],
+) -> dict[str, int]:
+    """這一幀目視到、帳本卻還沒定案的那幾側 → 暫定界格索引。
+
+    界線入帳要 `LANDMARK_VOTES` 票，票滿之前那幾側在帳本裡等於不存在，圖外的格照樣
+    被枚舉、照樣挨一輪逾時（run 20260811-092754 的 row-20 十二格 ~72s）。這裡算的是
+    單幀讀數，只夠當「這一窗別點過去」的遮罩，不進帳本、不寫地標。
+    """
+    out: dict[str, int] = {}
+    for side, screen in borders.items():
+        if side in known:
+            continue
+        axis = 0 if side in ("west", "east") else 1
+        out[side] = border_cell(grid, side, screen + offset[axis])
+    return out
+
+
 @dataclass
 class SweepLedger:
     """世界格帳本。每一筆都由一次點擊裁決背書，永遠不記螢幕座標。"""
@@ -433,18 +470,7 @@ class SweepLedger:
         return all(direction in self.boundary for direction in COMPASS)
 
     def in_bounds(self, cell: Cell) -> bool:
-        col, row = cell
-        limits = (
-            ("west", col, 1),
-            ("east", col, -1),
-            ("north", row, 1),
-            ("south", row, -1),
-        )
-        for direction, value, sign in limits:
-            edge = self.boundary.get(direction)
-            if edge is not None and sign * (value - edge) < 0:
-                return False
-        return True
+        return _within(cell, self.boundary)
 
     def rectangle(self) -> tuple[Cell, ...]:
         if not self.bounded:
@@ -630,6 +656,7 @@ def plan_window(
     bands: Sequence[DangerBand] = DANGER_BANDS,
     candidates: Collection[Cell] | None = None,
     order: Mapping[Cell, int] | None = None,
+    veil: Mapping[str, int] | None = None,
 ) -> WindowPlan:
     """本鏡位裡還沒裁決、點得下去的格，蛇形排序。
 
@@ -638,6 +665,10 @@ def plan_window(
     推斷——那些格連「視覺看得清楚」都不成立。
 
     `order` 給了就改成峰強度優先（同名次仍照蛇形，排序是穩定的）。
+
+    `veil` 是這一幀目視界線的暫定界格（`provisional_bounds`）：越界的格連 chart 都
+    不記——記了會在四界未定時進 `pending()`，把圖外格灌回點擊佇列。跳過即自癒，同
+    一格下一窗會重新枚舉。
     """
     grid = ledger.grid
     first, last = window_bounds(grid, offset, region)
@@ -653,6 +684,8 @@ def plan_window(
         for col in cols:
             cell = (col, row)
             if cell not in targets or not ledger.in_bounds(cell):
+                continue
+            if veil is not None and not _within(cell, veil):
                 continue
             ledger.chart(cell)
             if ledger.decided(cell):
@@ -851,8 +884,12 @@ def plan_pan(
 ) -> tuple[str | None, str]:
     """下一段推鏡方向與更新後的橫向朝向。沒得推就 (None, heading)。
 
-    沿列帶蛇形推進；**界線未見的方向優先探**——那個方向的格還沒被枚舉過，
-    「界內沒有待裁決的格」在那裡不成立。
+    四界都定了才沿列帶蛇形推進：界內還有待裁決的格就往那個方向推。
+
+    四界未定之前先界定、不清算：缺界的側依 heading／另一橫向／south／north 的順序
+    直接推過去（途中經過的窗照常清算，搬標記本來就要點格）。界定完才回頭蛇形收界內
+    剩下的 pending——否則會像 run 20260811-092754 那樣，在南界定案之前一路把圖外的格
+    當待裁決在點。
 
     `pinned` 是這個鏡位上已經證實推不動的方向：不寫界線（界線只由目視寫入），
     只是這一站不再往那邊推。鏡頭一動就作廢——透視斜邊讓同一側在別的鏡位可能
@@ -860,9 +897,14 @@ def plan_pan(
     """
     if heading not in HEADINGS:
         heading = "east"
+    flipped = "west" if heading == "east" else "east"
+    if not ledger.bounded:
+        for side in (heading, flipped, "south", "north"):
+            if side in pinned or side in ledger.boundary:
+                continue
+            return (side, side if side in HEADINGS else flipped)
     if heading not in pinned and _more_that_way(ledger, offset, heading, region):
         return (heading, heading)
-    flipped = "west" if heading == "east" else "east"
     for side in ("south", "north"):
         if side not in pinned and _more_that_way(ledger, offset, side, region):
             return (side, flipped)
