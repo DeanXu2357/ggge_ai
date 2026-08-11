@@ -1199,3 +1199,18 @@
   預設手動。(4) 敵方回合：D1（手動操控敵方）與 D2（簡單敵方啟發式佔位）都要做，
   但先做 D1。(5) 要 undo。(6) 分期：第一階段先能呈現第一回合的盤面，其餘之後對話
   慢慢補；事件表第一回合不會用到。關卡注入資料格式由 Claude 決定（見下一條）。
+- **(0811) New project text switches to English — user ruling**｜Ruling
+  chain from the 2026-08-11 session: replies to the user are English by
+  default (Traditional Chinese only on request; Simplified Chinese
+  banned); commit messages are American English without prefixes (the
+  commit-msg hook enforces the mechanical part); new docs/ text is
+  English. The frozen Chinese corpus stays; no bulk translation.
+  Terminology handling per the same ruling: docs/terminology-map.md is
+  now the project dictionary with an English–Chinese bindings table;
+  the metaphor state-words migrated into it; the cleanup-batch
+  discipline section moved to git history; the 0802 ban tables
+  collapsed into a legacy corpus key (full tables in that file's git
+  history, 0803 version). CLAUDE.md was rewritten in English
+  (ASD-STE100 style) the same day. Session-proposed bindings pending
+  the user's veto: island (島嶼), mainland (大陸), ghost (幽靈),
+  starfield (星空).

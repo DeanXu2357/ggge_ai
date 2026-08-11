@@ -1,11 +1,14 @@
-# ggge_ai 專案守則（每次工作前先讀）
+# ggge_ai project rules (read before each session)
 
-自動化通關 SD Gundam G Generation ETERNAL（USB 實機 R5CRC37JBYJ，
-橫向 2340x1080）。GOAP 雙層架構，Python 3.12+/uv，OpenCV 模板視覺。
+The project plays 'SD Gundam G Generation ETERNAL' automatically and
+clears stages. Device: USB phone R5CRC37JBYJ, landscape 2340x1080.
+Architecture: two-layer GOAP. Stack: Python 3.12+ with uv, OpenCV
+template vision.
 
-## 開工順序（不可跳過）
+## Session start (do not skip)
 
-1. 讀 `docs/roadmap.md` 最上方的暫停快照——那裡有裝置現況與恢復點。
+1. Read the pause snapshot at the top of `docs/roadmap.md`. The
+   snapshot holds the device state and the resume point.
 
 ## Delegation & model routing (applies to every session)
 
@@ -14,30 +17,36 @@
   it, `adb kill-server` first, then confirm with `ps -T -C adb` that the
   `device poll` thread is gone before trusting the connection.
 
-## 開發紀律
+## Development rules
 
-- 小步提交；`uv run pytest -q` 與 `uv run ruff check src tests scripts`
-  全過才 commit。改 `battle/vision.py`、`scripts/sweep_scan.py` 要附驗證
-  證據（實機截圖或流水帳）。
-- 純文件變更免跑上面兩道閘門。判準是 diff 路徑全落在 `docs/`，不是看
-  commit 標題（前綴已廢除）。
-- 同一個問題連續兩次嘗試失敗就停下來問使用者，不要繼續瞎試。
-- 每次收工：更新 `docs/roadmap.md` 暫停快照（裝置現況＋恢復點）再 commit。
+- Commit in small steps. Commit only when `uv run pytest -q` and
+  `uv run ruff check src tests scripts` pass. When you change
+  `battle/vision.py` or `scripts/sweep_scan.py`, attach verification
+  evidence: a device screenshot or a run log.
+- Docs-only changes do not need the two gates above. The test: all
+  diff paths are in `docs/`. Do not use the commit title as the test
+  (prefixes are retired).
+- When two attempts at the same problem fail, stop and ask the user.
+  Do not make more blind attempts.
+- At the end of each session: update the pause snapshot in
+  `docs/roadmap.md` (device state and resume point), then commit.
 - Communicate with the user in English. Use Chinese only when the user
   asks for a Chinese reply. When you use Chinese, use Traditional
-  Chinese only. Do not use Simplified Chinese. Write the English in
-  the ASD-STE100 style. Obey the
-  three rules: 1. clarity, 2. simplicity, 3. brevity.
+  Chinese only. Do not use Simplified Chinese. Write the English in the
+  ASD-STE100 style. Obey the three rules: 1. clarity, 2. simplicity,
+  \3. brevity.
+- Write new text in `docs/` in English. Do not translate the frozen
+  Chinese corpus in bulk (see `docs/terminology-map.md` for the
+  corpus key).
 
-## Writing discipline（issue／docs／commit／對使用者的回報一律適用）
+### Terminology
 
-- 主動語態、點名動作者，不寫無主詞句（「應該被修正」——誰修？）。
-- 一句一個概念。
-- 同一概念只用同一個詞，定義一次後不換同義詞（術語見
-  `docs/terminology-map.md`）。
-- 代名詞換名詞：「它」「這個」「該項」指向不唯一時寫全名。
-- 驗收標準與清單禁用開放式列舉（「等等」「之類的」）——驗不了。
-- 前置條件與適用範圍寫在最前面，不藏在中段。
+Use one term for one concept. Do not switch to a synonym after the
+first use. The term bindings, in English and in Traditional Chinese,
+are in `docs/terminology-map.md`. When you need the term for a
+concept in the other language, look it up there. When a concept has
+no entry, add the binding in the same change that introduces the
+term.
 
 ### Commit message
 
@@ -92,12 +101,16 @@ Step 2 — style for the two types that pass the check:
    case. Write warning comments in the ASD-STE100 style: short
    sentences, active voice, one fact in each sentence.
 
-## 常用指令
+## Common commands
 
-- 截圖：`uv run python scripts/capture.py`（存 assets/screenshots/，gitignored）
-- 解鎖（系統鎖＋遊戲省電觸控鎖）：`uv run python scripts/ensure_unlocked.py`
-- 實機唯讀探針（畫面名／AUTO／格網／目擊）：`uv run python scripts/probe_live_channel.py`
-- 完整掃描輪（進場＋sweep＋棄戰）：`uv run python scripts/sweep_scan.py`（分段停點 --stop-after …）
-- 面板解析驗證：`uv run python scripts/parse_panel.py <png> [--no-llm]`
-- 流水帳輸出：`data/runs/<時間戳>/`（gitignored）
-- 模板驗證：`scripts/verify_match.py`、裁切：`scripts/crop.py`
+- Screenshot: `uv run python scripts/capture.py` (output in
+  assets/screenshots/, gitignored)
+- Unlock (system lock plus the game's power-save touch lock):
+  `uv run python scripts/ensure_unlocked.py`
+- Read-only device probe (screen name / AUTO / grid / sightings):
+  `uv run python scripts/probe_live_channel.py`
+- Full scan cycle (entry, sweep, abandon battle):
+  `uv run python scripts/sweep_scan.py` (stage stops: --stop-after ...)
+- Panel parse check: `uv run python scripts/parse_panel.py <png> [--no-llm]`
+- Run logs: `data/runs/<timestamp>/` (gitignored)
+- Template check: `scripts/verify_match.py`; crop: `scripts/crop.py`

@@ -1,38 +1,55 @@
-# 術語對照表（0802 使用者裁示：說明文字禁英文直譯術語）
+# Terminology map
 
-出處：這批詞全是過去 session 寫掃描系統文件時，用英文概念思考再
-直譯出來的（不是支語）。「腿」（leg→單次平移手勢）已由第一掃除批
-處理。增益（gain）與里程計（odometry）經使用者裁示保留——台灣
-工程界正規譯名。
+This file is the project dictionary. Use one term for one concept.
+When you write English, use the English column. When you write
+Chinese, use the Traditional Chinese column. Do not create a new
+translation for a bound concept. When a concept has no entry, add the
+binding in the same change that introduces the term.
 
-## 一、照換（六個）
+New project text is English (0811 user ruling): replies to the user,
+docs/, and commit messages. The frozen Chinese corpus (docs/archive/,
+old decisions.md entries, git history) stays in Traditional Chinese.
 
-| 術語 | 處數 | 它實際指什麼 | 替換寫法 |
-|---|---|---|---|
-| 包絡 | 39 | 量到的位移要與指令同軸同號、倍率有上界的檢查 | 合理範圍閘／合理範圍檢查 |
-| 證人 | 59 | 互相獨立的量測來源（格線相位、單位排列、相關器、地圖邊）彼此印證，一致才收 | 佐證來源；「證人裁決」→「多路佐證裁決」、「無證人」→「無佐證」 |
-| 星座 | 81 | 把畫面上單位的相對位置關係當圖案比對，定位中斷後重新定位用 | 單位排列比對；「星座票」→「排列比對的票」 |
-| 橡皮筋 | 5 | 推到地圖邊緣時遊戲把鏡頭彈回來 | 邊緣回彈 |
-| 前緣 | 26 | 與已測繪區相鄰、還沒掃到的界內格；「前緣空」＝掃完 | 待掃格；「前緣空」→「沒有待掃格」 |
-| 拖影 | 1 | 同一實體沿座標誤差被重複記成多台 | 就地改寫「沿誤差拖出的重複殘影」 |
-| 斷鏈 | 80 | 逐幀位移累加的定位推算中，某一步量測不可信，之後的位置接不回世界地圖 | 定位中斷；「斷鏈腿」→「定位中斷的平移」（0803 使用者裁示：不保留） |
-| 混疊 | 7 | 不同真實位移產生相同觀測分不出誰真誰假 | 依語境明確寫：週期內容→「差整數個週期的誤配」；量測窗繞回→「量測窗繞回誤判」（0803 使用者裁示：不保留） |
+## Term bindings
 
-## 二、保留的譬喻狀態詞（使用者裁示：先講情境、再用簡寫）
+For a metaphor term (island, mainland, ghost, starfield): define the
+term at its first use in each document, then use the short form.
 
-島嶼、大陸、幽靈、星空是形象化掃描狀態的譬喻，保留。紀律：
-**每份文件（或每段對話）第一次出現處先說明情境定義，之後才可用
-簡寫**。掃除批對既有文件的處置＝在首次出現處補定義句。
+| English | Traditional Chinese | Meaning |
+|---|---|---|
+| device | 實機 | The physical USB phone R5CRC37JBYJ |
+| device screenshot | 實機截圖 | A screenshot captured from the device |
+| run log | 流水帳 | The structured output in data/runs/<timestamp>/ |
+| pause snapshot | 暫停快照 | The device state and resume point at the top of docs/roadmap.md |
+| resume point | 恢復點 | The step where the next session starts work |
+| session start / end of session | 開工／收工 | The start and the end of a work session |
+| gate | 閘門 | A check that must pass before a commit (pytest, ruff) |
+| docs-only change | 純文件變更 | A change whose diff paths are all in docs/ |
+| stage | 關卡 | One playable mission in the game |
+| abandon battle | 棄戰 | Leave a battle through the in-game retreat flow |
+| sighting | 目擊 | A unit observation recorded during a scan |
+| grid | 格網 | The in-game board grid (the '顯示方格' overlay) |
+| screen name | 畫面名 | The classifier label for the current screen |
+| gain | 增益 | Standard Taiwanese engineering term (0802 ruling: retained) |
+| odometry | 里程計 | Standard Taiwanese engineering term (0802 ruling: retained) |
+| island | 島嶼 | The holding area for observations whose positions are unknown after a localization break; they merge back after relocalization |
+| mainland | 大陸 | The trusted-position side of the knowledge map, opposite of the island |
+| ghost | 幽靈 | A false item with no real counterpart on screen; name the kind: a false shift candidate, a false unit detection, or a false peak |
+| starfield | 星空 | The dark background outside the map, with no grid cells. Not "sparse sightings" (0803 audit: all 20 uses mean the outside background) |
 
-| 譬喻 | 首次出現時的定義句範例 |
+## Legacy Chinese corpus key
+
+The frozen Chinese corpus uses the terms below. The 0802 ruling
+replaced banned direct-translation terms with them; the full ruling
+tables are in this file's git history (0803 version). When new
+English text needs one of these concepts, add an English binding to
+the table above in the same change.
+
+| Chinese term | Meaning |
 |---|---|
-| 島嶼 | 定位中斷後位置不明的觀測暫存區，等重新定位才併回（下稱島嶼） |
-| 大陸 | 位置可信的權威知識圖那一側（相對於島嶼，下稱大陸） |
-| 幽靈 | 畫面上沒有真實對應的假東西——依該處語意寫明是假位移候選、假偵測出的單位還是假峰（下稱幽靈） |
-| 星空 | 地圖外那片沒有格子的深色背景（下稱星空）。**注意**：不是「目擊點稀疏」的意思，0803 掃除批實測全 20 處都指地圖外的背景 |
-
-## 三、改寫紀律（各掃除批共通）
-
-逐處讀上下文改寫、語意與數字統計不動、程式碼識別字（反引號內
-英文名）不動、不得引入新直譯詞或縮寫。「錨定」「保險絲」「相位」
-審過視為標準術語或字面自明，不在替換之列。
+| 合理範圍閘／合理範圍檢查 | The check that a measured shift has the same axis and sign as the command, with an upper bound on the ratio |
+| 佐證來源／多路佐證裁決／無佐證 | Independent measurement sources (grid phase, unit arrangement, correlator, map edge) that confirm each other; accept a result only on agreement |
+| 單位排列比對 | Matching the relative positions of on-screen units as a pattern; used for relocalization after a localization break |
+| 邊緣回彈 | The camera bounce the game applies at the map edge |
+| 待掃格 | An in-bounds cell next to the mapped area, not yet scanned; "no 待掃格" means the scan is complete |
+| 定位中斷 | One step of the dead-reckoning chain has an untrusted measurement; later positions cannot attach to the world map |
