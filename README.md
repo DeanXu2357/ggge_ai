@@ -7,8 +7,10 @@ expectiminimax 戰鬥模擬器，Python 3.12+/uv，OpenCV 模板視覺。
 ## 開工必讀（順序固定）
 
 1. `CLAUDE.md` — 專案守則與架構紅線。
-2. `docs/record/roadmap.md` — 最上方暫停快照（裝置現況與恢復點）。
-3. `docs/explanation/architecture.md` — 架構方向與邊界。
+2. `docs/record/device-state.md` — 裝置現況（未納版控，只在主目錄）。
+3. `docs/roadmaps/branch-issue-N.md` — 本任務分支的進度與恢復點
+   （合併前刪除）。
+4. `docs/explanation/architecture.md` — 架構方向與邊界。
 
 ## Documentation map
 
@@ -23,10 +25,13 @@ its type in a label line under the title (see CLAUDE.md, section
 | `docs/spec/` | spec | Authoritative descriptions of implemented mechanisms |
 | `docs/explanation/` | explanation | Intent and boundaries |
 | `docs/how-to/` | how-to | Rules and steps for live-loop work |
-| `docs/record/` | record | Pause snapshot ('roadmap.md') and decision ledger ('decisions.md') |
+| `docs/record/` | record | Device state file ('device-state.md', not tracked in git) and decision ledger ('decisions.md') |
+| `docs/roadmaps/` | working | The branch roadmap of the current task branch; deleted at merge |
 
 Retired documents live in git history only (former `docs/archive/`
-and `docs/reviews/`, both deleted 2026-08-11).
+and `docs/reviews/`, both deleted 2026-08-11; former
+`docs/record/roadmap.md`, split into the device state file and the
+branch roadmap 2026-08-12).
 
 ## 目錄結構
 
