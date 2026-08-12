@@ -6,11 +6,10 @@ This document defines the task flow: one GitHub issue is one task,
 one task gets one branch, and every session develops in a worktree.
 The user does all merges and closes all issues.
 
-> Activation status: this flow starts when the activation batch lands
-> (CLAUDE.md rewrite, .gitignore entries, creation of the device
-> files). Until then, the pause-snapshot workflow in
-> docs/record/roadmap.md applies. Delete this note in the activation
-> batch.
+Two skills are the executable form of this flow: '/start-task'
+executes the session start checklist, '/finish-task' executes the
+completion steps. CLAUDE.md points every session at them. This
+document stays the authority; the skills follow it.
 
 ## Roles
 
@@ -64,7 +63,7 @@ roadmap: docs/roadmaps/branch-issue-N.md
 status: planned | in-progress | awaiting-review
 ```
 
-Session start checklist, in order:
+Session start checklist ('/start-task' executes it), in order:
 
 1. Read the issue in full, including all comments.
 2. When the state block names a branch: set up the worktree for that
@@ -109,6 +108,8 @@ issue-writer agent. It does not extend the current scope.
   data/runs/.
 
 ## Completion
+
+'/finish-task' executes steps 1 to 5.
 
 1. Gates pass for code changes: `uv run pytest -q` and
    `uv run ruff check src tests scripts`. Attach evidence for

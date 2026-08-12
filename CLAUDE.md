@@ -7,8 +7,19 @@ template vision.
 
 ## Session start (do not skip)
 
-1. Read the pause snapshot at the top of `docs/record/roadmap.md`. The
-   snapshot holds the device state and the resume point.
+1. Task sessions start from a GitHub issue. Run `/start-task <issue#>`:
+   it reads the issue, sets up the worktree off 'dev', and fills the
+   state block. Full contract: `docs/how-to/development-flow.md`.
+   A discussion session with no assigned issue needs no worktree.
+2. Never develop in the primary checkout
+   (`/home/poyu/workspace/project/ggge_ai`). Never check out 'dev'
+   anywhere: task branches live in worktrees under
+   `/home/poyu/workspace/project/ggge_ai-worktrees/`.
+3. Device state lives in the untracked file
+   `docs/record/device-state.md` in the primary checkout. Device
+   access requires the untracked lock `docs/record/device.lock`
+   (protocol in the flow document). A foreign lock means: do not
+   touch the device, notify the user, stop.
 
 ## Delegation & model routing (applies to every session)
 
@@ -28,8 +39,10 @@ template vision.
   (prefixes are retired).
 - When two attempts at the same problem fail, stop and ask the user.
   Do not make more blind attempts.
-- At the end of each session: update the pause snapshot in
-  `docs/record/roadmap.md` (device state and resume point), then commit.
+- At the end of a task session: run `/finish-task`. It runs the gates,
+  reworks the branch roadmap into the review artifact, updates the
+  issue, releases the device lock, and notifies the user. The user
+  does all merges and closes all issues.
 - Communicate with the user in English. Use Chinese only when the user
   asks for a Chinese reply. When you use Chinese, use Traditional
   Chinese only. Do not use Simplified Chinese. Write the English in the
@@ -118,6 +131,8 @@ contracts:
   current workflow.
 - record: frozen and dated, or append-only. Do not retro-edit a
   record.
+- working: a branch-scoped working document in `docs/roadmaps/`. It
+  dies with the branch: deleted after user approval, before the merge.
 
 Rules for reference documents:
 

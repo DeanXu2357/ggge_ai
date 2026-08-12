@@ -23,7 +23,7 @@ term at its first use in each document, then use the short form.
 | device | 實機 | The physical USB phone R5CRC37JBYJ |
 | device screenshot | 實機截圖 | A screenshot captured from the device |
 | run log | 流水帳 | The structured output in data/runs/<timestamp>/ |
-| pause snapshot | 暫停快照 | The device state and resume point at the top of docs/record/roadmap.md |
+| pause snapshot | 暫停快照 | Retired 0812: split into the device state file and the branch roadmap; history in git (docs/record/roadmap.md) |
 | resume point | 恢復點 | The step where the next session starts work |
 | session start / end of session | 開工／收工 | The start and the end of a work session |
 | gate | 閘門 | A check that must pass before a commit (pytest, ruff) |

@@ -20,3 +20,6 @@ data/
 .idea/
 
 .vale/styles/Google/
+!.claude/skills/
+docs/record/device.lock
+docs/record/device-state.md
