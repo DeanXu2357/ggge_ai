@@ -6,10 +6,11 @@ This document defines the task flow: one GitHub issue is one task,
 one task gets one branch, and every session develops in a worktree.
 The user does all merges and closes all issues.
 
-Two skills are the executable form of this flow: '/start-task'
-executes the session start checklist, '/finish-task' executes the
-completion steps. CLAUDE.md points every session at them. This
-document stays the authority; the skills follow it.
+Two skills are the entry points: '/start-task' executes the session
+start checklist, '/finish-task' executes the completion steps.
+CLAUDE.md points every session at them. Neither skill file holds
+steps of its own. Each skill file points at a section of this
+document. This document holds the steps.
 
 ## Roles
 
@@ -63,18 +64,27 @@ roadmap: docs/roadmaps/branch-issue-N.md
 status: planned | in-progress | awaiting-review
 ```
 
-Session start checklist ('/start-task' executes it), in order:
+Session start checklist. '/start-task N' does these steps in order:
 
-1. Read the issue in full, including all comments.
-2. When the state block names a branch: set up the worktree for that
-   branch, then read the branch roadmap. When it does not: create
-   the branch, the worktree, and the roadmap, then fill the state
-   block and set status to in-progress.
-3. For a device task: read the device state file, then acquire the
-   device lock.
+1. Read the issue in full: `gh issue view N --comments`.
+2. Parse the '## Session state' block in the issue body.
+3. Resume, when the block names a branch: work in the worktree when
+   it exists (`git worktree list`); add the worktree again when it
+   is gone (see "Primary checkout and worktrees"). Read the branch
+   roadmap named in the block.
+4. Start, when the block names no branch: name the branch
+   'issue-N-slug', with a short slug from the issue title; add the
+   worktree (see "Primary checkout and worktrees"); create the
+   roadmap (see "Branch roadmap"); fill the state block with
+   `gh issue edit N --body-file` and set status to in-progress.
+5. Device task only: read the device state file, then acquire the
+   device lock (see "Device access").
+6. Plan the work.
 
-A TODO found mid-task becomes a new issue, opened with the
-issue-writer agent. It does not extend the current scope.
+A problem found mid-task does not extend the current scope. Report
+it to the user. The user decides whether it becomes a new issue.
+Open the issue with the issue-writer agent only after the user
+agrees.
 
 ## Branch roadmap
 
@@ -109,22 +119,31 @@ issue-writer agent. It does not extend the current scope.
 
 ## Completion
 
-'/finish-task' executes steps 1 to 5.
+'/finish-task' does these steps in order:
 
 1. Gates pass for code changes: `uv run pytest -q` and
    `uv run ruff check src tests scripts`. Attach evidence for
-   changes to 'battle/vision.py' or 'scripts/sweep_scan.py'.
-2. Run a code review on the branch.
+   changes to 'battle/vision.py' or 'scripts/sweep_scan.py': a
+   device screenshot or a run log. Docs-only batches skip this step.
+2. For code changes: run a code review on the branch (the
+   /code-review skill). Fix what it finds.
 3. Rework the roadmap into the review artifact.
-4. Comment the change summary on the issue. Set status to
-   awaiting-review.
-5. Send a Discord notification.
-6. The user reviews.
-   - Approve: the session deletes the roadmap; the user merges the
-     branch into 'dev' and closes the issue; remove the worktree and
-     the branch.
-   - Reject: the user comments on the issue; the next session
-     resumes from the session start checklist.
+4. Commit. Follow the commit message rules in CLAUDE.md.
+5. When this session holds the device lock: update the device state
+   file, then delete the lock file.
+6. Comment the change summary on the issue. Set the state block
+   status to awaiting-review.
+7. Send a Discord notification: branch, commit, review artifact
+   path, what the user must do.
+
+Then the session stops. It does not merge, and it does not close the
+issue. The user reviews.
+
+- Approve: the session deletes the roadmap in a final commit; the
+  user merges the branch into 'dev' and closes the issue; remove the
+  worktree, then delete the branch.
+- Reject: the user comments on the issue; the next session resumes
+  from the session start checklist.
 
 ## Subagent placement
 
