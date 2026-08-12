@@ -1,3 +1,6 @@
 Gundam
 GOAP
 adb
+untracked
+worktree
+worktrees

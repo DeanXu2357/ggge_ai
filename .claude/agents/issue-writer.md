@@ -35,21 +35,30 @@ Draft the title and body first, then check the draft, then publish. Do not
 call `gh issue create` or `gh issue edit` on an unchecked draft.
 
 1. Write the drafted body to a scratch file at
-   `docs/requirements/_scratch-issue-draft.md` — this path matches the
-   `[docs/requirements/*.md]` section in `.vale.ini`, so it inherits the
-   project's Google-style Vale rules and vocabulary.
-2. Run `vale docs/requirements/_scratch-issue-draft.md`. Fix every reported
+   `.claude/scratch-vale/issue-draft.md` — create the directory if it does
+   not exist. This path matches the `[.claude/scratch-vale/*.md]` section in
+   `.vale.ini`, so it inherits the project's Google-style Vale rules and
+   vocabulary. It sits outside `docs/`, so writing and deleting it never
+   touches the "do not edit `docs/`" boundary below — do not use a path
+   under `docs/` for this, even a scratch one; that path only muddies the
+   boundary. `.claude/scratch-vale/` is already covered by the repo's
+   `.claude/*` gitignore rule.
+2. Run `vale .claude/scratch-vale/issue-draft.md`. Fix every reported
    error, then rerun. Repeat until Vale reports zero errors. Warnings and
    suggestions are optional polish, not a blocker.
 3. A term from the vocabulary list above, quoted, is not a Vale spelling
    error to fix by translating it — if Vale flags one, add it to
    `.vale/styles/config/vocabularies/ggge_ai/accept.txt` instead of removing
-   the quote.
-4. Delete `docs/requirements/_scratch-issue-draft.md` before finishing —
-   never commit it, never leave it in the tree. This is a scratch file, not
-   an edit to `docs/`; it does not conflict with the "do not edit `docs/`"
-   boundary below.
+   the quote. That vocab file is shared project config, not `docs/` content
+   — editing it to add a genuinely missing project term is in scope for you.
+4. Delete `.claude/scratch-vale/issue-draft.md` before finishing — never
+   commit it, never leave it in the tree.
 5. Publish the checked draft with `gh issue create` / `gh issue edit`.
+6. Sanity check before you trust a "0 errors" result: confirm the file you
+   ran Vale against is under one of the globbed paths in `.vale.ini`
+   (currently `docs/requirements/*.md` and `.claude/scratch-vale/*.md`).
+   Vale reports 0 findings, silently, for any file outside every configured
+   glob — that is a false pass, not a clean draft.
 
 ## Scope test before opening (three questions)
 
