@@ -40,6 +40,15 @@ term at its first use in each document, then use the short form.
 | mainland | 大陸 | The trusted-position side of the knowledge map, opposite of the island |
 | ghost | 幽靈 | A false item with no real counterpart on screen; name the kind: a false shift candidate, a false unit detection, or a false peak |
 | starfield | 星空 | The dark background outside the map, with no grid cells. Not "sparse sightings" (0803 audit: all 20 uses mean the outside background) |
+| integration branch | 整合分支 | The long-lived branch 'dev'; task branches start from it and merge into it |
+| task branch | 任務分支 | The branch 'issue-N-slug' for one GitHub issue |
+| primary checkout | 主目錄 | The directory /home/poyu/workspace/project/ggge_ai; rests on 'dev'; hosts the device lock and the device state file |
+| worktree | 工作樹 | A git worktree under /home/poyu/workspace/project/ggge_ai-worktrees/; every session develops in one |
+| branch roadmap | 分支路線圖 | The working document docs/roadmaps/branch-issue-N.md; progress log during development, review artifact at review, deleted at merge |
+| device lock | 裝置鎖 | The untracked file docs/record/device.lock; serializes device access across sessions |
+| device state file | 裝置狀態檔 | The untracked file docs/record/device-state.md; the current device snapshot only |
+| state block | 狀態區塊 | The 'Session state' section in an issue body: branch, roadmap, status |
+| review artifact | 審查對照物 | The document the user reads to review a branch; the branch roadmap at awaiting-review |
 
 ## Legacy Chinese corpus key
 
