@@ -49,6 +49,11 @@ term at its first use in each document, then use the short form.
 | device state file | 裝置狀態檔 | The untracked file docs/record/device-state.md; the current device snapshot only |
 | state block | 狀態區塊 | The 'Session state' section in an issue body: branch, roadmap, status |
 | review artifact | 審查對照物 | The document the user reads to review a branch; the branch roadmap at awaiting-review |
+| veil | 待裁 | The provisional border gate: the map bounds read from one frame (provisional_bounds in runtime/sweep.py), used by plan_window to drop the cells outside them. Chinese binding 待裁: the 0811 ledger entry keeps the English word inside Chinese prose |
+| stream frame source | 串流幀源 | The scrcpy plus v4l2 frame path in ggge_ai/stream/; selected with 'sweep_scan.py --stream', in place of the adb screenshot path |
+| roster stage | 名冊採集 | The last scan stage ("roster" in the STAGES tuple of sweep_scan.py): it opens the detail page of every unit in the '部隊資訊' roster and keeps one frame for each page (runtime/roster_capture.py) |
+| settle | 待裁 | Wait until the frame difference converges, then sample (await_still in runtime/settle.py); a judgement always reads the frame after convergence. Chinese binding 待裁: the corpus has 幀差收斂 for the measurement, but no bound noun for the primitive |
+| projection | 透視投影 | The fixed planar homography of the board (runtime/projection.py): world isometric grid to screen grid-line positions. Not the bare word 投影, which board.py uses for the row and column sums |
 
 ## Legacy Chinese corpus key
 
