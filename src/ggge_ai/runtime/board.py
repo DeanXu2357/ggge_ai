@@ -244,6 +244,22 @@ def _median_gap(positions: Sequence[int]) -> float:
     return float(gaps[n // 2] if n % 2 else (gaps[n // 2 - 1] + gaps[n // 2]) / 2)
 
 
+def fit_lines(positions: Sequence[float]) -> tuple[float, float] | None:
+    """等距線列的最小平方擬合，回 (第 0 條線的位置, 格距)。線少於兩條或格距非正就 None。
+
+    坑：整數線位取中位差（`_median_gap`）只有 1px 解析度＝0.85% 的格距誤差，19 欄上
+    累積 0.16 格——離線重放（`scripts/validate_projection.py`）證實那是位置殘差的主源。
+    世界錨定要的是次像素格距，畫面內的吸附／索引照舊用線位本身。
+    """
+    if len(positions) < 2:
+        return None
+    values = np.asarray(positions, dtype=float)
+    pitch, first = np.polyfit(np.arange(len(values), dtype=float), values, 1)
+    if pitch <= 0:
+        return None
+    return (float(first), float(pitch))
+
+
 def _snap_axis(value: float, positions: Sequence[int]) -> float:
     if not positions or value < positions[0] or value > positions[-1]:
         return value
@@ -637,10 +653,21 @@ def find_lattice(frame: np.ndarray | None) -> Lattice | None:
     相位對答案，pitch 仍取世界格網的。錨定（`Survey._anchor`）刻意不走這裡，新世界的
     格距要全幀帶那種取樣量才敢定。
     """
+    found = find_lattice_band(frame)
+    return None if found is None else found[0]
+
+
+def find_lattice_band(frame: np.ndarray | None) -> tuple[Lattice, Region] | None:
+    """同 `find_lattice`，外加線位是從哪一個帶量出來的。
+
+    帶決定了線位的座標系：縱線是斜的，帶內投影取到的是**帶中線那個高度**上的 x
+    （`docs/reviews/perspective-measurement.md` §3.3），要把線位拿去跟幾何模型對答案
+    就得知道那個高度。
+    """
     for band, minimum in _lattice_bands():
         lattice = read_lattice(frame, band, minimum=minimum)
         if lattice is not None:
-            return lattice
+            return (lattice, band)
     return None
 
 

@@ -6,11 +6,12 @@
 避開精靈（那是手勢安全，不是帳本事實）。
 
 usage:
-  # 分段停點：select / prep / stage_info / map / grid / zero / sweep
+  # 分段停點：select / prep / stage_info / map / grid / zero / sweep / roster
   uv run python scripts/sweep_scan.py --serial R5CRC37JBYJ --stage-node 544,667 \
       --stop-after zero
   uv run python scripts/sweep_scan.py … --max-taps 200 --tap-interval 0.5
-  uv run python scripts/sweep_scan.py … --filter-mode full   # 全格點對照組
+  uv run python scripts/sweep_scan.py … --no-roster   # 只掃盤面，不採名冊也不組裝
+  uv run python scripts/sweep_scan.py … --filter-mode candidates   # 候選過濾對照組
   # 帳齊即收（需要 assets/stage_truth/<關卡>.json；首刷沒有真值檔就照舊全掃）
   uv run python scripts/sweep_scan.py … --filter-mode roster --ally-count 10
   uv run python scripts/sweep_scan.py … --no-abandon
@@ -29,6 +30,7 @@ import logging
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
+from typing import Protocol
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -37,11 +39,14 @@ import numpy as np
 from ggge_ai.battle import faction as faction_mod
 from ggge_ai.battle import map_view, vision
 from ggge_ai.battle.state import Faction
-from ggge_ai.runtime import board, entry, screens, sweep, zoom
+from ggge_ai.runtime import board, entry, projection, screens, settle, sweep, zoom
 from ggge_ai.runtime.device import Adb, LiveDevice, LiveExecutor
 from ggge_ai.runtime.journal import Journal, rotate_runs
 from ggge_ai.runtime.keyguard import Keyguard
+from ggge_ai.runtime.panel_text import OllamaPanelTextReader
 from ggge_ai.runtime.perceive import LivePerceiver, Observation, decode
+from ggge_ai.runtime.roster_capture import RosterCapture
+from ggge_ai.stage import roster_offline
 from ggge_ai.stage.actions import CollapseRoster, ShowGrid
 from ggge_ai.stage.survey import BoardDriver
 from ggge_ai.vision.manifest import TemplateManifest
@@ -54,8 +59,8 @@ TEMPLATE_ROOT = PROJECT_ROOT / "assets" / "templates"
 STAGE_TRUTH_ROOT = PROJECT_ROOT / "assets" / "stage_truth"
 RUNS_ROOT = Path("data/runs")
 JOURNAL_NAME = "sweep.jsonl"
-STAGES = ("select", "prep", "stage_info", "map", "grid", "zero", "sweep")
-IN_BATTLE_STAGES = (None, "map", "grid", "zero", "sweep")
+STAGES = ("select", "prep", "stage_info", "map", "grid", "zero", "sweep", "roster")
+IN_BATTLE_STAGES = (None, "map", "grid", "zero", "sweep", "roster")
 
 MAX_TAPS = 600
 TAP_INTERVAL_S = 0.4
@@ -66,21 +71,29 @@ ZERO_LEGS = 24
 # 連續這麼多次「回角落＋接力返航」都沒能推進任何一格裁決就停手：再繞下去只是
 # 把同一段路重走。
 STRANDINGS_LIMIT = 3
+# 連續這麼多把推鏡都沒讓帳本多出任何一格裁決就停手。成功輪的最長無裁決連段實測是
+# 17 把（run 20260805-152346）與 14 把（20260807-111734），取約兩倍餘裕；病態輪
+# 20260808-184706 在兩個鏡位之間乒乓 132 把、燒掉 40 分鐘，這條絲要在 3 分鐘級攔停。
+#
+# 水位用「帳本已裁決格數」不用 taps：乒乓期的搬標記照樣吃 taps 卻不長帳，那正是
+# strandings 絲的盲區（它只數 reroot，乒乓不 reroot）。
+PAN_BARREN_LIMIT = 40
 # 角落界線的複驗：另拍一幀重讀，兩幀差在半格內才准拿去寫世界座標。
 ZERO_CONFIRM_TRIES = 2
 ZERO_CONFIRM_PITCH = 0.5
 ZERO_CORNER = ("west", "north")
-# 推鏡後的緩動等待。輪數是「多等一點降污染率」的保險，不是靜止判準（0803 第 10
-# 輪定讞：整區灰階讀到的是不隨鏡頭動的星空層，不准拿它問畫面停了沒）。一張截圖
-# 在實機要 ~2.4s，所以保險買一輪就好，改用較長的間隔補回真實靜置時間。
-SETTLE_POLL_S = 0.5
-SETTLE_ROUNDS = 1
 CARD_SETTLE_S = 1.0
 # 敵方總數只在開掃時讀一次。破壞數分母是 HUD 直接寫著的數，但白字疊在亮底上會讀
 # 不出來（vision.read_kill_counter 的已知限制），所以多給幾張幀。
 CENSUS_READ_TRIES = 3
 # 星座總驗連續失敗這麼多次就不再嘗試早收，退回照舊逐格掃到底。
 ROSTER_CHECK_TRIES = 2
+# aim 閘的評估點：點擊窗中心。殘差是螢幕像素，而像素的格價隨螢幕 y 變，講在哪裡量的
+# 才有意義；判定的後果落在點擊窗，就量在那裡。
+AIM_AT: sweep.Point = (
+    sweep.TAP_REGION[0] + sweep.TAP_REGION[2] / 2.0,
+    sweep.TAP_REGION[1] + sweep.TAP_REGION[3] / 2.0,
+)
 
 
 
@@ -111,6 +124,19 @@ class Camera:
         return path
 
 
+class FrameSource(Protocol):
+    """下游只認得的那一面：adb 逐張截圖與 scrcpy 串流兩種實作都滿足。"""
+
+    raw: bytes | None
+    shots: int
+
+    def screenshot(self) -> bytes: ...
+
+    def grab(self) -> np.ndarray: ...
+
+    def keep(self, label: str) -> str | None: ...
+
+
 @dataclass
 class ViewGate:
     """`battle.map_view` 要的那一面：capture()＋probe()。
@@ -119,7 +145,7 @@ class ViewGate:
     落在這支腳本上。
     """
 
-    camera: Camera
+    camera: FrameSource
     pipeline: RecognizerPipeline
 
     def capture(self) -> np.ndarray:
@@ -133,7 +159,7 @@ class ViewGate:
 @dataclass
 class SweepRun:
     device: LiveDevice
-    camera: Camera
+    camera: FrameSource
     journal: Journal
     executor: LiveExecutor
     driver: BoardDriver
@@ -147,12 +173,16 @@ class SweepRun:
     tap_interval: float = TAP_INTERVAL_S
     empty_frame_every: int = EMPTY_FRAME_EVERY
     filter_mode: str = sweep.FILTER_FULL
+    roster: bool = True
+    early_close: bool = True
     # 早收的目標台數。None＝這一關沒有真值（首刷）＝老實掃到底。
     target: sweep.Census | None = None
     # 破壞數 k/m 的讀取器。runtime 不得 import battle/，所以比照 ViewGate 由這支
     # 腳本注入。
     kill_counter: Callable[[np.ndarray], tuple[int, int] | None] | None = None
     sleep: Callable[[float], None] = time.sleep
+    clock: Callable[[], float] = time.monotonic
+    classify: Callable[..., sweep.TapOutcome] = sweep.classify_tap
     zoom_out: Callable[[], None] | None = None
 
     ledger: sweep.SweepLedger | None = field(default=None, init=False)
@@ -163,6 +193,7 @@ class SweepRun:
     clashes: dict[str, list[float]] = field(default_factory=dict, init=False)
     grounded: bool = field(default=False, init=False)
     ungrounded: int = field(default=0, init=False)
+    anchor_source: str | None = field(default=None, init=False)
     signature: board.MarkerSignature | None = field(default=None, init=False)
     marker_cell: sweep.Cell | None = field(default=None, init=False)
     baseline: sweep.Point | None = field(default=None, init=False)
@@ -176,8 +207,12 @@ class SweepRun:
     closed: bool = field(default=False, init=False)
     pinned: set[str] = field(default_factory=set, init=False)
     empties: int = field(default=0, init=False)
+    # 判定所憑那一幀的 camera.shots 序號；沒存 png 的裁決也對得上是哪一拍。
+    tick: int = field(default=0, init=False)
     strandings: int = field(default=0, init=False)
     progress: int = field(default=0, init=False)
+    barren_pans: int = field(default=0, init=False)
+    decided_watermark: int = field(default=0, init=False)
     started: float = field(default_factory=time.monotonic, init=False)
 
     def run(self) -> None:
@@ -234,7 +269,37 @@ class SweepRun:
         self.begin("sweep")
         self.tour()
         self.summarize()
-        self.end("sweep")
+        if self.end("sweep"):
+            return
+
+        if self.roster:
+            self.begin("roster")
+            self.collect_roster()
+            self.end("roster")
+
+    def collect_roster(self) -> None:
+        """名冊採集＋帳本落檔。加值步驟：出什麼事都只記一筆，棄戰鏈照走。"""
+        try:
+            RosterCapture(
+                grab=self.camera.grab,
+                keep=self.camera.keep,
+                tap=self.device.tap,
+                journal=self.journal,
+                swipe=self.device.swipe,
+            ).run()
+        except Exception as boom:
+            self.journal.record("roster_stage_failed", error=repr(boom))
+        self.dump_ledger()
+
+    def dump_ledger(self) -> None:
+        """帳本的最終格帳。逐筆 verdict 事件記的是當下裁決，收束結果只有帳本知道。"""
+        if self.ledger is None:
+            return
+        state = self.ledger.state
+        self.journal.record(
+            "ledger_dump",
+            cells=[[cell[0], cell[1], state[cell]] for cell in sorted(state)],
+        )
 
     def zero(self) -> None:
         """往西北推到同一幀看得到北界＋西界，世界座標由那一幀**定義**。
@@ -259,11 +324,13 @@ class SweepRun:
         self.fix.regain()
         self.grounded = True
         self.ungrounded = 0
+        # 角落錨定＝同一幀的西界＋北界解出兩軸，與 SOURCE_EDGE 同級。
+        self.anchor_source = sweep.SOURCE_EDGE
         if self.ledger is None:
-            lattice = board.find_lattice(frame)
-            if lattice is None:
+            found = board.find_lattice_band(frame)
+            if found is None:
                 raise Halt("角落幀讀不出格網，世界座標無從定義")
-            anchored = sweep.anchor_northwest(lattice, borders)
+            anchored = sweep.anchor_northwest(found[0], found[1], borders)
             if anchored is None:
                 raise Halt("角落幀的格距不合理，世界座標無從定義")
             grid, self.offset = anchored
@@ -348,7 +415,12 @@ class SweepRun:
                 self.fix.lose()
                 continue
             frame = self.neutral()
-            self.witness(frame)
+            borders = sweep.read_borders(frame)
+            self.witness(frame, borders)
+            veil = (
+                sweep.provisional_bounds(ledger.grid, self.offset, borders, ledger.boundary)
+                or None
+            )
             candidates = self.candidates(frame)
             plan = sweep.plan_window(
                 ledger,
@@ -356,6 +428,7 @@ class SweepRun:
                 heading=self.heading,
                 candidates=candidates,
                 order=self.ranking,
+                veil=veil,
             )
             for cell in plan.blocked:
                 ledger.defer(cell)
@@ -366,6 +439,7 @@ class SweepRun:
                 taps=len(plan.taps),
                 blocked=[list(cell) for cell in plan.blocked],
                 window=None if plan.window is None else [list(plan.window[0]), list(plan.window[1])],
+                veil=None if veil is None else dict(sorted(veil.items())),
                 marker_at=None if self.baseline is None else
                 [round(value, 1) for value in self.baseline],
                 frame=self.camera.keep("window"),
@@ -418,6 +492,9 @@ class SweepRun:
         總驗是收尾閘不是加分項——台數對得上也可能是「多記一台假的、漏掉一台真的」
         剛好相抵，所以要另拍一張中性幀回頭質詢帳本。不過就不早收。
         """
+        # 量測／首刷用：關掉豁免就走全盤硬磨，帳齊也不收。
+        if not self.early_close:
+            return False
         ledger = self._ledger()
         if self.closed or not sweep.census_closed(ledger, self.target):
             return False
@@ -496,13 +573,14 @@ class SweepRun:
             self.offset = offset
             self.grounded = True
             self.ungrounded = 0
+            self.anchor_source = source
             self.journal.record(
                 "anchor_backed",
                 source=source,
                 offset=[round(value, 1) for value in offset],
                 marker=marker is not None,
             )
-            self.witness(frame)
+            self.witness(frame, borders)
             return True
         self.ungrounded += 1
         self.journal.record(
@@ -761,10 +839,12 @@ class SweepRun:
         self.offset = offset
         self.grounded = True
         self.ungrounded = 0
+        # 標記錨定不是界線背書：來源在 reanchor 的詞彙裡與置中候選同一類（centre）。
+        self.anchor_source = sweep.SOURCE_CENTRE
         self.fix.regain()
         # 錨定成立的這一幀就是本窗基準：標記在螢幕上的位置，之後逐格點擊拿它比對。
         self.baseline = found
-        self.witness(frame)
+        self.witness(frame, borders)
         node = sweep.TrustNode(
             cell=self.marker_cell,
             offset=offset,
@@ -803,7 +883,7 @@ class SweepRun:
                 return False
             if not self.steady(before):
                 return True
-            if not self.aimed(before):
+            if not self.aimed(before) and not self.aim_overruled(before):
                 return True
             outcome = self.decide(target, before)
             if outcome == sweep.TAP_CARD or outcome in sweep.TAP_SHIFTS:
@@ -841,25 +921,85 @@ class SweepRun:
         return False
 
     def aimed(self, frame: np.ndarray) -> bool:
-        """這一幀的格線相位對不對得上當前鏡位。對不上就停手重錨，一格都不點。
+        """這一幀的格線對不對得上當前鏡位。對不上就停手重錨，一格都不點。
+
+        判定走單應性模型的**位置空間**逐線殘差（`projection.shadow_drift`）：相位相減
+        的兩側週期取自不同來源（量測報告 §3.4，中位 0.052、p95 0.156 格的系統項），
+        0.25 格容差有一半以上被那個假訊號吃掉；位置空間比對兩側是同一把尺。
 
         讀不出格線回 True：那是「不知道」不是「偏了」，別讓沒有格線的畫面把掃描
-        鎖死；那條路上還有標記與界線兩個證人。
+        鎖死；那條路上還有標記與界線兩個證人。模型算爆了同級處理——這一幀不表態，
+        不准把掃描帶下去。
         """
         grid = self._ledger().grid
-        reading = board.lattice_phase(frame)
-        if reading is None:
+        try:
+            found = board.find_lattice_band(frame)
+            if found is None:
+                return True
+            lattice, band = found
+            drift = projection.shadow_drift(lattice, band, grid, self.offset, at=AIM_AT)
+        except Exception as error:  # noqa: BLE001
+            self.journal.record("aim_failed", error=str(error))
             return True
-        drift = sweep.aim_drift(reading[0], grid, self.offset)
+        if drift is None:
+            return True
+        self.aim_shadow(lattice, drift)
         if sweep.aimed(drift, grid):
             return True
         self.journal.record(
             "aim_drift",
             drift=[round(value, 1) for value in drift],
             offset=[round(value, 1) for value in self.offset],
+            model="projection",
         )
         self.grounded = False
         return False
+
+    def aim_shadow(self, lattice: board.Lattice, new: sweep.Point) -> None:
+        """新舊模型並排入帳：`new` ＝現行判定值、`old` ＝舊相位模型的遙測。**不參與判定**。
+
+        讀得出格線就記，過閘與否都記——`aim_drift` 只在沒過閘時才寫，照那個條件記
+        對照會拿「已經偏了的幀」當全部樣本，配對統計整個偏掉。
+        """
+        pitch = (lattice.col_pitch, lattice.row_pitch)
+        if pitch[0] <= 0 or pitch[1] <= 0:
+            return
+        phase = (lattice.cols[0] % pitch[0], lattice.rows[0] % pitch[1])
+        old = sweep.aim_drift(phase, self._ledger().grid, self.offset)
+        self.journal.record(
+            "aim_shadow",
+            new=[round(value, 1) for value in new],
+            old=[round(value, 1) for value in old],
+            pitch=[round(value, 1) for value in pitch],
+            offset=[round(value, 1) for value in self.offset],
+        )
+
+    def aim_overruled(self, frame: np.ndarray) -> bool:
+        """本窗鏡位由界線背書、當下幀又複驗得過時，相位閘對本窗讓位（含把 grounded 復位）。
+
+        aim 閘防的是無聲漂移，而界線是絕對證人、位階高於等距近似模型推的相位。北緣
+        鏡位下等距模型的相位期望系統性偏離實際渲染格線超過 0.25 格，於是 aim 每窗否決、
+        confirm 每次用界線錨回同一個 offset，兩閘互鎖成活鎖：三分鐘零推鏡零 reroot，
+        既有兩條保險絲（strandings、barren_pans）都看不見（20260809-031256 t=524-705）。
+        """
+        if self.anchor_source != sweep.SOURCE_EDGE:
+            return False
+        grid = self._ledger().grid
+        borders = sweep.read_borders(frame)
+        axes = sweep.border_offsets(grid, self.landmarks, borders)
+        if "x" not in axes or "y" not in axes:
+            return False
+        drift = (axes["x"] - self.offset[0], axes["y"] - self.offset[1])
+        if not sweep.aimed(drift, grid, sweep.EDGE_AGREEMENT_PITCH):
+            return False
+        self.grounded = True
+        self.journal.record(
+            "aim_overruled",
+            drift=[round(value, 1) for value in drift],
+            borders=sorted(borders),
+            offset=[round(value, 1) for value in self.offset],
+        )
+        return True
 
     def decide(self, target: sweep.TapTarget, before: np.ndarray) -> str:
         """一格的一次裁決。分不出結果就重試一次，還是分不出就 UNSURE 留白。"""
@@ -885,7 +1025,9 @@ class SweepRun:
             self.empties += 1
             keep = self.empties % max(1, self.empty_frame_every) == 0
             ledger.record(target.cell, sweep.EMPTY, frame=self.camera.keep("empty") if keep else None)
-            self.journal.record("verdict", cell=list(target.cell), verdict=sweep.EMPTY)
+            self.journal.record(
+                "verdict", cell=list(target.cell), verdict=sweep.EMPTY, tick=self.tick
+            )
             return outcome.verdict
         if outcome.verdict == sweep.TAP_CARD:
             self.sentence_card(target)
@@ -895,24 +1037,39 @@ class SweepRun:
             return outcome.verdict
         ledger.record(target.cell, sweep.UNSURE, reason="no_feedback")
         self.journal.record("verdict", cell=list(target.cell), verdict=sweep.UNSURE,
-                            reason="no_feedback")
+                            reason="no_feedback", tick=self.tick)
         return outcome.verdict
 
     def tap_cell(self, target: sweep.TapTarget, before: np.ndarray) -> sweep.TapOutcome:
+        """點擊 → 等動畫收斂 → 收斂後的那一張才裁決。中間幀不准當判斷依據。"""
         ledger = self._ledger()
         self.fix.allow_tap()
         self.device.tap(int(target.point[0]), int(target.point[1]))
         ledger.taps += 1
+        deadline = self.clock() + sweep.FEEDBACK_WAIT_S
         self.sleep(self.tap_interval)
-        after = self.camera.grab()
-        return sweep.classify_tap(
-            before,
-            after,
-            target.point,
-            signature=self.signature,
-            card=_card_present,
-            selected=self.in_selection,
-            pitch=(ledger.grid.col_pitch, ledger.grid.row_pitch),
+
+        def judge(after: np.ndarray) -> sweep.TapOutcome:
+            self.tick = self.camera.shots
+            return self.classify(
+                before,
+                after,
+                target.point,
+                signature=self.signature,
+                card=_card_present,
+                selected=self.in_selection,
+                pitch=(ledger.grid.col_pitch, ledger.grid.row_pitch),
+                region=sweep.TAP_REGION,
+            )
+
+        return sweep.judge_tap(
+            self.camera.grab,
+            judge,
+            clock=self.clock,
+            sleep=self.sleep,
+            deadline=deadline,
+            poll=sweep.FEEDBACK_POLL_S,
+            observe=lambda report: self.log_settle("feedback", report),
         )
 
     def in_selection(self, frame: np.ndarray) -> bool:
@@ -928,6 +1085,7 @@ class SweepRun:
         ledger = self._ledger()
         self.sleep(CARD_SETTLE_S)
         frame = self.camera.grab()
+        self.tick = self.camera.shots
         path = self.camera.keep("card")
         verdict = self.identifier.identify(frame)
         summary = vision.read_enemy_summary(frame)
@@ -960,6 +1118,7 @@ class SweepRun:
             hp=None if summary is None else summary.hp,
             en=None if summary is None else summary.en,
             frame=path,
+            tick=self.tick,
         )
         self.escape()
 
@@ -970,6 +1129,7 @@ class SweepRun:
         """
         ledger = self._ledger()
         path = self.camera.keep("shift")
+        hp, en = self.ally_readout()
         confirmed = outcome.verdict == sweep.TAP_SHIFTED
         verdict = sweep.ALLY if confirmed else sweep.UNSURE
         reason = "recentred" if confirmed else "recentred_unconfirmed"
@@ -979,12 +1139,27 @@ class SweepRun:
             cell=list(target.cell),
             verdict=verdict,
             reason=reason,
+            hp=hp,
+            en=en,
             delta=None if outcome.delta is None else [round(v, 1) for v in outcome.delta],
             frame=path,
+            tick=self.tick,
         )
         self.escape()
         candidate = sweep.recentre_offset(ledger.grid, target.cell)
         self.relocate(candidate=candidate)
+
+    def ally_readout(self) -> tuple[int | None, int | None]:
+        """我方出卡的 HP／EN，讀的是剛存下的那一張（`camera.raw` 就是 keep 落的幀）。
+
+        加值欄位：讀不出來就留空，裁決與流程一概不受影響。
+        """
+        try:
+            summary = vision.read_ally_summary(decode(self.camera.raw))
+        except Exception:
+            log.warning("ally summary read failed", exc_info=True)
+            return (None, None)
+        return (None, None) if summary is None else (summary.hp, summary.en)
 
     def on_hub(self, frame: np.ndarray | None = None) -> bool:
         return map_view.classify_view(self.gate, frame) == map_view.HUB
@@ -999,15 +1174,18 @@ class SweepRun:
         if not ok:
             raise Halt("escape 回不到 hub，選擇狀態下不再點任何東西")
 
-    def witness(self, frame: np.ndarray) -> None:
+    def witness(self, frame: np.ndarray, borders: Mapping[str, float] | None = None) -> None:
         """這一幀目視到的終止邊 → 地標與界線。界線第一次記下就不再改。
+
+        `borders` 給了就用呼叫端讀好的那份，同一幀不重算第二次邊掃。
 
         地標是**整幀座標的絕對真值**，所以寫入資格要審，這一點與帳本只收點擊事實
         同一條紅線：推斷出來的鏡位（置中反推）算得出世界座標，但那個座標繼承了
         推斷的錯，沒有資格開新地標——它只能拿既有地標覆核界線。
         """
         ledger = self._ledger()
-        for side, screen_position in sweep.read_borders(frame).items():
+        seen = sweep.read_borders(frame) if borders is None else borders
+        for side, screen_position in seen.items():
             axis = 0 if side in ("west", "east") else 1
             world = screen_position + self.offset[axis]
             if side in self.landmarks:
@@ -1103,6 +1281,7 @@ class SweepRun:
             return
         self.offset = offset
         self.grounded = grounded
+        self.anchor_source = source
         if grounded:
             self.ungrounded = 0
             self.fix.regain()
@@ -1112,7 +1291,7 @@ class SweepRun:
                 self.fix.lose()
             else:
                 self.fix.regain()
-        self.witness(frame)
+        self.witness(frame, borders)
 
     def constellation(
         self, frame: np.ndarray, borders: Mapping[str, float]
@@ -1187,6 +1366,20 @@ class SweepRun:
         收工；界線讀不出來也不 Halt、不寫界線，改記這個方向在本鏡位推盡，讓呼叫端
         轉向——推不動**永遠不等於**有界線。
         """
+        if self.ledger is not None:
+            decided = len(self.ledger.state)
+            if decided > self.decided_watermark:
+                self.decided_watermark = decided
+                self.barren_pans = 0
+            else:
+                self.barren_pans += 1
+                if self.barren_pans > PAN_BARREN_LIMIT:
+                    self.journal.record(
+                        "barren_pans", streak=self.barren_pans, decided=decided
+                    )
+                    raise Halt(
+                        f"連續 {self.barren_pans} 把推鏡帳本沒有任何新裁決，疑似導航活鎖"
+                    )
         wanted = board.PAN_MAX_REACH if reach is None else reach
         origin, stroke = board.pan_stroke(direction, wanted, board.find_sightings(frame))
         seen = board.lattice_phase(frame)
@@ -1234,7 +1427,7 @@ class SweepRun:
                     borders=sorted(borders),
                 )
                 if self.ledger is not None:
-                    self.witness(frame)
+                    self.witness(frame, borders)
                 return 0.0, frame
             if verdict == sweep.PAN_PINNED:
                 pinned += 1
@@ -1258,11 +1451,25 @@ class SweepRun:
         return board.find_marker(frame, self.signature, holes=board.UNIT_DENSITY_HUD_HOLES)
 
     def settled(self) -> np.ndarray:
-        frame = self.camera.grab()
-        for _ in range(SETTLE_ROUNDS):
-            self.sleep(SETTLE_POLL_S)
-            frame = self.camera.grab()
-        return frame
+        return settle.await_still(
+            self.camera.grab,
+            clock=self.clock,
+            sleep=self.sleep,
+            deadline=self.clock() + settle.SETTLE_WAIT_S,
+            poll=settle.SETTLE_POLL_S,
+            confirm=2,
+            observe=lambda report: self.log_settle("nav", report),
+        )
+
+    def log_settle(self, ctx: str, report: settle.SettleReport) -> None:
+        self.journal.record(
+            "settle",
+            ctx=ctx,
+            waited_s=round(report.waited_s, 2),
+            polls=report.polls,
+            converged=report.converged,
+            motion=round(report.motion, 4),
+        )
 
     def abandon(self) -> None:
         """棄戰鏈逐下存證：確認鈕與戰鬥選單「幫助」同列相距 73px，鏈一旦錯拍就是
@@ -1351,6 +1558,11 @@ def _card_present(frame: np.ndarray) -> bool:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--serial", default=None)
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="幀源改走 scrcpy --v4l2-sink 串流，取代逐張 adb 截圖",
+    )
     parser.add_argument("--stop-after", choices=STAGES, default=None)
     parser.add_argument(
         "--stage-node",
@@ -1368,11 +1580,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--filter-mode",
         choices=sweep.FILTER_MODES,
-        default=sweep.FILTER_CANDIDATES,
+        default=sweep.FILTER_FULL,
         help=(
-            "candidates＝只點單位候選格、其餘推斷為空（預設；run 20260805-152346"
-            " 召回 100%% GO）；roster＝candidates 再加帳齊即收（敵數對上 HUD 破壞數"
-            "分母、我方對上 --ally-count 就豁免剩餘格）；full＝全格點（真值來源）"
+            "full＝全格點（預設；run 20260805-152346 的 79 分鐘基準，也是真值來源）；"
+            "candidates＝只點候選格、其餘推斷為空（實跑 97 分未兌現提速，退回實驗"
+            "選項）；roster＝candidates 再加帳齊即收（敵數對上 HUD 破壞數分母、我方"
+            "對上 --ally-count 就豁免剩餘格）"
         ),
     )
     parser.add_argument(
@@ -1388,6 +1601,18 @@ def parse_args() -> argparse.Namespace:
         "--stage-truth",
         default=None,
         help=f"本關真值檔名（{STAGE_TRUTH_ROOT} 下的 <名稱>.json），預設取 --expect-title",
+    )
+    parser.add_argument(
+        "--roster",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="掃完加採名冊（部隊資訊逐格存幀）並在收工後離線組裝 scenario.json",
+    )
+    parser.add_argument(
+        "--early-close",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="roster 模式帳齊即收；--no-early-close 關掉豁免，掃到每一格都有裁決為止",
     )
     parser.add_argument("--abandon", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--zoom", action=argparse.BooleanOptionalAction, default=True)
@@ -1449,7 +1674,7 @@ def open_run(run_dir: Path | None) -> Journal:
     return Journal(run_dir / JOURNAL_NAME)
 
 
-def soft_capture(camera: Camera) -> Callable[[], np.ndarray | None]:
+def soft_capture(camera: FrameSource) -> Callable[[], np.ndarray | None]:
     def capture() -> np.ndarray | None:
         try:
             return camera.grab()
@@ -1461,7 +1686,7 @@ def soft_capture(camera: Camera) -> Callable[[], np.ndarray | None]:
 
 
 def zoom_driver(
-    args: argparse.Namespace, camera: Camera, journal: Journal
+    args: argparse.Namespace, camera: FrameSource, journal: Journal
 ) -> Callable[[], None] | None:
     if not args.zoom:
         journal.record("zoom_backend", available=False, reason="disabled")
@@ -1485,7 +1710,15 @@ def zoom_driver(
 def build(args: argparse.Namespace, journal: Journal) -> SweepRun:
     adb = Adb(serial=args.serial)
     device = LiveDevice(adb=adb)
-    camera = Camera(device=device, journal=journal)
+    if args.stream:
+        from ggge_ai.stream import StreamCamera, StreamSource
+
+        source = StreamSource(serial=args.serial)
+        source.start()
+        camera: FrameSource = StreamCamera(source=source, journal=journal)
+    else:
+        camera = Camera(device=device, journal=journal)
+    journal.record("camera_backend", stream=args.stream)
     device.keyguard = Keyguard(shell=adb.shell, capture=soft_capture(camera))
     recognizer = TemplateManifest.load(TEMPLATE_ROOT).build_recognizer()
     pipeline = RecognizerPipeline(
@@ -1509,6 +1742,8 @@ def build(args: argparse.Namespace, journal: Journal) -> SweepRun:
         tap_interval=args.tap_interval,
         empty_frame_every=args.empty_frame_every,
         filter_mode=args.filter_mode,
+        roster=args.roster,
+        early_close=args.early_close,
         target=load_target(
             args.stage_truth or _title(args.expect_title), args.ally_count, journal
         ),
@@ -1524,6 +1759,28 @@ def main() -> int:
     run_dir = journal.path.parent
     print(f"run dir: {run_dir}")
     run = build(args, journal)
+    try:
+        return drive(args, run, journal, run_dir)
+    finally:
+        getattr(run.camera, "close", lambda: None)()
+
+
+def assemble_offline(journal: Journal, run_dir: Path) -> None:
+    """採集幀 → scenario.json＋intel_report.json。純讀檔的加值步驟，失敗不改 exit code。
+
+    stage_truth 不由這裡再讀一次：`load_target` 已經把關卡名落成 stage_truth 事件，
+    `run_offline` 自己照那筆事件找同一個真值檔。
+    """
+    try:
+        journal.record("intel_offline_start")
+        code = roster_offline.run_offline(run_dir, reader=OllamaPanelTextReader.from_env())
+        journal.record("intel_offline", exit_code=code)
+    except Exception as boom:
+        log.warning("offline assembly failed", exc_info=True)
+        journal.record("intel_offline_failed", error=repr(boom))
+
+
+def drive(args: argparse.Namespace, run: SweepRun, journal: Journal, run_dir: Path) -> int:
     journal.record(
         "sweep_start",
         stop_after=args.stop_after,
@@ -1534,6 +1791,7 @@ def main() -> int:
         filter_mode=args.filter_mode,
         ally_count=args.ally_count,
         stage_truth=args.stage_truth,
+        early_close=args.early_close,
     )
     try:
         run.run()
@@ -1550,6 +1808,8 @@ def main() -> int:
         journal.record("crash", reason=repr(boom), frame=frame)
         print(f"CRASH: {boom!r}")
         raise
+    if args.roster and args.stop_after in (None, "roster"):
+        assemble_offline(journal, run_dir)
     journal.record("sweep_end")
     print("ok")
     return 0

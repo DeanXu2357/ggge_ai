@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import board, sweep
+from ggge_ai.runtime import board, settle, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.device import DangerBand
 
@@ -95,6 +97,49 @@ def test_a_danger_band_or_a_hud_hole_defers_the_cell_instead_of_tapping_it():
     assert book.summary()["deferred"] == [[0, 0]]
 
 
+def test_a_seen_border_becomes_a_provisional_bound_only_where_the_ledger_has_none():
+    veil = sweep.provisional_bounds(
+        GRID, (0.0, 100.0), {"south": 150.0, "east": 320.0}, {"east"}
+    )
+
+    # 終止邊往界內半格：南緣世界 250 的最外一格是第 2 列
+    assert veil == {"south": 2}
+
+
+def test_a_provisional_border_keeps_the_window_plan_off_everything_beyond_it():
+    book = ledger()
+
+    plan = sweep.plan_window(
+        book,
+        (0.0, 0.0),
+        region=REGION,
+        holes=((0, 100, 100, 100),),
+        bands=(),
+        candidates={(0, 0)},
+        veil={"south": 1},
+    )
+
+    assert plan.blocked == ((0, 1),)
+    assert {target.cell[1] for target in plan.taps} <= {0, 1}
+    assert all(cell[1] <= 1 for cell in plan.inferred)
+    # 越界的格連 chart 都不記：四界未定時 pending() 收的就是 charted
+    assert all(cell[1] <= 1 for cell in book.charted)
+    assert all(cell[1] <= 1 for cell in book.pending())
+
+
+def test_a_window_plan_without_a_veil_charts_and_taps_exactly_as_before():
+    plain_book = ledger()
+    plain = sweep.plan_window(plain_book, (0.0, 0.0), region=REGION, holes=(), bands=())
+
+    veiled_book = ledger()
+    veiled = sweep.plan_window(
+        veiled_book, (0.0, 0.0), region=REGION, holes=(), bands=(), veil=None
+    )
+
+    assert veiled == plain
+    assert veiled_book.charted == plain_book.charted
+
+
 def test_an_unseen_border_is_explored_before_any_cell_bookkeeping():
     book = ledger(west=0, north=0, south=2)
 
@@ -116,6 +161,30 @@ def test_the_pan_planner_stops_when_nothing_is_left_beyond_the_window():
             book.record((col, row), sweep.EMPTY)
 
     assert sweep.plan_pan(book, (0.0, 0.0), "east", region=REGION) == (None, "east")
+
+
+def _three_sided_board() -> sweep.SweepLedger:
+    book = ledger(west=0, east=8, north=0)
+    for row in range(3):
+        for col in range(9):
+            book.chart((col, row))
+    return book
+
+
+def test_the_last_missing_border_outranks_a_backlog_of_pending_cells():
+    book = _three_sided_board()
+
+    # 鏡位 (400,0) 的窗是 4..8 欄，西邊整片還沒裁決——照舊邏輯會先回頭往西清算
+    assert sweep.plan_pan(book, (400.0, 0.0), "west", region=REGION) == ("south", "east")
+
+
+def test_a_pinned_missing_border_hands_the_pan_plan_back_to_the_pending_cells():
+    book = _three_sided_board()
+
+    assert sweep.plan_pan(
+        book, (400.0, 0.0), "west", region=REGION, pinned={"south"}
+    ) == ("west", "west")
+    assert "south" not in book.boundary
 
 
 def _blank() -> np.ndarray:
@@ -247,6 +316,30 @@ def test_a_phase_that_matches_the_camera_leaves_the_aim_untouched():
     assert sweep.aimed(drift, GRID)
 
 
+def test_the_measured_pitch_is_the_period_both_sides_of_the_aim_gate_use():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=87.0, row_pitch=87.0)
+    measured = (84.0, 84.0)
+    offset = (-2000.0, -1200.0)
+    phase = (2000.0 % measured[0], 1200.0 % measured[1])
+
+    drift = sweep.aim_drift(phase, grid, offset, measured)
+
+    assert drift == (0.0, 0.0)
+    assert sweep.aimed(drift, grid, pitch=measured)
+
+    modelled = sweep.aim_drift(phase, grid, offset)
+
+    assert modelled == (-18.0, 42.0)
+    assert not sweep.aimed(modelled, grid)
+
+
+def test_the_aim_slack_scales_with_the_pitch_it_was_given():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=87.0, row_pitch=87.0)
+
+    assert sweep.aimed((20.0, 0.0), grid)
+    assert not sweep.aimed((20.0, 0.0), grid, pitch=(60.0, 60.0))
+
+
 def test_the_recentred_camera_is_reconstructed_from_the_cell_that_was_tapped():
     offset = sweep.recentre_offset(GRID, (7, 4), centre=(1000.0, 500.0))
 
@@ -293,12 +386,12 @@ def test_with_no_evidence_at_all_the_camera_is_lost_and_says_so():
 def test_the_northwest_corner_defines_the_world_origin():
     lattice = board.Lattice(tuple(range(100, 601, 100)), tuple(range(50, 551, 100)))
 
-    anchored = sweep.anchor_northwest(lattice, {"west": 100.0, "north": 50.0})
+    anchored = sweep.anchor_northwest(lattice, board.GRID_REGION, {"west": 100.0, "north": 50.0})
 
     assert anchored is not None
     grid, offset = anchored
     assert offset == (-100.0, -50.0)
-    assert grid.phase == (0.0, 0.0)
+    assert grid.phase == pytest.approx((0.0, 0.0), abs=1e-9)
     assert sweep.border_cell(grid, "west", 0.0) == 0
     assert sweep.border_cell(grid, "east", 1000.0) == 9
 
@@ -306,7 +399,7 @@ def test_the_northwest_corner_defines_the_world_origin():
 def test_the_corner_needs_both_sides_in_the_same_frame():
     lattice = board.Lattice(tuple(range(100, 601, 100)), tuple(range(50, 551, 100)))
 
-    assert sweep.anchor_northwest(lattice, {"west": 100.0}) is None
+    assert sweep.anchor_northwest(lattice, board.GRID_REGION, {"west": 100.0}) is None
 
 
 def test_the_summary_lists_every_sentenced_cell_by_kind():
@@ -515,6 +608,24 @@ def test_a_frontier_already_in_the_window_needs_no_homing():
     grid = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 
     assert sweep.homing_route(grid, (0.0, 0.0), (1, 1), region=REGION, stride=200.0) == ()
+
+
+def test_the_tap_window_reaches_east_of_the_map_region():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
+
+    targets = sweep.window_targets(grid, (0.0, 0.0))
+
+    assert sweep.TAP_REGION != board.MAP_REGION
+    assert targets[(17, 4)] == (1750.0, 450.0)  # 格框 1700-1800 跨舊窗右緣 1750
+    assert targets[(19, 4)] == (1950.0, 450.0)
+
+
+def test_a_cell_hanging_past_the_new_tap_window_is_still_left_out():
+    grid = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
+
+    targets = sweep.window_targets(grid, (0.0, 0.0))
+
+    assert (20, 4) not in targets  # 格框 2000-2100 跨窗右緣 2050
 
 
 def test_the_frontier_is_the_first_undecided_cell_in_serpentine_order():
@@ -834,3 +945,252 @@ def test_two_booked_units_may_not_share_one_peak():
     missing = sweep.roster_missing(book, ((250.0, 200.0),), (-150.0, -150.0))
 
     assert len(missing) == 1
+
+
+def _blank_frame() -> np.ndarray:
+    return np.zeros((1080, 2340, 3), np.uint8)
+
+
+def _stirred(pixels: int) -> np.ndarray:
+    """在全黑幀上點亮一片：與全黑幀相比就有 `pixels` 個「明顯變了」的像素。"""
+    frame = _blank_frame()
+    frame.reshape(-1, 3)[:pixels] = 255
+    return frame
+
+
+def waiting(frames: list[np.ndarray]):
+    """假時鐘＋假幀序列：幀序列排好，最後一張耗盡就一直回它。"""
+    served = iter(frames)
+    naps: list[float] = []
+    now = [0.0]
+
+    def sleep(seconds: float) -> None:
+        naps.append(seconds)
+        now[0] += seconds
+
+    return (lambda: next(served, frames[-1]), sleep, (lambda: now[0]), naps, now)
+
+
+def test_the_wait_holds_until_the_glide_stops_before_it_hands_back_a_frame():
+    landed = _stirred(200_003)  # 與前一幀只差 3 px：待機動畫等級的殘動
+    grab, sleep, clock, naps, now = waiting(
+        [_blank_frame(), _stirred(100_000), _stirred(200_000), landed]
+    )
+
+    frame = settle.await_still(
+        grab, clock=clock, sleep=sleep, deadline=settle.SETTLE_WAIT_S, poll=settle.SETTLE_POLL_S
+    )
+
+    assert frame is landed
+    assert naps == [settle.SETTLE_POLL_S] * 3
+    assert now[0] < settle.SETTLE_WAIT_S
+
+
+def test_a_frame_that_never_goes_quiet_is_handed_back_at_the_deadline():
+    grab, sleep, clock, naps, now = waiting([_blank_frame(), _stirred(100_000)] * 20)
+
+    frame = settle.await_still(
+        grab, clock=clock, sleep=sleep, deadline=settle.SETTLE_WAIT_S, poll=settle.SETTLE_POLL_S
+    )
+
+    assert frame.shape == _blank_frame().shape
+    assert now[0] >= settle.SETTLE_WAIT_S
+    assert naps == [settle.SETTLE_POLL_S] * math.ceil(settle.SETTLE_WAIT_S / settle.SETTLE_POLL_S)
+
+
+def test_a_screen_that_is_already_still_costs_one_poll():
+    grab, sleep, clock, naps, now = waiting([_blank_frame(), _blank_frame()])
+
+    settle.await_still(
+        grab, clock=clock, sleep=sleep, deadline=settle.SETTLE_WAIT_S, poll=settle.SETTLE_POLL_S
+    )
+
+    assert naps == [settle.SETTLE_POLL_S]
+    assert now[0] == settle.SETTLE_POLL_S
+
+
+def test_a_second_confirmation_pair_is_demanded_before_the_wait_lets_go():
+    landed = _blank_frame()
+    grab, sleep, clock, naps, _ = waiting([_blank_frame(), _blank_frame(), landed])
+
+    frame = settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        confirm=2,
+    )
+
+    assert frame is landed
+    assert naps == [settle.SETTLE_POLL_S] * 2
+
+
+def test_motion_between_the_pairs_restarts_the_confirmation_count():
+    landed = _blank_frame()
+    grab, sleep, clock, naps, _ = waiting(
+        [
+            _blank_frame(),
+            _stirred(200_000),
+            _stirred(200_003),  # 第一對靜止：緩動尾巴的瞬間低谷
+            _stirred(100_000),  # 鏡頭其實還在滑
+            _blank_frame(),
+            _blank_frame(),
+            landed,
+        ]
+    )
+
+    frame = settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        confirm=2,
+    )
+
+    assert frame is landed
+    assert naps == [settle.SETTLE_POLL_S] * 6
+
+
+def test_the_deadline_release_is_booked_as_unconverged():
+    grab, sleep, clock, _, now = waiting([_blank_frame(), _stirred(100_000)] * 20)
+    seen: list[settle.SettleReport] = []
+
+    settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        confirm=2,
+        observe=seen.append,
+    )
+
+    assert now[0] >= settle.SETTLE_WAIT_S
+    assert [report.converged for report in seen] == [False]
+
+
+def test_a_camera_sliding_moves_far_more_pixels_than_the_stable_threshold():
+    rng = np.random.default_rng(0)
+    still = _blank_frame()
+    still[300:800, 400:1400] = rng.integers(0, 256, (500, 1000, 3), dtype=np.uint8)
+    idle = still.copy()
+    idle[500:520, 600:620] = 255  # 一隻精靈的待機動畫
+    slid = np.roll(still, 60, axis=1)  # 鏡頭滑一段
+
+    assert settle.frame_motion(still, idle) < settle.SETTLE_STABLE_DIFF
+    assert settle.frame_motion(still, slid) > settle.SETTLE_STABLE_DIFF * 10
+
+
+def test_a_frame_of_another_shape_counts_as_all_motion():
+    assert settle.frame_motion(_blank_frame(), np.zeros((540, 1170, 3), np.uint8)) == 1.0
+
+
+def test_the_judgement_only_ever_sees_frames_that_have_settled():
+    grab, sleep, clock, _, _ = waiting(
+        [_blank_frame(), _stirred(100_000), _stirred(200_000), _stirred(200_003)]
+    )
+    seen: list[np.ndarray] = []
+
+    def judge(after: np.ndarray) -> sweep.TapOutcome:
+        seen.append(after)
+        return sweep.TapOutcome(sweep.TAP_EMPTY)
+
+    outcome = sweep.judge_tap(
+        grab,
+        judge,
+        clock=clock,
+        sleep=sleep,
+        deadline=sweep.FEEDBACK_WAIT_S,
+        poll=sweep.FEEDBACK_POLL_S,
+    )
+
+    assert outcome.verdict == sweep.TAP_EMPTY
+    assert len(seen) == 1  # 中間三張動畫幀一次都沒問
+
+
+def test_a_silent_tap_is_polled_again_until_the_budget_runs_out():
+    grab, sleep, clock, _, now = waiting([_blank_frame()])
+    asked: list[float] = []
+
+    def judge(after: np.ndarray) -> sweep.TapOutcome:
+        asked.append(now[0])
+        return sweep.TapOutcome(sweep.TAP_NONE)
+
+    outcome = sweep.judge_tap(
+        grab,
+        judge,
+        clock=clock,
+        sleep=sleep,
+        deadline=sweep.FEEDBACK_WAIT_S,
+        poll=sweep.FEEDBACK_POLL_S,
+    )
+
+    assert outcome.verdict == sweep.TAP_NONE
+    assert len(asked) > 1
+    assert now[0] >= sweep.FEEDBACK_WAIT_S
+
+
+def test_a_settled_wait_reports_what_it_cost():
+    grab, sleep, clock, _, _ = waiting(
+        [_blank_frame(), _stirred(100_000), _stirred(200_000), _stirred(200_003)]
+    )
+    seen: list[settle.SettleReport] = []
+
+    settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        observe=seen.append,
+    )
+
+    assert len(seen) == 1
+    assert seen[0].converged
+    assert seen[0].polls == 3
+    assert seen[0].waited_s == pytest.approx(settle.SETTLE_POLL_S * 3)
+    assert seen[0].motion < settle.SETTLE_STABLE_DIFF
+
+
+def test_a_wait_that_ran_out_of_budget_reports_that_it_never_converged():
+    grab, sleep, clock, _, _ = waiting([_blank_frame(), _stirred(100_000)] * 20)
+    seen: list[settle.SettleReport] = []
+
+    settle.await_still(
+        grab,
+        clock=clock,
+        sleep=sleep,
+        deadline=settle.SETTLE_WAIT_S,
+        poll=settle.SETTLE_POLL_S,
+        observe=seen.append,
+    )
+
+    assert len(seen) == 1
+    assert not seen[0].converged
+    assert seen[0].waited_s >= settle.SETTLE_WAIT_S
+    assert seen[0].motion > settle.SETTLE_STABLE_DIFF
+
+
+def test_the_tap_judgement_hands_every_wait_it_made_to_the_observer():
+    grab, sleep, clock, _, _ = waiting([_blank_frame()])
+    seen: list[settle.SettleReport] = []
+    answers = iter([sweep.TAP_NONE, sweep.TAP_NONE, sweep.TAP_EMPTY])
+
+    def judge(after: np.ndarray) -> sweep.TapOutcome:
+        return sweep.TapOutcome(next(answers))
+
+    outcome = sweep.judge_tap(
+        grab,
+        judge,
+        clock=clock,
+        sleep=sleep,
+        deadline=sweep.FEEDBACK_WAIT_S,
+        poll=sweep.FEEDBACK_POLL_S,
+        observe=seen.append,
+    )
+
+    assert outcome.verdict == sweep.TAP_EMPTY
+    assert len(seen) == 3
+    assert all(report.converged for report in seen)

@@ -235,6 +235,72 @@ def test_expect_screen_gives_up_honestly():
     assert name == screens.UNKNOWN
 
 
+@dataclass
+class FakeClock:
+    """假時鐘：sleep 只推進時間，不真的睡。"""
+
+    t: float = 0.0
+
+    def now(self) -> float:
+        return self.t
+
+    def sleep(self, seconds: float) -> None:
+        self.t += seconds
+
+
+def test_expect_screen_keeps_polling_until_the_wall_clock_floor():
+    """attempts 的時間窗靠 adb 每張 ~2.4s 撐著；串流幀源 11ms 會塌縮，所以等轉場
+    要看壁鐘（0808 實機：出擊→關卡資訊頁 ~15s 運鏡）。"""
+    clock = FakeClock()
+    frames = [blank()] * 12 + [load(STAGE_INFO_AUTO_ON)]
+    screen = Screen(frames)
+
+    name, _ = entry.expect_screen(
+        screen.capture,
+        (screens.STAGE_INFO,),
+        attempts=3,
+        sleep=clock.sleep,
+        settle_s=1.0,
+        min_wait_s=30.0,
+        now=clock.now,
+    )
+
+    assert name == screens.STAGE_INFO
+    assert screen.looks == 13
+
+
+def test_expect_screen_gives_up_when_the_wall_clock_floor_is_reached():
+    clock = FakeClock()
+    screen = Screen([blank()])
+
+    name, _ = entry.expect_screen(
+        screen.capture,
+        (screens.STAGE_INFO,),
+        attempts=3,
+        sleep=clock.sleep,
+        settle_s=1.0,
+        min_wait_s=10.0,
+        now=clock.now,
+    )
+
+    assert name == screens.UNKNOWN
+    assert clock.t >= 10.0
+    assert screen.looks == 11
+
+
+def test_expect_screen_without_a_floor_stops_at_the_attempt_count():
+    clock = FakeClock()
+    screen = Screen([blank()])
+
+    name, _ = entry.expect_screen(
+        screen.capture, (screens.STAGE_INFO,), attempts=3, sleep=clock.sleep, now=clock.now
+    )
+
+    assert name == screens.UNKNOWN
+    assert screen.looks == 3
+    assert clock.t == 2.0
+
+
 def test_selecting_a_stage_taps_nothing_when_no_node_is_supplied():
     """哪一關的節點落在哪個像素是關卡內容（還隨節點軸捲動位置變），runtime 不猜。"""
     screen = Screen([load(STAGE_LIST)])
@@ -561,6 +627,49 @@ def test_a_drifted_cursor_gets_one_retry_then_halts_instead_of_fighting_hard_2()
     assert "stage_title:wrong_stage" in report.trail
     assert "stage_node:ok" not in report.trail
     assert screen.points() == [(544, 667), (544, 667)]
+
+
+def stage_list_sliding_in(case: str, offset: int) -> np.ndarray:
+    """滑入動畫中的右欄：標題整條往右偏 offset，尾碼還沒到位。"""
+    frame = stage_list_showing(case)
+    x, y, w, h = TITLE_BOX
+    band = frame[y : y + h, x : x + w].copy()
+    frame[y : y + h, x : x + w] = np.roll(band, offset, axis=1)
+    return frame
+
+
+def test_a_title_still_sliding_in_is_never_the_frame_the_gate_judges():
+    """0808 串流：取幀 11ms 全落在滑入動畫窗，位移中的標題模板 0.244 讀成 None，
+    連兩輪 stage_title:wrong_stage Halt。判定幀只准取動畫收斂之後的那一張。"""
+    clock = FakeClock()
+    sliding = stage_list_sliding_in(STAGE_LIST_HARD_1, 55)
+    titled = stage_list_showing(STAGE_LIST_HARD_1)
+    screen = Screen([load(STAGE_LIST), sliding, sliding, titled, titled])
+
+    assert screens.read_stage_title(sliding) is None
+
+    report = entry.select_stage(
+        screen.capture, screen.tap, node=(544, 667), sleep=clock.sleep, now=clock.now
+    )
+
+    assert report.ok, report.trail
+    assert report.trail == ("stage_list:ok", "stage_title:ok", "stage_node:ok")
+    assert screen.points() == [(544, 667)]
+
+
+def test_a_title_that_never_settles_still_gives_the_budget_back_instead_of_spinning():
+    clock = FakeClock()
+    screen = Screen(
+        [load(STAGE_LIST)]
+        + [stage_list_sliding_in(STAGE_LIST_HARD_1, 55 + 55 * (step % 2)) for step in range(60)]
+    )
+
+    report = entry.select_stage(
+        screen.capture, screen.tap, node=(544, 667), sleep=clock.sleep, now=clock.now
+    )
+
+    assert "stage_title:wrong_stage" in report.trail
+    assert clock.t >= entry.STAGE_TITLE_SETTLE_S
 
 
 def test_a_title_that_comes_right_on_the_second_tap_is_accepted():

@@ -94,12 +94,22 @@ class DangerBand:
         return self.x[0] <= x <= self.x[1] and self.y[0] <= y <= self.y[1]
 
 
+# 名冊（部隊資訊）是全螢幕面板，蓋在地圖與設定列上：面板開著的時候帶內那些鈕
+# 實際點不到，點下去命中的是名冊格。這個 intent 只由「面板已開」的流程發出
+# （roster_capture 逐格點開詳情前自己驗過畫面是 TROOP_INFO），地圖裸露時發的
+# tap 一律不帶。
+ROSTER_CELL_INTENT = "roster_cell"
+
 DANGER_BANDS: tuple[DangerBand, ...] = (
     # 設定頁 AUTO戰鬥 三選一的「全軍自動／他軍自動」半邊：踩到就把單位交給
-    # 內建 AI（紅線）。
-    DangerBand("auto_battle_tristate", (1400, SCREEN[0]), (245, 345)),
-    # 戰鬥選單下排左半：放棄 (410,860) 與重試 (752,865)。只有棄戰流程進得去。
-    DangerBand("battle_menu_abandon", (0, 900), (825, 905), intents=("abandon",)),
+    # 內建 AI（紅線）。只放行名冊格——首列第 4、5 格 (1564,267)/(1843,267) 落在
+    # 帶內，但名冊面板蓋著設定列，那兩點打得到的只有名冊格。
+    DangerBand("auto_battle_tristate", (1400, SCREEN[0]), (245, 345),
+               intents=(ROSTER_CELL_INTENT,)),
+    # 戰鬥選單下排左半：放棄 (410,860) 與重試 (752,865)。只有棄戰流程進得去；
+    # 敵軍名冊第 4 列第 1 格 (729,847) 也落在帶內，同樣是面板蓋住的假重疊。
+    DangerBand("battle_menu_abandon", (0, 900), (825, 905),
+               intents=("abandon", ROSTER_CELL_INTENT)),
     # 出擊準備下緣按鈕列最右的「自動編制」——一鍵改隊伍編成（bbox 1369-1624
     # x 973-1047，0731 兩幀像素量測一致）。排好的編成不容許被覆蓋。
     # 左鄰「全部編制」(~1208,1010) 與各對話框通用關閉鈕位

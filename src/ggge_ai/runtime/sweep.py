@@ -27,6 +27,7 @@ from . import board
 from .board import Cell, MarkerSignature, Point, Region
 from .coverage import WorldGrid
 from .device import DANGER_BANDS, DangerBand, blocked_for_map_tap
+from .settle import SettleReport, await_still
 
 log = logging.getLogger(__name__)
 
@@ -67,10 +68,21 @@ CANDIDATE_HALO_PITCH = 0.75
 COMPASS: tuple[str, ...] = ("west", "east", "north", "south")
 _SIDES: dict[str, tuple[str, str]] = {"x": ("west", "east"), "y": ("north", "south")}
 
-# 安全點擊窗＝地圖區：上緣避開回合橫幅帶、下緣停在鈕列之上。窗外的格不點，
-# 等推鏡把它輪進來。
-TAP_REGION: Region = board.MAP_REGION
-SCREEN_CENTRE: Point = (board.MAP_REGION[0] + board.MAP_REGION[2] / 2.0, 540.0)
+# 安全點擊窗：上緣避開回合橫幅帶、下緣停在鈕列之上。窗外的格不點，等推鏡把它輪進來。
+#
+# 右緣 1750 是批 2d（6c8124d）沿用 board.MAP_REGION 的初猜，沒有文件背書。0809 拿
+# run 20260809-011740 的 321 張 hub 態窗幀做逐像素變異數審計：x1750–2100（y250–870）
+# 全區沒有任何凍結像素，也就是那一帶沒有螢幕固定 HUD，於是東擴到 2050 留 50px 餘裕。
+# col-24 九格在東界鏡位只超出舊窗緣 14.6px，被這個初猜擋成結構洞。
+#
+# 刻意不動 board.MAP_REGION：格線／相位量測掛在它身上。
+TAP_REGION: Region = (150, 250, 1900, 620)
+# 置中點是遊戲把選中單位擺到的螢幕位置，跟我們的量測窗無關。舊值拿 MAP_REGION 中點
+# (950,540) 冒充螢幕中點，x 偏 220px＝2.4 格，幾何置中判定（容差半格）因此從未生效
+# 過、置中反推的鏡位假說也帶著同樣的毒。實測 21 筆置中事件（兩 run 一致、±3px）：
+# 環心 (1170,546)、環所在格的格心 (1170,553)——置中對齊的是格，取格心那組
+# （docs/reviews/perspective-measurement.md §SCREEN_CENTRE）。
+SCREEN_CENTRE: Point = (1170.0, 553.0)
 
 TAP_EMPTY = "empty"
 TAP_CARD = "card"
@@ -342,6 +354,43 @@ def border_cell(grid: WorldGrid, direction: str, border: float) -> int:
     return grid.cell_of((grid.phase[0], border + inward))[1]
 
 
+def _within(cell: Cell, bounds: Mapping[str, int]) -> bool:
+    """一格在不在這組界格索引之內。缺的側不設限。"""
+    col, row = cell
+    limits = (
+        ("west", col, 1),
+        ("east", col, -1),
+        ("north", row, 1),
+        ("south", row, -1),
+    )
+    for direction, value, sign in limits:
+        edge = bounds.get(direction)
+        if edge is not None and sign * (value - edge) < 0:
+            return False
+    return True
+
+
+def provisional_bounds(
+    grid: WorldGrid,
+    offset: Point,
+    borders: Mapping[str, float],
+    known: Collection[str],
+) -> dict[str, int]:
+    """這一幀目視到、帳本卻還沒定案的那幾側 → 暫定界格索引。
+
+    界線入帳要 `LANDMARK_VOTES` 票，票滿之前那幾側在帳本裡等於不存在，圖外的格照樣
+    被枚舉、照樣挨一輪逾時（run 20260811-092754 的 row-20 十二格 ~72s）。這裡算的是
+    單幀讀數，只夠當「這一窗別點過去」的遮罩，不進帳本、不寫地標。
+    """
+    out: dict[str, int] = {}
+    for side, screen in borders.items():
+        if side in known:
+            continue
+        axis = 0 if side in ("west", "east") else 1
+        out[side] = border_cell(grid, side, screen + offset[axis])
+    return out
+
+
 @dataclass
 class SweepLedger:
     """世界格帳本。每一筆都由一次點擊裁決背書，永遠不記螢幕座標。"""
@@ -421,18 +470,7 @@ class SweepLedger:
         return all(direction in self.boundary for direction in COMPASS)
 
     def in_bounds(self, cell: Cell) -> bool:
-        col, row = cell
-        limits = (
-            ("west", col, 1),
-            ("east", col, -1),
-            ("north", row, 1),
-            ("south", row, -1),
-        )
-        for direction, value, sign in limits:
-            edge = self.boundary.get(direction)
-            if edge is not None and sign * (value - edge) < 0:
-                return False
-        return True
+        return _within(cell, self.boundary)
 
     def rectangle(self) -> tuple[Cell, ...]:
         if not self.bounded:
@@ -618,6 +656,7 @@ def plan_window(
     bands: Sequence[DangerBand] = DANGER_BANDS,
     candidates: Collection[Cell] | None = None,
     order: Mapping[Cell, int] | None = None,
+    veil: Mapping[str, int] | None = None,
 ) -> WindowPlan:
     """本鏡位裡還沒裁決、點得下去的格，蛇形排序。
 
@@ -626,6 +665,10 @@ def plan_window(
     推斷——那些格連「視覺看得清楚」都不成立。
 
     `order` 給了就改成峰強度優先（同名次仍照蛇形，排序是穩定的）。
+
+    `veil` 是這一幀目視界線的暫定界格（`provisional_bounds`）：越界的格連 chart 都
+    不記——記了會在四界未定時進 `pending()`，把圖外格灌回點擊佇列。跳過即自癒，同
+    一格下一窗會重新枚舉。
     """
     grid = ledger.grid
     first, last = window_bounds(grid, offset, region)
@@ -641,6 +684,8 @@ def plan_window(
         for col in cols:
             cell = (col, row)
             if cell not in targets or not ledger.in_bounds(cell):
+                continue
+            if veil is not None and not _within(cell, veil):
                 continue
             ledger.chart(cell)
             if ledger.decided(cell):
@@ -839,8 +884,12 @@ def plan_pan(
 ) -> tuple[str | None, str]:
     """下一段推鏡方向與更新後的橫向朝向。沒得推就 (None, heading)。
 
-    沿列帶蛇形推進；**界線未見的方向優先探**——那個方向的格還沒被枚舉過，
-    「界內沒有待裁決的格」在那裡不成立。
+    四界都定了才沿列帶蛇形推進：界內還有待裁決的格就往那個方向推。
+
+    四界未定之前先界定、不清算：缺界的側依 heading／另一橫向／south／north 的順序
+    直接推過去（途中經過的窗照常清算，搬標記本來就要點格）。界定完才回頭蛇形收界內
+    剩下的 pending——否則會像 run 20260811-092754 那樣，在南界定案之前一路把圖外的格
+    當待裁決在點。
 
     `pinned` 是這個鏡位上已經證實推不動的方向：不寫界線（界線只由目視寫入），
     只是這一站不再往那邊推。鏡頭一動就作廢——透視斜邊讓同一側在別的鏡位可能
@@ -848,9 +897,14 @@ def plan_pan(
     """
     if heading not in HEADINGS:
         heading = "east"
+    flipped = "west" if heading == "east" else "east"
+    if not ledger.bounded:
+        for side in (heading, flipped, "south", "north"):
+            if side in pinned or side in ledger.boundary:
+                continue
+            return (side, side if side in HEADINGS else flipped)
     if heading not in pinned and _more_that_way(ledger, offset, heading, region):
         return (heading, heading)
-    flipped = "west" if heading == "east" else "east"
     for side in ("south", "north"):
         if side not in pinned and _more_that_way(ledger, offset, side, region):
             return (side, flipped)
@@ -886,6 +940,42 @@ class TapOutcome:
 def _displacement(before: np.ndarray, after: np.ndarray) -> Point | None:
     delta = board.relocalise(board.find_unit_screen_hints(before), board.find_unit_screen_hints(after))
     return None if delta is None else (float(delta[0]), float(delta[1]))
+
+
+# 點擊回饋的等待上限與收斂輪詢間隔。上限的餘裕來自舊 screencap 路徑：那條路上有效
+# 取樣點落在點擊後 ~2.8s（tap_interval＋一張截圖 ~2.4s），回饋早就渲染完了；串流取幀
+# 只要 ~11ms，沒有等待就會在回饋出現前定案。「等滿上限仍無回饋」本身是 UNSURE 的
+# 正當證據，上限不可拿掉。
+#
+# 但「有訊號就定案」也不夠：選中我方單位的過渡期，移動範圍填色先亮、選擇態 UI 後到，
+# 動畫中間幀會讓 classify_tap 的填色分支假陽性回 TAP_EMPTY（run 20260808-184706 把
+# (1,5) 我方格記成 empty）。所以取樣點只准落在動畫收斂之後：FEEDBACK_POLL_S 是幀差
+# 收斂的輪詢間隔，收斂後的那一張才准送進 classify。
+FEEDBACK_WAIT_S = 3.0
+FEEDBACK_POLL_S = 0.15
+
+
+def judge_tap(
+    grab: Callable[[], np.ndarray],
+    judge: Callable[[np.ndarray], TapOutcome],
+    *,
+    clock: Callable[[], float],
+    sleep: Callable[[float], None],
+    deadline: float,
+    poll: float = FEEDBACK_POLL_S,
+    observe: Callable[[SettleReport], None] | None = None,
+) -> TapOutcome:
+    """點擊後的判定取樣：等收斂 → 問 `judge`，說不出結果就續輪到預算盡。
+
+    `judge` 拿到的一律是收斂後的那一張；動畫中間幀一次都不送進去。
+    """
+    while True:
+        after = await_still(
+            grab, clock=clock, sleep=sleep, deadline=deadline, poll=poll, observe=observe
+        )
+        outcome = judge(after)
+        if outcome.verdict != TAP_NONE or clock() >= deadline:
+            return outcome
 
 
 def classify_tap(
@@ -984,23 +1074,40 @@ def window_steady(
     )
 
 
-def aim_drift(phase: Point, grid: WorldGrid, offset: Point) -> Point:
+def aim_drift(
+    phase: Point,
+    grid: WorldGrid,
+    offset: Point,
+    pitch: tuple[float, float] | None = None,
+) -> Point:
     """這一幀的格線相位與當前鏡位推出來的相位差，逐軸收進 ±半格。
 
     鏡位在一個窗裡是**假設**：選擇態會無聲把鏡頭拉走，而點擊回饋（填色）永遠出現
     在手指按下去的地方，一格都測不出偏移。格線是遊戲自己渲染的，相位就是畫面直接
     給的證人——半格以內的偏它量得到，整數格距的偏它看不見（那一段靠標記與界線）。
+
+    坑：期望側與量測側必須同週期。`phase` 是當幀量出的格距取的模，拿模型格距去 mod
+    期望值，同一條格線會算出兩個相位（差 p95 0.156 格，見
+    `docs/reviews/perspective-measurement.md`），0.25 格容差有一半以上被假訊號吃掉。
+    量得出當幀格距就把它從 `board.lattice_phase` 一起傳進 `pitch`。
     """
-    pitch = (grid.col_pitch, grid.row_pitch)
+    period = pitch or (grid.col_pitch, grid.row_pitch)
     expected = (
-        (grid.phase[0] - offset[0]) % pitch[0],
-        (grid.phase[1] - offset[1]) % pitch[1],
+        (grid.phase[0] - offset[0]) % period[0],
+        (grid.phase[1] - offset[1]) % period[1],
     )
-    return board.phase_shift(expected, phase, pitch)
+    return board.phase_shift(expected, phase, period)
 
 
-def aimed(drift: Point, grid: WorldGrid, slack: float = AIM_SLACK_PITCH) -> bool:
-    return abs(drift[0]) <= slack * grid.col_pitch and abs(drift[1]) <= slack * grid.row_pitch
+def aimed(
+    drift: Point,
+    grid: WorldGrid,
+    slack: float = AIM_SLACK_PITCH,
+    pitch: tuple[float, float] | None = None,
+) -> bool:
+    """門檻要跟 `aim_drift` 用同一個週期，整條判斷才是同一把尺。"""
+    period = pitch or (grid.col_pitch, grid.row_pitch)
+    return abs(drift[0]) <= slack * period[0] and abs(drift[1]) <= slack * period[1]
 
 
 def recentre_offset(grid: WorldGrid, cell: Cell, centre: Point = SCREEN_CENTRE) -> Point:
@@ -1258,16 +1365,19 @@ def constellation_offset(
 
 
 def anchor_northwest(
-    lattice: board.Lattice, borders: Mapping[str, float]
+    lattice: board.Lattice, band: Region, borders: Mapping[str, float]
 ) -> tuple[WorldGrid, Point] | None:
     """西北角幀 → 世界座標系：西界＝世界 x 0、北界＝世界 y 0。
 
     座標在這裡是被**定義**的，不是量出來的；角落可重現，所以跨輪重新歸零回到同一套。
+
+    `band` ＝格線是從哪個帶量出來的。縱線是斜的，線位隨量測高度變，錨定要先把它換算到
+    世界座標的參考高度（見 `runtime/projection` 模組說明）。
     """
     if "west" not in borders or "north" not in borders:
         return None
     offset = (-float(borders["west"]), -float(borders["north"]))
-    grid = WorldGrid.anchor(lattice, offset)
+    grid = WorldGrid.anchor(lattice, band, offset)
     if grid is None:
         return None
     return (grid, offset)

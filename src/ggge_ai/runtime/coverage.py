@@ -46,7 +46,7 @@ from enum import Enum
 
 import numpy as np
 
-from . import board
+from . import board, projection
 from .board import Cell, Lattice, MarkerSignature, Point, Region, Shift, Sighting
 from .device import TapRefused, check_tap
 
@@ -110,7 +110,7 @@ _SIDES: dict[str, tuple[str, str]] = {"x": ("west", "east"), "y": ("north", "sou
 
 @dataclass(frozen=True)
 class WorldGrid:
-    """世界格網：錨定幀的格線相位＋格距。世界像素 ÷ 格距 ＝ 格座標（可為負）。
+    """世界格網：錨定幀的格線相位＋格距，座標約定見 `runtime/projection` 的模組說明。
 
     row_pitch 是近似值——橫線間距隨 y 遞增（縱向透視），所以列座標與 2b-2 人工普查
     同級（±1 行），權威仍是世界像素。
@@ -121,14 +121,15 @@ class WorldGrid:
     row_pitch: float
 
     @classmethod
-    def anchor(cls, lattice: Lattice, offset: Point = (0.0, 0.0)) -> WorldGrid | None:
-        if lattice.col_pitch <= 0 or lattice.row_pitch <= 0:
+    def anchor(
+        cls, lattice: Lattice, band: Region, offset: Point = (0.0, 0.0)
+    ) -> WorldGrid | None:
+        """`band` ＝線位是從哪個帶量出來的：縱線位置隨螢幕高度變，沒有它就換算不了。"""
+        anchored = projection.anchor(lattice, band, offset)
+        if anchored is None:
             return None
-        return cls(
-            (lattice.cols[0] + offset[0], lattice.rows[0] + offset[1]),
-            lattice.col_pitch,
-            lattice.row_pitch,
-        )
+        phase, pitch = anchored
+        return cls(phase, pitch[0], pitch[1])
 
     def cell_of(self, point: Point) -> Cell:
         return (
@@ -819,8 +820,8 @@ class Survey:
             log.warning("the corner contradicts the landmarks we kept; starting the world over")
             self._forget()
         if self.chart is None:
-            lattice = board.find_lattice(frame)
-            grid = None if lattice is None else WorldGrid.anchor(lattice)
+            found = board.find_lattice_band(frame)
+            grid = None if found is None else WorldGrid.anchor(found[0], found[1])
             if grid is None:
                 return False
             self.chart = KnowledgeMap(grid=grid)

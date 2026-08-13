@@ -1201,6 +1201,69 @@
   預設手動。(4) 敵方回合：D1（手動操控敵方）與 D2（簡單敵方啟發式佔位）都要做，
   但先做 D1。(5) 要 undo。(6) 分期：第一階段先能呈現第一回合的盤面，其餘之後對話
   慢慢補；事件表第一回合不會用到。關卡注入資料格式由 Claude 決定（見下一條）。
+- **（0809）串流成效歸因三修（使用者核准動工）**｜背景：串流輪 20260808-184706
+  全程 83 分未勝過 full 基準 79 分（run 20260805-152346），歸帳定位＝掃描本體 40
+  分完成、後 43 分被「roster 總驗連兩敗殺早收 → 追 15 格結構性點不到的格 → 南北
+  乒乓 132 把、6 筆裁決、tap 預算耗盡」吃掉。(1) `--filter-mode` 預設 candidates
+  退回 full：candidates 轉預設（121d541）只憑離線召回評估，實跑 97 分 vs full 79
+  分從未兌現提速，降回 opt-in 實驗選項。(2) 無產出推鏡保險絲 PAN_BARREN_LIMIT=40：
+  連續 40 把推鏡帳本零新裁決即 Halt；門檻取成功輪最長連段（17／14 把）約兩倍餘裕，
+  水位用已裁決格數不用 taps（乒乓搬標記吃 taps 不長帳、又不 reroot，strandings 絲
+  抓不到）。(3) settle 耗時入帳：await_still 加 SettleReport observe，journal 落
+  settle 事件（ctx=nav/feedback），供後續校準 SETTLE_POLL_S=0.5 疑似收斂不了的
+  假設——先立事實再調參。對照輪＝串流＋full，直接對 79 分基準。
+- **（0809）nav settle 提速＋點擊窗東擴（使用者核准）**｜(1) SETTLE_POLL_S 0.5→0.15
+  ＋nav 路 confirm=2 連續兩對靜止才收（feedback 路維持 1，後有 classify 語意閘）；
+  依據＝0809 實測 nav 813 次 49% 收斂均 2.89s 全程燒 39.2 分 vs feedback 97% 均
+  0.57s。(2) sweep.TAP_REGION 與 board.MAP_REGION 脫鉤，右緣 1750→2050；1750 是
+  批 2d（6c8124d）無背書初猜，0809 拿 321 張 hub 態窗幀變異數審計 x1750–2100 零
+  凍結像素；col-24 九格洞只差 14.6px。刻意不動 MAP_REGION（SCREEN_CENTRE 置中期望
+  會平移 150px 超容差）；tap_cell 顯式傳 region 給 classify_tap 接標記搜尋。
+  待辦：classify_tap 簽名預設值下一批改 TAP_REGION 收陷阱；date_changed 併入
+  action 架構改版（使用者裁示）。
+- **（0809）aim 閘界線讓位規則（使用者核准，第二步止血）**｜北緣活鎖定讞
+  （20260809-031256 t=524-705：等距模型相位期望在透視壓縮帶系統性偏 >0.25 格，
+  aim 每窗否決、confirm 每次界線錨回同 offset，零推鏡零 reroot 兩絲皆盲）。規則：
+  錨定兩軸皆界線背書（SOURCE_EDGE）且當下幀界線複驗通過（border_offsets 兩軸
+  可解、與 offset 差 ≤EDGE_AGREEMENT_PITCH）→ aim 讓位、grounded 復位、記
+  aim_overruled 觀測事件；界線不在場或複驗不過照舊。anchor_on_marker 標記錨定
+  標 SOURCE_CENTRE 不得讓位（防過期 edge 標籤放寬豁免）。透視模型治本＝第三步
+  待量測報告與使用者裁量。
+- **（0810）sweep 尾端「對答案」階段——需求裁決（使用者裁定）**｜目標：掃完盤面後
+  進部隊資訊名冊逐台讀敵我全部詳情頁，把機體／駕駛／武裝數值讀進 UnitIntel，
+  最後在該次 `data/runs/<ts>/` 產出 sandbox-scenario/1 的 `scenario.json`＋
+  `intel_report.json`。(1) 位置：sweep_scan 尾端新 stage（納 --stop-after；
+  abandon 照常在其後）。(2) 自由文字（武裝名／效果句／abilities 詞條／勝敗條件）
+  一律純文字轉錄成字串保存，「不是用 llm 轉換字義，純文字保存就好」——不做字義
+  映射進 schema（效果句不解析 debuff 欄、詞條不映射 skills）；辨識不好記空字串
+  並標注待補。數字欄照走字模 CV。(3) 身分對位鍵＝(HP,EN)+faction 數值反查（名字
+  不進身分）；同 (HP,EN) 視為同一 intel 樣板、組內格位任意指派並標記
+  group_assigned。(4) victory/defeat 結構欄先填 annihilation/ally_annihilation
+  預設並註明 source=assumed_default；另把關卡資訊畫面勝敗條件文字轉錄成字串記錄
+  （note＋report）。(5) 我方對位：核准小改實戰過的 sweep 出卡路徑——sentence_shift
+  接既有 read_ally_summary 右塢讀值，我方出卡格也記 (HP,EN)，敵我都精確對位；
+  讀值失敗或撞名退任意指派＋標 arbitrary。
+- **（0811）掃描邊界界定順序——使用者裁示**｜原話：「以流程來說，邊緣界定應該
+  是要最先做完的，不能假定有真值檔可以參考。」背景：run 20260811-092754 全盤
+  硬磨輪實錘現行行為——西北角錨定起步只先定 west/north，east/south 靠掃描途中
+  目擊邊緣／推鏡到盡頭才定案；抵達南緣前的那一帶窗口把 row-20 圖外格 (0..11,20)
+  排進 plan_window，12 格 × ~6.5s no_feedback 逾時共浪費 ~72s，記成盤外 unsure
+  殘帳。裁示含義：掃描流程改為「先完成四界界定、再開始清算盤內」，且邊界界定
+  不得以真值檔尺寸為前提（首刷無檔必須能走；檔案尺寸依既有紀律只當先驗）。
+  執行：留待下個 session 動工（使用者指示重開 session 處理）；相關但獨立的
+  no_feedback 早收調參案照舊待裁。
+- **（0811）界定先行落地——實作自裁分支（依 autonomous-conservative 授權備案）**｜
+  落實上條裁示的兩處工程決定：①veil 硬閘單幀即生效——plan_window 收本幀
+  read_borders 讀數換算的暫定界格（provisional_bounds，只補 ledger.boundary
+  缺的側），越界格這一窗不 tap／不 blocked／不 inferred／不 chart；不寫地標、
+  不入帳，landmark 三票紅線不動。依據：run 20260811-092754 肇事幀 00081 的
+  read_borders 已讀到 south:785.0（換算世界 1738.6＝最終 landmark 值），問題是
+  「看得見但票數未滿」；跳過即自癒（下一窗重枚舉），假讀最壞是延遲不是錯帳。
+  ②plan_pan 在 not bounded 時界定壓過 pending：缺界側依 heading→另一橫向→
+  south→north 取向，pinned 跳過，全被 pinned 落回原 pending 邏輯。**詮釋標待核**：
+  裁示原話「先完成四界界定、再開始清算盤內」，實作讓界定途中經過的窗**照常清算**
+  （搬標記本來就要點格，繞過反而重走）——「清算盤內」解讀為「不為清算而偏離界定
+  路線」，非「界定期間一格不點」。導覽：docs/reviews/0811-border-first-review.md。
 - **(0811) New project text switches to English — user ruling**｜Ruling
   chain from the 2026-08-11 session: replies to the user are English by
   default (Traditional Chinese only on request; Simplified Chinese

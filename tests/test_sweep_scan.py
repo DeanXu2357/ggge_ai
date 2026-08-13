@@ -5,15 +5,24 @@
 
 from __future__ import annotations
 
+import math
+import sys
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-from ggge_ai.runtime import board, sweep
+from ggge_ai.runtime import board, projection, settle, sweep
 from ggge_ai.runtime.coverage import WorldGrid
 from ggge_ai.runtime.journal import Journal
-from scripts.sweep_scan import STRANDINGS_LIMIT, Halt, SweepRun, load_target
+from scripts.sweep_scan import (
+    PAN_BARREN_LIMIT,
+    STRANDINGS_LIMIT,
+    Halt,
+    SweepRun,
+    load_target,
+    parse_args,
+)
 
 GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=100.0, row_pitch=100.0)
 
@@ -39,7 +48,7 @@ def build_run(tmp_path, outcomes: dict) -> SweepRun:
     run.ledger = sweep.SweepLedger(grid=GRID)
     run.ledger.boundary.update(west=2, east=4, north=4, south=5)
     run.settled = _blank
-    run.witness = lambda frame: None
+    run.witness = lambda frame, borders=None: None
     run.pan = lambda direction, frame, reach=None: (reach or 0.0, _blank())
     run.relocate = lambda candidate=None: None
     run.escape = lambda: None
@@ -190,6 +199,133 @@ def test_the_loop_refuses_to_tap_a_cell_while_the_camera_is_lost(tmp_path):
         run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
 
 
+def _stirred(pixels: int) -> np.ndarray:
+    """在全黑幀上點亮一片：與 _blank() 相比就有 `pixels` 個「明顯變了」的像素。"""
+    frame = _blank()
+    frame.reshape(-1, 3)[:pixels] = 255
+    return frame
+
+
+def real_tap_run(tmp_path, verdicts: list[str], frames: list[np.ndarray]):
+    """真的 tap_cell＋假時鐘＋假幀序列：裁決寫成一串答案，幀序列決定何時收斂。
+
+    `judged` 收下每次 classify 當下的 camera.shots——動畫未收斂就不該有這一筆。
+    """
+    run = build_run(tmp_path, {})
+    run.tap_cell = SweepRun.tap_cell.__get__(run)
+    served = iter(frames)
+    camera = SimpleNamespace(shots=0, keep=lambda label: None)
+
+    def grab() -> np.ndarray:
+        frame = next(served, frames[-1])
+        camera.shots += 1
+        return frame
+
+    camera.grab = grab
+    run.camera = camera
+    naps: list[float] = []
+    now = [0.0]
+    judged: list[int] = []
+    run.sleep = lambda seconds: (naps.append(seconds), now.__setitem__(0, now[0] + seconds))[0]
+    run.clock = lambda: now[0]
+    answers = iter(verdicts)
+
+    def classify(*args, **kwargs) -> sweep.TapOutcome:
+        judged.append(camera.shots)
+        return sweep.TapOutcome(next(answers, verdicts[-1]))
+
+    run.classify = classify
+    return run, SimpleNamespace(naps=naps, now=now, judged=judged)
+
+
+GLIDE = [_blank(), _stirred(100_000), _stirred(200_000), _stirred(200_003)]
+
+
+def test_the_tap_keeps_the_animation_frames_away_from_the_verdict(tmp_path):
+    run, probe = real_tap_run(tmp_path, [sweep.TAP_EMPTY], GLIDE)
+
+    outcome = run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    assert outcome.verdict == sweep.TAP_EMPTY
+    assert probe.judged == [4]  # 收斂後的第四張才問，中間三張一次都沒問
+    assert run.tick == 4
+    assert probe.naps == [run.tap_interval] + [sweep.FEEDBACK_POLL_S] * 3
+    assert probe.now[0] < sweep.FEEDBACK_WAIT_S
+
+
+def test_the_tap_polls_again_when_the_settled_frame_says_nothing(tmp_path):
+    run, probe = real_tap_run(
+        tmp_path, [sweep.TAP_NONE, sweep.TAP_EMPTY], GLIDE + [_blank(), _blank()]
+    )
+
+    outcome = run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    assert outcome.verdict == sweep.TAP_EMPTY
+    assert probe.judged == [4, 6]
+    assert run.tick == 6
+    assert probe.now[0] < sweep.FEEDBACK_WAIT_S
+
+
+def test_the_tap_gives_up_on_feedback_at_the_deadline(tmp_path):
+    run, probe = real_tap_run(tmp_path, [sweep.TAP_NONE], [_blank()])
+
+    outcome = run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    assert outcome.verdict == sweep.TAP_NONE
+    assert len(probe.judged) > 1  # 靜止的畫面每一輪收斂一次，判到預算盡
+    assert probe.now[0] >= sweep.FEEDBACK_WAIT_S
+    assert sum(probe.naps) == pytest.approx(probe.now[0])
+
+
+def test_the_tap_hands_the_classifier_the_whole_tap_window_to_search(tmp_path):
+    run, _ = real_tap_run(tmp_path, [sweep.TAP_EMPTY], GLIDE)
+    seen: list[dict] = []
+
+    def classify(*args, **kwargs) -> sweep.TapOutcome:
+        seen.append(kwargs)
+        return sweep.TapOutcome(sweep.TAP_EMPTY)
+
+    run.classify = classify
+
+    run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    assert seen[0]["region"] == sweep.TAP_REGION
+
+
+def test_the_verdict_entry_names_the_frame_it_was_read_from(tmp_path):
+    run, _ = real_tap_run(tmp_path, [sweep.TAP_EMPTY], GLIDE)
+
+    run.decide(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    booked = [entry for entry in _entries(run) if entry["kind"] == "verdict"]
+    assert booked[-1]["verdict"] == sweep.EMPTY
+    assert booked[-1]["tick"] == 4
+
+
+def settle_run(tmp_path, frames: list[np.ndarray]) -> tuple[SweepRun, list[float], list[float]]:
+    """真的 settled()＋假時鐘：幀序列排好，最後一張耗盡就一直回它。"""
+    run = build_run(tmp_path, {})
+    del run.settled
+    served = iter(frames)
+    run.camera = SimpleNamespace(grab=lambda: next(served, frames[-1]), keep=lambda label: None)
+    naps: list[float] = []
+    now = [0.0]
+    run.sleep = lambda seconds: (naps.append(seconds), now.__setitem__(0, now[0] + seconds))[0]
+    run.clock = lambda: now[0]
+    return run, naps, now
+
+
+def test_the_settle_spends_the_sweep_budget_before_it_hands_back_a_frame(tmp_path):
+    stirring = [_blank(), _stirred(100_000)] * 20
+    run, naps, now = settle_run(tmp_path, stirring)
+
+    frame = run.settled()
+
+    assert frame.shape == _blank().shape
+    assert now[0] >= settle.SETTLE_WAIT_S
+    assert naps == [settle.SETTLE_POLL_S] * math.ceil(settle.SETTLE_WAIT_S / settle.SETTLE_POLL_S)
+
+
 def test_a_lost_camera_re_anchors_at_the_corner_before_any_clearing_resumes(tmp_path):
     run = build_run(tmp_path, {})
     run.fix.lose()
@@ -268,7 +404,7 @@ def test_a_border_already_in_the_ledger_ends_the_push_without_seeing_it(
     run.ledger = sweep.SweepLedger(grid=GRID)
     run.ledger.boundary["north"] = 2  # 鏡位 (0,0) 的窗最北就是第 2 列
     run.offset = (0.0, 0.0)
-    run.witness = lambda frame: None
+    run.witness = lambda frame, borders=None: None
     monkeypatch.setattr(board, "lattice_phase", lambda frame: ((0.0, 0.0), (90.0, 90.0)))
     monkeypatch.setattr(board, "find_sightings", lambda frame: ())
     monkeypatch.setattr(sweep, "read_borders", lambda frame: {})
@@ -328,8 +464,10 @@ def test_zeroing_reads_the_borders_off_the_pan_verdict_frame_instead_of_reshooti
         [{}, {"west": 1.0}, {"west": 1.0, "north": 2.0}, {"west": 1.0, "north": 2.0}]
     )
     monkeypatch.setattr(sweep, "read_borders", lambda frame: next(borders))
-    monkeypatch.setattr(board, "find_lattice", lambda frame: GRID)
-    monkeypatch.setattr(sweep, "anchor_northwest", lambda lattice, seen: (GRID, (0.0, 0.0)))
+    monkeypatch.setattr(board, "find_lattice_band", lambda frame: (GRID, board.GRID_REGION))
+    monkeypatch.setattr(
+        sweep, "anchor_northwest", lambda lattice, band, seen: (GRID, (0.0, 0.0))
+    )
 
     run.zero()
 
@@ -728,6 +866,76 @@ def test_a_drifted_window_stops_tapping_and_leaves_the_cell_unsentenced(tmp_path
     assert run.ledger.cells_of(sweep.EMPTY) == ()
 
 
+def aim_gate_run(tmp_path, monkeypatch, borders: dict[str, float]):
+    """位置殘差對不上（0.4 格）、界線讀數由參數決定的一窗。"""
+    run = build_run(tmp_path, {})
+    run.landmarks = {"west": 0.0, "north": 0.0}
+    run.anchor_source = sweep.SOURCE_EDGE
+    monkeypatch.setattr(
+        board,
+        "find_lattice_band",
+        lambda frame: (board.Lattice((100, 200, 300), (100, 200, 300)), board.GRID_REGION),
+    )
+    monkeypatch.setattr(projection, "shadow_drift", lambda *args, **kwargs: (40.0, 0.0))
+    monkeypatch.setattr(sweep, "read_borders", lambda frame: dict(borders))
+    decided: list[tuple[int, int]] = []
+    run.decide = lambda target, before: (
+        decided.append(target.cell),
+        sweep.TAP_EMPTY,
+    )[1]
+    return run, decided
+
+
+def test_edge_backed_borders_that_still_check_out_overrule_the_phase_gate(
+    tmp_path, monkeypatch
+):
+    run, decided = aim_gate_run(tmp_path, monkeypatch, {"west": 0.0, "north": 0.0})
+    plan = sweep.plan_window(run.ledger, (0.0, 0.0), heading="east")
+
+    interrupted = run.work(plan, _blank())
+
+    assert not interrupted
+    assert decided
+    assert run.grounded
+    overruled = [entry for entry in _entries(run) if entry["kind"] == "aim_overruled"]
+    assert overruled[0]["borders"] == ["north", "west"]
+    assert overruled[0]["drift"] == [0.0, 0.0]
+
+
+def test_a_single_axis_of_border_evidence_does_not_overrule_the_phase_gate(
+    tmp_path, monkeypatch
+):
+    run, decided = aim_gate_run(tmp_path, monkeypatch, {"west": 0.0})
+    plan = sweep.plan_window(run.ledger, (0.0, 0.0), heading="east")
+
+    assert run.work(plan, _blank())
+    assert decided == []
+    assert not run.grounded
+
+
+def test_borders_that_disagree_with_the_camera_do_not_overrule_the_phase_gate(
+    tmp_path, monkeypatch
+):
+    run, decided = aim_gate_run(tmp_path, monkeypatch, {"west": 0.0, "north": 60.0})
+    plan = sweep.plan_window(run.ledger, (0.0, 0.0), heading="east")
+
+    assert run.work(plan, _blank())
+    assert decided == []
+    assert not run.grounded
+
+
+def test_a_camera_not_anchored_by_borders_gets_no_reprieve_from_the_phase_gate(
+    tmp_path, monkeypatch
+):
+    run, decided = aim_gate_run(tmp_path, monkeypatch, {"west": 0.0, "north": 0.0})
+    run.anchor_source = sweep.SOURCE_CENTRE
+    plan = sweep.plan_window(run.ledger, (0.0, 0.0), heading="east")
+
+    assert run.work(plan, _blank())
+    assert decided == []
+    assert not run.grounded
+
+
 def test_the_constellation_takes_over_when_the_marker_is_gone_and_the_edges_are_mute(tmp_path):
     run = build_run(tmp_path, {})
     del run.relocate
@@ -800,6 +1008,19 @@ def test_a_closed_census_exempts_the_rest_of_the_board_without_tapping_it(tmp_pa
     assert run.ledger.verdict((2, 5)) == sweep.EMPTY_INFERRED
     assert run.ledger.reasons[(2, 5)] == sweep.CENSUS_CLOSED
     assert run.ledger.complete
+
+
+def test_early_close_turned_off_keeps_tapping_a_census_that_would_have_closed(tmp_path):
+    run = roster_run(tmp_path, set())
+    run.early_close = False
+    run.target = sweep.Census(1, 0, 0)
+    run.ledger.record((3, 4), sweep.ENEMY, name="a")
+
+    assert not run.close_census()
+
+    assert not run.closed
+    assert not run.ledger.cells_of(sweep.EMPTY_INFERRED)
+    assert [entry for entry in run.journal.entries() if entry["kind"] == "census_closed"] == []
 
 
 def test_an_open_census_exempts_nothing(tmp_path):
@@ -960,3 +1181,195 @@ def test_two_failed_roster_checks_close_the_early_exit_for_good(tmp_path, monkey
 
     assert not run.roster_check()
     assert run.target is None
+
+
+def test_the_default_filter_mode_is_the_full_grid(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["sweep_scan.py", "--stage-node", "544,667"])
+
+    assert parse_args().filter_mode == sweep.FILTER_FULL
+
+
+def barren_run(tmp_path, monkeypatch) -> SweepRun:
+    """推鏡永遠成功、帳本永遠不長的骨架：只量無產出保險絲。"""
+    run = swiping_run(tmp_path)
+    run.ledger = sweep.SweepLedger(grid=GRID)
+    monkeypatch.setattr(board, "lattice_phase", lambda frame: None)
+    monkeypatch.setattr(board, "find_sightings", lambda frame: ())
+    return run
+
+
+def test_pans_that_never_add_a_verdict_halt_before_the_ping_pong_burns_the_run(
+    tmp_path, monkeypatch
+):
+    run = barren_run(tmp_path, monkeypatch)
+
+    for _ in range(PAN_BARREN_LIMIT):
+        SweepRun.pan(run, "east", _blank(), 200.0)
+
+    with pytest.raises(Halt):
+        SweepRun.pan(run, "east", _blank(), 200.0)
+
+    booked = [entry for entry in _entries(run) if entry["kind"] == "barren_pans"]
+    assert booked[-1]["streak"] == PAN_BARREN_LIMIT + 1
+    assert booked[-1]["decided"] == 0
+
+
+def test_one_new_verdict_clears_the_barren_streak(tmp_path, monkeypatch):
+    run = barren_run(tmp_path, monkeypatch)
+
+    for _ in range(PAN_BARREN_LIMIT):
+        SweepRun.pan(run, "east", _blank(), 200.0)
+    run.ledger.record((2, 4), sweep.EMPTY)
+    for _ in range(PAN_BARREN_LIMIT):
+        SweepRun.pan(run, "east", _blank(), 200.0)
+
+    assert run.barren_pans == PAN_BARREN_LIMIT - 1
+    assert run.decided_watermark == 1
+
+
+def test_the_navigation_settle_books_what_the_wait_cost(tmp_path):
+    run, _, _ = settle_run(tmp_path, [_blank(), _blank()])
+
+    run.settled()
+
+    booked = [entry for entry in _entries(run) if entry["kind"] == "settle"]
+    assert [entry["ctx"] for entry in booked] == ["nav"]
+    assert booked[0]["polls"] == 2
+    assert booked[0]["converged"]
+    assert booked[0]["waited_s"] == round(2 * settle.SETTLE_POLL_S, 2)
+
+
+def test_the_navigation_settle_demands_two_still_pairs_before_it_lets_go(tmp_path):
+    single = _stirred(200_003)  # 與前一幀差 3 px：一對靜止，鏡頭其實還在滑
+    run, naps, _ = settle_run(
+        tmp_path, [_blank(), _stirred(200_000), single, _stirred(100_000), _blank(), _blank()]
+    )
+
+    frame = run.settled()
+
+    assert frame.shape == _blank().shape
+    assert len(naps) == 6
+    booked = [entry for entry in _entries(run) if entry["kind"] == "settle"]
+    assert booked[0]["polls"] == 6
+    assert booked[0]["converged"]
+
+
+def test_the_feedback_settle_is_booked_under_its_own_context(tmp_path):
+    run, _ = real_tap_run(tmp_path, [sweep.TAP_EMPTY], GLIDE)
+
+    run.tap_cell(sweep.TapTarget((2, 4), (100.0, 100.0)), _blank())
+
+    booked = [entry for entry in _entries(run) if entry["kind"] == "settle"]
+    assert [entry["ctx"] for entry in booked] == ["feedback"]
+    assert booked[0]["polls"] == 3
+    assert booked[0]["converged"]
+
+
+# 實機量級的世界格網（兩軸都在主格線帶中線那把尺上），拿來看兩個模型的差別。
+AIM_GRID = WorldGrid(phase=(0.0, 0.0), col_pitch=91.65, row_pitch=84.58)
+# 主帶讀不出來時 find_lattice 退的四象限窗之一（西南）。帶中線離世界參考高度越遠，
+# 舊相位模型的螢幕↔世界尺規差越大——那是它在底緣系統性誤否決的來源。
+LOW_BAND = board.lattice_windows()[2]
+
+
+def aim_run(tmp_path, monkeypatch, band, offset, camera=None) -> SweepRun:
+    """aim 閘骨架：格線由投影模型自己生（＝與世界格網完全對齊的一幀）。
+
+    `camera` 給值就是「帳本以為的鏡位」，與生格線用的真鏡位分開，才做得出真漂移。
+    """
+    run = build_run(tmp_path, {})
+    run.ledger = sweep.SweepLedger(grid=AIM_GRID)
+    run.offset = camera if camera is not None else offset
+    lattice = board.Lattice(
+        tuple(
+            round(value)
+            for value in projection.expected_columns(
+                AIM_GRID, offset, band[1] + band[3] / 2.0, (band[0], band[0] + band[2])
+            )
+        ),
+        tuple(
+            round(value)
+            for value in projection.expected_rows(
+                AIM_GRID, offset, (band[1], band[1] + band[3])
+            )
+        ),
+    )
+    monkeypatch.setattr(board, "find_lattice_band", lambda frame: (lattice, band))
+    return run
+
+
+def aim_events(run: SweepRun) -> list[dict]:
+    return [entry for entry in run.journal.entries() if entry["kind"].startswith("aim_")]
+
+
+def phase_verdict(run: SweepRun, frame) -> bool:
+    """同一幀交給舊相位模型會怎麼判——判定依據取自畫面，不是寫死的數。"""
+    lattice, _ = board.find_lattice_band(frame)
+    pitch = (lattice.col_pitch, lattice.row_pitch)
+    phase = (lattice.cols[0] % pitch[0], lattice.rows[0] % pitch[1])
+    return sweep.aimed(sweep.aim_drift(phase, run.ledger.grid, run.offset), run.ledger.grid)
+
+
+def test_a_frame_that_matches_the_model_passes_and_books_both_models(tmp_path, monkeypatch):
+    run = aim_run(tmp_path, monkeypatch, board.GRID_REGION, (-1000.0, -300.0))
+
+    assert SweepRun.aimed(run, _blank())
+
+    assert run.grounded
+    booked = aim_events(run)
+    assert [entry["kind"] for entry in booked] == ["aim_shadow"]
+    assert booked[0]["new"] == pytest.approx([0.0, 0.0], abs=1.0)
+    assert booked[0]["offset"] == [-1000.0, -300.0]
+
+
+def test_the_phase_model_vetoes_a_frame_that_the_projection_lets_through(tmp_path, monkeypatch):
+    """主帶讀不出來、線位來自下方象限窗：舊相位閘誤否決，位置空間殘差放行。"""
+    run = aim_run(tmp_path, monkeypatch, LOW_BAND, (-1000.0, -300.0))
+
+    assert not phase_verdict(run, _blank())
+    assert SweepRun.aimed(run, _blank())
+
+    assert run.grounded
+    booked = aim_events(run)
+    assert [entry["kind"] for entry in booked] == ["aim_shadow"]
+    assert abs(booked[0]["old"][1]) > sweep.AIM_SLACK_PITCH * AIM_GRID.row_pitch
+    assert booked[0]["new"] == pytest.approx([0.0, 0.0], abs=1.0)
+
+
+def test_a_camera_that_really_moved_still_fails_the_gate(tmp_path, monkeypatch):
+    run = aim_run(
+        tmp_path, monkeypatch, board.GRID_REGION, (-1000.0, -300.0), camera=(-960.0, -300.0)
+    )
+
+    assert not SweepRun.aimed(run, _blank())
+
+    assert not run.grounded
+    booked = aim_events(run)
+    # 影子先記，判定路徑在後面寫
+    assert [entry["kind"] for entry in booked] == ["aim_shadow", "aim_drift"]
+    assert booked[1]["model"] == "projection"
+    assert booked[1]["drift"][0] == pytest.approx(40.0, abs=2.0)
+
+
+def test_a_projection_that_blows_up_never_takes_the_scan_down_with_it(tmp_path, monkeypatch):
+    run = aim_run(tmp_path, monkeypatch, board.GRID_REGION, (-1000.0, -300.0))
+
+    def explode(*args, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(projection, "shadow_drift", explode)
+
+    assert SweepRun.aimed(run, _blank())
+
+    assert run.grounded
+    assert [entry["kind"] for entry in aim_events(run)] == ["aim_failed"]
+
+
+def test_no_lattice_is_not_a_drift(tmp_path, monkeypatch):
+    run = aim_run(tmp_path, monkeypatch, board.GRID_REGION, (-1000.0, -300.0))
+    monkeypatch.setattr(board, "find_lattice_band", lambda frame: None)
+
+    assert SweepRun.aimed(run, _blank())
+
+    assert run.grounded
+    assert aim_events(run) == []

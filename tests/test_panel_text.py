@@ -16,15 +16,22 @@ from ggge_ai.runtime import panel_text
 from ggge_ai.runtime.panel_text import (
     ABILITY_EFFECTS,
     ABILITY_SCHEMA,
+    BRIEF_SCHEMA,
+    LINES_SCHEMA,
+    MAX_LINE_CHARS,
+    MAX_LINES,
     SKILL_KINDS,
     WEAPON_EFFECTS,
     WEAPON_SCHEMA,
     AbilityTexts,
     OllamaPanelTextReader,
     PanelTextReader,
+    StageBrief,
     WeaponText,
     align,
     coerce_abilities,
+    coerce_brief,
+    coerce_lines,
     coerce_weapon,
 )
 
@@ -236,6 +243,71 @@ def test_shipped_vocabulary_covers_the_fixture_weapons():
     assert "光束軍刀" in terms["weapons"]
     assert "盾牌防禦" in terms["abilities"]
     assert "_note" not in terms
+
+
+def test_coerce_lines_keeps_the_printed_lines_and_drops_the_blanks():
+    assert coerce_lines({"lines": ["光束軍刀", "  ", "命中時 敵方 受到的傷害提升10%"]}) == (
+        "光束軍刀",
+        "命中時 敵方 受到的傷害提升10%",
+    )
+
+
+def test_coerce_lines_reports_failure_apart_from_emptiness():
+    assert coerce_lines(None) is None
+    assert coerce_lines({"lines": "光束軍刀"}) is None
+    assert coerce_lines({"lines": []}) == ()
+
+
+def test_a_truncated_reply_cannot_pollute_a_transcription():
+    """回覆中途截斷會變成一條超長串；截到上限，別讓截斷看起來像面板文案。"""
+    long_line = "字" * (MAX_LINE_CHARS + 50)
+    lines = coerce_lines({"lines": [long_line] * (MAX_LINES + 5)})
+    assert lines is not None
+    assert len(lines) == MAX_LINES
+    assert all(len(line) == MAX_LINE_CHARS for line in lines)
+
+
+def test_coerce_brief_needs_at_least_one_sentence():
+    assert coerce_brief({"victory": "擊墜所有敵方單位", "defeat": ""}) == StageBrief(
+        victory="擊墜所有敵方單位", defeat=""
+    )
+    assert coerce_brief({"victory": "", "defeat": ""}) is None
+    assert coerce_brief(["擊墜所有敵方單位"]) is None
+
+
+def test_transcription_requests_carry_the_lines_schema():
+    transport, sent = stub({"lines": ["盾牌防禦", "防禦時減輕傷害20%"]})
+    reader = OllamaPanelTextReader(transport=transport, terms={})
+
+    assert reader.ability_lines(PATCH) == ("盾牌防禦", "防禦時減輕傷害20%")
+    assert sent[0]["format"] == LINES_SCHEMA
+    assert sent[0]["options"]["temperature"] == 0
+
+
+def test_weapon_lines_transcribe_without_any_effect_enum():
+    transport, sent = stub({"lines": ["感應砲", "距離敵方越遠，武裝POWER越為提升"]})
+    reader = OllamaPanelTextReader(transport=transport, terms={"weapons": ("感應砲",)})
+
+    assert reader.weapon_lines(PATCH) == ("感應砲", "距離敵方越遠，武裝POWER越為提升")
+    assert "effect" not in sent[0]["format"]["properties"]
+
+
+def test_stage_brief_transcribes_both_conditions():
+    transport, sent = stub({"victory": "擊墜所有敵方單位", "defeat": "我方全滅"})
+    reader = OllamaPanelTextReader(transport=transport, terms={})
+
+    assert reader.stage_brief(PATCH) == StageBrief(victory="擊墜所有敵方單位", defeat="我方全滅")
+    assert sent[0]["format"] == BRIEF_SCHEMA
+
+
+def test_a_dead_server_leaves_the_transcriptions_unread():
+    def broken(url, payload, timeout_s):
+        raise OSError("connection refused")
+
+    reader = OllamaPanelTextReader(transport=broken, terms={})
+    assert reader.ability_lines(PATCH) is None
+    assert reader.weapon_lines(PATCH) is None
+    assert reader.stage_brief(PATCH) is None
 
 
 def test_from_env_is_off_when_disabled(monkeypatch):

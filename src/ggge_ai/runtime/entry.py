@@ -21,7 +21,7 @@ from typing import Protocol
 
 import numpy as np
 
-from . import board, screens
+from . import board, screens, settle
 
 log = logging.getLogger(__name__)
 
@@ -97,22 +97,32 @@ def expect_screen(
     attempts: int = 6,
     sleep: Callable[[float], None] = time.sleep,
     settle_s: float = 1.0,
+    min_wait_s: float | None = None,
+    now: Callable[[], float] = time.monotonic,
 ) -> tuple[str, np.ndarray | None]:
     """重截到畫面是 wanted 之一，或放棄。回傳（畫面名, 幀）。
 
     每次操作前都要重新確認所在頁：解鎖用的 wake-tap 可能誤觸 TAP TO NEXT 直接
     把人推進下一頁（0730 實測發生一次），拿舊畫面推論就會對著錯的頁點下去。
+
+    attempts 的時間窗是隱含的：它靠 adb 截圖每張 ~2.4s 撐起來（10 輪 ≈ 34s）。
+    串流幀源取幀只要 11ms，同樣輪次會塌縮到 ~10s，0808 實機因此在 19.1s 就耗盡
+    重試 Halt（出擊→關卡資訊頁的開場運鏡要 ~15s）。凡是「等遊戲轉場」的呼叫點
+    都必須用 min_wait_s 給壁鐘下限，不能只靠輪次。
     """
     frame = None
     screen = screens.UNKNOWN
-    for index in range(attempts):
+    started = now()
+    index = 0
+    while True:
         frame = capture()
         screen = screens.classify(frame)
         if screen in wanted:
             return screen, frame
-        if index + 1 < attempts:
-            sleep(settle_s)
-    return screen, frame
+        index += 1
+        if index >= attempts and (min_wait_s is None or now() - started >= min_wait_s):
+            return screen, frame
+        sleep(settle_s)
 
 
 def confirm_auto_off(
@@ -266,15 +276,30 @@ def confirm_in_map(
 DEFAULT_EXPECTED_TITLE = "uc_hard_1"
 STAGE_TITLE_ATTEMPTS = 3
 STAGE_TITLE_INTERVAL_S = 1.0
+# 右欄標題是滑入動畫（實測 ~1s 內到位），位移中的標題模板分數 0.244 對靜止 1.0，
+# 讀出來是 None。舊 screencap 每張 ~2.4s 天然跨過動畫窗；串流取幀 11ms 全落在窗內
+# （run 20260808-210307/210415 連兩次 stage_title:wrong_stage Halt）。所以每次讀標題
+# 之前先等幀差收斂，讀的一律是動畫結束後的那一張。收斂預算按滑入實測取小值，
+# screencap 路徑上第一對幀就已經隔了 ~2.4s，等同舊節奏。
+STAGE_TITLE_SETTLE_S = 1.5
+STAGE_TITLE_POLL_S = 0.25
 
 
 def _await_stage_title(
     capture: Capture,
     *,
     sleep: Callable[[float], None] = time.sleep,
+    now: Callable[[], float] = time.monotonic,
 ) -> str | None:
     for index in range(STAGE_TITLE_ATTEMPTS):
-        title = screens.read_stage_title(capture())
+        frame = settle.await_still(
+            capture,
+            clock=now,
+            sleep=sleep,
+            deadline=now() + STAGE_TITLE_SETTLE_S,
+            poll=STAGE_TITLE_POLL_S,
+        )
+        title = screens.read_stage_title(frame)
         if title is not None:
             return title
         if index + 1 < STAGE_TITLE_ATTEMPTS:
@@ -289,6 +314,7 @@ def select_stage(
     node: tuple[int, int] | None = None,
     expect_title: str | None = DEFAULT_EXPECTED_TITLE,
     sleep: Callable[[float], None] = time.sleep,
+    now: Callable[[], float] = time.monotonic,
 ) -> GateReport:
     """關卡列表上選一關，並讀右欄標題複驗選中的真的是那一關。不花任何資源。
 
@@ -318,7 +344,7 @@ def select_stage(
             return report
         if expect_title is None:
             break
-        title = _await_stage_title(capture, sleep=sleep)
+        title = _await_stage_title(capture, sleep=sleep, now=now)
         if title == expect_title:
             break
         log.warning("stage title %s != %s (attempt %d)", title, expect_title, attempt + 1)
@@ -405,7 +431,11 @@ def sortie(
 
     clear_download_dialog(capture, tap, report, sleep=sleep)
     screen, _ = expect_screen(
-        capture, (screens.STAGE_INFO, *screens.MAP_SCREENS), sleep=sleep, attempts=10
+        capture,
+        (screens.STAGE_INFO, *screens.MAP_SCREENS),
+        sleep=sleep,
+        attempts=10,
+        min_wait_s=30.0,
     )
     if screen == screens.STAGE_INFO:
         report.add("stage_info", "ok")
@@ -432,7 +462,11 @@ def advance_to_map(
     地圖上，再點一下就是對著地圖亂點。
     """
     screen, _ = expect_screen(
-        capture, (screens.STAGE_INFO, *screens.MAP_SCREENS), sleep=sleep, attempts=10
+        capture,
+        (screens.STAGE_INFO, *screens.MAP_SCREENS),
+        sleep=sleep,
+        attempts=10,
+        min_wait_s=30.0,
     )
     if screen == screens.STAGE_INFO:
         tap(*STAGE_INFO_ADVANCE_TAP)
