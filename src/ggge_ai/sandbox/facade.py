@@ -138,8 +138,6 @@ def _legal_reactions(defender: Unit, attacker: Unit, *, support_defend: bool) ->
 
 
 class Sandbox:
-    """情境產物的門面：讀盤面、列舉待決候選、套用一次決策。"""
-
     def __init__(
         self,
         state: BattleState,
