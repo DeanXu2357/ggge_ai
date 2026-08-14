@@ -56,6 +56,9 @@ term at its first use in each document, then use the short form.
 | settle | 幀差取樣 | Sample after the frame difference falls: await_still in runtime/settle.py polls the difference of the frames pixel by pixel (interval SETTLE_POLL_S) and takes the frame when the fraction of moving pixels goes under the threshold, or when the deadline (SETTLE_WAIT_S) arrives, whichever is first. The settle journal event records which of the two in its 'converged' field. The name does not use 收斂, because an event after a tap can be a long animation that does not become still, and the primitive releases at the deadline. Accepted alternate reading: 收斂取樣, because the release at the deadline is a defined convergence point |
 | blind sleep | 盲睡 | The fixed-time wait that the settle primitive replaces. Examples: board.PAN_SETTLE_S, ROSTER_SETTLE_S and SETTLE_ROUNDS in stage/survey.py, settle_s in battle/map_view.py, ABANDON_SETTLE_ATTEMPTS and ABANDON_SETTLE_INTERVAL_S in runtime/entry.py. It measures nothing. These names keep the English word settle although they are not the settle primitive |
 | projection | 透視投影 | The fixed planar homography of the board (runtime/projection.py): world isometric grid to screen grid-line positions. Not the bare word 投影, which board.py uses for the row and column sums |
+| sandbox facade | 沙盤門面 | The class 'Sandbox' in sandbox/facade.py. Code outside the sandbox package uses it for every read of the board and every advance of the state. The facade aggregates and serializes only; the game logic stays in sandbox/model.py |
+| decision payload | 決策酬載 | The dict that 'Sandbox.pending_decision' and 'Sandbox.reaction_options' return: the legal candidates for the pending decision, plus the 'advice' field. The 'advice' field is empty when the facade has no advisor |
+| activation | 行動 | One action of one unit in one phase. It ends when the 'acted' flag of that unit becomes true |
 
 ## Legacy Chinese corpus key
 
