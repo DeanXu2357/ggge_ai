@@ -80,21 +80,47 @@ the shared support die, the attacker-side support exposure, and the
 absent counter and support probabilities. The dice block states
 them; the page works around none of them.
 
-## Open points
+## Call chain
 
-- The facade reports no probability for the counter die and the
-  support die. The server draw fills only the main hit; the other
-  two keep the model default. Closing this needs new fields in the
-  reaction payload, which is a facade change, so it stays out of
-  this branch.
-- The attacker side support volley is always on: 'Decision.support'
-  defaults to true and the facade has no field for it. The page
-  cannot offer the choice, and one support die covers both volleys.
-- The page stops when the phase leaves 'ally' and points at issue
-  #42. It renders no enemy-phase commands, although the facade
-  would enumerate them.
-- Live check in a browser is still open; the tests drive the
-  endpoints, not the DOM.
+Page load → GET /api/state (Sandbox.snapshot) + GET /api/decision
+(Sandbox.pending_decision). Unit click → candidates from the
+decision payload. Attack click → POST /api/reactions
+(Sandbox.reaction_options with the candidate). Confirm → POST
+/api/act (Sandbox.act; dice keys from the manual controls or the
+server draw) → repaint from the returned state and pending payload.
+Every handler holds one lock around the sandbox calls.
+
+## Contention points for review
+
+- The contract gaps re-scoped to the user (proposal: fold into
+  issue #47): the shared support die, the attacker-side support
+  exposure ('Decision.support' not surfaced), and the absent
+  counter and support probabilities. The dice block carries the
+  honesty note; the page works around none of them.
+- Review round 1 fixed 'facade.py' (issue #40's file) at the
+  source: inputs that raised TypeError now raise ValueError. No
+  caller depended on the old behavior; the stacked merge order
+  makes this land after #40.
+- The server draw lives in the shell (input synthesis, not game
+  rules); the draw probability is re-read from the facade, never
+  trusted from the client.
+- The conventions angle of the review died to a tooling error; the
+  correctness and cross-file angles completed and their findings
+  are fixed above.
+- The page refuses commands once the phase leaves 'ally' and points
+  at issue #42 — a UI scope gate, not a game rule.
+
+## Verification
+
+Gates: 'uv run pytest -q' 1069 passed, 4 skipped; 'uv run ruff
+check src tests scripts' clean. Real-browser pass on the feature
+commit (Chrome on the dev machine, placeholder scenario): select
+a5 → reach cells paint → attack candidate → reaction options with
+correct numbers (dodge lowers the hit rate, defend cuts the damage)
+→ manual miss → acted, EN spent, defender HP unchanged, pending
+list shrank. The fix round is logic-only and was re-verified with
+the node shim (stale-response guard held under an injected 600 ms
+delay). Code-only branch: no adb.
 
 ## Resume point
 
