@@ -4,7 +4,7 @@
 
 ## Change summary
 
-Docs-only branch. Four commits, every diff path under 'docs/'.
+Docs-only branch. Five commits, every diff path under 'docs/'.
 
 1. 'docs/reference/combat-formulas.md': the map attack section now
    states the implemented state — the sandbox models ammo, blast
@@ -30,6 +30,18 @@ Docs-only branch. Four commits, every diff path under 'docs/'.
 4. 'docs/record/decisions.md': one appended entry records the
    terrain ruling. Only the last 40 lines were read; no earlier
    entry was touched.
+5. Scope extension, user-approved 2026-08-14: the three stale claims
+   the first pass reported are now fixed, with no change of
+   substance.
+   - 'combat-formulas.md' case 17: the dead names are gone. The
+     paragraph now says the sandbox treats the support volley as
+     always hitting, that the per-attacker hit roll is issue #47,
+     and that the forecast-screen reading of the support hit percent
+     belongs to the vision line as later work.
+   - 'combat-formulas.md' case 8: option optimization belongs to the
+     advisor (issue #44 onward), in place of 「戰術層（待重建）」.
+   - 'intel-data-spec.md' support crew row: the fact stays; the row
+     now points at issue #50 for the sandbox modeling.
 
 ## Contention points for review
 
@@ -37,16 +49,6 @@ Docs-only branch. Four commits, every diff path under 'docs/'.
   entries) is English and the 0811 ruling made new docs text
   English, so the writer matched the current style, not the frozen
   Chinese corpus. Say the word for a Traditional Chinese amend.
-- Stale claims found but left out of scope:
-  - 'combat-formulas.md' case 17 paragraph still says the support
-    volley is a 'solver' simplification and names legacy batch 'M2'.
-    The substance is issue #47 scope.
-  - 'combat-formulas.md' case 8 says the tactical layer is
-    「待重建」; the rebuild is now the advisor line (#44 onward).
-  - 'intel-data-spec.md' support crew row says the sandbox does not
-    model it — still true until issue #50.
-  These are reported, not fixed; the user decides whether any
-  becomes an issue.
 
 ## Verification
 
