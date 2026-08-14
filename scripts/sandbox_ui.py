@@ -27,11 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from ggge_ai.sandbox.facade import Sandbox  # noqa: E402
 
 DICE_KEYS = ("hit", "counter_hit", "support_hit")
-CANDIDATE_FIELDS = ("kind", "unit_id", "move_to", "target_id", "weapon", "amount", "aim")
-
-
-def _candidate_key(raw: Mapping[str, Any]) -> tuple:
-    return tuple(raw.get(field) for field in CANDIDATE_FIELDS)
+MAX_BODY_BYTES = 1 << 20
 
 
 def _reaction_key(raw: Mapping[str, Any]) -> tuple:
@@ -54,9 +50,13 @@ class SandboxHandler(BaseHTTPRequestHandler):
         if path == "/":
             self._send(HTTPStatus.OK, "text/html; charset=utf-8", PAGE_HTML.encode("utf-8"))
         elif path == "/api/state":
-            self._json(HTTPStatus.OK, self.sandbox.snapshot())
+            with self.lock:
+                payload = self.sandbox.snapshot()
+            self._json(HTTPStatus.OK, payload)
         elif path == "/api/decision":
-            self._json(HTTPStatus.OK, self.sandbox.pending_decision())
+            with self.lock:
+                payload = self.sandbox.pending_decision()
+            self._json(HTTPStatus.OK, payload)
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
 
@@ -113,10 +113,10 @@ class SandboxHandler(BaseHTTPRequestHandler):
         raise ValueError(f"這個應戰不在合法選項裡：{reaction}")
 
     def _pending_probability(self, candidate: Mapping[str, Any]) -> float | None:
-        wanted = _candidate_key(candidate)
+        wanted = self.sandbox.candidate_key(candidate)
         for entry in self.sandbox.pending_decision()["units"]:
             for option in entry["candidates"]:
-                if _candidate_key(option) == wanted:
+                if self.sandbox.candidate_key(option) == wanted:
                     return option["hit_probability"]
         return None
 
@@ -125,6 +125,10 @@ class SandboxHandler(BaseHTTPRequestHandler):
             size = int(self.headers.get("Content-Length"))
         except (TypeError, ValueError):
             raise ValueError("請求要帶 Content-Length") from None
+        if size <= 0 or size > MAX_BODY_BYTES:
+            # 不讀主體就回應，連線的框界對不上了，只能收掉。
+            self.close_connection = True
+            raise ValueError(f"Content-Length 要在 1 到 {MAX_BODY_BYTES} 之間，讀到 {size}")
         try:
             body = json.loads(self.rfile.read(size).decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -286,6 +290,7 @@ let draw = false;
 let lastDice = null;
 let error = "";
 let inspected = null;
+let reactionSeq = 0;
 
 function node(tag, className, text) {
   const out = document.createElement(tag);
@@ -409,6 +414,7 @@ function command(uid) {
   option = null;
   dice = {};
   error = "";
+  reactionSeq += 1;
   drawBoard();
   renderPlay();
 }
@@ -419,12 +425,19 @@ function pick(candidate) {
   option = null;
   dice = {};
   error = "";
+  reactionSeq += 1;
   drawBoard();
   renderPlay();
   if (candidate.kind !== "attack") return;
+  // 慢回來的應戰列舉屬於舊候選，序號對不上就丟掉，否則面板會顯示上一擊的選項。
+  const seq = reactionSeq;
   post("/api/reactions", { candidate: candidate })
-    .then((payload) => { engagement = payload; renderPlay(); })
-    .catch((exc) => { error = String(exc.message || exc); renderPlay(); });
+    .then((payload) => { if (seq !== reactionSeq) return; engagement = payload; renderPlay(); })
+    .catch((exc) => {
+      if (seq !== reactionSeq) return;
+      error = String(exc.message || exc);
+      renderPlay();
+    });
 }
 
 function candidateLabel(candidate) {
@@ -473,6 +486,8 @@ function renderDice(box) {
   if (draw) {
     wrap.appendChild(node("div", "dim",
       "伺服器抽骰：主命中依酬載機率抽。反擊與支援沒有命中率欄位，維持模型預設命中。"));
+    wrap.appendChild(node("div", "dim",
+      "我方支援齊射若有參戰，門面沒有開關也沒有機率，一律照模型預設結算。"));
   } else {
     dieRow(wrap, "hit", "主命中", option ? option.hit_probability : picked.hit_probability);
     if (option && option.stance === "counter") dieRow(wrap, "counter_hit", "反擊命中", null);
@@ -592,6 +607,7 @@ function act() {
       option = null;
       dice = {};
       error = "";
+      reactionSeq += 1;
       apply(payload.state, payload.pending);
     })
     .catch((exc) => { error = String(exc.message || exc); renderPlay(); });

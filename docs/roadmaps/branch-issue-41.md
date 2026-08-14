@@ -45,6 +45,41 @@ draw toggle sends 'draw': true and the shell draws the main hit
 with the probability that the facade reports for the picked
 reaction option.
 
+## Review round 1 (2026-08-14)
+
+Five mechanical findings, all fixed on this branch:
+
+1. Malformed input that raised TypeError, not ValueError, escaped
+   the handler and answered 500. Fixed at the source: '_as_cell'
+   wraps the 'int' calls and '_candidate_key' rejects an unhashable
+   field through the new '_as_scalar'. That covers '_require_legal',
+   which builds its key through '_candidate_key' before the
+   set-membership test. The handler still catches ValueError only.
+2. A negative Content-Length made 'rfile.read' block until EOF and
+   leaked the handler thread. The body reader now rejects a length
+   outside 1 to 'MAX_BODY_BYTES' (one megabyte) and closes the
+   connection, because the framing is broken once a declared body
+   goes unread.
+3. The read endpoints took no lock while an act swapped the state,
+   so a reader could serialize a torn snapshot. Both take the same
+   lock now.
+4. The shell matched candidates on raw JSON values while the facade
+   normalizes them, so string coordinates silently skipped the
+   draw. The shell calls the new 'Sandbox.candidate_key' now.
+5. A late reaction response could overwrite the panel after the
+   user picked another candidate. The page drops a response whose
+   sequence number is stale.
+
+Finding 5 carries no endpoint test: it is browser-side logic. It
+was verified out of band by running the page script in node against
+a live server with a 600 ms delay injected into the first reaction
+response; the panel kept the second engagement.
+
+Three further findings are contract gaps that the user re-scopes:
+the shared support die, the attacker-side support exposure, and the
+absent counter and support probabilities. The dice block states
+them; the page works around none of them.
+
 ## Open points
 
 - The facade reports no probability for the counter die and the
@@ -54,7 +89,7 @@ reaction option.
   this branch.
 - The attacker side support volley is always on: 'Decision.support'
   defaults to true and the facade has no field for it. The page
-  cannot offer the choice.
+  cannot offer the choice, and one support die covers both volleys.
 - The page stops when the phase leaves 'ally' and points at issue
   #42. It renders no enemy-phase commands, although the facade
   would enumerate them.
@@ -71,3 +106,5 @@ Done. Awaiting review.
 - 2026-08-14: play mode endpoints, page interaction, dice input and
   the HTTP walk test. Gates green: 1063 passed, 4 skipped; ruff
   clean.
+- 2026-08-14: review round 1, five mechanical findings fixed. Gates
+  green: 1069 passed, 4 skipped; ruff clean.

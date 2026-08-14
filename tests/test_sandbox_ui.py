@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import socket
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -50,6 +51,13 @@ class Client:
         status, payload = self.post("/api/reactions", {"candidate": candidate})
         assert status == 200, payload
         return payload
+
+    def raw(self, head: str) -> str:
+        host, port = self.base.removeprefix("http://").split(":")
+        with socket.create_connection((host, int(port)), timeout=5) as sock:
+            sock.sendall(head.encode("utf-8"))
+            sock.settimeout(5)
+            return sock.recv(8192).decode("utf-8", "replace")
 
 
 @pytest.fixture
@@ -210,6 +218,42 @@ def test_a_malformed_body_answers_four_hundred(client):
     assert broken[0] == 400 and "JSON" in broken[1]["error"]
     assert bare[0] == 400 and "candidate" in bare[1]["error"]
     assert cell[0] == 400 and "格位" in cell[1]["error"]
+
+
+def test_a_body_that_would_raise_a_type_error_answers_four_hundred(client):
+    entry = client.get("/api/decision")["units"][0]
+    shot = _first(entry, "attack")
+
+    axis = client.post("/api/act", {"candidate": {**shot, "move_to": [None, 0]}})
+    unhashable = client.post("/api/act", {"candidate": {**shot, "target_id": [shot["target_id"]]}})
+
+    assert axis[0] == 400 and "整數" in axis[1]["error"]
+    assert unhashable[0] == 400 and "純量" in unhashable[1]["error"]
+
+
+def test_a_body_length_outside_the_bounds_answers_four_hundred(client):
+    head = "POST /api/act HTTP/1.1\r\nHost: sandbox\r\nContent-Length: {}\r\n\r\n"
+
+    negative = client.raw(head.format(-1))
+    oversized = client.raw(head.format(1 << 30))
+
+    assert "400" in negative.splitlines()[0] and "Content-Length" in negative
+    assert "400" in oversized.splitlines()[0] and "Content-Length" in oversized
+
+
+def test_the_server_draw_reads_a_candidate_the_facade_would_accept(client):
+    decision = client.get("/api/decision")
+    shot = next(
+        candidate
+        for entry in decision["units"]
+        for candidate in entry["candidates"]
+        if candidate["kind"] == "attack" and candidate["move_to"] is not None
+    )
+    loose = {**shot, "move_to": [str(axis) for axis in shot["move_to"]]}
+
+    payload = client.act(loose, None, draw=True)
+
+    assert isinstance(payload["dice"]["hit"], bool)
 
 
 def test_reactions_endpoint_rejects_a_candidate_without_an_engagement(client):
