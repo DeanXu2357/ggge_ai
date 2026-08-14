@@ -1,6 +1,7 @@
 """沙盤網頁介面（第一階段）：起一個本機伺服器，把情境檔的初盤面畫出來。
 
 只讀情境檔，不碰 adb、不寫任何檔案；這一階段唯讀呈現，沒有任何操作端點。
+盤面資料一律向 'Sandbox' 門面要，本腳本只做路由與頁面。
 
 usage:
   uv run python scripts/sandbox_ui.py --scenario assets/scenarios/uc_hard_1_placeholder.json
@@ -20,80 +21,19 @@ from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ggge_ai.sandbox import scenario as scenario_mod  # noqa: E402
-from ggge_ai.sandbox.model import BattleState, Unit  # noqa: E402
-
-
-def serialize_unit(unit: Unit) -> dict[str, Any]:
-    return {
-        "uid": unit.unit_id,
-        "faction": str(unit.faction),
-        "cell": list(unit.pos),
-        "hp": unit.hp,
-        "max_hp": unit.max_hp,
-        "en": unit.en,
-        "en_max": unit.en_max,
-        "acted": unit.acted,
-        "move_range": unit.move_range,
-        "mobility": unit.mobility,
-        "unit_attack": unit.unit_attack,
-        "unit_defense": unit.unit_defense,
-        "pilot_attack": unit.pilot_attack,
-        "pilot_defense": unit.pilot_defense,
-        "reaction": unit.reaction,
-        "has_shield": unit.has_shield,
-        "attack_shield": unit.attack_shield,
-        "chance_steps": unit.chance_steps,
-        "support_attack_charges": unit.support_attack_charges,
-        "support_defend_charges": unit.support_defend_charges,
-        "weapons": [
-            {
-                "name": weapon.name,
-                "power": weapon.power,
-                "range_min": weapon.range_min,
-                "range_max": weapon.range_max,
-                "en_cost": weapon.en_cost,
-                "accuracy": weapon.accuracy,
-                "can_counter": weapon.can_counter,
-                "map_weapon": weapon.map_weapon,
-                "ammo": unit.ammo.get(weapon.name),
-            }
-            for weapon in unit.weapons
-        ],
-        "skills": [
-            {"kind": str(skill.kind), "amount": skill.amount, "uses": skill.uses}
-            for skill in unit.skills
-        ],
-    }
-
-
-def serialize_state(
-    scenario: scenario_mod.Scenario, state: BattleState
-) -> dict[str, Any]:
-    return {
-        "stage": scenario.stage,
-        "note": scenario.note,
-        "board": {"cols": scenario.board.cols, "rows": scenario.board.rows},
-        "turn": state.turn,
-        "phase": str(state.phase),
-        "outcome": scenario_mod.check_outcome(scenario, state),
-        "units": [serialize_unit(unit) for unit in state.units],
-    }
+from ggge_ai.sandbox.facade import Sandbox  # noqa: E402
 
 
 class SandboxHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    scenario: scenario_mod.Scenario
-    state: BattleState
+    sandbox: Sandbox
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
         if path == "/":
             self._send("text/html; charset=utf-8", PAGE_HTML.encode("utf-8"))
         elif path == "/api/state":
-            body = json.dumps(
-                serialize_state(self.scenario, self.state), ensure_ascii=False
-            ).encode("utf-8")
+            body = json.dumps(self.sandbox.snapshot(), ensure_ascii=False).encode("utf-8")
             self._send("application/json; charset=utf-8", body)
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -109,12 +49,8 @@ class SandboxHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def build_handler(
-    scenario: scenario_mod.Scenario, state: BattleState
-) -> type[BaseHTTPRequestHandler]:
-    return type(
-        "BoundSandboxHandler", (SandboxHandler,), {"scenario": scenario, "state": state}
-    )
+def build_handler(sandbox: Sandbox) -> type[BaseHTTPRequestHandler]:
+    return type("BoundSandboxHandler", (SandboxHandler,), {"sandbox": sandbox})
 
 
 PAGE_HTML = r"""<!doctype html>
@@ -342,11 +278,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    scenario = scenario_mod.load(args.scenario)
-    state, _rules, _events = scenario.build()
+    sandbox = Sandbox.from_scenario(args.scenario)
+    board = sandbox.snapshot()
 
-    server = ThreadingHTTPServer((args.host, args.port), build_handler(scenario, state))
-    print(f"情境：{scenario.stage}（{len(state.units)} 台單位）")
+    server = ThreadingHTTPServer((args.host, args.port), build_handler(sandbox))
+    print(f"情境：{board['stage']}（{len(board['units'])} 台單位）")
     print(f"開啟 http://{args.host}:{args.port}/ ——Ctrl-C 結束")
     try:
         server.serve_forever()

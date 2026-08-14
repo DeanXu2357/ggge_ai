@@ -21,8 +21,7 @@ HTML shell.
 
 ## Resume point
 
-Step 1 is done: the facade and its tests are in place. Next: step 2
-and step 3, the script becomes a shell.
+All four steps are done. Gates pass. The branch is ready for review.
 
 ## Progress log
 
@@ -34,3 +33,9 @@ and step 3, the script becomes a shell.
   of the piecewise enumerators, so 'advice.pricing' aligns with it.
   New test file 'tests/test_sandbox_facade.py'. Terminology map: new
   entries for 'sandbox facade', 'decision payload', 'activation'.
+- 2026-08-14: 'scripts/sandbox_ui.py' is a shell now: routing and the
+  embedded page only. Its single package import is the facade. The
+  serialization tests moved to the facade test file;
+  'tests/test_sandbox_ui.py' keeps the server smoke test and adds an
+  import check that reads the script with 'ast'. Gates: 1039 passed,
+  4 skipped; ruff clean.
