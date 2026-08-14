@@ -32,7 +32,7 @@ usage:
   uv run python scripts/validate_projection.py data/runs/20260809-152222
 
 輸出：總表印到 stdout，明細存
-`docs/reviews/projection-shadow/replay-residuals.json`。
+`data/analysis/projection-shadow/replay-residuals.json`。
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ DEFAULT_RUNS = (
     PROJECT_ROOT / "data" / "runs" / "20260809-152222.tar.gz",
     PROJECT_ROOT / "data" / "runs" / "20260809-133305.tar.gz",
 )
-DEFAULT_OUT = PROJECT_ROOT / "docs" / "reviews" / "projection-shadow" / "replay-residuals.json"
+DEFAULT_OUT = PROJECT_ROOT / "data" / "analysis" / "projection-shadow" / "replay-residuals.json"
 
 # 量測窗：左避按鈕欄、上避 AUTO 列、下停在訊息條之上（同 perspective-measurement 的窗）。
 MEAS_X = (500, 2280)
