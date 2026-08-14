@@ -476,6 +476,10 @@ def targets_of(state: BattleState, unit: Unit) -> list[Unit]:
     return state.by_faction(opposing_faction(unit.faction))
 
 
+def blast_victims(state: BattleState, actor: Unit, weapon: Weapon, aim: Cell) -> list[Unit]:
+    return [u for u in targets_of(state, actor) if chebyshev(u.pos, aim) <= weapon.blast]
+
+
 def find_support_defender(state: BattleState, defender: Unit) -> Unit | None:
     for u in state.units:
         if u is defender or not u.alive or u.faction is not defender.faction:
@@ -499,9 +503,10 @@ def find_attack_shield(state: BattleState, attacker: Unit) -> Unit | None:
 
 
 def find_support_attackers(
-    state: BattleState, supported: Unit, foe: Unit
+    state: BattleState, supported: Unit, foe: Unit, *, foe_pos: Cell | None = None
 ) -> list[tuple[Unit, Weapon]]:
     out: list[tuple[Unit, Weapon]] = []
+    foe_cell = foe.pos if foe_pos is None else foe_pos
     for u in state.units:
         if u is supported or not u.alive or u.faction is not supported.faction:
             continue
@@ -509,7 +514,7 @@ def find_support_attackers(
             continue
         if chebyshev(u.pos, supported.pos) > u.move_range:
             continue
-        dist = chebyshev(u.pos, foe.pos)
+        dist = chebyshev(u.pos, foe_cell)
         for w in u.weapons:
             if not w.map_weapon and u.en >= w.en_cost and in_band(dist, w):
                 out.append((u, w))
@@ -605,6 +610,42 @@ def reposition_moves(
     return out
 
 
+# 支援防禦只配迴避與反擊。防禦與盾防不可配支援防禦。
+# 不應戰（none）配支援防禦未經實機確認，暫時保留（docs/reference/battle-prep-ui.md）。
+SUPPORT_DEFEND_STANCES: tuple[Stance, ...] = (Stance.NONE, Stance.DODGE, Stance.COUNTER)
+
+
+def legal_reactions(
+    state: BattleState,
+    defender: Unit,
+    attacker: Unit,
+    weapon: Weapon,
+    *,
+    attacker_pos: Cell | None = None,
+) -> list[Reaction]:
+    if weapon.map_weapon:
+        return []
+    origin = attacker.pos if attacker_pos is None else attacker_pos
+    stances = [Stance.NONE, Stance.DODGE, Stance.DEFEND]
+    if defender.has_shield:
+        stances.append(Stance.SHIELD)
+    out = [Reaction(stance=stance) for stance in stances]
+    out.extend(
+        Reaction(stance=Stance.COUNTER, weapon=w.name)
+        for w in defender.weapons
+        if counter_weapon(defender, w.name, attacker, attacker_pos=origin) is not None
+    )
+    if find_support_defender(state, defender) is not None:
+        out.extend(
+            replace(option, support_defend=True)
+            for option in list(out)
+            if option.stance in SUPPORT_DEFEND_STANCES
+        )
+    if find_support_attackers(state, defender, attacker, foe_pos=origin):
+        out.extend(replace(option, support_attack=False) for option in list(out))
+    return out
+
+
 def strike_damage(
     attacker: Unit,
     defender: Unit,
@@ -677,8 +718,24 @@ def _interception_multiplier(interceptor: Unit, rules: Rules) -> float:
     return base * (1.0 - interceptor.interception_reduction)
 
 
-def _counter_weapon(defender: Unit, name: str | None, attacker: Unit) -> Weapon | None:
-    dist = chebyshev(defender.pos, attacker.pos)
+def reaction_defense(
+    state: BattleState, defender: Unit, reaction: Reaction | None, rules: Rules
+) -> tuple[Unit, float, Unit | None]:
+    """回傳這一擊實際承受的單位、傷害倍率，以及攔截者（沒有攔截時為 None）。"""
+    interceptor = (
+        find_support_defender(state, defender)
+        if reaction is not None and reaction.support_defend
+        else None
+    )
+    if interceptor is None:
+        return defender, _stance_multiplier(reaction, rules), None
+    return interceptor, _interception_multiplier(interceptor, rules), interceptor
+
+
+def counter_weapon(
+    defender: Unit, name: str | None, attacker: Unit, *, attacker_pos: Cell | None = None
+) -> Weapon | None:
+    dist = chebyshev(defender.pos, attacker.pos if attacker_pos is None else attacker_pos)
     pool = defender.weapons if name is None else [w for w in defender.weapons if w.name == name]
     for w in pool:
         if w.map_weapon or not w.can_counter or defender.en < w.en_cost:
@@ -716,7 +773,7 @@ def _begin_phase(state: BattleState, faction: Faction, rules: Rules) -> None:
             u.en = min(u.en_max, u.en + int(round(u.en_max * rules.en_regen_fraction)))
 
 
-def _pending(state: BattleState, faction: Faction) -> list[Unit]:
+def pending_units(state: BattleState, faction: Faction) -> list[Unit]:
     return [u for u in state.units if u.faction is faction and u.alive and not u.acted]
 
 
@@ -733,7 +790,7 @@ def _rotate_one(state: BattleState, rules: Rules, events: EventTable | None) -> 
 
 def _advance_until_pending(state: BattleState, rules: Rules, events: EventTable | None) -> None:
     guard = 0
-    while not _pending(state, state.phase) and guard <= len(PHASE_ORDER):
+    while not pending_units(state, state.phase) and guard <= len(PHASE_ORDER):
         _rotate_one(state, rules, events)
         guard += 1
 
@@ -801,14 +858,7 @@ def _apply_attack(state: BattleState, actor: Unit, decision: Decision, rules: Ru
 
     actor.en -= weapon.en_cost
     reaction = decision.reaction
-    struck = target
-    multiplier = _stance_multiplier(reaction, rules)
-    interceptor = None
-    if reaction is not None and reaction.support_defend:
-        interceptor = find_support_defender(state, target)
-        if interceptor is not None:
-            struck = interceptor
-            multiplier = _interception_multiplier(interceptor, rules)
+    struck, multiplier, interceptor = reaction_defense(state, target, reaction, rules)
 
     charge_pending = interceptor is not None
 
@@ -862,7 +912,7 @@ def _apply_counter(
     state: BattleState, defender: Unit, attacker: Unit, decision: Decision, rules: Rules
 ) -> None:
     name = decision.reaction.weapon if decision.reaction is not None else None
-    weapon = _counter_weapon(defender, name, attacker)
+    weapon = counter_weapon(defender, name, attacker)
     if weapon is None:
         return
     defender.en -= weapon.en_cost
@@ -891,10 +941,9 @@ def _apply_map_attack(
         return
     actor.ammo[weapon.name] -= 1
     actor.en -= weapon.en_cost
-    for victim in targets_of(state, actor):
-        if chebyshev(victim.pos, decision.aim) <= weapon.blast:
-            victim.hp -= strike_damage(actor, victim, weapon, rules=rules)
-            _apply_debuff(state, weapon, victim)
+    for victim in blast_victims(state, actor, weapon, decision.aim):
+        victim.hp -= strike_damage(actor, victim, weapon, rules=rules)
+        _apply_debuff(state, weapon, victim)
 
 
 def _apply_skill(state: BattleState, actor: Unit, decision: Decision) -> bool:

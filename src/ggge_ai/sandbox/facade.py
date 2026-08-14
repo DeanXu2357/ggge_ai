@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -24,25 +24,27 @@ from .model import (
     Stance,
     Unit,
     Weapon,
-    _counter_weapon,
-    _interception_multiplier,
-    _pending,
-    _stance_multiplier,
+    blast_victims,
+    find_support_attackers,
     find_support_defender,
     legal_attacks,
     legal_map_attacks,
+    legal_reactions,
     legal_skills,
+    pending_units,
     reachable_cells,
+    reaction_defense,
     reposition_moves,
     standby,
     step,
     strike_damage,
     strike_hit_probability,
-    targets_of,
 )
 
 ACTIVATION = "activation"
 REACTION = "reaction"
+
+DECISION_FIELDS = ("kind", "unit_id", "move_to", "target_id", "weapon", "amount", "aim")
 
 
 def _cell(cell: Cell | None) -> list[int] | None:
@@ -52,7 +54,13 @@ def _cell(cell: Cell | None) -> list[int] | None:
 def _as_cell(raw: Any) -> Cell | None:
     if raw is None:
         return None
+    if not isinstance(raw, (list, tuple)) or len(raw) != 2:
+        raise ValueError(f"格位要寫成 [x, y]，讀到 {raw!r}")
     return (int(raw[0]), int(raw[1]))
+
+
+def _as_die(raw: Any) -> bool | None:
+    return None if raw is None else bool(raw)
 
 
 def _unit_payload(unit: Unit) -> dict[str, Any]:
@@ -98,43 +106,55 @@ def _unit_payload(unit: Unit) -> dict[str, Any]:
     }
 
 
+def _candidate_key(candidate: Mapping[str, Any]) -> tuple:
+    missing = sorted({"kind", "unit_id"} - set(candidate))
+    if missing:
+        raise ValueError(f"候選缺欄位：{'、'.join(missing)}")
+    return (
+        str(candidate["kind"]),
+        str(candidate["unit_id"]),
+        _as_cell(candidate.get("move_to")),
+        candidate.get("target_id"),
+        candidate.get("weapon"),
+        candidate.get("amount"),
+        _as_cell(candidate.get("aim")),
+    )
+
+
 def _decision_of(candidate: Mapping[str, Any], reaction: Mapping[str, Any] | None) -> Decision:
+    kind, unit_id, move_to, target_id, weapon, amount, aim = _candidate_key(candidate)
+    try:
+        move_kind = MoveKind(kind)
+    except ValueError as exc:
+        raise ValueError(f"行動類型不合法：{kind!r}") from exc
     return Decision(
-        unit_id=str(candidate["unit_id"]),
-        kind=MoveKind(candidate["kind"]),
-        move_to=_as_cell(candidate.get("move_to")),
-        target_id=candidate.get("target_id"),
-        weapon=candidate.get("weapon"),
-        amount=candidate.get("amount"),
-        aim=_as_cell(candidate.get("aim")),
+        unit_id=unit_id,
+        kind=move_kind,
+        move_to=move_to,
+        target_id=target_id,
+        weapon=weapon,
+        amount=amount,
+        aim=aim,
         reaction=_reaction_of(reaction),
+        hit=_as_die(candidate.get("hit")),
+        counter_hit=_as_die(candidate.get("counter_hit")),
+        support_hit=_as_die(candidate.get("support_hit")),
     )
 
 
 def _reaction_of(raw: Mapping[str, Any] | None) -> Reaction | None:
     if raw is None:
         return None
-    return Reaction(
-        stance=Stance(raw.get("stance", Stance.NONE)),
-        weapon=raw.get("weapon"),
-        support_defend=bool(raw.get("support_defend", False)),
-        support_attack=bool(raw.get("support_attack", True)),
-    )
-
-
-def _legal_reactions(defender: Unit, attacker: Unit, *, support_defend: bool) -> list[Reaction]:
-    stances = [Stance.NONE, Stance.DODGE, Stance.DEFEND]
-    if defender.has_shield:
-        stances.append(Stance.SHIELD)
-    out = [Reaction(stance=stance) for stance in stances]
-    out.extend(
-        Reaction(stance=Stance.COUNTER, weapon=weapon.name)
-        for weapon in defender.weapons
-        if _counter_weapon(defender, weapon.name, attacker) is not None
-    )
-    if support_defend:
-        out.extend(replace(option, support_defend=True) for option in list(out))
-    return out
+    stance = raw.get("stance", Stance.NONE)
+    try:
+        return Reaction(
+            stance=Stance(stance),
+            weapon=raw.get("weapon"),
+            support_defend=bool(raw.get("support_defend", False)),
+            support_attack=bool(raw.get("support_attack", True)),
+        )
+    except ValueError as exc:
+        raise ValueError(f"應戰姿態不合法：{stance!r}") from exc
 
 
 class Sandbox:
@@ -143,7 +163,7 @@ class Sandbox:
         state: BattleState,
         rules: Rules,
         events: EventTable | None = None,
-        advisor: Advisor[BattleState, Any] | None = None,
+        advisor: Advisor[BattleState, Decision | Reaction] | None = None,
         *,
         scenario: scenario_mod.Scenario | None = None,
     ) -> None:
@@ -157,7 +177,7 @@ class Sandbox:
     def from_scenario(
         cls,
         path: str | Path,
-        advisor: Advisor[BattleState, Any] | None = None,
+        advisor: Advisor[BattleState, Decision | Reaction] | None = None,
     ) -> Sandbox:
         scenario = scenario_mod.load(path)
         state, rules, events = scenario.build()
@@ -208,7 +228,7 @@ class Sandbox:
     def pending_decision(self) -> dict[str, Any]:
         units: list[dict[str, Any]] = []
         decisions: list[Decision] = []
-        for actor in _pending(self._state, self._state.phase):
+        for actor in pending_units(self._state, self._state.phase):
             payload, candidates = self._activation(actor)
             units.append(payload)
             decisions.extend(candidates)
@@ -220,32 +240,23 @@ class Sandbox:
             "advice": self._advice(decisions),
         }
 
-    def reaction_options(
-        self, attacker_id: str, defender_id: str, weapon: str | None = None
-    ) -> dict[str, Any]:
-        attacker = self._state.unit(attacker_id)
-        defender = self._state.unit(defender_id)
-        if attacker is None or defender is None:
-            return {
-                "kind": REACTION,
-                "attacker": attacker_id,
-                "defender": defender_id,
-                "weapon": weapon,
-                "support_defender": None,
-                "options": [],
-                "advice": None,
-            }
-        shot = attacker.weapon(weapon)
+    def reaction_options(self, candidate: Mapping[str, Any]) -> dict[str, Any]:
+        attacker, defender, weapon, origin = self._engagement(candidate)
+        options = legal_reactions(self._state, defender, attacker, weapon, attacker_pos=origin)
+        volley = find_support_attackers(self._state, defender, attacker, foe_pos=origin)
+        supporters = [
+            unit.unit_id for unit, _ in volley[: max(0, self._rules.max_support_attackers)]
+        ]
         interceptor = find_support_defender(self._state, defender)
-        options = _legal_reactions(defender, attacker, support_defend=interceptor is not None)
         return {
             "kind": REACTION,
-            "attacker": attacker_id,
-            "defender": defender_id,
-            "weapon": None if shot is None else shot.name,
+            "attacker": attacker.unit_id,
+            "defender": defender.unit_id,
+            "weapon": weapon.name,
+            "attacker_cell": list(origin),
             "support_defender": None if interceptor is None else interceptor.unit_id,
             "options": [
-                self._reaction_payload(attacker, defender, shot, interceptor, option)
+                self._reaction_payload(attacker, defender, weapon, option, supporters)
                 for option in options
             ],
             "advice": self._advice(options),
@@ -256,12 +267,11 @@ class Sandbox:
         candidate: Mapping[str, Any],
         reaction: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        self._state = step(
-            self._state,
-            _decision_of(candidate, reaction),
-            rules=self._rules,
-            events=self._events,
-        )
+        decision = _decision_of(candidate, reaction)
+        self._require_legal(candidate)
+        if decision.reaction is not None:
+            self._require_legal_reaction(candidate, decision.reaction)
+        self._state = step(self._state, decision, rules=self._rules, events=self._events)
         return self.snapshot()
 
     def _effect(self, effect: dict[str, Any]) -> dict[str, Any]:
@@ -299,56 +309,93 @@ class Sandbox:
             "aim": _cell(decision.aim),
             "hit_probability": None,
             "expected_damage": None,
+            "victims": [],
         }
+        shot = actor.weapon(decision.weapon)
         if decision.kind is MoveKind.ATTACK:
             target = self._state.unit(decision.target_id)
-            shot = actor.weapon(decision.weapon)
             if target is not None:
                 payload["hit_probability"] = strike_hit_probability(
                     actor, target, shot, rules=self._rules
                 )
                 payload["expected_damage"] = self._damage(actor, target, shot)
-        elif decision.kind is MoveKind.MAP_ATTACK:
-            victim = next(
-                (u for u in targets_of(self._state, actor) if u.pos == decision.aim), None
-            )
-            if victim is not None:
-                shot = actor.weapon(decision.weapon)
-                payload["target_id"] = victim.unit_id
-                # 地圖兵器不擲命中：_apply_map_attack 沒有命中節點，一定落地。
-                payload["hit_probability"] = 1.0
-                payload["expected_damage"] = self._damage(actor, victim, shot)
+        elif decision.kind is MoveKind.MAP_ATTACK and shot is not None and decision.aim is not None:
+            victims = blast_victims(self._state, actor, shot, decision.aim)
+            payload["victims"] = [
+                {"uid": victim.unit_id, "expected_damage": self._damage(actor, victim, shot)}
+                for victim in victims
+            ]
+            aimed = next((victim for victim in victims if victim.pos == decision.aim), None)
+            payload["target_id"] = None if aimed is None else aimed.unit_id
+            # 地圖兵器不擲命中：_apply_map_attack 沒有命中節點，一定落地。
+            payload["hit_probability"] = 1.0
+            payload["expected_damage"] = sum(hit["expected_damage"] for hit in payload["victims"])
         return payload
 
     def _reaction_payload(
         self,
         attacker: Unit,
         defender: Unit,
-        shot: Weapon | None,
-        interceptor: Unit | None,
+        weapon: Weapon,
         option: Reaction,
+        supporters: Sequence[str],
     ) -> dict[str, Any]:
-        struck = defender
-        multiplier = _stance_multiplier(option, self._rules)
-        if option.support_defend and interceptor is not None:
-            struck = interceptor
-            multiplier = _interception_multiplier(interceptor, self._rules)
+        struck, multiplier, _ = reaction_defense(self._state, defender, option, self._rules)
         return {
             "stance": str(option.stance),
             "weapon": option.weapon,
             "support_defend": option.support_defend,
+            "support_attack": option.support_attack,
+            "support_attackers": list(supporters) if option.support_attack else [],
             "struck": struck.unit_id,
             "hit_probability": strike_hit_probability(
                 attacker,
                 defender,
-                shot,
+                weapon,
                 dodging=option.stance is Stance.DODGE,
                 rules=self._rules,
             ),
             "expected_damage": self._damage(
-                attacker, struck, shot, defense_multiplier=multiplier
+                attacker, struck, weapon, defense_multiplier=multiplier
             ),
         }
+
+    def _engagement(self, candidate: Mapping[str, Any]) -> tuple[Unit, Unit, Weapon, Cell]:
+        kind, unit_id, move_to, target_id, name, _amount, _aim = _candidate_key(candidate)
+        if kind != MoveKind.ATTACK:
+            raise ValueError(f"只有攻擊有應戰節點，讀到 {kind!r}")
+        attacker = self._state.unit(unit_id)
+        defender = self._state.unit(target_id)
+        if attacker is None or defender is None:
+            raise ValueError(f"交戰雙方要在盤面上：{unit_id!r} 對 {target_id!r}")
+        if name is None:
+            raise ValueError("應戰列舉要指名武裝")
+        weapon = attacker.weapon(name)
+        if weapon is None:
+            raise ValueError(f"{unit_id} 沒有這個武裝：{name!r}")
+        if weapon.map_weapon:
+            raise ValueError(f"地圖兵器沒有應戰節點：{name!r}")
+        self._require_legal(candidate)
+        return attacker, defender, weapon, attacker.pos if move_to is None else move_to
+
+    def _require_legal(self, candidate: Mapping[str, Any]) -> None:
+        key = _candidate_key(candidate)
+        if key not in self._legal_keys(key[1]):
+            raise ValueError(f"這個候選不在目前的合法清單裡：{dict(zip(DECISION_FIELDS, key))}")
+
+    def _require_legal_reaction(self, candidate: Mapping[str, Any], reaction: Reaction) -> None:
+        attacker, defender, weapon, origin = self._engagement(candidate)
+        if reaction not in legal_reactions(
+            self._state, defender, attacker, weapon, attacker_pos=origin
+        ):
+            raise ValueError(f"這個應戰不在合法選項裡：{reaction}")
+
+    def _legal_keys(self, unit_id: str) -> set[tuple]:
+        for actor in pending_units(self._state, self._state.phase):
+            if actor.unit_id == unit_id:
+                payload, _ = self._activation(actor)
+                return {_candidate_key(entry) for entry in payload["candidates"]}
+        return set()
 
     def _damage(
         self,
@@ -364,7 +411,7 @@ class Sandbox:
             attacker, struck, shot, defense_multiplier=defense_multiplier, rules=self._rules
         )
 
-    def _advice(self, candidates: Sequence[Any]) -> dict[str, Any] | None:
+    def _advice(self, candidates: Sequence[Decision | Reaction]) -> dict[str, Any] | None:
         if self._advisor is None:
             return None
         appraisal = self._advisor.appraise(self._state)
