@@ -80,8 +80,7 @@ TAP_REGION: Region = (150, 250, 1900, 620)
 # 置中點是遊戲把選中單位擺到的螢幕位置，跟我們的量測窗無關。舊值拿 MAP_REGION 中點
 # (950,540) 冒充螢幕中點，x 偏 220px＝2.4 格，幾何置中判定（容差半格）因此從未生效
 # 過、置中反推的鏡位假說也帶著同樣的毒。實測 21 筆置中事件（兩 run 一致、±3px）：
-# 環心 (1170,546)、環所在格的格心 (1170,553)——置中對齊的是格，取格心那組
-# （docs/reviews/perspective-measurement.md §SCREEN_CENTRE）。
+# 環心 (1170,546)、環所在格的格心 (1170,553)——置中對齊的是格，取格心那組。
 SCREEN_CENTRE: Point = (1170.0, 553.0)
 
 TAP_EMPTY = "empty"
@@ -1087,9 +1086,8 @@ def aim_drift(
     給的證人——半格以內的偏它量得到，整數格距的偏它看不見（那一段靠標記與界線）。
 
     坑：期望側與量測側必須同週期。`phase` 是當幀量出的格距取的模，拿模型格距去 mod
-    期望值，同一條格線會算出兩個相位（差 p95 0.156 格，見
-    `docs/reviews/perspective-measurement.md`），0.25 格容差有一半以上被假訊號吃掉。
-    量得出當幀格距就把它從 `board.lattice_phase` 一起傳進 `pitch`。
+    期望值，同一條格線會算出兩個相位（差 p95 0.156 格），0.25 格容差有一半以上被假
+    訊號吃掉。量得出當幀格距就把它從 `board.lattice_phase` 一起傳進 `pitch`。
     """
     period = pitch or (grid.col_pitch, grid.row_pitch)
     expected = (

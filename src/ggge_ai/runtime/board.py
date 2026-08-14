@@ -148,8 +148,8 @@ UNIT_DENSITY_MIN_DIST = 80
 # 一樣出峰。洞要從 mask 挖而不是從密度圖挖——密度圖照樣把橫幅的像素透過方框
 # 濾波積進來，只在密度層挖洞只是把鬼影趕到洞緣。
 #
-# 另兩個洞是固定位置的 HUD 鈕（0801 第 6 輪逐幀量測，見 docs/reviews/scan-v2_7-review.md
-# 第二節）：左上「變更初期配置」藍鈕實測 x154-437／y250-318，右上加速 teal 鈕
+# 另兩個洞是固定位置的 HUD 鈕（0801 第 6 輪逐幀量測）：
+# 左上「變更初期配置」藍鈕實測 x154-437／y250-318，右上加速 teal 鈕
 # x1937-2101／y7-88。**鈕只在特定狀態出現，洞卻是永久的**——被洞蓋住的格因此永遠
 # 進不了 `coverage.readable`，那幾格由覆蓋模型既有的 HUD 壓角機制承接（留 UNKNOWN、
 # 待掃格回補，補不到就明寫退休）。右上洞**不要再往下挖**：實測 t19／t20／t35 都有真
@@ -660,9 +660,8 @@ def find_lattice(frame: np.ndarray | None) -> Lattice | None:
 def find_lattice_band(frame: np.ndarray | None) -> tuple[Lattice, Region] | None:
     """同 `find_lattice`，外加線位是從哪一個帶量出來的。
 
-    帶決定了線位的座標系：縱線是斜的，帶內投影取到的是**帶中線那個高度**上的 x
-    （`docs/reviews/perspective-measurement.md` §3.3），要把線位拿去跟幾何模型對答案
-    就得知道那個高度。
+    帶決定了線位的座標系：縱線是斜的，帶內投影取到的是**帶中線那個高度**上的 x，
+    要把線位拿去跟幾何模型對答案就得知道那個高度。
     """
     for band, minimum in _lattice_bands():
         lattice = read_lattice(frame, band, minimum=minimum)
