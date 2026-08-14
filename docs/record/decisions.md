@@ -1333,3 +1333,16 @@
   practice wrote its guides to docs/reviews/ — with the directory
   gone, future review guides need a new destination or the practice
   ends; not decided here.
+- **(0814) One terrain value for a whole stage map — user ruling**｜
+  The user ruled first-hand that one stage map carries one terrain
+  value: the game applies the same terrain correction to every cell,
+  and there is no per-cell terrain. The per-cell terrain hypothesis
+  is withdrawn (it stood in the stage-level row of
+  docs/spec/intel-data-spec.md and in the calibration list of
+  docs/reference/combat-formulas.md; both corrected in this change,
+  issue #55). The implementation already matches reality: the global
+  scalar 'Rules.terrain' in sandbox/model.py, the divisor of formula
+  ⑧, plus the per-scenario 'rules' override read by
+  sandbox/scenario.py. No code change follows from this ruling.
+  Open work: the terrain value of each stage still needs live
+  calibration on the device (issue #53).
