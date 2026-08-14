@@ -56,9 +56,26 @@ term at its first use in each document, then use the short form.
 | settle | 幀差取樣 | Sample after the frame difference falls: await_still in runtime/settle.py polls the difference of the frames pixel by pixel (interval SETTLE_POLL_S) and takes the frame when the fraction of moving pixels goes under the threshold, or when the deadline (SETTLE_WAIT_S) arrives, whichever is first. The settle journal event records which of the two in its 'converged' field. The name does not use 收斂, because an event after a tap can be a long animation that does not become still, and the primitive releases at the deadline. Accepted alternate reading: 收斂取樣, because the release at the deadline is a defined convergence point |
 | blind sleep | 盲睡 | The fixed-time wait that the settle primitive replaces. Examples: board.PAN_SETTLE_S, ROSTER_SETTLE_S and SETTLE_ROUNDS in stage/survey.py, settle_s in battle/map_view.py, ABANDON_SETTLE_ATTEMPTS and ABANDON_SETTLE_INTERVAL_S in runtime/entry.py. It measures nothing. These names keep the English word settle although they are not the settle primitive |
 | projection | 透視投影 | The fixed planar homography of the board (runtime/projection.py): world isometric grid to screen grid-line positions. Not the bare word 投影, which board.py uses for the row and column sums |
+| sandbox | 沙盤 | The program's own simulation of one stage battle (ggge_ai/sandbox/): our model of the mechanisms that the game runs on the device |
+| scenario file | 情境檔 | The JSON stage layout that sandbox/scenario.py reads into a starting board: who stands where, the rules overrides, the event table. Unit values come from the intel store |
+| advisor | 顧問 | The inner tactical layer that appraises a state and prices candidate actions: the 'Advisor' protocol in sandbox/advise.py. It advises the planning layer; it does not plan |
+| expectiminimax | expectiminimax | The search above the sandbox that the advisor runs; the chance nodes carry the hit and the crit rolls. Keep the English form in Chinese text: there is no Chinese binding |
+| play mode | 操作模式 | The sandbox web UI mode that plays the board under the turn rules: only units of the current phase faction accept commands, and every change goes through the sandbox facade |
+| edit mode | 編輯模式 | The sandbox web UI mode that writes unit values directly into the sandbox state, without the turn rules; it reproduces values read from the device for a formula check |
+| operation history | 操作史 | The ordered list of the operations of one sandbox session, the edit-mode changes included; undo removes the last entry and restores the snapshot before it |
+| first strike | 先攻 | The weapon trait that puts a strike into an extra queue before the normal resolution order; the mark is the orange '先發攻擊' label above the portrait. The sandbox has no first-strike queue today |
+| Ex weapon | Ex 武裝 | The weapon of a UR unit. Its judgment is above all abilities: the attack always hits, and it ignores some kinds of damage reduction (user ruling 2026-08-14; which kinds is open) |
+| support crew skill | 支援人員技能 | A skill that any unit in the team can trigger; the team can use each one one time in each stage. The effect covers the units in range |
+| pilot skill | 駕駛技能 | A skill that consumes pilot SP; the effect applies to the unit that the pilot rides |
+| unit skill | 機體技能 | A skill that the machine triggers at no cost; the effect applies mostly to the machine itself |
 | sandbox facade | 沙盤門面 | The class 'Sandbox' in sandbox/facade.py. Code outside the sandbox package uses it for every read of the board and every advance of the state. The facade aggregates and serializes only; the game logic stays in sandbox/model.py |
 | decision payload | 決策酬載 | The dict that 'Sandbox.pending_decision' and 'Sandbox.reaction_options' return: the legal candidates for the pending decision, plus the 'advice' field. The 'advice' field is empty when the facade has no advisor |
-| activation | 行動 | One action of one unit in one phase. It ends when the 'acted' flag of that unit becomes true |
+| activation | 啟動 | One action of one unit in one phase. It ends when the 'acted' flag of that unit becomes true. Not 行動, which the frozen corpus holds for two other senses: 行動類型 names the kind of a reaction in battle-prep-ui.md, and 防禦行動倍率 names the defense multiplier in combat-formulas.md |
+
+Retired name — 'solver': the word names only the deleted legacy
+stack (ruling 2026-08-14). The current implementation is the
+expectiminimax advisor, class name 'ExpectiminimaxAdvisor'
+(issue #44). Do not name new code 'solver'.
 
 ## Legacy Chinese corpus key
 
