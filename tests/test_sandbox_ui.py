@@ -190,7 +190,7 @@ def test_an_illegal_act_answers_four_hundred(client):
     status, payload = client.post("/api/act", {"candidate": wait})
 
     assert status == 400
-    assert "合法清單" in payload["error"]
+    assert "not in the current legal list" in payload["error"]
 
 
 def test_an_illegal_reaction_answers_four_hundred(client):
@@ -202,7 +202,7 @@ def test_an_illegal_reaction_answers_four_hundred(client):
     )
 
     assert status == 400
-    assert "應戰姿態" in payload["error"]
+    assert "Illegal reaction stance" in payload["error"]
 
 
 def test_a_malformed_body_answers_four_hundred(client):
@@ -217,7 +217,7 @@ def test_a_malformed_body_answers_four_hundred(client):
 
     assert broken[0] == 400 and "JSON" in broken[1]["error"]
     assert bare[0] == 400 and "candidate" in bare[1]["error"]
-    assert cell[0] == 400 and "格位" in cell[1]["error"]
+    assert cell[0] == 400 and "A cell must be" in cell[1]["error"]
 
 
 def test_a_body_that_would_raise_a_type_error_answers_four_hundred(client):
@@ -227,8 +227,8 @@ def test_a_body_that_would_raise_a_type_error_answers_four_hundred(client):
     axis = client.post("/api/act", {"candidate": {**shot, "move_to": [None, 0]}})
     unhashable = client.post("/api/act", {"candidate": {**shot, "target_id": [shot["target_id"]]}})
 
-    assert axis[0] == 400 and "整數" in axis[1]["error"]
-    assert unhashable[0] == 400 and "純量" in unhashable[1]["error"]
+    assert axis[0] == 400 and "must be integers" in axis[1]["error"]
+    assert unhashable[0] == 400 and "must be a scalar" in unhashable[1]["error"]
 
 
 def test_a_body_length_outside_the_bounds_answers_four_hundred(client):
@@ -262,4 +262,4 @@ def test_reactions_endpoint_rejects_a_candidate_without_an_engagement(client):
     status, payload = client.post("/api/reactions", {"candidate": _first(entry, "standby")})
 
     assert status == 400
-    assert "只有攻擊" in payload["error"]
+    assert "Only an attack lets the defender react" in payload["error"]
