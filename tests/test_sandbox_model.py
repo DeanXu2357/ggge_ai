@@ -14,6 +14,7 @@ from ggge_ai.sandbox.model import (
     Unit,
     Weapon,
     decision_hit_probability,
+    legal_reactions,
     standby,
     step,
     strike_damage,
@@ -135,6 +136,45 @@ def test_kill_without_a_chance_step_charge_ends_the_activation():
     assert after.phase is Faction.ENEMY
 
 
+
+
+def _reaction_board(**kw):
+    pistol = Weapon("pistol", power=800, range_min=1, range_max=3, can_counter=False)
+    defender = _ally(weapons=[_rifle(), pistol], **kw)
+    guard = _ally(unit_id="g", pos=(0, 1), weapons=[], move_range=3,
+                  support_defend_charges=1, support_defend_charges_max=1)
+    attacker = _enemy("boss", pos=(9, 0), weapons=[_rifle(rmax=1)], move_range=8)
+    return BattleState(units=[defender, guard, attacker], phase=Faction.ENEMY), attacker, defender
+
+
+def test_legal_reactions_read_the_counter_from_the_post_move_cell():
+    state, attacker, defender = _reaction_board()
+    weapon = attacker.weapons[0]
+
+    far = legal_reactions(state, defender, attacker, weapon)
+    near = legal_reactions(state, defender, attacker, weapon, attacker_pos=(1, 0))
+
+    assert not any(r.stance is Stance.COUNTER for r in far)
+    counters = [r for r in near if r.stance is Stance.COUNTER and not r.support_defend]
+    assert [r.weapon for r in counters] == ["rifle"]
+
+
+def test_support_defense_pairs_only_with_dodge_and_counter_and_none():
+    state, attacker, defender = _reaction_board(has_shield=True)
+
+    options = legal_reactions(state, defender, attacker, attacker.weapons[0], attacker_pos=(1, 0))
+
+    assert {r.stance for r in options if r.support_defend} == {
+        Stance.NONE, Stance.DODGE, Stance.COUNTER
+    }
+    assert Stance.SHIELD in {r.stance for r in options}
+
+
+def test_a_map_weapon_offers_no_reaction():
+    state, attacker, defender = _reaction_board()
+    map_gun = Weapon("mapgun", power=5000, range_min=1, range_max=4, map_weapon=True, blast=1)
+
+    assert legal_reactions(state, defender, attacker, map_gun) == []
 
 
 def test_defense_action_multipliers_reduce_damage():
