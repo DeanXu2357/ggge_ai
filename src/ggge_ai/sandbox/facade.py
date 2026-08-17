@@ -1,6 +1,7 @@
-"""沙盤門面：外界唯一的查詢與推進入口。
+"""The sandbox facade: the only entry point for a read of the board or an advance.
 
-只做彙整與序列化：候選一律轉呼叫 model 層的列舉器與公式，本模組不含遊戲規則。
+This module aggregates and serializes only. Every candidate comes from an enumerator
+or a formula in the model layer. The game rules stay out of this module.
 """
 
 from __future__ import annotations
@@ -55,7 +56,7 @@ def _as_cell(raw: Any) -> Cell | None:
     if raw is None:
         return None
     if not isinstance(raw, (list, tuple)) or len(raw) != 2:
-        raise ValueError(f"格位要寫成 [x, y]，讀到 {raw!r}")
+        raise ValueError(f"A cell must be [x, y]. Got {raw!r}")
     return (int(raw[0]), int(raw[1]))
 
 
@@ -109,7 +110,7 @@ def _unit_payload(unit: Unit) -> dict[str, Any]:
 def _candidate_key(candidate: Mapping[str, Any]) -> tuple:
     missing = sorted({"kind", "unit_id"} - set(candidate))
     if missing:
-        raise ValueError(f"候選缺欄位：{'、'.join(missing)}")
+        raise ValueError(f"The candidate has no {', '.join(missing)}")
     return (
         str(candidate["kind"]),
         str(candidate["unit_id"]),
@@ -126,7 +127,7 @@ def _decision_of(candidate: Mapping[str, Any], reaction: Mapping[str, Any] | Non
     try:
         move_kind = MoveKind(kind)
     except ValueError as exc:
-        raise ValueError(f"行動類型不合法：{kind!r}") from exc
+        raise ValueError(f"Illegal move kind: {kind!r}") from exc
     return Decision(
         unit_id=unit_id,
         kind=move_kind,
@@ -154,7 +155,7 @@ def _reaction_of(raw: Mapping[str, Any] | None) -> Reaction | None:
             support_attack=bool(raw.get("support_attack", True)),
         )
     except ValueError as exc:
-        raise ValueError(f"應戰姿態不合法：{stance!r}") from exc
+        raise ValueError(f"Illegal reaction stance: {stance!r}") from exc
 
 
 class Sandbox:
@@ -327,7 +328,8 @@ class Sandbox:
             ]
             aimed = next((victim for victim in victims if victim.pos == decision.aim), None)
             payload["target_id"] = None if aimed is None else aimed.unit_id
-            # 地圖兵器不擲命中：_apply_map_attack 沒有命中節點，一定落地。
+            # A map weapon does not roll to hit. '_apply_map_attack' has no hit node,
+            # so the shot always lands.
             payload["hit_probability"] = 1.0
             payload["expected_damage"] = sum(hit["expected_damage"] for hit in payload["victims"])
         return payload
@@ -363,32 +365,38 @@ class Sandbox:
     def _engagement(self, candidate: Mapping[str, Any]) -> tuple[Unit, Unit, Weapon, Cell]:
         kind, unit_id, move_to, target_id, name, _amount, _aim = _candidate_key(candidate)
         if kind != MoveKind.ATTACK:
-            raise ValueError(f"只有攻擊有應戰節點，讀到 {kind!r}")
+            raise ValueError(f"Only an attack lets the defender react. Got {kind!r}")
         attacker = self._state.unit(unit_id)
         defender = self._state.unit(target_id)
         if attacker is None or defender is None:
-            raise ValueError(f"交戰雙方要在盤面上：{unit_id!r} 對 {target_id!r}")
+            raise ValueError(
+                f"Both sides of the engagement must be on the board: "
+                f"{unit_id!r} against {target_id!r}"
+            )
         if name is None:
-            raise ValueError("應戰列舉要指名武裝")
+            raise ValueError("Reaction enumeration needs a named weapon")
         weapon = attacker.weapon(name)
         if weapon is None:
-            raise ValueError(f"{unit_id} 沒有這個武裝：{name!r}")
+            raise ValueError(f"{unit_id} has no such weapon: {name!r}")
         if weapon.map_weapon:
-            raise ValueError(f"地圖兵器沒有應戰節點：{name!r}")
+            raise ValueError(f"A defender cannot react to a map weapon: {name!r}")
         self._require_legal(candidate)
         return attacker, defender, weapon, attacker.pos if move_to is None else move_to
 
     def _require_legal(self, candidate: Mapping[str, Any]) -> None:
         key = _candidate_key(candidate)
         if key not in self._legal_keys(key[1]):
-            raise ValueError(f"這個候選不在目前的合法清單裡：{dict(zip(DECISION_FIELDS, key))}")
+            raise ValueError(
+                f"This candidate is not in the current legal list: "
+                f"{dict(zip(DECISION_FIELDS, key))}"
+            )
 
     def _require_legal_reaction(self, candidate: Mapping[str, Any], reaction: Reaction) -> None:
         attacker, defender, weapon, origin = self._engagement(candidate)
         if reaction not in legal_reactions(
             self._state, defender, attacker, weapon, attacker_pos=origin
         ):
-            raise ValueError(f"這個應戰不在合法選項裡：{reaction}")
+            raise ValueError(f"This reaction is not in the legal options: {reaction}")
 
     def _legal_keys(self, unit_id: str) -> set[tuple]:
         for actor in pending_units(self._state, self._state.phase):
@@ -415,7 +423,8 @@ class Sandbox:
         if self._advisor is None:
             return None
         appraisal = self._advisor.appraise(self._state)
-        # pricing 與酬載裡的候選逐位對齊：單位依序、單位內候選依序攤平成一條清單。
+        # 'pricing' aligns with the candidates in the payload position by position: the
+        # units in order, and the candidates of one unit in order, flattened into one list.
         pricing = self._advisor.price(self._state, candidates)
         return {
             "verdict": appraisal.verdict.value,

@@ -319,10 +319,15 @@ class Decision:
 
 @dataclass(frozen=True)
 class StageEvent:
-    """劇本事件。trigger：{"type": "kill", "uid", "within_turn"?} 或
-    {"type": "turn_start", "turn"}；effect：{"type": "spawn", "units"} 或
-    {"type": "weaken", "uids", "attack_multiplier"?, "defense_multiplier"?}。
-    未知型別靜默無操作——step 每個節點都會跑，驗證屬呼叫端。"""
+    """A scripted event.
+
+    The trigger is {"type": "kill", "uid", "within_turn"?} or
+    {"type": "turn_start", "turn"}. The effect is {"type": "spawn", "units"} or
+    {"type": "weaken", "uids", "attack_multiplier"?, "defense_multiplier"?}.
+
+    An unknown type does nothing and reports nothing, because 'step' runs every event
+    at every node. The caller validates the table.
+    """
 
     event_id: str
     trigger: dict
@@ -610,8 +615,11 @@ def reposition_moves(
     return out
 
 
-# 支援防禦只配迴避與反擊。防禦與盾防不可配支援防禦。
-# 不應戰（none）配支援防禦未經實機確認，暫時保留（docs/reference/battle-prep-ui.md）。
+# 'support_defend' pairs only with dodge and counter, because a defender that picks
+# defend or shield blocks the strike for itself and leaves the interceptor nothing
+# to take.
+# The device does not confirm the pair of 'none' and 'support_defend'. The pair
+# stays in the list (docs/reference/battle-prep-ui.md).
 SUPPORT_DEFEND_STANCES: tuple[Stance, ...] = (Stance.NONE, Stance.DODGE, Stance.COUNTER)
 
 
@@ -721,7 +729,10 @@ def _interception_multiplier(interceptor: Unit, rules: Rules) -> float:
 def reaction_defense(
     state: BattleState, defender: Unit, reaction: Reaction | None, rules: Rules
 ) -> tuple[Unit, float, Unit | None]:
-    """回傳這一擊實際承受的單位、傷害倍率，以及攔截者（沒有攔截時為 None）。"""
+    """Return the unit that takes the strike, the damage multiplier, and the interceptor.
+
+    The interceptor is None when nothing intercepts the strike.
+    """
     interceptor = (
         find_support_defender(state, defender)
         if reaction is not None and reaction.support_defend

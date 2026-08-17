@@ -341,21 +341,21 @@ def test_act_rejects_a_candidate_that_is_no_longer_legal():
     wait = _kind(_entry(sandbox.pending_decision(), "a"), "standby")
     sandbox.act(wait)
 
-    with pytest.raises(ValueError, match="合法清單"):
+    with pytest.raises(ValueError, match="not in the current legal list"):
         sandbox.act(wait)
 
 
 def test_act_rejects_an_invented_candidate():
     sandbox = Sandbox(_skirmish(), DEFAULT_RULES)
 
-    with pytest.raises(ValueError, match="合法清單"):
+    with pytest.raises(ValueError, match="not in the current legal list"):
         sandbox.act({"kind": "attack", "unit_id": "a", "target_id": "e1", "weapon": "beam"})
 
 
 def test_act_rejects_a_malformed_cell():
     sandbox = Sandbox(_skirmish(), DEFAULT_RULES)
 
-    with pytest.raises(ValueError, match="格位"):
+    with pytest.raises(ValueError, match="A cell must be"):
         sandbox.act({"kind": "reposition", "unit_id": "a", "move_to": [1, 2, 3]})
 
 
@@ -363,7 +363,7 @@ def test_act_rejects_a_reaction_that_the_rules_forbid():
     sandbox = Sandbox(_engagement(), DEFAULT_RULES)
     strike = _boss_strike(sandbox)
 
-    with pytest.raises(ValueError, match="應戰"):
+    with pytest.raises(ValueError, match="not in the legal options"):
         sandbox.act(strike, {"stance": "defend", "support_defend": True})
 
 
@@ -454,7 +454,7 @@ def test_reaction_options_reject_a_candidate_that_is_not_an_attack():
     sandbox = Sandbox(_skirmish(), DEFAULT_RULES)
     wait = _kind(_entry(sandbox.pending_decision(), "a"), "standby")
 
-    with pytest.raises(ValueError, match="只有攻擊"):
+    with pytest.raises(ValueError, match="Only an attack lets the defender react"):
         sandbox.reaction_options(wait)
 
 
@@ -462,7 +462,7 @@ def test_reaction_options_reject_an_unknown_weapon():
     sandbox = Sandbox(_engagement(), DEFAULT_RULES)
     strike = _boss_strike(sandbox)
 
-    with pytest.raises(ValueError, match="沒有這個武裝"):
+    with pytest.raises(ValueError, match="has no such weapon"):
         sandbox.reaction_options({**strike, "weapon": "beam"})
 
 
@@ -470,7 +470,7 @@ def test_reaction_options_reject_a_map_weapon():
     sandbox = Sandbox(_skirmish(), DEFAULT_RULES)
     shot = _kind(_entry(sandbox.pending_decision(), "a"), "attack")
 
-    with pytest.raises(ValueError, match="地圖兵器"):
+    with pytest.raises(ValueError, match="cannot react to a map weapon"):
         sandbox.reaction_options({**shot, "weapon": "mapgun"})
 
 
