@@ -71,6 +71,7 @@ term at its first use in each document, then use the short form.
 | sandbox facade | 沙盤門面 | The class 'Sandbox' in sandbox/facade.py. Code outside the sandbox package uses it for every read of the board and every advance of the state. The facade aggregates and serializes only; the game logic stays in sandbox/model.py |
 | decision payload | 決策酬載 | The dict that 'Sandbox.pending_decision' and 'Sandbox.reaction_options' return: the legal candidates for the pending decision, plus the 'advice' field. The 'advice' field is empty when the facade has no advisor |
 | activation | 啟動 | One action of one unit in one phase. It ends when the 'acted' flag of that unit becomes true. Not 行動, which the frozen corpus holds for two other senses: 行動類型 names the kind of a reaction in battle-prep-ui.md, and 防禦行動倍率 names the defense multiplier in combat-formulas.md |
+| pending ruling | 待裁 | The marker for an item that needs a ruling from the user, not more evidence. Write the English form in a new issue, a new document, and a commit message. The Chinese form appears three times in the frozen record docs/record/decisions.md; leave those alone |
 
 Retired name — 'solver': the word names only the deleted legacy
 stack (ruling 2026-08-14). The current implementation is the

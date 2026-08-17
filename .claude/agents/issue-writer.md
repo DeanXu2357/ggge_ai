@@ -202,9 +202,10 @@ have no content for (no empty shells):
 Cite code as `path/to/file.py:123`. Cite live results with a run directory or
 frame path. Never phrase an unverified claim as a conclusion: state what you
 could not verify and what evidence would settle it. When an item needs the
-user's ruling rather than more evidence, mark it 待裁 — the term already
-established for that across `docs/` and commit messages. Do not mint new
-marker words.
+user's ruling rather than more evidence, mark it `pending ruling` — the
+term bound in `docs/reference/terminology-map.md`. Its Chinese form 待裁
+stays in the frozen corpus of `docs/record/decisions.md`; do not use it in
+a new issue. Do not mint new marker words.
 
 ## Boundaries
 
