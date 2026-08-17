@@ -57,7 +57,18 @@ def _as_cell(raw: Any) -> Cell | None:
         return None
     if not isinstance(raw, (list, tuple)) or len(raw) != 2:
         raise ValueError(f"A cell must be [x, y]. Got {raw!r}")
-    return (int(raw[0]), int(raw[1]))
+    try:
+        return (int(raw[0]), int(raw[1]))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Both axes of a cell must be integers. Got {raw!r}") from exc
+
+
+def _as_scalar(field: str, raw: Any) -> Any:
+    try:
+        hash(raw)
+    except TypeError as exc:
+        raise ValueError(f"The candidate field {field} must be a scalar. Got {raw!r}") from exc
+    return raw
 
 
 def _as_die(raw: Any) -> bool | None:
@@ -115,9 +126,9 @@ def _candidate_key(candidate: Mapping[str, Any]) -> tuple:
         str(candidate["kind"]),
         str(candidate["unit_id"]),
         _as_cell(candidate.get("move_to")),
-        candidate.get("target_id"),
-        candidate.get("weapon"),
-        candidate.get("amount"),
+        _as_scalar("target_id", candidate.get("target_id")),
+        _as_scalar("weapon", candidate.get("weapon")),
+        _as_scalar("amount", candidate.get("amount")),
         _as_cell(candidate.get("aim")),
     )
 
@@ -274,6 +285,11 @@ class Sandbox:
             self._require_legal_reaction(candidate, decision.reaction)
         self._state = step(self._state, decision, rules=self._rules, events=self._events)
         return self.snapshot()
+
+    @staticmethod
+    def candidate_key(candidate: Mapping[str, Any]) -> tuple:
+        """候選的正規化身分。呼叫端拿它比對酬載裡的候選，用同一套轉型規則。"""
+        return _candidate_key(candidate)
 
     def _effect(self, effect: dict[str, Any]) -> dict[str, Any]:
         out = dict(effect)

@@ -359,6 +359,29 @@ def test_act_rejects_a_malformed_cell():
         sandbox.act({"kind": "reposition", "unit_id": "a", "move_to": [1, 2, 3]})
 
 
+def test_act_rejects_a_cell_axis_that_is_not_a_number():
+    sandbox = Sandbox(_skirmish(), DEFAULT_RULES)
+
+    with pytest.raises(ValueError, match="Both axes of a cell must be integers"):
+        sandbox.act({"kind": "reposition", "unit_id": "a", "move_to": [None, 0]})
+
+
+def test_act_rejects_an_unhashable_candidate_field():
+    sandbox = Sandbox(_skirmish(), DEFAULT_RULES)
+
+    with pytest.raises(ValueError, match="must be a scalar"):
+        sandbox.act({"kind": "attack", "unit_id": "a", "target_id": ["e1"], "weapon": "rifle"})
+
+
+def test_the_candidate_key_reads_the_two_writings_of_a_cell_as_one():
+    sandbox = Sandbox(_skirmish(), DEFAULT_RULES)
+    move = _kind(_entry(sandbox.pending_decision(), "a"), "reposition")
+
+    loose = {**move, "move_to": [str(axis) for axis in move["move_to"]]}
+
+    assert sandbox.candidate_key(loose) == sandbox.candidate_key(move)
+
+
 def test_act_rejects_a_reaction_that_the_rules_forbid():
     sandbox = Sandbox(_engagement(), DEFAULT_RULES)
     strike = _boss_strike(sandbox)
