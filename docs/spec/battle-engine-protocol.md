@@ -119,6 +119,11 @@ Purpose: the cells that one unit can move to.
 
 Request: 'unit_id'. Response: 'cells'.
 
+The cells come in a deterministic order: the cell of the unit
+first, then outward on the proximity key (the board distance, then
+the square of the straight line, then the cell). A client reads a
+list, not a set.
+
 Refusals: no_session; illegal_action for an unknown unit id.
 
 ### actions
