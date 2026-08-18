@@ -154,8 +154,15 @@ The engine reads 'attacker_cell' from the request. The engine does
 not read the current cell of the attacker. A client can therefore
 ask about a move that did not occur.
 
-Response: 'reactions'. An empty list means that the strike permits
-no reaction.
+Response: 'reactions'. The list holds dodge, defend, shield on a
+unit that carries one, and one entry for each weapon that can
+counter. A defender that cannot reach the attacker gets no counter
+entry; dodge and defend stay in the list. The reaction menu of the
+game holds no decline button (docs/reference/battle-prep-ui.md:108,
+issue #56), so the list holds no 'none' stance.
+
+An empty list means that the strike permits no reaction. A map
+weapon is such a strike.
 
 Refusals: no_session; illegal_action when the weapon does not reach
 the defender from that cell.
