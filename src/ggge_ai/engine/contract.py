@@ -92,6 +92,27 @@ class Dice:
 
 
 @dataclass(frozen=True)
+class ChanceOutcome:
+    label: str
+    probability: float
+
+
+@dataclass(frozen=True)
+class ChanceEvent:
+    """One random node of a resolution.
+
+    The three consumption modes read the same record: enumerate walks every
+    outcome, sampled draws one with these probabilities, and forced takes the
+    outcome whose label 'Dice.outcomes' names. The label set of a node belongs
+    to the issue that implements the node.
+    """
+
+    id: str
+    kind: str
+    outcomes: tuple[ChanceOutcome, ...] = ()
+
+
+@dataclass(frozen=True)
 class Verdict:
     """A guarantee of NONE says that the engine holds no certificate. It does
     not say that the action fails."""

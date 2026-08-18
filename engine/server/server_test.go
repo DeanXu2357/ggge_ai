@@ -141,3 +141,34 @@ func TestServeReadsALineBiggerThanTheScannerDefault(t *testing.T) {
 		t.Fatalf("reply: %+v", replies[0])
 	}
 }
+
+func TestTheRegistryBindsEveryCommandOfTheBuild(t *testing.T) {
+	server := New()
+
+	if _, bound := server.handlers["hello"]; !bound {
+		t.Fatal("hello has no handler")
+	}
+	if len(server.handlers) != len(registry) {
+		t.Fatalf("handlers: %d against %d", len(server.handlers), len(registry))
+	}
+}
+
+func TestRegisterRefusesANameOutsideTheContract(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("a name outside the contract must stop the build")
+		}
+	}()
+
+	Register("teleport", func(*Server) Handler { return ping })
+}
+
+func TestRegisterRefusesASecondHandlerForOneName(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("a second handler for one name must stop the build")
+		}
+	}()
+
+	Register("ping", func(*Server) Handler { return ping })
+}

@@ -20,9 +20,10 @@ type Server struct {
 }
 
 func New() *Server {
-	server := &Server{handlers: make(map[string]Handler)}
-	server.Handle("hello", server.hello)
-	server.Handle("ping", ping)
+	server := &Server{handlers: make(map[string]Handler, len(registry))}
+	for name, bind := range registry {
+		server.Handle(name, bind(server))
+	}
 	return server
 }
 

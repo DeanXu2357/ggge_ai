@@ -11,6 +11,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from ..engine import codec
 from . import scenario as scenario_mod
 from .advise import Advisor
 from .model import (
@@ -236,6 +237,14 @@ class Sandbox:
             "outcome": self.outcome(),
             "units": self.units(),
         }
+
+    def engine_state(self) -> dict[str, Any]:
+        """The board in the wire form of the battle engine.
+
+        'snapshot' is the shape of the web page. That shape does not reach the
+        engine: the engine contract reads 'sandbox/model.py' through the codec.
+        """
+        return codec.encode_state(self._state)
 
     def pending_decision(self) -> dict[str, Any]:
         units: list[dict[str, Any]] = []

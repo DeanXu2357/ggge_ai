@@ -2,17 +2,95 @@
 
 > Type: working—deleted at merge
 
-## Goal
+## Change summary
 
-The engine holds the state types, the dispatch registry, and the
-differential harness. The web UI talks to the engine. No rule and
-no formula.
+The engine holds the state types, a command registry, and the
+differential harness. The web UI can talk to the engine. The branch
+lands no game rule.
 
-## Resume point
+New, Go:
 
-Implementation dispatched to a subagent.
+- 'engine/protocol/state.go': the nine types of
+  'sandbox/model.py', field for field.
+- 'engine/server/registry.go': 'Register' binds one declared name
+  to one handler.
+- 'engine/differential/': the case reader and the comparison.
 
-## Progress log
+New, Python:
 
-- 2026-08-19: branch started from issue-69-engine-shell. The shell
-  is not in 'dev' yet; the merge waits for the user.
+- 'src/ggge_ai/engine/codec.py': the same wire form, written from
+  the model.
+- 'scripts/write_engine_fixtures.py': it writes the cases, and
+  '--check' reports a stale file.
+- 'tests/fixtures/engine/': four boards.
+
+Changed:
+
+- 'engine/protocol/types.go': the three raw aliases are gone. The
+  request and the response structs hold real types.
+- 'src/ggge_ai/sandbox/facade.py': 'engine_state()'.
+- 'scripts/sandbox_ui.py': the flag '--engine' starts the process,
+  pushes the board, and asks the declared queries.
+- 'docs/spec/battle-engine-protocol.md': the wire form of the state,
+  the case-file format, and the float rule. The forward reference
+  of issue #59 is now filled.
+- 'docs/reference/terminology-map.md': the term 'action'.
+
+## Call chain
+
+'Sandbox.engine_state' calls 'codec.encode_state'. The UI sends
+that payload with 'load'. The engine answers 'not_implemented', and
+the page keeps its Python rendering.
+
+A port issue calls 'server.Register' in an init function of its own
+file. 'hello' reads the same registry, so its answer cannot drift
+from the dispatch.
+
+A differential case names an op, its input, and the output that
+Python produced. A Go test runs the op and compares. An op that
+this build does not hold is skipped.
+
+## Contention points
+
+1. The stance 'none' is a decode error, on both sides. The
+   contract says the reaction list holds no decline option, and
+   'sandbox/model.py' still holds the member. The codec raises at
+   the boundary rather than passing the value.
+2. Field parity is a Python test that reads the JSON tags of the
+   Go struct. The authority is 'sandbox/model.py', so the gate that
+   a Python change runs must be the gate that breaks. A generated
+   field list would add a third file that goes stale.
+3. Floats compare with a relative tolerance of 1e-9 and an
+   absolute floor of 1e-12. Two runtimes call different libm code
+   for 'exp'. A wrong formula misses by far more than the
+   tolerance, and the smallest difference between two integers is
+   1.
+4. The UI pushes with 'load', not with 'init' and 'place'. A
+   scenario board holds units that already stand on the field;
+   'init' and 'place' are the deploy path.
+5. 'Register' panics on a name outside the contract and on a
+   second binding of one name.
+6. The wire name is 'action' and the Go type name is 'Decision'.
+   The contract and the model disagree, and each keeps its own
+   name. The terminology map holds the binding.
+
+## Verification
+
+- cd engine && go vet ./... : no finding.
+- cd engine && go test ./... : ok, three packages.
+- uv run ruff check src tests scripts : all checks passed.
+- uv run pytest -q : 1109 passed, 4 skipped.
+
+Negative controls: a new field on the Python dataclass fails both
+parity tests; a hand-edited golden value fails the differential
+with the field path and the two numbers.
+
+One item has no test: the engine badge of the web page. The
+subagent called '/api/engine' over HTTP with the real executable
+and read the answer, but no test renders the badge.
+
+## Merge note
+
+This branch and 'issue-66-decide-contract' both change
+'src/ggge_ai/sandbox/facade.py'. They hold different regions of the
+file. Merge 'issue-66-decide-contract' first.
