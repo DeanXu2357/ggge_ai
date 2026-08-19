@@ -122,9 +122,11 @@ agrees.
 '/finish-task' does these steps in order:
 
 1. Gates pass for code changes: `uv run pytest -q` and
-   `uv run ruff check src tests scripts`. Attach evidence for
-   changes to 'battle/vision.py' or 'scripts/sweep_scan.py': a
-   device screenshot or a run log. Docs-only batches skip this step.
+   `uv run ruff check src tests scripts`. A change under 'engine/'
+   adds two gates, both from the 'engine' directory: `go vet ./...`
+   and `go test ./...`. Attach evidence for changes to
+   'battle/vision.py' or 'scripts/sweep_scan.py': a device
+   screenshot or a run log. Docs-only batches skip this step.
 2. For code changes: run a code review on the branch (the
    /code-review skill). Fix what it finds.
 3. Rework the roadmap into the review artifact.
