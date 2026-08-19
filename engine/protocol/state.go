@@ -8,7 +8,9 @@ import (
 // The authority for every struct in this file is 'src/ggge_ai/sandbox/model.py'.
 // The contract names the payload of one activation 'action'; the model names
 // the same thing 'Decision', and this package keeps the model name for the type
-// and the contract name for the wire field.
+// and the contract name for the wire field. The model names the enum of the
+// kinds of one action 'MoveKind'; this package names it ActionKind, because the
+// enum holds no kind of movement. The wire field stays 'kind'.
 
 type Faction string
 
@@ -18,15 +20,15 @@ const (
 	FactionThirdParty Faction = "third_party"
 )
 
-type MoveKind string
+type ActionKind string
 
 const (
-	MoveAttack      MoveKind = "attack"
-	MoveMapAttack   MoveKind = "map_attack"
-	MoveReposition  MoveKind = "reposition"
-	MoveStandby     MoveKind = "standby"
-	MoveSkillRefill MoveKind = "skill_en_refill"
-	MoveSkillHeal   MoveKind = "skill_heal"
+	ActionAttack      ActionKind = "attack"
+	ActionMapAttack   ActionKind = "map_attack"
+	ActionReposition  ActionKind = "reposition"
+	ActionStandby     ActionKind = "standby"
+	ActionSkillRefill ActionKind = "skill_en_refill"
+	ActionSkillHeal   ActionKind = "skill_heal"
 )
 
 // The reaction menu of the game holds no decline button, so the contract lists
@@ -43,14 +45,14 @@ const (
 )
 
 var (
-	factions  = map[Faction]bool{FactionAlly: true, FactionEnemy: true, FactionThirdParty: true}
-	moveKinds = map[MoveKind]bool{
-		MoveAttack:      true,
-		MoveMapAttack:   true,
-		MoveReposition:  true,
-		MoveStandby:     true,
-		MoveSkillRefill: true,
-		MoveSkillHeal:   true,
+	factions    = map[Faction]bool{FactionAlly: true, FactionEnemy: true, FactionThirdParty: true}
+	actionKinds = map[ActionKind]bool{
+		ActionAttack:      true,
+		ActionMapAttack:   true,
+		ActionReposition:  true,
+		ActionStandby:     true,
+		ActionSkillRefill: true,
+		ActionSkillHeal:   true,
 	}
 	stances = map[Stance]bool{
 		StanceDodge:   true,
@@ -76,8 +78,8 @@ func (f *Faction) UnmarshalJSON(data []byte) error {
 	return decodeEnum(data, f, factions, "faction")
 }
 
-func (k *MoveKind) UnmarshalJSON(data []byte) error {
-	return decodeEnum(data, k, moveKinds, "kind")
+func (k *ActionKind) UnmarshalJSON(data []byte) error {
+	return decodeEnum(data, k, actionKinds, "kind")
 }
 
 func (s *Stance) UnmarshalJSON(data []byte) error {
@@ -113,10 +115,10 @@ type Weapon struct {
 }
 
 type Skill struct {
-	Kind           MoveKind `json:"kind"`
-	Amount         *float64 `json:"amount"`
-	Uses           int      `json:"uses"`
-	EndsActivation bool     `json:"ends_activation"`
+	Kind           ActionKind `json:"kind"`
+	Amount         *float64   `json:"amount"`
+	Uses           int        `json:"uses"`
+	EndsActivation bool       `json:"ends_activation"`
 }
 
 type Debuff struct {
@@ -169,18 +171,18 @@ type Reaction struct {
 // Decision carries three dice fields, and each holds three values: the node
 // landed, the node missed, and the caller settles the node somewhere else.
 type Decision struct {
-	UnitID     string    `json:"unit_id"`
-	Kind       MoveKind  `json:"kind"`
-	MoveTo     *Cell     `json:"move_to"`
-	TargetID   *string   `json:"target_id"`
-	Weapon     *string   `json:"weapon"`
-	Amount     *float64  `json:"amount"`
-	Reaction   *Reaction `json:"reaction"`
-	Support    bool      `json:"support"`
-	Aim        *Cell     `json:"aim"`
-	Hit        *bool     `json:"hit"`
-	CounterHit *bool     `json:"counter_hit"`
-	SupportHit *bool     `json:"support_hit"`
+	UnitID     string     `json:"unit_id"`
+	Kind       ActionKind `json:"kind"`
+	MoveTo     *Cell      `json:"move_to"`
+	TargetID   *string    `json:"target_id"`
+	Weapon     *string    `json:"weapon"`
+	Amount     *float64   `json:"amount"`
+	Reaction   *Reaction  `json:"reaction"`
+	Support    bool       `json:"support"`
+	Aim        *Cell      `json:"aim"`
+	Hit        *bool      `json:"hit"`
+	CounterHit *bool      `json:"counter_hit"`
+	SupportHit *bool      `json:"support_hit"`
 }
 
 // StageEvent keeps its trigger and its effect raw: the model holds them as free
