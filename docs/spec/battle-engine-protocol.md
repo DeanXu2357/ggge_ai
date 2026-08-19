@@ -198,9 +198,11 @@ summary).
 
 Refusals: no_session; illegal_state when the phase of the unit is
 not the current phase, or when the unit acted in this turn;
-illegal_action for an action that 'actions' does not give, for a
-reaction that 'reactions' does not give, for an absent necessary
-reaction, or for a short 'outcomes' list.
+illegal_action for an action that 'actions' does not give, for an
+action that carries 'move_to' when its weapon or its skill holds
+'usable_after_move' false, for a reaction that 'reactions' does not
+give, for an absent necessary reaction, or for a short 'outcomes'
+list.
 
 ### rollback
 
@@ -310,9 +312,32 @@ its value set is frozen.
 
 The resolution order of one activation: the move first, then the
 action. The move is the field 'move_to' of the action. Every effect
-that reads a cell reads the cell after the move. A map weapon is
-the exception: it fires before the move, so the engine ignores
-'move_to' on an action of the kind 'map_attack'.
+that reads a cell reads the cell after the move. There is no
+exception to this order.
+
+An action does not always carry a move. The permission is the field
+'usable_after_move' of the weapon of the action, or of its skill.
+A true value permits a move in the same activation; a false value
+makes the action pre-move only. The permission is a property of
+that weapon or that skill, not of the kind of the action: a map
+weapon is a common holder of a false value, but some map weapons
+fire after a move, and some skills of the source 'character' or
+'crew' hold a false value (user ruling 2026-08-20).
+
+A skill carries its area in four fields. The fields 'range_min'
+and 'range_max' hold the distance from the caster to the center of
+the area. The field 'blast' holds the Chebyshev radius around the
+center; a blast of 0 is one cell. The field 'affects' holds the
+faction filter of the units in the area: 'ally', 'enemy', or 'all'.
+The center travels in the field 'aim' of the action, and a single
+target travels in the field 'target_id'; the action carries no
+other field for the area.
+
+The value set of 'affects' holds no 'self'. A skill that acts on
+the caster alone is a 'range_min' of 0, a 'range_max' of 0, a
+'blast' of 0 and an 'affects' of 'ally': the area is the cell of
+the caster, and the caster is an ally in its own cell. A 'self'
+value would make a second way to write the same area.
 
 The rules of the wire form:
 
