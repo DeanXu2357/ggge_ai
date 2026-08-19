@@ -4,3 +4,5 @@ adb
 untracked
 worktree
 worktrees
+docstring
+docstrings
