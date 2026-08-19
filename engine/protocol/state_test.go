@@ -21,12 +21,15 @@ func TestTheStanceNoneIsADecodeError(t *testing.T) {
 func TestAValueOutsideAnEnumIsADecodeError(t *testing.T) {
 	var unit protocol.Unit
 	var decision protocol.Decision
+	var skill protocol.Skill
 
 	faction := json.Unmarshal([]byte(`{"faction":"neutral"}`), &unit)
 	kind := json.Unmarshal([]byte(`{"kind":"charge"}`), &decision)
+	source := json.Unmarshal([]byte(`{"source":"squad"}`), &skill)
+	affects := json.Unmarshal([]byte(`{"affects":"self"}`), &skill)
 
-	if faction == nil || kind == nil {
-		t.Fatalf("faction: %v, kind: %v", faction, kind)
+	if faction == nil || kind == nil || source == nil || affects == nil {
+		t.Fatalf("faction: %v, kind: %v, source: %v, affects: %v", faction, kind, source, affects)
 	}
 }
 

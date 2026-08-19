@@ -29,6 +29,8 @@ from ..sandbox.model import (
     Reaction,
     Rules,
     Skill,
+    SkillAffects,
+    SkillSource,
     Stance,
     StageEvent,
     Unit,
@@ -73,6 +75,7 @@ def encode_weapon(weapon: Weapon) -> dict[str, Any]:
         "accuracy": weapon.accuracy,
         "can_counter": weapon.can_counter,
         "map_weapon": weapon.map_weapon,
+        "usable_after_move": weapon.usable_after_move,
         "blast": weapon.blast,
         "debuff_kind": weapon.debuff_kind,
         "debuff_magnitude": weapon.debuff_magnitude,
@@ -90,6 +93,7 @@ def decode_weapon(payload: dict[str, Any]) -> Weapon:
         accuracy=_float(payload, "accuracy"),
         can_counter=_bool(payload, "can_counter"),
         map_weapon=_bool(payload, "map_weapon"),
+        usable_after_move=_bool(payload, "usable_after_move"),
         blast=_int(payload, "blast"),
         debuff_kind=_optional_str(payload, "debuff_kind"),
         debuff_magnitude=_float(payload, "debuff_magnitude"),
@@ -99,9 +103,15 @@ def decode_weapon(payload: dict[str, Any]) -> Weapon:
 def encode_skill(skill: Skill) -> dict[str, Any]:
     return {
         "kind": str(skill.kind),
+        "source": str(skill.source),
         "amount": skill.amount,
         "uses": skill.uses,
         "ends_activation": skill.ends_activation,
+        "usable_after_move": skill.usable_after_move,
+        "range_min": skill.range_min,
+        "range_max": skill.range_max,
+        "blast": skill.blast,
+        "affects": str(skill.affects),
     }
 
 
@@ -109,9 +119,15 @@ def decode_skill(payload: dict[str, Any]) -> Skill:
     _known(payload, encode_skill(Skill(kind=MoveKind.STANDBY)), "skill")
     return Skill(
         kind=_move_kind(payload.get("kind")),
+        source=_skill_source(payload.get("source")),
         amount=_optional_float(payload, "amount"),
         uses=_int(payload, "uses"),
         ends_activation=_bool(payload, "ends_activation"),
+        usable_after_move=_bool(payload, "usable_after_move"),
+        range_min=_int(payload, "range_min"),
+        range_max=_int(payload, "range_max"),
+        blast=_int(payload, "blast"),
+        affects=_skill_affects(payload.get("affects")),
     )
 
 
@@ -362,6 +378,20 @@ def _move_kind(raw: Any) -> MoveKind:
         return MoveKind(raw)
     except ValueError as exc:
         raise ValueError(f"kind {raw!r} is not in the contract") from exc
+
+
+def _skill_source(raw: Any) -> SkillSource:
+    try:
+        return SkillSource(raw)
+    except ValueError as exc:
+        raise ValueError(f"source {raw!r} is not in the contract") from exc
+
+
+def _skill_affects(raw: Any) -> SkillAffects:
+    try:
+        return SkillAffects(raw)
+    except ValueError as exc:
+        raise ValueError(f"affects {raw!r} is not in the contract") from exc
 
 
 def _stance(raw: Any) -> Stance:

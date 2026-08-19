@@ -42,6 +42,7 @@
               "accuracy": 5.0,
               "can_counter": true,
               "map_weapon": false,
+              "usable_after_move": true,
               "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
@@ -55,6 +56,7 @@
               "accuracy": 0.0,
               "can_counter": false,
               "map_weapon": false,
+              "usable_after_move": true,
               "blast": 0,
               "debuff_kind": "armor_break",
               "debuff_magnitude": 0.2
@@ -68,6 +70,7 @@
               "accuracy": 0.0,
               "can_counter": true,
               "map_weapon": true,
+              "usable_after_move": true,
               "blast": 1,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
@@ -76,15 +79,27 @@
           "skills": [
             {
               "kind": "skill_en_refill",
+              "source": "unit",
               "amount": null,
               "uses": 1,
-              "ends_activation": true
+              "ends_activation": true,
+              "usable_after_move": true,
+              "range_min": 0,
+              "range_max": 0,
+              "blast": 0,
+              "affects": "ally"
             },
             {
               "kind": "skill_heal",
+              "source": "unit",
               "amount": 3000.0,
               "uses": 2,
-              "ends_activation": false
+              "ends_activation": false,
+              "usable_after_move": true,
+              "range_min": 0,
+              "range_max": 0,
+              "blast": 0,
+              "affects": "ally"
             }
           ],
           "acted": false,
@@ -130,6 +145,7 @@
               "accuracy": 10.0,
               "can_counter": true,
               "map_weapon": false,
+              "usable_after_move": true,
               "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
@@ -188,6 +204,7 @@
               "accuracy": 5.0,
               "can_counter": true,
               "map_weapon": false,
+              "usable_after_move": true,
               "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
@@ -201,6 +218,7 @@
               "accuracy": 10.0,
               "can_counter": true,
               "map_weapon": false,
+              "usable_after_move": true,
               "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
@@ -271,6 +289,7 @@
                 "accuracy": 5.0,
                 "can_counter": true,
                 "map_weapon": false,
+                "usable_after_move": true,
                 "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
@@ -284,6 +303,7 @@
                 "accuracy": 0.0,
                 "can_counter": false,
                 "map_weapon": false,
+                "usable_after_move": true,
                 "blast": 0,
                 "debuff_kind": "armor_break",
                 "debuff_magnitude": 0.2
@@ -297,6 +317,7 @@
                 "accuracy": 0.0,
                 "can_counter": true,
                 "map_weapon": true,
+                "usable_after_move": true,
                 "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
@@ -305,15 +326,27 @@
             "skills": [
               {
                 "kind": "skill_en_refill",
+                "source": "unit",
                 "amount": null,
                 "uses": 1,
-                "ends_activation": true
+                "ends_activation": true,
+                "usable_after_move": true,
+                "range_min": 0,
+                "range_max": 0,
+                "blast": 0,
+                "affects": "ally"
               },
               {
                 "kind": "skill_heal",
+                "source": "unit",
                 "amount": 3000.0,
                 "uses": 2,
-                "ends_activation": false
+                "ends_activation": false,
+                "usable_after_move": true,
+                "range_min": 0,
+                "range_max": 0,
+                "blast": 0,
+                "affects": "ally"
               }
             ],
             "acted": false,
@@ -359,6 +392,7 @@
                 "accuracy": 10.0,
                 "can_counter": true,
                 "map_weapon": false,
+                "usable_after_move": true,
                 "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
@@ -417,6 +451,7 @@
                 "accuracy": 5.0,
                 "can_counter": true,
                 "map_weapon": false,
+                "usable_after_move": true,
                 "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
@@ -430,6 +465,7 @@
                 "accuracy": 10.0,
                 "can_counter": true,
                 "map_weapon": false,
+                "usable_after_move": true,
                 "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0

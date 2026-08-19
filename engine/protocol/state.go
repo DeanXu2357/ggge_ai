@@ -31,6 +31,25 @@ const (
 	ActionSkillHeal   ActionKind = "skill_heal"
 )
 
+type SkillSource string
+
+const (
+	SourceCharacter SkillSource = "character"
+	SourceCrew      SkillSource = "crew"
+	SourceUnit      SkillSource = "unit"
+)
+
+// SkillAffects holds no 'self' value. A skill that acts on the caster alone
+// carries a range of zero, a blast of zero and the value ally: the area is the
+// cell of the caster, and the caster is an ally in its own cell.
+type SkillAffects string
+
+const (
+	AffectsAlly  SkillAffects = "ally"
+	AffectsEnemy SkillAffects = "enemy"
+	AffectsAll   SkillAffects = "all"
+)
+
 // The reaction menu of the game holds no decline button, so the contract lists
 // no 'none' stance (docs/spec/battle-engine-protocol.md, issue #56). The model
 // keeps 'none' for a strike that settles no reaction; that value never reaches
@@ -60,6 +79,16 @@ var (
 		StanceShield:  true,
 		StanceCounter: true,
 	}
+	skillSources = map[SkillSource]bool{
+		SourceCharacter: true,
+		SourceCrew:      true,
+		SourceUnit:      true,
+	}
+	skillAffects = map[SkillAffects]bool{
+		AffectsAlly:  true,
+		AffectsEnemy: true,
+		AffectsAll:   true,
+	}
 )
 
 func decodeEnum[T ~string](data []byte, out *T, known map[T]bool, name string) error {
@@ -86,6 +115,14 @@ func (s *Stance) UnmarshalJSON(data []byte) error {
 	return decodeEnum(data, s, stances, "stance")
 }
 
+func (s *SkillSource) UnmarshalJSON(data []byte) error {
+	return decodeEnum(data, s, skillSources, "source")
+}
+
+func (a *SkillAffects) UnmarshalJSON(data []byte) error {
+	return decodeEnum(data, a, skillAffects, "affects")
+}
+
 // Bounds is the pair of corner cells of the board. A state with no bounds runs
 // on an open plane; it is not an empty board.
 type Bounds [2]Cell
@@ -109,16 +146,23 @@ type Weapon struct {
 	Accuracy        float64 `json:"accuracy"`
 	CanCounter      bool    `json:"can_counter"`
 	MapWeapon       bool    `json:"map_weapon"`
+	UsableAfterMove bool    `json:"usable_after_move"`
 	Blast           int     `json:"blast"`
 	DebuffKind      *string `json:"debuff_kind"`
 	DebuffMagnitude float64 `json:"debuff_magnitude"`
 }
 
 type Skill struct {
-	Kind           ActionKind `json:"kind"`
-	Amount         *float64   `json:"amount"`
-	Uses           int        `json:"uses"`
-	EndsActivation bool       `json:"ends_activation"`
+	Kind            ActionKind   `json:"kind"`
+	Source          SkillSource  `json:"source"`
+	Amount          *float64     `json:"amount"`
+	Uses            int          `json:"uses"`
+	EndsActivation  bool         `json:"ends_activation"`
+	UsableAfterMove bool         `json:"usable_after_move"`
+	RangeMin        int          `json:"range_min"`
+	RangeMax        int          `json:"range_max"`
+	Blast           int          `json:"blast"`
+	Affects         SkillAffects `json:"affects"`
 }
 
 type Debuff struct {

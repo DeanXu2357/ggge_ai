@@ -130,6 +130,15 @@ def test_the_stance_none_never_reaches_the_wire():
         codec.decode_reaction({"stance": "none"})
 
 
+def test_a_skill_enum_outside_the_contract_stops_the_decode():
+    payload = codec.encode_skill(Skill(kind=MoveKind.SKILL_HEAL))
+
+    with pytest.raises(ValueError, match="source"):
+        codec.decode_skill({**payload, "source": "squad"})
+    with pytest.raises(ValueError, match="affects"):
+        codec.decode_skill({**payload, "affects": "self"})
+
+
 def test_a_field_outside_the_contract_stops_the_decode():
     payload = codec.encode_unit(Unit(unit_id="u", faction=Faction.ALLY))
 

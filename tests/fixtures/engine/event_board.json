@@ -65,6 +65,7 @@
                   "accuracy": 10.0,
                   "can_counter": true,
                   "map_weapon": false,
+                  "usable_after_move": true,
                   "blast": 0,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0
@@ -118,6 +119,7 @@
               "accuracy": 5.0,
               "can_counter": true,
               "map_weapon": false,
+              "usable_after_move": true,
               "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
@@ -131,6 +133,7 @@
               "accuracy": 10.0,
               "can_counter": true,
               "map_weapon": false,
+              "usable_after_move": true,
               "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
@@ -178,6 +181,7 @@
               "accuracy": 5.0,
               "can_counter": true,
               "map_weapon": false,
+              "usable_after_move": true,
               "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
@@ -191,6 +195,7 @@
               "accuracy": 10.0,
               "can_counter": true,
               "map_weapon": false,
+              "usable_after_move": true,
               "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
@@ -256,6 +261,7 @@
                 "accuracy": 5.0,
                 "can_counter": true,
                 "map_weapon": false,
+                "usable_after_move": true,
                 "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
@@ -269,6 +275,7 @@
                 "accuracy": 10.0,
                 "can_counter": true,
                 "map_weapon": false,
+                "usable_after_move": true,
                 "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
@@ -316,6 +323,7 @@
                 "accuracy": 5.0,
                 "can_counter": true,
                 "map_weapon": false,
+                "usable_after_move": true,
                 "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
@@ -329,6 +337,7 @@
                 "accuracy": 10.0,
                 "can_counter": true,
                 "map_weapon": false,
+                "usable_after_move": true,
                 "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
@@ -417,6 +426,7 @@
                     "accuracy": 10.0,
                     "can_counter": true,
                     "map_weapon": false,
+                    "usable_after_move": true,
                     "blast": 0,
                     "debuff_kind": null,
                     "debuff_magnitude": 0.0
