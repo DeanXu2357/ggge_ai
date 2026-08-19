@@ -180,6 +180,10 @@ Request:
 | reaction | The reaction of the defender |
 | dice | The dice input |
 
+The field 'action' holds the move of the unit. The engine resolves
+the move first and the action second; the section 'Unit payload,
+action, and reaction' holds the rule.
+
 The field 'reaction' is necessary when 'reactions' gives a list
 that is not empty for this strike. The field is not permitted when
 that list is empty.
@@ -299,10 +303,22 @@ structs, and 'src/ggge_ai/engine/codec.py' writes the same form
 from the model. The contract names the payload of one activation
 'action'; the model names the same thing 'Decision'. The Go type
 keeps the model name, and the wire field keeps the contract name.
+The enum of the kinds of one action carries two type names: the
+model names it 'MoveKind', and the engine names it 'ActionKind'.
+The enum holds no kind of movement. Its wire field is 'kind', and
+its value set is frozen.
+
+The resolution order of one activation: the move first, then the
+action. The move is the field 'move_to' of the action. Every effect
+that reads a cell reads the cell after the move. A map weapon is
+the exception: it fires before the move, so the engine ignores
+'move_to' on an action of the kind 'map_attack'.
 
 The rules of the wire form:
 
 - A cell is a JSON pair, in the order of the Python tuple.
+- The center of an area effect is on the wire, in the field 'aim'.
+  The engine does not derive the center from the cell of the actor.
 - Every field of the type is on the wire. A field that holds no
   value is null.
 - A field with three values keeps its three values: 'hit' is true,

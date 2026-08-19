@@ -34,7 +34,14 @@ Changed:
 - 'docs/spec/battle-engine-protocol.md': the wire form of the state,
   the case-file format, and the float rule. The forward reference
   of issue #59 is now filled.
-- 'docs/reference/terminology-map.md': the term 'action'.
+- 'docs/reference/terminology-map.md': the term 'action', and the
+  term 'action kind'.
+- 'engine/protocol/state.go': the enum 'MoveKind' is now
+  'ActionKind', and the lookup map 'moveKinds' is now
+  'actionKinds'. The wire values and the JSON tags do not change.
+- 'docs/spec/battle-engine-protocol.md': the resolution order of
+  one activation, the rule of the field 'aim', and the name pair
+  of the enum.
 
 ## Call chain
 
@@ -73,6 +80,18 @@ this build does not hold is skipped.
 6. The wire name is 'action' and the Go type name is 'Decision'.
    The contract and the model disagree, and each keeps its own
    name. The terminology map holds the binding.
+7. The enum lists the kinds of one action, not kinds of movement,
+   so the engine names it 'ActionKind'. The model keeps 'MoveKind'
+   until a Python change lands. A proposal to carry the move
+   timing in the enum, as paired members with the suffix
+   'AfterMove', is rejected: 'move_to' already records the move,
+   and a second record needs an invariant that every consumer
+   maintains. The timing of a skill belongs in 'Skill', as a
+   predicate.
+8. The 'Skill' fields for the source of a skill and for the
+   timing predicate wait for a separate issue. The field parity
+   test compares the dataclass with the Go struct, so the Python
+   change must land first.
 
 ## Verification
 
@@ -80,6 +99,18 @@ this build does not hold is skipped.
 - cd engine && go test ./... : ok, three packages.
 - uv run ruff check src tests scripts : all checks passed.
 - uv run pytest -q : 1109 passed, 4 skipped.
+
+After the rename of the enum:
+
+- cd engine && go vet ./... : no finding.
+- cd engine && go test ./... : ok, three packages.
+- gofmt -l engine : no file.
+- grep for the old names in the Go tree : no match.
+- uv run ruff check src tests scripts : all checks passed.
+- uv run pytest -q : 1109 passed, 4 skipped.
+
+The parity test reads 'engine/protocol/state.go', but it parses
+the struct lines only. The rename of the enum is invisible to it.
 
 Negative controls: a new field on the Python dataclass fails both
 parity tests; a hand-edited golden value fails the differential
