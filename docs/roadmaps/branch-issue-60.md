@@ -42,6 +42,21 @@ Changed:
 - 'docs/spec/battle-engine-protocol.md': the resolution order of
   one activation, the rule of the field 'aim', and the name pair
   of the enum.
+- 'src/ggge_ai/sandbox/model.py': 'Weapon' holds
+  'usable_after_move'. 'Skill' holds 'source', 'usable_after_move',
+  'range_min', 'range_max', 'blast' and 'affects'. Two new enums:
+  'SkillSource' and 'SkillAffects'.
+- 'engine/protocol/state.go': the same fields, and the two enums
+  with a decoder that refuses a value outside the contract.
+- 'src/ggge_ai/engine/codec.py': the encoders and the decoders of
+  the new fields; 'tests/fixtures/engine/' rewritten.
+- 'docs/spec/battle-engine-protocol.md': the timing rule of an
+  action, the area fields of a skill, and the refusal of 'act' for
+  a move that the weapon or the skill does not permit.
+- 'docs/reference/combat-formulas.md': the map weapon timing is
+  per weapon. The 2026-07-13 reading stays as superseded text.
+- 'docs/reference/terminology-map.md': the terms 'skill source'
+  and 'affects'.
 
 ## Call chain
 
@@ -89,9 +104,21 @@ this build does not hold is skipped.
    maintains. The timing of a skill belongs in 'Skill', as a
    predicate.
 8. The 'Skill' fields for the source of a skill and for the
-   timing predicate wait for a separate issue. The field parity
-   test compares the dataclass with the Go struct, so the Python
-   change must land first.
+   timing predicate landed in this branch (user ruling 2026-08-20).
+   The contract shape only: nothing reads the new fields.
+9. Known divergence, deliberate: the data says the timing is per
+   weapon and per skill, and 'step()' in 'sandbox/model.py' still
+   holds the rule per kind. The line 'decision.kind is not
+   MoveKind.MAP_ATTACK' drops 'move_to' for every map weapon.
+   'legal_skills', 'legal_map_attacks' and 'legal_attacks' do not
+   read 'usable_after_move' either, and the Go engine implements
+   no refusal. Enforcement belongs to a later issue.
+10. The value set of 'affects' holds no 'self'. A skill that acts
+   on the caster alone is a zero range with a zero blast and the
+   value ally. The overload is removed, not special-cased.
+11. The wire value of the source of a character skill is
+   'character'; the terminology map binds the concept as 'pilot
+   skill' (駕駛技能). The map now records the pair.
 
 ## Verification
 
@@ -111,6 +138,15 @@ After the rename of the enum:
 
 The parity test reads 'engine/protocol/state.go', but it parses
 the struct lines only. The rename of the enum is invisible to it.
+
+After the area fields and the timing fields of a skill:
+
+- cd engine && go vet ./... : no finding.
+- cd engine && go test ./... : ok, three packages.
+- gofmt -l engine : no file.
+- uv run ruff check src tests scripts : all checks passed.
+- uv run pytest -q : 1110 passed, 4 skipped. One new test:
+  a skill enum outside the contract stops the decode.
 
 Negative controls: a new field on the Python dataclass fails both
 parity tests; a hand-edited golden value fails the differential
