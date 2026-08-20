@@ -4,7 +4,8 @@
 本腳本只做路由、頁面與擲骰輸入合成，不含任何遊戲規則。
 
 給了 --engine 就另外起一支戰局引擎行程：把盤面送過去，再問各條已宣告查詢。
-引擎答 'not_implemented' 的查詢照舊由 Python 這邊算並繪製。
+引擎答 'not_implemented' 的查詢照舊由 Python 這邊算並繪製。選了單位就多問一條
+'reach'，答案疊成獨立一層虛線框；引擎走正交、Python 走斜角，兩邊同時看得見。
 
 usage:
   uv run python scripts/sandbox_ui.py --scenario assets/scenarios/uc_hard_1_placeholder.json
@@ -24,7 +25,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -70,8 +71,9 @@ class SandboxHandler(BaseHTTPRequestHandler):
                 payload = self.sandbox.pending_decision()
             self._json(HTTPStatus.OK, payload)
         elif path == "/api/engine":
+            wanted = parse_qs(urlsplit(self.path).query).get("unit", [None])[0]
             with self.lock:
-                payload = self._engine_report()
+                payload = self._engine_report(wanted)
             self._json(HTTPStatus.OK, payload)
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -99,7 +101,7 @@ class SandboxHandler(BaseHTTPRequestHandler):
     def log_message(self, *args: Any) -> None:
         return
 
-    def _engine_report(self) -> dict[str, Any]:
+    def _engine_report(self, unit_id: str | None = None) -> dict[str, Any]:
         if self.engine is None:
             return {"available": False, "reason": "沒有給 --engine，引擎未啟動"}
         try:
@@ -109,6 +111,8 @@ class SandboxHandler(BaseHTTPRequestHandler):
         answers = {
             "load": self._engine_call("load", {"state": self.sandbox.engine_state(), "history": []})
         }
+        if unit_id is not None:
+            answers["reach"] = self._engine_call("reach", {"unit_id": unit_id})
         for name in ENGINE_QUERIES:
             answers[name] = self._engine_call(name, {})
         return {
@@ -250,6 +254,10 @@ PAGE_HTML = r"""<!doctype html>
   .cell.reach { background: #1d2a3a; }
   .cell.dest { background: #24405c; cursor: pointer; }
   .cell.aim { outline: 2px solid #e0c15f; outline-offset: -2px; }
+  .cell.engine::after {
+    content: ""; position: absolute; inset: 3px; pointer-events: none;
+    border: 1px dashed #9fe0a8; border-radius: 3px;
+  }
   .piece {
     position: absolute; inset: 2px; border-radius: 5px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
@@ -345,6 +353,7 @@ let lastDice = null;
 let error = "";
 let inspected = null;
 let reactionSeq = 0;
+let engineReach = [];
 
 function node(tag, className, text) {
   const out = document.createElement(tag);
@@ -390,6 +399,20 @@ function apply(snapshot, decision) {
   drawBoard();
   renderPlay();
   if (inspected) inspectUnit(inspected);
+  refreshEngine();
+}
+
+function refreshEngine() {
+  const query = actor ? "?unit=" + encodeURIComponent(actor) : "";
+  return fetch("/api/engine" + query)
+    .then((response) => response.json())
+    .then((report) => {
+      const answer = report.answers && report.answers.reach;
+      engineReach = answer && answer.ok ? answer.payload.cells : [];
+      drawEngine(report);
+      if (state) drawBoard();
+    })
+    .catch((exc) => { el("engine").textContent = "戰局引擎：查詢失敗 " + exc; });
 }
 
 function drawEngine(report) {
@@ -404,8 +427,11 @@ function drawEngine(report) {
     .filter((name) => !report.answers[name].ok)
     .map((name) => name + "=" + report.answers[name].code)
     .join("、");
+  const layer = engineReach.length
+    ? "；虛線框＝引擎 reach（正交距離），底色＝Python 斜角 reach"
+    : "";
   slot.textContent = "戰局引擎 " + report.protocol + "：已實作 " + done
-    + (refused ? "；" + refused + "，畫面續由 Python 繪製" : "");
+    + (refused ? "；" + refused + "，畫面續由 Python 繪製" : "") + layer;
 }
 
 function drawHeader() {
@@ -453,6 +479,9 @@ function drawBoard() {
         cell.addEventListener("click", () => pick(candidate));
       });
   }
+  // 引擎的正交 reach 是 Python 斜角 reach 的子集，所以這層只疊記號：
+  // 可點的目的格仍舊全部由 Python 候選給，引擎不會擋掉畫面上開放的格子。
+  engineReach.forEach((cell) => { const c = at(cell); if (c) c.classList.add("engine"); });
   if (picked && picked.move_to) { const c = at(picked.move_to); if (c) c.classList.add("aim"); }
   if (picked && picked.aim) { const c = at(picked.aim); if (c) c.classList.add("aim"); }
 
@@ -479,6 +508,7 @@ function drawBoard() {
 
 function command(uid) {
   actor = uid;
+  engineReach = [];
   picked = null;
   engagement = null;
   option = null;
@@ -487,6 +517,7 @@ function command(uid) {
   reactionSeq += 1;
   drawBoard();
   renderPlay();
+  refreshEngine();
 }
 
 function pick(candidate) {
@@ -749,11 +780,6 @@ Promise.all([
   .catch((exc) => {
     el("stage").textContent = "讀取盤面失敗：" + exc;
   });
-
-fetch("/api/engine")
-  .then((response) => response.json())
-  .then(drawEngine)
-  .catch((exc) => { el("engine").textContent = "戰局引擎：查詢失敗 " + exc; });
 </script>
 </body>
 </html>

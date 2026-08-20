@@ -17,6 +17,7 @@ type Handler func(id string, payload json.RawMessage) protocol.Response
 
 type Server struct {
 	handlers map[string]Handler
+	session  *session
 }
 
 func New() *Server {

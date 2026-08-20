@@ -9,6 +9,7 @@ import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 import pytest
@@ -295,15 +296,44 @@ def test_the_engine_panel_shows_the_build_and_the_refusals(engine_client):
     payload = engine_client.get("/api/engine")
 
     assert payload["available"] is True
-    assert payload["protocol"] == "1.0"
+    assert payload["protocol"] == "1.1"
     assert {entry["name"] for entry in payload["commands"] if entry["implemented"]} == {
         "hello",
         "ping",
+        "load",
+        "reach",
     }
-    assert {name: answer["code"] for name, answer in payload["answers"].items()} == {
-        "load": "not_implemented",
+    assert payload["answers"]["load"] == {"ok": True, "payload": {}}
+    assert "reach" not in payload["answers"]
+    assert {
+        name: answer["code"] for name, answer in payload["answers"].items() if name != "load"
+    } == {
         "roster": "not_implemented",
         "deploy_cells": "not_implemented",
+    }
+
+
+def test_the_engine_panel_answers_the_reach_of_the_selected_unit(engine_client):
+    entry = engine_client.get("/api/decision")["units"][0]
+
+    payload = engine_client.get("/api/engine?unit=" + quote(entry["uid"]))
+
+    answer = payload["answers"]["reach"]
+    assert answer["ok"] is True
+    cells = [tuple(cell) for cell in answer["payload"]["cells"]]
+    assert cells == sorted(cells)
+    assert tuple(entry["cell"]) in cells
+    assert set(cells) <= {tuple(cell) for cell in entry["moves"]}
+    assert any(tuple(cell) not in set(cells) for cell in entry["moves"])
+
+
+def test_the_engine_refuses_the_reach_of_a_unit_outside_the_board(engine_client):
+    payload = engine_client.get("/api/engine?unit=ghost")
+
+    assert payload["answers"]["reach"] == {
+        "ok": False,
+        "code": "illegal_action",
+        "message": 'the board holds no unit "ghost"',
     }
 
 

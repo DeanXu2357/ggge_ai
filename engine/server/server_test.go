@@ -68,12 +68,12 @@ func TestHelloListsEveryDeclaredCommand(t *testing.T) {
 	if len(payload.Commands) != len(protocol.Declared) {
 		t.Fatalf("commands: %d", len(payload.Commands))
 	}
+	built := map[string]bool{"hello": true, "ping": true, "load": true, "reach": true}
 	for index, command := range payload.Commands {
 		if command.Name != protocol.Declared[index] {
 			t.Fatalf("order at %d: %s", index, command.Name)
 		}
-		want := command.Name == "hello" || command.Name == "ping"
-		if command.Implemented != want {
+		if command.Implemented != built[command.Name] {
 			t.Fatalf("%s implemented: %v", command.Name, command.Implemented)
 		}
 	}
