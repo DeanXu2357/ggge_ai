@@ -267,6 +267,9 @@ class Unit:
     unit_id: str
     faction: Faction
     pos: Cell = (0, 0)
+    # The size is data only. The geometry of this module gives every unit one
+    # cell. The engine holds the footprint rule (issue #61).
+    size: Cell = (1, 1)
     hp: int = 1
     max_hp: int = 1
     en: int = 0
