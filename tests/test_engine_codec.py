@@ -29,7 +29,7 @@ from ggge_ai.sandbox.model import (
     Unit,
     Weapon,
 )
-from scripts.write_engine_fixtures import BOARDS, FIXTURES, build_case, render
+from scripts.write_engine_fixtures import BOARDS, FIXTURES, FORMULA_OPS, cases, render
 
 STATE_GO = Path(__file__).resolve().parents[1] / "engine" / "protocol" / "state.go"
 
@@ -147,20 +147,37 @@ def test_a_field_outside_the_contract_stops_the_decode():
 
 
 def test_the_golden_fixtures_match_the_builder():
+    written = {path.stem for path in FIXTURES.glob("*.json")}
     stale = [
         case["name"]
-        for case in (build_case(*board()) for board in BOARDS)
+        for case in cases()
         if (FIXTURES / f"{case['name']}.json").read_text(encoding="utf-8") != render(case)
     ]
 
     assert stale == []
+    assert written == {case["name"] for case in cases()}
 
 
 def test_every_golden_fixture_carries_the_case_format():
     for path in sorted(FIXTURES.glob("*.json")):
         case = json.loads(path.read_text(encoding="utf-8"))
+        ops = {check["op"] for check in case["checks"]}
 
         assert path.stem == case["name"]
         assert set(case) == {"name", "note", "setup", "checks"}
         assert set(case["setup"]) == {"rules", "events", "state"}
-        assert {check["op"] for check in case["checks"]} == {"state", "events", "rules"}
+        assert {"state", "events", "rules"} <= ops
+        assert ops <= {"state", "events", "rules", *FORMULA_OPS}
+
+
+def test_the_formula_case_covers_every_ported_function():
+    case = json.loads((FIXTURES / "formulas.json").read_text(encoding="utf-8"))
+
+    ops = [check["op"] for check in case["checks"]]
+
+    assert [op for op in FORMULA_OPS if op not in ops] == []
+    assert all(
+        isinstance(check["expect"], float)
+        for check in case["checks"]
+        if check["op"] in FORMULA_OPS
+    )

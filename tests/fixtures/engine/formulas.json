@@ -1,0 +1,1339 @@
+{
+  "name": "formulas",
+  "note": "The damage and the hit formulas of docs/reference/combat-formulas.md.",
+  "setup": {
+    "rules": {
+      "defend_multiplier": 0.8,
+      "shield_multiplier": 0.6,
+      "support_defend_multiplier": 0.8,
+      "dodge_hit_penalty": 20.0,
+      "terrain": 1.0,
+      "max_support_attackers": 3,
+      "en_regen_fraction": 0.1
+    },
+    "events": {},
+    "state": {
+      "units": [
+        {
+          "unit_id": "ally_1",
+          "faction": "ally",
+          "pos": [
+            1,
+            1
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "hp": 12000,
+          "max_hp": 12000,
+          "en": 140,
+          "en_max": 140,
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0,
+          "move_range": 4,
+          "weapons": [
+            {
+              "name": "beam rifle",
+              "power": 1800.0,
+              "range_min": 1,
+              "range_max": 3,
+              "en_cost": 10,
+              "accuracy": 5.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            },
+            {
+              "name": "saber",
+              "power": 2400.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 0,
+              "accuracy": 10.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            }
+          ],
+          "skills": [],
+          "acted": false,
+          "chance_steps": 0,
+          "chance_steps_max": 0,
+          "support_defend_charges": 0,
+          "support_defend_charges_max": 0,
+          "support_attack_charges": 0,
+          "support_attack_charges_max": 0,
+          "has_shield": false,
+          "attack_shield": false,
+          "interception_reduction": 0.0,
+          "ammo": {},
+          "debuffs": []
+        },
+        {
+          "unit_id": "enemy_1",
+          "faction": "enemy",
+          "pos": [
+            4,
+            1
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "hp": 12000,
+          "max_hp": 12000,
+          "en": 140,
+          "en_max": 140,
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0,
+          "move_range": 4,
+          "weapons": [
+            {
+              "name": "beam rifle",
+              "power": 1800.0,
+              "range_min": 1,
+              "range_max": 3,
+              "en_cost": 10,
+              "accuracy": 5.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            },
+            {
+              "name": "saber",
+              "power": 2400.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 0,
+              "accuracy": 10.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            }
+          ],
+          "skills": [],
+          "acted": true,
+          "chance_steps": 0,
+          "chance_steps_max": 0,
+          "support_defend_charges": 0,
+          "support_defend_charges_max": 0,
+          "support_attack_charges": 0,
+          "support_attack_charges_max": 0,
+          "has_shield": false,
+          "attack_shield": false,
+          "interception_reduction": 0.0,
+          "ammo": {},
+          "debuffs": []
+        }
+      ],
+      "phase": "ally",
+      "turn": 1,
+      "bounds": [
+        [
+          0,
+          0
+        ],
+        [
+          5,
+          4
+        ]
+      ],
+      "pending_events": [],
+      "fired_events": []
+    }
+  },
+  "checks": [
+    {
+      "op": "state",
+      "input": null,
+      "expect": {
+        "units": [
+          {
+            "unit_id": "ally_1",
+            "faction": "ally",
+            "pos": [
+              1,
+              1
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "hp": 12000,
+            "max_hp": 12000,
+            "en": 140,
+            "en_max": 140,
+            "unit_attack": 4200.0,
+            "unit_defense": 3900.0,
+            "pilot_attack": 220.0,
+            "pilot_defense": 190.0,
+            "reaction": 205.0,
+            "mobility": 310.0,
+            "move_range": 4,
+            "weapons": [
+              {
+                "name": "beam rifle",
+                "power": 1800.0,
+                "range_min": 1,
+                "range_max": 3,
+                "en_cost": 10,
+                "accuracy": 5.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              },
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              }
+            ],
+            "skills": [],
+            "acted": false,
+            "chance_steps": 0,
+            "chance_steps_max": 0,
+            "support_defend_charges": 0,
+            "support_defend_charges_max": 0,
+            "support_attack_charges": 0,
+            "support_attack_charges_max": 0,
+            "has_shield": false,
+            "attack_shield": false,
+            "interception_reduction": 0.0,
+            "ammo": {},
+            "debuffs": []
+          },
+          {
+            "unit_id": "enemy_1",
+            "faction": "enemy",
+            "pos": [
+              4,
+              1
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "hp": 12000,
+            "max_hp": 12000,
+            "en": 140,
+            "en_max": 140,
+            "unit_attack": 4200.0,
+            "unit_defense": 3900.0,
+            "pilot_attack": 220.0,
+            "pilot_defense": 190.0,
+            "reaction": 205.0,
+            "mobility": 310.0,
+            "move_range": 4,
+            "weapons": [
+              {
+                "name": "beam rifle",
+                "power": 1800.0,
+                "range_min": 1,
+                "range_max": 3,
+                "en_cost": 10,
+                "accuracy": 5.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              },
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              }
+            ],
+            "skills": [],
+            "acted": true,
+            "chance_steps": 0,
+            "chance_steps_max": 0,
+            "support_defend_charges": 0,
+            "support_defend_charges_max": 0,
+            "support_attack_charges": 0,
+            "support_attack_charges_max": 0,
+            "has_shield": false,
+            "attack_shield": false,
+            "interception_reduction": 0.0,
+            "ammo": {},
+            "debuffs": []
+          }
+        ],
+        "phase": "ally",
+        "turn": 1,
+        "bounds": [
+          [
+            0,
+            0
+          ],
+          [
+            5,
+            4
+          ]
+        ],
+        "pending_events": [],
+        "fired_events": []
+      }
+    },
+    {
+      "op": "events",
+      "input": null,
+      "expect": {}
+    },
+    {
+      "op": "rules",
+      "input": null,
+      "expect": {
+        "defend_multiplier": 0.8,
+        "shield_multiplier": 0.6,
+        "support_defend_multiplier": 0.8,
+        "dodge_hit_penalty": 20.0,
+        "terrain": 1.0,
+        "max_support_attackers": 3,
+        "en_regen_fraction": 0.1
+      }
+    },
+    {
+      "op": "base_damage",
+      "input": {
+        "power": 0.0,
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        }
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "base_damage",
+      "input": {
+        "power": 1.0,
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        }
+      },
+      "expect": 1.0
+    },
+    {
+      "op": "base_damage",
+      "input": {
+        "power": 1800.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        }
+      },
+      "expect": 1889.0683771627266
+    },
+    {
+      "op": "base_damage",
+      "input": {
+        "power": 2400.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        }
+      },
+      "expect": 2518.757836216969
+    },
+    {
+      "op": "base_damage",
+      "input": {
+        "power": 1800.0,
+        "attacker": {
+          "unit_attack": 1000.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 100.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 120.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 5000.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 400.0,
+          "reaction": 300.0,
+          "mobility": 480.0
+        }
+      },
+      "expect": 1061.5728999502837
+    },
+    {
+      "op": "base_damage",
+      "input": {
+        "power": 1.0,
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 2800000.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 280000.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        }
+      },
+      "expect": 1.971935308751954e-304
+    },
+    {
+      "op": "base_damage",
+      "input": {
+        "power": 1.0,
+        "attacker": {
+          "unit_attack": 2800000.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 280000.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        }
+      },
+      "expect": 114.0
+    },
+    {
+      "op": "combat_base_damage",
+      "input": {
+        "power": 0.0,
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "terrain": 1.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "combat_base_damage",
+      "input": {
+        "power": 1800.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "terrain": 1.0
+      },
+      "expect": 5252.526165398316
+    },
+    {
+      "op": "combat_base_damage",
+      "input": {
+        "power": 1800.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "terrain": 1.2
+      },
+      "expect": 4377.105137831931
+    },
+    {
+      "op": "combat_base_damage",
+      "input": {
+        "power": 2400.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "terrain": 1.2
+      },
+      "expect": 5836.140183775908
+    },
+    {
+      "op": "combat_base_damage",
+      "input": {
+        "power": 1800.0,
+        "attacker": {
+          "unit_attack": 1000.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 100.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 120.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 5000.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 400.0,
+          "reaction": 300.0,
+          "mobility": 480.0
+        },
+        "terrain": 1.0
+      },
+      "expect": 1178.0171529243655
+    },
+    {
+      "op": "combat_base_damage",
+      "input": {
+        "power": 1.0,
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 2800000.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 280000.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "terrain": 1.0
+      },
+      "expect": -4.092850338431548e-303
+    },
+    {
+      "op": "combat_base_damage",
+      "input": {
+        "power": 1.0,
+        "attacker": {
+          "unit_attack": 2800000.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 280000.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "terrain": 0.8
+      },
+      "expect": 11755.850118459372
+    },
+    {
+      "op": "damage_scale",
+      "input": {
+        "bonuses": 0.0,
+        "penalties": 0.0
+      },
+      "expect": 1.0
+    },
+    {
+      "op": "damage_scale",
+      "input": {
+        "bonuses": 0.35,
+        "penalties": 0.1
+      },
+      "expect": 1.25
+    },
+    {
+      "op": "damage_scale",
+      "input": {
+        "bonuses": 0.0,
+        "penalties": 1.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "damage_scale",
+      "input": {
+        "bonuses": 0.2,
+        "penalties": 1.5
+      },
+      "expect": -0.30000000000000004
+    },
+    {
+      "op": "final_damage",
+      "input": {
+        "combat_base": 0.0,
+        "scale": 1.0,
+        "defense_multiplier": 1.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "final_damage",
+      "input": {
+        "combat_base": 1000.0,
+        "scale": 1.0,
+        "defense_multiplier": 1.0
+      },
+      "expect": 1000.0
+    },
+    {
+      "op": "final_damage",
+      "input": {
+        "combat_base": 1000.0,
+        "scale": 1.25,
+        "defense_multiplier": 0.8
+      },
+      "expect": 1000.0
+    },
+    {
+      "op": "final_damage",
+      "input": {
+        "combat_base": 1000.0,
+        "scale": 1.0,
+        "defense_multiplier": 0.6
+      },
+      "expect": 600.0
+    },
+    {
+      "op": "final_damage",
+      "input": {
+        "combat_base": 1000.0,
+        "scale": 0.0,
+        "defense_multiplier": 1.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "final_damage",
+      "input": {
+        "combat_base": 1000.0,
+        "scale": 1.0,
+        "defense_multiplier": 0.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "critical_damage",
+      "input": {
+        "combat_base": 1000.0,
+        "scale": 1.0,
+        "defense_multiplier": 1.0,
+        "critical": 1.1
+      },
+      "expect": 1100.0
+    },
+    {
+      "op": "critical_damage",
+      "input": {
+        "combat_base": 1000.0,
+        "scale": 1.0,
+        "defense_multiplier": 0.8,
+        "critical": 1.2
+      },
+      "expect": 960.0
+    },
+    {
+      "op": "critical_damage",
+      "input": {
+        "combat_base": 1000.0,
+        "scale": 1.25,
+        "defense_multiplier": 0.6,
+        "critical": 1.3
+      },
+      "expect": 975.0
+    },
+    {
+      "op": "critical_damage",
+      "input": {
+        "combat_base": 1000.0,
+        "scale": 1.25,
+        "defense_multiplier": 1.0,
+        "critical": 1.1
+      },
+      "expect": 1375.0
+    },
+    {
+      "op": "critical_damage",
+      "input": {
+        "combat_base": 0.0,
+        "scale": 0.0,
+        "defense_multiplier": 0.0,
+        "critical": 0.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "expected_damage",
+      "input": {
+        "power": 0.0,
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "terrain": 1.0,
+        "bonuses": 0.0,
+        "penalties": 0.0,
+        "defense_multiplier": 1.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "expected_damage",
+      "input": {
+        "power": 1800.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "terrain": 1.0,
+        "bonuses": 0.0,
+        "penalties": 0.0,
+        "defense_multiplier": 1.0
+      },
+      "expect": 5252.526165398316
+    },
+    {
+      "op": "expected_damage",
+      "input": {
+        "power": 1800.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "terrain": 1.2,
+        "bonuses": 0.35,
+        "penalties": 0.1,
+        "defense_multiplier": 0.8
+      },
+      "expect": 4377.105137831931
+    },
+    {
+      "op": "expected_damage",
+      "input": {
+        "power": 2400.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "terrain": 1.0,
+        "bonuses": 0.0,
+        "penalties": 0.0,
+        "defense_multiplier": 0.6
+      },
+      "expect": 4202.020932318653
+    },
+    {
+      "op": "expected_damage",
+      "input": {
+        "power": 1800.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "terrain": 1.0,
+        "bonuses": 0.0,
+        "penalties": 0.0,
+        "defense_multiplier": 0.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "expected_damage",
+      "input": {
+        "power": 1800.0,
+        "attacker": {
+          "unit_attack": 1000.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 100.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 120.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 5000.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 400.0,
+          "reaction": 300.0,
+          "mobility": 480.0
+        },
+        "terrain": 1.2,
+        "bonuses": 0.2,
+        "penalties": 1.5,
+        "defense_multiplier": 0.6
+      },
+      "expect": -176.70257293865487
+    },
+    {
+      "op": "expected_damage",
+      "input": {
+        "power": 1.0,
+        "attacker": {
+          "unit_attack": 2800000.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 280000.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "terrain": 1.0,
+        "bonuses": 0.0,
+        "penalties": 1.0,
+        "defense_multiplier": 1.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 96.45
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 97.267
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "ability_correction": -20.0
+      },
+      "expect": 77.267
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 5000.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 400.0,
+          "reaction": 300.0,
+          "mobility": 480.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 92.3416
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "attacker": {
+          "unit_attack": 1000.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 100.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 120.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 91.0762
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 400.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 1000.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 100.0
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 400.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 1000.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "ability_correction": -25.0
+      },
+      "expect": 94.77000000000001
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 3000.0,
+          "mobility": 500.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 3000.0,
+          "mobility": 500.0
+        },
+        "ability_correction": 30.0
+      },
+      "expect": 3.1400000000000006
+    },
+    {
+      "op": "hit_probability",
+      "input": {
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 0.9645
+    },
+    {
+      "op": "hit_probability",
+      "input": {
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 0.9726699999999999
+    },
+    {
+      "op": "hit_probability",
+      "input": {
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "ability_correction": -20.0
+      },
+      "expect": 0.77267
+    },
+    {
+      "op": "hit_probability",
+      "input": {
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 400.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 1000.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 1.0
+    },
+    {
+      "op": "hit_probability",
+      "input": {
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 3000.0,
+          "mobility": 500.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 0.0
+    },
+    {
+      "op": "hit_probability",
+      "input": {
+        "attacker": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 0.0,
+          "mobility": 0.0
+        },
+        "defender": {
+          "unit_attack": 0.0,
+          "unit_defense": 0.0,
+          "pilot_attack": 0.0,
+          "pilot_defense": 0.0,
+          "reaction": 3000.0,
+          "mobility": 500.0
+        },
+        "ability_correction": 30.0
+      },
+      "expect": 0.031400000000000004
+    }
+  ]
+}

@@ -27,6 +27,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ggge_ai.engine import codec  # noqa: E402
 from ggge_ai.sandbox.model import (  # noqa: E402
+    CRIT_HIGH_MORALE,
+    CRIT_NORMAL,
+    CRIT_SUPER,
+    DEFEND_MULTIPLIER,
+    NO_DEFENSE_MULTIPLIER,
+    SHIELD_MULTIPLIER,
     BattleState,
     Debuff,
     Faction,
@@ -36,6 +42,14 @@ from ggge_ai.sandbox.model import (  # noqa: E402
     StageEvent,
     Unit,
     Weapon,
+    base_damage,
+    combat_base_damage,
+    critical_damage,
+    damage_scale,
+    expected_damage,
+    final_damage,
+    hit_probability,
+    hit_rate_percent,
 )
 
 FIXTURES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "engine"
@@ -213,6 +227,285 @@ def event_board() -> Board:
 
 BOARDS = (small_board, blocker_board, debuff_ammo_board, event_board)
 
+FORMULA_OPS: tuple[str, ...] = (
+    "base_damage",
+    "combat_base_damage",
+    "damage_scale",
+    "final_damage",
+    "critical_damage",
+    "expected_damage",
+    "hit_rate_percent",
+    "hit_probability",
+)
+
+ZERO_SIDE = {
+    "unit_attack": 0.0,
+    "unit_defense": 0.0,
+    "pilot_attack": 0.0,
+    "pilot_defense": 0.0,
+    "reaction": 0.0,
+    "mobility": 0.0,
+}
+BOARD_SIDE = {
+    "unit_attack": 4200.0,
+    "unit_defense": 3900.0,
+    "pilot_attack": 220.0,
+    "pilot_defense": 190.0,
+    "reaction": 205.0,
+    "mobility": 310.0,
+}
+OUTGUNNED_ATTACKER = ZERO_SIDE | {
+    "unit_attack": 1000.0,
+    "pilot_attack": 100.0,
+    "mobility": 120.0,
+}
+OUTGUNNED_DEFENDER = ZERO_SIDE | {
+    "unit_defense": 5000.0,
+    "pilot_defense": 400.0,
+    "reaction": 300.0,
+    "mobility": 480.0,
+}
+# The two sigmoids saturate at an exponent near 700, which is the last exponent
+# that 'math.exp' answers with a number instead of an overflow.
+SATURATED_ATTACKER = ZERO_SIDE | {"unit_attack": 2800000.0, "pilot_attack": 280000.0}
+SATURATED_DEFENDER = ZERO_SIDE | {"unit_defense": 2800000.0, "pilot_defense": 280000.0}
+QUICK_ATTACKER = ZERO_SIDE | {"pilot_attack": 400.0, "mobility": 1000.0}
+EVASIVE_DEFENDER = ZERO_SIDE | {"reaction": 3000.0, "mobility": 500.0}
+
+
+def _strike(power: float, attacker: dict[str, float], defender: dict[str, float]) -> dict[str, Any]:
+    return {"power": power, "attacker": attacker, "defender": defender}
+
+
+def _hit(
+    attacker: dict[str, float], defender: dict[str, float], correction: float
+) -> dict[str, Any]:
+    return {"attacker": attacker, "defender": defender, "ability_correction": correction}
+
+
+FORMULA_INPUTS: tuple[tuple[str, dict[str, Any]], ...] = (
+    ("base_damage", _strike(0.0, ZERO_SIDE, ZERO_SIDE)),
+    ("base_damage", _strike(1.0, ZERO_SIDE, ZERO_SIDE)),
+    ("base_damage", _strike(1800.0, BOARD_SIDE, BOARD_SIDE)),
+    ("base_damage", _strike(2400.0, BOARD_SIDE, BOARD_SIDE)),
+    ("base_damage", _strike(1800.0, OUTGUNNED_ATTACKER, OUTGUNNED_DEFENDER)),
+    ("base_damage", _strike(1.0, ZERO_SIDE, SATURATED_DEFENDER)),
+    ("base_damage", _strike(1.0, SATURATED_ATTACKER, ZERO_SIDE)),
+    ("combat_base_damage", _strike(0.0, ZERO_SIDE, ZERO_SIDE) | {"terrain": 1.0}),
+    ("combat_base_damage", _strike(1800.0, BOARD_SIDE, BOARD_SIDE) | {"terrain": 1.0}),
+    ("combat_base_damage", _strike(1800.0, BOARD_SIDE, BOARD_SIDE) | {"terrain": 1.2}),
+    ("combat_base_damage", _strike(2400.0, BOARD_SIDE, BOARD_SIDE) | {"terrain": 1.2}),
+    (
+        "combat_base_damage",
+        _strike(1800.0, OUTGUNNED_ATTACKER, OUTGUNNED_DEFENDER) | {"terrain": 1.0},
+    ),
+    ("combat_base_damage", _strike(1.0, ZERO_SIDE, SATURATED_DEFENDER) | {"terrain": 1.0}),
+    ("combat_base_damage", _strike(1.0, SATURATED_ATTACKER, ZERO_SIDE) | {"terrain": 0.8}),
+    ("damage_scale", {"bonuses": 0.0, "penalties": 0.0}),
+    ("damage_scale", {"bonuses": 0.35, "penalties": 0.1}),
+    ("damage_scale", {"bonuses": 0.0, "penalties": 1.0}),
+    ("damage_scale", {"bonuses": 0.2, "penalties": 1.5}),
+    ("final_damage", {"combat_base": 0.0, "scale": 1.0, "defense_multiplier": 1.0}),
+    (
+        "final_damage",
+        {"combat_base": 1000.0, "scale": 1.0, "defense_multiplier": NO_DEFENSE_MULTIPLIER},
+    ),
+    (
+        "final_damage",
+        {"combat_base": 1000.0, "scale": 1.25, "defense_multiplier": DEFEND_MULTIPLIER},
+    ),
+    (
+        "final_damage",
+        {"combat_base": 1000.0, "scale": 1.0, "defense_multiplier": SHIELD_MULTIPLIER},
+    ),
+    ("final_damage", {"combat_base": 1000.0, "scale": 0.0, "defense_multiplier": 1.0}),
+    ("final_damage", {"combat_base": 1000.0, "scale": 1.0, "defense_multiplier": 0.0}),
+    (
+        "critical_damage",
+        {
+            "combat_base": 1000.0,
+            "scale": 1.0,
+            "defense_multiplier": NO_DEFENSE_MULTIPLIER,
+            "critical": CRIT_NORMAL,
+        },
+    ),
+    (
+        "critical_damage",
+        {
+            "combat_base": 1000.0,
+            "scale": 1.0,
+            "defense_multiplier": DEFEND_MULTIPLIER,
+            "critical": CRIT_HIGH_MORALE,
+        },
+    ),
+    (
+        "critical_damage",
+        {
+            "combat_base": 1000.0,
+            "scale": 1.25,
+            "defense_multiplier": SHIELD_MULTIPLIER,
+            "critical": CRIT_SUPER,
+        },
+    ),
+    (
+        "critical_damage",
+        {"combat_base": 1000.0, "scale": 1.25, "defense_multiplier": 1.0, "critical": CRIT_NORMAL},
+    ),
+    (
+        "critical_damage",
+        {"combat_base": 0.0, "scale": 0.0, "defense_multiplier": 0.0, "critical": 0.0},
+    ),
+    (
+        "expected_damage",
+        _strike(0.0, ZERO_SIDE, ZERO_SIDE)
+        | {"terrain": 1.0, "bonuses": 0.0, "penalties": 0.0, "defense_multiplier": 1.0},
+    ),
+    (
+        "expected_damage",
+        _strike(1800.0, BOARD_SIDE, BOARD_SIDE)
+        | {
+            "terrain": 1.0,
+            "bonuses": 0.0,
+            "penalties": 0.0,
+            "defense_multiplier": NO_DEFENSE_MULTIPLIER,
+        },
+    ),
+    (
+        "expected_damage",
+        _strike(1800.0, BOARD_SIDE, BOARD_SIDE)
+        | {
+            "terrain": 1.2,
+            "bonuses": 0.35,
+            "penalties": 0.1,
+            "defense_multiplier": DEFEND_MULTIPLIER,
+        },
+    ),
+    (
+        "expected_damage",
+        _strike(2400.0, BOARD_SIDE, BOARD_SIDE)
+        | {
+            "terrain": 1.0,
+            "bonuses": 0.0,
+            "penalties": 0.0,
+            "defense_multiplier": SHIELD_MULTIPLIER,
+        },
+    ),
+    (
+        "expected_damage",
+        _strike(1800.0, BOARD_SIDE, BOARD_SIDE)
+        | {"terrain": 1.0, "bonuses": 0.0, "penalties": 0.0, "defense_multiplier": 0.0},
+    ),
+    (
+        "expected_damage",
+        _strike(1800.0, OUTGUNNED_ATTACKER, OUTGUNNED_DEFENDER)
+        | {
+            "terrain": 1.2,
+            "bonuses": 0.2,
+            "penalties": 1.5,
+            "defense_multiplier": SHIELD_MULTIPLIER,
+        },
+    ),
+    (
+        "expected_damage",
+        _strike(1.0, SATURATED_ATTACKER, ZERO_SIDE)
+        | {"terrain": 1.0, "bonuses": 0.0, "penalties": 1.0, "defense_multiplier": 1.0},
+    ),
+    ("hit_rate_percent", _hit(ZERO_SIDE, ZERO_SIDE, 0.0)),
+    ("hit_rate_percent", _hit(BOARD_SIDE, BOARD_SIDE, 0.0)),
+    ("hit_rate_percent", _hit(BOARD_SIDE, BOARD_SIDE, -20.0)),
+    ("hit_rate_percent", _hit(BOARD_SIDE, OUTGUNNED_DEFENDER, 0.0)),
+    ("hit_rate_percent", _hit(OUTGUNNED_ATTACKER, BOARD_SIDE, 0.0)),
+    ("hit_rate_percent", _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0)),
+    ("hit_rate_percent", _hit(QUICK_ATTACKER, ZERO_SIDE, -25.0)),
+    ("hit_rate_percent", _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0)),
+    ("hit_rate_percent", _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0)),
+    ("hit_probability", _hit(ZERO_SIDE, ZERO_SIDE, 0.0)),
+    ("hit_probability", _hit(BOARD_SIDE, BOARD_SIDE, 0.0)),
+    ("hit_probability", _hit(BOARD_SIDE, BOARD_SIDE, -20.0)),
+    ("hit_probability", _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0)),
+    ("hit_probability", _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0)),
+    ("hit_probability", _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0)),
+)
+
+
+def _sides(payload: dict[str, Any]) -> tuple[float, float, float, float]:
+    attacker, defender = payload["attacker"], payload["defender"]
+    return (
+        attacker["pilot_attack"],
+        defender["pilot_defense"],
+        attacker["unit_attack"],
+        defender["unit_defense"],
+    )
+
+
+def _hit_sides(payload: dict[str, Any]) -> tuple[float, float, float, float]:
+    attacker, defender = payload["attacker"], payload["defender"]
+    return (
+        attacker["mobility"],
+        defender["mobility"],
+        attacker["pilot_attack"],
+        defender["reaction"],
+    )
+
+
+def formula_expectation(op: str, payload: dict[str, Any]) -> float:
+    if op == "base_damage":
+        return base_damage(payload["power"], *_sides(payload))
+    if op == "combat_base_damage":
+        return combat_base_damage(payload["power"], *_sides(payload), terrain=payload["terrain"])
+    if op == "damage_scale":
+        return damage_scale(bonuses=payload["bonuses"], penalties=payload["penalties"])
+    if op == "final_damage":
+        return final_damage(
+            payload["combat_base"],
+            scale=payload["scale"],
+            defense_multiplier=payload["defense_multiplier"],
+        )
+    if op == "critical_damage":
+        return critical_damage(
+            payload["combat_base"],
+            scale=payload["scale"],
+            defense_multiplier=payload["defense_multiplier"],
+            critical=payload["critical"],
+        )
+    if op == "expected_damage":
+        return expected_damage(
+            payload["power"],
+            *_sides(payload),
+            terrain=payload["terrain"],
+            bonuses=payload["bonuses"],
+            penalties=payload["penalties"],
+            defense_multiplier=payload["defense_multiplier"],
+        )
+    if op == "hit_rate_percent":
+        return hit_rate_percent(
+            *_hit_sides(payload), ability_correction=payload["ability_correction"]
+        )
+    if op == "hit_probability":
+        return hit_probability(
+            *_hit_sides(payload), ability_correction=payload["ability_correction"]
+        )
+    raise ValueError(f"the op {op} carries no expectation")
+
+
+def formula_checks() -> list[dict[str, Any]]:
+    return [
+        {"op": op, "input": payload, "expect": formula_expectation(op, payload)}
+        for op, payload in FORMULA_INPUTS
+    ]
+
+
+def formulas_case() -> dict[str, Any]:
+    _name, _note, state, rules, events = small_board()
+    return build_case(
+        "formulas",
+        "The damage and the hit formulas of docs/reference/combat-formulas.md.",
+        state,
+        rules,
+        events,
+        formula_checks(),
+    )
+
 
 def build_case(
     name: str,
@@ -220,6 +513,7 @@ def build_case(
     state: BattleState,
     rules: Rules,
     events: dict[str, StageEvent],
+    extra: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     setup = {
         "rules": codec.encode_rules(rules),
@@ -228,32 +522,29 @@ def build_case(
     }
     # The expectation comes back through the decoder, so a golden file records
     # what a full round trip gives, not what the builder wrote.
-    return {
-        "name": name,
-        "note": note,
-        "setup": setup,
-        "checks": [
-            {
-                "op": "state",
-                "input": None,
-                "expect": codec.encode_state(codec.decode_state(setup["state"])),
-            },
-            {
-                "op": "events",
-                "input": None,
-                "expect": codec.encode_events(codec.decode_events(setup["events"])),
-            },
-            {
-                "op": "rules",
-                "input": None,
-                "expect": codec.encode_rules(codec.decode_rules(setup["rules"])),
-            },
-        ],
-    }
+    checks = [
+        {
+            "op": "state",
+            "input": None,
+            "expect": codec.encode_state(codec.decode_state(setup["state"])),
+        },
+        {
+            "op": "events",
+            "input": None,
+            "expect": codec.encode_events(codec.decode_events(setup["events"])),
+        },
+        {
+            "op": "rules",
+            "input": None,
+            "expect": codec.encode_rules(codec.decode_rules(setup["rules"])),
+        },
+    ]
+    checks.extend(extra or ())
+    return {"name": name, "note": note, "setup": setup, "checks": checks}
 
 
 def cases() -> list[dict[str, Any]]:
-    return [build_case(*board()) for board in BOARDS]
+    return [build_case(*board()) for board in BOARDS] + [formulas_case()]
 
 
 def render(case: dict[str, Any]) -> str:
