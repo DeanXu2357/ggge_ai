@@ -82,6 +82,16 @@ term at its first use in each document, then use the short form.
 | footprint | 外形 | The rectangle of cells that one unit covers on the board. The field 'size' of a unit holds its width and its height. A unit does not turn. The rule is in docs/spec/battle-engine-protocol.md, section 'Board geometry' |
 | anchor cell | 錨點格 | The cell of a footprint with the least value on each axis. The field 'pos' of a unit holds it. The command 'reach' answers anchor cells. Short form 錨點 after the first use |
 | pending ruling | 待裁 | The marker for an item that needs a ruling from the user, not more evidence. Write the English form in a new issue, a new document, and a commit message. The Chinese form appears three times in the frozen record docs/record/decisions.md; leave those alone |
+| base damage | 基礎傷害 | Formula 5 of docs/reference/combat-formulas.md: the weapon power times the sum of the two ratio corrections and the two sigmoid corrections. Go: 'BaseDamage' in engine/battle |
+| combat base damage | 戰鬥基本傷害 | Formula 8: the base damage times one plus the attack correction plus the defense correction, divided by the terrain. Go: 'CombatBaseDamage' |
+| damage scale | 傷害增減補正 | Formula 9: one plus the sum of the bonuses minus the sum of the penalties. Go: 'DamageScale' |
+| final damage | 最終傷害 | Formula 10: the combat base damage times the damage scale times the defense multiplier. Go: 'FinalDamage' |
+| critical damage | 暴擊傷害 | Formula 11: the final damage times the critical multiplier. Go: 'CriticalDamage' |
+| defense multiplier | 防禦行動倍率 | The multiplier of the reaction stance in formula 10: 1.0 with no defense, 0.8 for 'defend', 0.6 for 'shield'. Go: 'NoDefenseMultiplier', 'DefendMultiplier', 'ShieldMultiplier' |
+| critical multiplier | 暴擊倍率 | The multiplier of formula 11: 1.1 normal, 1.2 at high morale, 1.3 for a super attack. Go: 'CritNormal', 'CritHighMorale', 'CritSuper' |
+| terrain | 地形補正 | The divisor of formula 8. One stage map has one value (0814 ruling); the rules carry it as 'terrain' |
+| hit rate | 命中率 | The percent chance that a strike lands, clamped to 0 to 100. The hit probability is the rate over 100. Go: 'HitRatePercent', 'HitProbability' |
+| ability correction | 能力補正 | The additive term of the hit rate that the weapon accuracy and the stance give; the dodge penalty is subtracted here |
 
 Retired name — 'solver': the word names only the deleted legacy
 stack (ruling 2026-08-14). The current implementation is the
