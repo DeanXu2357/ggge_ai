@@ -4,25 +4,32 @@
 
 ## Change summary
 
-The engine holds the board geometry with orthogonal movement and
-orthogonal range, and answers 'reach'. This supersedes #58.
+The engine holds the board geometry with orthogonal movement,
+orthogonal range and a footprint of more than one cell, and it
+answers 'reach'. This supersedes #58.
 
 New:
 
 - 'engine/battle/geometry.go': the port of 'sandbox/model.py' 411
-  to 535 on four steps.
+  to 535 on four steps, with the footprint rule.
 - 'engine/battle/geometry_test.go': the hand-authored cases.
 - 'engine/server/session.go': the board holder, 'load', and
   'reach'.
+- 'engine/protocol/state.go': the field 'size' of a unit.
 
 Changed:
 
 - 'scripts/sandbox_ui.py': the page asks the engine for the reach
   of the selected unit and paints it as its own layer.
-- 'docs/spec/battle-engine-protocol.md': 'reach' answers an
-  ordered list.
+- 'docs/spec/battle-engine-protocol.md': the section 'Board
+  geometry'; 'reach' answers an ordered list of anchor cells.
 - 'docs/reference/ui-spec.md': the device reading of the movement
-  range.
+  range, and the footprint ruling.
+- 'docs/reference/terminology-map.md': the bindings 'footprint' and
+  'anchor cell'.
+- 'src/ggge_ai/sandbox/model.py' and 'src/ggge_ai/engine/codec.py':
+  the field 'size' as data. The Python geometry does not read it.
+- The protocol version: 1.0 to 1.1.
 
 ## Device evidence
 
@@ -36,15 +43,44 @@ cells above the unit holds one highlighted cell, at column offset
 +5. The two cells at offset 0 and +1 in that row carry enemy units.
 The device therefore reads Manhattan, and the port matches it.
 
+## What the footprint rule changed
+
+The user ruled on 2026-08-20 that a unit covers a rectangle of
+cells: a footprint of 2 by 2 and of 2 by 3 exists, the stage
+decides which, and a unit does not turn. The field 'pos' is the
+anchor: the cell of the footprint with the least value on each
+axis.
+
+Distance is now the least distance between a cell of the one
+footprint and a cell of the other. Four results move:
+
+1. A weapon reads the near cell of the footprint. A foe that
+   touches a 2 by 2 unit is at distance 1, not at the 2 or 3 of
+   the anchor.
+2. A 'range_min' of 2 or more works against its own unit. The
+   large unit cannot fire a long weapon at a foe that touches it,
+   because that foe reads distance 1.
+3. 'reach' answers anchor cells. A unit moves as one body: each
+   step carries the whole footprint, so one blocker denies every
+   anchor whose footprint covers it, and the last row and the last
+   column of the board hold no anchor of a footprint of 2.
+4. The support finders and the blast read the footprint. A wide
+   supporter joins an engagement that its anchor alone could not
+   reach.
+
+A board that carries no 'size' gives the unit one cell, so every
+case of the orthogonal port keeps its answer.
+
 ## Verification
 
 - cd engine && go vet ./... : no finding.
 - cd engine && go test ./... : ok, five packages.
 - uv run ruff check src tests scripts : all checks passed.
-- uv run pytest -q : 1111 passed, 4 skipped.
+- uv run pytest -q : 1112 passed, 4 skipped.
 
 No differential case: the Python model keeps the diagonal (ruling
-2026-08-18), so a distance-dependent comparison against it proves
+2026-08-18) and gives every unit one cell (ruling 2026-08-20), so
+a comparison that reads the distance or the footprint proves
 nothing. Every case here is hand-authored or read from the device.
 
 The web UI test pins that the engine cells are a strict subset of
@@ -94,9 +130,32 @@ Six results move, and four of them are behavior a caller can feel:
 5. The page paints the engine cells as a second layer and does not
    move the click targets. The engine set is inside the Python set,
    so the page offers no cell that the play path refuses.
+6. 'model.py' and 'codec.py' carry the field 'size', and the
+   Python geometry does not read it. The parity test
+   'tests/test_engine_codec.py' compares the fields of the
+   dataclass with the JSON tags of the Go struct, so a field that
+   the engine holds and the model does not is a test failure. The
+   field is data, not a rule: the ruling of the day keeps the
+   Python geometry at one cell.
+7. The protocol version is 1.1. The contract says that a change
+   which adds a field raises the version.
+8. The spec said that the blast of a skill is a Chebyshev radius.
+   The port measures the blast on the board distance, as
+   'blast_victims' does after the orthogonal correction, so the
+   spec now names the board distance. This is a drift that the
+   orthogonal commit left behind.
 
-## Open point
+## Open points
 
-No one has compared an engine 'reach' answer cell by cell against
-a device frame of the same board. The device reading confirms the
-shape of the rule, not the cells of one board.
+1. No one has compared an engine 'reach' answer cell by cell
+   against a device frame of the same board. The device reading
+   confirms the shape of the rule, not the cells of one board.
+2. No device frame in this project shows a unit of more than one
+   cell. The footprint rule rests on the user ruling of
+   2026-08-20.
+3. Nothing writes the field 'size'. The stage definition and the
+   intel store give no footprint yet, so every board that the
+   project builds today carries one cell for each unit.
+4. The sandbox web page draws one cell for each unit and maps one
+   click to one cell. The page needs the footprint before a large
+   unit is legible there. Issue #70 holds that work.
