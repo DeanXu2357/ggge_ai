@@ -106,6 +106,15 @@ row carried enemy units, which is why the row shows one cell and
 not three. Frame: assets/screenshots/20260819-020154.png, run
 data/runs/20260819-020001.
 
+Unit footprint (user ruling, 2026-08-20): a unit covers a rectangle
+of cells, not always one cell. A 2 by 2 and a 2 by 3 footprint
+exist. The stage decides whether a footprint is 2 by 3 or 3 by 2;
+the unit does not turn. Distance measures from the nearest cell of
+one footprint to the nearest cell of the other. No device frame in
+this project shows a footprint of more than one cell yet: the
+screen reading of a large unit and the stage source of the 'size'
+field are open (issue #61).
+
 ## 陷阱與故障模式
 
 - **省電觸控鎖可疊在任何畫面之上**（含對話框、關卡列表）：畫面變暗、
