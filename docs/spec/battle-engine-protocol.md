@@ -180,6 +180,10 @@ Request:
 | reaction | The reaction of the defender |
 | dice | The dice input |
 
+The field 'action' holds the move of the unit. The engine resolves
+the move first and the action second; the section 'Unit payload,
+action, and reaction' holds the rule.
+
 The field 'reaction' is necessary when 'reactions' gives a list
 that is not empty for this strike. The field is not permitted when
 that list is empty.
@@ -194,9 +198,11 @@ summary).
 
 Refusals: no_session; illegal_state when the phase of the unit is
 not the current phase, or when the unit acted in this turn;
-illegal_action for an action that 'actions' does not give, for a
-reaction that 'reactions' does not give, for an absent necessary
-reaction, or for a short 'outcomes' list.
+illegal_action for an action that 'actions' does not give, for an
+action that carries 'move_to' when its weapon or its skill holds
+'usable_after_move' false, for a reaction that 'reactions' does not
+give, for an absent necessary reaction, or for a short 'outcomes'
+list.
 
 ### rollback
 
@@ -294,7 +300,95 @@ diagnostics record the exhaustion.
 ### Unit payload, action, and reaction
 
 The authority for these three schemas is 'src/ggge_ai/sandbox/
-model.py'. Issue #60 lands them in the engine.
+model.py'. The Go package 'engine/protocol' holds the same
+structs, and 'src/ggge_ai/engine/codec.py' writes the same form
+from the model. The contract names the payload of one activation
+'action'; the model names the same thing 'Decision'. The Go type
+keeps the model name, and the wire field keeps the contract name.
+The enum of the kinds of one action carries two type names: the
+model names it 'MoveKind', and the engine names it 'ActionKind'.
+The enum holds no kind of movement. Its wire field is 'kind', and
+its value set is frozen.
+
+The resolution order of one activation: the move first, then the
+action. The move is the field 'move_to' of the action. Every effect
+that reads a cell reads the cell after the move. There is no
+exception to this order.
+
+An action does not always carry a move. The permission is the field
+'usable_after_move' of the weapon of the action, or of its skill.
+A true value permits a move in the same activation; a false value
+makes the action pre-move only. The permission is a property of
+that weapon or that skill, not of the kind of the action: a map
+weapon is a common holder of a false value, but some map weapons
+fire after a move, and some skills of the source 'character' or
+'crew' hold a false value (user ruling 2026-08-20).
+
+A skill carries its area in four fields. The fields 'range_min'
+and 'range_max' hold the distance from the caster to the center of
+the area. The field 'blast' holds the Chebyshev radius around the
+center; a blast of 0 is one cell. The field 'affects' holds the
+faction filter of the units in the area: 'ally', 'enemy', or 'all'.
+The center travels in the field 'aim' of the action, and a single
+target travels in the field 'target_id'; the action carries no
+other field for the area.
+
+The value set of 'affects' holds no 'self'. A skill that acts on
+the caster alone is a 'range_min' of 0, a 'range_max' of 0, a
+'blast' of 0 and an 'affects' of 'ally': the area is the cell of
+the caster, and the caster is an ally in its own cell. A 'self'
+value would make a second way to write the same area.
+
+The rules of the wire form:
+
+- A cell is a JSON pair, in the order of the Python tuple.
+- The center of an area effect is on the wire, in the field 'aim'.
+  The engine does not derive the center from the cell of the actor.
+- Every field of the type is on the wire. A field that holds no
+  value is null.
+- A field with three values keeps its three values: 'hit' is true,
+  false, or null. Null says that the caller settles that node
+  somewhere else.
+- The stance 'none' is not on the wire. The reaction list holds no
+  decline option, so a payload that carries 'none' is a decode
+  error.
+- A decode and an encode of one payload give the same bytes a
+  second time.
+- The trigger and the effect of a stage event stay free objects.
+  The issue that runs the event table reads them.
+
+A field that 'model.py' holds and the Go struct does not is a test
+failure: 'tests/test_engine_codec.py' compares the fields of the
+dataclass with the JSON tags of the Go struct.
+
+### Differential cases
+
+'tests/fixtures/engine/' holds the cases. Python writes them, and
+the Go tests in 'engine/differential' read the same file and
+compare. One case file holds:
+
+| Field | Content |
+|---|---|
+| name | The name of the case, equal to the file name |
+| note | What the board carries |
+| setup | The rules, the event table, and the board |
+| checks | The list of the checks |
+
+Each check names an 'op', its 'input', and the 'expect' that Python
+produced. An op that the Go build does not implement is skipped,
+not failed, so a port issue writes its checks before its command
+exists. 'scripts/write_engine_fixtures.py' writes the files, and
+'--check' reports a stale file.
+
+Float comparison: the two sides compare with a relative tolerance
+of 1e-9 and an absolute floor of 1e-12. A number that one side
+copies from the other matches bit for bit, because both write the
+shortest decimal that reads back as the same double. A number that
+each side computes does not: the two runtimes call different libm
+code for 'exp', and the results part in the last bits. The
+tolerance hides no wrong formula, because a wrong formula misses by
+far more, and it hides no wrong integer, because the smallest
+difference between two integers is 1.
 
 ## Evolution
 

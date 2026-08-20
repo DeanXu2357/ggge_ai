@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import signal
 import subprocess
 import sys
@@ -15,17 +14,7 @@ import pytest
 from ggge_ai.engine.client import BattleEngine, EngineDead, EngineError, EngineTimeout
 from ggge_ai.engine.contract import DECLARED_COMMANDS, PROTOCOL_VERSION, ErrorCode
 
-ENGINE_DIR = Path(__file__).resolve().parents[1] / "engine"
 IMPLEMENTED = {"hello", "ping"}
-
-pytestmark = pytest.mark.skipif(shutil.which("go") is None, reason="go is not on PATH")
-
-
-@pytest.fixture(scope="session")
-def executable(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    target = tmp_path_factory.mktemp("engine") / "battle-engine"
-    subprocess.run(["go", "build", "-o", str(target), "."], cwd=ENGINE_DIR, check=True)
-    return target
 
 
 def _script(path: Path, body: str) -> Path:
@@ -34,9 +23,9 @@ def _script(path: Path, body: str) -> Path:
     return path
 
 
-def _exchange(executable: Path, *lines: str) -> tuple[list[dict], int]:
+def _exchange(engine_executable: Path, *lines: str) -> tuple[list[dict], int]:
     process = subprocess.Popen(
-        [str(executable)],
+        [str(engine_executable)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         bufsize=0,
@@ -45,15 +34,15 @@ def _exchange(executable: Path, *lines: str) -> tuple[list[dict], int]:
     return [json.loads(line) for line in out.splitlines() if line.strip()], process.returncode
 
 
-def test_the_response_keeps_the_request_id_and_eof_stops_the_process(executable):
-    responses, status = _exchange(executable, '{"id":"a1","cmd":"ping","payload":{}}')
+def test_the_response_keeps_the_request_id_and_eof_stops_the_process(engine_executable):
+    responses, status = _exchange(engine_executable, '{"id":"a1","cmd":"ping","payload":{}}')
 
     assert responses == [{"id": "a1", "ok": True, "payload": {}}]
     assert status == 0
 
 
-def test_hello_lists_every_declared_command_in_order(executable):
-    responses, _ = _exchange(executable, '{"id":"h1","cmd":"hello","payload":{}}')
+def test_hello_lists_every_declared_command_in_order(engine_executable):
+    responses, _ = _exchange(engine_executable, '{"id":"h1","cmd":"hello","payload":{}}')
     payload = responses[0]["payload"]
 
     assert payload["protocol"] == PROTOCOL_VERSION
@@ -63,9 +52,9 @@ def test_hello_lists_every_declared_command_in_order(executable):
     )
 
 
-def test_a_declared_command_with_no_handler_is_not_implemented(executable):
+def test_a_declared_command_with_no_handler_is_not_implemented(engine_executable):
     responses, _ = _exchange(
-        executable,
+        engine_executable,
         '{"id":"d1","cmd":"act","payload":{}}',
         '{"id":"d2","cmd":"ping","payload":{}}',
     )
@@ -76,9 +65,9 @@ def test_a_declared_command_with_no_handler_is_not_implemented(executable):
     assert responses[1]["ok"] is True
 
 
-def test_an_unknown_command_is_refused(executable):
+def test_an_unknown_command_is_refused(engine_executable):
     responses, _ = _exchange(
-        executable,
+        engine_executable,
         '{"id":"u1","cmd":"teleport","payload":{}}',
         '{"id":"u2","cmd":"ping","payload":{}}',
     )
@@ -88,9 +77,9 @@ def test_an_unknown_command_is_refused(executable):
     assert responses[1]["ok"] is True
 
 
-def test_a_malformed_line_is_bad_request_with_an_empty_id(executable):
+def test_a_malformed_line_is_bad_request_with_an_empty_id(engine_executable):
     responses, _ = _exchange(
-        executable,
+        engine_executable,
         '{"id":"m1",',
         '{"id":"m2","cmd":"ping","payload":{}}',
     )
@@ -100,16 +89,16 @@ def test_a_malformed_line_is_bad_request_with_an_empty_id(executable):
     assert responses[1]["ok"] is True
 
 
-def test_the_client_calls_hello_and_ping(executable):
-    with BattleEngine(executable) as engine:
+def test_the_client_calls_hello_and_ping(engine_executable):
+    with BattleEngine(engine_executable) as engine:
         hello = engine.hello()
         assert engine.ping() == {}
 
     assert tuple(command["name"] for command in hello["commands"]) == DECLARED_COMMANDS
 
 
-def test_the_client_raises_engine_error_on_a_refusal(executable):
-    with BattleEngine(executable) as engine:
+def test_the_client_raises_engine_error_on_a_refusal(engine_executable):
+    with BattleEngine(engine_executable) as engine:
         with pytest.raises(EngineError) as refusal:
             engine.call("act", {})
 
@@ -117,8 +106,8 @@ def test_the_client_raises_engine_error_on_a_refusal(executable):
         assert engine.ping() == {}
 
 
-def test_a_killed_engine_surfaces_as_engine_dead(executable):
-    with BattleEngine(executable, timeout_s=5.0) as engine:
+def test_a_killed_engine_surfaces_as_engine_dead(engine_executable):
+    with BattleEngine(engine_executable, timeout_s=5.0) as engine:
         engine.ping()
         os.kill(engine.pid, signal.SIGKILL)
 

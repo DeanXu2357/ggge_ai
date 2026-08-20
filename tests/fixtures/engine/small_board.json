@@ -1,0 +1,324 @@
+{
+  "name": "small_board",
+  "note": "Two units on a 6x5 board, one weapon pair, no option set.",
+  "setup": {
+    "rules": {
+      "defend_multiplier": 0.8,
+      "shield_multiplier": 0.6,
+      "support_defend_multiplier": 0.8,
+      "dodge_hit_penalty": 20.0,
+      "terrain": 1.0,
+      "max_support_attackers": 3,
+      "en_regen_fraction": 0.1
+    },
+    "events": {},
+    "state": {
+      "units": [
+        {
+          "unit_id": "ally_1",
+          "faction": "ally",
+          "pos": [
+            1,
+            1
+          ],
+          "hp": 12000,
+          "max_hp": 12000,
+          "en": 140,
+          "en_max": 140,
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0,
+          "move_range": 4,
+          "weapons": [
+            {
+              "name": "beam rifle",
+              "power": 1800.0,
+              "range_min": 1,
+              "range_max": 3,
+              "en_cost": 10,
+              "accuracy": 5.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            },
+            {
+              "name": "saber",
+              "power": 2400.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 0,
+              "accuracy": 10.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            }
+          ],
+          "skills": [],
+          "acted": false,
+          "chance_steps": 0,
+          "chance_steps_max": 0,
+          "support_defend_charges": 0,
+          "support_defend_charges_max": 0,
+          "support_attack_charges": 0,
+          "support_attack_charges_max": 0,
+          "has_shield": false,
+          "attack_shield": false,
+          "interception_reduction": 0.0,
+          "ammo": {},
+          "debuffs": []
+        },
+        {
+          "unit_id": "enemy_1",
+          "faction": "enemy",
+          "pos": [
+            4,
+            1
+          ],
+          "hp": 12000,
+          "max_hp": 12000,
+          "en": 140,
+          "en_max": 140,
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0,
+          "move_range": 4,
+          "weapons": [
+            {
+              "name": "beam rifle",
+              "power": 1800.0,
+              "range_min": 1,
+              "range_max": 3,
+              "en_cost": 10,
+              "accuracy": 5.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            },
+            {
+              "name": "saber",
+              "power": 2400.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 0,
+              "accuracy": 10.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            }
+          ],
+          "skills": [],
+          "acted": true,
+          "chance_steps": 0,
+          "chance_steps_max": 0,
+          "support_defend_charges": 0,
+          "support_defend_charges_max": 0,
+          "support_attack_charges": 0,
+          "support_attack_charges_max": 0,
+          "has_shield": false,
+          "attack_shield": false,
+          "interception_reduction": 0.0,
+          "ammo": {},
+          "debuffs": []
+        }
+      ],
+      "phase": "ally",
+      "turn": 1,
+      "bounds": [
+        [
+          0,
+          0
+        ],
+        [
+          5,
+          4
+        ]
+      ],
+      "pending_events": [],
+      "fired_events": []
+    }
+  },
+  "checks": [
+    {
+      "op": "state",
+      "input": null,
+      "expect": {
+        "units": [
+          {
+            "unit_id": "ally_1",
+            "faction": "ally",
+            "pos": [
+              1,
+              1
+            ],
+            "hp": 12000,
+            "max_hp": 12000,
+            "en": 140,
+            "en_max": 140,
+            "unit_attack": 4200.0,
+            "unit_defense": 3900.0,
+            "pilot_attack": 220.0,
+            "pilot_defense": 190.0,
+            "reaction": 205.0,
+            "mobility": 310.0,
+            "move_range": 4,
+            "weapons": [
+              {
+                "name": "beam rifle",
+                "power": 1800.0,
+                "range_min": 1,
+                "range_max": 3,
+                "en_cost": 10,
+                "accuracy": 5.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              },
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              }
+            ],
+            "skills": [],
+            "acted": false,
+            "chance_steps": 0,
+            "chance_steps_max": 0,
+            "support_defend_charges": 0,
+            "support_defend_charges_max": 0,
+            "support_attack_charges": 0,
+            "support_attack_charges_max": 0,
+            "has_shield": false,
+            "attack_shield": false,
+            "interception_reduction": 0.0,
+            "ammo": {},
+            "debuffs": []
+          },
+          {
+            "unit_id": "enemy_1",
+            "faction": "enemy",
+            "pos": [
+              4,
+              1
+            ],
+            "hp": 12000,
+            "max_hp": 12000,
+            "en": 140,
+            "en_max": 140,
+            "unit_attack": 4200.0,
+            "unit_defense": 3900.0,
+            "pilot_attack": 220.0,
+            "pilot_defense": 190.0,
+            "reaction": 205.0,
+            "mobility": 310.0,
+            "move_range": 4,
+            "weapons": [
+              {
+                "name": "beam rifle",
+                "power": 1800.0,
+                "range_min": 1,
+                "range_max": 3,
+                "en_cost": 10,
+                "accuracy": 5.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              },
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              }
+            ],
+            "skills": [],
+            "acted": true,
+            "chance_steps": 0,
+            "chance_steps_max": 0,
+            "support_defend_charges": 0,
+            "support_defend_charges_max": 0,
+            "support_attack_charges": 0,
+            "support_attack_charges_max": 0,
+            "has_shield": false,
+            "attack_shield": false,
+            "interception_reduction": 0.0,
+            "ammo": {},
+            "debuffs": []
+          }
+        ],
+        "phase": "ally",
+        "turn": 1,
+        "bounds": [
+          [
+            0,
+            0
+          ],
+          [
+            5,
+            4
+          ]
+        ],
+        "pending_events": [],
+        "fired_events": []
+      }
+    },
+    {
+      "op": "events",
+      "input": null,
+      "expect": {}
+    },
+    {
+      "op": "rules",
+      "input": null,
+      "expect": {
+        "defend_multiplier": 0.8,
+        "shield_multiplier": 0.6,
+        "support_defend_multiplier": 0.8,
+        "dodge_hit_penalty": 20.0,
+        "terrain": 1.0,
+        "max_support_attackers": 3,
+        "en_regen_fraction": 0.1
+      }
+    }
+  ]
+}

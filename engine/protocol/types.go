@@ -2,14 +2,6 @@ package protocol
 
 import "encoding/json"
 
-// Issue #60 lands the schema of these three payloads. The shell moves them
-// without a reading.
-type (
-	Unit     = json.RawMessage
-	Action   = json.RawMessage
-	Reaction = json.RawMessage
-)
-
 type Cell [2]int
 
 type Guarantee string
@@ -61,10 +53,12 @@ type Dice struct {
 }
 
 type Verdict struct {
-	Action        Action         `json:"action"`
-	ExpectedValue float64        `json:"expected_value"`
-	Guarantee     Guarantee      `json:"guarantee"`
-	Diagnostics   map[string]any `json:"diagnostics,omitempty"`
+	// The advisor issue lands the shape of the field: one decision, or the
+	// chosen sequence of one turn.
+	Action        json.RawMessage `json:"action"`
+	ExpectedValue float64         `json:"expected_value"`
+	Guarantee     Guarantee       `json:"guarantee"`
+	Diagnostics   map[string]any  `json:"diagnostics,omitempty"`
 }
 
 type Board struct {
@@ -129,7 +123,7 @@ type ActionsRequest struct {
 }
 
 type ActionsResponse struct {
-	Actions []Action `json:"actions"`
+	Actions []Decision `json:"actions"`
 }
 
 type ReactionsRequest struct {
@@ -144,10 +138,10 @@ type ReactionsResponse struct {
 }
 
 type ActRequest struct {
-	UnitID   string   `json:"unit_id"`
-	Action   Action   `json:"action"`
-	Reaction Reaction `json:"reaction,omitempty"`
-	Dice     Dice     `json:"dice"`
+	UnitID   string    `json:"unit_id"`
+	Action   Decision  `json:"action"`
+	Reaction *Reaction `json:"reaction,omitempty"`
+	Dice     Dice      `json:"dice"`
 }
 
 type ActResponse struct {
@@ -186,7 +180,7 @@ type AdviceRequest struct {
 type AdviceResponse = Verdict
 
 type CertifyRequest struct {
-	Action Action `json:"action"`
+	Action Decision `json:"action"`
 }
 
 type CertifyResponse struct {
@@ -196,12 +190,12 @@ type CertifyResponse struct {
 type ExportRequest struct{}
 
 type ExportResponse struct {
-	State   json.RawMessage   `json:"state"`
+	State   BattleState       `json:"state"`
 	History []json.RawMessage `json:"history"`
 }
 
 type LoadRequest struct {
-	State   json.RawMessage   `json:"state"`
+	State   BattleState       `json:"state"`
 	History []json.RawMessage `json:"history"`
 }
 

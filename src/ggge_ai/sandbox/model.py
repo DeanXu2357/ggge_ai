@@ -36,6 +36,18 @@ class MoveKind(StrEnum):
 SKILL_KINDS: tuple[MoveKind, ...] = (MoveKind.SKILL_EN_REFILL, MoveKind.SKILL_HEAL)
 
 
+class SkillSource(StrEnum):
+    CHARACTER = "character"
+    CREW = "crew"
+    UNIT = "unit"
+
+
+class SkillAffects(StrEnum):
+    ALLY = "ally"
+    ENEMY = "enemy"
+    ALL = "all"
+
+
 class Stance(StrEnum):
     NONE = "none"
     DODGE = "dodge"
@@ -216,6 +228,7 @@ class Weapon:
     accuracy: float = 0.0
     can_counter: bool = True
     map_weapon: bool = False
+    usable_after_move: bool = True
     blast: int = 0
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
@@ -223,10 +236,23 @@ class Weapon:
 
 @dataclass
 class Skill:
+    """The area fields hold no 'self' value of 'affects'.
+
+    A skill that acts on the caster alone is 'range_min' 0, 'range_max' 0,
+    'blast' 0 and 'affects' ally: the area is the cell of the caster, and the
+    caster is an ally in its own cell.
+    """
+
     kind: MoveKind
+    source: SkillSource = SkillSource.UNIT
     amount: float | None = None
     uses: int = 1
     ends_activation: bool = True
+    usable_after_move: bool = True
+    range_min: int = 0
+    range_max: int = 0
+    blast: int = 0
+    affects: SkillAffects = SkillAffects.ALLY
 
 
 @dataclass(frozen=True)

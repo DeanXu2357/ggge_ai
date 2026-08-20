@@ -1346,3 +1346,29 @@
   sandbox/scenario.py. No code change follows from this ruling.
   Open work: the terrain value of each stage still needs live
   calibration on the device (issue #53).
+- **(0820) Action timing is per weapon and per skill — user ruling**｜
+  The user ruled first-hand that the permission to act after a move
+  is an attribute of the weapon or of the skill, not a rule of the
+  kind of the action. Some map weapons fire after a move, so the
+  reading that made '移動前限定' a rule of every map weapon
+  (2026-07-13 web search, docs/reference/combat-formulas.md) was
+  too broad; the bullet now keeps the old reading as superseded. The same axis
+  governs skills: a character skill or a crew skill of a large area
+  cannot be cast after a move, and a unit skill can. The contract
+  carries the attribute as 'Weapon.usable_after_move' and
+  'Skill.usable_after_move'; the engine reads the field and does
+  not infer from the kind. Rejected in the same ruling: paired
+  action-enum members with an 'AfterMove' suffix, because 'move_to'
+  already records the move and a second record needs an invariant
+  that every consumer maintains. Known divergence, deliberate:
+  'step()' in sandbox/model.py still holds the rule per kind (it
+  drops 'move_to' for MAP_ATTACK). Enforcement belongs to a later
+  issue; this change lands the contract shape only (issue #60).
+- **(0820) The filter 'affects' holds no 'self' value — user
+  ruling**｜The area of a skill is 'range_min', 'range_max',
+  'blast' and 'affects'. A skill that acts on the caster alone is a
+  range of 0, a blast of 0 and 'affects' ally: the area is the cell
+  of the caster, and the caster is an ally in its own cell. A
+  'self' value would add a second way to write one area, so the
+  contract removes the overload instead of adding the special case
+  (issue #60).

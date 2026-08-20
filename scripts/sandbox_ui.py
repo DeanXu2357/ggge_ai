@@ -3,9 +3,13 @@
 只讀情境檔，不碰 adb、不寫任何檔案。盤面、候選、推進一律向 'Sandbox' 門面要；
 本腳本只做路由、頁面與擲骰輸入合成，不含任何遊戲規則。
 
+給了 --engine 就另外起一支戰局引擎行程：把盤面送過去，再問各條已宣告查詢。
+引擎答 'not_implemented' 的查詢照舊由 Python 這邊算並繪製。
+
 usage:
   uv run python scripts/sandbox_ui.py --scenario assets/scenarios/uc_hard_1_placeholder.json
   uv run python scripts/sandbox_ui.py --scenario <path> --host 0.0.0.0 --port 9000
+  uv run python scripts/sandbox_ui.py --scenario <path> --engine engine/battle-engine
 """
 
 from __future__ import annotations
@@ -24,10 +28,17 @@ from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from ggge_ai.engine.client import (  # noqa: E402
+    BattleEngine,
+    EngineDead,
+    EngineError,
+    EngineTimeout,
+)
 from ggge_ai.sandbox.facade import Sandbox  # noqa: E402
 
 DICE_KEYS = ("hit", "counter_hit", "support_hit")
 MAX_BODY_BYTES = 1 << 20
+ENGINE_QUERIES = ("roster", "deploy_cells")
 
 
 def _reaction_key(raw: Mapping[str, Any]) -> tuple:
@@ -44,6 +55,7 @@ class SandboxHandler(BaseHTTPRequestHandler):
     sandbox: Sandbox
     lock: threading.Lock
     rng: random.Random
+    engine: BattleEngine | None
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
@@ -56,6 +68,10 @@ class SandboxHandler(BaseHTTPRequestHandler):
         elif path == "/api/decision":
             with self.lock:
                 payload = self.sandbox.pending_decision()
+            self._json(HTTPStatus.OK, payload)
+        elif path == "/api/engine":
+            with self.lock:
+                payload = self._engine_report()
             self._json(HTTPStatus.OK, payload)
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -82,6 +98,33 @@ class SandboxHandler(BaseHTTPRequestHandler):
 
     def log_message(self, *args: Any) -> None:
         return
+
+    def _engine_report(self) -> dict[str, Any]:
+        if self.engine is None:
+            return {"available": False, "reason": "沒有給 --engine，引擎未啟動"}
+        try:
+            hello = self.engine.hello()
+        except (EngineError, EngineDead, EngineTimeout) as exc:
+            return {"available": False, "reason": str(exc)}
+        answers = {
+            "load": self._engine_call("load", {"state": self.sandbox.engine_state(), "history": []})
+        }
+        for name in ENGINE_QUERIES:
+            answers[name] = self._engine_call(name, {})
+        return {
+            "available": True,
+            "protocol": hello.get("protocol"),
+            "commands": hello.get("commands", []),
+            "answers": answers,
+        }
+
+    def _engine_call(self, cmd: str, payload: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return {"ok": True, "payload": self.engine.call(cmd, payload)}
+        except EngineError as exc:
+            return {"ok": False, "code": exc.code, "message": exc.message}
+        except (EngineDead, EngineTimeout) as exc:
+            return {"ok": False, "code": "engine_gone", "message": str(exc)}
 
     def _act(self, candidate: dict[str, Any], body: Mapping[str, Any]) -> dict[str, Any]:
         reaction = body.get("reaction")
@@ -149,11 +192,21 @@ class SandboxHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def build_handler(sandbox: Sandbox, *, seed: int | None = None) -> type[BaseHTTPRequestHandler]:
+def build_handler(
+    sandbox: Sandbox,
+    *,
+    seed: int | None = None,
+    engine: BattleEngine | None = None,
+) -> type[BaseHTTPRequestHandler]:
     return type(
         "BoundSandboxHandler",
         (SandboxHandler,),
-        {"sandbox": sandbox, "lock": threading.Lock(), "rng": random.Random(seed)},
+        {
+            "sandbox": sandbox,
+            "lock": threading.Lock(),
+            "rng": random.Random(seed),
+            "engine": engine,
+        },
     )
 
 
@@ -251,6 +304,7 @@ PAGE_HTML = r"""<!doctype html>
   <span class="dim" id="phase"></span>
   <span class="dim" id="outcome"></span>
   <span class="dim" id="note"></span>
+  <span class="dim" id="engine"></span>
 </header>
 <main>
   <div class="boardwrap">
@@ -336,6 +390,22 @@ function apply(snapshot, decision) {
   drawBoard();
   renderPlay();
   if (inspected) inspectUnit(inspected);
+}
+
+function drawEngine(report) {
+  const slot = el("engine");
+  if (!report || !report.available) {
+    slot.textContent = "戰局引擎：未接（" + ((report && report.reason) || "無回應") + "）";
+    return;
+  }
+  const done = report.commands.filter((entry) => entry.implemented)
+    .map((entry) => entry.name).join("、");
+  const refused = Object.keys(report.answers)
+    .filter((name) => !report.answers[name].ok)
+    .map((name) => name + "=" + report.answers[name].code)
+    .join("、");
+  slot.textContent = "戰局引擎 " + report.protocol + "：已實作 " + done
+    + (refused ? "；" + refused + "，畫面續由 Python 繪製" : "");
 }
 
 function drawHeader() {
@@ -679,6 +749,11 @@ Promise.all([
   .catch((exc) => {
     el("stage").textContent = "讀取盤面失敗：" + exc;
   });
+
+fetch("/api/engine")
+  .then((response) => response.json())
+  .then(drawEngine)
+  .catch((exc) => { el("engine").textContent = "戰局引擎：查詢失敗 " + exc; });
 </script>
 </body>
 </html>
@@ -691,6 +766,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8642)
     parser.add_argument("--seed", type=int, default=None, help="伺服器抽骰的亂數種子")
+    parser.add_argument("--engine", default=None, help="戰局引擎執行檔路徑（不給就不起引擎）")
     return parser.parse_args(argv)
 
 
@@ -699,7 +775,10 @@ def main() -> int:
     sandbox = Sandbox.from_scenario(args.scenario)
     board = sandbox.snapshot()
 
-    handler = build_handler(sandbox, seed=args.seed)
+    engine = None if args.engine is None else BattleEngine(args.engine)
+    if engine is not None:
+        engine.start()
+    handler = build_handler(sandbox, seed=args.seed, engine=engine)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"情境：{board['stage']}（{len(board['units'])} 台單位）")
     print(f"開啟 http://{args.host}:{args.port}/ ——Ctrl-C 結束")
@@ -709,6 +788,8 @@ def main() -> int:
         print()
     finally:
         server.server_close()
+        if engine is not None:
+            engine.close()
     return 0
 
 

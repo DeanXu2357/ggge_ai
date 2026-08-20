@@ -1,0 +1,130 @@
+// Package differential runs the cases that the Python side writes under
+// tests/fixtures/engine. Python is the authority: it holds the board, the
+// inputs and the expected outputs, and a Go test reads the same file and
+// compares its own answers against them.
+package differential
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
+
+	"github.com/DeanXu2357/ggge_ai/engine/protocol"
+)
+
+type Setup struct {
+	Rules  protocol.Rules       `json:"rules"`
+	Events protocol.EventTable  `json:"events"`
+	State  protocol.BattleState `json:"state"`
+}
+
+type Check struct {
+	Op     string          `json:"op"`
+	Input  json.RawMessage `json:"input"`
+	Expect json.RawMessage `json:"expect"`
+}
+
+type Case struct {
+	Name   string  `json:"name"`
+	Note   string  `json:"note"`
+	Setup  Setup   `json:"setup"`
+	Checks []Check `json:"checks"`
+}
+
+// An Op answers one check of a case. A port issue adds its command to the map
+// that its test passes to Run; an op that no build implements is skipped, so
+// the Python side can write the checks of a later issue today.
+type Op func(setup *Setup, input json.RawMessage) (any, error)
+
+type Result struct {
+	Ran     []string
+	Skipped []string
+	Errs    []error
+}
+
+// Load reads one case file. An unknown field is an error: a field that the
+// Python state holds and the Go struct does not must stop the test, not drop
+// out of the answer.
+func Load(path string) (*Case, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	decoder.DisallowUnknownFields()
+	var one Case
+	if err := decoder.Decode(&one); err != nil {
+		return nil, fmt.Errorf("%s: %w", filepath.Base(path), err)
+	}
+	return &one, nil
+}
+
+func Files(dir string) ([]string, error) {
+	paths, err := filepath.Glob(filepath.Join(dir, "*.json"))
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func Run(one *Case, ops map[string]Op) Result {
+	var result Result
+	for index, check := range one.Checks {
+		op, known := ops[check.Op]
+		if !known {
+			result.Skipped = append(result.Skipped, check.Op)
+			continue
+		}
+		result.Ran = append(result.Ran, check.Op)
+		answer, err := op(&one.Setup, check.Input)
+		if err != nil {
+			result.Errs = append(result.Errs, fmt.Errorf("%s[%d] %s: %w",
+				one.Name, index, check.Op, err))
+			continue
+		}
+		actual, err := json.Marshal(answer)
+		if err != nil {
+			result.Errs = append(result.Errs, fmt.Errorf("%s[%d] %s: %w",
+				one.Name, index, check.Op, err))
+			continue
+		}
+		if err := CompareJSON(check.Expect, actual); err != nil {
+			result.Errs = append(result.Errs, fmt.Errorf("%s[%d] %s: %w",
+				one.Name, index, check.Op, err))
+		}
+	}
+	return result
+}
+
+// Stable reports whether a decode and an encode of the payload give the same
+// bytes a second time.
+func Stable[T any](payload []byte) error {
+	first, err := reencode[T](payload)
+	if err != nil {
+		return err
+	}
+	second, err := reencode[T](first)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(first, second) {
+		return fmt.Errorf("the second encoding differs:\n%s\n%s", first, second)
+	}
+	return nil
+}
+
+func reencode[T any](payload []byte) ([]byte, error) {
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	var into T
+	if err := decoder.Decode(&into); err != nil {
+		return nil, err
+	}
+	return json.Marshal(into)
+}

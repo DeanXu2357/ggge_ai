@@ -13,12 +13,20 @@ from urllib.request import Request, urlopen
 
 import pytest
 
+from ggge_ai.engine.client import BattleEngine
 from ggge_ai.sandbox.facade import Sandbox
 from scripts.sandbox_ui import build_handler
 
 ROOT = Path(__file__).resolve().parents[1]
 PLACEHOLDER = ROOT / "assets/scenarios/uc_hard_1_placeholder.json"
 SCRIPT = ROOT / "scripts/sandbox_ui.py"
+REACHED = [
+    "ggge_ai.engine.client.BattleEngine",
+    "ggge_ai.engine.client.EngineDead",
+    "ggge_ai.engine.client.EngineError",
+    "ggge_ai.engine.client.EngineTimeout",
+    "ggge_ai.sandbox.facade.Sandbox",
+]
 
 
 class Client:
@@ -60,10 +68,10 @@ class Client:
             return sock.recv(8192).decode("utf-8", "replace")
 
 
-@pytest.fixture
-def client():
+def _serve(engine=None):
     sandbox = Sandbox.from_scenario(PLACEHOLDER)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), build_handler(sandbox, seed=7))
+    handler = build_handler(sandbox, seed=7, engine=engine)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     host, port = server.server_address[:2]
@@ -73,6 +81,17 @@ def client():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+@pytest.fixture
+def client():
+    yield from _serve()
+
+
+@pytest.fixture
+def engine_client(engine_executable):
+    with BattleEngine(engine_executable) as engine:
+        yield from _serve(engine)
 
 
 def _imported_names(path: Path) -> list[str]:
@@ -110,10 +129,10 @@ def _reaction(option):
     return {key: option[key] for key in ("stance", "weapon", "support_defend", "support_attack")}
 
 
-def test_the_script_reaches_the_package_through_the_facade_only():
+def test_the_script_reaches_the_sandbox_through_the_facade_and_the_engine_through_its_client():
     reached = [name for name in _imported_names(SCRIPT) if name.startswith("ggge_ai")]
 
-    assert reached == ["ggge_ai.sandbox.facade.Sandbox"]
+    assert sorted(reached) == REACHED
 
 
 def test_server_answers_the_state_endpoint(client):
@@ -263,3 +282,38 @@ def test_reactions_endpoint_rejects_a_candidate_without_an_engagement(client):
 
     assert status == 400
     assert "Only an attack lets the defender react" in payload["error"]
+
+
+def test_the_engine_panel_reports_that_no_engine_runs(client):
+    payload = client.get("/api/engine")
+
+    assert payload["available"] is False
+    assert "--engine" in payload["reason"]
+
+
+def test_the_engine_panel_shows_the_build_and_the_refusals(engine_client):
+    payload = engine_client.get("/api/engine")
+
+    assert payload["available"] is True
+    assert payload["protocol"] == "1.0"
+    assert {entry["name"] for entry in payload["commands"] if entry["implemented"]} == {
+        "hello",
+        "ping",
+    }
+    assert {name: answer["code"] for name, answer in payload["answers"].items()} == {
+        "load": "not_implemented",
+        "roster": "not_implemented",
+        "deploy_cells": "not_implemented",
+    }
+
+
+def test_the_board_the_engine_receives_is_the_wire_form_of_the_model(client):
+    sandbox = Sandbox.from_scenario(PLACEHOLDER)
+
+    state = sandbox.engine_state()
+
+    assert [unit["unit_id"] for unit in state["units"]] == [
+        unit["uid"] for unit in client.get("/api/state")["units"]
+    ]
+    assert state["bounds"] == [[0, 0], [24, 19]]
+    assert state["phase"] == "ally"
