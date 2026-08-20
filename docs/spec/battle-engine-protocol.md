@@ -119,6 +119,10 @@ Purpose: the cells that one unit can move to.
 
 Request: 'unit_id'. Response: 'cells'.
 
+The cells are anchor cells: on each one, the whole footprint of the
+unit stands on free cells of the board. The section 'Board
+geometry' holds the rule.
+
 The cells come in a deterministic order: the cell of the unit
 first, then outward on the proximity key (the board distance, then
 the square of the straight line, then the cell). A client reads a
@@ -269,6 +273,48 @@ a differential test.
 'export' takes no field and gives 'state' and 'history'. 'load'
 takes the same two fields and replaces the session.
 
+## Board geometry
+
+A cell is a pair of integers: the column first, the row second.
+
+A unit covers a rectangle of cells. This rectangle is the
+footprint. The field 'size' holds the width and the height of the
+footprint, in the axis order of a cell. The field 'pos' holds the
+anchor cell: the cell of the footprint with the least value on each
+axis. A unit does not turn. A footprint of 2 by 3 stays 2 by 3, and
+the board decides which units carry which size.
+
+A payload that carries no 'size' gives the unit one cell.
+
+A unit moves on the four orthogonal steps. One step costs one point
+of the move range. A diagonal cell costs two steps. Range reads the
+same steps.
+
+The distance between two units is the least distance between a cell
+of the one footprint and a cell of the other footprint. Two
+footprints that touch are at distance 1. Two footprints that share
+a cell are at distance 0. Two units of one cell give the distance
+of the two cells.
+
+Every range answer reads this distance: the band of a weapon, the
+band of a skill, the blast of a weapon or a skill, and the move
+range that lets a support unit join. A weapon with a 'range_min' of
+2 does not fire at a foe that touches the footprint, because that
+foe is at distance 1.
+
+A unit moves as one body. Each step of the path carries the whole
+footprint. An anchor is a destination only when every cell of the
+footprint is on the board and holds no other unit. A cell of an
+enemy or of a third party stops the path. A cell of an ally lets
+the path through and is no destination.
+
+Divergence: 'src/ggge_ai/sandbox/model.py' keeps the eight king
+steps, and it gives every unit one cell. The Python module gets no
+corrected version (rulings 2026-08-18 and 2026-08-20, issue #61).
+It carries the field 'size' as data, and its geometry does not read
+the field. A differential case therefore compares no result that
+reads the distance or the footprint.
+
 ## Types
 
 ### Verdict
@@ -343,6 +389,9 @@ the caster alone is a 'range_min' of 0, a 'range_max' of 0, a
 'blast' of 0 and an 'affects' of 'ally': the area is the cell of
 the caster, and the caster is an ally in its own cell. A 'self'
 value would make a second way to write the same area.
+
+The fields 'pos' and 'size' of a unit hold its footprint. The
+section 'Board geometry' holds their meaning.
 
 The rules of the wire form:
 

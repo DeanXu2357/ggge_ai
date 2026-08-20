@@ -79,6 +79,8 @@ term at its first use in each document, then use the short form.
 | reaction stance | 應戰姿態 | The defense the target picks in an engagement: the 'Stance' enum in sandbox/model.py. The game UI words are 閃避 for 'dodge', 防禦 for 'defend', 防禦（盾牌）for 'shield' and 反擊 for 'counter'. The value 'none' has no game UI word; the sandbox page writes 無反應 |
 | manual roll | 手動擲骰 | The default dice input of play mode: the user picks the outcome of each hit node by hand, after the page shows the hit rate |
 | server draw | 伺服器抽骰 | The other dice input of play mode: 'scripts/sandbox_ui.py' draws the hit node from the probability in the decision payload. The draw is input synthesis in the shell; the sandbox package holds no random source |
+| footprint | 外形 | The rectangle of cells that one unit covers on the board. The field 'size' of a unit holds its width and its height. A unit does not turn. The rule is in docs/spec/battle-engine-protocol.md, section 'Board geometry' |
+| anchor cell | 錨點格 | The cell of a footprint with the least value on each axis. The field 'pos' of a unit holds it. The command 'reach' answers anchor cells. Short form 錨點 after the first use |
 | pending ruling | 待裁 | The marker for an item that needs a ruling from the user, not more evidence. Write the English form in a new issue, a new document, and a commit message. The Chinese form appears three times in the frozen record docs/record/decisions.md; leave those alone |
 
 Retired name — 'solver': the word names only the deleted legacy
