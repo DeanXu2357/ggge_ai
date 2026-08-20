@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
@@ -12,7 +11,7 @@ import (
 // operation history belong to the issues that implement them; this holder
 // carries the board that a geometry command reads.
 type session struct {
-	state protocol.BattleState
+	board *battle.Board
 }
 
 func init() {
@@ -32,7 +31,11 @@ func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 	if err := decode(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	s.session = &session{state: request.State}
+	board, err := battle.DecodeState(&request.State)
+	if err != nil {
+		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
+	}
+	s.session = &session{board: board}
 	return protocol.Ok(id, protocol.LoadResponse{})
 }
 
@@ -44,11 +47,9 @@ func (s *Server) reach(id string, payload json.RawMessage) protocol.Response {
 	if err := decode(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	unit := battle.Find(&s.session.state, request.UnitID)
-	if unit == nil {
-		return protocol.Fail(id, protocol.CodeIllegalAction,
-			fmt.Sprintf("the board holds no unit %q", request.UnitID))
+	cells, err := s.session.board.ReachableCells(request.UnitID)
+	if err != nil {
+		return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
 	}
-	cells := battle.SortedCells(battle.ReachableCells(&s.session.state, unit), unit.Pos)
-	return protocol.Ok(id, protocol.ReachResponse{Cells: cells})
+	return protocol.Ok(id, protocol.ReachResponse{Cells: battle.EncodeCells(cells)})
 }

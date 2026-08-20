@@ -37,11 +37,35 @@ func TestReachAnswersTheCellsOfTheLoadedBoard(t *testing.T) {
 		t.Fatalf("payload: %v", err)
 	}
 	want := []protocol.Cell{
-		{2, 2},
-		{1, 2}, {2, 1}, {3, 2},
-		{1, 1}, {1, 3}, {3, 1}, {3, 3},
-		{0, 2}, {2, 0}, {4, 2},
+		{0, 2},
+		{1, 1}, {1, 2}, {1, 3},
+		{2, 0}, {2, 1}, {2, 2},
+		{3, 1}, {3, 2}, {3, 3},
+		{4, 2},
 	}
+	if !reflect.DeepEqual(payload.Cells, want) {
+		t.Fatalf("cells: %v", payload.Cells)
+	}
+}
+
+func TestReachAnswersTheAnchorsThatHoldTheWholeFootprint(t *testing.T) {
+	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
+		`"units":[` +
+		`{"unit_id":"a1","faction":"ally","pos":[0,0],"size":[2,2],"hp":100,"move_range":1},` +
+		`{"unit_id":"e1","faction":"enemy","pos":[2,1],"hp":100}` +
+		`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
+		`"pending_events":[],"fired_events":[]},"history":[]}}`
+
+	replies := serve(t, New(), line, `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
+
+	if !replies[1].OK {
+		t.Fatalf("reach: %+v", replies[1])
+	}
+	var payload protocol.ReachResponse
+	if err := json.Unmarshal(replies[1].Payload, &payload); err != nil {
+		t.Fatalf("payload: %v", err)
+	}
+	want := []protocol.Cell{{0, 0}, {0, 1}}
 	if !reflect.DeepEqual(payload.Cells, want) {
 		t.Fatalf("cells: %v", payload.Cells)
 	}
