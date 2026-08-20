@@ -296,7 +296,7 @@ def test_the_engine_panel_shows_the_build_and_the_refusals(engine_client):
     payload = engine_client.get("/api/engine")
 
     assert payload["available"] is True
-    assert payload["protocol"] == "1.0"
+    assert payload["protocol"] == "1.1"
     assert {entry["name"] for entry in payload["commands"] if entry["implemented"]} == {
         "hello",
         "ping",
