@@ -321,7 +321,8 @@ def test_the_engine_panel_answers_the_reach_of_the_selected_unit(engine_client):
     answer = payload["answers"]["reach"]
     assert answer["ok"] is True
     cells = [tuple(cell) for cell in answer["payload"]["cells"]]
-    assert cells[0] == tuple(entry["cell"])
+    assert cells == sorted(cells)
+    assert tuple(entry["cell"]) in cells
     assert set(cells) <= {tuple(cell) for cell in entry["moves"]}
     assert any(tuple(cell) not in set(cells) for cell in entry["moves"])
 

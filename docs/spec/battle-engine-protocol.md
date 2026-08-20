@@ -123,10 +123,8 @@ The cells are anchor cells: on each one, the whole footprint of the
 unit stands on free cells of the board. The section 'Board
 geometry' holds the rule.
 
-The cells come in a deterministic order: the cell of the unit
-first, then outward on the proximity key (the board distance, then
-the square of the straight line, then the cell). A client reads a
-list, not a set.
+The cells come in a deterministic order: the column first, the row
+second. A client reads a list, not a set.
 
 Refusals: no_session; illegal_action for an unknown unit id.
 
