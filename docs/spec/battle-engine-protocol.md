@@ -377,8 +377,9 @@ fire after a move, and some skills of the source 'character' or
 
 A skill carries its area in four fields. The fields 'range_min'
 and 'range_max' hold the distance from the caster to the center of
-the area. The field 'blast' holds the Chebyshev radius around the
-center; a blast of 0 is one cell. The field 'affects' holds the
+the area. The field 'blast' holds the radius around the center, in
+the distance of the section 'Board geometry'; a blast of 0 is one
+cell. The field 'affects' holds the
 faction filter of the units in the area: 'ally', 'enemy', or 'all'.
 The center travels in the field 'aim' of the action, and a single
 target travels in the field 'target_id'; the action carries no
