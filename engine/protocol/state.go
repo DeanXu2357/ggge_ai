@@ -171,13 +171,14 @@ type Debuff struct {
 	AppliedPhase int     `json:"applied_phase"`
 }
 
-// Unit holds a field Reaction, which is the reaction value of the pilot. It is
-// not the Reaction type of a defense. ChanceSteps is the re-act grant after a
-// kill (docs/reference/combat-formulas.md:134); it counts no dice.
+// Two names mislead: Reaction is the reaction value of the pilot, not the
+// Reaction type of a defense, and ChanceSteps is the re-act grant after a kill
+// (docs/reference/combat-formulas.md:134), which counts no dice.
 type Unit struct {
 	UnitID                  string         `json:"unit_id"`
 	Faction                 Faction        `json:"faction"`
 	Pos                     Cell           `json:"pos"`
+	Size                    Cell           `json:"size"`
 	HP                      int            `json:"hp"`
 	MaxHP                   int            `json:"max_hp"`
 	EN                      int            `json:"en"`
