@@ -65,6 +65,12 @@ type Unit struct {
 	Footprint            Footprint
 	HP                   int
 	EN                   int
+	UnitAttack           float64
+	UnitDefense          float64
+	PilotAttack          float64
+	PilotDefense         float64
+	Reaction             float64
+	Mobility             float64
 	MoveRange            int
 	Weapons              []Weapon
 	SupportDefendCharges int
