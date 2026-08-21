@@ -101,7 +101,10 @@ class EngineSession:
         }
         if reaction is not None:
             request["reaction"] = dict(reaction)
-        answer = self._ask("act", request)
+        # A refusal must reach the caller. The answer of a refusal and the answer
+        # of an activation that changed nothing read the same, so 'act' does not
+        # go through the reader that answers an empty dict.
+        answer = self._engine.call("act", request)
         self._read_back()
         return {"events": answer.get("events", []), "board": answer.get("board", {})}
 

@@ -88,6 +88,12 @@ class SandboxHandler(BaseHTTPRequestHandler):
         except ValueError as exc:
             self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
             return
+        except EngineError as exc:
+            self._json(HTTPStatus.BAD_REQUEST, {"error": f"{exc.code}: {exc.message}"})
+            return
+        except (EngineDead, EngineTimeout) as exc:
+            self._json(HTTPStatus.BAD_GATEWAY, {"error": str(exc)})
+            return
         self._json(HTTPStatus.OK, payload)
 
     def log_message(self, *args: Any) -> None:
@@ -98,9 +104,10 @@ class SandboxHandler(BaseHTTPRequestHandler):
             hello = self.engine.hello()
         except (EngineError, EngineDead, EngineTimeout) as exc:
             return {"available": False, "reason": str(exc)}
-        answers = {
-            "load": self._engine_call("load", {"state": self.sandbox.engine_state(), "history": []})
-        }
+        # 'export' and not 'load': the engine holds the board now, and 'load'
+        # replaces the session, its random source and its operation history. The
+        # page redraws this report after every action.
+        answers = {"export": self._engine_call("export", {})}
         if unit_id is not None:
             answers["reach"] = self._engine_call("reach", {"unit_id": unit_id})
         for name in ENGINE_QUERIES:

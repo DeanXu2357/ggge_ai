@@ -180,10 +180,25 @@ def test_the_engine_report_carries_the_command_entries_of_the_contract(client):
     report = client.get("/api/engine?unit=" + quote("x"))
 
     assert report["available"] is True
-    assert "load" in report["answers"]
+    assert "export" in report["answers"], "the report reads the engine and does not replace it"
     entries = {entry["name"]: entry["implemented"] for entry in report["commands"]}
     assert entries["act"] is True
     assert entries["certify"] is False
+
+
+def test_a_refused_activation_reaches_the_caller(engine_executable):
+    with _page(engine_executable, 42) as client:
+        pending = client.get("/api/decision")
+        candidate = pending["units"][0]["actions"][0]
+        options = client.post("/api/reactions", {"candidate": candidate})[1]["reactions"]
+        client.post("/api/act", {"candidate": candidate, "reaction": options[-1]})
+
+        status, payload = client.post(
+            "/api/act", {"candidate": candidate, "reaction": options[-1]}
+        )
+
+    assert status == 400
+    assert "illegal_state" in payload["error"]
 
 
 def test_a_request_with_no_candidate_is_refused(client):
