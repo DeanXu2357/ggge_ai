@@ -150,6 +150,11 @@ type Weapon struct {
 	Blast           int     `json:"blast"`
 	DebuffKind      *string `json:"debuff_kind"`
 	DebuffMagnitude float64 `json:"debuff_magnitude"`
+	// The two terrain fields are engine-only: 'model.py' holds no terrain, so
+	// they stay optional and a payload that omits them declares no
+	// restriction. TerrainDamage and UnusableIn key on a terrain wire name.
+	TerrainDamage map[string]float64 `json:"terrain_damage,omitempty"`
+	UnusableIn    []string           `json:"unusable_in,omitempty"`
 }
 
 type Skill struct {
@@ -240,6 +245,13 @@ type StageEvent struct {
 
 type EventTable = map[string]StageEvent
 
+// TerrainCell binds one cell of the map to one terrain wire name. A cell is a
+// JSON pair, so the overrides travel as a list and not as an object.
+type TerrainCell struct {
+	Cell    Cell   `json:"cell"`
+	Terrain string `json:"terrain"`
+}
+
 type BattleState struct {
 	Units         []Unit   `json:"units"`
 	Phase         Faction  `json:"phase"`
@@ -247,6 +259,11 @@ type BattleState struct {
 	Bounds        *Bounds  `json:"bounds"`
 	PendingEvents []string `json:"pending_events"`
 	FiredEvents   []string `json:"fired_events"`
+	// The two terrain fields are engine-only: 'model.py' holds no terrain, so
+	// they stay optional. A payload that omits Terrain puts the whole map in
+	// space, which changes no damage: only a declared weapon restriction does.
+	Terrain      string        `json:"terrain,omitempty"`
+	TerrainCells []TerrainCell `json:"terrain_cells,omitempty"`
 }
 
 // A chance event is one random node of a resolution. The three consumption

@@ -414,6 +414,51 @@ A field that 'model.py' holds and the Go struct does not is a test
 failure: 'tests/test_engine_codec.py' compares the fields of the
 dataclass with the JSON tags of the Go struct.
 
+The Go struct can hold a field that 'model.py' does not. Such a
+field carries a rule that the Python sandbox never ran. It is
+optional on the wire: a payload that omits it keeps the behavior of
+the build before the field. The test names each one in
+'ENGINE_ONLY', so a Go field that nobody declared is still a test
+failure.
+
+### Terrain
+
+Terrain belongs to a cell. The five kinds are 'space',
+'atmospheric', 'ground', 'surface' and 'underwater'. One stage map
+can hold more than one kind.
+
+The state carries the terrain of the map in two optional fields:
+
+| Field | Content |
+|---|---|
+| terrain | The kind that every cell of the map takes |
+| terrain_cells | The cells that take another kind |
+
+Each entry of 'terrain_cells' holds 'cell' and 'terrain'. A state
+with no 'terrain' puts the whole map in space. A terrain name
+outside the five is a decode error.
+
+The weapon carries its terrain restriction in two optional fields:
+
+| Field | Content |
+|---|---|
+| terrain_damage | The damage percentage, as a factor, against a target on each named kind |
+| unusable_in | The kinds that the attacker cannot fire from |
+
+An absent entry of 'terrain_damage' is the factor 1.0, and an
+absent entry of 'unusable_in' permits the shot. A weapon that
+declares neither field therefore deals full damage everywhere and
+fires everywhere. The whole datamine holds one deviation: some
+weapons halve their damage against an underwater target, and a few
+of those cannot fire while the attacker is underwater
+(docs/reference/combat-formulas.md).
+
+The divisor of the combat base damage is the damage factor of the
+attacking weapon against the terrain of the target cell. It is not
+a value of the map, and it is not the terrain adaptability of the
+mech. Terrain adaptability gates deployment and movement; it enters
+no damage formula and no hit rate.
+
 ### Differential cases
 
 'tests/fixtures/engine/' holds the cases. Python writes them, and

@@ -24,7 +24,40 @@ func DecodeState(state *protocol.BattleState) (*Board, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewBoard(bounds, units)
+	board, err := NewBoard(bounds, units)
+	if err != nil {
+		return nil, err
+	}
+	if board.DefaultTerrain, err = decodeTerrain(state.Terrain); err != nil {
+		return nil, err
+	}
+	if board.TerrainCells, err = decodeTerrainCells(state.TerrainCells); err != nil {
+		return nil, err
+	}
+	return board, nil
+}
+
+func decodeTerrain(name string) (Terrain, error) {
+	if name == "" {
+		return TerrainSpace, nil
+	}
+	return ParseTerrain(name)
+}
+
+func decodeTerrainCells(cells []protocol.TerrainCell) (map[Cell]Terrain, error) {
+	if len(cells) == 0 {
+		return nil, nil
+	}
+	out := make(map[Cell]Terrain, len(cells))
+	for _, entry := range cells {
+		kind, err := ParseTerrain(entry.Terrain)
+		if err != nil {
+			return nil, fmt.Errorf("the cell %v carries a terrain outside the contract: %w",
+				entry.Cell, err)
+		}
+		out[DecodeCell(entry.Cell)] = kind
+	}
+	return out, nil
 }
 
 func decodeUnits(units []protocol.Unit) ([]Unit, error) {
@@ -90,14 +123,43 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 	}
 	if unit.Weapons != nil {
 		out.Weapons = make([]Weapon, 0, len(unit.Weapons))
-		for _, weapon := range unit.Weapons {
-			out.Weapons = append(out.Weapons, Weapon{
-				Name:      weapon.Name,
-				Range:     RadiusRange{Min: weapon.RangeMin, Max: weapon.RangeMax},
-				ENCost:    weapon.ENCost,
-				MapWeapon: weapon.MapWeapon,
-			})
+		for index := range unit.Weapons {
+			weapon, err := decodeWeapon(&unit.Weapons[index])
+			if err != nil {
+				return Unit{}, fmt.Errorf("unit %q: %w", unit.UnitID, err)
+			}
+			out.Weapons = append(out.Weapons, weapon)
 		}
+	}
+	return out, nil
+}
+
+func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
+	out := Weapon{
+		Name:      weapon.Name,
+		Range:     RadiusRange{Min: weapon.RangeMin, Max: weapon.RangeMax},
+		ENCost:    weapon.ENCost,
+		MapWeapon: weapon.MapWeapon,
+	}
+	for name, scale := range weapon.TerrainDamage {
+		kind, err := ParseTerrain(name)
+		if err != nil {
+			return Weapon{}, fmt.Errorf("weapon %q: %w", weapon.Name, err)
+		}
+		if out.TerrainDamage == nil {
+			out.TerrainDamage = make(map[Terrain]float64, len(weapon.TerrainDamage))
+		}
+		out.TerrainDamage[kind] = scale
+	}
+	for _, name := range weapon.UnusableIn {
+		kind, err := ParseTerrain(name)
+		if err != nil {
+			return Weapon{}, fmt.Errorf("weapon %q: %w", weapon.Name, err)
+		}
+		if out.UnusableIn == nil {
+			out.UnusableIn = make(TerrainSet, len(weapon.UnusableIn))
+		}
+		out.UnusableIn[kind] = true
 	}
 	return out, nil
 }

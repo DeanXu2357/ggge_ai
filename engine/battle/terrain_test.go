@@ -1,6 +1,10 @@
 package battle
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/DeanXu2357/ggge_ai/engine/protocol"
+)
 
 var everyTerrain = []Terrain{
 	TerrainSpace,
@@ -128,5 +132,70 @@ func TestABoardWithNoTerrainReadsSpace(t *testing.T) {
 
 	if got := board.TerrainAt(Cell{3, 1}); got != TerrainSpace {
 		t.Fatalf("the zero value of the board: %v", got)
+	}
+}
+
+func TestAPayloadWithNoTerrainDecodesToNoRestriction(t *testing.T) {
+	board, err := DecodeState(wireBoard())
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	weapon := board.Unit("a1").Weapons[0]
+	if weapon.TerrainDamage != nil || weapon.UnusableIn != nil {
+		t.Fatalf("weapon: %+v", weapon)
+	}
+	if board.DefaultTerrain != TerrainSpace || board.TerrainCells != nil {
+		t.Fatalf("board: %v %v", board.DefaultTerrain, board.TerrainCells)
+	}
+}
+
+func TestTheDecodeKeepsTheTerrainOfThePayload(t *testing.T) {
+	state := wireBoard()
+	state.Terrain = "surface"
+	state.TerrainCells = []protocol.TerrainCell{{Cell: protocol.Cell{7, 7}, Terrain: "underwater"}}
+	state.Units[0].Weapons[0].TerrainDamage = map[string]float64{"underwater": 0.5}
+	state.Units[0].Weapons[0].UnusableIn = []string{"underwater"}
+
+	board, err := DecodeState(state)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	weapon := board.Unit("a1").Weapons[0]
+	if got := weapon.DamageScaleAgainst(board.TerrainOf(board.Unit("e1"))); got != 0.5 {
+		t.Fatalf("scale against the enemy cell: %v", got)
+	}
+	if got := weapon.DamageScaleAgainst(board.TerrainOf(board.Unit("a1"))); got != 1 {
+		t.Fatalf("scale against the ally cell: %v", got)
+	}
+	if !weapon.UsableIn(TerrainSurface) || weapon.UsableIn(TerrainUnderwater) {
+		t.Fatal("the weapon fires on the surface and not under water")
+	}
+}
+
+func TestTheDecodeRefusesATerrainOutsideTheContract(t *testing.T) {
+	cases := map[string]func(*protocol.BattleState){
+		"the map": func(state *protocol.BattleState) { state.Terrain = "orbit" },
+		"a cell": func(state *protocol.BattleState) {
+			state.TerrainCells = []protocol.TerrainCell{{Cell: protocol.Cell{1, 1}, Terrain: "lava"}}
+		},
+		"a weapon damage entry": func(state *protocol.BattleState) {
+			state.Units[0].Weapons[0].TerrainDamage = map[string]float64{"lava": 0.5}
+		},
+		"a weapon firing entry": func(state *protocol.BattleState) {
+			state.Units[0].Weapons[0].UnusableIn = []string{"lava"}
+		},
+	}
+
+	for name, spoil := range cases {
+		t.Run(name, func(t *testing.T) {
+			state := wireBoard()
+			spoil(state)
+
+			if _, err := DecodeState(state); err == nil {
+				t.Fatal("the decode took a terrain outside the contract")
+			}
+		})
 	}
 }

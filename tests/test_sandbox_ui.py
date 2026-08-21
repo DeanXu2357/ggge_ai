@@ -15,6 +15,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 from ggge_ai.engine.client import BattleEngine
+from ggge_ai.engine.contract import PROTOCOL_VERSION
 from ggge_ai.sandbox.facade import Sandbox
 from scripts.sandbox_ui import build_handler
 
@@ -296,7 +297,7 @@ def test_the_engine_panel_shows_the_build_and_the_refusals(engine_client):
     payload = engine_client.get("/api/engine")
 
     assert payload["available"] is True
-    assert payload["protocol"] == "1.1"
+    assert payload["protocol"] == PROTOCOL_VERSION
     assert {entry["name"] for entry in payload["commands"] if entry["implemented"]} == {
         "hello",
         "ping",

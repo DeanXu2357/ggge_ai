@@ -3,6 +3,10 @@
 The parity check parses the JSON tags of 'engine/protocol/state.go' here, in
 the Python gate, because 'sandbox/model.py' is the authority: a change there
 must fail the gate that a change there runs.
+
+A Go struct can hold a field that the dataclass does not, for a rule that the
+sandbox never ran. 'ENGINE_ONLY' names each one, so an undeclared Go field
+still fails the gate.
 """
 
 from __future__ import annotations
@@ -57,6 +61,11 @@ ENCODERS = {
     "BattleState": lambda: codec.encode_state(BattleState()),
 }
 
+ENGINE_ONLY = {
+    "Weapon": ["terrain_damage", "unusable_in"],
+    "BattleState": ["terrain", "terrain_cells"],
+}
+
 STRUCT = re.compile(r"^type (\w+) struct \{$")
 TAG = re.compile(r'json:"([^",]+)')
 
@@ -82,7 +91,7 @@ def _go_structs() -> dict[str, list[str]]:
 def test_the_go_struct_holds_every_field_of_the_dataclass(name):
     fields = [field.name for field in dataclasses.fields(STRUCTS[name])]
 
-    assert _go_structs()[name] == fields
+    assert _go_structs()[name] == fields + ENGINE_ONLY.get(name, [])
 
 
 @pytest.mark.parametrize("name", sorted(STRUCTS))
