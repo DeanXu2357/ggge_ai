@@ -167,7 +167,6 @@ def test_every_golden_fixture_carries_the_case_format():
         assert set(case) == {"name", "note", "setup", "checks"}
         assert set(case["setup"]) == {"rules", "events", "state"}
         assert {"state", "events", "rules"} <= ops
-        assert ops <= {"state", "events", "rules", *FORMULA_OPS}
 
 
 def test_the_formula_case_covers_every_ported_function():

@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -227,17 +228,6 @@ def event_board() -> Board:
 
 BOARDS = (small_board, blocker_board, debuff_ammo_board, event_board)
 
-FORMULA_OPS: tuple[str, ...] = (
-    "base_damage",
-    "combat_base_damage",
-    "damage_scale",
-    "final_damage",
-    "critical_damage",
-    "expected_damage",
-    "hit_rate_percent",
-    "hit_probability",
-)
-
 ZERO_SIDE = {
     "unit_attack": 0.0,
     "unit_defense": 0.0,
@@ -265,10 +255,12 @@ OUTGUNNED_DEFENDER = ZERO_SIDE | {
     "reaction": 300.0,
     "mobility": 480.0,
 }
-# The two sigmoids saturate at an exponent near 700, which is the last exponent
-# that 'math.exp' answers with a number instead of an overflow.
+# At an exponent of 700 the two sigmoids saturate, and both runtimes still
+# answer a finite number. The saturated-low side needs a huge power, because
+# the harness cannot tell 1e-304 from zero: its absolute floor is 1e-12.
 SATURATED_ATTACKER = ZERO_SIDE | {"unit_attack": 2800000.0, "pilot_attack": 280000.0}
 SATURATED_DEFENDER = ZERO_SIDE | {"unit_defense": 2800000.0, "pilot_defense": 280000.0}
+SATURATED_LOW_POWER = 1e300
 QUICK_ATTACKER = ZERO_SIDE | {"pilot_attack": 400.0, "mobility": 1000.0}
 EVASIVE_DEFENDER = ZERO_SIDE | {"reaction": 3000.0, "mobility": 500.0}
 
@@ -283,85 +275,64 @@ def _hit(
     return {"attacker": attacker, "defender": defender, "ability_correction": correction}
 
 
-FORMULA_INPUTS: tuple[tuple[str, dict[str, Any]], ...] = (
-    ("base_damage", _strike(0.0, ZERO_SIDE, ZERO_SIDE)),
-    ("base_damage", _strike(1.0, ZERO_SIDE, ZERO_SIDE)),
-    ("base_damage", _strike(1800.0, BOARD_SIDE, BOARD_SIDE)),
-    ("base_damage", _strike(2400.0, BOARD_SIDE, BOARD_SIDE)),
-    ("base_damage", _strike(1800.0, OUTGUNNED_ATTACKER, OUTGUNNED_DEFENDER)),
-    ("base_damage", _strike(1.0, ZERO_SIDE, SATURATED_DEFENDER)),
-    ("base_damage", _strike(1.0, SATURATED_ATTACKER, ZERO_SIDE)),
-    ("combat_base_damage", _strike(0.0, ZERO_SIDE, ZERO_SIDE) | {"terrain": 1.0}),
-    ("combat_base_damage", _strike(1800.0, BOARD_SIDE, BOARD_SIDE) | {"terrain": 1.0}),
-    ("combat_base_damage", _strike(1800.0, BOARD_SIDE, BOARD_SIDE) | {"terrain": 1.2}),
-    ("combat_base_damage", _strike(2400.0, BOARD_SIDE, BOARD_SIDE) | {"terrain": 1.2}),
-    (
-        "combat_base_damage",
+FORMULA_INPUTS: dict[str, tuple[dict[str, Any], ...]] = {
+    "base_damage": (
+        _strike(0.0, ZERO_SIDE, ZERO_SIDE),
+        _strike(1.0, ZERO_SIDE, ZERO_SIDE),
+        _strike(1800.0, BOARD_SIDE, BOARD_SIDE),
+        _strike(2400.0, BOARD_SIDE, BOARD_SIDE),
+        _strike(1800.0, OUTGUNNED_ATTACKER, OUTGUNNED_DEFENDER),
+        _strike(SATURATED_LOW_POWER, ZERO_SIDE, SATURATED_DEFENDER),
+        _strike(1.0, SATURATED_ATTACKER, ZERO_SIDE),
+    ),
+    "combat_base_damage": (
+        _strike(0.0, ZERO_SIDE, ZERO_SIDE) | {"terrain": 1.0},
+        _strike(1800.0, BOARD_SIDE, BOARD_SIDE) | {"terrain": 1.0},
+        _strike(1800.0, BOARD_SIDE, BOARD_SIDE) | {"terrain": 1.2},
+        _strike(2400.0, BOARD_SIDE, BOARD_SIDE) | {"terrain": 1.2},
         _strike(1800.0, OUTGUNNED_ATTACKER, OUTGUNNED_DEFENDER) | {"terrain": 1.0},
+        _strike(SATURATED_LOW_POWER, ZERO_SIDE, SATURATED_DEFENDER) | {"terrain": 1.0},
+        _strike(1.0, SATURATED_ATTACKER, ZERO_SIDE) | {"terrain": 0.8},
     ),
-    ("combat_base_damage", _strike(1.0, ZERO_SIDE, SATURATED_DEFENDER) | {"terrain": 1.0}),
-    ("combat_base_damage", _strike(1.0, SATURATED_ATTACKER, ZERO_SIDE) | {"terrain": 0.8}),
-    ("damage_scale", {"bonuses": 0.0, "penalties": 0.0}),
-    ("damage_scale", {"bonuses": 0.35, "penalties": 0.1}),
-    ("damage_scale", {"bonuses": 0.0, "penalties": 1.0}),
-    ("damage_scale", {"bonuses": 0.2, "penalties": 1.5}),
-    ("final_damage", {"combat_base": 0.0, "scale": 1.0, "defense_multiplier": 1.0}),
-    (
-        "final_damage",
+    "damage_scale": (
+        {"bonuses": 0.0, "penalties": 0.0},
+        {"bonuses": 0.35, "penalties": 0.1},
+        {"bonuses": 0.0, "penalties": 1.0},
+        {"bonuses": 0.2, "penalties": 1.5},
+    ),
+    "final_damage": (
+        {"combat_base": 0.0, "scale": 1.0, "defense_multiplier": 1.0},
         {"combat_base": 1000.0, "scale": 1.0, "defense_multiplier": NO_DEFENSE_MULTIPLIER},
-    ),
-    (
-        "final_damage",
         {"combat_base": 1000.0, "scale": 1.25, "defense_multiplier": DEFEND_MULTIPLIER},
-    ),
-    (
-        "final_damage",
         {"combat_base": 1000.0, "scale": 1.0, "defense_multiplier": SHIELD_MULTIPLIER},
+        {"combat_base": 1000.0, "scale": 0.0, "defense_multiplier": 1.0},
+        {"combat_base": 1000.0, "scale": 1.0, "defense_multiplier": 0.0},
     ),
-    ("final_damage", {"combat_base": 1000.0, "scale": 0.0, "defense_multiplier": 1.0}),
-    ("final_damage", {"combat_base": 1000.0, "scale": 1.0, "defense_multiplier": 0.0}),
-    (
-        "critical_damage",
+    "critical_damage": (
         {
             "combat_base": 1000.0,
             "scale": 1.0,
             "defense_multiplier": NO_DEFENSE_MULTIPLIER,
             "critical": CRIT_NORMAL,
         },
-    ),
-    (
-        "critical_damage",
         {
             "combat_base": 1000.0,
             "scale": 1.0,
             "defense_multiplier": DEFEND_MULTIPLIER,
             "critical": CRIT_HIGH_MORALE,
         },
-    ),
-    (
-        "critical_damage",
         {
             "combat_base": 1000.0,
             "scale": 1.25,
             "defense_multiplier": SHIELD_MULTIPLIER,
             "critical": CRIT_SUPER,
         },
-    ),
-    (
-        "critical_damage",
         {"combat_base": 1000.0, "scale": 1.25, "defense_multiplier": 1.0, "critical": CRIT_NORMAL},
-    ),
-    (
-        "critical_damage",
         {"combat_base": 0.0, "scale": 0.0, "defense_multiplier": 0.0, "critical": 0.0},
     ),
-    (
-        "expected_damage",
+    "expected_damage": (
         _strike(0.0, ZERO_SIDE, ZERO_SIDE)
         | {"terrain": 1.0, "bonuses": 0.0, "penalties": 0.0, "defense_multiplier": 1.0},
-    ),
-    (
-        "expected_damage",
         _strike(1800.0, BOARD_SIDE, BOARD_SIDE)
         | {
             "terrain": 1.0,
@@ -369,9 +340,6 @@ FORMULA_INPUTS: tuple[tuple[str, dict[str, Any]], ...] = (
             "penalties": 0.0,
             "defense_multiplier": NO_DEFENSE_MULTIPLIER,
         },
-    ),
-    (
-        "expected_damage",
         _strike(1800.0, BOARD_SIDE, BOARD_SIDE)
         | {
             "terrain": 1.2,
@@ -379,9 +347,6 @@ FORMULA_INPUTS: tuple[tuple[str, dict[str, Any]], ...] = (
             "penalties": 0.1,
             "defense_multiplier": DEFEND_MULTIPLIER,
         },
-    ),
-    (
-        "expected_damage",
         _strike(2400.0, BOARD_SIDE, BOARD_SIDE)
         | {
             "terrain": 1.0,
@@ -389,14 +354,8 @@ FORMULA_INPUTS: tuple[tuple[str, dict[str, Any]], ...] = (
             "penalties": 0.0,
             "defense_multiplier": SHIELD_MULTIPLIER,
         },
-    ),
-    (
-        "expected_damage",
         _strike(1800.0, BOARD_SIDE, BOARD_SIDE)
         | {"terrain": 1.0, "bonuses": 0.0, "penalties": 0.0, "defense_multiplier": 0.0},
-    ),
-    (
-        "expected_damage",
         _strike(1800.0, OUTGUNNED_ATTACKER, OUTGUNNED_DEFENDER)
         | {
             "terrain": 1.2,
@@ -404,28 +363,29 @@ FORMULA_INPUTS: tuple[tuple[str, dict[str, Any]], ...] = (
             "penalties": 1.5,
             "defense_multiplier": SHIELD_MULTIPLIER,
         },
-    ),
-    (
-        "expected_damage",
         _strike(1.0, SATURATED_ATTACKER, ZERO_SIDE)
         | {"terrain": 1.0, "bonuses": 0.0, "penalties": 1.0, "defense_multiplier": 1.0},
     ),
-    ("hit_rate_percent", _hit(ZERO_SIDE, ZERO_SIDE, 0.0)),
-    ("hit_rate_percent", _hit(BOARD_SIDE, BOARD_SIDE, 0.0)),
-    ("hit_rate_percent", _hit(BOARD_SIDE, BOARD_SIDE, -20.0)),
-    ("hit_rate_percent", _hit(BOARD_SIDE, OUTGUNNED_DEFENDER, 0.0)),
-    ("hit_rate_percent", _hit(OUTGUNNED_ATTACKER, BOARD_SIDE, 0.0)),
-    ("hit_rate_percent", _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0)),
-    ("hit_rate_percent", _hit(QUICK_ATTACKER, ZERO_SIDE, -25.0)),
-    ("hit_rate_percent", _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0)),
-    ("hit_rate_percent", _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0)),
-    ("hit_probability", _hit(ZERO_SIDE, ZERO_SIDE, 0.0)),
-    ("hit_probability", _hit(BOARD_SIDE, BOARD_SIDE, 0.0)),
-    ("hit_probability", _hit(BOARD_SIDE, BOARD_SIDE, -20.0)),
-    ("hit_probability", _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0)),
-    ("hit_probability", _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0)),
-    ("hit_probability", _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0)),
-)
+    "hit_rate_percent": (
+        _hit(ZERO_SIDE, ZERO_SIDE, 0.0),
+        _hit(BOARD_SIDE, BOARD_SIDE, 0.0),
+        _hit(BOARD_SIDE, BOARD_SIDE, -20.0),
+        _hit(BOARD_SIDE, OUTGUNNED_DEFENDER, 0.0),
+        _hit(OUTGUNNED_ATTACKER, BOARD_SIDE, 0.0),
+        _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0),
+        _hit(QUICK_ATTACKER, ZERO_SIDE, -25.0),
+        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0),
+        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0),
+    ),
+    "hit_probability": (
+        _hit(ZERO_SIDE, ZERO_SIDE, 0.0),
+        _hit(BOARD_SIDE, BOARD_SIDE, 0.0),
+        _hit(BOARD_SIDE, BOARD_SIDE, -20.0),
+        _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0),
+        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0),
+        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0),
+    ),
+}
 
 
 def _sides(payload: dict[str, Any]) -> tuple[float, float, float, float]:
@@ -448,50 +408,49 @@ def _hit_sides(payload: dict[str, Any]) -> tuple[float, float, float, float]:
     )
 
 
-def formula_expectation(op: str, payload: dict[str, Any]) -> float:
-    if op == "base_damage":
-        return base_damage(payload["power"], *_sides(payload))
-    if op == "combat_base_damage":
-        return combat_base_damage(payload["power"], *_sides(payload), terrain=payload["terrain"])
-    if op == "damage_scale":
-        return damage_scale(bonuses=payload["bonuses"], penalties=payload["penalties"])
-    if op == "final_damage":
-        return final_damage(
-            payload["combat_base"],
-            scale=payload["scale"],
-            defense_multiplier=payload["defense_multiplier"],
-        )
-    if op == "critical_damage":
-        return critical_damage(
-            payload["combat_base"],
-            scale=payload["scale"],
-            defense_multiplier=payload["defense_multiplier"],
-            critical=payload["critical"],
-        )
-    if op == "expected_damage":
-        return expected_damage(
-            payload["power"],
-            *_sides(payload),
-            terrain=payload["terrain"],
-            bonuses=payload["bonuses"],
-            penalties=payload["penalties"],
-            defense_multiplier=payload["defense_multiplier"],
-        )
-    if op == "hit_rate_percent":
-        return hit_rate_percent(
-            *_hit_sides(payload), ability_correction=payload["ability_correction"]
-        )
-    if op == "hit_probability":
-        return hit_probability(
-            *_hit_sides(payload), ability_correction=payload["ability_correction"]
-        )
-    raise ValueError(f"the op {op} carries no expectation")
+FORMULA_EXPECTATIONS: dict[str, Callable[[dict[str, Any]], float]] = {
+    "base_damage": lambda payload: base_damage(payload["power"], *_sides(payload)),
+    "combat_base_damage": lambda payload: combat_base_damage(
+        payload["power"], *_sides(payload), terrain=payload["terrain"]
+    ),
+    "damage_scale": lambda payload: damage_scale(
+        bonuses=payload["bonuses"], penalties=payload["penalties"]
+    ),
+    "final_damage": lambda payload: final_damage(
+        payload["combat_base"],
+        scale=payload["scale"],
+        defense_multiplier=payload["defense_multiplier"],
+    ),
+    "critical_damage": lambda payload: critical_damage(
+        payload["combat_base"],
+        scale=payload["scale"],
+        defense_multiplier=payload["defense_multiplier"],
+        critical=payload["critical"],
+    ),
+    "expected_damage": lambda payload: expected_damage(
+        payload["power"],
+        *_sides(payload),
+        terrain=payload["terrain"],
+        bonuses=payload["bonuses"],
+        penalties=payload["penalties"],
+        defense_multiplier=payload["defense_multiplier"],
+    ),
+    "hit_rate_percent": lambda payload: hit_rate_percent(
+        *_hit_sides(payload), ability_correction=payload["ability_correction"]
+    ),
+    "hit_probability": lambda payload: hit_probability(
+        *_hit_sides(payload), ability_correction=payload["ability_correction"]
+    ),
+}
+
+FORMULA_OPS: tuple[str, ...] = tuple(FORMULA_EXPECTATIONS)
 
 
 def formula_checks() -> list[dict[str, Any]]:
     return [
-        {"op": op, "input": payload, "expect": formula_expectation(op, payload)}
-        for op, payload in FORMULA_INPUTS
+        {"op": op, "input": payload, "expect": FORMULA_EXPECTATIONS[op](payload)}
+        for op, payloads in FORMULA_INPUTS.items()
+        for payload in payloads
     ]
 
 

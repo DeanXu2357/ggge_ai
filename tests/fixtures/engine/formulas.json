@@ -454,7 +454,7 @@
     {
       "op": "base_damage",
       "input": {
-        "power": 1.0,
+        "power": 1e+300,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -472,7 +472,7 @@
           "mobility": 0.0
         }
       },
-      "expect": 1.971935308751954e-304
+      "expect": 0.00019719353087519541
     },
     {
       "op": "base_damage",
@@ -620,7 +620,7 @@
     {
       "op": "combat_base_damage",
       "input": {
-        "power": 1.0,
+        "power": 1e+300,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -639,7 +639,7 @@
         },
         "terrain": 1.0
       },
-      "expect": -4.092850338431548e-303
+      "expect": -0.004092850338431548
     },
     {
       "op": "combat_base_damage",
