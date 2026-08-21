@@ -83,6 +83,10 @@ Response: 'turn', 'phase', 'deploy_open'.
 'init' on a live session replaces the battle. The history starts
 again.
 
+'init' is not implemented. The section 'Terrain' holds one open
+requirement for the issue that implements it: 'board' must carry
+the terrain of the map.
+
 Refusals: bad_request.
 
 ### deploy_cells
@@ -494,6 +498,13 @@ attacking weapon against the terrain of the target cell. It is not
 a value of the map, and it is not the terrain adaptability of the
 mech. Terrain adaptability gates deployment and movement; it enters
 no damage formula and no hit rate.
+
+Open, for the issue that implements 'init': the field 'board' of
+the request must carry the terrain of the map, in the same two
+fields that the state carries above. The user ruled on 2026-08-21
+that the terrain of each cell arrives when the board is built.
+Today 'board' carries the width and the height alone, and 'init'
+is not implemented.
 
 ### Differential cases
 

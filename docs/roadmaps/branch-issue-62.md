@@ -66,6 +66,16 @@ Changed:
   (attack, defense, reaction) and 'Mech' (attack, defense,
   mobility); 'Unit' carries one of each in the fields 'Pilot' and
   'Mech'; the decode composes the two from the flat wire fields.
+  'Mech' also carries the base copies 'HP', 'EN', 'MoveRange' and
+  'Weapons'; the decode fills them from the four optional wire
+  fields, and the same fields on 'Unit' stay the final panel. The
+  weapon list decode moves into 'decodeWeapons', which both levels
+  call.
+- 'engine/battle/codec_test.go': a payload with no mech base
+  leaves the base empty and keeps the panel, a payload with a mech
+  base fills the mech alone, and a write into the panel does not
+  reach the mech. 'engine/battle/terrain_test.go': a weapon of the
+  mech base with a terrain outside the contract stops the decode.
 - 'scripts/write_engine_fixtures.py': the case 'formulas';
   'build_case' takes extra checks; 'FORMULA_OPS' names the eight
   ops.
@@ -83,7 +93,9 @@ Changed:
   row records that the wire names stay 'unit_attack' and
   'unit_defense'. New rows bind the terrain and the terrain
   restriction; the 'terrain' row names the Go type and the two
-  wire fields of the board.
+  wire fields of the board. New rows bind the final panel and the
+  base data, one term for each level of values; the unit, mech and
+  pilot rows now name the level that each type holds.
 - 'engine/battle/model.go': 'Weapon' carries 'TerrainDamage' and
   'UnusableIn', read through 'DamageScaleAgainst' and 'UsableIn';
   'Board' carries 'DefaultTerrain' and 'TerrainCells', read
@@ -93,7 +105,9 @@ Changed:
   state decode fills the two board fields.
 - 'engine/protocol/state.go': the optional wire fields
   'terrain_damage' and 'unusable_in' on 'Weapon', 'terrain' and
-  'terrain_cells' on 'BattleState', and the type 'TerrainCell'.
+  'terrain_cells' on 'BattleState', the optional wire fields
+  'mech_hp', 'mech_en', 'mech_move_range' and 'mech_weapons' on
+  'Unit', and the type 'TerrainCell'.
 - 'engine/protocol/envelope.go', 'src/ggge_ai/engine/contract.py':
   the protocol version 1.2.
 - 'tests/test_engine_codec.py': 'ENGINE_ONLY' names the Go fields
@@ -103,7 +117,9 @@ Changed:
   'PROTOCOL_VERSION' instead of a copy of the number.
 - 'docs/spec/battle-engine-protocol.md': the section 'Terrain'
   with the two payload tables, and the rule for an engine-only
-  field.
+  field. The section 'The final panel and the base data' with the
+  table of the four mech fields. The open requirement of 'init',
+  in the 'init' section and at the end of the 'Terrain' section.
 
 The wire gains optional fields only. A payload of protocol 1.1
 decodes to the same board as before.
@@ -111,7 +127,11 @@ decodes to the same board as before.
 ## Exported Go API
 
     type Pilot struct{ Attack, Defense, Reaction float64 }
-    type Mech struct{ Attack, Defense, Mobility float64 }
+    type Mech struct {
+        Attack, Defense, Mobility float64
+        HP, EN, MoveRange         int
+        Weapons                   []Weapon
+    }
     type Unit struct {
         ...
         Pilot Pilot
@@ -178,10 +198,12 @@ caller.
    and a flat copy is the shortest decode. The user ruling of
    2026-08-21 overrides that: the game holds two levels, so the
    model holds two levels. The flat wire keeps its names, and the
-   decode does the composition. The rest of 'Unit' (HP, EN, move
-   range, weapons, footprint, support charges) stays where it is;
-   which of those belong to the mech and which to the pilot is a
-   separate issue.
+   decode does the composition. The later ruling of the same day
+   settles the rest of 'Unit': the values on 'Unit' are the final
+   panel, and the mech keeps its own copy of the hit points, the
+   energy, the movement range and the weapons. The footprint and
+   the support charges stay facts of the board; no level of the
+   game holds a second copy of them.
 2. No argument has a default. The caller states the terrain, the
    defense multiplier and the critical multiplier on every call.
    The Python defaults (terrain 1.0, defense 1.0, critical 1.1)
@@ -220,6 +242,23 @@ caller.
    compares the Go constant against 'PROTOCOL_VERSION', so a
    one-sided raise breaks the gate. The change is the one line of
    the constant.
+10. The base copy of the mech carries no name prefix. 'Mech.HP' is
+    the base copy and 'Unit.HP' is the panel; the struct that
+    holds the field states the level, so a prefix would say the
+    same word two times. The wire has no struct to lean on, so
+    there the four fields carry the prefix 'mech'. The terminology
+    map and the spec hold the distinction for the reader.
+11. The four mech fields are flat on 'protocol.Unit', and not one
+    nested object. The precedent of the terrain fields is flat,
+    and the parity gate reads the JSON tag of each line, so a flat
+    field is the shape that 'ENGINE_ONLY' can name.
+12. The mech base decodes through the same 'decodeWeapon' as the
+    panel, so a terrain name outside the contract stops the decode
+    at either level.
+13. The version stays at 1.2. The rule of the section 'Evolution'
+    raises the version for a change that adds a field, and commit
+    c89e9fd already raised it in this branch. No client has seen
+    1.2 yet, so the four fields ride the same number.
 
 ## Verification
 
@@ -285,3 +324,19 @@ which can override them, and the terminology row says so.
 - 'UsableIn' gates no action list yet. The issue that builds the
   legal actions must drop a weapon that cannot fire from the cell
   of the attacker.
+- No code derives the final panel from the base data. The ability
+  interaction that changes what a unit ends up with is implemented
+  nowhere, and this branch does not invent it. The formulas read
+  the same level that they read before. A later issue holds the
+  interaction, and it also decides which producer fills the four
+  mech fields: nothing reads a mech base off the device today, so
+  every payload leaves them absent.
+- Requirement for the issue that implements 'init': the field
+  'board' of the request must carry the terrain of the map, in the
+  same two fields that 'BattleState' carries today. The user ruled
+  on 2026-08-21 that the terrain of each cell arrives when the
+  board is built. 'init' is not implemented, and 'protocol.Board'
+  carries the width and the height alone, so the branch records
+  the requirement and changes no code. It is written in the 'init'
+  section and at the end of the 'Terrain' section of
+  docs/spec/battle-engine-protocol.md.
