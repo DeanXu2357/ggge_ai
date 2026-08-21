@@ -58,7 +58,7 @@ func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
 	if b.SupportDefender(defender) != nil {
 		out = append(out, supportDefendVariants(out)...)
 	}
-	if b.hasSupportAttacker(defender, origin) {
+	if b.hasSupportAttacker(defender, defender.Footprint, origin) {
 		out = append(out, supportAttackVariants(out)...)
 	}
 	return out, nil
@@ -93,7 +93,20 @@ func supportAttackVariants(options []Reaction) []Reaction {
 // case 16), so the first eligible unit is the answer.
 func (b *Board) SupportDefender(defender *Unit) *Unit {
 	for _, other := range b.ByFaction(defender.Faction) {
-		if inSupportReach(other, defender, other.SupportDefendCharges) {
+		if inSupportReach(other, defender, defender.Footprint, other.SupportDefendCharges) {
+			return other
+		}
+	}
+	return nil
+}
+
+// AttackShieldBearer gives the unit that takes a counter strike for the
+// attacker, or nil. The bearer intercepts on the attack of its own side
+// (docs/reference/combat-formulas.md, case 6, issue #22).
+func (b *Board) AttackShieldBearer(attacker *Unit) *Unit {
+	for _, other := range b.ByFaction(attacker.Faction) {
+		if other.AttackShield &&
+			inSupportReach(other, attacker, attacker.Footprint, other.SupportDefendCharges) {
 			return other
 		}
 	}
@@ -101,28 +114,29 @@ func (b *Board) SupportDefender(defender *Unit) *Unit {
 }
 
 // SupportAttackers gives the units that can join a strike of the supported unit
-// against a foe on 'foe', each one with the weapon it fires.
-func (b *Board) SupportAttackers(supported *Unit, foe Footprint) []SupportAttacker {
+// against a foe on 'foe', each one with the weapon it fires. The supported unit
+// fires from 'firing', which is its anchor after its move.
+func (b *Board) SupportAttackers(supported *Unit, firing, foe Footprint) []SupportAttacker {
 	var out []SupportAttacker
 	for _, other := range b.ByFaction(supported.Faction) {
-		if weapon := supportWeapon(other, supported, foe); weapon != nil {
+		if weapon := supportWeapon(other, supported, firing, foe); weapon != nil {
 			out = append(out, SupportAttacker{Unit: other, Weapon: weapon})
 		}
 	}
 	return out
 }
 
-func (b *Board) hasSupportAttacker(supported *Unit, foe Footprint) bool {
+func (b *Board) hasSupportAttacker(supported *Unit, firing, foe Footprint) bool {
 	for _, other := range b.ByFaction(supported.Faction) {
-		if supportWeapon(other, supported, foe) != nil {
+		if supportWeapon(other, supported, firing, foe) != nil {
 			return true
 		}
 	}
 	return false
 }
 
-func supportWeapon(other, supported *Unit, foe Footprint) *Weapon {
-	if !inSupportReach(other, supported, other.SupportAttackCharges) {
+func supportWeapon(other, supported *Unit, firing, foe Footprint) *Weapon {
+	if !inSupportReach(other, supported, firing, other.SupportAttackCharges) {
 		return nil
 	}
 	distance := SpanDistance(other.Footprint, foe)
@@ -135,7 +149,9 @@ func supportWeapon(other, supported *Unit, foe Footprint) *Weapon {
 	return nil
 }
 
-func inSupportReach(other, supported *Unit, charges int) bool {
+// The support reach of a unit is the move range of that unit
+// (docs/reference/combat-formulas.md, case 14).
+func inSupportReach(other, supported *Unit, at Footprint, charges int) bool {
 	return other.ID != supported.ID && charges > 0 &&
-		SpanDistance(other.Footprint, supported.Footprint) <= other.MoveRange
+		SpanDistance(other.Footprint, at) <= other.MoveRange
 }

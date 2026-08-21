@@ -237,6 +237,17 @@ func (u *Unit) Weapon(name string) *Weapon {
 	return nil
 }
 
+// Skill gives the first skill of that kind with a use left, or nil. A unit
+// carries no name for a skill, so the kind of the action names it.
+func (u *Unit) Skill(kind ActionKind) *Skill {
+	for index := range u.Skills {
+		if u.Skills[index].Kind == kind && u.Skills[index].Uses > 0 {
+			return &u.Skills[index]
+		}
+	}
+	return nil
+}
+
 // Decision is one activation of one unit. The contract names the payload
 // 'action' and the model names it 'Decision'; this package keeps the model
 // name.
