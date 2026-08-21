@@ -17,7 +17,8 @@ from enum import StrEnum
 from typing import Any
 
 from ..runtime.perceive import Observation, Perceiver
-from ..sandbox.model import Cell, Faction, MoveKind, Skill, Unit, Weapon
+from ..engine.contract import ActionKind, Cell, Faction
+from ..sandbox.model import Skill, Unit, Weapon
 from .state import StageState
 
 FORMAT_VERSION = 1
@@ -74,7 +75,7 @@ class WeaponIntel:
 
 @dataclass(frozen=True)
 class SkillIntel:
-    kind: MoveKind
+    kind: ActionKind
     amount: float | None = None
     uses: int = 1
     ends_activation: bool = True
@@ -257,7 +258,7 @@ def _weapon_from_dict(data: dict[str, Any]) -> WeaponIntel:
 
 def _skill_from_dict(data: dict[str, Any]) -> SkillIntel:
     return SkillIntel(
-        kind=MoveKind(data["kind"]),
+        kind=ActionKind(data["kind"]),
         amount=data.get("amount"),
         uses=data.get("uses", 1),
         ends_activation=data.get("ends_activation", True),

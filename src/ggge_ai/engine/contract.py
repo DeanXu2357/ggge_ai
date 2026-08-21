@@ -34,6 +34,50 @@ DECLARED_COMMANDS: tuple[str, ...] = (
 Cell = tuple[int, int]
 
 
+class Faction(StrEnum):
+    ALLY = "ally"
+    ENEMY = "enemy"
+    THIRD_PARTY = "third_party"
+
+
+class ActionKind(StrEnum):
+    ATTACK = "attack"
+    MAP_ATTACK = "map_attack"
+    REPOSITION = "reposition"
+    STANDBY = "standby"
+    SKILL_EN_REFILL = "skill_en_refill"
+    SKILL_HEAL = "skill_heal"
+
+
+class SkillSource(StrEnum):
+    CHARACTER = "character"
+    CREW = "crew"
+    UNIT = "unit"
+
+
+class SkillAffects(StrEnum):
+    """A skill that acts on the caster alone carries the value ally: its range
+    and its blast are zero, so the area is the cell of the caster, and the
+    caster is an ally in its own cell. The enum holds no 'self' value.
+    """
+
+    ALLY = "ally"
+    ENEMY = "enemy"
+    ALL = "all"
+
+
+class Stance(StrEnum):
+    """The reaction menu of the game holds no decline button, so the contract
+    lists no 'none' stance (issue #56). A strike that settles no reaction
+    carries no stance at all on the wire.
+    """
+
+    DODGE = "dodge"
+    DEFEND = "defend"
+    SHIELD = "shield"
+    COUNTER = "counter"
+
+
 class ErrorCode(StrEnum):
     UNKNOWN_COMMAND = "unknown_command"
     NOT_IMPLEMENTED = "not_implemented"
