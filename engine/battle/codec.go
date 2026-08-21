@@ -130,17 +130,14 @@ func decodeTerrainCells(cells []protocol.TerrainCell) (map[Cell]Terrain, error) 
 }
 
 // DecodeRules reads the rule overrides of a stage. A payload with no value
-// gives the defaults. The terrain divides the combat base damage, so a terrain
-// of zero or less is no rule set (docs/reference/combat-formulas.md).
+// gives the defaults, and a payload that carries the rules carries every field:
+// a field that the payload omits decodes to zero, and no rule value of the
+// mechanism is zero (docs/reference/combat-formulas.md).
 func DecodeRules(rules *protocol.Rules) (Rules, error) {
 	if rules == nil {
 		return DefaultRules(), nil
 	}
-	if rules.Terrain <= 0 {
-		return Rules{}, fmt.Errorf("the rules carry the terrain %v, and the terrain divides the damage",
-			rules.Terrain)
-	}
-	return Rules{
+	out := Rules{
 		DefendMultiplier:        rules.DefendMultiplier,
 		ShieldMultiplier:        rules.ShieldMultiplier,
 		SupportDefendMultiplier: rules.SupportDefendMultiplier,
@@ -148,7 +145,45 @@ func DecodeRules(rules *protocol.Rules) (Rules, error) {
 		Terrain:                 rules.Terrain,
 		MaxSupportAttackers:     rules.MaxSupportAttackers,
 		ENRegenFraction:         rules.ENRegenFraction,
-	}, nil
+	}
+	if err := validateRules(out); err != nil {
+		return Rules{}, err
+	}
+	return out, nil
+}
+
+func validateRules(rules Rules) error {
+	multipliers := []struct {
+		name  string
+		value float64
+	}{
+		{"defend multiplier", rules.DefendMultiplier},
+		{"shield multiplier", rules.ShieldMultiplier},
+		{"support defense multiplier", rules.SupportDefendMultiplier},
+	}
+	for _, one := range multipliers {
+		if one.value <= 0 || one.value > 1 {
+			return fmt.Errorf("the rules carry the %s %v, and a defense multiplier takes the damage down",
+				one.name, one.value)
+		}
+	}
+	if rules.DodgeHitPenalty < 0 {
+		return fmt.Errorf("the rules carry the dodge penalty %v, and a penalty takes the hit rate down",
+			rules.DodgeHitPenalty)
+	}
+	if rules.Terrain <= 0 {
+		return fmt.Errorf("the rules carry the terrain %v, and the terrain divides the damage",
+			rules.Terrain)
+	}
+	if rules.MaxSupportAttackers < 0 {
+		return fmt.Errorf("the rules carry the support cap %d, and a cap counts units",
+			rules.MaxSupportAttackers)
+	}
+	if rules.ENRegenFraction < 0 || rules.ENRegenFraction > 1 {
+		return fmt.Errorf("the rules carry the energy regeneration %v, and a fraction lies in [0, 1]",
+			rules.ENRegenFraction)
+	}
+	return nil
 }
 
 func decodeUnits(units []protocol.Unit) ([]Unit, error) {

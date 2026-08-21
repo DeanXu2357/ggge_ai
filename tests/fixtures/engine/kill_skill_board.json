@@ -745,6 +745,7 @@
         },
         "dice": {
           "support_volley": false,
+          "defender_volley": false,
           "strike": true,
           "counter": false
         }
@@ -1100,6 +1101,7 @@
         },
         "dice": {
           "support_volley": false,
+          "defender_volley": false,
           "strike": true,
           "counter": false
         }
@@ -1455,6 +1457,7 @@
         },
         "dice": {
           "support_volley": false,
+          "defender_volley": false,
           "strike": true,
           "counter": false
         }
@@ -1758,6 +1761,7 @@
         },
         "dice": {
           "support_volley": false,
+          "defender_volley": false,
           "strike": false,
           "counter": false
         }
@@ -2103,7 +2107,7 @@
           "move_to": null,
           "target_id": null,
           "weapon": null,
-          "amount": null,
+          "amount": 3000.0,
           "reaction": null,
           "support": false,
           "aim": null,
@@ -2113,6 +2117,7 @@
         },
         "dice": {
           "support_volley": true,
+          "defender_volley": true,
           "strike": true,
           "counter": true
         }
@@ -2468,6 +2473,7 @@
         },
         "dice": {
           "support_volley": true,
+          "defender_volley": true,
           "strike": true,
           "counter": true
         }
@@ -2826,6 +2832,7 @@
         },
         "dice": {
           "support_volley": true,
+          "defender_volley": true,
           "strike": true,
           "counter": true
         }
@@ -3181,6 +3188,7 @@
         },
         "dice": {
           "support_volley": true,
+          "defender_volley": true,
           "strike": true,
           "counter": true
         }

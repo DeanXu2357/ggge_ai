@@ -237,15 +237,24 @@ func (u *Unit) Weapon(name string) *Weapon {
 	return nil
 }
 
-// Skill gives the first skill of that kind with a use left, or nil. A unit
-// carries no name for a skill, so the kind of the action names it.
-func (u *Unit) Skill(kind ActionKind) *Skill {
+// Skill gives the first skill of that kind with a use left that gives the
+// amount, or nil. A unit carries no name for a skill, so the kind and the
+// amount of the action name it; a unit can hold two skills of one kind.
+func (u *Unit) Skill(kind ActionKind, amount *float64) *Skill {
 	for index := range u.Skills {
-		if u.Skills[index].Kind == kind && u.Skills[index].Uses > 0 {
-			return &u.Skills[index]
+		skill := &u.Skills[index]
+		if skill.Kind == kind && skill.Uses > 0 && sameAmount(skill.Amount, amount) {
+			return skill
 		}
 	}
 	return nil
+}
+
+func sameAmount(one, other *float64) bool {
+	if one == nil || other == nil {
+		return one == nil && other == nil
+	}
+	return *one == *other
 }
 
 // Decision is one activation of one unit. The contract names the payload

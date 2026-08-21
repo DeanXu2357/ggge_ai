@@ -291,6 +291,57 @@ func TestAnAttackWithASupporterEntersTheListTwoTimes(t *testing.T) {
 	}
 }
 
+func TestACapOfZeroSupportersLeavesTheVolleyOutOfTheList(t *testing.T) {
+	state := intercepted()
+	state.Rules.MaxSupportAttackers = 0
+
+	out := actions(t, state, "a1")
+
+	for _, decision := range out {
+		if decision.Support {
+			t.Fatalf("the rules let no supporter join a strike: %+v", decision)
+		}
+	}
+}
+
+// The support check reads the anchor that the attack fires from, and not the
+// anchor of the unit today. The supporter of the first case stands outside its
+// own move range of the attacker today and inside it after the move; the
+// supporter of the second case stands the other way round.
+func TestTheSupportVariantReadsTheFiringAnchor(t *testing.T) {
+	cases := map[string]struct {
+		supporter Cell
+		want      int
+	}{
+		"the move enters the reach of the supporter": {Cell{2, 2}, 2},
+		"the move leaves the reach of the supporter": {Cell{0, 2}, 1},
+	}
+
+	for name, one := range cases {
+		t.Run(name, func(t *testing.T) {
+			state := board(unit("a1", FactionAlly, Cell{0, 0}),
+				unit("e1", FactionEnemy, Cell{4, 0}), unit("a2", FactionAlly, one.supporter))
+			state.Unit("a1").MoveRange = 4
+			state.Unit("a1").Weapons = []Weapon{rifle("rifle", RadiusRange{Min: 2, Max: 2})}
+			state.Unit("a2").MoveRange = 2
+			state.Unit("a2").SupportAttackCharges = 1
+			state.Unit("a2").Weapons = []Weapon{rifle("long", RadiusRange{Min: 1, Max: 4})}
+
+			out := actions(t, state, "a1")
+
+			attacks := 0
+			for _, decision := range out {
+				if decision.Kind == ActionAttack {
+					attacks++
+				}
+			}
+			if attacks != one.want {
+				t.Fatalf("the attack enters the list %d times: %+v", attacks, out)
+			}
+		})
+	}
+}
+
 func TestAnActionWithNoSupporterCarriesNoVolley(t *testing.T) {
 	state := intercepted()
 	state.Unit("a2").SupportAttackCharges = 0

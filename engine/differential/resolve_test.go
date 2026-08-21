@@ -14,9 +14,10 @@ func init() {
 }
 
 type forcedDice struct {
-	SupportVolley bool `json:"support_volley"`
-	Strike        bool `json:"strike"`
-	Counter       bool `json:"counter"`
+	SupportVolley  bool `json:"support_volley"`
+	DefenderVolley bool `json:"defender_volley"`
+	Strike         bool `json:"strike"`
+	Counter        bool `json:"counter"`
 }
 
 type applyInput struct {
@@ -63,8 +64,8 @@ func livingUnits(board *battle.Board) []protocol.Unit {
 	return out
 }
 
-// Five rules of the engine part from the Python oracle on purpose. The three
-// resolution boards and the op above keep the five out of the comparison:
+// Six rules of the engine part from the Python oracle on purpose. The three
+// resolution boards and the op above keep the six out of the comparison:
 //
 //  1. The engine reads the orthogonal distance between two footprints. Python
 //     reads the king step. Each unit of these boards covers one cell, and each
@@ -77,9 +78,13 @@ func livingUnits(board *battle.Board) []protocol.Unit {
 //  4. A destroyed unit stays on the board with no hit points left. Python
 //     removes it at the end of 'step'. The op filters its answer on the life of
 //     the unit, and the expectation of Python holds the same units.
-//  5. The attacker chooses the support volley. Python fires every supporter on
+//  5. The attacker chooses the support attack. Python fires every supporter on
 //     every attack. Each decision here names the choice in its field 'support',
 //     and Python reads that field.
+//  6. The volley of the attacker and the volley of the defender are two chance
+//     nodes of the engine. Python settles both with the one field
+//     'support_hit'. The dice object of each check gives the two nodes the same
+//     outcome.
 //
 // The Python 'step' rotates the phase when the acting side holds no unit that
 // waits. Each acting side of these boards keeps one more unit that has not

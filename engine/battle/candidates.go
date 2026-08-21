@@ -41,7 +41,8 @@ func (b *Board) attacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision 
 				TargetID: target.ID,
 				Weapon:   weapon.Name,
 			}
-			if b.hasSupportAttacker(unit, footprintAt(unit, destination), target.Footprint) {
+			if b.Rules.MaxSupportAttackers > 0 &&
+				b.hasSupportAttacker(unit, footprintAt(unit, destination), target.Footprint) {
 				supported := attack
 				supported.Support = true
 				out = append(out, supported)

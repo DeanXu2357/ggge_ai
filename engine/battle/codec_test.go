@@ -491,13 +491,46 @@ func TestAPayloadWithNoRulesTakesTheDefaults(t *testing.T) {
 	}
 }
 
-func TestATerrainOfZeroIsNoRuleSet(t *testing.T) {
-	for name, terrain := range map[string]float64{"zero": 0, "below zero": -1} {
+// A payload that carries the rules carries every field. A partial payload
+// decodes the fields it omits to zero, and each check below names one such
+// field.
+func TestAPartialRulePayloadIsNoRuleSet(t *testing.T) {
+	full := protocol.Rules{
+		DefendMultiplier:        0.7,
+		ShieldMultiplier:        0.5,
+		SupportDefendMultiplier: 0.75,
+		DodgeHitPenalty:         25,
+		Terrain:                 1.2,
+		MaxSupportAttackers:     2,
+		ENRegenFraction:         0.15,
+	}
+	cases := map[string]func(*protocol.Rules){
+		"no defend multiplier": func(one *protocol.Rules) { one.DefendMultiplier = 0 },
+		"no shield multiplier": func(one *protocol.Rules) { one.ShieldMultiplier = 0 },
+		"no support defense multiplier": func(one *protocol.Rules) {
+			one.SupportDefendMultiplier = 0
+		},
+		"a multiplier above one":     func(one *protocol.Rules) { one.DefendMultiplier = 1.5 },
+		"a dodge penalty below zero": func(one *protocol.Rules) { one.DodgeHitPenalty = -1 },
+		"no terrain":                 func(one *protocol.Rules) { one.Terrain = 0 },
+		"a terrain below zero":       func(one *protocol.Rules) { one.Terrain = -1 },
+		"a support cap below zero":   func(one *protocol.Rules) { one.MaxSupportAttackers = -1 },
+		"a regeneration below zero":  func(one *protocol.Rules) { one.ENRegenFraction = -0.1 },
+		"a regeneration above one":   func(one *protocol.Rules) { one.ENRegenFraction = 1.5 },
+	}
+
+	for name, spoil := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := DecodeRules(&protocol.Rules{Terrain: terrain}); err == nil {
-				t.Fatal("the terrain divides the damage")
+			payload := full
+			spoil(&payload)
+
+			if _, err := DecodeRules(&payload); err == nil {
+				t.Fatalf("the rules stand outside the mechanism: %+v", payload)
 			}
 		})
+	}
+	if _, err := DecodeRules(&full); err != nil {
+		t.Fatalf("rules: %v", err)
 	}
 }
 

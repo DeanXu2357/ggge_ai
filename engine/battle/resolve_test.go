@@ -169,7 +169,7 @@ func TestTheInterceptorTakesTheWholeVolleyAndOneCharge(t *testing.T) {
 	state := intercepted()
 	decision := strike("e1", "beam rifle")
 	decision.Support = true
-	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefend: true}
+	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefend: true, SupportAttack: true}
 
 	trace := apply(t, state, decision, Forced{SupportVolley: true, Strike: true})
 
@@ -192,7 +192,7 @@ func TestAVolleyThatMissesSpendsNoInterceptionCharge(t *testing.T) {
 	state := intercepted()
 	decision := strike("e1", "beam rifle")
 	decision.Support = true
-	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefend: true}
+	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefend: true, SupportAttack: true}
 
 	apply(t, state, decision, Forced{})
 
@@ -245,12 +245,15 @@ func TestTheDefenderRepliesWithItsVolleyAndItsCounter(t *testing.T) {
 	decision := strike("e1", "beam rifle")
 	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle", SupportAttack: true}
 
-	trace := apply(t, state, decision, Forced{SupportVolley: true, Strike: true, Counter: true})
+	trace := apply(t, state, decision, Forced{DefenderVolley: true, Strike: true, Counter: true})
 
 	kinds := []StrikeKind{trace[0].Kind, trace[1].Kind, trace[2].Kind}
 	want := []StrikeKind{StrikeMain, StrikeDefenderSupport, StrikeCounter}
 	if len(trace) != 3 || kinds[0] != want[0] || kinds[1] != want[1] || kinds[2] != want[2] {
 		t.Fatalf("the volley of the defender comes before its counter: %+v", trace)
+	}
+	if !trace[1].Landed {
+		t.Fatal("the volley of the defender reads the node of the defender")
 	}
 	if state.Unit("a1").HP >= 12000 || state.Unit("e1").EN != 130 {
 		t.Fatalf("attacker: %+v", state.Unit("a1"))
@@ -260,7 +263,7 @@ func TestTheDefenderRepliesWithItsVolleyAndItsCounter(t *testing.T) {
 func TestACounterThatMissesSpendsItsEnergy(t *testing.T) {
 	state := engagement()
 	decision := strike("e1", "beam rifle")
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle", SupportAttack: true}
 
 	trace := apply(t, state, decision, Forced{Strike: true})
 
@@ -276,7 +279,7 @@ func TestADeadTargetRepliesWithNothing(t *testing.T) {
 	state := engagement()
 	state.Unit("e1").HP = 1
 	decision := strike("e1", "beam rifle")
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle", SupportAttack: true}
 
 	trace := apply(t, state, decision, Forced{Strike: true, Counter: true})
 
@@ -294,7 +297,7 @@ func TestTheAttackShieldTakesTheCounterForTheAttacker(t *testing.T) {
 	bearer.InterceptionReduction = 0.25
 	state.Units = append(state.Units, bearer)
 	decision := strike("e1", "beam rifle")
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle", SupportAttack: true}
 
 	trace := apply(t, state, decision, Forced{Strike: true, Counter: true})
 
@@ -376,7 +379,7 @@ func TestASkillHealsAndRefillsUpToTheMaximum(t *testing.T) {
 		{Kind: ActionSkillRefill, Uses: 1},
 	}
 
-	heal := apply(t, state, Decision{UnitID: "a1", Kind: ActionSkillHeal}, Forced{})
+	heal := apply(t, state, Decision{UnitID: "a1", Kind: ActionSkillHeal, Amount: &amount}, Forced{})
 
 	if state.Unit("a1").HP != 11000 || state.Unit("a1").Skills[0].Uses != 0 {
 		t.Fatalf("actor: %+v", state.Unit("a1"))
@@ -393,6 +396,156 @@ func TestASkillHealsAndRefillsUpToTheMaximum(t *testing.T) {
 
 	if state.Unit("a1").EN != 140 || state.Unit("a1").Acted {
 		t.Fatalf("a skill with no amount gives the whole maximum: %+v", state.Unit("a1"))
+	}
+}
+
+// probes records the probability of each node and lands every shot.
+type probes map[Node]float64
+
+func (p probes) Lands(node Node, probability float64) bool {
+	p[node] = probability
+	return true
+}
+
+func TestAStrikeNamesALivingFoeAndNoOtherUnit(t *testing.T) {
+	cases := map[string]string{"an ally": "a2", "the actor itself": "a1"}
+
+	for name, target := range cases {
+		t.Run(name, func(t *testing.T) {
+			state := engagement()
+			state.Units = append(state.Units, fighter("a2", FactionAlly, Cell{1, 0}))
+
+			_, err := state.Apply(strike(target, "beam rifle"), Forced{Strike: true})
+
+			if !errors.Is(err, ErrIllegalAction) {
+				t.Fatalf("error: %v", err)
+			}
+			if state.Unit(target).HP != 12000 {
+				t.Fatal("an error leaves the board as it was")
+			}
+		})
+	}
+}
+
+func TestAReactionOutsideTheReactionsOfTheStrikeIsAnError(t *testing.T) {
+	cases := map[string]Reaction{
+		"a shield on a unit that carries none": {Stance: StanceShield, SupportAttack: true},
+		"a support defense with defend": {Stance: StanceDefend, SupportDefend: true,
+			SupportAttack: true},
+		"a support attack that no unit joins": {Stance: StanceDodge},
+	}
+
+	for name, reaction := range cases {
+		t.Run(name, func(t *testing.T) {
+			state := intercepted()
+			decision := strike("e1", "beam rifle")
+			decision.Reaction = &reaction
+
+			_, err := state.Apply(decision, Forced{Strike: true})
+
+			if !errors.Is(err, ErrIllegalAction) {
+				t.Fatalf("error: %v", err)
+			}
+			if state.Unit("e1").HP != 12000 || state.Unit("a1").Acted {
+				t.Fatal("an error leaves the board as it was")
+			}
+		})
+	}
+}
+
+func TestAStrikeWithNoReactionAndOneWithACounterBothRun(t *testing.T) {
+	state := engagement()
+	counter := strike("e1", "beam rifle")
+	counter.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle", SupportAttack: true}
+
+	apply(t, state, counter, Forced{Strike: true, Counter: true})
+
+	state = engagement()
+	apply(t, state, strike("e1", "beam rifle"), Forced{Strike: true})
+
+	if state.Unit("e1").HP >= 12000 {
+		t.Fatal("a strike that carries no reaction stays legal")
+	}
+}
+
+func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheInterceptor(t *testing.T) {
+	state := intercepted()
+	state.Unit("e2").Mobility = 900
+	state.Unit("e2").Reaction = 900
+	decision := strike("e1", "beam rifle")
+	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefend: true, SupportAttack: true}
+	nodes := probes{}
+
+	trace, err := state.Apply(decision, nodes)
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	weapon := beam()
+	want := StrikeHitProbability(state.Unit("a1"), state.Unit("e1"), &weapon, true, state.Rules)
+	if trace[0].StruckID != "e2" {
+		t.Fatalf("the interceptor takes the strike: %+v", trace)
+	}
+	if nodes[NodeStrike] != want {
+		t.Fatalf("hit rate: %v, and the target gives %v", nodes[NodeStrike], want)
+	}
+}
+
+func TestASkillReachesTheCasterAndNoOtherUnit(t *testing.T) {
+	state := engagement()
+	state.Unit("a1").HP = 8000
+	state.Unit("a1").Skills = []Skill{{Kind: ActionSkillHeal, Uses: 1}}
+	state.Units = append(state.Units, fighter("a2", FactionAlly, Cell{1, 0}))
+
+	_, err := state.Apply(Decision{UnitID: "a1", Kind: ActionSkillHeal, TargetID: "a2"}, Forced{})
+
+	if !errors.Is(err, ErrIllegalAction) {
+		t.Fatalf("error: %v", err)
+	}
+	if state.Unit("a1").Skills[0].Uses != 1 {
+		t.Fatal("an error leaves the board as it was")
+	}
+}
+
+func TestTheAmountOfTheDecisionNamesOneOfTwoSkillsOfOneKind(t *testing.T) {
+	small := 500.0
+	large := 3000.0
+	state := engagement()
+	state.Unit("a1").HP = 8000
+	state.Unit("a1").Skills = []Skill{
+		{Kind: ActionSkillHeal, Amount: &small, Uses: 1},
+		{Kind: ActionSkillHeal, Amount: &large, Uses: 1},
+	}
+
+	apply(t, state, Decision{UnitID: "a1", Kind: ActionSkillHeal, Amount: &large}, Forced{})
+
+	if state.Unit("a1").HP != 11000 {
+		t.Fatalf("actor: %+v", state.Unit("a1"))
+	}
+	if state.Unit("a1").Skills[0].Uses != 1 || state.Unit("a1").Skills[1].Uses != 0 {
+		t.Fatalf("the decision spends the skill of that amount: %+v", state.Unit("a1").Skills)
+	}
+}
+
+func TestAnAmountThatNoIntegerHoldsStaysInsideTheRoom(t *testing.T) {
+	cases := map[string]struct {
+		amount float64
+		want   int
+	}{"above every integer": {1e19, 12000}, "below zero": {-1, 8000}}
+
+	for name, one := range cases {
+		t.Run(name, func(t *testing.T) {
+			amount := one.amount
+			state := engagement()
+			state.Unit("a1").HP = 8000
+			state.Unit("a1").Skills = []Skill{{Kind: ActionSkillHeal, Amount: &amount, Uses: 1}}
+
+			apply(t, state, Decision{UnitID: "a1", Kind: ActionSkillHeal, Amount: &amount}, Forced{})
+
+			if state.Unit("a1").HP != one.want {
+				t.Fatalf("hit points: %d", state.Unit("a1").HP)
+			}
+		})
 	}
 }
 
@@ -436,7 +589,7 @@ func TestAnUnpaidWeaponAndAnEmptyCounterAreErrors(t *testing.T) {
 	state = engagement()
 	state.Unit("e1").Weapons[0].CanCounter = false
 	decision := strike("e1", "beam rifle")
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle", SupportAttack: true}
 
 	_, err := state.Apply(decision, Forced{Strike: true})
 

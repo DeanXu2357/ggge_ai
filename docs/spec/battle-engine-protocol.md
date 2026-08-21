@@ -142,8 +142,9 @@ The engine gives one attack for each pair of a target and a weapon,
 with 'support' false. When a support attacker of the unit qualifies
 from the firing anchor against that target, the engine gives a
 second attack with 'support' true: the attacker chooses the support
-attack. Every other action carries 'support' false. An attack fires
-from one anchor: of the anchors that the unit
+attack. A rule set that caps the support attackers at zero gives no
+such second attack. Every other action carries 'support' false. An
+attack fires from one anchor: of the anchors that the unit
 reaches and that hold the target in the band of the weapon, the
 engine keeps the anchor nearest to the anchor of today. Three keys
 order these anchors: the board distance first, the squared Euclid

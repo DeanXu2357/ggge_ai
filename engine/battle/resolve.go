@@ -3,6 +3,8 @@ package battle
 import (
 	"errors"
 	"fmt"
+	"math"
+	"slices"
 )
 
 var (
@@ -113,7 +115,7 @@ func (b *Board) destination(actor *Unit, to *Cell, permitted bool) (Cell, error)
 }
 
 func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcome, error) {
-	target, err := b.livingUnit(decision.TargetID)
+	target, err := b.foe(actor, decision.TargetID)
 	if err != nil {
 		return nil, outcome{}, err
 	}
@@ -135,6 +137,9 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 		return nil, outcome{}, fmt.Errorf("%w: the weapon %q of unit %q does not reach unit %q",
 			ErrIllegalAction, weapon.Name, actor.ID, target.ID)
 	}
+	if err := b.legalReaction(target, actor, anchor, weapon, decision.Reaction); err != nil {
+		return nil, outcome{}, err
+	}
 	counter, err := b.counterOf(target, firing, decision.Reaction)
 	if err != nil {
 		return nil, outcome{}, err
@@ -145,14 +150,53 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 	shot := b.volleyOn(target, decision.Reaction)
 	trace := b.attackerVolley(actor, target, decision.Support, dice, &shot)
 	dodging := decision.Reaction != nil && decision.Reaction.Stance == StanceDodge
+	// The hit rate reads the target of the strike, and not the interceptor that
+	// takes the strike in its place: the oracle 'decision_hit_probability' reads
+	// the target. Which evasion the game reads on an interception is not
+	// measured, so the value of the oracle stands until a measurement lands.
 	trace = append(trace, shot.hit(StrikeMain, actor, weapon,
-		dice.Lands(NodeStrike, StrikeHitProbability(actor, shot.struck, weapon, dodging, b.Rules))))
+		dice.Lands(NodeStrike, StrikeHitProbability(actor, target, weapon, dodging, b.Rules))))
 	killed := !shot.struck.Alive()
 
 	if decision.Reaction != nil && target.Alive() {
 		trace = append(trace, b.defenderReply(actor, target, *decision.Reaction, counter, dice)...)
 	}
 	return trace, outcome{killed: killed, endsActivation: true}, nil
+}
+
+// foe gives the living unit of the opposing side that the strike names. The
+// faction rule is the one of TargetsOf, so a unit strikes at what the
+// enumeration offers it, and never at itself or at a unit of its own side.
+func (b *Board) foe(actor *Unit, targetID string) (*Unit, error) {
+	target, err := b.livingUnit(targetID)
+	if err != nil {
+		return nil, err
+	}
+	if target.Faction != actor.Faction.Opposing() {
+		return nil, fmt.Errorf("%w: unit %q of the side %q is no foe of unit %q",
+			ErrIllegalAction, target.ID, target.Faction, actor.ID)
+	}
+	return target, nil
+}
+
+// legalReaction refuses a reaction that the command 'reactions' does not give
+// for this strike. A nil reaction stays legal in the domain: it says that the
+// caller settles the reaction somewhere else, as a node of a search tree does
+// (docs/spec/battle-engine-protocol.md, the wire rules of the reaction).
+func (b *Board) legalReaction(defender, attacker *Unit, anchor Cell, weapon *Weapon,
+	reaction *Reaction) error {
+	if reaction == nil {
+		return nil
+	}
+	options, err := b.Reactions(defender.ID, attacker.ID, anchor, weapon.Name)
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrIllegalAction, err)
+	}
+	if slices.Contains(options, *reaction) {
+		return nil
+	}
+	return fmt.Errorf("%w: unit %q takes a reaction that \"reactions\" does not give: %+v",
+		ErrIllegalAction, defender.ID, *reaction)
 }
 
 func (b *Board) counterOf(defender *Unit, attacker Footprint, reaction *Reaction) (*Weapon, error) {
@@ -257,8 +301,8 @@ func (b *Board) attackerVolley(actor, target *Unit, support bool, dice Dice, sho
 	if !support {
 		return nil
 	}
-	return b.fire(StrikeSupport, b.supportersOf(actor, actor.Footprint, target.Footprint),
-		dice, shot)
+	return b.fire(NodeSupportVolley, StrikeSupport,
+		b.supportersOf(actor, actor.Footprint, target.Footprint), dice, shot)
 }
 
 // The supporters of the defender fire after the strike of the attacker, so a
@@ -268,7 +312,7 @@ func (b *Board) defenderReply(actor, target *Unit, reaction Reaction, counter *W
 	var out Trace
 	if reaction.SupportAttack && actor.Alive() {
 		shot := volley{board: b, struck: actor, multiplier: NoDefenseMultiplier}
-		out = b.fire(StrikeDefenderSupport,
+		out = b.fire(NodeDefenderVolley, StrikeDefenderSupport,
 			b.supportersOf(target, target.Footprint, actor.Footprint), dice, &shot)
 	}
 	if counter != nil && actor.Alive() {
@@ -277,13 +321,14 @@ func (b *Board) defenderReply(actor, target *Unit, reaction Reaction, counter *W
 	return out
 }
 
-func (b *Board) fire(kind StrikeKind, supporters []SupportAttacker, dice Dice, shot *volley) Trace {
+func (b *Board) fire(node Node, kind StrikeKind, supporters []SupportAttacker, dice Dice,
+	shot *volley) Trace {
 	if len(supporters) == 0 {
 		return nil
 	}
 	// One die settles the whole volley, so the probability is the one of the
 	// first shot. A die for each supporter is issue #47.
-	landed := dice.Lands(NodeSupportVolley, StrikeHitProbability(supporters[0].Unit,
+	landed := dice.Lands(node, StrikeHitProbability(supporters[0].Unit,
 		shot.struck, supporters[0].Weapon, false, b.Rules))
 	out := make(Trace, 0, len(supporters))
 	for _, supporter := range supporters {
@@ -362,48 +407,47 @@ func (b *Board) mapAttack(actor *Unit, decision Decision) (Trace, error) {
 	return out, nil
 }
 
+// The enumeration gives only the skill whose area is the cell of the caster, so
+// the caster is the one legal target of the decision.
 func (b *Board) skill(actor *Unit, decision Decision) (Trace, outcome, error) {
-	skill := actor.Skill(decision.Kind)
+	if decision.TargetID != "" && decision.TargetID != actor.ID {
+		return nil, outcome{}, fmt.Errorf("%w: the skill %q of unit %q reaches no unit %q",
+			ErrIllegalAction, decision.Kind, actor.ID, decision.TargetID)
+	}
+	skill := actor.Skill(decision.Kind, decision.Amount)
 	if skill == nil {
-		return nil, outcome{}, fmt.Errorf("%w: unit %q holds no skill %q with a use left",
+		return nil, outcome{}, fmt.Errorf("%w: unit %q holds no skill %q of that amount with a use left",
 			ErrIllegalAction, actor.ID, decision.Kind)
 	}
 	anchor, err := b.destination(actor, decision.MoveTo, skill.UsableAfterMove)
 	if err != nil {
 		return nil, outcome{}, err
 	}
-	target := actor
-	if decision.TargetID != "" {
-		target, err = b.livingUnit(decision.TargetID)
-		if err != nil {
-			return nil, outcome{}, err
-		}
-	}
 
 	actor.Footprint.Anchor = anchor
 	skill.Uses--
-	record := Strike{Kind: StrikeSkill, ShooterID: actor.ID, StruckID: target.ID, Landed: true}
-	amount := decision.Amount
-	if amount == nil {
-		amount = skill.Amount
-	}
+	record := Strike{Kind: StrikeSkill, ShooterID: actor.ID, StruckID: actor.ID, Landed: true}
 	switch decision.Kind {
 	case ActionSkillHeal:
-		record.Damage = gain(target.HP, target.MaxHP, amount)
-		target.HP += record.Damage
+		record.Damage = gain(actor.HP, actor.MaxHP, skill.Amount)
+		actor.HP += record.Damage
 	case ActionSkillRefill:
-		record.Damage = gain(target.EN, target.ENMax, amount)
-		target.EN += record.Damage
+		record.Damage = gain(actor.EN, actor.ENMax, skill.Amount)
+		actor.EN += record.Damage
 	}
 	return Trace{record}, outcome{endsActivation: skill.EndsActivation}, nil
 }
 
-// A skill with no amount gives the whole maximum, and the value stops at that
-// maximum.
+// A skill with no amount gives the whole room up to the maximum. The amount
+// comes from the wire as a float, so a value that no integer holds gives the
+// room as well, and a value below zero gives nothing.
 func gain(value, limit int, amount *float64) int {
-	room := limit - value
-	if amount == nil || int(*amount) > room {
+	room := max(0, limit-value)
+	if amount == nil || math.IsNaN(*amount) || *amount >= float64(room) {
 		return room
+	}
+	if *amount < 0 {
+		return 0
 	}
 	return int(*amount)
 }
