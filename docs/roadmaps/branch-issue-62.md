@@ -49,6 +49,16 @@ New:
   carries every argument; an unknown field stops the op.
 - 'tests/fixtures/engine/formulas.json': 54 checks (3 standard,
   51 formula checks).
+- 'engine/battle/terrain.go': the type 'Terrain' with its five
+  kinds, its wire names, 'String', 'ParseTerrain', and the set
+  type 'TerrainSet'. 'TerrainSpace' is the zero value, so a board
+  that declares no terrain reads space.
+- 'engine/battle/terrain_test.go': the terrain facts and the
+  terrain half of the codec (the zero-value weapon, a weapon that
+  halves against water, a weapon that cannot fire under water, the
+  default kind against an override, the anchor cell of a unit, a
+  payload with no terrain, a payload with terrain, and four names
+  outside the contract).
 
 Changed:
 
@@ -71,10 +81,32 @@ Changed:
   pilot, one term for each level; the rows that read "unit attack"
   and "unit defense" for a mech value now say mech, and the unit
   row records that the wire names stay 'unit_attack' and
-  'unit_defense'.
+  'unit_defense'. New rows bind the terrain and the terrain
+  restriction; the 'terrain' row names the Go type and the two
+  wire fields of the board.
+- 'engine/battle/model.go': 'Weapon' carries 'TerrainDamage' and
+  'UnusableIn', read through 'DamageScaleAgainst' and 'UsableIn';
+  'Board' carries 'DefaultTerrain' and 'TerrainCells', read
+  through 'TerrainAt' and 'TerrainOf'.
+- 'engine/battle/codec.go': the weapon decode moves into
+  'decodeWeapon', which parses the two restriction fields; the
+  state decode fills the two board fields.
+- 'engine/protocol/state.go': the optional wire fields
+  'terrain_damage' and 'unusable_in' on 'Weapon', 'terrain' and
+  'terrain_cells' on 'BattleState', and the type 'TerrainCell'.
+- 'engine/protocol/envelope.go', 'src/ggge_ai/engine/contract.py':
+  the protocol version 1.2.
+- 'tests/test_engine_codec.py': 'ENGINE_ONLY' names the Go fields
+  that 'model.py' does not hold, so the parity gate takes them and
+  still refuses an undeclared one.
+- 'tests/test_sandbox_ui.py': the panel check reads
+  'PROTOCOL_VERSION' instead of a copy of the number.
+- 'docs/spec/battle-engine-protocol.md': the section 'Terrain'
+  with the two payload tables, and the rule for an engine-only
+  field.
 
-Nothing changes on the wire: 'engine/protocol', the protocol
-version and the spec are untouched.
+The wire gains optional fields only. A payload of protocol 1.1
+decodes to the same board as before.
 
 ## Exported Go API
 
@@ -101,6 +133,32 @@ version and the spec are untouched.
         abilityCorrection float64) float64
     func HitProbability(attacker, defender *Unit,
         abilityCorrection float64) float64
+
+    type Terrain int
+    const (
+        TerrainSpace Terrain = iota
+        TerrainAtmospheric
+        TerrainGround
+        TerrainSurface
+        TerrainUnderwater
+    )
+    type TerrainSet map[Terrain]bool
+    func (t Terrain) String() string
+    func ParseTerrain(name string) (Terrain, error)
+    type Weapon struct {
+        ...
+        TerrainDamage map[Terrain]float64
+        UnusableIn    TerrainSet
+    }
+    func (w Weapon) DamageScaleAgainst(target Terrain) float64
+    func (w Weapon) UsableIn(attacker Terrain) bool
+    type Board struct {
+        ...
+        DefaultTerrain Terrain
+        TerrainCells   map[Cell]Terrain
+    }
+    func (b *Board) TerrainAt(cell Cell) Terrain
+    func (b *Board) TerrainOf(unit *Unit) Terrain
 
 ## Call chain
 
@@ -138,6 +196,30 @@ caller.
 5. The formula case reuses the setup of the small board. The case
    format demands a setup, and these checks carry their own
    numbers.
+6. The parity gate of 'tests/test_engine_codec.py' demanded that
+   the Go struct and the dataclass hold the same field list, so
+   the terrain fields could not reach 'Weapon' or 'BattleState'
+   while 'model.py' stays untouched. The gate now takes a named
+   list of engine-only fields. The alternative, an anonymous
+   embedded struct, would pass the gate only because the parser
+   reads no tag on that line; that is a hole in the parser, not a
+   contract. A third alternative, a field on 'protocol.Board',
+   fails on the facts: 'protocol.Board' carries the width and the
+   height of 'init' and no decode reads it into the domain, while
+   'battle.DecodeState' reads 'BattleState' alone.
+7. 'TerrainOf' reads the anchor cell of the unit. A footprint of
+   more than one cell can stand on more than one kind. The game
+   shows the terrain of a cell, and no source says which cell of a
+   large unit counts. The anchor is the cell the payload names,
+   and the section 'Board geometry' already gives it that role.
+8. The terrain restriction reads a factor, not a percentage: 0.5,
+   not 50. The formula divides by it, and every other correction
+   in the package is a factor.
+9. The protocol version rose in both halves in one commit. The
+   task said not to touch 'src/ggge_ai', but the 'hello' check
+   compares the Go constant against 'PROTOCOL_VERSION', so a
+   one-sided raise breaks the gate. The change is the one line of
+   the constant.
 
 ## Verification
 
@@ -147,6 +229,7 @@ caller.
 - uv run ruff check src tests scripts: all checks passed.
 - uv run python scripts/write_engine_fixtures.py --check: nothing
   stale; the four earlier golden files came back byte for byte.
+  'git diff a07ab0f -- tests/fixtures/' is empty.
 
 The case set covers zero on every argument, attack under defense
 (the ratios clamp, the sigmoids do not), both sigmoid saturations
@@ -174,15 +257,31 @@ which can override them, and the terminology row says so.
 
 - A missing input field decodes as zero on the Go side; the
   writer always emits every field, so no case meets that hole.
-- A terrain of 0: Python raises a division error, Go gives an
-  infinity. Neither side has a guard today. The rules payload
-  carries the terrain, and the issue that decodes the rules into
-  the domain must reject a zero there.
+- A terrain damage factor of 0: Python raises a division error, Go
+  gives an infinity. The datamine holds no weapon that nullifies
+  damage, so no payload should carry a zero, and the decode
+  refuses no value today. The issue that wires the restriction
+  into the strike path decides whether to reject it there.
 - The constants are community-fitted values, and
   docs/reference/combat-formulas.md lists the calibration items
   that stay open. The branch adds no rule.
-- Terrain stays open, and this branch does not own it. A separate
-  investigation runs on terrain adaptability; its result decides
-  what the divisor of formula 8 reads and where the value comes
-  from. Until then 'CombatBaseDamage' and 'ExpectedDamage' take
-  the terrain as a plain float from the caller.
+- Terrain is settled for the model and open for the producer of
+  the data. The investigation of 2026-08-21 answered what the
+  divisor reads, and the branch holds the model: the weapon
+  carries its restriction, the cell carries its kind, and
+  'DamageScaleAgainst' gives the divisor. Open: nothing reads the
+  terrain of the map or of the weapon off the device yet, so every
+  payload today declares none and every divisor is 1. Open too:
+  which cell of the map holds which kind (the datamine stage table
+  lights more than one flag on 200 stages, and the meaning of the
+  flags is not verified), and which weapon carries the ability id
+  2 or 4 of the datamine weapon table.
+- The strike path does not read the restriction yet.
+  'CombatBaseDamage' and 'ExpectedDamage' still take the divisor
+  as a plain float from the caller, and their signatures are
+  pinned by the differential harness. The engagement issue joins
+  the two: it reads 'DamageScaleAgainst' with 'TerrainOf' of the
+  target and passes the result.
+- 'UsableIn' gates no action list yet. The issue that builds the
+  legal actions must drop a weapon that cannot fire from the cell
+  of the attacker.
