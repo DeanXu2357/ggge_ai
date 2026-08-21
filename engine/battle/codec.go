@@ -153,6 +153,7 @@ func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 		Name:      weapon.Name,
 		Range:     RadiusRange{Min: weapon.RangeMin, Max: weapon.RangeMax},
 		ENCost:    weapon.ENCost,
+		Accuracy:  weapon.Accuracy,
 		MapWeapon: weapon.MapWeapon,
 	}
 	for name, scale := range weapon.TerrainDamage {

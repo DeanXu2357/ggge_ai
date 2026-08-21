@@ -80,9 +80,10 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 		SupportDefendCharges: 1,
 		SupportAttackCharges: 2,
 		Weapons: []Weapon{{
-			Name:   "rifle",
-			Range:  RadiusRange{Min: 1, Max: 4},
-			ENCost: 15,
+			Name:     "rifle",
+			Range:    RadiusRange{Min: 1, Max: 4},
+			ENCost:   15,
+			Accuracy: 12,
 		}},
 	}
 	if got := board.Unit("a1"); !reflect.DeepEqual(*got, want) {

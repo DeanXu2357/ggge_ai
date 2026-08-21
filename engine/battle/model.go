@@ -59,6 +59,7 @@ type Weapon struct {
 	Name          string
 	Range         RadiusRange
 	ENCost        int
+	Accuracy      float64
 	MapWeapon     bool
 	TerrainDamage map[Terrain]float64
 	UnusableIn    TerrainSet
