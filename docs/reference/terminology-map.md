@@ -68,7 +68,7 @@ term at its first use in each document, then use the short form.
 | Ex weapon | Ex 武裝 | The weapon of a UR unit. Its judgment is above all abilities: the attack always hits, and it ignores some kinds of damage reduction (user ruling 2026-08-14; which kinds is open) |
 | support crew skill | 支援人員技能 | A skill that any unit in the team can trigger; the team can use each one one time in each stage. The effect covers the units in range |
 | pilot skill | 駕駛技能 | A skill that consumes pilot SP; the effect applies to the unit that the pilot rides |
-| unit skill | 機體技能 | A skill that the machine triggers at no cost; the effect applies mostly to the machine itself |
+| unit skill | 機體技能 | A skill that the mech triggers at no cost; the effect applies mostly to the mech itself. The English term keeps the wire value 'unit' of the skill source; the level it names is the mech |
 | skill source | 技能來源 | Who supplies a skill: the field 'source' of 'Skill' (sandbox/model.py). The three values bind to the three rows above: 'character' is the 駕駛技能 row, 'crew' is the 支援人員技能 row, and 'unit' is the 機體技能 row. The contract writes 'character' where this map writes pilot skill; one concept, two names, and the wire keeps the contract name. The source does not decide the timing of the skill: 'usable_after_move' is a field of each skill |
 | affects | 作用陣營 | The faction filter of the area of a skill: the field 'affects' of 'Skill'. The values are 'ally', 'enemy' and 'all'. There is no 'self' value: a skill that acts on the caster alone carries a range of 0, a blast of 0 and 'ally', because the caster is an ally in its own cell. The Chinese term keeps 陣營, which battle-prep-ui.md holds for the same sense of faction |
 | sandbox facade | 沙盤門面 | The class 'Sandbox' in sandbox/facade.py. Code outside the sandbox package uses it for every read of the board and every advance of the state. The facade aggregates and serializes only; the game logic stays in sandbox/model.py |
@@ -81,11 +81,14 @@ term at its first use in each document, then use the short form.
 | server draw | 伺服器抽骰 | The other dice input of play mode: 'scripts/sandbox_ui.py' draws the hit node from the probability in the decision payload. The draw is input synthesis in the shell; the sandbox package holds no random source |
 | footprint | 外形 | The rectangle of cells that one unit covers on the board. The field 'size' of a unit holds its width and its height. A unit does not turn. The rule is in docs/spec/battle-engine-protocol.md, section 'Board geometry' |
 | anchor cell | 錨點格 | The cell of a footprint with the least value on each axis. The field 'pos' of a unit holds it. The command 'reach' answers anchor cells. Short form 錨點 after the first use |
+| unit | 單位 | One deployed piece on the board: a pilot that rides a mech. The Go type 'Unit' in engine/battle holds the board facts and the two levels, the fields 'Pilot' and 'Mech'. The wire fields 'unit_attack' and 'unit_defense' carry mech values; the contract names are frozen |
+| mech | 機體 | The machine of a unit. Its combat values are attack, defense and mobility: the Go type 'Mech'. Do not write "unit attack" or "unit defense" for the attack and the defense of a mech |
+| pilot | 駕駛 | The character that rides the mech. Its combat values are attack, defense and reaction: the Go type 'Pilot'. The reaction value drives evasion (docs/reference/combat-formulas.md) |
 | pending ruling | 待裁 | The marker for an item that needs a ruling from the user, not more evidence. Write the English form in a new issue, a new document, and a commit message. The Chinese form appears three times in the frozen record docs/record/decisions.md; leave those alone |
-| ratio correction | 比率補正 | The formulas 1 and 2 of docs/reference/combat-formulas.md. Formula 1 is the pilot attack minus the pilot defense, over 5000. Formula 2 is the unit attack minus the unit defense, each over 10, over 5000. Both clamp at zero |
-| sigmoid correction | 函數補正 | The formulas 3 and 4. Each one is one over one plus the exponential of the scaled gap between the defense and the attack. Each one gives one half at equal values |
-| attack correction | 攻擊補正 | Formula 6. It is the logistic term of the attacker values. It scales the base damage up |
-| defense correction | 防禦補正 | Formula 7. It is the logistic term of the defender values. It scales the base damage down |
+| ratio correction | 比率補正 | The formulas 1 and 2 of docs/reference/combat-formulas.md. Formula 1 is the pilot attack minus the pilot defense, over 5000. Formula 2 is the mech attack minus the mech defense, each over 10, over 5000. Both clamp at zero. Go: 'pilotRatio' and 'mechRatio' |
+| sigmoid correction | 函數補正 | The formulas 3 and 4. Each one is one over one plus the exponential of the scaled gap between the defense and the attack. Formula 3 reads the pilot values and formula 4 reads the mech values. Each one gives one half at equal values. Go: 'pilotSigmoid' and 'mechSigmoid' |
+| attack correction | 攻擊補正 | Formula 6. It is the logistic term of the mech attack and the pilot attack of the attacker. It scales the base damage up |
+| defense correction | 防禦補正 | Formula 7. It is the logistic term of the mech defense and the pilot defense of the defender. It scales the base damage down |
 | base damage | 基礎傷害 | Formula 5 of docs/reference/combat-formulas.md: the weapon power times the sum of the two ratio corrections and the two sigmoid corrections. Go: 'BaseDamage' in engine/battle |
 | combat base damage | 戰鬥基本傷害 | Formula 8: the base damage times one plus the attack correction plus the defense correction, divided by the terrain. Go: 'CombatBaseDamage' |
 | damage scale | 傷害增減補正 | Formula 9: one plus the sum of the bonuses minus the sum of the penalties. Go: 'DamageScale' |
@@ -94,7 +97,7 @@ term at its first use in each document, then use the short form.
 | defense multiplier | 防禦行動倍率 | The multiplier of the reaction stance in formula 10: 1.0 with no defense, 0.8 for 'defend', 0.6 for 'shield'. Go: 'NoDefenseMultiplier', 'DefendMultiplier', 'ShieldMultiplier'. These constants are the default values. The stage rules can override them with 'defend_multiplier' and 'shield_multiplier' in the rules payload |
 | critical multiplier | 暴擊倍率 | The multiplier of formula 11: 1.1 normal, 1.2 at high morale, 1.3 for a super attack. Go: 'CritNormal', 'CritHighMorale', 'CritSuper' |
 | terrain | 地形補正 | The divisor of formula 8. One stage map has one value (0814 ruling); the rules carry it as 'terrain' |
-| hit rate | 命中率 | The percent chance that a strike lands, clamped to 0 to 100. The hit probability is the rate over 100. Go: 'HitRatePercent', 'HitProbability' |
+| hit rate | 命中率 | The percent chance that a strike lands, clamped to 0 to 100. It reads the mobility of each mech, and the pilot attack of the attacker against the pilot reaction of the defender. The hit probability is the rate over 100. Go: 'HitRatePercent', 'HitProbability' |
 | ability correction | 能力補正 | The additive term of the hit rate. The weapon accuracy feeds it. The sandbox also subtracts the dodge penalty here. That term is a placeholder, because docs/reference/combat-formulas.md lists the dodge correction as not yet measured |
 
 Retired name — 'solver': the word names only the deleted legacy
