@@ -1,0 +1,244 @@
+package battle
+
+import "fmt"
+
+// Actions gives the legal actions of one unit: the attacks, the map attacks,
+// the skills, the repositions and the standby, in that order.
+func (b *Board) Actions(unitID string) ([]Decision, error) {
+	unit := b.Unit(unitID)
+	if unit == nil {
+		return nil, fmt.Errorf("the board holds no unit %q", unitID)
+	}
+	targets := b.TargetsOf(unit)
+	anchors := SortedCells(ReachableAnchors(unit.Footprint, unit.MoveRange,
+		b.BlockingCells(unit), b.OccupiedCells(unit), b.Bounds))
+
+	out := attacks(unit, targets, anchors)
+	out = append(out, mapAttacks(unit, targets, anchors)...)
+	out = append(out, skillActions(unit)...)
+	out = append(out, repositions(unit, targets, anchors)...)
+	return append(out, Decision{UnitID: unit.ID, Kind: ActionStandby, Support: true}), nil
+}
+
+func attacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
+	var out []Decision
+	for _, target := range targets {
+		for index := range unit.Weapons {
+			weapon := &unit.Weapons[index]
+			if weapon.MapWeapon || unit.EN < weapon.ENCost {
+				continue
+			}
+			destination, found := firingAnchor(unit, weapon, target.Footprint, anchors)
+			if !found {
+				continue
+			}
+			out = append(out, Decision{
+				UnitID:   unit.ID,
+				Kind:     ActionAttack,
+				MoveTo:   move(unit, destination),
+				TargetID: target.ID,
+				Weapon:   weapon.Name,
+				Support:  true,
+			})
+		}
+	}
+	return out
+}
+
+// A map attack names its area center in 'aim' and no target, because the strike
+// hits every unit of the blast.
+func mapAttacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
+	var out []Decision
+	for index := range unit.Weapons {
+		weapon := &unit.Weapons[index]
+		if !weapon.MapWeapon || unit.Ammo[weapon.Name] <= 0 || unit.EN < weapon.ENCost {
+			continue
+		}
+		for _, target := range targets {
+			destination, found := firingAnchor(unit, weapon, target.Footprint, anchors)
+			if !found {
+				continue
+			}
+			aim := target.Footprint.Anchor
+			out = append(out, Decision{
+				UnitID:  unit.ID,
+				Kind:    ActionMapAttack,
+				MoveTo:  move(unit, destination),
+				Weapon:  weapon.Name,
+				Aim:     &aim,
+				Support: true,
+			})
+		}
+	}
+	return out
+}
+
+// This issue enumerates a skill whose area is the caster alone. A skill that
+// reaches another cell needs the center of its area in 'aim', and the rule that
+// picks that center belongs to a later issue.
+func skillActions(unit *Unit) []Decision {
+	var out []Decision
+	for _, skill := range unit.Skills {
+		if skill.Uses <= 0 || skill.Range.Max != 0 || !skillHasRoom(unit, skill) {
+			continue
+		}
+		out = append(out, Decision{
+			UnitID:  unit.ID,
+			Kind:    skill.Kind,
+			Amount:  copyAmount(skill.Amount),
+			Support: true,
+		})
+	}
+	return out
+}
+
+func skillHasRoom(unit *Unit, skill Skill) bool {
+	switch skill.Kind {
+	case ActionSkillHeal:
+		return unit.HP < unit.MaxHP
+	case ActionSkillRefill:
+		return unit.EN < unit.ENMax
+	default:
+		return false
+	}
+}
+
+// A reposition names one anchor near each target and one anchor away from the
+// nearest target, so a search that holds no attack still holds a step forward
+// and a step back.
+func repositions(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
+	if unit.MoveRange <= 0 || len(targets) == 0 {
+		return nil
+	}
+	picks := make([]Cell, 0, len(targets)+1)
+	for _, target := range targets {
+		picks = append(picks, nearestAnchor(unit, anchors, target.Footprint))
+	}
+	picks = append(picks, farthestAnchor(unit, anchors, nearestTarget(unit, targets).Footprint))
+
+	var out []Decision
+	taken := CellSet{unit.Footprint.Anchor: true}
+	for _, cell := range picks {
+		if taken[cell] {
+			continue
+		}
+		taken[cell] = true
+		destination := cell
+		out = append(out, Decision{
+			UnitID:  unit.ID,
+			Kind:    ActionReposition,
+			MoveTo:  &destination,
+			Support: true,
+		})
+	}
+	return out
+}
+
+func nearestTarget(unit *Unit, targets []*Unit) *Unit {
+	nearest := targets[0]
+	best := SpanDistance(unit.Footprint, nearest.Footprint)
+	for _, target := range targets[1:] {
+		if distance := SpanDistance(unit.Footprint, target.Footprint); distance < best {
+			nearest, best = target, distance
+		}
+	}
+	return nearest
+}
+
+// firingAnchor gives the anchor from which the unit fires the weapon at the
+// target: the anchor in the band of the weapon that is nearest to the anchor of
+// today. A weapon that no anchor puts in the band gives no candidate.
+func firingAnchor(unit *Unit, weapon *Weapon, target Footprint, anchors []Cell) (Cell, bool) {
+	var best Cell
+	var bestKey nearness
+	found := false
+	for _, cell := range firingAnchors(unit, weapon, anchors) {
+		if !weapon.Range.Holds(SpanDistance(footprintAt(unit, cell), target)) {
+			continue
+		}
+		key := nearnessOf(unit, cell, unit.Footprint)
+		if !found || key.before(bestKey) {
+			best, bestKey, found = cell, key, true
+		}
+	}
+	return best, found
+}
+
+func firingAnchors(unit *Unit, weapon *Weapon, anchors []Cell) []Cell {
+	if weapon.UsableAfterMove {
+		return anchors
+	}
+	return []Cell{unit.Footprint.Anchor}
+}
+
+func nearestAnchor(unit *Unit, anchors []Cell, other Footprint) Cell {
+	best, bestKey := anchors[0], nearnessOf(unit, anchors[0], other)
+	for _, cell := range anchors[1:] {
+		if key := nearnessOf(unit, cell, other); key.before(bestKey) {
+			best, bestKey = cell, key
+		}
+	}
+	return best
+}
+
+func farthestAnchor(unit *Unit, anchors []Cell, other Footprint) Cell {
+	best, bestKey := anchors[0], nearnessOf(unit, anchors[0], other)
+	for _, cell := range anchors[1:] {
+		if key := nearnessOf(unit, cell, other); bestKey.before(key) {
+			best, bestKey = cell, key
+		}
+	}
+	return best
+}
+
+// nearness ranks the anchors of one unit against one footprint. The distance of
+// the board comes first. Two anchors at that distance part on the squared
+// Euclid distance of the two anchors, which prefers the straight line, and then
+// on the coordinate, which makes the pick deterministic.
+type nearness struct {
+	distance int
+	euclid   int
+	cell     Cell
+}
+
+func nearnessOf(unit *Unit, cell Cell, other Footprint) nearness {
+	dx := cell[0] - other.Anchor[0]
+	dy := cell[1] - other.Anchor[1]
+	return nearness{
+		distance: SpanDistance(footprintAt(unit, cell), other),
+		euclid:   dx*dx + dy*dy,
+		cell:     cell,
+	}
+}
+
+func (n nearness) before(other nearness) bool {
+	if n.distance != other.distance {
+		return n.distance < other.distance
+	}
+	if n.euclid != other.euclid {
+		return n.euclid < other.euclid
+	}
+	if n.cell[0] != other.cell[0] {
+		return n.cell[0] < other.cell[0]
+	}
+	return n.cell[1] < other.cell[1]
+}
+
+func footprintAt(unit *Unit, anchor Cell) Footprint {
+	return Footprint{Anchor: anchor, Size: unit.Footprint.Size}
+}
+
+func move(unit *Unit, destination Cell) *Cell {
+	if destination == unit.Footprint.Anchor {
+		return nil
+	}
+	return &destination
+}
+
+func copyAmount(amount *float64) *float64 {
+	if amount == nil {
+		return nil
+	}
+	out := *amount
+	return &out
+}
