@@ -52,11 +52,27 @@ func (f Faction) Opposing() Faction {
 	return FactionAlly
 }
 
+// A weapon that declares no restriction deals full damage against every
+// terrain and fires from every terrain: an absent entry of TerrainDamage is
+// 1.0, and an absent entry of UnusableIn permits the shot.
 type Weapon struct {
-	Name      string
-	Range     RadiusRange
-	ENCost    int
-	MapWeapon bool
+	Name          string
+	Range         RadiusRange
+	ENCost        int
+	MapWeapon     bool
+	TerrainDamage map[Terrain]float64
+	UnusableIn    TerrainSet
+}
+
+func (w Weapon) DamageScaleAgainst(target Terrain) float64 {
+	if scale, declared := w.TerrainDamage[target]; declared {
+		return scale
+	}
+	return 1
+}
+
+func (w Weapon) UsableIn(attacker Terrain) bool {
+	return !w.UnusableIn[attacker]
 }
 
 type Pilot struct {
@@ -105,8 +121,24 @@ func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
 }
 
 type Board struct {
-	Bounds Bounds
-	Units  []Unit
+	Bounds         Bounds
+	Units          []Unit
+	DefaultTerrain Terrain
+	TerrainCells   map[Cell]Terrain
+}
+
+func (b *Board) TerrainAt(cell Cell) Terrain {
+	if kind, declared := b.TerrainCells[cell]; declared {
+		return kind
+	}
+	return b.DefaultTerrain
+}
+
+func (b *Board) TerrainOf(unit *Unit) Terrain {
+	if unit == nil {
+		return b.DefaultTerrain
+	}
+	return b.TerrainAt(unit.Footprint.Anchor)
 }
 
 func (b *Board) Unit(id string) *Unit {
