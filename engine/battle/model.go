@@ -3,6 +3,8 @@ package battle
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 )
 
 type Cell [2]int
@@ -224,6 +226,17 @@ func (u *Unit) Alive() bool {
 	return u != nil && u.HP > 0
 }
 
+// Clone copies every part of the unit that one activation writes. The terrain
+// maps of a weapon and the amount of a skill stay shared: no rule writes them.
+func (u Unit) Clone() Unit {
+	out := u
+	out.Weapons = slices.Clone(u.Weapons)
+	out.Skills = slices.Clone(u.Skills)
+	out.Ammo = maps.Clone(u.Ammo)
+	out.Debuffs = slices.Clone(u.Debuffs)
+	return out
+}
+
 func (u *Unit) HasENFor(weapon Weapon) bool {
 	return u.EN >= weapon.ENCost
 }
@@ -310,6 +323,23 @@ type Board struct {
 	Rules          Rules
 	DefaultTerrain Terrain
 	TerrainCells   map[Cell]Terrain
+	Events         EventTable
+	PendingEvents  []string
+	FiredEvents    []string
+}
+
+// Clone gives a board that a caller can run an activation on without a change
+// to this one. The terrain map and the event table stay shared: the battle
+// writes neither, and a spawn copies the unit that it puts on the board.
+func (b *Board) Clone() *Board {
+	out := *b
+	out.Units = make([]Unit, len(b.Units))
+	for index := range b.Units {
+		out.Units[index] = b.Units[index].Clone()
+	}
+	out.PendingEvents = slices.Clone(b.PendingEvents)
+	out.FiredEvents = slices.Clone(b.FiredEvents)
+	return &out
 }
 
 func (b *Board) TerrainAt(cell Cell) Terrain {
@@ -333,12 +363,18 @@ var PhaseOrder = [...]Faction{FactionAlly, FactionThirdParty, FactionEnemy}
 // PhaseIndex counts the phases from the start of the battle. A debuff records
 // the index of the phase that applied it.
 func (b *Board) PhaseIndex() int {
-	for index, faction := range PhaseOrder {
-		if faction == b.Phase {
-			return b.Turn*len(PhaseOrder) + index
+	return b.Turn*len(PhaseOrder) + phaseSlot(b.Phase)
+}
+
+// phaseSlot gives the place of the faction in the phase order. A faction
+// outside the order takes the first place, as the ally side does.
+func phaseSlot(faction Faction) int {
+	for index, one := range PhaseOrder {
+		if one == faction {
+			return index
 		}
 	}
-	return b.Turn * len(PhaseOrder)
+	return 0
 }
 
 func (b *Board) Unit(id string) *Unit {

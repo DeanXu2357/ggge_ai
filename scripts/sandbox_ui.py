@@ -728,6 +728,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8642)
     parser.add_argument("--engine", default=None, help="戰局引擎執行檔路徑（不給就用假引擎）")
+    parser.add_argument("--seed", type=int, default=0, help="引擎抽骰種子；同種子重播同一場")
     return parser.parse_args(argv)
 
 
@@ -736,7 +737,7 @@ def main() -> int:
 
     engine = FakeEngine() if args.engine is None else BattleEngine(args.engine)
     engine.start()
-    sandbox = EngineSession.from_scenario(args.scenario, engine)
+    sandbox = EngineSession.from_scenario(args.scenario, engine, seed=args.seed)
     board = sandbox.snapshot()
     handler = build_handler(sandbox, engine=engine)
     server = ThreadingHTTPServer((args.host, args.port), handler)

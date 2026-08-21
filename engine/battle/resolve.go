@@ -162,6 +162,34 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 	return trace, outcome{killed: killed, endsActivation: true}, nil
 }
 
+// StrikeReactions gives the reactions that the defender of this decision can
+// take. An action that draws no reaction gives an empty list. The command 'act'
+// reads the length: a reaction is necessary when the list is not empty, and it
+// is not permitted when the list is empty.
+func (b *Board) StrikeReactions(decision Decision) ([]Reaction, error) {
+	actor, err := b.Activatable(decision.UnitID)
+	if err != nil {
+		return nil, err
+	}
+	if decision.Kind != ActionAttack {
+		return nil, nil
+	}
+	target, err := b.foe(actor, decision.TargetID)
+	if err != nil {
+		return nil, err
+	}
+	weapon := actor.Weapon(decision.Weapon)
+	if weapon == nil {
+		return nil, fmt.Errorf("%w: unit %q carries no weapon %q",
+			ErrIllegalAction, actor.ID, decision.Weapon)
+	}
+	anchor, err := b.destination(actor, decision.MoveTo, weapon.UsableAfterMove)
+	if err != nil {
+		return nil, err
+	}
+	return b.Reactions(target.ID, actor.ID, anchor, weapon.Name)
+}
+
 // foe gives the living unit of the opposing side that the strike names. The
 // faction rule is the one of TargetsOf, so a unit strikes at what the
 // enumeration offers it, and never at itself or at a unit of its own side.

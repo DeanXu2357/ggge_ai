@@ -14,7 +14,17 @@ import pytest
 from ggge_ai.engine.client import BattleEngine, EngineDead, EngineError, EngineTimeout
 from ggge_ai.engine.contract import DECLARED_COMMANDS, PROTOCOL_VERSION, ErrorCode
 
-IMPLEMENTED = {"hello", "ping", "load", "reach", "actions", "reactions"}
+IMPLEMENTED = {
+    "hello",
+    "ping",
+    "init",
+    "load",
+    "export",
+    "reach",
+    "actions",
+    "reactions",
+    "act",
+}
 
 
 def _script(path: Path, body: str) -> Path:
@@ -55,7 +65,7 @@ def test_hello_lists_every_declared_command_in_order(engine_executable):
 def test_a_declared_command_with_no_handler_is_not_implemented(engine_executable):
     responses, _ = _exchange(
         engine_executable,
-        '{"id":"d1","cmd":"act","payload":{}}',
+        '{"id":"d1","cmd":"certify","payload":{}}',
         '{"id":"d2","cmd":"ping","payload":{}}',
     )
 
@@ -100,7 +110,7 @@ def test_the_client_calls_hello_and_ping(engine_executable):
 def test_the_client_raises_engine_error_on_a_refusal(engine_executable):
     with BattleEngine(engine_executable) as engine:
         with pytest.raises(EngineError) as refusal:
-            engine.call("act", {})
+            engine.call("certify", {})
 
         assert refusal.value.code == ErrorCode.NOT_IMPLEMENTED
         assert engine.ping() == {}

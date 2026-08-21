@@ -1,7 +1,10 @@
 package battle
 
 import (
+	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
@@ -103,7 +106,256 @@ func DecodeState(state *protocol.BattleState) (*Board, error) {
 	}
 	board.Phase = phase
 	board.Turn = state.Turn
+	board.PendingEvents = slices.Clone(state.PendingEvents)
+	board.FiredEvents = slices.Clone(state.FiredEvents)
 	return board, nil
+}
+
+// DecodeInit builds the board of one battle from the request of 'init': the
+// map with its terrain, the units that the stage puts on it, the rules and the
+// stage event table. The battle starts on turn 1, in the ally phase, with every
+// event of the table waiting. The ally units arrive with the deploy commands.
+func DecodeInit(request *protocol.InitRequest) (*Board, error) {
+	if request.Board.Width <= 0 || request.Board.Height <= 0 {
+		return nil, fmt.Errorf("the board carries the size %d by %d",
+			request.Board.Width, request.Board.Height)
+	}
+	units, err := decodeUnits(request.Enemies)
+	if err != nil {
+		return nil, err
+	}
+	for _, unit := range units {
+		if unit.Faction == FactionAlly {
+			return nil, fmt.Errorf("the unit %q of the field \"enemies\" is of the ally side",
+				unit.ID)
+		}
+	}
+	rules, err := DecodeRules(request.Rules)
+	if err != nil {
+		return nil, err
+	}
+	bounds := Bounds{
+		Low:  Cell{0, 0},
+		High: Cell{request.Board.Width - 1, request.Board.Height - 1},
+	}
+	board, err := NewBoard(bounds, units, rules)
+	if err != nil {
+		return nil, err
+	}
+	if board.DefaultTerrain, err = decodeTerrain(request.Board.Terrain); err != nil {
+		return nil, err
+	}
+	if board.TerrainCells, err = decodeTerrainCells(request.Board.TerrainCells); err != nil {
+		return nil, err
+	}
+	if board.Events, err = DecodeEvents(request.Events); err != nil {
+		return nil, err
+	}
+	board.PendingEvents = slices.Sorted(maps.Keys(board.Events))
+	board.Phase = FactionAlly
+	board.Turn = 1
+	return board, nil
+}
+
+// EncodeState writes the board back to the wire. The terrain fields stay absent
+// while the whole map is in space and no cell takes another kind, so a state
+// that declared no terrain reads back as the same bytes.
+func EncodeState(board *Board) protocol.BattleState {
+	out := protocol.BattleState{
+		Units:         EncodeUnits(board.Units),
+		Phase:         wireFactions[board.Phase],
+		Turn:          board.Turn,
+		Bounds:        &protocol.Bounds{EncodeCell(board.Bounds.Low), EncodeCell(board.Bounds.High)},
+		PendingEvents: eventNames(board.PendingEvents),
+		FiredEvents:   eventNames(board.FiredEvents),
+		TerrainCells:  encodeTerrainCells(board.TerrainCells),
+	}
+	if board.DefaultTerrain != TerrainSpace {
+		out.Terrain = board.DefaultTerrain.String()
+	}
+	return out
+}
+
+func eventNames(ids []string) []string {
+	if ids == nil {
+		return []string{}
+	}
+	return ids
+}
+
+// The overrides come out in one order, because a map holds none.
+func encodeTerrainCells(cells map[Cell]Terrain) []protocol.TerrainCell {
+	if len(cells) == 0 {
+		return nil
+	}
+	taken := make(CellSet, len(cells))
+	for cell := range cells {
+		taken[cell] = true
+	}
+	out := make([]protocol.TerrainCell, 0, len(cells))
+	for _, cell := range SortedCells(taken) {
+		out = append(out, protocol.TerrainCell{
+			Cell:    EncodeCell(cell),
+			Terrain: cells[cell].String(),
+		})
+	}
+	return out
+}
+
+// DecodeOutcomes reads the outcome list of the forced dice. Every chance node
+// of the engine settles one shot, so the label set holds 'hit' and 'miss'.
+func DecodeOutcomes(labels []string) ([]bool, error) {
+	out := make([]bool, 0, len(labels))
+	for _, label := range labels {
+		switch label {
+		case protocol.OutcomeHit:
+			out = append(out, true)
+		case protocol.OutcomeMiss:
+			out = append(out, false)
+		default:
+			return nil, fmt.Errorf("the outcome %q is not in the contract", label)
+		}
+	}
+	return out, nil
+}
+
+// DecodeEvents reads the stage event table. A trigger or an effect outside the
+// contract stops the decode: the turn cycle runs the table at every activation,
+// and an entry that it cannot run is a stage that it cannot play.
+func DecodeEvents(events protocol.EventTable) (EventTable, error) {
+	if len(events) == 0 {
+		return nil, nil
+	}
+	out := make(EventTable, len(events))
+	for id, event := range events {
+		decoded, err := decodeEvent(id, event)
+		if err != nil {
+			return nil, err
+		}
+		out[id] = decoded
+	}
+	return out, nil
+}
+
+func decodeEvent(id string, event protocol.StageEvent) (StageEvent, error) {
+	trigger, err := decodeTrigger(event.Trigger)
+	if err != nil {
+		return StageEvent{}, fmt.Errorf("the event %q: %w", id, err)
+	}
+	effect, err := decodeEffect(event.Effect)
+	if err != nil {
+		return StageEvent{}, fmt.Errorf("the event %q: %w", id, err)
+	}
+	return StageEvent{ID: id, Trigger: trigger, Effect: effect}, nil
+}
+
+func decodeTrigger(payload json.RawMessage) (Trigger, error) {
+	var raw struct {
+		Type       TriggerKind `json:"type"`
+		UnitID     string      `json:"uid"`
+		WithinTurn *int        `json:"within_turn"`
+		Turn       int         `json:"turn"`
+	}
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return Trigger{}, fmt.Errorf("the trigger: %w", err)
+	}
+	if raw.Type != TriggerKill && raw.Type != TriggerTurnStart {
+		return Trigger{}, fmt.Errorf("the trigger %q is not in the contract", raw.Type)
+	}
+	return Trigger{
+		Kind:       raw.Type,
+		UnitID:     raw.UnitID,
+		WithinTurn: raw.WithinTurn,
+		Turn:       raw.Turn,
+	}, nil
+}
+
+// An absent multiplier of a weaken effect is 1.0: the effect leaves that value
+// of the mech as it was.
+func decodeEffect(payload json.RawMessage) (Effect, error) {
+	var raw struct {
+		Type              EffectKind      `json:"type"`
+		Units             []protocol.Unit `json:"units"`
+		UnitIDs           []string        `json:"uids"`
+		AttackMultiplier  *float64        `json:"attack_multiplier"`
+		DefenseMultiplier *float64        `json:"defense_multiplier"`
+	}
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return Effect{}, fmt.Errorf("the effect: %w", err)
+	}
+	if raw.Type != EffectSpawn && raw.Type != EffectWeaken {
+		return Effect{}, fmt.Errorf("the effect %q is not in the contract", raw.Type)
+	}
+	units, err := decodeUnits(raw.Units)
+	if err != nil {
+		return Effect{}, err
+	}
+	return Effect{
+		Kind:              raw.Type,
+		Units:             units,
+		UnitIDs:           raw.UnitIDs,
+		AttackMultiplier:  scaleOf(raw.AttackMultiplier),
+		DefenseMultiplier: scaleOf(raw.DefenseMultiplier),
+	}, nil
+}
+
+func scaleOf(value *float64) float64 {
+	if value == nil {
+		return 1
+	}
+	return *value
+}
+
+// EncodeRules writes the rules of the session back to the wire.
+func EncodeRules(rules Rules) protocol.Rules {
+	return protocol.Rules(rules)
+}
+
+// EncodeResolution writes the resolution in order: the strikes of the
+// engagement, then the stage events that the outcome fired, then the phase
+// boundaries that the turn cycle crossed.
+func EncodeResolution(resolution Resolution) []any {
+	out := make([]any, 0, len(resolution.Trace)+len(resolution.Fired)+len(resolution.Rotations))
+	for _, strike := range resolution.Trace {
+		out = append(out, protocol.StrikeEvent{
+			Kind:      string(strike.Kind),
+			ShooterID: strike.ShooterID,
+			StruckID:  strike.StruckID,
+			Weapon:    strike.Weapon,
+			Landed:    strike.Landed,
+			Damage:    strike.Damage,
+			Killed:    strike.Killed,
+		})
+	}
+	for _, id := range resolution.Fired {
+		out = append(out, protocol.StageEventFired{Kind: protocol.EventStageEvent, EventID: id})
+	}
+	for _, rotation := range resolution.Rotations {
+		for _, id := range rotation.Fired {
+			out = append(out, protocol.StageEventFired{Kind: protocol.EventStageEvent, EventID: id})
+		}
+		out = append(out, protocol.PhaseEvent{
+			Kind:  protocol.EventPhase,
+			Turn:  rotation.Turn,
+			Phase: wireFactions[rotation.Phase],
+		})
+	}
+	return out
+}
+
+// EncodeSummary writes what the board looks like after a command that changed
+// it.
+func EncodeSummary(board *Board) protocol.BoardSummary {
+	pending := board.PendingUnits(board.Phase)
+	out := protocol.BoardSummary{
+		Turn:    board.Turn,
+		Phase:   wireFactions[board.Phase],
+		Pending: make([]string, 0, len(pending)),
+	}
+	for _, unit := range pending {
+		out.Pending = append(out.Pending, unit.ID)
+	}
+	return out
 }
 
 func decodeTerrain(name string) (Terrain, error) {

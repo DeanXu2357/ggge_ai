@@ -392,13 +392,12 @@ def _skill_affects(raw: Any) -> SkillAffects:
 
 
 def _stance(raw: Any) -> Stance:
+    # The enum holds the four stances of the reaction list and no 'none', so the
+    # value 'none' comes out of this call as a decode error.
     try:
-        stance = Stance(raw)
+        return Stance(raw)
     except ValueError as exc:
         raise ValueError(f"stance {raw!r} is not in the contract") from exc
-    if stance is Stance.NONE:
-        raise ValueError("The stance 'none' is not in the contract of the reaction list")
-    return stance
 
 
 def _str(payload: dict[str, Any], name: str) -> str:
