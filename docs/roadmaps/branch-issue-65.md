@@ -55,11 +55,12 @@ New:
 - 'tests/fixtures/engine/turn_cycle_board.json' and
   'turn_start_board.json': 4 'act' checks against the Python
   oracle, plus the three codec checks of the format.
-- Hand-written Go tests: 'turn_test.go' (14), 'events_test.go' (6),
+- Hand-written Go tests: 'turn_test.go' (13), 'events_test.go' (6),
   'dice_test.go' (5), 'server/act_test.go' (12),
   'server/session_test.go' (6 more).
 - 'tests/test_sandbox_ui.py': the page plays a battle end to end
-  against the built binary, and one seed gives one battle.
+  against the built binary, one seed gives one battle, and a
+  refused activation answers 400.
 
 Changed:
 
@@ -98,7 +99,7 @@ source that the seed builds.
 
 'act': 'boardOf' checks the session and decodes the request;
 'activation' merges the request reaction into the decision;
-'Server.dice' builds 'Scripted' or a clone of the session
+'Server.roll' builds 'Scripted' or a clone of the session
 'Sampled'; the handler clones the board; 'reactionFits' reads
 'Board.StrikeReactions' and holds the necessity rule of the
 contract; 'Board.Act' runs 'Board.Apply' (#64), then
@@ -202,13 +203,22 @@ On top of the six of #64:
    the battle is over. Both end-to-end tests hold that rule
    themselves. The victory conditions arrive with 'init' and wait
    for the advisor issue.
+10. Two changes to the page came out of the code review and are
+    wider than the port itself. The diagnostic endpoint /api/engine
+    called 'load' after every redraw, which replaces the session,
+    its random source and its history; it calls 'export' now.
+    'EngineSession.act' let a refusal through instead of answering
+    an empty dict, and the page answers illegal_action and
+    illegal_state with 400 and a dead engine with 502. Without the
+    two, the play mode reads a refused move as a move that changed
+    nothing, and the seed of the session does not survive a redraw.
 
 ## Verification
 
 - From 'engine': go vet clean; go test ok (battle, differential,
   protocol, server), also with -count=2; gofmt clean.
 - uv run ruff check src tests scripts: all checks passed.
-- uv run pytest -q: 990 passed, 4 skipped.
+- uv run pytest -q: 991 passed, 4 skipped.
 - The four 'act' checks of the two new boards matched the oracle on
   the first run. A one-point change of the energy regeneration
   fails three of them.
@@ -220,6 +230,33 @@ On top of the six of #64:
   enemy of the turns 1 to 3, and one enemy destroyed. No adb and no
   device: this is a code-only task.
 - go test -race: clean on all four packages.
+
+## Code review
+
+The /code-review skill ran at the high level. It read the merge of
+#73 on 'dev' and not this branch, because it works in the primary
+checkout. Its findings still cover code that this branch touches:
+
+- 'codec._stance' reading 'Stance.NONE': fixed here (contention 5).
+- 'EngineSession' never sending the rules and the event table to
+  the engine: fixed here, through 'load'.
+- 'EngineSession.act' swallowing a refusal, and /api/engine calling
+  'load' after every redraw: fixed here (contention 10).
+
+Three findings lie on 'dev', outside this branch, and the user
+decides whether each one becomes an issue:
+
+- docs/reference/terminology-map.md, the row 'reaction stance':
+  it says that the Go model holds a 'none' stance beside the four.
+  'engine/battle/model.go' holds no such value on this branch
+  either. docs/reference/battle-prep-ui.md repeats the claim.
+- docs/reference/combat-formulas.md: it says that
+  'engine/battle/hit.go' adds the weapon accuracy into the ability
+  correction and double counts it. The file reads the accuracy as
+  the base term and takes the correction as its own argument.
+- scripts/sandbox_ui.py, the legend of 'drawEngine': it names a
+  background layer of the Python reach that #73 deleted, and the
+  CSS rule '.reach' is dead.
 
 ## Open points
 
