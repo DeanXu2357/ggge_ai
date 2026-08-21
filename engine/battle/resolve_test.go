@@ -470,8 +470,8 @@ func TestAStrikeWithNoReactionAndOneWithACounterBothRun(t *testing.T) {
 
 func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheInterceptor(t *testing.T) {
 	state := intercepted()
-	state.Unit("e2").Mobility = 900
-	state.Unit("e2").Reaction = 900
+	state.Unit("e2").Mech.Mobility = 900
+	state.Unit("e2").Pilot.Reaction = 900
 	decision := strike("e1", "beam rifle")
 	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefend: true, SupportAttack: true}
 	nodes := probes{}

@@ -122,7 +122,7 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 		return nil, outcome{}, fmt.Errorf("%w: unit %q carries no attack weapon %q",
 			ErrIllegalAction, actor.ID, decision.Weapon)
 	}
-	if !actor.CanPay(weapon) {
+	if !actor.HasENFor(*weapon) {
 		return nil, outcome{}, fmt.Errorf("%w: unit %q cannot pay for the weapon %q",
 			ErrIllegalAction, actor.ID, weapon.Name)
 	}
@@ -380,7 +380,7 @@ func (b *Board) mapAttack(actor *Unit, decision Decision) (Trace, error) {
 		return nil, fmt.Errorf("%w: the map attack of unit %q names no aim cell",
 			ErrIllegalAction, actor.ID)
 	}
-	if actor.Ammo[weapon.Name] <= 0 || !actor.CanPay(weapon) {
+	if actor.Ammo[weapon.Name] <= 0 || !actor.HasENFor(*weapon) {
 		return nil, fmt.Errorf("%w: unit %q cannot fire the weapon %q",
 			ErrIllegalAction, actor.ID, weapon.Name)
 	}
