@@ -58,9 +58,7 @@ class EngineSession:
     def from_scenario(cls, path: str, engine: Any, *, seed: int = 0) -> EngineSession:
         loaded = scenario_mod.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
         state, rules, events = loaded.build()
-        return cls(
-            engine, state, rules=rules, events=events, stage=loaded.stage, seed=seed
-        )
+        return cls(engine, state, rules=rules, events=events, stage=loaded.stage, seed=seed)
 
     def engine_state(self) -> dict[str, Any]:
         return codec.encode_state(self._state)

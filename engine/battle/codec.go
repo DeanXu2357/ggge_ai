@@ -306,6 +306,11 @@ func scaleOf(value *float64) float64 {
 	return *value
 }
 
+// EncodeFaction writes one side to the wire.
+func EncodeFaction(faction Faction) protocol.Faction {
+	return wireFactions[faction]
+}
+
 // EncodeRules writes the rules of the session back to the wire.
 func EncodeRules(rules Rules) protocol.Rules {
 	return protocol.Rules(rules)

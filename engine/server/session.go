@@ -70,7 +70,7 @@ func (s *Server) begin(id string, payload json.RawMessage) protocol.Response {
 	}
 	return protocol.Ok(id, protocol.InitResponse{
 		Turn:       board.Turn,
-		Phase:      protocol.Faction(board.Phase),
+		Phase:      battle.EncodeFaction(board.Phase),
 		DeployOpen: true,
 	})
 }

@@ -27,7 +27,7 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	dice, scripted, sampled, err := s.dice(request.Dice)
+	roll, err := s.roll(request.Dice)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
@@ -35,18 +35,16 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	if err := reactionFits(next, decision); err != nil {
 		return refusal(id, err)
 	}
-	resolution, err := next.Act(decision, dice)
+	resolution, err := next.Act(decision, roll.dice)
 	if err != nil {
 		return refusal(id, err)
 	}
-	if scripted != nil && scripted.Short() {
+	if roll.short() {
 		return protocol.Fail(id, protocol.CodeIllegalAction,
 			"the outcome list of the forced dice holds fewer outcomes than the resolution settles")
 	}
 	s.session.board = next
-	if sampled != nil {
-		s.session.sampled = sampled
-	}
+	roll.keep(s.session)
 	return protocol.Ok(id, protocol.ActResponse{
 		Events: battle.EncodeResolution(resolution),
 		Board:  battle.EncodeSummary(next),
@@ -99,26 +97,45 @@ func reactionFits(board *battle.Board, decision battle.Decision) error {
 	return nil
 }
 
-// dice reads the dice input. A sampled call draws from a copy of the session
-// source, and the caller installs the copy when the activation succeeds, so a
+// A roll is the dice of one activation, in the shape that the command reads
+// after the run: a scripted roll answers whether the outcome list ran out, and
+// a sampled roll goes back into the session.
+type roll struct {
+	dice     battle.Dice
+	scripted *battle.Scripted
+	sampled  *battle.Sampled
+}
+
+func (r roll) short() bool {
+	return r.scripted != nil && r.scripted.Short()
+}
+
+func (r roll) keep(one *session) {
+	if r.sampled != nil {
+		one.sampled = r.sampled
+	}
+}
+
+// roll reads the dice input. A sampled call draws from a copy of the session
+// source, and the command installs the copy when the activation succeeds, so a
 // refused activation draws nothing.
-func (s *Server) dice(input protocol.Dice) (battle.Dice, *battle.Scripted, *battle.Sampled, error) {
+func (s *Server) roll(input protocol.Dice) (roll, error) {
 	switch input.Mode {
 	case protocol.DiceForced:
 		outcomes, err := battle.DecodeOutcomes(input.Outcomes)
 		if err != nil {
-			return nil, nil, nil, err
+			return roll{}, err
 		}
 		scripted := battle.NewScripted(outcomes)
-		return scripted, scripted, nil, nil
+		return roll{dice: scripted, scripted: scripted}, nil
 	case protocol.DiceSampled:
 		if len(input.Outcomes) > 0 {
-			return nil, nil, nil, fmt.Errorf("a sampled call carries no outcome list")
+			return roll{}, fmt.Errorf("a sampled call carries no outcome list")
 		}
 		sampled := s.session.sampled.Clone()
-		return sampled, nil, sampled, nil
+		return roll{dice: sampled, sampled: sampled}, nil
 	}
-	return nil, nil, nil, fmt.Errorf("the dice mode %q is not in the contract", input.Mode)
+	return roll{}, fmt.Errorf("the dice mode %q is not in the contract", input.Mode)
 }
 
 func refusal(id string, err error) protocol.Response {
