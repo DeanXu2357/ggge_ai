@@ -10,7 +10,7 @@ import pytest
 
 from ggge_ai.runtime import panels
 from ggge_ai.runtime.panel_text import AbilityText, AbilityTexts, WeaponText
-from ggge_ai.sandbox.model import Faction, MoveKind
+from ggge_ai.sandbox.model import Faction, ActionKind
 from ggge_ai.stage.intel_panels import PilotOffence, unit_intel_from_panels
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "vision"
@@ -127,7 +127,7 @@ def test_abilities_map_onto_implemented_flags_only():
     assert record.interception_reduction == 0.3
     assert record.support_defend_charges_max == 1
     assert [(skill.kind, skill.amount) for skill in record.skills] == [
-        (MoveKind.SKILL_EN_REFILL, 50.0)
+        (ActionKind.SKILL_EN_REFILL, 50.0)
     ]
     assert result.unsupported == ("自身覺醒值及反應值提升10%",)
 

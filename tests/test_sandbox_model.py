@@ -6,7 +6,7 @@ from ggge_ai.sandbox.model import (
     Debuff,
     Decision,
     Faction,
-    MoveKind,
+    ActionKind,
     Reaction,
     Skill,
     Stance,
@@ -45,7 +45,7 @@ def _enemy(uid="e", pos=(2, 0), hp=100, **kw):
 
 
 def _attack(unit_id, target_id, weapon="rifle", **kw):
-    return Decision(unit_id, MoveKind.ATTACK, target_id=target_id, weapon=weapon, **kw)
+    return Decision(unit_id, ActionKind.ATTACK, target_id=target_id, weapon=weapon, **kw)
 
 
 
@@ -553,7 +553,7 @@ def _map_shooter(**kw):
 def test_map_weapon_hits_every_enemy_in_blast_and_allows_no_reaction():
     after = step(
         _engagement(_map_shooter(), _a(), _c()),
-        Decision("m", MoveKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0),
+        Decision("m", ActionKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0),
                  reaction=Reaction(stance=Stance.COUNTER)),
     )
     assert after.unit("a_t").hp < HUGE
@@ -567,7 +567,7 @@ def test_map_weapon_spares_friendlies_and_grants_no_chance_step():
     buddy = _mech("buddy", Faction.ALLY, (2, 1), HUGE)
     after = step(
         _engagement(_map_shooter(chance_steps=1, chance_steps_max=1), buddy, _a(hp=1)),
-        Decision("m", MoveKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0)),
+        Decision("m", ActionKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0)),
     )
     assert after.unit("a_t") is None
     assert after.unit("buddy").hp == HUGE
@@ -580,7 +580,7 @@ def test_map_weapon_is_pre_move_only():
     shooter.move_range = 3
     after = step(
         _engagement(shooter, _a(hp=1)),
-        Decision("m", MoveKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0), move_to=(1, 0)),
+        Decision("m", ActionKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0), move_to=(1, 0)),
     )
     assert after.unit("m").pos == (0, 0)
 
@@ -590,7 +590,7 @@ def test_map_weapon_without_ammo_is_a_no_op():
     shooter.ammo = {"mapgun": 0}
     after = step(
         _engagement(shooter, _a(hp=1)),
-        Decision("m", MoveKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0)),
+        Decision("m", ActionKind.MAP_ATTACK, weapon="mapgun", aim=(2, 0)),
     )
     assert after.unit("a_t").hp == 1
 
@@ -650,9 +650,9 @@ def test_the_larger_magnitude_of_the_same_debuff_kind_wins():
 
 def test_en_refill_skill_spends_a_use_and_the_activation():
     ally = _ally(en=0, weapons=[_rifle(en_cost=10)],
-                 skills=[Skill(MoveKind.SKILL_EN_REFILL)])
+                 skills=[Skill(ActionKind.SKILL_EN_REFILL)])
     after = step(BattleState(units=[ally, _enemy()]),
-                 Decision("a", MoveKind.SKILL_EN_REFILL))
+                 Decision("a", ActionKind.SKILL_EN_REFILL))
     assert after.unit("a").en == 20
     assert after.unit("a").skills[0].uses == 0
     assert after.unit("a").acted is True
@@ -662,16 +662,16 @@ def test_en_refill_skill_spends_a_use_and_the_activation():
 def test_a_skill_the_unit_does_not_own_wastes_the_activation():
     ally = _ally(en=0, weapons=[_rifle(en_cost=10)])
     after = step(BattleState(units=[ally, _enemy()]),
-                 Decision("a", MoveKind.SKILL_EN_REFILL))
+                 Decision("a", ActionKind.SKILL_EN_REFILL))
     assert after.unit("a").en == 0
     assert after.unit("a").acted is True
 
 
 def test_a_non_activation_ending_skill_keeps_the_unit_pending():
     ally = _ally(en=0, weapons=[_rifle(en_cost=10)],
-                 skills=[Skill(MoveKind.SKILL_EN_REFILL, ends_activation=False)])
+                 skills=[Skill(ActionKind.SKILL_EN_REFILL, ends_activation=False)])
     after = step(BattleState(units=[ally, _enemy()]),
-                 Decision("a", MoveKind.SKILL_EN_REFILL))
+                 Decision("a", ActionKind.SKILL_EN_REFILL))
     assert after.unit("a").en == 20
     assert after.unit("a").acted is False
     assert after.phase is Faction.ALLY

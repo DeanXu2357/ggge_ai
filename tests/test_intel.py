@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ggge_ai.runtime.perceive import Observation
-from ggge_ai.sandbox.model import Faction, MoveKind
+from ggge_ai.sandbox.model import Faction, ActionKind
 from ggge_ai.stage.intel import (
     IntelPerceiver,
     Intelligence,
@@ -26,7 +26,7 @@ BEAM = WeaponIntel(
     level=2,
 )
 MAP_GUN = WeaponIntel(name="メガ粒子砲", power=300.0, range_max=5, map_weapon=True, blast=1, ammo=2)
-REFILL = SkillIntel(kind=MoveKind.SKILL_EN_REFILL, amount=40.0, uses=2)
+REFILL = SkillIntel(kind=ActionKind.SKILL_EN_REFILL, amount=40.0, uses=2)
 
 
 def unicorn() -> UnitIntel:
@@ -103,7 +103,7 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert [weapon.name for weapon in unit.weapons] == ["ビームライフル", "メガ粒子砲"]
     assert unit.weapon("メガ粒子砲").map_weapon
     assert unit.ammo == {"メガ粒子砲": 2}
-    assert [skill.kind for skill in unit.skills] == [MoveKind.SKILL_EN_REFILL]
+    assert [skill.kind for skill in unit.skills] == [ActionKind.SKILL_EN_REFILL]
     assert unit.chance_steps == unit.chance_steps_max == 1
     assert unit.support_attack_charges == 2
     assert unit.support_defend_charges == 1

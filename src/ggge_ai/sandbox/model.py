@@ -12,43 +12,18 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
-Cell = tuple[int, int]
-
-
-class Faction(StrEnum):
-    ALLY = "ally"
-    ENEMY = "enemy"
-    THIRD_PARTY = "third_party"
-
+from ..engine.contract import ActionKind, Cell, Faction, SkillAffects, SkillSource
 
 PHASE_ORDER: tuple[Faction, ...] = (Faction.ALLY, Faction.THIRD_PARTY, Faction.ENEMY)
 
-
-class MoveKind(StrEnum):
-    ATTACK = "attack"
-    MAP_ATTACK = "map_attack"
-    REPOSITION = "reposition"
-    STANDBY = "standby"
-    SKILL_EN_REFILL = "skill_en_refill"
-    SKILL_HEAL = "skill_heal"
-
-
-SKILL_KINDS: tuple[MoveKind, ...] = (MoveKind.SKILL_EN_REFILL, MoveKind.SKILL_HEAL)
-
-
-class SkillSource(StrEnum):
-    CHARACTER = "character"
-    CREW = "crew"
-    UNIT = "unit"
-
-
-class SkillAffects(StrEnum):
-    ALLY = "ally"
-    ENEMY = "enemy"
-    ALL = "all"
+SKILL_KINDS: tuple[ActionKind, ...] = (ActionKind.SKILL_EN_REFILL, ActionKind.SKILL_HEAL)
 
 
 class Stance(StrEnum):
+    """The model settles a strike that meets no reaction with 'none'. The
+    contract holds the four values that reach the wire (issue #56).
+    """
+
     NONE = "none"
     DODGE = "dodge"
     DEFEND = "defend"
@@ -243,7 +218,7 @@ class Skill:
     caster is an ally in its own cell.
     """
 
-    kind: MoveKind
+    kind: ActionKind
     source: SkillSource = SkillSource.UNIT
     amount: float | None = None
     uses: int = 1
@@ -333,7 +308,7 @@ class Decision:
     """一個單位的一次行動；hit/counter_hit/support_hit 是命中節點的擲骰結果。"""
 
     unit_id: str
-    kind: MoveKind
+    kind: ActionKind
     move_to: Cell | None = None
     target_id: str | None = None
     weapon: str | None = None
@@ -562,7 +537,7 @@ def _proximity(cell: Cell, anchor: Cell) -> tuple[int, int, Cell]:
 
 
 def standby(unit_id: str) -> Decision:
-    return Decision(unit_id=unit_id, kind=MoveKind.STANDBY)
+    return Decision(unit_id=unit_id, kind=ActionKind.STANDBY)
 
 
 def legal_attacks(
@@ -581,7 +556,7 @@ def legal_attacks(
             out.append(
                 Decision(
                     unit_id=unit.unit_id,
-                    kind=MoveKind.ATTACK,
+                    kind=ActionKind.ATTACK,
                     move_to=None if dest == unit.pos else dest,
                     target_id=target.unit_id,
                     weapon=weapon.name,
@@ -602,7 +577,7 @@ def legal_map_attacks(state: BattleState, unit: Unit) -> list[Decision]:
                 out.append(
                     Decision(
                         unit_id=unit.unit_id,
-                        kind=MoveKind.MAP_ATTACK,
+                        kind=ActionKind.MAP_ATTACK,
                         weapon=weapon.name,
                         aim=target.pos,
                     )
@@ -615,9 +590,9 @@ def legal_skills(unit: Unit) -> list[Decision]:
     for skill in unit.skills:
         if skill.uses <= 0:
             continue
-        if skill.kind is MoveKind.SKILL_EN_REFILL and unit.en < unit.en_max:
+        if skill.kind is ActionKind.SKILL_EN_REFILL and unit.en < unit.en_max:
             out.append(Decision(unit_id=unit.unit_id, kind=skill.kind, amount=skill.amount))
-        elif skill.kind is MoveKind.SKILL_HEAL and unit.hp < unit.max_hp:
+        elif skill.kind is ActionKind.SKILL_HEAL and unit.hp < unit.max_hp:
             out.append(Decision(unit_id=unit.unit_id, kind=skill.kind, amount=skill.amount))
     return out
 
@@ -640,7 +615,7 @@ def reposition_moves(
         if cell == unit.pos or cell in seen:
             continue
         seen.add(cell)
-        out.append(Decision(unit_id=unit.unit_id, kind=MoveKind.REPOSITION, move_to=cell))
+        out.append(Decision(unit_id=unit.unit_id, kind=ActionKind.REPOSITION, move_to=cell))
     return out
 
 
@@ -993,10 +968,10 @@ def _apply_skill(state: BattleState, actor: Unit, decision: Decision) -> bool:
     skill.uses -= 1
     target = state.unit(decision.target_id) or actor
     amount = decision.amount if decision.amount is not None else skill.amount
-    if decision.kind is MoveKind.SKILL_EN_REFILL:
+    if decision.kind is ActionKind.SKILL_EN_REFILL:
         gain = int(amount) if amount is not None else target.en_max
         target.en = min(target.en_max, target.en + gain)
-    elif decision.kind is MoveKind.SKILL_HEAL:
+    elif decision.kind is ActionKind.SKILL_HEAL:
         gain = int(amount) if amount is not None else target.max_hp
         target.hp = min(target.max_hp, target.hp + gain)
     return skill.ends_activation
@@ -1017,15 +992,15 @@ def step(
         return s
 
     # 地圖炮是移動前限定武裝：施放的那次行動裡永遠不含移動。
-    if decision.move_to is not None and decision.kind is not MoveKind.MAP_ATTACK:
+    if decision.move_to is not None and decision.kind is not ActionKind.MAP_ATTACK:
         if decision.move_to in reach_of(s, actor, reach_fn):
             actor.pos = decision.move_to
 
     killed = False
     ends_activation = True
-    if decision.kind is MoveKind.ATTACK:
+    if decision.kind is ActionKind.ATTACK:
         killed = _apply_attack(s, actor, decision, rules)
-    elif decision.kind is MoveKind.MAP_ATTACK:
+    elif decision.kind is ActionKind.MAP_ATTACK:
         _apply_map_attack(s, actor, decision, rules)
     elif decision.kind in SKILL_KINDS:
         ends_activation = _apply_skill(s, actor, decision)

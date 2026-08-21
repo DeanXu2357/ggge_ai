@@ -24,7 +24,7 @@ from ggge_ai.sandbox.model import (
     Debuff,
     Decision,
     Faction,
-    MoveKind,
+    ActionKind,
     Reaction,
     Rules,
     Skill,
@@ -52,11 +52,11 @@ STRUCTS = {
 ENCODERS = {
     "Rules": lambda: codec.encode_rules(Rules()),
     "Weapon": lambda: codec.encode_weapon(Weapon(name="w", power=1.0)),
-    "Skill": lambda: codec.encode_skill(Skill(kind=MoveKind.SKILL_HEAL)),
+    "Skill": lambda: codec.encode_skill(Skill(kind=ActionKind.SKILL_HEAL)),
     "Debuff": lambda: codec.encode_debuff(Debuff("k", 1.0, 2)),
     "Unit": lambda: codec.encode_unit(Unit(unit_id="u", faction=Faction.ALLY)),
     "Reaction": lambda: codec.encode_reaction(Reaction(stance=Stance.DEFEND)),
-    "Decision": lambda: codec.encode_decision(Decision(unit_id="u", kind=MoveKind.STANDBY)),
+    "Decision": lambda: codec.encode_decision(Decision(unit_id="u", kind=ActionKind.STANDBY)),
     "StageEvent": lambda: codec.encode_event(StageEvent("e", {}, {})),
     "BattleState": lambda: codec.encode_state(BattleState()),
 }
@@ -118,7 +118,7 @@ def test_a_three_valued_die_keeps_its_three_values():
     values = [None, True, False]
 
     payloads = [
-        codec.encode_decision(Decision(unit_id="u", kind=MoveKind.ATTACK, hit=value))
+        codec.encode_decision(Decision(unit_id="u", kind=ActionKind.ATTACK, hit=value))
         for value in values
     ]
 
@@ -127,7 +127,7 @@ def test_a_three_valued_die_keeps_its_three_values():
 
 
 def test_an_absent_optional_field_decodes_to_the_same_value_as_null():
-    full = codec.encode_decision(Decision(unit_id="u", kind=MoveKind.STANDBY))
+    full = codec.encode_decision(Decision(unit_id="u", kind=ActionKind.STANDBY))
     lean = {key: value for key, value in full.items() if value is not None}
 
     assert codec.decode_decision(lean) == codec.decode_decision(full)
@@ -141,7 +141,7 @@ def test_the_stance_none_never_reaches_the_wire():
 
 
 def test_a_skill_enum_outside_the_contract_stops_the_decode():
-    payload = codec.encode_skill(Skill(kind=MoveKind.SKILL_HEAL))
+    payload = codec.encode_skill(Skill(kind=ActionKind.SKILL_HEAL))
 
     with pytest.raises(ValueError, match="source"):
         codec.decode_skill({**payload, "source": "squad"})

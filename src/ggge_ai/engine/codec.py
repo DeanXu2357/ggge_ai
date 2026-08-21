@@ -25,7 +25,7 @@ from ..sandbox.model import (
     Decision,
     EventTable,
     Faction,
-    MoveKind,
+    ActionKind,
     Reaction,
     Rules,
     Skill,
@@ -116,7 +116,7 @@ def encode_skill(skill: Skill) -> dict[str, Any]:
 
 
 def decode_skill(payload: dict[str, Any]) -> Skill:
-    _known(payload, encode_skill(Skill(kind=MoveKind.STANDBY)), "skill")
+    _known(payload, encode_skill(Skill(kind=ActionKind.STANDBY)), "skill")
     return Skill(
         kind=_move_kind(payload.get("kind")),
         source=_skill_source(payload.get("source")),
@@ -257,7 +257,7 @@ def encode_decision(decision: Decision) -> dict[str, Any]:
 
 
 def decode_decision(payload: dict[str, Any]) -> Decision:
-    _known(payload, encode_decision(Decision(unit_id="", kind=MoveKind.STANDBY)), "decision")
+    _known(payload, encode_decision(Decision(unit_id="", kind=ActionKind.STANDBY)), "decision")
     reaction = payload.get("reaction")
     return Decision(
         unit_id=_str(payload, "unit_id"),
@@ -375,9 +375,9 @@ def _faction(raw: Any) -> Faction:
         raise ValueError(f"faction {raw!r} is not in the contract") from exc
 
 
-def _move_kind(raw: Any) -> MoveKind:
+def _move_kind(raw: Any) -> ActionKind:
     try:
-        return MoveKind(raw)
+        return ActionKind(raw)
     except ValueError as exc:
         raise ValueError(f"kind {raw!r} is not in the contract") from exc
 

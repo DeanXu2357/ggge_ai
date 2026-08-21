@@ -13,7 +13,7 @@ from ggge_ai.sandbox.model import (
     DEFAULT_RULES,
     BattleState,
     Faction,
-    MoveKind,
+    ActionKind,
     Skill,
     StageEvent,
     Unit,
@@ -52,7 +52,7 @@ def _skirmish() -> BattleState:
         unit_id="a", faction=Faction.ALLY, pos=(0, 0), hp=100, max_hp=100, en=30, en_max=50,
         unit_attack=5000, pilot_attack=5000, move_range=2,
         weapons=[_rifle(), _map_gun()], ammo={"mapgun": 1},
-        skills=[Skill(MoveKind.SKILL_EN_REFILL, amount=10)],
+        skills=[Skill(ActionKind.SKILL_EN_REFILL, amount=10)],
     )
     wing = Unit(
         unit_id="a2", faction=Faction.ALLY, pos=(0, 3), hp=100, max_hp=100, en=10, en_max=10,

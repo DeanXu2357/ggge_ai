@@ -20,7 +20,7 @@ from .model import (
     Cell,
     Decision,
     EventTable,
-    MoveKind,
+    ActionKind,
     Reaction,
     Rules,
     Stance,
@@ -137,7 +137,7 @@ def _candidate_key(candidate: Mapping[str, Any]) -> tuple:
 def _decision_of(candidate: Mapping[str, Any], reaction: Mapping[str, Any] | None) -> Decision:
     kind, unit_id, move_to, target_id, weapon, amount, aim = _candidate_key(candidate)
     try:
-        move_kind = MoveKind(kind)
+        move_kind = ActionKind(kind)
     except ValueError as exc:
         raise ValueError(f"Illegal move kind: {kind!r}") from exc
     return Decision(
@@ -338,14 +338,14 @@ class Sandbox:
             "victims": [],
         }
         shot = actor.weapon(decision.weapon)
-        if decision.kind is MoveKind.ATTACK:
+        if decision.kind is ActionKind.ATTACK:
             target = self._state.unit(decision.target_id)
             if target is not None:
                 payload["hit_probability"] = strike_hit_probability(
                     actor, target, shot, rules=self._rules
                 )
                 payload["expected_damage"] = self._damage(actor, target, shot)
-        elif decision.kind is MoveKind.MAP_ATTACK and shot is not None and decision.aim is not None:
+        elif decision.kind is ActionKind.MAP_ATTACK and shot is not None and decision.aim is not None:
             victims = blast_victims(self._state, actor, shot, decision.aim)
             payload["victims"] = [
                 {"uid": victim.unit_id, "expected_damage": self._damage(actor, victim, shot)}
@@ -389,7 +389,7 @@ class Sandbox:
 
     def _engagement(self, candidate: Mapping[str, Any]) -> tuple[Unit, Unit, Weapon, Cell]:
         kind, unit_id, move_to, target_id, name, _amount, _aim = _candidate_key(candidate)
-        if kind != MoveKind.ATTACK:
+        if kind != ActionKind.ATTACK:
             raise ValueError(f"Only an attack lets the defender react. Got {kind!r}")
         attacker = self._state.unit(unit_id)
         defender = self._state.unit(target_id)

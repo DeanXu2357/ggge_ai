@@ -2,7 +2,7 @@
 
 from ggge_ai.sandbox.model import (
     Faction,
-    MoveKind,
+    ActionKind,
     Unit,
     Weapon,
     chebyshev,
@@ -111,7 +111,7 @@ def test_reposition_moves_offer_advance_and_retreat():
     dests = {d.move_to for d in moves}
     assert (2, 0) in dests
     assert any(chebyshev(c, enemy.pos) > 5 for c in dests)
-    assert all(d.kind is MoveKind.REPOSITION for d in moves)
+    assert all(d.kind is ActionKind.REPOSITION for d in moves)
 
 
 def test_nearest_free_cell_resolves_a_shared_landing_cell():

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from ggge_ai.sandbox import scenario as scenario_mod
-from ggge_ai.sandbox.model import Faction, MoveKind, StageEvent
+from ggge_ai.sandbox.model import Faction, ActionKind, StageEvent
 
 PLACEHOLDER = Path(__file__).resolve().parents[1] / "assets/scenarios/uc_hard_1_placeholder.json"
 
@@ -181,4 +181,4 @@ def test_support_placeholder_carries_a_skill_and_a_shield():
 
     support = next(u for u in state.allies() if u.has_shield)
 
-    assert [s.kind for s in support.skills] == [MoveKind.SKILL_EN_REFILL]
+    assert [s.kind for s in support.skills] == [ActionKind.SKILL_EN_REFILL]
