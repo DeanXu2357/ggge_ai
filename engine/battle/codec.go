@@ -69,17 +69,21 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 		return Unit{}, err
 	}
 	out := Unit{
-		ID:                   unit.UnitID,
-		Faction:              faction,
-		Footprint:            footprint,
-		HP:                   unit.HP,
-		EN:                   unit.EN,
-		UnitAttack:           unit.UnitAttack,
-		UnitDefense:          unit.UnitDefense,
-		PilotAttack:          unit.PilotAttack,
-		PilotDefense:         unit.PilotDefense,
-		Reaction:             unit.Reaction,
-		Mobility:             unit.Mobility,
+		ID:        unit.UnitID,
+		Faction:   faction,
+		Footprint: footprint,
+		HP:        unit.HP,
+		EN:        unit.EN,
+		Pilot: Pilot{
+			Attack:   unit.PilotAttack,
+			Defense:  unit.PilotDefense,
+			Reaction: unit.Reaction,
+		},
+		Mech: Mech{
+			Attack:   unit.UnitAttack,
+			Defense:  unit.UnitDefense,
+			Mobility: unit.Mobility,
+		},
 		MoveRange:            unit.MoveRange,
 		SupportDefendCharges: unit.SupportDefendCharges,
 		SupportAttackCharges: unit.SupportAttackCharges,

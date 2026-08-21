@@ -25,12 +25,16 @@ type wireSide struct {
 
 func (side wireSide) unit() *battle.Unit {
 	return &battle.Unit{
-		UnitAttack:   side.UnitAttack,
-		UnitDefense:  side.UnitDefense,
-		PilotAttack:  side.PilotAttack,
-		PilotDefense: side.PilotDefense,
-		Reaction:     side.Reaction,
-		Mobility:     side.Mobility,
+		Pilot: battle.Pilot{
+			Attack:   side.PilotAttack,
+			Defense:  side.PilotDefense,
+			Reaction: side.Reaction,
+		},
+		Mech: battle.Mech{
+			Attack:   side.UnitAttack,
+			Defense:  side.UnitDefense,
+			Mobility: side.Mobility,
+		},
 	}
 }
 

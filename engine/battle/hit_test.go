@@ -3,9 +3,9 @@ package battle
 import "testing"
 
 func TestTheHitRateHoldsBetweenZeroAndOneHundred(t *testing.T) {
-	quick := &Unit{PilotAttack: 400, Mobility: 1000}
+	quick := &Unit{Pilot: Pilot{Attack: 400}, Mech: Mech{Mobility: 1000}}
 	still := &Unit{}
-	evasive := &Unit{Reaction: 3000, Mobility: 500}
+	evasive := &Unit{Pilot: Pilot{Reaction: 3000}, Mech: Mech{Mobility: 500}}
 
 	if got := HitRatePercent(quick, still, 0); got != 100 {
 		t.Fatalf("a rate over one hundred: %v", got)
@@ -19,8 +19,8 @@ func TestTheHitRateHoldsBetweenZeroAndOneHundred(t *testing.T) {
 
 func TestTheMobilityOfEachSideMovesTheHitRateItsOwnWay(t *testing.T) {
 	still := &Unit{}
-	attacker := &Unit{Mobility: 500}
-	defender := &Unit{Mobility: 500}
+	attacker := &Unit{Mech: Mech{Mobility: 500}}
+	defender := &Unit{Mech: Mech{Mobility: 500}}
 
 	if HitRatePercent(attacker, still, 0) <= HitRatePercent(still, still, 0) {
 		t.Fatal("the mobility of the attacker raises the rate")
@@ -31,8 +31,8 @@ func TestTheMobilityOfEachSideMovesTheHitRateItsOwnWay(t *testing.T) {
 }
 
 func TestTheHitProbabilityIsTheRateOverOneHundred(t *testing.T) {
-	attacker := &Unit{PilotAttack: 220, Mobility: 310}
-	defender := &Unit{Reaction: 205, Mobility: 310}
+	attacker := &Unit{Pilot: Pilot{Attack: 220}, Mech: Mech{Mobility: 310}}
+	defender := &Unit{Pilot: Pilot{Reaction: 205}, Mech: Mech{Mobility: 310}}
 
 	got := HitProbability(attacker, defender, 0)
 

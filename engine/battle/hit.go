@@ -11,9 +11,9 @@ const (
 
 func HitRatePercent(attacker, defender *Unit, abilityCorrection float64) float64 {
 	rate := hitBase +
-		hitAttackerMobility*attacker.Mobility -
-		hitDefenderMobility*defender.Mobility +
-		(attacker.PilotAttack-defender.Reaction)/hitPilotDivisor +
+		hitAttackerMobility*attacker.Mech.Mobility -
+		hitDefenderMobility*defender.Mech.Mobility +
+		(attacker.Pilot.Attack-defender.Pilot.Reaction)/hitPilotDivisor +
 		abilityCorrection
 	return math.Max(0, math.Min(100, rate))
 }

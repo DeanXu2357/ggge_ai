@@ -59,18 +59,26 @@ type Weapon struct {
 	MapWeapon bool
 }
 
+type Pilot struct {
+	Attack   float64
+	Defense  float64
+	Reaction float64
+}
+
+type Mech struct {
+	Attack   float64
+	Defense  float64
+	Mobility float64
+}
+
 type Unit struct {
 	ID                   string
 	Faction              Faction
 	Footprint            Footprint
 	HP                   int
 	EN                   int
-	UnitAttack           float64
-	UnitDefense          float64
-	PilotAttack          float64
-	PilotDefense         float64
-	Reaction             float64
-	Mobility             float64
+	Pilot                Pilot
+	Mech                 Mech
 	MoveRange            int
 	Weapons              []Weapon
 	SupportDefendCharges int
