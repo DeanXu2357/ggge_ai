@@ -3,7 +3,7 @@ package battle
 // Actions gives the legal actions of one unit: the attacks, the map attacks,
 // the skills, the repositions and the standby, in that order.
 func (b *Board) Actions(unitID string) ([]Decision, error) {
-	unit, err := b.Activatable(unitID)
+	unit, err := b.livingUnit(unitID)
 	if err != nil {
 		return nil, err
 	}

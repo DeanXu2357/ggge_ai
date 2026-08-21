@@ -35,9 +35,6 @@ var candidateOps = map[string]differential.Op{
 		if err != nil {
 			return nil, err
 		}
-		if unit := board.Unit(in.UnitID); unit != nil {
-			board.Phase = unit.Faction
-		}
 		decisions, err := board.Actions(in.UnitID)
 		if err != nil {
 			return nil, err
@@ -157,8 +154,8 @@ func cellOrder(a, b *protocol.Cell) int {
 	return 0
 }
 
-// Five rules of the engine diverge from the Python oracle on purpose. The two
-// candidate boards and the two ops above keep the five out of the comparison:
+// Four rules of the engine diverge from the Python oracle on purpose. The two
+// candidate boards and the two ops above keep the four out of the comparison:
 //
 //  1. The engine reads the orthogonal distance between two footprints. It also
 //     reads the anchors that the whole footprint reaches. Python reads the king
@@ -174,9 +171,6 @@ func cellOrder(a, b *protocol.Cell) int {
 //  4. Python 'legal_skills' reads no area of the skill. The engine enumerates
 //     only the skill whose area is the caster. Each skill of these boards holds
 //     a range of 0 and a blast of 0.
-//  5. The engine refuses a unit that is not of the phase of the board. Python
-//     holds no activation gate. The 'actions' op sets the phase of the board to
-//     the faction of the unit it enumerates.
 //
 // Both sides sort the list before the comparison, so the order of the two
 // enumerations is no part of this test. The order of the engine is held in

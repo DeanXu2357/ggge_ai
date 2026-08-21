@@ -225,10 +225,8 @@ func TestTheActionsOfAUnitThatCannotActAreAnError(t *testing.T) {
 		unitID string
 		want   error
 	}{
-		"an unknown unit":      {"ghost", ErrNoUnit},
-		"a destroyed unit":     {"a2", ErrDestroyed},
-		"a unit off the phase": {"e1", ErrOffPhase},
-		"a unit that acted":    {"a3", ErrActed},
+		"an unknown unit":  {"ghost", ErrNoUnit},
+		"a destroyed unit": {"a2", ErrDestroyed},
 	}
 
 	for name, one := range cases {
@@ -239,5 +237,39 @@ func TestTheActionsOfAUnitThatCannotActAreAnError(t *testing.T) {
 				t.Fatalf("error: %v", err)
 			}
 		})
+	}
+	if _, err := state.Actions("e1"); err != nil {
+		t.Fatalf("the enumeration reads no phase; the activation gate does: %v", err)
+	}
+}
+
+func TestTheActivationGateNamesWhyAUnitCannotAct(t *testing.T) {
+	state := board(unit("a1", FactionAlly, Cell{0, 0}), unit("e1", FactionEnemy, Cell{2, 0}))
+	dead := unit("a2", FactionAlly, Cell{0, 1})
+	dead.HP = 0
+	acted := unit("a3", FactionAlly, Cell{0, 2})
+	acted.Acted = true
+	state.Units = append(state.Units, dead, acted)
+	cases := map[string]struct {
+		unitID string
+		want   error
+	}{
+		"an unknown unit":      {"ghost", ErrNoUnit},
+		"a destroyed unit":     {"a2", ErrDestroyed},
+		"a unit off the phase": {"e1", ErrOffPhase},
+		"a unit that acted":    {"a3", ErrActed},
+	}
+
+	for name, one := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := state.Activatable(one.unitID)
+
+			if !errors.Is(err, one.want) {
+				t.Fatalf("error: %v", err)
+			}
+		})
+	}
+	if unit, err := state.Activatable("a1"); err != nil || unit == nil || unit.ID != "a1" {
+		t.Fatalf("a live unit of the phase that has not acted: %v, %v", unit, err)
 	}
 }
