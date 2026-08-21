@@ -32,6 +32,7 @@ from ggge_ai.sandbox.model import (  # noqa: E402
     CRIT_NORMAL,
     CRIT_SUPER,
     DEFEND_MULTIPLIER,
+    HIT_BASE,
     NO_DEFENSE_MULTIPLIER,
     SHIELD_MULTIPLIER,
     BattleState,
@@ -269,10 +270,21 @@ def _strike(power: float, attacker: dict[str, float], defender: dict[str, float]
     return {"power": power, "attacker": attacker, "defender": defender}
 
 
+# The accuracy of a check takes a value of the datamine weapon table (90, 95,
+# 100, 105) or HIT_BASE, the constant that the community regression fitted
+# before the ruling read it as the accuracy of the weapon.
 def _hit(
-    attacker: dict[str, float], defender: dict[str, float], correction: float
+    attacker: dict[str, float],
+    defender: dict[str, float],
+    correction: float,
+    accuracy: float,
 ) -> dict[str, Any]:
-    return {"attacker": attacker, "defender": defender, "ability_correction": correction}
+    return {
+        "accuracy": accuracy,
+        "attacker": attacker,
+        "defender": defender,
+        "ability_correction": correction,
+    }
 
 
 FORMULA_INPUTS: dict[str, tuple[dict[str, Any], ...]] = {
@@ -367,23 +379,24 @@ FORMULA_INPUTS: dict[str, tuple[dict[str, Any], ...]] = {
         | {"terrain": 1.0, "bonuses": 0.0, "penalties": 1.0, "defense_multiplier": 1.0},
     ),
     "hit_rate_percent": (
-        _hit(ZERO_SIDE, ZERO_SIDE, 0.0),
-        _hit(BOARD_SIDE, BOARD_SIDE, 0.0),
-        _hit(BOARD_SIDE, BOARD_SIDE, -20.0),
-        _hit(BOARD_SIDE, OUTGUNNED_DEFENDER, 0.0),
-        _hit(OUTGUNNED_ATTACKER, BOARD_SIDE, 0.0),
-        _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0),
-        _hit(QUICK_ATTACKER, ZERO_SIDE, -25.0),
-        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0),
-        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0),
+        _hit(ZERO_SIDE, ZERO_SIDE, 0.0, HIT_BASE),
+        _hit(BOARD_SIDE, BOARD_SIDE, 0.0, 0.0),
+        _hit(BOARD_SIDE, BOARD_SIDE, 0.0, 90.0),
+        _hit(BOARD_SIDE, BOARD_SIDE, -20.0, 95.0),
+        _hit(BOARD_SIDE, OUTGUNNED_DEFENDER, 0.0, 100.0),
+        _hit(OUTGUNNED_ATTACKER, BOARD_SIDE, 0.0, 105.0),
+        _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0, 90.0),
+        _hit(QUICK_ATTACKER, ZERO_SIDE, -25.0, 90.0),
+        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0, 105.0),
+        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0, 105.0),
     ),
     "hit_probability": (
-        _hit(ZERO_SIDE, ZERO_SIDE, 0.0),
-        _hit(BOARD_SIDE, BOARD_SIDE, 0.0),
-        _hit(BOARD_SIDE, BOARD_SIDE, -20.0),
-        _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0),
-        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0),
-        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0),
+        _hit(ZERO_SIDE, ZERO_SIDE, 0.0, HIT_BASE),
+        _hit(BOARD_SIDE, BOARD_SIDE, 0.0, 95.0),
+        _hit(BOARD_SIDE, BOARD_SIDE, -20.0, 100.0),
+        _hit(QUICK_ATTACKER, ZERO_SIDE, 0.0, 105.0),
+        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 0.0, 90.0),
+        _hit(ZERO_SIDE, EVASIVE_DEFENDER, 30.0, 105.0),
     ),
 }
 
@@ -436,10 +449,14 @@ FORMULA_EXPECTATIONS: dict[str, Callable[[dict[str, Any]], float]] = {
         defense_multiplier=payload["defense_multiplier"],
     ),
     "hit_rate_percent": lambda payload: hit_rate_percent(
-        *_hit_sides(payload), ability_correction=payload["ability_correction"]
+        *_hit_sides(payload),
+        ability_correction=payload["ability_correction"],
+        base=payload["accuracy"],
     ),
     "hit_probability": lambda payload: hit_probability(
-        *_hit_sides(payload), ability_correction=payload["ability_correction"]
+        *_hit_sides(payload),
+        ability_correction=payload["ability_correction"],
+        base=payload["accuracy"],
     ),
 }
 

@@ -993,6 +993,7 @@
     {
       "op": "hit_rate_percent",
       "input": {
+        "accuracy": 96.45,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -1016,6 +1017,7 @@
     {
       "op": "hit_rate_percent",
       "input": {
+        "accuracy": 0.0,
         "attacker": {
           "unit_attack": 4200.0,
           "unit_defense": 3900.0,
@@ -1034,11 +1036,36 @@
         },
         "ability_correction": 0.0
       },
-      "expect": 97.267
+      "expect": 0.8170000000000001
     },
     {
       "op": "hit_rate_percent",
       "input": {
+        "accuracy": 90.0,
+        "attacker": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "defender": {
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0
+        },
+        "ability_correction": 0.0
+      },
+      "expect": 90.817
+    },
+    {
+      "op": "hit_rate_percent",
+      "input": {
+        "accuracy": 95.0,
         "attacker": {
           "unit_attack": 4200.0,
           "unit_defense": 3900.0,
@@ -1057,11 +1084,12 @@
         },
         "ability_correction": -20.0
       },
-      "expect": 77.267
+      "expect": 75.817
     },
     {
       "op": "hit_rate_percent",
       "input": {
+        "accuracy": 100.0,
         "attacker": {
           "unit_attack": 4200.0,
           "unit_defense": 3900.0,
@@ -1080,11 +1108,12 @@
         },
         "ability_correction": 0.0
       },
-      "expect": 92.3416
+      "expect": 95.8916
     },
     {
       "op": "hit_rate_percent",
       "input": {
+        "accuracy": 105.0,
         "attacker": {
           "unit_attack": 1000.0,
           "unit_defense": 0.0,
@@ -1103,11 +1132,12 @@
         },
         "ability_correction": 0.0
       },
-      "expect": 91.0762
+      "expect": 99.6262
     },
     {
       "op": "hit_rate_percent",
       "input": {
+        "accuracy": 90.0,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -1131,6 +1161,7 @@
     {
       "op": "hit_rate_percent",
       "input": {
+        "accuracy": 90.0,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -1149,11 +1180,12 @@
         },
         "ability_correction": -25.0
       },
-      "expect": 94.77000000000001
+      "expect": 88.32
     },
     {
       "op": "hit_rate_percent",
       "input": {
+        "accuracy": 105.0,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -1177,6 +1209,7 @@
     {
       "op": "hit_rate_percent",
       "input": {
+        "accuracy": 105.0,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -1195,11 +1228,12 @@
         },
         "ability_correction": 30.0
       },
-      "expect": 3.1400000000000006
+      "expect": 11.689999999999998
     },
     {
       "op": "hit_probability",
       "input": {
+        "accuracy": 96.45,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -1223,6 +1257,7 @@
     {
       "op": "hit_probability",
       "input": {
+        "accuracy": 95.0,
         "attacker": {
           "unit_attack": 4200.0,
           "unit_defense": 3900.0,
@@ -1241,11 +1276,12 @@
         },
         "ability_correction": 0.0
       },
-      "expect": 0.9726699999999999
+      "expect": 0.95817
     },
     {
       "op": "hit_probability",
       "input": {
+        "accuracy": 100.0,
         "attacker": {
           "unit_attack": 4200.0,
           "unit_defense": 3900.0,
@@ -1264,11 +1300,12 @@
         },
         "ability_correction": -20.0
       },
-      "expect": 0.77267
+      "expect": 0.8081699999999999
     },
     {
       "op": "hit_probability",
       "input": {
+        "accuracy": 105.0,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -1292,6 +1329,7 @@
     {
       "op": "hit_probability",
       "input": {
+        "accuracy": 90.0,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -1315,6 +1353,7 @@
     {
       "op": "hit_probability",
       "input": {
+        "accuracy": 105.0,
         "attacker": {
           "unit_attack": 0.0,
           "unit_defense": 0.0,
@@ -1333,7 +1372,7 @@
         },
         "ability_correction": 30.0
       },
-      "expect": 0.031400000000000004
+      "expect": 0.11689999999999998
     }
   ]
 }

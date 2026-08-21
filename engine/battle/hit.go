@@ -3,14 +3,13 @@ package battle
 import "math"
 
 const (
-	hitBase             = 96.45
 	hitAttackerMobility = 0.00732
 	hitDefenderMobility = 0.00662
 	hitPilotDivisor     = 25.0
 )
 
-func HitRatePercent(attacker, defender *Unit, abilityCorrection float64) float64 {
-	rate := hitBase +
+func HitRatePercent(weapon Weapon, attacker, defender *Unit, abilityCorrection float64) float64 {
+	rate := weapon.Accuracy +
 		hitAttackerMobility*attacker.Mech.Mobility -
 		hitDefenderMobility*defender.Mech.Mobility +
 		(attacker.Pilot.Attack-defender.Pilot.Reaction)/hitPilotDivisor +
@@ -18,6 +17,6 @@ func HitRatePercent(attacker, defender *Unit, abilityCorrection float64) float64
 	return math.Max(0, math.Min(100, rate))
 }
 
-func HitProbability(attacker, defender *Unit, abilityCorrection float64) float64 {
-	return HitRatePercent(attacker, defender, abilityCorrection) / 100
+func HitProbability(weapon Weapon, attacker, defender *Unit, abilityCorrection float64) float64 {
+	return HitRatePercent(weapon, attacker, defender, abilityCorrection) / 100
 }

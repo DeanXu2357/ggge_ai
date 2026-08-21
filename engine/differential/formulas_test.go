@@ -80,9 +80,14 @@ type expectedInput struct {
 }
 
 type hitInput struct {
+	Accuracy          float64  `json:"accuracy"`
 	Attacker          wireSide `json:"attacker"`
 	Defender          wireSide `json:"defender"`
 	AbilityCorrection float64  `json:"ability_correction"`
+}
+
+func (in hitInput) weapon() battle.Weapon {
+	return battle.Weapon{Accuracy: in.Accuracy}
 }
 
 func decodeInput(input json.RawMessage, into any) error {
@@ -142,7 +147,7 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.HitRatePercent(in.Attacker.unit(), in.Defender.unit(),
+		return battle.HitRatePercent(in.weapon(), in.Attacker.unit(), in.Defender.unit(),
 			in.AbilityCorrection), nil
 	},
 	"hit_probability": func(_ *differential.Setup, input json.RawMessage) (any, error) {
@@ -150,7 +155,7 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.HitProbability(in.Attacker.unit(), in.Defender.unit(),
+		return battle.HitProbability(in.weapon(), in.Attacker.unit(), in.Defender.unit(),
 			in.AbilityCorrection), nil
 	},
 }
