@@ -62,14 +62,19 @@ func (f Faction) Opposing() Faction {
 // A weapon that declares no restriction deals full damage against every
 // terrain and fires from every terrain: an absent entry of TerrainDamage is
 // 1.0, and an absent entry of UnusableIn permits the shot.
+// A weapon with an empty DebuffKind applies no debuff.
 type Weapon struct {
 	Name            string
+	Power           float64
 	Range           RadiusRange
 	ENCost          int
 	Accuracy        float64
 	CanCounter      bool
 	MapWeapon       bool
 	UsableAfterMove bool
+	Blast           int
+	DebuffKind      string
+	DebuffMagnitude float64
 	TerrainDamage   map[Terrain]float64
 	UnusableIn      TerrainSet
 }
@@ -113,11 +118,51 @@ const (
 	AffectsAll   SkillAffects = "all"
 )
 
+type SkillSource string
+
+const (
+	SourceCharacter SkillSource = "character"
+	SourceCrew      SkillSource = "crew"
+	SourceUnit      SkillSource = "unit"
+)
+
+// Rules holds the multipliers and the limits of the mechanism.
+// docs/reference/combat-formulas.md gives the values of DefaultRules, and a
+// stage overrides them in its rules payload.
+type Rules struct {
+	DefendMultiplier        float64
+	ShieldMultiplier        float64
+	SupportDefendMultiplier float64
+	DodgeHitPenalty         float64
+	Terrain                 float64
+	MaxSupportAttackers     int
+	ENRegenFraction         float64
+}
+
+func DefaultRules() Rules {
+	return Rules{
+		DefendMultiplier:        DefendMultiplier,
+		ShieldMultiplier:        ShieldMultiplier,
+		SupportDefendMultiplier: DefendMultiplier,
+		DodgeHitPenalty:         20,
+		Terrain:                 1,
+		MaxSupportAttackers:     3,
+		ENRegenFraction:         0.10,
+	}
+}
+
+type Debuff struct {
+	Kind         string
+	Magnitude    float64
+	AppliedPhase int
+}
+
 // Skill carries no 'self' area. A skill that acts on the caster alone holds a
 // range of zero, a blast of zero and the value AffectsAlly: the area is the
 // cell of the caster, and the caster is an ally in its own cell.
 type Skill struct {
 	Kind            ActionKind
+	Source          SkillSource
 	Amount          *float64
 	Uses            int
 	EndsActivation  bool
@@ -149,23 +194,30 @@ type Mech struct {
 }
 
 type Unit struct {
-	ID                   string
-	Faction              Faction
-	Footprint            Footprint
-	HP                   int
-	MaxHP                int
-	EN                   int
-	ENMax                int
-	Pilot                Pilot
-	Mech                 Mech
-	MoveRange            int
-	Weapons              []Weapon
-	Skills               []Skill
-	Acted                bool
-	SupportDefendCharges int
-	SupportAttackCharges int
-	HasShield            bool
-	Ammo                 map[string]int
+	ID                      string
+	Faction                 Faction
+	Footprint               Footprint
+	HP                      int
+	MaxHP                   int
+	EN                      int
+	ENMax                   int
+	Pilot                   Pilot
+	Mech                    Mech
+	MoveRange               int
+	Weapons                 []Weapon
+	Skills                  []Skill
+	Acted                   bool
+	ChanceSteps             int
+	ChanceStepsMax          int
+	SupportDefendCharges    int
+	SupportDefendChargesMax int
+	SupportAttackCharges    int
+	SupportAttackChargesMax int
+	HasShield               bool
+	AttackShield            bool
+	InterceptionReduction   float64
+	Ammo                    map[string]int
+	Debuffs                 []Debuff
 }
 
 func (u *Unit) Alive() bool {
@@ -197,6 +249,7 @@ type Decision struct {
 	Amount   *float64
 	Aim      *Cell
 	Support  bool
+	Reaction *Reaction
 }
 
 type Reaction struct {
@@ -214,7 +267,7 @@ func cloneAmount(amount *float64) *float64 {
 	return &out
 }
 
-func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
+func NewBoard(bounds Bounds, units []Unit, rules Rules) (*Board, error) {
 	if bounds.High[0] < bounds.Low[0] || bounds.High[1] < bounds.Low[1] {
 		return nil, fmt.Errorf("the bounds %v run backward", bounds)
 	}
@@ -226,7 +279,7 @@ func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
 		}
 		seen[id] = true
 	}
-	return &Board{Bounds: bounds, Units: units}, nil
+	return &Board{Bounds: bounds, Units: units, Rules: rules}, nil
 }
 
 type Board struct {
@@ -234,6 +287,7 @@ type Board struct {
 	Units          []Unit
 	Phase          Faction
 	Turn           int
+	Rules          Rules
 	DefaultTerrain Terrain
 	TerrainCells   map[Cell]Terrain
 }
@@ -250,6 +304,21 @@ func (b *Board) TerrainOf(unit *Unit) Terrain {
 		return b.DefaultTerrain
 	}
 	return b.TerrainAt(unit.Footprint.Anchor)
+}
+
+// PhaseOrder is the order in which the three sides act. A debuff of one turn
+// lives for the length of this order (docs/reference/combat-formulas.md).
+var PhaseOrder = [...]Faction{FactionAlly, FactionThirdParty, FactionEnemy}
+
+// PhaseIndex counts the phases from the start of the battle. A debuff records
+// the index of the phase that applied it.
+func (b *Board) PhaseIndex() int {
+	for index, faction := range PhaseOrder {
+		if faction == b.Phase {
+			return b.Turn*len(PhaseOrder) + index
+		}
+	}
+	return b.Turn * len(PhaseOrder)
 }
 
 func (b *Board) Unit(id string) *Unit {

@@ -27,6 +27,37 @@ var skillAffects = map[protocol.SkillAffects]SkillAffects{
 	protocol.AffectsAll:   AffectsAll,
 }
 
+var skillSources = map[protocol.SkillSource]SkillSource{
+	protocol.SourceCharacter: SourceCharacter,
+	protocol.SourceCrew:      SourceCrew,
+	protocol.SourceUnit:      SourceUnit,
+}
+
+var decodedStances = map[protocol.Stance]Stance{
+	protocol.StanceDodge:   StanceDodge,
+	protocol.StanceDefend:  StanceDefend,
+	protocol.StanceShield:  StanceShield,
+	protocol.StanceCounter: StanceCounter,
+}
+
+var wireFactions = map[Faction]protocol.Faction{
+	FactionAlly:       protocol.FactionAlly,
+	FactionEnemy:      protocol.FactionEnemy,
+	FactionThirdParty: protocol.FactionThirdParty,
+}
+
+var wireAffects = map[SkillAffects]protocol.SkillAffects{
+	AffectsAlly:  protocol.AffectsAlly,
+	AffectsEnemy: protocol.AffectsEnemy,
+	AffectsAll:   protocol.AffectsAll,
+}
+
+var wireSources = map[SkillSource]protocol.SkillSource{
+	SourceCharacter: protocol.SourceCharacter,
+	SourceCrew:      protocol.SourceCrew,
+	SourceUnit:      protocol.SourceUnit,
+}
+
 var wireKinds = map[ActionKind]protocol.ActionKind{
 	ActionAttack:      protocol.ActionAttack,
 	ActionMapAttack:   protocol.ActionMapAttack,
@@ -55,7 +86,7 @@ func DecodeState(state *protocol.BattleState) (*Board, error) {
 	if err != nil {
 		return nil, err
 	}
-	board, err := NewBoard(bounds, units)
+	board, err := NewBoard(bounds, units, DefaultRules())
 	if err != nil {
 		return nil, err
 	}
@@ -96,6 +127,28 @@ func decodeTerrainCells(cells []protocol.TerrainCell) (map[Cell]Terrain, error) 
 		out[DecodeCell(entry.Cell)] = kind
 	}
 	return out, nil
+}
+
+// DecodeRules reads the rule overrides of a stage. A payload with no value
+// gives the defaults. The terrain divides the combat base damage, so a terrain
+// of zero or less is no rule set (docs/reference/combat-formulas.md).
+func DecodeRules(rules *protocol.Rules) (Rules, error) {
+	if rules == nil {
+		return DefaultRules(), nil
+	}
+	if rules.Terrain <= 0 {
+		return Rules{}, fmt.Errorf("the rules carry the terrain %v, and the terrain divides the damage",
+			rules.Terrain)
+	}
+	return Rules{
+		DefendMultiplier:        rules.DefendMultiplier,
+		ShieldMultiplier:        rules.ShieldMultiplier,
+		SupportDefendMultiplier: rules.SupportDefendMultiplier,
+		DodgeHitPenalty:         rules.DodgeHitPenalty,
+		Terrain:                 rules.Terrain,
+		MaxSupportAttackers:     rules.MaxSupportAttackers,
+		ENRegenFraction:         rules.ENRegenFraction,
+	}, nil
 }
 
 func decodeUnits(units []protocol.Unit) ([]Unit, error) {
@@ -160,11 +213,17 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 			EN:        unit.MechEN,
 			MoveRange: unit.MechMoveRange,
 		},
-		MoveRange:            unit.MoveRange,
-		Acted:                unit.Acted,
-		SupportDefendCharges: unit.SupportDefendCharges,
-		SupportAttackCharges: unit.SupportAttackCharges,
-		HasShield:            unit.HasShield,
+		MoveRange:               unit.MoveRange,
+		Acted:                   unit.Acted,
+		ChanceSteps:             unit.ChanceSteps,
+		ChanceStepsMax:          unit.ChanceStepsMax,
+		SupportDefendCharges:    unit.SupportDefendCharges,
+		SupportDefendChargesMax: unit.SupportDefendChargesMax,
+		SupportAttackCharges:    unit.SupportAttackCharges,
+		SupportAttackChargesMax: unit.SupportAttackChargesMax,
+		HasShield:               unit.HasShield,
+		AttackShield:            unit.AttackShield,
+		InterceptionReduction:   unit.InterceptionReduction,
 	}
 	if out.Weapons, err = decodeWeapons(unit.UnitID, unit.Weapons); err != nil {
 		return Unit{}, err
@@ -188,6 +247,16 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 			out.Ammo[name] = count
 		}
 	}
+	if unit.Debuffs != nil {
+		out.Debuffs = make([]Debuff, 0, len(unit.Debuffs))
+		for _, debuff := range unit.Debuffs {
+			out.Debuffs = append(out.Debuffs, Debuff{
+				Kind:         debuff.Kind,
+				Magnitude:    debuff.Magnitude,
+				AppliedPhase: debuff.AppliedPhase,
+			})
+		}
+	}
 	return out, nil
 }
 
@@ -209,12 +278,18 @@ func decodeWeapons(unitID string, weapons []protocol.Weapon) ([]Weapon, error) {
 func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 	out := Weapon{
 		Name:            weapon.Name,
+		Power:           weapon.Power,
 		Range:           RadiusRange{Min: weapon.RangeMin, Max: weapon.RangeMax},
 		ENCost:          weapon.ENCost,
 		Accuracy:        weapon.Accuracy,
 		CanCounter:      weapon.CanCounter,
 		MapWeapon:       weapon.MapWeapon,
 		UsableAfterMove: weapon.UsableAfterMove,
+		Blast:           weapon.Blast,
+		DebuffMagnitude: weapon.DebuffMagnitude,
+	}
+	if weapon.DebuffKind != nil {
+		out.DebuffKind = *weapon.DebuffKind
 	}
 	for name, scale := range weapon.TerrainDamage {
 		kind, err := ParseTerrain(name)
@@ -245,6 +320,11 @@ func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
 		return Skill{}, fmt.Errorf("unit %q carries a skill of the kind %q, which is not in the contract",
 			unitID, skill.Kind)
 	}
+	source, known := skillSources[skill.Source]
+	if !known {
+		return Skill{}, fmt.Errorf("unit %q carries a skill of the source %q, which is not in the contract",
+			unitID, skill.Source)
+	}
 	affects, known := skillAffects[skill.Affects]
 	if !known {
 		return Skill{}, fmt.Errorf("unit %q carries a skill that affects %q, which is not in the contract",
@@ -252,6 +332,7 @@ func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
 	}
 	return Skill{
 		Kind:            kind,
+		Source:          source,
 		Amount:          cloneAmount(skill.Amount),
 		Uses:            skill.Uses,
 		EndsActivation:  skill.EndsActivation,
@@ -271,10 +352,9 @@ func EncodeDecisions(decisions []Decision) []protocol.Decision {
 }
 
 // EncodeDecision writes every field of the wire type. An enumerated action
-// settles no die and carries no reaction, so 'hit', 'counter_hit',
-// 'support_hit' and 'reaction' stay null.
+// settles no die, so 'hit', 'counter_hit' and 'support_hit' stay null.
 func EncodeDecision(decision Decision) protocol.Decision {
-	return protocol.Decision{
+	out := protocol.Decision{
 		UnitID:   decision.UnitID,
 		Kind:     wireKinds[decision.Kind],
 		MoveTo:   encodeOptionalCell(decision.MoveTo),
@@ -284,6 +364,66 @@ func EncodeDecision(decision Decision) protocol.Decision {
 		Support:  decision.Support,
 		Aim:      encodeOptionalCell(decision.Aim),
 	}
+	if decision.Reaction != nil {
+		reaction := EncodeReaction(*decision.Reaction)
+		out.Reaction = &reaction
+	}
+	return out
+}
+
+// DecodeDecision reads one activation. The three die fields of the wire
+// decision belong to the dice of the resolution, not to the decision.
+func DecodeDecision(decision protocol.Decision) (Decision, error) {
+	kind, known := actionKinds[decision.Kind]
+	if !known {
+		return Decision{}, fmt.Errorf("the action carries the kind %q, which is not in the contract",
+			decision.Kind)
+	}
+	out := Decision{
+		UnitID:   decision.UnitID,
+		Kind:     kind,
+		TargetID: name(decision.TargetID),
+		Weapon:   name(decision.Weapon),
+		Amount:   cloneAmount(decision.Amount),
+		Support:  decision.Support,
+	}
+	if decision.MoveTo != nil {
+		cell := DecodeCell(*decision.MoveTo)
+		out.MoveTo = &cell
+	}
+	if decision.Aim != nil {
+		cell := DecodeCell(*decision.Aim)
+		out.Aim = &cell
+	}
+	if decision.Reaction != nil {
+		reaction, err := DecodeReaction(*decision.Reaction)
+		if err != nil {
+			return Decision{}, err
+		}
+		out.Reaction = &reaction
+	}
+	return out, nil
+}
+
+func DecodeReaction(reaction protocol.Reaction) (Reaction, error) {
+	stance, known := decodedStances[reaction.Stance]
+	if !known {
+		return Reaction{}, fmt.Errorf("the reaction carries the stance %q, which is not in the contract",
+			reaction.Stance)
+	}
+	return Reaction{
+		Stance:        stance,
+		Weapon:        name(reaction.Weapon),
+		SupportDefend: reaction.SupportDefend,
+		SupportAttack: reaction.SupportAttack,
+	}, nil
+}
+
+func name(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func EncodeReactions(reactions []Reaction) []protocol.Reaction {
@@ -300,6 +440,127 @@ func EncodeReaction(reaction Reaction) protocol.Reaction {
 		Weapon:        encodeOptionalName(reaction.Weapon),
 		SupportDefend: reaction.SupportDefend,
 		SupportAttack: reaction.SupportAttack,
+	}
+}
+
+func EncodeUnits(units []Unit) []protocol.Unit {
+	out := make([]protocol.Unit, 0, len(units))
+	for _, unit := range units {
+		out = append(out, EncodeUnit(unit))
+	}
+	return out
+}
+
+// EncodeUnit writes every field of the wire type. A list and a map hold no
+// null on the wire, so an empty one is an empty list and an empty object.
+func EncodeUnit(unit Unit) protocol.Unit {
+	out := protocol.Unit{
+		UnitID:                  unit.ID,
+		Faction:                 wireFactions[unit.Faction],
+		Pos:                     EncodeCell(unit.Footprint.Anchor),
+		Size:                    protocol.Cell{unit.Footprint.Size[0], unit.Footprint.Size[1]},
+		HP:                      unit.HP,
+		MaxHP:                   unit.MaxHP,
+		EN:                      unit.EN,
+		ENMax:                   unit.ENMax,
+		UnitAttack:              unit.Mech.Attack,
+		UnitDefense:             unit.Mech.Defense,
+		PilotAttack:             unit.Pilot.Attack,
+		PilotDefense:            unit.Pilot.Defense,
+		Reaction:                unit.Pilot.Reaction,
+		Mobility:                unit.Mech.Mobility,
+		MoveRange:               unit.MoveRange,
+		MechHP:                  unit.Mech.HP,
+		MechEN:                  unit.Mech.EN,
+		MechMoveRange:           unit.Mech.MoveRange,
+		Weapons:                 make([]protocol.Weapon, 0, len(unit.Weapons)),
+		Skills:                  make([]protocol.Skill, 0, len(unit.Skills)),
+		Acted:                   unit.Acted,
+		ChanceSteps:             unit.ChanceSteps,
+		ChanceStepsMax:          unit.ChanceStepsMax,
+		SupportDefendCharges:    unit.SupportDefendCharges,
+		SupportDefendChargesMax: unit.SupportDefendChargesMax,
+		SupportAttackCharges:    unit.SupportAttackCharges,
+		SupportAttackChargesMax: unit.SupportAttackChargesMax,
+		HasShield:               unit.HasShield,
+		AttackShield:            unit.AttackShield,
+		InterceptionReduction:   unit.InterceptionReduction,
+		Ammo:                    make(map[string]int, len(unit.Ammo)),
+		Debuffs:                 make([]protocol.Debuff, 0, len(unit.Debuffs)),
+	}
+	for _, weapon := range unit.Weapons {
+		out.Weapons = append(out.Weapons, encodeWeapon(weapon))
+	}
+	// The base weapons of the mech are 'omitempty' on the wire, so an absent
+	// list stays absent and the round trip gives the same bytes.
+	if len(unit.Mech.Weapons) > 0 {
+		out.MechWeapons = make([]protocol.Weapon, 0, len(unit.Mech.Weapons))
+		for _, weapon := range unit.Mech.Weapons {
+			out.MechWeapons = append(out.MechWeapons, encodeWeapon(weapon))
+		}
+	}
+	for _, skill := range unit.Skills {
+		out.Skills = append(out.Skills, encodeSkill(skill))
+	}
+	for weapon, count := range unit.Ammo {
+		out.Ammo[weapon] = count
+	}
+	for _, debuff := range unit.Debuffs {
+		out.Debuffs = append(out.Debuffs, protocol.Debuff{
+			Kind:         debuff.Kind,
+			Magnitude:    debuff.Magnitude,
+			AppliedPhase: debuff.AppliedPhase,
+		})
+	}
+	return out
+}
+
+func encodeWeapon(weapon Weapon) protocol.Weapon {
+	out := protocol.Weapon{
+		Name:            weapon.Name,
+		Power:           weapon.Power,
+		RangeMin:        weapon.Range.Min,
+		RangeMax:        weapon.Range.Max,
+		ENCost:          weapon.ENCost,
+		Accuracy:        weapon.Accuracy,
+		CanCounter:      weapon.CanCounter,
+		MapWeapon:       weapon.MapWeapon,
+		UsableAfterMove: weapon.UsableAfterMove,
+		Blast:           weapon.Blast,
+		DebuffMagnitude: weapon.DebuffMagnitude,
+	}
+	if weapon.DebuffKind != "" {
+		kind := weapon.DebuffKind
+		out.DebuffKind = &kind
+	}
+	for kind, scale := range weapon.TerrainDamage {
+		if out.TerrainDamage == nil {
+			out.TerrainDamage = make(map[string]float64, len(weapon.TerrainDamage))
+		}
+		out.TerrainDamage[kind.String()] = scale
+	}
+	// The wire form must not change between two encodes of one weapon, and a
+	// map has no order, so the terrain names come out in the order of the enum.
+	for kind := range Terrain(len(terrainNames)) {
+		if weapon.UnusableIn[kind] {
+			out.UnusableIn = append(out.UnusableIn, kind.String())
+		}
+	}
+	return out
+}
+
+func encodeSkill(skill Skill) protocol.Skill {
+	return protocol.Skill{
+		Kind:            wireKinds[skill.Kind],
+		Source:          wireSources[skill.Source],
+		Amount:          cloneAmount(skill.Amount),
+		Uses:            skill.Uses,
+		EndsActivation:  skill.EndsActivation,
+		UsableAfterMove: skill.UsableAfterMove,
+		RangeMin:        skill.Range.Min,
+		RangeMax:        skill.Range.Max,
+		Blast:           skill.Blast,
+		Affects:         wireAffects[skill.Affects],
 	}
 }
 

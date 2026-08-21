@@ -125,7 +125,7 @@ func TestAUnitStandsOnTheTerrainOfItsAnchorCell(t *testing.T) {
 }
 
 func TestABoardWithNoTerrainReadsSpace(t *testing.T) {
-	board, err := NewBoard(Bounds{Low: Cell{0, 0}, High: Cell{4, 4}}, nil)
+	board, err := NewBoard(Bounds{Low: Cell{0, 0}, High: Cell{4, 4}}, nil, DefaultRules())
 	if err != nil {
 		t.Fatalf("board: %v", err)
 	}
