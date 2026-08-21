@@ -10,27 +10,8 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-// Three rules of the engine diverge from the Python oracle on purpose, and the
-// boards of these two ops are built so that the three cannot show:
-//
-//  1. The engine reads the orthogonal distance between two footprints and the
-//     anchors that the whole footprint reaches. Python reads the king step and
-//     gives every unit one cell. Every unit of these boards holds a move range
-//     of 0, covers one cell, and stands in the row of every other unit, so the
-//     two distances agree and the reach of each unit is its own anchor.
-//  2. The engine writes no 'none' stance. The Python writer drops that stance
-//     before it encodes the list.
-//  3. The engine reads the field 'usable_after_move' of the weapon, and Python
-//     infers the permission from the kind of the action. A unit that cannot
-//     move fires from its own anchor either way.
-//
-// Both sides sort the list before the comparison, so the order of the two
-// enumerations is no part of this test. The order of the engine is held in
-// 'engine/battle/candidates_test.go'.
 func init() {
-	for name, op := range candidateOps {
-		ops[name] = op
-	}
+	addOps(candidateOps)
 }
 
 type actionsInput struct {
@@ -53,6 +34,9 @@ var candidateOps = map[string]differential.Op{
 		board, err := battle.DecodeState(&setup.State)
 		if err != nil {
 			return nil, err
+		}
+		if unit := board.Unit(in.UnitID); unit != nil {
+			board.Phase = unit.Faction
 		}
 		decisions, err := board.Actions(in.UnitID)
 		if err != nil {
@@ -101,10 +85,27 @@ func decisionBefore(a, b protocol.Decision) bool {
 	if order := cellOrder(a.Aim, b.Aim); order != 0 {
 		return order < 0
 	}
-	if a.Amount == nil || b.Amount == nil {
-		return a.Amount == nil && b.Amount != nil
+	if order := amountOrder(a.Amount, b.Amount); order != 0 {
+		return order < 0
 	}
-	return *a.Amount < *b.Amount
+	return !a.Support && b.Support
+}
+
+// An amount with no value sorts before every amount, as the Python key does.
+func amountOrder(a, b *float64) int {
+	switch {
+	case a == nil && b == nil:
+		return 0
+	case a == nil:
+		return -1
+	case b == nil:
+		return 1
+	case *a < *b:
+		return -1
+	case *b < *a:
+		return 1
+	}
+	return 0
 }
 
 func sortedReactions(list []protocol.Reaction) []protocol.Reaction {
@@ -157,6 +158,30 @@ func cellOrder(a, b *protocol.Cell) int {
 	return 0
 }
 
+// Five rules of the engine diverge from the Python oracle on purpose. The two
+// candidate boards and the two ops above keep the five out of the comparison:
+//
+//  1. The engine reads the orthogonal distance between two footprints. It also
+//     reads the anchors that the whole footprint reaches. Python reads the king
+//     step. Python gives every unit one cell. Each unit of these boards covers
+//     one cell. Each unit stands in one row with the other units. Each unit of
+//     the 'actions' inputs holds a move range of 0. A support unit keeps its
+//     move range, because that range is its support reach.
+//  2. The engine writes no 'none' stance. The Python writer drops that stance
+//     before it encodes the list.
+//  3. The engine reads the field 'usable_after_move' of the weapon. Python
+//     infers the permission from the kind of the action. A unit that cannot
+//     move fires from its own anchor in the two runtimes.
+//  4. Python 'legal_skills' reads no area of the skill. The engine enumerates
+//     only the skill whose area is the caster. Each skill of these boards holds
+//     a range of 0 and a blast of 0.
+//  5. The engine refuses a unit that is not of the phase of the board. Python
+//     holds no activation gate. The 'actions' op sets the phase of the board to
+//     the faction of the unit it enumerates.
+//
+// Both sides sort the list before the comparison, so the order of the two
+// enumerations is no part of this test. The order of the engine is held in
+// 'engine/battle/candidates_test.go'.
 func TestTheCandidateBoardsRunBothCandidateOps(t *testing.T) {
 	ran := map[string]int{}
 	for _, one := range load(t) {

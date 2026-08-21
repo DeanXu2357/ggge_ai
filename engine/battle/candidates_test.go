@@ -1,6 +1,7 @@
 package battle
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -194,10 +195,49 @@ func TestTheActionsComeInOneOrderOnEveryCall(t *testing.T) {
 	}
 }
 
-func TestTheActionsOfAnUnknownUnitAreAnError(t *testing.T) {
-	state := board(unit("a1", FactionAlly, Cell{0, 0}))
+func TestAMapAttackAimsAtTheCellOfTheTargetNearestToTheShooter(t *testing.T) {
+	wide := unit("e1", FactionEnemy, Cell{3, 0})
+	wide.Footprint.Size = Size{2, 2}
+	state := board(unit("a1", FactionAlly, Cell{0, 1}), wide)
+	shells := rifle("shells", RadiusRange{Min: 1, Max: 4})
+	shells.MapWeapon = true
+	state.Units[0].Weapons = []Weapon{shells}
+	state.Units[0].Ammo = map[string]int{"shells": 1}
 
-	if _, err := state.Actions("ghost"); err == nil {
-		t.Fatal("the board holds no unit 'ghost'")
+	out := actions(t, state, "a1")
+
+	if out[0].Kind != ActionMapAttack {
+		t.Fatalf("actions: %+v", kinds(out))
+	}
+	if out[0].Aim == nil || *out[0].Aim != (Cell{3, 1}) {
+		t.Fatalf("the anchor (3,0) stands one cell farther away: %+v", out[0].Aim)
+	}
+}
+
+func TestTheActionsOfAUnitThatCannotActAreAnError(t *testing.T) {
+	state := board(unit("a1", FactionAlly, Cell{0, 0}), unit("e1", FactionEnemy, Cell{2, 0}))
+	dead := unit("a2", FactionAlly, Cell{0, 1})
+	dead.HP = 0
+	acted := unit("a3", FactionAlly, Cell{0, 2})
+	acted.Acted = true
+	state.Units = append(state.Units, dead, acted)
+	cases := map[string]struct {
+		unitID string
+		want   error
+	}{
+		"an unknown unit":      {"ghost", ErrNoUnit},
+		"a destroyed unit":     {"a2", ErrDestroyed},
+		"a unit off the phase": {"e1", ErrOffPhase},
+		"a unit that acted":    {"a3", ErrActed},
+	}
+
+	for name, one := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := state.Actions(one.unitID)
+
+			if !errors.Is(err, one.want) {
+				t.Fatalf("error: %v", err)
+			}
+		})
 	}
 }

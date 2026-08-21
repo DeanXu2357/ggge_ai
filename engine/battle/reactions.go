@@ -14,26 +14,28 @@ type SupportAttacker struct {
 // attacker today: the client asks about a move that did not occur.
 func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
 	weaponName string) ([]Reaction, error) {
-	defender := b.Unit(defenderID)
-	if defender == nil {
-		return nil, fmt.Errorf("the board holds no unit %q", defenderID)
+	defender, err := b.livingUnit(defenderID)
+	if err != nil {
+		return nil, err
 	}
-	attacker := b.Unit(attackerID)
-	if attacker == nil {
-		return nil, fmt.Errorf("the board holds no unit %q", attackerID)
+	attacker, err := b.livingUnit(attackerID)
+	if err != nil {
+		return nil, err
 	}
 	weapon := attacker.Weapon(weaponName)
 	if weapon == nil {
 		return nil, fmt.Errorf("unit %q carries no weapon %q", attackerID, weaponName)
+	}
+	// A map strike permits no reaction, and the blast reaches a unit outside the
+	// band of the weapon, so the empty list comes before the band check.
+	if weapon.MapWeapon {
+		return []Reaction{}, nil
 	}
 	origin := footprintAt(attacker, attackerCell)
 	distance := SpanDistance(defender.Footprint, origin)
 	if !weapon.Range.Holds(distance) {
 		return nil, fmt.Errorf("the weapon %q of unit %q does not reach unit %q from %v",
 			weaponName, attackerID, defenderID, attackerCell)
-	}
-	if weapon.MapWeapon {
-		return []Reaction{}, nil
 	}
 
 	out := []Reaction{

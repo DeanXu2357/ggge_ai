@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
@@ -21,24 +21,12 @@ func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
 	if err := decode(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	board := s.session.board
-	unit := board.Unit(request.UnitID)
-	if unit == nil {
-		return protocol.Fail(id, protocol.CodeIllegalAction,
-			fmt.Sprintf("the board holds no unit %q", request.UnitID))
-	}
-	if unit.Faction != board.Phase {
-		return protocol.Fail(id, protocol.CodeIllegalState,
-			fmt.Sprintf("unit %q is of the side %q, and the phase is %q",
-				unit.ID, unit.Faction, board.Phase))
-	}
-	if unit.Acted {
-		return protocol.Fail(id, protocol.CodeIllegalState,
-			fmt.Sprintf("unit %q acted in this turn", unit.ID))
-	}
-	decisions, err := board.Actions(request.UnitID)
+	decisions, err := s.session.board.Actions(request.UnitID)
 	if err != nil {
-		return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
+		if errors.Is(err, battle.ErrNoUnit) {
+			return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
+		}
+		return protocol.Fail(id, protocol.CodeIllegalState, err.Error())
 	}
 	return protocol.Ok(id, protocol.ActionsResponse{Actions: battle.EncodeDecisions(decisions)})
 }

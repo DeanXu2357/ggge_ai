@@ -1,13 +1,11 @@
 package battle
 
-import "fmt"
-
 // Actions gives the legal actions of one unit: the attacks, the map attacks,
 // the skills, the repositions and the standby, in that order.
 func (b *Board) Actions(unitID string) ([]Decision, error) {
-	unit := b.Unit(unitID)
-	if unit == nil {
-		return nil, fmt.Errorf("the board holds no unit %q", unitID)
+	unit, err := b.Activatable(unitID)
+	if err != nil {
+		return nil, err
 	}
 	targets := b.TargetsOf(unit)
 	anchors := SortedCells(ReachableAnchors(unit.Footprint, unit.MoveRange,
@@ -59,7 +57,7 @@ func mapAttacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 			if !found {
 				continue
 			}
-			aim := target.Footprint.Anchor
+			aim := aimCell(footprintAt(unit, destination), target.Footprint)
 			out = append(out, Decision{
 				UnitID:  unit.ID,
 				Kind:    ActionMapAttack,
@@ -73,13 +71,14 @@ func mapAttacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 	return out
 }
 
-// This issue enumerates a skill whose area is the caster alone. A skill that
-// reaches another cell needs the center of its area in 'aim', and the rule that
-// picks that center belongs to a later issue.
+// The enumeration keeps the skill whose area is the cell of the caster: a
+// range of 0 and a blast of 0. A skill of a wider area names the center of that
+// area in 'aim', and no rule picks that center.
 func skillActions(unit *Unit) []Decision {
 	var out []Decision
 	for _, skill := range unit.Skills {
-		if skill.Uses <= 0 || skill.Range.Max != 0 || !skillHasRoom(unit, skill) {
+		if skill.Uses <= 0 || skill.Range.Max != 0 || skill.Blast != 0 ||
+			!skillHasRoom(unit, skill) {
 			continue
 		}
 		out = append(out, Decision{
@@ -221,6 +220,24 @@ func (n nearness) before(other nearness) bool {
 		return n.cell[0] < other.cell[0]
 	}
 	return n.cell[1] < other.cell[1]
+}
+
+// aimCell keeps the aim of a map attack inside the band that the enumeration
+// checked: the band holds the distance between the two footprints, and that
+// distance is the distance to the cell of the target nearest to the shooter.
+func aimCell(firing, target Footprint) Cell {
+	cells := target.Cells()
+	best, bestDistance := cells[0], SpanDistance(cellFootprint(cells[0]), firing)
+	for _, cell := range cells[1:] {
+		if distance := SpanDistance(cellFootprint(cell), firing); distance < bestDistance {
+			best, bestDistance = cell, distance
+		}
+	}
+	return best
+}
+
+func cellFootprint(cell Cell) Footprint {
+	return Footprint{Anchor: cell, Size: Size{1, 1}}
 }
 
 func footprintAt(unit *Unit, anchor Cell) Footprint {

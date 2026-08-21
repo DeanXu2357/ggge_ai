@@ -138,9 +138,25 @@ Purpose: the legal actions of one unit.
 
 Request: 'unit_id'. Response: 'actions'.
 
-Refusals: no_session; illegal_state when the phase of the unit is
-not the current phase; illegal_state when the unit acted in this
-turn.
+The engine gives one attack for each pair of a target and a weapon.
+That attack fires from one anchor: of the anchors that the unit
+reaches and that hold the target in the band of the weapon, the
+engine keeps the anchor nearest to the anchor of today. Three keys
+order these anchors: the board distance first, the squared Euclid
+distance between the two anchor cells second, the column and then
+the row third. A weapon with 'usable_after_move' false fires from
+the anchor of today. A map attack carries no target: it aims at the
+cell of the target footprint nearest to the firing footprint. A
+reposition names the anchor nearest to each target, and the anchor
+farthest from the nearest target. A skill enters the list when its
+area is the cell of the caster. The standby is always in the list.
+The list comes in one order: the attacks, the map attacks, the
+skills, the repositions, the standby.
+
+Refusals: no_session; illegal_action for an unknown unit id;
+illegal_state when the unit is destroyed; illegal_state when the
+phase of the unit is not the current phase; illegal_state when the
+unit acted in this turn.
 
 ### reactions
 
@@ -275,6 +291,9 @@ a differential test.
 'export' takes no field and gives 'state' and 'history'. 'load'
 takes the same two fields and replaces the session.
 
+The state carries 'phase'. A state without that field is a
+bad_request.
+
 ## Board geometry
 
 A cell is a pair of integers: the column first, the row second.
@@ -314,7 +333,9 @@ The Python side holds no geometry of its own. It carried the
 eight king steps and one cell for every unit, and it retired with
 the rest of the Python rules (issue #73). A golden case that the
 Python side wrote therefore compares no result that reads the
-distance or the footprint.
+distance or the footprint, and a golden case that compares a
+candidate list holds units of one cell in one row, with no move
+for the enumerated unit.
 
 ## Types
 

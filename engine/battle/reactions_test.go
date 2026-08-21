@@ -1,6 +1,7 @@
 package battle
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -139,6 +140,34 @@ func TestAMapWeaponPermitsNoReaction(t *testing.T) {
 
 	if out == nil || len(out) != 0 {
 		t.Fatalf("reactions: %v", out)
+	}
+}
+
+func TestAMapWeaponOutOfItsBandPermitsNoReactionAndIsNoError(t *testing.T) {
+	state := duel()
+	state.Unit("e1").Weapons[0].MapWeapon = true
+
+	out := reactions(t, state, Cell{4, 4}, "rifle")
+
+	if out == nil || len(out) != 0 {
+		t.Fatalf("the blast reaches a unit outside the band of the weapon: %v", out)
+	}
+}
+
+func TestAReactionOfADestroyedUnitIsAnError(t *testing.T) {
+	cases := map[string]string{"the defender": "d1", "the attacker": "e1"}
+
+	for name, id := range cases {
+		t.Run(name, func(t *testing.T) {
+			state := duel()
+			state.Unit(id).HP = 0
+
+			_, err := state.Reactions("d1", "e1", Cell{1, 0}, "rifle")
+
+			if !errors.Is(err, ErrDestroyed) {
+				t.Fatalf("error: %v", err)
+			}
+		})
 	}
 }
 
