@@ -395,9 +395,12 @@ func (b *Board) ReachableCells(unitID string) ([]Cell, error) {
 	if unit == nil {
 		return nil, fmt.Errorf("the board holds no unit %q", unitID)
 	}
-	anchors := ReachableAnchors(unit.Footprint, unit.MoveRange,
+	return SortedCells(b.reachableAnchors(unit)), nil
+}
+
+func (b *Board) reachableAnchors(unit *Unit) CellSet {
+	return ReachableAnchors(unit.Footprint, unit.MoveRange,
 		b.BlockingCells(unit), b.OccupiedCells(unit), b.Bounds)
-	return SortedCells(anchors), nil
 }
 
 func (b *Board) ByFaction(faction Faction) []*Unit {

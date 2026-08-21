@@ -8,8 +8,7 @@ func (b *Board) Actions(unitID string) ([]Decision, error) {
 		return nil, err
 	}
 	targets := b.TargetsOf(unit)
-	anchors := cellSlice(ReachableAnchors(unit.Footprint, unit.MoveRange,
-		b.BlockingCells(unit), b.OccupiedCells(unit), b.Bounds))
+	anchors := cellSlice(b.reachableAnchors(unit))
 
 	out := b.attacks(unit, targets, anchors)
 	out = append(out, mapAttacks(unit, targets, anchors)...)
@@ -18,8 +17,8 @@ func (b *Board) Actions(unitID string) ([]Decision, error) {
 	return append(out, Decision{UnitID: unit.ID, Kind: ActionStandby}), nil
 }
 
-// The attacker chooses the support volley, so an attack that a supporter of
-// the unit can join enters the list two times: with the volley and without it
+// The attacker chooses the support attack, so an attack that a supporter of the
+// unit can join enters the list two times: with the volley and without it
 // (docs/reference/combat-formulas.md, case 13). Every other action carries no
 // volley.
 func (b *Board) attacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {

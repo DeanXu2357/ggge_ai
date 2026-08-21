@@ -92,21 +92,20 @@ func supportAttackVariants(options []Reaction) []Reaction {
 // picks one interceptor for each engagement (docs/reference/combat-formulas.md,
 // case 16), so the first eligible unit is the answer.
 func (b *Board) SupportDefender(defender *Unit) *Unit {
-	for _, other := range b.ByFaction(defender.Faction) {
-		if inSupportReach(other, defender, defender.Footprint, other.SupportDefendCharges) {
-			return other
-		}
-	}
-	return nil
+	return b.firstInterceptor(defender, func(*Unit) bool { return true })
 }
 
 // AttackShieldBearer gives the unit that takes a counter strike for the
 // attacker, or nil. The bearer intercepts on the attack of its own side
 // (docs/reference/combat-formulas.md, case 6, issue #22).
 func (b *Board) AttackShieldBearer(attacker *Unit) *Unit {
-	for _, other := range b.ByFaction(attacker.Faction) {
-		if other.AttackShield &&
-			inSupportReach(other, attacker, attacker.Footprint, other.SupportDefendCharges) {
+	return b.firstInterceptor(attacker, func(other *Unit) bool { return other.AttackShield })
+}
+
+func (b *Board) firstInterceptor(covered *Unit, fits func(*Unit) bool) *Unit {
+	for _, other := range b.ByFaction(covered.Faction) {
+		if inSupportReach(other, covered, covered.Footprint, other.SupportDefendCharges) &&
+			fits(other) {
 			return other
 		}
 	}

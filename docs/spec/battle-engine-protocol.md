@@ -142,7 +142,8 @@ The engine gives one attack for each pair of a target and a weapon,
 with 'support' false. When a support attacker of the unit qualifies
 from the firing anchor against that target, the engine gives a
 second attack with 'support' true: the attacker chooses the support
-attack. A rule set that caps the support attackers at zero gives no
+attack, and the support volley of its side fires on that choice
+alone. A rule set that caps the support attackers at zero gives no
 such second attack. Every other action carries 'support' false. An
 attack fires from one anchor: of the anchors that the unit
 reaches and that hold the target in the band of the weapon, the
@@ -224,6 +225,11 @@ The field 'dice' holds 'mode'. The value 'forced' also holds
 'outcomes': the engine reads one outcome for each chance event, in
 the resolution order. The value 'sampled' holds no outcome: the
 engine draws from the session random source of 'init'.
+
+One engagement holds four chance events, in this order: the support
+volley of the attacker, the main strike, the support volley of the
+defender, and the counter. The two volleys are two events, and one
+engagement holds both.
 
 Response: 'events' (the resolution in order) and 'board' (the new
 summary).

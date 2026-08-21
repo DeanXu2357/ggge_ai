@@ -105,9 +105,7 @@ func (b *Board) destination(actor *Unit, to *Cell, permitted bool) (Cell, error)
 		return Cell{}, fmt.Errorf("%w: the action of unit %q runs before a move",
 			ErrIllegalMove, actor.ID)
 	}
-	anchors := ReachableAnchors(actor.Footprint, actor.MoveRange,
-		b.BlockingCells(actor), b.OccupiedCells(actor), b.Bounds)
-	if !anchors[*to] {
+	if !b.reachableAnchors(actor)[*to] {
 		return Cell{}, fmt.Errorf("%w: unit %q does not reach the anchor %v",
 			ErrIllegalMove, actor.ID, *to)
 	}
@@ -124,15 +122,15 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 		return nil, outcome{}, fmt.Errorf("%w: unit %q carries no attack weapon %q",
 			ErrIllegalAction, actor.ID, decision.Weapon)
 	}
+	if !actor.CanPay(weapon) {
+		return nil, outcome{}, fmt.Errorf("%w: unit %q cannot pay for the weapon %q",
+			ErrIllegalAction, actor.ID, weapon.Name)
+	}
 	anchor, err := b.destination(actor, decision.MoveTo, weapon.UsableAfterMove)
 	if err != nil {
 		return nil, outcome{}, err
 	}
 	firing := footprintAt(actor, anchor)
-	if !actor.CanPay(weapon) {
-		return nil, outcome{}, fmt.Errorf("%w: unit %q cannot pay for the weapon %q",
-			ErrIllegalAction, actor.ID, weapon.Name)
-	}
 	if !weapon.Range.Holds(SpanDistance(firing, target.Footprint)) {
 		return nil, outcome{}, fmt.Errorf("%w: the weapon %q of unit %q does not reach unit %q",
 			ErrIllegalAction, weapon.Name, actor.ID, target.ID)
@@ -225,19 +223,27 @@ type volley struct {
 func (b *Board) volleyOn(target *Unit, reaction *Reaction) volley {
 	if reaction != nil && reaction.SupportDefend {
 		if interceptor := b.SupportDefender(target); interceptor != nil {
-			return volley{
-				board:       b,
-				struck:      interceptor,
-				multiplier:  b.Rules.InterceptionMultiplier(interceptor),
-				interceptor: interceptor,
-			}
+			return b.interceptedVolley(interceptor)
 		}
 	}
 	multiplier := NoDefenseMultiplier
 	if reaction != nil {
 		multiplier = b.Rules.StanceMultiplier(reaction.Stance)
 	}
-	return volley{board: b, struck: target, multiplier: multiplier}
+	return b.plainVolley(target, multiplier)
+}
+
+func (b *Board) plainVolley(struck *Unit, multiplier float64) volley {
+	return volley{board: b, struck: struck, multiplier: multiplier}
+}
+
+func (b *Board) interceptedVolley(interceptor *Unit) volley {
+	return volley{
+		board:       b,
+		struck:      interceptor,
+		multiplier:  b.Rules.InterceptionMultiplier(interceptor),
+		interceptor: interceptor,
+	}
 }
 
 func (v *volley) hit(kind StrikeKind, shooter *Unit, weapon *Weapon, landed bool) Strike {
@@ -295,7 +301,7 @@ func (b *Board) applyDebuff(victim *Unit, weapon *Weapon) {
 	})
 }
 
-// The attacker chooses the support volley, and the supporters fire before the
+// The attacker chooses the support attack, and its volley fires before the
 // main strike (docs/reference/combat-formulas.md, case 13).
 func (b *Board) attackerVolley(actor, target *Unit, support bool, dice Dice, shot *volley) Trace {
 	if !support {
@@ -305,13 +311,13 @@ func (b *Board) attackerVolley(actor, target *Unit, support bool, dice Dice, sho
 		b.supportersOf(actor, actor.Footprint, target.Footprint), dice, shot)
 }
 
-// The supporters of the defender fire after the strike of the attacker, so a
+// The volley of the defender fires after the strike of the attacker, so a
 // supporter that the strike destroyed or drained fires nothing.
 func (b *Board) defenderReply(actor, target *Unit, reaction Reaction, counter *Weapon,
 	dice Dice) Trace {
 	var out Trace
 	if reaction.SupportAttack && actor.Alive() {
-		shot := volley{board: b, struck: actor, multiplier: NoDefenseMultiplier}
+		shot := b.plainVolley(actor, NoDefenseMultiplier)
 		out = b.fire(NodeDefenderVolley, StrikeDefenderSupport,
 			b.supportersOf(target, target.Footprint, actor.Footprint), dice, &shot)
 	}
@@ -354,14 +360,9 @@ func (b *Board) counterStrike(defender, attacker *Unit, weapon *Weapon, dice Dic
 	defender.EN -= weapon.ENCost
 	landed := dice.Lands(NodeCounter,
 		StrikeHitProbability(defender, attacker, weapon, false, b.Rules))
-	shot := volley{board: b, struck: attacker, multiplier: NoDefenseMultiplier}
+	shot := b.plainVolley(attacker, NoDefenseMultiplier)
 	if bearer := b.AttackShieldBearer(attacker); bearer != nil {
-		shot = volley{
-			board:       b,
-			struck:      bearer,
-			multiplier:  b.Rules.InterceptionMultiplier(bearer),
-			interceptor: bearer,
-		}
+		shot = b.interceptedVolley(bearer)
 	}
 	return shot.hit(StrikeCounter, defender, weapon, landed)
 }
@@ -379,13 +380,13 @@ func (b *Board) mapAttack(actor *Unit, decision Decision) (Trace, error) {
 		return nil, fmt.Errorf("%w: the map attack of unit %q names no aim cell",
 			ErrIllegalAction, actor.ID)
 	}
-	anchor, err := b.destination(actor, decision.MoveTo, weapon.UsableAfterMove)
-	if err != nil {
-		return nil, err
-	}
 	if actor.Ammo[weapon.Name] <= 0 || !actor.CanPay(weapon) {
 		return nil, fmt.Errorf("%w: unit %q cannot fire the weapon %q",
 			ErrIllegalAction, actor.ID, weapon.Name)
+	}
+	anchor, err := b.destination(actor, decision.MoveTo, weapon.UsableAfterMove)
+	if err != nil {
+		return nil, err
 	}
 	aim := cellFootprint(*decision.Aim)
 	if !weapon.Range.Holds(SpanDistance(footprintAt(actor, anchor), aim)) {
@@ -401,7 +402,7 @@ func (b *Board) mapAttack(actor *Unit, decision Decision) (Trace, error) {
 		if SpanDistance(victim.Footprint, aim) > weapon.Blast {
 			continue
 		}
-		shot := volley{board: b, struck: victim, multiplier: NoDefenseMultiplier}
+		shot := b.plainVolley(victim, NoDefenseMultiplier)
 		out = append(out, shot.hit(StrikeMap, actor, weapon, true))
 	}
 	return out, nil

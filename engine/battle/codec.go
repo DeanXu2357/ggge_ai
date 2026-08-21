@@ -137,15 +137,7 @@ func DecodeRules(rules *protocol.Rules) (Rules, error) {
 	if rules == nil {
 		return DefaultRules(), nil
 	}
-	out := Rules{
-		DefendMultiplier:        rules.DefendMultiplier,
-		ShieldMultiplier:        rules.ShieldMultiplier,
-		SupportDefendMultiplier: rules.SupportDefendMultiplier,
-		DodgeHitPenalty:         rules.DodgeHitPenalty,
-		Terrain:                 rules.Terrain,
-		MaxSupportAttackers:     rules.MaxSupportAttackers,
-		ENRegenFraction:         rules.ENRegenFraction,
-	}
+	out := Rules(*rules)
 	if err := validateRules(out); err != nil {
 		return Rules{}, err
 	}
@@ -285,11 +277,7 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 	if unit.Debuffs != nil {
 		out.Debuffs = make([]Debuff, 0, len(unit.Debuffs))
 		for _, debuff := range unit.Debuffs {
-			out.Debuffs = append(out.Debuffs, Debuff{
-				Kind:         debuff.Kind,
-				Magnitude:    debuff.Magnitude,
-				AppliedPhase: debuff.AppliedPhase,
-			})
+			out.Debuffs = append(out.Debuffs, Debuff(debuff))
 		}
 	}
 	return out, nil
@@ -541,11 +529,7 @@ func EncodeUnit(unit Unit) protocol.Unit {
 		out.Ammo[weapon] = count
 	}
 	for _, debuff := range unit.Debuffs {
-		out.Debuffs = append(out.Debuffs, protocol.Debuff{
-			Kind:         debuff.Kind,
-			Magnitude:    debuff.Magnitude,
-			AppliedPhase: debuff.AppliedPhase,
-		})
+		out.Debuffs = append(out.Debuffs, protocol.Debuff(debuff))
 	}
 	return out
 }

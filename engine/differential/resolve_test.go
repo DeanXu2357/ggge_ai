@@ -55,13 +55,13 @@ var resolveOps = map[string]differential.Op{
 }
 
 func livingUnits(board *battle.Board) []protocol.Unit {
-	out := make([]protocol.Unit, 0, len(board.Units))
+	out := make([]battle.Unit, 0, len(board.Units))
 	for _, unit := range board.Units {
 		if unit.Alive() {
-			out = append(out, battle.EncodeUnit(unit))
+			out = append(out, unit)
 		}
 	}
-	return out
+	return battle.EncodeUnits(out)
 }
 
 // Six rules of the engine part from the Python oracle on purpose. The three
