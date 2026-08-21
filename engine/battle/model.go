@@ -115,6 +115,10 @@ func (u *Unit) Alive() bool {
 	return u != nil && u.HP > 0
 }
 
+func (u *Unit) HasENFor(weapon Weapon) bool {
+	return u.EN >= weapon.ENCost
+}
+
 func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
 	if bounds.High[0] < bounds.Low[0] || bounds.High[1] < bounds.Low[1] {
 		return nil, fmt.Errorf("the bounds %v run backward", bounds)

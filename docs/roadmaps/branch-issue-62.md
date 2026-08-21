@@ -56,6 +56,11 @@ New:
   kinds, its wire names, 'String', 'ParseTerrain', and the set
   type 'TerrainSet'. 'TerrainSpace' is the zero value, so a board
   that declares no terrain reads space.
+- 'engine/battle/model_test.go': the energy gate of one shot. A
+  table pins the boundary (energy above the cost, energy equal to
+  the cost, energy one under the cost, no energy, and a weapon of
+  no cost), and one fact pins that the predicate reads the panel
+  of the unit while the mech holds a larger base copy.
 - 'engine/battle/terrain_test.go': the terrain facts and the
   terrain half of the codec (the zero-value weapon, a weapon that
   halves against water, a weapon that cannot fire under water, the
@@ -74,6 +79,9 @@ Changed:
   fields, and the same fields on 'Unit' stay the final panel. The
   weapon list decode moves into 'decodeWeapons', which both levels
   call.
+- 'engine/battle/model.go': 'Unit' answers 'HasENFor', which
+  reads the energy of the panel against the energy cost of the
+  weapon. The answer covers the energy alone.
 - 'engine/battle/codec_test.go': a payload with no mech base
   leaves the base empty and keeps the panel, a payload with a mech
   base fills the mech alone, and a write into the panel does not
@@ -144,6 +152,7 @@ decodes to the same board as before.
         Mech  Mech
         ...
     }
+    func (u *Unit) HasENFor(weapon Weapon) bool
     const NoDefenseMultiplier, DefendMultiplier, ShieldMultiplier
     const CritNormal, CritHighMorale, CritSuper
     func BaseDamage(power float64, attacker, defender *Unit) float64
@@ -263,7 +272,13 @@ caller.
 12. The mech base decodes through the same 'decodeWeapon' as the
     panel, so a terrain name outside the contract stops the decode
     at either level.
-13. The version stays at 1.2. The rule of the section 'Evolution'
+13. The energy boundary falls to the shot: energy equal to the
+    cost fires, and the unit ends at zero energy. The comparison
+    is 'Unit.EN >= Weapon.ENCost', two integers, so no tolerance
+    applies. The name says 'EN' because it names the two fields
+    it compares. The predicate reads 'Unit.EN', the panel, and
+    not 'Mech.EN', the base copy.
+14. The version stays at 1.2. The rule of the section 'Evolution'
     raises the version for a change that adds a field, and commit
     c89e9fd already raised it in this branch. No client has seen
     1.2 yet, so the four fields ride the same number.
@@ -344,6 +359,16 @@ which can override them, and the terminology row says so.
 - 'UsableIn' gates no action list yet. The issue that builds the
   legal actions must drop a weapon that cannot fire from the cell
   of the attacker.
+- 'HasENFor' answers the energy and nothing more. Three other
+  gates on one shot are owned elsewhere, and the caller that
+  enumerates the candidate actions joins them: the terrain of the
+  attacker, through 'UsableIn' and issue #75; the ammunition,
+  which is not modelled, because the user recalled on 2026-08-21
+  that a limit of the ammunition applies to a map weapon alone
+  (the recollection is unverified and
+  docs/reference/combat-formulas.md holds it in the map weapon
+  section); and whether the unit acted already, which the turn
+  state holds. The branch builds no combined helper.
 - No code derives the final panel from the base data. The ability
   interaction that changes what a unit ends up with is implemented
   nowhere, and this branch does not invent it. The formulas read
