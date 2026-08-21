@@ -273,3 +273,39 @@ func TestTheActivationGateNamesWhyAUnitCannotAct(t *testing.T) {
 		t.Fatalf("a live unit of the phase that has not acted: %v, %v", unit, err)
 	}
 }
+
+func TestAnAttackWithASupporterEntersTheListTwoTimes(t *testing.T) {
+	state := intercepted()
+	state.Rules.MaxSupportAttackers = 3
+
+	out := actions(t, state, "a1")
+
+	if len(out) != 5 || out[4].Kind != ActionStandby {
+		t.Fatalf("actions: %+v", out)
+	}
+	if !out[0].Support || out[1].Support {
+		t.Fatalf("the two variants of the attack: %+v", out[:2])
+	}
+	if out[0].TargetID != out[1].TargetID || out[0].Weapon != out[1].Weapon {
+		t.Fatalf("the two variants name one target and one weapon: %+v", out[:2])
+	}
+}
+
+func TestAnActionWithNoSupporterCarriesNoVolley(t *testing.T) {
+	state := intercepted()
+	state.Unit("a2").SupportAttackCharges = 0
+	state.Unit("a1").Skills = []Skill{{Kind: ActionSkillRefill, Uses: 1}}
+	state.Unit("a1").EN = 100
+
+	out := actions(t, state, "a1")
+
+	if !reflect.DeepEqual(kinds(out),
+		[]ActionKind{ActionAttack, ActionAttack, ActionSkillRefill, ActionStandby}) {
+		t.Fatalf("actions: %+v", kinds(out))
+	}
+	for _, decision := range out {
+		if decision.Support {
+			t.Fatalf("no supporter joins this unit: %+v", decision)
+		}
+	}
+}

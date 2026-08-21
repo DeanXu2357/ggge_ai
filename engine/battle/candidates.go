@@ -11,14 +11,18 @@ func (b *Board) Actions(unitID string) ([]Decision, error) {
 	anchors := cellSlice(ReachableAnchors(unit.Footprint, unit.MoveRange,
 		b.BlockingCells(unit), b.OccupiedCells(unit), b.Bounds))
 
-	out := attacks(unit, targets, anchors)
+	out := b.attacks(unit, targets, anchors)
 	out = append(out, mapAttacks(unit, targets, anchors)...)
 	out = append(out, skillActions(unit)...)
 	out = append(out, repositions(unit, targets, anchors)...)
-	return append(out, Decision{UnitID: unit.ID, Kind: ActionStandby, Support: true}), nil
+	return append(out, Decision{UnitID: unit.ID, Kind: ActionStandby}), nil
 }
 
-func attacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
+// The attacker chooses the support volley, so an attack that a supporter of
+// the unit can join enters the list two times: with the volley and without it
+// (docs/reference/combat-formulas.md, case 13). Every other action carries no
+// volley.
+func (b *Board) attacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 	var out []Decision
 	for _, target := range targets {
 		for index := range unit.Weapons {
@@ -30,14 +34,19 @@ func attacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 			if !found {
 				continue
 			}
-			out = append(out, Decision{
+			attack := Decision{
 				UnitID:   unit.ID,
 				Kind:     ActionAttack,
 				MoveTo:   move(unit, destination),
 				TargetID: target.ID,
 				Weapon:   weapon.Name,
-				Support:  true,
-			})
+			}
+			if b.hasSupportAttacker(unit, footprintAt(unit, destination), target.Footprint) {
+				supported := attack
+				supported.Support = true
+				out = append(out, supported)
+			}
+			out = append(out, attack)
 		}
 	}
 	return out
@@ -59,12 +68,11 @@ func mapAttacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 			}
 			aim := aimCell(footprintAt(unit, destination), target.Footprint)
 			out = append(out, Decision{
-				UnitID:  unit.ID,
-				Kind:    ActionMapAttack,
-				MoveTo:  move(unit, destination),
-				Weapon:  weapon.Name,
-				Aim:     &aim,
-				Support: true,
+				UnitID: unit.ID,
+				Kind:   ActionMapAttack,
+				MoveTo: move(unit, destination),
+				Weapon: weapon.Name,
+				Aim:    &aim,
 			})
 		}
 	}
@@ -82,10 +90,9 @@ func skillActions(unit *Unit) []Decision {
 			continue
 		}
 		out = append(out, Decision{
-			UnitID:  unit.ID,
-			Kind:    skill.Kind,
-			Amount:  cloneAmount(skill.Amount),
-			Support: true,
+			UnitID: unit.ID,
+			Kind:   skill.Kind,
+			Amount: cloneAmount(skill.Amount),
 		})
 	}
 	return out
@@ -123,10 +130,9 @@ func repositions(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 		taken[cell] = true
 		destination := cell
 		out = append(out, Decision{
-			UnitID:  unit.ID,
-			Kind:    ActionReposition,
-			MoveTo:  &destination,
-			Support: true,
+			UnitID: unit.ID,
+			Kind:   ActionReposition,
+			MoveTo: &destination,
 		})
 	}
 	return out
