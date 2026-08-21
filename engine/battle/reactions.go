@@ -47,10 +47,7 @@ func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
 	}
 	for index := range defender.Weapons {
 		counter := &defender.Weapons[index]
-		if counter.MapWeapon || !counter.CanCounter || !defender.HasENFor(*counter) {
-			continue
-		}
-		if counter.Range.Holds(distance) {
+		if counterFits(defender, counter, distance) {
 			out = append(out, Reaction{
 				Stance:        StanceCounter,
 				Weapon:        counter.Name,
