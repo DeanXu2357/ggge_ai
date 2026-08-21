@@ -13,6 +13,13 @@ conventions and does not copy the Python structure. This branch
 keeps none of that Go code. The old branch stays until the user
 deletes it.
 
+The same day the user ruled twice more on the model:
+'engine/battle' does not mirror 'src/ggge_ai/sandbox/model.py' —
+the Go domain model answers to the game, and any likeness to the
+Python shape is coincidence, not a requirement. And the six combat
+values do not sit flat on 'Unit': in the game a unit is a pilot
+that rides a mech, and each level carries its own values.
+
 ## Change summary
 
 The engine holds the damage formulas and the hit formulas of
@@ -23,9 +30,12 @@ New:
 
 - 'engine/battle/damage.go': the defense multipliers and the
   critical multipliers as constants; the six corrections
-  (formulas 1 to 4, 6 and 7) as unexported functions;
-  'BaseDamage' (5), 'CombatBaseDamage' (8), 'DamageScale' (9),
-  'FinalDamage' (10), 'CriticalDamage' (11).
+  (formulas 1 to 4, 6 and 7) as unexported functions that take
+  'Pilot' and 'Mech' values, not loose floats, so the compiler
+  rejects an argument swap; 'BaseDamage' (5),
+  'CombatBaseDamage' (8), 'DamageScale' (9), 'FinalDamage' (10),
+  'CriticalDamage' (11). Formula 2 and formula 4 read the mech,
+  so their helpers are 'mechRatio' and 'mechSigmoid'.
 - 'engine/battle/hit.go': 'HitRatePercent' (clamped to 0 to 100)
   and 'HitProbability'. The hit constants are unexported.
 - 'engine/battle/damage_test.go', 'hit_test.go': eight
@@ -42,10 +52,10 @@ New:
 
 Changed:
 
-- 'engine/battle/model.go', 'codec.go': 'Unit' carries the six
-  values the formulas read ('UnitAttack', 'UnitDefense',
-  'PilotAttack', 'PilotDefense', 'Reaction', 'Mobility'); the
-  decode copies them from the wire.
+- 'engine/battle/model.go', 'codec.go': the types 'Pilot'
+  (attack, defense, reaction) and 'Mech' (attack, defense,
+  mobility); 'Unit' carries one of each in the fields 'Pilot' and
+  'Mech'; the decode composes the two from the flat wire fields.
 - 'scripts/write_engine_fixtures.py': the case 'formulas';
   'build_case' takes extra checks; 'FORMULA_OPS' names the eight
   ops.
@@ -57,13 +67,25 @@ Changed:
   terms and the four correction terms; the 'ability correction'
   row names the dodge penalty as a sandbox placeholder; the
   'defense multiplier' row names the Go constants as defaults that
-  the rules payload can override.
+  the rules payload can override. New rows bind unit, mech and
+  pilot, one term for each level; the rows that read "unit attack"
+  and "unit defense" for a mech value now say mech, and the unit
+  row records that the wire names stay 'unit_attack' and
+  'unit_defense'.
 
 Nothing changes on the wire: 'engine/protocol', the protocol
 version and the spec are untouched.
 
 ## Exported Go API
 
+    type Pilot struct{ Attack, Defense, Reaction float64 }
+    type Mech struct{ Attack, Defense, Mobility float64 }
+    type Unit struct {
+        ...
+        Pilot Pilot
+        Mech  Mech
+        ...
+    }
     const NoDefenseMultiplier, DefendMultiplier, ShieldMultiplier
     const CritNormal, CritHighMorale, CritSuper
     func BaseDamage(power float64, attacker, defender *Unit) float64
@@ -92,10 +114,16 @@ caller.
 ## Contention points
 
 1. The two sides of a strike are '*Unit' values, not six floats.
-   The formulas read the six values from the unit, and the
-   engagement issue passes the units it already holds. The domain
-   'Unit' therefore gains the six fields now, with the rule that
-   reads them.
+   The formulas read the values from the unit, and the engagement
+   issue passes the units it already holds. The first cut put the
+   six values flat on 'Unit', because the wire carries them flat
+   and a flat copy is the shortest decode. The user ruling of
+   2026-08-21 overrides that: the game holds two levels, so the
+   model holds two levels. The flat wire keeps its names, and the
+   decode does the composition. The rest of 'Unit' (HP, EN, move
+   range, weapons, footprint, support charges) stays where it is;
+   which of those belong to the mech and which to the pilot is a
+   separate issue.
 2. No argument has a default. The caller states the terrain, the
    defense multiplier and the critical multiplier on every call.
    The Python defaults (terrain 1.0, defense 1.0, critical 1.1)
@@ -153,3 +181,8 @@ which can override them, and the terminology row says so.
 - The constants are community-fitted values, and
   docs/reference/combat-formulas.md lists the calibration items
   that stay open. The branch adds no rule.
+- Terrain stays open, and this branch does not own it. A separate
+  investigation runs on terrain adaptability; its result decides
+  what the divisor of formula 8 reads and where the value comes
+  from. Until then 'CombatBaseDamage' and 'ExpectedDamage' take
+  the terrain as a plain float from the caller.
