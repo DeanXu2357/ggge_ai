@@ -179,6 +179,11 @@ type Debuff struct {
 // Two names mislead: Reaction is the reaction value of the pilot, not the
 // Reaction type of a defense, and ChanceSteps is the re-act grant after a kill
 // (docs/reference/combat-formulas.md:134), which counts no dice.
+//
+// HP, EN, MoveRange and Weapons are the final panel of the deployed unit. The
+// four Mech fields are the base data of the machine, and they are engine-only:
+// 'model.py' holds one level, so they stay optional and a payload that omits
+// them leaves the base copy of the mech empty.
 type Unit struct {
 	UnitID                  string         `json:"unit_id"`
 	Faction                 Faction        `json:"faction"`
@@ -209,6 +214,10 @@ type Unit struct {
 	InterceptionReduction   float64        `json:"interception_reduction"`
 	Ammo                    map[string]int `json:"ammo"`
 	Debuffs                 []Debuff       `json:"debuffs"`
+	MechHP                  int            `json:"mech_hp,omitempty"`
+	MechEN                  int            `json:"mech_en,omitempty"`
+	MechMoveRange           int            `json:"mech_move_range,omitempty"`
+	MechWeapons             []Weapon       `json:"mech_weapons,omitempty"`
 }
 
 type Reaction struct {

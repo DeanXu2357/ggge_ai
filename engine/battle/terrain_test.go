@@ -186,6 +186,11 @@ func TestTheDecodeRefusesATerrainOutsideTheContract(t *testing.T) {
 		"a weapon firing entry": func(state *protocol.BattleState) {
 			state.Units[0].Weapons[0].UnusableIn = []string{"lava"}
 		},
+		"a weapon of the mech base": func(state *protocol.BattleState) {
+			state.Units[0].MechWeapons = []protocol.Weapon{
+				{Name: "beam", TerrainDamage: map[string]float64{"lava": 0.5}},
+			}
+		},
 	}
 
 	for name, spoil := range cases {

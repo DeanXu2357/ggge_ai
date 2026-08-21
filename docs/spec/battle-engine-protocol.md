@@ -421,6 +421,42 @@ the build before the field. The test names each one in
 'ENGINE_ONLY', so a Go field that nobody declared is still a test
 failure.
 
+### The final panel and the base data
+
+A unit is a pilot that rides a mech. The payload carries two
+levels of values, and they are not the same numbers.
+
+The final panel is what the game shows for the deployed unit. The
+fields 'hp', 'en', 'move_range' and 'weapons' of the unit carry
+it, together with 'unit_attack', 'unit_defense', 'mobility',
+'pilot_attack', 'pilot_defense' and 'reaction'. Every rule of the
+board reads the final panel.
+
+The base data is what the mech and the pilot supply to the
+computation of the final panel. An ability of the mech or of the
+pilot can change what the unit ends up with, so the base copy and
+the final panel can differ (user ruling 2026-08-21).
+
+The mech carries its base copy in four optional fields:
+
+| Field | Content |
+|---|---|
+| mech_hp | The hit points of the mech |
+| mech_en | The energy of the mech |
+| mech_move_range | The movement range of the mech |
+| mech_weapons | The weapons of the mech, in the weapon payload |
+
+These four are engine-only. A payload that omits them leaves the
+base copy of the mech empty. It does not fill the base copy from
+the final panel. No code derives the one level from the other
+today, so a producer that reads the panel of the game alone sends
+the panel alone.
+
+The Go types keep the two levels apart by the struct that holds
+the field, and not by the name of the field: 'battle.Unit' holds
+the final panel, and 'battle.Mech' and 'battle.Pilot' hold the
+base data. 'Mech.HP' is the base copy, and 'Unit.HP' is the panel.
+
 ### Terrain
 
 Terrain belongs to a cell. The five kinds are 'space',

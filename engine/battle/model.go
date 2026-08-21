@@ -75,6 +75,11 @@ func (w Weapon) UsableIn(attacker Terrain) bool {
 	return !w.UnusableIn[attacker]
 }
 
+// Pilot and Mech hold base data: the values the character and the machine
+// bring to the computation. Unit holds the final panel: the values the game
+// shows for the deployed piece, after every ability of the pilot and of the
+// mech. No rule derives the one from the other yet, so each level takes its
+// own wire field.
 type Pilot struct {
 	Attack   float64
 	Defense  float64
@@ -82,9 +87,13 @@ type Pilot struct {
 }
 
 type Mech struct {
-	Attack   float64
-	Defense  float64
-	Mobility float64
+	Attack    float64
+	Defense   float64
+	Mobility  float64
+	HP        int
+	EN        int
+	MoveRange int
+	Weapons   []Weapon
 }
 
 type Unit struct {

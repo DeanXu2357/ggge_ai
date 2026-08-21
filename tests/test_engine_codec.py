@@ -63,6 +63,7 @@ ENCODERS = {
 
 ENGINE_ONLY = {
     "Weapon": ["terrain_damage", "unusable_in"],
+    "Unit": ["mech_hp", "mech_en", "mech_move_range", "mech_weapons"],
     "BattleState": ["terrain", "terrain_cells"],
 }
 

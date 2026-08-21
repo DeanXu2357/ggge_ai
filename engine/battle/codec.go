@@ -113,23 +113,37 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 			Reaction: unit.Reaction,
 		},
 		Mech: Mech{
-			Attack:   unit.UnitAttack,
-			Defense:  unit.UnitDefense,
-			Mobility: unit.Mobility,
+			Attack:    unit.UnitAttack,
+			Defense:   unit.UnitDefense,
+			Mobility:  unit.Mobility,
+			HP:        unit.MechHP,
+			EN:        unit.MechEN,
+			MoveRange: unit.MechMoveRange,
 		},
 		MoveRange:            unit.MoveRange,
 		SupportDefendCharges: unit.SupportDefendCharges,
 		SupportAttackCharges: unit.SupportAttackCharges,
 	}
-	if unit.Weapons != nil {
-		out.Weapons = make([]Weapon, 0, len(unit.Weapons))
-		for index := range unit.Weapons {
-			weapon, err := decodeWeapon(&unit.Weapons[index])
-			if err != nil {
-				return Unit{}, fmt.Errorf("unit %q: %w", unit.UnitID, err)
-			}
-			out.Weapons = append(out.Weapons, weapon)
+	if out.Weapons, err = decodeWeapons(unit.UnitID, unit.Weapons); err != nil {
+		return Unit{}, err
+	}
+	if out.Mech.Weapons, err = decodeWeapons(unit.UnitID, unit.MechWeapons); err != nil {
+		return Unit{}, err
+	}
+	return out, nil
+}
+
+func decodeWeapons(unitID string, weapons []protocol.Weapon) ([]Weapon, error) {
+	if weapons == nil {
+		return nil, nil
+	}
+	out := make([]Weapon, 0, len(weapons))
+	for index := range weapons {
+		weapon, err := decodeWeapon(&weapons[index])
+		if err != nil {
+			return nil, fmt.Errorf("unit %q: %w", unitID, err)
 		}
+		out = append(out, weapon)
 	}
 	return out, nil
 }
