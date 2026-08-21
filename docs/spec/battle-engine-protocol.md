@@ -70,22 +70,38 @@ Request:
 
 | Field | Content |
 |---|---|
-| board | The width and the height |
-| enemies | The enemy units, with their cells |
+| board | The width, the height, and the terrain of the map |
+| enemies | The units that the stage puts on the board, with their cells |
 | victory | The victory conditions of the stage |
 | events | The stage event table |
 | deploy_cells | The cells that accept an ally unit |
 | rules | The rule overrides of the stage |
 | seed | The seed of the session random source |
 
-Response: 'turn', 'phase', 'deploy_open'.
+The field 'board' carries the width and the height, and the terrain
+in the two fields that the state carries: 'terrain' and
+'terrain_cells'. The section 'Terrain' holds their meaning. The
+anchor of the map is the cell 0,0, so a board of the width w and the
+height h holds the cells 0,0 to w-1,h-1.
+
+The field 'enemies' takes the enemy units and the third-party units.
+An ally unit is a bad_request: the ally side arrives with 'place'.
+
+The field 'rules' is optional. A payload that carries it carries
+every field of it; a payload that omits it takes the default rules.
+The field 'events' is optional, and every event of the table waits
+at the start of the battle. The engine reads the table at each
+activation, so a trigger or an effect outside the value sets of the
+section 'Stage events' is a bad_request.
+
+The field 'seed' builds the session random source. Every sampled
+activation draws from that source and from no other, so one seed and
+one sequence of commands give one battle.
+
+Response: 'turn' (1), 'phase' (ally), 'deploy_open' (true).
 
 'init' on a live session replaces the battle. The history starts
 again.
-
-'init' is not implemented. The section 'Terrain' holds one open
-requirement for the issue that implements it: 'board' must carry
-the terrain of the map.
 
 Refusals: bad_request.
 
@@ -221,26 +237,61 @@ The field 'reaction' is necessary when 'reactions' gives a list
 that is not empty for this strike. The field is not permitted when
 that list is empty.
 
+The engine reads the reaction from the field 'reaction' of the
+request. A reaction inside 'action' applies only when the request
+carries none. The field 'unit_id' of the request names the actor;
+'action' carries the same value or none.
+
 The field 'dice' holds 'mode'. The value 'forced' also holds
 'outcomes': the engine reads one outcome for each chance event, in
-the resolution order. The value 'sampled' holds no outcome: the
-engine draws from the session random source of 'init'.
+the resolution order. Each outcome is 'hit' or 'miss'. The value
+'sampled' holds no outcome: the engine draws from the session random
+source of 'init'.
 
 One engagement holds four chance events, in this order: the support
 volley of the attacker, the main strike, the support volley of the
 defender, and the counter. The two volleys are two events, and one
 engagement holds both.
 
+After the action, 'act' runs the turn cycle of the section 'Turn
+cycle'.
+
 Response: 'events' (the resolution in order) and 'board' (the new
 summary).
 
+Each entry of 'events' carries a field 'kind':
+
+| Kind | Fields |
+|---|---|
+| support, strike, defender_support, counter, map, skill | shooter_id, struck_id, weapon, landed, damage, killed |
+| stage_event | event_id |
+| phase | turn, phase |
+
+The entries come in the order of the resolution: the strikes of the
+engagement, then the stage events that the outcome fired, then each
+phase boundary with the stage events that opened its turn.
+
+The field 'board' carries 'turn', 'phase', and 'pending': the units
+of the phase that have not acted.
+
+The engine reads no victory condition here. 'act' answers the same
+way when a side holds no living unit left, and the client decides
+that the battle is over.
+
 Refusals: no_session; illegal_state when the phase of the unit is
-not the current phase, or when the unit acted in this turn;
-illegal_action for an action that 'actions' does not give, for an
-action that carries 'move_to' when its weapon or its skill holds
-'usable_after_move' false, for a reaction that 'reactions' does not
-give, for an absent necessary reaction, or for a short 'outcomes'
-list.
+not the current phase, when the unit acted in this turn, or when the
+unit is destroyed; illegal_action for an action that 'actions' does
+not give, for an action that carries 'move_to' when its weapon or
+its skill holds 'usable_after_move' false, for a reaction that
+'reactions' does not give, for an absent necessary reaction, for a
+reaction on an action that 'reactions' answers with an empty list,
+or for a short 'outcomes' list; bad_request for a dice mode outside
+the contract, for an outcome outside 'hit' and 'miss', for an
+outcome list on a sampled call, and for an 'action' that names
+another unit than the request.
+
+A refused 'act' changes nothing: neither the board nor the place of
+the session random source in its stream.
 
 ### rollback
 
@@ -299,11 +350,74 @@ Request: 'action'. Response: 'guarantee'.
 Purpose: the snapshot of the session, for a run log, a replay, and
 a differential test.
 
-'export' takes no field and gives 'state' and 'history'. 'load'
-takes the same two fields and replaces the session.
+'export' takes no field and gives 'state', 'history', 'rules',
+'events' and 'seed'. 'load' takes the same five and replaces the
+session. The last three are optional on 'load': a payload that omits
+them takes the default rules, an empty event table and the seed 0.
+The rules, the event table and the seed are part of the session, and
+a snapshot without them builds a session that answers other numbers.
+
+The snapshot does not carry the place of the session random source
+in its stream. A replay that must draw the same numbers starts from
+the snapshot that opened the battle and sends the same commands.
 
 The state carries 'phase'. A state without that field is a
 bad_request.
+
+The 'history' of a snapshot is empty: the operation history belongs
+to the issue that implements 'rollback'.
+
+## Turn cycle
+
+The command 'act' runs the turn cycle after the action.
+
+1. The stage events fire: a kill event whose victim is gone leaves
+   the waiting list, and its effect runs.
+2. The phase rotates while the side to act holds no unit that waits.
+
+One rotation hands the board to the next side of the order ally,
+third party, enemy. A rotation that comes back to the ally side opens
+the next turn: the turn counter goes up, and the turn-start events of
+that turn fire before the side takes its phase. Then the debuffs that
+lived one full round of the phase order expire, and the phase starts.
+
+The phase start reads every living unit of the side that takes the
+phase. Each one takes its activation back, refills its chance steps
+and its two support charges, and regenerates the energy of the rule
+'en_regen_fraction' of its maximum, up to that maximum.
+
+A pending unit is a living unit of the phase faction that has not
+acted. A board on which no side holds one still stops: the rotation
+runs one time more than the length of the phase order, and then it
+gives up. The client reads the answer and decides that the battle is
+over.
+
+### Stage events
+
+The table comes with 'init'. The state carries two lists:
+'pending_events' holds the events that wait, and 'fired_events' holds
+the events that fired, in the order in which they fired.
+
+A trigger holds a 'type' and its parameters:
+
+| Type | Fields | When it fires |
+|---|---|---|
+| kill | uid, within_turn | The unit 'uid' is gone, and the turn is not past 'within_turn' |
+| turn_start | turn | The turn reaches 'turn' |
+
+A kill event past its turn limit leaves the waiting list at the next
+turn without firing.
+
+An effect holds a 'type' and its parameters:
+
+| Type | Fields | What it does |
+|---|---|---|
+| spawn | units | Puts each unit on the board, and skips an identity the board holds |
+| weaken | uids, attack_multiplier, defense_multiplier | Scales the attack and the defense of the mech of each named unit |
+
+An absent multiplier is 1.0. A type outside these value sets is a
+decode error: the turn cycle runs the table at every activation, and
+an entry that it cannot run is a stage that it cannot play.
 
 ## Board geometry
 
@@ -442,8 +556,9 @@ The rules of the wire form:
   error.
 - A decode and an encode of one payload give the same bytes a
   second time.
-- The trigger and the effect of a stage event stay free objects.
-  The issue that runs the event table reads them.
+- The trigger and the effect of a stage event stay free objects on
+  the wire. The turn cycle reads them, and the section 'Stage
+  events' holds their value sets.
 
 A field that 'engine/state.py' holds and the Go struct does not is
 a test failure: 'tests/test_engine_codec.py' compares the fields of
@@ -530,12 +645,9 @@ a value of the map, and it is not the terrain adaptability of the
 mech. Terrain adaptability gates deployment and movement; it enters
 no damage formula and no hit rate.
 
-Open, for the issue that implements 'init': the field 'board' of
-the request must carry the terrain of the map, in the same two
-fields that the state carries above. The user ruled on 2026-08-21
-that the terrain of each cell arrives when the board is built.
-Today 'board' carries the width and the height alone, and 'init'
-is not implemented.
+The field 'board' of the 'init' request carries the terrain of the
+map in the same two fields. The user ruled on 2026-08-21 that the
+terrain of each cell arrives when the board is built.
 
 ### Differential cases
 

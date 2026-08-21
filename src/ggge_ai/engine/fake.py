@@ -100,8 +100,10 @@ class FakeEngine:
         return {"state": self._loaded(), "history": []}
 
     def _summary(self) -> dict[str, Any]:
+        # The shape of the board summary, with no unit in the pending list: who
+        # waits is a rule of the battle, and the fake holds none.
         state = self._loaded()
-        return {"turn": state.get("turn"), "phase": state.get("phase")}
+        return {"turn": state.get("turn"), "phase": state.get("phase"), "pending": []}
 
     def _loaded(self) -> dict[str, Any]:
         if self._state is None:

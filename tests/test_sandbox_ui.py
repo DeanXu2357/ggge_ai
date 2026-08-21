@@ -12,6 +12,7 @@ import ast
 import json
 import socket
 import threading
+from contextlib import contextmanager
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
@@ -20,8 +21,11 @@ from urllib.request import Request, urlopen
 
 import pytest
 
+from ggge_ai.engine.client import BattleEngine
+from ggge_ai.engine.contract import Faction
 from ggge_ai.engine.fake import FakeEngine
 from ggge_ai.engine.session import EngineSession
+from ggge_ai.engine.state import BattleState, Unit, Weapon
 from scripts.sandbox_ui import build_handler
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -193,3 +197,103 @@ def test_an_unknown_route_is_not_found(client):
     head = "GET /nope HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
 
     assert "404" in client.raw(head)
+
+
+def _duel() -> BattleState:
+    """Two units in one row that can reach each other, and one ally with no weapon.
+
+    The accuracy of the weapon leaves room for both outcomes of a draw, so a
+    sampled battle reads the random source of the engine at every strike.
+    """
+    beam = Weapon(name="beam rifle", power=1800.0, range_min=1, range_max=3, en_cost=10,
+                  accuracy=70.0)
+    panel = {
+        "hp": 12000,
+        "max_hp": 12000,
+        "en": 140,
+        "en_max": 140,
+        "unit_attack": 4200.0,
+        "unit_defense": 3900.0,
+        "pilot_attack": 220.0,
+        "pilot_defense": 190.0,
+        "reaction": 205.0,
+        "mobility": 310.0,
+    }
+    return BattleState(
+        units=[
+            Unit(unit_id="a1", faction=Faction.ALLY, pos=(0, 0), weapons=[beam], **panel),
+            Unit(unit_id="a2", faction=Faction.ALLY, pos=(1, 0), **panel),
+            Unit(unit_id="e1", faction=Faction.ENEMY, pos=(3, 0), weapons=[beam], **panel),
+        ],
+        phase=Faction.ALLY,
+        turn=1,
+        bounds=((0, 0), (6, 6)),
+    )
+
+
+@contextmanager
+def _page(engine_executable, seed: int):
+    with BattleEngine(engine_executable) as engine:
+        session = EngineSession(engine, _duel(), seed=seed)
+        server = ThreadingHTTPServer(("127.0.0.1", 0), build_handler(session, engine=engine))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        host, port = server.server_address[:2]
+        try:
+            yield Client(f"http://{host}:{port}")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+
+def _living(state) -> set[str]:
+    return {entry["faction"] for entry in state["units"] if entry["hp"] > 0}
+
+
+def _play(client) -> list:
+    """Play the board until one side is gone, one activation at a time.
+
+    The engine reads no victory condition yet, so the caller holds the end of
+    the battle.
+    """
+    log = []
+    for _ in range(200):
+        pending = client.get("/api/decision")
+        if not pending["units"]:
+            return log
+        entry = pending["units"][0]
+        candidate = entry["actions"][0]
+        options = client.post("/api/reactions", {"candidate": candidate})[1]["reactions"]
+        body = {"candidate": candidate, "reaction": options[-1] if options else None}
+        status, payload = client.post("/api/act", body)
+        assert status == 200, payload
+        log.append(payload["events"])
+        if len(_living(payload["state"])) < 2:
+            return log
+    raise AssertionError("the battle ran past 200 activations")
+
+
+def test_the_page_plays_a_battle_end_to_end_through_the_engine(engine_executable):
+    with _page(engine_executable, 42) as client:
+        log = _play(client)
+        end = client.get("/api/state")
+
+    assert len(log) >= 4, log
+    assert end["turn"] > 1, "the battle crossed at least one turn boundary"
+    assert len(_living(end)) == 1, "one side is gone"
+    assert any(
+        event["kind"] == "phase" for events in log for event in events
+    ), "the answer of the engine names the phase boundaries it crossed"
+
+
+def test_one_seed_gives_one_battle(engine_executable):
+    with _page(engine_executable, 42) as client:
+        first = _play(client)
+    with _page(engine_executable, 42) as client:
+        second = _play(client)
+    with _page(engine_executable, 43) as client:
+        other = _play(client)
+
+    assert first == second
+    assert first != other
