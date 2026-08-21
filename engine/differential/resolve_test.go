@@ -1,0 +1,110 @@
+package differential_test
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/differential"
+	"github.com/DeanXu2357/ggge_ai/engine/protocol"
+)
+
+func init() {
+	addOps(resolveOps)
+}
+
+type forcedDice struct {
+	SupportVolley bool `json:"support_volley"`
+	Strike        bool `json:"strike"`
+	Counter       bool `json:"counter"`
+}
+
+type applyInput struct {
+	Decision protocol.Decision `json:"decision"`
+	Dice     forcedDice        `json:"dice"`
+}
+
+type applyAnswer struct {
+	Units []protocol.Unit `json:"units"`
+}
+
+var resolveOps = map[string]differential.Op{
+	"apply": func(setup *differential.Setup, input json.RawMessage) (any, error) {
+		var in applyInput
+		if err := decodeInput(input, &in); err != nil {
+			return nil, err
+		}
+		board, err := battle.DecodeState(&setup.State)
+		if err != nil {
+			return nil, err
+		}
+		board.Rules, err = battle.DecodeRules(&setup.Rules)
+		if err != nil {
+			return nil, err
+		}
+		decision, err := battle.DecodeDecision(in.Decision)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := board.Apply(decision, battle.Forced(in.Dice)); err != nil {
+			return nil, err
+		}
+		return applyAnswer{Units: livingUnits(board)}, nil
+	},
+}
+
+func livingUnits(board *battle.Board) []protocol.Unit {
+	out := make([]protocol.Unit, 0, len(board.Units))
+	for _, unit := range board.Units {
+		if unit.Alive() {
+			out = append(out, battle.EncodeUnit(unit))
+		}
+	}
+	return out
+}
+
+// Five rules of the engine part from the Python oracle on purpose. The three
+// resolution boards and the op above keep the five out of the comparison:
+//
+//  1. The engine reads the orthogonal distance between two footprints. Python
+//     reads the king step. Each unit of these boards covers one cell, and each
+//     unit stands in one row with the other units.
+//  2. The engine reads the field 'usable_after_move' of the weapon and of the
+//     skill. Python infers the permission from the kind of the action. No
+//     decision here carries a move, and each actor holds a move range of 0.
+//  3. An illegal move is an error in the engine. Python drops it in silence.
+//     No decision here carries a move.
+//  4. A destroyed unit stays on the board with no hit points left. Python
+//     removes it at the end of 'step'. The op filters its answer on the life of
+//     the unit, and the expectation of Python holds the same units.
+//  5. The attacker chooses the support volley. Python fires every supporter on
+//     every attack. Each decision here names the choice in its field 'support',
+//     and Python reads that field.
+//
+// The Python 'step' rotates the phase when the acting side holds no unit that
+// waits. Each acting side of these boards keeps one more unit that has not
+// acted, so no case compares a state after a rotation.
+func TestTheResolutionBoardsRunTheApplyOp(t *testing.T) {
+	ran := 0
+	for _, one := range load(t) {
+		for _, op := range differential.Run(one, ops).Ran {
+			if op == "apply" {
+				ran++
+			}
+		}
+	}
+
+	if ran == 0 {
+		t.Error("no case holds a check of \"apply\"")
+	}
+}
+
+func TestAnApplyInputOutsideTheContractStopsTheOp(t *testing.T) {
+	op := ops["apply"]
+
+	_, err := op(nil, json.RawMessage(`{"decision":{"unit_id":"a1"},"morale":7}`))
+
+	if err == nil {
+		t.Fatal("a field that the op does not hold must stop the check")
+	}
+}
