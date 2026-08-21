@@ -213,17 +213,30 @@ One run writes five files into `data/datamine/<stamp>/`:
 
 | File | Content |
 |---|---|
-| `unit.json` | The unit endpoint, as received |
-| `weapon.json` | The weapon endpoint, as received |
-| `stage.json` | The stage endpoint, as received |
+| `unit.json` | The unit payload, written again |
+| `weapon.json` | The weapon payload, written again |
+| `stage.json` | The stage payload, written again |
 | `formula.json` | The formula lines and the notes, read from the page |
-| `manifest.json` | The stamp, the address of each file, the row counts, the byte count and the SHA-256 |
+| `manifest.json` | The stamp, the crawled address, the address of each file, the row counts, the byte count and the SHA-256 |
 
-The writer sorts every object key and writes two-space indent. It
-keeps the row order of the source. It writes no timestamp. Two runs
-against one stamp therefore give the same bytes, and a byte compare
-answers the drift question. The crawler prints the start time to
-stdout instead.
+"Written again" means this: the crawler decodes the payload and
+writes it a second time. It changes no value. It sorts every object
+key, it writes two-space indent, and it keeps the row order of the
+source. The stored bytes are therefore not the received bytes. A
+comparison against a raw fetch must decode first.
+
+The crawler writes no timestamp into the store. Two runs at one
+stamp therefore give the same bytes, and a byte compare answers the
+drift question. The crawler prints the start time to stdout
+instead.
+
+The crawler reads the stamp a second time, after the four payloads.
+A new stamp at that moment stops the run, because the four payloads
+can then hold two versions.
+
+A run at a stamp that already has a directory overwrites the five
+files. It removes no other file of that directory. Give `--out` a
+second root to keep both dumps for a comparison.
 
 `data/` is in `.gitignore`. The store is not in the repository.
 

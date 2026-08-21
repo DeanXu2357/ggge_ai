@@ -36,6 +36,7 @@ Fetch = Callable[[str], bytes]
 _DIV = re.compile(r"<(/?)div\b")
 _CODE = re.compile(r"<code\b[^>]*>(.*?)</code>", re.S)
 _TAG = re.compile(r"<[^>]+>")
+_STAMP = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 
 
 def _text(markup: str) -> str:
@@ -53,7 +54,9 @@ def _tab_panel(page: str, value: str) -> str:
     at = page.find(marker)
     while at >= 0:
         start = page.rindex("<", 0, at)
-        if page.startswith("<div", start) and 'data-slot="tabs-content"' in page[start:at]:
+        stop = page.find("<", start + 1)
+        tag = page[start : stop if stop >= 0 else len(page)]
+        if tag.startswith("<div") and 'data-slot="tabs-content"' in tag:
             depth = 0
             for match in _DIV.finditer(page, start):
                 depth += -1 if match.group(1) else 1
@@ -90,13 +93,22 @@ def _dump(payload) -> bytes:
     )
 
 
-def crawl(fetch: Fetch, out_root: Path) -> Path:
-    version = json.loads(fetch(VERSION_PATH))["version"]
+def _stamp(fetch: Fetch) -> str:
+    version = str(json.loads(fetch(VERSION_PATH))["version"])
+    if not _STAMP.match(version):
+        raise ValueError(f"the data version stamp {version!r} is no directory name")
+    return version
+
+
+def crawl(fetch: Fetch, out_root: Path, source: str) -> Path:
+    version = _stamp(fetch)
     payloads = {name: json.loads(fetch(path)) for name, path in TABLE_PATHS.items()}
     payloads["formula"] = formula_chain(fetch(FORMULA_PATH).decode("utf-8"))
     paths = {**TABLE_PATHS, "formula": FORMULA_PATH}
+    if _stamp(fetch) != version:
+        raise RuntimeError(f"the source published a new version during the crawl of {version}")
 
-    out_dir = out_root / str(version)
+    out_dir = out_root / version
     out_dir.mkdir(parents=True, exist_ok=True)
     files = {}
     for name, payload in payloads.items():
@@ -111,18 +123,18 @@ def crawl(fetch: Fetch, out_root: Path) -> Path:
         }
 
     (out_dir / "manifest.json").write_bytes(
-        _dump({"version": version, "files": files, "source": BASE_URL})
+        _dump({"version": version, "files": files, "source": source})
     )
     return out_dir
 
 
 class HttpFetch:
     def __init__(self, base_url: str, timeout: float) -> None:
-        self._base_url = base_url.rstrip("/")
+        self.base_url = base_url.rstrip("/")
         self._timeout = timeout
 
     def __call__(self, path: str) -> bytes:
-        request = urllib.request.Request(self._base_url + path, headers={"User-Agent": USER_AGENT})
+        request = urllib.request.Request(self.base_url + path, headers={"User-Agent": USER_AGENT})
         with urllib.request.urlopen(request, timeout=self._timeout) as response:
             return response.read()
 
@@ -135,7 +147,8 @@ def main() -> None:
     args = parser.parse_args()
 
     started = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-    out_dir = crawl(HttpFetch(args.base_url, args.timeout), args.out)
+    fetch = HttpFetch(args.base_url, args.timeout)
+    out_dir = crawl(fetch, args.out, fetch.base_url)
     manifest = json.loads((out_dir / "manifest.json").read_text(encoding="utf-8"))
     print(f"started {started}")
     print(f"version {manifest['version']}")
