@@ -1,7 +1,8 @@
-"""情境檔：把一份 JSON 關卡佈陣讀成沙盤可跑的初盤面。
+"""The stage layout: one JSON file of a stage read into a start state.
 
-單位數值一律引用 stage.intel 的情報庫（`intel` 段），情境檔本身只寫「誰、
-站哪、剩多少」；勝敗條件與事件表照 model 層吃的形態組裝。
+The unit values come from the intel store, in the 'intel' section. The layout
+file itself writes who stands where, and what each one has left. It holds no
+rule: the engine answers every question that needs one.
 """
 
 from __future__ import annotations
@@ -11,18 +12,10 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from ..stage import intel as intel_mod
-from ..stage.intel import Intelligence, UnitIntel
-from .model import (
-    DEFAULT_RULES,
-    BattleState,
-    Cell,
-    EventTable,
-    Faction,
-    Rules,
-    StageEvent,
-    Unit,
-)
+from ..engine.contract import Cell, Faction
+from ..engine.state import DEFAULT_RULES, BattleState, EventTable, Rules, StageEvent, Unit
+from . import intel as intel_mod
+from .intel import Intelligence, UnitIntel
 
 FORMAT = "sandbox-scenario/1"
 
@@ -102,30 +95,6 @@ def from_dict(data: dict[str, Any]) -> Scenario:
         defeat=dict(data.get("defeat", {"type": DEFEAT_ALLY_ANNIHILATION})),
         events=events,
     )
-
-
-def check_outcome(scenario: Scenario, state: BattleState) -> str | None:
-    if _met(scenario.defeat, state, DEFEAT_ALLY_ANNIHILATION, DEFEAT_PROTECT, Faction.ALLY):
-        return "defeat"
-    if _met(scenario.victory, state, VICTORY_ANNIHILATION, VICTORY_DESTROY_TARGET, Faction.ENEMY):
-        return "victory"
-    return None
-
-
-def _met(
-    condition: dict[str, Any],
-    state: BattleState,
-    wipe_type: str,
-    unit_type: str,
-    side: Faction,
-) -> bool:
-    kind = condition.get("type")
-    if kind == wipe_type:
-        return not state.by_faction(side)
-    if kind == unit_type:
-        target = state.unit(condition.get("uid"))
-        return target is None or not target.alive
-    return False
 
 
 def _board(raw: dict[str, Any]) -> Board:

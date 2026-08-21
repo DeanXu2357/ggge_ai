@@ -123,8 +123,8 @@
 **待實機驗算**：同一名攻方對同一目標，換命中值 90 與 105 的兩把武
 裝，預測畫面的命中率差應為 15 個百分點。差值不符則此裁定不成立。
 
-沙盤（`sandbox/model.py` 的 `ability = weapon.accuracy`）目前把武裝
-命中值加進「能力補正」項。在此裁定下那是重複計算，屬舊堆疊待修。
+引擎（`engine/battle/hit.go`）目前把武裝命中值加進「能力補正」項。
+在此裁定下那是重複計算，待修。
 
 - 反応值主司迴避、機動力雙向影響命中與迴避
   （[ggene.site 反応值解說](https://ggene.site/guide/reaction-value/)）。
@@ -218,16 +218,13 @@ issue #47；預測畫面的支援命中% 讀取屬視覺線的後續工作。
   （`Weapon.usable_after_move` 與 `Skill.usable_after_move`，
   docs/spec/battle-engine-protocol.md），引擎讀屬性判定行動合法性，
   不從種類推斷。
-- **模擬器現況**：`sandbox/model.py` 的 `legal_map_attacks` 與
-  `_apply_map_attack` 已建模彈數（`Unit.ammo` 逐武裝扣一發，0 發或
-  EN 不足即不可用）、AoE 範圍（`Weapon.blast` 的 Chebyshev 半徑，
-  只掃敵方單位、不誤傷我軍）、完全無交互（不觸發應戰與支援）、
-  移動前限定（`step()` 對 MAP_ATTACK 不套用 `move_to`）、強制結束
-  行動＋擊破不給再動（`acted` 為真、不扣 `chance_steps`）。回歸案
-  在 tests/test_sandbox_model.py 的四則地圖炮測試。未建模項：「該
-  回合攻擊不消耗 EN/彈數」的主動開啟能力。另有一項落差：`step()`
-  的移動前限定是**逐種類**硬編（只看 MAP_ATTACK），契約已改為**逐
-  武裝**屬性，兩者對齊留待後續 issue。
+- **模擬器現況**：地圖炮**尚未移植**。Python 沙盤退役（issue #73）時
+  帶走了原本的實作，Go 引擎目前只有幾何、傷害與命中公式。候選列舉
+  歸 issue #63、交戰結算歸 issue #64，兩者都還沒併入。需要保留的
+  行為：彈數逐武裝扣一發（0 發或 EN 不足即不可用）、AoE 只掃敵方
+  單位不誤傷我軍、完全無交互（不觸發應戰與支援）、移動前限定、強制
+  結束行動＋擊破不給再動。未建模項：「該回合攻擊不消耗 EN/彈數」的
+  主動開啟能力。
 - 工程缺口（issue #23）：敵方施放時**沒有應戰彈窗流程**，我方 HP
   損失／陣亡在敵方相位內無聲發生，執行層必須偵測並同步戰場。
 

@@ -7,8 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from ggge_ai.sandbox import scenario as scenario_mod
-from ggge_ai.sandbox.model import Faction, MoveKind, StageEvent
+from ggge_ai.stage import scenario as scenario_mod
+from ggge_ai.engine.contract import ActionKind, Faction
+from ggge_ai.engine.state import StageEvent
 
 PLACEHOLDER = Path(__file__).resolve().parents[1] / "assets/scenarios/uc_hard_1_placeholder.json"
 
@@ -81,36 +82,6 @@ def test_duplicate_uid_is_rejected(placeholder):
         scenario_mod.from_dict(placeholder)
 
 
-def test_outcome_is_open_then_victory_then_defeat():
-    scenario = scenario_mod.load(PLACEHOLDER)
-    state, _rules, _events = scenario.build()
-    assert scenario_mod.check_outcome(scenario, state) is None
-
-    cleared = state.clone()
-    cleared.units = [u for u in cleared.units if u.faction is not Faction.ENEMY]
-    assert scenario_mod.check_outcome(scenario, cleared) == "victory"
-
-    wiped = state.clone()
-    wiped.units = [u for u in wiped.units if u.faction is not Faction.ALLY]
-    assert scenario_mod.check_outcome(scenario, wiped) == "defeat"
-
-
-def test_destroy_target_and_protect_conditions(placeholder):
-    placeholder["victory"] = {"type": "destroy_target", "uid": "e1"}
-    placeholder["defeat"] = {"type": "protect", "uid": "a1"}
-    scenario = scenario_mod.from_dict(placeholder)
-    state, _rules, _events = scenario.build()
-    assert scenario_mod.check_outcome(scenario, state) is None
-
-    killed = state.clone()
-    killed.units = [u for u in killed.units if u.unit_id != "e1"]
-    assert scenario_mod.check_outcome(scenario, killed) == "victory"
-
-    lost = state.clone()
-    lost.units = [u for u in lost.units if u.unit_id != "a1"]
-    assert scenario_mod.check_outcome(scenario, lost) == "defeat"
-
-
 def test_spawn_effect_units_are_assembled_from_intel_references(placeholder):
     placeholder["events"] = {
         "wave2": {
@@ -181,4 +152,4 @@ def test_support_placeholder_carries_a_skill_and_a_shield():
 
     support = next(u for u in state.allies() if u.has_shield)
 
-    assert [s.kind for s in support.skills] == [MoveKind.SKILL_EN_REFILL]
+    assert [s.kind for s in support.skills] == [ActionKind.SKILL_EN_REFILL]

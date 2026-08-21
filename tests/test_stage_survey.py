@@ -14,7 +14,7 @@ from ggge_ai.runtime import board, coverage
 from ggge_ai.runtime.device import LiveExecutor
 from ggge_ai.runtime.journal import Journal
 from ggge_ai.runtime.perceive import Observation
-from ggge_ai.sandbox.advise import Guarantee, Pricing
+from ggge_ai.stage.advise import Guarantee, Pricing
 from ggge_ai.runtime import screens
 from ggge_ai.stage.actions import Attack, CollapseRoster, ShowGrid, SurveyBoard, candidates
 from ggge_ai.stage.state import Phase, StageState, next_player_phase

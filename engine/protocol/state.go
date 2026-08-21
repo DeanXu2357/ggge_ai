@@ -5,12 +5,13 @@ import (
 	"fmt"
 )
 
-// The authority for every struct in this file is 'src/ggge_ai/sandbox/model.py'.
-// The contract names the payload of one activation 'action'; the model names
-// the same thing 'Decision', and this package keeps the model name for the type
-// and the contract name for the wire field. The model names the enum of the
-// kinds of one action 'MoveKind'; this package names it ActionKind, because the
-// enum holds no kind of movement. The wire field stays 'kind'.
+// This file is the authority for every struct of the wire form.
+// 'src/ggge_ai/engine/state.py' mirrors it, and 'tests/test_engine_codec.py'
+// compares the two field lists. The contract names the payload of one
+// activation 'action'; the struct is named 'Decision', and the wire field
+// keeps the contract name. The enum of the kinds of one action is
+// 'ActionKind', because the enum holds no kind of movement. The wire field
+// stays 'kind'.
 
 type Faction string
 

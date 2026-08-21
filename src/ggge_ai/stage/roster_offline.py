@@ -29,8 +29,8 @@ import cv2
 from ..runtime import panels, sweep
 from ..runtime.glyphs import Region, crop
 from ..runtime.panel_text import PanelTranscriber, StageBrief, WeaponText
-from ..sandbox import scenario as scenario_mod
-from ..sandbox.model import Faction
+from . import scenario as scenario_mod
+from ..engine.contract import Faction
 from .intel import Intelligence, Side, UnitIntel
 from .intel_panels import PICKS, unit_intel_from_panels
 

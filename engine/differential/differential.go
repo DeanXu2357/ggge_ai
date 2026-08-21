@@ -1,7 +1,11 @@
-// Package differential runs the cases that the Python side writes under
-// tests/fixtures/engine. Python is the authority: it holds the board, the
-// inputs and the expected outputs, and a Go test reads the same file and
-// compares its own answers against them.
+// Package differential runs the golden cases under tests/fixtures/engine. The
+// files hold the board, the inputs and the expected outputs, and a Go test
+// reads each file and compares its own answers against them.
+//
+// The Python side wrote these files while it still held the rules of the
+// battle. It does not any more (issue #73), and no process writes them again:
+// they are frozen. Delete a case that the engine must not keep. Never
+// regenerate one.
 package differential
 
 import (

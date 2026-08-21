@@ -12,7 +12,7 @@ from typing import Any
 
 from ggge_ai.contracts import Ending
 from ggge_ai.runtime.perceive import Observation
-from ggge_ai.sandbox.advise import Appraisal, Guarantee, Pricing, Verdict
+from ggge_ai.stage.advise import Appraisal, Guarantee, Pricing, Verdict
 from ggge_ai.stage.actions import (
     Action,
     Attack,

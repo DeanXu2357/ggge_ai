@@ -83,8 +83,8 @@
 
 **但書：反擊階段觸發依賴被攻擊主單位存活**——①敵攻若擊殺③主單位，整個反擊階段
 取消、②支援反擊也不觸發（雖②結算在③前）。**沙盤已正確建模**
-（`sandbox/model.py` 把支援齊射與反擊都圈在 target 存活條件內，target 死則
-全跳過），此塊無需改。對戰術層：我方主單位會被①秒時 counter 無效，應改
+（Python 沙盤退役前已正確建模；交戰結算的移植歸 issue #64，
+尚未併入），此塊無需改。對戰術層：我方主單位會被①秒時 counter 無效，應改
 防禦/閃避保命。
 
 ### 支援防禦 support_defense（reaction_support_defense）
@@ -92,8 +92,7 @@
 視覺信號：主單位面板出現**盾圖示「支援防禦」**標籤、右側疊第二個 interceptor 面板、
 底部頭像列有「支援防禦」頭像（盾圖示、**無攻擊序號**，插在①敵攻與②主單位反擊之間）、
 場上 interceptor 標「支援防禦」。→ vision 偵測盾圖示「支援防禦」標籤即 `support_defense=True`。
-機制吻合沙盤 interceptor（`sandbox/model.py find_attack_shield`，齊射全打在
-攔截者身上）；interceptor 承受傷害是否已含 shield/defend 減免待與沙盤對照。
+機制吻合沙盤 interceptor（齊射全打在攔截者身上；移植歸 issue #64）；interceptor 承受傷害是否已含 shield/defend 減免待與沙盤對照。
 順序：①敵攻 → 支援防禦(擋傷、主單位免傷) → ②主單位反擊。
 
 **互斥規則（使用者口述）**：被攻擊單位選 **defend/shield 時不能**接受支援防禦（自己擋）；
@@ -110,8 +109,9 @@
 [武器N]…[武器2][武器1][防禦][閃避]   ← 右起：閃避、防禦為固定錨點
   └── 反擊武器往左、數量不定、等間距 pitch≈170
 ```
-- stance 值域（`sandbox/model.py Stance`，`battle/vision.py` 以 `DefenseKind`
-  別名使用）：`none / dodge / defend / shield / counter`。
+- stance 值域：契約 `engine/contract.py` 的 `Stance` 四值
+  `dodge / defend / shield / counter`（`battle/vision.py` 以 `DefenseKind`
+  別名使用）；`none` 只存在於引擎內部，不上線路。
 - 選單各鈕 → stance 對應：
   - 閃避 → **dodge**（動作列最右錨點）
   - 防禦 → **defend**（無盾機體）或 **shield**（有盾機體，鈕標「防禦（盾牌）」），閃避左一格錨點；見下效果
@@ -215,8 +215,8 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
 帶先攻武裝排最前結算；雙方都有先攻則都入先攻 queue，無先攻的照原順序（①②③）。
 視覺標記＝頭像**上方橘色「先發攻擊」標籤**（reaction_first_strike，本例①支援反擊帶先攻
 被排到最前）。戰術：先攻搶殺敵方攻擊者 → 敵攻不觸發（連上「①殺主單位取消反擊」）。
-**沙盤缺口**：`sandbox/model.py` 結算順序（攻擊方→反擊方）**無先攻 queue**
-概念，改程式要加。先攻＝武裝內容。
+**沙盤缺口**：引擎結算順序（攻擊方→反擊方）**無先攻 queue** 概念，
+改程式要加（issue #45）。先攻＝武裝內容。
 
 > 紅線提醒：降防效果的有無/數值、暴擊率是**內容**，須從武裝面板讀（見
 > memory `llm-perception-unit-info`），不可寫死。
@@ -280,8 +280,7 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
   dodge/counter；none 待確認）——前代 solver 曾對每個 stance 都配
   `support_defend=True`，重建勿再犯。
 - **先攻 queue 建模**：帶先攻特性的武裝優先於一般順序結算（雙方先攻
-  同入先攻 queue）；`sandbox/model.py` 目前無此概念。先攻＝武裝內容、
-  從面板讀。
+  同入先攻 queue）；引擎目前無此概念。先攻＝武裝內容、從面板讀。
 - 單位啟動順序：hub 可選**任意**可行動單位（非 UI 左到右）→ 戰術層
   規劃啟動序列、執行層直接點對應卡條。
 - 單位詳細資料入口（點頂部橫幅）＝戰鬥中 intel 來源，可接進感知（buff/能力/武裝，敵我雙方）。

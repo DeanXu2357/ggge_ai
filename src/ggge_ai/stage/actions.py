@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from ..sandbox.advise import Guarantee, Pricing
+from .advise import Guarantee, Pricing
 from .state import Cell, Phase, StageState
 
 

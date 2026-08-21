@@ -1,8 +1,8 @@
 """The wire form of the battle state (spec: docs/spec/battle-engine-protocol.md).
 
-'ggge_ai/sandbox/model.py' is the authority for every field. The Go package
-'engine/protocol' holds the same structs, and 'tests/test_engine_codec.py'
-compares the two field lists.
+'ggge_ai/engine/state.py' holds the Python structs and the Go package
+'engine/protocol' holds the same ones. 'tests/test_engine_codec.py' compares
+the two field lists.
 
 Rules of the wire form:
 
@@ -18,20 +18,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..sandbox.model import (
+from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance
+from .state import (
     BattleState,
-    Cell,
     Debuff,
     Decision,
     EventTable,
-    Faction,
-    MoveKind,
     Reaction,
     Rules,
     Skill,
-    SkillAffects,
-    SkillSource,
-    Stance,
     StageEvent,
     Unit,
     Weapon,
@@ -116,7 +111,7 @@ def encode_skill(skill: Skill) -> dict[str, Any]:
 
 
 def decode_skill(payload: dict[str, Any]) -> Skill:
-    _known(payload, encode_skill(Skill(kind=MoveKind.STANDBY)), "skill")
+    _known(payload, encode_skill(Skill(kind=ActionKind.STANDBY)), "skill")
     return Skill(
         kind=_move_kind(payload.get("kind")),
         source=_skill_source(payload.get("source")),
@@ -218,8 +213,8 @@ def decode_unit(payload: dict[str, Any]) -> Unit:
 
 
 def encode_reaction(reaction: Reaction) -> dict[str, Any]:
-    if reaction.stance is Stance.NONE:
-        raise ValueError("The stance 'none' is not in the contract of the reaction list")
+    if reaction.stance is None:
+        raise ValueError("A reaction with no stance does not reach the wire")
     return {
         "stance": str(reaction.stance),
         "weapon": reaction.weapon,
@@ -257,7 +252,7 @@ def encode_decision(decision: Decision) -> dict[str, Any]:
 
 
 def decode_decision(payload: dict[str, Any]) -> Decision:
-    _known(payload, encode_decision(Decision(unit_id="", kind=MoveKind.STANDBY)), "decision")
+    _known(payload, encode_decision(Decision(unit_id="", kind=ActionKind.STANDBY)), "decision")
     reaction = payload.get("reaction")
     return Decision(
         unit_id=_str(payload, "unit_id"),
@@ -375,9 +370,9 @@ def _faction(raw: Any) -> Faction:
         raise ValueError(f"faction {raw!r} is not in the contract") from exc
 
 
-def _move_kind(raw: Any) -> MoveKind:
+def _move_kind(raw: Any) -> ActionKind:
     try:
-        return MoveKind(raw)
+        return ActionKind(raw)
     except ValueError as exc:
         raise ValueError(f"kind {raw!r} is not in the contract") from exc
 

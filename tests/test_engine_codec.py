@@ -1,39 +1,36 @@
 """The state codec: field parity with the Go structs, and the round trip.
 
 The parity check parses the JSON tags of 'engine/protocol/state.go' here, in
-the Python gate, because 'sandbox/model.py' is the authority: a change there
-must fail the gate that a change there runs.
+the Python gate: 'engine/state.py' must hold every field that the wire holds,
+and a change on either side must fail this gate.
 
 A Go struct can hold a field that the dataclass does not, for a rule that the
-sandbox never ran. 'ENGINE_ONLY' names each one, so an undeclared Go field
+engine alone runs. 'ENGINE_ONLY' names each one, so an undeclared Go field
 still fails the gate.
 """
 
 from __future__ import annotations
 
 import dataclasses
-import json
 import re
 from pathlib import Path
 
 import pytest
 
 from ggge_ai.engine import codec
-from ggge_ai.sandbox.model import (
+from ggge_ai.engine.contract import ActionKind, Faction, Stance
+from ggge_ai.engine.state import (
     BattleState,
+    EventTable,
     Debuff,
     Decision,
-    Faction,
-    MoveKind,
     Reaction,
     Rules,
     Skill,
-    Stance,
     StageEvent,
     Unit,
     Weapon,
 )
-from scripts.write_engine_fixtures import BOARDS, FIXTURES, FORMULA_OPS, cases, render
 
 STATE_GO = Path(__file__).resolve().parents[1] / "engine" / "protocol" / "state.go"
 
@@ -52,11 +49,11 @@ STRUCTS = {
 ENCODERS = {
     "Rules": lambda: codec.encode_rules(Rules()),
     "Weapon": lambda: codec.encode_weapon(Weapon(name="w", power=1.0)),
-    "Skill": lambda: codec.encode_skill(Skill(kind=MoveKind.SKILL_HEAL)),
+    "Skill": lambda: codec.encode_skill(Skill(kind=ActionKind.SKILL_HEAL)),
     "Debuff": lambda: codec.encode_debuff(Debuff("k", 1.0, 2)),
     "Unit": lambda: codec.encode_unit(Unit(unit_id="u", faction=Faction.ALLY)),
     "Reaction": lambda: codec.encode_reaction(Reaction(stance=Stance.DEFEND)),
-    "Decision": lambda: codec.encode_decision(Decision(unit_id="u", kind=MoveKind.STANDBY)),
+    "Decision": lambda: codec.encode_decision(Decision(unit_id="u", kind=ActionKind.STANDBY)),
     "StageEvent": lambda: codec.encode_event(StageEvent("e", {}, {})),
     "BattleState": lambda: codec.encode_state(BattleState()),
 }
@@ -102,9 +99,8 @@ def test_the_codec_writes_every_field_of_the_dataclass(name):
     assert list(ENCODERS[name]()) == fields
 
 
-@pytest.mark.parametrize("board", BOARDS, ids=lambda board: board.__name__)
-def test_the_state_survives_the_round_trip(board):
-    _name, _note, state, rules, events = board()
+def test_the_state_survives_the_round_trip():
+    state, rules, events = _board()
 
     payload = codec.encode_state(state)
 
@@ -118,7 +114,7 @@ def test_a_three_valued_die_keeps_its_three_values():
     values = [None, True, False]
 
     payloads = [
-        codec.encode_decision(Decision(unit_id="u", kind=MoveKind.ATTACK, hit=value))
+        codec.encode_decision(Decision(unit_id="u", kind=ActionKind.ATTACK, hit=value))
         for value in values
     ]
 
@@ -127,21 +123,21 @@ def test_a_three_valued_die_keeps_its_three_values():
 
 
 def test_an_absent_optional_field_decodes_to_the_same_value_as_null():
-    full = codec.encode_decision(Decision(unit_id="u", kind=MoveKind.STANDBY))
+    full = codec.encode_decision(Decision(unit_id="u", kind=ActionKind.STANDBY))
     lean = {key: value for key, value in full.items() if value is not None}
 
     assert codec.decode_decision(lean) == codec.decode_decision(full)
 
 
-def test_the_stance_none_never_reaches_the_wire():
-    with pytest.raises(ValueError, match="none"):
-        codec.encode_reaction(Reaction(stance=Stance.NONE))
+def test_a_reaction_with_no_stance_never_reaches_the_wire():
+    with pytest.raises(ValueError, match="no stance"):
+        codec.encode_reaction(Reaction())
     with pytest.raises(ValueError, match="none"):
         codec.decode_reaction({"stance": "none"})
 
 
 def test_a_skill_enum_outside_the_contract_stops_the_decode():
-    payload = codec.encode_skill(Skill(kind=MoveKind.SKILL_HEAL))
+    payload = codec.encode_skill(Skill(kind=ActionKind.SKILL_HEAL))
 
     with pytest.raises(ValueError, match="source"):
         codec.decode_skill({**payload, "source": "squad"})
@@ -156,37 +152,24 @@ def test_a_field_outside_the_contract_stops_the_decode():
         codec.decode_unit({**payload, "morale": 7})
 
 
-def test_the_golden_fixtures_match_the_builder():
-    written = {path.stem for path in FIXTURES.glob("*.json")}
-    stale = [
-        case["name"]
-        for case in cases()
-        if (FIXTURES / f"{case['name']}.json").read_text(encoding="utf-8") != render(case)
-    ]
-
-    assert stale == []
-    assert written == {case["name"] for case in cases()}
-
-
-def test_every_golden_fixture_carries_the_case_format():
-    for path in sorted(FIXTURES.glob("*.json")):
-        case = json.loads(path.read_text(encoding="utf-8"))
-        ops = {check["op"] for check in case["checks"]}
-
-        assert path.stem == case["name"]
-        assert set(case) == {"name", "note", "setup", "checks"}
-        assert set(case["setup"]) == {"rules", "events", "state"}
-        assert {"state", "events", "rules"} <= ops
-
-
-def test_the_formula_case_covers_every_ported_function():
-    case = json.loads((FIXTURES / "formulas.json").read_text(encoding="utf-8"))
-
-    ops = [check["op"] for check in case["checks"]]
-
-    assert [op for op in FORMULA_OPS if op not in ops] == []
-    assert all(
-        isinstance(check["expect"], float)
-        for check in case["checks"]
-        if check["op"] in FORMULA_OPS
+def _board() -> tuple[BattleState, Rules, EventTable]:
+    weapon = Weapon(name="rifle", power=1200.0, range_min=1, range_max=3, en_cost=10)
+    skill = Skill(kind=ActionKind.SKILL_HEAL, amount=500.0)
+    unit = Unit(
+        unit_id="ally_1",
+        faction=Faction.ALLY,
+        pos=(1, 2),
+        hp=8000,
+        max_hp=9000,
+        en=40,
+        en_max=80,
+        weapons=[weapon],
+        skills=[skill],
+        ammo={"rifle": 2},
+        debuffs=[Debuff(kind="attack", magnitude=0.2, applied_phase=3)],
     )
+    foe = Unit(unit_id="enemy_1", faction=Faction.ENEMY, pos=(5, 2), hp=7000, max_hp=7000)
+    state = BattleState(units=[unit, foe], phase=Faction.ALLY, turn=2, bounds=((0, 0), (7, 7)))
+    events = {"e1": StageEvent(event_id="e1", trigger={"type": "turn_start", "turn": 3},
+                               effect={"type": "weaken", "uids": ["enemy_1"]})}
+    return state, Rules(), events

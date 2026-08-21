@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from ggge_ai.sandbox.advise import Guarantee, Pricing
+from ggge_ai.stage.advise import Guarantee, Pricing
 from ggge_ai.stage.actions import (
     VOCABULARY,
     Attack,
