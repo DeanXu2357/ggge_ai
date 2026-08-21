@@ -67,3 +67,14 @@ func TestTheDefenseAndTheCriticalMultiplyTheDamage(t *testing.T) {
 	near(t, "a high morale critical", CriticalDamage(1000, 1, DefendMultiplier, CritHighMorale), 960)
 	near(t, "a super critical", CriticalDamage(1000, 1, ShieldMultiplier, CritSuper), 780)
 }
+
+func TestTheExpectedDamageIsTheThreeFormulasInOrder(t *testing.T) {
+	attacker := &Unit{UnitAttack: 4200, PilotAttack: 220}
+	defender := &Unit{UnitDefense: 3900, PilotDefense: 190}
+
+	got := ExpectedDamage(1800, attacker, defender, 1.2, 0.35, 0.1, DefendMultiplier)
+
+	want := FinalDamage(CombatBaseDamage(1800, attacker, defender, 1.2),
+		DamageScale(0.35, 0.1), DefendMultiplier)
+	near(t, "expected damage", got, want)
+}

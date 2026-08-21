@@ -3,6 +3,7 @@ package differential_test
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
@@ -10,9 +11,7 @@ import (
 )
 
 func init() {
-	for name, op := range formulaOps {
-		ops[name] = op
-	}
+	addOps(formulaOps)
 }
 
 type wireSide struct {
@@ -131,10 +130,8 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		combatBase := battle.CombatBaseDamage(in.Power, in.Attacker.unit(), in.Defender.unit(),
-			in.Terrain)
-		scale := battle.DamageScale(in.Bonuses, in.Penalties)
-		return battle.FinalDamage(combatBase, scale, in.DefenseMultiplier), nil
+		return battle.ExpectedDamage(in.Power, in.Attacker.unit(), in.Defender.unit(),
+			in.Terrain, in.Bonuses, in.Penalties, in.DefenseMultiplier), nil
 	},
 	"hit_rate_percent": func(_ *differential.Setup, input json.RawMessage) (any, error) {
 		var in hitInput
@@ -154,31 +151,18 @@ var formulaOps = map[string]differential.Op{
 	},
 }
 
-func TestTheFormulaCaseRunsEveryPortedFormula(t *testing.T) {
-	var formulas *differential.Case
-	for _, one := range load(t) {
-		if one.Name == "formulas" {
-			formulas = one
-		}
-	}
-	if formulas == nil {
-		t.Fatal("the case file formulas.json is missing")
+func TestTheFormulaCaseHoldsACheckOfEveryPortedFormula(t *testing.T) {
+	formulas, err := differential.Load(filepath.Join(fixtures, "formulas.json"))
+	if err != nil {
+		t.Fatalf("load: %v", err)
 	}
 
-	result := differential.Run(formulas, ops)
-
-	for _, err := range result.Errs {
-		t.Error(err)
-	}
-	if len(result.Skipped) != 0 {
-		t.Fatalf("skipped ops: %v", result.Skipped)
-	}
-	ran := map[string]int{}
-	for _, name := range result.Ran {
-		ran[name]++
+	written := map[string]int{}
+	for _, check := range formulas.Checks {
+		written[check.Op]++
 	}
 	for name := range formulaOps {
-		if ran[name] == 0 {
+		if written[name] == 0 {
 			t.Errorf("the case holds no check of %q", name)
 		}
 	}

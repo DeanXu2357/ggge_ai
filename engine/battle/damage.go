@@ -4,8 +4,8 @@ import "math"
 
 // The damage rules of docs/reference/combat-formulas.md. The unexported
 // functions are the corrections 1 to 4, 6 and 7 of that document, and the
-// exported ones are the formulas 5 and 8 to 11. The constants are the
-// multipliers the same document lists.
+// exported ones are the formulas 5 and 8 to 11, plus the composition of the
+// formulas 8 to 10. The constants are the multipliers the same document lists.
 const (
 	NoDefenseMultiplier = 1.0
 	DefendMultiplier    = 0.8
@@ -62,5 +62,11 @@ func FinalDamage(combatBase, scale, defense float64) float64 {
 }
 
 func CriticalDamage(combatBase, scale, defense, critical float64) float64 {
-	return combatBase * scale * defense * critical
+	return FinalDamage(combatBase, scale, defense) * critical
+}
+
+func ExpectedDamage(power float64, attacker, defender *Unit,
+	terrain, bonuses, penalties, defense float64) float64 {
+	return FinalDamage(CombatBaseDamage(power, attacker, defender, terrain),
+		DamageScale(bonuses, penalties), defense)
 }
