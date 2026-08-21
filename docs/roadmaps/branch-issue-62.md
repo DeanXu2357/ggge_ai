@@ -37,7 +37,10 @@ New:
   'CriticalDamage' (11). Formula 2 and formula 4 read the mech,
   so their helpers are 'mechRatio' and 'mechSigmoid'.
 - 'engine/battle/hit.go': 'HitRatePercent' (clamped to 0 to 100)
-  and 'HitProbability'. The hit constants are unexported.
+  and 'HitProbability'. Both lead with the weapon that fires and
+  read its accuracy as the base of the rate; the constant
+  'hitBase' that stood there is retired. The three remaining hit
+  constants are unexported.
 - 'engine/battle/damage_test.go', 'hit_test.go': eight
   hand-written facts (the ratio clamps at zero, a sigmoid at equal
   values is one half, terrain divides, the multipliers multiply,
@@ -47,8 +50,8 @@ New:
   function, merged into the one 'ops' map through 'addOps', which
   refuses a name registered two times. The input of a check
   carries every argument; an unknown field stops the op.
-- 'tests/fixtures/engine/formulas.json': 54 checks (3 standard,
-  51 formula checks).
+- 'tests/fixtures/engine/formulas.json': 55 checks (3 standard,
+  52 formula checks).
 - 'engine/battle/terrain.go': the type 'Terrain' with its five
   kinds, its wire names, 'String', 'ParseTerrain', and the set
   type 'TerrainSet'. 'TerrainSpace' is the zero value, so a board
@@ -78,7 +81,8 @@ Changed:
   mech base with a terrain outside the contract stops the decode.
 - 'scripts/write_engine_fixtures.py': the case 'formulas';
   'build_case' takes extra checks; 'FORMULA_OPS' names the eight
-  ops.
+  ops. Every hit check states an accuracy and the writer passes it
+  to the Python function as the keyword 'base'.
 - 'tests/test_engine_codec.py': freshness over every case the
   writer produces; the format test accepts the formula ops and
   still demands the three standard ops; a coverage test for the
@@ -96,13 +100,15 @@ Changed:
   wire fields of the board. New rows bind the final panel and the
   base data, one term for each level of values; the unit, mech and
   pilot rows now name the level that each type holds.
-- 'engine/battle/model.go': 'Weapon' carries 'TerrainDamage' and
-  'UnusableIn', read through 'DamageScaleAgainst' and 'UsableIn';
+- 'engine/battle/model.go': 'Weapon' carries 'Accuracy',
+  'TerrainDamage' and 'UnusableIn'. The last two are read through
+  'DamageScaleAgainst' and 'UsableIn';
   'Board' carries 'DefaultTerrain' and 'TerrainCells', read
   through 'TerrainAt' and 'TerrainOf'.
 - 'engine/battle/codec.go': the weapon decode moves into
-  'decodeWeapon', which parses the two restriction fields; the
-  state decode fills the two board fields.
+  'decodeWeapon', which parses the two restriction fields and the
+  wire field 'accuracy' that reached no rule before; the state
+  decode fills the two board fields.
 - 'engine/protocol/state.go': the optional wire fields
   'terrain_damage' and 'unusable_in' on 'Weapon', 'terrain' and
   'terrain_cells' on 'BattleState', the optional wire fields
@@ -149,9 +155,9 @@ decodes to the same board as before.
         critical float64) float64
     func ExpectedDamage(power float64, attacker, defender *Unit,
         terrain, bonuses, penalties, defense float64) float64
-    func HitRatePercent(attacker, defender *Unit,
+    func HitRatePercent(weapon Weapon, attacker, defender *Unit,
         abilityCorrection float64) float64
-    func HitProbability(attacker, defender *Unit,
+    func HitProbability(weapon Weapon, attacker, defender *Unit,
         abilityCorrection float64) float64
 
     type Terrain int
@@ -167,6 +173,7 @@ decodes to the same board as before.
     func ParseTerrain(name string) (Terrain, error)
     type Weapon struct {
         ...
+        Accuracy      float64
         TerrainDamage map[Terrain]float64
         UnusableIn    TerrainSet
     }
@@ -212,9 +219,10 @@ caller.
    one entry point, so the engagement issue calls one verified
    function instead of composing three. The review asked for it;
    the first cut kept the composition in the test op alone.
-4. The Python keywords 'base' and 'clamp' of 'hit_rate_percent'
-   have no Go counterpart. Only a Python test reads them, so no
-   check varies them.
+4. The Python keyword 'clamp' of 'hit_rate_percent' has no Go
+   counterpart. Only a Python test reads it, so no check varies
+   it. The keyword 'base' now carries the accuracy of the weapon,
+   and every hit check states it.
 5. The formula case reuses the setup of the small board. The case
    format demands a setup, and these checks carry their own
    numbers.
@@ -267,8 +275,9 @@ caller.
 - uv run pytest -q: 1113 passed, 4 skipped.
 - uv run ruff check src tests scripts: all checks passed.
 - uv run python scripts/write_engine_fixtures.py --check: nothing
-  stale; the four earlier golden files came back byte for byte.
-  'git diff a07ab0f -- tests/fixtures/' is empty.
+  stale. 'git diff 5a3fc22..HEAD -- tests/fixtures/' names
+  'formulas.json' alone: the accuracy of the weapon moved the hit
+  checks, and the four board files came back byte for byte.
 
 The case set covers zero on every argument, attack under defense
 (the ratios clamp, the sigmoids do not), both sigmoid saturations
@@ -279,9 +288,11 @@ rates between, the defense multipliers 1.0, 0.8, 0.6 and 0.0, the
 critical multipliers 1.1, 1.2, 1.3, terrain 1.0, 1.2 and 0.8,
 nonzero bonuses and penalties (one penalty above 1), and the
 board values 4200/3900/220/190/205/310 with the powers 1800 and
-2400.
+2400. The hit checks carry the four accuracy values of the game
+data (90, 95, 100, 105), the fitted 96.45, and an accuracy of 0,
+which proves that the base is the weapon and nothing else.
 
-Of the 51 formula checks, 50 agree bit for bit. The
+Of the 52 formula checks, 51 agree bit for bit. The
 saturated-low input of 'combat_base_damage' parts in the last
 bit: the two runtimes call different libm code for 'exp'. The
 harness tolerance takes it; no rule was loosened.
@@ -304,6 +315,15 @@ which can override them, and the terminology row says so.
 - The constants are community-fitted values, and
   docs/reference/combat-formulas.md lists the calibration items
   that stay open. The branch adds no rule.
+- The reading of the fitted constant 96.45 as the accuracy of the
+  weapon waits on a device check. The user ruled it on 2026-08-21
+  and called the ruling provisional: the community regression
+  holds no accuracy term, and every weapon of the game data
+  carries 90, 95, 100 or 105, a range that holds 96.45. The check
+  reads the hit rate the game shows for two weapons of different
+  accuracy on one pair of units: the rates must part by the
+  difference of the two accuracy values. Until that check runs,
+  the engine states a hypothesis, not a verified rule.
 - Terrain is settled for the model and open for the producer of
   the data. The investigation of 2026-08-21 answered what the
   divisor reads, and the branch holds the model: the weapon
