@@ -1,6 +1,8 @@
 package battle
 
 import (
+	"bytes"
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -207,4 +209,39 @@ func TestACloneRunsTheActivationOnItsOwnUnits(t *testing.T) {
 
 func strikeOf(actor, target, weapon string) Decision {
 	return Decision{UnitID: actor, Kind: ActionAttack, TargetID: target, Weapon: weapon}
+}
+
+// A clone shares nothing that one activation writes, so the board of before
+// comes out byte for byte after the run.
+func TestACloneWritesNothingIntoTheBoardOfBefore(t *testing.T) {
+	state := scripted(EventTable{"wave_2": {
+		ID:      "wave_2",
+		Trigger: Trigger{Kind: TriggerKill, UnitID: "a1"},
+		Effect:  Effect{Kind: EffectSpawn, Units: []Unit{fighter("e9", FactionEnemy, Cell{4, 0})}},
+	}})
+	state.Phase = FactionEnemy
+	state.Unit("e1").Ammo = map[string]int{"beam rifle": 1}
+	state.Unit("e1").Skills = []Skill{{Kind: ActionSkillHeal, Uses: 1, EndsActivation: true}}
+	state.Unit("a1").HP = 1
+	state.Unit("a1").Debuffs = []Debuff{{Kind: "armor_break", Magnitude: 0.2}}
+	before, err := json.Marshal(EncodeState(state))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	next := state.Clone()
+	if _, err := next.Act(strikeOf("e1", "a1", "beam rifle"), Forced{Strike: true}); err != nil {
+		t.Fatalf("act: %v", err)
+	}
+	if next.Unit("e9") == nil || len(next.FiredEvents) != 1 {
+		t.Fatalf("the kill fired no event: %v", next.FiredEvents)
+	}
+
+	after, err := json.Marshal(EncodeState(state))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatalf("the board of before moved:\n%s\n%s", before, after)
+	}
 }
