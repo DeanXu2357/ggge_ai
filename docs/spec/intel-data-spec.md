@@ -2,7 +2,7 @@
 
 > Type: spec—authoritative for the implementation; drift is a bug
 
-沙盤（`sandbox/model.py`）輸入欄位的完整需求清單與蒐集對映。
+沙盤（Go 引擎 `engine/`，Python 結構在 `engine/state.py`）輸入欄位的完整需求清單與蒐集對映。
 使用者裁決：關卡內蒐集＝專門符號行動 Inspect（`stage/actions.py`，
 排程的規劃器待重建）；關卡外蒐集＝寫死流程讀強化頁；先定資料再
 設計蒐集（本檔即定案）。

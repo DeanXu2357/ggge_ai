@@ -2,103 +2,110 @@
 
 > Type: working—deleted at merge
 
-## Resume point
+## What the branch does
 
-Batch 1 is done: the wire vocabulary moved to the engine contract, and
-the consumers outside the sandbox read it there.
+The Python sandbox is gone. No file outside 'engine/' holds a rule of
+the battle, and no rule of the battle runs in Python at all.
 
-The deletion of the rules stays blocked. See "What this branch does not
-do".
+The user ruled on 2026-08-22: remove the implementation, keep the
+contract, and add a fake so that the wiring stays testable. Full
+behavior is not preserved. The purpose is that no later work reads the
+Python code and takes it for the rules.
 
-## Why the branch starts with a split, not a delete
+## The change
 
-The inventory of the issue reads 'model.py' as rules alone. It is also
-the vocabulary of the whole Python side: seven modules outside the
-sandbox import it, and four of them read enums only. One of the four is
-'engine/codec.py', which the issue keeps.
+Deleted:
 
-The enums are not rules. The Go package 'engine/protocol' declares the
-same six names, and 'src/ggge_ai/engine/contract.py' is the Python
-mirror of that package. So the vocabulary has a home that survives the
-retirement, and the move is alignment with a contract that exists, not
-a new abstraction.
-
-## Batch 1: the vocabulary
-
-Added to 'src/ggge_ai/engine/contract.py', each one a mirror of
-'engine/protocol/state.go':
-
-| Python | Go | Note |
-|---|---|---|
-| Faction | Faction | |
-| ActionKind | ActionKind | the model calls it MoveKind |
-| SkillSource | SkillSource | |
-| SkillAffects | SkillAffects | holds no 'self' value |
-| Stance | Stance | holds no 'none' value (issue #56) |
-
-'Cell' was already there.
-
-Repointed at the contract:
-
-| File | Reads |
+| Path | Held |
 |---|---|
-| src/ggge_ai/battle/state.py | Faction |
-| src/ggge_ai/battle/vision.py | Stance, as DefenseKind |
-| src/ggge_ai/stage/roster_offline.py | Faction |
-| src/ggge_ai/stage/intel_panels.py | ActionKind |
-| src/ggge_ai/stage/intel.py | ActionKind, Cell, Faction |
+| src/ggge_ai/sandbox/model.py | the rules: geometry, formulas, enumeration, resolution, the turn cycle |
+| src/ggge_ai/sandbox/facade.py | the query contract of the page |
+| tests/test_sandbox_model.py | 60 rule cases |
+| tests/test_sandbox_geometry.py | 10 rule cases |
+| tests/test_sandbox_formulas.py | 7 rule cases |
+| tests/test_sandbox_facade.py | 34 facade cases |
+| scripts/write_engine_fixtures.py | the writer of the golden cases |
 
-'stage/intel.py' still reads Skill, Unit and Weapon from the model.
-Those are the payload work of batch 2.
+Moved out of the sandbox, because neither holds a rule:
 
-The name 'MoveKind' does not enter the surviving code. It stays inside
-the sandbox and inside the tests that die with it.
+| From | To |
+|---|---|
+| sandbox/scenario.py | stage/scenario.py, the stage layout |
+| sandbox/advise.py | stage/advise.py, the pricing contract of the planner |
 
-## The stance of the vision layer
+Added:
 
-'battle/vision.py' reads the stance vocabulary of the reaction menu. It
-uses dodge, defend, shield and counter, and never 'none'. So the
-contract enum, which drops 'none', fits the caller exactly.
+| Path | Holds |
+|---|---|
+| src/ggge_ai/engine/state.py | the wire structs, the mirror of 'engine/protocol/state.go' |
+| src/ggge_ai/engine/session.py | one battle, read through the engine |
+| src/ggge_ai/engine/fake.py | the fake engine: the shape of the contract, no rule |
 
-## Evidence for the vision change
+The vocabulary of the wire lives in 'engine/contract.py': Faction,
+ActionKind, SkillSource, SkillAffects, Stance and Cell.
 
-The commit rule asks for a device screenshot or a run log when
-'battle/vision.py' changes.
+## The call chain of the page
 
-- Probe on a live frame: 'scripts/probe_live_channel.py', two runs,
-  2026-08-22. The module loads and classifies a live frame with the
-  contract enum. Screen 'unknown', stage_list score 0.683: the device
-  rests on the event-stage list, which the template does not match.
-  That score is the state of the device, not an effect of this change.
-- Frame: assets/screenshots/20260822-013704.png.
-- The change is an import. The enum values are the same, less 'none',
-  which this caller never uses.
+    scripts/sandbox_ui.py
+      -> EngineSession.from_scenario        engine/session.py
+           -> stage/scenario.py             the layout, into a start state
+           -> codec.encode_state            engine/codec.py
+           -> engine.call("load")
+      -> /api/state       session.snapshot          the stored state
+      -> /api/decision    session.pending_decision  engine "actions", per unit
+      -> /api/reactions   session.reaction_options  engine "reactions"
+      -> /api/act         session.act               engine "act"
 
-## What this branch does not do
+Without '--engine' the page runs on 'FakeEngine' in the same process.
+With '--engine' it runs on the binary. A command that the engine does
+not answer comes back empty, and the page still draws the board.
 
-The rules stay. The deletion needs the engine to answer a turn, and it
-cannot yet:
+## Contention points for the review
 
-- The engine registers four commands on 'dev'. #63 and #64 add two
-  more, and both wait for review.
-- No branch registers an 'act' command. #64 ships 'Board.Apply' in the
-  battle package and binds no command to it.
-- #65, #67 and #68 have no branch.
+1. The stance. The contract holds four values and no 'none'. The
+   Python reaction now carries 'stance: Stance | None', and None is
+   the strike that settles no reaction. The wire refuses it, as
+   before. Issue #56 owns the same question inside the engine.
+2. The fake answers a standby action for every unit and an empty
+   reaction list. It is a wiring stub, not a weak model. Reading an
+   answer of the fake as a fact of the game is the failure mode, and
+   the module docstring says so.
+3. The golden fixtures under 'tests/fixtures/engine/' are frozen. The
+   Go package 'engine/differential' still reads them, and the writer
+   is deleted. Delete a case that the engine must not keep; never
+   regenerate one.
+4. 'tests/test_engine_codec.py' keeps the parity half, now against
+   'engine/state.py'. It lost the three tests that compared the
+   golden files with the writer.
+5. The page script keeps the name 'scripts/sandbox_ui.py'. The word
+   sandbox names the board and the page, not the retired module.
 
-The plan and the case-by-case test mapping are in the issue:
+## Test mapping
+
+The case-by-case mapping of the 111 deleted Python tests is in the
+issue:
 https://github.com/DeanXu2357/ggge_ai/issues/73#issuecomment-5373087975
 
-Four rulings wait on the user, and the next batches depend on them:
+The ruling of 2026-08-22 changes what it is for. It is no longer a
+gate on the deletion. It is the list of the rules that the engine
+still owes, and it names them: 15 for the turn cycle and the events
+(#65), 3 with no case anywhere (counters unlimited in a phase, a
+skill the unit does not own, a skill that does not end the
+activation), and 10 that only a frozen golden holds.
 
-1. Who owns 'act', 'export' and 'rollback'.
-2. #42 and #43: land on Python, or move to the engine.
-3. Freeze the differential fixtures under the Go tree, or write a
-   native Go case for each of the 25 apply checks.
-4. The two rule changes of the port: the destroyed unit and the
-   out-of-band attack.
+## Gates
 
-## Next batches
+- uv run pytest -q: 988 passed, 4 skipped.
+- uv run ruff check src tests scripts: clean.
+- go vet ./... and go test ./... in 'engine': clean.
+- 'battle/vision.py' changed in the first commit of the branch. Its
+  evidence: two runs of 'scripts/probe_live_channel.py' on 2026-08-22
+  and the frame assets/screenshots/20260822-013704.png.
 
-- Batch 2: 'sandbox/scenario.py' and 'stage/intel.py' build an engine
-  payload, and stop building model objects.
-- Batch 3: the deletion, after the blockers land.
+## What is left
+
+- The engine answers six commands after #63 and #64 merge. Ten of the
+  sixteen declared commands have no implementation, and 'act',
+  'export' and 'rollback' have no owning issue.
+- #42 and #43 were written against the facade. Both need a new home
+  in the engine.

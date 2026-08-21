@@ -1,11 +1,13 @@
-"""沙盤網頁介面：起一個本機伺服器，畫出情境檔的盤面並接受我方階段的操作。
+"""The battle page: a local server that draws a stage layout and takes the
+actions of one phase.
 
-只讀情境檔，不碰 adb、不寫任何檔案。盤面、候選、推進一律向 'Sandbox' 門面要；
-本腳本只做路由、頁面與擲骰輸入合成，不含任何遊戲規則。
+The page reads a layout file. It never touches adb, and it writes no file. The
+board, the candidates and the step all come from the battle engine: this script
+routes, draws and rolls the dice, and holds no rule of the game.
 
-給了 --engine 就另外起一支戰局引擎行程：把盤面送過去，再問各條已宣告查詢。
-引擎答 'not_implemented' 的查詢照舊由 Python 這邊算並繪製。選了單位就多問一條
-'reach'，答案疊成獨立一層虛線框；引擎走正交、Python 走斜角，兩邊同時看得見。
+Without '--engine' the page runs against the fake engine, which answers the
+shape of the contract and no rule. With '--engine' it runs against the engine
+binary, and a query the engine does not answer comes back empty.
 
 usage:
   uv run python scripts/sandbox_ui.py --scenario assets/scenarios/uc_hard_1_placeholder.json
@@ -35,7 +37,8 @@ from ggge_ai.engine.client import (  # noqa: E402
     EngineError,
     EngineTimeout,
 )
-from ggge_ai.sandbox.facade import Sandbox  # noqa: E402
+from ggge_ai.engine.fake import FakeEngine  # noqa: E402
+from ggge_ai.engine.session import EngineSession  # noqa: E402
 
 DICE_KEYS = ("hit", "counter_hit", "support_hit")
 MAX_BODY_BYTES = 1 << 20
@@ -53,7 +56,7 @@ def _reaction_key(raw: Mapping[str, Any]) -> tuple:
 
 class SandboxHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    sandbox: Sandbox
+    sandbox: EngineSession
     lock: threading.Lock
     rng: random.Random
     engine: BattleEngine | None
@@ -102,8 +105,6 @@ class SandboxHandler(BaseHTTPRequestHandler):
         return
 
     def _engine_report(self, unit_id: str | None = None) -> dict[str, Any]:
-        if self.engine is None:
-            return {"available": False, "reason": "沒有給 --engine，引擎未啟動"}
         try:
             hello = self.engine.hello()
         except (EngineError, EngineDead, EngineTimeout) as exc:
@@ -197,7 +198,7 @@ class SandboxHandler(BaseHTTPRequestHandler):
 
 
 def build_handler(
-    sandbox: Sandbox,
+    sandbox: EngineSession,
     *,
     seed: int | None = None,
     engine: BattleEngine | None = None,
@@ -792,18 +793,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8642)
     parser.add_argument("--seed", type=int, default=None, help="伺服器抽骰的亂數種子")
-    parser.add_argument("--engine", default=None, help="戰局引擎執行檔路徑（不給就不起引擎）")
+    parser.add_argument("--engine", default=None, help="戰局引擎執行檔路徑（不給就用假引擎）")
     return parser.parse_args(argv)
 
 
 def main() -> int:
     args = parse_args()
-    sandbox = Sandbox.from_scenario(args.scenario)
-    board = sandbox.snapshot()
 
-    engine = None if args.engine is None else BattleEngine(args.engine)
-    if engine is not None:
-        engine.start()
+    engine = FakeEngine() if args.engine is None else BattleEngine(args.engine)
+    engine.start()
+    sandbox = EngineSession.from_scenario(args.scenario, engine)
+    board = sandbox.snapshot()
     handler = build_handler(sandbox, seed=args.seed, engine=engine)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"情境：{board['stage']}（{len(board['units'])} 台單位）")
@@ -814,8 +814,7 @@ def main() -> int:
         print()
     finally:
         server.server_close()
-        if engine is not None:
-            engine.close()
+        engine.close()
     return 0
 
 

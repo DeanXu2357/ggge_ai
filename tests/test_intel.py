@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ggge_ai.runtime.perceive import Observation
-from ggge_ai.sandbox.model import Faction, ActionKind
+from ggge_ai.engine.contract import ActionKind, Faction
 from ggge_ai.stage.intel import (
     IntelPerceiver,
     Intelligence,

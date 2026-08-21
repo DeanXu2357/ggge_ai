@@ -13,8 +13,8 @@ import pytest
 
 from ggge_ai.runtime import sweep
 from ggge_ai.runtime.panel_text import StageBrief
-from ggge_ai.sandbox import scenario as scenario_mod
-from ggge_ai.sandbox.model import Faction
+from ggge_ai.stage import scenario as scenario_mod
+from ggge_ai.engine.contract import Faction
 from ggge_ai.stage.intel import UnitIntel
 from ggge_ai.stage.roster_offline import (
     ARBITRARY,

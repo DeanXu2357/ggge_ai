@@ -310,12 +310,11 @@ footprint is on the board and holds no other unit. A cell of an
 enemy or of a third party stops the path. A cell of an ally lets
 the path through and is no destination.
 
-Divergence: 'src/ggge_ai/sandbox/model.py' keeps the eight king
-steps, and it gives every unit one cell. The Python module gets no
-corrected version (rulings 2026-08-18 and 2026-08-20, issue #61).
-It carries the field 'size' as data, and its geometry does not read
-the field. A differential case therefore compares no result that
-reads the distance or the footprint.
+The Python side holds no geometry of its own. It carried the
+eight king steps and one cell for every unit, and it retired with
+the rest of the Python rules (issue #73). A golden case that the
+Python side wrote therefore compares no result that reads the
+distance or the footprint.
 
 ## Types
 
@@ -352,12 +351,13 @@ diagnostics record the exhaustion.
 
 ### Unit payload, action, and reaction
 
-The authority for these three schemas is 'src/ggge_ai/sandbox/
-model.py'. The Go package 'engine/protocol' holds the same
-structs, and 'src/ggge_ai/engine/codec.py' writes the same form
-from the model. The contract names the payload of one activation
-'action'; the model names the same thing 'Decision'. The Go type
-keeps the model name, and the wire field keeps the contract name.
+The authority for these three schemas is the Go package
+'engine/protocol'. 'src/ggge_ai/engine/state.py' holds the same
+structs in Python and 'src/ggge_ai/engine/codec.py' writes the
+wire form from them. The contract names the payload of one
+activation 'action'; the struct names the same thing 'Decision'.
+The Go type keeps the struct name, and the wire field keeps the
+contract name.
 The enum of the kinds of one action carries two type names: the
 model names it 'MoveKind', and the engine names it 'ActionKind'.
 The enum holds no kind of movement. Its wire field is 'kind', and
@@ -414,12 +414,12 @@ The rules of the wire form:
 - The trigger and the effect of a stage event stay free objects.
   The issue that runs the event table reads them.
 
-A field that 'model.py' holds and the Go struct does not is a test
-failure: 'tests/test_engine_codec.py' compares the fields of the
-dataclass with the JSON tags of the Go struct.
+A field that 'engine/state.py' holds and the Go struct does not is
+a test failure: 'tests/test_engine_codec.py' compares the fields of
+the dataclass with the JSON tags of the Go struct.
 
-The Go struct can hold a field that 'model.py' does not. Such a
-field carries a rule that the Python sandbox never ran. It is
+The Go struct can hold a field that 'engine/state.py' does not.
+Such a field carries a rule that the Python side never held. It is
 optional on the wire: a payload that omits it keeps the behavior of
 the build before the field. The test names each one in
 'ENGINE_ONLY', so a Go field that nobody declared is still a test
@@ -519,11 +519,13 @@ compare. One case file holds:
 | setup | The rules, the event table, and the board |
 | checks | The list of the checks |
 
-Each check names an 'op', its 'input', and the 'expect' that Python
-produced. An op that the Go build does not implement is skipped,
-not failed, so a port issue writes its checks before its command
-exists. 'scripts/write_engine_fixtures.py' writes the files, and
-'--check' reports a stale file.
+Each check names an 'op', its 'input', and the 'expect' that the
+Python side produced while it still held the rules. An op that the
+Go build does not implement is skipped, not failed, so a port issue
+finds its checks waiting. The files are frozen: the writer retired
+with the Python rules (issue #73), and no process writes them
+again. A case that the engine must not keep is deleted, never
+regenerated.
 
 Float comparison: the two sides compare with a relative tolerance
 of 1e-9 and an absolute floor of 1e-12. A number that one side

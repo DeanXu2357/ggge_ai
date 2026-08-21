@@ -18,7 +18,7 @@ from typing import Any
 
 from ..runtime.perceive import Observation, Perceiver
 from ..engine.contract import ActionKind, Cell, Faction
-from ..sandbox.model import Skill, Unit, Weapon
+from ..engine.state import Skill, Unit, Weapon
 from .state import StageState
 
 FORMAT_VERSION = 1

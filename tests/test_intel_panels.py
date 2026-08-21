@@ -10,7 +10,7 @@ import pytest
 
 from ggge_ai.runtime import panels
 from ggge_ai.runtime.panel_text import AbilityText, AbilityTexts, WeaponText
-from ggge_ai.sandbox.model import Faction, ActionKind
+from ggge_ai.engine.contract import ActionKind, Faction
 from ggge_ai.stage.intel_panels import PilotOffence, unit_intel_from_panels
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "vision"

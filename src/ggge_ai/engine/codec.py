@@ -1,8 +1,8 @@
 """The wire form of the battle state (spec: docs/spec/battle-engine-protocol.md).
 
-'ggge_ai/sandbox/model.py' is the authority for every field. The Go package
-'engine/protocol' holds the same structs, and 'tests/test_engine_codec.py'
-compares the two field lists.
+'ggge_ai/engine/state.py' holds the Python structs and the Go package
+'engine/protocol' holds the same ones. 'tests/test_engine_codec.py' compares
+the two field lists.
 
 Rules of the wire form:
 
@@ -18,20 +18,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..sandbox.model import (
+from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance
+from .state import (
     BattleState,
-    Cell,
     Debuff,
     Decision,
     EventTable,
-    Faction,
-    ActionKind,
     Reaction,
     Rules,
     Skill,
-    SkillAffects,
-    SkillSource,
-    Stance,
     StageEvent,
     Unit,
     Weapon,
@@ -218,8 +213,8 @@ def decode_unit(payload: dict[str, Any]) -> Unit:
 
 
 def encode_reaction(reaction: Reaction) -> dict[str, Any]:
-    if reaction.stance is Stance.NONE:
-        raise ValueError("The stance 'none' is not in the contract of the reaction list")
+    if reaction.stance is None:
+        raise ValueError("A reaction with no stance does not reach the wire")
     return {
         "stance": str(reaction.stance),
         "weapon": reaction.weapon,

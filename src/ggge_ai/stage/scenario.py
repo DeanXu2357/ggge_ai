@@ -1,7 +1,8 @@
-"""情境檔：把一份 JSON 關卡佈陣讀成沙盤可跑的初盤面。
+"""The stage layout: one JSON file of a stage read into a start state.
 
-單位數值一律引用 stage.intel 的情報庫（`intel` 段），情境檔本身只寫「誰、
-站哪、剩多少」；勝敗條件與事件表照 model 層吃的形態組裝。
+The unit values come from the intel store, in the 'intel' section. The layout
+file itself writes who stands where, and what each one has left. It holds no
+rule: the engine answers every question that needs one.
 """
 
 from __future__ import annotations
@@ -11,18 +12,10 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from ..stage import intel as intel_mod
-from ..stage.intel import Intelligence, UnitIntel
-from .model import (
-    DEFAULT_RULES,
-    BattleState,
-    Cell,
-    EventTable,
-    Faction,
-    Rules,
-    StageEvent,
-    Unit,
-)
+from ..engine.contract import Cell, Faction
+from ..engine.state import DEFAULT_RULES, BattleState, EventTable, Rules, StageEvent, Unit
+from . import intel as intel_mod
+from .intel import Intelligence, UnitIntel
 
 FORMAT = "sandbox-scenario/1"
 
