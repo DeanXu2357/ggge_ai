@@ -103,9 +103,8 @@ func skillHasRoom(unit *Unit, skill Skill) bool {
 	}
 }
 
-// A reposition names one anchor near each target and one anchor away from the
-// nearest target, so a search that holds no attack still holds a step forward
-// and a step back.
+// A reposition keeps a step forward and a step back in the candidate list of a
+// unit that reaches no target this turn.
 func repositions(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 	if unit.MoveRange <= 0 || len(targets) == 0 {
 		return nil
@@ -145,9 +144,9 @@ func nearestTarget(unit *Unit, targets []*Unit) *Unit {
 	return nearest
 }
 
-// firingAnchor gives the anchor from which the unit fires the weapon at the
-// target: the anchor in the band of the weapon that is nearest to the anchor of
-// today. A weapon that no anchor puts in the band gives no candidate.
+// firingAnchor keeps one destination per pair of a target and a weapon, so the
+// branching factor of the search stays with the weapons and not with the
+// anchors of the board.
 func firingAnchor(unit *Unit, weapon *Weapon, target Footprint, anchors []Cell) (Cell, bool) {
 	var best Cell
 	var bestKey nearness

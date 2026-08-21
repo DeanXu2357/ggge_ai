@@ -1,0 +1,1041 @@
+{
+  "name": "candidate_board",
+  "note": "Weapon bands, ammunition, skill room and a target out of band, in one row.",
+  "setup": {
+    "rules": {
+      "defend_multiplier": 0.8,
+      "shield_multiplier": 0.6,
+      "support_defend_multiplier": 0.8,
+      "dodge_hit_penalty": 20.0,
+      "terrain": 1.0,
+      "max_support_attackers": 3,
+      "en_regen_fraction": 0.1
+    },
+    "events": {},
+    "state": {
+      "units": [
+        {
+          "unit_id": "ally_1",
+          "faction": "ally",
+          "pos": [
+            1,
+            2
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "hp": 8000,
+          "max_hp": 12000,
+          "en": 60,
+          "en_max": 140,
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0,
+          "move_range": 0,
+          "weapons": [
+            {
+              "name": "beam rifle",
+              "power": 1800.0,
+              "range_min": 1,
+              "range_max": 3,
+              "en_cost": 10,
+              "accuracy": 5.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            },
+            {
+              "name": "saber",
+              "power": 2400.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 0,
+              "accuracy": 10.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            },
+            {
+              "name": "lance",
+              "power": 2600.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 200,
+              "accuracy": 0.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            },
+            {
+              "name": "missile pod",
+              "power": 1500.0,
+              "range_min": 2,
+              "range_max": 5,
+              "en_cost": 20,
+              "accuracy": 0.0,
+              "can_counter": true,
+              "map_weapon": true,
+              "usable_after_move": true,
+              "blast": 1,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            },
+            {
+              "name": "heavy shell",
+              "power": 2000.0,
+              "range_min": 1,
+              "range_max": 6,
+              "en_cost": 5,
+              "accuracy": 0.0,
+              "can_counter": true,
+              "map_weapon": true,
+              "usable_after_move": true,
+              "blast": 1,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            }
+          ],
+          "skills": [
+            {
+              "kind": "skill_heal",
+              "source": "unit",
+              "amount": 3000.0,
+              "uses": 2,
+              "ends_activation": true,
+              "usable_after_move": true,
+              "range_min": 0,
+              "range_max": 0,
+              "blast": 0,
+              "affects": "ally"
+            },
+            {
+              "kind": "skill_en_refill",
+              "source": "unit",
+              "amount": null,
+              "uses": 1,
+              "ends_activation": true,
+              "usable_after_move": true,
+              "range_min": 0,
+              "range_max": 0,
+              "blast": 0,
+              "affects": "ally"
+            },
+            {
+              "kind": "skill_heal",
+              "source": "unit",
+              "amount": 1000.0,
+              "uses": 0,
+              "ends_activation": true,
+              "usable_after_move": true,
+              "range_min": 0,
+              "range_max": 0,
+              "blast": 0,
+              "affects": "ally"
+            }
+          ],
+          "acted": false,
+          "chance_steps": 0,
+          "chance_steps_max": 0,
+          "support_defend_charges": 0,
+          "support_defend_charges_max": 0,
+          "support_attack_charges": 0,
+          "support_attack_charges_max": 0,
+          "has_shield": false,
+          "attack_shield": false,
+          "interception_reduction": 0.0,
+          "ammo": {
+            "missile pod": 2,
+            "heavy shell": 0
+          },
+          "debuffs": []
+        },
+        {
+          "unit_id": "ally_2",
+          "faction": "ally",
+          "pos": [
+            5,
+            2
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "hp": 12000,
+          "max_hp": 12000,
+          "en": 140,
+          "en_max": 140,
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0,
+          "move_range": 0,
+          "weapons": [
+            {
+              "name": "saber",
+              "power": 2400.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 0,
+              "accuracy": 10.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            }
+          ],
+          "skills": [
+            {
+              "kind": "skill_heal",
+              "source": "unit",
+              "amount": 3000.0,
+              "uses": 1,
+              "ends_activation": true,
+              "usable_after_move": true,
+              "range_min": 0,
+              "range_max": 0,
+              "blast": 0,
+              "affects": "ally"
+            },
+            {
+              "kind": "skill_en_refill",
+              "source": "unit",
+              "amount": 40.0,
+              "uses": 1,
+              "ends_activation": true,
+              "usable_after_move": true,
+              "range_min": 0,
+              "range_max": 0,
+              "blast": 0,
+              "affects": "ally"
+            }
+          ],
+          "acted": false,
+          "chance_steps": 0,
+          "chance_steps_max": 0,
+          "support_defend_charges": 0,
+          "support_defend_charges_max": 0,
+          "support_attack_charges": 0,
+          "support_attack_charges_max": 0,
+          "has_shield": false,
+          "attack_shield": false,
+          "interception_reduction": 0.0,
+          "ammo": {},
+          "debuffs": []
+        },
+        {
+          "unit_id": "enemy_1",
+          "faction": "enemy",
+          "pos": [
+            2,
+            2
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "hp": 12000,
+          "max_hp": 12000,
+          "en": 140,
+          "en_max": 140,
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0,
+          "move_range": 0,
+          "weapons": [
+            {
+              "name": "saber",
+              "power": 2400.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 0,
+              "accuracy": 10.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            }
+          ],
+          "skills": [],
+          "acted": false,
+          "chance_steps": 0,
+          "chance_steps_max": 0,
+          "support_defend_charges": 0,
+          "support_defend_charges_max": 0,
+          "support_attack_charges": 0,
+          "support_attack_charges_max": 0,
+          "has_shield": false,
+          "attack_shield": false,
+          "interception_reduction": 0.0,
+          "ammo": {},
+          "debuffs": []
+        },
+        {
+          "unit_id": "enemy_2",
+          "faction": "enemy",
+          "pos": [
+            4,
+            2
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "hp": 12000,
+          "max_hp": 12000,
+          "en": 140,
+          "en_max": 140,
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0,
+          "move_range": 0,
+          "weapons": [
+            {
+              "name": "saber",
+              "power": 2400.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 0,
+              "accuracy": 10.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            }
+          ],
+          "skills": [],
+          "acted": false,
+          "chance_steps": 0,
+          "chance_steps_max": 0,
+          "support_defend_charges": 0,
+          "support_defend_charges_max": 0,
+          "support_attack_charges": 0,
+          "support_attack_charges_max": 0,
+          "has_shield": false,
+          "attack_shield": false,
+          "interception_reduction": 0.0,
+          "ammo": {},
+          "debuffs": []
+        },
+        {
+          "unit_id": "enemy_3",
+          "faction": "enemy",
+          "pos": [
+            7,
+            2
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "hp": 12000,
+          "max_hp": 12000,
+          "en": 140,
+          "en_max": 140,
+          "unit_attack": 4200.0,
+          "unit_defense": 3900.0,
+          "pilot_attack": 220.0,
+          "pilot_defense": 190.0,
+          "reaction": 205.0,
+          "mobility": 310.0,
+          "move_range": 0,
+          "weapons": [
+            {
+              "name": "saber",
+              "power": 2400.0,
+              "range_min": 1,
+              "range_max": 1,
+              "en_cost": 0,
+              "accuracy": 10.0,
+              "can_counter": true,
+              "map_weapon": false,
+              "usable_after_move": true,
+              "blast": 0,
+              "debuff_kind": null,
+              "debuff_magnitude": 0.0
+            }
+          ],
+          "skills": [],
+          "acted": false,
+          "chance_steps": 0,
+          "chance_steps_max": 0,
+          "support_defend_charges": 0,
+          "support_defend_charges_max": 0,
+          "support_attack_charges": 0,
+          "support_attack_charges_max": 0,
+          "has_shield": false,
+          "attack_shield": false,
+          "interception_reduction": 0.0,
+          "ammo": {},
+          "debuffs": []
+        }
+      ],
+      "phase": "ally",
+      "turn": 2,
+      "bounds": [
+        [
+          0,
+          0
+        ],
+        [
+          9,
+          4
+        ]
+      ],
+      "pending_events": [],
+      "fired_events": []
+    }
+  },
+  "checks": [
+    {
+      "op": "state",
+      "input": null,
+      "expect": {
+        "units": [
+          {
+            "unit_id": "ally_1",
+            "faction": "ally",
+            "pos": [
+              1,
+              2
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "hp": 8000,
+            "max_hp": 12000,
+            "en": 60,
+            "en_max": 140,
+            "unit_attack": 4200.0,
+            "unit_defense": 3900.0,
+            "pilot_attack": 220.0,
+            "pilot_defense": 190.0,
+            "reaction": 205.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "beam rifle",
+                "power": 1800.0,
+                "range_min": 1,
+                "range_max": 3,
+                "en_cost": 10,
+                "accuracy": 5.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              },
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              },
+              {
+                "name": "lance",
+                "power": 2600.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 200,
+                "accuracy": 0.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              },
+              {
+                "name": "missile pod",
+                "power": 1500.0,
+                "range_min": 2,
+                "range_max": 5,
+                "en_cost": 20,
+                "accuracy": 0.0,
+                "can_counter": true,
+                "map_weapon": true,
+                "usable_after_move": true,
+                "blast": 1,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              },
+              {
+                "name": "heavy shell",
+                "power": 2000.0,
+                "range_min": 1,
+                "range_max": 6,
+                "en_cost": 5,
+                "accuracy": 0.0,
+                "can_counter": true,
+                "map_weapon": true,
+                "usable_after_move": true,
+                "blast": 1,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              }
+            ],
+            "skills": [
+              {
+                "kind": "skill_heal",
+                "source": "unit",
+                "amount": 3000.0,
+                "uses": 2,
+                "ends_activation": true,
+                "usable_after_move": true,
+                "range_min": 0,
+                "range_max": 0,
+                "blast": 0,
+                "affects": "ally"
+              },
+              {
+                "kind": "skill_en_refill",
+                "source": "unit",
+                "amount": null,
+                "uses": 1,
+                "ends_activation": true,
+                "usable_after_move": true,
+                "range_min": 0,
+                "range_max": 0,
+                "blast": 0,
+                "affects": "ally"
+              },
+              {
+                "kind": "skill_heal",
+                "source": "unit",
+                "amount": 1000.0,
+                "uses": 0,
+                "ends_activation": true,
+                "usable_after_move": true,
+                "range_min": 0,
+                "range_max": 0,
+                "blast": 0,
+                "affects": "ally"
+              }
+            ],
+            "acted": false,
+            "chance_steps": 0,
+            "chance_steps_max": 0,
+            "support_defend_charges": 0,
+            "support_defend_charges_max": 0,
+            "support_attack_charges": 0,
+            "support_attack_charges_max": 0,
+            "has_shield": false,
+            "attack_shield": false,
+            "interception_reduction": 0.0,
+            "ammo": {
+              "missile pod": 2,
+              "heavy shell": 0
+            },
+            "debuffs": []
+          },
+          {
+            "unit_id": "ally_2",
+            "faction": "ally",
+            "pos": [
+              5,
+              2
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "hp": 12000,
+            "max_hp": 12000,
+            "en": 140,
+            "en_max": 140,
+            "unit_attack": 4200.0,
+            "unit_defense": 3900.0,
+            "pilot_attack": 220.0,
+            "pilot_defense": 190.0,
+            "reaction": 205.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              }
+            ],
+            "skills": [
+              {
+                "kind": "skill_heal",
+                "source": "unit",
+                "amount": 3000.0,
+                "uses": 1,
+                "ends_activation": true,
+                "usable_after_move": true,
+                "range_min": 0,
+                "range_max": 0,
+                "blast": 0,
+                "affects": "ally"
+              },
+              {
+                "kind": "skill_en_refill",
+                "source": "unit",
+                "amount": 40.0,
+                "uses": 1,
+                "ends_activation": true,
+                "usable_after_move": true,
+                "range_min": 0,
+                "range_max": 0,
+                "blast": 0,
+                "affects": "ally"
+              }
+            ],
+            "acted": false,
+            "chance_steps": 0,
+            "chance_steps_max": 0,
+            "support_defend_charges": 0,
+            "support_defend_charges_max": 0,
+            "support_attack_charges": 0,
+            "support_attack_charges_max": 0,
+            "has_shield": false,
+            "attack_shield": false,
+            "interception_reduction": 0.0,
+            "ammo": {},
+            "debuffs": []
+          },
+          {
+            "unit_id": "enemy_1",
+            "faction": "enemy",
+            "pos": [
+              2,
+              2
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "hp": 12000,
+            "max_hp": 12000,
+            "en": 140,
+            "en_max": 140,
+            "unit_attack": 4200.0,
+            "unit_defense": 3900.0,
+            "pilot_attack": 220.0,
+            "pilot_defense": 190.0,
+            "reaction": 205.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              }
+            ],
+            "skills": [],
+            "acted": false,
+            "chance_steps": 0,
+            "chance_steps_max": 0,
+            "support_defend_charges": 0,
+            "support_defend_charges_max": 0,
+            "support_attack_charges": 0,
+            "support_attack_charges_max": 0,
+            "has_shield": false,
+            "attack_shield": false,
+            "interception_reduction": 0.0,
+            "ammo": {},
+            "debuffs": []
+          },
+          {
+            "unit_id": "enemy_2",
+            "faction": "enemy",
+            "pos": [
+              4,
+              2
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "hp": 12000,
+            "max_hp": 12000,
+            "en": 140,
+            "en_max": 140,
+            "unit_attack": 4200.0,
+            "unit_defense": 3900.0,
+            "pilot_attack": 220.0,
+            "pilot_defense": 190.0,
+            "reaction": 205.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              }
+            ],
+            "skills": [],
+            "acted": false,
+            "chance_steps": 0,
+            "chance_steps_max": 0,
+            "support_defend_charges": 0,
+            "support_defend_charges_max": 0,
+            "support_attack_charges": 0,
+            "support_attack_charges_max": 0,
+            "has_shield": false,
+            "attack_shield": false,
+            "interception_reduction": 0.0,
+            "ammo": {},
+            "debuffs": []
+          },
+          {
+            "unit_id": "enemy_3",
+            "faction": "enemy",
+            "pos": [
+              7,
+              2
+            ],
+            "size": [
+              1,
+              1
+            ],
+            "hp": 12000,
+            "max_hp": 12000,
+            "en": 140,
+            "en_max": 140,
+            "unit_attack": 4200.0,
+            "unit_defense": 3900.0,
+            "pilot_attack": 220.0,
+            "pilot_defense": 190.0,
+            "reaction": 205.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "blast": 0,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0
+              }
+            ],
+            "skills": [],
+            "acted": false,
+            "chance_steps": 0,
+            "chance_steps_max": 0,
+            "support_defend_charges": 0,
+            "support_defend_charges_max": 0,
+            "support_attack_charges": 0,
+            "support_attack_charges_max": 0,
+            "has_shield": false,
+            "attack_shield": false,
+            "interception_reduction": 0.0,
+            "ammo": {},
+            "debuffs": []
+          }
+        ],
+        "phase": "ally",
+        "turn": 2,
+        "bounds": [
+          [
+            0,
+            0
+          ],
+          [
+            9,
+            4
+          ]
+        ],
+        "pending_events": [],
+        "fired_events": []
+      }
+    },
+    {
+      "op": "events",
+      "input": null,
+      "expect": {}
+    },
+    {
+      "op": "rules",
+      "input": null,
+      "expect": {
+        "defend_multiplier": 0.8,
+        "shield_multiplier": 0.6,
+        "support_defend_multiplier": 0.8,
+        "dodge_hit_penalty": 20.0,
+        "terrain": 1.0,
+        "max_support_attackers": 3,
+        "en_regen_fraction": 0.1
+      }
+    },
+    {
+      "op": "actions",
+      "input": {
+        "unit_id": "ally_1"
+      },
+      "expect": [
+        {
+          "unit_id": "ally_1",
+          "kind": "attack",
+          "move_to": null,
+          "target_id": "enemy_1",
+          "weapon": "beam rifle",
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        },
+        {
+          "unit_id": "ally_1",
+          "kind": "attack",
+          "move_to": null,
+          "target_id": "enemy_1",
+          "weapon": "saber",
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        },
+        {
+          "unit_id": "ally_1",
+          "kind": "attack",
+          "move_to": null,
+          "target_id": "enemy_2",
+          "weapon": "beam rifle",
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        },
+        {
+          "unit_id": "ally_1",
+          "kind": "map_attack",
+          "move_to": null,
+          "target_id": null,
+          "weapon": "missile pod",
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": [
+            4,
+            2
+          ],
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        },
+        {
+          "unit_id": "ally_1",
+          "kind": "skill_en_refill",
+          "move_to": null,
+          "target_id": null,
+          "weapon": null,
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        },
+        {
+          "unit_id": "ally_1",
+          "kind": "skill_heal",
+          "move_to": null,
+          "target_id": null,
+          "weapon": null,
+          "amount": 3000.0,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        },
+        {
+          "unit_id": "ally_1",
+          "kind": "standby",
+          "move_to": null,
+          "target_id": null,
+          "weapon": null,
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        }
+      ]
+    },
+    {
+      "op": "actions",
+      "input": {
+        "unit_id": "ally_2"
+      },
+      "expect": [
+        {
+          "unit_id": "ally_2",
+          "kind": "attack",
+          "move_to": null,
+          "target_id": "enemy_2",
+          "weapon": "saber",
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        },
+        {
+          "unit_id": "ally_2",
+          "kind": "standby",
+          "move_to": null,
+          "target_id": null,
+          "weapon": null,
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        }
+      ]
+    },
+    {
+      "op": "actions",
+      "input": {
+        "unit_id": "enemy_1"
+      },
+      "expect": [
+        {
+          "unit_id": "enemy_1",
+          "kind": "attack",
+          "move_to": null,
+          "target_id": "ally_1",
+          "weapon": "saber",
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        },
+        {
+          "unit_id": "enemy_1",
+          "kind": "standby",
+          "move_to": null,
+          "target_id": null,
+          "weapon": null,
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        }
+      ]
+    },
+    {
+      "op": "actions",
+      "input": {
+        "unit_id": "enemy_3"
+      },
+      "expect": [
+        {
+          "unit_id": "enemy_3",
+          "kind": "standby",
+          "move_to": null,
+          "target_id": null,
+          "weapon": null,
+          "amount": null,
+          "reaction": null,
+          "support": true,
+          "aim": null,
+          "hit": null,
+          "counter_hit": null,
+          "support_hit": null
+        }
+      ]
+    }
+  ]
+}
