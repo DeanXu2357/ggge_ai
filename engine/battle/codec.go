@@ -12,6 +12,37 @@ var factions = map[protocol.Faction]Faction{
 	protocol.FactionThirdParty: FactionThirdParty,
 }
 
+var actionKinds = map[protocol.ActionKind]ActionKind{
+	protocol.ActionAttack:      ActionAttack,
+	protocol.ActionMapAttack:   ActionMapAttack,
+	protocol.ActionReposition:  ActionReposition,
+	protocol.ActionStandby:     ActionStandby,
+	protocol.ActionSkillRefill: ActionSkillRefill,
+	protocol.ActionSkillHeal:   ActionSkillHeal,
+}
+
+var skillAffects = map[protocol.SkillAffects]SkillAffects{
+	protocol.AffectsAlly:  AffectsAlly,
+	protocol.AffectsEnemy: AffectsEnemy,
+	protocol.AffectsAll:   AffectsAll,
+}
+
+var wireKinds = map[ActionKind]protocol.ActionKind{
+	ActionAttack:      protocol.ActionAttack,
+	ActionMapAttack:   protocol.ActionMapAttack,
+	ActionReposition:  protocol.ActionReposition,
+	ActionStandby:     protocol.ActionStandby,
+	ActionSkillRefill: protocol.ActionSkillRefill,
+	ActionSkillHeal:   protocol.ActionSkillHeal,
+}
+
+var wireStances = map[Stance]protocol.Stance{
+	StanceDodge:   protocol.StanceDodge,
+	StanceDefend:  protocol.StanceDefend,
+	StanceShield:  protocol.StanceShield,
+	StanceCounter: protocol.StanceCounter,
+}
+
 func DecodeState(state *protocol.BattleState) (*Board, error) {
 	if state == nil {
 		return nil, fmt.Errorf("the payload carries no state")
@@ -34,6 +65,13 @@ func DecodeState(state *protocol.BattleState) (*Board, error) {
 	if board.TerrainCells, err = decodeTerrainCells(state.TerrainCells); err != nil {
 		return nil, err
 	}
+	phase, known := factions[state.Phase]
+	if !known {
+		return nil, fmt.Errorf("the state carries the phase %q, which is not in the contract",
+			state.Phase)
+	}
+	board.Phase = phase
+	board.Turn = state.Turn
 	return board, nil
 }
 
@@ -106,7 +144,9 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 		Faction:   faction,
 		Footprint: footprint,
 		HP:        unit.HP,
+		MaxHP:     unit.MaxHP,
 		EN:        unit.EN,
+		ENMax:     unit.ENMax,
 		Pilot: Pilot{
 			Attack:   unit.PilotAttack,
 			Defense:  unit.PilotDefense,
@@ -121,14 +161,32 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 			MoveRange: unit.MechMoveRange,
 		},
 		MoveRange:            unit.MoveRange,
+		Acted:                unit.Acted,
 		SupportDefendCharges: unit.SupportDefendCharges,
 		SupportAttackCharges: unit.SupportAttackCharges,
+		HasShield:            unit.HasShield,
 	}
 	if out.Weapons, err = decodeWeapons(unit.UnitID, unit.Weapons); err != nil {
 		return Unit{}, err
 	}
 	if out.Mech.Weapons, err = decodeWeapons(unit.UnitID, unit.MechWeapons); err != nil {
 		return Unit{}, err
+	}
+	if unit.Skills != nil {
+		out.Skills = make([]Skill, 0, len(unit.Skills))
+		for _, skill := range unit.Skills {
+			decoded, err := decodeSkill(unit.UnitID, skill)
+			if err != nil {
+				return Unit{}, err
+			}
+			out.Skills = append(out.Skills, decoded)
+		}
+	}
+	if unit.Ammo != nil {
+		out.Ammo = make(map[string]int, len(unit.Ammo))
+		for name, count := range unit.Ammo {
+			out.Ammo[name] = count
+		}
 	}
 	return out, nil
 }
@@ -150,11 +208,13 @@ func decodeWeapons(unitID string, weapons []protocol.Weapon) ([]Weapon, error) {
 
 func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 	out := Weapon{
-		Name:      weapon.Name,
-		Range:     RadiusRange{Min: weapon.RangeMin, Max: weapon.RangeMax},
-		ENCost:    weapon.ENCost,
-		Accuracy:  weapon.Accuracy,
-		MapWeapon: weapon.MapWeapon,
+		Name:            weapon.Name,
+		Range:           RadiusRange{Min: weapon.RangeMin, Max: weapon.RangeMax},
+		ENCost:          weapon.ENCost,
+		Accuracy:        weapon.Accuracy,
+		CanCounter:      weapon.CanCounter,
+		MapWeapon:       weapon.MapWeapon,
+		UsableAfterMove: weapon.UsableAfterMove,
 	}
 	for name, scale := range weapon.TerrainDamage {
 		kind, err := ParseTerrain(name)
@@ -177,6 +237,97 @@ func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 		out.UnusableIn[kind] = true
 	}
 	return out, nil
+}
+
+func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
+	kind, known := actionKinds[skill.Kind]
+	if !known {
+		return Skill{}, fmt.Errorf("unit %q carries a skill of the kind %q, which is not in the contract",
+			unitID, skill.Kind)
+	}
+	affects, known := skillAffects[skill.Affects]
+	if !known {
+		return Skill{}, fmt.Errorf("unit %q carries a skill that affects %q, which is not in the contract",
+			unitID, skill.Affects)
+	}
+	out := Skill{
+		Kind:            kind,
+		Uses:            skill.Uses,
+		EndsActivation:  skill.EndsActivation,
+		UsableAfterMove: skill.UsableAfterMove,
+		Range:           RadiusRange{Min: skill.RangeMin, Max: skill.RangeMax},
+		Blast:           skill.Blast,
+		Affects:         affects,
+	}
+	if skill.Amount != nil {
+		amount := *skill.Amount
+		out.Amount = &amount
+	}
+	return out, nil
+}
+
+func EncodeDecisions(decisions []Decision) []protocol.Decision {
+	out := make([]protocol.Decision, 0, len(decisions))
+	for _, decision := range decisions {
+		out = append(out, EncodeDecision(decision))
+	}
+	return out
+}
+
+// EncodeDecision writes every field of the wire type. An enumerated action
+// settles no die and carries no reaction, so 'hit', 'counter_hit',
+// 'support_hit' and 'reaction' stay null.
+func EncodeDecision(decision Decision) protocol.Decision {
+	return protocol.Decision{
+		UnitID:   decision.UnitID,
+		Kind:     wireKinds[decision.Kind],
+		MoveTo:   encodeOptionalCell(decision.MoveTo),
+		TargetID: encodeOptionalName(decision.TargetID),
+		Weapon:   encodeOptionalName(decision.Weapon),
+		Amount:   encodeOptionalAmount(decision.Amount),
+		Support:  decision.Support,
+		Aim:      encodeOptionalCell(decision.Aim),
+	}
+}
+
+func EncodeReactions(reactions []Reaction) []protocol.Reaction {
+	out := make([]protocol.Reaction, 0, len(reactions))
+	for _, reaction := range reactions {
+		out = append(out, EncodeReaction(reaction))
+	}
+	return out
+}
+
+func EncodeReaction(reaction Reaction) protocol.Reaction {
+	return protocol.Reaction{
+		Stance:        wireStances[reaction.Stance],
+		Weapon:        encodeOptionalName(reaction.Weapon),
+		SupportDefend: reaction.SupportDefend,
+		SupportAttack: reaction.SupportAttack,
+	}
+}
+
+func encodeOptionalCell(cell *Cell) *protocol.Cell {
+	if cell == nil {
+		return nil
+	}
+	out := EncodeCell(*cell)
+	return &out
+}
+
+func encodeOptionalName(name string) *string {
+	if name == "" {
+		return nil
+	}
+	return &name
+}
+
+func encodeOptionalAmount(amount *float64) *float64 {
+	if amount == nil {
+		return nil
+	}
+	out := *amount
+	return &out
 }
 
 func decodeFootprint(unit *protocol.Unit) (Footprint, error) {

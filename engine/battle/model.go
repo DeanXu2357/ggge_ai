@@ -37,6 +37,10 @@ type RadiusRange struct {
 	Max int
 }
 
+func (r RadiusRange) Holds(distance int) bool {
+	return r.Min <= distance && distance <= r.Max
+}
+
 type Faction string
 
 const (
@@ -56,13 +60,15 @@ func (f Faction) Opposing() Faction {
 // terrain and fires from every terrain: an absent entry of TerrainDamage is
 // 1.0, and an absent entry of UnusableIn permits the shot.
 type Weapon struct {
-	Name          string
-	Range         RadiusRange
-	ENCost        int
-	Accuracy      float64
-	MapWeapon     bool
-	TerrainDamage map[Terrain]float64
-	UnusableIn    TerrainSet
+	Name            string
+	Range           RadiusRange
+	ENCost          int
+	Accuracy        float64
+	CanCounter      bool
+	MapWeapon       bool
+	UsableAfterMove bool
+	TerrainDamage   map[Terrain]float64
+	UnusableIn      TerrainSet
 }
 
 func (w Weapon) DamageScaleAgainst(target Terrain) float64 {
@@ -74,6 +80,48 @@ func (w Weapon) DamageScaleAgainst(target Terrain) float64 {
 
 func (w Weapon) UsableIn(attacker Terrain) bool {
 	return !w.UnusableIn[attacker]
+}
+
+type ActionKind string
+
+const (
+	ActionAttack      ActionKind = "attack"
+	ActionMapAttack   ActionKind = "map_attack"
+	ActionReposition  ActionKind = "reposition"
+	ActionStandby     ActionKind = "standby"
+	ActionSkillRefill ActionKind = "skill_en_refill"
+	ActionSkillHeal   ActionKind = "skill_heal"
+)
+
+type Stance string
+
+const (
+	StanceDodge   Stance = "dodge"
+	StanceDefend  Stance = "defend"
+	StanceShield  Stance = "shield"
+	StanceCounter Stance = "counter"
+)
+
+type SkillAffects string
+
+const (
+	AffectsAlly  SkillAffects = "ally"
+	AffectsEnemy SkillAffects = "enemy"
+	AffectsAll   SkillAffects = "all"
+)
+
+// Skill carries no 'self' area. A skill that acts on the caster alone holds a
+// range of zero, a blast of zero and the value AffectsAlly: the area is the
+// cell of the caster, and the caster is an ally in its own cell.
+type Skill struct {
+	Kind            ActionKind
+	Amount          *float64
+	Uses            int
+	EndsActivation  bool
+	UsableAfterMove bool
+	Range           RadiusRange
+	Blast           int
+	Affects         SkillAffects
 }
 
 // Pilot and Mech hold base data: the values the character and the machine
@@ -102,13 +150,19 @@ type Unit struct {
 	Faction              Faction
 	Footprint            Footprint
 	HP                   int
+	MaxHP                int
 	EN                   int
+	ENMax                int
 	Pilot                Pilot
 	Mech                 Mech
 	MoveRange            int
 	Weapons              []Weapon
+	Skills               []Skill
+	Acted                bool
 	SupportDefendCharges int
 	SupportAttackCharges int
+	HasShield            bool
+	Ammo                 map[string]int
 }
 
 func (u *Unit) Alive() bool {
@@ -117,6 +171,36 @@ func (u *Unit) Alive() bool {
 
 func (u *Unit) HasENFor(weapon Weapon) bool {
 	return u.EN >= weapon.ENCost
+}
+
+func (u *Unit) Weapon(name string) *Weapon {
+	for index := range u.Weapons {
+		if u.Weapons[index].Name == name {
+			return &u.Weapons[index]
+		}
+	}
+	return nil
+}
+
+// Decision is one activation of one unit. The contract names the payload
+// 'action' and the model names it 'Decision'; this package keeps the model
+// name.
+type Decision struct {
+	UnitID   string
+	Kind     ActionKind
+	MoveTo   *Cell
+	TargetID string
+	Weapon   string
+	Amount   *float64
+	Aim      *Cell
+	Support  bool
+}
+
+type Reaction struct {
+	Stance        Stance
+	Weapon        string
+	SupportDefend bool
+	SupportAttack bool
 }
 
 func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
@@ -137,6 +221,8 @@ func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
 type Board struct {
 	Bounds         Bounds
 	Units          []Unit
+	Phase          Faction
+	Turn           int
 	DefaultTerrain Terrain
 	TerrainCells   map[Cell]Terrain
 }
