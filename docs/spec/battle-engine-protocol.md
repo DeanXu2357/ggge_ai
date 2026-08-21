@@ -83,6 +83,10 @@ Response: 'turn', 'phase', 'deploy_open'.
 'init' on a live session replaces the battle. The history starts
 again.
 
+'init' is not implemented. The section 'Terrain' holds one open
+requirement for the issue that implements it: 'board' must carry
+the terrain of the map.
+
 Refusals: bad_request.
 
 ### deploy_cells
@@ -413,6 +417,94 @@ The rules of the wire form:
 A field that 'model.py' holds and the Go struct does not is a test
 failure: 'tests/test_engine_codec.py' compares the fields of the
 dataclass with the JSON tags of the Go struct.
+
+The Go struct can hold a field that 'model.py' does not. Such a
+field carries a rule that the Python sandbox never ran. It is
+optional on the wire: a payload that omits it keeps the behavior of
+the build before the field. The test names each one in
+'ENGINE_ONLY', so a Go field that nobody declared is still a test
+failure.
+
+### The final panel and the base data
+
+A unit is a pilot that rides a mech. The payload carries two
+levels of values, and they are not the same numbers.
+
+The final panel is what the game shows for the deployed unit. The
+fields 'hp', 'en', 'move_range' and 'weapons' of the unit carry
+it, together with 'unit_attack', 'unit_defense', 'mobility',
+'pilot_attack', 'pilot_defense' and 'reaction'. Every rule of the
+board reads the final panel.
+
+The base data is what the mech and the pilot supply to the
+computation of the final panel. An ability of the mech or of the
+pilot can change what the unit ends up with, so the base copy and
+the final panel can differ (user ruling 2026-08-21).
+
+The mech carries its base copy in four optional fields:
+
+| Field | Content |
+|---|---|
+| mech_hp | The hit points of the mech |
+| mech_en | The energy of the mech |
+| mech_move_range | The movement range of the mech |
+| mech_weapons | The weapons of the mech, in the weapon payload |
+
+These four are engine-only. A payload that omits them leaves the
+base copy of the mech empty. It does not fill the base copy from
+the final panel. No code derives the one level from the other
+today, so a producer that reads the panel of the game alone sends
+the panel alone.
+
+The Go types keep the two levels apart by the struct that holds
+the field, and not by the name of the field: 'battle.Unit' holds
+the final panel, and 'battle.Mech' and 'battle.Pilot' hold the
+base data. 'Mech.HP' is the base copy, and 'Unit.HP' is the panel.
+
+### Terrain
+
+Terrain belongs to a cell. The five kinds are 'space',
+'atmospheric', 'ground', 'surface' and 'underwater'. One stage map
+can hold more than one kind.
+
+The state carries the terrain of the map in two optional fields:
+
+| Field | Content |
+|---|---|
+| terrain | The kind that every cell of the map takes |
+| terrain_cells | The cells that take another kind |
+
+Each entry of 'terrain_cells' holds 'cell' and 'terrain'. A state
+with no 'terrain' puts the whole map in space. A terrain name
+outside the five is a decode error.
+
+The weapon carries its terrain restriction in two optional fields:
+
+| Field | Content |
+|---|---|
+| terrain_damage | The damage percentage, as a factor, against a target on each named kind |
+| unusable_in | The kinds that the attacker cannot fire from |
+
+An absent entry of 'terrain_damage' is the factor 1.0, and an
+absent entry of 'unusable_in' permits the shot. A weapon that
+declares neither field therefore deals full damage everywhere and
+fires everywhere. The whole datamine holds one deviation: some
+weapons halve their damage against an underwater target, and a few
+of those cannot fire while the attacker is underwater
+(docs/reference/combat-formulas.md).
+
+The divisor of the combat base damage is the damage factor of the
+attacking weapon against the terrain of the target cell. It is not
+a value of the map, and it is not the terrain adaptability of the
+mech. Terrain adaptability gates deployment and movement; it enters
+no damage formula and no hit rate.
+
+Open, for the issue that implements 'init': the field 'board' of
+the request must carry the terrain of the map, in the same two
+fields that the state carries above. The user ruled on 2026-08-21
+that the terrain of each cell arrives when the board is built.
+Today 'board' carries the width and the height alone, and 'init'
+is not implemented.
 
 ### Differential cases
 

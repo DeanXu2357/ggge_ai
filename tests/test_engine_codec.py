@@ -3,6 +3,10 @@
 The parity check parses the JSON tags of 'engine/protocol/state.go' here, in
 the Python gate, because 'sandbox/model.py' is the authority: a change there
 must fail the gate that a change there runs.
+
+A Go struct can hold a field that the dataclass does not, for a rule that the
+sandbox never ran. 'ENGINE_ONLY' names each one, so an undeclared Go field
+still fails the gate.
 """
 
 from __future__ import annotations
@@ -29,7 +33,7 @@ from ggge_ai.sandbox.model import (
     Unit,
     Weapon,
 )
-from scripts.write_engine_fixtures import BOARDS, FIXTURES, build_case, render
+from scripts.write_engine_fixtures import BOARDS, FIXTURES, FORMULA_OPS, cases, render
 
 STATE_GO = Path(__file__).resolve().parents[1] / "engine" / "protocol" / "state.go"
 
@@ -57,6 +61,12 @@ ENCODERS = {
     "BattleState": lambda: codec.encode_state(BattleState()),
 }
 
+ENGINE_ONLY = {
+    "Weapon": ["terrain_damage", "unusable_in"],
+    "Unit": ["mech_hp", "mech_en", "mech_move_range", "mech_weapons"],
+    "BattleState": ["terrain", "terrain_cells"],
+}
+
 STRUCT = re.compile(r"^type (\w+) struct \{$")
 TAG = re.compile(r'json:"([^",]+)')
 
@@ -82,7 +92,7 @@ def _go_structs() -> dict[str, list[str]]:
 def test_the_go_struct_holds_every_field_of_the_dataclass(name):
     fields = [field.name for field in dataclasses.fields(STRUCTS[name])]
 
-    assert _go_structs()[name] == fields
+    assert _go_structs()[name] == fields + ENGINE_ONLY.get(name, [])
 
 
 @pytest.mark.parametrize("name", sorted(STRUCTS))
@@ -147,20 +157,36 @@ def test_a_field_outside_the_contract_stops_the_decode():
 
 
 def test_the_golden_fixtures_match_the_builder():
+    written = {path.stem for path in FIXTURES.glob("*.json")}
     stale = [
         case["name"]
-        for case in (build_case(*board()) for board in BOARDS)
+        for case in cases()
         if (FIXTURES / f"{case['name']}.json").read_text(encoding="utf-8") != render(case)
     ]
 
     assert stale == []
+    assert written == {case["name"] for case in cases()}
 
 
 def test_every_golden_fixture_carries_the_case_format():
     for path in sorted(FIXTURES.glob("*.json")):
         case = json.loads(path.read_text(encoding="utf-8"))
+        ops = {check["op"] for check in case["checks"]}
 
         assert path.stem == case["name"]
         assert set(case) == {"name", "note", "setup", "checks"}
         assert set(case["setup"]) == {"rules", "events", "state"}
-        assert {check["op"] for check in case["checks"]} == {"state", "events", "rules"}
+        assert {"state", "events", "rules"} <= ops
+
+
+def test_the_formula_case_covers_every_ported_function():
+    case = json.loads((FIXTURES / "formulas.json").read_text(encoding="utf-8"))
+
+    ops = [check["op"] for check in case["checks"]]
+
+    assert [op for op in FORMULA_OPS if op not in ops] == []
+    assert all(
+        isinstance(check["expect"], float)
+        for check in case["checks"]
+        if check["op"] in FORMULA_OPS
+    )

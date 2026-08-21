@@ -22,7 +22,9 @@ func wireBoard() *protocol.BattleState {
 				EN:                      120,
 				ENMax:                   180,
 				UnitAttack:              4100,
+				UnitDefense:             3900,
 				PilotAttack:             220,
+				PilotDefense:            190,
 				Reaction:                205,
 				Mobility:                310,
 				MoveRange:               4,
@@ -72,13 +74,16 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 		Footprint:            Footprint{Anchor: Cell{2, 3}, Size: Size{2, 3}},
 		HP:                   8200,
 		EN:                   120,
+		Pilot:                Pilot{Attack: 220, Defense: 190, Reaction: 205},
+		Mech:                 Mech{Attack: 4100, Defense: 3900, Mobility: 310},
 		MoveRange:            4,
 		SupportDefendCharges: 1,
 		SupportAttackCharges: 2,
 		Weapons: []Weapon{{
-			Name:   "rifle",
-			Range:  RadiusRange{Min: 1, Max: 4},
-			ENCost: 15,
+			Name:     "rifle",
+			Range:    RadiusRange{Min: 1, Max: 4},
+			ENCost:   15,
+			Accuracy: 12,
 		}},
 	}
 	if got := board.Unit("a1"); !reflect.DeepEqual(*got, want) {
@@ -86,6 +91,70 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 	}
 	if got := board.Bounds; got != (Bounds{Low: Cell{0, 0}, High: Cell{9, 9}}) {
 		t.Fatalf("bounds: %+v", got)
+	}
+}
+
+func TestAPayloadWithNoMechBaseLeavesTheBaseEmpty(t *testing.T) {
+	board, err := DecodeState(wireBoard())
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	unit := board.Unit("a1")
+	if unit.HP != 8200 || unit.EN != 120 || unit.MoveRange != 4 || len(unit.Weapons) != 1 {
+		t.Fatalf("the final panel: %+v", *unit)
+	}
+	if want := (Mech{Attack: 4100, Defense: 3900, Mobility: 310}); !reflect.DeepEqual(unit.Mech, want) {
+		t.Fatalf("the base of the mech: %+v", unit.Mech)
+	}
+}
+
+func TestTheMechBaseOfThePayloadReachesTheMechAlone(t *testing.T) {
+	state := wireBoard()
+	state.Units[0].MechHP = 9000
+	state.Units[0].MechEN = 180
+	state.Units[0].MechMoveRange = 3
+	state.Units[0].MechWeapons = []protocol.Weapon{
+		{Name: "beam", RangeMin: 1, RangeMax: 2, ENCost: 20},
+	}
+
+	board, err := DecodeState(state)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	unit := board.Unit("a1")
+	want := Mech{
+		Attack: 4100, Defense: 3900, Mobility: 310,
+		HP: 9000, EN: 180, MoveRange: 3,
+		Weapons: []Weapon{{Name: "beam", Range: RadiusRange{Min: 1, Max: 2}, ENCost: 20}},
+	}
+	if !reflect.DeepEqual(unit.Mech, want) {
+		t.Fatalf("the base of the mech:\n%+v\n%+v", unit.Mech, want)
+	}
+	if unit.HP != 8200 || unit.EN != 120 || unit.MoveRange != 4 {
+		t.Fatalf("the final panel: %+v", *unit)
+	}
+	if len(unit.Weapons) != 1 || unit.Weapons[0].Name != "rifle" {
+		t.Fatalf("the weapons of the final panel: %v", unit.Weapons)
+	}
+}
+
+func TestTheFinalPanelAndTheMechBaseMoveApart(t *testing.T) {
+	state := wireBoard()
+	state.Units[0].MechHP = 9000
+	state.Units[0].MechWeapons = []protocol.Weapon{{Name: "rifle"}}
+
+	board, err := DecodeState(state)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	unit := board.Unit("a1")
+	unit.HP = 1
+	unit.Weapons[0].Name = "changed"
+
+	if unit.Mech.HP != 9000 || unit.Mech.Weapons[0].Name != "rifle" {
+		t.Fatalf("a write into the final panel reached the mech: %+v", unit.Mech)
 	}
 }
 

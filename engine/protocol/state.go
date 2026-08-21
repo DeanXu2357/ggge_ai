@@ -150,6 +150,11 @@ type Weapon struct {
 	Blast           int     `json:"blast"`
 	DebuffKind      *string `json:"debuff_kind"`
 	DebuffMagnitude float64 `json:"debuff_magnitude"`
+	// The two terrain fields are engine-only: 'model.py' holds no terrain, so
+	// they stay optional and a payload that omits them declares no
+	// restriction. TerrainDamage and UnusableIn key on a terrain wire name.
+	TerrainDamage map[string]float64 `json:"terrain_damage,omitempty"`
+	UnusableIn    []string           `json:"unusable_in,omitempty"`
 }
 
 type Skill struct {
@@ -174,6 +179,11 @@ type Debuff struct {
 // Two names mislead: Reaction is the reaction value of the pilot, not the
 // Reaction type of a defense, and ChanceSteps is the re-act grant after a kill
 // (docs/reference/combat-formulas.md:134), which counts no dice.
+//
+// HP, EN, MoveRange and Weapons are the final panel of the deployed unit. The
+// four Mech fields are the base data of the machine, and they are engine-only:
+// 'model.py' holds one level, so they stay optional and a payload that omits
+// them leaves the base copy of the mech empty.
 type Unit struct {
 	UnitID                  string         `json:"unit_id"`
 	Faction                 Faction        `json:"faction"`
@@ -204,6 +214,10 @@ type Unit struct {
 	InterceptionReduction   float64        `json:"interception_reduction"`
 	Ammo                    map[string]int `json:"ammo"`
 	Debuffs                 []Debuff       `json:"debuffs"`
+	MechHP                  int            `json:"mech_hp,omitempty"`
+	MechEN                  int            `json:"mech_en,omitempty"`
+	MechMoveRange           int            `json:"mech_move_range,omitempty"`
+	MechWeapons             []Weapon       `json:"mech_weapons,omitempty"`
 }
 
 type Reaction struct {
@@ -240,6 +254,13 @@ type StageEvent struct {
 
 type EventTable = map[string]StageEvent
 
+// TerrainCell binds one cell of the map to one terrain wire name. A cell is a
+// JSON pair, so the overrides travel as a list and not as an object.
+type TerrainCell struct {
+	Cell    Cell   `json:"cell"`
+	Terrain string `json:"terrain"`
+}
+
 type BattleState struct {
 	Units         []Unit   `json:"units"`
 	Phase         Faction  `json:"phase"`
@@ -247,6 +268,11 @@ type BattleState struct {
 	Bounds        *Bounds  `json:"bounds"`
 	PendingEvents []string `json:"pending_events"`
 	FiredEvents   []string `json:"fired_events"`
+	// The two terrain fields are engine-only: 'model.py' holds no terrain, so
+	// they stay optional. A payload that omits Terrain puts the whole map in
+	// space, which changes no damage: only a declared weapon restriction does.
+	Terrain      string        `json:"terrain,omitempty"`
+	TerrainCells []TerrainCell `json:"terrain_cells,omitempty"`
 }
 
 // A chance event is one random node of a resolution. The three consumption

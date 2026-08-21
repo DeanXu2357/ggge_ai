@@ -52,11 +52,49 @@ func (f Faction) Opposing() Faction {
 	return FactionAlly
 }
 
+// A weapon that declares no restriction deals full damage against every
+// terrain and fires from every terrain: an absent entry of TerrainDamage is
+// 1.0, and an absent entry of UnusableIn permits the shot.
 type Weapon struct {
-	Name      string
-	Range     RadiusRange
-	ENCost    int
-	MapWeapon bool
+	Name          string
+	Range         RadiusRange
+	ENCost        int
+	Accuracy      float64
+	MapWeapon     bool
+	TerrainDamage map[Terrain]float64
+	UnusableIn    TerrainSet
+}
+
+func (w Weapon) DamageScaleAgainst(target Terrain) float64 {
+	if scale, declared := w.TerrainDamage[target]; declared {
+		return scale
+	}
+	return 1
+}
+
+func (w Weapon) UsableIn(attacker Terrain) bool {
+	return !w.UnusableIn[attacker]
+}
+
+// Pilot and Mech hold base data: the values the character and the machine
+// bring to the computation. Unit holds the final panel: the values the game
+// shows for the deployed piece, after every ability of the pilot and of the
+// mech. No rule derives the one from the other yet, so each level takes its
+// own wire field.
+type Pilot struct {
+	Attack   float64
+	Defense  float64
+	Reaction float64
+}
+
+type Mech struct {
+	Attack    float64
+	Defense   float64
+	Mobility  float64
+	HP        int
+	EN        int
+	MoveRange int
+	Weapons   []Weapon
 }
 
 type Unit struct {
@@ -65,6 +103,8 @@ type Unit struct {
 	Footprint            Footprint
 	HP                   int
 	EN                   int
+	Pilot                Pilot
+	Mech                 Mech
 	MoveRange            int
 	Weapons              []Weapon
 	SupportDefendCharges int
@@ -73,6 +113,10 @@ type Unit struct {
 
 func (u *Unit) Alive() bool {
 	return u != nil && u.HP > 0
+}
+
+func (u *Unit) HasENFor(weapon Weapon) bool {
+	return u.EN >= weapon.ENCost
 }
 
 func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
@@ -91,8 +135,24 @@ func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
 }
 
 type Board struct {
-	Bounds Bounds
-	Units  []Unit
+	Bounds         Bounds
+	Units          []Unit
+	DefaultTerrain Terrain
+	TerrainCells   map[Cell]Terrain
+}
+
+func (b *Board) TerrainAt(cell Cell) Terrain {
+	if kind, declared := b.TerrainCells[cell]; declared {
+		return kind
+	}
+	return b.DefaultTerrain
+}
+
+func (b *Board) TerrainOf(unit *Unit) Terrain {
+	if unit == nil {
+		return b.DefaultTerrain
+	}
+	return b.TerrainAt(unit.Footprint.Anchor)
 }
 
 func (b *Board) Unit(id string) *Unit {

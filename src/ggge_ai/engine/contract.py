@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-PROTOCOL_VERSION = "1.1"
+PROTOCOL_VERSION = "1.2"
 
 DECLARED_COMMANDS: tuple[str, ...] = (
     "hello",

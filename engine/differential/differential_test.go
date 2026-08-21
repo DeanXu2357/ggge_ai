@@ -12,8 +12,9 @@ import (
 
 var fixtures = filepath.Join("..", "..", "tests", "fixtures", "engine")
 
-// The build implements the codec and no board command, so an op answers with
-// the value that the case file set up. A port issue adds its command here.
+// The three codec ops answer with the value that the case file set up. Every
+// other test file of this package adds its own ops from an 'init' that calls
+// 'addOps'.
 var ops = map[string]differential.Op{
 	"state": func(setup *differential.Setup, _ json.RawMessage) (any, error) {
 		return setup.State, nil
@@ -24,6 +25,15 @@ var ops = map[string]differential.Op{
 	"rules": func(setup *differential.Setup, _ json.RawMessage) (any, error) {
 		return setup.Rules, nil
 	},
+}
+
+func addOps(more map[string]differential.Op) {
+	for name, op := range more {
+		if _, taken := ops[name]; taken {
+			panic("the op " + name + " is registered two times")
+		}
+		ops[name] = op
+	}
 }
 
 func load(t *testing.T) []*differential.Case {
