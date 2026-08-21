@@ -147,13 +147,12 @@ func cellOrder(a, b *protocol.Cell) int {
 			return 1
 		}
 	}
-	for axis := range a {
-		if a[axis] != b[axis] {
-			if a[axis] < b[axis] {
-				return -1
-			}
-			return 1
-		}
+	first, second := battle.DecodeCell(*a), battle.DecodeCell(*b)
+	switch {
+	case first.Before(second):
+		return -1
+	case second.Before(first):
+		return 1
 	}
 	return 0
 }

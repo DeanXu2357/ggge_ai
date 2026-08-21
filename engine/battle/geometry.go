@@ -6,6 +6,14 @@ var steps = [4]Cell{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
 
 type CellSet map[Cell]bool
 
+// Before orders two cells: the column first, the row second.
+func (c Cell) Before(other Cell) bool {
+	if c[0] != other[0] {
+		return c[0] < other[0]
+	}
+	return c[1] < other[1]
+}
+
 func SpanDistance(a, b Footprint) int {
 	return axisGap(a.Anchor[0], a.Size[0], b.Anchor[0], b.Size[0]) +
 		axisGap(a.Anchor[1], a.Size[1], b.Anchor[1], b.Size[1])
@@ -87,15 +95,15 @@ func NearestFreeCell(footprint Footprint, taken CellSet) Cell {
 }
 
 func SortedCells(set CellSet) []Cell {
+	out := cellSlice(set)
+	sort.Slice(out, func(i, j int) bool { return out[i].Before(out[j]) })
+	return out
+}
+
+func cellSlice(set CellSet) []Cell {
 	out := make([]Cell, 0, len(set))
 	for cell := range set {
 		out = append(out, cell)
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i][0] != out[j][0] {
-			return out[i][0] < out[j][0]
-		}
-		return out[i][1] < out[j][1]
-	})
 	return out
 }

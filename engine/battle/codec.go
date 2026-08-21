@@ -250,20 +250,16 @@ func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
 		return Skill{}, fmt.Errorf("unit %q carries a skill that affects %q, which is not in the contract",
 			unitID, skill.Affects)
 	}
-	out := Skill{
+	return Skill{
 		Kind:            kind,
+		Amount:          cloneAmount(skill.Amount),
 		Uses:            skill.Uses,
 		EndsActivation:  skill.EndsActivation,
 		UsableAfterMove: skill.UsableAfterMove,
 		Range:           RadiusRange{Min: skill.RangeMin, Max: skill.RangeMax},
 		Blast:           skill.Blast,
 		Affects:         affects,
-	}
-	if skill.Amount != nil {
-		amount := *skill.Amount
-		out.Amount = &amount
-	}
-	return out, nil
+	}, nil
 }
 
 func EncodeDecisions(decisions []Decision) []protocol.Decision {
@@ -284,7 +280,7 @@ func EncodeDecision(decision Decision) protocol.Decision {
 		MoveTo:   encodeOptionalCell(decision.MoveTo),
 		TargetID: encodeOptionalName(decision.TargetID),
 		Weapon:   encodeOptionalName(decision.Weapon),
-		Amount:   encodeOptionalAmount(decision.Amount),
+		Amount:   cloneAmount(decision.Amount),
 		Support:  decision.Support,
 		Aim:      encodeOptionalCell(decision.Aim),
 	}
@@ -320,14 +316,6 @@ func encodeOptionalName(name string) *string {
 		return nil
 	}
 	return &name
-}
-
-func encodeOptionalAmount(amount *float64) *float64 {
-	if amount == nil {
-		return nil
-	}
-	out := *amount
-	return &out
 }
 
 func decodeFootprint(unit *protocol.Unit) (Footprint, error) {

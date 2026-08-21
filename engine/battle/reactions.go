@@ -13,7 +13,7 @@ type SupportAttacker struct {
 // strike. The strike comes from 'attackerCell', not from the cell of the
 // attacker today: the client asks about a move that did not occur.
 func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
-	weaponName string) ([]Reaction, error) {
+	weaponID string) ([]Reaction, error) {
 	defender, err := b.livingUnit(defenderID)
 	if err != nil {
 		return nil, err
@@ -22,9 +22,9 @@ func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
 	if err != nil {
 		return nil, err
 	}
-	weapon := attacker.Weapon(weaponName)
+	weapon := attacker.Weapon(weaponID)
 	if weapon == nil {
-		return nil, fmt.Errorf("unit %q carries no weapon %q", attackerID, weaponName)
+		return nil, fmt.Errorf("unit %q carries no weapon %q", attackerID, weaponID)
 	}
 	// A map strike permits no reaction, and the blast reaches a unit outside the
 	// band of the weapon, so the empty list comes before the band check.
@@ -35,7 +35,7 @@ func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
 	distance := SpanDistance(defender.Footprint, origin)
 	if !weapon.Range.Holds(distance) {
 		return nil, fmt.Errorf("the weapon %q of unit %q does not reach unit %q from %v",
-			weaponName, attackerID, defenderID, attackerCell)
+			weaponID, attackerID, defenderID, attackerCell)
 	}
 
 	out := []Reaction{
@@ -47,7 +47,7 @@ func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
 	}
 	for index := range defender.Weapons {
 		counter := &defender.Weapons[index]
-		if counter.MapWeapon || !counter.CanCounter || defender.EN < counter.ENCost {
+		if counter.MapWeapon || !counter.CanCounter || !defender.HasENFor(*counter) {
 			continue
 		}
 		if counter.Range.Holds(distance) {
@@ -61,7 +61,7 @@ func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
 	if b.SupportDefender(defender) != nil {
 		out = append(out, supportDefendVariants(out)...)
 	}
-	if len(b.SupportAttackers(defender, origin)) > 0 {
+	if b.hasSupportAttacker(defender, origin) {
 		out = append(out, supportAttackVariants(out)...)
 	}
 	return out, nil
@@ -91,19 +91,12 @@ func supportAttackVariants(options []Reaction) []Reaction {
 	return out
 }
 
-// SupportDefender gives the first unit that can intercept a strike on the
-// defender: one unit of its faction, alive, with a charge left, that stands
-// within its own move range of the defender.
+// SupportDefender gives the interceptor of a strike on the defender. The game
+// picks one interceptor for each engagement (docs/reference/combat-formulas.md,
+// case 16), so the first eligible unit is the answer.
 func (b *Board) SupportDefender(defender *Unit) *Unit {
-	for index := range b.Units {
-		other := &b.Units[index]
-		if other.ID == defender.ID || !other.Alive() || other.Faction != defender.Faction {
-			continue
-		}
-		if other.SupportDefendCharges <= 0 {
-			continue
-		}
-		if SpanDistance(other.Footprint, defender.Footprint) <= other.MoveRange {
+	for _, other := range b.ByFaction(defender.Faction) {
+		if inSupportReach(other, defender, other.SupportDefendCharges) {
 			return other
 		}
 	}
@@ -111,31 +104,41 @@ func (b *Board) SupportDefender(defender *Unit) *Unit {
 }
 
 // SupportAttackers gives the units that can join a strike of the supported unit
-// against a foe on 'foe': one unit of its faction, alive, with a charge left,
-// within its own move range of the supported unit, that carries a weapon it can
-// pay for and that reaches the foe.
+// against a foe on 'foe', each one with the weapon it fires.
 func (b *Board) SupportAttackers(supported *Unit, foe Footprint) []SupportAttacker {
 	var out []SupportAttacker
-	for index := range b.Units {
-		other := &b.Units[index]
-		if other.ID == supported.ID || !other.Alive() || other.Faction != supported.Faction {
-			continue
-		}
-		if other.SupportAttackCharges <= 0 {
-			continue
-		}
-		if SpanDistance(other.Footprint, supported.Footprint) > other.MoveRange {
-			continue
-		}
-		distance := SpanDistance(other.Footprint, foe)
-		for weaponIndex := range other.Weapons {
-			weapon := &other.Weapons[weaponIndex]
-			if weapon.MapWeapon || other.EN < weapon.ENCost || !weapon.Range.Holds(distance) {
-				continue
-			}
+	for _, other := range b.ByFaction(supported.Faction) {
+		if weapon := supportWeapon(other, supported, foe); weapon != nil {
 			out = append(out, SupportAttacker{Unit: other, Weapon: weapon})
-			break
 		}
 	}
 	return out
+}
+
+func (b *Board) hasSupportAttacker(supported *Unit, foe Footprint) bool {
+	for _, other := range b.ByFaction(supported.Faction) {
+		if supportWeapon(other, supported, foe) != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func supportWeapon(other, supported *Unit, foe Footprint) *Weapon {
+	if !inSupportReach(other, supported, other.SupportAttackCharges) {
+		return nil
+	}
+	distance := SpanDistance(other.Footprint, foe)
+	for index := range other.Weapons {
+		weapon := &other.Weapons[index]
+		if !weapon.MapWeapon && other.HasENFor(*weapon) && weapon.Range.Holds(distance) {
+			return weapon
+		}
+	}
+	return nil
+}
+
+func inSupportReach(other, supported *Unit, charges int) bool {
+	return other.ID != supported.ID && charges > 0 &&
+		SpanDistance(other.Footprint, supported.Footprint) <= other.MoveRange
 }

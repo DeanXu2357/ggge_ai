@@ -26,6 +26,22 @@ func decode[T any](payload json.RawMessage, into *T) error {
 	return json.Unmarshal(payload, into)
 }
 
+// boardOf gives the board of the session and the request of a command that
+// reads the board, or the failure response that the caller answers with. A
+// method carries no type parameter, so the server comes in as an argument.
+func boardOf[T any](s *Server, id string, payload json.RawMessage,
+	into *T) (*battle.Board, *protocol.Response) {
+	if s.session == nil {
+		fail := protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
+		return nil, &fail
+	}
+	if err := decode(payload, into); err != nil {
+		fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
+		return nil, &fail
+	}
+	return s.session.board, nil
+}
+
 func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 	var request protocol.LoadRequest
 	if err := decode(payload, &request); err != nil {
@@ -40,14 +56,12 @@ func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 }
 
 func (s *Server) reach(id string, payload json.RawMessage) protocol.Response {
-	if s.session == nil {
-		return protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
-	}
 	var request protocol.ReachRequest
-	if err := decode(payload, &request); err != nil {
-		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
+	board, fail := boardOf(s, id, payload, &request)
+	if fail != nil {
+		return *fail
 	}
-	cells, err := s.session.board.ReachableCells(request.UnitID)
+	cells, err := board.ReachableCells(request.UnitID)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
 	}

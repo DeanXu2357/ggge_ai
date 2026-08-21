@@ -14,14 +14,12 @@ func init() {
 }
 
 func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
-	if s.session == nil {
-		return protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
-	}
 	var request protocol.ActionsRequest
-	if err := decode(payload, &request); err != nil {
-		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
+	board, fail := boardOf(s, id, payload, &request)
+	if fail != nil {
+		return *fail
 	}
-	decisions, err := s.session.board.Actions(request.UnitID)
+	decisions, err := board.Actions(request.UnitID)
 	if err != nil {
 		if errors.Is(err, battle.ErrNoUnit) {
 			return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
@@ -32,14 +30,12 @@ func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
 }
 
 func (s *Server) reactions(id string, payload json.RawMessage) protocol.Response {
-	if s.session == nil {
-		return protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
-	}
 	var request protocol.ReactionsRequest
-	if err := decode(payload, &request); err != nil {
-		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
+	board, fail := boardOf(s, id, payload, &request)
+	if fail != nil {
+		return *fail
 	}
-	options, err := s.session.board.Reactions(request.DefenderID, request.AttackerID,
+	options, err := board.Reactions(request.DefenderID, request.AttackerID,
 		battle.DecodeCell(request.AttackerCell), request.WeaponID)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())

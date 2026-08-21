@@ -8,7 +8,7 @@ func (b *Board) Actions(unitID string) ([]Decision, error) {
 		return nil, err
 	}
 	targets := b.TargetsOf(unit)
-	anchors := SortedCells(ReachableAnchors(unit.Footprint, unit.MoveRange,
+	anchors := cellSlice(ReachableAnchors(unit.Footprint, unit.MoveRange,
 		b.BlockingCells(unit), b.OccupiedCells(unit), b.Bounds))
 
 	out := attacks(unit, targets, anchors)
@@ -23,7 +23,7 @@ func attacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 	for _, target := range targets {
 		for index := range unit.Weapons {
 			weapon := &unit.Weapons[index]
-			if weapon.MapWeapon || unit.EN < weapon.ENCost {
+			if weapon.MapWeapon || !unit.HasENFor(*weapon) {
 				continue
 			}
 			destination, found := firingAnchor(unit, weapon, target.Footprint, anchors)
@@ -49,7 +49,7 @@ func mapAttacks(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 	var out []Decision
 	for index := range unit.Weapons {
 		weapon := &unit.Weapons[index]
-		if !weapon.MapWeapon || unit.Ammo[weapon.Name] <= 0 || unit.EN < weapon.ENCost {
+		if !weapon.MapWeapon || unit.Ammo[weapon.Name] <= 0 || !unit.HasENFor(*weapon) {
 			continue
 		}
 		for _, target := range targets {
@@ -84,7 +84,7 @@ func skillActions(unit *Unit) []Decision {
 		out = append(out, Decision{
 			UnitID:  unit.ID,
 			Kind:    skill.Kind,
-			Amount:  copyAmount(skill.Amount),
+			Amount:  cloneAmount(skill.Amount),
 			Support: true,
 		})
 	}
@@ -102,17 +102,17 @@ func skillHasRoom(unit *Unit, skill Skill) bool {
 	}
 }
 
-// A reposition keeps a step forward and a step back in the candidate list of a
-// unit that reaches no target this turn.
+// A reposition keeps a step forward and a step back in the candidate list.
 func repositions(unit *Unit, targets []*Unit, anchors []Cell) []Decision {
 	if unit.MoveRange <= 0 || len(targets) == 0 {
 		return nil
 	}
 	picks := make([]Cell, 0, len(targets)+1)
 	for _, target := range targets {
-		picks = append(picks, nearestAnchor(unit, anchors, target.Footprint))
+		picks = append(picks, pickAnchor(unit, anchors, target.Footprint, nearness.before))
 	}
-	picks = append(picks, farthestAnchor(unit, anchors, nearestTarget(unit, targets).Footprint))
+	picks = append(picks, pickAnchor(unit, anchors, nearestTarget(unit, targets).Footprint,
+		func(key, best nearness) bool { return best.before(key) }))
 
 	var out []Decision
 	taken := CellSet{unit.Footprint.Anchor: true}
@@ -169,20 +169,11 @@ func firingAnchors(unit *Unit, weapon *Weapon, anchors []Cell) []Cell {
 	return []Cell{unit.Footprint.Anchor}
 }
 
-func nearestAnchor(unit *Unit, anchors []Cell, other Footprint) Cell {
+func pickAnchor(unit *Unit, anchors []Cell, other Footprint,
+	better func(key, best nearness) bool) Cell {
 	best, bestKey := anchors[0], nearnessOf(unit, anchors[0], other)
 	for _, cell := range anchors[1:] {
-		if key := nearnessOf(unit, cell, other); key.before(bestKey) {
-			best, bestKey = cell, key
-		}
-	}
-	return best
-}
-
-func farthestAnchor(unit *Unit, anchors []Cell, other Footprint) Cell {
-	best, bestKey := anchors[0], nearnessOf(unit, anchors[0], other)
-	for _, cell := range anchors[1:] {
-		if key := nearnessOf(unit, cell, other); bestKey.before(key) {
+		if key := nearnessOf(unit, cell, other); better(key, bestKey) {
 			best, bestKey = cell, key
 		}
 	}
@@ -216,10 +207,7 @@ func (n nearness) before(other nearness) bool {
 	if n.euclid != other.euclid {
 		return n.euclid < other.euclid
 	}
-	if n.cell[0] != other.cell[0] {
-		return n.cell[0] < other.cell[0]
-	}
-	return n.cell[1] < other.cell[1]
+	return n.cell.Before(other.cell)
 }
 
 // aimCell keeps the aim of a map attack inside the band that the enumeration
@@ -249,12 +237,4 @@ func move(unit *Unit, destination Cell) *Cell {
 		return nil
 	}
 	return &destination
-}
-
-func copyAmount(amount *float64) *float64 {
-	if amount == nil {
-		return nil
-	}
-	out := *amount
-	return &out
 }

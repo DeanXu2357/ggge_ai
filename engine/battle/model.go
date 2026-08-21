@@ -206,6 +206,14 @@ type Reaction struct {
 	SupportAttack bool
 }
 
+func cloneAmount(amount *float64) *float64 {
+	if amount == nil {
+		return nil
+	}
+	out := *amount
+	return &out
+}
+
 func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
 	if bounds.High[0] < bounds.Low[0] || bounds.High[1] < bounds.Low[1] {
 		return nil, fmt.Errorf("the bounds %v run backward", bounds)
