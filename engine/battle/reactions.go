@@ -66,7 +66,7 @@ func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
 }
 
 // A defender that picks defend or shield blocks the strike for itself and
-// leaves the interceptor nothing to take, so support defence pairs with dodge
+// leaves the interceptor nothing to take, so support defense pairs with dodge
 // and with counter alone (docs/reference/battle-prep-ui.md, issue #44).
 func supportDefendVariants(options []Reaction) []Reaction {
 	var out []Reaction

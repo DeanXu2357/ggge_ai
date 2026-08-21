@@ -82,7 +82,7 @@ func TestACounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 	}
 }
 
-func TestSupportDefencePairsWithDodgeAndCounterAlone(t *testing.T) {
+func TestSupportDefensePairsWithDodgeAndCounterAlone(t *testing.T) {
 	out := reactions(t, duel(), Cell{1, 0}, "rifle")
 
 	want := []Stance{
