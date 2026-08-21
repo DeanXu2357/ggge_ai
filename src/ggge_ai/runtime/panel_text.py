@@ -6,7 +6,7 @@ constrained on two independent axes so a hallucination cannot reach the
 sandbox:
 
 - **schema closure.** The request carries a JSON schema whose enums list only
-  mechanics the sandbox actually implements (sandbox.model's Weapon.debuff_kind,
+  mechanics the engine actually implements (engine/state.py's Weapon.debuff_kind,
   Skill.kind, and the Unit ability flags). ollama constrains decoding to it,
   while coerce_weapon/coerce_abilities re-check every field afterwards, because
   a schema the server ignored is not a guarantee. Wording that does not land in

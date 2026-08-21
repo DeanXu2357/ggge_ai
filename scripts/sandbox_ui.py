@@ -3,7 +3,7 @@ actions of one phase.
 
 The page reads a layout file. It never touches adb, and it writes no file. The
 board, the candidates and the step all come from the battle engine: this script
-routes, draws and rolls the dice, and holds no rule of the game.
+routes and draws, and holds no rule of the game. The engine rolls the dice.
 
 Without '--engine' the page runs against the fake engine, which answers the
 shape of the contract and no rule. With '--engine' it runs against the engine
@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import random
 import sys
 import threading
 from collections.abc import Mapping
@@ -37,29 +36,19 @@ from ggge_ai.engine.client import (  # noqa: E402
     EngineError,
     EngineTimeout,
 )
+from ggge_ai.engine.contract import DiceMode  # noqa: E402
 from ggge_ai.engine.fake import FakeEngine  # noqa: E402
 from ggge_ai.engine.session import EngineSession  # noqa: E402
 
-DICE_KEYS = ("hit", "counter_hit", "support_hit")
 MAX_BODY_BYTES = 1 << 20
 ENGINE_QUERIES = ("roster", "deploy_cells")
-
-
-def _reaction_key(raw: Mapping[str, Any]) -> tuple:
-    return (
-        str(raw.get("stance", "none")),
-        raw.get("weapon"),
-        bool(raw.get("support_defend", False)),
-        bool(raw.get("support_attack", True)),
-    )
 
 
 class SandboxHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     sandbox: EngineSession
     lock: threading.Lock
-    rng: random.Random
-    engine: BattleEngine | None
+    engine: BattleEngine | FakeEngine
 
     def do_GET(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
@@ -135,38 +124,24 @@ class SandboxHandler(BaseHTTPRequestHandler):
         reaction = body.get("reaction")
         if reaction is not None and not isinstance(reaction, dict):
             raise ValueError("reaction 要寫成物件或 null")
-        rolled = dict(candidate)
-        if body.get("draw"):
-            rolled.update(self._draw(candidate, reaction))
-        dice = {key: rolled.get(key) for key in DICE_KEYS}
-        state = self.sandbox.act(rolled, reaction)
-        return {"dice": dice, "state": state, "pending": self.sandbox.pending_decision()}
+        answer = self.sandbox.act(candidate, reaction, self._dice(body))
+        return {
+            "events": answer["events"],
+            "board": answer["board"],
+            "state": self.sandbox.snapshot(),
+            "pending": self.sandbox.pending_decision(),
+        }
 
-    def _draw(self, candidate: Mapping[str, Any], reaction: Mapping[str, Any] | None) -> dict:
-        # 門面只給主命中率；反擊與支援命中率沒有酬載欄位，抽不了，留給模型預設。
-        chance = self._hit_probability(candidate, reaction)
-        return {} if chance is None else {"hit": self.rng.random() < chance}
-
-    def _hit_probability(
-        self, candidate: Mapping[str, Any], reaction: Mapping[str, Any] | None
-    ) -> float | None:
-        if candidate.get("kind") != "attack":
-            return None
-        if reaction is None:
-            return self._pending_probability(candidate)
-        picked = _reaction_key(reaction)
-        for option in self.sandbox.reaction_options(candidate)["options"]:
-            if _reaction_key(option) == picked:
-                return option["hit_probability"]
-        raise ValueError(f"這個應戰不在合法選項裡：{reaction}")
-
-    def _pending_probability(self, candidate: Mapping[str, Any]) -> float | None:
-        wanted = self.sandbox.candidate_key(candidate)
-        for entry in self.sandbox.pending_decision()["units"]:
-            for option in entry["candidates"]:
-                if self.sandbox.candidate_key(option) == wanted:
-                    return option["hit_probability"]
-        return None
+    def _dice(self, body: Mapping[str, Any]) -> dict[str, Any]:
+        """The dice of one action. The engine draws them, or the client forces
+        each outcome. The page holds no hit rate, so it draws nothing itself.
+        """
+        outcomes = body.get("outcomes")
+        if outcomes is None:
+            return {"mode": str(DiceMode.SAMPLED)}
+        if not isinstance(outcomes, list):
+            raise ValueError("outcomes 要寫成陣列")
+        return {"mode": str(DiceMode.FORCED), "outcomes": outcomes}
 
     def _body(self) -> dict[str, Any]:
         try:
@@ -200,8 +175,7 @@ class SandboxHandler(BaseHTTPRequestHandler):
 def build_handler(
     sandbox: EngineSession,
     *,
-    seed: int | None = None,
-    engine: BattleEngine | None = None,
+    engine: BattleEngine | FakeEngine,
 ) -> type[BaseHTTPRequestHandler]:
     return type(
         "BoundSandboxHandler",
@@ -209,7 +183,6 @@ def build_handler(
         {
             "sandbox": sandbox,
             "lock": threading.Lock(),
-            "rng": random.Random(seed),
             "engine": engine,
         },
     )
@@ -348,8 +321,6 @@ let actor = null;
 let picked = null;
 let engagement = null;
 let option = null;
-let dice = {};
-let draw = false;
 let lastDice = null;
 let error = "";
 let inspected = null;
@@ -389,7 +360,7 @@ async function post(path, body) {
 }
 
 function entryOf(uid) {
-  return pending.units.find((entry) => entry.uid === uid) || null;
+  return pending.units.find((entry) => entry.unit_id === uid) || null;
 }
 
 function apply(snapshot, decision) {
@@ -439,14 +410,15 @@ function drawHeader() {
   el("stage").textContent = state.stage;
   el("turn").textContent = "第 " + state.turn + " 回合";
   el("phase").textContent = "階段：" + (FACTION_NAME[state.phase] || state.phase);
-  el("outcome").textContent = state.outcome ? "結果：" + state.outcome : "進行中";
-  el("note").textContent = state.note || "";
+  el("outcome").textContent = "";
+  el("note").textContent = "";
   document.title = state.stage + " 沙盤盤面";
 }
 
 function drawBoard() {
-  const cols = state.board.cols;
-  const rows = state.board.rows;
+  const bounds = state.bounds || [[0, 0], [0, 0]];
+  const cols = bounds[1][0] - bounds[0][0] + 1;
+  const rows = bounds[1][1] - bounds[0][1] + 1;
   const axisX = el("axis-x");
   axisX.style.gridTemplateColumns = "repeat(" + cols + ", var(--cell))";
   axisX.textContent = "";
@@ -469,9 +441,8 @@ function drawBoard() {
   }
   const at = (cell) => cells[cell[1] * cols + cell[0]];
   const entry = actor ? entryOf(actor) : null;
-  if (entry) entry.moves.forEach((cell) => { const c = at(cell); if (c) c.classList.add("reach"); });
   if (entry) {
-    entry.candidates
+    entry.actions
       .filter((candidate) => candidate.kind === "reposition")
       .forEach((candidate) => {
         const cell = at(candidate.move_to);
@@ -480,27 +451,26 @@ function drawBoard() {
         cell.addEventListener("click", () => pick(candidate));
       });
   }
-  // 引擎的正交 reach 是 Python 斜角 reach 的子集，所以這層只疊記號：
-  // 可點的目的格仍舊全部由 Python 候選給，引擎不會擋掉畫面上開放的格子。
   engineReach.forEach((cell) => { const c = at(cell); if (c) c.classList.add("engine"); });
   if (picked && picked.move_to) { const c = at(picked.move_to); if (c) c.classList.add("aim"); }
   if (picked && picked.aim) { const c = at(picked.aim); if (c) c.classList.add("aim"); }
 
   state.units.forEach((unit) => {
-    const cell = at(unit.cell);
+    const cell = at(unit.pos);
     if (!cell) return;
-    const piece = node("div", "piece " + unit.faction + (unit.acted ? " acted" : ""), unit.uid);
-    piece.dataset.uid = unit.uid;
-    if (unit.uid === inspected) piece.classList.add("on");
-    if (unit.uid === actor) piece.classList.add("actor");
+    const name = unit.unit_id;
+    const piece = node("div", "piece " + unit.faction + (unit.acted ? " acted" : ""), name);
+    piece.dataset.uid = name;
+    if (name === inspected) piece.classList.add("on");
+    if (name === actor) piece.classList.add("actor");
     const bar = node("div", "bar");
     const fill = node("i");
     fill.style.width = Math.max(0, Math.round(100 * unit.hp / unit.max_hp)) + "%";
     bar.appendChild(fill);
     piece.appendChild(bar);
     piece.addEventListener("click", () => {
-      inspectUnit(unit.uid);
-      if (entryOf(unit.uid)) command(unit.uid);
+      inspectUnit(name);
+      if (entryOf(name)) command(name);
       else drawBoard();
     });
     cell.appendChild(piece);
@@ -513,7 +483,6 @@ function command(uid) {
   picked = null;
   engagement = null;
   option = null;
-  dice = {};
   error = "";
   reactionSeq += 1;
   drawBoard();
@@ -525,7 +494,6 @@ function pick(candidate) {
   picked = candidate;
   engagement = null;
   option = null;
-  dice = {};
   error = "";
   reactionSeq += 1;
   drawBoard();
@@ -542,16 +510,22 @@ function pick(candidate) {
     });
 }
 
+function forecast(candidate) {
+  const parts = [];
+  if (candidate.hit_probability !== undefined) {
+    parts.push("命中 " + pct(candidate.hit_probability));
+  }
+  if (candidate.expected_damage !== undefined) parts.push("期望 " + candidate.expected_damage);
+  return parts.length ? "　" + parts.join("　") : "";
+}
+
 function candidateLabel(candidate) {
   if (candidate.kind === "attack") {
-    return "攻擊 " + candidate.target_id + "／" + candidate.weapon
-      + "　命中 " + pct(candidate.hit_probability)
-      + "　期望 " + candidate.expected_damage
+    return "攻擊 " + candidate.target_id + "／" + candidate.weapon + forecast(candidate)
       + (candidate.move_to ? "　移動 " + cellText(candidate.move_to) : "");
   }
   if (candidate.kind === "map_attack") {
-    return "地圖兵器 " + candidate.weapon + " → " + cellText(candidate.aim)
-      + "　期望 " + candidate.expected_damage + "（" + candidate.victims.length + " 台）";
+    return "地圖兵器 " + candidate.weapon + " → " + cellText(candidate.aim) + forecast(candidate);
   }
   if (candidate.kind === "reposition") return "移動 → " + cellText(candidate.move_to);
   if (candidate.kind === "standby") return "待機";
@@ -562,41 +536,19 @@ function candidateLabel(candidate) {
 function optionLabel(entry) {
   const parts = [STANCE_NAME[entry.stance] || entry.stance];
   if (entry.weapon) parts.push(entry.weapon);
-  if (entry.support_defend) parts.push("支援防禦 " + engagement.support_defender);
-  if (entry.support_attackers.length) parts.push("支援攻擊 " + entry.support_attackers.join("、"));
-  parts.push("命中 " + pct(entry.hit_probability));
-  parts.push("受擊 " + entry.struck + " 期望 " + entry.expected_damage);
+  if (entry.support_defend) parts.push("支援防禦");
+  if ((entry.support_attackers || []).length) {
+    parts.push("支援攻擊 " + entry.support_attackers.join("、"));
+  }
+  const shape = forecast(entry).trim();
+  if (shape) parts.push(shape);
   return parts.join("／");
-}
-
-function roll(key) {
-  return dice[key] === undefined ? true : dice[key];
-}
-
-function dieRow(wrap, key, label, chance) {
-  const line = node("div", "die");
-  line.appendChild(node("span", "dim", label + (chance === null ? "" : "（" + pct(chance) + "）")));
-  [["命中", true], ["未命中", false]].forEach((pair) => {
-    line.appendChild(button(pair[0], () => { dice[key] = pair[1]; renderPlay(); },
-      roll(key) === pair[1]));
-  });
-  wrap.appendChild(line);
 }
 
 function renderDice(box) {
   const wrap = node("div", "dice");
-  if (draw) {
-    wrap.appendChild(node("div", "dim",
-      "伺服器抽骰：主命中依酬載機率抽。反擊與支援沒有命中率欄位，維持模型預設命中。"));
-    wrap.appendChild(node("div", "dim",
-      "我方支援齊射若有參戰，門面沒有開關也沒有機率，一律照模型預設結算。"));
-  } else {
-    dieRow(wrap, "hit", "主命中", option ? option.hit_probability : picked.hit_probability);
-    if (option && option.stance === "counter") dieRow(wrap, "counter_hit", "反擊命中", null);
-    if (option && option.support_attackers.length) {
-      dieRow(wrap, "support_hit", "支援命中", null);
-    }
-  }
+  wrap.appendChild(node("div", "dim",
+    "擲骰由引擎抽（dice.mode=sampled）。頁面沒有命中率，指定不了每個機率節點。"));
   box.appendChild(wrap);
 }
 
@@ -626,16 +578,7 @@ function renderPlay() {
   box.appendChild(node("div", "dim",
     "第 " + pending.turn + " 回合／" + (FACTION_NAME[pending.phase] || pending.phase) + "階段"));
 
-  const toggle = node("label", "toggle");
-  const check = document.createElement("input");
-  check.type = "checkbox";
-  check.checked = draw;
-  check.addEventListener("change", () => { draw = check.checked; renderPlay(); });
-  toggle.appendChild(check);
-  toggle.appendChild(node("span", null, "伺服器抽骰（預設手動擲骰）"));
-  box.appendChild(toggle);
-
-  if (lastDice) box.appendChild(node("div", "dim", "上一次擲骰：" + lastDice));
+  if (lastDice) box.appendChild(node("div", "dim", "上一次結算：" + lastDice));
   if (error) box.appendChild(node("div", "err", error));
 
   if (state.phase !== "ally") {
@@ -650,7 +593,8 @@ function renderPlay() {
   box.appendChild(node("h3", null, "待啟動（" + pending.units.length + "）"));
   const list = node("div", "units");
   pending.units.forEach((entry) => {
-    list.appendChild(button(entry.uid, () => command(entry.uid), entry.uid === actor));
+    list.appendChild(button(entry.unit_id, () => command(entry.unit_id),
+      entry.unit_id === actor));
   });
   box.appendChild(list);
 
@@ -660,7 +604,7 @@ function renderPlay() {
     return;
   }
   KIND_ORDER.forEach((kind) => {
-    const group = entry.candidates.filter((candidate) => candidate.kind === kind);
+    const group = entry.actions.filter((candidate) => candidate.kind === kind);
     if (!group.length) return;
     box.appendChild(node("h3", null, KIND_NAME[kind] || kind));
     group.forEach((candidate) => {
@@ -673,10 +617,9 @@ function renderPlay() {
     box.appendChild(node("h3", null, "應戰"));
     if (!engagement) box.appendChild(node("div", "dim", "讀取應戰選項…"));
     else {
-      engagement.options.forEach((entryOption) => {
+      engagement.reactions.forEach((entryOption) => {
         box.appendChild(button(optionLabel(entryOption), () => {
           option = entryOption;
-          dice = {};
           renderPlay();
         }, entryOption === option));
       });
@@ -687,27 +630,18 @@ function renderPlay() {
 
 function act() {
   const candidate = Object.assign({}, picked);
-  if (!draw && picked.kind === "attack") {
-    candidate.hit = roll("hit");
-    if (option && option.stance === "counter") candidate.counter_hit = roll("counter_hit");
-    if (option && option.support_attackers.length) candidate.support_hit = roll("support_hit");
-  }
   const reaction = option === null ? null : {
     stance: option.stance,
     weapon: option.weapon,
     support_defend: option.support_defend,
     support_attack: option.support_attack,
   };
-  post("/api/act", { candidate: candidate, reaction: reaction, draw: draw })
+  post("/api/act", { candidate: candidate, reaction: reaction })
     .then((payload) => {
-      lastDice = Object.keys(payload.dice)
-        .filter((key) => payload.dice[key] !== null)
-        .map((key) => key + "=" + (payload.dice[key] ? "命中" : "未命中"))
-        .join("／") || "無命中節點";
+      lastDice = payload.events.length + " 則事件";
       picked = null;
       engagement = null;
       option = null;
-      dice = {};
       error = "";
       reactionSeq += 1;
       apply(payload.state, payload.pending);
@@ -728,7 +662,7 @@ function inspectUnit(uid) {
   document.querySelectorAll(".piece").forEach((piece) => {
     piece.classList.toggle("on", piece.dataset.uid === uid);
   });
-  const unit = state.units.find((candidate) => candidate.uid === uid);
+  const unit = state.units.find((candidate) => candidate.unit_id === uid);
   const panel = el("panel");
   panel.textContent = "";
   if (!unit) {
@@ -737,9 +671,10 @@ function inspectUnit(uid) {
     return;
   }
   panel.appendChild(
-    node("h2", null, unit.uid + "（" + (FACTION_NAME[unit.faction] || unit.faction) + "）"));
+    node("h2", null,
+      unit.unit_id + "（" + (FACTION_NAME[unit.faction] || unit.faction) + "）"));
   const table = document.createElement("table");
-  tableRow(table, "格位", cellText(unit.cell));
+  tableRow(table, "格位", cellText(unit.pos));
   tableRow(table, "HP", unit.hp + " / " + unit.max_hp);
   tableRow(table, "EN", unit.en + " / " + unit.en_max);
   tableRow(table, "已行動", unit.acted ? "是" : "否");
@@ -792,7 +727,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--scenario", required=True, help="情境檔路徑（sandbox-scenario/1）")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8642)
-    parser.add_argument("--seed", type=int, default=None, help="伺服器抽骰的亂數種子")
     parser.add_argument("--engine", default=None, help="戰局引擎執行檔路徑（不給就用假引擎）")
     return parser.parse_args(argv)
 
@@ -804,7 +738,7 @@ def main() -> int:
     engine.start()
     sandbox = EngineSession.from_scenario(args.scenario, engine)
     board = sandbox.snapshot()
-    handler = build_handler(sandbox, seed=args.seed, engine=engine)
+    handler = build_handler(sandbox, engine=engine)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"情境：{board['stage']}（{len(board['units'])} 台單位）")
     print(f"開啟 http://{args.host}:{args.port}/ ——Ctrl-C 結束")

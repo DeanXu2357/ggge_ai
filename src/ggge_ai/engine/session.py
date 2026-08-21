@@ -1,9 +1,13 @@
 """One battle, read through the engine.
 
-The session holds the start state of a stage layout, sends it to the engine and
-asks the engine every question. It holds no rule of the battle: a question that
-needs one goes on the wire, and an engine that answers 'not_implemented' leaves
-the answer empty.
+The session holds the state of one battle, sends it to the engine and asks the
+engine every question. It speaks the commands of
+'docs/spec/battle-engine-protocol.md' and nothing else. It holds no rule of the
+battle: a question that needs one goes on the wire, and an engine that answers
+'not_implemented' leaves the answer empty.
+
+The engine answers 'act' with the events and a board summary, not with the new
+state, so the session reads the state back with 'export'.
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ from typing import Any
 from ..stage import scenario as scenario_mod
 from . import codec
 from .client import EngineDead, EngineError, EngineTimeout
-from .contract import Faction
+from .contract import DiceMode, Faction
 from .state import DEFAULT_RULES, BattleState, EventTable, Rules
 
 GONE = (EngineError, EngineDead, EngineTimeout)
@@ -37,12 +41,11 @@ class EngineSession:
         self._rules = rules
         self._events = events or {}
         self._stage = stage
-        self._engine.call("load", {"state": self.engine_state(), "history": []})
+        self._ask("load", {"state": self.engine_state(), "history": []})
 
     @classmethod
     def from_scenario(cls, path: str, engine: Any) -> EngineSession:
-        text = Path(path).read_text(encoding="utf-8")
-        loaded = scenario_mod.from_dict(json.loads(text))
+        loaded = scenario_mod.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
         state, rules, events = loaded.build()
         return cls(engine, state, rules=rules, events=events, stage=loaded.stage)
 
@@ -56,7 +59,7 @@ class EngineSession:
             "phase": str(self._state.phase),
             "bounds": self._state.bounds,
             "rules": codec.encode_rules(self._rules),
-            "units": codec.encode_state(self._state)["units"],
+            "units": self.engine_state()["units"],
         }
 
     def pending_decision(self) -> dict[str, Any]:
@@ -65,30 +68,57 @@ class EngineSession:
             if unit.acted:
                 continue
             answer = self._ask("actions", {"unit_id": unit.unit_id})
-            units.append({"unit_id": unit.unit_id, "candidates": answer.get("actions", [])})
+            units.append({"unit_id": unit.unit_id, "actions": answer.get("actions", [])})
         return {"turn": self._state.turn, "phase": str(self._state.phase), "units": units}
 
-    def reaction_options(self, candidate: Mapping[str, Any]) -> dict[str, Any]:
-        answer = self._ask("reactions", {"action": dict(candidate)})
-        return {"options": answer.get("options", [])}
+    def reaction_options(self, action: Mapping[str, Any]) -> dict[str, Any]:
+        request = self._strike(action)
+        if request is None:
+            return {"reactions": []}
+        return {"reactions": self._ask("reactions", request).get("reactions", [])}
 
-    def act(self, candidate: Mapping[str, Any], reaction: Mapping[str, Any] | None) -> dict:
-        request: dict[str, Any] = {"action": dict(candidate)}
+    def act(
+        self,
+        action: Mapping[str, Any],
+        reaction: Mapping[str, Any] | None,
+        dice: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        request: dict[str, Any] = {
+            "unit_id": action.get("unit_id"),
+            "action": dict(action),
+            "dice": dict(dice) if dice else {"mode": str(DiceMode.SAMPLED)},
+        }
         if reaction is not None:
             request["reaction"] = dict(reaction)
         answer = self._ask("act", request)
-        state = answer.get("state")
+        self._read_back()
+        return {"events": answer.get("events", []), "board": answer.get("board", {})}
+
+    def _strike(self, action: Mapping[str, Any]) -> dict[str, Any] | None:
+        """The reaction request that one attack of the action list asks about.
+
+        The command reads the cell of the attacker after its move, so a client
+        can ask about a move that did not occur.
+        """
+        attacker = self._state.unit(action.get("unit_id"))
+        if attacker is None or action.get("kind") != "attack" or action.get("target_id") is None:
+            return None
+        cell = action.get("move_to") or list(attacker.pos)
+        return {
+            "defender_id": action.get("target_id"),
+            "attacker_id": attacker.unit_id,
+            "attacker_cell": list(cell),
+            "weapon_id": action.get("weapon"),
+        }
+
+    def _read_back(self) -> None:
+        state = self._ask("export").get("state")
         if isinstance(state, dict):
             self._state = codec.decode_state(state)
-        return self.snapshot()
 
-    @staticmethod
-    def candidate_key(candidate: Mapping[str, Any]) -> tuple:
-        return tuple(sorted((key, str(value)) for key, value in candidate.items()))
-
-    def _ask(self, cmd: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _ask(self, cmd: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         try:
-            return self._engine.call(cmd, payload)
+            return self._engine.call(cmd, payload or {})
         except GONE:
             # The page must draw a board even when the engine answers nothing.
             return {}

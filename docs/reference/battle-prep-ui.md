@@ -83,8 +83,8 @@
 
 **但書：反擊階段觸發依賴被攻擊主單位存活**——①敵攻若擊殺③主單位，整個反擊階段
 取消、②支援反擊也不觸發（雖②結算在③前）。**沙盤已正確建模**
-（`engine/battle/resolve.go` 把支援齊射與反擊都圈在 target 存活條件內，
-target 死則全跳過），此塊無需改。對戰術層：我方主單位會被①秒時 counter 無效，應改
+（Python 沙盤退役前已正確建模；交戰結算的移植歸 issue #64，
+尚未併入），此塊無需改。對戰術層：我方主單位會被①秒時 counter 無效，應改
 防禦/閃避保命。
 
 ### 支援防禦 support_defense（reaction_support_defense）
@@ -92,8 +92,7 @@ target 死則全跳過），此塊無需改。對戰術層：我方主單位會�
 視覺信號：主單位面板出現**盾圖示「支援防禦」**標籤、右側疊第二個 interceptor 面板、
 底部頭像列有「支援防禦」頭像（盾圖示、**無攻擊序號**，插在①敵攻與②主單位反擊之間）、
 場上 interceptor 標「支援防禦」。→ vision 偵測盾圖示「支援防禦」標籤即 `support_defense=True`。
-機制吻合沙盤 interceptor（`engine/battle/resolve.go` 的 `interceptedVolley`，
-齊射全打在攔截者身上）；interceptor 承受傷害是否已含 shield/defend 減免待與沙盤對照。
+機制吻合沙盤 interceptor（齊射全打在攔截者身上；移植歸 issue #64）；interceptor 承受傷害是否已含 shield/defend 減免待與沙盤對照。
 順序：①敵攻 → 支援防禦(擋傷、主單位免傷) → ②主單位反擊。
 
 **互斥規則（使用者口述）**：被攻擊單位選 **defend/shield 時不能**接受支援防禦（自己擋）；

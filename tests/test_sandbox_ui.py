@@ -32,6 +32,7 @@ REACHED = [
     "ggge_ai.engine.client.EngineDead",
     "ggge_ai.engine.client.EngineError",
     "ggge_ai.engine.client.EngineTimeout",
+    "ggge_ai.engine.contract.DiceMode",
     "ggge_ai.engine.fake.FakeEngine",
     "ggge_ai.engine.session.EngineSession",
 ]
@@ -66,7 +67,7 @@ class Client:
 def client():
     with FakeEngine() as engine:
         session = EngineSession.from_scenario(str(PLACEHOLDER), engine)
-        handler = build_handler(session, seed=7, engine=engine)
+        handler = build_handler(session, engine=engine)
         server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -100,7 +101,10 @@ def test_no_module_of_the_repository_holds_the_retired_sandbox():
     hits = [
         path.relative_to(ROOT).as_posix()
         for path in list(ROOT.glob("src/**/*.py")) + list(ROOT.glob("scripts/*.py"))
-        if "ggge_ai.sandbox" in path.read_text(encoding="utf-8")
+        if any(
+            mark in path.read_text(encoding="utf-8")
+            for mark in ("ggge_ai.sandbox", "sandbox.model", "sandbox/model", "sandbox/facade")
+        )
     ]
 
     assert hits == []
@@ -121,38 +125,65 @@ def test_the_decision_asks_the_engine_for_every_unit_of_the_phase(client):
     assert pending["phase"] == "ally"
     assert pending["units"]
     first = pending["units"][0]
-    assert first["candidates"] == [{"unit_id": first["unit_id"], "kind": "standby"}]
+    assert first["actions"] == [{"unit_id": first["unit_id"], "kind": "standby"}]
 
 
-def test_the_reaction_list_of_the_fake_is_empty(client):
-    body = {"candidate": {"unit_id": "x", "kind": "attack"}}
+def test_the_reaction_request_carries_the_strike_the_spec_names(client):
+    pending = client.get("/api/decision")
+    attacker = pending["units"][0]["unit_id"]
+    body = {"candidate": {"unit_id": attacker, "kind": "attack", "target_id": attacker}}
 
     status, payload = client.post("/api/reactions", body)
 
     assert status == 200
-    assert payload == {"options": []}
+    assert payload == {"reactions": []}
 
 
-def test_the_step_leaves_the_board_the_fake_holds(client):
-    before = client.get("/api/state")
+def test_an_action_that_names_no_target_asks_the_engine_nothing(client):
+    body = {"candidate": {"unit_id": "x", "kind": "standby"}}
+
+    status, payload = client.post("/api/reactions", body)
+
+    assert status == 200
+    assert payload == {"reactions": []}
+
+
+def test_the_step_reads_the_board_back_from_the_engine(client):
+    pending = client.get("/api/decision")
+    unit = pending["units"][0]["unit_id"]
 
     status, payload = client.post(
-        "/api/act", {"candidate": {"unit_id": "x", "kind": "standby"}, "draw": False}
+        "/api/act", {"candidate": {"unit_id": unit, "kind": "standby"}}
     )
 
     assert status == 200
-    assert payload["state"]["units"] == before["units"]
+    assert payload["events"] == []
+    acted = {entry["unit_id"]: entry["acted"] for entry in payload["state"]["units"]}
+    assert acted[unit] is True, "the fake marks the unit, and 'export' brings it back"
 
 
-def test_the_engine_report_names_the_commands_of_the_fake(client):
+def test_a_unit_that_acted_leaves_the_decision(client):
+    pending = client.get("/api/decision")
+    unit = pending["units"][0]["unit_id"]
+
+    client.post("/api/act", {"candidate": {"unit_id": unit, "kind": "standby"}})
+
+    after = client.get("/api/decision")
+    assert unit not in [entry["unit_id"] for entry in after["units"]]
+
+
+def test_the_engine_report_carries_the_command_entries_of_the_contract(client):
     report = client.get("/api/engine?unit=" + quote("x"))
 
     assert report["available"] is True
     assert "load" in report["answers"]
+    entries = {entry["name"]: entry["implemented"] for entry in report["commands"]}
+    assert entries["act"] is True
+    assert entries["certify"] is False
 
 
 def test_a_request_with_no_candidate_is_refused(client):
-    status, payload = client.post("/api/act", {"draw": False})
+    status, payload = client.post("/api/act", {})
 
     assert status == 400
     assert "candidate" in payload["error"]

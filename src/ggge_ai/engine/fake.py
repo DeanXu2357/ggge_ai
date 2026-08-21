@@ -16,7 +16,16 @@ from typing import Any
 from .client import EngineError
 from .contract import DECLARED_COMMANDS, PROTOCOL_VERSION, ErrorCode
 
-IMPLEMENTED: tuple[str, ...] = ("hello", "ping", "load", "reach", "actions", "reactions", "act")
+IMPLEMENTED: tuple[str, ...] = (
+    "hello",
+    "ping",
+    "load",
+    "export",
+    "reach",
+    "actions",
+    "reactions",
+    "act",
+)
 
 
 class FakeEngine:
@@ -53,7 +62,10 @@ class FakeEngine:
         return getattr(self, f"_{cmd}")(payload)
 
     def _hello(self, _: dict[str, Any]) -> dict[str, Any]:
-        return {"protocol": PROTOCOL_VERSION, "commands": list(IMPLEMENTED), "engine": "fake"}
+        commands = [
+            {"name": name, "implemented": name in IMPLEMENTED} for name in DECLARED_COMMANDS
+        ]
+        return {"protocol": PROTOCOL_VERSION, "commands": commands, "engine": "fake"}
 
     def _ping(self, _: dict[str, Any]) -> dict[str, Any]:
         return {}
@@ -74,11 +86,22 @@ class FakeEngine:
         return {"actions": [{"unit_id": unit.get("unit_id"), "kind": "standby"}]}
 
     def _reactions(self, payload: dict[str, Any]) -> dict[str, Any]:
-        self._unit(payload.get("unit_id"))
-        return {"options": []}
+        self._unit(payload.get("defender_id"))
+        self._unit(payload.get("attacker_id"))
+        return {"reactions": []}
 
-    def _act(self, _: dict[str, Any]) -> dict[str, Any]:
-        return {"state": self._loaded()}
+    def _act(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # The fake runs no action: it marks the unit and leaves the board.
+        unit = self._unit(payload.get("unit_id"))
+        unit["acted"] = True
+        return {"events": [], "board": self._summary()}
+
+    def _export(self, _: dict[str, Any]) -> dict[str, Any]:
+        return {"state": self._loaded(), "history": []}
+
+    def _summary(self) -> dict[str, Any]:
+        state = self._loaded()
+        return {"turn": state.get("turn"), "phase": state.get("phase")}
 
     def _loaded(self) -> dict[str, Any]:
         if self._state is None:

@@ -358,8 +358,7 @@ wire form from them. The contract names the payload of one
 activation 'action'; the struct names the same thing 'Decision'.
 The Go type keeps the struct name, and the wire field keeps the
 contract name.
-The enum of the kinds of one action carries two type names: the
-model names it 'MoveKind', and the engine names it 'ActionKind'.
+The enum of the kinds of one action is 'ActionKind' on both sides.
 The enum holds no kind of movement. Its wire field is 'kind', and
 its value set is frozen.
 

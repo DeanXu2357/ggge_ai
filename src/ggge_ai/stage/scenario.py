@@ -97,30 +97,6 @@ def from_dict(data: dict[str, Any]) -> Scenario:
     )
 
 
-def check_outcome(scenario: Scenario, state: BattleState) -> str | None:
-    if _met(scenario.defeat, state, DEFEAT_ALLY_ANNIHILATION, DEFEAT_PROTECT, Faction.ALLY):
-        return "defeat"
-    if _met(scenario.victory, state, VICTORY_ANNIHILATION, VICTORY_DESTROY_TARGET, Faction.ENEMY):
-        return "victory"
-    return None
-
-
-def _met(
-    condition: dict[str, Any],
-    state: BattleState,
-    wipe_type: str,
-    unit_type: str,
-    side: Faction,
-) -> bool:
-    kind = condition.get("type")
-    if kind == wipe_type:
-        return not state.by_faction(side)
-    if kind == unit_type:
-        target = state.unit(condition.get("uid"))
-        return target is None or not target.alive
-    return False
-
-
 def _board(raw: dict[str, Any]) -> Board:
     cols, rows = int(raw.get("cols", 0)), int(raw.get("rows", 0))
     if cols <= 0 or rows <= 0:

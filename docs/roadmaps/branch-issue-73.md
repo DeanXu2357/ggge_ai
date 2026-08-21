@@ -60,6 +60,41 @@ Without '--engine' the page runs on 'FakeEngine' in the same process.
 With '--engine' it runs on the binary. A command that the engine does
 not answer comes back empty, and the page still draws the board.
 
+## The wire, after the review
+
+A first cut of 'EngineSession' spoke the shape of the retired facade,
+not the shape of the contract. The review caught it. The session and
+the fake now speak the commands of the spec:
+
+| Command | Request | Response |
+|---|---|---|
+| load | state, history | - |
+| actions | unit_id | actions |
+| reactions | defender_id, attacker_id, attacker_cell, weapon_id | reactions |
+| act | unit_id, action, reaction, dice | events, board |
+| export | - | state, history |
+
+'act' answers the events and a board summary, not the new state, so
+the session reads the state back with 'export'.
+
+The page moved to the same vocabulary: 'unit_id' and 'pos' where it
+read 'uid' and 'cell', the bounds of the state where it read a board
+of columns and rows.
+
+## What the page lost
+
+The page holds no hit rate any more, because no command of the
+contract promises one. Two things follow:
+
+- The dice. The page had a manual mode that named the outcome of each
+  hit node. The contract forces the dice with an ordered 'outcomes'
+  list, in the resolution order, and the page cannot know that order
+  before the engine answers. So the page asks the engine to sample,
+  and the manual mode is gone.
+- The forecast. A candidate label writes the hit rate and the expected
+  damage when the action carries them, and omits them when it does
+  not. It invents no field that the contract does not name.
+
 ## Contention points for the review
 
 1. The stance. The contract holds four values and no 'none'. The
@@ -77,7 +112,10 @@ not answer comes back empty, and the page still draws the board.
 4. 'tests/test_engine_codec.py' keeps the parity half, now against
    'engine/state.py'. It lost the three tests that compared the
    golden files with the writer.
-5. The page script keeps the name 'scripts/sandbox_ui.py'. The word
+5. 'stage/scenario.py' lost 'check_outcome'. Deciding victory and
+   defeat is a rule, it had no caller left, and the module says it
+   holds no rule.
+6. The page script keeps the name 'scripts/sandbox_ui.py'. The word
    sandbox names the board and the page, not the retired module.
 
 ## Test mapping
@@ -96,6 +134,9 @@ activation), and 10 that only a frozen golden holds.
 ## Gates
 
 - uv run pytest -q: 988 passed, 4 skipped.
+- The page serves the placeholder layout against the fake: 28 units,
+  the board bounds, the action list, and the command entries of the
+  contract.
 - uv run ruff check src tests scripts: clean.
 - go vet ./... and go test ./... in 'engine': clean.
 - 'battle/vision.py' changed in the first commit of the branch. Its

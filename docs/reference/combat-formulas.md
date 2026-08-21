@@ -218,13 +218,13 @@ issue #47；預測畫面的支援命中% 讀取屬視覺線的後續工作。
   （`Weapon.usable_after_move` 與 `Skill.usable_after_move`，
   docs/spec/battle-engine-protocol.md），引擎讀屬性判定行動合法性，
   不從種類推斷。
-- **模擬器現況**：地圖炮建模在 Go 引擎（`engine/battle/candidates.go`
-  與 `engine/battle/resolve.go`）：彈數（`Unit.Ammo` 逐武裝扣一發，
-  0 發或 EN 不足即不可用）、AoE 範圍（`Weapon.Blast`，只掃敵方單位、
-  不誤傷我軍）、完全無交互（不觸發應戰與支援）、移動前限定、強制
-  結束行動＋擊破不給再動。回歸案在 `engine/battle/resolve_test.go`
-  與凍結的黃金案 `tests/fixtures/engine/kill_skill_board.json`。
-  未建模項：「該回合攻擊不消耗 EN/彈數」的主動開啟能力。
+- **模擬器現況**：地圖炮**尚未移植**。Python 沙盤退役（issue #73）時
+  帶走了原本的實作，Go 引擎目前只有幾何、傷害與命中公式。候選列舉
+  歸 issue #63、交戰結算歸 issue #64，兩者都還沒併入。需要保留的
+  行為：彈數逐武裝扣一發（0 發或 EN 不足即不可用）、AoE 只掃敵方
+  單位不誤傷我軍、完全無交互（不觸發應戰與支援）、移動前限定、強制
+  結束行動＋擊破不給再動。未建模項：「該回合攻擊不消耗 EN/彈數」的
+  主動開啟能力。
 - 工程缺口（issue #23）：敵方施放時**沒有應戰彈窗流程**，我方 HP
   損失／陣亡在敵方相位內無聲發生，執行層必須偵測並同步戰場。
 
