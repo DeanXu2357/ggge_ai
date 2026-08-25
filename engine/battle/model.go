@@ -270,9 +270,11 @@ type Decision struct {
 	Aim      *Cell
 	Reaction *Reaction
 
-	// SupportAttackers holds the units of the side of the actor that join the
-	// strike. The client names them; the engine reports which units are
-	// eligible and judges the pick (issue #63).
+	// The client names the support units of the side of the actor:
+	// SupportDefender is the unit that takes a counter strike for the actor,
+	// and SupportAttackers holds the units that join the strike. The engine
+	// reports which units are eligible and judges the pick (issue #63).
+	SupportDefender  string
 	SupportAttackers []string
 }
 

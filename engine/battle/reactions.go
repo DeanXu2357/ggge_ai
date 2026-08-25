@@ -71,10 +71,10 @@ func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error
 	}
 	out.Reactions = append(out.Reactions, ReactionOption{Stance: StanceNone})
 
-	out.Defender.SupportDefenders = b.SupportDefenders(defender)
-	out.Defender.SupportAttackers = b.SupportAttackers(defender, origin)
-	out.Attacker.SupportDefenders = b.SupportDefenders(attacker)
-	out.Attacker.SupportAttackers = b.SupportAttackers(attacker, defender.Footprint)
+	out.Defender.SupportDefenders = b.SupportDefenders(defender, defender.Footprint)
+	out.Defender.SupportAttackers = b.SupportAttackers(defender, defender.Footprint, origin)
+	out.Attacker.SupportDefenders = b.SupportDefenders(attacker, origin)
+	out.Attacker.SupportAttackers = b.SupportAttackers(attacker, origin, defender.Footprint)
 	return out, nil
 }
 
@@ -85,30 +85,35 @@ func strikeCell(attacker *Unit, action Decision) Cell {
 	return *action.MoveTo
 }
 
-func (b *Board) SupportDefenders(supported *Unit) []*Unit {
+// SupportDefenders gives the units that can take a strike for the supported
+// unit while it stands on 'at'. The supported unit stands on 'at' after its
+// move, so the reach of a support unit reads that cell and not the cell of
+// today.
+func (b *Board) SupportDefenders(supported *Unit, at Footprint) []*Unit {
 	out := []*Unit{}
 	for _, other := range b.ByFaction(supported.Faction) {
-		// TODO: needs to check if the unit's support defend quota >= 1
-		if inSupportReach(other, supported, other.SupportDefendCharges) {
+		if inSupportReach(other, supported, at, other.SupportDefendCharges) {
 			out = append(out, other)
 		}
 	}
 	return out
 }
 
-func (b *Board) SupportAttackers(supported *Unit, foe Footprint) []SupportAttacker {
+// SupportAttackers gives the units that can join a strike of the supported unit
+// against a foe on 'foe', each one with the weapon it fires. The supported unit
+// fires from 'firing', which is its anchor after its move.
+func (b *Board) SupportAttackers(supported *Unit, firing, foe Footprint) []SupportAttacker {
 	out := []SupportAttacker{}
 	for _, other := range b.ByFaction(supported.Faction) {
-		// TODO: needs to check if the unit's support attack quota >= 1
-		if weapon := supportWeapon(other, supported, foe); weapon != nil {
+		if weapon := supportWeapon(other, supported, firing, foe); weapon != nil {
 			out = append(out, SupportAttacker{Unit: other, Weapon: weapon})
 		}
 	}
 	return out
 }
 
-func supportWeapon(other, supported *Unit, foe Footprint) *Weapon {
-	if !inSupportReach(other, supported, other.SupportAttackCharges) {
+func supportWeapon(other, supported *Unit, firing, foe Footprint) *Weapon {
+	if !inSupportReach(other, supported, firing, other.SupportAttackCharges) {
 		return nil
 	}
 	distance := SpanDistance(other.Footprint, foe)
@@ -121,7 +126,9 @@ func supportWeapon(other, supported *Unit, foe Footprint) *Weapon {
 	return nil
 }
 
-func inSupportReach(other, supported *Unit, charges int) bool {
+// The support reach of a unit is the move range of that unit
+// (docs/reference/combat-formulas.md, case 14).
+func inSupportReach(other, supported *Unit, at Footprint, charges int) bool {
 	return other.ID != supported.ID && charges > 0 &&
-		SpanDistance(other.Footprint, supported.Footprint) <= other.MoveRange
+		SpanDistance(other.Footprint, at) <= other.MoveRange
 }

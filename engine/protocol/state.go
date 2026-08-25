@@ -237,6 +237,7 @@ type Decision struct {
 	Weapon           *string    `json:"weapon"`
 	Amount           *float64   `json:"amount"`
 	Reaction         *Reaction  `json:"reaction"`
+	SupportDefender  *string    `json:"support_defender"`
 	SupportAttackers []string   `json:"support_attackers"`
 	Aim              *Cell      `json:"aim"`
 	Hit              *bool      `json:"hit"`

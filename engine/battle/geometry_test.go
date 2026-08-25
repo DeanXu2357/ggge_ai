@@ -13,7 +13,7 @@ func unit(id string, faction Faction, anchor Cell) Unit {
 
 func board(units ...Unit) *Board {
 	return &Board{Bounds: Bounds{Low: Cell{0, 0}, High: Cell{4, 4}}, Units: units,
-		Phase: FactionAlly}
+		Phase: FactionAlly, Turn: 1, Rules: DefaultRules()}
 }
 
 func ids(units []*Unit) []string {

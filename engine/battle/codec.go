@@ -481,6 +481,7 @@ func DecodeDecision(action *protocol.Decision) (Decision, error) {
 		TargetID:         decodeOptionalName(action.TargetID),
 		Weapon:           decodeOptionalName(action.Weapon),
 		Amount:           cloneAmount(action.Amount),
+		SupportDefender:  decodeOptionalName(action.SupportDefender),
 		SupportAttackers: append([]string(nil), action.SupportAttackers...),
 	}
 	if action.Reaction != nil {

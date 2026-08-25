@@ -212,6 +212,7 @@ class Decision:
     weapon: str | None = None
     amount: float | None = None
     reaction: Reaction | None = None
+    support_defender: str | None = None
     support_attackers: tuple[str, ...] = ()
     aim: Cell | None = None
     hit: bool | None = None

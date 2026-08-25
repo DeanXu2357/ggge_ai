@@ -104,6 +104,10 @@ func footprintAt(unit *Unit, anchor Cell) Footprint {
 	return Footprint{Anchor: anchor, Size: unit.Footprint.Size}
 }
 
+func cellFootprint(cell Cell) Footprint {
+	return Footprint{Anchor: cell, Size: Size{1, 1}}
+}
+
 func cellSlice(set CellSet) []Cell {
 	out := make([]Cell, 0, len(set))
 	for cell := range set {
