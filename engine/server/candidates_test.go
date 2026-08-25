@@ -164,8 +164,11 @@ func TestReactionsAnswersTheOptionsOfTheDefender(t *testing.T) {
 		payload.Defender.Reactions[2].Counter == nil {
 		t.Fatalf("counter: %+v", payload.Defender.Reactions[2])
 	}
-	if !strings.Contains(string(replies[1].Payload), `"kill":null`) {
-		t.Fatalf("every forecast waits for its branch: %s", replies[1].Payload)
+	for index, option := range payload.Defender.Reactions {
+		if option.Incoming.HitRate == nil || option.Incoming.Damage == nil ||
+			option.Incoming.Kill == nil {
+			t.Fatalf("the entry %d carries no forecast: %+v", index, option.Incoming)
+		}
 	}
 }
 

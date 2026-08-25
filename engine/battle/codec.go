@@ -548,34 +548,54 @@ func encodeReactionOptions(options []ReactionOption) []protocol.ReactionOption {
 		entry := protocol.ReactionOption{
 			Stance:   wireStances[option.Stance],
 			Weapon:   encodeOptionalName(option.Weapon),
-			Incoming: protocol.Forecast{},
+			Incoming: EncodeForecast(option.Incoming),
 		}
-		if option.Stance == StanceCounter {
-			entry.Counter = &protocol.Forecast{}
+		if option.Counter != nil {
+			counter := EncodeForecast(*option.Counter)
+			entry.Counter = &counter
 		}
 		out = append(out, entry)
 	}
 	return out
 }
 
-func encodeSupportDefenders(units []*Unit) []protocol.SupportDefendOption {
-	out := make([]protocol.SupportDefendOption, 0, len(units))
-	for _, unit := range units {
+// EncodeForecast writes the damage as a number of the wire, which carries no
+// integer type. A field that the engine cannot answer stays null.
+func EncodeForecast(forecast Forecast) protocol.Forecast {
+	out := protocol.Forecast{HitRate: forecast.HitRate, Kill: forecast.Kill}
+	if forecast.HitRate != nil {
+		rate := *forecast.HitRate
+		out.HitRate = &rate
+	}
+	if forecast.Kill != nil {
+		kill := *forecast.Kill
+		out.Kill = &kill
+	}
+	if forecast.Damage != nil {
+		damage := float64(*forecast.Damage)
+		out.Damage = &damage
+	}
+	return out
+}
+
+func encodeSupportDefenders(options []SupportDefendOption) []protocol.SupportDefendOption {
+	out := make([]protocol.SupportDefendOption, 0, len(options))
+	for _, option := range options {
 		out = append(out, protocol.SupportDefendOption{
-			UnitID:   unit.ID,
-			Incoming: protocol.Forecast{},
+			UnitID:   option.Unit.ID,
+			Incoming: EncodeForecast(option.Incoming),
 		})
 	}
 	return out
 }
 
-func encodeSupportAttackers(joins []SupportAttacker) []protocol.SupportAttackOption {
-	out := make([]protocol.SupportAttackOption, 0, len(joins))
-	for _, join := range joins {
+func encodeSupportAttackers(options []SupportAttackOption) []protocol.SupportAttackOption {
+	out := make([]protocol.SupportAttackOption, 0, len(options))
+	for _, option := range options {
 		out = append(out, protocol.SupportAttackOption{
-			UnitID: join.Unit.ID,
-			Weapon: join.Weapon.Name,
-			Strike: protocol.Forecast{},
+			UnitID: option.Unit.ID,
+			Weapon: option.Weapon.Name,
+			Strike: EncodeForecast(option.Strike),
 		})
 	}
 	return out

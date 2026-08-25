@@ -418,13 +418,15 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	attacker := &Unit{ID: "e1", HP: 100}
 	helper := &Unit{ID: "h1", HP: 100, Weapons: []Weapon{{Name: "rifle"}}}
 
+	counter := Forecast{}
 	encoded := EncodeEngagement(Engagement{
-		Defender: SideOptions{Unit: defender, SupportDefenders: []*Unit{helper},
-			SupportAttackers: []SupportAttacker{{Unit: helper, Weapon: &helper.Weapons[0]}}},
+		Defender: SideOptions{Unit: defender,
+			SupportDefenders: []SupportDefendOption{{Unit: helper}},
+			SupportAttackers: []SupportAttackOption{{Unit: helper, Weapon: &helper.Weapons[0]}}},
 		Attacker: SideOptions{Unit: attacker},
 		Reactions: []ReactionOption{
 			{Stance: StanceDodge},
-			{Stance: StanceCounter, Weapon: "saber"},
+			{Stance: StanceCounter, Weapon: "saber", Counter: &counter},
 			{Stance: StanceNone},
 		},
 	})
@@ -454,27 +456,25 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	}
 }
 
-// Every number of a forecast waits for the branch that computes it.
-func TestEveryForecastOfTheEngagementIsAPlaceholder(t *testing.T) {
-	defender := &Unit{ID: "d1", HP: 100}
+// The damage of the model is a count of hit points, and the wire carries one
+// number type, so the encode writes the count as that number.
+func TestTheEncodedForecastCarriesEveryNumberItHolds(t *testing.T) {
+	rate := 0.75
+	damage := 2400
+	kill := true
 
-	encoded := EncodeEngagement(Engagement{
-		Defender:  SideOptions{Unit: defender, SupportDefenders: []*Unit{defender}},
-		Attacker:  SideOptions{Unit: defender},
-		Reactions: []ReactionOption{{Stance: StanceCounter, Weapon: "saber"}},
-	})
+	full := EncodeForecast(Forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
+	lean := EncodeForecast(Forecast{Damage: &damage})
 
-	option := encoded.Defender.Reactions[0]
-	if option.Incoming.HitRate != nil || option.Incoming.Damage != nil ||
-		option.Incoming.Kill != nil {
-		t.Fatalf("incoming: %+v", option.Incoming)
+	if *full.HitRate != 0.75 || *full.Damage != 2400 || !*full.Kill {
+		t.Fatalf("forecast: %+v", full)
 	}
-	if option.Counter.HitRate != nil || option.Counter.Damage != nil ||
-		option.Counter.Kill != nil {
-		t.Fatalf("counter: %+v", option.Counter)
+	if lean.HitRate != nil || lean.Kill != nil || *lean.Damage != 2400 {
+		t.Fatalf("a field that the engine cannot answer stays null: %+v", lean)
 	}
-	if encoded.Defender.SupportDefenders[0].Incoming.Kill != nil {
-		t.Fatalf("support defense: %+v", encoded.Defender.SupportDefenders[0])
+	rate, damage, kill = 0, 0, false
+	if *full.HitRate != 0.75 || *full.Damage != 2400 || !*full.Kill {
+		t.Fatalf("the encode shares no memory with the model: %+v", full)
 	}
 }
 
