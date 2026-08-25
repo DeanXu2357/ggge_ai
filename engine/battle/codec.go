@@ -581,6 +581,123 @@ func encodeSupportAttackers(joins []SupportAttacker) []protocol.SupportAttackOpt
 	return out
 }
 
+func EncodeUnits(units []Unit) []protocol.Unit {
+	out := make([]protocol.Unit, 0, len(units))
+	for _, unit := range units {
+		out = append(out, EncodeUnit(unit))
+	}
+	return out
+}
+
+// EncodeUnit writes every field of the wire type. A list and a map hold no
+// null on the wire, so an empty one is an empty list and an empty object.
+func EncodeUnit(unit Unit) protocol.Unit {
+	out := protocol.Unit{
+		UnitID:                  unit.ID,
+		Faction:                 wireFactions[unit.Faction],
+		Pos:                     EncodeCell(unit.Footprint.Anchor),
+		Size:                    protocol.Cell{unit.Footprint.Size[0], unit.Footprint.Size[1]},
+		HP:                      unit.HP,
+		MaxHP:                   unit.MaxHP,
+		EN:                      unit.EN,
+		ENMax:                   unit.ENMax,
+		UnitAttack:              unit.Mech.Attack,
+		UnitDefense:             unit.Mech.Defense,
+		PilotAttack:             unit.Pilot.Attack,
+		PilotDefense:            unit.Pilot.Defense,
+		Reaction:                unit.Pilot.Reaction,
+		Mobility:                unit.Mech.Mobility,
+		MoveRange:               unit.MoveRange,
+		MechHP:                  unit.Mech.HP,
+		MechEN:                  unit.Mech.EN,
+		MechMoveRange:           unit.Mech.MoveRange,
+		Weapons:                 make([]protocol.Weapon, 0, len(unit.Weapons)),
+		Skills:                  make([]protocol.Skill, 0, len(unit.Skills)),
+		Acted:                   unit.Acted,
+		ChanceSteps:             unit.ChanceSteps,
+		ChanceStepsMax:          unit.ChanceStepsMax,
+		SupportDefendCharges:    unit.SupportDefendCharges,
+		SupportDefendChargesMax: unit.SupportDefendChargesMax,
+		SupportAttackCharges:    unit.SupportAttackCharges,
+		SupportAttackChargesMax: unit.SupportAttackChargesMax,
+		HasShield:               unit.HasShield,
+		AttackShield:            unit.AttackShield,
+		InterceptionReduction:   unit.InterceptionReduction,
+		Ammo:                    make(map[string]int, len(unit.Ammo)),
+		Debuffs:                 make([]protocol.Debuff, 0, len(unit.Debuffs)),
+	}
+	for _, weapon := range unit.Weapons {
+		out.Weapons = append(out.Weapons, encodeWeapon(weapon))
+	}
+	// The base weapons of the mech are 'omitempty' on the wire, so an absent
+	// list stays absent and the round trip gives the same bytes.
+	if len(unit.Mech.Weapons) > 0 {
+		out.MechWeapons = make([]protocol.Weapon, 0, len(unit.Mech.Weapons))
+		for _, weapon := range unit.Mech.Weapons {
+			out.MechWeapons = append(out.MechWeapons, encodeWeapon(weapon))
+		}
+	}
+	for _, skill := range unit.Skills {
+		out.Skills = append(out.Skills, encodeSkill(skill))
+	}
+	for weapon, count := range unit.Ammo {
+		out.Ammo[weapon] = count
+	}
+	for _, debuff := range unit.Debuffs {
+		out.Debuffs = append(out.Debuffs, protocol.Debuff(debuff))
+	}
+	return out
+}
+
+func encodeWeapon(weapon Weapon) protocol.Weapon {
+	out := protocol.Weapon{
+		Name:            weapon.Name,
+		Power:           weapon.Power,
+		RangeMin:        weapon.Range.Min,
+		RangeMax:        weapon.Range.Max,
+		ENCost:          weapon.ENCost,
+		Accuracy:        weapon.Accuracy,
+		CanCounter:      weapon.CanCounter,
+		MapWeapon:       weapon.MapWeapon,
+		UsableAfterMove: weapon.UsableAfterMove,
+		Blast:           weapon.Blast,
+		DebuffMagnitude: weapon.DebuffMagnitude,
+	}
+	if weapon.DebuffKind != "" {
+		kind := weapon.DebuffKind
+		out.DebuffKind = &kind
+	}
+	for kind, scale := range weapon.TerrainDamage {
+		if out.TerrainDamage == nil {
+			out.TerrainDamage = make(map[string]float64, len(weapon.TerrainDamage))
+		}
+		out.TerrainDamage[kind.String()] = scale
+	}
+	// The wire form must not change between two encodes of one weapon, and a
+	// map has no order, so the terrain names come out in the order of the enum.
+	for kind := range Terrain(len(terrainNames)) {
+		if weapon.UnusableIn[kind] {
+			out.UnusableIn = append(out.UnusableIn, kind.String())
+		}
+	}
+	return out
+}
+
+func encodeSkill(skill Skill) protocol.Skill {
+	return protocol.Skill{
+		Kind:            wireKinds[skill.Kind],
+		Source:          wireSources[skill.Source],
+		Amount:          cloneAmount(skill.Amount),
+		Uses:            skill.Uses,
+		EndsActivation:  skill.EndsActivation,
+		UsableAfterMove: skill.UsableAfterMove,
+		RangeMin:        skill.Range.Min,
+		RangeMax:        skill.Range.Max,
+		Blast:           skill.Blast,
+		Affects:         wireAffects[skill.Affects],
+	}
+}
+
 func encodeOptionalName(name string) *string {
 	if name == "" {
 		return nil
