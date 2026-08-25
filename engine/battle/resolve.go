@@ -12,8 +12,6 @@ var (
 	ErrIllegalMove   = errors.New("the move is not legal")
 )
 
-// StrikeKind names the place of one record in the order of one engagement
-// (docs/reference/combat-formulas.md, the section of the resolution order).
 type StrikeKind string
 
 const (
@@ -25,8 +23,7 @@ const (
 	StrikeSkill           StrikeKind = "skill"
 )
 
-// A Strike is one shot of one resolution. The Damage of a skill record is the
-// value that the skill gave back.
+// The Damage of a skill record is the value that the skill gave back.
 type Strike struct {
 	Kind      StrikeKind
 	ShooterID string
@@ -39,16 +36,11 @@ type Strike struct {
 
 type Trace []Strike
 
-// outcome carries what the bookkeeping of the activation reads.
 type outcome struct {
 	killed         bool
 	endsActivation bool
 }
 
-// Apply runs one decision on the board and gives the trace of the engagement.
-// The move comes first and the action second: every effect reads the anchor
-// after the move (docs/spec/battle-engine-protocol.md). An error leaves the
-// board as it was.
 func (b *Board) Apply(decision Decision, dice Dice) (Trace, error) {
 	actor, err := b.Activatable(decision.UnitID)
 	if err != nil {
@@ -83,8 +75,6 @@ func (b *Board) run(actor *Unit, decision Decision, dice Dice) (Trace, outcome, 
 		ErrIllegalAction, decision.Kind)
 }
 
-// A kill gives the attacker its whole activation again while it holds a chance
-// step left (docs/reference/combat-formulas.md, case 5 and case 19).
 func endActivation(actor *Unit, end outcome) {
 	if end.killed && actor.Alive() && actor.ChanceSteps > 0 {
 		actor.ChanceSteps--
@@ -94,9 +84,6 @@ func endActivation(actor *Unit, end outcome) {
 	actor.Acted = end.endsActivation
 }
 
-// destination gives the anchor that the actor stands on after the move of the
-// decision. The weapon or the skill of the action holds the permission to move
-// in the same activation.
 func (b *Board) destination(actor *Unit, to *Cell, permitted bool) (Cell, error) {
 	if to == nil {
 		return actor.Footprint.Anchor, nil
@@ -112,9 +99,8 @@ func (b *Board) destination(actor *Unit, to *Cell, permitted bool) (Cell, error)
 	return *to, nil
 }
 
-// The whole engagement is judged before the first change of the board: the
-// engine reports the options and the client composes the action, so every
-// refusal names a rule the pick broke (issue #63).
+// Every rule is judged before the first change of the board, so a refused
+// pick leaves the board as it was.
 func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcome, error) {
 	target, err := b.foe(actor, decision.TargetID)
 	if err != nil {
@@ -171,9 +157,6 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 	return trace, outcome{killed: killed, endsActivation: true}, nil
 }
 
-// foe gives the living unit of the opposing side that the strike names. A unit
-// strikes at a unit of the opposing side, and never at itself or at a unit of
-// its own side.
 func (b *Board) foe(actor *Unit, targetID string) (*Unit, error) {
 	target, err := b.livingUnit(targetID)
 	if err != nil {
@@ -186,10 +169,8 @@ func (b *Board) foe(actor *Unit, targetID string) (*Unit, error) {
 	return target, nil
 }
 
-// answer holds the pick of the defender with every unit it names resolved. A
-// nil reaction stays legal in the domain: it says that the caller settles the
-// reaction somewhere else, as a node of a search tree does
-// (docs/spec/battle-engine-protocol.md, the wire rules of the reaction).
+// A nil reaction stays legal in the domain: it says that the caller settles
+// the reaction somewhere else, as a node of a search tree does.
 type answer struct {
 	reaction    *Reaction
 	counter     *Weapon
@@ -197,9 +178,6 @@ type answer struct {
 	joining     []SupportAttacker
 }
 
-// answerOf judges the pick of the defender against the rules of the mechanism.
-// The command 'reactions' reports the same rules, so a pick that the report
-// offers passes here (issue #63).
 func (b *Board) answerOf(defender, attacker *Unit, firing Footprint,
 	reaction *Reaction) (answer, error) {
 	if reaction == nil {
@@ -241,10 +219,6 @@ func (b *Board) answerOf(defender, attacker *Unit, firing Footprint,
 	return out, nil
 }
 
-// namedSupportAttackers resolves the units that the client named. Each one must
-// be a unit that 'reactions' reports for this strike, the list holds no unit two
-// times, and the rules cap its length
-// (docs/reference/combat-formulas.md, case 9a).
 func (b *Board) namedSupportAttackers(supported *Unit, firing, foe Footprint,
 	names []string) ([]SupportAttacker, error) {
 	if len(names) == 0 {
@@ -287,16 +261,11 @@ func (b *Board) namedInterceptor(covered *Unit, at Footprint, name string,
 		ErrIllegalAction, name, covered.ID)
 }
 
-// The unit that takes a counter strike for the attacker carries the attack
-// shield (docs/reference/combat-formulas.md, case 6, issue #22).
 func (b *Board) namedAttackShield(actor *Unit, firing Footprint, name string) (*Unit, error) {
 	return b.namedInterceptor(actor, firing, name,
 		func(other *Unit) bool { return other.AttackShield })
 }
 
-// receiver carries the unit that takes the shots of one attack. Every landed
-// hit goes to that unit, and an interceptor spends one charge on the first
-// landed hit (docs/reference/combat-formulas.md, case 12 and 13).
 type receiver struct {
 	board       *Board
 	struck      *Unit
@@ -350,8 +319,8 @@ func (v *receiver) hit(kind StrikeKind, shooter *Unit, weapon *Weapon, landed bo
 	return record
 }
 
-// A destroyed unit keeps its place on the board with no hit points left. Every
-// roster query filters on Alive.
+// A destroyed unit keeps its place on the board with no hit points left.
+// Every roster query filters on Alive.
 func (b *Board) wound(victim *Unit, weapon *Weapon, damage int) {
 	victim.HP -= damage
 	if victim.HP < 0 {
@@ -360,9 +329,8 @@ func (b *Board) wound(victim *Unit, weapon *Weapon, damage int) {
 	b.applyDebuff(victim, weapon)
 }
 
-// A debuff of the same kind replaces a weaker one and leaves a stronger one
-// alone (docs/reference/combat-formulas.md, case 11). The fresh debuff takes
-// the last place of the list, as the oracle writes it.
+// The fresh debuff takes the last place of the list, as the frozen goldens
+// under tests/fixtures/engine write it.
 func (b *Board) applyDebuff(victim *Unit, weapon *Weapon) {
 	if weapon.DebuffKind == "" {
 		return
@@ -384,8 +352,6 @@ func (b *Board) applyDebuff(victim *Unit, weapon *Weapon) {
 	})
 }
 
-// The support attack of the defending side fires after the strike of the
-// attacker, so a unit that the strike destroyed or drained fires nothing.
 func (b *Board) defenderReply(actor, target *Unit, answer answer, bearer *Unit,
 	dice Dice) Trace {
 	var out Trace
@@ -418,8 +384,6 @@ func (b *Board) fire(node Node, kind StrikeKind, joining []SupportAttacker, dice
 	return out
 }
 
-// A unit that the engagement destroyed or drained since the client picked it
-// fires nothing.
 func able(joining []SupportAttacker) []SupportAttacker {
 	out := make([]SupportAttacker, 0, len(joining))
 	for _, one := range joining {
@@ -444,9 +408,6 @@ func (b *Board) counterStrike(defender, attacker *Unit, weapon *Weapon, bearer *
 	return shot.hit(StrikeCounter, defender, weapon, landed)
 }
 
-// A map strike reaches every foe of the blast, and it settles no chance node:
-// it always lands, it draws no reaction and no interception
-// (docs/reference/combat-formulas.md, case 23 to 25).
 func (b *Board) mapAttack(actor *Unit, decision Decision) (Trace, error) {
 	weapon := actor.Weapon(decision.Weapon)
 	if weapon == nil || !weapon.MapWeapon {
@@ -485,8 +446,8 @@ func (b *Board) mapAttack(actor *Unit, decision Decision) (Trace, error) {
 	return out, nil
 }
 
-// The model carries only the skill whose area is the cell of the caster, so the
-// caster is the one legal target of the decision.
+// The model carries only the skill whose area is the cell of the caster, so
+// the caster is the one legal target of the decision.
 func (b *Board) skill(actor *Unit, decision Decision) (Trace, outcome, error) {
 	if decision.TargetID != "" && decision.TargetID != actor.ID {
 		return nil, outcome{}, fmt.Errorf("%w: the skill %q of unit %q reaches no unit %q",
@@ -516,9 +477,8 @@ func (b *Board) skill(actor *Unit, decision Decision) (Trace, outcome, error) {
 	return Trace{record}, outcome{endsActivation: skill.EndsActivation}, nil
 }
 
-// A skill with no amount gives the whole room up to the maximum. The amount
-// comes from the wire as a float, so a value that no integer holds gives the
-// room as well, and a value below zero gives nothing.
+// The amount comes from the wire as a float, so a value that no integer
+// holds gives the whole room, and a value below zero gives nothing.
 func gain(value, limit int, amount *float64) int {
 	room := max(0, limit-value)
 	if amount == nil || math.IsNaN(*amount) || *amount >= float64(room) {

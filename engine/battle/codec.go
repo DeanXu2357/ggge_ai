@@ -129,10 +129,9 @@ func decodeTerrainCells(cells []protocol.TerrainCell) (map[Cell]Terrain, error) 
 	return out, nil
 }
 
-// DecodeRules reads the rule overrides of a stage. A payload with no value
-// gives the defaults, and a payload that carries the rules carries every field:
-// a field that the payload omits decodes to zero, and no rule value of the
-// mechanism is zero (docs/reference/combat-formulas.md).
+// A payload that carries the rules carries every field: a field that the
+// payload omits decodes to zero, and no rule value of the mechanism is zero
+// (docs/reference/combat-formulas.md).
 func DecodeRules(rules *protocol.Rules) (Rules, error) {
 	if rules == nil {
 		return DefaultRules(), nil
@@ -502,9 +501,6 @@ func DecodeDecision(action *protocol.Decision) (Decision, error) {
 	return out, nil
 }
 
-// DecodeReaction reads the answer of the defender. The stance 'none' is the
-// unit that stands and takes the strike, and it reaches the model as it reaches
-// the wire.
 func DecodeReaction(reaction protocol.Reaction) (Reaction, error) {
 	stance, known := decodedStances[reaction.Stance]
 	if !known {
@@ -559,8 +555,7 @@ func encodeReactionOptions(options []ReactionOption) []protocol.ReactionOption {
 	return out
 }
 
-// EncodeForecast writes the damage as a number of the wire, which carries no
-// integer type. A field that the engine cannot answer stays null.
+// The wire carries no integer type, so the damage goes out as a number.
 func EncodeForecast(forecast Forecast) protocol.Forecast {
 	out := protocol.Forecast{HitRate: forecast.HitRate, Kill: forecast.Kill}
 	if forecast.HitRate != nil {
@@ -609,8 +604,8 @@ func EncodeUnits(units []Unit) []protocol.Unit {
 	return out
 }
 
-// EncodeUnit writes every field of the wire type. A list and a map hold no
-// null on the wire, so an empty one is an empty list and an empty object.
+// A list and a map hold no null on the wire, so an empty one is an empty
+// list and an empty object.
 func EncodeUnit(unit Unit) protocol.Unit {
 	out := protocol.Unit{
 		UnitID:                  unit.ID,

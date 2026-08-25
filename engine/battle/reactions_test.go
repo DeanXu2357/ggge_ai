@@ -221,8 +221,6 @@ func TestAReactionRequestOutsideTheBoardIsAnError(t *testing.T) {
 	}
 }
 
-// The forecast of each entry answers one question of the client: what this pick
-// costs the unit that takes the shot.
 func TestEachEntryCarriesTheForecastOfItsOwnStrike(t *testing.T) {
 	attacker := fighter("e1", FactionEnemy, Cell{1, 0})
 	attacker.Weapons = []Weapon{beam()}

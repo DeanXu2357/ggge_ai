@@ -1,8 +1,5 @@
 package battle
 
-// A Node is one chance point of one engagement. The support attack of the
-// attacking side and the support attack of the defending side are two nodes,
-// because one engagement holds both.
 type Node int
 
 const (
@@ -12,14 +9,12 @@ const (
 	NodeCounter
 )
 
-// Dice settles the chance nodes of one resolution. The probability of the node
-// comes in with the node, so an implementation that draws needs no second
-// computation of the hit rate.
+// The probability comes in with the node, so an implementation that draws
+// needs no second computation of the hit rate.
 type Dice interface {
 	Lands(node Node, probability float64) bool
 }
 
-// Forced holds the outcome of each node and reads no probability.
 type Forced struct {
 	AttackerSupport bool
 	DefenderSupport bool

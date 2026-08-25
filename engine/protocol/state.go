@@ -217,9 +217,6 @@ type Unit struct {
 	MechWeapons             []Weapon       `json:"mech_weapons,omitempty"`
 }
 
-// The client names the support units of the defending side: the interceptor
-// that takes the strike, and the units that join the answer of the defender.
-// The engine picks none of them (issue #63).
 type Reaction struct {
 	Stance           Stance   `json:"stance"`
 	Weapon           *string  `json:"weapon"`

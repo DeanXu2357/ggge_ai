@@ -2,8 +2,6 @@ package battle
 
 import "fmt"
 
-// SupportAttacker is one unit that joins the strike of the unit it supports,
-// with the first weapon of that unit that reaches the foe.
 type SupportAttacker struct {
 	Unit   *Unit
 	Weapon *Weapon
@@ -16,15 +14,11 @@ type ReactionOption struct {
 	Counter  *Forecast
 }
 
-// SupportDefendOption is one unit that can take the strike for the side, with
-// what the strike does to it.
 type SupportDefendOption struct {
 	Unit     *Unit
 	Incoming Forecast
 }
 
-// SupportAttackOption is one unit that can join the strike of the side, with
-// what its own shot does to the foe.
 type SupportAttackOption struct {
 	Unit   *Unit
 	Weapon *Weapon
@@ -95,8 +89,8 @@ func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error
 		b.SupportDefenders(defender, defender.Footprint))
 	out.Defender.SupportAttackers = b.attackOptions(attacker,
 		b.SupportAttackers(defender, defender.Footprint, origin))
-	// A unit that covers the attacker takes the counter, and which weapon
-	// counters is the pick of the defender, so its entry carries no forecast.
+	// Which weapon counters is the pick of the defender, so the entry of a
+	// unit that covers the attacker carries no forecast.
 	out.Attacker.SupportDefenders = b.defendOptions(defender, nil,
 		b.SupportDefenders(attacker, origin))
 	out.Attacker.SupportAttackers = b.attackOptions(defender,
@@ -114,9 +108,6 @@ func (b *Board) stanceOption(attacker, defender *Unit, weapon *Weapon, stance St
 	}
 }
 
-// The unit that a support defender covers takes the strike of 'shooter'. The
-// attacker shoots at the interceptors of the defending side, and the counter of
-// the defender shoots at the interceptors of the attacking side.
 func (b *Board) defendOptions(shooter *Unit, weapon *Weapon, units []*Unit) []SupportDefendOption {
 	out := make([]SupportDefendOption, 0, len(units))
 	for _, unit := range units {
@@ -129,8 +120,8 @@ func (b *Board) defendOptions(shooter *Unit, weapon *Weapon, units []*Unit) []Su
 	return out
 }
 
-// A support attacker fires at the foe of the unit it supports, and no stance of
-// that foe stands beside the entry, so the forecast reads no defense.
+// The foe picks its stance after this answer, so the forecast of a support
+// attack reads no defense.
 func (b *Board) attackOptions(foe *Unit, joining []SupportAttacker) []SupportAttackOption {
 	out := make([]SupportAttackOption, 0, len(joining))
 	for _, one := range joining {
@@ -150,10 +141,8 @@ func strikeCell(attacker *Unit, action Decision) Cell {
 	return *action.MoveTo
 }
 
-// SupportDefenders gives the units that can take a strike for the supported
-// unit while it stands on 'at'. The supported unit stands on 'at' after its
-// move, so the reach of a support unit reads that cell and not the cell of
-// today.
+// The supported unit stands on 'at' after its move, so the reach of a
+// support unit reads that cell and not the cell of today.
 func (b *Board) SupportDefenders(supported *Unit, at Footprint) []*Unit {
 	out := []*Unit{}
 	for _, other := range b.ByFaction(supported.Faction) {
@@ -164,9 +153,6 @@ func (b *Board) SupportDefenders(supported *Unit, at Footprint) []*Unit {
 	return out
 }
 
-// SupportAttackers gives the units that can join a strike of the supported unit
-// against a foe on 'foe', each one with the weapon it fires. The supported unit
-// fires from 'firing', which is its anchor after its move.
 func (b *Board) SupportAttackers(supported *Unit, firing, foe Footprint) []SupportAttacker {
 	out := []SupportAttacker{}
 	for _, other := range b.ByFaction(supported.Faction) {
@@ -191,8 +177,6 @@ func supportWeapon(other, supported *Unit, firing, foe Footprint) *Weapon {
 	return nil
 }
 
-// The support reach of a unit is the move range of that unit
-// (docs/reference/combat-formulas.md, case 14).
 func inSupportReach(other, supported *Unit, at Footprint, charges int) bool {
 	return other.ID != supported.ID && charges > 0 &&
 		SpanDistance(other.Footprint, at) <= other.MoveRange

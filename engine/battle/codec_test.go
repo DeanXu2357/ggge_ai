@@ -456,8 +456,6 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	}
 }
 
-// The damage of the model is a count of hit points, and the wire carries one
-// number type, so the encode writes the count as that number.
 func TestTheEncodedForecastCarriesEveryNumberItHolds(t *testing.T) {
 	rate := 0.75
 	damage := 2400

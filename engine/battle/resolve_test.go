@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// shootout gives an attacker and a target three cells apart, each one with the
-// same beam weapon. The band of that weapon holds the distance 3.
 func shootout() *Board {
 	attacker := fighter("a1", FactionAlly, Cell{0, 0})
 	attacker.Weapons = []Weapon{beam()}
@@ -15,8 +13,6 @@ func shootout() *Board {
 	return board(attacker, target)
 }
 
-// intercepted adds a supporter of the attacker and an interceptor of the
-// target. Each one stands inside its own move range of the unit it supports.
 func intercepted() *Board {
 	state := shootout()
 	supporter := fighter("a2", FactionAlly, Cell{1, 1})
@@ -401,7 +397,6 @@ func TestASkillHealsAndRefillsUpToTheMaximum(t *testing.T) {
 	}
 }
 
-// probes records the probability of each node and lands every shot.
 type probes map[Node]float64
 
 func (p probes) Lands(node Node, probability float64) bool {
@@ -429,8 +424,6 @@ func TestAStrikeNamesALivingFoeAndNoOtherUnit(t *testing.T) {
 	}
 }
 
-// Each case names a rule of the mechanism that the pick breaks. The report of
-// 'reactions' reads the same rules, so none of these picks is in it.
 func TestAReactionThatBreaksARuleIsAnError(t *testing.T) {
 	cases := map[string]Reaction{
 		"a defense that takes an interceptor as well": {Stance: StanceDefend,

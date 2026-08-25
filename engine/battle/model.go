@@ -62,7 +62,6 @@ func (f Faction) Opposing() Faction {
 // A weapon that declares no restriction deals full damage against every
 // terrain and fires from every terrain: an absent entry of TerrainDamage is
 // 1.0, and an absent entry of UnusableIn permits the shot.
-// A weapon with an empty DebuffKind applies no debuff.
 type Weapon struct {
 	Name            string
 	Power           float64
@@ -126,9 +125,6 @@ const (
 	SourceUnit      SkillSource = "unit"
 )
 
-// Rules holds the multipliers and the limits of the mechanism.
-// docs/reference/combat-formulas.md gives the values of DefaultRules, and a
-// stage overrides them in its rules payload.
 type Rules struct {
 	DefendMultiplier        float64
 	ShieldMultiplier        float64
@@ -237,9 +233,8 @@ func (u *Unit) Weapon(name string) *Weapon {
 	return nil
 }
 
-// Skill gives the first skill of that kind with a use left that gives the
-// amount, or nil. A unit carries no name for a skill, so the kind and the
-// amount of the action name it; a unit can hold two skills of one kind.
+// A unit carries no name for a skill, so the kind and the amount of the
+// action name it; a unit can hold two skills of one kind.
 func (u *Unit) Skill(kind ActionKind, amount *float64) *Skill {
 	for index := range u.Skills {
 		skill := &u.Skills[index]
@@ -270,17 +265,10 @@ type Decision struct {
 	Aim      *Cell
 	Reaction *Reaction
 
-	// The client names the support units of the side of the actor:
-	// SupportDefender is the unit that takes a counter strike for the actor,
-	// and SupportAttackers holds the units that join the strike. The engine
-	// reports which units are eligible and judges the pick (issue #63).
 	SupportDefender  string
 	SupportAttackers []string
 }
 
-// Reaction is the answer the defender picks against one strike. SupportDefender
-// is the interceptor that takes the strike in place of the defender, and it is
-// empty when the defender takes the strike itself.
 type Reaction struct {
 	Stance           Stance
 	Weapon           string
@@ -335,12 +323,8 @@ func (b *Board) TerrainOf(unit *Unit) Terrain {
 	return b.TerrainAt(unit.Footprint.Anchor)
 }
 
-// PhaseOrder is the order in which the three sides act. A debuff of one turn
-// lives for the length of this order (docs/reference/combat-formulas.md).
 var PhaseOrder = [...]Faction{FactionAlly, FactionThirdParty, FactionEnemy}
 
-// PhaseIndex counts the phases from the start of the battle. A debuff records
-// the index of the phase that applied it.
 func (b *Board) PhaseIndex() int {
 	for index, faction := range PhaseOrder {
 		if faction == b.Phase {
@@ -366,10 +350,8 @@ var (
 	ErrActed     = errors.New("the unit acted in this turn")
 )
 
-// Activatable gives the unit that can act now, or the sentinel error that names
-// the refusal. The command 'act' reads this gate; the reporting commands do
-// not, because a report of a unit that acted is still the answer to the
-// question.
+// The command 'act' reads this gate; the reporting commands do not, because
+// a report of a unit that acted is still the answer to the question.
 func (b *Board) Activatable(unitID string) (*Unit, error) {
 	unit, err := b.livingUnit(unitID)
 	if err != nil {
