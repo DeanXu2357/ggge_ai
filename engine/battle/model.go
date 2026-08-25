@@ -265,26 +265,7 @@ var (
 	ErrNoUnit    = errors.New("the board holds no such unit")
 	ErrDestroyed = errors.New("the unit is destroyed")
 	ErrOffPhase  = errors.New("the unit is not of the current phase")
-	ErrActed     = errors.New("the unit acted in this turn")
 )
-
-// Activatable gives the unit that can act now, or the sentinel error that names
-// the refusal. Every caller that enumerates or runs an action reads this gate,
-// and each sentinel binds to one error code of the contract.
-func (b *Board) Activatable(unitID string) (*Unit, error) {
-	unit, err := b.livingUnit(unitID)
-	if err != nil {
-		return nil, err
-	}
-	if unit.Faction != b.Phase {
-		return nil, fmt.Errorf("%w: %q is of the side %q, and the phase is %q",
-			ErrOffPhase, unitID, unit.Faction, b.Phase)
-	}
-	if unit.Acted {
-		return nil, fmt.Errorf("%w: %q", ErrActed, unitID)
-	}
-	return unit, nil
-}
 
 func (b *Board) livingUnit(id string) (*Unit, error) {
 	unit := b.Unit(id)

@@ -86,6 +86,7 @@ class ErrorCode(StrEnum):
     ILLEGAL_STATE = "illegal_state"
     ILLEGAL_ACTION = "illegal_action"
     EMPTY_HISTORY = "empty_history"
+    ALREADY_ACTED = "already_acted"
 
 
 class Guarantee(StrEnum):

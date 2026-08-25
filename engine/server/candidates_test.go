@@ -21,7 +21,7 @@ const candidateLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
-func actionsOf(t *testing.T, reply reply) []protocol.Decision {
+func capabilitiesOf(t *testing.T, reply reply) protocol.ActionsResponse {
 	t.Helper()
 	if !reply.OK {
 		t.Fatalf("actions: %+v", reply)
@@ -30,7 +30,7 @@ func actionsOf(t *testing.T, reply reply) []protocol.Decision {
 	if err := json.Unmarshal(reply.Payload, &payload); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
-	return payload.Actions
+	return payload
 }
 
 func TestActionsWithNoBoardIsRefused(t *testing.T) {
@@ -41,30 +41,46 @@ func TestActionsWithNoBoardIsRefused(t *testing.T) {
 	}
 }
 
-func TestActionsAnswersTheCandidatesOfTheLoadedBoard(t *testing.T) {
+func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
 
-	actions := actionsOf(t, replies[1])
-	kinds := make([]protocol.ActionKind, 0, len(actions))
-	for _, action := range actions {
-		kinds = append(kinds, action.Kind)
+	payload := capabilitiesOf(t, replies[1])
+	if payload.Unit.UnitID != "a1" || payload.Unit.Pos != (protocol.Cell{1, 1}) ||
+		payload.Unit.Acted {
+		t.Fatalf("status: %+v", payload.Unit)
 	}
-	want := []protocol.ActionKind{protocol.ActionAttack, protocol.ActionMapAttack,
-		protocol.ActionStandby}
-	if len(kinds) != len(want) {
-		t.Fatalf("actions: %v", kinds)
+	if len(payload.MoveCells) != 1 || payload.MoveCells[0] != (protocol.Cell{1, 1}) {
+		t.Fatalf("a unit with no move range holds its own cell: %+v", payload.MoveCells)
 	}
-	for index, kind := range want {
-		if kinds[index] != kind {
-			t.Fatalf("actions: %v", kinds)
-		}
+	if len(payload.Weapons) != 2 || payload.Weapons[0].Name != "rifle" ||
+		payload.Weapons[0].RangeMax != 2 {
+		t.Fatalf("weapons: %+v", payload.Weapons)
 	}
-	if *actions[0].TargetID != "e1" || *actions[0].Weapon != "rifle" {
-		t.Fatalf("attack: %+v", actions[0])
+	if payload.Weapons[0].Ammo != nil {
+		t.Fatalf("the rifle spends no ammunition: %+v", payload.Weapons[0])
 	}
-	if !strings.Contains(string(replies[1].Payload), `"hit":null`) {
-		t.Fatalf("an enumerated action settles no die: %s", replies[1].Payload)
+	if payload.Weapons[1].Ammo == nil || *payload.Weapons[1].Ammo != 1 {
+		t.Fatalf("shells: %+v", payload.Weapons[1])
+	}
+	if payload.Error != nil {
+		t.Fatalf("error: %+v", payload.Error)
+	}
+}
+
+// The band and the energy stay out of the answer: unit 'a1' reaches the foe
+// with the rifle alone, and both weapons are in the list.
+func TestActionsJudgesNoTargetAndNoResource(t *testing.T) {
+	replies := serve(t, New(), candidateLine,
+		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
+
+	payload := capabilitiesOf(t, replies[1])
+
+	if len(payload.Weapons) != 2 {
+		t.Fatalf("weapons: %+v", payload.Weapons)
+	}
+	if strings.Contains(string(replies[1].Payload), `"target_id"`) {
+		t.Fatalf("the answer names no target: %s", replies[1].Payload)
 	}
 }
 
@@ -77,16 +93,27 @@ func TestActionsOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
 	}
 }
 
-func TestActionsOutsideThePhaseOrAfterTheActivationIsAnIllegalState(t *testing.T) {
+func TestActionsOutsideThePhaseIsAnIllegalState(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
-		`{"id":"c1","cmd":"actions","payload":{"unit_id":"e1"}}`,
-		`{"id":"c2","cmd":"actions","payload":{"unit_id":"a2"}}`)
+		`{"id":"c1","cmd":"actions","payload":{"unit_id":"e1"}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalState {
 		t.Fatalf("the phase is the ally side: %+v", replies[1])
 	}
-	if replies[2].OK || replies[2].Error.Code != protocol.CodeIllegalState {
-		t.Fatalf("unit 'a2' acted: %+v", replies[2])
+}
+
+func TestActionsOfAnActedUnitAnswersWithTheStateInThePayload(t *testing.T) {
+	replies := serve(t, New(), candidateLine,
+		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a2"}}`)
+
+	payload := capabilitiesOf(t, replies[1])
+
+	if !payload.Unit.Acted || payload.Error == nil ||
+		payload.Error.Code != protocol.CodeAlreadyActed {
+		t.Fatalf("unit 'a2' acted: %+v", payload)
+	}
+	if len(payload.MoveCells) == 0 {
+		t.Fatalf("the payload of an acted unit stays whole: %+v", payload)
 	}
 }
 

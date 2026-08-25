@@ -45,6 +45,7 @@ Error codes:
 | illegal_state | The board does not permit the command now |
 | illegal_action | The named action or reaction is not legal |
 | empty_history | 'rollback' found no entry |
+| already_acted | The unit acted in this turn; the command answers |
 
 An error response does not stop the process. An error response does
 not change the board.
@@ -134,29 +135,41 @@ Refusals: no_session; illegal_action for an unknown unit id.
 
 ### actions
 
-Purpose: the legal actions of one unit.
+Purpose: what one unit carries.
 
-Request: 'unit_id'. Response: 'actions'.
+Request: 'unit_id'. Response: 'unit', 'move_cells', 'weapons',
+'skills', and 'error' when a state stops the unit from acting.
 
-The engine gives one attack for each pair of a target and a weapon.
-That attack fires from one anchor: of the anchors that the unit
-reaches and that hold the target in the band of the weapon, the
-engine keeps the anchor nearest to the anchor of today. Three keys
-order these anchors: the board distance first, the squared Euclid
-distance between the two anchor cells second, the column and then
-the row third. A weapon with 'usable_after_move' false fires from
-the anchor of today. A map attack carries no target: it aims at the
-cell of the target footprint nearest to the firing footprint. A
-reposition names the anchor nearest to each target, and the anchor
-farthest from the nearest target. A skill enters the list when its
-area is the cell of the caster. The standby is always in the list.
-The list comes in one order: the attacks, the map attacks, the
-skills, the repositions, the standby.
+The command reports. It selects nothing and it removes nothing. It
+reads no target, no band and no resource: a weapon with no energy
+left, and a weapon that reaches no unit from the cell of today,
+stay in the list. The client draws the bands from these fields, the
+user picks the move, the weapon and the target, and 'act' judges
+the pick.
+
+'unit' holds 'unit_id', 'faction', 'pos', 'size', 'hp', 'max_hp',
+'en', 'en_max', 'move_range' and 'acted'.
+
+'move_cells' holds the cells that 'reach' answers, in the same
+order.
+
+A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
+'ammo', 'accuracy', 'can_counter', 'map_weapon',
+'usable_after_move', 'terrain_damage' and 'unusable_in'. A null
+'ammo' is a weapon that spends no ammunition. The entry carries no
+power: the engine drops the power of a weapon when it reads the
+state.
+
+A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
+'usable_after_move', 'range_min', 'range_max', 'blast' and
+'affects'.
+
+A unit that acted keeps the whole payload. Its 'error' holds the
+code 'already_acted' and a message.
 
 Refusals: no_session; illegal_action for an unknown unit id;
 illegal_state when the unit is destroyed; illegal_state when the
-phase of the unit is not the current phase; illegal_state when the
-unit acted in this turn.
+phase of the unit is not the current phase.
 
 ### reactions
 
@@ -334,8 +347,9 @@ eight king steps and one cell for every unit, and it retired with
 the rest of the Python rules (issue #73). A golden case that the
 Python side wrote therefore compares no result that reads the
 distance or the footprint, and a golden case that compares a
-candidate list holds units of one cell in one row, with no move
-for the enumerated unit.
+reaction list holds units of one cell in one row. The 'actions'
+command left the comparison with issue 63: it reports what one unit
+carries, and the Python side holds no such answer.
 
 ## Types
 

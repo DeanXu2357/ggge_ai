@@ -123,7 +123,50 @@ type ActionsRequest struct {
 }
 
 type ActionsResponse struct {
-	Actions []Decision `json:"actions"`
+	Unit      UnitStatus    `json:"unit"`
+	MoveCells []Cell        `json:"move_cells"`
+	Weapons   []WeaponEntry `json:"weapons"`
+	Skills    []SkillEntry  `json:"skills"`
+	Error     *Error        `json:"error,omitempty"`
+}
+
+type UnitStatus struct {
+	UnitID    string  `json:"unit_id"`
+	Faction   Faction `json:"faction"`
+	Pos       Cell    `json:"pos"`
+	Size      Cell    `json:"size"`
+	HP        int     `json:"hp"`
+	MaxHP     int     `json:"max_hp"`
+	EN        int     `json:"en"`
+	ENMax     int     `json:"en_max"`
+	MoveRange int     `json:"move_range"`
+	Acted     bool    `json:"acted"`
+}
+
+type WeaponEntry struct {
+	Name            string             `json:"name"`
+	RangeMin        int                `json:"range_min"`
+	RangeMax        int                `json:"range_max"`
+	ENCost          int                `json:"en_cost"`
+	Ammo            *int               `json:"ammo"` // A null 'ammo' is a weapon that spends no ammunition.
+	Accuracy        float64            `json:"accuracy"`
+	CanCounter      bool               `json:"can_counter"`
+	MapWeapon       bool               `json:"map_weapon"`
+	UsableAfterMove bool               `json:"usable_after_move"`
+	TerrainDamage   map[string]float64 `json:"terrain_damage,omitempty"`
+	UnusableIn      []string           `json:"unusable_in,omitempty"`
+}
+
+type SkillEntry struct {
+	Kind            ActionKind   `json:"kind"`
+	Amount          *float64     `json:"amount"`
+	Uses            int          `json:"uses"`
+	EndsActivation  bool         `json:"ends_activation"`
+	UsableAfterMove bool         `json:"usable_after_move"`
+	RangeMin        int          `json:"range_min"`
+	RangeMax        int          `json:"range_max"`
+	Blast           int          `json:"blast"`
+	Affects         SkillAffects `json:"affects"`
 }
 
 type ReactionsRequest struct {

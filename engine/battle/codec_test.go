@@ -330,50 +330,78 @@ func TestTheOpposingFactionOfEverySide(t *testing.T) {
 	}
 }
 
-func TestAnEnumeratedActionSettlesNoDie(t *testing.T) {
+func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	amount := 2500.0
-	cell := Cell{4, 5}
+	ammo := 3
+	unit := &Unit{
+		ID:        "a1",
+		Faction:   FactionAlly,
+		Footprint: Footprint{Anchor: Cell{2, 3}, Size: Size{2, 1}},
+		HP:        800,
+		MaxHP:     1000,
+		EN:        40,
+		ENMax:     100,
+		MoveRange: 4,
+		Weapons: []Weapon{
+			{Name: "rifle", Range: RadiusRange{Min: 1, Max: 3}, ENCost: 10, Accuracy: 5,
+				CanCounter: true, UsableAfterMove: true,
+				TerrainDamage: map[Terrain]float64{TerrainUnderwater: 0.5},
+				UnusableIn:    TerrainSet{TerrainUnderwater: true}},
+			{Name: "missile", Range: RadiusRange{Min: 2, Max: 5}, MapWeapon: true},
+		},
+		Skills: []Skill{{Kind: ActionSkillHeal, Amount: &amount, Uses: 2,
+			Range: RadiusRange{Min: 0, Max: 2}, Blast: 1, Affects: AffectsAlly}},
+		Ammo: map[string]int{"missile": ammo},
+	}
 
-	full := EncodeDecision(Decision{
-		UnitID:   "a1",
-		Kind:     ActionAttack,
-		MoveTo:   &cell,
-		TargetID: "e1",
-		Weapon:   "rifle",
-		Amount:   &amount,
-		Aim:      &cell,
-		Support:  true,
-	})
-	lean := EncodeDecision(Decision{UnitID: "a1", Kind: ActionStandby})
+	out := EncodeCapabilities(Capabilities{Unit: unit, MoveCells: []Cell{{2, 3}, {2, 4}}})
 
-	if full.Kind != protocol.ActionAttack || *full.TargetID != "e1" || *full.Weapon != "rifle" {
-		t.Fatalf("decision: %+v", full)
+	if out.Unit.Pos != (protocol.Cell{2, 3}) || out.Unit.Size != (protocol.Cell{2, 1}) ||
+		out.Unit.Faction != protocol.FactionAlly || out.Unit.MaxHP != 1000 {
+		t.Fatalf("status: %+v", out.Unit)
 	}
-	if *full.MoveTo != (protocol.Cell{4, 5}) || *full.Aim != (protocol.Cell{4, 5}) {
-		t.Fatalf("cells: %+v", full)
+	if len(out.MoveCells) != 2 || out.MoveCells[1] != (protocol.Cell{2, 4}) {
+		t.Fatalf("cells: %+v", out.MoveCells)
 	}
-	if *full.Amount != amount || !full.Support {
-		t.Fatalf("amount and support: %+v", full)
+	if out.Weapons[0].RangeMax != 3 || out.Weapons[0].Ammo != nil ||
+		out.Weapons[0].TerrainDamage["underwater"] != 0.5 ||
+		!reflect.DeepEqual(out.Weapons[0].UnusableIn, []string{"underwater"}) {
+		t.Fatalf("rifle: %+v", out.Weapons[0])
 	}
-	if full.Hit != nil || full.CounterHit != nil || full.SupportHit != nil || full.Reaction != nil {
-		t.Fatalf("an enumerated action carries no die and no reaction: %+v", full)
+	if out.Weapons[1].Ammo == nil || *out.Weapons[1].Ammo != 3 || !out.Weapons[1].MapWeapon {
+		t.Fatalf("missile: %+v", out.Weapons[1])
 	}
-	if lean.MoveTo != nil || lean.TargetID != nil || lean.Weapon != nil || lean.Amount != nil ||
-		lean.Aim != nil || lean.Support {
-		t.Fatalf("a field with no value is null: %+v", lean)
+	if out.Skills[0].Kind != protocol.ActionSkillHeal || *out.Skills[0].Amount != amount ||
+		out.Skills[0].Uses != 2 || out.Skills[0].Blast != 1 ||
+		out.Skills[0].Affects != protocol.AffectsAlly {
+		t.Fatalf("skill: %+v", out.Skills[0])
+	}
+	if out.Error != nil {
+		t.Fatalf("a unit that has not acted carries no error: %+v", out.Error)
 	}
 }
 
-func TestTheEncodedDecisionSharesNoMemoryWithTheModel(t *testing.T) {
+func TestTheCapabilityPayloadOfAnActedUnitCarriesTheState(t *testing.T) {
+	unit := &Unit{ID: "a1", Faction: FactionAlly, HP: 100, Acted: true}
+
+	out := EncodeCapabilities(Capabilities{Unit: unit})
+
+	if out.Error == nil || out.Error.Code != protocol.CodeAlreadyActed {
+		t.Fatalf("error: %+v", out.Error)
+	}
+	if out.Weapons == nil || out.Skills == nil || out.MoveCells == nil {
+		t.Fatalf("an empty list is a list, not a null: %+v", out)
+	}
+}
+
+func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 	amount := 2500.0
-	cell := Cell{4, 5}
 
-	encoded := EncodeDecision(Decision{UnitID: "a1", Kind: ActionSkillHeal, Amount: &amount, Aim: &cell})
+	encoded := EncodeSkills([]Skill{{Kind: ActionSkillHeal, Amount: &amount}})
 	amount = 0
-	cell = Cell{0, 0}
 
-	if *encoded.Amount != 2500.0 || *encoded.Aim != (protocol.Cell{4, 5}) {
-		t.Fatalf("decision: %+v", encoded)
+	if *encoded[0].Amount != 2500.0 {
+		t.Fatalf("skill: %+v", encoded[0])
 	}
 }
 
@@ -399,29 +427,5 @@ func TestTheReactionListEncodesEveryFieldAndKeepsItsOrder(t *testing.T) {
 func TestAnEmptyReactionListEncodesToAnEmptyList(t *testing.T) {
 	if got := EncodeReactions(nil); got == nil || len(got) != 0 {
 		t.Fatalf("reactions: %v", got)
-	}
-	if got := EncodeDecisions(nil); got == nil || len(got) != 0 {
-		t.Fatalf("decisions: %v", got)
-	}
-}
-
-func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
-	board, err := DecodeState(wireBoard())
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-
-	unit := board.Unit("a1")
-	if unit == nil || !unit.Alive() {
-		t.Fatalf("unit: %v", unit)
-	}
-	if board.Unit("ghost") != nil {
-		t.Fatal("the board holds no unit 'ghost'")
-	}
-
-	unit.HP = 0
-
-	if unit.Alive() || board.Unit("ghost").Alive() {
-		t.Fatal("a unit with no hit points is not alive, and neither is a unit that is not there")
 	}
 }
