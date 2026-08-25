@@ -512,9 +512,9 @@ The rules of the wire form:
 - A field with three values keeps its three values: 'hit' is true,
   false, or null. Null says that the caller settles that node
   somewhere else.
-- The stance 'none' is not on the wire. The reaction list holds no
-  decline option, so a payload that carries 'none' is a decode
-  error.
+- The stance 'none' is on the wire: it is the unit that stands and
+  takes the strike. The stance 'shield' is not. A payload that
+  carries 'shield' is a decode error.
 - A decode and an encode of one payload give the same bytes a
   second time.
 - The trigger and the effect of a stage event stay free objects.
