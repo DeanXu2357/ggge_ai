@@ -36,6 +36,19 @@ var wireKinds = map[ActionKind]protocol.ActionKind{
 	ActionSkillHeal:   protocol.ActionSkillHeal,
 }
 
+var skillSources = map[protocol.SkillSource]SkillSource{
+	protocol.SourceCharacter: SourceCharacter,
+	protocol.SourceCrew:      SourceCrew,
+	protocol.SourceUnit:      SourceUnit,
+}
+
+var decodedStances = map[protocol.Stance]Stance{
+	protocol.StanceDodge:   StanceDodge,
+	protocol.StanceDefend:  StanceDefend,
+	protocol.StanceCounter: StanceCounter,
+	protocol.StanceNone:    StanceNone,
+}
+
 var wireFactions = map[Faction]protocol.Faction{
 	FactionAlly:       protocol.FactionAlly,
 	FactionEnemy:      protocol.FactionEnemy,
@@ -46,6 +59,12 @@ var wireAffects = map[SkillAffects]protocol.SkillAffects{
 	AffectsAlly:  protocol.AffectsAlly,
 	AffectsEnemy: protocol.AffectsEnemy,
 	AffectsAll:   protocol.AffectsAll,
+}
+
+var wireSources = map[SkillSource]protocol.SkillSource{
+	SourceCharacter: protocol.SourceCharacter,
+	SourceCrew:      protocol.SourceCrew,
+	SourceUnit:      protocol.SourceUnit,
 }
 
 var wireStances = map[Stance]protocol.Stance{
@@ -67,7 +86,7 @@ func DecodeState(state *protocol.BattleState) (*Board, error) {
 	if err != nil {
 		return nil, err
 	}
-	board, err := NewBoard(bounds, units)
+	board, err := NewBoard(bounds, units, DefaultRules())
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +127,55 @@ func decodeTerrainCells(cells []protocol.TerrainCell) (map[Cell]Terrain, error) 
 		out[DecodeCell(entry.Cell)] = kind
 	}
 	return out, nil
+}
+
+// DecodeRules reads the rule overrides of a stage. A payload with no value
+// gives the defaults, and a payload that carries the rules carries every field:
+// a field that the payload omits decodes to zero, and no rule value of the
+// mechanism is zero (docs/reference/combat-formulas.md).
+func DecodeRules(rules *protocol.Rules) (Rules, error) {
+	if rules == nil {
+		return DefaultRules(), nil
+	}
+	out := Rules(*rules)
+	if err := validateRules(out); err != nil {
+		return Rules{}, err
+	}
+	return out, nil
+}
+
+func validateRules(rules Rules) error {
+	multipliers := []struct {
+		name  string
+		value float64
+	}{
+		{"defend multiplier", rules.DefendMultiplier},
+		{"shield multiplier", rules.ShieldMultiplier},
+		{"support defense multiplier", rules.SupportDefendMultiplier},
+	}
+	for _, one := range multipliers {
+		if one.value <= 0 || one.value > 1 {
+			return fmt.Errorf("the rules carry the %s %v, and a defense multiplier takes the damage down",
+				one.name, one.value)
+		}
+	}
+	if rules.DodgeHitPenalty < 0 {
+		return fmt.Errorf("the rules carry the dodge penalty %v, and a penalty takes the hit rate down",
+			rules.DodgeHitPenalty)
+	}
+	if rules.Terrain <= 0 {
+		return fmt.Errorf("the rules carry the terrain %v, and the terrain divides the damage",
+			rules.Terrain)
+	}
+	if rules.MaxSupportAttackers < 0 {
+		return fmt.Errorf("the rules carry the support cap %d, and a cap counts units",
+			rules.MaxSupportAttackers)
+	}
+	if rules.ENRegenFraction < 0 || rules.ENRegenFraction > 1 {
+		return fmt.Errorf("the rules carry the energy regeneration %v, and a fraction lies in [0, 1]",
+			rules.ENRegenFraction)
+	}
+	return nil
 }
 
 func decodeUnits(units []protocol.Unit) ([]Unit, error) {
@@ -172,11 +240,17 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 			EN:        unit.MechEN,
 			MoveRange: unit.MechMoveRange,
 		},
-		MoveRange:            unit.MoveRange,
-		Acted:                unit.Acted,
-		SupportDefendCharges: unit.SupportDefendCharges,
-		SupportAttackCharges: unit.SupportAttackCharges,
-		HasShield:            unit.HasShield,
+		MoveRange:               unit.MoveRange,
+		Acted:                   unit.Acted,
+		ChanceSteps:             unit.ChanceSteps,
+		ChanceStepsMax:          unit.ChanceStepsMax,
+		SupportDefendCharges:    unit.SupportDefendCharges,
+		SupportDefendChargesMax: unit.SupportDefendChargesMax,
+		SupportAttackCharges:    unit.SupportAttackCharges,
+		SupportAttackChargesMax: unit.SupportAttackChargesMax,
+		HasShield:               unit.HasShield,
+		AttackShield:            unit.AttackShield,
+		InterceptionReduction:   unit.InterceptionReduction,
 	}
 	if out.Weapons, err = decodeWeapons(unit.UnitID, unit.Weapons); err != nil {
 		return Unit{}, err
@@ -200,6 +274,12 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 			out.Ammo[name] = count
 		}
 	}
+	if unit.Debuffs != nil {
+		out.Debuffs = make([]Debuff, 0, len(unit.Debuffs))
+		for _, debuff := range unit.Debuffs {
+			out.Debuffs = append(out.Debuffs, Debuff(debuff))
+		}
+	}
 	return out, nil
 }
 
@@ -221,12 +301,18 @@ func decodeWeapons(unitID string, weapons []protocol.Weapon) ([]Weapon, error) {
 func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 	out := Weapon{
 		Name:            weapon.Name,
+		Power:           weapon.Power,
 		Range:           RadiusRange{Min: weapon.RangeMin, Max: weapon.RangeMax},
 		ENCost:          weapon.ENCost,
 		Accuracy:        weapon.Accuracy,
 		CanCounter:      weapon.CanCounter,
 		MapWeapon:       weapon.MapWeapon,
 		UsableAfterMove: weapon.UsableAfterMove,
+		Blast:           weapon.Blast,
+		DebuffMagnitude: weapon.DebuffMagnitude,
+	}
+	if weapon.DebuffKind != nil {
+		out.DebuffKind = *weapon.DebuffKind
 	}
 	for name, scale := range weapon.TerrainDamage {
 		kind, err := ParseTerrain(name)
@@ -257,6 +343,11 @@ func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
 		return Skill{}, fmt.Errorf("unit %q carries a skill of the kind %q, which is not in the contract",
 			unitID, skill.Kind)
 	}
+	source, known := skillSources[skill.Source]
+	if !known {
+		return Skill{}, fmt.Errorf("unit %q carries a skill of the source %q, which is not in the contract",
+			unitID, skill.Source)
+	}
 	affects, known := skillAffects[skill.Affects]
 	if !known {
 		return Skill{}, fmt.Errorf("unit %q carries a skill that affects %q, which is not in the contract",
@@ -264,6 +355,7 @@ func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
 	}
 	return Skill{
 		Kind:            kind,
+		Source:          source,
 		Amount:          cloneAmount(skill.Amount),
 		Uses:            skill.Uses,
 		EndsActivation:  skill.EndsActivation,
