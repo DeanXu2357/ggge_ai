@@ -73,8 +73,6 @@ def encode_weapon(weapon: Weapon) -> dict[str, Any]:
         "blast": weapon.blast,
         "debuff_kind": weapon.debuff_kind,
         "debuff_magnitude": weapon.debuff_magnitude,
-        "terrain_damage": {str(kind): factor for kind, factor in weapon.terrain_damage.items()},
-        "unusable_in": [str(kind) for kind in weapon.unusable_in],
     }
 
 
@@ -93,11 +91,6 @@ def decode_weapon(payload: dict[str, Any]) -> Weapon:
         blast=_int(payload, "blast"),
         debuff_kind=_optional_str(payload, "debuff_kind"),
         debuff_magnitude=_float(payload, "debuff_magnitude"),
-        terrain_damage={
-            _terrain(kind): float(factor)
-            for kind, factor in (payload.get("terrain_damage") or {}).items()
-        },
-        unusable_in=tuple(_terrain(kind) for kind in payload.get("unusable_in") or ()),
     )
 
 

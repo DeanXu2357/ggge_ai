@@ -352,9 +352,7 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 		MoveRange: 4,
 		Weapons: []Weapon{
 			{Name: "rifle", Range: RadiusRange{Min: 1, Max: 3}, ENCost: 10, Accuracy: 5,
-				CanCounter: true, UsableAfterMove: true,
-				TerrainDamage: map[Terrain]float64{TerrainUnderwater: 0.5},
-				UnusableIn:    TerrainSet{TerrainUnderwater: true}},
+				CanCounter: true, UsableAfterMove: true},
 			{Name: "missile", Range: RadiusRange{Min: 2, Max: 5}, MapWeapon: true},
 		},
 		Skills: []Skill{{Kind: ActionSkillHeal, Amount: &amount, Uses: 2,
@@ -371,9 +369,7 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	if len(out.MoveCells) != 2 || out.MoveCells[1] != (protocol.Cell{2, 4}) {
 		t.Fatalf("cells: %+v", out.MoveCells)
 	}
-	if out.Weapons[0].RangeMax != 3 || out.Weapons[0].Ammo != nil ||
-		out.Weapons[0].TerrainDamage["underwater"] != 0.5 ||
-		!reflect.DeepEqual(out.Weapons[0].UnusableIn, []string{"underwater"}) {
+	if out.Weapons[0].RangeMax != 3 || out.Weapons[0].Ammo != nil {
 		t.Fatalf("rifle: %+v", out.Weapons[0])
 	}
 	if out.Weapons[1].Ammo == nil || *out.Weapons[1].Ammo != 3 || !out.Weapons[1].MapWeapon {

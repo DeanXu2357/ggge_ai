@@ -59,9 +59,6 @@ func (f Faction) Opposing() Faction {
 	return FactionAlly
 }
 
-// A weapon that declares no restriction deals full damage against every
-// terrain and fires from every terrain: an absent entry of TerrainDamage is
-// 1.0, and an absent entry of UnusableIn permits the shot.
 type Weapon struct {
 	Name            string
 	Power           float64
@@ -74,19 +71,6 @@ type Weapon struct {
 	Blast           int
 	DebuffKind      string
 	DebuffMagnitude float64
-	TerrainDamage   map[Terrain]float64
-	UnusableIn      TerrainSet
-}
-
-func (w Weapon) DamageScaleAgainst(target Terrain) float64 {
-	if scale, declared := w.TerrainDamage[target]; declared {
-		return scale
-	}
-	return 1
-}
-
-func (w Weapon) UsableIn(attacker Terrain) bool {
-	return !w.UnusableIn[attacker]
 }
 
 type ActionKind string

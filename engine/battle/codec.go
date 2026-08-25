@@ -309,26 +309,6 @@ func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 	if weapon.DebuffKind != nil {
 		out.DebuffKind = *weapon.DebuffKind
 	}
-	for name, scale := range weapon.TerrainDamage {
-		kind, err := ParseTerrain(name)
-		if err != nil {
-			return Weapon{}, fmt.Errorf("weapon %q: %w", weapon.Name, err)
-		}
-		if out.TerrainDamage == nil {
-			out.TerrainDamage = make(map[Terrain]float64, len(weapon.TerrainDamage))
-		}
-		out.TerrainDamage[kind] = scale
-	}
-	for _, name := range weapon.UnusableIn {
-		kind, err := ParseTerrain(name)
-		if err != nil {
-			return Weapon{}, fmt.Errorf("weapon %q: %w", weapon.Name, err)
-		}
-		if out.UnusableIn == nil {
-			out.UnusableIn = make(TerrainSet, len(weapon.UnusableIn))
-		}
-		out.UnusableIn[kind] = true
-	}
 	return out, nil
 }
 
@@ -406,8 +386,6 @@ func EncodeWeapons(unit *Unit) []protocol.WeaponEntry {
 			CanCounter:      weapon.CanCounter,
 			MapWeapon:       weapon.MapWeapon,
 			UsableAfterMove: weapon.UsableAfterMove,
-			TerrainDamage:   encodeTerrainDamage(weapon.TerrainDamage),
-			UnusableIn:      encodeTerrainSet(weapon.UnusableIn),
 		}
 		out = append(out, entry)
 	}
@@ -438,30 +416,6 @@ func encodeAmmo(ammo map[string]int, name string) *int {
 		return nil
 	}
 	return &count
-}
-
-func encodeTerrainDamage(scales map[Terrain]float64) map[string]float64 {
-	if len(scales) == 0 {
-		return nil
-	}
-	out := make(map[string]float64, len(scales))
-	for kind, scale := range scales {
-		out[kind.String()] = scale
-	}
-	return out
-}
-
-func encodeTerrainSet(set TerrainSet) []string {
-	if len(set) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(set))
-	for kind := TerrainSpace; int(kind) < len(terrainNames); kind++ {
-		if set[kind] {
-			out = append(out, kind.String())
-		}
-	}
-	return out
 }
 
 func DecodeDecision(action *protocol.Decision) (Decision, error) {
@@ -677,19 +631,6 @@ func encodeWeapon(weapon Weapon) protocol.Weapon {
 	if weapon.DebuffKind != "" {
 		kind := weapon.DebuffKind
 		out.DebuffKind = &kind
-	}
-	for kind, scale := range weapon.TerrainDamage {
-		if out.TerrainDamage == nil {
-			out.TerrainDamage = make(map[string]float64, len(weapon.TerrainDamage))
-		}
-		out.TerrainDamage[kind.String()] = scale
-	}
-	// The wire form must not change between two encodes of one weapon, and a
-	// map has no order, so the terrain names come out in the order of the enum.
-	for kind := range Terrain(len(terrainNames)) {
-		if weapon.UnusableIn[kind] {
-			out.UnusableIn = append(out.UnusableIn, kind.String())
-		}
 	}
 	return out
 }

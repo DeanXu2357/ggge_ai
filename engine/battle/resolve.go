@@ -313,7 +313,7 @@ func (v *receiver) hit(kind StrikeKind, shooter *Unit, weapon *Weapon, landed bo
 		v.interceptor.SupportDefendCharges--
 		v.chargeSpent = true
 	}
-	record.Damage = v.board.StrikeDamage(shooter, v.struck, weapon, v.multiplier)
+	record.Damage = StrikeDamage(shooter, v.struck, weapon, v.multiplier)
 	v.board.wound(v.struck, weapon, record.Damage)
 	record.Killed = !v.struck.Alive()
 	return record

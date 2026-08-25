@@ -5,10 +5,10 @@ import "math"
 // The frozen goldens under tests/fixtures/engine hold the values of the
 // Python 'round', which rounds a half to the even integer, so the rounding
 // is RoundToEven and not Round.
-func (b *Board) StrikeDamage(attacker, defender *Unit, weapon *Weapon, defense float64) int {
+func StrikeDamage(attacker, defender *Unit, weapon *Weapon, defense float64) int {
 	raw := ExpectedDamage(weapon.Power, attacker, defender, NoTerrainCorrection,
 		debuffBonus(defender), 0, defense)
-	return int(math.RoundToEven(raw * weapon.DamageScaleAgainst(b.TerrainOf(defender))))
+	return int(math.RoundToEven(raw))
 }
 
 func debuffBonus(defender *Unit) float64 {

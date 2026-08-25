@@ -134,20 +134,18 @@ type Rules struct {
 }
 
 type Weapon struct {
-	Name            string             `json:"name"`
-	Power           float64            `json:"power"`
-	RangeMin        int                `json:"range_min"`
-	RangeMax        int                `json:"range_max"`
-	ENCost          int                `json:"en_cost"`
-	Accuracy        float64            `json:"accuracy"`
-	CanCounter      bool               `json:"can_counter"`
-	MapWeapon       bool               `json:"map_weapon"`
-	UsableAfterMove bool               `json:"usable_after_move"`
-	Blast           int                `json:"blast"`
-	DebuffKind      *string            `json:"debuff_kind"`
-	DebuffMagnitude float64            `json:"debuff_magnitude"`
-	TerrainDamage   map[string]float64 `json:"terrain_damage,omitempty"`
-	UnusableIn      []string           `json:"unusable_in,omitempty"`
+	Name            string  `json:"name"`
+	Power           float64 `json:"power"`
+	RangeMin        int     `json:"range_min"`
+	RangeMax        int     `json:"range_max"`
+	ENCost          int     `json:"en_cost"`
+	Accuracy        float64 `json:"accuracy"`
+	CanCounter      bool    `json:"can_counter"`
+	MapWeapon       bool    `json:"map_weapon"`
+	UsableAfterMove bool    `json:"usable_after_move"`
+	Blast           int     `json:"blast"`
+	DebuffKind      *string `json:"debuff_kind"`
+	DebuffMagnitude float64 `json:"debuff_magnitude"`
 }
 
 type Skill struct {

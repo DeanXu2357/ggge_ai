@@ -35,5 +35,3 @@ func ParseTerrain(name string) (Terrain, error) {
 	}
 	return 0, fmt.Errorf("the terrain %q is not in the contract", name)
 }
-
-type TerrainSet map[Terrain]bool

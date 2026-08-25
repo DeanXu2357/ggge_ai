@@ -43,8 +43,6 @@ class Weapon:
     blast: int = 0
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
-    terrain_damage: dict[Terrain, float] = field(default_factory=dict)
-    unusable_in: tuple[Terrain, ...] = ()
 
 
 @dataclass

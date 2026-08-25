@@ -154,8 +154,8 @@ the pick.
 order.
 
 A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
-'ammo', 'accuracy', 'can_counter', 'map_weapon',
-'usable_after_move', 'terrain_damage' and 'unusable_in'. A null
+'ammo', 'accuracy', 'can_counter', 'map_weapon' and
+'usable_after_move'. A null
 'ammo' is a weapon that spends no ammunition. The entry carries no
 power: the engine drops the power of a weapon when it reads the
 state.
@@ -584,30 +584,15 @@ Each entry of 'terrain_cells' holds 'cell' and 'terrain'. A state
 with no 'terrain' puts the whole map in space. A terrain name
 outside the five is a decode error.
 
-The weapon carries its terrain restriction in two optional fields:
+The weapon carries no terrain field, and no rule of the engine
+reads the terrain today. The state carries the terrain of the map
+so that the rule has its data when the mechanism is known. The
+user ruled on 2026-08-26 that the weapon table of the datamine is
+not the shape of the mechanism, and that the task which collects
+the intelligence settles it.
 
-| Field | Content |
-|---|---|
-| terrain_damage | The damage percentage, as a factor, against a target on each named kind |
-| unusable_in | The kinds that the attacker cannot fire from |
-
-An absent entry of 'terrain_damage' is the factor 1.0, and an
-absent entry of 'unusable_in' permits the shot. A weapon that
-declares neither field therefore deals full damage everywhere and
-fires everywhere. The whole datamine holds one deviation: some
-weapons halve their damage against an underwater target, and a few
-of those cannot fire while the attacker is underwater
-(docs/reference/combat-formulas.md).
-
-The damage of a strike carries the damage factor of the attacking
-weapon against the terrain of the target cell. The factor multiplies
-the damage. It is not a value of the map, and it is not the terrain
-adaptability of the mech. Terrain adaptability gates deployment and
-movement; it enters no damage formula and no hit rate.
-
-The rules payload carries no terrain. One stage held one terrain
-value until 2026-08-26; the board carries the terrain of each cell
-now, and the engine reads the cell.
+The rules payload carries no terrain either. One stage held one
+terrain value until 2026-08-26.
 
 Open, for the issue that implements 'init': the field 'board' of
 the request must carry the terrain of the map, in the same two

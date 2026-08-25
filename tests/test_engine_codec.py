@@ -184,17 +184,13 @@ def test_the_terrain_of_the_map_survives_the_round_trip():
     state = BattleState(
         terrain=Terrain.GROUND,
         terrain_cells=(TerrainCell((3, 2), Terrain.UNDERWATER),),
-        units=[Unit(unit_id="u", faction=Faction.ALLY, weapons=[
-            Weapon(name="w", power=1.0, terrain_damage={Terrain.UNDERWATER: 0.5},
-                   unusable_in=(Terrain.UNDERWATER,)),
-        ])],
+        units=[Unit(unit_id="u", faction=Faction.ALLY)],
     )
 
     payload = codec.encode_state(state)
 
     assert payload["terrain"] == "ground"
     assert payload["terrain_cells"] == [{"cell": [3, 2], "terrain": "underwater"}]
-    assert payload["units"][0]["weapons"][0]["terrain_damage"] == {"underwater": 0.5}
     assert codec.decode_state(payload) == state
 
 

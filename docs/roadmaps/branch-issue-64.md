@@ -43,6 +43,7 @@ nodes and the resolution order came over as they stood.
 | The terrain of the damage | The scalar rule 'terrain' goes. The board carries the terrain of each cell, and the engine reads it. |
 | The shield reduction | The unit carries no multiplier of its own. The mech says whether the unit carries a shield, and the damage applies the multiplier of the rules. |
 | The terrain contract | The shape comes first. Which cell keys the damage factor, and where the values come from, wait for the task that collects the intelligence. |
+| The weapon terrain fields | 'TerrainDamage' and 'UnusableIn' leave the domain model and the wire. That table of the datamine is not the shape of the mechanism. |
 
 ## Change summary
 
@@ -66,11 +67,12 @@ nodes and the resolution order came over as they stood.
   resolution against the Python oracle, unit by unit and field by
   field.
 - The terrain contract: 'src/ggge_ai/engine/contract.py' gives the
-  five kinds, 'state.py' mirrors the two state fields and the two
-  weapon fields that the Go wire already held, and
+  five kinds, 'state.py' mirrors the two state fields, and
   'stage/scenario.py' reads them from the stage file into the board.
-  The rule 'terrain' is out of 'battle.Rules', of 'protocol.Rules'
-  and of the Python mirror; 'StrikeDamage' reads the cell instead.
+  The board carries the terrain of each cell. No rule reads it: the
+  scalar 'Rules.terrain' and the weapon fields 'TerrainDamage' and
+  'UnusableIn' are all out, and 'StrikeDamage' passes 1 for the
+  terrain correction until the intelligence task settles the rule.
 
 ## Call chain
 
