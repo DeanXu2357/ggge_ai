@@ -226,13 +226,23 @@ the attacker fire at the defender.
 
 A forecast holds 'hit_rate', 'damage' and 'kill'. 'damage' is the
 conservative lower bound of the damage: no critical hit and no
-bonus. A weapon and a mech that stack the critical rate to 100
-percent are the one exception, and the bound then holds the
-critical damage. 'kill' is true when the bound is at least the hit
-points of the target. The hit roll is no part of 'kill': a 'kill'
-of the dodge stance reads "the strike destroys this unit when it
-lands". Every field of every forecast is null today; the branch of
-the forecast fills them.
+bonus beside the debuffs the target carries. A weapon and a mech
+that stack the critical rate to 100 percent are the one exception,
+and the bound then holds the critical damage. 'kill' is true when
+the bound is at least the hit points of the target. The hit roll is
+no part of 'kill': a 'kill' of the dodge stance reads "the strike
+destroys this unit when it lands".
+
+A field that the engine cannot answer for that entry is null. Two
+entries hold such a field. The entry of an interceptor of the
+defending side holds no 'hit_rate': the stance of the defender
+settles that hit roll, so the rate stands beside the stance entry.
+The entry of an interceptor of the attacking side holds no forecast
+at all: it takes the counter, and which weapon counters is the pick
+of the defender.
+
+The forecast of a support attack entry reads no stance of its foe,
+because the foe picks the stance after this answer.
 
 Refusals: no_session; bad_request when the action stands outside
 the contract; illegal_action for an unknown unit id, a destroyed
@@ -261,6 +271,27 @@ The field 'reaction' is necessary for an action of the kind
 'attack', because such an action always gives a list. The field is
 not permitted for every other kind.
 
+The client names every support unit of the engagement, and the
+engine names none. The action holds 'support_attackers', the units
+of the side of the actor that join the strike, and
+'support_defender', the unit that takes a counter strike for the
+actor. The reaction holds the same two fields for the defending
+side: 'support_attackers' join the answer of the defender, and
+'support_defender' is the interceptor that takes the strike in
+place of the defender. Each list holds the unit ids that
+'reactions' reports, and no unit two times.
+
+A defender that defends takes the strike itself and names no
+interceptor. A defender that carries a shield defends with the
+shield: the reaction menu offers no shield stance, so the shield
+multiplier applies to the defend stance of that unit. Whether the
+game pairs an interceptor with the stand is not measured; the
+engine permits it.
+
+The rules cap the number of support attackers of one strike. A unit
+that the engagement destroys or drains before its own shot fires
+nothing.
+
 The field 'dice' holds 'mode'. The value 'forced' also holds
 'outcomes': the engine reads one outcome for each chance event, in
 the resolution order. The value 'sampled' holds no outcome: the
@@ -269,13 +300,21 @@ engine draws from the session random source of 'init'.
 Response: 'events' (the resolution in order) and 'board' (the new
 summary).
 
+The command judges the pick against the rules of the mechanism, and
+not against a list of actions: the reporting commands read the same
+rules, so a pick that the report offers passes here. A refusal
+leaves the board as it was.
+
 Refusals: no_session; illegal_state when the phase of the unit is
 not the current phase, or when the unit acted in this turn;
-illegal_action for an action that 'actions' does not give, for an
-action that carries 'move_to' when its weapon or its skill holds
-'usable_after_move' false, for a reaction that 'reactions' does not
-give, for an absent necessary reaction, or for a short 'outcomes'
-list.
+illegal_action for a target that is no foe, a weapon the unit does
+not carry, a weapon the unit cannot pay for, a weapon that does not
+reach the target, a support unit that cannot join or intercept, a
+support attacker list above the cap of the rules, a reaction that
+breaks a rule of the stance, an absent necessary reaction, a short
+'outcomes' list, an action that carries 'move_to' when its weapon
+or its skill holds 'usable_after_move' false, and an anchor that
+the unit does not reach.
 
 ### rollback
 
