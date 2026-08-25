@@ -1,6 +1,6 @@
 {
   "name": "engagement_board",
-  "note": "One strike with every reaction: the stances, the interception, and both volleys.",
+  "note": "One strike with every reaction: the stances, the interception, and the support attack of each side.",
   "setup": {
     "rules": {
       "defend_multiplier": 0.8,
