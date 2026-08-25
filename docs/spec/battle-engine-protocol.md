@@ -185,27 +185,60 @@ Request:
 
 | Field | Content |
 |---|---|
+| action | The action of the attacker |
 | defender_id | The unit that takes the strike |
-| attacker_id | The unit that makes the strike |
-| attacker_cell | The cell of the attacker after its move |
-| weapon_id | The weapon of the strike |
 
-The engine reads 'attacker_cell' from the request. The engine does
-not read the current cell of the attacker. A client can therefore
-ask about a move that did not occur.
+The engine reads the cell of 'move_to' of the action. The engine
+does not read the current cell of the attacker. A client can
+therefore ask about a move that did not occur. An action with no
+'move_to' fires from the cell of today.
 
-Response: 'reactions'. The list holds dodge, defend, shield on a
-unit that carries one, and one entry for each weapon that can
-counter. A defender that cannot reach the attacker gets no counter
-entry; dodge and defend stay in the list. The reaction menu of the
-game holds no decline button (docs/reference/battle-prep-ui.md:108,
-issue #56), so the list holds no 'none' stance.
+Response: 'defender' and 'attacker'.
 
-An empty list means that the strike permits no reaction. A map
-weapon is such a strike.
+'defender' holds 'unit_id', 'reactions', 'support_defenders' and
+'support_attackers'. 'attacker' holds 'unit_id',
+'support_defenders' and 'support_attackers'.
 
-Refusals: no_session; illegal_action when the weapon does not reach
-the defender from that cell.
+The list 'reactions' holds dodge, defend, one entry for each weapon
+of the defender that can counter and reaches the attacker, and
+'none'. The stance 'none' is the unit that stands and takes the
+strike. The list holds no 'shield': the shield of a unit settles
+during the damage, in 'act'.
+
+Only an action of the kind 'attack' asks the defender anything. A
+map attack permits no reaction, and no other kind of action reaches
+a unit, so the command refuses every other kind. A client that runs
+one of them sends 'act' and no question.
+
+A reaction entry holds the forecast 'incoming': what the strike of
+the attacker does to the defender under that stance. A counter
+entry also holds the forecast 'counter': what the counter does to
+the attacker. A stance entry reads no support unit. An interceptor
+changes no outcome of the stance, so each interceptor carries its
+own forecast in 'support_defenders'.
+
+A support defense entry holds 'unit_id' and the forecast
+'incoming': what the strike does to that interceptor. A support
+attack entry holds 'unit_id', 'weapon' and the forecast 'strike':
+what the shot of that unit does to its foe. The support attackers
+of the defender fire at the attacker, and the support attackers of
+the attacker fire at the defender.
+
+A forecast holds 'hit_rate', 'damage' and 'kill'. 'damage' is the
+conservative lower bound of the damage: no critical hit and no
+bonus. A weapon and a mech that stack the critical rate to 100
+percent are the one exception, and the bound then holds the
+critical damage. 'kill' is true when the bound is at least the hit
+points of the target. The hit roll is no part of 'kill': a 'kill'
+of the dodge stance reads "the strike destroys this unit when it
+lands". Every field of every forecast is null today; the branch of
+the forecast fills them.
+
+Refusals: no_session; bad_request when the action stands outside
+the contract; illegal_action for an unknown unit id, a destroyed
+unit, an action of a kind other than 'attack', a weapon the
+attacker does not carry, and a weapon that does not reach the
+defender from that cell.
 
 ### act
 
@@ -224,9 +257,9 @@ The field 'action' holds the move of the unit. The engine resolves
 the move first and the action second; the section 'Unit payload,
 action, and reaction' holds the rule.
 
-The field 'reaction' is necessary when 'reactions' gives a list
-that is not empty for this strike. The field is not permitted when
-that list is empty.
+The field 'reaction' is necessary for an action of the kind
+'attack', because such an action always gives a list. The field is
+not permitted for every other kind.
 
 The field 'dice' holds 'mode'. The value 'forced' also holds
 'outcomes': the engine reads one outcome for each chance event, in

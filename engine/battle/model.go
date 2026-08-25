@@ -101,8 +101,8 @@ type Stance string
 const (
 	StanceDodge   Stance = "dodge"
 	StanceDefend  Stance = "defend"
-	StanceShield  Stance = "shield"
 	StanceCounter Stance = "counter"
+	StanceNone    Stance = "none"
 )
 
 type SkillAffects string
@@ -197,13 +197,6 @@ type Decision struct {
 	Amount   *float64
 	Aim      *Cell
 	Support  bool
-}
-
-type Reaction struct {
-	Stance        Stance
-	Weapon        string
-	SupportDefend bool
-	SupportAttack bool
 }
 
 func cloneAmount(amount *float64) *float64 {

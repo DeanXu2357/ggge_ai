@@ -67,15 +67,15 @@ class SkillAffects(StrEnum):
 
 
 class Stance(StrEnum):
-    """The reaction menu of the game holds no decline button, so the contract
-    lists no 'none' stance (issue #56). A strike that settles no reaction
-    carries no stance at all on the wire.
+    """'none' is the unit that stands and takes the strike. 'shield' is no
+    answer of the 'reactions' command: the shield of a unit settles during the
+    damage, in 'act'.
     """
 
     DODGE = "dodge"
     DEFEND = "defend"
-    SHIELD = "shield"
     COUNTER = "counter"
+    NONE = "none"
 
 
 class ErrorCode(StrEnum):

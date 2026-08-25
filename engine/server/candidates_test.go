@@ -119,59 +119,92 @@ func TestActionsOfAnActedUnitAnswersWithTheStateInThePayload(t *testing.T) {
 
 func TestReactionsWithNoBoardIsRefused(t *testing.T) {
 	replies := serve(t, New(),
-		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1","attacker_id":"a1",`+
-			`"attacker_cell":[1,1],"weapon_id":"rifle"}}`)
+		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+			`"action":{"unit_id":"a1","kind":"attack","target_id":"e1","weapon":"rifle"}}}`)
 
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeNoSession {
 		t.Fatalf("reply: %+v", replies[0])
 	}
 }
 
-func TestReactionsAnswersTheOptionsOfTheDefender(t *testing.T) {
-	replies := serve(t, New(), candidateLine,
-		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1","attacker_id":"a1",`+
-			`"attacker_cell":[1,1],"weapon_id":"rifle"}}`)
-
-	if !replies[1].OK {
-		t.Fatalf("reactions: %+v", replies[1])
+func engagementOf(t *testing.T, reply reply) protocol.ReactionsResponse {
+	t.Helper()
+	if !reply.OK {
+		t.Fatalf("reactions: %+v", reply)
 	}
 	var payload protocol.ReactionsResponse
-	if err := json.Unmarshal(replies[1].Payload, &payload); err != nil {
+	if err := json.Unmarshal(reply.Payload, &payload); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
-	if len(payload.Reactions) != 3 {
-		t.Fatalf("reactions: %+v", payload.Reactions)
+	return payload
+}
+
+func TestReactionsAnswersTheOptionsOfTheDefender(t *testing.T) {
+	replies := serve(t, New(), candidateLine,
+		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+			`"action":{"unit_id":"a1","kind":"attack","target_id":"e1",`+
+			`"weapon":"rifle","move_to":[1,1]}}}`)
+
+	payload := engagementOf(t, replies[1])
+
+	if payload.Defender.UnitID != "e1" || payload.Attacker.UnitID != "a1" {
+		t.Fatalf("sides: %+v", payload)
 	}
-	if payload.Reactions[2].Stance != protocol.StanceCounter ||
-		*payload.Reactions[2].Weapon != "lance" {
-		t.Fatalf("counter: %+v", payload.Reactions[2])
+	want := []protocol.Stance{protocol.StanceDodge, protocol.StanceDefend,
+		protocol.StanceCounter, protocol.StanceNone}
+	if len(payload.Defender.Reactions) != len(want) {
+		t.Fatalf("reactions: %+v", payload.Defender.Reactions)
+	}
+	for index, stance := range want {
+		if payload.Defender.Reactions[index].Stance != stance {
+			t.Fatalf("reactions: %+v", payload.Defender.Reactions)
+		}
+	}
+	if *payload.Defender.Reactions[2].Weapon != "lance" ||
+		payload.Defender.Reactions[2].Counter == nil {
+		t.Fatalf("counter: %+v", payload.Defender.Reactions[2])
+	}
+	if !strings.Contains(string(replies[1].Payload), `"kill":null`) {
+		t.Fatalf("every forecast waits for its branch: %s", replies[1].Payload)
 	}
 }
 
-func TestReactionsAgainstAMapWeaponIsAnEmptyList(t *testing.T) {
+func TestReactionsAgainstAnActionThatMakesNoStrikeIsAnIllegalAction(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
-		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1","attacker_id":"a1",`+
-			`"attacker_cell":[1,1],"weapon_id":"shells"}}`)
+		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+			`"action":{"unit_id":"a1","kind":"map_attack","weapon":"shells"}}}`,
+		`{"id":"r2","cmd":"reactions","payload":{"defender_id":"e1",`+
+			`"action":{"unit_id":"a1","kind":"standby"}}}`)
 
-	if !replies[1].OK {
-		t.Fatalf("reactions: %+v", replies[1])
+	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
+		t.Fatalf("a map attack permits no reaction: %+v", replies[1])
 	}
-	if !strings.Contains(string(replies[1].Payload), `"reactions":[]`) {
-		t.Fatalf("an empty list is no null: %s", replies[1].Payload)
+	if replies[2].OK || replies[2].Error.Code != protocol.CodeIllegalAction {
+		t.Fatalf("a standby asks the defender nothing: %+v", replies[2])
 	}
 }
 
 func TestAReactionRequestThatTheWeaponDoesNotReachIsAnIllegalAction(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
-		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1","attacker_id":"a1",`+
-			`"attacker_cell":[4,4],"weapon_id":"rifle"}}`,
-		`{"id":"r2","cmd":"reactions","payload":{"defender_id":"e1","attacker_id":"a1",`+
-			`"attacker_cell":[1,1],"weapon_id":"lance"}}`)
+		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+			`"action":{"unit_id":"a1","kind":"attack","weapon":"rifle","move_to":[4,4]}}}`,
+		`{"id":"r2","cmd":"reactions","payload":{"defender_id":"e1",`+
+			`"action":{"unit_id":"a1","kind":"attack","weapon":"lance"}}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
 		t.Fatalf("the cell (4,4) stands outside the band: %+v", replies[1])
 	}
 	if replies[2].OK || replies[2].Error.Code != protocol.CodeIllegalAction {
 		t.Fatalf("unit 'a1' carries no weapon 'lance': %+v", replies[2])
+	}
+}
+
+func TestAnActionOutsideTheContractIsABadRequest(t *testing.T) {
+	replies := serve(t, New(), candidateLine,
+		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+			`"action":{"unit_id":"a1","kind":"charge","weapon":"rifle"}}}`)
+
+	if replies[1].OK || replies[1].Error.Code != protocol.CodeBadRequest {
+		t.Fatalf("the kind \"charge\" is not in the contract: %+v", replies[1])
 	}
 }

@@ -9,119 +9,102 @@ type SupportAttacker struct {
 	Weapon *Weapon
 }
 
-// Reactions gives the legal reactions of one defender against one planned
-// strike. The strike comes from 'attackerCell', not from the cell of the
-// attacker today: the client asks about a move that did not occur.
-func (b *Board) Reactions(defenderID, attackerID string, attackerCell Cell,
-	weaponID string) ([]Reaction, error) {
+type ReactionOption struct {
+	Stance Stance
+	Weapon string
+}
+
+type SideOptions struct {
+	Unit             *Unit
+	SupportDefenders []*Unit
+	SupportAttackers []SupportAttacker
+}
+
+type Engagement struct {
+	Defender  SideOptions
+	Attacker  SideOptions
+	Reactions []ReactionOption
+}
+
+func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error) {
 	defender, err := b.livingUnit(defenderID)
 	if err != nil {
-		return nil, err
+		return Engagement{}, err
 	}
-	attacker, err := b.livingUnit(attackerID)
+	attacker, err := b.livingUnit(action.UnitID)
 	if err != nil {
-		return nil, err
+		return Engagement{}, err
 	}
-	weapon := attacker.Weapon(weaponID)
+	if action.Kind != ActionAttack {
+		return Engagement{}, fmt.Errorf("an action of the kind %q asks unit %q nothing",
+			action.Kind, defenderID)
+	}
+	out := Engagement{
+		Defender:  SideOptions{Unit: defender},
+		Attacker:  SideOptions{Unit: attacker},
+		Reactions: []ReactionOption{},
+	}
+	weapon := attacker.Weapon(action.Weapon)
 	if weapon == nil {
-		return nil, fmt.Errorf("unit %q carries no weapon %q", attackerID, weaponID)
+		return Engagement{}, fmt.Errorf("unit %q carries no weapon %q",
+			attacker.ID, action.Weapon)
 	}
-	// A map strike permits no reaction, and the blast reaches a unit outside the
-	// band of the weapon, so the empty list comes before the band check.
-	if weapon.MapWeapon {
-		return []Reaction{}, nil
-	}
-	origin := footprintAt(attacker, attackerCell)
+	origin := footprintAt(attacker, strikeCell(attacker, action))
 	distance := SpanDistance(defender.Footprint, origin)
 	if !weapon.Range.Holds(distance) {
-		return nil, fmt.Errorf("the weapon %q of unit %q does not reach unit %q from %v",
-			weaponID, attackerID, defenderID, attackerCell)
+		return Engagement{}, fmt.Errorf("the weapon %q of unit %q does not reach unit %q from %v",
+			action.Weapon, attacker.ID, defenderID, origin.Anchor)
 	}
 
-	out := []Reaction{
-		{Stance: StanceDodge, SupportAttack: true},
-		{Stance: StanceDefend, SupportAttack: true},
-	}
-	if defender.HasShield {
-		out = append(out, Reaction{Stance: StanceShield, SupportAttack: true})
-	}
+	out.Reactions = append(out.Reactions,
+		ReactionOption{Stance: StanceDodge},
+		ReactionOption{Stance: StanceDefend})
 	for index := range defender.Weapons {
 		counter := &defender.Weapons[index]
 		if counter.MapWeapon || !counter.CanCounter || !defender.HasENFor(*counter) {
 			continue
 		}
 		if counter.Range.Holds(distance) {
-			out = append(out, Reaction{
-				Stance:        StanceCounter,
-				Weapon:        counter.Name,
-				SupportAttack: true,
-			})
+			out.Reactions = append(out.Reactions,
+				ReactionOption{Stance: StanceCounter, Weapon: counter.Name})
 		}
 	}
-	if b.SupportDefender(defender) != nil {
-		out = append(out, supportDefendVariants(out)...)
-	}
-	if b.hasSupportAttacker(defender, origin) {
-		out = append(out, supportAttackVariants(out)...)
-	}
+	out.Reactions = append(out.Reactions, ReactionOption{Stance: StanceNone})
+
+	out.Defender.SupportDefenders = b.SupportDefenders(defender)
+	out.Defender.SupportAttackers = b.SupportAttackers(defender, origin)
+	out.Attacker.SupportDefenders = b.SupportDefenders(attacker)
+	out.Attacker.SupportAttackers = b.SupportAttackers(attacker, defender.Footprint)
 	return out, nil
 }
 
-// A defender that picks defend or shield blocks the strike for itself and
-// leaves the interceptor nothing to take, so support defense pairs with dodge
-// and with counter alone (docs/reference/battle-prep-ui.md, issue #44).
-func supportDefendVariants(options []Reaction) []Reaction {
-	var out []Reaction
-	for _, option := range options {
-		if option.Stance != StanceDodge && option.Stance != StanceCounter {
-			continue
-		}
-		option.SupportDefend = true
-		out = append(out, option)
+func strikeCell(attacker *Unit, action Decision) Cell {
+	if action.MoveTo == nil {
+		return attacker.Footprint.Anchor
 	}
-	return out
+	return *action.MoveTo
 }
 
-func supportAttackVariants(options []Reaction) []Reaction {
-	out := make([]Reaction, 0, len(options))
-	for _, option := range options {
-		option.SupportAttack = false
-		out = append(out, option)
-	}
-	return out
-}
-
-// SupportDefender gives the interceptor of a strike on the defender. The game
-// picks one interceptor for each engagement (docs/reference/combat-formulas.md,
-// case 16), so the first eligible unit is the answer.
-func (b *Board) SupportDefender(defender *Unit) *Unit {
-	for _, other := range b.ByFaction(defender.Faction) {
-		if inSupportReach(other, defender, other.SupportDefendCharges) {
-			return other
-		}
-	}
-	return nil
-}
-
-// SupportAttackers gives the units that can join a strike of the supported unit
-// against a foe on 'foe', each one with the weapon it fires.
-func (b *Board) SupportAttackers(supported *Unit, foe Footprint) []SupportAttacker {
-	var out []SupportAttacker
+func (b *Board) SupportDefenders(supported *Unit) []*Unit {
+	out := []*Unit{}
 	for _, other := range b.ByFaction(supported.Faction) {
+		// TODO: needs to check if the unit's support defend quota >= 1
+		if inSupportReach(other, supported, other.SupportDefendCharges) {
+			out = append(out, other)
+		}
+	}
+	return out
+}
+
+func (b *Board) SupportAttackers(supported *Unit, foe Footprint) []SupportAttacker {
+	out := []SupportAttacker{}
+	for _, other := range b.ByFaction(supported.Faction) {
+		// TODO: needs to check if the unit's support attack quota >= 1
 		if weapon := supportWeapon(other, supported, foe); weapon != nil {
 			out = append(out, SupportAttacker{Unit: other, Weapon: weapon})
 		}
 	}
 	return out
-}
-
-func (b *Board) hasSupportAttacker(supported *Unit, foe Footprint) bool {
-	for _, other := range b.ByFaction(supported.Faction) {
-		if supportWeapon(other, supported, foe) != nil {
-			return true
-		}
-	}
-	return false
 }
 
 func supportWeapon(other, supported *Unit, foe Footprint) *Weapon {

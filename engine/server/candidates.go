@@ -35,10 +35,13 @@ func (s *Server) reactions(id string, payload json.RawMessage) protocol.Response
 	if fail != nil {
 		return *fail
 	}
-	options, err := board.Reactions(request.DefenderID, request.AttackerID,
-		battle.DecodeCell(request.AttackerCell), request.WeaponID)
+	action, err := battle.DecodeDecision(&request.Action)
+	if err != nil {
+		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
+	}
+	engagement, err := board.Reactions(action, request.DefenderID)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
 	}
-	return protocol.Ok(id, protocol.ReactionsResponse{Reactions: battle.EncodeReactions(options)})
+	return protocol.Ok(id, battle.EncodeEngagement(engagement))
 }

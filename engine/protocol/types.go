@@ -170,14 +170,50 @@ type SkillEntry struct {
 }
 
 type ReactionsRequest struct {
-	DefenderID   string `json:"defender_id"`
-	AttackerID   string `json:"attacker_id"`
-	AttackerCell Cell   `json:"attacker_cell"`
-	WeaponID     string `json:"weapon_id"`
+	Action     Decision `json:"action"`      // action of the attacker
+	DefenderID string   `json:"defender_id"` // target of the attacker
 }
 
 type ReactionsResponse struct {
-	Reactions []Reaction `json:"reactions"`
+	Defender DefenderOptions `json:"defender"`
+	Attacker AttackerOptions `json:"attacker"`
+}
+
+type Forecast struct {
+	HitRate *float64 `json:"hit_rate"`
+	Damage  *float64 `json:"damage"`
+	Kill    *bool    `json:"kill"`
+}
+
+type ReactionOption struct {
+	Stance   Stance    `json:"stance"`
+	Weapon   *string   `json:"weapon"`
+	Incoming Forecast  `json:"incoming"`
+	Counter  *Forecast `json:"counter,omitempty"`
+}
+
+type SupportDefendOption struct {
+	UnitID   string   `json:"unit_id"`
+	Incoming Forecast `json:"incoming"`
+}
+
+type SupportAttackOption struct {
+	UnitID string   `json:"unit_id"`
+	Weapon string   `json:"weapon"`
+	Strike Forecast `json:"strike"`
+}
+
+type DefenderOptions struct {
+	UnitID           string                `json:"unit_id"`
+	Reactions        []ReactionOption      `json:"reactions"`
+	SupportDefenders []SupportDefendOption `json:"support_defenders"`
+	SupportAttackers []SupportAttackOption `json:"support_attackers"`
+}
+
+type AttackerOptions struct {
+	UnitID           string                `json:"unit_id"`
+	SupportDefenders []SupportDefendOption `json:"support_defenders"`
+	SupportAttackers []SupportAttackOption `json:"support_attackers"`
 }
 
 type ActRequest struct {

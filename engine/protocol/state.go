@@ -51,17 +51,13 @@ const (
 	AffectsAll   SkillAffects = "all"
 )
 
-// The reaction menu of the game holds no decline button, so the contract lists
-// no 'none' stance (docs/spec/battle-engine-protocol.md, issue #56). The model
-// keeps 'none' for a strike that settles no reaction; that value never reaches
-// the wire.
 type Stance string
 
 const (
 	StanceDodge   Stance = "dodge"
 	StanceDefend  Stance = "defend"
-	StanceShield  Stance = "shield"
 	StanceCounter Stance = "counter"
+	StanceNone    Stance = "none"
 )
 
 var (
@@ -77,8 +73,8 @@ var (
 	stances = map[Stance]bool{
 		StanceDodge:   true,
 		StanceDefend:  true,
-		StanceShield:  true,
 		StanceCounter: true,
+		StanceNone:    true,
 	}
 	skillSources = map[SkillSource]bool{
 		SourceCharacter: true,

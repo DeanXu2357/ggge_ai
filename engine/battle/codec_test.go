@@ -405,27 +405,111 @@ func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 	}
 }
 
-func TestTheReactionListEncodesEveryFieldAndKeepsItsOrder(t *testing.T) {
-	encoded := EncodeReactions([]Reaction{
-		{Stance: StanceDodge, SupportAttack: true},
-		{Stance: StanceCounter, Weapon: "saber", SupportDefend: true},
+func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
+	defender := &Unit{ID: "d1", HP: 100}
+	attacker := &Unit{ID: "e1", HP: 100}
+	helper := &Unit{ID: "h1", HP: 100, Weapons: []Weapon{{Name: "rifle"}}}
+
+	encoded := EncodeEngagement(Engagement{
+		Defender: SideOptions{Unit: defender, SupportDefenders: []*Unit{helper},
+			SupportAttackers: []SupportAttacker{{Unit: helper, Weapon: &helper.Weapons[0]}}},
+		Attacker: SideOptions{Unit: attacker},
+		Reactions: []ReactionOption{
+			{Stance: StanceDodge},
+			{Stance: StanceCounter, Weapon: "saber"},
+			{Stance: StanceNone},
+		},
 	})
 
-	if len(encoded) != 2 {
-		t.Fatalf("reactions: %+v", encoded)
+	if encoded.Defender.UnitID != "d1" || encoded.Attacker.UnitID != "e1" {
+		t.Fatalf("sides: %+v", encoded)
 	}
-	if encoded[0].Stance != protocol.StanceDodge || encoded[0].Weapon != nil ||
-		encoded[0].SupportDefend || !encoded[0].SupportAttack {
-		t.Fatalf("dodge: %+v", encoded[0])
+	if encoded.Defender.Reactions[0].Stance != protocol.StanceDodge ||
+		encoded.Defender.Reactions[0].Weapon != nil ||
+		encoded.Defender.Reactions[0].Counter != nil {
+		t.Fatalf("dodge: %+v", encoded.Defender.Reactions[0])
 	}
-	if encoded[1].Stance != protocol.StanceCounter || *encoded[1].Weapon != "saber" ||
-		!encoded[1].SupportDefend || encoded[1].SupportAttack {
-		t.Fatalf("counter: %+v", encoded[1])
+	if *encoded.Defender.Reactions[1].Weapon != "saber" ||
+		encoded.Defender.Reactions[1].Counter == nil {
+		t.Fatalf("a counter carries the forecast of its own strike: %+v",
+			encoded.Defender.Reactions[1])
+	}
+	if encoded.Defender.Reactions[2].Stance != protocol.StanceNone {
+		t.Fatalf("the stand: %+v", encoded.Defender.Reactions[2])
+	}
+	if encoded.Defender.SupportDefenders[0].UnitID != "h1" ||
+		encoded.Defender.SupportAttackers[0].Weapon != "rifle" {
+		t.Fatalf("the support units: %+v", encoded.Defender)
+	}
+	if encoded.Attacker.SupportDefenders == nil || encoded.Attacker.SupportAttackers == nil {
+		t.Fatalf("an empty list is a list, not a null: %+v", encoded.Attacker)
 	}
 }
 
-func TestAnEmptyReactionListEncodesToAnEmptyList(t *testing.T) {
-	if got := EncodeReactions(nil); got == nil || len(got) != 0 {
-		t.Fatalf("reactions: %v", got)
+// Every number of a forecast waits for the branch that computes it.
+func TestEveryForecastOfTheEngagementIsAPlaceholder(t *testing.T) {
+	defender := &Unit{ID: "d1", HP: 100}
+
+	encoded := EncodeEngagement(Engagement{
+		Defender:  SideOptions{Unit: defender, SupportDefenders: []*Unit{defender}},
+		Attacker:  SideOptions{Unit: defender},
+		Reactions: []ReactionOption{{Stance: StanceCounter, Weapon: "saber"}},
+	})
+
+	option := encoded.Defender.Reactions[0]
+	if option.Incoming.HitRate != nil || option.Incoming.Damage != nil ||
+		option.Incoming.Kill != nil {
+		t.Fatalf("incoming: %+v", option.Incoming)
+	}
+	if option.Counter.HitRate != nil || option.Counter.Damage != nil ||
+		option.Counter.Kill != nil {
+		t.Fatalf("counter: %+v", option.Counter)
+	}
+	if encoded.Defender.SupportDefenders[0].Incoming.Kill != nil {
+		t.Fatalf("support defense: %+v", encoded.Defender.SupportDefenders[0])
+	}
+}
+
+func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
+	cell := protocol.Cell{4, 5}
+	name := "rifle"
+	target := "e1"
+
+	action, err := DecodeDecision(&protocol.Decision{
+		UnitID: "a1", Kind: protocol.ActionAttack, MoveTo: &cell,
+		TargetID: &target, Weapon: &name,
+	})
+
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if action.Kind != ActionAttack || *action.MoveTo != (Cell{4, 5}) ||
+		action.Weapon != "rifle" || action.TargetID != "e1" {
+		t.Fatalf("action: %+v", action)
+	}
+	lean, err := DecodeDecision(&protocol.Decision{UnitID: "a1", Kind: protocol.ActionStandby})
+	if err != nil || lean.MoveTo != nil || lean.Weapon != "" {
+		t.Fatalf("a field with no value stays empty: %+v, %v", lean, err)
+	}
+}
+
+func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
+	board, err := DecodeState(wireBoard())
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	unit := board.Unit("a1")
+	if unit == nil || !unit.Alive() {
+		t.Fatalf("unit: %v", unit)
+	}
+	if board.Unit("ghost") != nil {
+		t.Fatal("the board holds no unit 'ghost'")
+	}
+
+	unit.HP = 0
+
+	if unit.Alive() || board.Unit("ghost").Alive() {
+		t.Fatal("a unit with no hit points is not alive, and neither is a unit that is not there")
 	}
 }

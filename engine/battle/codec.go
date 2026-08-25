@@ -51,8 +51,8 @@ var wireAffects = map[SkillAffects]protocol.SkillAffects{
 var wireStances = map[Stance]protocol.Stance{
 	StanceDodge:   protocol.StanceDodge,
 	StanceDefend:  protocol.StanceDefend,
-	StanceShield:  protocol.StanceShield,
 	StanceCounter: protocol.StanceCounter,
+	StanceNone:    protocol.StanceNone,
 }
 
 func DecodeState(state *protocol.BattleState) (*Board, error) {
@@ -377,21 +377,91 @@ func encodeTerrainSet(set TerrainSet) []string {
 	return out
 }
 
-func EncodeReactions(reactions []Reaction) []protocol.Reaction {
-	out := make([]protocol.Reaction, 0, len(reactions))
-	for _, reaction := range reactions {
-		out = append(out, EncodeReaction(reaction))
+func DecodeDecision(action *protocol.Decision) (Decision, error) {
+	kind, known := actionKinds[action.Kind]
+	if !known {
+		return Decision{}, fmt.Errorf("the action carries the kind %q, which is not in the contract",
+			action.Kind)
+	}
+	out := Decision{
+		UnitID:   action.UnitID,
+		Kind:     kind,
+		TargetID: decodeOptionalName(action.TargetID),
+		Weapon:   decodeOptionalName(action.Weapon),
+		Amount:   cloneAmount(action.Amount),
+		Support:  action.Support,
+	}
+	if action.MoveTo != nil {
+		cell := DecodeCell(*action.MoveTo)
+		out.MoveTo = &cell
+	}
+	if action.Aim != nil {
+		aim := DecodeCell(*action.Aim)
+		out.Aim = &aim
+	}
+	return out, nil
+}
+
+func decodeOptionalName(name *string) string {
+	if name == nil {
+		return ""
+	}
+	return *name
+}
+
+func EncodeEngagement(engagement Engagement) protocol.ReactionsResponse {
+	return protocol.ReactionsResponse{
+		Defender: protocol.DefenderOptions{
+			UnitID:           engagement.Defender.Unit.ID,
+			Reactions:        encodeReactionOptions(engagement.Reactions),
+			SupportDefenders: encodeSupportDefenders(engagement.Defender.SupportDefenders),
+			SupportAttackers: encodeSupportAttackers(engagement.Defender.SupportAttackers),
+		},
+		Attacker: protocol.AttackerOptions{
+			UnitID:           engagement.Attacker.Unit.ID,
+			SupportDefenders: encodeSupportDefenders(engagement.Attacker.SupportDefenders),
+			SupportAttackers: encodeSupportAttackers(engagement.Attacker.SupportAttackers),
+		},
+	}
+}
+
+func encodeReactionOptions(options []ReactionOption) []protocol.ReactionOption {
+	out := make([]protocol.ReactionOption, 0, len(options))
+	for _, option := range options {
+		entry := protocol.ReactionOption{
+			Stance:   wireStances[option.Stance],
+			Weapon:   encodeOptionalName(option.Weapon),
+			Incoming: protocol.Forecast{},
+		}
+		if option.Stance == StanceCounter {
+			entry.Counter = &protocol.Forecast{}
+		}
+		out = append(out, entry)
 	}
 	return out
 }
 
-func EncodeReaction(reaction Reaction) protocol.Reaction {
-	return protocol.Reaction{
-		Stance:        wireStances[reaction.Stance],
-		Weapon:        encodeOptionalName(reaction.Weapon),
-		SupportDefend: reaction.SupportDefend,
-		SupportAttack: reaction.SupportAttack,
+func encodeSupportDefenders(units []*Unit) []protocol.SupportDefendOption {
+	out := make([]protocol.SupportDefendOption, 0, len(units))
+	for _, unit := range units {
+		out = append(out, protocol.SupportDefendOption{
+			UnitID:   unit.ID,
+			Incoming: protocol.Forecast{},
+		})
 	}
+	return out
+}
+
+func encodeSupportAttackers(joins []SupportAttacker) []protocol.SupportAttackOption {
+	out := make([]protocol.SupportAttackOption, 0, len(joins))
+	for _, join := range joins {
+		out = append(out, protocol.SupportAttackOption{
+			UnitID: join.Unit.ID,
+			Weapon: join.Weapon.Name,
+			Strike: protocol.Forecast{},
+		})
+	}
+	return out
 }
 
 func encodeOptionalName(name string) *string {
