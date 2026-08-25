@@ -197,8 +197,8 @@ class Reaction:
 
     stance: Stance | None = None
     weapon: str | None = None
-    support_defend: bool = False
-    support_attack: bool = True
+    support_defender: str | None = None
+    support_attackers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -212,7 +212,7 @@ class Decision:
     weapon: str | None = None
     amount: float | None = None
     reaction: Reaction | None = None
-    support: bool = True
+    support_attackers: tuple[str, ...] = ()
     aim: Cell | None = None
     hit: bool | None = None
     counter_hit: bool | None = None

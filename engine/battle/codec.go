@@ -476,12 +476,19 @@ func DecodeDecision(action *protocol.Decision) (Decision, error) {
 			action.Kind)
 	}
 	out := Decision{
-		UnitID:   action.UnitID,
-		Kind:     kind,
-		TargetID: decodeOptionalName(action.TargetID),
-		Weapon:   decodeOptionalName(action.Weapon),
-		Amount:   cloneAmount(action.Amount),
-		Support:  action.Support,
+		UnitID:           action.UnitID,
+		Kind:             kind,
+		TargetID:         decodeOptionalName(action.TargetID),
+		Weapon:           decodeOptionalName(action.Weapon),
+		Amount:           cloneAmount(action.Amount),
+		SupportAttackers: append([]string(nil), action.SupportAttackers...),
+	}
+	if action.Reaction != nil {
+		reaction, err := DecodeReaction(*action.Reaction)
+		if err != nil {
+			return Decision{}, err
+		}
+		out.Reaction = &reaction
 	}
 	if action.MoveTo != nil {
 		cell := DecodeCell(*action.MoveTo)
@@ -492,6 +499,23 @@ func DecodeDecision(action *protocol.Decision) (Decision, error) {
 		out.Aim = &aim
 	}
 	return out, nil
+}
+
+// DecodeReaction reads the answer of the defender. The stance 'none' is the
+// unit that stands and takes the strike, and it reaches the model as it reaches
+// the wire.
+func DecodeReaction(reaction protocol.Reaction) (Reaction, error) {
+	stance, known := decodedStances[reaction.Stance]
+	if !known {
+		return Reaction{}, fmt.Errorf("the reaction carries the stance %q, which is not in the contract",
+			reaction.Stance)
+	}
+	return Reaction{
+		Stance:           stance,
+		Weapon:           decodeOptionalName(reaction.Weapon),
+		SupportDefender:  decodeOptionalName(reaction.SupportDefender),
+		SupportAttackers: append([]string(nil), reaction.SupportAttackers...),
+	}, nil
 }
 
 func decodeOptionalName(name *string) string {

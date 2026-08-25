@@ -132,8 +132,12 @@ def test_an_absent_optional_field_decodes_to_the_same_value_as_null():
 def test_a_reaction_with_no_stance_never_reaches_the_wire():
     with pytest.raises(ValueError, match="no stance"):
         codec.encode_reaction(Reaction())
-    with pytest.raises(ValueError, match="none"):
-        codec.decode_reaction({"stance": "none"})
+
+
+def test_the_stance_none_decodes():
+    payload = codec.encode_reaction(Reaction(stance=Stance.NONE))
+
+    assert codec.decode_reaction(payload).stance is Stance.NONE
 
 
 def test_a_skill_enum_outside_the_contract_stops_the_decode():

@@ -268,16 +268,22 @@ type Decision struct {
 	Weapon   string
 	Amount   *float64
 	Aim      *Cell
-	Support  bool
 	Reaction *Reaction
+
+	// SupportAttackers holds the units of the side of the actor that join the
+	// strike. The client names them; the engine reports which units are
+	// eligible and judges the pick (issue #63).
+	SupportAttackers []string
 }
 
-// Reaction is the answer the defender picks against one strike.
+// Reaction is the answer the defender picks against one strike. SupportDefender
+// is the interceptor that takes the strike in place of the defender, and it is
+// empty when the defender takes the strike itself.
 type Reaction struct {
-	Stance        Stance
-	Weapon        string
-	SupportDefend bool
-	SupportAttack bool
+	Stance           Stance
+	Weapon           string
+	SupportDefender  string
+	SupportAttackers []string
 }
 
 func cloneAmount(amount *float64) *float64 {

@@ -218,8 +218,8 @@ def encode_reaction(reaction: Reaction) -> dict[str, Any]:
     return {
         "stance": str(reaction.stance),
         "weapon": reaction.weapon,
-        "support_defend": reaction.support_defend,
-        "support_attack": reaction.support_attack,
+        "support_defender": reaction.support_defender,
+        "support_attackers": list(reaction.support_attackers),
     }
 
 
@@ -229,8 +229,8 @@ def decode_reaction(payload: dict[str, Any]) -> Reaction:
     return Reaction(
         stance=stance,
         weapon=_optional_str(payload, "weapon"),
-        support_defend=_bool(payload, "support_defend"),
-        support_attack=_bool(payload, "support_attack"),
+        support_defender=_optional_str(payload, "support_defender"),
+        support_attackers=_names(payload, "support_attackers"),
     )
 
 
@@ -243,7 +243,7 @@ def encode_decision(decision: Decision) -> dict[str, Any]:
         "weapon": decision.weapon,
         "amount": decision.amount,
         "reaction": None if decision.reaction is None else encode_reaction(decision.reaction),
-        "support": decision.support,
+        "support_attackers": list(decision.support_attackers),
         "aim": _optional_cell(decision.aim),
         "hit": decision.hit,
         "counter_hit": decision.counter_hit,
@@ -262,7 +262,7 @@ def decode_decision(payload: dict[str, Any]) -> Decision:
         weapon=_optional_str(payload, "weapon"),
         amount=_optional_float(payload, "amount"),
         reaction=None if reaction is None else decode_reaction(reaction),
-        support=_bool(payload, "support"),
+        support_attackers=_names(payload, "support_attackers"),
         aim=_optional_as_cell(payload.get("aim"), "decision.aim"),
         hit=_optional_bool(payload, "hit"),
         counter_hit=_optional_bool(payload, "counter_hit"),
@@ -396,8 +396,6 @@ def _stance(raw: Any) -> Stance:
         stance = Stance(raw)
     except ValueError as exc:
         raise ValueError(f"stance {raw!r} is not in the contract") from exc
-    if stance is Stance.NONE:
-        raise ValueError("The stance 'none' is not in the contract of the reaction list")
     return stance
 
 
@@ -408,6 +406,10 @@ def _str(payload: dict[str, Any], name: str) -> str:
 def _optional_str(payload: dict[str, Any], name: str) -> str | None:
     raw = payload.get(name)
     return None if raw is None else str(raw)
+
+
+def _names(payload: dict[str, Any], name: str) -> tuple[str, ...]:
+    return tuple(str(entry) for entry in payload.get(name) or ())
 
 
 def _int(payload: dict[str, Any], name: str) -> int:
