@@ -8,13 +8,18 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-func TestTheStanceNoneIsADecodeError(t *testing.T) {
+func TestTheStanceNoneDecodes(t *testing.T) {
 	var reaction protocol.Reaction
 
-	err := json.Unmarshal([]byte(`{"stance":"none"}`), &reaction)
-
-	if err == nil || !strings.Contains(err.Error(), `stance "none"`) {
+	if err := json.Unmarshal([]byte(`{"stance":"none"}`), &reaction); err != nil {
 		t.Fatalf("error: %v", err)
+	}
+	if reaction.Stance != protocol.StanceNone {
+		t.Fatalf("stance: %v", reaction.Stance)
+	}
+	if err := json.Unmarshal([]byte(`{"stance":"flee"}`), &reaction); err == nil ||
+		!strings.Contains(err.Error(), `stance "flee"`) {
+		t.Fatalf("a stance outside the contract: %v", err)
 	}
 }
 

@@ -123,18 +123,97 @@ type ActionsRequest struct {
 }
 
 type ActionsResponse struct {
-	Actions []Decision `json:"actions"`
+	Unit      UnitStatus    `json:"unit"`
+	MoveCells []Cell        `json:"move_cells"`
+	Weapons   []WeaponEntry `json:"weapons"`
+	Skills    []SkillEntry  `json:"skills"`
+	Error     *Error        `json:"error,omitempty"`
+}
+
+type UnitStatus struct {
+	UnitID    string  `json:"unit_id"`
+	Faction   Faction `json:"faction"`
+	Pos       Cell    `json:"pos"`
+	Size      Cell    `json:"size"`
+	HP        int     `json:"hp"`
+	MaxHP     int     `json:"max_hp"`
+	EN        int     `json:"en"`
+	ENMax     int     `json:"en_max"`
+	MoveRange int     `json:"move_range"`
+	Acted     bool    `json:"acted"`
+}
+
+type WeaponEntry struct {
+	Name            string             `json:"name"`
+	RangeMin        int                `json:"range_min"`
+	RangeMax        int                `json:"range_max"`
+	ENCost          int                `json:"en_cost"`
+	Ammo            *int               `json:"ammo"` // A null 'ammo' is a weapon that spends no ammunition.
+	Accuracy        float64            `json:"accuracy"`
+	CanCounter      bool               `json:"can_counter"`
+	MapWeapon       bool               `json:"map_weapon"`
+	UsableAfterMove bool               `json:"usable_after_move"`
+	TerrainDamage   map[string]float64 `json:"terrain_damage,omitempty"`
+	UnusableIn      []string           `json:"unusable_in,omitempty"`
+}
+
+type SkillEntry struct {
+	Kind            ActionKind   `json:"kind"`
+	Amount          *float64     `json:"amount"`
+	Uses            int          `json:"uses"`
+	EndsActivation  bool         `json:"ends_activation"`
+	UsableAfterMove bool         `json:"usable_after_move"`
+	RangeMin        int          `json:"range_min"`
+	RangeMax        int          `json:"range_max"`
+	Blast           int          `json:"blast"`
+	Affects         SkillAffects `json:"affects"`
 }
 
 type ReactionsRequest struct {
-	DefenderID   string `json:"defender_id"`
-	AttackerID   string `json:"attacker_id"`
-	AttackerCell Cell   `json:"attacker_cell"`
-	WeaponID     string `json:"weapon_id"`
+	Action     Decision `json:"action"`      // action of the attacker
+	DefenderID string   `json:"defender_id"` // target of the attacker
 }
 
 type ReactionsResponse struct {
-	Reactions []Reaction `json:"reactions"`
+	Defender DefenderOptions `json:"defender"`
+	Attacker AttackerOptions `json:"attacker"`
+}
+
+type Forecast struct {
+	HitRate *float64 `json:"hit_rate"`
+	Damage  *float64 `json:"damage"`
+	Kill    *bool    `json:"kill"`
+}
+
+type ReactionOption struct {
+	Stance   Stance    `json:"stance"`
+	Weapon   *string   `json:"weapon"`
+	Incoming Forecast  `json:"incoming"`
+	Counter  *Forecast `json:"counter,omitempty"`
+}
+
+type SupportDefendOption struct {
+	UnitID   string   `json:"unit_id"`
+	Incoming Forecast `json:"incoming"`
+}
+
+type SupportAttackOption struct {
+	UnitID string   `json:"unit_id"`
+	Weapon string   `json:"weapon"`
+	Strike Forecast `json:"strike"`
+}
+
+type DefenderOptions struct {
+	UnitID           string                `json:"unit_id"`
+	Reactions        []ReactionOption      `json:"reactions"`
+	SupportDefenders []SupportDefendOption `json:"support_defenders"`
+	SupportAttackers []SupportAttackOption `json:"support_attackers"`
+}
+
+type AttackerOptions struct {
+	UnitID           string                `json:"unit_id"`
+	SupportDefenders []SupportDefendOption `json:"support_defenders"`
+	SupportAttackers []SupportAttackOption `json:"support_attackers"`
 }
 
 type ActRequest struct {

@@ -14,6 +14,7 @@ const (
 	CodeIllegalState   = "illegal_state"
 	CodeIllegalAction  = "illegal_action"
 	CodeEmptyHistory   = "empty_history"
+	CodeAlreadyActed   = "already_acted"
 )
 
 type Request struct {

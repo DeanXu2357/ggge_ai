@@ -45,6 +45,7 @@ Error codes:
 | illegal_state | The board does not permit the command now |
 | illegal_action | The named action or reaction is not legal |
 | empty_history | 'rollback' found no entry |
+| already_acted | The unit acted in this turn; the command answers |
 
 An error response does not stop the process. An error response does
 not change the board.
@@ -134,13 +135,41 @@ Refusals: no_session; illegal_action for an unknown unit id.
 
 ### actions
 
-Purpose: the legal actions of one unit.
+Purpose: what one unit carries.
 
-Request: 'unit_id'. Response: 'actions'.
+Request: 'unit_id'. Response: 'unit', 'move_cells', 'weapons',
+'skills', and 'error' when a state stops the unit from acting.
 
-Refusals: no_session; illegal_state when the phase of the unit is
-not the current phase; illegal_state when the unit acted in this
-turn.
+The command reports. It selects nothing and it removes nothing. It
+reads no target, no band and no resource: a weapon with no energy
+left, and a weapon that reaches no unit from the cell of today,
+stay in the list. The client draws the bands from these fields, the
+user picks the move, the weapon and the target, and 'act' judges
+the pick.
+
+'unit' holds 'unit_id', 'faction', 'pos', 'size', 'hp', 'max_hp',
+'en', 'en_max', 'move_range' and 'acted'.
+
+'move_cells' holds the cells that 'reach' answers, in the same
+order.
+
+A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
+'ammo', 'accuracy', 'can_counter', 'map_weapon',
+'usable_after_move', 'terrain_damage' and 'unusable_in'. A null
+'ammo' is a weapon that spends no ammunition. The entry carries no
+power: the engine drops the power of a weapon when it reads the
+state.
+
+A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
+'usable_after_move', 'range_min', 'range_max', 'blast' and
+'affects'.
+
+A unit that acted keeps the whole payload. Its 'error' holds the
+code 'already_acted' and a message.
+
+Refusals: no_session; illegal_action for an unknown unit id;
+illegal_state when the unit is destroyed; illegal_state when the
+phase of the unit is not the current phase.
 
 ### reactions
 
@@ -156,27 +185,60 @@ Request:
 
 | Field | Content |
 |---|---|
+| action | The action of the attacker |
 | defender_id | The unit that takes the strike |
-| attacker_id | The unit that makes the strike |
-| attacker_cell | The cell of the attacker after its move |
-| weapon_id | The weapon of the strike |
 
-The engine reads 'attacker_cell' from the request. The engine does
-not read the current cell of the attacker. A client can therefore
-ask about a move that did not occur.
+The engine reads the cell of 'move_to' of the action. The engine
+does not read the current cell of the attacker. A client can
+therefore ask about a move that did not occur. An action with no
+'move_to' fires from the cell of today.
 
-Response: 'reactions'. The list holds dodge, defend, shield on a
-unit that carries one, and one entry for each weapon that can
-counter. A defender that cannot reach the attacker gets no counter
-entry; dodge and defend stay in the list. The reaction menu of the
-game holds no decline button (docs/reference/battle-prep-ui.md:108,
-issue #56), so the list holds no 'none' stance.
+Response: 'defender' and 'attacker'.
 
-An empty list means that the strike permits no reaction. A map
-weapon is such a strike.
+'defender' holds 'unit_id', 'reactions', 'support_defenders' and
+'support_attackers'. 'attacker' holds 'unit_id',
+'support_defenders' and 'support_attackers'.
 
-Refusals: no_session; illegal_action when the weapon does not reach
-the defender from that cell.
+The list 'reactions' holds dodge, defend, one entry for each weapon
+of the defender that can counter and reaches the attacker, and
+'none'. The stance 'none' is the unit that stands and takes the
+strike. The list holds no 'shield': the shield of a unit settles
+during the damage, in 'act'.
+
+Only an action of the kind 'attack' asks the defender anything. A
+map attack permits no reaction, and no other kind of action reaches
+a unit, so the command refuses every other kind. A client that runs
+one of them sends 'act' and no question.
+
+A reaction entry holds the forecast 'incoming': what the strike of
+the attacker does to the defender under that stance. A counter
+entry also holds the forecast 'counter': what the counter does to
+the attacker. A stance entry reads no support unit. An interceptor
+changes no outcome of the stance, so each interceptor carries its
+own forecast in 'support_defenders'.
+
+A support defense entry holds 'unit_id' and the forecast
+'incoming': what the strike does to that interceptor. A support
+attack entry holds 'unit_id', 'weapon' and the forecast 'strike':
+what the shot of that unit does to its foe. The support attackers
+of the defender fire at the attacker, and the support attackers of
+the attacker fire at the defender.
+
+A forecast holds 'hit_rate', 'damage' and 'kill'. 'damage' is the
+conservative lower bound of the damage: no critical hit and no
+bonus. A weapon and a mech that stack the critical rate to 100
+percent are the one exception, and the bound then holds the
+critical damage. 'kill' is true when the bound is at least the hit
+points of the target. The hit roll is no part of 'kill': a 'kill'
+of the dodge stance reads "the strike destroys this unit when it
+lands". Every field of every forecast is null today; the branch of
+the forecast fills them.
+
+Refusals: no_session; bad_request when the action stands outside
+the contract; illegal_action for an unknown unit id, a destroyed
+unit, an action of a kind other than 'attack', a weapon the
+attacker does not carry, and a weapon that does not reach the
+defender from that cell.
 
 ### act
 
@@ -195,9 +257,9 @@ The field 'action' holds the move of the unit. The engine resolves
 the move first and the action second; the section 'Unit payload,
 action, and reaction' holds the rule.
 
-The field 'reaction' is necessary when 'reactions' gives a list
-that is not empty for this strike. The field is not permitted when
-that list is empty.
+The field 'reaction' is necessary for an action of the kind
+'attack', because such an action always gives a list. The field is
+not permitted for every other kind.
 
 The field 'dice' holds 'mode'. The value 'forced' also holds
 'outcomes': the engine reads one outcome for each chance event, in
@@ -275,6 +337,9 @@ a differential test.
 'export' takes no field and gives 'state' and 'history'. 'load'
 takes the same two fields and replaces the session.
 
+The state carries 'phase'. A state without that field is a
+bad_request.
+
 ## Board geometry
 
 A cell is a pair of integers: the column first, the row second.
@@ -314,7 +379,10 @@ The Python side holds no geometry of its own. It carried the
 eight king steps and one cell for every unit, and it retired with
 the rest of the Python rules (issue #73). A golden case that the
 Python side wrote therefore compares no result that reads the
-distance or the footprint.
+distance or the footprint, and a golden case that compares a
+reaction list holds units of one cell in one row. The 'actions'
+command left the comparison with issue 63: it reports what one unit
+carries, and the Python side holds no such answer.
 
 ## Types
 
