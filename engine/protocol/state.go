@@ -129,29 +129,25 @@ type Rules struct {
 	ShieldMultiplier        float64 `json:"shield_multiplier"`
 	SupportDefendMultiplier float64 `json:"support_defend_multiplier"`
 	DodgeHitPenalty         float64 `json:"dodge_hit_penalty"`
-	Terrain                 float64 `json:"terrain"`
 	MaxSupportAttackers     int     `json:"max_support_attackers"`
 	ENRegenFraction         float64 `json:"en_regen_fraction"`
 }
 
 type Weapon struct {
-	Name            string  `json:"name"`
-	Power           float64 `json:"power"`
-	RangeMin        int     `json:"range_min"`
-	RangeMax        int     `json:"range_max"`
-	ENCost          int     `json:"en_cost"`
-	Accuracy        float64 `json:"accuracy"`
-	CanCounter      bool    `json:"can_counter"`
-	MapWeapon       bool    `json:"map_weapon"`
-	UsableAfterMove bool    `json:"usable_after_move"`
-	Blast           int     `json:"blast"`
-	DebuffKind      *string `json:"debuff_kind"`
-	DebuffMagnitude float64 `json:"debuff_magnitude"`
-	// The two terrain fields are engine-only: 'model.py' holds no terrain, so
-	// they stay optional and a payload that omits them declares no
-	// restriction. TerrainDamage and UnusableIn key on a terrain wire name.
-	TerrainDamage map[string]float64 `json:"terrain_damage,omitempty"`
-	UnusableIn    []string           `json:"unusable_in,omitempty"`
+	Name            string             `json:"name"`
+	Power           float64            `json:"power"`
+	RangeMin        int                `json:"range_min"`
+	RangeMax        int                `json:"range_max"`
+	ENCost          int                `json:"en_cost"`
+	Accuracy        float64            `json:"accuracy"`
+	CanCounter      bool               `json:"can_counter"`
+	MapWeapon       bool               `json:"map_weapon"`
+	UsableAfterMove bool               `json:"usable_after_move"`
+	Blast           int                `json:"blast"`
+	DebuffKind      *string            `json:"debuff_kind"`
+	DebuffMagnitude float64            `json:"debuff_magnitude"`
+	TerrainDamage   map[string]float64 `json:"terrain_damage,omitempty"`
+	UnusableIn      []string           `json:"unusable_in,omitempty"`
 }
 
 type Skill struct {
@@ -260,17 +256,14 @@ type TerrainCell struct {
 }
 
 type BattleState struct {
-	Units         []Unit   `json:"units"`
-	Phase         Faction  `json:"phase"`
-	Turn          int      `json:"turn"`
-	Bounds        *Bounds  `json:"bounds"`
-	PendingEvents []string `json:"pending_events"`
-	FiredEvents   []string `json:"fired_events"`
-	// The two terrain fields are engine-only: 'model.py' holds no terrain, so
-	// they stay optional. A payload that omits Terrain puts the whole map in
-	// space, which changes no damage: only a declared weapon restriction does.
-	Terrain      string        `json:"terrain,omitempty"`
-	TerrainCells []TerrainCell `json:"terrain_cells,omitempty"`
+	Units         []Unit        `json:"units"`
+	Phase         Faction       `json:"phase"`
+	Turn          int           `json:"turn"`
+	Bounds        *Bounds       `json:"bounds"`
+	PendingEvents []string      `json:"pending_events"`
+	FiredEvents   []string      `json:"fired_events"`
+	Terrain       string        `json:"terrain,omitempty"`
+	TerrainCells  []TerrainCell `json:"terrain_cells,omitempty"`
 }
 
 // A chance event is one random node of a resolution. The three consumption

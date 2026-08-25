@@ -8,6 +8,7 @@ import "math"
 // formulas 8 to 10. The constants are the multipliers the same document lists.
 const (
 	NoDefenseMultiplier = 1.0
+	NoTerrainCorrection = 1.0
 	DefendMultiplier    = 0.8
 	ShieldMultiplier    = 0.6
 

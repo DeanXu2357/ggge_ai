@@ -599,11 +599,15 @@ weapons halve their damage against an underwater target, and a few
 of those cannot fire while the attacker is underwater
 (docs/reference/combat-formulas.md).
 
-The divisor of the combat base damage is the damage factor of the
-attacking weapon against the terrain of the target cell. It is not
-a value of the map, and it is not the terrain adaptability of the
-mech. Terrain adaptability gates deployment and movement; it enters
-no damage formula and no hit rate.
+The damage of a strike carries the damage factor of the attacking
+weapon against the terrain of the target cell. The factor multiplies
+the damage. It is not a value of the map, and it is not the terrain
+adaptability of the mech. Terrain adaptability gates deployment and
+movement; it enters no damage formula and no hit rate.
+
+The rules payload carries no terrain. One stage held one terrain
+value until 2026-08-26; the board carries the terrain of each cell
+now, and the engine reads the cell.
 
 Open, for the issue that implements 'init': the field 'board' of
 the request must carry the terrain of the map, in the same two

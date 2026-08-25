@@ -36,6 +36,14 @@ nodes and the resolution order came over as they stood.
 | The shield | A defender that carries a shield defends with it: the shield multiplier applies to the defend stance of that unit. |
 | The volley | Not a term of the mechanism. It is one case of a support attack, and the names say support attack. |
 
+## What the user ruled on 2026-08-26
+
+| Question | Ruling |
+|---|---|
+| The terrain of the damage | The scalar rule 'terrain' goes. The board carries the terrain of each cell, and the engine reads it. |
+| The shield reduction | The unit carries no multiplier of its own. The mech says whether the unit carries a shield, and the damage applies the multiplier of the rules. |
+| The terrain contract | The shape comes first. Which cell keys the damage factor, and where the values come from, wait for the task that collects the intelligence. |
+
 ## Change summary
 
 - 'engine/battle/model.go': the fields one engagement reads and
@@ -54,9 +62,15 @@ nodes and the resolution order came over as they stood.
   the trace. It judges the whole pick before it changes one field.
 - 'engine/battle/forecast.go' and 'reactions.go': every entry of the
   engagement answer carries the forecast of its own shot.
-- 'engine/differential/resolve_test.go' and three golden boards: the
+- 'engine/differential/resolve_test.go' and two golden boards: the
   resolution against the Python oracle, unit by unit and field by
   field.
+- The terrain contract: 'src/ggge_ai/engine/contract.py' gives the
+  five kinds, 'state.py' mirrors the two state fields and the two
+  weapon fields that the Go wire already held, and
+  'stage/scenario.py' reads them from the stage file into the board.
+  The rule 'terrain' is out of 'battle.Rules', of 'protocol.Rules'
+  and of the Python mirror; 'StrikeDamage' reads the cell instead.
 
 ## Call chain
 
@@ -106,7 +120,23 @@ nodes and the resolution order came over as they stood.
    attackers, and the engine counts the units the client named, before
    the strike. The oracle counted after the strike. No golden case
    parts the two.
-6. **The command 'act' is not here.** It lives in issue #65 with the
+6. **One more golden case left the comparison.**
+   'attack_shield_board.json' ran on a board that carried a terrain of
+   its own: every damage number of it divides by the scalar rule
+   'terrain' 1.25. That rule is gone and no process writes the file
+   again (issue #73), so the case is deleted.
+   'TestTheAttackShieldTakesTheCounterForTheAttacker' of
+   'engine/battle/resolve_test.go' covers the attack shield.
+7. **The frozen files still carry 'terrain' inside 'rules'.**
+   'engine/differential' holds the field, so the nine remaining files
+   still load. 'protocol.Rules' holds it no more.
+8. **Which cell keys the damage factor is open.** The code reads the
+   cell of the target, which docs/reference/combat-formulas.md records
+   from the first-hand confirmation of 2026-08-21. The same datamine
+   table gives the cell of the attacker as the fire gate
+   ('unusable_in', issue #75). The contract carries both cells, so the
+   answer moves one lookup.
+9. **The command 'act' is not here.** It lives in issue #65 with the
    turn cycle. This branch gives 'Board.Apply' and the judgment; #65
    binds them to the wire.
 

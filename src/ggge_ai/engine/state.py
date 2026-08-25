@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance
+from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance, Terrain
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,6 @@ class Rules:
     shield_multiplier: float = 0.6
     support_defend_multiplier: float = 0.8
     dodge_hit_penalty: float = 20.0
-    terrain: float = 1.0
     max_support_attackers: int = 3
     en_regen_fraction: float = 0.10
 
@@ -44,6 +43,8 @@ class Weapon:
     blast: int = 0
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
+    terrain_damage: dict[Terrain, float] = field(default_factory=dict)
+    unusable_in: tuple[Terrain, ...] = ()
 
 
 @dataclass
@@ -150,6 +151,12 @@ class StageEvent:
 EventTable = dict[str, StageEvent]
 
 
+@dataclass(frozen=True)
+class TerrainCell:
+    cell: Cell
+    terrain: Terrain
+
+
 @dataclass
 class BattleState:
     units: list[Unit] = field(default_factory=list)
@@ -158,6 +165,8 @@ class BattleState:
     bounds: tuple[Cell, Cell] | None = None
     pending_events: tuple[str, ...] = ()
     fired_events: tuple[str, ...] = ()
+    terrain: Terrain | None = None
+    terrain_cells: tuple[TerrainCell, ...] = ()
 
     def unit(self, unit_id: str | None) -> Unit | None:
         if unit_id is None:

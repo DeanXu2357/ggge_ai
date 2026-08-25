@@ -162,10 +162,6 @@ func validateRules(rules Rules) error {
 		return fmt.Errorf("the rules carry the dodge penalty %v, and a penalty takes the hit rate down",
 			rules.DodgeHitPenalty)
 	}
-	if rules.Terrain <= 0 {
-		return fmt.Errorf("the rules carry the terrain %v, and the terrain divides the damage",
-			rules.Terrain)
-	}
 	if rules.MaxSupportAttackers < 0 {
 		return fmt.Errorf("the rules carry the support cap %d, and a cap counts units",
 			rules.MaxSupportAttackers)

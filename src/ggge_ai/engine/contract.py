@@ -66,6 +66,14 @@ class SkillAffects(StrEnum):
     ALL = "all"
 
 
+class Terrain(StrEnum):
+    SPACE = "space"
+    ATMOSPHERIC = "atmospheric"
+    GROUND = "ground"
+    SURFACE = "surface"
+    UNDERWATER = "underwater"
+
+
 class Stance(StrEnum):
     """'none' is the unit that stands and takes the strike. 'shield' is no
     answer of the 'reactions' command: the shield of a unit settles during the

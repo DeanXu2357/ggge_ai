@@ -19,8 +19,13 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
+type Rules struct {
+	protocol.Rules
+	Terrain float64 `json:"terrain"`
+}
+
 type Setup struct {
-	Rules  protocol.Rules       `json:"rules"`
+	Rules  Rules                `json:"rules"`
 	Events protocol.EventTable  `json:"events"`
 	State  protocol.BattleState `json:"state"`
 }

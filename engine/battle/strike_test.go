@@ -1,6 +1,9 @@
 package battle
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func fighter(id string, faction Faction, anchor Cell) Unit {
 	out := unit(id, faction, anchor)
@@ -22,12 +25,13 @@ func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 	attacker := fighter("a1", FactionAlly, Cell{0, 0})
 	defender := fighter("e1", FactionEnemy, Cell{2, 0})
 	weapon := beam()
-	rules := DefaultRules()
+	state := board(attacker, defender)
+	rules := state.Rules
 
-	plain := StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier, rules)
-	defended := StrikeDamage(&attacker, &defender, &weapon, rules.DefendMultiplier, rules)
+	plain := state.StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
+	defended := state.StrikeDamage(&attacker, &defender, &weapon, rules.DefendMultiplier)
 	defender.Debuffs = []Debuff{{Kind: "armor_break", Magnitude: 0.2}}
-	broken := StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier, rules)
+	broken := state.StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
 
 	if plain <= 0 || defended <= 0 {
 		t.Fatalf("damage: %d %d", plain, defended)
@@ -42,19 +46,19 @@ func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 
 func TestTheDamageRoundsAHalfToTheEvenInteger(t *testing.T) {
 	blank := Unit{}
-	rules := DefaultRules()
-	scale := CombatBaseDamage(1, &blank, &blank, rules.Terrain)
+	state := board()
+	scale := CombatBaseDamage(1, &blank, &blank, NoTerrainCorrection)
 	low := Weapon{Power: 2.5 / scale}
 	high := Weapon{Power: 3.5 / scale}
 
-	raw := ExpectedDamage(low.Power, &blank, &blank, rules.Terrain, 0, 0, NoDefenseMultiplier)
+	raw := ExpectedDamage(low.Power, &blank, &blank, NoTerrainCorrection, 0, 0, NoDefenseMultiplier)
 	if raw != 2.5 {
 		t.Fatalf("the constructed value is %v, and the test needs a half", raw)
 	}
-	if got := StrikeDamage(&blank, &blank, &low, NoDefenseMultiplier, rules); got != 2 {
+	if got := state.StrikeDamage(&blank, &blank, &low, NoDefenseMultiplier); got != 2 {
 		t.Fatalf("2.5 rounds to 2, not to %d", got)
 	}
-	if got := StrikeDamage(&blank, &blank, &high, NoDefenseMultiplier, rules); got != 4 {
+	if got := state.StrikeDamage(&blank, &blank, &high, NoDefenseMultiplier); got != 4 {
 		t.Fatalf("3.5 rounds to 4, not to %d", got)
 	}
 }
@@ -154,5 +158,40 @@ func TestForcedDiceAnswerByNode(t *testing.T) {
 	if !dice.Lands(NodeAttackerSupport, 0) || dice.Lands(NodeStrike, 1) ||
 		!dice.Lands(NodeCounter, 0.5) {
 		t.Fatal("each node reads its own outcome, and no node reads the probability")
+	}
+}
+
+func TestTheTerrainOfTheTargetCellScalesTheDamage(t *testing.T) {
+	attacker := fighter("a1", FactionAlly, Cell{0, 0})
+	defender := fighter("e1", FactionEnemy, Cell{2, 0})
+	weapon := beam()
+	weapon.TerrainDamage = map[Terrain]float64{TerrainUnderwater: 0.5}
+	state := board(attacker, defender)
+
+	dry := state.StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
+	state.TerrainCells = map[Cell]Terrain{{2, 0}: TerrainUnderwater}
+	wet := state.StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
+
+	if dry <= 0 {
+		t.Fatalf("the shot on the default terrain deals %d", dry)
+	}
+	if math.Abs(float64(dry)/2-float64(wet)) > 1 {
+		t.Fatalf("the factor 0.5 halves the damage: %d against %d", wet, dry)
+	}
+}
+
+func TestTheTerrainOfTheAttackerCellChangesNoDamage(t *testing.T) {
+	attacker := fighter("a1", FactionAlly, Cell{0, 0})
+	defender := fighter("e1", FactionEnemy, Cell{2, 0})
+	weapon := beam()
+	weapon.TerrainDamage = map[Terrain]float64{TerrainUnderwater: 0.5}
+	state := board(attacker, defender)
+
+	plain := state.StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
+	state.TerrainCells = map[Cell]Terrain{{0, 0}: TerrainUnderwater}
+	sunk := state.StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
+
+	if sunk != plain {
+		t.Fatalf("the cell of the attacker gave %d against %d", sunk, plain)
 	}
 }

@@ -12,8 +12,16 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from ..engine.contract import Cell, Faction
-from ..engine.state import DEFAULT_RULES, BattleState, EventTable, Rules, StageEvent, Unit
+from ..engine.contract import Cell, Faction, Terrain
+from ..engine.state import (
+    DEFAULT_RULES,
+    BattleState,
+    EventTable,
+    Rules,
+    StageEvent,
+    TerrainCell,
+    Unit,
+)
 from . import intel as intel_mod
 from .intel import Intelligence, UnitIntel
 
@@ -29,6 +37,8 @@ DEFEAT_PROTECT = "protect"
 class Board:
     cols: int
     rows: int
+    terrain: Terrain | None = None
+    terrain_cells: tuple[TerrainCell, ...] = ()
 
     @property
     def bounds(self) -> tuple[Cell, Cell]:
@@ -57,6 +67,8 @@ class Scenario:
             turn=1,
             bounds=self.board.bounds,
             pending_events=tuple(self.events),
+            terrain=self.board.terrain,
+            terrain_cells=self.board.terrain_cells,
         )
         return state, self.rules, dict(self.events)
 
@@ -101,7 +113,33 @@ def _board(raw: dict[str, Any]) -> Board:
     cols, rows = int(raw.get("cols", 0)), int(raw.get("rows", 0))
     if cols <= 0 or rows <= 0:
         raise ValueError(f"盤面尺寸不合法：cols={cols} rows={rows}")
-    return Board(cols=cols, rows=rows)
+    board = Board(cols=cols, rows=rows, terrain=_optional_terrain(raw.get("terrain")))
+    return replace(board, terrain_cells=_terrain_cells(raw.get("terrain_cells", ()), board))
+
+
+def _optional_terrain(raw: Any) -> Terrain | None:
+    return None if raw is None else _terrain(raw)
+
+
+def _terrain(raw: Any) -> Terrain:
+    try:
+        return Terrain(raw)
+    except ValueError as exc:
+        raise ValueError(f"地形不在合約內：{raw!r}") from exc
+
+
+def _terrain_cells(raw: Any, board: Board) -> tuple[TerrainCell, ...]:
+    out: list[TerrainCell] = []
+    seen: set[Cell] = set()
+    for entry in raw:
+        cell = (int(entry["cell"][0]), int(entry["cell"][1]))
+        if not board.contains(cell):
+            raise ValueError(f"地形格出界：{cell}")
+        if cell in seen:
+            raise ValueError(f"地形格重複：{cell}")
+        seen.add(cell)
+        out.append(TerrainCell(cell=cell, terrain=_terrain(entry["terrain"])))
+    return tuple(out)
 
 
 def _rules(overrides: dict[str, Any]) -> Rules:

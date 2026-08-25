@@ -130,7 +130,6 @@ type Rules struct {
 	ShieldMultiplier        float64
 	SupportDefendMultiplier float64
 	DodgeHitPenalty         float64
-	Terrain                 float64
 	MaxSupportAttackers     int
 	ENRegenFraction         float64
 }
@@ -141,7 +140,6 @@ func DefaultRules() Rules {
 		ShieldMultiplier:        ShieldMultiplier,
 		SupportDefendMultiplier: DefendMultiplier,
 		DodgeHitPenalty:         20,
-		Terrain:                 1,
 		MaxSupportAttackers:     3,
 		ENRegenFraction:         0.10,
 	}

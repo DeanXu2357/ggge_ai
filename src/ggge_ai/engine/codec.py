@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance
+from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance, Terrain
 from .state import (
     BattleState,
     Debuff,
@@ -28,6 +28,7 @@ from .state import (
     Rules,
     Skill,
     StageEvent,
+    TerrainCell,
     Unit,
     Weapon,
 )
@@ -41,7 +42,6 @@ def encode_rules(rules: Rules) -> dict[str, Any]:
         "shield_multiplier": rules.shield_multiplier,
         "support_defend_multiplier": rules.support_defend_multiplier,
         "dodge_hit_penalty": rules.dodge_hit_penalty,
-        "terrain": rules.terrain,
         "max_support_attackers": rules.max_support_attackers,
         "en_regen_fraction": rules.en_regen_fraction,
     }
@@ -54,7 +54,6 @@ def decode_rules(payload: dict[str, Any]) -> Rules:
         shield_multiplier=_float(payload, "shield_multiplier"),
         support_defend_multiplier=_float(payload, "support_defend_multiplier"),
         dodge_hit_penalty=_float(payload, "dodge_hit_penalty"),
-        terrain=_float(payload, "terrain"),
         max_support_attackers=_int(payload, "max_support_attackers"),
         en_regen_fraction=_float(payload, "en_regen_fraction"),
     )
@@ -74,6 +73,8 @@ def encode_weapon(weapon: Weapon) -> dict[str, Any]:
         "blast": weapon.blast,
         "debuff_kind": weapon.debuff_kind,
         "debuff_magnitude": weapon.debuff_magnitude,
+        "terrain_damage": {str(kind): factor for kind, factor in weapon.terrain_damage.items()},
+        "unusable_in": [str(kind) for kind in weapon.unusable_in],
     }
 
 
@@ -92,6 +93,11 @@ def decode_weapon(payload: dict[str, Any]) -> Weapon:
         blast=_int(payload, "blast"),
         debuff_kind=_optional_str(payload, "debuff_kind"),
         debuff_magnitude=_float(payload, "debuff_magnitude"),
+        terrain_damage={
+            _terrain(kind): float(factor)
+            for kind, factor in (payload.get("terrain_damage") or {}).items()
+        },
+        unusable_in=tuple(_terrain(kind) for kind in payload.get("unusable_in") or ()),
     )
 
 
@@ -297,6 +303,18 @@ def decode_events(payload: dict[str, Any]) -> EventTable:
     return {event_id: decode_event(body) for event_id, body in payload.items()}
 
 
+def encode_terrain_cell(entry: TerrainCell) -> dict[str, Any]:
+    return {"cell": _cell(entry.cell), "terrain": str(entry.terrain)}
+
+
+def decode_terrain_cell(payload: dict[str, Any]) -> TerrainCell:
+    _known(payload, encode_terrain_cell(TerrainCell((0, 0), Terrain.SPACE)), "terrain_cell")
+    return TerrainCell(
+        cell=_as_cell(payload.get("cell"), "terrain_cell.cell"),
+        terrain=_terrain(payload.get("terrain")),
+    )
+
+
 def encode_state(state: BattleState) -> dict[str, Any]:
     return {
         "units": [encode_unit(unit) for unit in state.units],
@@ -305,6 +323,8 @@ def encode_state(state: BattleState) -> dict[str, Any]:
         "bounds": None if state.bounds is None else [_cell(state.bounds[0]), _cell(state.bounds[1])],
         "pending_events": list(state.pending_events),
         "fired_events": list(state.fired_events),
+        "terrain": None if state.terrain is None else str(state.terrain),
+        "terrain_cells": [encode_terrain_cell(entry) for entry in state.terrain_cells],
     }
 
 
@@ -318,6 +338,10 @@ def decode_state(payload: dict[str, Any]) -> BattleState:
         bounds=None if bounds is None else _as_bounds(bounds),
         pending_events=tuple(str(name) for name in payload.get("pending_events") or ()),
         fired_events=tuple(str(name) for name in payload.get("fired_events") or ()),
+        terrain=None if payload.get("terrain") is None else _terrain(payload["terrain"]),
+        terrain_cells=tuple(
+            decode_terrain_cell(entry) for entry in payload.get("terrain_cells") or ()
+        ),
     )
 
 
@@ -363,6 +387,13 @@ def _known(payload: dict[str, Any], sample: dict[str, Any], where: str) -> None:
     unknown = sorted(set(payload) - set(sample))
     if unknown:
         raise ValueError(f"{where} carries a field outside the contract: {', '.join(unknown)}")
+
+
+def _terrain(raw: Any) -> Terrain:
+    try:
+        return Terrain(raw)
+    except ValueError as exc:
+        raise ValueError(f"terrain {raw!r} is not in the contract") from exc
 
 
 def _faction(raw: Any) -> Faction:

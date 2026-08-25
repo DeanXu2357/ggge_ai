@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from ggge_ai.engine import codec
-from ggge_ai.engine.contract import ActionKind, Faction, Stance
+from ggge_ai.engine.contract import ActionKind, Faction, Stance, Terrain
 from ggge_ai.engine.state import (
     BattleState,
     EventTable,
@@ -28,6 +28,7 @@ from ggge_ai.engine.state import (
     Rules,
     Skill,
     StageEvent,
+    TerrainCell,
     Unit,
     Weapon,
 )
@@ -43,6 +44,7 @@ STRUCTS = {
     "Reaction": Reaction,
     "Decision": Decision,
     "StageEvent": StageEvent,
+    "TerrainCell": TerrainCell,
     "BattleState": BattleState,
 }
 
@@ -55,13 +57,12 @@ ENCODERS = {
     "Reaction": lambda: codec.encode_reaction(Reaction(stance=Stance.DEFEND)),
     "Decision": lambda: codec.encode_decision(Decision(unit_id="u", kind=ActionKind.STANDBY)),
     "StageEvent": lambda: codec.encode_event(StageEvent("e", {}, {})),
+    "TerrainCell": lambda: codec.encode_terrain_cell(TerrainCell((0, 0), Terrain.SPACE)),
     "BattleState": lambda: codec.encode_state(BattleState()),
 }
 
 ENGINE_ONLY = {
-    "Weapon": ["terrain_damage", "unusable_in"],
     "Unit": ["mech_hp", "mech_en", "mech_move_range", "mech_weapons"],
-    "BattleState": ["terrain", "terrain_cells"],
 }
 
 STRUCT = re.compile(r"^type (\w+) struct \{$")
@@ -177,3 +178,29 @@ def _board() -> tuple[BattleState, Rules, EventTable]:
     events = {"e1": StageEvent(event_id="e1", trigger={"type": "turn_start", "turn": 3},
                                effect={"type": "weaken", "uids": ["enemy_1"]})}
     return state, Rules(), events
+
+
+def test_the_terrain_of_the_map_survives_the_round_trip():
+    state = BattleState(
+        terrain=Terrain.GROUND,
+        terrain_cells=(TerrainCell((3, 2), Terrain.UNDERWATER),),
+        units=[Unit(unit_id="u", faction=Faction.ALLY, weapons=[
+            Weapon(name="w", power=1.0, terrain_damage={Terrain.UNDERWATER: 0.5},
+                   unusable_in=(Terrain.UNDERWATER,)),
+        ])],
+    )
+
+    payload = codec.encode_state(state)
+
+    assert payload["terrain"] == "ground"
+    assert payload["terrain_cells"] == [{"cell": [3, 2], "terrain": "underwater"}]
+    assert payload["units"][0]["weapons"][0]["terrain_damage"] == {"underwater": 0.5}
+    assert codec.decode_state(payload) == state
+
+
+def test_a_terrain_outside_the_contract_stops_the_decode():
+    payload = codec.encode_state(BattleState(terrain=Terrain.SPACE))
+    payload["terrain"] = "orbit"
+
+    with pytest.raises(ValueError, match="terrain 'orbit' is not in the contract"):
+        codec.decode_state(payload)
