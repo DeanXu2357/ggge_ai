@@ -105,7 +105,7 @@ type SkillSource string
 const (
 	SourceCharacter SkillSource = "character"
 	SourceCrew      SkillSource = "crew"
-	SourceUnit      SkillSource = "unit"
+	SourceMech      SkillSource = "mech"
 )
 
 type Rules struct {

@@ -49,6 +49,7 @@ nodes and the resolution order came over as they stood.
 | The terrain effects | They are not rules of the board. Each one is an ability of a weapon: the damage ability reads the cell of the target, and the fire restriction reads the cell of the attacker. |
 | The ability framework | The engine models a closed set of ability kinds and ignores every kind outside it. A new ability of the game adds a kind, never a field of 'Weapon'. |
 | Where the ability lands | Not on this branch. This branch discloses the decision and leaves the gap; issue #80 builds the model. |
+| The source of a machine skill | The value 'unit' becomes 'mech'. A unit is a pilot and a mech together, so the source of a machine skill names the mech alone. |
 
 ## Change summary
 
@@ -82,6 +83,10 @@ nodes and the resolution order came over as they stood.
   weapon field 'Blast' are out of the model, the wire, the Python
   mirror and 'stage/intel.py'. 'Board.Apply' refuses the kind and
   changes no field. Issue #79 holds the area of a map weapon.
+- The skill source: the wire value 'unit' becomes 'mech', in
+  'engine/protocol/state.go', 'engine/battle/model.go', the two codecs
+  and 'src/ggge_ai/engine/contract.py'. The three frozen files that
+  hold a skill take the new name of the same value.
 - The weapon ability: 'docs/spec/battle-engine-protocol.md' gains the
   section 'Weapon abilities', which holds the three known abilities,
   the closed-kind rule and the gap. 'docs/reference/terminology-map.md'
@@ -167,7 +172,12 @@ nodes and the resolution order came over as they stood.
     restriction as a rule of the board, and it reads three names that
     are gone: 'Weapon.UnusableIn', 'Weapon.UsableIn' and the function
     'mapAttacks' of 'candidates.go'. The user closes it.
-12. **The wire carries no ability field yet.**
+12. **The frozen files took a rename, not a rewrite.** The 30 skill
+    entries of three golden files now read 'mech' where they read
+    'unit'. The value means what it meant when the oracle wrote it;
+    only its name changed. Adding a field the oracle never wrote is
+    the case that stays refused, and point 13 holds it.
+13. **The wire carries no ability field yet.**
     'engine/differential/compare.go' refuses a field the frozen
     expectation does not carry, so a new weapon field fails every
     golden file. Writing the field into those files would make them a

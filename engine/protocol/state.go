@@ -37,7 +37,7 @@ type SkillSource string
 const (
 	SourceCharacter SkillSource = "character"
 	SourceCrew      SkillSource = "crew"
-	SourceUnit      SkillSource = "unit"
+	SourceMech      SkillSource = "mech"
 )
 
 // SkillAffects holds no 'self' value. A skill that acts on the caster alone
@@ -79,7 +79,7 @@ var (
 	skillSources = map[SkillSource]bool{
 		SourceCharacter: true,
 		SourceCrew:      true,
-		SourceUnit:      true,
+		SourceMech:      true,
 	}
 	skillAffects = map[SkillAffects]bool{
 		AffectsAlly:  true,

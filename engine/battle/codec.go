@@ -39,7 +39,7 @@ var wireKinds = map[ActionKind]protocol.ActionKind{
 var skillSources = map[protocol.SkillSource]SkillSource{
 	protocol.SourceCharacter: SourceCharacter,
 	protocol.SourceCrew:      SourceCrew,
-	protocol.SourceUnit:      SourceUnit,
+	protocol.SourceMech:      SourceMech,
 }
 
 var decodedStances = map[protocol.Stance]Stance{
@@ -64,7 +64,7 @@ var wireAffects = map[SkillAffects]protocol.SkillAffects{
 var wireSources = map[SkillSource]protocol.SkillSource{
 	SourceCharacter: protocol.SourceCharacter,
 	SourceCrew:      protocol.SourceCrew,
-	SourceUnit:      protocol.SourceUnit,
+	SourceMech:      protocol.SourceMech,
 }
 
 var wireStances = map[Stance]protocol.Stance{

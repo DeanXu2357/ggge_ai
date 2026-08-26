@@ -26,7 +26,7 @@ func wireBoard() *protocol.BattleState {
 				Acted:     true,
 				Skills: []protocol.Skill{{
 					Kind:            protocol.ActionSkillHeal,
-					Source:          protocol.SourceUnit,
+					Source:          protocol.SourceMech,
 					Amount:          &amount,
 					Uses:            2,
 					EndsActivation:  true,
@@ -116,7 +116,7 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 		}},
 		Skills: []Skill{{
 			Kind:            ActionSkillHeal,
-			Source:          SourceUnit,
+			Source:          SourceMech,
 			Amount:          &amount,
 			Uses:            2,
 			EndsActivation:  true,

@@ -54,7 +54,7 @@ class Skill:
     """
 
     kind: ActionKind
-    source: SkillSource = SkillSource.UNIT
+    source: SkillSource = SkillSource.MECH
     amount: float | None = None
     uses: int = 1
     ends_activation: bool = True

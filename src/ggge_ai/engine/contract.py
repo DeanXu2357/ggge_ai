@@ -52,7 +52,7 @@ class ActionKind(StrEnum):
 class SkillSource(StrEnum):
     CHARACTER = "character"
     CREW = "crew"
-    UNIT = "unit"
+    MECH = "mech"
 
 
 class SkillAffects(StrEnum):

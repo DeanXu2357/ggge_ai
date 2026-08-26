@@ -80,7 +80,7 @@
           "skills": [
             {
               "kind": "skill_en_refill",
-              "source": "unit",
+              "source": "mech",
               "amount": null,
               "uses": 1,
               "ends_activation": true,
@@ -92,7 +92,7 @@
             },
             {
               "kind": "skill_heal",
-              "source": "unit",
+              "source": "mech",
               "amount": 3000.0,
               "uses": 2,
               "ends_activation": false,
@@ -333,7 +333,7 @@
             "skills": [
               {
                 "kind": "skill_en_refill",
-                "source": "unit",
+                "source": "mech",
                 "amount": null,
                 "uses": 1,
                 "ends_activation": true,
@@ -345,7 +345,7 @@
               },
               {
                 "kind": "skill_heal",
-                "source": "unit",
+                "source": "mech",
                 "amount": 3000.0,
                 "uses": 2,
                 "ends_activation": false,
