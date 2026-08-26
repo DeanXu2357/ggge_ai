@@ -84,7 +84,7 @@ func TestACounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 	}
 }
 
-// A stance carries no support unit: an interceptor changes no outcome of the
+// A stance carries no support unit: a support defender changes no outcome of the
 // stance, and it stands in its own list.
 func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 	state := duel()
@@ -260,11 +260,11 @@ func TestEachEntryCarriesTheForecastOfItsOwnStrike(t *testing.T) {
 		t.Fatalf("a counter carries the forecast of its own strike: %+v", counter)
 	}
 	if *out.Defender.SupportDefenders[0].Incoming.Damage >= *stand.Incoming.Damage {
-		t.Fatalf("an interceptor takes the strike in a defense state: %+v",
+		t.Fatalf("a support defender takes the strike in a defense state: %+v",
 			out.Defender.SupportDefenders[0].Incoming)
 	}
 	if out.Defender.SupportDefenders[0].Incoming.HitRate != nil {
-		t.Fatal("the hit roll of the strike stands beside the stance, not beside the interceptor")
+		t.Fatal("the hit roll of the strike stands beside the stance, not beside the support defender")
 	}
 	if *out.Defender.SupportAttackers[0].Strike.Damage <= 0 ||
 		out.Defender.SupportAttackers[0].Strike.Kill == nil {

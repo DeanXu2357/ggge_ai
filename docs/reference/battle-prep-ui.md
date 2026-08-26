@@ -88,11 +88,11 @@
 防禦/閃避保命。
 
 ### 支援防禦 support_defense（reaction_support_defense）
-應戰時我方友軍（interceptor）替被攻擊主單位**擋傷**（≠支援反擊的多打一次）。
-視覺信號：主單位面板出現**盾圖示「支援防禦」**標籤、右側疊第二個 interceptor 面板、
+應戰時我方友軍（支援防禦者）替被攻擊主單位**擋傷**（≠支援反擊的多打一次）。
+視覺信號：主單位面板出現**盾圖示「支援防禦」**標籤、右側疊第二個支援防禦者面板、
 底部頭像列有「支援防禦」頭像（盾圖示、**無攻擊序號**，插在①敵攻與②主單位反擊之間）、
-場上 interceptor 標「支援防禦」。→ vision 偵測盾圖示「支援防禦」標籤即 `support_defense=True`。
-機制吻合沙盤 interceptor（齊射全打在攔截者身上；移植歸 issue #64）；interceptor 承受傷害是否已含 shield/defend 減免待與沙盤對照。
+場上支援防禦者標「支援防禦」。→ vision 偵測盾圖示「支援防禦」標籤即 `support_defense=True`。
+齊射全發打在同一名支援防禦者身上（移植歸 issue #64）。支援防禦者承受的傷害讀防禦架式，帶盾者再乘盾補正（2026-08-26 裁定）。
 順序：①敵攻 → 支援防禦(擋傷、主單位免傷) → ②主單位反擊。
 
 **互斥規則（使用者口述）**：被攻擊單位選 **defend/shield 時不能**接受支援防禦（自己擋）；
@@ -233,7 +233,7 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
 | `attack_support_20260719` | -攻擊- ＋支援不參加 | is_reaction 來源、陣營驗證、支援佈局 |
 | `attack_support_active_20260719` | -攻擊- ＋支援參戰 | 攻擊順序①②③、命中率相對定位 |
 | `reaction_support_counter_20260719` | -應戰- ＋支援反擊 | 應戰順序①敵攻②支援反擊③反擊 |
-| `reaction_support_defense_20260719` | -應戰- ＋支援防禦 | interceptor 擋傷、盾圖示「支援防禦」標籤 |
+| `reaction_support_defense_20260719` | -應戰- ＋支援防禦 | 支援防禦者擋傷、盾圖示「支援防禦」標籤 |
 | `reaction_shield_menu_20260719` | -應戰- 有盾機體多武器選單 | shield＝防禦(盾牌)減40%、5 武器 pitch~170、錨點隨武器數移動 |
 | `reaction_first_strike_20260719` | -應戰- 先攻多階段 | 先攻＝橘色「先發攻擊」標籤、帶先攻武裝排最前、sim 缺口 |
 | `unit_detail_combined_20260719` | 點橫幅→單位設置詳情（組合資訊 tab） | 三 tab 語意、±標記＝受能力影響、buff 在組合資訊 |
@@ -267,7 +267,7 @@ LONG-EX 1165；§記錄檔早前的 801-1854 系列為縮放失準估計，已�
 - ~~`hit_pct` region~~ → `vision.read_avatar_hits` 頭像列掃描＋`hit` 字型（缺 '3'）；
   ~~defender_hp OCR~~ → hud `6_c` 變體；中央攻/反值另修 `attack` 專用字型。
 - ~~`support_defense`~~ → `label_support_defense.png` 標籤偵測（-應戰- 回 bool；
-  -攻擊- 敵側標籤未標定、維持 None）。interceptor 承受傷害的減免語意仍待與沙盤對照。
+  -攻擊- 敵側標籤未標定、維持 None）。
 - ~~各鈕座標像素精量~~ → 動作列/頭像列已精量（§3/§4）；行動選擇/返回鈕仍為估計。
 - 迴歸：15 個新 fixture JSON（7 forecast 全欄位＋4 stance 選單＋4 拒讀負樣本）、
   520 tests 全綠。開放假設：SHORT 可用性 V 閘門（§4）待 S10 實戰驗證。

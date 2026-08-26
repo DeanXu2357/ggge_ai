@@ -19,7 +19,7 @@ enumeration that the ruling retired, and three parts of it broke:
    the action list, one with the support and one without.
 2. It judged a reaction by a lookup in the list that 'Board.Reactions'
    gave back.
-3. It picked the support units itself: the first eligible interceptor,
+3. It picked the support units itself: the first eligible support defender,
    and every eligible support attacker on one boolean.
 
 Everything else of that branch is a consumer of a client-composed
@@ -31,7 +31,7 @@ nodes and the resolution order came over as they stood.
 
 | Question | Ruling |
 |---|---|
-| Support granularity | The client names each interceptor and each support attacker. The engine picks none. |
+| Support granularity | The client names each support defender and each support attacker. The engine picks none. |
 | The forecast | This branch fills 'hit_rate', 'damage' and 'kill', which issue #63 shipped as null. |
 | The shield | A defender that carries a shield defends with it: the shield multiplier applies to the defend stance of that unit. |
 | The volley | Not a term of the mechanism. It is one case of a support attack, and the names say support attack. |
@@ -56,6 +56,8 @@ nodes and the resolution order came over as they stood.
 | The rules payload | Out of the contract. Every value of it holds for the whole title, so no stage overrides one. The values are constants of 'engine/battle/rules.go'. |
 | The attack shield | The field 'AttackShield' becomes 'SupportDefendWhenAttack', and the wire field 'attack_shield' becomes 'support_defend_when_attack'. The name says what the unit does. |
 | The interception reduction | Out of the unit. The user named no such concept. What was described is a weapon that resolves ahead of the order and strikes through the support defense, which is a use of the application order of a weapon and no attribute of a unit. |
+| The word 'interception' | Retired. The game labels the unit 支援防禦 and the engine took 'interceptor' from the Python sandbox. The term is 'support defender' 支援防禦者 everywhere. |
+| The per-mech reduction | It is a weapon ability, so it joins the kind set of issue #80. The reference record of it stands. |
 
 ## Change summary
 
@@ -111,6 +113,15 @@ nodes and the resolution order came over as they stood.
   'InterceptionMultiplier' goes with them, because a unit that takes
   the strike for another now reads 'StanceMultiplier' for the defend
   stance and nothing else.
+- The support defender: the Go names 'namedInterceptor',
+  'interceptedReceiver', 'interceptionForecast' and the two
+  'interceptor' fields become 'namedSupportDefender',
+  'coveredReceiver', 'supportDefenderForecast' and 'supportDefender'.
+  The prose of 'docs/spec/battle-engine-protocol.md',
+  'docs/reference/combat-formulas.md' and
+  'docs/reference/battle-prep-ui.md' drops 'interceptor' and 攔截者.
+  'docs/reference/terminology-map.md' folds the retired entry into
+  'support defender' and records where the word came from.
 - The skill source: the wire value 'unit' becomes 'mech' and
   'character' becomes 'pilot', in 'engine/protocol/state.go',
   'engine/battle/model.go', the two codecs and
@@ -140,7 +151,7 @@ nodes and the resolution order came over as they stood.
         namedSupportDefendWhenAttack
         answerOf
           CounterWeapon
-          namedInterceptor
+          namedSupportDefender
         receiverOf -> plainReceiver | interceptedReceiver
         fire  (NodeAttackerSupport)
         receiver.hit (NodeStrike) -> StrikeDamage, wound, applyDebuff
@@ -155,11 +166,11 @@ nodes and the resolution order came over as they stood.
    foe picks its stance after this answer, so the entry gives the
    damage with no defense. The client cannot add the stance itself
    without a rule of the battle.
-2. **An interceptor of the defending side carries no hit rate.** The
-   stance settles that hit roll. An interceptor of the attacking side
-   carries no forecast at all, because the defender picks which weapon
+2. **A support defender of the defending side carries no hit rate.**
+   The stance settles that hit roll. One of the attacking side carries
+   no forecast at all, because the defender picks which weapon
    counters.
-3. **The stand with an interceptor stays legal.**
+3. **The stand with a support defender stays legal.**
    docs/reference/battle-prep-ui.md:279 states that defend never pairs
    with support defense and marks 'none' as unconfirmed. The engine
    refuses the defend pair and permits the stand pair.

@@ -14,11 +14,11 @@ func (b *Board) forecastOf(shooter, struck *Unit, weapon *Weapon, multiplier flo
 	return Forecast{HitRate: &rate, Damage: &damage, Kill: &kill}
 }
 
-// The stance of the defender settles the hit roll of the strike, so an
-// interception entry carries the damage alone and no hit rate.
-func (b *Board) interceptionForecast(attacker, interceptor *Unit, weapon *Weapon) Forecast {
-	damage := StrikeDamage(attacker, interceptor, weapon,
-		StanceMultiplier(StanceDefend, interceptor))
-	kill := damage >= interceptor.HP
+// The stance of the defender settles the hit roll of the strike, so a support
+// defense entry carries the damage alone and no hit rate.
+func (b *Board) supportDefenderForecast(attacker, supportDefender *Unit, weapon *Weapon) Forecast {
+	damage := StrikeDamage(attacker, supportDefender, weapon,
+		StanceMultiplier(StanceDefend, supportDefender))
+	kill := damage >= supportDefender.HP
 	return Forecast{Damage: &damage, Kill: &kill}
 }

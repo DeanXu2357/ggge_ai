@@ -75,7 +75,7 @@ func livingUnits(board *battle.Board) []protocol.Unit {
 //     removes it at the end of 'step'. The op filters its answer on the life of
 //     the unit, and the expectation of Python holds the same units.
 //  5. The client names the support units of each side (issue #63). Python fires
-//     every eligible supporter on every attack, and it picks the interceptor
+//     every eligible supporter on every attack, and it picks the support defender
 //     itself. Each decision here names the units that Python picked, so the two
 //     runtimes fire the same units.
 //  6. The support attack of the attacking side and the support attack of the

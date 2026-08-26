@@ -142,10 +142,11 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 	shot := b.receiverOf(target, answer)
 	trace := b.fire(NodeAttackerSupport, StrikeSupport, joining, dice, &shot)
 	dodging := answer.reaction != nil && answer.reaction.Stance == StanceDodge
-	// The hit rate reads the target of the strike, and not the interceptor that
-	// takes the strike in its place: the oracle 'decision_hit_probability' reads
-	// the target. Which evasion the game reads on an interception is not
-	// measured, so the value of the oracle stands until a measurement lands.
+	// The hit rate reads the target of the strike, and not the support defender
+	// that takes the strike in its place: the oracle 'decision_hit_probability'
+	// reads the target. Which evasion the game reads when a support defender
+	// takes the strike is not measured, so the value of the oracle stands until
+	// a measurement lands.
 	trace = append(trace, shot.hit(StrikeMain, actor, weapon,
 		dice.Lands(NodeStrike, StrikeHitProbability(actor, target, weapon, dodging))))
 	killed := !shot.struck.Alive()
@@ -171,10 +172,10 @@ func (b *Board) foe(actor *Unit, targetID string) (*Unit, error) {
 // A nil reaction stays legal in the domain: it says that the caller settles
 // the reaction somewhere else, as a node of a search tree does.
 type answer struct {
-	reaction    *Reaction
-	counter     *Weapon
-	interceptor *Unit
-	joining     []SupportAttacker
+	reaction        *Reaction
+	counter         *Weapon
+	supportDefender *Unit
+	joining         []SupportAttacker
 }
 
 func (b *Board) answerOf(defender, attacker *Unit, firing Footprint,
@@ -197,20 +198,20 @@ func (b *Board) answerOf(defender, attacker *Unit, firing Footprint,
 		return answer{}, fmt.Errorf("%w: the stance %q of unit %q fires no weapon",
 			ErrIllegalAction, reaction.Stance, defender.ID)
 	}
-	interceptor, err := b.namedInterceptor(defender, defender.Footprint, reaction.SupportDefender,
+	supportDefender, err := b.namedSupportDefender(defender, defender.Footprint, reaction.SupportDefender,
 		func(*Unit) bool { return true })
 	if err != nil {
 		return answer{}, err
 	}
 	// A defender that defends blocks the strike for itself and leaves the
-	// interceptor nothing to take (docs/reference/battle-prep-ui.md:279, issue
-	// #44). Whether the game pairs an interceptor with the stand is not
+	// supportDefender nothing to take (docs/reference/battle-prep-ui.md:279, issue
+	// #44). Whether the game pairs a support defender with the stand is not
 	// measured; the engine permits it until a measurement lands.
-	if interceptor != nil && reaction.Stance == StanceDefend {
-		return answer{}, fmt.Errorf("%w: unit %q defends the strike itself and takes no interceptor",
+	if supportDefender != nil && reaction.Stance == StanceDefend {
+		return answer{}, fmt.Errorf("%w: unit %q defends the strike itself and takes no support defender",
 			ErrIllegalAction, defender.ID)
 	}
-	out.interceptor = interceptor
+	out.supportDefender = supportDefender
 	if out.joining, err = b.namedSupportAttackers(defender, defender.Footprint, firing,
 		reaction.SupportAttackers); err != nil {
 		return answer{}, err
@@ -246,7 +247,7 @@ func (b *Board) namedSupportAttackers(supported *Unit, firing, foe Footprint,
 	return out, nil
 }
 
-func (b *Board) namedInterceptor(covered *Unit, at Footprint, name string,
+func (b *Board) namedSupportDefender(covered *Unit, at Footprint, name string,
 	fits func(*Unit) bool) (*Unit, error) {
 	if name == "" {
 		return nil, nil
@@ -261,21 +262,21 @@ func (b *Board) namedInterceptor(covered *Unit, at Footprint, name string,
 }
 
 func (b *Board) namedSupportDefendWhenAttack(actor *Unit, firing Footprint, name string) (*Unit, error) {
-	return b.namedInterceptor(actor, firing, name,
+	return b.namedSupportDefender(actor, firing, name,
 		func(other *Unit) bool { return other.SupportDefendWhenAttack })
 }
 
 type receiver struct {
-	board       *Board
-	struck      *Unit
-	multiplier  float64
-	interceptor *Unit
-	chargeSpent bool
+	board           *Board
+	struck          *Unit
+	multiplier      float64
+	supportDefender *Unit
+	chargeSpent     bool
 }
 
 func (b *Board) receiverOf(target *Unit, answer answer) receiver {
-	if answer.interceptor != nil {
-		return b.interceptedReceiver(answer.interceptor)
+	if answer.supportDefender != nil {
+		return b.coveredReceiver(answer.supportDefender)
 	}
 	multiplier := NoDefenseMultiplier
 	if answer.reaction != nil {
@@ -288,12 +289,12 @@ func (b *Board) plainReceiver(struck *Unit, multiplier float64) receiver {
 	return receiver{board: b, struck: struck, multiplier: multiplier}
 }
 
-func (b *Board) interceptedReceiver(interceptor *Unit) receiver {
+func (b *Board) coveredReceiver(supportDefender *Unit) receiver {
 	return receiver{
-		board:       b,
-		struck:      interceptor,
-		multiplier:  StanceMultiplier(StanceDefend, interceptor),
-		interceptor: interceptor,
+		board:           b,
+		struck:          supportDefender,
+		multiplier:      StanceMultiplier(StanceDefend, supportDefender),
+		supportDefender: supportDefender,
 	}
 }
 
@@ -308,8 +309,8 @@ func (v *receiver) hit(kind StrikeKind, shooter *Unit, weapon *Weapon, landed bo
 	if !landed {
 		return record
 	}
-	if v.interceptor != nil && !v.chargeSpent {
-		v.interceptor.SupportDefendCharges--
+	if v.supportDefender != nil && !v.chargeSpent {
+		v.supportDefender.SupportDefendCharges--
 		v.chargeSpent = true
 	}
 	record.Damage = StrikeDamage(shooter, v.struck, weapon, v.multiplier)
@@ -402,7 +403,7 @@ func (b *Board) counterStrike(defender, attacker *Unit, weapon *Weapon, bearer *
 		StrikeHitProbability(defender, attacker, weapon, false))
 	shot := b.plainReceiver(attacker, NoDefenseMultiplier)
 	if bearer != nil && bearer.Alive() && bearer.SupportDefendCharges > 0 {
-		shot = b.interceptedReceiver(bearer)
+		shot = b.coveredReceiver(bearer)
 	}
 	return shot.hit(StrikeCounter, defender, weapon, landed)
 }

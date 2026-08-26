@@ -113,7 +113,7 @@ func (b *Board) defendOptions(shooter *Unit, weapon *Weapon, units []*Unit) []Su
 	for _, unit := range units {
 		option := SupportDefendOption{Unit: unit}
 		if weapon != nil {
-			option.Incoming = b.interceptionForecast(shooter, unit, weapon)
+			option.Incoming = b.supportDefenderForecast(shooter, unit, weapon)
 		}
 		out = append(out, option)
 	}

@@ -14,7 +14,7 @@ func shootout() *Board {
 	return board(attacker, target)
 }
 
-func intercepted() *Board {
+func covered() *Board {
 	state := shootout()
 	supporter := fighter("a2", FactionAlly, Cell{1, 1})
 	supporter.Weapons = []Weapon{beam()}
@@ -151,8 +151,8 @@ func TestAKillWithNoChanceStepLeftEndsTheActivation(t *testing.T) {
 	}
 }
 
-func TestTheInterceptorTakesEveryShotAndOneCharge(t *testing.T) {
-	state := intercepted()
+func TestTheSupportDefenderTakesEveryShotAndOneCharge(t *testing.T) {
+	state := covered()
 	decision := attackOn("e1", "beam rifle")
 	decision.SupportAttackers = []string{"a2"}
 	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefender: "e2"}
@@ -160,7 +160,7 @@ func TestTheInterceptorTakesEveryShotAndOneCharge(t *testing.T) {
 	trace := apply(t, state, decision, Forced{AttackerSupport: true, Strike: true})
 
 	if len(trace) != 2 || trace[0].StruckID != "e2" || trace[1].StruckID != "e2" {
-		t.Fatalf("every shot goes to the interceptor: %+v", trace)
+		t.Fatalf("every shot goes to the support defender: %+v", trace)
 	}
 	if state.Unit("e2").SupportDefendCharges != 0 {
 		t.Fatal("every shot together spends one charge")
@@ -174,8 +174,8 @@ func TestTheInterceptorTakesEveryShotAndOneCharge(t *testing.T) {
 	}
 }
 
-func TestASupportAttackThatMissesSpendsNoInterceptionCharge(t *testing.T) {
-	state := intercepted()
+func TestASupportAttackThatMissesSpendsNoSupportDefendCharge(t *testing.T) {
+	state := covered()
 	decision := attackOn("e1", "beam rifle")
 	decision.SupportAttackers = []string{"a2"}
 	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefender: "e2"}
@@ -183,7 +183,7 @@ func TestASupportAttackThatMissesSpendsNoInterceptionCharge(t *testing.T) {
 	apply(t, state, decision, Forced{})
 
 	if state.Unit("e2").SupportDefendCharges != 1 || state.Unit("e2").HP != 12000 {
-		t.Fatalf("interceptor: %+v", state.Unit("e2"))
+		t.Fatalf("supportDefender: %+v", state.Unit("e2"))
 	}
 	if state.Unit("a2").SupportAttackCharges != 0 || state.Unit("a2").EN != 130 {
 		t.Fatal("a supporter that misses spends its charge and its energy")
@@ -191,7 +191,7 @@ func TestASupportAttackThatMissesSpendsNoInterceptionCharge(t *testing.T) {
 }
 
 func TestTheSupportAttackOfTheAttackerIsAChoice(t *testing.T) {
-	state := intercepted()
+	state := covered()
 
 	trace := apply(t, state, attackOn("e1", "beam rifle"), Forced{AttackerSupport: true, Strike: true})
 
@@ -204,7 +204,7 @@ func TestTheSupportAttackOfTheAttackerIsAChoice(t *testing.T) {
 }
 
 func TestTheRulesCapTheNumberOfSupportAttackers(t *testing.T) {
-	state := intercepted()
+	state := covered()
 	names := []string{"a2"}
 	for index := 0; index <= MaxSupportAttackers; index++ {
 		joining := fighter(fmt.Sprintf("a%d", index+3), FactionAlly, Cell{2, index + 1})
@@ -230,7 +230,7 @@ func TestTheRulesCapTheNumberOfSupportAttackers(t *testing.T) {
 }
 
 func TestTheDefenderRepliesWithItsSupportAndItsCounter(t *testing.T) {
-	state := intercepted()
+	state := covered()
 	state.Unit("e2").SupportAttackCharges = 1
 	state.Unit("e2").Weapons = []Weapon{beam()}
 	decision := attackOn("e1", "beam rifle")
@@ -414,9 +414,9 @@ func TestAStrikeNamesALivingFoeAndNoOtherUnit(t *testing.T) {
 
 func TestAReactionThatBreaksARuleIsAnError(t *testing.T) {
 	cases := map[string]Reaction{
-		"a defense that takes an interceptor as well": {Stance: StanceDefend,
+		"a defense that takes a support defender as well": {Stance: StanceDefend,
 			SupportDefender: "e2"},
-		"a unit of the other side as the interceptor": {Stance: StanceDodge,
+		"a unit of the other side as the support defender": {Stance: StanceDodge,
 			SupportDefender: "a2"},
 		"a support attacker that reaches nothing": {Stance: StanceDodge,
 			SupportAttackers: []string{"e2"}},
@@ -427,7 +427,7 @@ func TestAReactionThatBreaksARuleIsAnError(t *testing.T) {
 
 	for name, reaction := range cases {
 		t.Run(name, func(t *testing.T) {
-			state := intercepted()
+			state := covered()
 			decision := attackOn("e1", "beam rifle")
 			decision.Reaction = &reaction
 
@@ -458,8 +458,8 @@ func TestAStrikeWithNoReactionAndOneWithACounterBothRun(t *testing.T) {
 	}
 }
 
-func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheInterceptor(t *testing.T) {
-	state := intercepted()
+func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheCover(t *testing.T) {
+	state := covered()
 	state.Unit("e2").Mech.Mobility = 900
 	state.Unit("e2").Pilot.Reaction = 900
 	decision := attackOn("e1", "beam rifle")
@@ -474,7 +474,7 @@ func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheInterceptor(t *testing.T) {
 	weapon := beam()
 	want := StrikeHitProbability(state.Unit("a1"), state.Unit("e1"), &weapon, true)
 	if trace[0].StruckID != "e2" {
-		t.Fatalf("the interceptor takes the strike: %+v", trace)
+		t.Fatalf("the support defender takes the strike: %+v", trace)
 	}
 	if nodes[NodeStrike] != want {
 		t.Fatalf("hit rate: %v, and the target gives %v", nodes[NodeStrike], want)
@@ -630,7 +630,7 @@ func TestTheAttackerNamesAUnitThatCanTakeTheCounterForIt(t *testing.T) {
 }
 
 func TestASupportAttackerJoinsOneStrikeOneTime(t *testing.T) {
-	state := intercepted()
+	state := covered()
 	decision := attackOn("e1", "beam rifle")
 	decision.SupportAttackers = []string{"a2", "a2"}
 

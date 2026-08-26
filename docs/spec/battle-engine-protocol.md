@@ -216,12 +216,12 @@ one of them sends 'act' and no question.
 A reaction entry holds the forecast 'incoming': what the strike of
 the attacker does to the defender under that stance. A counter
 entry also holds the forecast 'counter': what the counter does to
-the attacker. A stance entry reads no support unit. An interceptor
-changes no outcome of the stance, so each interceptor carries its
+the attacker. A stance entry reads no support unit. A support
+defender changes no outcome of the stance, so each one carries its
 own forecast in 'support_defenders'.
 
 A support defense entry holds 'unit_id' and the forecast
-'incoming': what the strike does to that interceptor. A support
+'incoming': what the strike does to that support defender. A support
 attack entry holds 'unit_id', 'weapon' and the forecast 'strike':
 what the shot of that unit does to its foe. The support attackers
 of the defender fire at the attacker, and the support attackers of
@@ -237,12 +237,12 @@ no part of 'kill': a 'kill' of the dodge stance reads "the strike
 destroys this unit when it lands".
 
 A field that the engine cannot answer for that entry is null. Two
-entries hold such a field. The entry of an interceptor of the
+entries hold such a field. The entry of a support defender of the
 defending side holds no 'hit_rate': the stance of the defender
 settles that hit roll, so the rate stands beside the stance entry.
-The entry of an interceptor of the attacking side holds no forecast
-at all: it takes the counter, and which weapon counters is the pick
-of the defender.
+The entry of a support defender of the attacking side holds no
+forecast at all: it takes the counter, and which weapon counters is
+the pick of the defender.
 
 The forecast of a support attack entry reads no stance of its foe,
 because the foe picks the stance after this answer.
@@ -280,15 +280,15 @@ of the side of the actor that join the strike, and
 'support_defender', the unit that takes a counter strike for the
 actor. The reaction holds the same two fields for the defending
 side: 'support_attackers' join the answer of the defender, and
-'support_defender' is the interceptor that takes the strike in
-place of the defender. Each list holds the unit ids that
+'support_defender' is the unit that takes the strike in place of
+the defender. Each list holds the unit ids that
 'reactions' reports, and no unit two times.
 
 A defender that defends takes the strike itself and names no
-interceptor. A defender that carries a shield defends with the
+support defender. A defender that carries a shield defends with the
 shield: the reaction menu offers no shield stance, so the shield
 multiplier applies to the defend stance of that unit. Whether the
-game pairs an interceptor with the stand is not measured; the
+game pairs a support defender with the stand is not measured; the
 engine permits it.
 
 The rules cap the number of support attackers of one strike. A unit
