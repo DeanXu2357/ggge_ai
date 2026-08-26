@@ -75,13 +75,15 @@ type Weapon struct {
 type ActionKind string
 
 const (
-	ActionAttack      ActionKind = "attack"
-	ActionMapAttack   ActionKind = "map_attack"
-	ActionReposition  ActionKind = "reposition"
-	ActionStandby     ActionKind = "standby"
-	ActionSkillRefill ActionKind = "skill_en_refill"
-	ActionSkillHeal   ActionKind = "skill_heal"
+	ActionAttack     ActionKind = "attack"
+	ActionMapAttack  ActionKind = "map_attack"
+	ActionReposition ActionKind = "reposition"
+	ActionStandby    ActionKind = "standby"
 )
+
+// SkillKind names one skill. The set is open until issue #81 says what a
+// skill does. It is not an ActionKind.
+type SkillKind string
 
 type Stance string
 
@@ -118,7 +120,7 @@ type Debuff struct {
 // range of zero, a blast of zero and the value AffectsAlly: the area is the
 // cell of the caster, and the caster is an ally in its own cell.
 type Skill struct {
-	Kind            ActionKind
+	Kind            SkillKind
 	Source          SkillSource
 	Amount          *float64
 	Uses            int

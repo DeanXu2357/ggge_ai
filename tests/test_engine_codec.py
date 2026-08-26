@@ -48,7 +48,7 @@ STRUCTS = {
 
 ENCODERS = {
     "Weapon": lambda: codec.encode_weapon(Weapon(name="w", power=1.0)),
-    "Skill": lambda: codec.encode_skill(Skill(kind=ActionKind.SKILL_HEAL)),
+    "Skill": lambda: codec.encode_skill(Skill(kind="skill_heal")),
     "Debuff": lambda: codec.encode_debuff(Debuff("k", 1.0, 2)),
     "Unit": lambda: codec.encode_unit(Unit(unit_id="u", faction=Faction.ALLY)),
     "Reaction": lambda: codec.encode_reaction(Reaction(stance=Stance.DEFEND)),
@@ -138,7 +138,7 @@ def test_the_stance_none_decodes():
 
 
 def test_a_skill_enum_outside_the_contract_stops_the_decode():
-    payload = codec.encode_skill(Skill(kind=ActionKind.SKILL_HEAL))
+    payload = codec.encode_skill(Skill(kind="skill_heal"))
 
     with pytest.raises(ValueError, match="source"):
         codec.decode_skill({**payload, "source": "squad"})
@@ -155,7 +155,7 @@ def test_a_field_outside_the_contract_stops_the_decode():
 
 def _board() -> tuple[BattleState, EventTable]:
     weapon = Weapon(name="rifle", power=1200.0, range_min=1, range_max=3, en_cost=10)
-    skill = Skill(kind=ActionKind.SKILL_HEAL, amount=500.0)
+    skill = Skill(kind="skill_heal", amount=500.0)
     unit = Unit(
         unit_id="ally_1",
         faction=Faction.ALLY,

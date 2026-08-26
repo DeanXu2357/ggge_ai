@@ -60,6 +60,8 @@ nodes and the resolution order came over as they stood.
 | The per-mech reduction | It is a weapon ability, so it joins the kind set of issue #80. The reference record of it stands. |
 | The skill and the weapon ability | Not one model. No evidence binds them, and a merged model is hard to converge. A proposal that unifies them must carry a way to check it against the game. |
 | The skill resolution | Out of this branch. A skill starts no engagement, and the shape of the contract holds a restore alone: it cannot express a damage rise, a cut that lasts a turn, or a forced evasion in the next engagement. Issue #81 settles the shape from observation. |
+| The skill kind | 'skill_heal' and 'skill_en_refill' leave the action kinds: what a skill does is not a kind of action. 'Skill.kind' takes its own open type, which the engine validates nothing of and resolves nothing of, until issue #81 closes the set. |
+| The rules of a golden file | Out. If the engine takes no rule from outside, then reading one from a file and comparing it has no meaning. |
 
 ## Change summary
 
@@ -116,10 +118,18 @@ nodes and the resolution order came over as they stood.
   the strike for another now reads 'StanceMultiplier' for the defend
   stance and nothing else.
 - The skill: 'Board.skill', 'gain', the strike kind 'skill' and the
-  lookup 'Unit.Skill' with 'sameAmount' are out. 'Board.Apply' refuses
-  'skill_heal' and 'skill_en_refill' and changes no field. The state
-  keeps the skill list of a unit: what a unit holds is not what a skill
-  does. The two skill checks of 'kill_skill_board.json' are deleted.
+  lookup 'Unit.Skill' with 'sameAmount' are out. The two skill checks
+  of 'kill_skill_board.json' are deleted. The state keeps the skill
+  list of a unit: what a unit holds is not what a skill does.
+- The skill kind: 'ActionSkillHeal' and 'ActionSkillRefill' leave
+  'ActionKind' in Go and in 'contract.py'. 'Skill.Kind' takes the new
+  open type 'protocol.SkillKind' and its Python mirror is a plain
+  string, so the panel reader still records the code it read and the
+  decoder validates none. 'Board.Apply' answers an action of a skill
+  kind with the message of an unknown kind, and changes no field.
+- The rules of a golden file: 'differential.Rules', the field
+  'Setup.Rules' and the op 'rules' are out, and the nine files lose
+  their 'rules' block and their 'rules' check.
 - The support defender: the Go names 'namedInterceptor',
   'interceptedReceiver', 'interceptionForecast' and the two
   'interceptor' fields become 'namedSupportDefender',
@@ -196,10 +206,10 @@ nodes and the resolution order came over as they stood.
    again (issue #73), so the case is deleted.
    'TestTheSupportDefendWhenAttackTakesTheCounterForTheAttacker' of
    'engine/battle/resolve_test.go' covers the attack shield.
-7. **The frozen files still carry two retired fields inside 'rules'.**
-   'engine/differential' holds 'terrain' and
-   'support_defend_multiplier', so the nine remaining files still
-   load. 'protocol.Rules' holds neither.
+7. **The frozen files carry no rules block any more.** The engine
+   takes no rule from outside, so the block and the check that read it
+   are deleted. The retired fields 'terrain' and
+   'support_defend_multiplier' go with them.
 8. **Which cell keys the damage factor is settled.** The user ruled on
    2026-08-26: the damage ability reads the cell of the target
    ('對水中目標'), and the fire restriction reads the cell of the

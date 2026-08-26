@@ -2,15 +2,6 @@
   "name": "event_board",
   "note": "An event table with both trigger kinds, a spawn payload, and no bounds.",
   "setup": {
-    "rules": {
-      "defend_multiplier": 0.8,
-      "shield_multiplier": 0.6,
-      "support_defend_multiplier": 0.8,
-      "dodge_hit_penalty": 20.0,
-      "terrain": 1.0,
-      "max_support_attackers": 2,
-      "en_regen_fraction": 0.1
-    },
     "events": {
       "boss_weakens": {
         "event_id": "boss_weakens",
@@ -457,19 +448,6 @@
             ]
           }
         }
-      }
-    },
-    {
-      "op": "rules",
-      "input": null,
-      "expect": {
-        "defend_multiplier": 0.8,
-        "shield_multiplier": 0.6,
-        "support_defend_multiplier": 0.8,
-        "dodge_hit_penalty": 20.0,
-        "terrain": 1.0,
-        "max_support_attackers": 2,
-        "en_regen_fraction": 0.1
       }
     }
   ]

@@ -38,7 +38,7 @@ class Skill:
     caster is an ally in its own cell.
     """
 
-    kind: ActionKind
+    kind: str
     source: SkillSource = SkillSource.MECH
     amount: float | None = None
     uses: int = 1

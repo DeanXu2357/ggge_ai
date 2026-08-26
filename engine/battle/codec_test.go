@@ -25,7 +25,7 @@ func wireBoard() *protocol.BattleState {
 				HasShield: true,
 				Acted:     true,
 				Skills: []protocol.Skill{{
-					Kind:            protocol.ActionSkillHeal,
+					Kind:            "skill_heal",
 					Source:          protocol.SourceMech,
 					Amount:          &amount,
 					Uses:            2,
@@ -115,7 +115,7 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 			DebuffMagnitude: 0.2,
 		}},
 		Skills: []Skill{{
-			Kind:            ActionSkillHeal,
+			Kind:            "skill_heal",
 			Source:          SourceMech,
 			Amount:          &amount,
 			Uses:            2,
@@ -284,15 +284,6 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 			Bounds: &protocol.Bounds{{4, 4}, {0, 0}},
 			Phase:  ally,
 		},
-		"a skill kind outside the contract": {
-			Bounds: &square,
-			Phase:  ally,
-			Units: []protocol.Unit{{
-				UnitID:  "a1",
-				Faction: ally,
-				Skills:  []protocol.Skill{{Kind: protocol.ActionKind("pray")}},
-			}},
-		},
 	}
 
 	for name, state := range cases {
@@ -353,7 +344,7 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 				CanCounter: true, UsableAfterMove: true},
 			{Name: "missile", Range: RadiusRange{Min: 2, Max: 5}, MapWeapon: true},
 		},
-		Skills: []Skill{{Kind: ActionSkillHeal, Amount: &amount, Uses: 2,
+		Skills: []Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
 			Range: RadiusRange{Min: 0, Max: 2}, Blast: 1, Affects: AffectsAlly}},
 		Ammo: map[string]int{"missile": ammo},
 	}
@@ -373,7 +364,7 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	if out.Weapons[1].Ammo == nil || *out.Weapons[1].Ammo != 3 || !out.Weapons[1].MapWeapon {
 		t.Fatalf("missile: %+v", out.Weapons[1])
 	}
-	if out.Skills[0].Kind != protocol.ActionSkillHeal || *out.Skills[0].Amount != amount ||
+	if out.Skills[0].Kind != "skill_heal" || *out.Skills[0].Amount != amount ||
 		out.Skills[0].Uses != 2 || out.Skills[0].Blast != 1 ||
 		out.Skills[0].Affects != protocol.AffectsAlly {
 		t.Fatalf("skill: %+v", out.Skills[0])
@@ -399,7 +390,7 @@ func TestTheCapabilityPayloadOfAnActedUnitCarriesTheState(t *testing.T) {
 func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 	amount := 2500.0
 
-	encoded := EncodeSkills([]Skill{{Kind: ActionSkillHeal, Amount: &amount}})
+	encoded := EncodeSkills([]Skill{{Kind: "skill_heal", Amount: &amount}})
 	amount = 0
 
 	if *encoded[0].Amount != 2500.0 {

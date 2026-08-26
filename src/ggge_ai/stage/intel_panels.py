@@ -28,7 +28,6 @@ from ..runtime.panel_text import (
     AbilityTexts,
     WeaponText,
 )
-from ..engine.contract import ActionKind
 from .intel import SkillIntel, UnitIntel, WeaponIntel
 
 SHOOTING_PICK = "shooting"
@@ -145,7 +144,7 @@ def _abilities(texts: AbilityTexts | None, build: _Build) -> dict:
     skills: list[SkillIntel] = []
     for entry in texts.entries:
         if entry.effect in SKILL_KINDS:
-            skills.append(SkillIntel(kind=ActionKind(entry.effect), amount=entry.magnitude or None))
+            skills.append(SkillIntel(kind=entry.effect, amount=entry.magnitude or None))
         elif entry.effect == SHIELD_DEFENSE:
             flags["has_shield"] = True
         elif entry.effect == SUPPORT_DEFEND_WHEN_ATTACK:

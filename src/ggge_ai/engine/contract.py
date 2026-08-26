@@ -45,8 +45,6 @@ class ActionKind(StrEnum):
     MAP_ATTACK = "map_attack"
     REPOSITION = "reposition"
     STANDBY = "standby"
-    SKILL_EN_REFILL = "skill_en_refill"
-    SKILL_HEAL = "skill_heal"
 
 
 class SkillSource(StrEnum):

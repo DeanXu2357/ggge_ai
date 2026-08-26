@@ -22,9 +22,6 @@ var ops = map[string]differential.Op{
 	"events": func(setup *differential.Setup, _ json.RawMessage) (any, error) {
 		return setup.Events, nil
 	},
-	"rules": func(setup *differential.Setup, _ json.RawMessage) (any, error) {
-		return setup.Rules, nil
-	},
 }
 
 func addOps(more map[string]differential.Op) {

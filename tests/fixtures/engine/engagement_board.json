@@ -2,15 +2,6 @@
   "name": "engagement_board",
   "note": "One strike with every reaction: the stances, the interception, and the support attack of each side. The stance 'defend' of the shield holder is not here: the oracle read one shield value, and the shield is a second cut on top of the defense.",
   "setup": {
-    "rules": {
-      "defend_multiplier": 0.8,
-      "shield_multiplier": 0.6,
-      "support_defend_multiplier": 0.8,
-      "dodge_hit_penalty": 20.0,
-      "terrain": 1.0,
-      "max_support_attackers": 1,
-      "en_regen_fraction": 0.1
-    },
     "events": {},
     "state": {
       "units": [
@@ -710,19 +701,6 @@
       "op": "events",
       "input": null,
       "expect": {}
-    },
-    {
-      "op": "rules",
-      "input": null,
-      "expect": {
-        "defend_multiplier": 0.8,
-        "shield_multiplier": 0.6,
-        "support_defend_multiplier": 0.8,
-        "dodge_hit_penalty": 20.0,
-        "terrain": 1.0,
-        "max_support_attackers": 1,
-        "en_regen_fraction": 0.1
-      }
     },
     {
       "op": "apply",

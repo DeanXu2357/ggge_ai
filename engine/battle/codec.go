@@ -13,12 +13,10 @@ var factions = map[protocol.Faction]Faction{
 }
 
 var actionKinds = map[protocol.ActionKind]ActionKind{
-	protocol.ActionAttack:      ActionAttack,
-	protocol.ActionMapAttack:   ActionMapAttack,
-	protocol.ActionReposition:  ActionReposition,
-	protocol.ActionStandby:     ActionStandby,
-	protocol.ActionSkillRefill: ActionSkillRefill,
-	protocol.ActionSkillHeal:   ActionSkillHeal,
+	protocol.ActionAttack:     ActionAttack,
+	protocol.ActionMapAttack:  ActionMapAttack,
+	protocol.ActionReposition: ActionReposition,
+	protocol.ActionStandby:    ActionStandby,
 }
 
 var skillAffects = map[protocol.SkillAffects]SkillAffects{
@@ -28,12 +26,10 @@ var skillAffects = map[protocol.SkillAffects]SkillAffects{
 }
 
 var wireKinds = map[ActionKind]protocol.ActionKind{
-	ActionAttack:      protocol.ActionAttack,
-	ActionMapAttack:   protocol.ActionMapAttack,
-	ActionReposition:  protocol.ActionReposition,
-	ActionStandby:     protocol.ActionStandby,
-	ActionSkillRefill: protocol.ActionSkillRefill,
-	ActionSkillHeal:   protocol.ActionSkillHeal,
+	ActionAttack:     protocol.ActionAttack,
+	ActionMapAttack:  protocol.ActionMapAttack,
+	ActionReposition: protocol.ActionReposition,
+	ActionStandby:    protocol.ActionStandby,
 }
 
 var skillSources = map[protocol.SkillSource]SkillSource{
@@ -267,11 +263,6 @@ func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 }
 
 func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
-	kind, known := actionKinds[skill.Kind]
-	if !known {
-		return Skill{}, fmt.Errorf("unit %q carries a skill of the kind %q, which is not in the contract",
-			unitID, skill.Kind)
-	}
 	source, known := skillSources[skill.Source]
 	if !known {
 		return Skill{}, fmt.Errorf("unit %q carries a skill of the source %q, which is not in the contract",
@@ -283,7 +274,7 @@ func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
 			unitID, skill.Affects)
 	}
 	return Skill{
-		Kind:            kind,
+		Kind:            SkillKind(skill.Kind),
 		Source:          source,
 		Amount:          cloneAmount(skill.Amount),
 		Uses:            skill.Uses,
@@ -350,7 +341,7 @@ func EncodeSkills(skills []Skill) []protocol.SkillEntry {
 	out := make([]protocol.SkillEntry, 0, len(skills))
 	for _, skill := range skills {
 		out = append(out, protocol.SkillEntry{
-			Kind:            wireKinds[skill.Kind],
+			Kind:            protocol.SkillKind(skill.Kind),
 			Amount:          cloneAmount(skill.Amount),
 			Uses:            skill.Uses,
 			EndsActivation:  skill.EndsActivation,
@@ -589,7 +580,7 @@ func encodeWeapon(weapon Weapon) protocol.Weapon {
 
 func encodeSkill(skill Skill) protocol.Skill {
 	return protocol.Skill{
-		Kind:            wireKinds[skill.Kind],
+		Kind:            protocol.SkillKind(skill.Kind),
 		Source:          wireSources[skill.Source],
 		Amount:          cloneAmount(skill.Amount),
 		Uses:            skill.Uses,

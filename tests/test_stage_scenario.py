@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from ggge_ai.stage import scenario as scenario_mod
-from ggge_ai.engine.contract import ActionKind, Faction, Terrain
+from ggge_ai.engine.contract import Faction, Terrain
 from ggge_ai.engine.state import StageEvent
 
 PLACEHOLDER = Path(__file__).resolve().parents[1] / "assets/scenarios/uc_hard_1_placeholder.json"
@@ -139,7 +139,7 @@ def test_support_placeholder_carries_a_skill_and_a_shield():
 
     support = next(u for u in state.allies() if u.has_shield)
 
-    assert [s.kind for s in support.skills] == [ActionKind.SKILL_EN_REFILL]
+    assert [s.kind for s in support.skills] == ["skill_en_refill"]
 
 
 def test_the_board_carries_the_terrain_of_the_map(placeholder):

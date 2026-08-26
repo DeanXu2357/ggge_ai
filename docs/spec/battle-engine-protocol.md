@@ -165,7 +165,9 @@ holds the gap and the reason.
 
 A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
 'usable_after_move', 'range_min', 'range_max', 'blast' and
-'affects'.
+'affects'. The field 'kind' is an open string, not a value of the
+action kinds: the engine validates nothing and resolves nothing
+until issue #81 closes the set. A producer writes what it read.
 
 A unit that acted keeps the whole payload. Its 'error' holds the
 code 'already_acted' and a message.
@@ -314,16 +316,20 @@ repository holds that shape. The engine refuses the kind until the
 shape lands (issue #79).
 
 The command resolves no skill either. A skill starts no engagement,
-and the contract holds no shape for what a skill does: the fields
-'kind' and 'amount' express a restore of hit points or of energy to
-the caster, and nothing else. The user ruled on 2026-08-26 that the
-game also gives skills that raise the damage of the caster, that cut
-the damage it takes for one turn, and that force an evasion in the
-next engagement. None of the three is a restore, and each carries a
-duration that no field of the contract holds. The engine refuses the
-kinds 'skill_heal' and 'skill_en_refill' until the shape lands
-(issue #81). The state still carries the skill list of a unit: what
-a unit holds is not the same question as what a skill does.
+and the contract holds no shape for what a skill does. The user
+ruled on 2026-08-26 that the game gives skills that raise the damage
+of the caster, that cut the damage it takes for one turn, and that
+force an evasion in the next engagement. None of the three is a
+restore of hit points or of energy, and each carries a duration that
+no field of the contract holds. Issue #81 settles the shape.
+
+The value set of 'kind' holds no skill for the same reason. What a
+skill does is not a kind of action, and the two values 'skill_heal'
+and 'skill_en_refill' put an effect in that set. They are gone, so
+no action of the contract uses a skill today, and 'act' refuses one
+with the message of an unknown kind. The state still carries the
+skill list of a unit: what a unit holds is not the same question as
+what a skill does.
 
 Refusals: no_session; illegal_state when the phase of the unit is
 not the current phase, or when the unit acted in this turn;
@@ -609,7 +615,9 @@ the terrain of each cell so that the rule has its data when it
 lands. What reads it is a weapon ability, and the section 'Weapon
 abilities' holds that gap.
 
-The rules payload carries no terrain. One stage held one terrain
+There is no rules payload. Every rule of the mechanism is a
+constant of 'engine/battle/rules.go', and the section 'Weapon
+abilities' holds the rule that does vary. One stage held one terrain
 value until 2026-08-26.
 
 Open, for the issue that implements 'init': the field 'board' of
@@ -657,11 +665,14 @@ compare. One case file holds:
 |---|---|
 | name | The name of the case, equal to the file name |
 | note | What the board carries |
-| setup | The rules, the event table, and the board |
+| setup | The event table and the board |
 | checks | The list of the checks |
 
 Each check names an 'op', its 'input', and the 'expect' that the
-Python side produced while it still held the rules. An op that the
+Python side produced while it still held the rules of the battle.
+The block 'rules' of the setup and the check 'rules' that read it
+are deleted: the engine takes no rule from outside, so a value in a
+file could only disagree with the constant that the engine uses. An op that the
 Go build does not implement is skipped, not failed, so a port issue
 finds its checks waiting. The files are frozen: the writer retired
 with the Python rules (issue #73), and no process writes them

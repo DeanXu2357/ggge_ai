@@ -156,7 +156,7 @@ type WeaponEntry struct {
 }
 
 type SkillEntry struct {
-	Kind            ActionKind   `json:"kind"`
+	Kind            SkillKind    `json:"kind"`
 	Amount          *float64     `json:"amount"`
 	Uses            int          `json:"uses"`
 	EndsActivation  bool         `json:"ends_activation"`

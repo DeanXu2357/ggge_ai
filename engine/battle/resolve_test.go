@@ -350,9 +350,9 @@ func TestAMapAttackIsRefusedAndLeavesTheBoard(t *testing.T) {
 func TestASkillIsRefusedAndLeavesTheBoard(t *testing.T) {
 	state := shootout()
 	state.Unit("a1").HP = 8000
-	state.Unit("a1").Skills = []Skill{{Kind: ActionSkillHeal, Uses: 1}}
+	state.Unit("a1").Skills = []Skill{{Kind: "skill_heal", Uses: 1}}
 
-	_, err := state.Apply(Decision{UnitID: "a1", Kind: ActionSkillHeal}, Forced{Strike: true})
+	_, err := state.Apply(Decision{UnitID: "a1", Kind: "skill_heal"}, Forced{Strike: true})
 
 	if !errors.Is(err, ErrIllegalAction) {
 		t.Fatalf("the engine resolves no skill: %v", err)

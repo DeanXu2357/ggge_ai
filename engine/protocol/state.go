@@ -24,13 +24,17 @@ const (
 type ActionKind string
 
 const (
-	ActionAttack      ActionKind = "attack"
-	ActionMapAttack   ActionKind = "map_attack"
-	ActionReposition  ActionKind = "reposition"
-	ActionStandby     ActionKind = "standby"
-	ActionSkillRefill ActionKind = "skill_en_refill"
-	ActionSkillHeal   ActionKind = "skill_heal"
+	ActionAttack     ActionKind = "attack"
+	ActionMapAttack  ActionKind = "map_attack"
+	ActionReposition ActionKind = "reposition"
+	ActionStandby    ActionKind = "standby"
 )
+
+// SkillKind names one skill. The set is open: no contract of this repository
+// says what a skill does, so the decoder validates nothing and the engine
+// resolves nothing (issue #81). It is not an ActionKind: what a skill does is
+// not a kind of action.
+type SkillKind string
 
 type SkillSource string
 
@@ -63,12 +67,10 @@ const (
 var (
 	factions    = map[Faction]bool{FactionAlly: true, FactionEnemy: true, FactionThirdParty: true}
 	actionKinds = map[ActionKind]bool{
-		ActionAttack:      true,
-		ActionMapAttack:   true,
-		ActionReposition:  true,
-		ActionStandby:     true,
-		ActionSkillRefill: true,
-		ActionSkillHeal:   true,
+		ActionAttack:     true,
+		ActionMapAttack:  true,
+		ActionReposition: true,
+		ActionStandby:    true,
 	}
 	stances = map[Stance]bool{
 		StanceDodge:   true,
@@ -139,7 +141,7 @@ type Weapon struct {
 }
 
 type Skill struct {
-	Kind            ActionKind   `json:"kind"`
+	Kind            SkillKind    `json:"kind"`
 	Source          SkillSource  `json:"source"`
 	Amount          *float64     `json:"amount"`
 	Uses            int          `json:"uses"`

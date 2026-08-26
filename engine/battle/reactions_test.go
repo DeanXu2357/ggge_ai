@@ -140,7 +140,6 @@ func TestAnActionThatMakesNoStrikeIsAnError(t *testing.T) {
 		"a map attack":             {UnitID: "e1", Kind: ActionMapAttack, Weapon: "rifle"},
 		"a map attack out of band": {UnitID: "e1", Kind: ActionMapAttack, MoveTo: &cell, Weapon: "rifle"},
 		"a standby":                {UnitID: "e1", Kind: ActionStandby},
-		"a skill on the caster":    {UnitID: "e1", Kind: ActionSkillHeal},
 	}
 
 	for name, action := range cases {

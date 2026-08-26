@@ -84,9 +84,9 @@ def encode_skill(skill: Skill) -> dict[str, Any]:
 
 
 def decode_skill(payload: dict[str, Any]) -> Skill:
-    _known(payload, encode_skill(Skill(kind=ActionKind.STANDBY)), "skill")
+    _known(payload, encode_skill(Skill(kind="")), "skill")
     return Skill(
-        kind=_move_kind(payload.get("kind")),
+        kind=_str(payload, "kind"),
         source=_skill_source(payload.get("source")),
         amount=_optional_float(payload, "amount"),
         uses=_int(payload, "uses"),

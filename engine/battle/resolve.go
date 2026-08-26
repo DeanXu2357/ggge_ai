@@ -58,9 +58,6 @@ func (b *Board) run(actor *Unit, decision Decision, dice Dice) (Trace, outcome, 
 	case ActionMapAttack:
 		return nil, outcome{}, fmt.Errorf("%w: the engine resolves no map attack, because the area of a map weapon is not in the contract",
 			ErrIllegalAction)
-	case ActionSkillHeal, ActionSkillRefill:
-		return nil, outcome{}, fmt.Errorf("%w: the engine resolves no skill, because the effect of a skill is not in the contract",
-			ErrIllegalAction)
 	case ActionReposition, ActionStandby:
 		anchor, err := b.destination(actor, decision.MoveTo, true)
 		if err != nil {
