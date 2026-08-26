@@ -111,8 +111,7 @@
           "support_attack_charges": 2,
           "support_attack_charges_max": 2,
           "has_shield": true,
-          "attack_shield": true,
-          "interception_reduction": 0.15,
+          "support_defend_when_attack": true,
           "ammo": {
             "missile pod": 2
           },
@@ -164,8 +163,7 @@
           "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": false,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": [
             {
@@ -239,8 +237,7 @@
           "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": false,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": []
         }
@@ -364,8 +361,7 @@
             "support_attack_charges": 2,
             "support_attack_charges_max": 2,
             "has_shield": true,
-            "attack_shield": true,
-            "interception_reduction": 0.15,
+            "support_defend_when_attack": true,
             "ammo": {
               "missile pod": 2
             },
@@ -417,8 +413,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": [
               {
@@ -492,8 +487,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }

@@ -97,24 +97,6 @@ func TestTheStanceMultiplierOfEveryStance(t *testing.T) {
 	}
 }
 
-func TestAnInterceptorTakesTheStrikeInADefenseState(t *testing.T) {
-	plain := fighter("h1", FactionAlly, Cell{0, 0})
-	shielded := fighter("h2", FactionAlly, Cell{0, 1})
-	shielded.HasShield = true
-	tough := fighter("h3", FactionAlly, Cell{0, 2})
-	tough.InterceptionReduction = 0.25
-
-	if got := InterceptionMultiplier(&plain); got != DefendMultiplier {
-		t.Errorf("interceptor: %v", got)
-	}
-	if got := InterceptionMultiplier(&shielded); got != ShieldMultiplier*DefendMultiplier {
-		t.Errorf("a shield holder intercepts in a shield state: %v", got)
-	}
-	if got := InterceptionMultiplier(&tough); got != DefendMultiplier*(1-tough.InterceptionReduction) {
-		t.Errorf("the reduction of the unit rides on the state: %v", got)
-	}
-}
-
 func TestTheCounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 	defender := fighter("d1", FactionAlly, Cell{0, 0})
 	costly := beam()

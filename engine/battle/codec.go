@@ -37,9 +37,9 @@ var wireKinds = map[ActionKind]protocol.ActionKind{
 }
 
 var skillSources = map[protocol.SkillSource]SkillSource{
-	protocol.SourcePilot:     SourcePilot,
-	protocol.SourceCrew:      SourceCrew,
-	protocol.SourceMech:      SourceMech,
+	protocol.SourcePilot: SourcePilot,
+	protocol.SourceCrew:  SourceCrew,
+	protocol.SourceMech:  SourceMech,
 }
 
 var decodedStances = map[protocol.Stance]Stance{
@@ -62,9 +62,9 @@ var wireAffects = map[SkillAffects]protocol.SkillAffects{
 }
 
 var wireSources = map[SkillSource]protocol.SkillSource{
-	SourcePilot:     protocol.SourcePilot,
-	SourceCrew:      protocol.SourceCrew,
-	SourceMech:      protocol.SourceMech,
+	SourcePilot: protocol.SourcePilot,
+	SourceCrew:  protocol.SourceCrew,
+	SourceMech:  protocol.SourceMech,
 }
 
 var wireStances = map[Stance]protocol.Stance{
@@ -200,8 +200,7 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 		SupportAttackCharges:    unit.SupportAttackCharges,
 		SupportAttackChargesMax: unit.SupportAttackChargesMax,
 		HasShield:               unit.HasShield,
-		AttackShield:            unit.AttackShield,
-		InterceptionReduction:   unit.InterceptionReduction,
+		SupportDefendWhenAttack: unit.SupportDefendWhenAttack,
 	}
 	if out.Weapons, err = decodeWeapons(unit.UnitID, unit.Weapons); err != nil {
 		return Unit{}, err
@@ -541,8 +540,7 @@ func EncodeUnit(unit Unit) protocol.Unit {
 		SupportAttackCharges:    unit.SupportAttackCharges,
 		SupportAttackChargesMax: unit.SupportAttackChargesMax,
 		HasShield:               unit.HasShield,
-		AttackShield:            unit.AttackShield,
-		InterceptionReduction:   unit.InterceptionReduction,
+		SupportDefendWhenAttack: unit.SupportDefendWhenAttack,
 		Ammo:                    make(map[string]int, len(unit.Ammo)),
 		Debuffs:                 make([]protocol.Debuff, 0, len(unit.Debuffs)),
 	}

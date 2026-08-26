@@ -18,7 +18,7 @@ func (b *Board) forecastOf(shooter, struck *Unit, weapon *Weapon, multiplier flo
 // interception entry carries the damage alone and no hit rate.
 func (b *Board) interceptionForecast(attacker, interceptor *Unit, weapon *Weapon) Forecast {
 	damage := StrikeDamage(attacker, interceptor, weapon,
-		InterceptionMultiplier(interceptor))
+		StanceMultiplier(StanceDefend, interceptor))
 	kill := damage >= interceptor.HP
 	return Forecast{Damage: &damage, Kill: &kill}
 }

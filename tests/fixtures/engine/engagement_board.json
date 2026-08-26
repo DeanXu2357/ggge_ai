@@ -60,8 +60,7 @@
           "support_attack_charges": 1,
           "support_attack_charges_max": 1,
           "has_shield": false,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": []
         },
@@ -124,8 +123,7 @@
           "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": false,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": []
         },
@@ -175,8 +173,7 @@
           "support_attack_charges": 1,
           "support_attack_charges_max": 1,
           "has_shield": false,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": []
         },
@@ -226,8 +223,7 @@
           "support_attack_charges": 1,
           "support_attack_charges_max": 1,
           "has_shield": false,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": []
         },
@@ -290,8 +286,7 @@
           "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": true,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": []
         },
@@ -341,8 +336,7 @@
           "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": false,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": []
         }
@@ -415,8 +409,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -479,8 +472,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -530,8 +522,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -581,8 +572,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -645,8 +635,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -696,8 +685,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -809,8 +797,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -873,8 +860,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -924,8 +910,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -975,8 +960,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1039,8 +1023,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1090,8 +1073,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -1171,8 +1153,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1235,8 +1216,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1286,8 +1266,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1337,8 +1316,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1401,8 +1379,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1452,8 +1429,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -1538,8 +1514,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1602,8 +1577,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1653,8 +1627,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1704,8 +1677,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1768,8 +1740,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1819,8 +1790,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -1905,8 +1875,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -1969,8 +1938,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2020,8 +1988,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2071,8 +2038,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2135,8 +2101,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2186,8 +2151,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -2272,8 +2236,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2336,8 +2299,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2387,8 +2349,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2438,8 +2399,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2502,8 +2462,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2553,8 +2512,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -2639,8 +2597,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2703,8 +2660,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2754,8 +2710,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2805,8 +2760,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2869,8 +2823,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -2920,8 +2873,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -3006,8 +2958,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3070,8 +3021,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3121,8 +3071,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3172,8 +3121,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3236,8 +3184,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3287,8 +3234,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -3370,8 +3316,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3434,8 +3379,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3485,8 +3429,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3536,8 +3479,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3600,8 +3542,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3651,8 +3592,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -3734,8 +3674,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3798,8 +3737,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3849,8 +3787,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3900,8 +3837,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -3964,8 +3900,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4015,8 +3950,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -4103,8 +4037,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4167,8 +4100,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4218,8 +4150,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4269,8 +4200,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4333,8 +4263,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4384,8 +4313,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -4472,8 +4400,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4536,8 +4463,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4587,8 +4513,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4638,8 +4563,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4702,8 +4626,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4753,8 +4676,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -4841,8 +4763,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4905,8 +4826,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -4956,8 +4876,7 @@
             "support_attack_charges": 1,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -5007,8 +4926,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 1,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -5071,8 +4989,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": true,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -5122,8 +5039,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }

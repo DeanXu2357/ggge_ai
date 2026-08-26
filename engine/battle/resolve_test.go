@@ -280,13 +280,12 @@ func TestADeadTargetRepliesWithNothing(t *testing.T) {
 	}
 }
 
-func TestTheAttackShieldTakesTheCounterForTheAttacker(t *testing.T) {
+func TestTheSupportDefendWhenAttackTakesTheCounterForTheAttacker(t *testing.T) {
 	state := shootout()
 	bearer := fighter("a2", FactionAlly, Cell{0, 1})
 	bearer.MoveRange = 1
-	bearer.AttackShield = true
+	bearer.SupportDefendWhenAttack = true
 	bearer.SupportDefendCharges = 1
-	bearer.InterceptionReduction = 0.25
 	state.Units = append(state.Units, bearer)
 	decision := attackOn("e1", "beam rifle")
 	decision.SupportDefender = "a2"

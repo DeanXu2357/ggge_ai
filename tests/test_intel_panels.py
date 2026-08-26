@@ -112,8 +112,7 @@ def test_abilities_map_onto_implemented_flags_only():
     texts = AbilityTexts(
         entries=(
             AbilityText(name="盾牌防禦", owner="unit", effect="shield_defense", magnitude=0.2),
-            AbilityText(name="攔截支援", owner="unit", effect="attack_shield"),
-            AbilityText(name="攔截減輕", owner="unit", effect="interception_reduction", magnitude=0.3),
+            AbilityText(name="攔截支援", owner="unit", effect="support_defend_when_attack"),
             AbilityText(name="支援防禦+1次", owner="pilot", effect="support_defend_charge", magnitude=1),
             AbilityText(name="EN回復", owner="pilot", effect="skill_en_refill", magnitude=50),
             AbilityText(name="複製新人類", owner="pilot", effect=None),
@@ -123,8 +122,7 @@ def test_abilities_map_onto_implemented_flags_only():
     result = unit_intel_from_panels("kshatriya", abilities=texts)
     record = result.record
     assert record.has_shield is True
-    assert record.attack_shield is True
-    assert record.interception_reduction == 0.3
+    assert record.support_defend_when_attack is True
     assert record.support_defend_charges_max == 1
     assert [(skill.kind, skill.amount) for skill in record.skills] == [
         (ActionKind.SKILL_EN_REFILL, 50.0)

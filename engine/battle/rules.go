@@ -35,11 +35,3 @@ func StanceMultiplier(stance Stance, defender *Unit) float64 {
 	}
 	return DefendMultiplier
 }
-
-// An interceptor takes the strike in the defend stance, so it reads the same
-// multiplier as a defender that defends. Its own reduction is an ability of
-// that unit, and no rule of the mechanism holds one for every interceptor.
-func InterceptionMultiplier(interceptor *Unit) float64 {
-	return StanceMultiplier(StanceDefend, interceptor) *
-		(1 - interceptor.InterceptionReduction)
-}

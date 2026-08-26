@@ -21,8 +21,7 @@ from dataclasses import dataclass, field
 
 from ..runtime import panels
 from ..runtime.panel_text import (
-    ATTACK_SHIELD,
-    INTERCEPTION_REDUCTION,
+    SUPPORT_DEFEND_WHEN_ATTACK,
     SHIELD_DEFENSE,
     SKILL_KINDS,
     SUPPORT_DEFEND_CHARGE,
@@ -135,8 +134,7 @@ def weapon_intel(row: panels.WeaponRowRead, text: WeaponText | None, build: _Bui
 def _abilities(texts: AbilityTexts | None, build: _Build) -> dict:
     flags = {
         "has_shield": False,
-        "attack_shield": False,
-        "interception_reduction": 0.0,
+        "support_defend_when_attack": False,
         "support_defend_charges_max": 0,
         "skills": (),
     }
@@ -150,10 +148,8 @@ def _abilities(texts: AbilityTexts | None, build: _Build) -> dict:
             skills.append(SkillIntel(kind=ActionKind(entry.effect), amount=entry.magnitude or None))
         elif entry.effect == SHIELD_DEFENSE:
             flags["has_shield"] = True
-        elif entry.effect == ATTACK_SHIELD:
-            flags["attack_shield"] = True
-        elif entry.effect == INTERCEPTION_REDUCTION:
-            flags["interception_reduction"] = entry.magnitude
+        elif entry.effect == SUPPORT_DEFEND_WHEN_ATTACK:
+            flags["support_defend_when_attack"] = True
         elif entry.effect == SUPPORT_DEFEND_CHARGE:
             flags["support_defend_charges_max"] += max(1, int(entry.magnitude or 1))
     flags["skills"] = tuple(skills)
@@ -243,8 +239,7 @@ def unit_intel_from_panels(
         chance_steps_max=chance_steps,
         support_defend_charges_max=flags["support_defend_charges_max"],
         has_shield=flags["has_shield"],
-        attack_shield=flags["attack_shield"],
-        interception_reduction=flags["interception_reduction"],
+        support_defend_when_attack=flags["support_defend_when_attack"],
         pilot_shooting=float(offence.shooting or 0),
         pilot_melee=float(offence.melee or 0),
         pilot_awakening=float(offence.awakening or 0),

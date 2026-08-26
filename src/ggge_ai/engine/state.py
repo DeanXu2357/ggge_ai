@@ -86,8 +86,7 @@ class Unit:
     support_attack_charges: int = 0
     support_attack_charges_max: int = 0
     has_shield: bool = False
-    attack_shield: bool = False
-    interception_reduction: float = 0.0
+    support_defend_when_attack: bool = False
     ammo: dict[str, int] = field(default_factory=dict)
     debuffs: list[Debuff] = field(default_factory=list)
 

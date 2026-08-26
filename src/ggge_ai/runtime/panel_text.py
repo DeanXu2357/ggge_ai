@@ -73,15 +73,13 @@ MIN_ALIGN_LEN = 3
 
 DAMAGE_TAKEN_UP = "damage_taken_up"
 SHIELD_DEFENSE = "shield_defense"
-ATTACK_SHIELD = "attack_shield"
-INTERCEPTION_REDUCTION = "interception_reduction"
+SUPPORT_DEFEND_WHEN_ATTACK = "support_defend_when_attack"
 SUPPORT_DEFEND_CHARGE = "support_defend_charge"
 
 WEAPON_EFFECTS: tuple[str, ...] = (DAMAGE_TAKEN_UP,)
 ABILITY_EFFECTS: tuple[str, ...] = (
     SHIELD_DEFENSE,
-    ATTACK_SHIELD,
-    INTERCEPTION_REDUCTION,
+    SUPPORT_DEFEND_WHEN_ATTACK,
     SUPPORT_DEFEND_CHARGE,
 )
 SKILL_KINDS: tuple[str, ...] = ("skill_en_refill", "skill_heal")
@@ -201,9 +199,9 @@ ABILITY_PROMPT = (
     "'unit' for machine abilities and 'pilot' for pilot abilities. Map each "
     "description to one of the listed effect codes with its percentage in "
     "magnitude as a fraction (20% -> 0.2): shield_defense is a shield that "
-    "reduces damage when defending, attack_shield is intercepting an attack "
-    "aimed at an ally, interception_reduction reduces the interception "
-    "penalty, support_defend_charge grants extra support-defend uses, "
+    "reduces damage when defending, support_defend_when_attack is taking a "
+    "counter strike for an ally that attacks, support_defend_charge grants "
+    "extra support-defend uses, "
     "skill_en_refill restores EN, skill_heal restores HP. For any other "
     "description set effect to null and copy the description into unsupported. "
     "Never invent an effect code."

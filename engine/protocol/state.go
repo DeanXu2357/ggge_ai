@@ -35,9 +35,9 @@ const (
 type SkillSource string
 
 const (
-	SourcePilot     SkillSource = "pilot"
-	SourceCrew      SkillSource = "crew"
-	SourceMech      SkillSource = "mech"
+	SourcePilot SkillSource = "pilot"
+	SourceCrew  SkillSource = "crew"
+	SourceMech  SkillSource = "mech"
 )
 
 // SkillAffects holds no 'self' value. A skill that acts on the caster alone
@@ -77,9 +77,9 @@ var (
 		StanceNone:    true,
 	}
 	skillSources = map[SkillSource]bool{
-		SourcePilot:     true,
-		SourceCrew:      true,
-		SourceMech:      true,
+		SourcePilot: true,
+		SourceCrew:  true,
+		SourceMech:  true,
 	}
 	skillAffects = map[SkillAffects]bool{
 		AffectsAlly:  true,
@@ -191,8 +191,7 @@ type Unit struct {
 	SupportAttackCharges    int            `json:"support_attack_charges"`
 	SupportAttackChargesMax int            `json:"support_attack_charges_max"`
 	HasShield               bool           `json:"has_shield"`
-	AttackShield            bool           `json:"attack_shield"`
-	InterceptionReduction   float64        `json:"interception_reduction"`
+	SupportDefendWhenAttack bool           `json:"support_defend_when_attack"`
 	Ammo                    map[string]int `json:"ammo"`
 	Debuffs                 []Debuff       `json:"debuffs"`
 	MechHP                  int            `json:"mech_hp,omitempty"`

@@ -128,7 +128,7 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 	if err != nil {
 		return nil, outcome{}, err
 	}
-	bearer, err := b.namedAttackShield(actor, firing, decision.SupportDefender)
+	bearer, err := b.namedSupportDefendWhenAttack(actor, firing, decision.SupportDefender)
 	if err != nil {
 		return nil, outcome{}, err
 	}
@@ -260,9 +260,9 @@ func (b *Board) namedInterceptor(covered *Unit, at Footprint, name string,
 		ErrIllegalAction, name, covered.ID)
 }
 
-func (b *Board) namedAttackShield(actor *Unit, firing Footprint, name string) (*Unit, error) {
+func (b *Board) namedSupportDefendWhenAttack(actor *Unit, firing Footprint, name string) (*Unit, error) {
 	return b.namedInterceptor(actor, firing, name,
-		func(other *Unit) bool { return other.AttackShield })
+		func(other *Unit) bool { return other.SupportDefendWhenAttack })
 }
 
 type receiver struct {
@@ -292,7 +292,7 @@ func (b *Board) interceptedReceiver(interceptor *Unit) receiver {
 	return receiver{
 		board:       b,
 		struck:      interceptor,
-		multiplier:  InterceptionMultiplier(interceptor),
+		multiplier:  StanceMultiplier(StanceDefend, interceptor),
 		interceptor: interceptor,
 	}
 }

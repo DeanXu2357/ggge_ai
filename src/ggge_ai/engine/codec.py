@@ -143,8 +143,7 @@ def encode_unit(unit: Unit) -> dict[str, Any]:
         "support_attack_charges": unit.support_attack_charges,
         "support_attack_charges_max": unit.support_attack_charges_max,
         "has_shield": unit.has_shield,
-        "attack_shield": unit.attack_shield,
-        "interception_reduction": unit.interception_reduction,
+        "support_defend_when_attack": unit.support_defend_when_attack,
         "ammo": dict(unit.ammo),
         "debuffs": [encode_debuff(debuff) for debuff in unit.debuffs],
     }
@@ -178,8 +177,7 @@ def decode_unit(payload: dict[str, Any]) -> Unit:
         support_attack_charges=_int(payload, "support_attack_charges"),
         support_attack_charges_max=_int(payload, "support_attack_charges_max"),
         has_shield=_bool(payload, "has_shield"),
-        attack_shield=_bool(payload, "attack_shield"),
-        interception_reduction=_float(payload, "interception_reduction"),
+        support_defend_when_attack=_bool(payload, "support_defend_when_attack"),
         ammo={str(name): int(count) for name, count in (payload.get("ammo") or {}).items()},
         debuffs=[decode_debuff(entry) for entry in payload.get("debuffs") or ()],
     )

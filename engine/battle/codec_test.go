@@ -45,7 +45,7 @@ func wireBoard() *protocol.BattleState {
 				SupportDefendCharges:    1,
 				SupportDefendChargesMax: 1,
 				SupportAttackCharges:    2,
-				AttackShield:            true,
+				SupportDefendWhenAttack: true,
 				Ammo:                    map[string]int{"missile": 3},
 				Weapons: []protocol.Weapon{{
 					Name:            "rifle",
@@ -100,7 +100,7 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 		SupportDefendChargesMax: 1,
 		SupportAttackCharges:    2,
 		HasShield:               true,
-		AttackShield:            true,
+		SupportDefendWhenAttack: true,
 		Ammo:                    map[string]int{"missile": 3},
 		Debuffs:                 []Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
 		Weapons: []Weapon{{

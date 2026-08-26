@@ -54,6 +54,8 @@ nodes and the resolution order came over as they stood.
 | The support defense multiplier | Out of the rules. A unit that takes the strike for another takes it in the defend stance, and its own reduction is an ability of that unit. No rule of the mechanism holds one value for every such case. |
 | The shield multiplier | The shield is a second cut on top of the defense, not a stance of its own. The value 0.6 was the two cuts flattened into one, and wrongly: a shielded defender pays 0.8 times 0.8. |
 | The rules payload | Out of the contract. Every value of it holds for the whole title, so no stage overrides one. The values are constants of 'engine/battle/rules.go'. |
+| The attack shield | The field 'AttackShield' becomes 'SupportDefendWhenAttack', and the wire field 'attack_shield' becomes 'support_defend_when_attack'. The name says what the unit does. |
+| The interception reduction | Out of the unit. The user named no such concept. What was described is a weapon that resolves ahead of the order and strikes through the support defense, which is a use of the application order of a weapon and no attribute of a unit. |
 
 ## Change summary
 
@@ -98,6 +100,17 @@ nodes and the resolution order came over as they stood.
 - The shield: 'ShieldMultiplier' is 0.8, its own cut, and
   'StanceMultiplier' multiplies it by 'DefendMultiplier' for a shielded
   defender. The two reference documents carry the correction.
+- The attack shield: 'AttackShield' and 'attack_shield' become
+  'SupportDefendWhenAttack' and 'support_defend_when_attack' through the
+  model, the wire, the Python mirror, the panel reader, the ability
+  vocabulary of the panel prompt, the frozen files and the scenario
+  file.
+- The interception reduction: 'Unit.InterceptionReduction', the wire
+  field, the Python mirror, the intelligence record, the panel ability
+  code and the frozen values are all out.
+  'InterceptionMultiplier' goes with them, because a unit that takes
+  the strike for another now reads 'StanceMultiplier' for the defend
+  stance and nothing else.
 - The skill source: the wire value 'unit' becomes 'mech' and
   'character' becomes 'pilot', in 'engine/protocol/state.go',
   'engine/battle/model.go', the two codecs and
@@ -124,7 +137,7 @@ nodes and the resolution order came over as they stood.
       run -> attack
         foe, destination
         namedSupportAttackers            <- the pick of the client
-        namedAttackShield
+        namedSupportDefendWhenAttack
         answerOf
           CounterWeapon
           namedInterceptor
@@ -163,7 +176,7 @@ nodes and the resolution order came over as they stood.
    its own: every damage number of it divides by the scalar rule
    'terrain' 1.25. That rule is gone and no process writes the file
    again (issue #73), so the case is deleted.
-   'TestTheAttackShieldTakesTheCounterForTheAttacker' of
+   'TestTheSupportDefendWhenAttackTakesTheCounterForTheAttacker' of
    'engine/battle/resolve_test.go' covers the attack shield.
 7. **The frozen files still carry two retired fields inside 'rules'.**
    'engine/differential' holds 'terrain' and

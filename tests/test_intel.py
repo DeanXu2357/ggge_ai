@@ -47,8 +47,7 @@ def unicorn() -> UnitIntel:
         support_attack_charges_max=2,
         support_defend_charges_max=1,
         has_shield=True,
-        attack_shield=True,
-        interception_reduction=0.15,
+        support_defend_when_attack=True,
         pilot_shooting=583.0,
         pilot_melee=700.0,
         pilot_awakening=690.0,
@@ -107,8 +106,7 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert unit.chance_steps == unit.chance_steps_max == 1
     assert unit.support_attack_charges == 2
     assert unit.support_defend_charges == 1
-    assert (unit.has_shield, unit.attack_shield) == (True, True)
-    assert unit.interception_reduction == 0.15
+    assert (unit.has_shield, unit.support_defend_when_attack) == (True, True)
 
 
 def test_the_weapon_carries_its_badges_its_crit_and_its_level():

@@ -103,9 +103,9 @@ const (
 type SkillSource string
 
 const (
-	SourcePilot     SkillSource = "pilot"
-	SourceCrew      SkillSource = "crew"
-	SourceMech      SkillSource = "mech"
+	SourcePilot SkillSource = "pilot"
+	SourceCrew  SkillSource = "crew"
+	SourceMech  SkillSource = "mech"
 )
 
 type Debuff struct {
@@ -171,8 +171,7 @@ type Unit struct {
 	SupportAttackCharges    int
 	SupportAttackChargesMax int
 	HasShield               bool
-	AttackShield            bool
-	InterceptionReduction   float64
+	SupportDefendWhenAttack bool
 	Ammo                    map[string]int
 	Debuffs                 []Debuff
 }

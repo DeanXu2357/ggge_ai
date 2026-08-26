@@ -112,8 +112,7 @@ class UnitIntel:
     support_attack_charges_max: int = 0
     support_defend_charges_max: int = 0
     has_shield: bool = False
-    attack_shield: bool = False
-    interception_reduction: float = 0.0
+    support_defend_when_attack: bool = False
     pilot_shooting: float = 0.0
     pilot_melee: float = 0.0
     pilot_awakening: float = 0.0
@@ -171,8 +170,7 @@ class UnitIntel:
             support_attack_charges=self.support_attack_charges_max,
             support_attack_charges_max=self.support_attack_charges_max,
             has_shield=self.has_shield,
-            attack_shield=self.attack_shield,
-            interception_reduction=self.interception_reduction,
+            support_defend_when_attack=self.support_defend_when_attack,
             ammo={weapon.name: weapon.ammo for weapon in self.weapons if weapon.ammo > 0},
         )
 
