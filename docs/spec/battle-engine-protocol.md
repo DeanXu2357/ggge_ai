@@ -488,8 +488,8 @@ A true value permits a move in the same activation; a false value
 makes the action pre-move only. The permission is a property of
 that weapon or that skill, not of the kind of the action: a map
 weapon is a common holder of a false value, but some map weapons
-fire after a move, and some skills of the source 'character' or
-'crew' hold a false value (user ruling 2026-08-20).
+fire after a move, and some skills of the source 'pilot' or 'crew'
+hold a false value (user ruling 2026-08-20).
 
 A skill carries its area in four fields. The fields 'range_min'
 and 'range_max' hold the distance from the caster to the center of

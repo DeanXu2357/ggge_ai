@@ -37,7 +37,7 @@ var wireKinds = map[ActionKind]protocol.ActionKind{
 }
 
 var skillSources = map[protocol.SkillSource]SkillSource{
-	protocol.SourceCharacter: SourceCharacter,
+	protocol.SourcePilot:     SourcePilot,
 	protocol.SourceCrew:      SourceCrew,
 	protocol.SourceMech:      SourceMech,
 }
@@ -62,7 +62,7 @@ var wireAffects = map[SkillAffects]protocol.SkillAffects{
 }
 
 var wireSources = map[SkillSource]protocol.SkillSource{
-	SourceCharacter: protocol.SourceCharacter,
+	SourcePilot:     protocol.SourcePilot,
 	SourceCrew:      protocol.SourceCrew,
 	SourceMech:      protocol.SourceMech,
 }

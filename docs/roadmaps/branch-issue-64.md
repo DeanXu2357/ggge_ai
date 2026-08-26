@@ -50,6 +50,7 @@ nodes and the resolution order came over as they stood.
 | The ability framework | The engine models a closed set of ability kinds and ignores every kind outside it. A new ability of the game adds a kind, never a field of 'Weapon'. |
 | Where the ability lands | Not on this branch. This branch discloses the decision and leaves the gap; issue #80 builds the model. |
 | The source of a machine skill | The value 'unit' becomes 'mech'. A unit is a pilot and a mech together, so the source of a machine skill names the mech alone. |
+| The source of a driver skill | The value 'character' becomes 'pilot'. The engine names that level 'Pilot' everywhere else, and one concept takes one term. |
 
 ## Change summary
 
@@ -83,10 +84,11 @@ nodes and the resolution order came over as they stood.
   weapon field 'Blast' are out of the model, the wire, the Python
   mirror and 'stage/intel.py'. 'Board.Apply' refuses the kind and
   changes no field. Issue #79 holds the area of a map weapon.
-- The skill source: the wire value 'unit' becomes 'mech', in
-  'engine/protocol/state.go', 'engine/battle/model.go', the two codecs
-  and 'src/ggge_ai/engine/contract.py'. The three frozen files that
-  hold a skill take the new name of the same value.
+- The skill source: the wire value 'unit' becomes 'mech' and
+  'character' becomes 'pilot', in 'engine/protocol/state.go',
+  'engine/battle/model.go', the two codecs and
+  'src/ggge_ai/engine/contract.py'. The three frozen files that hold a
+  skill take the new name of 'unit'; no file holds 'character'.
 - The weapon ability: 'docs/spec/battle-engine-protocol.md' gains the
   section 'Weapon abilities', which holds the three known abilities,
   the closed-kind rule and the gap. 'docs/reference/terminology-map.md'

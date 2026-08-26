@@ -103,7 +103,7 @@ const (
 type SkillSource string
 
 const (
-	SourceCharacter SkillSource = "character"
+	SourcePilot     SkillSource = "pilot"
 	SourceCrew      SkillSource = "crew"
 	SourceMech      SkillSource = "mech"
 )

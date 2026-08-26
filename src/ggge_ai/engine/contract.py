@@ -50,7 +50,7 @@ class ActionKind(StrEnum):
 
 
 class SkillSource(StrEnum):
-    CHARACTER = "character"
+    PILOT = "pilot"
     CREW = "crew"
     MECH = "mech"
 

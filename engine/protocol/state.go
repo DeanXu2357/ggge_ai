@@ -35,7 +35,7 @@ const (
 type SkillSource string
 
 const (
-	SourceCharacter SkillSource = "character"
+	SourcePilot     SkillSource = "pilot"
 	SourceCrew      SkillSource = "crew"
 	SourceMech      SkillSource = "mech"
 )
@@ -77,7 +77,7 @@ var (
 		StanceNone:    true,
 	}
 	skillSources = map[SkillSource]bool{
-		SourceCharacter: true,
+		SourcePilot:     true,
 		SourceCrew:      true,
 		SourceMech:      true,
 	}
