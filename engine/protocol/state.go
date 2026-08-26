@@ -124,15 +124,6 @@ func (a *SkillAffects) UnmarshalJSON(data []byte) error {
 // on an open plane; it is not an empty board.
 type Bounds [2]Cell
 
-type Rules struct {
-	DefendMultiplier        float64 `json:"defend_multiplier"`
-	ShieldMultiplier        float64 `json:"shield_multiplier"`
-	SupportDefendMultiplier float64 `json:"support_defend_multiplier"`
-	DodgeHitPenalty         float64 `json:"dodge_hit_penalty"`
-	MaxSupportAttackers     int     `json:"max_support_attackers"`
-	ENRegenFraction         float64 `json:"en_regen_fraction"`
-}
-
 type Weapon struct {
 	Name            string  `json:"name"`
 	Power           float64 `json:"power"`

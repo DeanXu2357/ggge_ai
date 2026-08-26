@@ -25,7 +25,6 @@ from ggge_ai.engine.state import (
     Debuff,
     Decision,
     Reaction,
-    Rules,
     Skill,
     StageEvent,
     TerrainCell,
@@ -36,7 +35,6 @@ from ggge_ai.engine.state import (
 STATE_GO = Path(__file__).resolve().parents[1] / "engine" / "protocol" / "state.go"
 
 STRUCTS = {
-    "Rules": Rules,
     "Weapon": Weapon,
     "Skill": Skill,
     "Debuff": Debuff,
@@ -49,7 +47,6 @@ STRUCTS = {
 }
 
 ENCODERS = {
-    "Rules": lambda: codec.encode_rules(Rules()),
     "Weapon": lambda: codec.encode_weapon(Weapon(name="w", power=1.0)),
     "Skill": lambda: codec.encode_skill(Skill(kind=ActionKind.SKILL_HEAL)),
     "Debuff": lambda: codec.encode_debuff(Debuff("k", 1.0, 2)),
@@ -101,13 +98,12 @@ def test_the_codec_writes_every_field_of_the_dataclass(name):
 
 
 def test_the_state_survives_the_round_trip():
-    state, rules, events = _board()
+    state, events = _board()
 
     payload = codec.encode_state(state)
 
     assert codec.encode_state(codec.decode_state(payload)) == payload
     assert codec.decode_state(payload) == state
-    assert codec.decode_rules(codec.encode_rules(rules)) == rules
     assert codec.decode_events(codec.encode_events(events)) == events
 
 
@@ -157,7 +153,7 @@ def test_a_field_outside_the_contract_stops_the_decode():
         codec.decode_unit({**payload, "morale": 7})
 
 
-def _board() -> tuple[BattleState, Rules, EventTable]:
+def _board() -> tuple[BattleState, EventTable]:
     weapon = Weapon(name="rifle", power=1200.0, range_min=1, range_max=3, en_cost=10)
     skill = Skill(kind=ActionKind.SKILL_HEAL, amount=500.0)
     unit = Unit(
@@ -177,7 +173,7 @@ def _board() -> tuple[BattleState, Rules, EventTable]:
     state = BattleState(units=[unit, foe], phase=Faction.ALLY, turn=2, bounds=((0, 0), (7, 7)))
     events = {"e1": StageEvent(event_id="e1", trigger={"type": "turn_start", "turn": 3},
                                effect={"type": "weaken", "uids": ["enemy_1"]})}
-    return state, Rules(), events
+    return state, events
 
 
 def test_the_terrain_of_the_map_survives_the_round_trip():

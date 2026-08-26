@@ -14,10 +14,8 @@ from typing import Any
 
 from ..engine.contract import Cell, Faction, Terrain
 from ..engine.state import (
-    DEFAULT_RULES,
     BattleState,
     EventTable,
-    Rules,
     StageEvent,
     TerrainCell,
     Unit,
@@ -53,14 +51,13 @@ class Scenario:
     stage: str
     note: str
     board: Board
-    rules: Rules
     intel: Intelligence
     units: tuple[Unit, ...]
     victory: dict[str, Any]
     defeat: dict[str, Any]
     events: EventTable = field(default_factory=dict)
 
-    def build(self) -> tuple[BattleState, Rules, EventTable]:
+    def build(self) -> tuple[BattleState, EventTable]:
         state = BattleState(
             units=[unit.clone() for unit in self.units],
             phase=Faction.ALLY,
@@ -70,7 +67,7 @@ class Scenario:
             terrain=self.board.terrain,
             terrain_cells=self.board.terrain_cells,
         )
-        return state, self.rules, dict(self.events)
+        return state, dict(self.events)
 
 
 def load(path: str | Path) -> Scenario:
@@ -88,7 +85,6 @@ def from_dict(data: dict[str, Any]) -> Scenario:
 
     board = _board(data.get("board", {}))
     knowledge = intel_mod.from_dict(data.get("intel", {}))
-    rules = _rules(data.get("rules", {}))
 
     taken: set[str] = set()
     units = tuple(
@@ -100,7 +96,6 @@ def from_dict(data: dict[str, Any]) -> Scenario:
         stage=data.get("stage", ""),
         note=data.get("note", ""),
         board=board,
-        rules=rules,
         intel=knowledge,
         units=units,
         victory=dict(data.get("victory", {"type": VICTORY_ANNIHILATION})),
@@ -140,13 +135,6 @@ def _terrain_cells(raw: Any, board: Board) -> tuple[TerrainCell, ...]:
         seen.add(cell)
         out.append(TerrainCell(cell=cell, terrain=_terrain(entry["terrain"])))
     return tuple(out)
-
-
-def _rules(overrides: dict[str, Any]) -> Rules:
-    unknown = sorted(set(overrides) - {f.name for f in Rules.__dataclass_fields__.values()})
-    if unknown:
-        raise ValueError(f"rules 有未知欄位：{'、'.join(unknown)}")
-    return replace(DEFAULT_RULES, **overrides)
 
 
 def _record(knowledge: Intelligence, intel_id: str, where: str) -> UnitIntel:

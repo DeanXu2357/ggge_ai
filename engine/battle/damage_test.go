@@ -63,11 +63,11 @@ func TestTheDamageScaleAddsTheBonusAndDropsThePenalty(t *testing.T) {
 func TestTheDefenseAndTheCriticalMultiplyTheDamage(t *testing.T) {
 	near(t, "no defense", FinalDamage(1000, 1, NoDefenseMultiplier), 1000)
 	near(t, "a defense that the scale pays back", FinalDamage(1000, 1.25, DefendMultiplier), 1000)
-	near(t, "a shield", FinalDamage(1000, 1, ShieldMultiplier), 600)
+	near(t, "a shield that defends", FinalDamage(1000, 1, ShieldMultiplier*DefendMultiplier), 640)
 
 	near(t, "a normal critical", CriticalDamage(1000, 1, NoDefenseMultiplier, CritNormal), 1100)
 	near(t, "a high morale critical", CriticalDamage(1000, 1, DefendMultiplier, CritHighMorale), 960)
-	near(t, "a super critical", CriticalDamage(1000, 1, ShieldMultiplier, CritSuper), 780)
+	near(t, "a super critical", CriticalDamage(1000, 1, ShieldMultiplier*DefendMultiplier, CritSuper), 832)
 }
 
 func TestTheExpectedDamageIsTheThreeFormulasInOrder(t *testing.T) {

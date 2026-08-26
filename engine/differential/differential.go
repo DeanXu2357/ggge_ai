@@ -19,9 +19,17 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
+// The frozen files carry a rules block. The contract holds none: every rule of
+// the mechanism is a constant of 'engine/battle' (user ruling 2026-08-26). The
+// struct stays so the files still load, and no test reads a field of it.
 type Rules struct {
-	protocol.Rules
-	Terrain float64 `json:"terrain"`
+	DefendMultiplier        float64 `json:"defend_multiplier"`
+	ShieldMultiplier        float64 `json:"shield_multiplier"`
+	SupportDefendMultiplier float64 `json:"support_defend_multiplier"`
+	DodgeHitPenalty         float64 `json:"dodge_hit_penalty"`
+	MaxSupportAttackers     int     `json:"max_support_attackers"`
+	ENRegenFraction         float64 `json:"en_regen_fraction"`
+	Terrain                 float64 `json:"terrain"`
 }
 
 type Setup struct {

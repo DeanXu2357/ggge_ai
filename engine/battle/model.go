@@ -108,26 +108,6 @@ const (
 	SourceMech      SkillSource = "mech"
 )
 
-type Rules struct {
-	DefendMultiplier        float64
-	ShieldMultiplier        float64
-	SupportDefendMultiplier float64
-	DodgeHitPenalty         float64
-	MaxSupportAttackers     int
-	ENRegenFraction         float64
-}
-
-func DefaultRules() Rules {
-	return Rules{
-		DefendMultiplier:        DefendMultiplier,
-		ShieldMultiplier:        ShieldMultiplier,
-		SupportDefendMultiplier: DefendMultiplier,
-		DodgeHitPenalty:         20,
-		MaxSupportAttackers:     3,
-		ENRegenFraction:         0.10,
-	}
-}
-
 type Debuff struct {
 	Kind         string
 	Magnitude    float64
@@ -265,7 +245,7 @@ func cloneAmount(amount *float64) *float64 {
 	return &out
 }
 
-func NewBoard(bounds Bounds, units []Unit, rules Rules) (*Board, error) {
+func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
 	if bounds.High[0] < bounds.Low[0] || bounds.High[1] < bounds.Low[1] {
 		return nil, fmt.Errorf("the bounds %v run backward", bounds)
 	}
@@ -277,7 +257,7 @@ func NewBoard(bounds Bounds, units []Unit, rules Rules) (*Board, error) {
 		}
 		seen[id] = true
 	}
-	return &Board{Bounds: bounds, Units: units, Rules: rules}, nil
+	return &Board{Bounds: bounds, Units: units}, nil
 }
 
 type Board struct {
@@ -285,7 +265,6 @@ type Board struct {
 	Units          []Unit
 	Phase          Faction
 	Turn           int
-	Rules          Rules
 	DefaultTerrain Terrain
 	TerrainCells   map[Cell]Terrain
 }

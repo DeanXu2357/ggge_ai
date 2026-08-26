@@ -21,7 +21,7 @@ from ..stage import scenario as scenario_mod
 from . import codec
 from .client import EngineDead, EngineError, EngineTimeout
 from .contract import DiceMode, Faction
-from .state import DEFAULT_RULES, BattleState, EventTable, Rules
+from .state import BattleState, EventTable
 
 GONE = (EngineError, EngineDead, EngineTimeout)
 
@@ -32,13 +32,11 @@ class EngineSession:
         engine: Any,
         state: BattleState,
         *,
-        rules: Rules = DEFAULT_RULES,
         events: EventTable | None = None,
         stage: str = "",
     ) -> None:
         self._engine = engine
         self._state = state
-        self._rules = rules
         self._events = events or {}
         self._stage = stage
         self._ask("load", {"state": self.engine_state(), "history": []})
@@ -46,8 +44,8 @@ class EngineSession:
     @classmethod
     def from_scenario(cls, path: str, engine: Any) -> EngineSession:
         loaded = scenario_mod.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
-        state, rules, events = loaded.build()
-        return cls(engine, state, rules=rules, events=events, stage=loaded.stage)
+        state, events = loaded.build()
+        return cls(engine, state, events=events, stage=loaded.stage)
 
     def engine_state(self) -> dict[str, Any]:
         return codec.encode_state(self._state)
@@ -58,7 +56,6 @@ class EngineSession:
             "turn": self._state.turn,
             "phase": str(self._state.phase),
             "bounds": self._state.bounds,
-            "rules": codec.encode_rules(self._rules),
             "units": self.engine_state()["units"],
         }
 

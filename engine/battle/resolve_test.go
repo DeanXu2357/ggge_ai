@@ -2,6 +2,7 @@ package battle
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -204,22 +205,27 @@ func TestTheSupportAttackOfTheAttackerIsAChoice(t *testing.T) {
 
 func TestTheRulesCapTheNumberOfSupportAttackers(t *testing.T) {
 	state := intercepted()
-	second := fighter("a3", FactionAlly, Cell{2, 1})
-	second.Weapons = []Weapon{beam()}
-	second.MoveRange = 3
-	second.SupportAttackCharges = 1
-	state.Units = append(state.Units, second)
-	state.Rules.MaxSupportAttackers = 1
+	names := []string{"a2"}
+	for index := 0; index <= MaxSupportAttackers; index++ {
+		joining := fighter(fmt.Sprintf("a%d", index+3), FactionAlly, Cell{2, index + 1})
+		joining.Weapons = []Weapon{beam()}
+		joining.MoveRange = 3
+		joining.SupportAttackCharges = 1
+		state.Units = append(state.Units, joining)
+		names = append(names, joining.ID)
+	}
 	decision := attackOn("e1", "beam rifle")
-	decision.SupportAttackers = []string{"a2", "a3"}
+	decision.SupportAttackers = names
 
 	_, err := state.Apply(decision, Forced{AttackerSupport: true, Strike: true})
 
 	if !errors.Is(err, ErrIllegalAction) {
-		t.Fatalf("the cap of the rules is one unit: %v", err)
+		t.Fatalf("the cap of the rules is %d units: %v", MaxSupportAttackers, err)
 	}
-	if state.Unit("a2").SupportAttackCharges != 1 || state.Unit("a3").SupportAttackCharges != 1 {
-		t.Fatal("an error leaves the board as it was")
+	for _, name := range names {
+		if state.Unit(name).SupportAttackCharges != 1 {
+			t.Fatalf("an error leaves the board as it was: %q", name)
+		}
 	}
 }
 
@@ -467,7 +473,7 @@ func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheInterceptor(t *testing.T) {
 	}
 
 	weapon := beam()
-	want := StrikeHitProbability(state.Unit("a1"), state.Unit("e1"), &weapon, true, state.Rules)
+	want := StrikeHitProbability(state.Unit("a1"), state.Unit("e1"), &weapon, true)
 	if trace[0].StruckID != "e2" {
 		t.Fatalf("the interceptor takes the strike: %+v", trace)
 	}

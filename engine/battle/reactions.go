@@ -104,7 +104,7 @@ func (b *Board) stanceOption(attacker, defender *Unit, weapon *Weapon, stance St
 		Stance: stance,
 		Weapon: counter,
 		Incoming: b.forecastOf(attacker, defender, weapon,
-			b.Rules.StanceMultiplier(stance, defender), stance == StanceDodge),
+			StanceMultiplier(stance, defender), stance == StanceDodge),
 	}
 }
 

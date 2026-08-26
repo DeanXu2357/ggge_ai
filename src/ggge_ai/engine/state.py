@@ -15,21 +15,6 @@ from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stan
 
 
 @dataclass(frozen=True)
-class Rules:
-    """機制倍率與上限；逐項實測狀態見 docs/reference/combat-formulas.md 待標定清單。"""
-
-    defend_multiplier: float = 0.8
-    shield_multiplier: float = 0.6
-    support_defend_multiplier: float = 0.8
-    dodge_hit_penalty: float = 20.0
-    max_support_attackers: int = 3
-    en_regen_fraction: float = 0.10
-
-
-DEFAULT_RULES = Rules()
-
-
-@dataclass(frozen=True)
 class Weapon:
     name: str
     power: float

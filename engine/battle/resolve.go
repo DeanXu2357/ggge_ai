@@ -147,7 +147,7 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 	// the target. Which evasion the game reads on an interception is not
 	// measured, so the value of the oracle stands until a measurement lands.
 	trace = append(trace, shot.hit(StrikeMain, actor, weapon,
-		dice.Lands(NodeStrike, StrikeHitProbability(actor, target, weapon, dodging, b.Rules))))
+		dice.Lands(NodeStrike, StrikeHitProbability(actor, target, weapon, dodging))))
 	killed := !shot.struck.Alive()
 
 	if answer.reaction != nil && target.Alive() {
@@ -223,7 +223,7 @@ func (b *Board) namedSupportAttackers(supported *Unit, firing, foe Footprint,
 	if len(names) == 0 {
 		return nil, nil
 	}
-	if limit := max(0, b.Rules.MaxSupportAttackers); len(names) > limit {
+	if limit := MaxSupportAttackers; len(names) > limit {
 		return nil, fmt.Errorf("%w: unit %q names %d support attackers, and the rules permit %d",
 			ErrIllegalAction, supported.ID, len(names), limit)
 	}
@@ -279,7 +279,7 @@ func (b *Board) receiverOf(target *Unit, answer answer) receiver {
 	}
 	multiplier := NoDefenseMultiplier
 	if answer.reaction != nil {
-		multiplier = b.Rules.StanceMultiplier(answer.reaction.Stance, target)
+		multiplier = StanceMultiplier(answer.reaction.Stance, target)
 	}
 	return b.plainReceiver(target, multiplier)
 }
@@ -292,7 +292,7 @@ func (b *Board) interceptedReceiver(interceptor *Unit) receiver {
 	return receiver{
 		board:       b,
 		struck:      interceptor,
-		multiplier:  b.Rules.InterceptionMultiplier(interceptor),
+		multiplier:  InterceptionMultiplier(interceptor),
 		interceptor: interceptor,
 	}
 }
@@ -373,7 +373,7 @@ func (b *Board) fire(node Node, kind StrikeKind, joining []SupportAttacker, dice
 	// One die settles the whole support attack, so the probability is the one of
 	// the first shot. A die for each support attacker is issue #47.
 	landed := dice.Lands(node, StrikeHitProbability(shooters[0].Unit,
-		shot.struck, shooters[0].Weapon, false, b.Rules))
+		shot.struck, shooters[0].Weapon, false))
 	out := make(Trace, 0, len(shooters))
 	for _, shooter := range shooters {
 		shooter.Unit.SupportAttackCharges--
@@ -399,7 +399,7 @@ func (b *Board) counterStrike(defender, attacker *Unit, weapon *Weapon, bearer *
 	dice Dice) Strike {
 	defender.EN -= weapon.ENCost
 	landed := dice.Lands(NodeCounter,
-		StrikeHitProbability(defender, attacker, weapon, false, b.Rules))
+		StrikeHitProbability(defender, attacker, weapon, false))
 	shot := b.plainReceiver(attacker, NoDefenseMultiplier)
 	if bearer != nil && bearer.Alive() && bearer.SupportDefendCharges > 0 {
 		shot = b.interceptedReceiver(bearer)

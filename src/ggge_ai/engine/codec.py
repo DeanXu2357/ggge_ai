@@ -25,7 +25,6 @@ from .state import (
     Decision,
     EventTable,
     Reaction,
-    Rules,
     Skill,
     StageEvent,
     TerrainCell,
@@ -34,29 +33,6 @@ from .state import (
 )
 
 SPAWN = "spawn"
-
-
-def encode_rules(rules: Rules) -> dict[str, Any]:
-    return {
-        "defend_multiplier": rules.defend_multiplier,
-        "shield_multiplier": rules.shield_multiplier,
-        "support_defend_multiplier": rules.support_defend_multiplier,
-        "dodge_hit_penalty": rules.dodge_hit_penalty,
-        "max_support_attackers": rules.max_support_attackers,
-        "en_regen_fraction": rules.en_regen_fraction,
-    }
-
-
-def decode_rules(payload: dict[str, Any]) -> Rules:
-    _known(payload, encode_rules(Rules()), "rules")
-    return Rules(
-        defend_multiplier=_float(payload, "defend_multiplier"),
-        shield_multiplier=_float(payload, "shield_multiplier"),
-        support_defend_multiplier=_float(payload, "support_defend_multiplier"),
-        dodge_hit_penalty=_float(payload, "dodge_hit_penalty"),
-        max_support_attackers=_int(payload, "max_support_attackers"),
-        en_regen_fraction=_float(payload, "en_regen_fraction"),
-    )
 
 
 def encode_weapon(weapon: Weapon) -> dict[str, Any]:

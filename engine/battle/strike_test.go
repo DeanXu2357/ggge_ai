@@ -22,10 +22,9 @@ func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 	attacker := fighter("a1", FactionAlly, Cell{0, 0})
 	defender := fighter("e1", FactionEnemy, Cell{2, 0})
 	weapon := beam()
-	rules := DefaultRules()
 
 	plain := StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
-	defended := StrikeDamage(&attacker, &defender, &weapon, rules.DefendMultiplier)
+	defended := StrikeDamage(&attacker, &defender, &weapon, DefendMultiplier)
 	defender.Debuffs = []Debuff{{Kind: "armor_break", Magnitude: 0.2}}
 	broken := StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
 
@@ -62,59 +61,56 @@ func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
 	attacker := fighter("a1", FactionAlly, Cell{0, 0})
 	defender := fighter("e1", FactionEnemy, Cell{2, 0})
 	weapon := beam()
-	rules := DefaultRules()
 
-	plain := StrikeHitProbability(&attacker, &defender, &weapon, false, rules)
-	dodged := StrikeHitProbability(&attacker, &defender, &weapon, true, rules)
+	plain := StrikeHitProbability(&attacker, &defender, &weapon, false)
+	dodged := StrikeHitProbability(&attacker, &defender, &weapon, true)
 
 	if plain != HitProbability(weapon, &attacker, &defender, 0) {
 		t.Fatalf("a shot that meets no dodge carries no correction: %v", plain)
 	}
-	if dodged != HitProbability(weapon, &attacker, &defender, -rules.DodgeHitPenalty) {
+	if dodged != HitProbability(weapon, &attacker, &defender, -DodgeHitPenalty) {
 		t.Fatalf("a dodge takes the penalty of the rules off the rate: %v", dodged)
 	}
 }
 
 func TestTheStanceMultiplierOfEveryStance(t *testing.T) {
-	rules := DefaultRules()
 	plain := fighter("d1", FactionAlly, Cell{0, 0})
 	shielded := fighter("d2", FactionAlly, Cell{0, 1})
 	shielded.HasShield = true
 
 	want := map[Stance]float64{
-		StanceDefend:  rules.DefendMultiplier,
+		StanceDefend:  DefendMultiplier,
 		StanceDodge:   NoDefenseMultiplier,
 		StanceCounter: NoDefenseMultiplier,
 		StanceNone:    NoDefenseMultiplier,
 	}
 	for stance, multiplier := range want {
-		if got := rules.StanceMultiplier(stance, &plain); got != multiplier {
+		if got := StanceMultiplier(stance, &plain); got != multiplier {
 			t.Errorf("%q: %v against %v", stance, got, multiplier)
 		}
 	}
-	if got := rules.StanceMultiplier(StanceDefend, &shielded); got != rules.ShieldMultiplier {
-		t.Errorf("a defender that carries a shield defends with it: %v", got)
+	if got := StanceMultiplier(StanceDefend, &shielded); got != ShieldMultiplier*DefendMultiplier {
+		t.Errorf("a defender that carries a shield pays both cuts: %v", got)
 	}
-	if got := rules.StanceMultiplier(StanceDodge, &shielded); got != NoDefenseMultiplier {
+	if got := StanceMultiplier(StanceDodge, &shielded); got != NoDefenseMultiplier {
 		t.Errorf("a shield answers no dodge: %v", got)
 	}
 }
 
 func TestAnInterceptorTakesTheStrikeInADefenseState(t *testing.T) {
-	rules := DefaultRules()
 	plain := fighter("h1", FactionAlly, Cell{0, 0})
 	shielded := fighter("h2", FactionAlly, Cell{0, 1})
 	shielded.HasShield = true
 	tough := fighter("h3", FactionAlly, Cell{0, 2})
 	tough.InterceptionReduction = 0.25
 
-	if got := rules.InterceptionMultiplier(&plain); got != rules.SupportDefendMultiplier {
+	if got := InterceptionMultiplier(&plain); got != DefendMultiplier {
 		t.Errorf("interceptor: %v", got)
 	}
-	if got := rules.InterceptionMultiplier(&shielded); got != rules.ShieldMultiplier {
+	if got := InterceptionMultiplier(&shielded); got != ShieldMultiplier*DefendMultiplier {
 		t.Errorf("a shield holder intercepts in a shield state: %v", got)
 	}
-	if got := rules.InterceptionMultiplier(&tough); got != rules.SupportDefendMultiplier*0.75 {
+	if got := InterceptionMultiplier(&tough); got != DefendMultiplier*(1-tough.InterceptionReduction) {
 		t.Errorf("the reduction of the unit rides on the state: %v", got)
 	}
 }

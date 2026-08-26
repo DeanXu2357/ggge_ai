@@ -51,6 +51,9 @@ nodes and the resolution order came over as they stood.
 | Where the ability lands | Not on this branch. This branch discloses the decision and leaves the gap; issue #80 builds the model. |
 | The source of a machine skill | The value 'unit' becomes 'mech'. A unit is a pilot and a mech together, so the source of a machine skill names the mech alone. |
 | The source of a driver skill | The value 'character' becomes 'pilot'. The engine names that level 'Pilot' everywhere else, and one concept takes one term. |
+| The support defense multiplier | Out of the rules. A unit that takes the strike for another takes it in the defend stance, and its own reduction is an ability of that unit. No rule of the mechanism holds one value for every such case. |
+| The shield multiplier | The shield is a second cut on top of the defense, not a stance of its own. The value 0.6 was the two cuts flattened into one, and wrongly: a shielded defender pays 0.8 times 0.8. |
+| The rules payload | Out of the contract. Every value of it holds for the whole title, so no stage overrides one. The values are constants of 'engine/battle/rules.go'. |
 
 ## Change summary
 
@@ -84,6 +87,17 @@ nodes and the resolution order came over as they stood.
   weapon field 'Blast' are out of the model, the wire, the Python
   mirror and 'stage/intel.py'. 'Board.Apply' refuses the kind and
   changes no field. Issue #79 holds the area of a map weapon.
+- The rules: 'protocol.Rules', 'battle.Rules', 'DefaultRules',
+  'DecodeRules', 'Board.Rules', the Python 'Rules' and 'DEFAULT_RULES',
+  'encode_rules', 'decode_rules', the 'rules' field of a scenario file
+  and the rules override of 'stage/scenario.py' are all out. The new
+  file 'engine/battle/rules.go' holds every value as a constant, with
+  'StanceMultiplier' and 'InterceptionMultiplier' beside them.
+  'engine/differential' holds the whole retired block so the frozen
+  files still load, as it holds 'terrain'.
+- The shield: 'ShieldMultiplier' is 0.8, its own cut, and
+  'StanceMultiplier' multiplies it by 'DefendMultiplier' for a shielded
+  defender. The two reference documents carry the correction.
 - The skill source: the wire value 'unit' becomes 'mech' and
   'character' becomes 'pilot', in 'engine/protocol/state.go',
   'engine/battle/model.go', the two codecs and
@@ -151,9 +165,10 @@ nodes and the resolution order came over as they stood.
    again (issue #73), so the case is deleted.
    'TestTheAttackShieldTakesTheCounterForTheAttacker' of
    'engine/battle/resolve_test.go' covers the attack shield.
-7. **The frozen files still carry 'terrain' inside 'rules'.**
-   'engine/differential' holds the field, so the nine remaining files
-   still load. 'protocol.Rules' holds it no more.
+7. **The frozen files still carry two retired fields inside 'rules'.**
+   'engine/differential' holds 'terrain' and
+   'support_defend_multiplier', so the nine remaining files still
+   load. 'protocol.Rules' holds neither.
 8. **Which cell keys the damage factor is settled.** The user ruled on
    2026-08-26: the damage ability reads the cell of the target
    ('對水中目標'), and the fire restriction reads the cell of the

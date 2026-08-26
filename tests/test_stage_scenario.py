@@ -21,20 +21,19 @@ def placeholder() -> dict:
 
 def test_placeholder_scenario_builds_the_turn_one_board():
     scenario = scenario_mod.load(PLACEHOLDER)
-    state, rules, events = scenario.build()
+    state, events = scenario.build()
 
     assert len(state.enemies()) == 18
     assert len(state.allies()) == 10
     assert state.turn == 1
     assert state.phase is Faction.ALLY
     assert state.bounds == ((0, 0), (24, 19))
-    assert rules == scenario_mod.DEFAULT_RULES
     assert events == {}
 
 
 def test_placeholder_enemy_matches_the_verified_truth_row():
     scenario = scenario_mod.load(PLACEHOLDER)
-    state, _rules, _events = scenario.build()
+    state, _events = scenario.build()
 
     unit = next(u for u in state.units if u.pos == (9, 4))
 
@@ -46,7 +45,7 @@ def test_placeholder_enemy_matches_the_verified_truth_row():
 
 def test_placeholder_allies_stand_on_the_recorded_sortie_cells():
     scenario = scenario_mod.load(PLACEHOLDER)
-    state, _rules, _events = scenario.build()
+    state, _events = scenario.build()
 
     cells = {u.pos for u in state.allies()}
 
@@ -100,7 +99,7 @@ def test_spawn_effect_units_are_assembled_from_intel_references(placeholder):
         }
     }
     scenario = scenario_mod.from_dict(placeholder)
-    state, _rules, events = scenario.build()
+    state, events = scenario.build()
 
     event = events["wave2"]
     assert isinstance(event, StageEvent)
@@ -134,21 +133,9 @@ def test_spawn_reference_shares_the_uid_namespace(placeholder):
         scenario_mod.from_dict(placeholder)
 
 
-def test_rules_overrides_replace_only_named_fields(placeholder):
-    placeholder["rules"] = {"dodge_hit_penalty": 25.0}
-    scenario = scenario_mod.from_dict(placeholder)
-
-    assert scenario.rules.dodge_hit_penalty == 25.0
-    assert scenario.rules.defend_multiplier == scenario_mod.DEFAULT_RULES.defend_multiplier
-
-    placeholder["rules"] = {"nope": 1}
-    with pytest.raises(ValueError, match="未知欄位"):
-        scenario_mod.from_dict(placeholder)
-
-
 def test_support_placeholder_carries_a_skill_and_a_shield():
     scenario = scenario_mod.load(PLACEHOLDER)
-    state, _rules, _events = scenario.build()
+    state, _events = scenario.build()
 
     support = next(u for u in state.allies() if u.has_shield)
 
@@ -160,7 +147,7 @@ def test_the_board_carries_the_terrain_of_the_map(placeholder):
     placeholder["board"]["terrain_cells"] = [{"cell": [3, 2], "terrain": "underwater"}]
 
     scenario = scenario_mod.from_dict(placeholder)
-    state, _, _ = scenario.build()
+    state, _ = scenario.build()
 
     assert scenario.board.terrain is Terrain.GROUND
     assert state.terrain is Terrain.GROUND
@@ -170,7 +157,7 @@ def test_the_board_carries_the_terrain_of_the_map(placeholder):
 
 def test_a_board_with_no_terrain_names_none(placeholder):
     scenario = scenario_mod.from_dict(placeholder)
-    state, _, _ = scenario.build()
+    state, _ = scenario.build()
 
     assert scenario.board.terrain is None
     assert state.terrain is None

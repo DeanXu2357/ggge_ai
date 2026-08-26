@@ -39,10 +39,6 @@ var resolveOps = map[string]differential.Op{
 		if err != nil {
 			return nil, err
 		}
-		board.Rules, err = battle.DecodeRules(&setup.Rules.Rules)
-		if err != nil {
-			return nil, err
-		}
 		decision, err := battle.DecodeDecision(&in.Decision)
 		if err != nil {
 			return nil, err

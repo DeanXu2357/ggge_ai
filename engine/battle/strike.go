@@ -28,32 +28,12 @@ func debuffBonus(defender *Unit) float64 {
 // The hit formula reads the accuracy from the weapon itself, so this
 // function passes the dodge penalty alone.
 func StrikeHitProbability(attacker, defender *Unit, weapon *Weapon,
-	dodging bool, rules Rules) float64 {
+	dodging bool) float64 {
 	ability := 0.0
 	if dodging {
-		ability -= rules.DodgeHitPenalty
+		ability -= DodgeHitPenalty
 	}
 	return HitProbability(*weapon, attacker, defender, ability)
-}
-
-// The reaction menu offers no shield stance, so a defender that carries a
-// shield defends with the shield here, in the damage (issue #63).
-func (r Rules) StanceMultiplier(stance Stance, defender *Unit) float64 {
-	if stance != StanceDefend {
-		return NoDefenseMultiplier
-	}
-	if defender.HasShield {
-		return r.ShieldMultiplier
-	}
-	return r.DefendMultiplier
-}
-
-func (r Rules) InterceptionMultiplier(interceptor *Unit) float64 {
-	base := r.SupportDefendMultiplier
-	if interceptor.HasShield {
-		base = r.ShieldMultiplier
-	}
-	return base * (1 - interceptor.InterceptionReduction)
 }
 
 func (b *Board) CounterWeapon(defender *Unit, name string, attacker Footprint) *Weapon {

@@ -8,7 +8,7 @@ type Forecast struct {
 
 func (b *Board) forecastOf(shooter, struck *Unit, weapon *Weapon, multiplier float64,
 	dodging bool) Forecast {
-	rate := StrikeHitProbability(shooter, struck, weapon, dodging, b.Rules)
+	rate := StrikeHitProbability(shooter, struck, weapon, dodging)
 	damage := StrikeDamage(shooter, struck, weapon, multiplier)
 	kill := damage >= struck.HP
 	return Forecast{HitRate: &rate, Damage: &damage, Kill: &kill}
@@ -18,7 +18,7 @@ func (b *Board) forecastOf(shooter, struck *Unit, weapon *Weapon, multiplier flo
 // interception entry carries the damage alone and no hit rate.
 func (b *Board) interceptionForecast(attacker, interceptor *Unit, weapon *Weapon) Forecast {
 	damage := StrikeDamage(attacker, interceptor, weapon,
-		b.Rules.InterceptionMultiplier(interceptor))
+		InterceptionMultiplier(interceptor))
 	kill := damage >= interceptor.HP
 	return Forecast{Damage: &damage, Kill: &kill}
 }
