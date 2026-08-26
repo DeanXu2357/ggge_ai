@@ -311,7 +311,19 @@ leaves the board as it was.
 The command resolves no action of the kind 'map_attack'. The area
 of a map weapon is a shape of that weapon, and no contract of this
 repository holds that shape. The engine refuses the kind until the
-shape lands.
+shape lands (issue #79).
+
+The command resolves no skill either. A skill starts no engagement,
+and the contract holds no shape for what a skill does: the fields
+'kind' and 'amount' express a restore of hit points or of energy to
+the caster, and nothing else. The user ruled on 2026-08-26 that the
+game also gives skills that raise the damage of the caster, that cut
+the damage it takes for one turn, and that force an evasion in the
+next engagement. None of the three is a restore, and each carries a
+duration that no field of the contract holds. The engine refuses the
+kinds 'skill_heal' and 'skill_en_refill' until the shape lands
+(issue #81). The state still carries the skill list of a unit: what
+a unit holds is not the same question as what a skill does.
 
 Refusals: no_session; illegal_state when the phase of the unit is
 not the current phase, or when the unit acted in this turn;

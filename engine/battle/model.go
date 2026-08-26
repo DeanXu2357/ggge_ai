@@ -193,25 +193,6 @@ func (u *Unit) Weapon(name string) *Weapon {
 	return nil
 }
 
-// A unit carries no name for a skill, so the kind and the amount of the
-// action name it; a unit can hold two skills of one kind.
-func (u *Unit) Skill(kind ActionKind, amount *float64) *Skill {
-	for index := range u.Skills {
-		skill := &u.Skills[index]
-		if skill.Kind == kind && skill.Uses > 0 && sameAmount(skill.Amount, amount) {
-			return skill
-		}
-	}
-	return nil
-}
-
-func sameAmount(one, other *float64) bool {
-	if one == nil || other == nil {
-		return one == nil && other == nil
-	}
-	return *one == *other
-}
-
 // Decision is one activation of one unit. The contract names the payload
 // 'action' and the model names it 'Decision'; this package keeps the model
 // name.

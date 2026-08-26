@@ -83,14 +83,6 @@ func TestAnIllegalMoveStopsTheAction(t *testing.T) {
 			Decision{UnitID: "a1", Kind: ActionAttack, MoveTo: &near,
 				TargetID: "e1", Weapon: "beam rifle"},
 		},
-		"a skill that runs before the move": {
-			func(state *Board) {
-				state.Unit("a1").MoveRange = 2
-				state.Unit("a1").HP = 1
-				state.Unit("a1").Skills = []Skill{{Kind: ActionSkillHeal, Uses: 1}}
-			},
-			Decision{UnitID: "a1", Kind: ActionSkillHeal, MoveTo: &near},
-		},
 	}
 
 	for name, one := range cases {
@@ -355,33 +347,19 @@ func TestAMapAttackIsRefusedAndLeavesTheBoard(t *testing.T) {
 	}
 }
 
-func TestASkillHealsAndRefillsUpToTheMaximum(t *testing.T) {
-	amount := 3000.0
+func TestASkillIsRefusedAndLeavesTheBoard(t *testing.T) {
 	state := shootout()
 	state.Unit("a1").HP = 8000
-	state.Unit("a1").EN = 40
-	state.Unit("a1").Skills = []Skill{
-		{Kind: ActionSkillHeal, Amount: &amount, Uses: 1, EndsActivation: true},
-		{Kind: ActionSkillRefill, Uses: 1},
-	}
+	state.Unit("a1").Skills = []Skill{{Kind: ActionSkillHeal, Uses: 1}}
 
-	heal := apply(t, state, Decision{UnitID: "a1", Kind: ActionSkillHeal, Amount: &amount}, Forced{})
+	_, err := state.Apply(Decision{UnitID: "a1", Kind: ActionSkillHeal}, Forced{Strike: true})
 
-	if state.Unit("a1").HP != 11000 || state.Unit("a1").Skills[0].Uses != 0 {
-		t.Fatalf("actor: %+v", state.Unit("a1"))
+	if !errors.Is(err, ErrIllegalAction) {
+		t.Fatalf("the engine resolves no skill: %v", err)
 	}
-	if len(heal) != 1 || heal[0].Kind != StrikeSkill || heal[0].Damage != 3000 {
-		t.Fatalf("trace: %+v", heal)
-	}
-	if !state.Unit("a1").Acted {
-		t.Fatal("the skill ends the activation")
-	}
-
-	state.Unit("a1").Acted = false
-	apply(t, state, Decision{UnitID: "a1", Kind: ActionSkillRefill}, Forced{})
-
-	if state.Unit("a1").EN != 140 || state.Unit("a1").Acted {
-		t.Fatalf("a skill with no amount gives the whole maximum: %+v", state.Unit("a1"))
+	if state.Unit("a1").HP != 8000 || state.Unit("a1").Skills[0].Uses != 1 ||
+		state.Unit("a1").Acted {
+		t.Fatalf("the refused action changes no field: %+v", state.Unit("a1"))
 	}
 }
 
@@ -481,64 +459,6 @@ func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheCover(t *testing.T) {
 	}
 }
 
-func TestASkillReachesTheCasterAndNoOtherUnit(t *testing.T) {
-	state := shootout()
-	state.Unit("a1").HP = 8000
-	state.Unit("a1").Skills = []Skill{{Kind: ActionSkillHeal, Uses: 1}}
-	state.Units = append(state.Units, fighter("a2", FactionAlly, Cell{1, 0}))
-
-	_, err := state.Apply(Decision{UnitID: "a1", Kind: ActionSkillHeal, TargetID: "a2"}, Forced{})
-
-	if !errors.Is(err, ErrIllegalAction) {
-		t.Fatalf("error: %v", err)
-	}
-	if state.Unit("a1").Skills[0].Uses != 1 {
-		t.Fatal("an error leaves the board as it was")
-	}
-}
-
-func TestTheAmountOfTheDecisionNamesOneOfTwoSkillsOfOneKind(t *testing.T) {
-	small := 500.0
-	large := 3000.0
-	state := shootout()
-	state.Unit("a1").HP = 8000
-	state.Unit("a1").Skills = []Skill{
-		{Kind: ActionSkillHeal, Amount: &small, Uses: 1},
-		{Kind: ActionSkillHeal, Amount: &large, Uses: 1},
-	}
-
-	apply(t, state, Decision{UnitID: "a1", Kind: ActionSkillHeal, Amount: &large}, Forced{})
-
-	if state.Unit("a1").HP != 11000 {
-		t.Fatalf("actor: %+v", state.Unit("a1"))
-	}
-	if state.Unit("a1").Skills[0].Uses != 1 || state.Unit("a1").Skills[1].Uses != 0 {
-		t.Fatalf("the decision spends the skill of that amount: %+v", state.Unit("a1").Skills)
-	}
-}
-
-func TestAnAmountThatNoIntegerHoldsStaysInsideTheRoom(t *testing.T) {
-	cases := map[string]struct {
-		amount float64
-		want   int
-	}{"above every integer": {1e19, 12000}, "below zero": {-1, 8000}}
-
-	for name, one := range cases {
-		t.Run(name, func(t *testing.T) {
-			amount := one.amount
-			state := shootout()
-			state.Unit("a1").HP = 8000
-			state.Unit("a1").Skills = []Skill{{Kind: ActionSkillHeal, Amount: &amount, Uses: 1}}
-
-			apply(t, state, Decision{UnitID: "a1", Kind: ActionSkillHeal, Amount: &amount}, Forced{})
-
-			if state.Unit("a1").HP != one.want {
-				t.Fatalf("hit points: %d", state.Unit("a1").HP)
-			}
-		})
-	}
-}
-
 func TestAnActionOutsideTheBoardIsAnError(t *testing.T) {
 	cases := map[string]Decision{
 		"an unknown unit":   {UnitID: "ghost", Kind: ActionStandby},
@@ -548,7 +468,6 @@ func TestAnActionOutsideTheBoardIsAnError(t *testing.T) {
 			TargetID: "e1", Weapon: "shells"},
 		"a weapon out of its band": {UnitID: "a1", Kind: ActionAttack,
 			TargetID: "e2", Weapon: "beam rifle"},
-		"a skill that the unit does not hold": {UnitID: "a1", Kind: ActionSkillHeal},
 	}
 
 	for name, decision := range cases {

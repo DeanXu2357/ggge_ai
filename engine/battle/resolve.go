@@ -3,7 +3,6 @@ package battle
 import (
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 )
 
@@ -19,7 +18,6 @@ const (
 	StrikeMain            StrikeKind = "strike"
 	StrikeDefenderSupport StrikeKind = "defender_support"
 	StrikeCounter         StrikeKind = "counter"
-	StrikeSkill           StrikeKind = "skill"
 )
 
 // The Damage of a skill record is the value that the skill gave back.
@@ -61,7 +59,8 @@ func (b *Board) run(actor *Unit, decision Decision, dice Dice) (Trace, outcome, 
 		return nil, outcome{}, fmt.Errorf("%w: the engine resolves no map attack, because the area of a map weapon is not in the contract",
 			ErrIllegalAction)
 	case ActionSkillHeal, ActionSkillRefill:
-		return b.skill(actor, decision)
+		return nil, outcome{}, fmt.Errorf("%w: the engine resolves no skill, because the effect of a skill is not in the contract",
+			ErrIllegalAction)
 	case ActionReposition, ActionStandby:
 		anchor, err := b.destination(actor, decision.MoveTo, true)
 		if err != nil {
@@ -406,48 +405,4 @@ func (b *Board) counterStrike(defender, attacker *Unit, weapon *Weapon, bearer *
 		shot = b.coveredReceiver(bearer)
 	}
 	return shot.hit(StrikeCounter, defender, weapon, landed)
-}
-
-// The model carries only the skill whose area is the cell of the caster, so
-// the caster is the one legal target of the decision.
-func (b *Board) skill(actor *Unit, decision Decision) (Trace, outcome, error) {
-	if decision.TargetID != "" && decision.TargetID != actor.ID {
-		return nil, outcome{}, fmt.Errorf("%w: the skill %q of unit %q reaches no unit %q",
-			ErrIllegalAction, decision.Kind, actor.ID, decision.TargetID)
-	}
-	skill := actor.Skill(decision.Kind, decision.Amount)
-	if skill == nil {
-		return nil, outcome{}, fmt.Errorf("%w: unit %q holds no skill %q of that amount with a use left",
-			ErrIllegalAction, actor.ID, decision.Kind)
-	}
-	anchor, err := b.destination(actor, decision.MoveTo, skill.UsableAfterMove)
-	if err != nil {
-		return nil, outcome{}, err
-	}
-
-	actor.Footprint.Anchor = anchor
-	skill.Uses--
-	record := Strike{Kind: StrikeSkill, ShooterID: actor.ID, StruckID: actor.ID, Landed: true}
-	switch decision.Kind {
-	case ActionSkillHeal:
-		record.Damage = gain(actor.HP, actor.MaxHP, skill.Amount)
-		actor.HP += record.Damage
-	case ActionSkillRefill:
-		record.Damage = gain(actor.EN, actor.ENMax, skill.Amount)
-		actor.EN += record.Damage
-	}
-	return Trace{record}, outcome{endsActivation: skill.EndsActivation}, nil
-}
-
-// The amount comes from the wire as a float, so a value that no integer
-// holds gives the whole room, and a value below zero gives nothing.
-func gain(value, limit int, amount *float64) int {
-	room := max(0, limit-value)
-	if amount == nil || math.IsNaN(*amount) || *amount >= float64(room) {
-		return room
-	}
-	if *amount < 0 {
-		return 0
-	}
-	return int(*amount)
 }
