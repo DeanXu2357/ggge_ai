@@ -82,17 +82,6 @@ func TestAnIllegalMoveStopsTheAction(t *testing.T) {
 			Decision{UnitID: "a1", Kind: ActionAttack, MoveTo: &near,
 				TargetID: "e1", Weapon: "beam rifle"},
 		},
-		"a map weapon that fires before the move": {
-			func(state *Board) {
-				state.Unit("a1").MoveRange = 2
-				shells := beam()
-				shells.Name, shells.MapWeapon, shells.UsableAfterMove = "shells", true, false
-				state.Unit("a1").Weapons = append(state.Unit("a1").Weapons, shells)
-				state.Unit("a1").Ammo = map[string]int{"shells": 1}
-			},
-			Decision{UnitID: "a1", Kind: ActionMapAttack, MoveTo: &near,
-				Weapon: "shells", Aim: &Cell{3, 0}},
-		},
 		"a skill that runs before the move": {
 			func(state *Board) {
 				state.Unit("a1").MoveRange = 2
@@ -341,29 +330,23 @@ func TestADebuffReplacesAWeakerOneAndLeavesAStrongerOne(t *testing.T) {
 	}
 }
 
-func TestAMapStrikeReachesEveryFoeOfTheBlast(t *testing.T) {
+func TestAMapAttackIsRefusedAndLeavesTheBoard(t *testing.T) {
 	state := shootout()
 	shells := beam()
-	shells.Name, shells.MapWeapon, shells.Blast, shells.ENCost = "shells", true, 1, 5
+	shells.Name, shells.MapWeapon, shells.ENCost = "shells", true, 5
 	state.Unit("a1").Weapons = []Weapon{shells}
 	state.Unit("a1").Ammo = map[string]int{"shells": 2}
-	near := fighter("e2", FactionEnemy, Cell{2, 0})
-	far := fighter("e3", FactionEnemy, Cell{1, 3})
-	state.Units = append(state.Units, near, far)
 	aim := Cell{3, 0}
 
-	trace := apply(t, state, Decision{UnitID: "a1", Kind: ActionMapAttack,
-		Weapon: "shells", Aim: &aim}, Forced{})
+	_, err := state.Apply(Decision{UnitID: "a1", Kind: ActionMapAttack,
+		Weapon: "shells", Aim: &aim}, Forced{Strike: true})
 
-	if len(trace) != 2 || trace[0].StruckID != "e1" || trace[1].StruckID != "e2" {
-		t.Fatalf("the blast reaches the two foes near the aim: %+v", trace)
+	if !errors.Is(err, ErrIllegalAction) {
+		t.Fatalf("the engine resolves no map attack: %v", err)
 	}
-	if state.Unit("e3").HP != 12000 || state.Unit("a1").Ammo["shells"] != 1 ||
-		state.Unit("a1").EN != 135 {
-		t.Fatalf("the strike spends one round and the energy: %+v", state.Unit("a1"))
-	}
-	if !state.Unit("a1").Acted {
-		t.Fatal("a map strike ends the activation")
+	if state.Unit("e1").HP != 12000 || state.Unit("a1").Ammo["shells"] != 2 ||
+		state.Unit("a1").Acted {
+		t.Fatalf("the refused action changes no field: %+v", state.Unit("a1"))
 	}
 }
 
@@ -552,7 +535,6 @@ func TestAnAmountThatNoIntegerHoldsStaysInsideTheRoom(t *testing.T) {
 }
 
 func TestAnActionOutsideTheBoardIsAnError(t *testing.T) {
-	aim := Cell{3, 0}
 	cases := map[string]Decision{
 		"an unknown unit":   {UnitID: "ghost", Kind: ActionStandby},
 		"an unknown target": attackOn("ghost", "beam rifle"),
@@ -561,8 +543,6 @@ func TestAnActionOutsideTheBoardIsAnError(t *testing.T) {
 			TargetID: "e1", Weapon: "shells"},
 		"a weapon out of its band": {UnitID: "a1", Kind: ActionAttack,
 			TargetID: "e2", Weapon: "beam rifle"},
-		"a map attack with no ammunition": {UnitID: "a1", Kind: ActionMapAttack,
-			Weapon: "shells", Aim: &aim},
 		"a skill that the unit does not hold": {UnitID: "a1", Kind: ActionSkillHeal},
 	}
 

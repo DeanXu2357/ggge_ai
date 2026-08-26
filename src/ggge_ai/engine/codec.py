@@ -70,7 +70,6 @@ def encode_weapon(weapon: Weapon) -> dict[str, Any]:
         "can_counter": weapon.can_counter,
         "map_weapon": weapon.map_weapon,
         "usable_after_move": weapon.usable_after_move,
-        "blast": weapon.blast,
         "debuff_kind": weapon.debuff_kind,
         "debuff_magnitude": weapon.debuff_magnitude,
     }
@@ -88,7 +87,6 @@ def decode_weapon(payload: dict[str, Any]) -> Weapon:
         can_counter=_bool(payload, "can_counter"),
         map_weapon=_bool(payload, "map_weapon"),
         usable_after_move=_bool(payload, "usable_after_move"),
-        blast=_int(payload, "blast"),
         debuff_kind=_optional_str(payload, "debuff_kind"),
         debuff_magnitude=_float(payload, "debuff_magnitude"),
     )

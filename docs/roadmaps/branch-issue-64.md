@@ -44,12 +44,14 @@ nodes and the resolution order came over as they stood.
 | The shield reduction | The unit carries no multiplier of its own. The mech says whether the unit carries a shield, and the damage applies the multiplier of the rules. |
 | The terrain contract | The shape comes first. Which cell keys the damage factor, and where the values come from, wait for the task that collects the intelligence. |
 | The weapon terrain fields | 'TerrainDamage' and 'UnusableIn' leave the domain model and the wire. That table of the datamine is not the shape of the mechanism. |
+| The area of a map weapon | The area is a shape of each weapon, and a radius does not hold it. The field 'blast' of a weapon leaves the domain model and the wire. The blast of a skill stays. |
+| The map attack | A map attack starts no engagement, so its resolution is not of this issue. 'Board.Apply' refuses the kind 'map_attack' until a contract holds the area. |
 
 ## Change summary
 
 - 'engine/battle/model.go': the fields one engagement reads and
-  writes (weapon power, blast, debuff, the rule multipliers, the
-  charges, the shield, the interception reduction, the debuff list).
+  writes (weapon power, debuff, the rule multipliers, the charges,
+  the shield, the interception reduction, the debuff list).
   'Activatable' comes back for the resolution alone.
 - 'engine/protocol/state.go', 'src/ggge_ai/engine/state.py' and
   'codec.py': the action carries 'support_attackers' and
@@ -73,6 +75,10 @@ nodes and the resolution order came over as they stood.
   scalar 'Rules.terrain' and the weapon fields 'TerrainDamage' and
   'UnusableIn' are all out, and 'StrikeDamage' passes 1 for the
   terrain correction until the intelligence task settles the rule.
+- The map attack: 'Board.mapAttack', the strike kind 'map' and the
+  weapon field 'Blast' are out of the model, the wire, the Python
+  mirror and 'stage/intel.py'. 'Board.Apply' refuses the kind and
+  changes no field. Issue #79 holds the area of a map weapon.
 
 ## Call chain
 
@@ -141,6 +147,18 @@ nodes and the resolution order came over as they stood.
 9. **The command 'act' is not here.** It lives in issue #65 with the
    turn cycle. This branch gives 'Board.Apply' and the judgment; #65
    binds them to the wire.
+10. **The frozen files lost the weapon field 'blast'.** The terrain
+    answer of point 7 does not work here: 'blast' sits inside the unit
+    payload of the state, and 'engine/differential' cannot hold it in a
+    local struct. The nine files lost the field of each weapon, and
+    nothing else of them changed. The two map strike checks of
+    'kill_skill_board.json' are deleted, and its note no longer names
+    the map strike; the checks after them read the state that the map
+    strike wrote.
+11. **Issue #75 reads three names that are gone.**
+    'Weapon.UnusableIn', 'Weapon.UsableIn' and the function 'mapAttacks'
+    of 'candidates.go' are all retired. That issue needs a rewrite
+    against issue #79.
 
 ## What issue #65 must change
 

@@ -110,7 +110,7 @@ def weapon_intel(row: panels.WeaponRowRead, text: WeaponText | None, build: _Bui
     if row.hit_pct is None:
         build.gaps.append(f"weapon{row.index}:accuracy")
     if row.map_weapon:
-        build.gaps.append(f"weapon{row.index}:map_blast")
+        build.gaps.append(f"weapon{row.index}:map_area")
     elif row.range_min is None or row.range_max is None:
         build.gaps.append(f"weapon{row.index}:range")
     if not row.categories:

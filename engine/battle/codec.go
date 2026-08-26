@@ -303,7 +303,6 @@ func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 		CanCounter:      weapon.CanCounter,
 		MapWeapon:       weapon.MapWeapon,
 		UsableAfterMove: weapon.UsableAfterMove,
-		Blast:           weapon.Blast,
 		DebuffMagnitude: weapon.DebuffMagnitude,
 	}
 	if weapon.DebuffKind != nil {
@@ -625,7 +624,6 @@ func encodeWeapon(weapon Weapon) protocol.Weapon {
 		CanCounter:      weapon.CanCounter,
 		MapWeapon:       weapon.MapWeapon,
 		UsableAfterMove: weapon.UsableAfterMove,
-		Blast:           weapon.Blast,
 		DebuffMagnitude: weapon.DebuffMagnitude,
 	}
 	if weapon.DebuffKind != "" {

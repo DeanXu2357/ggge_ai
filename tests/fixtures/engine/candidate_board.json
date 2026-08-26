@@ -47,7 +47,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             },
@@ -61,7 +60,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             },
@@ -75,7 +73,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             },
@@ -89,7 +86,6 @@
               "can_counter": true,
               "map_weapon": true,
               "usable_after_move": true,
-              "blast": 1,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             },
@@ -103,7 +99,6 @@
               "can_counter": true,
               "map_weapon": true,
               "usable_after_move": true,
-              "blast": 1,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -195,7 +190,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -272,7 +266,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -324,7 +317,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -376,7 +368,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -451,7 +442,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -465,7 +455,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -479,7 +468,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -493,7 +481,6 @@
                 "can_counter": true,
                 "map_weapon": true,
                 "usable_after_move": true,
-                "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -507,7 +494,6 @@
                 "can_counter": true,
                 "map_weapon": true,
                 "usable_after_move": true,
-                "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -599,7 +585,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -676,7 +661,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -728,7 +712,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -780,7 +763,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }

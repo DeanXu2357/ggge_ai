@@ -143,7 +143,6 @@ type Weapon struct {
 	CanCounter      bool    `json:"can_counter"`
 	MapWeapon       bool    `json:"map_weapon"`
 	UsableAfterMove bool    `json:"usable_after_move"`
-	Blast           int     `json:"blast"`
 	DebuffKind      *string `json:"debuff_kind"`
 	DebuffMagnitude float64 `json:"debuff_magnitude"`
 }

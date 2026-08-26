@@ -305,6 +305,11 @@ not against a list of actions: the reporting commands read the same
 rules, so a pick that the report offers passes here. A refusal
 leaves the board as it was.
 
+The command resolves no action of the kind 'map_attack'. The area
+of a map weapon is a shape of that weapon, and no contract of this
+repository holds that shape. The engine refuses the kind until the
+shape lands.
+
 Refusals: no_session; illegal_state when the phase of the unit is
 not the current phase, or when the unit acted in this turn;
 illegal_action for a target that is no foe, a weapon the unit does
@@ -403,8 +408,8 @@ a cell are at distance 0. Two units of one cell give the distance
 of the two cells.
 
 Every range answer reads this distance: the band of a weapon, the
-band of a skill, the blast of a weapon or a skill, and the move
-range that lets a support unit join. A weapon with a 'range_min' of
+band of a skill, the blast of a skill, and the move range that lets
+a support unit join. A weapon with a 'range_min' of
 2 does not fire at a foe that touches the footprint, because that
 foe is at distance 1.
 

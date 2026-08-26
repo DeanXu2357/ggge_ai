@@ -68,7 +68,6 @@ type Weapon struct {
 	CanCounter      bool
 	MapWeapon       bool
 	UsableAfterMove bool
-	Blast           int
 	DebuffKind      string
 	DebuffMagnitude float64
 }

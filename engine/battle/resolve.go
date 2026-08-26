@@ -19,7 +19,6 @@ const (
 	StrikeMain            StrikeKind = "strike"
 	StrikeDefenderSupport StrikeKind = "defender_support"
 	StrikeCounter         StrikeKind = "counter"
-	StrikeMap             StrikeKind = "map"
 	StrikeSkill           StrikeKind = "skill"
 )
 
@@ -59,8 +58,8 @@ func (b *Board) run(actor *Unit, decision Decision, dice Dice) (Trace, outcome, 
 	case ActionAttack:
 		return b.attack(actor, decision, dice)
 	case ActionMapAttack:
-		trace, err := b.mapAttack(actor, decision)
-		return trace, outcome{endsActivation: true}, err
+		return nil, outcome{}, fmt.Errorf("%w: the engine resolves no map attack, because the area of a map weapon is not in the contract",
+			ErrIllegalAction)
 	case ActionSkillHeal, ActionSkillRefill:
 		return b.skill(actor, decision)
 	case ActionReposition, ActionStandby:
@@ -406,44 +405,6 @@ func (b *Board) counterStrike(defender, attacker *Unit, weapon *Weapon, bearer *
 		shot = b.interceptedReceiver(bearer)
 	}
 	return shot.hit(StrikeCounter, defender, weapon, landed)
-}
-
-func (b *Board) mapAttack(actor *Unit, decision Decision) (Trace, error) {
-	weapon := actor.Weapon(decision.Weapon)
-	if weapon == nil || !weapon.MapWeapon {
-		return nil, fmt.Errorf("%w: unit %q carries no map weapon %q",
-			ErrIllegalAction, actor.ID, decision.Weapon)
-	}
-	if decision.Aim == nil {
-		return nil, fmt.Errorf("%w: the map attack of unit %q names no aim cell",
-			ErrIllegalAction, actor.ID)
-	}
-	if actor.Ammo[weapon.Name] <= 0 || !actor.HasENFor(*weapon) {
-		return nil, fmt.Errorf("%w: unit %q cannot fire the weapon %q",
-			ErrIllegalAction, actor.ID, weapon.Name)
-	}
-	anchor, err := b.destination(actor, decision.MoveTo, weapon.UsableAfterMove)
-	if err != nil {
-		return nil, err
-	}
-	aim := cellFootprint(*decision.Aim)
-	if !weapon.Range.Holds(SpanDistance(footprintAt(actor, anchor), aim)) {
-		return nil, fmt.Errorf("%w: the weapon %q of unit %q does not reach the cell %v",
-			ErrIllegalAction, weapon.Name, actor.ID, *decision.Aim)
-	}
-
-	actor.Footprint.Anchor = anchor
-	actor.Ammo[weapon.Name]--
-	actor.EN -= weapon.ENCost
-	var out Trace
-	for _, victim := range b.TargetsOf(actor) {
-		if SpanDistance(victim.Footprint, aim) > weapon.Blast {
-			continue
-		}
-		shot := b.plainReceiver(victim, NoDefenseMultiplier)
-		out = append(out, shot.hit(StrikeMap, actor, weapon, true))
-	}
-	return out, nil
 }
 
 // The model carries only the skill whose area is the cell of the caster, so

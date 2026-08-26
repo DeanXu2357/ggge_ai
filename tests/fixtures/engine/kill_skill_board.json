@@ -1,6 +1,6 @@
 {
   "name": "kill_skill_board",
-  "note": "A kill that gives the re-act, the two skills, a map strike, and the debuff rules.",
+  "note": "A kill that gives the re-act, the two skills, and the debuff rules.",
   "setup": {
     "rules": {
       "defend_multiplier": 0.8,
@@ -47,7 +47,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -99,7 +98,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             },
@@ -113,7 +111,6 @@
               "can_counter": false,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": "armor_break",
               "debuff_magnitude": 0.2
             },
@@ -127,7 +124,6 @@
               "can_counter": true,
               "map_weapon": true,
               "usable_after_move": true,
-              "blast": 1,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -206,7 +202,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -264,7 +259,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -322,7 +316,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -397,7 +390,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -449,7 +441,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -463,7 +454,6 @@
                 "can_counter": false,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": "armor_break",
                 "debuff_magnitude": 0.2
               },
@@ -477,7 +467,6 @@
                 "can_counter": true,
                 "map_weapon": true,
                 "usable_after_move": true,
-                "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -556,7 +545,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -614,7 +602,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -672,7 +659,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -786,7 +772,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -838,7 +823,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -852,7 +836,6 @@
                 "can_counter": false,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": "armor_break",
                 "debuff_magnitude": 0.2
               },
@@ -866,7 +849,6 @@
                 "can_counter": true,
                 "map_weapon": true,
                 "usable_after_move": true,
-                "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -945,7 +927,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1003,7 +984,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1061,7 +1041,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1143,7 +1122,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1195,7 +1173,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -1209,7 +1186,6 @@
                 "can_counter": false,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": "armor_break",
                 "debuff_magnitude": 0.2
               },
@@ -1223,7 +1199,6 @@
                 "can_counter": true,
                 "map_weapon": true,
                 "usable_after_move": true,
-                "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1302,7 +1277,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1360,7 +1334,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1418,7 +1391,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1500,7 +1472,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1552,7 +1523,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -1566,7 +1536,6 @@
                 "can_counter": false,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": "armor_break",
                 "debuff_magnitude": 0.2
               },
@@ -1580,7 +1549,6 @@
                 "can_counter": true,
                 "map_weapon": true,
                 "usable_after_move": true,
-                "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1659,7 +1627,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1717,7 +1684,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1805,7 +1771,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1857,7 +1822,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -1871,7 +1835,6 @@
                 "can_counter": false,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": "armor_break",
                 "debuff_magnitude": 0.2
               },
@@ -1885,7 +1848,6 @@
                 "can_counter": true,
                 "map_weapon": true,
                 "usable_after_move": true,
-                "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -1964,7 +1926,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2022,7 +1983,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2080,7 +2040,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2162,7 +2121,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2214,7 +2172,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -2228,7 +2185,6 @@
                 "can_counter": false,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": "armor_break",
                 "debuff_magnitude": 0.2
               },
@@ -2242,7 +2198,6 @@
                 "can_counter": true,
                 "map_weapon": true,
                 "usable_after_move": true,
-                "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2321,7 +2276,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2379,7 +2333,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2437,7 +2390,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2519,7 +2471,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2571,7 +2522,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -2585,7 +2535,6 @@
                 "can_counter": false,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": "armor_break",
                 "debuff_magnitude": 0.2
               },
@@ -2599,7 +2548,6 @@
                 "can_counter": true,
                 "map_weapon": true,
                 "usable_after_move": true,
-                "blast": 1,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2678,7 +2626,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2736,7 +2683,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -2794,724 +2740,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
-            "chance_steps_max": 0,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {},
-            "debuffs": []
-          }
-        ]
-      }
-    },
-    {
-      "op": "apply",
-      "input": {
-        "decision": {
-          "unit_id": "ally_1",
-          "kind": "map_attack",
-          "move_to": null,
-          "target_id": null,
-          "weapon": "heavy shell",
-          "amount": null,
-          "reaction": null,
-          "support_defender": null,
-          "support_attackers": [],
-          "aim": [
-            2,
-            1
-          ],
-          "hit": null,
-          "counter_hit": null,
-          "support_hit": null
-        },
-        "dice": {
-          "attacker_support": true,
-          "defender_support": true,
-          "strike": true,
-          "counter": true
-        }
-      },
-      "expect": {
-        "units": [
-          {
-            "unit_id": "ally_9",
-            "faction": "ally",
-            "pos": [
-              0,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 12000,
-            "max_hp": 12000,
-            "en": 140,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
-            "chance_steps_max": 0,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {},
-            "debuffs": []
-          },
-          {
-            "unit_id": "ally_1",
-            "faction": "ally",
-            "pos": [
-              1,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 8000,
-            "max_hp": 12000,
-            "en": 55,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "beam rifle",
-                "power": 1800.0,
-                "range_min": 1,
-                "range_max": 3,
-                "en_cost": 10,
-                "accuracy": 5.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              },
-              {
-                "name": "wire net",
-                "power": 900.0,
-                "range_min": 1,
-                "range_max": 2,
-                "en_cost": 15,
-                "accuracy": 0.0,
-                "can_counter": false,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": "armor_break",
-                "debuff_magnitude": 0.2
-              },
-              {
-                "name": "heavy shell",
-                "power": 2000.0,
-                "range_min": 1,
-                "range_max": 6,
-                "en_cost": 5,
-                "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
-                "usable_after_move": true,
-                "blast": 1,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [
-              {
-                "kind": "skill_heal",
-                "source": "unit",
-                "amount": 3000.0,
-                "uses": 1,
-                "ends_activation": true,
-                "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
-                "affects": "ally"
-              },
-              {
-                "kind": "skill_en_refill",
-                "source": "unit",
-                "amount": null,
-                "uses": 1,
-                "ends_activation": false,
-                "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
-                "affects": "ally"
-              }
-            ],
-            "acted": true,
-            "chance_steps": 1,
-            "chance_steps_max": 1,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {
-              "heavy shell": 0
-            },
-            "debuffs": []
-          },
-          {
-            "unit_id": "enemy_1",
-            "faction": "enemy",
-            "pos": [
-              2,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 5580,
-            "max_hp": 12000,
-            "en": 140,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
-            "chance_steps_max": 0,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {},
-            "debuffs": [
-              {
-                "kind": "armor_break",
-                "magnitude": 0.1,
-                "applied_phase": 3
-              }
-            ]
-          },
-          {
-            "unit_id": "enemy_2",
-            "faction": "enemy",
-            "pos": [
-              3,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 3246,
-            "max_hp": 12000,
-            "en": 140,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
-            "chance_steps_max": 0,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {},
-            "debuffs": [
-              {
-                "kind": "armor_break",
-                "magnitude": 0.5,
-                "applied_phase": 3
-              }
-            ]
-          },
-          {
-            "unit_id": "enemy_3",
-            "faction": "enemy",
-            "pos": [
-              4,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 1,
-            "max_hp": 12000,
-            "en": 140,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
-            "chance_steps_max": 0,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {},
-            "debuffs": []
-          }
-        ]
-      }
-    },
-    {
-      "op": "apply",
-      "input": {
-        "decision": {
-          "unit_id": "ally_1",
-          "kind": "standby",
-          "move_to": null,
-          "target_id": null,
-          "weapon": null,
-          "amount": null,
-          "reaction": null,
-          "support_defender": null,
-          "support_attackers": [],
-          "aim": null,
-          "hit": null,
-          "counter_hit": null,
-          "support_hit": null
-        },
-        "dice": {
-          "attacker_support": true,
-          "defender_support": true,
-          "strike": true,
-          "counter": true
-        }
-      },
-      "expect": {
-        "units": [
-          {
-            "unit_id": "ally_9",
-            "faction": "ally",
-            "pos": [
-              0,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 12000,
-            "max_hp": 12000,
-            "en": 140,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
-            "chance_steps_max": 0,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {},
-            "debuffs": []
-          },
-          {
-            "unit_id": "ally_1",
-            "faction": "ally",
-            "pos": [
-              1,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 8000,
-            "max_hp": 12000,
-            "en": 60,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "beam rifle",
-                "power": 1800.0,
-                "range_min": 1,
-                "range_max": 3,
-                "en_cost": 10,
-                "accuracy": 5.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              },
-              {
-                "name": "wire net",
-                "power": 900.0,
-                "range_min": 1,
-                "range_max": 2,
-                "en_cost": 15,
-                "accuracy": 0.0,
-                "can_counter": false,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": "armor_break",
-                "debuff_magnitude": 0.2
-              },
-              {
-                "name": "heavy shell",
-                "power": 2000.0,
-                "range_min": 1,
-                "range_max": 6,
-                "en_cost": 5,
-                "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
-                "usable_after_move": true,
-                "blast": 1,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [
-              {
-                "kind": "skill_heal",
-                "source": "unit",
-                "amount": 3000.0,
-                "uses": 1,
-                "ends_activation": true,
-                "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
-                "affects": "ally"
-              },
-              {
-                "kind": "skill_en_refill",
-                "source": "unit",
-                "amount": null,
-                "uses": 1,
-                "ends_activation": false,
-                "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
-                "affects": "ally"
-              }
-            ],
-            "acted": true,
-            "chance_steps": 1,
-            "chance_steps_max": 1,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {
-              "heavy shell": 1
-            },
-            "debuffs": []
-          },
-          {
-            "unit_id": "enemy_1",
-            "faction": "enemy",
-            "pos": [
-              2,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 12000,
-            "max_hp": 12000,
-            "en": 140,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
-            "chance_steps_max": 0,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {},
-            "debuffs": [
-              {
-                "kind": "armor_break",
-                "magnitude": 0.1,
-                "applied_phase": 3
-              }
-            ]
-          },
-          {
-            "unit_id": "enemy_2",
-            "faction": "enemy",
-            "pos": [
-              3,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 12000,
-            "max_hp": 12000,
-            "en": 140,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
-            "chance_steps_max": 0,
-            "support_defend_charges": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
-            "support_attack_charges_max": 0,
-            "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
-            "ammo": {},
-            "debuffs": [
-              {
-                "kind": "armor_break",
-                "magnitude": 0.5,
-                "applied_phase": 3
-              }
-            ]
-          },
-          {
-            "unit_id": "enemy_3",
-            "faction": "enemy",
-            "pos": [
-              4,
-              1
-            ],
-            "size": [
-              1,
-              1
-            ],
-            "hp": 1,
-            "max_hp": 12000,
-            "en": 140,
-            "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }

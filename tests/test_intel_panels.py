@@ -57,13 +57,13 @@ def test_hit_percent_becomes_an_accuracy_offset():
     assert [weapon.accuracy for weapon in record.weapons] == [5.0, 5.0, -5.0]
 
 
-def test_map_weapon_keeps_the_flag_and_declares_the_blast_gap():
+def test_map_weapon_keeps_the_flag_and_declares_the_area_gap():
     _, _, rows = read("roster_panels/unit_weapons_map_icon_nu_gundam")
     weapons = ((rows[0], WeaponText(name="雙翼狀感應砲")),)
     result = unit_intel_from_panels("nu_gundam", weapons=weapons)
     assert result.record.weapons[0].map_weapon is True
     assert result.record.weapons[0].ammo == 1
-    assert "weapon0:map_blast" in result.gaps
+    assert "weapon0:map_area" in result.gaps
 
 
 def test_pilot_offence_is_reported_unpicked_by_default():

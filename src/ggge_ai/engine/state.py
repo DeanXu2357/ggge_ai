@@ -40,7 +40,6 @@ class Weapon:
     can_counter: bool = True
     map_weapon: bool = False
     usable_after_move: bool = True
-    blast: int = 0
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
 

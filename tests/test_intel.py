@@ -25,7 +25,7 @@ BEAM = WeaponIntel(
     crit_pct=10,
     level=2,
 )
-MAP_GUN = WeaponIntel(name="メガ粒子砲", power=300.0, range_max=5, map_weapon=True, blast=1, ammo=2)
+MAP_GUN = WeaponIntel(name="メガ粒子砲", power=300.0, range_max=5, map_weapon=True, ammo=2)
 REFILL = SkillIntel(kind=ActionKind.SKILL_EN_REFILL, amount=40.0, uses=2)
 
 

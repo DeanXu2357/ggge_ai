@@ -49,7 +49,6 @@ class WeaponIntel:
     accuracy: float = 0.0
     can_counter: bool = True
     map_weapon: bool = False
-    blast: int = 0
     ammo: int = 0
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
@@ -67,7 +66,6 @@ class WeaponIntel:
             accuracy=self.accuracy,
             can_counter=self.can_counter,
             map_weapon=self.map_weapon,
-            blast=self.blast,
             debuff_kind=self.debuff_kind,
             debuff_magnitude=self.debuff_magnitude,
         )
