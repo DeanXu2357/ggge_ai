@@ -160,6 +160,9 @@ A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
 power: the engine drops the power of a weapon when it reads the
 state.
 
+The entry carries no weapon ability. The section 'Weapon abilities'
+holds the gap and the reason.
+
 A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
 'usable_after_move', 'range_min', 'range_max', 'blast' and
 'affects'.
@@ -589,15 +592,13 @@ Each entry of 'terrain_cells' holds 'cell' and 'terrain'. A state
 with no 'terrain' puts the whole map in space. A terrain name
 outside the five is a decode error.
 
-The weapon carries no terrain field, and no rule of the engine
-reads the terrain today. The state carries the terrain of the map
-so that the rule has its data when the mechanism is known. The
-user ruled on 2026-08-26 that the weapon table of the datamine is
-not the shape of the mechanism, and that the task which collects
-the intelligence settles it.
+No rule of the engine reads the terrain today. The state carries
+the terrain of each cell so that the rule has its data when it
+lands. What reads it is a weapon ability, and the section 'Weapon
+abilities' holds that gap.
 
-The rules payload carries no terrain either. One stage held one
-terrain value until 2026-08-26.
+The rules payload carries no terrain. One stage held one terrain
+value until 2026-08-26.
 
 Open, for the issue that implements 'init': the field 'board' of
 the request must carry the terrain of the map, in the same two
@@ -605,6 +606,34 @@ fields that the state carries above. The user ruled on 2026-08-21
 that the terrain of each cell arrives when the board is built.
 Today 'board' carries the width and the height alone, and 'init'
 is not implemented.
+
+### Weapon abilities
+
+A weapon ability is one named ability of one weapon, positive or
+negative. The user ruled on 2026-08-26 that the effects the engine
+missed are abilities of a weapon, and not rules of the board:
+
+- '對水中目標傷害減半' divides the damage of that weapon when the
+  cell of the target holds the terrain 'underwater'. It reads the
+  cell of the target.
+- '攻方自身在水中時不可使用' forbids the weapon while the cell of
+  the attacker holds that terrain. It reads the cell of the
+  attacker.
+- A map weapon fires before the move and ends the activation of
+  the unit. An ability lifts the first half.
+
+The engine models a closed set of ability kinds. A weapon that
+carries a kind outside the set resolves as a weapon with no
+ability: the damage divides by 1 and the weapon fires. A new
+ability of the game adds a kind to the set. It never adds a field
+to the weapon entry, because the abilities of the game are open
+and the fields of a contract are not.
+
+The wire carries no ability today, and no ability kind is modelled.
+Issue #80 builds the model and adds the field of the weapon entry
+that holds the list. Until then the engine passes 1 for the terrain
+correction of every weapon
+('StrikeDamage' in 'engine/battle/strike.go').
 
 ### Differential cases
 

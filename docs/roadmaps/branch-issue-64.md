@@ -46,6 +46,9 @@ nodes and the resolution order came over as they stood.
 | The weapon terrain fields | 'TerrainDamage' and 'UnusableIn' leave the domain model and the wire. That table of the datamine is not the shape of the mechanism. |
 | The area of a map weapon | The area is a shape of each weapon, and a radius does not hold it. The field 'blast' of a weapon leaves the domain model and the wire. The blast of a skill stays. |
 | The map attack | A map attack starts no engagement, so its resolution is not of this issue. 'Board.Apply' refuses the kind 'map_attack' until a contract holds the area. |
+| The terrain effects | They are not rules of the board. Each one is an ability of a weapon: the damage ability reads the cell of the target, and the fire restriction reads the cell of the attacker. |
+| The ability framework | The engine models a closed set of ability kinds and ignores every kind outside it. A new ability of the game adds a kind, never a field of 'Weapon'. |
+| Where the ability lands | Not on this branch. This branch discloses the decision and leaves the gap; issue #80 builds the model. |
 
 ## Change summary
 
@@ -79,6 +82,12 @@ nodes and the resolution order came over as they stood.
   weapon field 'Blast' are out of the model, the wire, the Python
   mirror and 'stage/intel.py'. 'Board.Apply' refuses the kind and
   changes no field. Issue #79 holds the area of a map weapon.
+- The weapon ability: 'docs/spec/battle-engine-protocol.md' gains the
+  section 'Weapon abilities', which holds the three known abilities,
+  the closed-kind rule and the gap. 'docs/reference/terminology-map.md'
+  binds the term and retires 'terrain restriction', which the ability
+  absorbs. 'StrikeDamage' says why it passes 1 and why it takes no
+  board. Issue #80 builds the model.
 
 ## Call chain
 
@@ -138,12 +147,11 @@ nodes and the resolution order came over as they stood.
 7. **The frozen files still carry 'terrain' inside 'rules'.**
    'engine/differential' holds the field, so the nine remaining files
    still load. 'protocol.Rules' holds it no more.
-8. **Which cell keys the damage factor is open.** The code reads the
-   cell of the target, which docs/reference/combat-formulas.md records
-   from the first-hand confirmation of 2026-08-21. The same datamine
-   table gives the cell of the attacker as the fire gate
-   ('unusable_in', issue #75). The contract carries both cells, so the
-   answer moves one lookup.
+8. **Which cell keys the damage factor is settled.** The user ruled on
+   2026-08-26: the damage ability reads the cell of the target
+   ('對水中目標'), and the fire restriction reads the cell of the
+   attacker ('攻方自身在水中'). They are two abilities and two
+   lookups, not one factor with an open key.
 9. **The command 'act' is not here.** It lives in issue #65 with the
    turn cycle. This branch gives 'Board.Apply' and the judgment; #65
    binds them to the wire.
@@ -155,10 +163,16 @@ nodes and the resolution order came over as they stood.
     'kill_skill_board.json' are deleted, and its note no longer names
     the map strike; the checks after them read the state that the map
     strike wrote.
-11. **Issue #75 reads three names that are gone.**
-    'Weapon.UnusableIn', 'Weapon.UsableIn' and the function 'mapAttacks'
-    of 'candidates.go' are all retired. That issue needs a rewrite
-    against issue #79.
+11. **Issue #75 is superseded by issue #80.** It frames the fire
+    restriction as a rule of the board, and it reads three names that
+    are gone: 'Weapon.UnusableIn', 'Weapon.UsableIn' and the function
+    'mapAttacks' of 'candidates.go'. The user closes it.
+12. **The wire carries no ability field yet.**
+    'engine/differential/compare.go' refuses a field the frozen
+    expectation does not carry, so a new weapon field fails every
+    golden file. Writing the field into those files would make them a
+    false record of the retired oracle. Issue #80 settles the harness
+    before it changes the wire.
 
 ## What issue #65 must change
 
