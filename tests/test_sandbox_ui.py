@@ -176,7 +176,7 @@ def test_the_engine_report_carries_the_command_entries_of_the_contract(client):
     report = client.get("/api/engine?unit=" + quote("x"))
 
     assert report["available"] is True
-    assert "load" in report["answers"]
+    assert "export" in report["answers"]
     entries = {entry["name"]: entry["implemented"] for entry in report["commands"]}
     assert entries["act"] is True
     assert entries["certify"] is False

@@ -12,10 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ggge_ai.engine.client import BattleEngine  # noqa: E402
 from ggge_ai.engine.contract import DiceMode  # noqa: E402
-from ggge_ai.engine.play import Player  # noqa: E402
+from ggge_ai.engine.play import FORCED_HITS, Player  # noqa: E402
 from ggge_ai.engine.session import EngineSession  # noqa: E402
-
-FORCED_HITS = {"mode": str(DiceMode.FORCED), "outcomes": ["hit", "hit", "hit", "hit"]}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

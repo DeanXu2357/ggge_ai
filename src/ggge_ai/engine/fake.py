@@ -77,7 +77,7 @@ class FakeEngine:
         if not isinstance(state, dict):
             raise EngineError(ErrorCode.BAD_REQUEST, "the load carries no state")
         self._state = state
-        self.loaded_seed = int(payload.get("seed", 0))
+        self.loaded_seed = int(payload.get("seed") or 0)
         return {"units": len(state.get("units", []))}
 
     def _reach(self, payload: dict[str, Any]) -> dict[str, Any]:

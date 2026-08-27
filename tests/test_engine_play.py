@@ -16,14 +16,12 @@ from pathlib import Path
 import pytest
 
 from ggge_ai.engine.client import BattleEngine, EngineError
-from ggge_ai.engine.contract import DiceMode
-from ggge_ai.engine.play import Player, decision
+from ggge_ai.engine.play import FORCED_HITS, Player, decision
 from ggge_ai.engine.session import EngineSession
 
 ROOT = Path(__file__).resolve().parents[1]
 ENGAGEMENT = ROOT / "tests/fixtures/engine/engagement_board.json"
 PLACEHOLDER = ROOT / "assets/scenarios/uc_hard_1_placeholder.json"
-FORCED_HITS = {"mode": str(DiceMode.FORCED), "outcomes": ["hit", "hit", "hit", "hit"]}
 
 
 def _engagement_state() -> dict:
@@ -57,22 +55,27 @@ class _RefusesEveryPickButStandby:
                 {"unit_id": "b", "faction": "enemy", "pos": [3, 0], "hp": 10, "acted": False},
             ]}}
         if cmd == "actions":
-            return {"move_cells": [[1, 0]], "weapons": []}
+            return {"move_cells": [[1, 0]], "weapons": [
+                {"name": "beam rifle", "usable_after_move": True},
+                {"name": "saber", "usable_after_move": True},
+            ]}
+        if cmd == "reactions":
+            return {"defender": {"reactions": [{"stance": "dodge", "weapon": None}]}}
         kind = payload["action"]["kind"]
         self.kinds.append(kind)
-        if len(self.kinds) > 4:
+        if len(self.kinds) > 8:
             raise AssertionError("the loop did not stop on the field 'gone'")
         if kind != "standby" or self.refuse_standby:
             raise EngineError("illegal_action", "the engine refuses the pick")
         return {"events": [], "board": {"turn": 1, "phase": "ally", "pending": [], "gone": self.gone}}
 
 
-def test_a_refused_pick_falls_back_to_the_standby():
+def test_a_refused_pick_tries_the_next_candidate_and_then_the_standby():
     engine = _RefusesEveryPickButStandby(gone=["enemy"])
 
     outcome = Player(engine).play(max_turns=5)
 
-    assert engine.kinds == ["reposition", "standby"]
+    assert engine.kinds == ["attack"] * 4 + ["reposition", "standby"]
     assert outcome.gone == ["enemy"]
     assert [entry["request"]["action"]["kind"] for entry in outcome.log] == ["standby"]
 
