@@ -6,7 +6,7 @@ Issue: #74. Branch: issue-74-datamine-crawl. Status: awaiting-review.
 
 ## Change summary
 
-Five commits.
+Six commits.
 
 | Commit | Files | What |
 |---|---|---|
@@ -14,7 +14,8 @@ Five commits.
 | b8d37b8 | `scripts/crawl_datamine.py`, `tests/test_crawl_datamine.py`, `tests/fixtures/datamine/` | The crawler, the offline fixture and the tests |
 | c4ed67c | `docs/reference/datamine-source.md`, `docs/reference/terminology-map.md`, `docs/reference/combat-formulas.md` | The reference document, three term bindings, one cross-reference |
 | 426705a | `scripts/crawl_datamine.py`, `tests/test_crawl_datamine.py`, `docs/reference/datamine-source.md` | The fixes that the branch code review found |
-| (next) | `docs/reference/datamine-source.md`, `docs/reference/datamine-samples/`, `docs/reference/terminology-map.md` | The per-id forms, the verified enums, and a sample of ten UR units, ten pilots and one support crew, read on 2026-08-28 |
+| 43e4434 | `docs/reference/datamine-source.md`, `docs/reference/datamine-samples/`, `docs/reference/terminology-map.md` | The per-id forms, the verified enums, and a sample of ten UR units, ten pilots and one support crew, read on 2026-08-28 |
+| (next) | `docs/reference/datamine-source.md`, `docs/reference/datamine-samples/` | The stage detail form: placed enemies with cells and a reinforcement flag, and the condition text |
 
 `scripts/crawl_datamine.py` writes `data/datamine/<stamp>/` with five
 files: `unit.json`, `weapon.json`, `stage.json`, `formula.json` and

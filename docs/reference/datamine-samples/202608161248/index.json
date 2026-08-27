@@ -143,5 +143,11 @@
   "supporter_id": 1001000150,
   "name": "Bright Noa & White Base",
   "rarity": 5
+ },
+ "stage": {
+  "stage_id": 900103,
+  "name": "The Serpent That Vanished at Loum",
+  "npcs": 14,
+  "conditions": 2
  }
 }

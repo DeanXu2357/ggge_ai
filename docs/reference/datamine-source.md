@@ -435,6 +435,42 @@ The stage row holds no map. It gives no width, no height, no
 terrain of a cell, no deployment slot, no enemy list and no victory
 condition.
 
+## The stage detail form
+
+The address `/ggetapi/en/stage/{id}` gives one stage with two fields
+filled that the list row leaves null: `condition` and `map`. The
+facts come from one stage read on 2026-08-28: id 900103, "The
+Serpent That Vanished at Loum", `stage_type` 5.
+
+`condition` holds one row for each condition text of the stage
+information screen: `category`, `sort`, `text` and `unit_id`. The
+sample holds a `category` 1 row, "Defeat all enemy units.", and a
+`category` 3 row, "All of your units defeated. Guest force
+Aleksandro Hemme defeated.". The map from `category` to win and loss
+is a hypothesis from these two rows.
+
+`map` holds `map_id`, `stage_difficulty` and `npcs`. It holds no
+width, no height, no cell, no terrain of a cell and no deploy slot.
+`map_id` names a map that no address of this review expands.
+
+`npcs` holds one row for each unit the stage places that is not the
+player's. The sample holds 14. Each row holds the cell (`x`, `y`),
+`battle_side`, `direction`, `step_order`, `is_initially_placed`,
+`is_initially_on_warship`, `unit_standby`, `npc_unique_name`,
+`is_story_event_boss`, `cannot_capture` and `npc`. `npc` holds
+`unit_id`, `level`, `hp`, `en`, `attack`, `defense`, `mobility`,
+`movement`, the ability set, the weapon set and the unit row.
+
+In the sample, 13 rows have `is_initially_placed` true and one has
+it false: a Magellan named "magellan" at (17, 8), `step_order` 10.
+That row is the shape of a reinforcement. The row with
+`battle_side` 1 is the guest unit that the loss condition names;
+the other 13 rows have `battle_side` 2. The values of
+`battle_side`, `direction` and `step_order` are not verified beyond
+this reading.
+
+The sample store holds this stage under `stage/`.
+
 ## The formula chain
 
 The formula tab of `/gget/formula` holds the damage chain in the
@@ -635,8 +671,11 @@ Divergences:
 - The datamine gives no victory condition. `condition` and
   `capturable` are null on all 2104 rows. The stage information
   screen stays the only channel for the victory condition.
-- The datamine gives no reinforcement event. The engine field
-  `StageEvent` has no source here.
+- The stage list row gives no reinforcement event. The stage
+  detail form gives the placed units with `is_initially_placed`
+  and `step_order`, and the condition text. Section "The stage
+  detail form" records it. Which of them fills the engine field
+  `StageEvent` is not decided.
 - `docs/spec/intel-data-spec.md` asks for one terrain correction
   for each stage. The datamine gives `stage_terrain`, one enum for
   each stage, next to the five flags. The two do not answer the
