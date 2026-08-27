@@ -21,7 +21,7 @@ const (
 
 	DodgeHitPenalty     = 20.0
 	MaxSupportAttackers = 3
-	ENRegenFraction     = 0.10
+	ENRegenPercent      = 10
 )
 
 // The reaction menu offers no shield stance, so a defender that carries a
