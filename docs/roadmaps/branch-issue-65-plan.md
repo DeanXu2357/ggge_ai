@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** The Go engine runs the turn cycle around one activation and answers `init`, `act`, and `export`; `load` takes a seed; the sandbox page plays the ally phase through `act` against the built binary.
+**Goal:** The Go engine runs the turn cycle around one activation and answers `init`, `act`, and `export`; `load` takes a seed; the command mode plays one battle to its end through the commands alone.
 
 **Architecture:** `Board.Act` runs `Board.Apply` (the #64 engagement) and then rotates the phase while the side to act holds no pending unit; a rotation back to the ally side opens the next turn. The phase start resets the activation of the side, regenerates its EN, and expires the debuffs of one full round. The `act` handler runs on a clone of the board and installs the clone only when the whole run succeeds, so a refusal changes neither the board nor the place of the session random source in its stream. The dice of the wire are two `Dice` implementations: a manual roll that reads `outcomes`, and a server draw that reads the seeded source.
 
@@ -26,9 +26,32 @@
 - Every wire change raises the protocol version once, to `1.3`, in `engine/protocol/envelope.go` and `src/ggge_ai/engine/contract.py` (Task 1 does it; no other task touches the version).
 - Working directory of every command below: `/home/poyu/workspace/project/ggge_ai-worktrees/issue-65-turn-cycle-v2` (Go commands from its `engine/` subdirectory).
 
-## Assumption stated for the user
+## Ruling 8: the command mode replaces the page run
 
-"The web UI plays a battle end to end through the engine" cannot mean the full command flow in this branch: issue #78 owns the rebuild of `EngineSession.pending_decision`, `EngineSession.reaction_options`, and the page command menu on the reporting contract, and the page today builds a `reactions` request of the retired shape (`src/ggge_ai/engine/session.py:94-109`). This plan delivers: the page loads with a seed, posts every ally activation to `act` against the built binary, follows the rotation into the enemy phase, and shows the end of the battle from `gone`. The attack path through the page waits for #78. The Go tests and a Python test against the binary play battles to annihilation without the page.
+The user ruled on 2026-08-27 that the closure "the web UI plays a
+battle end to end" is dropped. In its place, the command mode plays
+one battle through the commands, in this loop, which the code must
+follow step by step:
+
+1. The phase of side A opens.
+2. A reads its pending units from the engine (the summary of `act`
+   or the state of `export`).
+3. A reads the menu of each pending unit with `actions`.
+4. A decides the action of the unit.
+5. When the action names a target, A sends the action to
+   `reactions` and reads the reaction list of the struck unit of
+   side B.
+6. A sends its action and B's reaction together to `act`, which
+   settles the engagement.
+7. A continues with its other pending units. When every unit of A
+   acted, the engine rotates the phase to B, and B runs the same
+   loop with the sides exchanged.
+8. The loop ends when one side is gone.
+
+The loop holds no rule of the battle: the engine refuses an illegal
+pick, and the loop takes the refusal as the answer and tries the
+next pick. The page keeps its `act` path, and its attack path waits
+for issue #78; this branch changes no line of `scripts/sandbox_ui.py`.
 
 ## File map
 
@@ -49,9 +72,10 @@
 | `src/ggge_ai/engine/contract.py` | `PROTOCOL_VERSION = "1.3"` |
 | `src/ggge_ai/engine/session.py` | the seed of `load` |
 | `src/ggge_ai/engine/fake.py` | the summary shape, the seed |
-| `scripts/sandbox_ui.py` | `--seed`, the end of the battle on the page |
-| `tests/test_engine_turn.py` | the battle against the built binary |
-| `tests/test_sandbox_ui.py`, `tests/test_engine_client.py` | seed, `gone`, the implemented set |
+| `src/ggge_ai/engine/play.py` | the command mode: the loop of ruling 8 over one engine |
+| `scripts/play_battle.py` | the command-line entry of the command mode; writes the run log |
+| `tests/test_engine_play.py` | the command mode against the built binary |
+| `tests/test_sandbox_ui.py`, `tests/test_engine_client.py` | the seed of the fake, the summary shape, the implemented set |
 | `docs/spec/battle-engine-protocol.md`, `docs/reference/terminology-map.md` | the contract text |
 
 ---
@@ -1653,16 +1677,19 @@ Issue #65."
 
 ---
 
-### Task 8: The Python side: the seed, the summary, the page
+### Task 8: The command mode
 
 **Files:**
-- Modify: `src/ggge_ai/engine/session.py:30-48`, `src/ggge_ai/engine/fake.py:73-104`, `scripts/sandbox_ui.py:574-590`, `:636-650`, `:725-739`
-- Modify: `tests/test_engine_client.py:17`, `tests/test_sandbox_ui.py` (append)
-- Create: `tests/test_engine_turn.py`
+- Modify: `src/ggge_ai/engine/session.py:30-48`, `src/ggge_ai/engine/fake.py:34-40`, `:73-104`
+- Create: `src/ggge_ai/engine/play.py`, `scripts/play_battle.py`, `tests/test_engine_play.py`
+- Modify: `tests/test_engine_client.py:17`, `tests/test_sandbox_ui.py` (append two tests)
+- Read: `engine/protocol/types.go:121-215` (the answers of `actions` and `reactions`), `src/ggge_ai/engine/client.py:96-109` (`call`), `tests/conftest.py:14-19` (`engine_executable`)
 
 **Interfaces:**
-- Consumes: `EngineSession.act` (unchanged), the `act` answer `{events, board: {turn, phase, pending, gone}}`, the `load` field `seed`.
-- Produces: `EngineSession(engine, state, *, events=None, stage="", seed=0)`; `EngineSession.from_scenario(path, engine, *, seed=0)`; `sandbox_ui.parse_args` with `--seed`.
+- Consumes: the commands `load` (with `seed`), `export`, `actions`, `reactions`, `act`; `BattleEngine.call(cmd, payload)` raises `EngineError` on `ok` false.
+- Produces: `EngineSession(engine, state, *, events=None, stage="", seed=0)`; `EngineSession.from_scenario(path, engine, *, seed=0)`; `play.decision(unit_id, kind, *, move_to=None, target_id=None, weapon=None) -> dict`; `play.Player(engine, *, dice=None, move_tries=8)`; `Player.play(max_turns) -> Outcome`; `Outcome(gone: list[str], turn: int, log: list[dict])`.
+
+The wire `Decision` carries these keys, every one present (`tests/fixtures/engine/engagement_board.json`): `unit_id, kind, move_to, target_id, weapon, amount, reaction, support_defender, support_attackers, aim, hit, counter_hit, support_hit`. The loop sends `hit`, `counter_hit` and `support_hit` as null: the dice settle the nodes. A reaction on the wire carries `stance, weapon, support_defender, support_attackers` (`engine/protocol/state.go:205-210`). The answer of `actions` carries `unit` (`unit_id, faction, pos, size, hp, max_hp, en, en_max, move_range, acted`), `move_cells`, `weapons` (`name, range_min, range_max, en_cost, ammo, accuracy, can_counter, map_weapon, usable_after_move`), `skills`, `error`. The answer of `reactions` carries `defender` (`unit_id, reactions: [{stance, weapon, incoming, counter}], support_defenders, support_attackers`) and `attacker`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1686,59 +1713,16 @@ def test_the_act_answer_carries_the_summary_of_the_contract(client):
     assert set(payload["board"]) == {"turn", "phase", "pending", "gone"}
     assert unit not in payload["board"]["pending"]
     assert payload["board"]["gone"] == []
-
-
-def test_the_seed_flag_is_an_integer_with_zero_as_the_default():
-    args = parse_args(["--scenario", str(PLACEHOLDER)])
-    assert args.seed == 0
-    args = parse_args(["--scenario", str(PLACEHOLDER), "--seed", "7"])
-    assert args.seed == 7
-
-
-@pytest.fixture
-def live_client(engine_executable):
-    with BattleEngine(engine_executable) as engine:
-        session = EngineSession.from_scenario(str(PLACEHOLDER), engine, seed=5)
-        handler = build_handler(session, engine=engine)
-        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        host, port = server.server_address[:2]
-        try:
-            yield Client(f"http://{host}:{port}")
-        finally:
-            server.shutdown()
-            server.server_close()
-            thread.join(timeout=5)
-
-
-def test_the_page_plays_the_ally_phase_through_the_engine(live_client):
-    pending = live_client.get("/api/decision")
-    units = [entry["unit_id"] for entry in pending["units"]]
-    assert len(units) == 10, "the placeholder scenario deploys ten ally units"
-
-    for unit in units:
-        status, payload = live_client.post(
-            "/api/act", {"candidate": {"unit_id": unit, "kind": "standby"}}
-        )
-        assert status == 200, payload
-
-    assert payload["board"]["phase"] == "enemy"
-    assert payload["board"]["turn"] == 1
-    assert len(payload["board"]["pending"]) == 18
-    assert payload["state"]["phase"] == "enemy", "'export' brings the rotation back"
 ```
 
-Import `parse_args` and `BattleEngine` at the top of the test (check `REACHED`: the page's import list is asserted by `test_the_page_reaches_the_engine_and_no_rule_module`; the test file's own imports are free). `engine_executable` is the session fixture of `tests/conftest.py`.
-
-`tests/test_engine_turn.py`:
+`tests/test_engine_play.py`:
 
 ```python
-"""The turn cycle through the built binary.
+"""The command mode against the built binary (user ruling 2026-08-27).
 
-The page cannot drive an attack until issue #78 rebuilds its command
-flow, so the engagement here goes through the client directly, with
-the decision of a frozen engagement case.
+The loop reads every fact from the engine and holds no rule; the
+engagement board of the frozen cases is the small battle, and the
+placeholder scenario is the large one.
 """
 
 from __future__ import annotations
@@ -1747,95 +1731,79 @@ import json
 from pathlib import Path
 
 from ggge_ai.engine.client import BattleEngine
+from ggge_ai.engine.play import Player, decision
+from ggge_ai.engine.session import EngineSession
 
 ROOT = Path(__file__).resolve().parents[1]
 ENGAGEMENT = ROOT / "tests/fixtures/engine/engagement_board.json"
+PLACEHOLDER = ROOT / "assets/scenarios/uc_hard_1_placeholder.json"
 
 
-def _engagement() -> tuple[dict, dict]:
-    case = json.loads(ENGAGEMENT.read_text(encoding="utf-8"))
-    for check in case["checks"]:
-        if check["op"] == "apply" and check["input"]["decision"]["kind"] == "attack":
-            return case["setup"]["state"], check["input"]["decision"]
-    raise AssertionError("the engagement case holds no attack")
+def _engagement_state() -> dict:
+    return json.loads(ENGAGEMENT.read_text(encoding="utf-8"))["setup"]["state"]
 
 
-def _play(engine_executable, seed: int) -> tuple[dict, dict]:
-    state, decision = _engagement()
-    request = {
-        "unit_id": decision["unit_id"],
-        "action": {**decision, "reaction": None},
-        "reaction": decision["reaction"],
-        "dice": {"mode": "sampled"},
+def _play_engagement(engine_executable, seed: int, max_turns: int = 30):
+    with BattleEngine(engine_executable) as engine:
+        engine.call("load", {"state": _engagement_state(), "history": [], "seed": seed})
+        return Player(engine).play(max_turns=max_turns)
+
+
+def test_a_decision_carries_every_key_of_the_wire():
+    assert decision("a", "standby") == {
+        "unit_id": "a", "kind": "standby", "move_to": None, "target_id": None, "weapon": None,
+        "amount": None, "reaction": None, "support_defender": None, "support_attackers": [],
+        "aim": None, "hit": None, "counter_hit": None, "support_hit": None,
     }
+
+
+def test_the_loop_plays_the_engagement_board_to_the_end(engine_executable):
+    outcome = _play_engagement(engine_executable, seed=3)
+
+    assert outcome.gone in (["ally"], ["enemy"], ["ally", "enemy"])
+    assert {entry["phase"] for entry in outcome.log} >= {"ally", "enemy"}
+
+
+def test_every_activation_is_of_the_side_of_its_phase(engine_executable):
+    outcome = _play_engagement(engine_executable, seed=3)
+
+    for entry in outcome.log:
+        assert entry["actor_faction"] == entry["phase"]
+
+
+def test_an_attack_carries_the_reaction_of_the_defender(engine_executable):
+    outcome = _play_engagement(engine_executable, seed=3)
+
+    attacks = [entry for entry in outcome.log if entry["request"]["action"]["kind"] == "attack"]
+    assert attacks, "the engagement board holds foes in range"
+    for entry in attacks:
+        assert set(entry["request"]["reaction"]) == {"stance", "weapon", "support_defender", "support_attackers"}
+        assert entry["answer"]["events"][0]["event"] == "strike"
+
+
+def test_one_seed_gives_one_log(engine_executable):
+    first = _play_engagement(engine_executable, seed=3)
+    second = _play_engagement(engine_executable, seed=3)
+
+    assert first.log == second.log
+
+
+def test_the_placeholder_scenario_rotates_through_two_turns(engine_executable):
     with BattleEngine(engine_executable) as engine:
-        engine.call("load", {"state": state, "history": [], "seed": seed})
-        answer = engine.call("act", request)
-        return answer, engine.call("export")
+        EngineSession.from_scenario(str(PLACEHOLDER), engine, seed=5)
+        outcome = Player(engine).play(max_turns=2)
 
-
-def test_one_seed_gives_one_battle(engine_executable):
-    first_answer, first_export = _play(engine_executable, 11)
-    second_answer, second_export = _play(engine_executable, 11)
-
-    assert first_answer == second_answer
-    assert first_export == second_export
-    assert first_export["seed"] == 11
-    assert [entry["cmd"] for entry in first_export["history"]] == ["act"]
-
-
-def test_the_events_hold_a_strike_then_the_summary_names_the_phase(engine_executable):
-    answer, _ = _play(engine_executable, 11)
-
-    assert answer["events"][0]["event"] == "strike"
-    assert set(answer["board"]) == {"turn", "phase", "pending", "gone"}
-
-
-def _reaction_none() -> dict:
-    return {"stance": "none", "weapon": None, "support_defender": None, "support_attackers": []}
-
-
-def _attack(decision: dict, actor: dict, target: dict) -> dict:
-    action = {**decision, "unit_id": actor["unit_id"], "kind": "attack", "move_to": None,
-              "target_id": target["unit_id"], "weapon": actor["weapons"][0]["name"], "reaction": None}
-    return {"unit_id": actor["unit_id"], "action": action, "reaction": _reaction_none(),
-            "dice": {"mode": "forced", "outcomes": ["hit", "hit", "hit", "hit"]}}
-
-
-def _standby(decision: dict, actor: dict) -> dict:
-    action = {**decision, "unit_id": actor["unit_id"], "kind": "standby", "move_to": None,
-              "target_id": None, "weapon": None, "reaction": None}
-    return {"unit_id": actor["unit_id"], "action": action, "dice": {"mode": "forced", "outcomes": []}}
-
-
-def test_a_battle_runs_to_annihilation(engine_executable):
-    state, decision = _engagement()
-    with BattleEngine(engine_executable) as engine:
-        engine.call("load", {"state": state, "history": [], "seed": 2})
-        for _ in range(200):
-            exported = engine.call("export")["state"]
-            living = [unit for unit in exported["units"] if unit["hp"] > 0]
-            if not {"ally", "enemy"} <= {unit["faction"] for unit in living}:
-                break
-            actor = next(u for u in living if u["faction"] == exported["phase"] and not u["acted"])
-            target = next(u for u in living if u["faction"] != actor["faction"])
-            try:
-                answer = engine.call("act", _attack(decision, actor, target))
-            except EngineError:
-                answer = engine.call("act", _standby(decision, actor))
-        else:
-            raise AssertionError("no side is gone after 200 activations")
-        assert answer["board"]["gone"] in (["ally"], ["enemy"], ["ally", "enemy"])
+    turns = [(entry["turn"], entry["phase"]) for entry in outcome.log]
+    assert (1, "ally") in turns and (1, "enemy") in turns and (2, "ally") in turns
+    assert outcome.turn >= 3 or outcome.gone
 ```
-
-Import `EngineError` from `ggge_ai.engine.client` next to `BattleEngine`. The fallback to `standby` covers an actor out of range or out of EN for its first weapon; the strike of an attacker with a weapon in range lands under four forced hits, so the hit points fall every round and one side is gone within 200 activations. The `reaction` shape follows `protocol.Reaction` (`engine/protocol/state.go:205-210`: `stance`, `weapon`, `support_defender`, `support_attackers`).
 
 - [ ] **Step 2: Run the tests to see them fail**
 
-Run: `uv run pytest -q tests/test_sandbox_ui.py tests/test_engine_turn.py tests/test_engine_client.py`
-Expected: FAIL on `seed`, `loaded_seed`, `parse_args --seed`, and the summary keys of the fake.
+Run: `uv run pytest -q tests/test_engine_play.py tests/test_sandbox_ui.py tests/test_engine_client.py`
+Expected: `ModuleNotFoundError: ggge_ai.engine.play`; the seed and summary tests of the fake fail.
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 3: The seed of the session and the shape of the fake**
 
 `src/ggge_ai/engine/session.py`:
 
@@ -1853,7 +1821,6 @@ Expected: FAIL on `seed`, `loaded_seed`, `parse_args --seed`, and the summary ke
         self._state = state
         self._events = events or {}
         self._stage = stage
-        self._seed = seed
         self._ask("load", {"state": self.engine_state(), "history": [], "seed": seed})
 
     @classmethod
@@ -1863,7 +1830,7 @@ Expected: FAIL on `seed`, `loaded_seed`, `parse_args --seed`, and the summary ke
         return cls(engine, state, events=events, stage=loaded.stage, seed=seed)
 ```
 
-`src/ggge_ai/engine/fake.py`: `_load` stores `self.loaded_seed = int(payload.get("seed", 0))` (declare `self.loaded_seed = 0` in `__init__`); `_export` answers `{"state": self._loaded(), "history": [], "seed": self.loaded_seed}`; `_summary` answers:
+`src/ggge_ai/engine/fake.py`: `__init__` sets `self.loaded_seed = 0`; `_load` sets `self.loaded_seed = int(payload.get("seed", 0))`; `_export` answers `{"state": self._loaded(), "history": [], "seed": self.loaded_seed}`; `_summary` becomes:
 
 ```python
     def _summary(self) -> dict[str, Any]:
@@ -1871,40 +1838,233 @@ Expected: FAIL on `seed`, `loaded_seed`, `parse_args --seed`, and the summary ke
         pending = [
             unit.get("unit_id")
             for unit in state.get("units", [])
-            if unit.get("faction") == state.get("phase") and not unit.get("acted") and unit.get("hp", 0) > 0
+            if unit.get("faction") == state.get("phase")
+            and not unit.get("acted")
+            and unit.get("hp", 0) > 0
         ]
         return {"turn": state.get("turn"), "phase": state.get("phase"), "pending": pending, "gone": []}
 ```
 
-The fake still rotates nothing and judges nothing: the module doc says so.
+The fake still rotates nothing and judges nothing; its module doc says so.
 
-`scripts/sandbox_ui.py`: `parse_args` gains `parser.add_argument("--seed", type=int, default=0, help="對局亂數源的種子（引擎自抽骰時用）")`; `main` passes `seed=args.seed` to `from_scenario`. In the page script: a global `let gone = [];`; in the `/api/act` handler set `gone = payload.board.gone || [];` before `apply(...)`; in `renderPlay`, after the `error` line and before the phase gate:
+- [ ] **Step 4: The command mode**
 
-```javascript
-  if (gone.length) {
-    box.appendChild(node("p", "dim", "戰鬥結束：" + gone.map((side) => FACTION_NAME[side] || side).join("、") + "全滅。"));
-    return;
-  }
+`src/ggge_ai/engine/play.py`:
+
+```python
+"""The command mode: one battle through the commands of the engine.
+
+The loop of the user ruling of 2026-08-27. It reads the pending units
+from the engine, the menu of each unit from 'actions', the answer of
+the struck unit from 'reactions', and lets 'act' settle the engagement.
+The loop holds no rule of the battle: the engine refuses an illegal
+pick, and the loop takes the refusal as the answer and tries the next
+pick. The order of the picks is a preference, not a rule.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+from .client import EngineError
+from .contract import DiceMode
+
+SIDES = ("ally", "enemy")
+
+
+def decision(
+    unit_id: str,
+    kind: str,
+    *,
+    move_to: list[int] | None = None,
+    target_id: str | None = None,
+    weapon: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "unit_id": unit_id,
+        "kind": kind,
+        "move_to": move_to,
+        "target_id": target_id,
+        "weapon": weapon,
+        "amount": None,
+        "reaction": None,
+        "support_defender": None,
+        "support_attackers": [],
+        "aim": None,
+        "hit": None,
+        "counter_hit": None,
+        "support_hit": None,
+    }
+
+
+def reaction_of(option: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "stance": option.get("stance"),
+        "weapon": option.get("weapon"),
+        "support_defender": None,
+        "support_attackers": [],
+    }
+
+
+@dataclass
+class Outcome:
+    gone: list[str]
+    turn: int
+    log: list[dict[str, Any]] = field(default_factory=list)
+
+
+class Player:
+    def __init__(self, engine: Any, *, dice: dict[str, Any] | None = None, move_tries: int = 8) -> None:
+        self._engine = engine
+        self._dice = dice or {"mode": str(DiceMode.SAMPLED)}
+        self._move_tries = move_tries
+
+    def play(self, max_turns: int) -> Outcome:
+        log: list[dict[str, Any]] = []
+        while True:
+            state = self._engine.call("export")["state"]
+            living = [unit for unit in state["units"] if unit["hp"] > 0]
+            gone = [side for side in SIDES if not any(unit["faction"] == side for unit in living)]
+            if gone or state["turn"] > max_turns:
+                return Outcome(gone=gone, turn=state["turn"], log=log)
+            phase = state["phase"]
+            pending = [unit for unit in living if unit["faction"] == phase and not unit["acted"]]
+            if not pending:
+                raise RuntimeError(f"the engine left the phase {phase!r} with no pending unit")
+            actor = pending[0]
+            foes = [unit for unit in living if unit["faction"] != phase]
+            request = self._pick(actor, foes)
+            answer = self._engine.call("act", request)
+            log.append({
+                "turn": state["turn"],
+                "phase": phase,
+                "actor_faction": actor["faction"],
+                "request": request,
+                "answer": answer,
+            })
+
+    def _pick(self, actor: dict[str, Any], foes: list[dict[str, Any]]) -> dict[str, Any]:
+        menu = self._engine.call("actions", {"unit_id": actor["unit_id"]})
+        ordered_foes = sorted(foes, key=lambda foe: _steps(actor["pos"], foe["pos"]))
+        cells: list[list[int] | None] = [None]
+        if ordered_foes:
+            nearest = ordered_foes[0]["pos"]
+            cells += sorted(menu.get("move_cells", []), key=lambda cell: _steps(cell, nearest))[: self._move_tries]
+        for cell in cells:
+            for weapon in menu.get("weapons", []):
+                if weapon.get("map_weapon") or (cell is not None and not weapon.get("usable_after_move")):
+                    continue
+                for foe in ordered_foes:
+                    action = decision(actor["unit_id"], "attack", move_to=cell,
+                                      target_id=foe["unit_id"], weapon=weapon["name"])
+                    try:
+                        options = self._engine.call("reactions", {"action": action, "defender_id": foe["unit_id"]})
+                    except EngineError:
+                        continue
+                    replies = options.get("defender", {}).get("reactions", [])
+                    if not replies:
+                        continue
+                    return {"unit_id": actor["unit_id"], "action": action,
+                            "reaction": reaction_of(replies[0]), "dice": dict(self._dice)}
+        if len(cells) > 1 and cells[1] != actor["pos"]:
+            return {"unit_id": actor["unit_id"],
+                    "action": decision(actor["unit_id"], "reposition", move_to=cells[1]),
+                    "dice": dict(self._dice)}
+        return {"unit_id": actor["unit_id"], "action": decision(actor["unit_id"], "standby"),
+                "dice": dict(self._dice)}
+
+
+def _steps(a: list[int], b: list[int]) -> int:
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
 ```
 
-- [ ] **Step 4: Run the gates**
+`_steps` orders the picks and decides nothing: the engine answers whether a weapon reaches. A reposition toward the nearest foe when no shot is legal moves the sides together so a battle ends. Read `engine/battle/candidates.go` or the spec section `actions` for the exact key names of the menu (`move_cells`, `weapons`, `name`, `map_weapon`, `usable_after_move`) before you trust the names above.
+
+`scripts/play_battle.py`:
+
+```python
+"""Play one battle through the engine in the command mode and write the log."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from ggge_ai.engine.client import BattleEngine  # noqa: E402
+from ggge_ai.engine.play import Player  # noqa: E402
+from ggge_ai.engine.session import EngineSession  # noqa: E402
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Command mode: one battle through the engine")
+    parser.add_argument("--scenario", required=True, help="the scenario file (sandbox-scenario/1)")
+    parser.add_argument("--engine", required=True, help="the built engine binary")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--max-turns", type=int, default=50)
+    parser.add_argument("--out", default=None, help="the run directory; default data/runs/<timestamp>")
+    return parser.parse_args(argv)
+
+
+def main() -> int:
+    args = parse_args()
+    out = Path(args.out or Path("data/runs") / time.strftime("%Y%m%d-%H%M%S"))
+    out.mkdir(parents=True, exist_ok=True)
+    with BattleEngine(args.engine) as engine:
+        EngineSession.from_scenario(args.scenario, engine, seed=args.seed)
+        outcome = Player(engine).play(max_turns=args.max_turns)
+        final = engine.call("export")
+    (out / "play.json").write_text(
+        json.dumps({"seed": args.seed, "gone": outcome.gone, "turn": outcome.turn, "log": outcome.log},
+                   ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+    (out / "final.json").write_text(json.dumps(final, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"turn {outcome.turn}, gone {outcome.gone}, {len(outcome.log)} activations, log in {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+Check that `tests/test_sandbox_ui.py::test_no_module_of_the_repository_holds_the_retired_sandbox` accepts the new script (it scans `scripts/*.py` for the retired names only).
+
+- [ ] **Step 5: Run the gates**
 
 Run: `uv run pytest -q && uv run ruff check src tests scripts`
-Expected: pass. (`test_engine_turn.py` and `live_client` build the binary once through `engine_executable`.)
+Expected: pass. The engagement board (3 allies and 3 enemies in one row, 12000 HP each, `beam rifle`, `saber`, `long beam`) ends within 30 turns under sampled dice; if `test_the_loop_plays_the_engagement_board_to_the_end` reports no side gone, read the log: an engine refusal on every pick means a wrong key name in `_pick`, and a battle that stalls with legal picks means the damage numbers of the fixture, which is a finding for the user, not a value to change.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: The evidence run**
+
+Build the binary and play the placeholder scenario to its end:
 
 ```bash
-git add src/ggge_ai/engine/session.py src/ggge_ai/engine/fake.py scripts/sandbox_ui.py tests/test_engine_client.py tests/test_sandbox_ui.py tests/test_engine_turn.py
-git commit -m "Play the ally phase on the page against the engine
+(cd engine && go build -o /tmp/claude-1000/-home-poyu-workspace-project-ggge-ai/2fbccb1b-6865-4261-a4de-b3ffbfe7a99a/scratchpad/battle-engine .)
+uv run python scripts/play_battle.py --scenario assets/scenarios/uc_hard_1_placeholder.json \
+  --engine /tmp/claude-1000/-home-poyu-workspace-project-ggge-ai/2fbccb1b-6865-4261-a4de-b3ffbfe7a99a/scratchpad/battle-engine --seed 7 --max-turns 60
+```
 
-The page loads the scenario with a seed and posts every activation
-to 'act'; the engine rotates the phase and 'export' brings the
-rotation back, so the page follows the turn without a rule of its
-own. The page reads the end of the battle from the summary field
-'gone' (user ruling 2026-08-27). The attack path of the page waits
-for #78, so the engagement test goes through the client with the
-decision of a frozen engagement case.
+Record the printed line and the run directory in the roadmap progress log. `data/runs/` is gitignored. A run that reaches 60 turns with no side gone is a finding to report, not a failure of the loop.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/ggge_ai/engine/session.py src/ggge_ai/engine/fake.py src/ggge_ai/engine/play.py scripts/play_battle.py tests/test_engine_client.py tests/test_sandbox_ui.py tests/test_engine_play.py
+git commit -m "Play one battle through the commands alone
+
+The user ruled on 2026-08-27 that the closure of the turn cycle is a
+battle in the command mode, not on the page: the loop reads the
+pending units, the menu of 'actions', the reaction list of
+'reactions' for the struck unit, and sends both decisions to 'act',
+side after side, until one side is gone. The loop holds no rule:
+the engine refuses an illegal pick and the loop tries the next one.
+The session loads with a seed so one seed gives one log.
 
 Issue #65."
 ```
@@ -2052,14 +2212,14 @@ Append rows to `docs/reference/terminology-map.md`, in the table that holds 'act
 | phase start | 相位開始 | The moment the phase of one faction opens: the activations come back, the EN regenerates, the debuffs of one full round expire; Go: 'beginPhase' |
 | pending unit | 待啟動單位 | A living unit of the faction of the phase that did not act in this phase; the summary field 'pending'; Go: 'Board.Pending' |
 | session random source | 對局亂數源 | The PCG source that the 'seed' of 'init' or 'load' builds and every server draw reads; Go: 'ServerDraw' |
-| manual roll (Go) | — | The Go type of the manual roll is 'ManualRoll'; see the row 'manual roll' |
+| command mode | 指令模式 | One battle through the commands of the engine, with no page: the loop of src/ggge_ai/engine/play.py and the script scripts/play_battle.py (user ruling 2026-08-27) |
 ```
 
-Check the existing Chinese binding for 相位 or 階段 first (`grep -n '階段\|相位' docs/reference/terminology-map.md`): the page uses 階段 for the phase (`scripts/sandbox_ui.py:412`), so bind `phase start` to 階段開始 if the map holds 階段 for phase, and keep one term. Drop the last row if the map's format rejects a row without a Chinese term; put the Go names in the 'manual roll' and 'server draw' rows instead.
+Check the existing Chinese binding for 相位 or 階段 first (`grep -n '階段\|相位' docs/reference/terminology-map.md`): the page uses 階段 for the phase (`scripts/sandbox_ui.py:412`), so bind `phase start` to 階段開始 if the map holds 階段 for phase, and keep one term. Add the Go names 'ManualRoll' and 'ServerDraw' to the existing rows 'manual roll' and 'server draw'.
 
 - [ ] **Step 8: Roadmap**
 
-In `docs/roadmaps/branch-issue-65.md`, update the resume point and add the progress log entries for the tasks that landed. Add the section "Contention points for the reviewer" with these entries: (1) the field 'rules' of 'init' is unread; (2) 'export' and 'load' carry the seed but not the event table, the victory conditions, or the deploy cells, so a session that 'init' built and 'load' reloads loses the three (they are unread today); (3) the summary field 'gone' as the shape of ruling 6; (4) the necessity rule of the reaction lives in the 'act' handler; (5) the one-draw volley and #47; (6) the page attack path waits for #78; (7) the fixed 'ENRegenPercent' replaces 'ENRegenFraction'.
+In `docs/roadmaps/branch-issue-65.md`, update the resume point and add the progress log entries for the tasks that landed. Add the section "Contention points for the reviewer" with these entries: (1) the field 'rules' of 'init' is unread; (2) 'export' and 'load' carry the seed but not the event table, the victory conditions, or the deploy cells, so a session that 'init' built and 'load' reloads loses the three (they are unread today); (3) the summary field 'gone' as the shape of ruling 6; (4) the necessity rule of the reaction lives in the 'act' handler; (5) the one-draw volley and #47; (6) the page attack path waits for #78, and the command mode is the closure per ruling 8; (7) the fixed 'ENRegenPercent' replaces 'ENRegenFraction'.
 
 - [ ] **Step 9: Commit**
 
@@ -2082,6 +2242,6 @@ Issue #65."
 
 ## Self-review
 
-Spec coverage: init (Tasks 5, 6, 9), act with both dice (2, 6, 9), determinism (2, 6, 8), export/load with seed (1, 6, 9), turn cycle (4, 9), page (8), fixtures (7), gates (every task). Not covered by ruling: events, chance steps, support charges, place, rollback.
+Spec coverage: init (Tasks 5, 6, 9), act with both dice (2, 6, 9), determinism (2, 6, 8), export/load with seed (1, 6, 9), turn cycle (4, 9), the command mode of ruling 8 (8), fixtures (7), gates (every task). Not covered by ruling: events, chance steps, support charges, place, rollback.
 
 Type consistency: `ManualRoll`/`NewManualRoll`/`Short`, `ServerDraw`/`NewServerDraw`/`Clone`, `Board.Act`/`Advance`/`Pending`/`Gone`, `Resolution`/`Rotation`, `DecodeInit`/`EncodeState`/`DecodeOutcomes`/`EncodeResolution`/`EncodeSummary`, `HistoryEntry`, `BoardSummary`, `newSession`, `initBattle`, `ENRegenPercent` are used with one name each across Tasks 2-9.

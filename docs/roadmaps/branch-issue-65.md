@@ -40,6 +40,17 @@ branch.
 7. Page start: the page keeps 'load' plus a seed. 'init' lands per
    spec without 'place', with Go tests only; 'place' stays with its
    own issue.
+8. Closure: the run of the web UI is dropped. The command mode
+   plays one battle through the commands alone, in this loop: the
+   phase of side A opens; A reads its pending units; A reads the
+   menu of each unit with 'actions'; A decides; when the action
+   names a target, A sends it to 'reactions' and reads the reaction
+   list of the struck unit of side B; A sends both decisions to
+   'act'; A continues with its other units; when every unit of A
+   acted, the phase rotates to B, and B runs the same loop with the
+   sides exchanged; the loop ends when one side is gone. The page
+   attack path waits for issue #78; this branch changes no line of
+   scripts/sandbox_ui.py.
 
 Assumptions that the user did not rule on, stated here for the
 review:
