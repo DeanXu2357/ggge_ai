@@ -10,17 +10,26 @@ import (
 // A session holds the board, the seed, and the history of one battle. The
 // deploy commands belong to the issue that implements them.
 type session struct {
-	board       *battle.Board
-	victory     []protocol.Victory
-	events      json.RawMessage
-	deployCells []protocol.Cell
-	seed        int64
-	draw        *battle.ServerDraw
-	history     []protocol.HistoryEntry
+	board         *battle.Board
+	victory       []protocol.Victory
+	events        json.RawMessage
+	deployCells   []protocol.Cell
+	seed          int64
+	draw          *battle.ServerDraw
+	history       []protocol.HistoryEntry
+	pendingEvents []string
+	firedEvents   []string
 }
 
 func newSession(board *battle.Board, seed int64) *session {
-	return &session{board: board, seed: seed, draw: battle.NewServerDraw(seed), history: []protocol.HistoryEntry{}}
+	return &session{
+		board:         board,
+		seed:          seed,
+		draw:          battle.NewServerDraw(seed),
+		history:       []protocol.HistoryEntry{},
+		pendingEvents: []string{},
+		firedEvents:   []string{},
+	}
 }
 
 func init() {
@@ -61,9 +70,18 @@ func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
+	// No engine exports a phase that holds no pending unit, but a hand-written
+	// snapshot can carry one. The rotation makes such a board playable.
+	board.Advance()
 	loaded := newSession(board, request.Seed)
 	if request.History != nil {
 		loaded.history = request.History
+	}
+	if request.State.PendingEvents != nil {
+		loaded.pendingEvents = request.State.PendingEvents
+	}
+	if request.State.FiredEvents != nil {
+		loaded.firedEvents = request.State.FiredEvents
 	}
 	s.session = loaded
 	return protocol.Ok(id, protocol.LoadResponse{})
@@ -75,10 +93,14 @@ func (s *Server) export(id string, payload json.RawMessage) protocol.Response {
 	if fail != nil {
 		return *fail
 	}
+	state := battle.EncodeState(board)
+	state.PendingEvents = s.session.pendingEvents
+	state.FiredEvents = s.session.firedEvents
 	return protocol.Ok(id, protocol.ExportResponse{
-		State:   battle.EncodeState(board),
+		State:   state,
 		History: s.session.history,
 		Seed:    s.session.seed,
+		Gone:    battle.EncodeSummary(board).Gone,
 	})
 }
 

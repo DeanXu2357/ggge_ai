@@ -80,6 +80,10 @@ var wireTerrains = map[Terrain]string{
 	TerrainUnderwater:  "underwater",
 }
 
+func EncodeFaction(faction Faction) protocol.Faction {
+	return wireFactions[faction]
+}
+
 func DecodeState(state *protocol.BattleState) (*Board, error) {
 	if state == nil {
 		return nil, fmt.Errorf("the payload carries no state")

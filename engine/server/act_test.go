@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
@@ -92,6 +93,16 @@ func TestAReactionOnAStandbyIsIllegalAction(t *testing.T) {
 	}
 }
 
+func TestAReactionInsideTheActionIsBadRequest(t *testing.T) {
+	line := `{"id":"a","cmd":"act","payload":{"unit_id":"a1",` +
+		`"action":{"unit_id":"a1","kind":"standby","reaction":{"stance":"none"}},` +
+		`"dice":{"mode":"sampled"}}}`
+	replies := serve(t, New(), twoSidesLine, line)
+	if replies[1].OK || replies[1].Error.Code != protocol.CodeBadRequest {
+		t.Fatalf("reply: %+v", replies[1])
+	}
+}
+
 func TestAnAttackWithNoReactionIsIllegalAction(t *testing.T) {
 	line := `{"id":"a","cmd":"act","payload":{"unit_id":"a1","action":{"unit_id":"a1","kind":"attack","target_id":"e1","weapon":"gun"},` +
 		`"dice":{"mode":"forced","outcomes":["hit"]}}}`
@@ -132,6 +143,9 @@ func TestExportCarriesTheHistoryOfTheActivations(t *testing.T) {
 	if len(export.History) != 1 || export.History[0].Cmd != "act" {
 		t.Fatalf("history: %+v", export.History)
 	}
+	if len(export.Gone) != 0 {
+		t.Fatalf("both sides live, and 'gone' is %+v", export.Gone)
+	}
 	var unit struct {
 		UnitID string `json:"unit_id"`
 	}
@@ -144,6 +158,60 @@ func TestExportCarriesTheHistoryOfTheActivations(t *testing.T) {
 	}
 	if !acted["a1"] || acted["a2"] {
 		t.Fatalf("state: %+v", acted)
+	}
+}
+
+func TestExportNamesTheSideWithNoLivingUnit(t *testing.T) {
+	line := `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
+		`"units":[` +
+		`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100},` +
+		`{"unit_id":"e1","faction":"enemy","pos":[4,4],"hp":0}` +
+		`],"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
+		`"pending_events":[],"fired_events":[]},"history":[]}}`
+	replies := serve(t, New(), line, `{"id":"x","cmd":"export","payload":{}}`)
+	var export protocol.ExportResponse
+	if err := json.Unmarshal(replies[1].Payload, &export); err != nil {
+		t.Fatal(err)
+	}
+	if len(export.Gone) != 1 || export.Gone[0] != protocol.FactionEnemy {
+		t.Fatalf("gone: %+v", export.Gone)
+	}
+}
+
+func TestLoadRotatesToThePhaseThatHoldsAPendingUnit(t *testing.T) {
+	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
+		`"units":[` +
+		`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"acted":true},` +
+		`{"unit_id":"e1","faction":"enemy","pos":[4,4],"hp":100,"acted":false}` +
+		`],"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
+		`"pending_events":[],"fired_events":[]},"history":[]}}`
+	replies := serve(t, New(), line, `{"id":"x","cmd":"export","payload":{}}`,
+		act("a", "e1", "standby", `{"mode":"sampled"}`))
+	var export protocol.ExportResponse
+	if err := json.Unmarshal(replies[1].Payload, &export); err != nil {
+		t.Fatal(err)
+	}
+	if export.State.Phase != protocol.FactionEnemy || export.State.Turn != 1 {
+		t.Fatalf("state after the load: phase %q turn %d", export.State.Phase, export.State.Turn)
+	}
+	if !replies[2].OK {
+		t.Fatalf("act: %+v", replies[2])
+	}
+}
+
+func TestExportEchoesTheEventsOfTheLoadedState(t *testing.T) {
+	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
+		`"units":[{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100}],` +
+		`"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
+		`"pending_events":["reinforce_t2"],"fired_events":["opening"]},"history":[]}}`
+	replies := serve(t, New(), line, `{"id":"x","cmd":"export","payload":{}}`)
+	var export protocol.ExportResponse
+	if err := json.Unmarshal(replies[1].Payload, &export); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(export.State.PendingEvents, []string{"reinforce_t2"}) ||
+		!reflect.DeepEqual(export.State.FiredEvents, []string{"opening"}) {
+		t.Fatalf("events: %+v %+v", export.State.PendingEvents, export.State.FiredEvents)
 	}
 }
 
@@ -190,10 +258,7 @@ func TestOneSeedGivesOneBattleThroughTheCommandLoop(t *testing.T) {
 	}
 }
 
-// withForcedEmptyOutcomes decodes the line into its envelope and its act
-// payload, replaces 'dice' with a forced draw of zero outcomes, and
-// re-marshals both: the change goes through the wire types, not string
-// surgery on the line.
+// The change goes through the wire types, not string surgery on the line.
 func withForcedEmptyOutcomes(t *testing.T, line string) string {
 	t.Helper()
 	var request struct {

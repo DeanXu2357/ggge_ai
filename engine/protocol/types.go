@@ -300,6 +300,7 @@ type ExportResponse struct {
 	State   BattleState    `json:"state"`
 	History []HistoryEntry `json:"history"`
 	Seed    int64          `json:"seed"`
+	Gone    []Faction      `json:"gone"`
 }
 
 type LoadRequest struct {

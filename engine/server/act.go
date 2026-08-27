@@ -49,14 +49,17 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	})
 }
 
-// The request names the unit two times, on the request and on the action.
-// The two must agree; an empty action id takes the request id.
+// The request names the unit two times, and the two must agree; an empty
+// action id takes the request id.
 func activation(request *protocol.ActRequest) (battle.Decision, error) {
 	if request.Action.UnitID == "" {
 		request.Action.UnitID = request.UnitID
 	}
 	if request.Action.UnitID != request.UnitID {
 		return battle.Decision{}, errors.New("'unit_id' and 'action.unit_id' name two units")
+	}
+	if request.Action.Reaction != nil {
+		return battle.Decision{}, errors.New("the reaction travels in the field 'reaction' of the request")
 	}
 	decision, err := battle.DecodeDecision(&request.Action)
 	if err != nil {

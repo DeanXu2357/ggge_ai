@@ -25,5 +25,9 @@ func (s *Server) initBattle(id string, payload json.RawMessage) protocol.Respons
 	opened.events = request.Events
 	opened.deployCells = request.DeployCells
 	s.session = opened
-	return protocol.Ok(id, protocol.InitResponse{Turn: board.Turn, Phase: string(protocol.FactionAlly), DeployOpen: true})
+	return protocol.Ok(id, protocol.InitResponse{
+		Turn:       board.Turn,
+		Phase:      string(battle.EncodeFaction(board.Phase)),
+		DeployOpen: true,
+	})
 }

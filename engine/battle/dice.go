@@ -64,14 +64,19 @@ func (m *ManualRoll) Short() bool {
 
 type ServerDraw struct {
 	source *rand.PCG
+	draw   *rand.Rand
 }
 
 func NewServerDraw(seed int64) *ServerDraw {
-	return &ServerDraw{source: rand.NewPCG(uint64(seed), 0)}
+	return newServerDraw(rand.NewPCG(uint64(seed), 0))
+}
+
+func newServerDraw(source *rand.PCG) *ServerDraw {
+	return &ServerDraw{source: source, draw: rand.New(source)}
 }
 
 func (d *ServerDraw) Lands(_ Node, probability float64) bool {
-	return rand.New(d.source).Float64() < probability
+	return d.draw.Float64() < probability
 }
 
 func (d *ServerDraw) Clone() *ServerDraw {
@@ -83,5 +88,5 @@ func (d *ServerDraw) Clone() *ServerDraw {
 	if err := source.UnmarshalBinary(state); err != nil {
 		panic(err)
 	}
-	return &ServerDraw{source: source}
+	return newServerDraw(source)
 }
