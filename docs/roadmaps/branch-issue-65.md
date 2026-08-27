@@ -52,8 +52,9 @@ review:
 
 ## Resume point
 
-Plan in progress. No code yet.
+The plan is docs/roadmaps/branch-issue-65-plan.md (nine tasks). No
+task has started. Execute in order; each task ends in one commit.
 
 ## Progress log
 
-- 2026-08-27: worktree added, rulings recorded, plan starts.
+- 2026-08-27: worktree added, rulings recorded, plan written.
