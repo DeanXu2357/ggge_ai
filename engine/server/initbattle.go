@@ -13,7 +13,7 @@ func init() {
 
 func (s *Server) initBattle(id string, payload json.RawMessage) protocol.Response {
 	var request protocol.InitRequest
-	if err := decode(payload, &request); err != nil {
+	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
 	board, err := battle.DecodeInit(&request)

@@ -41,13 +41,6 @@ func init() {
 // A command that needs no field arrives with no 'payload', and
 // json.Unmarshal refuses empty input. An absent payload gives a zero
 // request.
-func decode[T any](payload json.RawMessage, into *T) error {
-	if len(payload) == 0 {
-		return nil
-	}
-	return json.Unmarshal(payload, into)
-}
-
 // A method carries no type parameter, so the server comes in as an argument.
 func openCommand[T any](s *Server, id string, payload json.RawMessage) (
 	*T, *battle.Board, *protocol.Response) {
@@ -56,7 +49,7 @@ func openCommand[T any](s *Server, id string, payload json.RawMessage) (
 		fail := protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
 		return nil, nil, &fail
 	}
-	if err := decode(payload, &request); err != nil {
+	if err := json.Unmarshal(payload, &request); err != nil {
 		fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 		return nil, nil, &fail
 	}
@@ -65,7 +58,7 @@ func openCommand[T any](s *Server, id string, payload json.RawMessage) (
 
 func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 	var request protocol.LoadRequest
-	if err := decode(payload, &request); err != nil {
+	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
 	board, err := battle.DecodeState(&request.State)

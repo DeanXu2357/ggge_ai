@@ -25,7 +25,10 @@ issues of the port (#60 to #68).
 
 - One JSON object on one line. This applies to a request and to a
   response.
-- Request: 'id', 'cmd', 'payload'.
+- Request: 'id', 'cmd', 'payload'. A request that needs no field
+  omits 'payload'. The transport of the engine reads an absent
+  'payload' as an empty object, so every command takes such a
+  request.
 - Response, success: 'id', 'ok' true, 'payload'.
 - Response, failure: 'id', 'ok' false, 'error' with 'code' and
   'message'.

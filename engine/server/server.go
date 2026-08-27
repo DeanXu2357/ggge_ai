@@ -53,7 +53,7 @@ func (s *Server) dispatch(line []byte) protocol.Response {
 		return protocol.Fail("", protocol.CodeBadRequest, err.Error())
 	}
 	if handler, ok := s.handlers[request.Cmd]; ok {
-		return handler(request.ID, request.Payload)
+		return handler(request.ID, payloadOf(request))
 	}
 	if protocol.IsDeclared(request.Cmd) {
 		return protocol.Fail(request.ID, protocol.CodeNotImplemented,
@@ -61,6 +61,16 @@ func (s *Server) dispatch(line []byte) protocol.Response {
 	}
 	return protocol.Fail(request.ID, protocol.CodeUnknownCommand,
 		fmt.Sprintf("command %q is not in the contract", request.Cmd))
+}
+
+// A command that needs no field arrives with no 'payload', and
+// json.Unmarshal refuses empty input. The transport gives every handler
+// one shape to decode.
+func payloadOf(request protocol.Request) json.RawMessage {
+	if len(request.Payload) == 0 {
+		return json.RawMessage("{}")
+	}
+	return request.Payload
 }
 
 func (s *Server) hello(id string, _ json.RawMessage) protocol.Response {
