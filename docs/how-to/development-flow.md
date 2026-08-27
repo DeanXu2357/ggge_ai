@@ -23,8 +23,8 @@ document. This document holds the steps.
 
 ## Branches
 
-- 'main' is the stable branch. The user merges 'dev' into 'main' in
-  batches.
+- 'main' is the stable branch. The merge of 'dev' into 'main' goes in
+  batches, and the user gives the word for each batch.
 - 'dev' is the long-lived integration branch. Task branches start
   from 'dev' and merge into 'dev' after user review.
 - A task branch has the name 'issue-N-slug'. One issue, one branch.

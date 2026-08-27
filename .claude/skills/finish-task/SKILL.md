@@ -9,4 +9,5 @@ Read `docs/how-to/development-flow.md`. Do the steps in the
 'Completion' section, in order. That document holds the steps and
 the full contract.
 
-Then stop. Do not merge. Do not close the issue.
+Then stop and wait for the review. Merge the branch or close the
+issue only when the user says so.
