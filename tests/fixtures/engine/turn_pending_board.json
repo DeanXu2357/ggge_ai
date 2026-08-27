@@ -1,6 +1,6 @@
 {
   "name": "turn_pending_board",
-  "note": "Hand-derived, no oracle. An activation with a pending sibling rotates nothing: the phase, the turn, the EN and the debuffs stay (the phase start runs only on a rotation).",
+  "note": "Hand-derived, no oracle. An activation with a pending sibling rotates nothing: the phase, the turn, the EN and the debuffs stay, because the phase start runs only on a rotation (docs/spec/battle-engine-protocol.md, section 'Turn cycle': the phase moves only while the faction of the phase holds no pending unit). No line of combat-formulas.md applies: no EN and no debuff changes here.",
   "setup": {
     "events": {},
     "state": {
