@@ -45,11 +45,7 @@ func decode[T any](payload json.RawMessage, into *T) error {
 	return json.Unmarshal(payload, into)
 }
 
-// openCommand runs the prologue of a command that reads the board: the
-// session must hold a board, and the payload must decode. It gives the
-// request, the board, and the failure response that the caller answers
-// with. A method carries no type parameter, so the server comes in as an
-// argument.
+// A method carries no type parameter, so the server comes in as an argument.
 func openCommand[T any](s *Server, id string, payload json.RawMessage) (
 	*T, *battle.Board, *protocol.Response) {
 	var request T
@@ -57,9 +53,13 @@ func openCommand[T any](s *Server, id string, payload json.RawMessage) (
 		fail := protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
 		return nil, nil, &fail
 	}
-	if err := decode(payload, &request); err != nil {
-		fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
-		return nil, nil, &fail
+	// A command that needs no field carries no 'payload', and json.Unmarshal
+	// fails on empty input.
+	if len(payload) > 0 {
+		if err := json.Unmarshal(payload, &request); err != nil {
+			fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
+			return nil, nil, &fail
+		}
 	}
 	return &request, s.session.board, nil
 }

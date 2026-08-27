@@ -161,6 +161,24 @@ func TestExportCarriesTheHistoryOfTheActivations(t *testing.T) {
 	}
 }
 
+func TestABoardCommandTakesALineWithNoPayload(t *testing.T) {
+	line := `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
+		`"units":[{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100}],` +
+		`"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
+		`"pending_events":[],"fired_events":[]},"history":[]}}`
+	replies := serve(t, New(), line, `{"id":"x","cmd":"export"}`)
+	if replies[1].Error != nil {
+		t.Fatalf("export with no payload: %+v", replies[1].Error)
+	}
+	var export protocol.ExportResponse
+	if err := json.Unmarshal(replies[1].Payload, &export); err != nil {
+		t.Fatal(err)
+	}
+	if export.Seed != 5 {
+		t.Fatalf("seed: %+v", export)
+	}
+}
+
 func TestExportNamesTheSideWithNoLivingUnit(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
 		`"units":[` +
