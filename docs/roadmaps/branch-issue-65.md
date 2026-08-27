@@ -123,6 +123,89 @@ landed, 16 killed (data/runs/20260827-122738).
 
 Both directories are gitignored run logs.
 
+## Change summary
+
+The engine runs the turn around the engagement of #64. 'Board.Act'
+applies one decision through 'Board.Apply' and then rotates the
+phase while the faction of the phase holds no pending unit. The
+move from the enemy phase to the ally phase adds one to the turn.
+The phase start gives the living units of the faction their
+activation back and one tenth of the maximum EN, floored, and drops
+the debuffs of one full round on every side. The chance steps, the
+support charges and the stage events stay out (ruling 2).
+
+Four commands answer: 'init', 'act', 'export', and 'load' with the
+seed. 'act' runs on a clone of the board and installs the clone
+when the whole run succeeds. The manual roll reads 'outcomes' in
+the resolution order; the server draw reads one PCG source that the
+seed builds, and its clone keeps the place of the stream. 'export'
+answers the state, the history, the seed and the sides that are
+gone. 'load' rotates a snapshot whose phase holds no pending unit.
+
+New files:
+
+- engine/battle/turn.go: 'Board.Act', 'Board.Advance',
+  'Board.Pending', 'Board.Gone', the phase start.
+- engine/battle/clone.go: 'Board.Clone', 'Unit.Clone'.
+- engine/battle/dice.go: 'ManualRoll', 'ServerDraw' beside the
+  node-keyed 'Forced' of the fixtures.
+- engine/server/init.go, engine/server/act.go: the two handlers.
+- engine/differential/turn_test.go and the two hand-derived cases
+  tests/fixtures/engine/turn_cycle_board.json and
+  turn_pending_board.json.
+- src/ggge_ai/engine/play.py, scripts/play_battle.py: the command
+  mode of ruling 8; tests/test_engine_play.py.
+
+Changed files:
+
+- engine/protocol/types.go: the terrain of 'init', the two event
+  shapes and the summary of 'act', 'HistoryEntry', the seed and
+  'gone' of 'export', the seed of 'load'. Version 1.3 on both sides.
+- engine/battle/codec.go: 'DecodeInit', 'EncodeState',
+  'DecodeOutcomes', 'EncodeResolution', 'EncodeSummary',
+  'EncodeFaction'. engine/battle/rules.go: 'ENRegenPercent'.
+- engine/server/session.go: the session holds the seed, the draw,
+  the history, the victory conditions, the event table and the
+  deploy cells of 'init', and the event lists of 'load'.
+- src/ggge_ai/engine/session.py: the seed of 'load'.
+  src/ggge_ai/engine/fake.py: the summary shape and the seed.
+  scripts/sandbox_ui.py: the engine report calls 'export', not
+  'load'.
+- docs/spec/battle-engine-protocol.md: 'init', 'act', 'export and
+  load', the section 'Turn cycle', the hand-derived case.
+  docs/reference/terminology-map.md: nine rows.
+
+## Call chain
+
+'load': the handler decodes the state, 'battle.DecodeState' builds
+the board, 'Board.Advance' rotates a phase with no pending unit,
+and 'newSession' takes the seed and builds the server draw.
+
+'init': the handler decodes the request, 'battle.DecodeInit' checks
+the board, the enemies and the terrain and builds the board at turn
+1 in the ally phase; the session stores the victory conditions, the
+event table and the deploy cells unread.
+
+'act': 'boardOf' checks the session and decodes the request;
+'activation' merges the request reaction into the decision after the
+necessity gate; 'roll' builds a 'ManualRoll' or a clone of the
+session 'ServerDraw'; the handler clones the board; 'Board.Act' runs
+'Board.Apply' and then 'Board.Advance'; a short outcome list throws
+the clone away; on success the handler installs the clone and the
+draw, appends the history entry, and answers 'EncodeResolution' and
+'EncodeSummary'.
+
+'export': 'EncodeState' plus the history, the seed, the event lists
+of the loaded state and 'Board.Gone'.
+
+The command mode: 'Player.play' reads the state with 'export', takes
+the first pending unit of the phase, reads its menu with 'actions',
+orders the candidate attacks by '_steps', asks 'reactions' for each
+candidate, sends the first accepted one to 'act' with the first
+reaction the engine lists, tries the next candidate on a refusal,
+falls back to a reposition or a standby, and stops on the field
+'gone' of the answer.
+
 ## Contention points for the reviewer
 
 1. The field 'rules' of 'init' is unread.
