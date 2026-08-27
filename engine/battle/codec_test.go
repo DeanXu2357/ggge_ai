@@ -559,6 +559,32 @@ func TestInitRefusesABoardWithNoCell(t *testing.T) {
 	}
 }
 
+func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
+	board := protocol.Board{Width: 3, Height: 3}
+	cases := []struct {
+		name    string
+		request protocol.InitRequest
+	}{
+		{"a unit of 'enemies' that is no enemy", protocol.InitRequest{Board: board,
+			Enemies: []protocol.Unit{{UnitID: "x1", Faction: protocol.FactionAlly,
+				Pos: protocol.Cell{1, 1}, HP: 10}}}},
+		{"a footprint outside the bounds", protocol.InitRequest{Board: board,
+			Enemies: []protocol.Unit{{UnitID: "x1", Faction: protocol.FactionEnemy,
+				Pos: protocol.Cell{2, 2}, Size: protocol.Cell{2, 2}, HP: 10}}}},
+		{"a terrain cell outside the bounds", protocol.InitRequest{
+			Board: protocol.Board{Width: 3, Height: 3,
+				TerrainCells: []protocol.TerrainCell{{Cell: protocol.Cell{9, 9}, Terrain: "space"}}}}},
+	}
+
+	for _, one := range cases {
+		t.Run(one.name, func(t *testing.T) {
+			if _, err := DecodeInit(&one.request); err == nil {
+				t.Fatal("the payload must fail")
+			}
+		})
+	}
+}
+
 func TestEncodeStateRoundTripsThroughDecodeState(t *testing.T) {
 	first := decodeFixtureState(t)
 	encoded := EncodeState(first)

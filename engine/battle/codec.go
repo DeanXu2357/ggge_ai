@@ -2,8 +2,6 @@ package battle
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
@@ -70,14 +68,6 @@ var wireStances = map[Stance]protocol.Stance{
 	StanceDefend:  protocol.StanceDefend,
 	StanceCounter: protocol.StanceCounter,
 	StanceNone:    protocol.StanceNone,
-}
-
-var wireTerrains = map[Terrain]string{
-	TerrainSpace:       "space",
-	TerrainAtmospheric: "atmospheric",
-	TerrainGround:      "ground",
-	TerrainSurface:     "surface",
-	TerrainUnderwater:  "underwater",
 }
 
 func EncodeFaction(faction Faction) protocol.Faction {
@@ -643,6 +633,17 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 		return nil, err
 	}
 	bounds := Bounds{High: Cell{request.Board.Width - 1, request.Board.Height - 1}}
+	for index := range units {
+		if err := checkEnemy(&units[index], bounds); err != nil {
+			return nil, err
+		}
+	}
+	for _, entry := range request.Board.TerrainCells {
+		cell := DecodeCell(entry.Cell)
+		if !cellFootprint(cell).Within(bounds) {
+			return nil, fmt.Errorf("the terrain cell %v stands outside the board", cell)
+		}
+	}
 	board, err := NewBoard(bounds, units)
 	if err != nil {
 		return nil, err
@@ -658,6 +659,17 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 	return board, nil
 }
 
+func checkEnemy(unit *Unit, bounds Bounds) error {
+	if unit.Faction != FactionEnemy {
+		return fmt.Errorf("the unit %q of 'enemies' carries the faction %q",
+			unit.ID, EncodeFaction(unit.Faction))
+	}
+	if !unit.Footprint.Within(bounds) {
+		return fmt.Errorf("the unit %q stands outside the board", unit.ID)
+	}
+	return nil
+}
+
 func EncodeState(board *Board) protocol.BattleState {
 	bounds := protocol.Bounds{EncodeCell(board.Bounds.Low), EncodeCell(board.Bounds.High)}
 	return protocol.BattleState{
@@ -667,21 +679,19 @@ func EncodeState(board *Board) protocol.BattleState {
 		Bounds:        &bounds,
 		PendingEvents: []string{},
 		FiredEvents:   []string{},
-		Terrain:       wireTerrains[board.DefaultTerrain],
+		Terrain:       board.DefaultTerrain.String(),
 		TerrainCells:  encodeTerrainCells(board.TerrainCells),
 	}
 }
 
 func encodeTerrainCells(cells map[Cell]Terrain) []protocol.TerrainCell {
-	keys := slices.SortedFunc(maps.Keys(cells), func(a, b Cell) int {
-		if a[0] != b[0] {
-			return a[0] - b[0]
-		}
-		return a[1] - b[1]
-	})
-	out := make([]protocol.TerrainCell, 0, len(keys))
-	for _, cell := range keys {
-		out = append(out, protocol.TerrainCell{Cell: EncodeCell(cell), Terrain: wireTerrains[cells[cell]]})
+	declared := make(CellSet, len(cells))
+	for cell := range cells {
+		declared[cell] = true
+	}
+	out := make([]protocol.TerrainCell, 0, len(cells))
+	for _, cell := range SortedCells(declared) {
+		out = append(out, protocol.TerrainCell{Cell: EncodeCell(cell), Terrain: cells[cell].String()})
 	}
 	return out
 }

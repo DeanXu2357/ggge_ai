@@ -2,6 +2,7 @@ package differential_test
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
@@ -24,8 +25,7 @@ type actAnswer struct {
 	Units   []protocol.Unit  `json:"units"`
 }
 
-// The two turn-cycle cases are hand-derived from combat-formulas.md and the
-// spec; the note of each file names the lines. No oracle wrote them.
+// The two turn-cycle cases are hand-derived; no oracle wrote them.
 var turnOps = map[string]differential.Op{
 	"act": func(setup *differential.Setup, input json.RawMessage) (any, error) {
 		var in actInput
@@ -44,8 +44,12 @@ var turnOps = map[string]differential.Op{
 		if err != nil {
 			return nil, err
 		}
-		if _, err := board.Act(decision, battle.NewManualRoll(outcomes)); err != nil {
+		roll := battle.NewManualRoll(outcomes)
+		if _, err := board.Act(decision, roll); err != nil {
 			return nil, err
+		}
+		if roll.Short() {
+			return nil, errors.New("the 'outcomes' list is short")
 		}
 		summary := battle.EncodeSummary(board)
 		return actAnswer{Turn: summary.Turn, Phase: summary.Phase, Pending: summary.Pending, Units: livingUnits(board)}, nil
