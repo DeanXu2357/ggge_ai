@@ -51,11 +51,16 @@ during the merge review. Each one binds the branch.
    sides exchanged; the loop ends when one side is gone. The page
    attack path waits for issue #78; this branch changes no line of
    scripts/sandbox_ui.py.
-9. Names of the helpers of the 'act' handler. The branch renames
-   'activation' and 'roll', because the branch introduces the two
-   and 'act' is the only caller of each. The helper 'boardOf' is
-   code of 'dev' with five callers after the merge, so it goes to
-   issue #82 and lands after this branch merges.
+9. Names of the new code of the branch. The branch renames the
+   helpers 'activation' and 'roll' of the 'act' handler, because
+   the branch introduces the two and 'act' is the only caller of
+   each. It also renames the file 'engine/server/init.go' to
+   'initbattle.go': every handler file of the package holds a
+   'func init()' that registers its command, so the old name read
+   as the initialization of the package and not as the handler of
+   the wire command 'init'. The helper 'boardOf' is code of 'dev'
+   with five callers after the merge, so it goes to issue #82 and
+   lands after this branch merges.
 
 Assumptions that the user did not rule on, stated here for the
 review:
@@ -86,6 +91,7 @@ All nine tasks, the final fix wave, and the two helper names of
 - Fix wave of the two reviews: fac0051..065fcec.
 - Roadmap reworked into the review artifact: 51d3fac.
 - Names of the two helpers of 'act', per ruling 9: 910a8c1.
+- Name of the file of the 'init' handler, per ruling 9: 34b2c48.
 
 ## Final review
 
@@ -158,7 +164,8 @@ New files:
 - engine/battle/clone.go: 'Board.Clone', 'Unit.Clone'.
 - engine/battle/dice.go: 'ManualRoll', 'ServerDraw' beside the
   node-keyed 'Forced' of the fixtures.
-- engine/server/init.go, engine/server/act.go: the two handlers.
+- engine/server/initbattle.go, engine/server/act.go: the two
+  handlers.
 - engine/differential/turn_test.go and the two hand-derived cases
   tests/fixtures/engine/turn_cycle_board.json and
   turn_pending_board.json.
