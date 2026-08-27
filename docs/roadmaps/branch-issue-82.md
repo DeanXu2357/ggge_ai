@@ -17,6 +17,7 @@ user.
 
 - 2026-08-27: worktree added, roadmap written (4eaeb27).
 - The rename: fe98040.
+- The decode in place and the trimmed comment: 29b552f.
 
 ## Change summary
 
@@ -50,6 +51,12 @@ answers 'bad_request'.
 The handler 'act' calls 'decodeActivation(request)' in place of
 'decodeActivation(&request)', because the request is a pointer now.
 
+The prologue decodes the payload with 'json.Unmarshal' and no
+wrapper. An absent payload still gives a zero request: a command
+that needs no field, such as 'export', carries no payload, and
+'json.Unmarshal' refuses empty input. The comment of the prologue
+holds one line: the reason that the server comes in as an argument.
+
 ## Call chain
 
     server.act        -> openCommand[protocol.ActRequest]
@@ -69,17 +76,23 @@ one builds a session and reads no board.
    command: the session must hold a board, and the payload must
    decode. The alternative 'boardAndRequest' names the two results
    and not the duties.
-2. The out-parameter of 'decode' (session.go:41) stays. That helper
-   is the wrapper of 'json.Unmarshal', and 'init' and 'load' call
-   it straight. Issue #82 covers the prologue of a board command,
-   so the change stops there.
+2. The prologue calls 'json.Unmarshal' straight, on the word of the
+   user: the private wrapper 'decode' was one hop between the
+   reader and the two guards. The wrapper stays for 'init' and
+   'load', which build a session and read no board, so the rule
+   that an absent payload gives a zero request now stands in two
+   places. The test
+   'TestABoardCommandTakesALineWithNoPayload' pins the rule: with
+   the guard removed, 'export' with no payload answers
+   'bad_request' with the message of an empty input.
 3. The command 'export' takes '_' for its request. The type
    'ExportRequest' holds no field that the handler reads today. A
    named request that nothing reads would not compile.
 4. The failure path gives 'nil' for the request and for the board.
    Every caller tests 'fail' first, so no caller reads them.
-5. No test changes. The behavior is the same, and the tests of the
-   server cover the three duties through the commands.
+5. One test is new, and it covers the guard of the empty payload.
+   The behavior of the five commands is the same, and the tests of
+   the server cover the three duties through the commands.
 
 ## Evidence
 
