@@ -1,0 +1,429 @@
+{
+ "acquisition_route": 1,
+ "desc": "",
+ "icon": "g0010s00100",
+ "id": 1001000150,
+ "lb_skills": [
+  {
+   "active_skill": {
+    "auto_usage_passed_turn": 2,
+    "auto_usage_priority": 1,
+    "auto_usage_target_threshold": 3,
+    "auto_usage_threshold": 3,
+    "desc": "Allies in range:\nRestore EN by 50%",
+    "dialogue": "A person's accomplishments determine their worth.",
+    "effect_icon": "ef_mps_0002_001_enrecovery_ur",
+    "effect_range": "(0,4),(-1,3),(0,3),(1,3),(-2,2),(-1,2),(0,2),(1,2),(2,2),(-3,1),(-2,1),(-1,1),(0,1),(1,1),(2,1),(3,1),(-4,0),(-3,0),(-2,0),(-1,0),(0,0),(1,0),(2,0),(3,0),(4,0),(-3,-1),(-2,-1),(-1,-1),(0,-1),(1,-1),(2,-1),(3,-1),(-2,-2),(-1,-2),(0,-2),(1,-2),(2,-2),(-1,-3),(0,-3),(1,-3),(0,-4)",
+    "effect_scale_rate_percent": 120,
+    "icon": "trait_10020501",
+    "id": 1001000150,
+    "is_auto_usage": true,
+    "name": "EN Restoration",
+    "range_type": 2,
+    "rarity": 0,
+    "supporter_active_skill_trait_content_set_id": 1001000150,
+    "voice_resource_id": "1"
+   },
+   "leader_skill": {
+    "desc": "Increase all stats of target units by 25% (except EN).",
+    "icon": "0",
+    "id": 100100015000,
+    "name": "",
+    "rarity": 5,
+    "skill_content_set": 100100015000,
+    "skills": [
+     {
+      "desc": "Increase all stats of target units by 25% (except EN).",
+      "sort": 1,
+      "supporter_leader_skill_content_set_id": 100100015000,
+      "supporter_leader_skill_trait_set_id": 100250,
+      "trait_condition": [
+       {
+        "attack_distance_gte_threshold": 0,
+        "attack_distance_lte_threshold": 0,
+        "character_ids": "",
+        "character_series": null,
+        "character_series_id": "",
+        "character_tags": null,
+        "character_tags_id": "",
+        "en_rate_gte_threshold": 0,
+        "en_rate_lte_threshold": 0,
+        "en_value_gte_threshold": 0,
+        "en_value_lte_threshold": 0,
+        "group_id": "",
+        "hp_rate_gte_threshold": 0,
+        "hp_rate_lte_threshold": 0,
+        "hp_type": 0,
+        "id": 1000124,
+        "is_in_chance_step": false,
+        "is_in_one_on_one": false,
+        "map_battle_action": "",
+        "series": {
+         "desc": "A half-century has passed since humanity began emigrating into outer space due to overpopulation.\nHundreds of gigantic space colonies now orbit Earth, humans living along the inner walls of the colonies' main cylinders.\nWith almost half of humankind residing in space, these colonies have become humanity's second home where people are born, raised...and die.\nIt is January 1, U.C. 0079.\nThe furthest cluster of colonies from Earth, Side 3, has proclaimed itself the Principality of Zeon and has launched a war of independence against the Earth Federation.\nIn just one month of fighting, war casualties have halved their respective populations. Humanity is disgusted at the atrocities they themselves have wrought.\nEight months have passed since the rebellion began. They were at a stalemate...",
+         "icon": "series_0010",
+         "id": 10,
+         "name": "Mobile Suit Gundam",
+         "scenario": null,
+         "scenario_stage_series_id": 10,
+         "scenario_stages": null,
+         "scenarios": null,
+         "schedule_id": 0,
+         "sort": 100,
+         "world_id": 1
+        },
+        "standby_terrain": "",
+        "tags": null,
+        "target": "SameGroup",
+        "tension": "",
+        "trait_condition_set_id": 1000124,
+        "turn_number": 0,
+        "unit_ids": "",
+        "unit_role": "",
+        "unit_series": "10",
+        "unit_size": "",
+        "unit_tags": "",
+        "use_hp_rate_lte_threshold": false,
+        "weapon_attack_attribute": "",
+        "weapon_attribute": ""
+       }
+      ],
+      "trait_condition_set_id": 1000124,
+      "trait_content": {
+       "sort_order": 3,
+       "supporter_trait_content": 1002504,
+       "supporter_trait_id": 100250,
+       "trait_value": {
+        "bp_rate": 25,
+        "id": 1002504,
+        "trait_type": 9,
+        "value": 25
+       }
+      }
+     }
+    ]
+   },
+   "limit_break_step": 0,
+   "supporter_active_skill_id": 1001000150,
+   "supporter_id": 1001000150,
+   "supporter_leader_skill_id": 100100015000
+  },
+  {
+   "active_skill": {
+    "auto_usage_passed_turn": 2,
+    "auto_usage_priority": 1,
+    "auto_usage_target_threshold": 3,
+    "auto_usage_threshold": 3,
+    "desc": "Allies in range:\nRestore EN by 50%",
+    "dialogue": "A person's accomplishments determine their worth.",
+    "effect_icon": "ef_mps_0002_001_enrecovery_ur",
+    "effect_range": "(0,4),(-1,3),(0,3),(1,3),(-2,2),(-1,2),(0,2),(1,2),(2,2),(-3,1),(-2,1),(-1,1),(0,1),(1,1),(2,1),(3,1),(-4,0),(-3,0),(-2,0),(-1,0),(0,0),(1,0),(2,0),(3,0),(4,0),(-3,-1),(-2,-1),(-1,-1),(0,-1),(1,-1),(2,-1),(3,-1),(-2,-2),(-1,-2),(0,-2),(1,-2),(2,-2),(-1,-3),(0,-3),(1,-3),(0,-4)",
+    "effect_scale_rate_percent": 120,
+    "icon": "trait_10020501",
+    "id": 1001000150,
+    "is_auto_usage": true,
+    "name": "EN Restoration",
+    "range_type": 2,
+    "rarity": 0,
+    "supporter_active_skill_trait_content_set_id": 1001000150,
+    "voice_resource_id": "1"
+   },
+   "leader_skill": {
+    "desc": "Increase all stats of target units by 30% (except EN).",
+    "icon": "0",
+    "id": 100100015001,
+    "name": "",
+    "rarity": 5,
+    "skill_content_set": 100100015001,
+    "skills": [
+     {
+      "desc": "Increase all stats of target units by 30% (except EN).",
+      "sort": 1,
+      "supporter_leader_skill_content_set_id": 100100015001,
+      "supporter_leader_skill_trait_set_id": 100300,
+      "trait_condition": [
+       {
+        "attack_distance_gte_threshold": 0,
+        "attack_distance_lte_threshold": 0,
+        "character_ids": "",
+        "character_series": null,
+        "character_series_id": "",
+        "character_tags": null,
+        "character_tags_id": "",
+        "en_rate_gte_threshold": 0,
+        "en_rate_lte_threshold": 0,
+        "en_value_gte_threshold": 0,
+        "en_value_lte_threshold": 0,
+        "group_id": "",
+        "hp_rate_gte_threshold": 0,
+        "hp_rate_lte_threshold": 0,
+        "hp_type": 0,
+        "id": 1000124,
+        "is_in_chance_step": false,
+        "is_in_one_on_one": false,
+        "map_battle_action": "",
+        "series": {
+         "desc": "A half-century has passed since humanity began emigrating into outer space due to overpopulation.\nHundreds of gigantic space colonies now orbit Earth, humans living along the inner walls of the colonies' main cylinders.\nWith almost half of humankind residing in space, these colonies have become humanity's second home where people are born, raised...and die.\nIt is January 1, U.C. 0079.\nThe furthest cluster of colonies from Earth, Side 3, has proclaimed itself the Principality of Zeon and has launched a war of independence against the Earth Federation.\nIn just one month of fighting, war casualties have halved their respective populations. Humanity is disgusted at the atrocities they themselves have wrought.\nEight months have passed since the rebellion began. They were at a stalemate...",
+         "icon": "series_0010",
+         "id": 10,
+         "name": "Mobile Suit Gundam",
+         "scenario": null,
+         "scenario_stage_series_id": 10,
+         "scenario_stages": null,
+         "scenarios": null,
+         "schedule_id": 0,
+         "sort": 100,
+         "world_id": 1
+        },
+        "standby_terrain": "",
+        "tags": null,
+        "target": "SameGroup",
+        "tension": "",
+        "trait_condition_set_id": 1000124,
+        "turn_number": 0,
+        "unit_ids": "",
+        "unit_role": "",
+        "unit_series": "10",
+        "unit_size": "",
+        "unit_tags": "",
+        "use_hp_rate_lte_threshold": false,
+        "weapon_attack_attribute": "",
+        "weapon_attribute": ""
+       }
+      ],
+      "trait_condition_set_id": 1000124,
+      "trait_content": {
+       "sort_order": 3,
+       "supporter_trait_content": 1003004,
+       "supporter_trait_id": 100300,
+       "trait_value": {
+        "bp_rate": 30,
+        "id": 1003004,
+        "trait_type": 9,
+        "value": 30
+       }
+      }
+     }
+    ]
+   },
+   "limit_break_step": 1,
+   "supporter_active_skill_id": 1001000150,
+   "supporter_id": 1001000150,
+   "supporter_leader_skill_id": 100100015001
+  },
+  {
+   "active_skill": {
+    "auto_usage_passed_turn": 2,
+    "auto_usage_priority": 1,
+    "auto_usage_target_threshold": 3,
+    "auto_usage_threshold": 3,
+    "desc": "Allies in range:\nRestore EN by 50%",
+    "dialogue": "A person's accomplishments determine their worth.",
+    "effect_icon": "ef_mps_0002_001_enrecovery_ur",
+    "effect_range": "(0,4),(-1,3),(0,3),(1,3),(-2,2),(-1,2),(0,2),(1,2),(2,2),(-3,1),(-2,1),(-1,1),(0,1),(1,1),(2,1),(3,1),(-4,0),(-3,0),(-2,0),(-1,0),(0,0),(1,0),(2,0),(3,0),(4,0),(-3,-1),(-2,-1),(-1,-1),(0,-1),(1,-1),(2,-1),(3,-1),(-2,-2),(-1,-2),(0,-2),(1,-2),(2,-2),(-1,-3),(0,-3),(1,-3),(0,-4)",
+    "effect_scale_rate_percent": 120,
+    "icon": "trait_10020501",
+    "id": 1001000150,
+    "is_auto_usage": true,
+    "name": "EN Restoration",
+    "range_type": 2,
+    "rarity": 0,
+    "supporter_active_skill_trait_content_set_id": 1001000150,
+    "voice_resource_id": "1"
+   },
+   "leader_skill": {
+    "desc": "Increase all stats of target units by 33% (except EN).",
+    "icon": "0",
+    "id": 100100015002,
+    "name": "",
+    "rarity": 5,
+    "skill_content_set": 100100015002,
+    "skills": [
+     {
+      "desc": "Increase all stats of target units by 33% (except EN).",
+      "sort": 1,
+      "supporter_leader_skill_content_set_id": 100100015002,
+      "supporter_leader_skill_trait_set_id": 100330,
+      "trait_condition": [
+       {
+        "attack_distance_gte_threshold": 0,
+        "attack_distance_lte_threshold": 0,
+        "character_ids": "",
+        "character_series": null,
+        "character_series_id": "",
+        "character_tags": null,
+        "character_tags_id": "",
+        "en_rate_gte_threshold": 0,
+        "en_rate_lte_threshold": 0,
+        "en_value_gte_threshold": 0,
+        "en_value_lte_threshold": 0,
+        "group_id": "",
+        "hp_rate_gte_threshold": 0,
+        "hp_rate_lte_threshold": 0,
+        "hp_type": 0,
+        "id": 1000124,
+        "is_in_chance_step": false,
+        "is_in_one_on_one": false,
+        "map_battle_action": "",
+        "series": {
+         "desc": "A half-century has passed since humanity began emigrating into outer space due to overpopulation.\nHundreds of gigantic space colonies now orbit Earth, humans living along the inner walls of the colonies' main cylinders.\nWith almost half of humankind residing in space, these colonies have become humanity's second home where people are born, raised...and die.\nIt is January 1, U.C. 0079.\nThe furthest cluster of colonies from Earth, Side 3, has proclaimed itself the Principality of Zeon and has launched a war of independence against the Earth Federation.\nIn just one month of fighting, war casualties have halved their respective populations. Humanity is disgusted at the atrocities they themselves have wrought.\nEight months have passed since the rebellion began. They were at a stalemate...",
+         "icon": "series_0010",
+         "id": 10,
+         "name": "Mobile Suit Gundam",
+         "scenario": null,
+         "scenario_stage_series_id": 10,
+         "scenario_stages": null,
+         "scenarios": null,
+         "schedule_id": 0,
+         "sort": 100,
+         "world_id": 1
+        },
+        "standby_terrain": "",
+        "tags": null,
+        "target": "SameGroup",
+        "tension": "",
+        "trait_condition_set_id": 1000124,
+        "turn_number": 0,
+        "unit_ids": "",
+        "unit_role": "",
+        "unit_series": "10",
+        "unit_size": "",
+        "unit_tags": "",
+        "use_hp_rate_lte_threshold": false,
+        "weapon_attack_attribute": "",
+        "weapon_attribute": ""
+       }
+      ],
+      "trait_condition_set_id": 1000124,
+      "trait_content": {
+       "sort_order": 3,
+       "supporter_trait_content": 1003304,
+       "supporter_trait_id": 100330,
+       "trait_value": {
+        "bp_rate": 33,
+        "id": 1003304,
+        "trait_type": 9,
+        "value": 33
+       }
+      }
+     }
+    ]
+   },
+   "limit_break_step": 2,
+   "supporter_active_skill_id": 1001000150,
+   "supporter_id": 1001000150,
+   "supporter_leader_skill_id": 100100015002
+  },
+  {
+   "active_skill": {
+    "auto_usage_passed_turn": 2,
+    "auto_usage_priority": 1,
+    "auto_usage_target_threshold": 3,
+    "auto_usage_threshold": 3,
+    "desc": "Allies in range:\nRestore EN by 50%",
+    "dialogue": "A person's accomplishments determine their worth.",
+    "effect_icon": "ef_mps_0002_001_enrecovery_ur",
+    "effect_range": "(0,4),(-1,3),(0,3),(1,3),(-2,2),(-1,2),(0,2),(1,2),(2,2),(-3,1),(-2,1),(-1,1),(0,1),(1,1),(2,1),(3,1),(-4,0),(-3,0),(-2,0),(-1,0),(0,0),(1,0),(2,0),(3,0),(4,0),(-3,-1),(-2,-1),(-1,-1),(0,-1),(1,-1),(2,-1),(3,-1),(-2,-2),(-1,-2),(0,-2),(1,-2),(2,-2),(-1,-3),(0,-3),(1,-3),(0,-4)",
+    "effect_scale_rate_percent": 120,
+    "icon": "trait_10020501",
+    "id": 1001000150,
+    "is_auto_usage": true,
+    "name": "EN Restoration",
+    "range_type": 2,
+    "rarity": 0,
+    "supporter_active_skill_trait_content_set_id": 1001000150,
+    "voice_resource_id": "1"
+   },
+   "leader_skill": {
+    "desc": "Increase all stats of target units by 36% (except EN).",
+    "icon": "0",
+    "id": 100100015003,
+    "name": "",
+    "rarity": 5,
+    "skill_content_set": 100100015003,
+    "skills": [
+     {
+      "desc": "Increase all stats of target units by 36% (except EN).",
+      "sort": 1,
+      "supporter_leader_skill_content_set_id": 100100015003,
+      "supporter_leader_skill_trait_set_id": 100360,
+      "trait_condition": [
+       {
+        "attack_distance_gte_threshold": 0,
+        "attack_distance_lte_threshold": 0,
+        "character_ids": "",
+        "character_series": null,
+        "character_series_id": "",
+        "character_tags": null,
+        "character_tags_id": "",
+        "en_rate_gte_threshold": 0,
+        "en_rate_lte_threshold": 0,
+        "en_value_gte_threshold": 0,
+        "en_value_lte_threshold": 0,
+        "group_id": "",
+        "hp_rate_gte_threshold": 0,
+        "hp_rate_lte_threshold": 0,
+        "hp_type": 0,
+        "id": 1000124,
+        "is_in_chance_step": false,
+        "is_in_one_on_one": false,
+        "map_battle_action": "",
+        "series": {
+         "desc": "A half-century has passed since humanity began emigrating into outer space due to overpopulation.\nHundreds of gigantic space colonies now orbit Earth, humans living along the inner walls of the colonies' main cylinders.\nWith almost half of humankind residing in space, these colonies have become humanity's second home where people are born, raised...and die.\nIt is January 1, U.C. 0079.\nThe furthest cluster of colonies from Earth, Side 3, has proclaimed itself the Principality of Zeon and has launched a war of independence against the Earth Federation.\nIn just one month of fighting, war casualties have halved their respective populations. Humanity is disgusted at the atrocities they themselves have wrought.\nEight months have passed since the rebellion began. They were at a stalemate...",
+         "icon": "series_0010",
+         "id": 10,
+         "name": "Mobile Suit Gundam",
+         "scenario": null,
+         "scenario_stage_series_id": 10,
+         "scenario_stages": null,
+         "scenarios": null,
+         "schedule_id": 0,
+         "sort": 100,
+         "world_id": 1
+        },
+        "standby_terrain": "",
+        "tags": null,
+        "target": "SameGroup",
+        "tension": "",
+        "trait_condition_set_id": 1000124,
+        "turn_number": 0,
+        "unit_ids": "",
+        "unit_role": "",
+        "unit_series": "10",
+        "unit_size": "",
+        "unit_tags": "",
+        "use_hp_rate_lte_threshold": false,
+        "weapon_attack_attribute": "",
+        "weapon_attribute": ""
+       }
+      ],
+      "trait_condition_set_id": 1000124,
+      "trait_content": {
+       "sort_order": 3,
+       "supporter_trait_content": 1003604,
+       "supporter_trait_id": 100360,
+       "trait_value": {
+        "bp_rate": 36,
+        "id": 1003604,
+        "trait_type": 9,
+        "value": 36
+       }
+      }
+     }
+    ]
+   },
+   "limit_break_step": 3,
+   "supporter_active_skill_id": 1001000150,
+   "supporter_id": 1001000150,
+   "supporter_leader_skill_id": 100100015003
+  }
+ ],
+ "limit_break_item_id": 0,
+ "max_attack_addition_value": 300,
+ "max_hp_addition_value": 2000,
+ "name": "Bright Noa & White Base",
+ "obtained_word": "You can never become a real man without getting a few bruises!",
+ "rarity": 5,
+ "schedule": null,
+ "schedule_id": 0,
+ "sort_name": "Bright Noa & White Base"
+}

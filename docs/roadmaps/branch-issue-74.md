@@ -6,7 +6,7 @@ Issue: #74. Branch: issue-74-datamine-crawl. Status: awaiting-review.
 
 ## Change summary
 
-Four commits.
+Five commits.
 
 | Commit | Files | What |
 |---|---|---|
@@ -14,6 +14,7 @@ Four commits.
 | b8d37b8 | `scripts/crawl_datamine.py`, `tests/test_crawl_datamine.py`, `tests/fixtures/datamine/` | The crawler, the offline fixture and the tests |
 | c4ed67c | `docs/reference/datamine-source.md`, `docs/reference/terminology-map.md`, `docs/reference/combat-formulas.md` | The reference document, three term bindings, one cross-reference |
 | 426705a | `scripts/crawl_datamine.py`, `tests/test_crawl_datamine.py`, `docs/reference/datamine-source.md` | The fixes that the branch code review found |
+| (next) | `docs/reference/datamine-source.md`, `docs/reference/datamine-samples/`, `docs/reference/terminology-map.md` | The per-id forms, the verified enums, and a sample of ten UR units, ten pilots and one support crew, read on 2026-08-28 |
 
 `scripts/crawl_datamine.py` writes `data/datamine/<stamp>/` with five
 files: `unit.json`, `weapon.json`, `stage.json`, `formula.json` and
@@ -126,10 +127,27 @@ verified":
   the site.
 - How a game patch invalidates a dump under an older stamp.
 
+## Added on 2026-08-28
+
+The user asked for the shapes of the mech, the pilot and the support
+crew, and for a sample in the repository. The review read the
+per-id addresses over curl and the rendered pages in Chrome. The
+Chrome extension blocked in-page script fetches, so the JSON came
+over curl; the pages gave the labels the JSON encodes as integers.
+
+Verified against the rendered pages: `rarity` 5 is UR, `role` 1, 2, 3
+is 攻擊型, 耐久型, 支援型, and `terrain` 3, 2, 1 is ○, △, －.
+
+The sample store is in `docs/`, not in `data/`, because it must
+travel with the repository. 832 KB. The location is open to a
+ruling.
+
 ## Deferred
 
-- The weapon capability table: contention point 3.
-- `/ggetapi/en/character` (pilots) and `/ggetapi/en/supporter`
-  (support crew) are outside the scope of the issue. The field
-  review names both as the source of fields that the four sources
-  do not hold.
+- The weapon capability table: contention point 3. The per-id unit
+  form carries it as `capability`; the sample store holds rows 1, 2
+  and 4.
+- Crawling `/ggetapi/en/character` (pilots) and
+  `/ggetapi/en/supporter` (support crew) is outside the scope of the
+  issue. The reference document now records both rows, and the
+  sample store holds ten pilots and one support crew.

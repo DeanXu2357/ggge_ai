@@ -67,6 +67,33 @@ weapon table are absent from the unit table. The sidecar object
 `units` of the weapon endpoint holds one row for each of the 1342
 owners.
 
+## The per-id addresses
+
+Each list address has a per-id form. A review on 2026-08-28, at the
+same stamp, read these addresses. The crawler does not fetch them.
+
+| Address | Form | Rows |
+|---|---|---|
+| `/ggetapi/en/unit/{id}` | JSON object | One unit, with its weapons in full |
+| `/ggetapi/en/character` | JSON array | 583 pilots |
+| `/ggetapi/en/character/{id}` | JSON object | One pilot |
+| `/ggetapi/en/supporter` | JSON array | 86 support crews |
+| `/ggetapi/en/supporter/{id}` | JSON object | One support crew |
+
+The datamine names a pilot "character" and a support crew
+"supporter". This document uses the project terms.
+
+The per-id unit form holds every field of the list row, and it
+fills the fields that the list row leaves null: `weapons`, `get`,
+`gacha`, `transform_to` and `mechanism`. Section "The unit detail
+form" records the filled fields.
+
+The per-id pilot form holds every field of the list row. It fills
+`get`, `gc` and `series_set[].series`. The skills and the abilities
+are complete in the list row already.
+
+The per-id support crew form holds the same fields as the list row.
+
 ## The unit row
 
 | Group | Fields |
@@ -92,9 +119,55 @@ verified.
 
 The object `terrain` holds one value for each of the five terrain
 kinds: `space`, `atmospheric`, `ground`, `surface` and
-`underwater`. Each value is 1, 2 or 3. The map from these three
-numbers to the symbols ○, △ and － is a hypothesis
-(`docs/reference/combat-formulas.md`). It is not verified.
+`underwater`. Each value is 1, 2 or 3. The map to the symbols of
+the game is:
+
+| Value | Symbol |
+|---|---|
+| 3 | ○ |
+| 2 | △ |
+| 1 | － |
+
+Verified on 2026-08-28 on two units. The rendered page of the site
+shows the symbols under "地形適性". Gundam (EX), id 1001000150,
+shows ○ － ○ － △ for space, atmospheric, ground, surface and
+underwater, and its row holds 3, 1, 3, 1, 2. Zeong (EX), id
+1001003050, shows ○ △ － － －, and its row holds 3, 2, 1, 1, 1.
+
+`rarity` is 1 to 5. The map to the rarity names of the game:
+
+| Value | Name | Units | Pilots |
+|---|---|---|---|
+| 1 | N | 101 | 0 |
+| 2 | R | 309 | 51 |
+| 3 | SR | 359 | 320 |
+| 4 | SSR | 345 | 128 |
+| 5 | UR | 112 | 84 |
+
+Verified on 2026-08-28. The rarity filter of the pilot list page
+shows the five names with the counts 51, 320, 128 and 84, and the
+counts of the values 2 to 5 in the pilot rows are the same four
+numbers. The unit counts are the counts of the values in the unit
+rows.
+
+`role` is 1 to 3. The map to the unit role names of the game:
+
+| Value | Name | Units | Pilots |
+|---|---|---|---|
+| 1 | 攻擊型 | 488 | 227 |
+| 2 | 耐久型 | 328 | 163 |
+| 3 | 支援型 | 410 | 193 |
+
+Verified on 2026-08-28. The type filter of the unit list page shows
+the three names with the counts 488, 328 and 410, and the counts of
+the values in the unit rows are the same three numbers. The same
+enum is on the pilot row. The pilot ability text also names the
+role: the ability "Support Defense LV 4" of Amuro Ray, id
+1001000100, carries the condition `unit_role: "2"`, and the page
+renders it as "耐久型".
+
+Among the 112 UR units, 43 are 攻擊型, 26 are 耐久型 and 43 are
+支援型.
 
 `abilities` and `mechanism` hold rows of free English text: a name
 and a description. `skills` is empty on 1222 of the 1226 rows.
@@ -118,24 +191,226 @@ The unit row holds no pilot. It holds no reaction value.
 | `ssp_range_max_add` | 0 on all 4785 rows |
 | `growth` | The scaling by weapon level |
 
-The meaning of the four integer enums is not verified. `type` takes
-three values, `work_type` five, `attack_attr` seven and
-`weapon_attr` six.
+`type` takes three values. On the 15 unit detail forms read on
+2026-08-28, every map weapon has `type` 3, and no other weapon has
+it. The Ex weapon of Gundam (EX), "Beam Saber EX", has `type` 2.
+`type` 1 is the rest. The map 1 normal, 2 Ex, 3 map weapon is a
+hypothesis from that sample. The meaning of `work_type` (five
+values), `attack_attr` (seven) and `weapon_attr` (six) is not
+verified.
 
 `growth` holds the list `wsc`. Each row of the list holds `level`,
 `power`, `en`, `hit_rate` and `crit_rate`. The four values are
 percentages of the base value at that weapon level.
 
-The weapon list endpoint holds no terrain restriction. The address
-`/ggetapi/en/unit/{id}` gives a second form of the same weapon, and
-that form holds the field `weapon_capability`. The three rows of the
-capability table are the source of the terrain divisor of formula
-eight (`docs/reference/combat-formulas.md`). The crawler does not
-fetch the capability table: no public address for it was found on
-2026-08-22.
+The weapon list endpoint holds no terrain restriction. The unit
+detail form gives a second form of the same weapon, and that form
+holds the id `weapon_capability` and the row `capability` it names.
+Section "The unit detail form" records the row. The crawler does
+not fetch the capability table: no public address for the table
+itself was found on 2026-08-22.
 
-The same second form holds `map_weapon_can_use_after_move`,
-`map_weapon_shooting_range` and `map_weapon_effect_range`.
+## The unit detail form
+
+The address `/ggetapi/en/unit/{id}` gives one unit with these
+fields filled. The facts come from 15 UR units read on 2026-08-28.
+
+`weapons` holds one row for each weapon of the unit. Each row holds
+`weapon`, and `weapon` holds `weapon_status` and `capability`.
+
+| Object | Fields |
+|---|---|
+| `weapon` | `id`, `name`, `type`, `work_type`, `attack_attr`, `weapon_attr`, `tension`, `main_weapon`, `weapon_capability`, `weapon_effect`, `ex_short_weapon`, `map_weapon_desc`, `map_weapon_range`, `map_weapon_trait` |
+| `weapon_status` | `range_min`, `range_max`, `power`, `en`, `hit_rate`, `critical_rate`, `map_weapon_shooting_range`, `map_weapon_effect_range`, `map_weapon_can_use_after_move`, `weapon_level_growth`, `growth` |
+| `capability` | `in_space`, `in_ground`, `in_atmospheric`, `in_underwater`, `in_surface`, `desc`, `damage_space`, `damage_ground`, `damage_atmospheric`, `damage_underwater`, `damage_surface`, `damage_desc` |
+
+The capability rows seen in the sample:
+
+| `weapon_capability` | `in_underwater` | `damage_underwater` | Text |
+|---|---|---|---|
+| 1 | true | 100 | None |
+| 2 | true | 50 | "Damage to underwater enemies is halved" |
+| 4 | false | 50 | "Cannot be used underwater" and "Damage to underwater enemies is halved" |
+
+Every other `in_` flag is true and every other `damage_` value is
+100 on all three rows. Row 3 was not seen in the sample.
+
+A map weapon carries two cell lists, each one a string of `(x,y)`
+pairs. `map_weapon_effect_range` is the set of cells the weapon
+strikes. `map_weapon_shooting_range` is empty on six of the ten map
+weapons of the sample, and it holds 4 to 48 cells on the other
+four. `map_weapon_range` is 1 to 4. Which cell the offsets of each
+list are relative to, and what `map_weapon_range` and
+`map_weapon_trait` mean, is not verified. The sample:
+
+| Unit | Weapon | `map_weapon_range` | `map_weapon_trait` | Effect cells | Shooting cells |
+|---|---|---|---|---|---|
+| Big-Rang (EX) | Supply Function | 1 | 2 | 40 | 0 |
+| Atlas Gundam (EX) | Medusa's Arrow | 2 | 1 | 1 | 40 |
+| Gundam GP02A (EX) | Atomic Bazooka | 2 | 1 | 25 | 16 |
+| Nightingale (EX) | Funnels | 2 | 1 | 13 | 48 |
+| Kampfer (EX) | Barrage | 3 | 1 | 16 | 0 |
+| Neue Ziel (EX) | Deflection Type Mega Particle Cannon | 3 | 1 | 16 | 0 |
+| Full Armor ZZ Gundam (EX) | High Mega Cannon | 3 | 1 | 18 | 0 |
+| Nightingale (EX) | Large Mega Beam Rifle (Focused) | 3 | 1 | 18 | 0 |
+| Gundam GP03 (EX) | Detonation Cord | 4 | 1 | 12 | 4 |
+
+"Supply Function" has `power` 0 and `map_weapon_trait` 2. Every
+other map weapon of the sample has `map_weapon_trait` 1.
+`map_weapon_can_use_after_move` is false on all ten.
+
+`abilities` holds one row for each mech ability. Each row holds
+`ability`, and `ability` holds `detail` (`name`, `desc`, `rarity`,
+`is_stackable`, `stack_limit`) and `traits`. Each trait holds
+`trait_type`, `trait_value`, `desc`, `action_timing`, `tlimit`, an
+`active_condition` and a `target_condition`. A condition holds
+`target` (`Owner`, `AttackTarget`, `ActiveAttacker`, `SameGroup`
+seen), `unit_role`, `unit_tags`, `unit_series`, `map_battle_action`
+(`SupportDefense` seen), HP and EN thresholds, a distance band, a
+turn number and two flags, `is_in_chance_step` and
+`is_in_one_on_one`. The ability text of the list row is the `desc`
+of these traits.
+
+`gacha.bonus.character` holds the pilot that the game gives with
+the unit. On every one of the 15 UR units, that pilot is UR and has
+the role of the unit. This is the only link from a unit to a pilot
+in the datamine: the pilot row holds no unit id, and the per-id
+pilot form holds the reverse link in `gc.gacha.unit`.
+
+`transform_to` holds the transformation targets. Gundam GP03 (EX)
+holds one; the other 14 units hold none. `get` holds the
+acquisition list, 80 gacha rows for Gundam (EX).
+
+## The pilot row
+
+The address `/ggetapi/en/character` gives 583 rows.
+
+| Group | Fields |
+|---|---|
+| Identity | `id`, `main_character_id`, `name`, `sort_name`, `abbreviation`, `desc`, `icon`, `is_playable` |
+| Catalogue | `rarity`, `role`, `series_set_id`, `series_set`, `tags`, `acquisition`, `schedule_id` |
+| Values | `stats` |
+| Skills | `skills` |
+| Abilities | `abilities` |
+| Voice | `acquisition_voice`, `killed_quote`, `voice_resource_id` |
+| Null in the list | `get`, `gc`, `schedule`, `link` |
+
+`rarity` and `role` take the same enums as the unit row. `is_playable`
+is true on 582 rows. One name has many rows: "Amuro Ray" has eight,
+with rarity 3 to 5 and every role.
+
+The object `stats` holds 20 fields. Five values repeat in four
+groups: `ranged`, `melee`, `defense`, `reaction` and `awaken`. The
+four groups are the plain group, the `max_` group, the `sp_` group
+and the `sp_max_` group, as on the unit row. The pilot holds two
+attack values, ranged and melee, and no single attack value. The
+formula page states that a weapon with more than one type reads the
+best stat.
+
+`skills` holds two rows on 498 pilots and three rows on 84. Each
+row holds `sort`, `level` (the pilot level that unlocks the skill),
+`character_skill_id`, `sp_character_skill_id` and `skill`. `skill`
+is null on 370 rows of the 583 pilots. A filled `skill` holds
+`name`, `desc`, `sp` (the cost, 3, 5, 7 or 10), `duration` (1 on
+all 878 filled rows), `is_auto_usage`, `auto_usage_threshold`,
+`auto_usage_priority` and `trait_set`. `trait_set` holds one trait
+on 850 rows and two on 28. A trait holds `trait_type`,
+`trait_value`, `name`, `desc`, `target_tag_id` and
+`target_unit_role`.
+
+The `trait_type` values of the 878 filled pilot skills, with the
+skill names they carry:
+
+| `trait_type` | Rows | Names | Text of one row |
+|---|---|---|---|
+| 1 | 32 | HP Repair Lite, HP Repair, HP Repair (Range) | Restore HP by 10%. |
+| 2 | 24 | EN Charge, EN Charge Lite | Restore EN by 40%. |
+| 3 | 108 | Boost Range | During the next fight after activating the effect, increase max range of own weapons by 1. |
+| 4 | 55 | MP Up, MP Up (Range) | Increase MP by 5. |
+| 5 | 25 | Increased ACC | Increases Accuracy by 15% [1 turn]. |
+| 6 | 25 | Increased EVA | Increase Evasion by 15% [1 turn]. |
+| 7 | 139 | High Speed | During the next movement after activating the effect, increase MOV by 1. |
+| 8 | 129 | Attack Burst, Attack Burst (Range) | Increase damage dealt to enemies by 10% [1 turn(s)]. |
+| 9 | 43 | Ranged Boost | Increase Ranged by 15% [1 turn]. |
+| 10 | 37 | Melee Boost | Increase Melee by 15% [1 turn]. |
+| 11 | 12 | Awaken Boost | Increase Awaken by 20% [1 turn]. |
+| 12 | 47 | Boost Critical | Increase Critical Rate by 20% [1 turn]. |
+| 13 | 62 | Lock On | During the next fight after activating the effect, increase Accuracy by 100%. |
+| 14 | 46 | Sway | During the next fight after activating the effect, increase Evasion by 100%. |
+| 15 | 48 | Save EN | Reduce weapons EN consumption by 5% [1 turn(s)]. |
+| 17 | 66 | Force Guard, Force Guard (Range) | Reduce damage taken by 20% [1 turn(s)]. |
+| 25 | 2 | Chance Step Count Increase | Chance Step +1 time. |
+| 26 | 2 | Support Attack Count Increase | Support Attack / Counter Support +1 time(s). |
+| 29 | 2 | Zero Ammo | Can be used once without consuming MAP Weapon's remaining ammo. |
+| 30 | 2 | Zero EN | Can be used once without consuming EN from own weapon. |
+
+`duration` does not separate "1 turn", "the next fight" and "the
+next movement". The text separates them. The `trait_type` enum of a
+pilot skill and the `trait_type` enum of an ability are two
+different enums: `trait_type` 17 is "reduce damage taken" in both,
+but `trait_type` 9 is "Ranged Boost" on a skill and "DEF up on
+Support Defense" on an ability.
+
+`abilities` holds four rows on the UR pilots seen. Each row holds
+`sort`, `level`, `ability_id`, `sp_ability_id` and `ability`, in
+the same form as the mech ability of the unit detail form. The
+conditions carry the pairing rule of the game: an ability of a
+pilot can require a unit role (`unit_role`), a unit tag
+(`unit_tags`) or a series (`unit_series`) of the mech the pilot
+rides, and it can require a tag of the enemy (`target`
+`AttackTarget`).
+
+## The support crew row
+
+The address `/ggetapi/en/supporter` gives 86 rows: 47 UR, 31 SSR
+and 8 SR.
+
+| Group | Fields |
+|---|---|
+| Identity | `id`, `name`, `sort_name`, `desc`, `icon` |
+| Catalogue | `rarity`, `acquisition_route`, `obtained_word`, `limit_break_item_id`, `schedule_id` |
+| Values | `max_hp_addition_value`, `max_attack_addition_value` |
+| Skills | `lb_skills` |
+
+`lb_skills` holds one row for each limit-break step, 0 to 3. Each
+row holds `leader_skill` and `active_skill`.
+
+`leader_skill` is a passive. Its `skills[].trait_condition` names
+the units it covers, with `target` `SameGroup` and, for example,
+`unit_series` 10 (Mobile Suit Gundam). Its `trait_content.trait_value`
+holds `trait_type` and `value`; the value grows with the step (25,
+30, 33, 36 for "Bright Noa & White Base", id 1001000150).
+
+`active_skill` is the support crew skill of the terminology map. It
+holds `name`, `desc`, `range_type`, `effect_range` (a string of
+`(x,y)` pairs, 41 cells for the sample), `is_auto_usage`,
+`auto_usage_passed_turn`, `auto_usage_threshold`,
+`auto_usage_target_threshold`, `auto_usage_priority` and
+`effect_scale_rate_percent`. The sample's skill is "EN Restoration":
+"Allies in range: Restore EN by 50%". The four steps hold the same
+active skill.
+
+## The sample store
+
+The directory `docs/reference/datamine-samples/<stamp>/` holds a
+sample of the per-id forms, read on 2026-08-28 at the stamp
+`202608161248`. It is in the repository, unlike the datamine store.
+
+The sample holds ten UR units with the pilot of each, and one
+support crew. The file `index.json` lists them. The ten units cover
+the three unit roles, ten map weapons, two weapons that cannot fire
+underwater, and one transformation.
+
+| Role | Units |
+|---|---|
+| 攻擊型 | Zeong (EX), Kampfer (EX), Atlas Gundam (EX), Neue Ziel (EX) |
+| 耐久型 | Gundam (EX), Gouf Custom (EX), Gundam GP03 (EX) |
+| 支援型 | Big-Rang (EX), Nu Gundam (EX), Nightingale (EX) |
+
+The support crew is "Bright Noa & White Base", id 1001000150.
+
+Each file is the per-id payload, sorted by key, with the field `get`
+(the acquisition list) removed. No other value is changed.
 
 ## The stage row
 
@@ -326,9 +601,10 @@ Divergences:
   column. The unit detail form gives the id `weapon_effect`, and
   the address `/ggetapi/en/weapon/effect` holds 388 rows of effect
   text.
-- The engine fields `terrain_damage` and `unusable_in` map to
-  `weapon_capability` of the unit detail form. That table is not in
-  the four crawled sources.
+- The datamine `capability` row of the unit detail form carries the
+  two weapon abilities of issue #80: `damage_underwater` 50 is the
+  halved damage, and `in_underwater` false is the fire restriction.
+  That table is not in the four crawled sources.
 - The datamine `ammo` is 1 on 4668 of the 4785 rows.
   `docs/reference/combat-formulas.md` records a user recollection
   that only map weapons carry an ammunition count, and the Go
@@ -386,10 +662,15 @@ unit row holds no reaction value.
 ## Not verified
 
 - The licence of the site and its rate limit.
-- The map from the values 1, 2 and 3 of `terrain` to the symbols ○,
-  △ and －.
-- The meaning of the weapon enums `type`, `work_type`,
-  `attack_attr` and `weapon_attr`.
+- The meaning of the weapon enums `work_type`, `attack_attr` and
+  `weapon_attr`, and the values 1 and 2 of `type`.
+- The cell the offsets of `map_weapon_effect_range` and of
+  `map_weapon_shooting_range` are relative to, and the meaning of
+  `map_weapon_range` and `map_weapon_trait`.
+- The rule that the rendered page of the site uses to show a panel
+  value that is higher than `max_hp` of the row. Gundam (EX) shows
+  HP 151599 at level 100 with three stars, and its row holds
+  `max_hp` 94162.
 - The meaning of `ammo` on a weapon that is not a map weapon.
 - The meaning of the five terrain flags of a stage, and of the
   enums `sortie_terrain` and `stage_terrain`.
