@@ -84,9 +84,19 @@ Response: 'turn', 'phase', 'deploy_open'.
 'init' on a live session replaces the battle. The history starts
 again.
 
-'init' is not implemented. The section 'Terrain' holds one open
-requirement for the issue that implements it: 'board' must carry
-the terrain of the map.
+The field 'board' carries 'width', 'height', 'terrain' (the default
+kind of the map) and 'terrain_cells' (the cells of another kind).
+The section 'Terrain' holds the kinds.
+
+The field 'events' is stored and not read: the issue that gives a
+stage event its shape reads the table (user ruling 2026-08-27). The
+field 'rules' is accepted and not read: the engine takes every rule
+from a constant. The field 'seed' builds the session random source;
+every server draw of the session reads that source.
+
+The board opens at turn 1 in the ally phase with the enemies on it.
+'place' is not implemented, so a battle with ally units starts
+through 'load' today.
 
 Refusals: bad_request.
 
@@ -297,13 +307,34 @@ The rules cap the number of support attackers of one strike. A unit
 that the engagement destroys or drains before its own shot fires
 nothing.
 
-The field 'dice' holds 'mode'. The value 'forced' also holds
-'outcomes': the engine reads one outcome for each chance event, in
-the resolution order. The value 'sampled' holds no outcome: the
-engine draws from the session random source of 'init'.
+The field 'dice' holds 'mode'. The value 'forced' is the manual
+roll: it also holds 'outcomes', a list of the labels 'hit' and
+'miss', and the engine reads one label for each chance event, in
+the resolution order. The value 'sampled' is the server draw: the
+engine draws from the session random source, one draw for each
+chance event. One volley of support attackers is one chance event
+until issue #47 gives each supporter a draw.
 
-Response: 'events' (the resolution in order) and 'board' (the new
-summary).
+Response: 'events' and 'board'.
+
+'events' is the resolution in order. An entry carries 'event'. The
+value 'strike' carries 'strike' (support, strike, defender_support,
+or counter), 'shooter_id', 'struck_id', 'weapon', 'landed',
+'damage', and 'killed'. The value 'phase' carries 'turn' and
+'phase': the engine rotated the phase after the activation, and
+the section 'Turn cycle' holds the rule.
+
+'board' is the summary: 'turn', 'phase', 'pending' (the ids of the
+units of the phase that can still act), and 'gone' (the sides
+'ally' and 'enemy' with no living unit, in that order). The engine
+judges no end of the battle: a board with one side gone answers
+like any other, and the client stops on 'gone' (user ruling
+2026-08-27).
+
+The command runs on a copy of the board and installs the copy when
+the whole run succeeds. A refusal changes no board and moves the
+session random source nowhere. A success writes one entry to the
+operation history.
 
 The command judges the pick against the rules of the mechanism, and
 not against a list of actions: the reporting commands read the same
@@ -340,7 +371,8 @@ support attacker list above the cap of the rules, a reaction that
 breaks a rule of the stance, an absent necessary reaction, a short
 'outcomes' list, an action that carries 'move_to' when its weapon
 or its skill holds 'usable_after_move' false, and an anchor that
-the unit does not reach.
+the unit does not reach; bad_request when an 'outcomes' label
+stands outside 'hit' and 'miss'.
 
 ### rollback
 
@@ -399,11 +431,45 @@ Request: 'action'. Response: 'guarantee'.
 Purpose: the snapshot of the session, for a run log, a replay, and
 a differential test.
 
-'export' takes no field and gives 'state' and 'history'. 'load'
-takes the same two fields and replaces the session.
+'export' takes no field and gives 'state', 'history', and 'seed'.
+'load' takes the same three fields and replaces the session. An
+entry of 'history' carries 'cmd' and 'payload', the request of one
+command that changed the board. 'seed' is optional on 'load'; an
+absent seed is 0. 'load' builds the session random source at the
+start of its stream: a loaded history is a record, not a replay.
 
 The state carries 'phase'. A state without that field is a
 bad_request.
+
+## Turn cycle
+
+The phases of one turn run in the order ally, third_party, enemy.
+A unit is pending when it lives, is of the faction of the phase,
+and did not act in this phase.
+
+After one activation, while the faction of the phase holds no
+pending unit, the phase moves to the next entry of the order. The
+move from the enemy phase to the ally phase adds one to the turn.
+A board with no living unit keeps its phase.
+
+Every move opens the phase of one faction. At that phase start:
+
+- Every living unit of the faction gets its activation back.
+- Every living unit of the faction regenerates one tenth of its
+  maximum EN, floored, and the EN does not pass the maximum
+  (docs/reference/combat-formulas.md line 191). The floor is a
+  hypothesis: the reference leaves the rounding open at line 310,
+  and the user ruled on 2026-08-27 to floor until a device
+  measurement settles it.
+- Every living unit of every faction drops the debuffs that one
+  full round has passed: a debuff hung in the phase of index p is
+  gone when the phase of index p + 3 opens
+  (docs/reference/combat-formulas.md line 269). The phase index is
+  turn times 3 plus the position of the phase in the order.
+
+The phase start resets no chance step and no support charge, and
+fires no stage event. The three wait for the issue that gives them
+a shape (user ruling 2026-08-27).
 
 ## Board geometry
 
@@ -678,6 +744,10 @@ finds its checks waiting. The files are frozen: the writer retired
 with the Python rules (issue #73), and no process writes them
 again. A case that the engine must not keep is deleted, never
 regenerated.
+
+A case can also be written by hand from the reference documents.
+Its 'note' says so and names the document lines that give each
+expectation. The two turn-cycle cases are of this kind.
 
 Float comparison: the two sides compare with a relative tolerance
 of 1e-9 and an absolute floor of 1e-12. A number that one side
