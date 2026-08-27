@@ -560,7 +560,7 @@ func TestInitRefusesABoardWithNoCell(t *testing.T) {
 }
 
 func TestEncodeStateRoundTripsThroughDecodeState(t *testing.T) {
-	first := decodeFixtureState(t) // a helper that reads tests/fixtures/engine/debuff_ammo_board.json setup.state and calls DecodeState
+	first := decodeFixtureState(t)
 	encoded := EncodeState(first)
 	second, err := DecodeState(&encoded)
 	if err != nil {
