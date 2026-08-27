@@ -7,16 +7,26 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-// A session holds the board of one battle. 'init', the deploy commands and the
-// operation history belong to the issues that implement them; this holder
-// carries the board that a geometry command reads.
+// A session holds the board, the seed, and the history of one battle. The
+// deploy commands belong to the issue that implements them.
 type session struct {
-	board *battle.Board
+	board       *battle.Board
+	victory     []protocol.Victory
+	events      json.RawMessage
+	deployCells []protocol.Cell
+	seed        int64
+	draw        *battle.ServerDraw
+	history     []protocol.HistoryEntry
+}
+
+func newSession(board *battle.Board, seed int64) *session {
+	return &session{board: board, seed: seed, draw: battle.NewServerDraw(seed), history: []protocol.HistoryEntry{}}
 }
 
 func init() {
 	Register("load", func(s *Server) Handler { return s.load })
 	Register("reach", func(s *Server) Handler { return s.reach })
+	Register("export", func(s *Server) Handler { return s.export })
 }
 
 func decode[T any](payload json.RawMessage, into *T) error {
@@ -51,8 +61,25 @@ func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	s.session = &session{board: board}
+	loaded := newSession(board, request.Seed)
+	if request.History != nil {
+		loaded.history = request.History
+	}
+	s.session = loaded
 	return protocol.Ok(id, protocol.LoadResponse{})
+}
+
+func (s *Server) export(id string, payload json.RawMessage) protocol.Response {
+	var request protocol.ExportRequest
+	board, fail := boardOf(s, id, payload, &request)
+	if fail != nil {
+		return *fail
+	}
+	return protocol.Ok(id, protocol.ExportResponse{
+		State:   battle.EncodeState(board),
+		History: s.session.history,
+		Seed:    s.session.seed,
+	})
 }
 
 func (s *Server) reach(id string, payload json.RawMessage) protocol.Response {
