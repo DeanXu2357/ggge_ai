@@ -116,6 +116,8 @@ term at its first use in each document, then use the short form.
 | pending unit | 待啟動單位 | A living unit of the faction of the phase that did not act in this phase; the summary field 'pending'; Go: 'Board.Pending' |
 | session random source | 對局亂數源 | The PCG source that the 'seed' of 'init' or 'load' builds and every server draw reads; Go: 'ServerDraw' |
 | command mode | 指令模式 | One battle through the commands of the engine, with no page: the loop of src/ggge_ai/engine/play.py and the script scripts/play_battle.py (user ruling 2026-08-27) |
+| gone | 全滅 | The summary field that names the sides with no living unit, 'ally' and 'enemy', in that order. The engine judges no end of the battle; the client stops on this field (user ruling 2026-08-27). It rides the board summary of 'act' and the answer of 'export'. Go: 'Board.Gone' in engine/battle/turn.go |
+| rotation | 階段輪轉 | One move of the phase to the next entry of the phase order, with the phase start that the move opens. The move from the enemy phase to the ally phase adds one to the turn. Go: the type 'Rotation'; the wire carries one move as the 'phase' event of 'act' |
 
 Retired name — 'solver': the word names only the deleted legacy
 stack (ruling 2026-08-14). The current implementation is the

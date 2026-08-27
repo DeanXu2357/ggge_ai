@@ -78,6 +78,38 @@ All nine tasks landed. The branch waits for the final review and
 - Task 7: 69b5d90..028754a.
 - Task 8: dcef418..7996ac5.
 
+## Final review
+
+The two reviews of 2026-08-27 returned findings, and the controller
+ruled on each. This wave changed:
+
+- A1: 'export' answers 'gone', the sides with no living unit.
+- A2: a reaction inside 'action' is a bad_request.
+- A3: 'load' rotates a phase that holds no pending unit.
+- A4: the session holds the 'pending_events' and the 'fired_events'
+  of the loaded state unread, and 'export' echoes them.
+- A5: 'DecodeInit' refuses a unit of 'enemies' that is no enemy, a
+  footprint outside the bounds, and a terrain cell outside the
+  bounds.
+- A6: the answer of 'init' reads the phase of the board back.
+- A7: 'ServerDraw' holds one 'rand.Rand' instead of building one
+  for each draw.
+- A8: the differential op 'act' refuses a short manual roll, like
+  the server.
+- A9: the terrain name comes from 'Terrain.String', and the cell
+  order from 'SortedCells'.
+- B1: a refused 'act' of an attack candidate tries the next
+  candidate before the reposition or the standby.
+- B2: 'FORCED_HITS' lives in play.py alone.
+- B3: the module docstring of play.py says that '_steps' orders
+  the picks and is not the distance of the board.
+- B4: a null 'seed' of the fake load is 0.
+- B5: the engine report of the page calls 'export', not a seedless
+  'load' that replaced the live session.
+- C1: the flow comments of act_test.go, act.go, turn_test.go are
+  trimmed to their why-clause.
+- C2 to C5: the spec, the terminology map, and this file.
+
 ## Evidence
 
 The command mode ran two battles from seed 7 on the placeholder
@@ -116,3 +148,5 @@ Both directories are gitignored run logs.
 9. The command mode answers every attack with the first reaction
    the engine lists, which is 'dodge'. The choice of a reaction is
    a policy, not a rule; the loop holds none by design.
+10. 'load' rotates a snapshot whose phase holds no pending unit;
+    'init' does not, because the deploy phase waits for 'place'.

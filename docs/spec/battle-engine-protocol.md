@@ -284,7 +284,9 @@ action, and reaction' holds the rule.
 
 The field 'reaction' is necessary for an action of the kind
 'attack', because such an action always gives a list. The field is
-not permitted for every other kind.
+not permitted for every other kind. A reaction inside 'action' is a
+bad_request: the reaction travels in the field 'reaction' of the
+request.
 
 The client names every support unit of the engagement, and the
 engine names none. The action holds 'support_attackers', the units
@@ -310,7 +312,8 @@ nothing.
 The field 'dice' holds 'mode'. The value 'forced' is the manual
 roll: it also holds 'outcomes', a list of the labels 'hit' and
 'miss', and the engine reads one label for each chance event, in
-the resolution order. The value 'sampled' is the server draw: the
+the resolution order. A label past the last chance event is not
+read. The value 'sampled' is the server draw: the
 engine draws from the session random source, one draw for each
 chance event. One volley of support attackers is one chance event
 until issue #47 gives each supporter a draw.
@@ -431,12 +434,29 @@ Request: 'action'. Response: 'guarantee'.
 Purpose: the snapshot of the session, for a run log, a replay, and
 a differential test.
 
-'export' takes no field and gives 'state', 'history', and 'seed'.
-'load' takes the same three fields and replaces the session. An
-entry of 'history' carries 'cmd' and 'payload', the request of one
-command that changed the board. 'seed' is optional on 'load'; an
-absent seed is 0. 'load' builds the session random source at the
-start of its stream: a loaded history is a record, not a replay.
+'export' takes no field and gives 'state', 'history', 'seed', and
+'gone'. 'load' takes 'state', 'history', and 'seed', and replaces
+the session. An entry of 'history' carries 'cmd' and 'payload', the
+request of one command that changed the board. 'seed' is optional
+on 'load'; an absent seed is 0. 'load' builds the session random
+source at the start of its stream: a loaded history is a record,
+not a replay.
+
+'gone' names the sides 'ally' and 'enemy' with no living unit, in
+that order. It is the field of the board summary of 'act', so a
+client that resumes a session reads the end of the battle from
+'export' alone.
+
+'load' rotates the phase when the loaded phase holds no pending
+unit: it moves to the first phase that holds one, and the phase
+start of that faction runs. No engine exports such a state, and a
+hand-written snapshot that carries one would take no command at
+all. 'init' does not rotate, because the deploy phase waits for
+'place'.
+
+'export' gives back the 'pending_events' and the 'fired_events' of
+the loaded state. The engine reads neither list today, and it holds
+them unread so that a snapshot survives a load and an export.
 
 The state carries 'phase'. A state without that field is a
 bad_request.
