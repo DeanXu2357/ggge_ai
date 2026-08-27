@@ -38,6 +38,9 @@ func init() {
 	Register("export", func(s *Server) Handler { return s.export })
 }
 
+// A command that needs no field arrives with no 'payload', and
+// json.Unmarshal refuses empty input. An absent payload gives a zero
+// request.
 func decode[T any](payload json.RawMessage, into *T) error {
 	if len(payload) == 0 {
 		return nil
@@ -53,13 +56,9 @@ func openCommand[T any](s *Server, id string, payload json.RawMessage) (
 		fail := protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
 		return nil, nil, &fail
 	}
-	// A command that needs no field carries no 'payload', and json.Unmarshal
-	// fails on empty input.
-	if len(payload) > 0 {
-		if err := json.Unmarshal(payload, &request); err != nil {
-			fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
-			return nil, nil, &fail
-		}
+	if err := decode(payload, &request); err != nil {
+		fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
+		return nil, nil, &fail
 	}
 	return &request, s.session.board, nil
 }
