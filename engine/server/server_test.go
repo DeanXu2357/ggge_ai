@@ -71,6 +71,7 @@ func TestHelloListsEveryDeclaredCommand(t *testing.T) {
 	built := map[string]bool{
 		"hello": true, "ping": true, "load": true, "reach": true,
 		"actions": true, "reactions": true,
+		"init": true, "act": true, "export": true,
 	}
 	for index, command := range payload.Commands {
 		if command.Name != protocol.Declared[index] {
@@ -84,7 +85,7 @@ func TestHelloListsEveryDeclaredCommand(t *testing.T) {
 
 func TestDeclaredCommandWithNoHandlerIsNotImplemented(t *testing.T) {
 	replies := serve(t, New(),
-		`{"id":"n1","cmd":"act","payload":{}}`,
+		`{"id":"n1","cmd":"rollback","payload":{}}`,
 		`{"id":"n2","cmd":"ping","payload":{}}`)
 
 	if replies[0].OK || replies[0].ID != "n1" {

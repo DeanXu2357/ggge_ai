@@ -98,9 +98,7 @@ class SandboxHandler(BaseHTTPRequestHandler):
             hello = self.engine.hello()
         except (EngineError, EngineDead, EngineTimeout) as exc:
             return {"available": False, "reason": str(exc)}
-        answers = {
-            "load": self._engine_call("load", {"state": self.sandbox.engine_state(), "history": []})
-        }
+        answers = {"export": self._engine_call("export", {})}
         if unit_id is not None:
             answers["reach"] = self._engine_call("reach", {"unit_id": unit_id})
         for name in ENGINE_QUERIES:

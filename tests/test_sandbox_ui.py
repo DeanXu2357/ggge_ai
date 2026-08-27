@@ -176,7 +176,7 @@ def test_the_engine_report_carries_the_command_entries_of_the_contract(client):
     report = client.get("/api/engine?unit=" + quote("x"))
 
     assert report["available"] is True
-    assert "load" in report["answers"]
+    assert "export" in report["answers"]
     entries = {entry["name"]: entry["implemented"] for entry in report["commands"]}
     assert entries["act"] is True
     assert entries["certify"] is False
@@ -193,3 +193,20 @@ def test_an_unknown_route_is_not_found(client):
     head = "GET /nope HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
 
     assert "404" in client.raw(head)
+
+
+def test_the_seed_reaches_the_load_of_the_engine():
+    with FakeEngine() as engine:
+        EngineSession.from_scenario(str(PLACEHOLDER), engine, seed=21)
+        assert engine.loaded_seed == 21
+
+
+def test_the_act_answer_carries_the_summary_of_the_contract(client):
+    pending = client.get("/api/decision")
+    unit = pending["units"][0]["unit_id"]
+
+    _, payload = client.post("/api/act", {"candidate": {"unit_id": unit, "kind": "standby"}})
+
+    assert set(payload["board"]) == {"turn", "phase", "pending", "gone"}
+    assert unit not in payload["board"]["pending"]
+    assert payload["board"]["gone"] == []

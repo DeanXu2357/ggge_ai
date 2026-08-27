@@ -6,7 +6,8 @@ surface, the codec and the page all run against it, and every answer that needs
 a rule of the battle is empty.
 
 Do not read an answer of the fake as a fact of the game. A caller that wants a
-rule asks the engine.
+rule asks the engine: the fake rotates no phase and judges no side, so its
+board summary carries an empty 'gone'.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ class FakeEngine:
 
     def __init__(self) -> None:
         self._state: dict[str, Any] | None = None
+        self.loaded_seed = 0
 
     def start(self) -> None:
         return
@@ -75,6 +77,7 @@ class FakeEngine:
         if not isinstance(state, dict):
             raise EngineError(ErrorCode.BAD_REQUEST, "the load carries no state")
         self._state = state
+        self.loaded_seed = int(payload.get("seed") or 0)
         return {"units": len(state.get("units", []))}
 
     def _reach(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -97,11 +100,23 @@ class FakeEngine:
         return {"events": [], "board": self._summary()}
 
     def _export(self, _: dict[str, Any]) -> dict[str, Any]:
-        return {"state": self._loaded(), "history": []}
+        return {"state": self._loaded(), "history": [], "seed": self.loaded_seed}
 
     def _summary(self) -> dict[str, Any]:
         state = self._loaded()
-        return {"turn": state.get("turn"), "phase": state.get("phase")}
+        pending = [
+            unit.get("unit_id")
+            for unit in state.get("units", [])
+            if unit.get("faction") == state.get("phase")
+            and not unit.get("acted")
+            and unit.get("hp", 0) > 0
+        ]
+        return {
+            "turn": state.get("turn"),
+            "phase": state.get("phase"),
+            "pending": pending,
+            "gone": [],
+        }
 
     def _loaded(self) -> dict[str, Any]:
         if self._state is None:

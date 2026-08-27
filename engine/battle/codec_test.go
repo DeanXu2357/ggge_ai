@@ -1,6 +1,8 @@
 package battle
 
 import (
+	"encoding/json"
+	"os"
 	"reflect"
 	"testing"
 
@@ -502,5 +504,145 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 
 	if unit.Alive() || board.Unit("ghost").Alive() {
 		t.Fatal("a unit with no hit points is not alive, and neither is a unit that is not there")
+	}
+}
+
+func decodeFixtureState(t *testing.T) *Board {
+	t.Helper()
+	raw, err := os.ReadFile("../../tests/fixtures/engine/debuff_ammo_board.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Setup struct {
+			State protocol.BattleState
+		}
+	}
+	if err := json.Unmarshal(raw, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	board, err := DecodeState(&fixture.Setup.State)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return board
+}
+
+func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
+	request := protocol.InitRequest{
+		Board:   protocol.Board{Width: 6, Height: 5, Terrain: "ground", TerrainCells: []protocol.TerrainCell{{Cell: protocol.Cell{1, 1}, Terrain: "space"}}},
+		Enemies: []protocol.Unit{{UnitID: "e1", Faction: protocol.FactionEnemy, Pos: protocol.Cell{4, 4}, HP: 10}},
+		Seed:    9,
+	}
+
+	board, err := DecodeInit(&request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if board.Turn != 1 || board.Phase != FactionAlly {
+		t.Fatalf("turn %d phase %s", board.Turn, board.Phase)
+	}
+	if board.Bounds != (Bounds{High: Cell{5, 4}}) {
+		t.Fatalf("bounds: %+v", board.Bounds)
+	}
+	if board.DefaultTerrain != TerrainGround || board.TerrainCells[Cell{1, 1}] != TerrainSpace {
+		t.Fatalf("terrain: %v %v", board.DefaultTerrain, board.TerrainCells)
+	}
+	if len(board.Units) != 1 || board.Units[0].ID != "e1" {
+		t.Fatalf("units: %+v", board.Units)
+	}
+}
+
+func TestInitRefusesABoardWithNoCell(t *testing.T) {
+	if _, err := DecodeInit(&protocol.InitRequest{Board: protocol.Board{Width: 0, Height: 5}}); err == nil {
+		t.Fatal("a width of 0 must fail")
+	}
+}
+
+func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
+	board := protocol.Board{Width: 3, Height: 3}
+	cases := []struct {
+		name    string
+		request protocol.InitRequest
+	}{
+		{"a unit of 'enemies' that is no enemy", protocol.InitRequest{Board: board,
+			Enemies: []protocol.Unit{{UnitID: "x1", Faction: protocol.FactionAlly,
+				Pos: protocol.Cell{1, 1}, HP: 10}}}},
+		{"a footprint outside the bounds", protocol.InitRequest{Board: board,
+			Enemies: []protocol.Unit{{UnitID: "x1", Faction: protocol.FactionEnemy,
+				Pos: protocol.Cell{2, 2}, Size: protocol.Cell{2, 2}, HP: 10}}}},
+		{"a terrain cell outside the bounds", protocol.InitRequest{
+			Board: protocol.Board{Width: 3, Height: 3,
+				TerrainCells: []protocol.TerrainCell{{Cell: protocol.Cell{9, 9}, Terrain: "space"}}}}},
+	}
+
+	for _, one := range cases {
+		t.Run(one.name, func(t *testing.T) {
+			if _, err := DecodeInit(&one.request); err == nil {
+				t.Fatal("the payload must fail")
+			}
+		})
+	}
+}
+
+func TestEncodeStateRoundTripsThroughDecodeState(t *testing.T) {
+	first := decodeFixtureState(t)
+	encoded := EncodeState(first)
+	second, err := DecodeState(&encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again := EncodeState(second)
+	a, _ := json.Marshal(encoded)
+	b, _ := json.Marshal(again)
+	if string(a) != string(b) {
+		t.Fatalf("the second encode differs:\n%s\n%s", a, b)
+	}
+	if encoded.Turn != first.Turn || encoded.Phase != wireFactions[first.Phase] || encoded.Bounds == nil {
+		t.Fatalf("state: %+v", encoded)
+	}
+}
+
+func TestOutcomesReadHitAndMissOnly(t *testing.T) {
+	got, err := DecodeOutcomes([]string{"hit", "miss", "hit"})
+	if err != nil || !reflect.DeepEqual(got, []bool{true, false, true}) {
+		t.Fatalf("%v %v", got, err)
+	}
+	if _, err := DecodeOutcomes([]string{"true"}); err == nil {
+		t.Fatal("an outcome outside the two labels must fail")
+	}
+}
+
+func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
+	events := EncodeResolution(Resolution{
+		Trace:     Trace{{Kind: StrikeMain, ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true}},
+		Rotations: []Rotation{{Turn: 1, Phase: FactionEnemy}},
+	})
+	want := []any{
+		protocol.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true},
+		protocol.PhaseEvent{Event: "phase", Turn: 1, Phase: protocol.FactionEnemy},
+	}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events: %+v", events)
+	}
+}
+
+func TestTheSummaryNamesThePendingUnitsAndTheGoneSides(t *testing.T) {
+	board := decodeFixtureState(t)
+	board.Phase = FactionAlly
+	for index := range board.Units {
+		if board.Units[index].Faction == FactionEnemy {
+			board.Units[index].HP = 0
+		}
+	}
+	summary := EncodeSummary(board)
+	if summary.Turn != board.Turn || summary.Phase != wireFactions[board.Phase] {
+		t.Fatalf("summary: %+v", summary)
+	}
+	if !reflect.DeepEqual(summary.Gone, []protocol.Faction{protocol.FactionEnemy}) {
+		t.Fatalf("gone: %v", summary.Gone)
+	}
+	if len(summary.Pending) == 0 {
+		t.Fatal("the pending list must name the ally units that did not act")
 	}
 }

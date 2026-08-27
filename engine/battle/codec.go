@@ -70,6 +70,10 @@ var wireStances = map[Stance]protocol.Stance{
 	StanceNone:    protocol.StanceNone,
 }
 
+func EncodeFaction(faction Faction) protocol.Faction {
+	return wireFactions[faction]
+}
+
 func DecodeState(state *protocol.BattleState) (*Board, error) {
 	if state == nil {
 		return nil, fmt.Errorf("the payload carries no state")
@@ -618,4 +622,118 @@ func decodeBounds(bounds *protocol.Bounds) (Bounds, error) {
 		return Bounds{}, fmt.Errorf("the state carries no bounds")
 	}
 	return Bounds{Low: DecodeCell(bounds[0]), High: DecodeCell(bounds[1])}, nil
+}
+
+func DecodeInit(request *protocol.InitRequest) (*Board, error) {
+	if request.Board.Width < 1 || request.Board.Height < 1 {
+		return nil, fmt.Errorf("the board %dx%d holds no cell", request.Board.Width, request.Board.Height)
+	}
+	units, err := decodeUnits(request.Enemies)
+	if err != nil {
+		return nil, err
+	}
+	bounds := Bounds{High: Cell{request.Board.Width - 1, request.Board.Height - 1}}
+	for index := range units {
+		if err := checkEnemy(&units[index], bounds); err != nil {
+			return nil, err
+		}
+	}
+	for _, entry := range request.Board.TerrainCells {
+		cell := DecodeCell(entry.Cell)
+		if !cellFootprint(cell).Within(bounds) {
+			return nil, fmt.Errorf("the terrain cell %v stands outside the board", cell)
+		}
+	}
+	board, err := NewBoard(bounds, units)
+	if err != nil {
+		return nil, err
+	}
+	if board.DefaultTerrain, err = decodeTerrain(request.Board.Terrain); err != nil {
+		return nil, err
+	}
+	if board.TerrainCells, err = decodeTerrainCells(request.Board.TerrainCells); err != nil {
+		return nil, err
+	}
+	board.Phase = FactionAlly
+	board.Turn = 1
+	return board, nil
+}
+
+func checkEnemy(unit *Unit, bounds Bounds) error {
+	if unit.Faction != FactionEnemy {
+		return fmt.Errorf("the unit %q of 'enemies' carries the faction %q",
+			unit.ID, EncodeFaction(unit.Faction))
+	}
+	if !unit.Footprint.Within(bounds) {
+		return fmt.Errorf("the unit %q stands outside the board", unit.ID)
+	}
+	return nil
+}
+
+func EncodeState(board *Board) protocol.BattleState {
+	bounds := protocol.Bounds{EncodeCell(board.Bounds.Low), EncodeCell(board.Bounds.High)}
+	return protocol.BattleState{
+		Units:         EncodeUnits(board.Units),
+		Phase:         wireFactions[board.Phase],
+		Turn:          board.Turn,
+		Bounds:        &bounds,
+		PendingEvents: []string{},
+		FiredEvents:   []string{},
+		Terrain:       board.DefaultTerrain.String(),
+		TerrainCells:  encodeTerrainCells(board.TerrainCells),
+	}
+}
+
+func encodeTerrainCells(cells map[Cell]Terrain) []protocol.TerrainCell {
+	declared := make(CellSet, len(cells))
+	for cell := range cells {
+		declared[cell] = true
+	}
+	out := make([]protocol.TerrainCell, 0, len(cells))
+	for _, cell := range SortedCells(declared) {
+		out = append(out, protocol.TerrainCell{Cell: EncodeCell(cell), Terrain: cells[cell].String()})
+	}
+	return out
+}
+
+func DecodeOutcomes(labels []string) ([]bool, error) {
+	out := make([]bool, 0, len(labels))
+	for index, label := range labels {
+		switch label {
+		case "hit":
+			out = append(out, true)
+		case "miss":
+			out = append(out, false)
+		default:
+			return nil, fmt.Errorf("outcome %d is %q, and the contract holds 'hit' and 'miss'", index, label)
+		}
+	}
+	return out, nil
+}
+
+func EncodeResolution(resolution Resolution) []any {
+	out := make([]any, 0, len(resolution.Trace)+len(resolution.Rotations))
+	for _, strike := range resolution.Trace {
+		out = append(out, protocol.StrikeEvent{
+			Event: "strike", Strike: string(strike.Kind),
+			ShooterID: strike.ShooterID, StruckID: strike.StruckID, Weapon: strike.Weapon,
+			Landed: strike.Landed, Damage: strike.Damage, Killed: strike.Killed,
+		})
+	}
+	for _, rotation := range resolution.Rotations {
+		out = append(out, protocol.PhaseEvent{Event: "phase", Turn: rotation.Turn, Phase: wireFactions[rotation.Phase]})
+	}
+	return out
+}
+
+func EncodeSummary(board *Board) protocol.BoardSummary {
+	pending := []string{}
+	for _, unit := range board.Pending(board.Phase) {
+		pending = append(pending, unit.ID)
+	}
+	gone := []protocol.Faction{}
+	for _, faction := range board.Gone() {
+		gone = append(gone, wireFactions[faction])
+	}
+	return protocol.BoardSummary{Turn: board.Turn, Phase: wireFactions[board.Phase], Pending: pending, Gone: gone}
 }
