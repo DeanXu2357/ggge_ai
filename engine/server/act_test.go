@@ -190,10 +190,66 @@ func TestOneSeedGivesOneBattleThroughTheCommandLoop(t *testing.T) {
 	}
 }
 
-// engagementLines builds a load/act pair from the first attack check of the
-// engagement fixture that carries a reaction (check index 4): its decision
-// goes into the request field 'action', with 'reaction' set to null there,
-// and its 'reaction' object goes into the request field 'reaction'.
+// withForcedEmptyOutcomes decodes the line into its envelope and its act
+// payload, replaces 'dice' with a forced draw of zero outcomes, and
+// re-marshals both: the change goes through the wire types, not string
+// surgery on the line.
+func withForcedEmptyOutcomes(t *testing.T, line string) string {
+	t.Helper()
+	var request struct {
+		ID      string          `json:"id"`
+		Cmd     string          `json:"cmd"`
+		Payload json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal([]byte(line), &request); err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(request.Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	payload["dice"] = map[string]any{"mode": "forced", "outcomes": []string{}}
+	encodedPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Payload = encodedPayload
+	out, err := json.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
+func TestAShortOutcomesListIsRefusedAfterTheRun(t *testing.T) {
+	loadLine, actLine := engagementLines(t, 11)
+	shortAct := withForcedEmptyOutcomes(t, actLine)
+
+	replies := serve(t, New(), loadLine, shortAct, `{"id":"x","cmd":"export","payload":{}}`)
+	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
+		t.Fatalf("act: %+v", replies[1])
+	}
+
+	fresh := serve(t, New(), loadLine, `{"id":"x","cmd":"export","payload":{}}`)
+	if string(replies[2].Payload) != string(fresh[1].Payload) {
+		t.Fatalf("export after a refused run differs from a fresh export:\n%s\n%s", replies[2].Payload, fresh[1].Payload)
+	}
+}
+
+func TestARefusedActivationMovesTheDrawNowhere(t *testing.T) {
+	loadLine, actLine := engagementLines(t, 11)
+	shortAct := withForcedEmptyOutcomes(t, actLine)
+
+	first := serve(t, New(), loadLine, shortAct, actLine, `{"id":"x","cmd":"export","payload":{}}`)
+	if first[1].OK {
+		t.Fatalf("act: %+v", first[1])
+	}
+	second := serve(t, New(), loadLine, actLine, `{"id":"x","cmd":"export","payload":{}}`)
+	if string(first[3].Payload) != string(second[2].Payload) {
+		t.Fatalf("a refused activation moved the draw:\n%s\n%s", first[3].Payload, second[2].Payload)
+	}
+}
+
 func engagementLines(t *testing.T, seed int64) (string, string) {
 	t.Helper()
 	raw, err := os.ReadFile("../../tests/fixtures/engine/engagement_board.json")
