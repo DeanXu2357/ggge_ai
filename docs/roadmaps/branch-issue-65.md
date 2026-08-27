@@ -90,7 +90,7 @@ All nine tasks, the final fix wave, and the two helper names of
 - Task 9: 81eac28..9aec841.
 - Fix wave of the two reviews: fac0051..065fcec.
 - Roadmap reworked into the review artifact: 51d3fac.
-- Names of the two helpers of 'act', per ruling 9: 910a8c1.
+- Names of the two helpers of 'act', per ruling 9: 4c734d8.
 - Name of the file of the 'init' handler, per ruling 9: 34b2c48.
 
 ## Final review
