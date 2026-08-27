@@ -34,18 +34,19 @@ class EngineSession:
         *,
         events: EventTable | None = None,
         stage: str = "",
+        seed: int = 0,
     ) -> None:
         self._engine = engine
         self._state = state
         self._events = events or {}
         self._stage = stage
-        self._ask("load", {"state": self.engine_state(), "history": []})
+        self._ask("load", {"state": self.engine_state(), "history": [], "seed": seed})
 
     @classmethod
-    def from_scenario(cls, path: str, engine: Any) -> EngineSession:
+    def from_scenario(cls, path: str, engine: Any, *, seed: int = 0) -> EngineSession:
         loaded = scenario_mod.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
         state, events = loaded.build()
-        return cls(engine, state, events=events, stage=loaded.stage)
+        return cls(engine, state, events=events, stage=loaded.stage, seed=seed)
 
     def engine_state(self) -> dict[str, Any]:
         return codec.encode_state(self._state)
