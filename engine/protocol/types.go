@@ -62,8 +62,10 @@ type Verdict struct {
 }
 
 type Board struct {
-	Width  int `json:"width"`
-	Height int `json:"height"`
+	Width        int           `json:"width"`
+	Height       int           `json:"height"`
+	Terrain      string        `json:"terrain,omitempty"`
+	TerrainCells []TerrainCell `json:"terrain_cells,omitempty"`
 }
 
 type HelloRequest struct{}
@@ -221,17 +223,45 @@ type ActRequest struct {
 	Dice     Dice      `json:"dice"`
 }
 
-type ActResponse struct {
-	Events []json.RawMessage `json:"events"`
-	Board  json.RawMessage   `json:"board"`
+// An entry of 'events' is a StrikeEvent or a PhaseEvent; the field 'event'
+// tells them apart on the wire.
+type StrikeEvent struct {
+	Event     string `json:"event"`
+	Strike    string `json:"strike"`
+	ShooterID string `json:"shooter_id"`
+	StruckID  string `json:"struck_id"`
+	Weapon    string `json:"weapon"`
+	Landed    bool   `json:"landed"`
+	Damage    int    `json:"damage"`
+	Killed    bool   `json:"killed"`
 }
 
-type RollbackRequest struct{}
+type PhaseEvent struct {
+	Event string  `json:"event"`
+	Turn  int     `json:"turn"`
+	Phase Faction `json:"phase"`
+}
 
-type Undone struct {
+type BoardSummary struct {
+	Turn    int       `json:"turn"`
+	Phase   Faction   `json:"phase"`
+	Pending []string  `json:"pending"`
+	Gone    []Faction `json:"gone"`
+}
+
+type ActResponse struct {
+	Events []any        `json:"events"`
+	Board  BoardSummary `json:"board"`
+}
+
+type HistoryEntry struct {
 	Cmd     string          `json:"cmd"`
 	Payload json.RawMessage `json:"payload"`
 }
+
+type Undone = HistoryEntry
+
+type RollbackRequest struct{}
 
 type RollbackResponse struct {
 	Undone Undone          `json:"undone"`
@@ -267,13 +297,15 @@ type CertifyResponse struct {
 type ExportRequest struct{}
 
 type ExportResponse struct {
-	State   BattleState       `json:"state"`
-	History []json.RawMessage `json:"history"`
+	State   BattleState    `json:"state"`
+	History []HistoryEntry `json:"history"`
+	Seed    int64          `json:"seed"`
 }
 
 type LoadRequest struct {
-	State   BattleState       `json:"state"`
-	History []json.RawMessage `json:"history"`
+	State   BattleState    `json:"state"`
+	History []HistoryEntry `json:"history"`
+	Seed    int64          `json:"seed"`
 }
 
 type LoadResponse struct{}
