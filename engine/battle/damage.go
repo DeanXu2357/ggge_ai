@@ -5,16 +5,7 @@ import "math"
 // The damage rules of docs/reference/combat-formulas.md. The unexported
 // functions are the corrections 1 to 4, 6 and 7 of that document, and the
 // exported ones are the formulas 5 and 8 to 11, plus the composition of the
-// formulas 8 to 10. The constants are the multipliers the same document lists.
-const (
-	NoDefenseMultiplier = 1.0
-	DefendMultiplier    = 0.8
-	ShieldMultiplier    = 0.6
-
-	CritNormal     = 1.1
-	CritHighMorale = 1.2
-	CritSuper      = 1.3
-)
+// formulas 8 to 10. 'rules.go' holds the constants.
 
 func pilotRatio(attacker, defender Pilot) float64 {
 	return math.Max(0, (attacker.Attack-defender.Defense)/5000)

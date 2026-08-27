@@ -59,42 +59,31 @@ func (f Faction) Opposing() Faction {
 	return FactionAlly
 }
 
-// A weapon that declares no restriction deals full damage against every
-// terrain and fires from every terrain: an absent entry of TerrainDamage is
-// 1.0, and an absent entry of UnusableIn permits the shot.
 type Weapon struct {
 	Name            string
+	Power           float64
 	Range           RadiusRange
 	ENCost          int
 	Accuracy        float64
 	CanCounter      bool
 	MapWeapon       bool
 	UsableAfterMove bool
-	TerrainDamage   map[Terrain]float64
-	UnusableIn      TerrainSet
-}
-
-func (w Weapon) DamageScaleAgainst(target Terrain) float64 {
-	if scale, declared := w.TerrainDamage[target]; declared {
-		return scale
-	}
-	return 1
-}
-
-func (w Weapon) UsableIn(attacker Terrain) bool {
-	return !w.UnusableIn[attacker]
+	DebuffKind      string
+	DebuffMagnitude float64
 }
 
 type ActionKind string
 
 const (
-	ActionAttack      ActionKind = "attack"
-	ActionMapAttack   ActionKind = "map_attack"
-	ActionReposition  ActionKind = "reposition"
-	ActionStandby     ActionKind = "standby"
-	ActionSkillRefill ActionKind = "skill_en_refill"
-	ActionSkillHeal   ActionKind = "skill_heal"
+	ActionAttack     ActionKind = "attack"
+	ActionMapAttack  ActionKind = "map_attack"
+	ActionReposition ActionKind = "reposition"
+	ActionStandby    ActionKind = "standby"
 )
+
+// SkillKind names one skill. The set is open until issue #81 says what a
+// skill does. It is not an ActionKind.
+type SkillKind string
 
 type Stance string
 
@@ -113,11 +102,26 @@ const (
 	AffectsAll   SkillAffects = "all"
 )
 
+type SkillSource string
+
+const (
+	SourcePilot SkillSource = "pilot"
+	SourceCrew  SkillSource = "crew"
+	SourceMech  SkillSource = "mech"
+)
+
+type Debuff struct {
+	Kind         string
+	Magnitude    float64
+	AppliedPhase int
+}
+
 // Skill carries no 'self' area. A skill that acts on the caster alone holds a
 // range of zero, a blast of zero and the value AffectsAlly: the area is the
 // cell of the caster, and the caster is an ally in its own cell.
 type Skill struct {
-	Kind            ActionKind
+	Kind            SkillKind
+	Source          SkillSource
 	Amount          *float64
 	Uses            int
 	EndsActivation  bool
@@ -149,23 +153,29 @@ type Mech struct {
 }
 
 type Unit struct {
-	ID                   string
-	Faction              Faction
-	Footprint            Footprint
-	HP                   int
-	MaxHP                int
-	EN                   int
-	ENMax                int
-	Pilot                Pilot
-	Mech                 Mech
-	MoveRange            int
-	Weapons              []Weapon
-	Skills               []Skill
-	Acted                bool
-	SupportDefendCharges int
-	SupportAttackCharges int
-	HasShield            bool
-	Ammo                 map[string]int
+	ID                      string
+	Faction                 Faction
+	Footprint               Footprint
+	HP                      int
+	MaxHP                   int
+	EN                      int
+	ENMax                   int
+	Pilot                   Pilot
+	Mech                    Mech
+	MoveRange               int
+	Weapons                 []Weapon
+	Skills                  []Skill
+	Acted                   bool
+	ChanceSteps             int
+	ChanceStepsMax          int
+	SupportDefendCharges    int
+	SupportDefendChargesMax int
+	SupportAttackCharges    int
+	SupportAttackChargesMax int
+	HasShield               bool
+	SupportDefendWhenAttack bool
+	Ammo                    map[string]int
+	Debuffs                 []Debuff
 }
 
 func (u *Unit) Alive() bool {
@@ -196,7 +206,17 @@ type Decision struct {
 	Weapon   string
 	Amount   *float64
 	Aim      *Cell
-	Support  bool
+	Reaction *Reaction
+
+	SupportDefender  string
+	SupportAttackers []string
+}
+
+type Reaction struct {
+	Stance           Stance
+	Weapon           string
+	SupportDefender  string
+	SupportAttackers []string
 }
 
 func cloneAmount(amount *float64) *float64 {
@@ -245,6 +265,17 @@ func (b *Board) TerrainOf(unit *Unit) Terrain {
 	return b.TerrainAt(unit.Footprint.Anchor)
 }
 
+var PhaseOrder = [...]Faction{FactionAlly, FactionThirdParty, FactionEnemy}
+
+func (b *Board) PhaseIndex() int {
+	for index, faction := range PhaseOrder {
+		if faction == b.Phase {
+			return b.Turn*len(PhaseOrder) + index
+		}
+	}
+	return b.Turn * len(PhaseOrder)
+}
+
 func (b *Board) Unit(id string) *Unit {
 	for index := range b.Units {
 		if b.Units[index].ID == id {
@@ -258,7 +289,25 @@ var (
 	ErrNoUnit    = errors.New("the board holds no such unit")
 	ErrDestroyed = errors.New("the unit is destroyed")
 	ErrOffPhase  = errors.New("the unit is not of the current phase")
+	ErrActed     = errors.New("the unit acted in this turn")
 )
+
+// The command 'act' reads this gate; the reporting commands do not, because
+// a report of a unit that acted is still the answer to the question.
+func (b *Board) Activatable(unitID string) (*Unit, error) {
+	unit, err := b.livingUnit(unitID)
+	if err != nil {
+		return nil, err
+	}
+	if unit.Faction != b.Phase {
+		return nil, fmt.Errorf("%w: %q is of the side %q, and the phase is %q",
+			ErrOffPhase, unitID, unit.Faction, b.Phase)
+	}
+	if unit.Acted {
+		return nil, fmt.Errorf("%w: %q", ErrActed, unitID)
+	}
+	return unit, nil
+}
 
 func (b *Board) livingUnit(id string) (*Unit, error) {
 	unit := b.Unit(id)
@@ -280,9 +329,12 @@ func (b *Board) ReachableCells(unitID string) ([]Cell, error) {
 	if unit == nil {
 		return nil, fmt.Errorf("the board holds no unit %q", unitID)
 	}
-	anchors := ReachableAnchors(unit.Footprint, unit.MoveRange,
+	return SortedCells(b.reachableAnchors(unit)), nil
+}
+
+func (b *Board) reachableAnchors(unit *Unit) CellSet {
+	return ReachableAnchors(unit.Footprint, unit.MoveRange,
 		b.BlockingCells(unit), b.OccupiedCells(unit), b.Bounds)
-	return SortedCells(anchors), nil
 }
 
 func (b *Board) ByFaction(faction Faction) []*Unit {

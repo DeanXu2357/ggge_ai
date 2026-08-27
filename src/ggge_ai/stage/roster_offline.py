@@ -751,7 +751,6 @@ def build_scenario(
         "stage": stage,
         "note": "；".join(notes),
         "board": {"cols": int(board["cols"]), "rows": int(board["rows"])},
-        "rules": {},
         "intel": build_intel(recon),
         "deployment": [
             {

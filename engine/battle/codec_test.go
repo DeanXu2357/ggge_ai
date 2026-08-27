@@ -25,8 +25,8 @@ func wireBoard() *protocol.BattleState {
 				HasShield: true,
 				Acted:     true,
 				Skills: []protocol.Skill{{
-					Kind:            protocol.ActionSkillHeal,
-					Source:          protocol.SourceUnit,
+					Kind:            "skill_heal",
+					Source:          protocol.SourceMech,
 					Amount:          &amount,
 					Uses:            2,
 					EndsActivation:  true,
@@ -45,7 +45,7 @@ func wireBoard() *protocol.BattleState {
 				SupportDefendCharges:    1,
 				SupportDefendChargesMax: 1,
 				SupportAttackCharges:    2,
-				AttackShield:            true,
+				SupportDefendWhenAttack: true,
 				Ammo:                    map[string]int{"missile": 3},
 				Weapons: []protocol.Weapon{{
 					Name:            "rifle",
@@ -57,7 +57,6 @@ func wireBoard() *protocol.BattleState {
 					CanCounter:      true,
 					MapWeapon:       false,
 					UsableAfterMove: true,
-					Blast:           1,
 					DebuffKind:      &kind,
 					DebuffMagnitude: 0.2,
 				}},
@@ -86,31 +85,38 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 
 	amount := 3000.0
 	want := Unit{
-		ID:                   "a1",
-		Faction:              FactionAlly,
-		Footprint:            Footprint{Anchor: Cell{2, 3}, Size: Size{2, 3}},
-		HP:                   8200,
-		MaxHP:                9000,
-		EN:                   120,
-		ENMax:                180,
-		Pilot:                Pilot{Attack: 220, Defense: 190, Reaction: 205},
-		Mech:                 Mech{Attack: 4100, Defense: 3900, Mobility: 310},
-		MoveRange:            4,
-		Acted:                true,
-		SupportDefendCharges: 1,
-		SupportAttackCharges: 2,
-		HasShield:            true,
-		Ammo:                 map[string]int{"missile": 3},
+		ID:                      "a1",
+		Faction:                 FactionAlly,
+		Footprint:               Footprint{Anchor: Cell{2, 3}, Size: Size{2, 3}},
+		HP:                      8200,
+		MaxHP:                   9000,
+		EN:                      120,
+		ENMax:                   180,
+		Pilot:                   Pilot{Attack: 220, Defense: 190, Reaction: 205},
+		Mech:                    Mech{Attack: 4100, Defense: 3900, Mobility: 310},
+		MoveRange:               4,
+		Acted:                   true,
+		SupportDefendCharges:    1,
+		SupportDefendChargesMax: 1,
+		SupportAttackCharges:    2,
+		HasShield:               true,
+		SupportDefendWhenAttack: true,
+		Ammo:                    map[string]int{"missile": 3},
+		Debuffs:                 []Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
 		Weapons: []Weapon{{
 			Name:            "rifle",
+			Power:           2400,
 			Range:           RadiusRange{Min: 1, Max: 4},
 			ENCost:          15,
 			Accuracy:        12,
 			CanCounter:      true,
 			UsableAfterMove: true,
+			DebuffKind:      "mobility",
+			DebuffMagnitude: 0.2,
 		}},
 		Skills: []Skill{{
-			Kind:            ActionSkillHeal,
+			Kind:            "skill_heal",
+			Source:          SourceMech,
 			Amount:          &amount,
 			Uses:            2,
 			EndsActivation:  true,
@@ -278,15 +284,6 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 			Bounds: &protocol.Bounds{{4, 4}, {0, 0}},
 			Phase:  ally,
 		},
-		"a skill kind outside the contract": {
-			Bounds: &square,
-			Phase:  ally,
-			Units: []protocol.Unit{{
-				UnitID:  "a1",
-				Faction: ally,
-				Skills:  []protocol.Skill{{Kind: protocol.ActionKind("pray")}},
-			}},
-		},
 	}
 
 	for name, state := range cases {
@@ -344,12 +341,10 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 		MoveRange: 4,
 		Weapons: []Weapon{
 			{Name: "rifle", Range: RadiusRange{Min: 1, Max: 3}, ENCost: 10, Accuracy: 5,
-				CanCounter: true, UsableAfterMove: true,
-				TerrainDamage: map[Terrain]float64{TerrainUnderwater: 0.5},
-				UnusableIn:    TerrainSet{TerrainUnderwater: true}},
+				CanCounter: true, UsableAfterMove: true},
 			{Name: "missile", Range: RadiusRange{Min: 2, Max: 5}, MapWeapon: true},
 		},
-		Skills: []Skill{{Kind: ActionSkillHeal, Amount: &amount, Uses: 2,
+		Skills: []Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
 			Range: RadiusRange{Min: 0, Max: 2}, Blast: 1, Affects: AffectsAlly}},
 		Ammo: map[string]int{"missile": ammo},
 	}
@@ -363,15 +358,13 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	if len(out.MoveCells) != 2 || out.MoveCells[1] != (protocol.Cell{2, 4}) {
 		t.Fatalf("cells: %+v", out.MoveCells)
 	}
-	if out.Weapons[0].RangeMax != 3 || out.Weapons[0].Ammo != nil ||
-		out.Weapons[0].TerrainDamage["underwater"] != 0.5 ||
-		!reflect.DeepEqual(out.Weapons[0].UnusableIn, []string{"underwater"}) {
+	if out.Weapons[0].RangeMax != 3 || out.Weapons[0].Ammo != nil {
 		t.Fatalf("rifle: %+v", out.Weapons[0])
 	}
 	if out.Weapons[1].Ammo == nil || *out.Weapons[1].Ammo != 3 || !out.Weapons[1].MapWeapon {
 		t.Fatalf("missile: %+v", out.Weapons[1])
 	}
-	if out.Skills[0].Kind != protocol.ActionSkillHeal || *out.Skills[0].Amount != amount ||
+	if out.Skills[0].Kind != "skill_heal" || *out.Skills[0].Amount != amount ||
 		out.Skills[0].Uses != 2 || out.Skills[0].Blast != 1 ||
 		out.Skills[0].Affects != protocol.AffectsAlly {
 		t.Fatalf("skill: %+v", out.Skills[0])
@@ -397,7 +390,7 @@ func TestTheCapabilityPayloadOfAnActedUnitCarriesTheState(t *testing.T) {
 func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 	amount := 2500.0
 
-	encoded := EncodeSkills([]Skill{{Kind: ActionSkillHeal, Amount: &amount}})
+	encoded := EncodeSkills([]Skill{{Kind: "skill_heal", Amount: &amount}})
 	amount = 0
 
 	if *encoded[0].Amount != 2500.0 {
@@ -410,13 +403,15 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	attacker := &Unit{ID: "e1", HP: 100}
 	helper := &Unit{ID: "h1", HP: 100, Weapons: []Weapon{{Name: "rifle"}}}
 
+	counter := Forecast{}
 	encoded := EncodeEngagement(Engagement{
-		Defender: SideOptions{Unit: defender, SupportDefenders: []*Unit{helper},
-			SupportAttackers: []SupportAttacker{{Unit: helper, Weapon: &helper.Weapons[0]}}},
+		Defender: SideOptions{Unit: defender,
+			SupportDefenders: []SupportDefendOption{{Unit: helper}},
+			SupportAttackers: []SupportAttackOption{{Unit: helper, Weapon: &helper.Weapons[0]}}},
 		Attacker: SideOptions{Unit: attacker},
 		Reactions: []ReactionOption{
 			{Stance: StanceDodge},
-			{Stance: StanceCounter, Weapon: "saber"},
+			{Stance: StanceCounter, Weapon: "saber", Counter: &counter},
 			{Stance: StanceNone},
 		},
 	})
@@ -446,27 +441,23 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	}
 }
 
-// Every number of a forecast waits for the branch that computes it.
-func TestEveryForecastOfTheEngagementIsAPlaceholder(t *testing.T) {
-	defender := &Unit{ID: "d1", HP: 100}
+func TestTheEncodedForecastCarriesEveryNumberItHolds(t *testing.T) {
+	rate := 0.75
+	damage := 2400
+	kill := true
 
-	encoded := EncodeEngagement(Engagement{
-		Defender:  SideOptions{Unit: defender, SupportDefenders: []*Unit{defender}},
-		Attacker:  SideOptions{Unit: defender},
-		Reactions: []ReactionOption{{Stance: StanceCounter, Weapon: "saber"}},
-	})
+	full := EncodeForecast(Forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
+	lean := EncodeForecast(Forecast{Damage: &damage})
 
-	option := encoded.Defender.Reactions[0]
-	if option.Incoming.HitRate != nil || option.Incoming.Damage != nil ||
-		option.Incoming.Kill != nil {
-		t.Fatalf("incoming: %+v", option.Incoming)
+	if *full.HitRate != 0.75 || *full.Damage != 2400 || !*full.Kill {
+		t.Fatalf("forecast: %+v", full)
 	}
-	if option.Counter.HitRate != nil || option.Counter.Damage != nil ||
-		option.Counter.Kill != nil {
-		t.Fatalf("counter: %+v", option.Counter)
+	if lean.HitRate != nil || lean.Kill != nil || *lean.Damage != 2400 {
+		t.Fatalf("a field that the engine cannot answer stays null: %+v", lean)
 	}
-	if encoded.Defender.SupportDefenders[0].Incoming.Kill != nil {
-		t.Fatalf("support defense: %+v", encoded.Defender.SupportDefenders[0])
+	rate, damage, kill = 0, 0, false
+	if *full.HitRate != 0.75 || *full.Damage != 2400 || !*full.Kill {
+		t.Fatalf("the encode shares no memory with the model: %+v", full)
 	}
 }
 

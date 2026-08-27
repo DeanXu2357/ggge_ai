@@ -43,7 +43,7 @@ func TestTheCapabilitiesJudgeNoResourceAndNoBand(t *testing.T) {
 	state.Units[0].EN = 0
 	state.Units[0].Weapons = []Weapon{costly}
 	state.Units[0].MaxHP = state.Units[0].HP
-	state.Units[0].Skills = []Skill{{Kind: ActionSkillHeal, Uses: 1}}
+	state.Units[0].Skills = []Skill{{Kind: "skill_heal", Uses: 1}}
 
 	out := capabilities(t, state, "a1")
 

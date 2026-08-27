@@ -24,20 +24,24 @@ const (
 type ActionKind string
 
 const (
-	ActionAttack      ActionKind = "attack"
-	ActionMapAttack   ActionKind = "map_attack"
-	ActionReposition  ActionKind = "reposition"
-	ActionStandby     ActionKind = "standby"
-	ActionSkillRefill ActionKind = "skill_en_refill"
-	ActionSkillHeal   ActionKind = "skill_heal"
+	ActionAttack     ActionKind = "attack"
+	ActionMapAttack  ActionKind = "map_attack"
+	ActionReposition ActionKind = "reposition"
+	ActionStandby    ActionKind = "standby"
 )
+
+// SkillKind names one skill. The set is open: no contract of this repository
+// says what a skill does, so the decoder validates nothing and the engine
+// resolves nothing (issue #81). It is not an ActionKind: what a skill does is
+// not a kind of action.
+type SkillKind string
 
 type SkillSource string
 
 const (
-	SourceCharacter SkillSource = "character"
-	SourceCrew      SkillSource = "crew"
-	SourceUnit      SkillSource = "unit"
+	SourcePilot SkillSource = "pilot"
+	SourceCrew  SkillSource = "crew"
+	SourceMech  SkillSource = "mech"
 )
 
 // SkillAffects holds no 'self' value. A skill that acts on the caster alone
@@ -63,12 +67,10 @@ const (
 var (
 	factions    = map[Faction]bool{FactionAlly: true, FactionEnemy: true, FactionThirdParty: true}
 	actionKinds = map[ActionKind]bool{
-		ActionAttack:      true,
-		ActionMapAttack:   true,
-		ActionReposition:  true,
-		ActionStandby:     true,
-		ActionSkillRefill: true,
-		ActionSkillHeal:   true,
+		ActionAttack:     true,
+		ActionMapAttack:  true,
+		ActionReposition: true,
+		ActionStandby:    true,
 	}
 	stances = map[Stance]bool{
 		StanceDodge:   true,
@@ -77,9 +79,9 @@ var (
 		StanceNone:    true,
 	}
 	skillSources = map[SkillSource]bool{
-		SourceCharacter: true,
-		SourceCrew:      true,
-		SourceUnit:      true,
+		SourcePilot: true,
+		SourceCrew:  true,
+		SourceMech:  true,
 	}
 	skillAffects = map[SkillAffects]bool{
 		AffectsAlly:  true,
@@ -124,16 +126,6 @@ func (a *SkillAffects) UnmarshalJSON(data []byte) error {
 // on an open plane; it is not an empty board.
 type Bounds [2]Cell
 
-type Rules struct {
-	DefendMultiplier        float64 `json:"defend_multiplier"`
-	ShieldMultiplier        float64 `json:"shield_multiplier"`
-	SupportDefendMultiplier float64 `json:"support_defend_multiplier"`
-	DodgeHitPenalty         float64 `json:"dodge_hit_penalty"`
-	Terrain                 float64 `json:"terrain"`
-	MaxSupportAttackers     int     `json:"max_support_attackers"`
-	ENRegenFraction         float64 `json:"en_regen_fraction"`
-}
-
 type Weapon struct {
 	Name            string  `json:"name"`
 	Power           float64 `json:"power"`
@@ -144,18 +136,12 @@ type Weapon struct {
 	CanCounter      bool    `json:"can_counter"`
 	MapWeapon       bool    `json:"map_weapon"`
 	UsableAfterMove bool    `json:"usable_after_move"`
-	Blast           int     `json:"blast"`
 	DebuffKind      *string `json:"debuff_kind"`
 	DebuffMagnitude float64 `json:"debuff_magnitude"`
-	// The two terrain fields are engine-only: 'model.py' holds no terrain, so
-	// they stay optional and a payload that omits them declares no
-	// restriction. TerrainDamage and UnusableIn key on a terrain wire name.
-	TerrainDamage map[string]float64 `json:"terrain_damage,omitempty"`
-	UnusableIn    []string           `json:"unusable_in,omitempty"`
 }
 
 type Skill struct {
-	Kind            ActionKind   `json:"kind"`
+	Kind            SkillKind    `json:"kind"`
 	Source          SkillSource  `json:"source"`
 	Amount          *float64     `json:"amount"`
 	Uses            int          `json:"uses"`
@@ -207,8 +193,7 @@ type Unit struct {
 	SupportAttackCharges    int            `json:"support_attack_charges"`
 	SupportAttackChargesMax int            `json:"support_attack_charges_max"`
 	HasShield               bool           `json:"has_shield"`
-	AttackShield            bool           `json:"attack_shield"`
-	InterceptionReduction   float64        `json:"interception_reduction"`
+	SupportDefendWhenAttack bool           `json:"support_defend_when_attack"`
 	Ammo                    map[string]int `json:"ammo"`
 	Debuffs                 []Debuff       `json:"debuffs"`
 	MechHP                  int            `json:"mech_hp,omitempty"`
@@ -218,27 +203,28 @@ type Unit struct {
 }
 
 type Reaction struct {
-	Stance        Stance  `json:"stance"`
-	Weapon        *string `json:"weapon"`
-	SupportDefend bool    `json:"support_defend"`
-	SupportAttack bool    `json:"support_attack"`
+	Stance           Stance   `json:"stance"`
+	Weapon           *string  `json:"weapon"`
+	SupportDefender  *string  `json:"support_defender"`
+	SupportAttackers []string `json:"support_attackers"`
 }
 
 // Decision carries three dice fields, and each holds three values: the node
 // landed, the node missed, and the caller settles the node somewhere else.
 type Decision struct {
-	UnitID     string     `json:"unit_id"`
-	Kind       ActionKind `json:"kind"`
-	MoveTo     *Cell      `json:"move_to"`
-	TargetID   *string    `json:"target_id"`
-	Weapon     *string    `json:"weapon"`
-	Amount     *float64   `json:"amount"`
-	Reaction   *Reaction  `json:"reaction"`
-	Support    bool       `json:"support"`
-	Aim        *Cell      `json:"aim"`
-	Hit        *bool      `json:"hit"`
-	CounterHit *bool      `json:"counter_hit"`
-	SupportHit *bool      `json:"support_hit"`
+	UnitID           string     `json:"unit_id"`
+	Kind             ActionKind `json:"kind"`
+	MoveTo           *Cell      `json:"move_to"`
+	TargetID         *string    `json:"target_id"`
+	Weapon           *string    `json:"weapon"`
+	Amount           *float64   `json:"amount"`
+	Reaction         *Reaction  `json:"reaction"`
+	SupportDefender  *string    `json:"support_defender"`
+	SupportAttackers []string   `json:"support_attackers"`
+	Aim              *Cell      `json:"aim"`
+	Hit              *bool      `json:"hit"`
+	CounterHit       *bool      `json:"counter_hit"`
+	SupportHit       *bool      `json:"support_hit"`
 }
 
 // StageEvent keeps its trigger and its effect raw: the model holds them as free
@@ -259,17 +245,14 @@ type TerrainCell struct {
 }
 
 type BattleState struct {
-	Units         []Unit   `json:"units"`
-	Phase         Faction  `json:"phase"`
-	Turn          int      `json:"turn"`
-	Bounds        *Bounds  `json:"bounds"`
-	PendingEvents []string `json:"pending_events"`
-	FiredEvents   []string `json:"fired_events"`
-	// The two terrain fields are engine-only: 'model.py' holds no terrain, so
-	// they stay optional. A payload that omits Terrain puts the whole map in
-	// space, which changes no damage: only a declared weapon restriction does.
-	Terrain      string        `json:"terrain,omitempty"`
-	TerrainCells []TerrainCell `json:"terrain_cells,omitempty"`
+	Units         []Unit        `json:"units"`
+	Phase         Faction       `json:"phase"`
+	Turn          int           `json:"turn"`
+	Bounds        *Bounds       `json:"bounds"`
+	PendingEvents []string      `json:"pending_events"`
+	FiredEvents   []string      `json:"fired_events"`
+	Terrain       string        `json:"terrain,omitempty"`
+	TerrainCells  []TerrainCell `json:"terrain_cells,omitempty"`
 }
 
 // A chance event is one random node of a resolution. The three consumption

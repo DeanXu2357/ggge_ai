@@ -18,46 +18,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance
+from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance, Terrain
 from .state import (
     BattleState,
     Debuff,
     Decision,
     EventTable,
     Reaction,
-    Rules,
     Skill,
     StageEvent,
+    TerrainCell,
     Unit,
     Weapon,
 )
 
 SPAWN = "spawn"
-
-
-def encode_rules(rules: Rules) -> dict[str, Any]:
-    return {
-        "defend_multiplier": rules.defend_multiplier,
-        "shield_multiplier": rules.shield_multiplier,
-        "support_defend_multiplier": rules.support_defend_multiplier,
-        "dodge_hit_penalty": rules.dodge_hit_penalty,
-        "terrain": rules.terrain,
-        "max_support_attackers": rules.max_support_attackers,
-        "en_regen_fraction": rules.en_regen_fraction,
-    }
-
-
-def decode_rules(payload: dict[str, Any]) -> Rules:
-    _known(payload, encode_rules(Rules()), "rules")
-    return Rules(
-        defend_multiplier=_float(payload, "defend_multiplier"),
-        shield_multiplier=_float(payload, "shield_multiplier"),
-        support_defend_multiplier=_float(payload, "support_defend_multiplier"),
-        dodge_hit_penalty=_float(payload, "dodge_hit_penalty"),
-        terrain=_float(payload, "terrain"),
-        max_support_attackers=_int(payload, "max_support_attackers"),
-        en_regen_fraction=_float(payload, "en_regen_fraction"),
-    )
 
 
 def encode_weapon(weapon: Weapon) -> dict[str, Any]:
@@ -71,7 +46,6 @@ def encode_weapon(weapon: Weapon) -> dict[str, Any]:
         "can_counter": weapon.can_counter,
         "map_weapon": weapon.map_weapon,
         "usable_after_move": weapon.usable_after_move,
-        "blast": weapon.blast,
         "debuff_kind": weapon.debuff_kind,
         "debuff_magnitude": weapon.debuff_magnitude,
     }
@@ -89,7 +63,6 @@ def decode_weapon(payload: dict[str, Any]) -> Weapon:
         can_counter=_bool(payload, "can_counter"),
         map_weapon=_bool(payload, "map_weapon"),
         usable_after_move=_bool(payload, "usable_after_move"),
-        blast=_int(payload, "blast"),
         debuff_kind=_optional_str(payload, "debuff_kind"),
         debuff_magnitude=_float(payload, "debuff_magnitude"),
     )
@@ -111,9 +84,9 @@ def encode_skill(skill: Skill) -> dict[str, Any]:
 
 
 def decode_skill(payload: dict[str, Any]) -> Skill:
-    _known(payload, encode_skill(Skill(kind=ActionKind.STANDBY)), "skill")
+    _known(payload, encode_skill(Skill(kind="")), "skill")
     return Skill(
-        kind=_move_kind(payload.get("kind")),
+        kind=_str(payload, "kind"),
         source=_skill_source(payload.get("source")),
         amount=_optional_float(payload, "amount"),
         uses=_int(payload, "uses"),
@@ -170,8 +143,7 @@ def encode_unit(unit: Unit) -> dict[str, Any]:
         "support_attack_charges": unit.support_attack_charges,
         "support_attack_charges_max": unit.support_attack_charges_max,
         "has_shield": unit.has_shield,
-        "attack_shield": unit.attack_shield,
-        "interception_reduction": unit.interception_reduction,
+        "support_defend_when_attack": unit.support_defend_when_attack,
         "ammo": dict(unit.ammo),
         "debuffs": [encode_debuff(debuff) for debuff in unit.debuffs],
     }
@@ -205,8 +177,7 @@ def decode_unit(payload: dict[str, Any]) -> Unit:
         support_attack_charges=_int(payload, "support_attack_charges"),
         support_attack_charges_max=_int(payload, "support_attack_charges_max"),
         has_shield=_bool(payload, "has_shield"),
-        attack_shield=_bool(payload, "attack_shield"),
-        interception_reduction=_float(payload, "interception_reduction"),
+        support_defend_when_attack=_bool(payload, "support_defend_when_attack"),
         ammo={str(name): int(count) for name, count in (payload.get("ammo") or {}).items()},
         debuffs=[decode_debuff(entry) for entry in payload.get("debuffs") or ()],
     )
@@ -218,8 +189,8 @@ def encode_reaction(reaction: Reaction) -> dict[str, Any]:
     return {
         "stance": str(reaction.stance),
         "weapon": reaction.weapon,
-        "support_defend": reaction.support_defend,
-        "support_attack": reaction.support_attack,
+        "support_defender": reaction.support_defender,
+        "support_attackers": list(reaction.support_attackers),
     }
 
 
@@ -229,8 +200,8 @@ def decode_reaction(payload: dict[str, Any]) -> Reaction:
     return Reaction(
         stance=stance,
         weapon=_optional_str(payload, "weapon"),
-        support_defend=_bool(payload, "support_defend"),
-        support_attack=_bool(payload, "support_attack"),
+        support_defender=_optional_str(payload, "support_defender"),
+        support_attackers=_names(payload, "support_attackers"),
     )
 
 
@@ -243,7 +214,8 @@ def encode_decision(decision: Decision) -> dict[str, Any]:
         "weapon": decision.weapon,
         "amount": decision.amount,
         "reaction": None if decision.reaction is None else encode_reaction(decision.reaction),
-        "support": decision.support,
+        "support_defender": decision.support_defender,
+        "support_attackers": list(decision.support_attackers),
         "aim": _optional_cell(decision.aim),
         "hit": decision.hit,
         "counter_hit": decision.counter_hit,
@@ -262,7 +234,8 @@ def decode_decision(payload: dict[str, Any]) -> Decision:
         weapon=_optional_str(payload, "weapon"),
         amount=_optional_float(payload, "amount"),
         reaction=None if reaction is None else decode_reaction(reaction),
-        support=_bool(payload, "support"),
+        support_defender=_optional_str(payload, "support_defender"),
+        support_attackers=_names(payload, "support_attackers"),
         aim=_optional_as_cell(payload.get("aim"), "decision.aim"),
         hit=_optional_bool(payload, "hit"),
         counter_hit=_optional_bool(payload, "counter_hit"),
@@ -295,6 +268,18 @@ def decode_events(payload: dict[str, Any]) -> EventTable:
     return {event_id: decode_event(body) for event_id, body in payload.items()}
 
 
+def encode_terrain_cell(entry: TerrainCell) -> dict[str, Any]:
+    return {"cell": _cell(entry.cell), "terrain": str(entry.terrain)}
+
+
+def decode_terrain_cell(payload: dict[str, Any]) -> TerrainCell:
+    _known(payload, encode_terrain_cell(TerrainCell((0, 0), Terrain.SPACE)), "terrain_cell")
+    return TerrainCell(
+        cell=_as_cell(payload.get("cell"), "terrain_cell.cell"),
+        terrain=_terrain(payload.get("terrain")),
+    )
+
+
 def encode_state(state: BattleState) -> dict[str, Any]:
     return {
         "units": [encode_unit(unit) for unit in state.units],
@@ -303,6 +288,8 @@ def encode_state(state: BattleState) -> dict[str, Any]:
         "bounds": None if state.bounds is None else [_cell(state.bounds[0]), _cell(state.bounds[1])],
         "pending_events": list(state.pending_events),
         "fired_events": list(state.fired_events),
+        "terrain": None if state.terrain is None else str(state.terrain),
+        "terrain_cells": [encode_terrain_cell(entry) for entry in state.terrain_cells],
     }
 
 
@@ -316,6 +303,10 @@ def decode_state(payload: dict[str, Any]) -> BattleState:
         bounds=None if bounds is None else _as_bounds(bounds),
         pending_events=tuple(str(name) for name in payload.get("pending_events") or ()),
         fired_events=tuple(str(name) for name in payload.get("fired_events") or ()),
+        terrain=None if payload.get("terrain") is None else _terrain(payload["terrain"]),
+        terrain_cells=tuple(
+            decode_terrain_cell(entry) for entry in payload.get("terrain_cells") or ()
+        ),
     )
 
 
@@ -363,6 +354,13 @@ def _known(payload: dict[str, Any], sample: dict[str, Any], where: str) -> None:
         raise ValueError(f"{where} carries a field outside the contract: {', '.join(unknown)}")
 
 
+def _terrain(raw: Any) -> Terrain:
+    try:
+        return Terrain(raw)
+    except ValueError as exc:
+        raise ValueError(f"terrain {raw!r} is not in the contract") from exc
+
+
 def _faction(raw: Any) -> Faction:
     try:
         return Faction(raw)
@@ -396,8 +394,6 @@ def _stance(raw: Any) -> Stance:
         stance = Stance(raw)
     except ValueError as exc:
         raise ValueError(f"stance {raw!r} is not in the contract") from exc
-    if stance is Stance.NONE:
-        raise ValueError("The stance 'none' is not in the contract of the reaction list")
     return stance
 
 
@@ -408,6 +404,10 @@ def _str(payload: dict[str, Any], name: str) -> str:
 def _optional_str(payload: dict[str, Any], name: str) -> str | None:
     raw = payload.get(name)
     return None if raw is None else str(raw)
+
+
+def _names(payload: dict[str, Any], name: str) -> tuple[str, ...]:
+    return tuple(str(entry) for entry in payload.get(name) or ())
 
 
 def _int(payload: dict[str, Any], name: str) -> int:

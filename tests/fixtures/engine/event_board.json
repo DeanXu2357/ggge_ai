@@ -2,15 +2,6 @@
   "name": "event_board",
   "note": "An event table with both trigger kinds, a spawn payload, and no bounds.",
   "setup": {
-    "rules": {
-      "defend_multiplier": 0.8,
-      "shield_multiplier": 0.6,
-      "support_defend_multiplier": 0.8,
-      "dodge_hit_penalty": 20.0,
-      "terrain": 1.0,
-      "max_support_attackers": 2,
-      "en_regen_fraction": 0.1
-    },
     "events": {
       "boss_weakens": {
         "event_id": "boss_weakens",
@@ -70,7 +61,6 @@
                   "can_counter": true,
                   "map_weapon": false,
                   "usable_after_move": true,
-                  "blast": 0,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0
                 }
@@ -84,8 +74,7 @@
               "support_attack_charges": 0,
               "support_attack_charges_max": 0,
               "has_shield": false,
-              "attack_shield": false,
-              "interception_reduction": 0.0,
+              "support_defend_when_attack": false,
               "ammo": {},
               "debuffs": []
             }
@@ -128,7 +117,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             },
@@ -142,7 +130,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -156,8 +143,7 @@
           "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": false,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": []
         },
@@ -194,7 +180,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             },
@@ -208,7 +193,6 @@
               "can_counter": true,
               "map_weapon": false,
               "usable_after_move": true,
-              "blast": 0,
               "debuff_kind": null,
               "debuff_magnitude": 0.0
             }
@@ -222,8 +206,7 @@
           "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": false,
-          "attack_shield": false,
-          "interception_reduction": 0.0,
+          "support_defend_when_attack": false,
           "ammo": {},
           "debuffs": []
         }
@@ -278,7 +261,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -292,7 +274,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -306,8 +287,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           },
@@ -344,7 +324,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               },
@@ -358,7 +337,6 @@
                 "can_counter": true,
                 "map_weapon": false,
                 "usable_after_move": true,
-                "blast": 0,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0
               }
@@ -372,8 +350,7 @@
             "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "attack_shield": false,
-            "interception_reduction": 0.0,
+            "support_defend_when_attack": false,
             "ammo": {},
             "debuffs": []
           }
@@ -451,7 +428,6 @@
                     "can_counter": true,
                     "map_weapon": false,
                     "usable_after_move": true,
-                    "blast": 0,
                     "debuff_kind": null,
                     "debuff_magnitude": 0.0
                   }
@@ -465,27 +441,13 @@
                 "support_attack_charges": 0,
                 "support_attack_charges_max": 0,
                 "has_shield": false,
-                "attack_shield": false,
-                "interception_reduction": 0.0,
+                "support_defend_when_attack": false,
                 "ammo": {},
                 "debuffs": []
               }
             ]
           }
         }
-      }
-    },
-    {
-      "op": "rules",
-      "input": null,
-      "expect": {
-        "defend_multiplier": 0.8,
-        "shield_multiplier": 0.6,
-        "support_defend_multiplier": 0.8,
-        "dodge_hit_penalty": 20.0,
-        "terrain": 1.0,
-        "max_support_attackers": 2,
-        "en_regen_fraction": 0.1
       }
     }
   ]

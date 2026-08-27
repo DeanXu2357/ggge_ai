@@ -13,12 +13,10 @@ var factions = map[protocol.Faction]Faction{
 }
 
 var actionKinds = map[protocol.ActionKind]ActionKind{
-	protocol.ActionAttack:      ActionAttack,
-	protocol.ActionMapAttack:   ActionMapAttack,
-	protocol.ActionReposition:  ActionReposition,
-	protocol.ActionStandby:     ActionStandby,
-	protocol.ActionSkillRefill: ActionSkillRefill,
-	protocol.ActionSkillHeal:   ActionSkillHeal,
+	protocol.ActionAttack:     ActionAttack,
+	protocol.ActionMapAttack:  ActionMapAttack,
+	protocol.ActionReposition: ActionReposition,
+	protocol.ActionStandby:    ActionStandby,
 }
 
 var skillAffects = map[protocol.SkillAffects]SkillAffects{
@@ -28,12 +26,23 @@ var skillAffects = map[protocol.SkillAffects]SkillAffects{
 }
 
 var wireKinds = map[ActionKind]protocol.ActionKind{
-	ActionAttack:      protocol.ActionAttack,
-	ActionMapAttack:   protocol.ActionMapAttack,
-	ActionReposition:  protocol.ActionReposition,
-	ActionStandby:     protocol.ActionStandby,
-	ActionSkillRefill: protocol.ActionSkillRefill,
-	ActionSkillHeal:   protocol.ActionSkillHeal,
+	ActionAttack:     protocol.ActionAttack,
+	ActionMapAttack:  protocol.ActionMapAttack,
+	ActionReposition: protocol.ActionReposition,
+	ActionStandby:    protocol.ActionStandby,
+}
+
+var skillSources = map[protocol.SkillSource]SkillSource{
+	protocol.SourcePilot: SourcePilot,
+	protocol.SourceCrew:  SourceCrew,
+	protocol.SourceMech:  SourceMech,
+}
+
+var decodedStances = map[protocol.Stance]Stance{
+	protocol.StanceDodge:   StanceDodge,
+	protocol.StanceDefend:  StanceDefend,
+	protocol.StanceCounter: StanceCounter,
+	protocol.StanceNone:    StanceNone,
 }
 
 var wireFactions = map[Faction]protocol.Faction{
@@ -46,6 +55,12 @@ var wireAffects = map[SkillAffects]protocol.SkillAffects{
 	AffectsAlly:  protocol.AffectsAlly,
 	AffectsEnemy: protocol.AffectsEnemy,
 	AffectsAll:   protocol.AffectsAll,
+}
+
+var wireSources = map[SkillSource]protocol.SkillSource{
+	SourcePilot: protocol.SourcePilot,
+	SourceCrew:  protocol.SourceCrew,
+	SourceMech:  protocol.SourceMech,
 }
 
 var wireStances = map[Stance]protocol.Stance{
@@ -172,11 +187,16 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 			EN:        unit.MechEN,
 			MoveRange: unit.MechMoveRange,
 		},
-		MoveRange:            unit.MoveRange,
-		Acted:                unit.Acted,
-		SupportDefendCharges: unit.SupportDefendCharges,
-		SupportAttackCharges: unit.SupportAttackCharges,
-		HasShield:            unit.HasShield,
+		MoveRange:               unit.MoveRange,
+		Acted:                   unit.Acted,
+		ChanceSteps:             unit.ChanceSteps,
+		ChanceStepsMax:          unit.ChanceStepsMax,
+		SupportDefendCharges:    unit.SupportDefendCharges,
+		SupportDefendChargesMax: unit.SupportDefendChargesMax,
+		SupportAttackCharges:    unit.SupportAttackCharges,
+		SupportAttackChargesMax: unit.SupportAttackChargesMax,
+		HasShield:               unit.HasShield,
+		SupportDefendWhenAttack: unit.SupportDefendWhenAttack,
 	}
 	if out.Weapons, err = decodeWeapons(unit.UnitID, unit.Weapons); err != nil {
 		return Unit{}, err
@@ -200,6 +220,12 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 			out.Ammo[name] = count
 		}
 	}
+	if unit.Debuffs != nil {
+		out.Debuffs = make([]Debuff, 0, len(unit.Debuffs))
+		for _, debuff := range unit.Debuffs {
+			out.Debuffs = append(out.Debuffs, Debuff(debuff))
+		}
+	}
 	return out, nil
 }
 
@@ -221,41 +247,26 @@ func decodeWeapons(unitID string, weapons []protocol.Weapon) ([]Weapon, error) {
 func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 	out := Weapon{
 		Name:            weapon.Name,
+		Power:           weapon.Power,
 		Range:           RadiusRange{Min: weapon.RangeMin, Max: weapon.RangeMax},
 		ENCost:          weapon.ENCost,
 		Accuracy:        weapon.Accuracy,
 		CanCounter:      weapon.CanCounter,
 		MapWeapon:       weapon.MapWeapon,
 		UsableAfterMove: weapon.UsableAfterMove,
+		DebuffMagnitude: weapon.DebuffMagnitude,
 	}
-	for name, scale := range weapon.TerrainDamage {
-		kind, err := ParseTerrain(name)
-		if err != nil {
-			return Weapon{}, fmt.Errorf("weapon %q: %w", weapon.Name, err)
-		}
-		if out.TerrainDamage == nil {
-			out.TerrainDamage = make(map[Terrain]float64, len(weapon.TerrainDamage))
-		}
-		out.TerrainDamage[kind] = scale
-	}
-	for _, name := range weapon.UnusableIn {
-		kind, err := ParseTerrain(name)
-		if err != nil {
-			return Weapon{}, fmt.Errorf("weapon %q: %w", weapon.Name, err)
-		}
-		if out.UnusableIn == nil {
-			out.UnusableIn = make(TerrainSet, len(weapon.UnusableIn))
-		}
-		out.UnusableIn[kind] = true
+	if weapon.DebuffKind != nil {
+		out.DebuffKind = *weapon.DebuffKind
 	}
 	return out, nil
 }
 
 func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
-	kind, known := actionKinds[skill.Kind]
+	source, known := skillSources[skill.Source]
 	if !known {
-		return Skill{}, fmt.Errorf("unit %q carries a skill of the kind %q, which is not in the contract",
-			unitID, skill.Kind)
+		return Skill{}, fmt.Errorf("unit %q carries a skill of the source %q, which is not in the contract",
+			unitID, skill.Source)
 	}
 	affects, known := skillAffects[skill.Affects]
 	if !known {
@@ -263,7 +274,8 @@ func decodeSkill(unitID string, skill protocol.Skill) (Skill, error) {
 			unitID, skill.Affects)
 	}
 	return Skill{
-		Kind:            kind,
+		Kind:            SkillKind(skill.Kind),
+		Source:          source,
 		Amount:          cloneAmount(skill.Amount),
 		Uses:            skill.Uses,
 		EndsActivation:  skill.EndsActivation,
@@ -319,8 +331,6 @@ func EncodeWeapons(unit *Unit) []protocol.WeaponEntry {
 			CanCounter:      weapon.CanCounter,
 			MapWeapon:       weapon.MapWeapon,
 			UsableAfterMove: weapon.UsableAfterMove,
-			TerrainDamage:   encodeTerrainDamage(weapon.TerrainDamage),
-			UnusableIn:      encodeTerrainSet(weapon.UnusableIn),
 		}
 		out = append(out, entry)
 	}
@@ -331,7 +341,7 @@ func EncodeSkills(skills []Skill) []protocol.SkillEntry {
 	out := make([]protocol.SkillEntry, 0, len(skills))
 	for _, skill := range skills {
 		out = append(out, protocol.SkillEntry{
-			Kind:            wireKinds[skill.Kind],
+			Kind:            protocol.SkillKind(skill.Kind),
 			Amount:          cloneAmount(skill.Amount),
 			Uses:            skill.Uses,
 			EndsActivation:  skill.EndsActivation,
@@ -353,30 +363,6 @@ func encodeAmmo(ammo map[string]int, name string) *int {
 	return &count
 }
 
-func encodeTerrainDamage(scales map[Terrain]float64) map[string]float64 {
-	if len(scales) == 0 {
-		return nil
-	}
-	out := make(map[string]float64, len(scales))
-	for kind, scale := range scales {
-		out[kind.String()] = scale
-	}
-	return out
-}
-
-func encodeTerrainSet(set TerrainSet) []string {
-	if len(set) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(set))
-	for kind := TerrainSpace; int(kind) < len(terrainNames); kind++ {
-		if set[kind] {
-			out = append(out, kind.String())
-		}
-	}
-	return out
-}
-
 func DecodeDecision(action *protocol.Decision) (Decision, error) {
 	kind, known := actionKinds[action.Kind]
 	if !known {
@@ -384,12 +370,20 @@ func DecodeDecision(action *protocol.Decision) (Decision, error) {
 			action.Kind)
 	}
 	out := Decision{
-		UnitID:   action.UnitID,
-		Kind:     kind,
-		TargetID: decodeOptionalName(action.TargetID),
-		Weapon:   decodeOptionalName(action.Weapon),
-		Amount:   cloneAmount(action.Amount),
-		Support:  action.Support,
+		UnitID:           action.UnitID,
+		Kind:             kind,
+		TargetID:         decodeOptionalName(action.TargetID),
+		Weapon:           decodeOptionalName(action.Weapon),
+		Amount:           cloneAmount(action.Amount),
+		SupportDefender:  decodeOptionalName(action.SupportDefender),
+		SupportAttackers: append([]string(nil), action.SupportAttackers...),
+	}
+	if action.Reaction != nil {
+		reaction, err := DecodeReaction(*action.Reaction)
+		if err != nil {
+			return Decision{}, err
+		}
+		out.Reaction = &reaction
 	}
 	if action.MoveTo != nil {
 		cell := DecodeCell(*action.MoveTo)
@@ -400,6 +394,20 @@ func DecodeDecision(action *protocol.Decision) (Decision, error) {
 		out.Aim = &aim
 	}
 	return out, nil
+}
+
+func DecodeReaction(reaction protocol.Reaction) (Reaction, error) {
+	stance, known := decodedStances[reaction.Stance]
+	if !known {
+		return Reaction{}, fmt.Errorf("the reaction carries the stance %q, which is not in the contract",
+			reaction.Stance)
+	}
+	return Reaction{
+		Stance:           stance,
+		Weapon:           decodeOptionalName(reaction.Weapon),
+		SupportDefender:  decodeOptionalName(reaction.SupportDefender),
+		SupportAttackers: append([]string(nil), reaction.SupportAttackers...),
+	}, nil
 }
 
 func decodeOptionalName(name *string) string {
@@ -431,37 +439,158 @@ func encodeReactionOptions(options []ReactionOption) []protocol.ReactionOption {
 		entry := protocol.ReactionOption{
 			Stance:   wireStances[option.Stance],
 			Weapon:   encodeOptionalName(option.Weapon),
-			Incoming: protocol.Forecast{},
+			Incoming: EncodeForecast(option.Incoming),
 		}
-		if option.Stance == StanceCounter {
-			entry.Counter = &protocol.Forecast{}
+		if option.Counter != nil {
+			counter := EncodeForecast(*option.Counter)
+			entry.Counter = &counter
 		}
 		out = append(out, entry)
 	}
 	return out
 }
 
-func encodeSupportDefenders(units []*Unit) []protocol.SupportDefendOption {
-	out := make([]protocol.SupportDefendOption, 0, len(units))
-	for _, unit := range units {
+// The wire carries no integer type, so the damage goes out as a number.
+func EncodeForecast(forecast Forecast) protocol.Forecast {
+	out := protocol.Forecast{HitRate: forecast.HitRate, Kill: forecast.Kill}
+	if forecast.HitRate != nil {
+		rate := *forecast.HitRate
+		out.HitRate = &rate
+	}
+	if forecast.Kill != nil {
+		kill := *forecast.Kill
+		out.Kill = &kill
+	}
+	if forecast.Damage != nil {
+		damage := float64(*forecast.Damage)
+		out.Damage = &damage
+	}
+	return out
+}
+
+func encodeSupportDefenders(options []SupportDefendOption) []protocol.SupportDefendOption {
+	out := make([]protocol.SupportDefendOption, 0, len(options))
+	for _, option := range options {
 		out = append(out, protocol.SupportDefendOption{
-			UnitID:   unit.ID,
-			Incoming: protocol.Forecast{},
+			UnitID:   option.Unit.ID,
+			Incoming: EncodeForecast(option.Incoming),
 		})
 	}
 	return out
 }
 
-func encodeSupportAttackers(joins []SupportAttacker) []protocol.SupportAttackOption {
-	out := make([]protocol.SupportAttackOption, 0, len(joins))
-	for _, join := range joins {
+func encodeSupportAttackers(options []SupportAttackOption) []protocol.SupportAttackOption {
+	out := make([]protocol.SupportAttackOption, 0, len(options))
+	for _, option := range options {
 		out = append(out, protocol.SupportAttackOption{
-			UnitID: join.Unit.ID,
-			Weapon: join.Weapon.Name,
-			Strike: protocol.Forecast{},
+			UnitID: option.Unit.ID,
+			Weapon: option.Weapon.Name,
+			Strike: EncodeForecast(option.Strike),
 		})
 	}
 	return out
+}
+
+func EncodeUnits(units []Unit) []protocol.Unit {
+	out := make([]protocol.Unit, 0, len(units))
+	for _, unit := range units {
+		out = append(out, EncodeUnit(unit))
+	}
+	return out
+}
+
+// A list and a map hold no null on the wire, so an empty one is an empty
+// list and an empty object.
+func EncodeUnit(unit Unit) protocol.Unit {
+	out := protocol.Unit{
+		UnitID:                  unit.ID,
+		Faction:                 wireFactions[unit.Faction],
+		Pos:                     EncodeCell(unit.Footprint.Anchor),
+		Size:                    protocol.Cell{unit.Footprint.Size[0], unit.Footprint.Size[1]},
+		HP:                      unit.HP,
+		MaxHP:                   unit.MaxHP,
+		EN:                      unit.EN,
+		ENMax:                   unit.ENMax,
+		UnitAttack:              unit.Mech.Attack,
+		UnitDefense:             unit.Mech.Defense,
+		PilotAttack:             unit.Pilot.Attack,
+		PilotDefense:            unit.Pilot.Defense,
+		Reaction:                unit.Pilot.Reaction,
+		Mobility:                unit.Mech.Mobility,
+		MoveRange:               unit.MoveRange,
+		MechHP:                  unit.Mech.HP,
+		MechEN:                  unit.Mech.EN,
+		MechMoveRange:           unit.Mech.MoveRange,
+		Weapons:                 make([]protocol.Weapon, 0, len(unit.Weapons)),
+		Skills:                  make([]protocol.Skill, 0, len(unit.Skills)),
+		Acted:                   unit.Acted,
+		ChanceSteps:             unit.ChanceSteps,
+		ChanceStepsMax:          unit.ChanceStepsMax,
+		SupportDefendCharges:    unit.SupportDefendCharges,
+		SupportDefendChargesMax: unit.SupportDefendChargesMax,
+		SupportAttackCharges:    unit.SupportAttackCharges,
+		SupportAttackChargesMax: unit.SupportAttackChargesMax,
+		HasShield:               unit.HasShield,
+		SupportDefendWhenAttack: unit.SupportDefendWhenAttack,
+		Ammo:                    make(map[string]int, len(unit.Ammo)),
+		Debuffs:                 make([]protocol.Debuff, 0, len(unit.Debuffs)),
+	}
+	for _, weapon := range unit.Weapons {
+		out.Weapons = append(out.Weapons, encodeWeapon(weapon))
+	}
+	// The base weapons of the mech are 'omitempty' on the wire, so an absent
+	// list stays absent and the round trip gives the same bytes.
+	if len(unit.Mech.Weapons) > 0 {
+		out.MechWeapons = make([]protocol.Weapon, 0, len(unit.Mech.Weapons))
+		for _, weapon := range unit.Mech.Weapons {
+			out.MechWeapons = append(out.MechWeapons, encodeWeapon(weapon))
+		}
+	}
+	for _, skill := range unit.Skills {
+		out.Skills = append(out.Skills, encodeSkill(skill))
+	}
+	for weapon, count := range unit.Ammo {
+		out.Ammo[weapon] = count
+	}
+	for _, debuff := range unit.Debuffs {
+		out.Debuffs = append(out.Debuffs, protocol.Debuff(debuff))
+	}
+	return out
+}
+
+func encodeWeapon(weapon Weapon) protocol.Weapon {
+	out := protocol.Weapon{
+		Name:            weapon.Name,
+		Power:           weapon.Power,
+		RangeMin:        weapon.Range.Min,
+		RangeMax:        weapon.Range.Max,
+		ENCost:          weapon.ENCost,
+		Accuracy:        weapon.Accuracy,
+		CanCounter:      weapon.CanCounter,
+		MapWeapon:       weapon.MapWeapon,
+		UsableAfterMove: weapon.UsableAfterMove,
+		DebuffMagnitude: weapon.DebuffMagnitude,
+	}
+	if weapon.DebuffKind != "" {
+		kind := weapon.DebuffKind
+		out.DebuffKind = &kind
+	}
+	return out
+}
+
+func encodeSkill(skill Skill) protocol.Skill {
+	return protocol.Skill{
+		Kind:            protocol.SkillKind(skill.Kind),
+		Source:          wireSources[skill.Source],
+		Amount:          cloneAmount(skill.Amount),
+		Uses:            skill.Uses,
+		EndsActivation:  skill.EndsActivation,
+		UsableAfterMove: skill.UsableAfterMove,
+		RangeMin:        skill.Range.Min,
+		RangeMax:        skill.Range.Max,
+		Blast:           skill.Blast,
+		Affects:         wireAffects[skill.Affects],
+	}
 }
 
 func encodeOptionalName(name string) *string {

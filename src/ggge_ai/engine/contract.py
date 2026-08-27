@@ -45,14 +45,12 @@ class ActionKind(StrEnum):
     MAP_ATTACK = "map_attack"
     REPOSITION = "reposition"
     STANDBY = "standby"
-    SKILL_EN_REFILL = "skill_en_refill"
-    SKILL_HEAL = "skill_heal"
 
 
 class SkillSource(StrEnum):
-    CHARACTER = "character"
+    PILOT = "pilot"
     CREW = "crew"
-    UNIT = "unit"
+    MECH = "mech"
 
 
 class SkillAffects(StrEnum):
@@ -64,6 +62,14 @@ class SkillAffects(StrEnum):
     ALLY = "ally"
     ENEMY = "enemy"
     ALL = "all"
+
+
+class Terrain(StrEnum):
+    SPACE = "space"
+    ATMOSPHERIC = "atmospheric"
+    GROUND = "ground"
+    SURFACE = "surface"
+    UNDERWATER = "underwater"
 
 
 class Stance(StrEnum):

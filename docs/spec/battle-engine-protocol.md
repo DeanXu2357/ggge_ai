@@ -154,15 +154,20 @@ the pick.
 order.
 
 A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
-'ammo', 'accuracy', 'can_counter', 'map_weapon',
-'usable_after_move', 'terrain_damage' and 'unusable_in'. A null
+'ammo', 'accuracy', 'can_counter', 'map_weapon' and
+'usable_after_move'. A null
 'ammo' is a weapon that spends no ammunition. The entry carries no
 power: the engine drops the power of a weapon when it reads the
 state.
 
+The entry carries no weapon ability. The section 'Weapon abilities'
+holds the gap and the reason.
+
 A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
 'usable_after_move', 'range_min', 'range_max', 'blast' and
-'affects'.
+'affects'. The field 'kind' is an open string, not a value of the
+action kinds: the engine validates nothing and resolves nothing
+until issue #81 closes the set. A producer writes what it read.
 
 A unit that acted keeps the whole payload. Its 'error' holds the
 code 'already_acted' and a message.
@@ -213,12 +218,12 @@ one of them sends 'act' and no question.
 A reaction entry holds the forecast 'incoming': what the strike of
 the attacker does to the defender under that stance. A counter
 entry also holds the forecast 'counter': what the counter does to
-the attacker. A stance entry reads no support unit. An interceptor
-changes no outcome of the stance, so each interceptor carries its
+the attacker. A stance entry reads no support unit. A support
+defender changes no outcome of the stance, so each one carries its
 own forecast in 'support_defenders'.
 
 A support defense entry holds 'unit_id' and the forecast
-'incoming': what the strike does to that interceptor. A support
+'incoming': what the strike does to that support defender. A support
 attack entry holds 'unit_id', 'weapon' and the forecast 'strike':
 what the shot of that unit does to its foe. The support attackers
 of the defender fire at the attacker, and the support attackers of
@@ -226,13 +231,23 @@ the attacker fire at the defender.
 
 A forecast holds 'hit_rate', 'damage' and 'kill'. 'damage' is the
 conservative lower bound of the damage: no critical hit and no
-bonus. A weapon and a mech that stack the critical rate to 100
-percent are the one exception, and the bound then holds the
-critical damage. 'kill' is true when the bound is at least the hit
-points of the target. The hit roll is no part of 'kill': a 'kill'
-of the dodge stance reads "the strike destroys this unit when it
-lands". Every field of every forecast is null today; the branch of
-the forecast fills them.
+bonus beside the debuffs the target carries. A weapon and a mech
+that stack the critical rate to 100 percent are the one exception,
+and the bound then holds the critical damage. 'kill' is true when
+the bound is at least the hit points of the target. The hit roll is
+no part of 'kill': a 'kill' of the dodge stance reads "the strike
+destroys this unit when it lands".
+
+A field that the engine cannot answer for that entry is null. Two
+entries hold such a field. The entry of a support defender of the
+defending side holds no 'hit_rate': the stance of the defender
+settles that hit roll, so the rate stands beside the stance entry.
+The entry of a support defender of the attacking side holds no
+forecast at all: it takes the counter, and which weapon counters is
+the pick of the defender.
+
+The forecast of a support attack entry reads no stance of its foe,
+because the foe picks the stance after this answer.
 
 Refusals: no_session; bad_request when the action stands outside
 the contract; illegal_action for an unknown unit id, a destroyed
@@ -261,6 +276,27 @@ The field 'reaction' is necessary for an action of the kind
 'attack', because such an action always gives a list. The field is
 not permitted for every other kind.
 
+The client names every support unit of the engagement, and the
+engine names none. The action holds 'support_attackers', the units
+of the side of the actor that join the strike, and
+'support_defender', the unit that takes a counter strike for the
+actor. The reaction holds the same two fields for the defending
+side: 'support_attackers' join the answer of the defender, and
+'support_defender' is the unit that takes the strike in place of
+the defender. Each list holds the unit ids that
+'reactions' reports, and no unit two times.
+
+A defender that defends takes the strike itself and names no
+support defender. A defender that carries a shield defends with the
+shield: the reaction menu offers no shield stance, so the shield
+multiplier applies to the defend stance of that unit. Whether the
+game pairs a support defender with the stand is not measured; the
+engine permits it.
+
+The rules cap the number of support attackers of one strike. A unit
+that the engagement destroys or drains before its own shot fires
+nothing.
+
 The field 'dice' holds 'mode'. The value 'forced' also holds
 'outcomes': the engine reads one outcome for each chance event, in
 the resolution order. The value 'sampled' holds no outcome: the
@@ -269,13 +305,42 @@ engine draws from the session random source of 'init'.
 Response: 'events' (the resolution in order) and 'board' (the new
 summary).
 
+The command judges the pick against the rules of the mechanism, and
+not against a list of actions: the reporting commands read the same
+rules, so a pick that the report offers passes here. A refusal
+leaves the board as it was.
+
+The command resolves no action of the kind 'map_attack'. The area
+of a map weapon is a shape of that weapon, and no contract of this
+repository holds that shape. The engine refuses the kind until the
+shape lands (issue #79).
+
+The command resolves no skill either. A skill starts no engagement,
+and the contract holds no shape for what a skill does. The user
+ruled on 2026-08-26 that the game gives skills that raise the damage
+of the caster, that cut the damage it takes for one turn, and that
+force an evasion in the next engagement. None of the three is a
+restore of hit points or of energy, and each carries a duration that
+no field of the contract holds. Issue #81 settles the shape.
+
+The value set of 'kind' holds no skill for the same reason. What a
+skill does is not a kind of action, and the two values 'skill_heal'
+and 'skill_en_refill' put an effect in that set. They are gone, so
+no action of the contract uses a skill today, and 'act' refuses one
+with the message of an unknown kind. The state still carries the
+skill list of a unit: what a unit holds is not the same question as
+what a skill does.
+
 Refusals: no_session; illegal_state when the phase of the unit is
 not the current phase, or when the unit acted in this turn;
-illegal_action for an action that 'actions' does not give, for an
-action that carries 'move_to' when its weapon or its skill holds
-'usable_after_move' false, for a reaction that 'reactions' does not
-give, for an absent necessary reaction, or for a short 'outcomes'
-list.
+illegal_action for a target that is no foe, a weapon the unit does
+not carry, a weapon the unit cannot pay for, a weapon that does not
+reach the target, a support unit that cannot join or intercept, a
+support attacker list above the cap of the rules, a reaction that
+breaks a rule of the stance, an absent necessary reaction, a short
+'outcomes' list, an action that carries 'move_to' when its weapon
+or its skill holds 'usable_after_move' false, and an anchor that
+the unit does not reach.
 
 ### rollback
 
@@ -364,8 +429,8 @@ a cell are at distance 0. Two units of one cell give the distance
 of the two cells.
 
 Every range answer reads this distance: the band of a weapon, the
-band of a skill, the blast of a weapon or a skill, and the move
-range that lets a support unit join. A weapon with a 'range_min' of
+band of a skill, the blast of a skill, and the move range that lets
+a support unit join. A weapon with a 'range_min' of
 2 does not fire at a foe that touches the footprint, because that
 foe is at distance 1.
 
@@ -441,8 +506,8 @@ A true value permits a move in the same activation; a false value
 makes the action pre-move only. The permission is a property of
 that weapon or that skill, not of the kind of the action: a map
 weapon is a common holder of a false value, but some map weapons
-fire after a move, and some skills of the source 'character' or
-'crew' hold a false value (user ruling 2026-08-20).
+fire after a move, and some skills of the source 'pilot' or 'crew'
+hold a false value (user ruling 2026-08-20).
 
 A skill carries its area in four fields. The fields 'range_min'
 and 'range_max' hold the distance from the caster to the center of
@@ -473,9 +538,9 @@ The rules of the wire form:
 - A field with three values keeps its three values: 'hit' is true,
   false, or null. Null says that the caller settles that node
   somewhere else.
-- The stance 'none' is not on the wire. The reaction list holds no
-  decline option, so a payload that carries 'none' is a decode
-  error.
+- The stance 'none' is on the wire: it is the unit that stands and
+  takes the strike. The stance 'shield' is not. A payload that
+  carries 'shield' is a decode error.
 - A decode and an encode of one payload give the same bytes a
   second time.
 - The trigger and the effect of a stage event stay free objects.
@@ -545,26 +610,15 @@ Each entry of 'terrain_cells' holds 'cell' and 'terrain'. A state
 with no 'terrain' puts the whole map in space. A terrain name
 outside the five is a decode error.
 
-The weapon carries its terrain restriction in two optional fields:
+No rule of the engine reads the terrain today. The state carries
+the terrain of each cell so that the rule has its data when it
+lands. What reads it is a weapon ability, and the section 'Weapon
+abilities' holds that gap.
 
-| Field | Content |
-|---|---|
-| terrain_damage | The damage percentage, as a factor, against a target on each named kind |
-| unusable_in | The kinds that the attacker cannot fire from |
-
-An absent entry of 'terrain_damage' is the factor 1.0, and an
-absent entry of 'unusable_in' permits the shot. A weapon that
-declares neither field therefore deals full damage everywhere and
-fires everywhere. The whole datamine holds one deviation: some
-weapons halve their damage against an underwater target, and a few
-of those cannot fire while the attacker is underwater
-(docs/reference/combat-formulas.md).
-
-The divisor of the combat base damage is the damage factor of the
-attacking weapon against the terrain of the target cell. It is not
-a value of the map, and it is not the terrain adaptability of the
-mech. Terrain adaptability gates deployment and movement; it enters
-no damage formula and no hit rate.
+There is no rules payload. Every rule of the mechanism is a
+constant of 'engine/battle/rules.go', and the section 'Weapon
+abilities' holds the rule that does vary. One stage held one terrain
+value until 2026-08-26.
 
 Open, for the issue that implements 'init': the field 'board' of
 the request must carry the terrain of the map, in the same two
@@ -572,6 +626,34 @@ fields that the state carries above. The user ruled on 2026-08-21
 that the terrain of each cell arrives when the board is built.
 Today 'board' carries the width and the height alone, and 'init'
 is not implemented.
+
+### Weapon abilities
+
+A weapon ability is one named ability of one weapon, positive or
+negative. The user ruled on 2026-08-26 that the effects the engine
+missed are abilities of a weapon, and not rules of the board:
+
+- '對水中目標傷害減半' divides the damage of that weapon when the
+  cell of the target holds the terrain 'underwater'. It reads the
+  cell of the target.
+- '攻方自身在水中時不可使用' forbids the weapon while the cell of
+  the attacker holds that terrain. It reads the cell of the
+  attacker.
+- A map weapon fires before the move and ends the activation of
+  the unit. An ability lifts the first half.
+
+The engine models a closed set of ability kinds. A weapon that
+carries a kind outside the set resolves as a weapon with no
+ability: the damage divides by 1 and the weapon fires. A new
+ability of the game adds a kind to the set. It never adds a field
+to the weapon entry, because the abilities of the game are open
+and the fields of a contract are not.
+
+The wire carries no ability today, and no ability kind is modelled.
+Issue #80 builds the model and adds the field of the weapon entry
+that holds the list. Until then the engine passes 1 for the terrain
+correction of every weapon
+('StrikeDamage' in 'engine/battle/strike.go').
 
 ### Differential cases
 
@@ -583,11 +665,14 @@ compare. One case file holds:
 |---|---|
 | name | The name of the case, equal to the file name |
 | note | What the board carries |
-| setup | The rules, the event table, and the board |
+| setup | The event table and the board |
 | checks | The list of the checks |
 
 Each check names an 'op', its 'input', and the 'expect' that the
-Python side produced while it still held the rules. An op that the
+Python side produced while it still held the rules of the battle.
+The block 'rules' of the setup and the check 'rules' that read it
+are deleted: the engine takes no rule from outside, so a value in a
+file could only disagree with the constant that the engine uses. An op that the
 Go build does not implement is skipped, not failed, so a port issue
 finds its checks waiting. The files are frozen: the writer retired
 with the Python rules (issue #73), and no process writes them

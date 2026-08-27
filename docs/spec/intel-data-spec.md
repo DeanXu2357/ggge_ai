@@ -19,7 +19,7 @@
 | 數值面板 | unit_attack／unit_defense、mobility（機動力）、max_hp、en_max、move_range（移動力） | 我方：強化頁機體卡面＋單位情報分頁。敵方：關卡內機體詳情。**0730 蒐樣定讞：機體面板無反応欄** |
 | 駕駛員 | **射擊值／格鬥值**（規格原單一 pilot_attack 為簡化，遊戲拆兩欄；另有覺醒值）、守備值（pilot_defense）、**反應值（reaction——駕駛員專屬）**、SP | 我方：角色詳情頁。敵方：關卡內機體詳情 |
 | 武裝（逐把） | name、類別（格鬥／射擊／覺醒）、power、RANGE（MAP 武裝此欄顯示「MAP」）、en_cost、accuracy、**爆擊%（規格外新欄，公式接法待定）**、彈藥量（僅限彈數武器出現此欄；0730 關卡內樣本兩台皆全 EN 武裝，此欄在關卡內的樣貌仍缺樣）、debuff 文字 | 武裝、技能分頁（強化頁與關卡內詳情皆有） |
-| 能力詞條 | has_shield（以**裝置：盾牌防禦**形式呈現，含減傷%）、attack_shield、interception_reduction、skills（SP 技能另在技能分頁） | 能力／OP 分頁＋裝置欄 |
+| 能力詞條 | has_shield（以**裝置：盾牌防禦**形式呈現，含減傷%）、support_defend_when_attack、skills（SP 技能另在技能分頁） | 能力／OP 分頁＋裝置欄 |
 | 次數類 | support_defend 上限：**關卡外可推**（能力詞條「支援防禦+1次」＋卡面支援圖示數，0730 部分推翻原假設）；chance_steps_max：**0730 偵察輪定位**——關卡內詳情「基本資訊」分頁右上 CHANCE STEP LIMIT 標題＋CS 徽章（樣本 1 枚；徽章數＝上限的解讀待 2d forecast 對帳）；support_attack：關卡內四分頁**均無數字欄**——我方詳情僅「支援」列一枚 icon（讀作資格旗標非次數）、敵方詳情連支援列都沒有，上限得另尋來源或實戰觀測 | 角色能力分頁＋卡面；關卡內機體詳情（enemy/ally_detail_* fixtures） |
 | 戰場動態 | pos、hp／en 即值、acted、debuffs、支援次數餘額；**MP 即值可讀**（0730：關卡內我方詳情有 MP x/12 量表＋一般／DAMAGE+0%，樣本 ally_detail_basicinfo_ntgundam.png） | 戰鬥中逐 tick 觀測，**永不 cache** |
 | 支援人員 | 支援技能（HP／EN 恢復）、HP 支援值、攻擊力支援值、隊長技能（條件徽章分 **TAG／SERIES 兩型**，解析器需分欄） | 支援人員詳情頁；沙盤尚未建模（建模＝issue #50），先入情報庫存放 |

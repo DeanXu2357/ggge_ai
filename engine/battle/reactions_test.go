@@ -6,6 +6,14 @@ import (
 	"testing"
 )
 
+func coverIDs(options []SupportDefendOption) []string {
+	out := make([]string, 0, len(options))
+	for _, option := range options {
+		out = append(out, option.Unit.ID)
+	}
+	return out
+}
+
 func stances(options []ReactionOption) []Stance {
 	out := make([]Stance, 0, len(options))
 	for _, option := range options {
@@ -76,7 +84,7 @@ func TestACounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 	}
 }
 
-// A stance carries no support unit: an interceptor changes no outcome of the
+// A stance carries no support unit: a support defender changes no outcome of the
 // stance, and it stands in its own list.
 func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 	state := duel()
@@ -94,15 +102,15 @@ func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 	if len(out.Reactions) != 4 {
 		t.Fatalf("the support units add no stance: %v", stances(out.Reactions))
 	}
-	if !reflect.DeepEqual(ids(out.Defender.SupportDefenders), []string{"h1"}) {
-		t.Fatalf("the defender: %v", ids(out.Defender.SupportDefenders))
+	if !reflect.DeepEqual(coverIDs(out.Defender.SupportDefenders), []string{"h1"}) {
+		t.Fatalf("the defender: %v", coverIDs(out.Defender.SupportDefenders))
 	}
 	if len(out.Defender.SupportAttackers) != 1 ||
 		out.Defender.SupportAttackers[0].Unit.ID != "h1" {
 		t.Fatalf("the defender joins with 'h1': %+v", out.Defender.SupportAttackers)
 	}
-	if !reflect.DeepEqual(ids(out.Attacker.SupportDefenders), []string{"e2"}) {
-		t.Fatalf("the attacker: %v", ids(out.Attacker.SupportDefenders))
+	if !reflect.DeepEqual(coverIDs(out.Attacker.SupportDefenders), []string{"e2"}) {
+		t.Fatalf("the attacker: %v", coverIDs(out.Attacker.SupportDefenders))
 	}
 	if len(out.Attacker.SupportAttackers) != 1 ||
 		out.Attacker.SupportAttackers[0].Unit.ID != "e2" {
@@ -132,7 +140,6 @@ func TestAnActionThatMakesNoStrikeIsAnError(t *testing.T) {
 		"a map attack":             {UnitID: "e1", Kind: ActionMapAttack, Weapon: "rifle"},
 		"a map attack out of band": {UnitID: "e1", Kind: ActionMapAttack, MoveTo: &cell, Weapon: "rifle"},
 		"a standby":                {UnitID: "e1", Kind: ActionStandby},
-		"a skill on the caster":    {UnitID: "e1", Kind: ActionSkillHeal},
 	}
 
 	for name, action := range cases {
@@ -210,5 +217,57 @@ func TestAReactionRequestOutsideTheBoardIsAnError(t *testing.T) {
 	ghost := Decision{UnitID: "ghost", Kind: ActionAttack, Weapon: "rifle"}
 	if _, err := state.Reactions(ghost, "d1"); !errors.Is(err, ErrNoUnit) {
 		t.Fatalf("an unknown attacker: %v", err)
+	}
+}
+
+func TestEachEntryCarriesTheForecastOfItsOwnStrike(t *testing.T) {
+	attacker := fighter("e1", FactionEnemy, Cell{1, 0})
+	attacker.Weapons = []Weapon{beam()}
+	defender := fighter("d1", FactionAlly, Cell{0, 0})
+	defender.Weapons = []Weapon{beam()}
+	guard := fighter("h1", FactionAlly, Cell{0, 1})
+	guard.MoveRange = 1
+	guard.SupportDefendCharges = 1
+	guard.SupportAttackCharges = 1
+	guard.Weapons = []Weapon{beam()}
+	state := board(defender, guard, attacker)
+
+	out, err := state.Reactions(Decision{UnitID: "e1", Kind: ActionAttack,
+		TargetID: "d1", Weapon: "beam rifle"}, "d1")
+	if err != nil {
+		t.Fatalf("reactions: %v", err)
+	}
+
+	byStance := map[Stance]ReactionOption{}
+	for _, option := range out.Reactions {
+		byStance[option.Stance] = option
+	}
+	dodge, defend, stand := byStance[StanceDodge], byStance[StanceDefend], byStance[StanceNone]
+	if *dodge.Incoming.HitRate >= *stand.Incoming.HitRate {
+		t.Fatalf("a dodge takes the hit rate down: %v against %v",
+			*dodge.Incoming.HitRate, *stand.Incoming.HitRate)
+	}
+	if *defend.Incoming.Damage >= *stand.Incoming.Damage {
+		t.Fatalf("a defense takes the damage down: %v against %v",
+			*defend.Incoming.Damage, *stand.Incoming.Damage)
+	}
+	if *dodge.Incoming.Damage != *stand.Incoming.Damage {
+		t.Fatal("a dodge that fails takes the whole damage")
+	}
+	counter := byStance[StanceCounter]
+	if counter.Counter == nil || *counter.Counter.Damage <= 0 {
+		t.Fatalf("a counter carries the forecast of its own strike: %+v", counter)
+	}
+	if *out.Defender.SupportDefenders[0].Incoming.Damage >= *stand.Incoming.Damage {
+		t.Fatalf("a support defender takes the strike in a defense state: %+v",
+			out.Defender.SupportDefenders[0].Incoming)
+	}
+	if out.Defender.SupportDefenders[0].Incoming.HitRate != nil {
+		t.Fatal("the hit roll of the strike stands beside the stance, not beside the support defender")
+	}
+	if *out.Defender.SupportAttackers[0].Strike.Damage <= 0 ||
+		out.Defender.SupportAttackers[0].Strike.Kill == nil {
+		t.Fatalf("a support attacker carries the forecast of its own shot: %+v",
+			out.Defender.SupportAttackers[0])
 	}
 }

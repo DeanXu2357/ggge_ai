@@ -20,7 +20,6 @@ import (
 )
 
 type Setup struct {
-	Rules  protocol.Rules       `json:"rules"`
 	Events protocol.EventTable  `json:"events"`
 	State  protocol.BattleState `json:"state"`
 }

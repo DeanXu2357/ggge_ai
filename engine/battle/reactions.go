@@ -2,22 +2,33 @@ package battle
 
 import "fmt"
 
-// SupportAttacker is one unit that joins the strike of the unit it supports,
-// with the first weapon of that unit that reaches the foe.
 type SupportAttacker struct {
 	Unit   *Unit
 	Weapon *Weapon
 }
 
 type ReactionOption struct {
-	Stance Stance
-	Weapon string
+	Stance   Stance
+	Weapon   string
+	Incoming Forecast
+	Counter  *Forecast
+}
+
+type SupportDefendOption struct {
+	Unit     *Unit
+	Incoming Forecast
+}
+
+type SupportAttackOption struct {
+	Unit   *Unit
+	Weapon *Weapon
+	Strike Forecast
 }
 
 type SideOptions struct {
 	Unit             *Unit
-	SupportDefenders []*Unit
-	SupportAttackers []SupportAttacker
+	SupportDefenders []SupportDefendOption
+	SupportAttackers []SupportAttackOption
 }
 
 type Engagement struct {
@@ -57,25 +68,70 @@ func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error
 	}
 
 	out.Reactions = append(out.Reactions,
-		ReactionOption{Stance: StanceDodge},
-		ReactionOption{Stance: StanceDefend})
+		b.stanceOption(attacker, defender, weapon, StanceDodge, ""),
+		b.stanceOption(attacker, defender, weapon, StanceDefend, ""))
 	for index := range defender.Weapons {
 		counter := &defender.Weapons[index]
 		if counter.MapWeapon || !counter.CanCounter || !defender.HasENFor(*counter) {
 			continue
 		}
 		if counter.Range.Holds(distance) {
-			out.Reactions = append(out.Reactions,
-				ReactionOption{Stance: StanceCounter, Weapon: counter.Name})
+			option := b.stanceOption(attacker, defender, weapon, StanceCounter, counter.Name)
+			reply := b.forecastOf(defender, attacker, counter, NoDefenseMultiplier, false)
+			option.Counter = &reply
+			out.Reactions = append(out.Reactions, option)
 		}
 	}
-	out.Reactions = append(out.Reactions, ReactionOption{Stance: StanceNone})
+	out.Reactions = append(out.Reactions,
+		b.stanceOption(attacker, defender, weapon, StanceNone, ""))
 
-	out.Defender.SupportDefenders = b.SupportDefenders(defender)
-	out.Defender.SupportAttackers = b.SupportAttackers(defender, origin)
-	out.Attacker.SupportDefenders = b.SupportDefenders(attacker)
-	out.Attacker.SupportAttackers = b.SupportAttackers(attacker, defender.Footprint)
+	out.Defender.SupportDefenders = b.defendOptions(attacker, weapon,
+		b.SupportDefenders(defender, defender.Footprint))
+	out.Defender.SupportAttackers = b.attackOptions(attacker,
+		b.SupportAttackers(defender, defender.Footprint, origin))
+	// Which weapon counters is the pick of the defender, so the entry of a
+	// unit that covers the attacker carries no forecast.
+	out.Attacker.SupportDefenders = b.defendOptions(defender, nil,
+		b.SupportDefenders(attacker, origin))
+	out.Attacker.SupportAttackers = b.attackOptions(defender,
+		b.SupportAttackers(attacker, origin, defender.Footprint))
 	return out, nil
+}
+
+func (b *Board) stanceOption(attacker, defender *Unit, weapon *Weapon, stance Stance,
+	counter string) ReactionOption {
+	return ReactionOption{
+		Stance: stance,
+		Weapon: counter,
+		Incoming: b.forecastOf(attacker, defender, weapon,
+			StanceMultiplier(stance, defender), stance == StanceDodge),
+	}
+}
+
+func (b *Board) defendOptions(shooter *Unit, weapon *Weapon, units []*Unit) []SupportDefendOption {
+	out := make([]SupportDefendOption, 0, len(units))
+	for _, unit := range units {
+		option := SupportDefendOption{Unit: unit}
+		if weapon != nil {
+			option.Incoming = b.supportDefenderForecast(shooter, unit, weapon)
+		}
+		out = append(out, option)
+	}
+	return out
+}
+
+// The foe picks its stance after this answer, so the forecast of a support
+// attack reads no defense.
+func (b *Board) attackOptions(foe *Unit, joining []SupportAttacker) []SupportAttackOption {
+	out := make([]SupportAttackOption, 0, len(joining))
+	for _, one := range joining {
+		out = append(out, SupportAttackOption{
+			Unit:   one.Unit,
+			Weapon: one.Weapon,
+			Strike: b.forecastOf(one.Unit, foe, one.Weapon, NoDefenseMultiplier, false),
+		})
+	}
+	return out
 }
 
 func strikeCell(attacker *Unit, action Decision) Cell {
@@ -85,30 +141,30 @@ func strikeCell(attacker *Unit, action Decision) Cell {
 	return *action.MoveTo
 }
 
-func (b *Board) SupportDefenders(supported *Unit) []*Unit {
+// The supported unit stands on 'at' after its move, so the reach of a
+// support unit reads that cell and not the cell of today.
+func (b *Board) SupportDefenders(supported *Unit, at Footprint) []*Unit {
 	out := []*Unit{}
 	for _, other := range b.ByFaction(supported.Faction) {
-		// TODO: needs to check if the unit's support defend quota >= 1
-		if inSupportReach(other, supported, other.SupportDefendCharges) {
+		if inSupportReach(other, supported, at, other.SupportDefendCharges) {
 			out = append(out, other)
 		}
 	}
 	return out
 }
 
-func (b *Board) SupportAttackers(supported *Unit, foe Footprint) []SupportAttacker {
+func (b *Board) SupportAttackers(supported *Unit, firing, foe Footprint) []SupportAttacker {
 	out := []SupportAttacker{}
 	for _, other := range b.ByFaction(supported.Faction) {
-		// TODO: needs to check if the unit's support attack quota >= 1
-		if weapon := supportWeapon(other, supported, foe); weapon != nil {
+		if weapon := supportWeapon(other, supported, firing, foe); weapon != nil {
 			out = append(out, SupportAttacker{Unit: other, Weapon: weapon})
 		}
 	}
 	return out
 }
 
-func supportWeapon(other, supported *Unit, foe Footprint) *Weapon {
-	if !inSupportReach(other, supported, other.SupportAttackCharges) {
+func supportWeapon(other, supported *Unit, firing, foe Footprint) *Weapon {
+	if !inSupportReach(other, supported, firing, other.SupportAttackCharges) {
 		return nil
 	}
 	distance := SpanDistance(other.Footprint, foe)
@@ -121,7 +177,7 @@ func supportWeapon(other, supported *Unit, foe Footprint) *Weapon {
 	return nil
 }
 
-func inSupportReach(other, supported *Unit, charges int) bool {
+func inSupportReach(other, supported *Unit, at Footprint, charges int) bool {
 	return other.ID != supported.ID && charges > 0 &&
-		SpanDistance(other.Footprint, supported.Footprint) <= other.MoveRange
+		SpanDistance(other.Footprint, at) <= other.MoveRange
 }

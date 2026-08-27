@@ -10,7 +10,7 @@ import pytest
 
 from ggge_ai.runtime import panels
 from ggge_ai.runtime.panel_text import AbilityText, AbilityTexts, WeaponText
-from ggge_ai.engine.contract import ActionKind, Faction
+from ggge_ai.engine.contract import Faction
 from ggge_ai.stage.intel_panels import PilotOffence, unit_intel_from_panels
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "vision"
@@ -57,13 +57,13 @@ def test_hit_percent_becomes_an_accuracy_offset():
     assert [weapon.accuracy for weapon in record.weapons] == [5.0, 5.0, -5.0]
 
 
-def test_map_weapon_keeps_the_flag_and_declares_the_blast_gap():
+def test_map_weapon_keeps_the_flag_and_declares_the_area_gap():
     _, _, rows = read("roster_panels/unit_weapons_map_icon_nu_gundam")
     weapons = ((rows[0], WeaponText(name="雙翼狀感應砲")),)
     result = unit_intel_from_panels("nu_gundam", weapons=weapons)
     assert result.record.weapons[0].map_weapon is True
     assert result.record.weapons[0].ammo == 1
-    assert "weapon0:map_blast" in result.gaps
+    assert "weapon0:map_area" in result.gaps
 
 
 def test_pilot_offence_is_reported_unpicked_by_default():
@@ -112,8 +112,7 @@ def test_abilities_map_onto_implemented_flags_only():
     texts = AbilityTexts(
         entries=(
             AbilityText(name="盾牌防禦", owner="unit", effect="shield_defense", magnitude=0.2),
-            AbilityText(name="攔截支援", owner="unit", effect="attack_shield"),
-            AbilityText(name="攔截減輕", owner="unit", effect="interception_reduction", magnitude=0.3),
+            AbilityText(name="攔截支援", owner="unit", effect="support_defend_when_attack"),
             AbilityText(name="支援防禦+1次", owner="pilot", effect="support_defend_charge", magnitude=1),
             AbilityText(name="EN回復", owner="pilot", effect="skill_en_refill", magnitude=50),
             AbilityText(name="複製新人類", owner="pilot", effect=None),
@@ -123,11 +122,10 @@ def test_abilities_map_onto_implemented_flags_only():
     result = unit_intel_from_panels("kshatriya", abilities=texts)
     record = result.record
     assert record.has_shield is True
-    assert record.attack_shield is True
-    assert record.interception_reduction == 0.3
+    assert record.support_defend_when_attack is True
     assert record.support_defend_charges_max == 1
     assert [(skill.kind, skill.amount) for skill in record.skills] == [
-        (ActionKind.SKILL_EN_REFILL, 50.0)
+        ("skill_en_refill", 50.0)
     ]
     assert result.unsupported == ("自身覺醒值及反應值提升10%",)
 

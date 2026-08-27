@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ggge_ai.runtime.perceive import Observation
-from ggge_ai.engine.contract import ActionKind, Faction
+from ggge_ai.engine.contract import Faction
 from ggge_ai.stage.intel import (
     IntelPerceiver,
     Intelligence,
@@ -25,8 +25,8 @@ BEAM = WeaponIntel(
     crit_pct=10,
     level=2,
 )
-MAP_GUN = WeaponIntel(name="メガ粒子砲", power=300.0, range_max=5, map_weapon=True, blast=1, ammo=2)
-REFILL = SkillIntel(kind=ActionKind.SKILL_EN_REFILL, amount=40.0, uses=2)
+MAP_GUN = WeaponIntel(name="メガ粒子砲", power=300.0, range_max=5, map_weapon=True, ammo=2)
+REFILL = SkillIntel(kind="skill_en_refill", amount=40.0, uses=2)
 
 
 def unicorn() -> UnitIntel:
@@ -47,8 +47,7 @@ def unicorn() -> UnitIntel:
         support_attack_charges_max=2,
         support_defend_charges_max=1,
         has_shield=True,
-        attack_shield=True,
-        interception_reduction=0.15,
+        support_defend_when_attack=True,
         pilot_shooting=583.0,
         pilot_melee=700.0,
         pilot_awakening=690.0,
@@ -103,12 +102,11 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert [weapon.name for weapon in unit.weapons] == ["ビームライフル", "メガ粒子砲"]
     assert unit.weapon("メガ粒子砲").map_weapon
     assert unit.ammo == {"メガ粒子砲": 2}
-    assert [skill.kind for skill in unit.skills] == [ActionKind.SKILL_EN_REFILL]
+    assert [skill.kind for skill in unit.skills] == ["skill_en_refill"]
     assert unit.chance_steps == unit.chance_steps_max == 1
     assert unit.support_attack_charges == 2
     assert unit.support_defend_charges == 1
-    assert (unit.has_shield, unit.attack_shield) == (True, True)
-    assert unit.interception_reduction == 0.15
+    assert (unit.has_shield, unit.support_defend_when_attack) == (True, True)
 
 
 def test_the_weapon_carries_its_badges_its_crit_and_its_level():

@@ -17,7 +17,7 @@ from enum import StrEnum
 from typing import Any
 
 from ..runtime.perceive import Observation, Perceiver
-from ..engine.contract import ActionKind, Cell, Faction
+from ..engine.contract import Cell, Faction
 from ..engine.state import Skill, Unit, Weapon
 from .state import StageState
 
@@ -49,7 +49,6 @@ class WeaponIntel:
     accuracy: float = 0.0
     can_counter: bool = True
     map_weapon: bool = False
-    blast: int = 0
     ammo: int = 0
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
@@ -67,7 +66,6 @@ class WeaponIntel:
             accuracy=self.accuracy,
             can_counter=self.can_counter,
             map_weapon=self.map_weapon,
-            blast=self.blast,
             debuff_kind=self.debuff_kind,
             debuff_magnitude=self.debuff_magnitude,
         )
@@ -75,7 +73,7 @@ class WeaponIntel:
 
 @dataclass(frozen=True)
 class SkillIntel:
-    kind: ActionKind
+    kind: str
     amount: float | None = None
     uses: int = 1
     ends_activation: bool = True
@@ -114,8 +112,7 @@ class UnitIntel:
     support_attack_charges_max: int = 0
     support_defend_charges_max: int = 0
     has_shield: bool = False
-    attack_shield: bool = False
-    interception_reduction: float = 0.0
+    support_defend_when_attack: bool = False
     pilot_shooting: float = 0.0
     pilot_melee: float = 0.0
     pilot_awakening: float = 0.0
@@ -173,8 +170,7 @@ class UnitIntel:
             support_attack_charges=self.support_attack_charges_max,
             support_attack_charges_max=self.support_attack_charges_max,
             has_shield=self.has_shield,
-            attack_shield=self.attack_shield,
-            interception_reduction=self.interception_reduction,
+            support_defend_when_attack=self.support_defend_when_attack,
             ammo={weapon.name: weapon.ammo for weapon in self.weapons if weapon.ammo > 0},
         )
 
@@ -258,7 +254,7 @@ def _weapon_from_dict(data: dict[str, Any]) -> WeaponIntel:
 
 def _skill_from_dict(data: dict[str, Any]) -> SkillIntel:
     return SkillIntel(
-        kind=ActionKind(data["kind"]),
+        kind=str(data["kind"]),
         amount=data.get("amount"),
         uses=data.get("uses", 1),
         ends_activation=data.get("ends_activation", True),

@@ -358,7 +358,7 @@ def test_the_assembled_scenario_loads_and_builds():
 
     data = build_scenario(recon, "UC HARD 1", BOARD, StageBrief("擊墜全部敵人", "我方全滅"), "run x")
     scenario = scenario_mod.from_dict(json.loads(json.dumps(data)))
-    state, _rules, _events = scenario.build()
+    state, _events = scenario.build()
 
     assert data["format"] == "sandbox-scenario/1"
     assert len(state.enemies()) == 1

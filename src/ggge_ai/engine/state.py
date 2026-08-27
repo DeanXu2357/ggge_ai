@@ -11,23 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance
-
-
-@dataclass(frozen=True)
-class Rules:
-    """機制倍率與上限；逐項實測狀態見 docs/reference/combat-formulas.md 待標定清單。"""
-
-    defend_multiplier: float = 0.8
-    shield_multiplier: float = 0.6
-    support_defend_multiplier: float = 0.8
-    dodge_hit_penalty: float = 20.0
-    terrain: float = 1.0
-    max_support_attackers: int = 3
-    en_regen_fraction: float = 0.10
-
-
-DEFAULT_RULES = Rules()
+from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance, Terrain
 
 
 @dataclass(frozen=True)
@@ -41,7 +25,6 @@ class Weapon:
     can_counter: bool = True
     map_weapon: bool = False
     usable_after_move: bool = True
-    blast: int = 0
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
 
@@ -55,8 +38,8 @@ class Skill:
     caster is an ally in its own cell.
     """
 
-    kind: ActionKind
-    source: SkillSource = SkillSource.UNIT
+    kind: str
+    source: SkillSource = SkillSource.MECH
     amount: float | None = None
     uses: int = 1
     ends_activation: bool = True
@@ -103,8 +86,7 @@ class Unit:
     support_attack_charges: int = 0
     support_attack_charges_max: int = 0
     has_shield: bool = False
-    attack_shield: bool = False
-    interception_reduction: float = 0.0
+    support_defend_when_attack: bool = False
     ammo: dict[str, int] = field(default_factory=dict)
     debuffs: list[Debuff] = field(default_factory=list)
 
@@ -150,6 +132,12 @@ class StageEvent:
 EventTable = dict[str, StageEvent]
 
 
+@dataclass(frozen=True)
+class TerrainCell:
+    cell: Cell
+    terrain: Terrain
+
+
 @dataclass
 class BattleState:
     units: list[Unit] = field(default_factory=list)
@@ -158,6 +146,8 @@ class BattleState:
     bounds: tuple[Cell, Cell] | None = None
     pending_events: tuple[str, ...] = ()
     fired_events: tuple[str, ...] = ()
+    terrain: Terrain | None = None
+    terrain_cells: tuple[TerrainCell, ...] = ()
 
     def unit(self, unit_id: str | None) -> Unit | None:
         if unit_id is None:
@@ -197,8 +187,8 @@ class Reaction:
 
     stance: Stance | None = None
     weapon: str | None = None
-    support_defend: bool = False
-    support_attack: bool = True
+    support_defender: str | None = None
+    support_attackers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -212,7 +202,8 @@ class Decision:
     weapon: str | None = None
     amount: float | None = None
     reaction: Reaction | None = None
-    support: bool = True
+    support_defender: str | None = None
+    support_attackers: tuple[str, ...] = ()
     aim: Cell | None = None
     hit: bool | None = None
     counter_hit: bool | None = None
