@@ -12,8 +12,8 @@ this session: no file of it is read.
 
 ## Rulings of 2026-08-27
 
-The user ruled on these points before the plan. Each one binds the
-branch.
+The user ruled on points 1 to 8 before the plan, and on point 9
+during the merge review. Each one binds the branch.
 
 1. Oracle. No Python run and no reuse of the two old fixtures. The
    expected states of the turn-cycle fixtures come by hand from
@@ -51,6 +51,11 @@ branch.
    sides exchanged; the loop ends when one side is gone. The page
    attack path waits for issue #78; this branch changes no line of
    scripts/sandbox_ui.py.
+9. Names of the helpers of the 'act' handler. The branch renames
+   'activation' and 'roll', because the branch introduces the two
+   and 'act' is the only caller of each. The helper 'boardOf' is
+   code of 'dev' with five callers after the merge, so it goes to
+   issue #82 and lands after this branch merges.
 
 Assumptions that the user did not rule on, stated here for the
 review:
@@ -63,8 +68,8 @@ review:
 
 ## Resume point
 
-All nine tasks landed. The branch waits for the final review and
-/finish-task.
+All nine tasks, the final fix wave, and the two helper names of
+'act' landed. The branch waits for the merge review of the user.
 
 ## Progress log
 
@@ -77,6 +82,10 @@ All nine tasks landed. The branch waits for the final review and
 - Task 6: 83dcfc3..960b998.
 - Task 7: 69b5d90..028754a.
 - Task 8: dcef418..7996ac5.
+- Task 9: 81eac28..9aec841.
+- Fix wave of the two reviews: fac0051..065fcec.
+- Roadmap reworked into the review artifact: 51d3fac.
+- Names of the two helpers of 'act', per ruling 9: 910a8c1.
 
 ## Final review
 
