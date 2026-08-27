@@ -96,15 +96,16 @@ scripts/crawl_datamine.py main()
    rows.** Two fetches of `unit` and of `stage` gave the same bytes
    on 2026-08-22, so upstream order is stable at one stamp. Sorting
    the rows by `id` would also work and would survive an upstream
-   reorder, but it would hide that reorder. A ruling either way is
-   welcome.
+   reorder, but it would hide that reorder. Ruling 2026-08-28: keep
+   the order of the source ("保留原順序").
 
 6. **A re-run at one stamp overwrites the five files in place.** It
    removes no other file of that directory. Review finding 4 asked
    for a temp directory and a swap, or for a clear of the
    directory. Neither is done: deleting files that the crawler did
    not write is a destructive act for a small gain. The behaviour
-   is now in the reference document instead. A ruling is welcome.
+   is now in the reference document instead. Ruling 2026-08-28:
+   overwrite in place ("原地覆寫").
 
 7. **The store is not in the repository.** `data/` is gitignored, so
    the 114 MB dump does not travel with the merge. The reviewer's
@@ -140,8 +141,11 @@ Verified against the rendered pages: `rarity` 5 is UR, `role` 1, 2, 3
 is 攻擊型, 耐久型, 支援型, and `terrain` 3, 2, 1 is ○, △, －.
 
 The sample store is in `docs/`, not in `data/`, because it must
-travel with the repository. 832 KB. The location is open to a
-ruling.
+travel with the repository. 832 KB. Ruling 2026-08-28: it stays in
+`docs/` ("留在 docs").
+
+Ruling 2026-08-28: the crawler does not fetch the pilot, the support
+crew or the per-id forms ("不用"). Issue #84 owns the pilot crawl.
 
 ## Deferred
 
