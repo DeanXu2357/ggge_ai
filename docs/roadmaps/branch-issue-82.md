@@ -19,6 +19,8 @@ user.
 - The rename: fe98040.
 - The decode in place and the trimmed comment: 29b552f.
 - The decode back in the wrapper, with the rule stated: 396631c.
+- The absent payload read at the transport: 2944a1e.
+- The comments off the two functions: 4b29c24.
 
 ## Change summary
 
@@ -52,14 +54,21 @@ answers 'bad_request'.
 The handler 'act' calls 'decodeActivation(request)' in place of
 'decodeActivation(&request)', because the request is a pointer now.
 
-The comment of the prologue holds one line: the reason that the
-server comes in as an argument. The other four lines stated the flow
-that the code states.
+The prologue carries no comment. The comment it carried stated the
+flow that the code states.
 
-The helper 'decode' keeps the decode of the payload, and it now
-states its rule: a command that needs no field arrives with no
-'payload', 'json.Unmarshal' refuses empty input, and an absent
-payload gives a zero request.
+The transport takes the rule of the absent payload. The function
+'dispatch' of 'engine/server/server.go' parses the envelope, and it
+now gives every handler one shape: 'payloadOf' answers an empty
+object for a request that carries no 'payload'. The Transport
+section of the spec states the rule.
+
+The private wrapper 'decode' is gone. It held the rule, and three
+handlers called it; that is a coupling to a function and not a
+contract, because a handler written later takes the rule only when
+its author copies the call. With the rule at the transport, the
+wrapper held 'json.Unmarshal' alone, so the three sites call
+'json.Unmarshal'.
 
 ## Call chain
 
@@ -69,10 +78,12 @@ payload gives a zero request.
     server.export     -> openCommand[protocol.ExportRequest]
     server.reach      -> openCommand[protocol.ReachRequest]
 
-    openCommand -> decode -> json.Unmarshal
+    Serve -> dispatch -> payloadOf -> handler
 
-The commands 'init' and 'load' call 'decode' straight, because each
-one builds a session and reads no board.
+    openCommand -> json.Unmarshal
+
+The commands 'init' and 'load' call 'json.Unmarshal' straight,
+because each one builds a session and reads no board.
 
 ## Contention points for the reviewer
 
@@ -80,14 +91,17 @@ one builds a session and reads no board.
    command: the session must hold a board, and the payload must
    decode. The alternative 'boardAndRequest' names the two results
    and not the duties.
-2. The helper 'decode' stays, and the prologue calls it. The
-   branch tried the decode in place (29b552f) and took it back
-   (396631c): the rule of the absent payload then stood in two
-   places, because 'init' and 'load' hold the other one, and two
-   copies of one rule drift apart. The test
+2. The rule of the absent payload moved to the transport, and the
+   spec gains a sentence in the Transport section. Issue #82 says
+   no document change, so this is the one step past its text. The
+   reason: the rule held no statement anywhere, and three handlers
+   were coupled to one private function in place of a contract.
+   The branch reached this in three steps: the decode in place
+   (29b552f), the decode back in the wrapper (396631c), and the
+   rule at the transport (2944a1e). The test
    'TestABoardCommandTakesALineWithNoPayload' pins the rule: with
-   the guard removed, 'export' with no payload answers
-   'bad_request' with the message of an empty input.
+   'payloadOf' taken out of 'dispatch', 'export' with no payload
+   answers 'bad_request' with the message of an empty input.
 3. The command 'export' takes '_' for its request. The type
    'ExportRequest' holds no field that the handler reads today. A
    named request that nothing reads would not compile.
