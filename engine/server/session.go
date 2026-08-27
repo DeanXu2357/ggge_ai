@@ -38,32 +38,23 @@ func init() {
 	Register("export", func(s *Server) Handler { return s.export })
 }
 
-func decode[T any](payload json.RawMessage, into *T) error {
-	if len(payload) == 0 {
-		return nil
-	}
-	return json.Unmarshal(payload, into)
-}
-
-// boardOf gives the board of the session and the request of a command that
-// reads the board, or the failure response that the caller answers with. A
-// method carries no type parameter, so the server comes in as an argument.
-func boardOf[T any](s *Server, id string, payload json.RawMessage,
-	into *T) (*battle.Board, *protocol.Response) {
+func openCommand[T any](s *Server, id string, payload json.RawMessage) (
+	*T, *battle.Board, *protocol.Response) {
+	var request T
 	if s.session == nil {
 		fail := protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
-		return nil, &fail
+		return nil, nil, &fail
 	}
-	if err := decode(payload, into); err != nil {
+	if err := json.Unmarshal(payload, &request); err != nil {
 		fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
-		return nil, &fail
+		return nil, nil, &fail
 	}
-	return s.session.board, nil
+	return &request, s.session.board, nil
 }
 
 func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 	var request protocol.LoadRequest
-	if err := decode(payload, &request); err != nil {
+	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
 	board, err := battle.DecodeState(&request.State)
@@ -88,8 +79,7 @@ func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 }
 
 func (s *Server) export(id string, payload json.RawMessage) protocol.Response {
-	var request protocol.ExportRequest
-	board, fail := boardOf(s, id, payload, &request)
+	_, board, fail := openCommand[protocol.ExportRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
@@ -105,8 +95,7 @@ func (s *Server) export(id string, payload json.RawMessage) protocol.Response {
 }
 
 func (s *Server) reach(id string, payload json.RawMessage) protocol.Response {
-	var request protocol.ReachRequest
-	board, fail := boardOf(s, id, payload, &request)
+	request, board, fail := openCommand[protocol.ReachRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
