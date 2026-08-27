@@ -686,12 +686,9 @@ constant of 'engine/battle/rules.go', and the section 'Weapon
 abilities' holds the rule that does vary. One stage held one terrain
 value until 2026-08-26.
 
-Open, for the issue that implements 'init': the field 'board' of
-the request must carry the terrain of the map, in the same two
-fields that the state carries above. The user ruled on 2026-08-21
-that the terrain of each cell arrives when the board is built.
-Today 'board' carries the width and the height alone, and 'init'
-is not implemented.
+The field 'board' of 'init' carries the terrain of the map:
+'terrain' is the default kind, and 'terrain_cells' lists the cells
+of another kind. The section 'init' holds the request.
 
 ### Weapon abilities
 
