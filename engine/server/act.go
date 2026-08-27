@@ -22,11 +22,11 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 		return protocol.Fail(id, protocol.CodeIllegalAction,
 			"the reaction is necessary for an attack and not permitted for every other kind")
 	}
-	decision, err := activation(&request)
+	decision, err := decodeActivation(&request)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	dice, manual, err := s.roll(&request.Dice)
+	dice, manual, err := s.openDice(&request.Dice)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
@@ -49,9 +49,7 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	})
 }
 
-// The request names the unit two times, and the two must agree; an empty
-// action id takes the request id.
-func activation(request *protocol.ActRequest) (battle.Decision, error) {
+func decodeActivation(request *protocol.ActRequest) (battle.Decision, error) {
 	if request.Action.UnitID == "" {
 		request.Action.UnitID = request.UnitID
 	}
@@ -75,7 +73,7 @@ func activation(request *protocol.ActRequest) (battle.Decision, error) {
 	return decision, nil
 }
 
-func (s *Server) roll(dice *protocol.Dice) (battle.Dice, *battle.ManualRoll, error) {
+func (s *Server) openDice(dice *protocol.Dice) (battle.Dice, *battle.ManualRoll, error) {
 	switch dice.Mode {
 	case protocol.DiceForced:
 		outcomes, err := battle.DecodeOutcomes(dice.Outcomes)
