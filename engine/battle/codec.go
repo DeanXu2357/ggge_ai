@@ -2,6 +2,8 @@ package battle
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
@@ -68,6 +70,14 @@ var wireStances = map[Stance]protocol.Stance{
 	StanceDefend:  protocol.StanceDefend,
 	StanceCounter: protocol.StanceCounter,
 	StanceNone:    protocol.StanceNone,
+}
+
+var wireTerrains = map[Terrain]string{
+	TerrainSpace:       "space",
+	TerrainAtmospheric: "atmospheric",
+	TerrainGround:      "ground",
+	TerrainSurface:     "surface",
+	TerrainUnderwater:  "underwater",
 }
 
 func DecodeState(state *protocol.BattleState) (*Board, error) {
@@ -618,4 +628,98 @@ func decodeBounds(bounds *protocol.Bounds) (Bounds, error) {
 		return Bounds{}, fmt.Errorf("the state carries no bounds")
 	}
 	return Bounds{Low: DecodeCell(bounds[0]), High: DecodeCell(bounds[1])}, nil
+}
+
+func DecodeInit(request *protocol.InitRequest) (*Board, error) {
+	if request.Board.Width < 1 || request.Board.Height < 1 {
+		return nil, fmt.Errorf("the board %dx%d holds no cell", request.Board.Width, request.Board.Height)
+	}
+	units, err := decodeUnits(request.Enemies)
+	if err != nil {
+		return nil, err
+	}
+	bounds := Bounds{High: Cell{request.Board.Width - 1, request.Board.Height - 1}}
+	board, err := NewBoard(bounds, units)
+	if err != nil {
+		return nil, err
+	}
+	if board.DefaultTerrain, err = decodeTerrain(request.Board.Terrain); err != nil {
+		return nil, err
+	}
+	if board.TerrainCells, err = decodeTerrainCells(request.Board.TerrainCells); err != nil {
+		return nil, err
+	}
+	board.Phase = FactionAlly
+	board.Turn = 1
+	return board, nil
+}
+
+func EncodeState(board *Board) protocol.BattleState {
+	bounds := protocol.Bounds{EncodeCell(board.Bounds.Low), EncodeCell(board.Bounds.High)}
+	return protocol.BattleState{
+		Units:         EncodeUnits(board.Units),
+		Phase:         wireFactions[board.Phase],
+		Turn:          board.Turn,
+		Bounds:        &bounds,
+		PendingEvents: []string{},
+		FiredEvents:   []string{},
+		Terrain:       wireTerrains[board.DefaultTerrain],
+		TerrainCells:  encodeTerrainCells(board.TerrainCells),
+	}
+}
+
+func encodeTerrainCells(cells map[Cell]Terrain) []protocol.TerrainCell {
+	keys := slices.SortedFunc(maps.Keys(cells), func(a, b Cell) int {
+		if a[0] != b[0] {
+			return a[0] - b[0]
+		}
+		return a[1] - b[1]
+	})
+	out := make([]protocol.TerrainCell, 0, len(keys))
+	for _, cell := range keys {
+		out = append(out, protocol.TerrainCell{Cell: EncodeCell(cell), Terrain: wireTerrains[cells[cell]]})
+	}
+	return out
+}
+
+func DecodeOutcomes(labels []string) ([]bool, error) {
+	out := make([]bool, 0, len(labels))
+	for index, label := range labels {
+		switch label {
+		case "hit":
+			out = append(out, true)
+		case "miss":
+			out = append(out, false)
+		default:
+			return nil, fmt.Errorf("outcome %d is %q, and the contract holds 'hit' and 'miss'", index, label)
+		}
+	}
+	return out, nil
+}
+
+func EncodeResolution(resolution Resolution) []any {
+	out := make([]any, 0, len(resolution.Trace)+len(resolution.Rotations))
+	for _, strike := range resolution.Trace {
+		out = append(out, protocol.StrikeEvent{
+			Event: "strike", Strike: string(strike.Kind),
+			ShooterID: strike.ShooterID, StruckID: strike.StruckID, Weapon: strike.Weapon,
+			Landed: strike.Landed, Damage: strike.Damage, Killed: strike.Killed,
+		})
+	}
+	for _, rotation := range resolution.Rotations {
+		out = append(out, protocol.PhaseEvent{Event: "phase", Turn: rotation.Turn, Phase: wireFactions[rotation.Phase]})
+	}
+	return out
+}
+
+func EncodeSummary(board *Board) protocol.BoardSummary {
+	pending := []string{}
+	for _, unit := range board.Pending(board.Phase) {
+		pending = append(pending, unit.ID)
+	}
+	gone := []protocol.Faction{}
+	for _, faction := range board.Gone() {
+		gone = append(gone, wireFactions[faction])
+	}
+	return protocol.BoardSummary{Turn: board.Turn, Phase: wireFactions[board.Phase], Pending: pending, Gone: gone}
 }
