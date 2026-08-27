@@ -38,10 +38,6 @@ func init() {
 	Register("export", func(s *Server) Handler { return s.export })
 }
 
-// A command that needs no field arrives with no 'payload', and
-// json.Unmarshal refuses empty input. An absent payload gives a zero
-// request.
-// A method carries no type parameter, so the server comes in as an argument.
 func openCommand[T any](s *Server, id string, payload json.RawMessage) (
 	*T, *battle.Board, *protocol.Response) {
 	var request T

@@ -63,9 +63,6 @@ func (s *Server) dispatch(line []byte) protocol.Response {
 		fmt.Sprintf("command %q is not in the contract", request.Cmd))
 }
 
-// A command that needs no field arrives with no 'payload', and
-// json.Unmarshal refuses empty input. The transport gives every handler
-// one shape to decode.
 func payloadOf(request protocol.Request) json.RawMessage {
 	if len(request.Payload) == 0 {
 		return json.RawMessage("{}")
