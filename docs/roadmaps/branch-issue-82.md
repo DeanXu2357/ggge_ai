@@ -18,6 +18,7 @@ user.
 - 2026-08-27: worktree added, roadmap written (4eaeb27).
 - The rename: fe98040.
 - The decode in place and the trimmed comment: 29b552f.
+- The decode back in the wrapper, with the rule stated: 396631c.
 
 ## Change summary
 
@@ -51,11 +52,14 @@ answers 'bad_request'.
 The handler 'act' calls 'decodeActivation(request)' in place of
 'decodeActivation(&request)', because the request is a pointer now.
 
-The prologue decodes the payload with 'json.Unmarshal' and no
-wrapper. An absent payload still gives a zero request: a command
-that needs no field, such as 'export', carries no payload, and
-'json.Unmarshal' refuses empty input. The comment of the prologue
-holds one line: the reason that the server comes in as an argument.
+The comment of the prologue holds one line: the reason that the
+server comes in as an argument. The other four lines stated the flow
+that the code states.
+
+The helper 'decode' keeps the decode of the payload, and it now
+states its rule: a command that needs no field arrives with no
+'payload', 'json.Unmarshal' refuses empty input, and an absent
+payload gives a zero request.
 
 ## Call chain
 
@@ -76,12 +80,11 @@ one builds a session and reads no board.
    command: the session must hold a board, and the payload must
    decode. The alternative 'boardAndRequest' names the two results
    and not the duties.
-2. The prologue calls 'json.Unmarshal' straight, on the word of the
-   user: the private wrapper 'decode' was one hop between the
-   reader and the two guards. The wrapper stays for 'init' and
-   'load', which build a session and read no board, so the rule
-   that an absent payload gives a zero request now stands in two
-   places. The test
+2. The helper 'decode' stays, and the prologue calls it. The
+   branch tried the decode in place (29b552f) and took it back
+   (396631c): the rule of the absent payload then stood in two
+   places, because 'init' and 'load' hold the other one, and two
+   copies of one rule drift apart. The test
    'TestABoardCommandTakesALineWithNoPayload' pins the rule: with
    the guard removed, 'export' with no payload answers
    'bad_request' with the message of an empty input.
