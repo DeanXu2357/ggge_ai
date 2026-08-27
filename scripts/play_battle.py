@@ -15,7 +15,7 @@ from ggge_ai.engine.contract import DiceMode  # noqa: E402
 from ggge_ai.engine.play import Player  # noqa: E402
 from ggge_ai.engine.session import EngineSession  # noqa: E402
 
-FORCED_HITS = {"mode": "forced", "outcomes": ["hit", "hit", "hit", "hit"]}
+FORCED_HITS = {"mode": str(DiceMode.FORCED), "outcomes": ["hit", "hit", "hit", "hit"]}
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

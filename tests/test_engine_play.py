@@ -13,14 +13,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ggge_ai.engine.client import BattleEngine
+import pytest
+
+from ggge_ai.engine.client import BattleEngine, EngineError
+from ggge_ai.engine.contract import DiceMode
 from ggge_ai.engine.play import Player, decision
 from ggge_ai.engine.session import EngineSession
 
 ROOT = Path(__file__).resolve().parents[1]
 ENGAGEMENT = ROOT / "tests/fixtures/engine/engagement_board.json"
 PLACEHOLDER = ROOT / "assets/scenarios/uc_hard_1_placeholder.json"
-FORCED_HITS = {"mode": "forced", "outcomes": ["hit", "hit", "hit", "hit"]}
+FORCED_HITS = {"mode": str(DiceMode.FORCED), "outcomes": ["hit", "hit", "hit", "hit"]}
 
 
 def _engagement_state() -> dict:
@@ -41,6 +44,46 @@ def test_a_decision_carries_every_key_of_the_wire():
     }
 
 
+class _RefusesEveryPickButStandby:
+    def __init__(self, gone: list[str], refuse_standby: bool = False) -> None:
+        self.gone = gone
+        self.refuse_standby = refuse_standby
+        self.kinds: list[str] = []
+
+    def call(self, cmd: str, payload: dict | None = None) -> dict:
+        if cmd == "export":
+            return {"state": {"turn": 1, "phase": "ally", "units": [
+                {"unit_id": "a", "faction": "ally", "pos": [0, 0], "hp": 10, "acted": False},
+                {"unit_id": "b", "faction": "enemy", "pos": [3, 0], "hp": 10, "acted": False},
+            ]}}
+        if cmd == "actions":
+            return {"move_cells": [[1, 0]], "weapons": []}
+        kind = payload["action"]["kind"]
+        self.kinds.append(kind)
+        if len(self.kinds) > 4:
+            raise AssertionError("the loop did not stop on the field 'gone'")
+        if kind != "standby" or self.refuse_standby:
+            raise EngineError("illegal_action", "the engine refuses the pick")
+        return {"events": [], "board": {"turn": 1, "phase": "ally", "pending": [], "gone": self.gone}}
+
+
+def test_a_refused_pick_falls_back_to_the_standby():
+    engine = _RefusesEveryPickButStandby(gone=["enemy"])
+
+    outcome = Player(engine).play(max_turns=5)
+
+    assert engine.kinds == ["reposition", "standby"]
+    assert outcome.gone == ["enemy"]
+    assert [entry["request"]["action"]["kind"] for entry in outcome.log] == ["standby"]
+
+
+def test_a_refused_standby_propagates():
+    engine = _RefusesEveryPickButStandby(gone=[], refuse_standby=True)
+
+    with pytest.raises(EngineError):
+        Player(engine).play(max_turns=5)
+
+
 def test_the_loop_plays_the_engagement_board_to_the_end(engine_executable):
     outcome = _play_engagement(engine_executable, seed=3, dice=FORCED_HITS)
 
@@ -51,6 +94,7 @@ def test_the_loop_plays_the_engagement_board_to_the_end(engine_executable):
 def test_every_activation_is_of_the_side_of_its_phase(engine_executable):
     outcome = _play_engagement(engine_executable, seed=3)
 
+    assert outcome.log
     for entry in outcome.log:
         assert entry["actor_faction"] == entry["phase"]
 
@@ -67,7 +111,7 @@ def test_an_attack_carries_the_reaction_of_the_defender(engine_executable):
         assert entry["answer"]["events"][0]["event"] == "strike"
 
 
-def test_the_sampled_battle_stalls_on_the_placeholder_hit_rates(engine_executable):
+def test_the_sampled_battle_stalls_on_the_fixture_hit_rates(engine_executable):
     outcome = _play_engagement(engine_executable, seed=3, max_turns=5)
 
     events = [event for entry in outcome.log for event in entry["answer"]["events"]]
@@ -79,6 +123,7 @@ def test_one_seed_gives_one_log(engine_executable):
     first = _play_engagement(engine_executable, seed=3)
     second = _play_engagement(engine_executable, seed=3)
 
+    assert first.log
     assert first.log == second.log
 
 

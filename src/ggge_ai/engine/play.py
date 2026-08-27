@@ -5,7 +5,9 @@ from the engine, the menu of each unit from 'actions', the answer of
 the struck unit from 'reactions', and lets 'act' settle the engagement.
 The loop holds no rule of the battle: the engine refuses an illegal
 pick, and the loop takes the refusal as the answer and tries the next
-pick. The order of the picks is a preference, not a rule.
+pick. A refused activation falls back to a standby, and the loop stops
+on the field 'gone' of the answer of 'act'. The order of the picks is a
+preference, not a rule.
 """
 
 from __future__ import annotations
@@ -15,8 +17,6 @@ from typing import Any
 
 from .client import EngineError
 from .contract import DiceMode
-
-SIDES = ("ally", "enemy")
 
 
 def decision(
@@ -74,29 +74,43 @@ class Player:
 
     def play(self, max_turns: int) -> Outcome:
         log: list[dict[str, Any]] = []
-        while True:
+        gone: list[str] = []
+        turn = 0
+        while not gone:
             state = self._engine.call("export")["state"]
-            living = [unit for unit in state["units"] if unit["hp"] > 0]
-            gone = [side for side in SIDES if not any(unit["faction"] == side for unit in living)]
-            if gone or state["turn"] > max_turns:
-                return Outcome(gone=gone, turn=state["turn"], log=log)
+            turn = state["turn"]
+            if turn > max_turns:
+                break
             phase = state["phase"]
+            living = [unit for unit in state["units"] if unit["hp"] > 0]
             pending = [unit for unit in living if unit["faction"] == phase and not unit["acted"]]
             if not pending:
                 raise RuntimeError(f"the engine left the phase {phase!r} with no pending unit")
             actor = pending[0]
             foes = [unit for unit in living if unit["faction"] != phase]
-            request = self._pick(actor, foes)
-            answer = self._engine.call("act", request)
+            request, answer = self._settle(self._pick(actor, foes), actor)
+            gone = answer["board"]["gone"]
             log.append(
                 {
-                    "turn": state["turn"],
+                    "turn": turn,
                     "phase": phase,
                     "actor_faction": actor["faction"],
                     "request": request,
                     "answer": answer,
                 }
             )
+        return Outcome(gone=gone, turn=turn, log=log)
+
+    def _settle(
+        self, request: dict[str, Any], actor: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        try:
+            return request, self._engine.call("act", request)
+        except EngineError:
+            if request["action"]["kind"] == "standby":
+                raise
+            standby = self._standby(actor["unit_id"])
+            return standby, self._engine.call("act", standby)
 
     def _pick(self, actor: dict[str, Any], foes: list[dict[str, Any]]) -> dict[str, Any]:
         menu = self._engine.call("actions", {"unit_id": actor["unit_id"]})
@@ -140,9 +154,12 @@ class Player:
                 "action": decision(actor["unit_id"], "reposition", move_to=cells[1]),
                 "dice": dict(self._dice),
             }
+        return self._standby(actor["unit_id"])
+
+    def _standby(self, unit_id: str) -> dict[str, Any]:
         return {
-            "unit_id": actor["unit_id"],
-            "action": decision(actor["unit_id"], "standby"),
+            "unit_id": unit_id,
+            "action": decision(unit_id, "standby"),
             "dice": dict(self._dice),
         }
 
