@@ -41,8 +41,7 @@ template vision.
   Do not make more blind attempts.
 - At the end of a task session: run `/finish-task`. It runs the gates,
   reworks the branch roadmap into the review artifact, updates the
-  issue, releases the device lock, and notifies the user. The user
-  does all merges and closes all issues.
+  issue, releases the device lock, and notifies the user.
 - Communicate with the user in English. Use Chinese only when the user
   asks for a Chinese reply. When you use Chinese, use Traditional
   Chinese only. Do not use Simplified Chinese. Write the English in the

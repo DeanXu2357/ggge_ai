@@ -4,7 +4,8 @@
 
 This document defines the task flow: one GitHub issue is one task,
 one task gets one branch, and every session develops in a worktree.
-The user does all merges and closes all issues.
+The user decides every merge and every close of an issue. A session
+does the merge or the close when the user says so.
 
 Two skills are the entry points: '/start-task' executes the session
 start checklist, '/finish-task' executes the completion steps.
@@ -14,8 +15,8 @@ document. This document holds the steps.
 
 ## Roles
 
-- The user assigns issues, reviews branches, merges, and closes
-  issues.
+- The user assigns issues, reviews branches, and decides every merge
+  and every close of an issue.
 - The main session orchestrates: it plans, updates the issue, runs
   live verification, and delegates to subagents.
 - Subagents do scoped work. See "Subagent placement".
@@ -138,12 +139,13 @@ agrees.
 7. Send a Discord notification: branch, commit, review artifact
    path, what the user must do.
 
-Then the session stops. It does not merge, and it does not close the
-issue. The user reviews.
+Then the session stops and the user reviews. The session merges the
+branch or closes the issue only when the user says so.
 
 - Approve: the session deletes the roadmap in a final commit; the
-  user merges the branch into 'dev' and closes the issue; remove the
-  worktree, then delete the branch.
+  merge into 'dev' and the close of the issue follow, by the user or
+  by the session on the word of the user; remove the worktree, then
+  delete the branch.
 - Reject: the user comments on the issue; the next session resumes
   from the session start checklist.
 
