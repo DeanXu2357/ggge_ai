@@ -13,8 +13,7 @@ func init() {
 }
 
 func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
-	var request protocol.ActRequest
-	board, fail := boardOf(s, id, payload, &request)
+	request, board, fail := openCommand[protocol.ActRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
@@ -22,7 +21,7 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 		return protocol.Fail(id, protocol.CodeIllegalAction,
 			"the reaction is necessary for an attack and not permitted for every other kind")
 	}
-	decision, err := decodeActivation(&request)
+	decision, err := decodeActivation(request)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}

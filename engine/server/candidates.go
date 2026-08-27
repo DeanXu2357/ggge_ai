@@ -14,8 +14,7 @@ func init() {
 }
 
 func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
-	var request protocol.ActionsRequest
-	board, fail := boardOf(s, id, payload, &request)
+	request, board, fail := openCommand[protocol.ActionsRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
@@ -30,8 +29,7 @@ func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
 }
 
 func (s *Server) reactions(id string, payload json.RawMessage) protocol.Response {
-	var request protocol.ReactionsRequest
-	board, fail := boardOf(s, id, payload, &request)
+	request, board, fail := openCommand[protocol.ReactionsRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}

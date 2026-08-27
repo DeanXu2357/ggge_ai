@@ -45,20 +45,23 @@ func decode[T any](payload json.RawMessage, into *T) error {
 	return json.Unmarshal(payload, into)
 }
 
-// boardOf gives the board of the session and the request of a command that
-// reads the board, or the failure response that the caller answers with. A
-// method carries no type parameter, so the server comes in as an argument.
-func boardOf[T any](s *Server, id string, payload json.RawMessage,
-	into *T) (*battle.Board, *protocol.Response) {
+// openCommand runs the prologue of a command that reads the board: the
+// session must hold a board, and the payload must decode. It gives the
+// request, the board, and the failure response that the caller answers
+// with. A method carries no type parameter, so the server comes in as an
+// argument.
+func openCommand[T any](s *Server, id string, payload json.RawMessage) (
+	*T, *battle.Board, *protocol.Response) {
+	var request T
 	if s.session == nil {
 		fail := protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
-		return nil, &fail
+		return nil, nil, &fail
 	}
-	if err := decode(payload, into); err != nil {
+	if err := decode(payload, &request); err != nil {
 		fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
-		return nil, &fail
+		return nil, nil, &fail
 	}
-	return s.session.board, nil
+	return &request, s.session.board, nil
 }
 
 func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
@@ -88,8 +91,7 @@ func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 }
 
 func (s *Server) export(id string, payload json.RawMessage) protocol.Response {
-	var request protocol.ExportRequest
-	board, fail := boardOf(s, id, payload, &request)
+	_, board, fail := openCommand[protocol.ExportRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
@@ -105,8 +107,7 @@ func (s *Server) export(id string, payload json.RawMessage) protocol.Response {
 }
 
 func (s *Server) reach(id string, payload json.RawMessage) protocol.Response {
-	var request protocol.ReachRequest
-	board, fail := boardOf(s, id, payload, &request)
+	request, board, fail := openCommand[protocol.ReachRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
