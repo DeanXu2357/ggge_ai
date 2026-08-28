@@ -11,7 +11,7 @@ Issue: #87. Branch: issue-87-server-handler. Status: awaiting-review.
 | 27834ca | This file |
 | 9980cea | The seven command bodies and the session move to 'engine/server/handler'; 'server' binds them |
 | c82d893 | The registry and its two types private to 'server'; two comments deleted |
-| (next) | The last narrating comments deleted; the local that shadowed the 'handler' package renamed |
+| f052ec9 | The last narrating comments deleted; the local that shadowed the 'handler' package renamed |
 
     engine/server           server.go (New, Serve, dispatch, payloadOf,
                             hello), registry.go (register, binding,
