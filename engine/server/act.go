@@ -45,7 +45,7 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	s.session.history = append(s.session.history, protocol.HistoryEntry{Cmd: "act", Payload: payload})
 	return protocol.Ok(id, protocol.ActResponse{
 		Events: board.EncodeResolution(resolution),
-		Board:  board.EncodeSummary(clone),
+		Board:  clone.Summary(),
 	})
 }
 

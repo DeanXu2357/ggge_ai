@@ -47,7 +47,7 @@ func TestPendingHoldsTheLivingUnitsOfTheSideThatDidNotAct(t *testing.T) {
 	board := turnBoard(t, battle.FactionAlly, 1, basicUnit("a1", battle.FactionAlly, 1, 1), acted, dead, basicUnit("e1", battle.FactionEnemy, 4, 4))
 
 	var ids []string
-	for _, pending := range board.Pending(battle.FactionAlly) {
+	for _, pending := range board.pending(battle.FactionAlly) {
 		ids = append(ids, pending.ID)
 	}
 	if !reflect.DeepEqual(ids, []string{"a1"}) {
@@ -162,11 +162,11 @@ func TestGoneNamesTheSidesWithNoLivingUnit(t *testing.T) {
 	dead.HP = 0
 	board := turnBoard(t, battle.FactionAlly, 1, basicUnit("a1", battle.FactionAlly, 1, 1), dead)
 
-	if got := board.Gone(); !reflect.DeepEqual(got, []battle.Faction{battle.FactionEnemy}) {
+	if got := board.gone(); !reflect.DeepEqual(got, []battle.Faction{battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", got)
 	}
 	board.Unit("a1").HP = 0
-	if got := board.Gone(); !reflect.DeepEqual(got, []battle.Faction{battle.FactionAlly, battle.FactionEnemy}) {
+	if got := board.gone(); !reflect.DeepEqual(got, []battle.Faction{battle.FactionAlly, battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", got)
 	}
 }
@@ -196,11 +196,11 @@ func TestABattleRunsToAnnihilation(t *testing.T) {
 	board := turnBoard(t, battle.FactionAlly, 1, armed("a1", battle.FactionAlly, 1, 1), armed("a2", battle.FactionAlly, 1, 2), armed("e1", battle.FactionEnemy, 2, 1))
 	dice := battle.Forced{AttackerSupport: true, DefenderSupport: true, Strike: true, Counter: true}
 
-	for acts := 0; len(board.Gone()) == 0; acts++ {
+	for acts := 0; len(board.gone()) == 0; acts++ {
 		if acts > 100 {
 			t.Fatal("no side is gone after 100 activations")
 		}
-		pending := board.Pending(board.phase)
+		pending := board.pending(board.phase)
 		actor := pending[0]
 		targets := board.TargetsOf(actor)
 		decision := standby(actor.ID)

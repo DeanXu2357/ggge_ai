@@ -36,28 +36,8 @@ func New(bounds battle.Bounds, units []battle.Unit) (*Board, error) {
 	return &Board{bounds: bounds, units: units}, nil
 }
 
-func (b *Board) Bounds() battle.Bounds {
-	return b.bounds
-}
-
 func (b *Board) Roster() []battle.Unit {
 	return b.units
-}
-
-func (b *Board) Phase() battle.Faction {
-	return b.phase
-}
-
-func (b *Board) Turn() int {
-	return b.turn
-}
-
-func (b *Board) DefaultTerrain() battle.Terrain {
-	return b.defaultTerrain
-}
-
-func (b *Board) TerrainCells() map[battle.Cell]battle.Terrain {
-	return b.terrainCells
 }
 
 func (b *Board) TerrainAt(cell battle.Cell) battle.Terrain {
@@ -130,7 +110,7 @@ func (b *Board) ReachableCells(unitID string) ([]battle.Cell, error) {
 	return SortedCells(b.reachableAnchors(unit)), nil
 }
 
-func (b *Board) reachableAnchors(unit *battle.Unit) battle.CellSet {
+func (b *Board) reachableAnchors(unit *battle.Unit) CellSet {
 	return ReachableAnchors(unit.Footprint, unit.Mech.MoveRange,
 		b.BlockingCells(unit), b.OccupiedCells(unit), b.bounds)
 }
@@ -150,8 +130,8 @@ func (b *Board) TargetsOf(unit *battle.Unit) []*battle.Unit {
 	return b.ByFaction(unit.Faction.Opposing())
 }
 
-func (b *Board) BlockingCells(unit *battle.Unit) battle.CellSet {
-	out := battle.CellSet{}
+func (b *Board) BlockingCells(unit *battle.Unit) CellSet {
+	out := CellSet{}
 	for index := range b.units {
 		other := &b.units[index]
 		if other.ID == unit.ID || !other.Alive() || other.Faction == unit.Faction {
@@ -162,8 +142,8 @@ func (b *Board) BlockingCells(unit *battle.Unit) battle.CellSet {
 	return out
 }
 
-func (b *Board) OccupiedCells(unit *battle.Unit) battle.CellSet {
-	out := battle.CellSet{}
+func (b *Board) OccupiedCells(unit *battle.Unit) CellSet {
+	out := CellSet{}
 	for index := range b.units {
 		other := &b.units[index]
 		if other.ID == unit.ID || !other.Alive() {

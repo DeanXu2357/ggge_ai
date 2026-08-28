@@ -35,8 +35,8 @@ func reach(t *testing.T, state *Board, id string) []battle.Cell {
 	return cells
 }
 
-func set(cells []battle.Cell) battle.CellSet {
-	out := battle.CellSet{}
+func set(cells []battle.Cell) CellSet {
+	out := CellSet{}
 	for _, cell := range cells {
 		out[cell] = true
 	}
@@ -148,7 +148,7 @@ func TestReachStopsAtTheBoardBounds(t *testing.T) {
 }
 
 func TestNearestFreeCellSearchesOnTheOrthogonalSteps(t *testing.T) {
-	taken := battle.CellSet{{0, 0}: true}
+	taken := CellSet{{0, 0}: true}
 	one := battle.Footprint{Anchor: battle.Cell{0, 0}, Size: oneCell}
 
 	if got := NearestFreeCell(one, taken); got != (battle.Cell{-1, 0}) {
@@ -165,7 +165,7 @@ func TestNearestFreeCellSearchesOnTheOrthogonalSteps(t *testing.T) {
 }
 
 func TestNearestFreeCellFitsTheWholeFootprint(t *testing.T) {
-	taken := battle.CellSet{{1, 1}: true}
+	taken := CellSet{{1, 1}: true}
 
 	wide := battle.Footprint{Anchor: battle.Cell{0, 0}, Size: battle.Size{2, 2}}
 	if got := NearestFreeCell(wide, taken); got != (battle.Cell{-1, 0}) {

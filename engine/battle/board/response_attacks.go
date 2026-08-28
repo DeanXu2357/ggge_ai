@@ -91,7 +91,7 @@ func (b *Board) defendOptions(shooter *battle.Unit, weapon *battle.Weapon, units
 
 // The foe picks its stance after this answer, so the forecast of a support
 // attack reads no defense.
-func (b *Board) attackOptions(foe *battle.Unit, joining []battle.SupportAttacker) []battle.SupportAttackOption {
+func (b *Board) attackOptions(foe *battle.Unit, joining []SupportAttacker) []battle.SupportAttackOption {
 	out := make([]battle.SupportAttackOption, 0, len(joining))
 	for _, one := range joining {
 		out = append(out, battle.SupportAttackOption{
@@ -122,11 +122,16 @@ func (b *Board) SupportDefenders(supported *battle.Unit, at battle.Footprint) []
 	return out
 }
 
-func (b *Board) SupportAttackers(supported *battle.Unit, firing, foe battle.Footprint) []battle.SupportAttacker {
-	out := []battle.SupportAttacker{}
+type SupportAttacker struct {
+	Unit   *battle.Unit
+	Weapon *battle.Weapon
+}
+
+func (b *Board) SupportAttackers(supported *battle.Unit, firing, foe battle.Footprint) []SupportAttacker {
+	out := []SupportAttacker{}
 	for _, other := range b.ByFaction(supported.Faction) {
 		if weapon := supportWeapon(other, supported, firing, foe); weapon != nil {
-			out = append(out, battle.SupportAttacker{Unit: other, Weapon: weapon})
+			out = append(out, SupportAttacker{Unit: other, Weapon: weapon})
 		}
 	}
 	return out

@@ -6,6 +6,8 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
+type CellSet map[battle.Cell]bool
+
 var steps = [4]battle.Cell{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
 
 func SpanDistance(a, b battle.Footprint) int {
@@ -23,7 +25,7 @@ func axisGap(lowA, spanA, lowB, spanB int) int {
 	return 0
 }
 
-func FootprintClear(footprint battle.Footprint, taken battle.CellSet) bool {
+func FootprintClear(footprint battle.Footprint, taken CellSet) bool {
 	for _, cell := range footprint.Cells() {
 		if taken[cell] {
 			return false
@@ -32,15 +34,15 @@ func FootprintClear(footprint battle.Footprint, taken battle.CellSet) bool {
 	return true
 }
 
-func addFootprint(set battle.CellSet, footprint battle.Footprint) {
+func addFootprint(set CellSet, footprint battle.Footprint) {
 	for _, cell := range footprint.Cells() {
 		set[cell] = true
 	}
 }
 
-func ReachableAnchors(from battle.Footprint, budget int, blocked, occupied battle.CellSet, bounds battle.Bounds) battle.CellSet {
-	seen := battle.CellSet{from.Anchor: true}
-	out := battle.CellSet{from.Anchor: true}
+func ReachableAnchors(from battle.Footprint, budget int, blocked, occupied CellSet, bounds battle.Bounds) CellSet {
+	seen := CellSet{from.Anchor: true}
+	out := CellSet{from.Anchor: true}
 	frontier := []walk{{from.Anchor, 0}}
 	for len(frontier) > 0 {
 		step := frontier[0]
@@ -68,8 +70,8 @@ type walk struct {
 	spent int
 }
 
-func NearestFreeCell(footprint battle.Footprint, taken battle.CellSet) battle.Cell {
-	seen := battle.CellSet{footprint.Anchor: true}
+func NearestFreeCell(footprint battle.Footprint, taken CellSet) battle.Cell {
+	seen := CellSet{footprint.Anchor: true}
 	frontier := []battle.Cell{footprint.Anchor}
 	for len(frontier) > 0 {
 		anchor := frontier[0]
@@ -88,7 +90,7 @@ func NearestFreeCell(footprint battle.Footprint, taken battle.CellSet) battle.Ce
 	return footprint.Anchor
 }
 
-func SortedCells(set battle.CellSet) []battle.Cell {
+func SortedCells(set CellSet) []battle.Cell {
 	out := cellSlice(set)
 	sort.Slice(out, func(i, j int) bool { return out[i].Before(out[j]) })
 	return out
@@ -102,7 +104,7 @@ func cellFootprint(cell battle.Cell) battle.Footprint {
 	return battle.Footprint{Anchor: cell, Size: battle.Size{1, 1}}
 }
 
-func cellSlice(set battle.CellSet) []battle.Cell {
+func cellSlice(set CellSet) []battle.Cell {
 	out := make([]battle.Cell, 0, len(set))
 	for cell := range set {
 		out = append(out, cell)

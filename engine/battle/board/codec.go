@@ -706,23 +706,22 @@ func checkEnemy(unit *battle.Unit, bounds battle.Bounds) error {
 	return nil
 }
 
-func EncodeState(b battle.Board) protocol.BattleState {
-	area := b.Bounds()
-	bounds := protocol.Bounds{EncodeCell(area.Low), EncodeCell(area.High)}
+func (b *Board) State() protocol.BattleState {
+	bounds := protocol.Bounds{EncodeCell(b.bounds.Low), EncodeCell(b.bounds.High)}
 	return protocol.BattleState{
-		Units:         EncodeUnits(b.Roster()),
-		Phase:         wireFactions[b.Phase()],
-		Turn:          b.Turn(),
+		Units:         EncodeUnits(b.units),
+		Phase:         wireFactions[b.phase],
+		Turn:          b.turn,
 		Bounds:        &bounds,
 		PendingEvents: []string{},
 		FiredEvents:   []string{},
-		Terrain:       b.DefaultTerrain().String(),
-		TerrainCells:  encodeTerrainCells(b.TerrainCells()),
+		Terrain:       b.defaultTerrain.String(),
+		TerrainCells:  encodeTerrainCells(b.terrainCells),
 	}
 }
 
 func encodeTerrainCells(cells map[battle.Cell]battle.Terrain) []protocol.TerrainCell {
-	declared := make(battle.CellSet, len(cells))
+	declared := make(CellSet, len(cells))
 	for cell := range cells {
 		declared[cell] = true
 	}
@@ -763,14 +762,16 @@ func EncodeResolution(resolution battle.Resolution) []any {
 	return out
 }
 
-func EncodeSummary(b battle.Board) protocol.BoardSummary {
-	pending := []string{}
-	for _, unit := range b.Pending(b.Phase()) {
-		pending = append(pending, unit.ID)
+func (b *Board) Summary() protocol.BoardSummary {
+	out := protocol.BoardSummary{
+		Turn: b.turn, Phase: wireFactions[b.phase],
+		Pending: []string{}, Gone: []protocol.Faction{},
 	}
-	gone := []protocol.Faction{}
-	for _, faction := range b.Gone() {
-		gone = append(gone, wireFactions[faction])
+	for _, unit := range b.pending(b.phase) {
+		out.Pending = append(out.Pending, unit.ID)
 	}
-	return protocol.BoardSummary{Turn: b.Turn(), Phase: wireFactions[b.Phase()], Pending: pending, Gone: gone}
+	for _, faction := range b.gone() {
+		out.Gone = append(out.Gone, wireFactions[faction])
+	}
+	return out
 }

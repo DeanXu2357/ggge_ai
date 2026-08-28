@@ -1,6 +1,6 @@
 package battle
 
-type CellSet map[Cell]bool
+import "github.com/DeanXu2357/ggge_ai/engine/protocol"
 
 type Forecast struct {
 	HitRate *float64
@@ -45,11 +45,6 @@ type Resolution struct {
 	Rotations []Rotation
 }
 
-type SupportAttacker struct {
-	Unit   *Unit
-	Weapon *Weapon
-}
-
 type ResponseAttackOption struct {
 	Stance   Stance
 	Weapon   string
@@ -80,39 +75,17 @@ type Engagement struct {
 	ResponseAttacks []ResponseAttackOption
 }
 
-// BoardReader answers questions about the board and changes nothing.
 type BoardReader interface {
-	Activatable(unitID string) (*Unit, error)
-	BlockingCells(unit *Unit) CellSet
-	Bounds() Bounds
-	ByFaction(faction Faction) []*Unit
 	Capabilities(unitID string) (Capabilities, error)
 	Clone() Board
-	CounterWeapon(defender *Unit, name string, attacker Footprint) *Weapon
-	DefaultTerrain() Terrain
-	Gone() []Faction
-	OccupiedCells(unit *Unit) CellSet
-	Pending(faction Faction) []*Unit
-	Phase() Faction
-	PhaseIndex() int
 	ReachableCells(unitID string) ([]Cell, error)
 	ResponseAttacks(action Decision, defenderID string) (Engagement, error)
-	Roster() []Unit
-	SupportAttackers(supported *Unit, firing, foe Footprint) []SupportAttacker
-	SupportDefenders(supported *Unit, at Footprint) []*Unit
-	TargetsOf(unit *Unit) []*Unit
-	TerrainAt(cell Cell) Terrain
-	TerrainCells() map[Cell]Terrain
-	TerrainOf(unit *Unit) Terrain
-	Turn() int
-	Unit(id string) *Unit
+	State() protocol.BattleState
+	Summary() protocol.BoardSummary
 }
 
-// BoardResolver carries one decision out and turns the phase over.
 type BoardResolver interface {
 	Act(decision Decision, dice Dice) (Resolution, error)
-	Advance() []Rotation
-	Apply(decision Decision, dice Dice) (Trace, error)
 }
 
 type Board interface {

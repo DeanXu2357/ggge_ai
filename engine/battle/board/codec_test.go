@@ -572,12 +572,12 @@ func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
 
 func TestEncodeStateRoundTripsThroughDecodeState(t *testing.T) {
 	first := decodeFixtureState(t)
-	encoded := EncodeState(first)
+	encoded := first.State()
 	second, err := DecodeState(&encoded)
 	if err != nil {
 		t.Fatal(err)
 	}
-	again := EncodeState(second)
+	again := second.State()
 	a, _ := json.Marshal(encoded)
 	b, _ := json.Marshal(again)
 	if string(a) != string(b) {
@@ -620,7 +620,7 @@ func TestTheSummaryNamesThePendingUnitsAndTheGoneSides(t *testing.T) {
 			board.units[index].HP = 0
 		}
 	}
-	summary := EncodeSummary(board)
+	summary := board.Summary()
 	if summary.Turn != board.turn || summary.Phase != wireFactions[board.phase] {
 		t.Fatalf("summary: %+v", summary)
 	}

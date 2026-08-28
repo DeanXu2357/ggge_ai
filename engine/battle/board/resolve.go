@@ -146,7 +146,7 @@ type answer struct {
 	responseAttack  *battle.ResponseAttack
 	counter         *battle.Weapon
 	supportDefender *battle.Unit
-	joining         []battle.SupportAttacker
+	joining         []SupportAttacker
 }
 
 func (b *Board) answerOf(defender, attacker *battle.Unit, firing battle.Footprint,
@@ -191,7 +191,7 @@ func (b *Board) answerOf(defender, attacker *battle.Unit, firing battle.Footprin
 }
 
 func (b *Board) namedSupportAttackers(supported *battle.Unit, firing, foe battle.Footprint,
-	names []string) ([]battle.SupportAttacker, error) {
+	names []string) ([]SupportAttacker, error) {
 	if len(names) == 0 {
 		return nil, nil
 	}
@@ -200,13 +200,13 @@ func (b *Board) namedSupportAttackers(supported *battle.Unit, firing, foe battle
 			battle.ErrIllegalAction, supported.ID, len(names), limit)
 	}
 	eligible := b.SupportAttackers(supported, firing, foe)
-	out := make([]battle.SupportAttacker, 0, len(names))
+	out := make([]SupportAttacker, 0, len(names))
 	for _, name := range names {
-		if slices.ContainsFunc(out, func(one battle.SupportAttacker) bool { return one.Unit.ID == name }) {
+		if slices.ContainsFunc(out, func(one SupportAttacker) bool { return one.Unit.ID == name }) {
 			return nil, fmt.Errorf("%w: unit %q joins the strike of unit %q two times",
 				battle.ErrIllegalAction, name, supported.ID)
 		}
-		index := slices.IndexFunc(eligible, func(one battle.SupportAttacker) bool {
+		index := slices.IndexFunc(eligible, func(one SupportAttacker) bool {
 			return one.Unit.ID == name
 		})
 		if index < 0 {
@@ -336,7 +336,7 @@ func (b *Board) defenderReply(actor, target *battle.Unit, answer answer, bearer 
 	return out
 }
 
-func (b *Board) fire(node battle.Node, kind battle.StrikeKind, joining []battle.SupportAttacker, dice battle.Dice,
+func (b *Board) fire(node battle.Node, kind battle.StrikeKind, joining []SupportAttacker, dice battle.Dice,
 	shot *receiver) battle.Trace {
 	shooters := able(joining)
 	if len(shooters) == 0 {
@@ -355,8 +355,8 @@ func (b *Board) fire(node battle.Node, kind battle.StrikeKind, joining []battle.
 	return out
 }
 
-func able(joining []battle.SupportAttacker) []battle.SupportAttacker {
-	out := make([]battle.SupportAttacker, 0, len(joining))
+func able(joining []SupportAttacker) []SupportAttacker {
+	out := make([]SupportAttacker, 0, len(joining))
 	for _, one := range joining {
 		if one.Unit.Alive() && one.Unit.SupportAttackCharges > 0 &&
 			one.Unit.HasENFor(*one.Weapon) {

@@ -52,7 +52,7 @@ var turnOps = map[string]differential.Op{
 		if roll.Short() {
 			return nil, errors.New("the 'outcomes' list is short")
 		}
-		summary := board.EncodeSummary(state)
+		summary := state.Summary()
 		return actAnswer{Turn: summary.Turn, Phase: summary.Phase, Pending: summary.Pending, Units: livingUnits(state)}, nil
 	},
 }

@@ -10,7 +10,7 @@ func (b *Board) Act(decision battle.Decision, dice battle.Dice) (battle.Resoluti
 	return battle.Resolution{Trace: trace, Rotations: b.Advance()}, nil
 }
 
-func (b *Board) Pending(faction battle.Faction) []*battle.Unit {
+func (b *Board) pending(faction battle.Faction) []*battle.Unit {
 	var out []*battle.Unit
 	for index := range b.units {
 		unit := &b.units[index]
@@ -28,7 +28,7 @@ func (b *Board) Advance() []battle.Rotation {
 		return nil
 	}
 	var out []battle.Rotation
-	for len(b.Pending(b.phase)) == 0 {
+	for len(b.pending(b.phase)) == 0 {
 		out = append(out, b.nextPhase())
 	}
 	return out
@@ -79,7 +79,7 @@ func (b *Board) anyAlive() bool {
 	return false
 }
 
-func (b *Board) Gone() []battle.Faction {
+func (b *Board) gone() []battle.Faction {
 	var out []battle.Faction
 	for _, faction := range []battle.Faction{battle.FactionAlly, battle.FactionEnemy} {
 		if len(b.ByFaction(faction)) == 0 {

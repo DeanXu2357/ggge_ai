@@ -84,14 +84,14 @@ func (s *Server) export(id string, payload json.RawMessage) protocol.Response {
 	if fail != nil {
 		return *fail
 	}
-	state := board.EncodeState(b)
+	state := b.State()
 	state.PendingEvents = s.session.pendingEvents
 	state.FiredEvents = s.session.firedEvents
 	return protocol.Ok(id, protocol.ExportResponse{
 		State:   state,
 		History: s.session.history,
 		Seed:    s.session.seed,
-		Gone:    board.EncodeSummary(b).Gone,
+		Gone:    b.Summary().Gone,
 	})
 }
 

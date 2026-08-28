@@ -51,7 +51,7 @@ var resolveOps = map[string]differential.Op{
 	},
 }
 
-func livingUnits(state battle.Board) []protocol.Unit {
+func livingUnits(state *board.Board) []protocol.Unit {
 	roster := state.Roster()
 	out := make([]battle.Unit, 0, len(roster))
 	for _, unit := range roster {
