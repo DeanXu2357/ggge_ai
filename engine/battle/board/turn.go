@@ -27,8 +27,8 @@ func (b *Board) act(decision decision, dice battle.Dice) (resolution, error) {
 	return resolution{Trace: trace, Rotations: b.Advance()}, nil
 }
 
-func (b *Board) pending(faction faction) []*Unit {
-	var out []*Unit
+func (b *Board) pending(faction faction) []*unit {
+	var out []*unit
 	for index := range b.units {
 		unit := &b.units[index]
 		if unit.Faction == faction && unit.alive() && !unit.Acted {

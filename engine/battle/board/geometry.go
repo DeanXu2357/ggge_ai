@@ -94,7 +94,7 @@ func sortedCells(set cellSet) []cell {
 	return out
 }
 
-func footprintAt(unit *Unit, anchor cell) footprint {
+func footprintAt(unit *unit, anchor cell) footprint {
 	return footprint{Anchor: anchor, Size: unit.Footprint.Size}
 }
 

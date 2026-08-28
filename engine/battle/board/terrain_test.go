@@ -26,7 +26,7 @@ func TestAUnitStandsOnTheTerrainOfItsAnchorCell(t *testing.T) {
 		bounds:         bounds{Low: cell{0, 0}, High: cell{4, 4}},
 		defaultTerrain: terrainSurface,
 		terrainCells:   map[cell]terrain{{1, 1}: terrainUnderwater, {2, 1}: terrainGround},
-		units: []Unit{
+		units: []unit{
 			{ID: "a1", Faction: factionAlly, HP: 1,
 				Footprint: footprint{Anchor: cell{1, 1}, Size: size{2, 2}}},
 			{ID: "e1", Faction: factionEnemy, HP: 1,

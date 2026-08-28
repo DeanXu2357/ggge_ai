@@ -7,7 +7,7 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
-func turnBoard(t *testing.T, phase faction, turn int, units ...Unit) *Board {
+func turnBoard(t *testing.T, phase faction, turn int, units ...unit) *Board {
 	t.Helper()
 	board, err := newBoard(bounds{High: cell{5, 4}}, units)
 	if err != nil {
@@ -18,16 +18,16 @@ func turnBoard(t *testing.T, phase faction, turn int, units ...Unit) *Board {
 	return board
 }
 
-func basicUnit(id string, faction faction, x, y int) Unit {
-	return Unit{
+func basicUnit(id string, faction faction, x, y int) unit {
+	return unit{
 		ID: id, Faction: faction, Footprint: footprint{Anchor: cell{x, y}, Size: size{1, 1}},
-		HP: 100, MaxHP: 100, EN: 100, ENMax: 140, Mech: Mech{MoveRange: 1},
+		HP: 100, MaxHP: 100, EN: 100, ENMax: 140, Mech: mech{MoveRange: 1},
 	}
 }
 
-func armed(id string, faction faction, x, y int) Unit {
+func armed(id string, faction faction, x, y int) unit {
 	out := basicUnit(id, faction, x, y)
-	out.Mech.Weapons = []Weapon{{Name: "gun", Power: 5000, Range: radiusRange{Min: 1, Max: 3}, Accuracy: 100, CanCounter: true, UsableAfterMove: true}}
+	out.Mech.Weapons = []weapon{{Name: "gun", Power: 5000, Range: radiusRange{Min: 1, Max: 3}, Accuracy: 100, CanCounter: true, UsableAfterMove: true}}
 	out.Mech.Attack, out.Mech.Defense = 4200, 3900
 	out.Pilot.Ranged, out.Pilot.Melee, out.Pilot.Awaken = 220, 220, 220
 	out.Pilot.Defense = 190

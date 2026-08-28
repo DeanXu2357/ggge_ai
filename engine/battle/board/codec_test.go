@@ -88,7 +88,7 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 	}
 
 	amount := 3000.0
-	want := Unit{
+	want := unit{
 		ID:        "a1",
 		Faction:   factionAlly,
 		Footprint: footprint{Anchor: cell{2, 3}, Size: size{2, 3}},
@@ -98,7 +98,7 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 		ENMax:     180,
 		SP:        30,
 		SPMax:     45,
-		Pilot: Pilot{
+		Pilot: pilot{
 			Ranged: 220, Melee: 180, Awaken: 240, Defense: 190, Reaction: 205, SP: 45,
 		},
 		Acted:                   true,
@@ -109,9 +109,9 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 		SupportDefendWhenAttack: true,
 		Ammo:                    map[string]int{"missile": 3},
 		Debuffs:                 []debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
-		Mech: Mech{
+		Mech: mech{
 			HP: 9000, EN: 180, Attack: 4100, Defense: 3900, Mobility: 310, MoveRange: 4,
-			Weapons: []Weapon{{
+			Weapons: []weapon{{
 				Name:            "rifle",
 				Power:           2400,
 				Range:           radiusRange{Min: 1, Max: 4},
@@ -314,7 +314,7 @@ func TestTheOpposingFactionOfEverySide(t *testing.T) {
 func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	amount := 2500.0
 	ammo := 3
-	unit := &Unit{
+	unit := &unit{
 		ID:        "a1",
 		Faction:   factionAlly,
 		Footprint: footprint{Anchor: cell{2, 3}, Size: size{2, 1}},
@@ -322,9 +322,9 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 		MaxHP:     1000,
 		EN:        40,
 		ENMax:     100,
-		Mech: Mech{
+		Mech: mech{
 			MoveRange: 4,
-			Weapons: []Weapon{
+			Weapons: []weapon{
 				{Name: "rifle", Range: radiusRange{Min: 1, Max: 3}, ENCost: 10, Accuracy: 5,
 					CanCounter: true, UsableAfterMove: true},
 				{Name: "missile", Range: radiusRange{Min: 2, Max: 5}, MapWeapon: true},
@@ -361,7 +361,7 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 }
 
 func TestTheCapabilityPayloadOfAnActedUnitCarriesTheState(t *testing.T) {
-	unit := &Unit{ID: "a1", Faction: factionAlly, HP: 100, Acted: true}
+	unit := &unit{ID: "a1", Faction: factionAlly, HP: 100, Acted: true}
 
 	out := encodeCapabilities(capabilities{Unit: unit})
 
@@ -385,9 +385,9 @@ func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 }
 
 func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
-	defender := &Unit{ID: "d1", HP: 100}
-	attacker := &Unit{ID: "e1", HP: 100}
-	helper := &Unit{ID: "h1", HP: 100, Mech: Mech{Weapons: []Weapon{{Name: "rifle"}}}}
+	defender := &unit{ID: "d1", HP: 100}
+	attacker := &unit{ID: "e1", HP: 100}
+	helper := &unit{ID: "h1", HP: 100, Mech: mech{Weapons: []weapon{{Name: "rifle"}}}}
 
 	counter := forecast{}
 	encoded := encodeEngagement(engagement{

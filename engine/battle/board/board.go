@@ -15,14 +15,14 @@ var _ battle.Board = (*Board)(nil)
 
 type Board struct {
 	bounds         bounds
-	units          []Unit
+	units          []unit
 	phase          faction
 	turn           int
 	defaultTerrain terrain
 	terrainCells   map[cell]terrain
 }
 
-func newBoard(bounds bounds, units []Unit) (*Board, error) {
+func newBoard(bounds bounds, units []unit) (*Board, error) {
 	if bounds.High[0] < bounds.Low[0] || bounds.High[1] < bounds.Low[1] {
 		return nil, fmt.Errorf("the bounds %v run backward", bounds)
 	}
@@ -44,7 +44,7 @@ func (b *Board) terrainAt(cell cell) terrain {
 	return b.defaultTerrain
 }
 
-func (b *Board) terrainOf(unit *Unit) terrain {
+func (b *Board) terrainOf(unit *unit) terrain {
 	if unit == nil {
 		return b.defaultTerrain
 	}
@@ -62,7 +62,7 @@ func (b *Board) phaseIndex() int {
 	return b.turn * len(phaseOrder)
 }
 
-func (b *Board) unit(id string) *Unit {
+func (b *Board) unit(id string) *unit {
 	for index := range b.units {
 		if b.units[index].ID == id {
 			return &b.units[index]
@@ -73,7 +73,7 @@ func (b *Board) unit(id string) *Unit {
 
 // The command 'act' reads this gate; the reporting commands do not, because
 // a report of a unit that acted is still the answer to the question.
-func (b *Board) activatable(unitID string) (*Unit, error) {
+func (b *Board) activatable(unitID string) (*unit, error) {
 	unit, err := b.livingUnit(unitID)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (b *Board) activatable(unitID string) (*Unit, error) {
 	return unit, nil
 }
 
-func (b *Board) livingUnit(id string) (*Unit, error) {
+func (b *Board) livingUnit(id string) (*unit, error) {
 	unit := b.unit(id)
 	if unit == nil {
 		return nil, fmt.Errorf("%w: %q", battle.ErrNoUnit, id)
@@ -115,13 +115,13 @@ func (b *Board) reachableCells(unitID string) ([]cell, error) {
 	return sortedCells(b.reachableAnchors(unit)), nil
 }
 
-func (b *Board) reachableAnchors(unit *Unit) cellSet {
+func (b *Board) reachableAnchors(unit *unit) cellSet {
 	return reachableAnchors(unit.Footprint, unit.Mech.MoveRange,
 		b.blockingCells(unit), b.occupiedCells(unit), b.bounds)
 }
 
-func (b *Board) byFaction(faction faction) []*Unit {
-	var out []*Unit
+func (b *Board) byFaction(faction faction) []*unit {
+	var out []*unit
 	for index := range b.units {
 		other := &b.units[index]
 		if other.Faction == faction && other.alive() {
@@ -131,11 +131,11 @@ func (b *Board) byFaction(faction faction) []*Unit {
 	return out
 }
 
-func (b *Board) targetsOf(unit *Unit) []*Unit {
+func (b *Board) targetsOf(unit *unit) []*unit {
 	return b.byFaction(unit.Faction.opposing())
 }
 
-func (b *Board) blockingCells(unit *Unit) cellSet {
+func (b *Board) blockingCells(unit *unit) cellSet {
 	out := cellSet{}
 	for index := range b.units {
 		other := &b.units[index]
@@ -147,7 +147,7 @@ func (b *Board) blockingCells(unit *Unit) cellSet {
 	return out
 }
 
-func (b *Board) occupiedCells(unit *Unit) cellSet {
+func (b *Board) occupiedCells(unit *unit) cellSet {
 	out := cellSet{}
 	for index := range b.units {
 		other := &b.units[index]

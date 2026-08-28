@@ -7,8 +7,8 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 )
 
-func fighter(id string, faction faction, anchor cell) Unit {
-	out := unit(id, faction, anchor)
+func fighter(id string, faction faction, anchor cell) unit {
+	out := unitAt(id, faction, anchor)
 	out.HP, out.MaxHP = 12000, 12000
 	out.EN, out.ENMax = 140, 140
 	out.Mech.Attack, out.Mech.Defense = 4200, 3900
@@ -18,7 +18,7 @@ func fighter(id string, faction faction, anchor cell) Unit {
 	return out
 }
 
-func beam() Weapon {
+func beam() weapon {
 	out := rifle("beam rifle", radiusRange{Min: 1, Max: 3})
 	out.Power, out.Accuracy, out.ENCost = 1800, 5, 10
 	return out
@@ -98,7 +98,7 @@ func TestTheCounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 	shells := beam()
 	shells.Name, shells.MapWeapon = "shells", true
 	near := rifle("saber", radiusRange{Min: 1, Max: 1})
-	defender.Mech.Weapons = []Weapon{costly, passive, shells, beam(), near}
+	defender.Mech.Weapons = []weapon{costly, passive, shells, beam(), near}
 	state := board(defender, fighter("e1", factionEnemy, cell{2, 0}))
 
 	attacker := state.unit("e1").Footprint
