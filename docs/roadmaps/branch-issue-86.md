@@ -6,12 +6,13 @@ Issue: #86. Branch: issue-86-board-package. Status: awaiting-review.
 
 ## Change summary
 
-Two commits.
+Three commits.
 
 | Commit | What |
 |---|---|
 | 7c9fd64 | This file |
 | c294023 | The split: 43 files, +1832 / -1675, a pure move |
+| (next) | The interfaces renamed 'BoardReader' and 'BoardResolver' on the user's ruling |
 
     engine/battle          model.go (the data types, the six sentinel
                            errors), board.go (the interfaces and the
@@ -32,14 +33,15 @@ the field and imports the formulas from 'board'.
 
 ## The interfaces
 
-    battle.Reader    Activatable BlockingCells Bounds ByFaction
-                     Capabilities Clone CounterWeapon DefaultTerrain
-                     Gone OccupiedCells Pending Phase PhaseIndex
-                     ReachableCells ResponseAttacks Roster
-                     SupportAttackers SupportDefenders TargetsOf
-                     TerrainAt TerrainCells TerrainOf Turn Unit
-    battle.Resolver  Act Advance Apply
-    battle.Board     Reader plus Resolver; 'Clone()' returns Board
+    battle.BoardReader    Activatable BlockingCells Bounds ByFaction
+                         Capabilities Clone CounterWeapon DefaultTerrain
+                         Gone OccupiedCells Pending Phase PhaseIndex
+                         ReachableCells ResponseAttacks Roster
+                         SupportAttackers SupportDefenders TargetsOf
+                         TerrainAt TerrainCells TerrainOf Turn Unit
+    battle.BoardResolver Act Advance Apply
+    battle.Board         BoardReader plus BoardResolver; 'Clone()'
+                         returns Board
 
 'var _ battle.Board = (*board.Board)(nil)' pins the implementation.
 The result types the methods return moved to 'battle/board.go':
@@ -52,8 +54,8 @@ The result types the methods return moved to 'battle/board.go':
 
     server.session.board  battle.Board
       board.DecodeInit / board.DecodeState   -> *board.Board
-      b.Act / b.Apply / b.Advance            Resolver
-      b.Roster / b.Pending / b.Gone / ...    Reader
+      b.Act / b.Apply / b.Advance            BoardResolver
+      b.Roster / b.Pending / b.Gone / ...    BoardReader
       board.EncodeState(b) / EncodeSummary   take battle.Board
 
 ## Verification
@@ -73,12 +75,12 @@ The result types the methods return moved to 'battle/board.go':
    session holds. The alternative, a type assertion to the struct
    inside the codec, was rejected. The six struct fields are now
    unexported: Go forbids a field and a method of one name.
-2. **'Reader' is wide: 24 methods.** Twelve are called by nobody
+2. **'BoardReader' is wide: 24 methods.** Twelve are called by nobody
    outside 'battle' and 'board': 'Activatable', 'BlockingCells',
    'ByFaction', 'CounterWeapon', 'OccupiedCells', 'PhaseIndex',
    'SupportAttackers', 'SupportDefenders', 'TargetsOf', 'TerrainAt',
    'TerrainOf', 'Unit'. The issue fixed the method set at the 22
-   that existed; a narrower 'Reader' is a separate decision.
+   that existed; a narrower 'BoardReader' is a separate decision.
 3. **The codec lives with the implementation.** 'server' therefore
    imports 'board' in three files, for the codec and not only to
    construct. 'Encode*' take the interface now, so they could move
@@ -100,4 +102,4 @@ The result types the methods return moved to 'battle/board.go':
 
 - The formulas move out of 'board' into their own package: issue
   #85, on this merge.
-- Narrowing 'Reader' (point 2), if the user wants it.
+- Narrowing 'BoardReader' (point 2), if the user wants it.

@@ -1484,3 +1484,11 @@
   command 'response_attacks', the stance term 'response attack
   stance' 應戰姿態. Done inside issue #84 while version 1.4 is
   already the breaking step of the unit payload.
+- **(0828) The board interfaces carry the board in their names —
+  user ruling**｜Issue #86 split 'engine/battle' into the contract
+  and 'engine/battle/board'. The two interfaces landed as 'Reader'
+  and 'Resolver'; the user: "reader 和 resolver 兩個命名太普遍了，建議
+  改成 BoardReader 和 BoardResolver". Renamed; 'Board' embeds both
+  and keeps its name. Same rule as the 'WeaponCategory' and
+  'ResponseAttack' rulings of the day: an identifier names the
+  thing it belongs to.
