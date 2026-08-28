@@ -33,7 +33,7 @@ the source itself.
 ```
 
 The same value is in the payload of every rendered page, in the
-field `remoteVersion`. The three data addresses carry no stamp of
+field `remoteVersion`. The four data addresses carry no stamp of
 their own.
 
 The crawler names the dump directory with the stamp. A game patch
@@ -58,8 +58,9 @@ order in which they complete. Two fetches of the page therefore give
 different bytes. The formula tab of the page is static markup, and
 the crawler stores that tab alone.
 
-The three API addresses give the same bytes for two fetches at the
-same stamp. This was measured on 2026-08-22 for `unit` and `stage`.
+The four API addresses give the same bytes for two fetches at the
+same stamp. This was measured on 2026-08-22 for `unit` and `stage`,
+and on 2026-08-28 for `character`.
 
 The unit table and the weapon table do not hold the same set of
 units. The weapon table names 1342 owners. The unit table holds
