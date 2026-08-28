@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
 )
 
@@ -23,16 +23,16 @@ type wireSide struct {
 	Mobility     float64 `json:"mobility"`
 }
 
-func (side wireSide) unit() *battle.Unit {
-	return &battle.Unit{
-		Pilot: battle.Pilot{
+func (side wireSide) unit() *board.Unit {
+	return &board.Unit{
+		Pilot: board.Pilot{
 			Ranged:   side.PilotAttack,
 			Melee:    side.PilotAttack,
 			Awaken:   side.PilotAttack,
 			Defense:  side.PilotDefense,
 			Reaction: side.Reaction,
 		},
-		Mech: battle.Mech{
+		Mech: board.Mech{
 			Attack:   side.UnitAttack,
 			Defense:  side.UnitDefense,
 			Mobility: side.Mobility,
@@ -88,14 +88,14 @@ type hitInput struct {
 	AbilityCorrection float64  `json:"ability_correction"`
 }
 
-func (in hitInput) weapon() battle.Weapon {
-	return battle.Weapon{Accuracy: in.Accuracy}
+func (in hitInput) weapon() board.Weapon {
+	return board.Weapon{Accuracy: in.Accuracy}
 }
 
 // The recorded inputs name the power alone. The three pilot values of a side
 // hold the one recorded number, so an untagged weapon reads it back.
-func shot(power float64) battle.Weapon {
-	return battle.Weapon{Power: power}
+func shot(power float64) board.Weapon {
+	return board.Weapon{Power: power}
 }
 
 func decodeInput(input json.RawMessage, into any) error {
@@ -110,14 +110,14 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.BaseDamage(shot(in.Power), in.Attacker.unit(), in.Defender.unit()), nil
+		return board.BaseDamage(shot(in.Power), in.Attacker.unit(), in.Defender.unit()), nil
 	},
 	"combat_base_damage": func(_ *differential.Setup, input json.RawMessage) (any, error) {
 		var in combatInput
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.CombatBaseDamage(shot(in.Power), in.Attacker.unit(), in.Defender.unit(),
+		return board.CombatBaseDamage(shot(in.Power), in.Attacker.unit(), in.Defender.unit(),
 			in.Terrain), nil
 	},
 	"damage_scale": func(_ *differential.Setup, input json.RawMessage) (any, error) {
@@ -125,21 +125,21 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.DamageScale(in.Bonuses, in.Penalties), nil
+		return board.DamageScale(in.Bonuses, in.Penalties), nil
 	},
 	"final_damage": func(_ *differential.Setup, input json.RawMessage) (any, error) {
 		var in finalInput
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.FinalDamage(in.CombatBase, in.Scale, in.DefenseMultiplier), nil
+		return board.FinalDamage(in.CombatBase, in.Scale, in.DefenseMultiplier), nil
 	},
 	"critical_damage": func(_ *differential.Setup, input json.RawMessage) (any, error) {
 		var in criticalInput
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.CriticalDamage(in.CombatBase, in.Scale, in.DefenseMultiplier,
+		return board.CriticalDamage(in.CombatBase, in.Scale, in.DefenseMultiplier,
 			in.Critical), nil
 	},
 	"expected_damage": func(_ *differential.Setup, input json.RawMessage) (any, error) {
@@ -147,7 +147,7 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.ExpectedDamage(shot(in.Power), in.Attacker.unit(), in.Defender.unit(),
+		return board.ExpectedDamage(shot(in.Power), in.Attacker.unit(), in.Defender.unit(),
 			in.Terrain, in.Bonuses, in.Penalties, in.DefenseMultiplier), nil
 	},
 	"hit_rate_percent": func(_ *differential.Setup, input json.RawMessage) (any, error) {
@@ -155,7 +155,7 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.HitRatePercent(in.weapon(), in.Attacker.unit(), in.Defender.unit(),
+		return board.HitRatePercent(in.weapon(), in.Attacker.unit(), in.Defender.unit(),
 			in.AbilityCorrection), nil
 	},
 	"hit_probability": func(_ *differential.Setup, input json.RawMessage) (any, error) {
@@ -163,7 +163,7 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.HitProbability(in.weapon(), in.Attacker.unit(), in.Defender.unit(),
+		return board.HitProbability(in.weapon(), in.Attacker.unit(), in.Defender.unit(),
 			in.AbilityCorrection), nil
 	},
 }

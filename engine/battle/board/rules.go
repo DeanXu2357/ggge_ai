@@ -1,4 +1,4 @@
-package battle
+package board
 
 // The rules of the mechanism. Every value here holds for the whole title: no
 // stage changes one, so none of them reaches the wire. The user ruled on
@@ -26,8 +26,8 @@ const (
 
 // The response attack menu offers no shield stance, so a defender that
 // carries a shield defends with the shield here, in the damage (issue #63).
-func StanceMultiplier(stance Stance, defender *Unit) float64 {
-	if stance != StanceDefend {
+func StanceMultiplier(stance stance, defender *Unit) float64 {
+	if stance != stanceDefend {
 		return NoDefenseMultiplier
 	}
 	if defender.HasShield {

@@ -3,7 +3,7 @@ package server
 import (
 	"encoding/json"
 
-	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -16,18 +16,19 @@ func (s *Server) initBattle(id string, payload json.RawMessage) protocol.Respons
 	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	board, err := battle.DecodeInit(&request)
+	b, err := board.DecodeInit(&request)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	opened := newSession(board, request.Seed)
+	opened := newSession(b, request.Seed)
 	opened.victory = request.Victory
 	opened.events = request.Events
 	opened.deployCells = request.DeployCells
 	s.session = opened
+	summary := b.Summary()
 	return protocol.Ok(id, protocol.InitResponse{
-		Turn:       board.Turn,
-		Phase:      string(battle.EncodeFaction(board.Phase)),
+		Turn:       summary.Turn,
+		Phase:      string(summary.Phase),
 		DeployOpen: true,
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
@@ -32,11 +33,7 @@ var turnOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		board, err := battle.DecodeState(&setup.State)
-		if err != nil {
-			return nil, err
-		}
-		decision, err := battle.DecodeDecision(&in.Decision)
+		state, err := board.DecodeState(&setup.State)
 		if err != nil {
 			return nil, err
 		}
@@ -45,13 +42,13 @@ var turnOps = map[string]differential.Op{
 			return nil, err
 		}
 		roll := battle.NewManualRoll(outcomes)
-		if _, err := board.Act(decision, roll); err != nil {
+		if _, err := state.Act(&in.Decision, roll); err != nil {
 			return nil, err
 		}
 		if roll.Short() {
 			return nil, errors.New("the 'outcomes' list is short")
 		}
-		summary := battle.EncodeSummary(board)
-		return actAnswer{Turn: summary.Turn, Phase: summary.Phase, Pending: summary.Pending, Units: livingUnits(board)}, nil
+		summary := state.Summary()
+		return actAnswer{Turn: summary.Turn, Phase: summary.Phase, Pending: summary.Pending, Units: livingUnits(state)}, nil
 	},
 }

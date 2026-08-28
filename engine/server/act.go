@@ -13,7 +13,7 @@ func init() {
 }
 
 func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
-	request, board, fail := openCommand[protocol.ActRequest](s, id, payload)
+	request, b, fail := openCommand[protocol.ActRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
@@ -21,7 +21,7 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 		return protocol.Fail(id, protocol.CodeIllegalAction,
 			"the response attack is necessary for an attack and not permitted for every other kind")
 	}
-	decision, err := decodeActivation(request)
+	action, err := activationOf(request)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
@@ -29,8 +29,8 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	clone := board.Clone()
-	resolution, err := clone.Act(decision, dice)
+	clone := b.Clone()
+	events, err := clone.Act(action, dice)
 	if err != nil {
 		return protocol.Fail(id, refusalCode(err), err.Error())
 	}
@@ -43,33 +43,23 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	}
 	s.session.history = append(s.session.history, protocol.HistoryEntry{Cmd: "act", Payload: payload})
 	return protocol.Ok(id, protocol.ActResponse{
-		Events: battle.EncodeResolution(resolution),
-		Board:  battle.EncodeSummary(clone),
+		Events: events,
+		Board:  clone.Summary(),
 	})
 }
 
-func decodeActivation(request *protocol.ActRequest) (battle.Decision, error) {
+func activationOf(request *protocol.ActRequest) (*protocol.Decision, error) {
 	if request.Action.UnitID == "" {
 		request.Action.UnitID = request.UnitID
 	}
 	if request.Action.UnitID != request.UnitID {
-		return battle.Decision{}, errors.New("'unit_id' and 'action.unit_id' name two units")
+		return nil, errors.New("'unit_id' and 'action.unit_id' name two units")
 	}
 	if request.Action.ResponseAttack != nil {
-		return battle.Decision{}, errors.New("the response attack travels in the field 'response_attack' of the request")
+		return nil, errors.New("the response attack travels in the field 'response_attack' of the request")
 	}
-	decision, err := battle.DecodeDecision(&request.Action)
-	if err != nil {
-		return battle.Decision{}, err
-	}
-	if request.ResponseAttack != nil {
-		responseAttack, err := battle.DecodeResponseAttack(*request.ResponseAttack)
-		if err != nil {
-			return battle.Decision{}, err
-		}
-		decision.ResponseAttack = &responseAttack
-	}
-	return decision, nil
+	request.Action.ResponseAttack = request.ResponseAttack
+	return &request.Action, nil
 }
 
 func (s *Server) openDice(dice *protocol.Dice) (battle.Dice, *battle.ManualRoll, error) {
@@ -88,7 +78,10 @@ func (s *Server) openDice(dice *protocol.Dice) (battle.Dice, *battle.ManualRoll,
 }
 
 func refusalCode(err error) string {
-	if errors.Is(err, battle.ErrOffPhase) || errors.Is(err, battle.ErrActed) {
+	switch {
+	case errors.Is(err, protocol.ErrOutsideContract):
+		return protocol.CodeBadRequest
+	case errors.Is(err, battle.ErrOffPhase), errors.Is(err, battle.ErrActed):
 		return protocol.CodeIllegalState
 	}
 	return protocol.CodeIllegalAction

@@ -1,6 +1,8 @@
-package battle
+package board
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestTheHitRateHoldsBetweenZeroAndOneHundred(t *testing.T) {
 	weapon := Weapon{Accuracy: 96.45}

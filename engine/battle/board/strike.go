@@ -1,6 +1,8 @@
-package battle
+package board
 
-import "math"
+import (
+	"math"
+)
 
 // The frozen goldens under tests/fixtures/engine hold the values of the
 // Python 'round', which rounds a half to the even integer, so the rounding
@@ -36,8 +38,8 @@ func StrikeHitProbability(attacker, defender *Unit, weapon *Weapon,
 	return HitProbability(*weapon, attacker, defender, ability)
 }
 
-func (b *Board) CounterWeapon(defender *Unit, name string, attacker Footprint) *Weapon {
-	distance := SpanDistance(defender.Footprint, attacker)
+func (b *Board) counterWeapon(defender *Unit, name string, attacker footprint) *Weapon {
+	distance := spanDistance(defender.Footprint, attacker)
 	for index := range defender.Mech.Weapons {
 		weapon := &defender.Mech.Weapons[index]
 		if name != "" && weapon.Name != name {
@@ -51,6 +53,6 @@ func (b *Board) CounterWeapon(defender *Unit, name string, attacker Footprint) *
 }
 
 func counterFits(defender *Unit, weapon *Weapon, distance int) bool {
-	return !weapon.MapWeapon && weapon.CanCounter && defender.HasENFor(*weapon) &&
-		weapon.Range.Holds(distance)
+	return !weapon.MapWeapon && weapon.CanCounter && defender.hasENFor(*weapon) &&
+		weapon.Range.holds(distance)
 }

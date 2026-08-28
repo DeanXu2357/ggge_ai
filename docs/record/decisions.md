@@ -1484,3 +1484,52 @@
   command 'response_attacks', the stance term 'response attack
   stance' 應戰姿態. Done inside issue #84 while version 1.4 is
   already the breaking step of the unit payload.
+- **(0828) The board interfaces carry the board in their names —
+  user ruling**｜Issue #86 split 'engine/battle' into the contract
+  and 'engine/battle/board'. The two interfaces landed as 'Reader'
+  and 'Resolver'; the user: "reader 和 resolver 兩個命名太普遍了，建議
+  改成 BoardReader 和 BoardResolver". Renamed; 'Board' embeds both
+  and keeps its name. Same rule as the 'WeaponCategory' and
+  'ResponseAttack' rulings of the day: an identifier names the
+  thing it belongs to.
+- **(0828) A contract interface holds what a consumer calls — user
+  ruling**｜The first cut of the board contract put 'Act', 'Apply'
+  and 'Advance' on one interface. The user: "你自己都講出 act = apply
+  + advance 你不會覺得很怪嗎？為什麼包裝的介面你要懂執行順序以及等價？如
+  果 advance 單純提供資訊那為什麼不等到實際有需求的功能出來時再開介
+  面，並且你不是要把執行和讀取分開，如果 advance 和 act 放一起那這個介
+  面是做什麼用的？". Rule: an interface method exists because a
+  consumer outside the implementation calls it today; a method
+  that only the implementation composes ('Apply', 'Advance') stays
+  on the concrete type; the interface never shows a caller that one
+  method equals two others in order. 'BoardResolver' is 'Act'
+  alone; 'BoardReader' is the twelve methods the server and the
+  codec call (issue #86).
+- **(0828) Correction: the board exports its own state — user review**
+  ｜The entry above set 'BoardReader' at twelve methods. The user
+  reviewed the file: "Reader 開了一堆沒有使用到的介面，並且功能重複不說
+  連 Bounds 這種明顯該定義成自己內部使用的私有函式都公開出來". Root
+  cause: 'EncodeState' and 'EncodeSummary' sit in the implementation
+  package but took the interface, so every field they read became a
+  public accessor. Resolution: the board exports itself through
+  'State()' and 'Summary()', the codec reads the struct, and the
+  accessors leave the contract. 'BoardReader' is six methods, each a
+  server call: 'Capabilities', 'ReachableCells', 'ResponseAttacks',
+  'Clone', 'State', 'Summary'. The session also records that its
+  first report relayed the editor's summary without a review of the
+  file; the review of a contract is a read of the file against its
+  callers, not a read of a report.
+- **(0828) The board contract speaks the protocol end to end — user
+  ruling**｜After the six-method cut, the user: "EncodeResolution 是不
+  是放錯位置了，以他的職責不應該放在 board 的實作裡面 ... 你要麻就是整個
+  Board interface 都是針對 protocol 的，然後自己的型別不往外開放，不然
+  就是一個專門的 codex 介面，你這樣不上不下的搞得很難看". Two
+  consistent cuts were put to the user: A, the contract speaks the
+  wire types of 'engine/protocol' on every method and the domain
+  types live inside 'engine/battle/board'; B, a codec package apart,
+  which needs the accessors already rejected. The user chose A:
+  "A 開始實作". Consequences: 'engine/battle' holds the interfaces,
+  the dice, 'DecodeOutcomes' and the sentinel errors, nothing else;
+  'model.go' and the result types move into 'board'; the server
+  runs no codec call; 'Act' keeps the untyped event list of the
+  response in this branch (issue #86).

@@ -619,8 +619,8 @@ It compares the three data sources with the section "Types" of
 
 ### The unit row against the engine unit
 
-The engine keeps two levels apart: the final panel (`battle.Unit`)
-and the base data (`battle.Mech` and `battle.Pilot`).
+The engine keeps two levels apart: the final panel (`board.Unit`)
+and the base data (`board.Mech` and `board.Pilot`).
 
 Agreements:
 

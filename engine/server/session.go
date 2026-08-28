@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 // A session holds the board, the seed, and the history of one battle. The
 // deploy commands belong to the issue that implements them.
 type session struct {
-	board         *battle.Board
+	board         battle.Board
 	victory       []protocol.Victory
 	events        json.RawMessage
 	deployCells   []protocol.Cell
@@ -21,9 +22,9 @@ type session struct {
 	firedEvents   []string
 }
 
-func newSession(board *battle.Board, seed int64) *session {
+func newSession(b battle.Board, seed int64) *session {
 	return &session{
-		board:         board,
+		board:         b,
 		seed:          seed,
 		draw:          battle.NewServerDraw(seed),
 		history:       []protocol.HistoryEntry{},
@@ -39,7 +40,7 @@ func init() {
 }
 
 func openCommand[T any](s *Server, id string, payload json.RawMessage) (
-	*T, *battle.Board, *protocol.Response) {
+	*T, battle.Board, *protocol.Response) {
 	var request T
 	if s.session == nil {
 		fail := protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
@@ -57,14 +58,14 @@ func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	board, err := battle.DecodeState(&request.State)
+	b, err := board.DecodeState(&request.State)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
 	// No engine exports a phase that holds no pending unit, but a hand-written
 	// snapshot can carry one. The rotation makes such a board playable.
-	board.Advance()
-	loaded := newSession(board, request.Seed)
+	b.Advance()
+	loaded := newSession(b, request.Seed)
 	if request.History != nil {
 		loaded.history = request.History
 	}
@@ -79,29 +80,29 @@ func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 }
 
 func (s *Server) export(id string, payload json.RawMessage) protocol.Response {
-	_, board, fail := openCommand[protocol.ExportRequest](s, id, payload)
+	_, b, fail := openCommand[protocol.ExportRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
-	state := battle.EncodeState(board)
+	state := b.State()
 	state.PendingEvents = s.session.pendingEvents
 	state.FiredEvents = s.session.firedEvents
 	return protocol.Ok(id, protocol.ExportResponse{
 		State:   state,
 		History: s.session.history,
 		Seed:    s.session.seed,
-		Gone:    battle.EncodeSummary(board).Gone,
+		Gone:    b.Summary().Gone,
 	})
 }
 
 func (s *Server) reach(id string, payload json.RawMessage) protocol.Response {
-	request, board, fail := openCommand[protocol.ReachRequest](s, id, payload)
+	request, b, fail := openCommand[protocol.ReachRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
-	cells, err := board.ReachableCells(request.UnitID)
+	cells, err := b.ReachableCells(request.UnitID)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
 	}
-	return protocol.Ok(id, protocol.ReachResponse{Cells: battle.EncodeCells(cells)})
+	return protocol.Ok(id, protocol.ReachResponse{Cells: cells})
 }

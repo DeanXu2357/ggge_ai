@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
@@ -35,29 +36,30 @@ var resolveOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		board, err := battle.DecodeState(&setup.State)
+		state, err := board.DecodeState(&setup.State)
 		if err != nil {
 			return nil, err
 		}
-		decision, err := battle.DecodeDecision(&in.Decision)
+		decision, err := board.DecodeDecision(&in.Decision)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := board.Apply(decision, battle.Forced(in.Dice)); err != nil {
+		if _, err := state.Apply(decision, battle.Forced(in.Dice)); err != nil {
 			return nil, err
 		}
-		return applyAnswer{Units: livingUnits(board)}, nil
+		return applyAnswer{Units: livingUnits(state)}, nil
 	},
 }
 
-func livingUnits(board *battle.Board) []protocol.Unit {
-	out := make([]battle.Unit, 0, len(board.Units))
-	for _, unit := range board.Units {
-		if unit.Alive() {
+func livingUnits(state *board.Board) []protocol.Unit {
+	units := state.State().Units
+	out := make([]protocol.Unit, 0, len(units))
+	for _, unit := range units {
+		if unit.HP > 0 {
 			out = append(out, unit)
 		}
 	}
-	return battle.EncodeUnits(out)
+	return out
 }
 
 // Six rules of the engine part from the Python oracle on purpose. The three
