@@ -80,8 +80,8 @@ type Engagement struct {
 	ResponseAttacks []ResponseAttackOption
 }
 
-// Reader answers questions about the board and changes nothing.
-type Reader interface {
+// BoardReader answers questions about the board and changes nothing.
+type BoardReader interface {
 	Activatable(unitID string) (*Unit, error)
 	BlockingCells(unit *Unit) CellSet
 	Bounds() Bounds
@@ -108,14 +108,14 @@ type Reader interface {
 	Unit(id string) *Unit
 }
 
-// Resolver carries one decision out and turns the phase over.
-type Resolver interface {
+// BoardResolver carries one decision out and turns the phase over.
+type BoardResolver interface {
 	Act(decision Decision, dice Dice) (Resolution, error)
 	Advance() []Rotation
 	Apply(decision Decision, dice Dice) (Trace, error)
 }
 
 type Board interface {
-	Reader
-	Resolver
+	BoardReader
+	BoardResolver
 }
