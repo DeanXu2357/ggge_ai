@@ -6,7 +6,7 @@ Issue: #86. Branch: issue-86-board-package. Status: awaiting-review.
 
 ## Change summary
 
-Seven commits.
+Eight commits.
 
 | Commit | What |
 |---|---|
@@ -16,7 +16,7 @@ Seven commits.
 | d5c32ff | The interfaces narrowed to the six methods the server calls; the board exports its own state and summary |
 | 4c50706 | The spec names the contract methods and the protocol import |
 | ac8aaeb | The twelve methods only the package calls made private; two policy comments deleted from 'model.go' |
-| (next) | The terminology map points at the private names; one narrating comment deleted |
+| 91ccc00, 9672ecf | The terminology map points at the private names; the narrating comment on 'Cell.Before' deleted |
 
     engine/battle          model.go (the data types, the six sentinel
                            errors), board.go (the interfaces and the
@@ -76,7 +76,7 @@ private to the package.
 ## Verification
 
 - Gates green at every commit of the branch (the editor's run and
-  a separate run at c294023; a separate run at ac8aaeb pending).
+  a separate run at c294023; separate runs at ac8aaeb and at 9672ecf, both green).
 - The goldens under 'tests/fixtures/engine/' pass unchanged.
 - The main session read 'engine/battle/board.go' in full at d5c32ff
   and at ac8aaeb, grepped every method call on the session board in
