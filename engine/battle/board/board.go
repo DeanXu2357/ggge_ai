@@ -1,7 +1,3 @@
-// Package board holds the board of one battle: its own model, the rules that
-// move it, and the codec that carries it over the wire. The package
-// 'engine/battle' above it holds the contract that a caller reaches the
-// board through.
 package board
 
 import (

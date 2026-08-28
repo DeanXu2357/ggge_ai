@@ -29,8 +29,7 @@ func defenderSide(defender *unit) formula.Side {
 
 // The terrain correction is NoTerrainCorrection for every weapon. The
 // correction is the effect of a weapon ability that reads the terrain of the
-// cell of the target, and the engine models no ability yet. Issue #80 gives
-// the weapon its ability list, and this call then reads the board.
+// cell of the target, and the engine models no ability yet.
 func strikeDamage(attacker, defender *unit, weapon *weapon, defense float64) int {
 	return formula.StrikeDamage(weapon.Power, attackerSide(attacker, *weapon),
 		defenderSide(defender), formula.NoTerrainCorrection, debuffBonus(defender), 0,

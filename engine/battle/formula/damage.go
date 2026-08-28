@@ -4,11 +4,6 @@ import (
 	"math"
 )
 
-// The damage rules of docs/reference/combat-formulas.md. The unexported
-// functions are the corrections 1 to 4, 6 and 7 of that document, and the
-// exported ones are the formulas 5 and 8 to 11, plus the composition of the
-// formulas 8 to 10. 'rules.go' holds the constants.
-
 func pilotRatio(attacker, defender Side) float64 {
 	return math.Max(0, (attacker.PilotAttack-defender.PilotDefense)/5000)
 }
