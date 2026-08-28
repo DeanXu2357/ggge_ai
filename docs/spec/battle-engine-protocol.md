@@ -667,6 +667,14 @@ The unit carries no attack, no defense, no mobility, no movement
 range and no weapon list of its own. A rule that needs one of them
 reads the pilot or the mech.
 
+The three maxima 'support_attack_charges_max',
+'support_defend_charges_max' and 'chance_steps_max' are state of
+the unit, and the pilot decides them: an ability of the pilot whose
+condition matches the mech (its role, its tags or its series) raises
+the count (user ruling 2026-08-28). No code derives them yet; a
+payload carries them as given. The pairing conditions belong to
+issue #72 and the derivation to issue #77.
+
 The pilot holds the values of the game's pilot panel:
 
 | Field | Content |

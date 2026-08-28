@@ -1448,3 +1448,21 @@
   rule reads; the terminology entries 'final panel' and 'base data'
   are rewritten in the same branch. The datamine pilot row holds no
   SP pool; the device is its source.
+- **(0828) The pilot decides the support and chance counts of the
+  unit — user ruling**｜"你原本把最大支援攻擊次數、最大支援防禦次數、最
+  大再動次數等資料記錄在 unit 上，這個作法很正確，但是 ... 決定 unit 是
+  否有支援能力的是 pilot，是 pilot 能力裏面的詞條和 mech 類型有契合、符
+  合 pilot 能力條件後才會改變 unit 以上三者的能力。這個東西可以其他
+  issue 再改，但是要記錄下來". The maxima
+  'support_attack_charges_max', 'support_defend_charges_max' and
+  'chance_steps_max' stay on the unit as state. Their values come
+  from the abilities of the pilot: an ability entry whose condition
+  matches the mech (its role, its tags or its series) raises the
+  count. The datamine shows the shape: pilot ability traits of
+  'trait_type' 51 ("Support Attack/Counter +1 time(s)"), 52
+  ("Support Defense +1 time(s)") and 19 ("Chance Step +1 time(s)"
+  with a tag condition), each with an 'active_condition' over
+  'unit_role', 'unit_tags' or 'unit_series'
+  (docs/reference/datamine-source.md, section "The pilot row").
+  Not built in issue #84; the pairing conditions belong to issue
+  #72, and the derivation of the maxima to issue #77.
