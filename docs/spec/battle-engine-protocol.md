@@ -20,16 +20,19 @@ issues of the port (#60 to #68).
   command 'rollback' removes the last entry.
 - 'init' plus the sequence of the commands that change the board
   reproduce the battle. The engine holds no other input.
-- The Go package 'engine/battle' holds the contract: the data
-  types, the board interfaces, the sentinel errors and the dice.
-  The interfaces hold the methods that a consumer calls: 'Act' on
-  'BoardResolver'; 'Capabilities', 'ReachableCells',
-  'ResponseAttacks', 'Clone', 'State' and 'Summary' on
-  'BoardReader'. 'State' and 'Summary' give the wire types of
-  'engine/protocol', so the contract imports that package. The
-  package 'engine/battle/board' holds the implementation.
-  'engine/server' constructs a board with 'board.DecodeInit' or
-  'board.DecodeState' and keeps it as a 'battle.Board'.
+- The Go package 'engine/battle' holds the contract: the board
+  interfaces over the wire types of 'engine/protocol', the dice
+  and the sentinel errors. The interfaces hold the methods that a
+  consumer calls: 'Act' on 'BoardResolver'; 'Capabilities',
+  'ReachableCells', 'ResponseAttacks', 'Clone', 'State' and
+  'Summary' on 'BoardReader'. Each method takes and gives the
+  types of 'engine/protocol', so the contract imports that
+  package and no other package of the engine. The package
+  'engine/battle/board' holds the implementation: its own model
+  of the battle and its own codec. 'engine/server' constructs a
+  board with 'board.DecodeInit' or 'board.DecodeState', keeps it
+  as a 'battle.Board', and speaks the types of 'engine/protocol'
+  to it.
 
 ## Transport
 

@@ -1,17 +1,32 @@
 package board
 
-import "github.com/DeanXu2357/ggge_ai/engine/battle"
+import (
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/protocol"
+)
 
-func (b *Board) Act(decision battle.Decision, dice battle.Dice) (battle.Resolution, error) {
-	trace, err := b.Apply(decision, dice)
+func (b *Board) Act(action *protocol.Decision, dice battle.Dice) ([]any, error) {
+	decision, err := DecodeDecision(action)
 	if err != nil {
-		return battle.Resolution{}, err
+		return nil, err
 	}
-	return battle.Resolution{Trace: trace, Rotations: b.Advance()}, nil
+	resolution, err := b.act(decision, dice)
+	if err != nil {
+		return nil, err
+	}
+	return encodeResolution(resolution), nil
 }
 
-func (b *Board) pending(faction battle.Faction) []*battle.Unit {
-	var out []*battle.Unit
+func (b *Board) act(decision Decision, dice battle.Dice) (Resolution, error) {
+	trace, err := b.Apply(decision, dice)
+	if err != nil {
+		return Resolution{}, err
+	}
+	return Resolution{Trace: trace, Rotations: b.Advance()}, nil
+}
+
+func (b *Board) pending(faction Faction) []*Unit {
+	var out []*Unit
 	for index := range b.units {
 		unit := &b.units[index]
 		if unit.Faction == faction && unit.Alive() && !unit.Acted {
@@ -23,25 +38,25 @@ func (b *Board) pending(faction battle.Faction) []*battle.Unit {
 
 // A board with no living unit keeps its phase: every side would stay empty,
 // and the rotation would never end.
-func (b *Board) Advance() []battle.Rotation {
+func (b *Board) Advance() []Rotation {
 	if !b.anyAlive() {
 		return nil
 	}
-	var out []battle.Rotation
+	var out []Rotation
 	for len(b.pending(b.phase)) == 0 {
 		out = append(out, b.nextPhase())
 	}
 	return out
 }
 
-func (b *Board) nextPhase() battle.Rotation {
+func (b *Board) nextPhase() Rotation {
 	slot := (b.phaseIndex() - b.turn*len(PhaseOrder) + 1) % len(PhaseOrder)
 	if slot == 0 {
 		b.turn++
 	}
 	b.phase = PhaseOrder[slot]
 	b.beginPhase()
-	return battle.Rotation{Turn: b.turn, Phase: b.phase}
+	return Rotation{Turn: b.turn, Phase: b.phase}
 }
 
 func (b *Board) beginPhase() {
@@ -60,7 +75,7 @@ func (b *Board) beginPhase() {
 	}
 }
 
-func expired(debuffs []battle.Debuff, now int) []battle.Debuff {
+func expired(debuffs []Debuff, now int) []Debuff {
 	kept := debuffs[:0]
 	for _, debuff := range debuffs {
 		if debuff.AppliedPhase+len(PhaseOrder) > now {
@@ -79,9 +94,9 @@ func (b *Board) anyAlive() bool {
 	return false
 }
 
-func (b *Board) gone() []battle.Faction {
-	var out []battle.Faction
-	for _, faction := range []battle.Faction{battle.FactionAlly, battle.FactionEnemy} {
+func (b *Board) gone() []Faction {
+	var out []Faction
+	for _, faction := range []Faction{FactionAlly, FactionEnemy} {
 		if len(b.byFaction(faction)) == 0 {
 			out = append(out, faction)
 		}

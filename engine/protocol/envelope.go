@@ -2,7 +2,10 @@
 // the battle engine contract (docs/spec/battle-engine-protocol.md).
 package protocol
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
 
 const Version = "1.4"
 
@@ -16,6 +19,10 @@ const (
 	CodeEmptyHistory   = "empty_history"
 	CodeAlreadyActed   = "already_acted"
 )
+
+// The board decodes the payload behind the contract, so this sentinel tells
+// the server that a refusal is a bad request and not an illegal action.
+var ErrOutsideContract = errors.New("the payload stands outside the contract")
 
 type Request struct {
 	ID      string          `json:"id"`

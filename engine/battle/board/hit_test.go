@@ -2,15 +2,13 @@ package board
 
 import (
 	"testing"
-
-	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
 func TestTheHitRateHoldsBetweenZeroAndOneHundred(t *testing.T) {
-	weapon := battle.Weapon{Accuracy: 96.45}
-	quick := &battle.Unit{Pilot: battle.Pilot{Ranged: 400}, Mech: battle.Mech{Mobility: 1000}}
-	still := &battle.Unit{}
-	evasive := &battle.Unit{Pilot: battle.Pilot{Reaction: 3000}, Mech: battle.Mech{Mobility: 500}}
+	weapon := Weapon{Accuracy: 96.45}
+	quick := &Unit{Pilot: Pilot{Ranged: 400}, Mech: Mech{Mobility: 1000}}
+	still := &Unit{}
+	evasive := &Unit{Pilot: Pilot{Reaction: 3000}, Mech: Mech{Mobility: 500}}
 
 	if got := HitRatePercent(weapon, quick, still, 0); got != 100 {
 		t.Fatalf("a rate over one hundred: %v", got)
@@ -24,12 +22,12 @@ func TestTheHitRateHoldsBetweenZeroAndOneHundred(t *testing.T) {
 }
 
 func TestTheHitRateFollowsTheAccuracyOfTheWeapon(t *testing.T) {
-	still := &battle.Unit{}
+	still := &Unit{}
 	// A reaction of 500 costs twenty points, so the accuracy of 105 stays under
 	// the clamp and the two rates keep their full distance.
-	reactive := &battle.Unit{Pilot: battle.Pilot{Reaction: 500}}
-	sloppy := battle.Weapon{Accuracy: 90}
-	precise := battle.Weapon{Accuracy: 105}
+	reactive := &Unit{Pilot: Pilot{Reaction: 500}}
+	sloppy := Weapon{Accuracy: 90}
+	precise := Weapon{Accuracy: 105}
 
 	near(t, "the accuracy alone", HitRatePercent(sloppy, still, still, 0), 90)
 	near(t, "the span of the game values",
@@ -37,17 +35,17 @@ func TestTheHitRateFollowsTheAccuracyOfTheWeapon(t *testing.T) {
 }
 
 func TestAWeaponWithNoAccuracyCarriesNoBase(t *testing.T) {
-	attacker := &battle.Unit{Mech: battle.Mech{Mobility: 500}}
-	still := &battle.Unit{}
+	attacker := &Unit{Mech: Mech{Mobility: 500}}
+	still := &Unit{}
 
-	near(t, "the mobility term alone", HitRatePercent(battle.Weapon{}, attacker, still, 0), 3.66)
+	near(t, "the mobility term alone", HitRatePercent(Weapon{}, attacker, still, 0), 3.66)
 }
 
 func TestTheMobilityOfEachSideMovesTheHitRateItsOwnWay(t *testing.T) {
-	weapon := battle.Weapon{Accuracy: 95}
-	still := &battle.Unit{}
-	attacker := &battle.Unit{Mech: battle.Mech{Mobility: 500}}
-	defender := &battle.Unit{Mech: battle.Mech{Mobility: 500}}
+	weapon := Weapon{Accuracy: 95}
+	still := &Unit{}
+	attacker := &Unit{Mech: Mech{Mobility: 500}}
+	defender := &Unit{Mech: Mech{Mobility: 500}}
 
 	if HitRatePercent(weapon, attacker, still, 0) <= HitRatePercent(weapon, still, still, 0) {
 		t.Fatal("the mobility of the attacker raises the rate")
@@ -58,9 +56,9 @@ func TestTheMobilityOfEachSideMovesTheHitRateItsOwnWay(t *testing.T) {
 }
 
 func TestTheHitProbabilityIsTheRateOverOneHundred(t *testing.T) {
-	weapon := battle.Weapon{Accuracy: 90}
-	attacker := &battle.Unit{Pilot: battle.Pilot{Ranged: 220}, Mech: battle.Mech{Mobility: 310}}
-	defender := &battle.Unit{Pilot: battle.Pilot{Reaction: 205}, Mech: battle.Mech{Mobility: 310}}
+	weapon := Weapon{Accuracy: 90}
+	attacker := &Unit{Pilot: Pilot{Ranged: 220}, Mech: Mech{Mobility: 310}}
+	defender := &Unit{Pilot: Pilot{Reaction: 205}, Mech: Mech{Mobility: 310}}
 
 	got := HitProbability(weapon, attacker, defender, 0)
 

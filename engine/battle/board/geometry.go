@@ -2,15 +2,13 @@ package board
 
 import (
 	"sort"
-
-	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
-type CellSet map[battle.Cell]bool
+type CellSet map[Cell]bool
 
-var steps = [4]battle.Cell{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
+var steps = [4]Cell{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
 
-func SpanDistance(a, b battle.Footprint) int {
+func SpanDistance(a, b Footprint) int {
 	return axisGap(a.Anchor[0], a.Size[0], b.Anchor[0], b.Size[0]) +
 		axisGap(a.Anchor[1], a.Size[1], b.Anchor[1], b.Size[1])
 }
@@ -25,7 +23,7 @@ func axisGap(lowA, spanA, lowB, spanB int) int {
 	return 0
 }
 
-func FootprintClear(footprint battle.Footprint, taken CellSet) bool {
+func FootprintClear(footprint Footprint, taken CellSet) bool {
 	for _, cell := range footprint.Cells() {
 		if taken[cell] {
 			return false
@@ -34,13 +32,13 @@ func FootprintClear(footprint battle.Footprint, taken CellSet) bool {
 	return true
 }
 
-func addFootprint(set CellSet, footprint battle.Footprint) {
+func addFootprint(set CellSet, footprint Footprint) {
 	for _, cell := range footprint.Cells() {
 		set[cell] = true
 	}
 }
 
-func ReachableAnchors(from battle.Footprint, budget int, blocked, occupied CellSet, bounds battle.Bounds) CellSet {
+func ReachableAnchors(from Footprint, budget int, blocked, occupied CellSet, bounds Bounds) CellSet {
 	seen := CellSet{from.Anchor: true}
 	out := CellSet{from.Anchor: true}
 	frontier := []walk{{from.Anchor, 0}}
@@ -51,7 +49,7 @@ func ReachableAnchors(from battle.Footprint, budget int, blocked, occupied CellS
 			continue
 		}
 		for _, delta := range steps {
-			next := battle.Footprint{Anchor: battle.Cell{step.cell[0] + delta[0], step.cell[1] + delta[1]}, Size: from.Size}
+			next := Footprint{Anchor: Cell{step.cell[0] + delta[0], step.cell[1] + delta[1]}, Size: from.Size}
 			if seen[next.Anchor] || !next.Within(bounds) || !FootprintClear(next, blocked) {
 				continue
 			}
@@ -66,21 +64,21 @@ func ReachableAnchors(from battle.Footprint, budget int, blocked, occupied CellS
 }
 
 type walk struct {
-	cell  battle.Cell
+	cell  Cell
 	spent int
 }
 
-func NearestFreeCell(footprint battle.Footprint, taken CellSet) battle.Cell {
+func NearestFreeCell(footprint Footprint, taken CellSet) Cell {
 	seen := CellSet{footprint.Anchor: true}
-	frontier := []battle.Cell{footprint.Anchor}
+	frontier := []Cell{footprint.Anchor}
 	for len(frontier) > 0 {
 		anchor := frontier[0]
 		frontier = frontier[1:]
-		if FootprintClear(battle.Footprint{Anchor: anchor, Size: footprint.Size}, taken) {
+		if FootprintClear(Footprint{Anchor: anchor, Size: footprint.Size}, taken) {
 			return anchor
 		}
 		for _, delta := range steps {
-			next := battle.Cell{anchor[0] + delta[0], anchor[1] + delta[1]}
+			next := Cell{anchor[0] + delta[0], anchor[1] + delta[1]}
 			if !seen[next] {
 				seen[next] = true
 				frontier = append(frontier, next)
@@ -90,22 +88,22 @@ func NearestFreeCell(footprint battle.Footprint, taken CellSet) battle.Cell {
 	return footprint.Anchor
 }
 
-func SortedCells(set CellSet) []battle.Cell {
+func SortedCells(set CellSet) []Cell {
 	out := cellSlice(set)
 	sort.Slice(out, func(i, j int) bool { return out[i].Before(out[j]) })
 	return out
 }
 
-func footprintAt(unit *battle.Unit, anchor battle.Cell) battle.Footprint {
-	return battle.Footprint{Anchor: anchor, Size: unit.Footprint.Size}
+func footprintAt(unit *Unit, anchor Cell) Footprint {
+	return Footprint{Anchor: anchor, Size: unit.Footprint.Size}
 }
 
-func cellFootprint(cell battle.Cell) battle.Footprint {
-	return battle.Footprint{Anchor: cell, Size: battle.Size{1, 1}}
+func cellFootprint(cell Cell) Footprint {
+	return Footprint{Anchor: cell, Size: Size{1, 1}}
 }
 
-func cellSlice(set CellSet) []battle.Cell {
-	out := make([]battle.Cell, 0, len(set))
+func cellSlice(set CellSet) []Cell {
+	out := make([]Cell, 0, len(set))
 	for cell := range set {
 		out = append(out, cell)
 	}

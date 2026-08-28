@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -26,7 +25,7 @@ func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
 		}
 		return protocol.Fail(id, protocol.CodeIllegalState, err.Error())
 	}
-	return protocol.Ok(id, board.EncodeCapabilities(capabilities))
+	return protocol.Ok(id, capabilities)
 }
 
 func (s *Server) responseAttacks(id string, payload json.RawMessage) protocol.Response {
@@ -34,13 +33,9 @@ func (s *Server) responseAttacks(id string, payload json.RawMessage) protocol.Re
 	if fail != nil {
 		return *fail
 	}
-	action, err := board.DecodeDecision(&request.Action)
+	engagement, err := b.ResponseAttacks(&request.Action, request.DefenderID)
 	if err != nil {
-		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
+		return protocol.Fail(id, refusalCode(err), err.Error())
 	}
-	engagement, err := b.ResponseAttacks(action, request.DefenderID)
-	if err != nil {
-		return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
-	}
-	return protocol.Ok(id, board.EncodeEngagement(engagement))
+	return protocol.Ok(id, engagement)
 }

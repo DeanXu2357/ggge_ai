@@ -37,16 +37,12 @@ var turnOps = map[string]differential.Op{
 		if err != nil {
 			return nil, err
 		}
-		decision, err := board.DecodeDecision(&in.Decision)
-		if err != nil {
-			return nil, err
-		}
-		outcomes, err := board.DecodeOutcomes(in.Outcomes)
+		outcomes, err := battle.DecodeOutcomes(in.Outcomes)
 		if err != nil {
 			return nil, err
 		}
 		roll := battle.NewManualRoll(outcomes)
-		if _, err := state.Act(decision, roll); err != nil {
+		if _, err := state.Act(&in.Decision, roll); err != nil {
 			return nil, err
 		}
 		if roll.Short() {

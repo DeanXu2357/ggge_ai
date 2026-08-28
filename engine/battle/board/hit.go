@@ -2,8 +2,6 @@ package board
 
 import (
 	"math"
-
-	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
 const (
@@ -12,7 +10,7 @@ const (
 	hitPilotDivisor     = 25.0
 )
 
-func HitRatePercent(weapon battle.Weapon, attacker, defender *battle.Unit, abilityCorrection float64) float64 {
+func HitRatePercent(weapon Weapon, attacker, defender *Unit, abilityCorrection float64) float64 {
 	rate := weapon.Accuracy +
 		hitAttackerMobility*attacker.Mech.Mobility -
 		hitDefenderMobility*defender.Mech.Mobility +
@@ -21,6 +19,6 @@ func HitRatePercent(weapon battle.Weapon, attacker, defender *battle.Unit, abili
 	return math.Max(0, math.Min(100, rate))
 }
 
-func HitProbability(weapon battle.Weapon, attacker, defender *battle.Unit, abilityCorrection float64) float64 {
+func HitProbability(weapon Weapon, attacker, defender *Unit, abilityCorrection float64) float64 {
 	return HitRatePercent(weapon, attacker, defender, abilityCorrection) / 100
 }

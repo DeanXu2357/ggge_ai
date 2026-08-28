@@ -1,6 +1,9 @@
 package battle
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestManualRollReadsTheOutcomesInOrderAndReportsAShortList(t *testing.T) {
 	roll := NewManualRoll([]bool{true, false})
@@ -63,5 +66,15 @@ func TestACloneDoesNotMoveTheOriginal(t *testing.T) {
 		if fromClone[i] != fromOriginal[i] {
 			t.Fatalf("draw %d: the original moved with the clone", i)
 		}
+	}
+}
+
+func TestOutcomesReadHitAndMissOnly(t *testing.T) {
+	got, err := DecodeOutcomes([]string{"hit", "miss", "hit"})
+	if err != nil || !reflect.DeepEqual(got, []bool{true, false, true}) {
+		t.Fatalf("%v %v", got, err)
+	}
+	if _, err := DecodeOutcomes([]string{"true"}); err == nil {
+		t.Fatal("an outcome outside the two labels must fail")
 	}
 }

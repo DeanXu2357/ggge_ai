@@ -104,5 +104,5 @@ func (s *Server) reach(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
 	}
-	return protocol.Ok(id, protocol.ReachResponse{Cells: board.EncodeCells(cells)})
+	return protocol.Ok(id, protocol.ReachResponse{Cells: cells})
 }

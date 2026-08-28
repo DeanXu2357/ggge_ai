@@ -1,4 +1,4 @@
-// Package board holds the board of one battle: the state, the rules that
+// Package board holds the board of one battle: its own model, the rules that
 // move it, and the codec that carries it over the wire. The package
 // 'engine/battle' above it holds the contract that a caller reaches the
 // board through.
@@ -8,20 +8,21 @@ import (
 	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 var _ battle.Board = (*Board)(nil)
 
 type Board struct {
-	bounds         battle.Bounds
-	units          []battle.Unit
-	phase          battle.Faction
+	bounds         Bounds
+	units          []Unit
+	phase          Faction
 	turn           int
-	defaultTerrain battle.Terrain
-	terrainCells   map[battle.Cell]battle.Terrain
+	defaultTerrain Terrain
+	terrainCells   map[Cell]Terrain
 }
 
-func New(bounds battle.Bounds, units []battle.Unit) (*Board, error) {
+func New(bounds Bounds, units []Unit) (*Board, error) {
 	if bounds.High[0] < bounds.Low[0] || bounds.High[1] < bounds.Low[1] {
 		return nil, fmt.Errorf("the bounds %v run backward", bounds)
 	}
@@ -36,25 +37,21 @@ func New(bounds battle.Bounds, units []battle.Unit) (*Board, error) {
 	return &Board{bounds: bounds, units: units}, nil
 }
 
-func (b *Board) Roster() []battle.Unit {
-	return b.units
-}
-
-func (b *Board) terrainAt(cell battle.Cell) battle.Terrain {
+func (b *Board) terrainAt(cell Cell) Terrain {
 	if kind, declared := b.terrainCells[cell]; declared {
 		return kind
 	}
 	return b.defaultTerrain
 }
 
-func (b *Board) terrainOf(unit *battle.Unit) battle.Terrain {
+func (b *Board) terrainOf(unit *Unit) Terrain {
 	if unit == nil {
 		return b.defaultTerrain
 	}
 	return b.terrainAt(unit.Footprint.Anchor)
 }
 
-var PhaseOrder = [...]battle.Faction{battle.FactionAlly, battle.FactionThirdParty, battle.FactionEnemy}
+var PhaseOrder = [...]Faction{FactionAlly, FactionThirdParty, FactionEnemy}
 
 func (b *Board) phaseIndex() int {
 	for index, faction := range PhaseOrder {
@@ -65,7 +62,7 @@ func (b *Board) phaseIndex() int {
 	return b.turn * len(PhaseOrder)
 }
 
-func (b *Board) unit(id string) *battle.Unit {
+func (b *Board) unit(id string) *Unit {
 	for index := range b.units {
 		if b.units[index].ID == id {
 			return &b.units[index]
@@ -76,7 +73,7 @@ func (b *Board) unit(id string) *battle.Unit {
 
 // The command 'act' reads this gate; the reporting commands do not, because
 // a report of a unit that acted is still the answer to the question.
-func (b *Board) activatable(unitID string) (*battle.Unit, error) {
+func (b *Board) activatable(unitID string) (*Unit, error) {
 	unit, err := b.livingUnit(unitID)
 	if err != nil {
 		return nil, err
@@ -91,7 +88,7 @@ func (b *Board) activatable(unitID string) (*battle.Unit, error) {
 	return unit, nil
 }
 
-func (b *Board) livingUnit(id string) (*battle.Unit, error) {
+func (b *Board) livingUnit(id string) (*Unit, error) {
 	unit := b.unit(id)
 	if unit == nil {
 		return nil, fmt.Errorf("%w: %q", battle.ErrNoUnit, id)
@@ -102,7 +99,15 @@ func (b *Board) livingUnit(id string) (*battle.Unit, error) {
 	return unit, nil
 }
 
-func (b *Board) ReachableCells(unitID string) ([]battle.Cell, error) {
+func (b *Board) ReachableCells(unitID string) ([]protocol.Cell, error) {
+	cells, err := b.reachableCells(unitID)
+	if err != nil {
+		return nil, err
+	}
+	return encodeCells(cells), nil
+}
+
+func (b *Board) reachableCells(unitID string) ([]Cell, error) {
 	unit := b.unit(unitID)
 	if unit == nil {
 		return nil, fmt.Errorf("the board holds no unit %q", unitID)
@@ -110,13 +115,13 @@ func (b *Board) ReachableCells(unitID string) ([]battle.Cell, error) {
 	return SortedCells(b.reachableAnchors(unit)), nil
 }
 
-func (b *Board) reachableAnchors(unit *battle.Unit) CellSet {
+func (b *Board) reachableAnchors(unit *Unit) CellSet {
 	return ReachableAnchors(unit.Footprint, unit.Mech.MoveRange,
 		b.blockingCells(unit), b.occupiedCells(unit), b.bounds)
 }
 
-func (b *Board) byFaction(faction battle.Faction) []*battle.Unit {
-	var out []*battle.Unit
+func (b *Board) byFaction(faction Faction) []*Unit {
+	var out []*Unit
 	for index := range b.units {
 		other := &b.units[index]
 		if other.Faction == faction && other.Alive() {
@@ -126,11 +131,11 @@ func (b *Board) byFaction(faction battle.Faction) []*battle.Unit {
 	return out
 }
 
-func (b *Board) targetsOf(unit *battle.Unit) []*battle.Unit {
+func (b *Board) targetsOf(unit *Unit) []*Unit {
 	return b.byFaction(unit.Faction.Opposing())
 }
 
-func (b *Board) blockingCells(unit *battle.Unit) CellSet {
+func (b *Board) blockingCells(unit *Unit) CellSet {
 	out := CellSet{}
 	for index := range b.units {
 		other := &b.units[index]
@@ -142,7 +147,7 @@ func (b *Board) blockingCells(unit *battle.Unit) CellSet {
 	return out
 }
 
-func (b *Board) occupiedCells(unit *battle.Unit) CellSet {
+func (b *Board) occupiedCells(unit *Unit) CellSet {
 	out := CellSet{}
 	for index := range b.units {
 		other := &b.units[index]

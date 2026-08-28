@@ -12,7 +12,7 @@ type outcome struct {
 	endsActivation bool
 }
 
-func (b *Board) Apply(decision battle.Decision, dice battle.Dice) (battle.Trace, error) {
+func (b *Board) Apply(decision Decision, dice battle.Dice) (Trace, error) {
 	actor, err := b.activatable(decision.UnitID)
 	if err != nil {
 		return nil, err
@@ -25,14 +25,14 @@ func (b *Board) Apply(decision battle.Decision, dice battle.Dice) (battle.Trace,
 	return trace, nil
 }
 
-func (b *Board) run(actor *battle.Unit, decision battle.Decision, dice battle.Dice) (battle.Trace, outcome, error) {
+func (b *Board) run(actor *Unit, decision Decision, dice battle.Dice) (Trace, outcome, error) {
 	switch decision.Kind {
-	case battle.ActionAttack:
+	case ActionAttack:
 		return b.attack(actor, decision, dice)
-	case battle.ActionMapAttack:
+	case ActionMapAttack:
 		return nil, outcome{}, fmt.Errorf("%w: the engine resolves no map attack, because the area of a map weapon is not in the contract",
 			battle.ErrIllegalAction)
-	case battle.ActionReposition, battle.ActionStandby:
+	case ActionReposition, ActionStandby:
 		anchor, err := b.destination(actor, decision.MoveTo, true)
 		if err != nil {
 			return nil, outcome{}, err
@@ -44,7 +44,7 @@ func (b *Board) run(actor *battle.Unit, decision battle.Decision, dice battle.Di
 		battle.ErrIllegalAction, decision.Kind)
 }
 
-func endActivation(actor *battle.Unit, end outcome) {
+func endActivation(actor *Unit, end outcome) {
 	if end.killed && actor.Alive() && actor.ChanceSteps > 0 {
 		actor.ChanceSteps--
 		actor.Acted = false
@@ -53,16 +53,16 @@ func endActivation(actor *battle.Unit, end outcome) {
 	actor.Acted = end.endsActivation
 }
 
-func (b *Board) destination(actor *battle.Unit, to *battle.Cell, permitted bool) (battle.Cell, error) {
+func (b *Board) destination(actor *Unit, to *Cell, permitted bool) (Cell, error) {
 	if to == nil {
 		return actor.Footprint.Anchor, nil
 	}
 	if !permitted {
-		return battle.Cell{}, fmt.Errorf("%w: the action of unit %q runs before a move",
+		return Cell{}, fmt.Errorf("%w: the action of unit %q runs before a move",
 			battle.ErrIllegalMove, actor.ID)
 	}
 	if !b.reachableAnchors(actor)[*to] {
-		return battle.Cell{}, fmt.Errorf("%w: unit %q does not reach the anchor %v",
+		return Cell{}, fmt.Errorf("%w: unit %q does not reach the anchor %v",
 			battle.ErrIllegalMove, actor.ID, *to)
 	}
 	return *to, nil
@@ -70,7 +70,7 @@ func (b *Board) destination(actor *battle.Unit, to *battle.Cell, permitted bool)
 
 // Every rule is judged before the first change of the board, so a refused
 // pick leaves the board as it was.
-func (b *Board) attack(actor *battle.Unit, decision battle.Decision, dice battle.Dice) (battle.Trace, outcome, error) {
+func (b *Board) attack(actor *Unit, decision Decision, dice battle.Dice) (Trace, outcome, error) {
 	target, err := b.foe(actor, decision.TargetID)
 	if err != nil {
 		return nil, outcome{}, err
@@ -110,14 +110,14 @@ func (b *Board) attack(actor *battle.Unit, decision battle.Decision, dice battle
 	actor.Footprint.Anchor = anchor
 	actor.EN -= weapon.ENCost
 	shot := b.receiverOf(target, answer)
-	trace := b.fire(battle.NodeAttackerSupport, battle.StrikeSupport, joining, dice, &shot)
-	dodging := answer.responseAttack != nil && answer.responseAttack.Stance == battle.StanceDodge
+	trace := b.fire(battle.NodeAttackerSupport, StrikeSupport, joining, dice, &shot)
+	dodging := answer.responseAttack != nil && answer.responseAttack.Stance == StanceDodge
 	// The hit rate reads the target of the strike, and not the support defender
 	// that takes the strike in its place: the oracle 'decision_hit_probability'
 	// reads the target. Which evasion the game reads when a support defender
 	// takes the strike is not measured, so the value of the oracle stands until
 	// a measurement lands.
-	trace = append(trace, shot.hit(battle.StrikeMain, actor, weapon,
+	trace = append(trace, shot.hit(StrikeMain, actor, weapon,
 		dice.Lands(battle.NodeStrike, StrikeHitProbability(actor, target, weapon, dodging))))
 	killed := !shot.struck.Alive()
 
@@ -127,7 +127,7 @@ func (b *Board) attack(actor *battle.Unit, decision battle.Decision, dice battle
 	return trace, outcome{killed: killed, endsActivation: true}, nil
 }
 
-func (b *Board) foe(actor *battle.Unit, targetID string) (*battle.Unit, error) {
+func (b *Board) foe(actor *Unit, targetID string) (*Unit, error) {
 	target, err := b.livingUnit(targetID)
 	if err != nil {
 		return nil, err
@@ -143,14 +143,14 @@ func (b *Board) foe(actor *battle.Unit, targetID string) (*battle.Unit, error) {
 // settles the response attack somewhere else, as a node of a search tree
 // does.
 type answer struct {
-	responseAttack  *battle.ResponseAttack
-	counter         *battle.Weapon
-	supportDefender *battle.Unit
+	responseAttack  *ResponseAttack
+	counter         *Weapon
+	supportDefender *Unit
 	joining         []SupportAttacker
 }
 
-func (b *Board) answerOf(defender, attacker *battle.Unit, firing battle.Footprint,
-	responseAttack *battle.ResponseAttack) (answer, error) {
+func (b *Board) answerOf(defender, attacker *Unit, firing Footprint,
+	responseAttack *ResponseAttack) (answer, error) {
 	if responseAttack == nil {
 		return answer{}, nil
 	}
@@ -159,7 +159,7 @@ func (b *Board) answerOf(defender, attacker *battle.Unit, firing battle.Footprin
 		return answer{}, fmt.Errorf("%w: unit %q takes the stance %q, which is not in the contract",
 			battle.ErrIllegalAction, defender.ID, responseAttack.Stance)
 	}
-	if responseAttack.Stance == battle.StanceCounter {
+	if responseAttack.Stance == StanceCounter {
 		out.counter = b.counterWeapon(defender, responseAttack.Weapon, firing)
 		if out.counter == nil {
 			return answer{}, fmt.Errorf("%w: unit %q counters the strike with no weapon %q",
@@ -170,7 +170,7 @@ func (b *Board) answerOf(defender, attacker *battle.Unit, firing battle.Footprin
 			battle.ErrIllegalAction, responseAttack.Stance, defender.ID)
 	}
 	supportDefender, err := b.namedSupportDefender(defender, defender.Footprint, responseAttack.SupportDefender,
-		func(*battle.Unit) bool { return true })
+		func(*Unit) bool { return true })
 	if err != nil {
 		return answer{}, err
 	}
@@ -178,7 +178,7 @@ func (b *Board) answerOf(defender, attacker *battle.Unit, firing battle.Footprin
 	// supportDefender nothing to take (docs/reference/battle-prep-ui.md:279, issue
 	// #44). Whether the game pairs a support defender with the stand is not
 	// measured; the engine permits it until a measurement lands.
-	if supportDefender != nil && responseAttack.Stance == battle.StanceDefend {
+	if supportDefender != nil && responseAttack.Stance == StanceDefend {
 		return answer{}, fmt.Errorf("%w: unit %q defends the strike itself and takes no support defender",
 			battle.ErrIllegalAction, defender.ID)
 	}
@@ -190,7 +190,7 @@ func (b *Board) answerOf(defender, attacker *battle.Unit, firing battle.Footprin
 	return out, nil
 }
 
-func (b *Board) namedSupportAttackers(supported *battle.Unit, firing, foe battle.Footprint,
+func (b *Board) namedSupportAttackers(supported *Unit, firing, foe Footprint,
 	names []string) ([]SupportAttacker, error) {
 	if len(names) == 0 {
 		return nil, nil
@@ -218,8 +218,8 @@ func (b *Board) namedSupportAttackers(supported *battle.Unit, firing, foe battle
 	return out, nil
 }
 
-func (b *Board) namedSupportDefender(covered *battle.Unit, at battle.Footprint, name string,
-	fits func(*battle.Unit) bool) (*battle.Unit, error) {
+func (b *Board) namedSupportDefender(covered *Unit, at Footprint, name string,
+	fits func(*Unit) bool) (*Unit, error) {
 	if name == "" {
 		return nil, nil
 	}
@@ -232,20 +232,20 @@ func (b *Board) namedSupportDefender(covered *battle.Unit, at battle.Footprint, 
 		battle.ErrIllegalAction, name, covered.ID)
 }
 
-func (b *Board) namedSupportDefendWhenAttack(actor *battle.Unit, firing battle.Footprint, name string) (*battle.Unit, error) {
+func (b *Board) namedSupportDefendWhenAttack(actor *Unit, firing Footprint, name string) (*Unit, error) {
 	return b.namedSupportDefender(actor, firing, name,
-		func(other *battle.Unit) bool { return other.SupportDefendWhenAttack })
+		func(other *Unit) bool { return other.SupportDefendWhenAttack })
 }
 
 type receiver struct {
 	board           *Board
-	struck          *battle.Unit
+	struck          *Unit
 	multiplier      float64
-	supportDefender *battle.Unit
+	supportDefender *Unit
 	chargeSpent     bool
 }
 
-func (b *Board) receiverOf(target *battle.Unit, answer answer) receiver {
+func (b *Board) receiverOf(target *Unit, answer answer) receiver {
 	if answer.supportDefender != nil {
 		return b.coveredReceiver(answer.supportDefender)
 	}
@@ -256,21 +256,21 @@ func (b *Board) receiverOf(target *battle.Unit, answer answer) receiver {
 	return b.plainReceiver(target, multiplier)
 }
 
-func (b *Board) plainReceiver(struck *battle.Unit, multiplier float64) receiver {
+func (b *Board) plainReceiver(struck *Unit, multiplier float64) receiver {
 	return receiver{board: b, struck: struck, multiplier: multiplier}
 }
 
-func (b *Board) coveredReceiver(supportDefender *battle.Unit) receiver {
+func (b *Board) coveredReceiver(supportDefender *Unit) receiver {
 	return receiver{
 		board:           b,
 		struck:          supportDefender,
-		multiplier:      StanceMultiplier(battle.StanceDefend, supportDefender),
+		multiplier:      StanceMultiplier(StanceDefend, supportDefender),
 		supportDefender: supportDefender,
 	}
 }
 
-func (v *receiver) hit(kind battle.StrikeKind, shooter *battle.Unit, weapon *battle.Weapon, landed bool) battle.Strike {
-	record := battle.Strike{
+func (v *receiver) hit(kind StrikeKind, shooter *Unit, weapon *Weapon, landed bool) Strike {
+	record := Strike{
 		Kind:      kind,
 		ShooterID: shooter.ID,
 		StruckID:  v.struck.ID,
@@ -292,7 +292,7 @@ func (v *receiver) hit(kind battle.StrikeKind, shooter *battle.Unit, weapon *bat
 
 // A destroyed unit keeps its place on the board with no hit points left.
 // Every roster query filters on Alive.
-func (b *Board) wound(victim *battle.Unit, weapon *battle.Weapon, damage int) {
+func (b *Board) wound(victim *Unit, weapon *Weapon, damage int) {
 	victim.HP -= damage
 	if victim.HP < 0 {
 		victim.HP = 0
@@ -302,7 +302,7 @@ func (b *Board) wound(victim *battle.Unit, weapon *battle.Weapon, damage int) {
 
 // The fresh debuff takes the last place of the list, as the frozen goldens
 // under tests/fixtures/engine write it.
-func (b *Board) applyDebuff(victim *battle.Unit, weapon *battle.Weapon) {
+func (b *Board) applyDebuff(victim *Unit, weapon *Weapon) {
 	if weapon.DebuffKind == "" {
 		return
 	}
@@ -316,19 +316,19 @@ func (b *Board) applyDebuff(victim *battle.Unit, weapon *battle.Weapon) {
 		victim.Debuffs = append(victim.Debuffs[:index], victim.Debuffs[index+1:]...)
 		break
 	}
-	victim.Debuffs = append(victim.Debuffs, battle.Debuff{
+	victim.Debuffs = append(victim.Debuffs, Debuff{
 		Kind:         weapon.DebuffKind,
 		Magnitude:    weapon.DebuffMagnitude,
 		AppliedPhase: b.phaseIndex(),
 	})
 }
 
-func (b *Board) defenderReply(actor, target *battle.Unit, answer answer, bearer *battle.Unit,
-	dice battle.Dice) battle.Trace {
-	var out battle.Trace
+func (b *Board) defenderReply(actor, target *Unit, answer answer, bearer *Unit,
+	dice battle.Dice) Trace {
+	var out Trace
 	if len(answer.joining) > 0 && actor.Alive() {
 		shot := b.plainReceiver(actor, NoDefenseMultiplier)
-		out = b.fire(battle.NodeDefenderSupport, battle.StrikeDefenderSupport, answer.joining, dice, &shot)
+		out = b.fire(battle.NodeDefenderSupport, StrikeDefenderSupport, answer.joining, dice, &shot)
 	}
 	if answer.counter != nil && actor.Alive() {
 		out = append(out, b.counterStrike(target, actor, answer.counter, bearer, dice))
@@ -336,8 +336,8 @@ func (b *Board) defenderReply(actor, target *battle.Unit, answer answer, bearer 
 	return out
 }
 
-func (b *Board) fire(node battle.Node, kind battle.StrikeKind, joining []SupportAttacker, dice battle.Dice,
-	shot *receiver) battle.Trace {
+func (b *Board) fire(node battle.Node, kind StrikeKind, joining []SupportAttacker, dice battle.Dice,
+	shot *receiver) Trace {
 	shooters := able(joining)
 	if len(shooters) == 0 {
 		return nil
@@ -346,7 +346,7 @@ func (b *Board) fire(node battle.Node, kind battle.StrikeKind, joining []Support
 	// the first shot. A die for each support attacker is issue #47.
 	landed := dice.Lands(node, StrikeHitProbability(shooters[0].Unit,
 		shot.struck, shooters[0].Weapon, false))
-	out := make(battle.Trace, 0, len(shooters))
+	out := make(Trace, 0, len(shooters))
 	for _, shooter := range shooters {
 		shooter.Unit.SupportAttackCharges--
 		shooter.Unit.EN -= shooter.Weapon.ENCost
@@ -367,8 +367,8 @@ func able(joining []SupportAttacker) []SupportAttacker {
 }
 
 // The counter weapon spends its energy on a miss as well.
-func (b *Board) counterStrike(defender, attacker *battle.Unit, weapon *battle.Weapon, bearer *battle.Unit,
-	dice battle.Dice) battle.Strike {
+func (b *Board) counterStrike(defender, attacker *Unit, weapon *Weapon, bearer *Unit,
+	dice battle.Dice) Strike {
 	defender.EN -= weapon.ENCost
 	landed := dice.Lands(battle.NodeCounter,
 		StrikeHitProbability(defender, attacker, weapon, false))
@@ -376,5 +376,5 @@ func (b *Board) counterStrike(defender, attacker *battle.Unit, weapon *battle.We
 	if bearer != nil && bearer.Alive() && bearer.SupportDefendCharges > 0 {
 		shot = b.coveredReceiver(bearer)
 	}
-	return shot.hit(battle.StrikeCounter, defender, weapon, landed)
+	return shot.hit(StrikeCounter, defender, weapon, landed)
 }

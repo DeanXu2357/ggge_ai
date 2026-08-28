@@ -1,6 +1,9 @@
 package battle
 
-import "math/rand/v2"
+import (
+	"fmt"
+	"math/rand/v2"
+)
 
 type Node int
 
@@ -89,4 +92,19 @@ func (d *ServerDraw) Clone() *ServerDraw {
 		panic(err)
 	}
 	return newServerDraw(source)
+}
+
+func DecodeOutcomes(labels []string) ([]bool, error) {
+	out := make([]bool, 0, len(labels))
+	for index, label := range labels {
+		switch label {
+		case "hit":
+			out = append(out, true)
+		case "miss":
+			out = append(out, false)
+		default:
+			return nil, fmt.Errorf("outcome %d is %q, and the contract holds 'hit' and 'miss'", index, label)
+		}
+	}
+	return out, nil
 }

@@ -8,7 +8,7 @@ import (
 
 func (b *Board) Clone() battle.Board {
 	out := *b
-	out.units = make([]battle.Unit, len(b.units))
+	out.units = make([]Unit, len(b.units))
 	for index := range b.units {
 		out.units[index] = b.units[index].Clone()
 	}

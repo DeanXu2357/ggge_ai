@@ -8,13 +8,13 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
-func rifle(name string, band battle.RadiusRange) battle.Weapon {
-	return battle.Weapon{Name: name, Range: band, CanCounter: true, UsableAfterMove: true}
+func rifle(name string, band RadiusRange) Weapon {
+	return Weapon{Name: name, Range: band, CanCounter: true, UsableAfterMove: true}
 }
 
-func capabilities(t *testing.T, state *Board, id string) battle.Capabilities {
+func capabilities(t *testing.T, state *Board, id string) Capabilities {
 	t.Helper()
-	out, err := state.Capabilities(id)
+	out, err := state.capabilities(id)
 	if err != nil {
 		t.Fatalf("capabilities: %v", err)
 	}
@@ -22,12 +22,12 @@ func capabilities(t *testing.T, state *Board, id string) battle.Capabilities {
 }
 
 func TestTheCapabilitiesCarryTheCellsTheUnitReaches(t *testing.T) {
-	state := board(unit("a1", battle.FactionAlly, battle.Cell{0, 0}), unit("e1", battle.FactionEnemy, battle.Cell{1, 0}))
+	state := board(unit("a1", FactionAlly, Cell{0, 0}), unit("e1", FactionEnemy, Cell{1, 0}))
 	state.units[0].Mech.MoveRange = 1
 
 	out := capabilities(t, state, "a1")
 
-	want := []battle.Cell{{0, 0}, {0, 1}}
+	want := []Cell{{0, 0}, {0, 1}}
 	if !reflect.DeepEqual(out.MoveCells, want) {
 		t.Fatalf("the foe blocks the cell (1,0): %v", out.MoveCells)
 	}
@@ -39,13 +39,13 @@ func TestTheCapabilitiesCarryTheCellsTheUnitReaches(t *testing.T) {
 // The command reads no resource and no band: a weapon with no energy left, a
 // weapon that reaches nothing and a skill with no room all stay in the answer.
 func TestTheCapabilitiesJudgeNoResourceAndNoBand(t *testing.T) {
-	state := board(unit("a1", battle.FactionAlly, battle.Cell{0, 0}), unit("e1", battle.FactionEnemy, battle.Cell{4, 4}))
-	costly := rifle("costly", battle.RadiusRange{Min: 1, Max: 1})
+	state := board(unit("a1", FactionAlly, Cell{0, 0}), unit("e1", FactionEnemy, Cell{4, 4}))
+	costly := rifle("costly", RadiusRange{Min: 1, Max: 1})
 	costly.ENCost = 20
 	state.units[0].EN = 0
-	state.units[0].Mech.Weapons = []battle.Weapon{costly}
+	state.units[0].Mech.Weapons = []Weapon{costly}
 	state.units[0].MaxHP = state.units[0].HP
-	state.units[0].Skills = []battle.Skill{{Kind: "skill_heal", Uses: 1}}
+	state.units[0].Skills = []Skill{{Kind: "skill_heal", Uses: 1}}
 
 	out := capabilities(t, state, "a1")
 
@@ -55,7 +55,7 @@ func TestTheCapabilitiesJudgeNoResourceAndNoBand(t *testing.T) {
 }
 
 func TestAUnitThatActedKeepsItsCapabilities(t *testing.T) {
-	state := board(unit("a1", battle.FactionAlly, battle.Cell{0, 0}))
+	state := board(unit("a1", FactionAlly, Cell{0, 0}))
 	state.units[0].Acted = true
 	state.units[0].Mech.MoveRange = 1
 
@@ -67,8 +67,8 @@ func TestAUnitThatActedKeepsItsCapabilities(t *testing.T) {
 }
 
 func TestTheCapabilitiesOfAUnitThatCannotAnswerAreAnError(t *testing.T) {
-	state := board(unit("a1", battle.FactionAlly, battle.Cell{0, 0}), unit("e1", battle.FactionEnemy, battle.Cell{2, 0}))
-	dead := unit("a2", battle.FactionAlly, battle.Cell{0, 1})
+	state := board(unit("a1", FactionAlly, Cell{0, 0}), unit("e1", FactionEnemy, Cell{2, 0}))
+	dead := unit("a2", FactionAlly, Cell{0, 1})
 	dead.HP = 0
 	state.units = append(state.units, dead)
 	cases := map[string]struct {
@@ -82,7 +82,7 @@ func TestTheCapabilitiesOfAUnitThatCannotAnswerAreAnError(t *testing.T) {
 
 	for name, one := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := state.Capabilities(one.unitID)
+			_, err := state.capabilities(one.unitID)
 
 			if !errors.Is(err, one.want) {
 				t.Fatalf("error: %v", err)

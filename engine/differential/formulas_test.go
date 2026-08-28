@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
 )
@@ -24,16 +23,16 @@ type wireSide struct {
 	Mobility     float64 `json:"mobility"`
 }
 
-func (side wireSide) unit() *battle.Unit {
-	return &battle.Unit{
-		Pilot: battle.Pilot{
+func (side wireSide) unit() *board.Unit {
+	return &board.Unit{
+		Pilot: board.Pilot{
 			Ranged:   side.PilotAttack,
 			Melee:    side.PilotAttack,
 			Awaken:   side.PilotAttack,
 			Defense:  side.PilotDefense,
 			Reaction: side.Reaction,
 		},
-		Mech: battle.Mech{
+		Mech: board.Mech{
 			Attack:   side.UnitAttack,
 			Defense:  side.UnitDefense,
 			Mobility: side.Mobility,
@@ -89,14 +88,14 @@ type hitInput struct {
 	AbilityCorrection float64  `json:"ability_correction"`
 }
 
-func (in hitInput) weapon() battle.Weapon {
-	return battle.Weapon{Accuracy: in.Accuracy}
+func (in hitInput) weapon() board.Weapon {
+	return board.Weapon{Accuracy: in.Accuracy}
 }
 
 // The recorded inputs name the power alone. The three pilot values of a side
 // hold the one recorded number, so an untagged weapon reads it back.
-func shot(power float64) battle.Weapon {
-	return battle.Weapon{Power: power}
+func shot(power float64) board.Weapon {
+	return board.Weapon{Power: power}
 }
 
 func decodeInput(input json.RawMessage, into any) error {

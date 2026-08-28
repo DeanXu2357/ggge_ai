@@ -1,7 +1,5 @@
 package board
 
-import "github.com/DeanXu2357/ggge_ai/engine/battle"
-
 // The rules of the mechanism. Every value here holds for the whole title: no
 // stage changes one, so none of them reaches the wire. The user ruled on
 // 2026-08-26 that a stage that needs a different number does not exist, and
@@ -28,8 +26,8 @@ const (
 
 // The response attack menu offers no shield stance, so a defender that
 // carries a shield defends with the shield here, in the damage (issue #63).
-func StanceMultiplier(stance battle.Stance, defender *battle.Unit) float64 {
-	if stance != battle.StanceDefend {
+func StanceMultiplier(stance Stance, defender *Unit) float64 {
+	if stance != StanceDefend {
 		return NoDefenseMultiplier
 	}
 	if defender.HasShield {
