@@ -2,35 +2,35 @@ package board
 
 import "fmt"
 
-type Terrain int
+type terrain int
 
 const (
-	TerrainSpace Terrain = iota
-	TerrainAtmospheric
-	TerrainGround
-	TerrainSurface
-	TerrainUnderwater
+	terrainSpace terrain = iota
+	terrainAtmospheric
+	terrainGround
+	terrainSurface
+	terrainUnderwater
 )
 
 var terrainNames = [...]string{
-	TerrainSpace:       "space",
-	TerrainAtmospheric: "atmospheric",
-	TerrainGround:      "ground",
-	TerrainSurface:     "surface",
-	TerrainUnderwater:  "underwater",
+	terrainSpace:       "space",
+	terrainAtmospheric: "atmospheric",
+	terrainGround:      "ground",
+	terrainSurface:     "surface",
+	terrainUnderwater:  "underwater",
 }
 
-func (t Terrain) String() string {
+func (t terrain) String() string {
 	if t < 0 || int(t) >= len(terrainNames) {
 		return fmt.Sprintf("terrain(%d)", int(t))
 	}
 	return terrainNames[t]
 }
 
-func ParseTerrain(name string) (Terrain, error) {
+func parseTerrain(name string) (terrain, error) {
 	for kind, known := range terrainNames {
 		if known == name {
-			return Terrain(kind), nil
+			return terrain(kind), nil
 		}
 	}
 	return 0, fmt.Errorf("the terrain %q is not in the contract", name)

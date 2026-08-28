@@ -1,28 +1,28 @@
 package board
 
-type Forecast struct {
+type forecast struct {
 	HitRate *float64
 	Damage  *int
 	Kill    *bool
 }
 
-type Capabilities struct {
+type capabilities struct {
 	Unit      *Unit
-	MoveCells []Cell
+	MoveCells []cell
 }
 
-type StrikeKind string
+type strikeKind string
 
 const (
-	StrikeSupport         StrikeKind = "support"
-	StrikeMain            StrikeKind = "strike"
-	StrikeDefenderSupport StrikeKind = "defender_support"
-	StrikeCounter         StrikeKind = "counter"
+	strikeSupport         strikeKind = "support"
+	strikeMain            strikeKind = "strike"
+	strikeDefenderSupport strikeKind = "defender_support"
+	strikeCounter         strikeKind = "counter"
 )
 
 // The Damage of a skill record is the value that the skill gave back.
-type Strike struct {
-	Kind      StrikeKind
+type strike struct {
+	Kind      strikeKind
 	ShooterID string
 	StruckID  string
 	Weapon    string
@@ -31,44 +31,44 @@ type Strike struct {
 	Killed    bool
 }
 
-type Trace []Strike
+type trace []strike
 
-type Rotation struct {
+type rotation struct {
 	Turn  int
-	Phase Faction
+	Phase faction
 }
 
-type Resolution struct {
-	Trace     Trace
-	Rotations []Rotation
+type resolution struct {
+	Trace     trace
+	Rotations []rotation
 }
 
-type ResponseAttackOption struct {
-	Stance   Stance
+type responseAttackOption struct {
+	Stance   stance
 	Weapon   string
-	Incoming Forecast
-	Counter  *Forecast
+	Incoming forecast
+	Counter  *forecast
 }
 
-type SupportDefendOption struct {
+type supportDefendOption struct {
 	Unit     *Unit
-	Incoming Forecast
+	Incoming forecast
 }
 
-type SupportAttackOption struct {
+type supportAttackOption struct {
 	Unit   *Unit
 	Weapon *Weapon
-	Strike Forecast
+	Strike forecast
 }
 
-type SideOptions struct {
+type sideOptions struct {
 	Unit             *Unit
-	SupportDefenders []SupportDefendOption
-	SupportAttackers []SupportAttackOption
+	SupportDefenders []supportDefendOption
+	SupportAttackers []supportAttackOption
 }
 
-type Engagement struct {
-	Defender        SideOptions
-	Attacker        SideOptions
-	ResponseAttacks []ResponseAttackOption
+type engagement struct {
+	Defender        sideOptions
+	Attacker        sideOptions
+	ResponseAttacks []responseAttackOption
 }

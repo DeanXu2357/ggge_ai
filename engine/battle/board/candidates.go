@@ -15,18 +15,18 @@ func (b *Board) Capabilities(unitID string) (protocol.ActionsResponse, error) {
 	return encodeCapabilities(capabilities), nil
 }
 
-func (b *Board) capabilities(unitID string) (Capabilities, error) {
+func (b *Board) capabilities(unitID string) (capabilities, error) {
 	unit, err := b.livingUnit(unitID)
 	if err != nil {
-		return Capabilities{}, err
+		return capabilities{}, err
 	}
 	if unit.Faction != b.phase {
-		return Capabilities{}, fmt.Errorf("%w: %q is of the side %q, and the phase is %q",
+		return capabilities{}, fmt.Errorf("%w: %q is of the side %q, and the phase is %q",
 			battle.ErrOffPhase, unitID, unit.Faction, b.phase)
 	}
 	cells, err := b.reachableCells(unitID)
 	if err != nil {
-		return Capabilities{}, err
+		return capabilities{}, err
 	}
-	return Capabilities{Unit: unit, MoveCells: cells}, nil
+	return capabilities{Unit: unit, MoveCells: cells}, nil
 }

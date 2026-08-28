@@ -2,12 +2,12 @@ package board
 
 import "testing"
 
-var everyTerrain = []Terrain{
-	TerrainSpace,
-	TerrainAtmospheric,
-	TerrainGround,
-	TerrainSurface,
-	TerrainUnderwater,
+var everyTerrain = []terrain{
+	terrainSpace,
+	terrainAtmospheric,
+	terrainGround,
+	terrainSurface,
+	terrainUnderwater,
 }
 
 func TestEveryTerrainCarriesItsWireName(t *testing.T) {
@@ -17,7 +17,7 @@ func TestEveryTerrainCarriesItsWireName(t *testing.T) {
 		if got := kind.String(); got != want[index] {
 			t.Fatalf("name of %d: %q, want %q", int(kind), got, want[index])
 		}
-		parsed, err := ParseTerrain(want[index])
+		parsed, err := parseTerrain(want[index])
 		if err != nil {
 			t.Fatalf("parse %q: %v", want[index], err)
 		}
@@ -29,7 +29,7 @@ func TestEveryTerrainCarriesItsWireName(t *testing.T) {
 
 func TestParseRefusesATerrainOutsideTheContract(t *testing.T) {
 	for _, name := range []string{"", "Space", "水中", "orbit"} {
-		if _, err := ParseTerrain(name); err == nil {
+		if _, err := parseTerrain(name); err == nil {
 			t.Fatalf("the parse took %q", name)
 		}
 	}

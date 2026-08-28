@@ -10,7 +10,7 @@ func (b *Board) Clone() battle.Board {
 	out := *b
 	out.units = make([]Unit, len(b.units))
 	for index := range b.units {
-		out.units[index] = b.units[index].Clone()
+		out.units[index] = b.units[index].clone()
 	}
 	out.terrainCells = maps.Clone(b.terrainCells)
 	return &out

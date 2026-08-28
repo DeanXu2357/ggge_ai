@@ -6,73 +6,73 @@ import (
 	"slices"
 )
 
-type Cell [2]int
+type cell [2]int
 
-type Size [2]int
+type size [2]int
 
-type Footprint struct {
-	Anchor Cell
-	Size   Size
+type footprint struct {
+	Anchor cell
+	Size   size
 }
 
-func (f Footprint) Within(bounds Bounds) bool {
-	high := Cell{f.Anchor[0] + f.Size[0] - 1, f.Anchor[1] + f.Size[1] - 1}
+func (f footprint) within(bounds bounds) bool {
+	high := cell{f.Anchor[0] + f.Size[0] - 1, f.Anchor[1] + f.Size[1] - 1}
 	return bounds.Low[0] <= f.Anchor[0] && high[0] <= bounds.High[0] &&
 		bounds.Low[1] <= f.Anchor[1] && high[1] <= bounds.High[1]
 }
 
-func (f Footprint) Cells() []Cell {
-	out := make([]Cell, 0, f.Size[0]*f.Size[1])
+func (f footprint) cells() []cell {
+	out := make([]cell, 0, f.Size[0]*f.Size[1])
 	for dx := 0; dx < f.Size[0]; dx++ {
 		for dy := 0; dy < f.Size[1]; dy++ {
-			out = append(out, Cell{f.Anchor[0] + dx, f.Anchor[1] + dy})
+			out = append(out, cell{f.Anchor[0] + dx, f.Anchor[1] + dy})
 		}
 	}
 	return out
 }
 
-type Bounds struct {
-	Low  Cell
-	High Cell
+type bounds struct {
+	Low  cell
+	High cell
 }
 
-type RadiusRange struct {
+type radiusRange struct {
 	Min int
 	Max int
 }
 
-func (r RadiusRange) Holds(distance int) bool {
+func (r radiusRange) holds(distance int) bool {
 	return r.Min <= distance && distance <= r.Max
 }
 
-type Faction string
+type faction string
 
 const (
-	FactionAlly       Faction = "ally"
-	FactionEnemy      Faction = "enemy"
-	FactionThirdParty Faction = "third_party"
+	factionAlly       faction = "ally"
+	factionEnemy      faction = "enemy"
+	factionThirdParty faction = "third_party"
 )
 
-func (f Faction) Opposing() Faction {
-	if f == FactionAlly {
-		return FactionEnemy
+func (f faction) opposing() faction {
+	if f == factionAlly {
+		return factionEnemy
 	}
-	return FactionAlly
+	return factionAlly
 }
 
-type WeaponCategory string
+type weaponCategory string
 
 const (
-	WeaponCategoryRanged WeaponCategory = "ranged"
-	WeaponCategoryMelee  WeaponCategory = "melee"
-	WeaponCategoryAwaken WeaponCategory = "awaken"
+	weaponCategoryRanged weaponCategory = "ranged"
+	weaponCategoryMelee  weaponCategory = "melee"
+	weaponCategoryAwaken weaponCategory = "awaken"
 )
 
-var weaponCategories = [...]WeaponCategory{
-	WeaponCategoryRanged, WeaponCategoryMelee, WeaponCategoryAwaken,
+var weaponCategories = [...]weaponCategory{
+	weaponCategoryRanged, weaponCategoryMelee, weaponCategoryAwaken,
 }
 
-func ParseWeaponCategory(name string) (WeaponCategory, error) {
+func parseWeaponCategory(name string) (weaponCategory, error) {
 	for _, known := range weaponCategories {
 		if string(known) == name {
 			return known, nil
@@ -84,7 +84,7 @@ func ParseWeaponCategory(name string) (WeaponCategory, error) {
 type Weapon struct {
 	Name            string
 	Power           float64
-	Range           RadiusRange
+	Range           radiusRange
 	ENCost          int
 	Accuracy        float64
 	CanCounter      bool
@@ -92,66 +92,66 @@ type Weapon struct {
 	UsableAfterMove bool
 	DebuffKind      string
 	DebuffMagnitude float64
-	Categories      []WeaponCategory
+	Categories      []weaponCategory
 }
 
-type ActionKind string
+type actionKind string
 
 const (
-	ActionAttack     ActionKind = "attack"
-	ActionMapAttack  ActionKind = "map_attack"
-	ActionReposition ActionKind = "reposition"
-	ActionStandby    ActionKind = "standby"
+	actionAttack     actionKind = "attack"
+	actionMapAttack  actionKind = "map_attack"
+	actionReposition actionKind = "reposition"
+	actionStandby    actionKind = "standby"
 )
 
-// SkillKind names one skill. The set is open until issue #81 says what a
-// skill does. It is not an ActionKind.
-type SkillKind string
+// skillKind names one skill. The set is open until issue #81 says what a
+// skill does. It is not an actionKind.
+type skillKind string
 
-type Stance string
+type stance string
 
 const (
-	StanceDodge   Stance = "dodge"
-	StanceDefend  Stance = "defend"
-	StanceCounter Stance = "counter"
-	StanceNone    Stance = "none"
+	stanceDodge   stance = "dodge"
+	stanceDefend  stance = "defend"
+	stanceCounter stance = "counter"
+	stanceNone    stance = "none"
 )
 
-type SkillAffects string
+type skillAffects string
 
 const (
-	AffectsAlly  SkillAffects = "ally"
-	AffectsEnemy SkillAffects = "enemy"
-	AffectsAll   SkillAffects = "all"
+	affectsAlly  skillAffects = "ally"
+	affectsEnemy skillAffects = "enemy"
+	affectsAll   skillAffects = "all"
 )
 
-type SkillSource string
+type skillSource string
 
 const (
-	SourcePilot SkillSource = "pilot"
-	SourceCrew  SkillSource = "crew"
-	SourceMech  SkillSource = "mech"
+	sourcePilot skillSource = "pilot"
+	sourceCrew  skillSource = "crew"
+	sourceMech  skillSource = "mech"
 )
 
-type Debuff struct {
+type debuff struct {
 	Kind         string
 	Magnitude    float64
 	AppliedPhase int
 }
 
-// Skill carries no 'self' area. A skill that acts on the caster alone holds a
-// range of zero, a blast of zero and the value AffectsAlly: the area is the
+// skill carries no 'self' area. A skill that acts on the caster alone holds a
+// range of zero, a blast of zero and the value affectsAlly: the area is the
 // cell of the caster, and the caster is an ally in its own cell.
-type Skill struct {
-	Kind            SkillKind
-	Source          SkillSource
+type skill struct {
+	Kind            skillKind
+	Source          skillSource
 	Amount          *float64
 	Uses            int
 	EndsActivation  bool
 	UsableAfterMove bool
-	Range           RadiusRange
+	Range           radiusRange
 	Blast           int
-	Affects         SkillAffects
+	Affects         skillAffects
 }
 
 type Pilot struct {
@@ -163,7 +163,7 @@ type Pilot struct {
 	SP       int
 }
 
-func (p Pilot) AttackFor(weapon Weapon) float64 {
+func (p Pilot) attackFor(weapon Weapon) float64 {
 	categories := weapon.Categories
 	if len(categories) == 0 {
 		categories = weaponCategories[:]
@@ -177,13 +177,13 @@ func (p Pilot) AttackFor(weapon Weapon) float64 {
 	return highest
 }
 
-func (p Pilot) attackOf(category WeaponCategory) float64 {
+func (p Pilot) attackOf(category weaponCategory) float64 {
 	switch category {
-	case WeaponCategoryRanged:
+	case weaponCategoryRanged:
 		return p.Ranged
-	case WeaponCategoryMelee:
+	case weaponCategoryMelee:
 		return p.Melee
-	case WeaponCategoryAwaken:
+	case weaponCategoryAwaken:
 		return p.Awaken
 	}
 	return 0
@@ -201,8 +201,8 @@ type Mech struct {
 
 type Unit struct {
 	ID                      string
-	Faction                 Faction
-	Footprint               Footprint
+	Faction                 faction
+	Footprint               footprint
 	HP                      int
 	MaxHP                   int
 	EN                      int
@@ -211,7 +211,7 @@ type Unit struct {
 	SPMax                   int
 	Pilot                   Pilot
 	Mech                    Mech
-	Skills                  []Skill
+	Skills                  []skill
 	Acted                   bool
 	ChanceSteps             int
 	ChanceStepsMax          int
@@ -222,18 +222,18 @@ type Unit struct {
 	HasShield               bool
 	SupportDefendWhenAttack bool
 	Ammo                    map[string]int
-	Debuffs                 []Debuff
+	Debuffs                 []debuff
 }
 
-func (u *Unit) Alive() bool {
+func (u *Unit) alive() bool {
 	return u != nil && u.HP > 0
 }
 
-func (u *Unit) HasENFor(weapon Weapon) bool {
+func (u *Unit) hasENFor(weapon Weapon) bool {
 	return u.EN >= weapon.ENCost
 }
 
-func (u *Unit) Weapon(name string) *Weapon {
+func (u *Unit) weapon(name string) *Weapon {
 	for index := range u.Mech.Weapons {
 		if u.Mech.Weapons[index].Name == name {
 			return &u.Mech.Weapons[index]
@@ -242,25 +242,25 @@ func (u *Unit) Weapon(name string) *Weapon {
 	return nil
 }
 
-// Decision is one activation of one unit. The contract names the payload
-// 'action' and the model names it 'Decision'; this package keeps the model
+// decision is one activation of one unit. The contract names the payload
+// 'action' and the model names it 'decision'; this package keeps the model
 // name.
-type Decision struct {
+type decision struct {
 	UnitID         string
-	Kind           ActionKind
-	MoveTo         *Cell
+	Kind           actionKind
+	MoveTo         *cell
 	TargetID       string
 	Weapon         string
 	Amount         *float64
-	Aim            *Cell
-	ResponseAttack *ResponseAttack
+	Aim            *cell
+	ResponseAttack *responseAttack
 
 	SupportDefender  string
 	SupportAttackers []string
 }
 
-type ResponseAttack struct {
-	Stance           Stance
+type responseAttack struct {
+	Stance           stance
 	Weapon           string
 	SupportDefender  string
 	SupportAttackers []string
@@ -274,14 +274,14 @@ func cloneAmount(amount *float64) *float64 {
 	return &out
 }
 
-func (c Cell) Before(other Cell) bool {
+func (c cell) before(other cell) bool {
 	if c[0] != other[0] {
 		return c[0] < other[0]
 	}
 	return c[1] < other[1]
 }
 
-func (u Unit) Clone() Unit {
+func (u Unit) clone() Unit {
 	u.Skills = slices.Clone(u.Skills)
 	for index := range u.Skills {
 		u.Skills[index].Amount = cloneAmount(u.Skills[index].Amount)

@@ -14,15 +14,15 @@ import (
 var _ battle.Board = (*Board)(nil)
 
 type Board struct {
-	bounds         Bounds
+	bounds         bounds
 	units          []Unit
-	phase          Faction
+	phase          faction
 	turn           int
-	defaultTerrain Terrain
-	terrainCells   map[Cell]Terrain
+	defaultTerrain terrain
+	terrainCells   map[cell]terrain
 }
 
-func New(bounds Bounds, units []Unit) (*Board, error) {
+func newBoard(bounds bounds, units []Unit) (*Board, error) {
 	if bounds.High[0] < bounds.Low[0] || bounds.High[1] < bounds.Low[1] {
 		return nil, fmt.Errorf("the bounds %v run backward", bounds)
 	}
@@ -37,29 +37,29 @@ func New(bounds Bounds, units []Unit) (*Board, error) {
 	return &Board{bounds: bounds, units: units}, nil
 }
 
-func (b *Board) terrainAt(cell Cell) Terrain {
+func (b *Board) terrainAt(cell cell) terrain {
 	if kind, declared := b.terrainCells[cell]; declared {
 		return kind
 	}
 	return b.defaultTerrain
 }
 
-func (b *Board) terrainOf(unit *Unit) Terrain {
+func (b *Board) terrainOf(unit *Unit) terrain {
 	if unit == nil {
 		return b.defaultTerrain
 	}
 	return b.terrainAt(unit.Footprint.Anchor)
 }
 
-var PhaseOrder = [...]Faction{FactionAlly, FactionThirdParty, FactionEnemy}
+var phaseOrder = [...]faction{factionAlly, factionThirdParty, factionEnemy}
 
 func (b *Board) phaseIndex() int {
-	for index, faction := range PhaseOrder {
+	for index, faction := range phaseOrder {
 		if faction == b.phase {
-			return b.turn*len(PhaseOrder) + index
+			return b.turn*len(phaseOrder) + index
 		}
 	}
-	return b.turn * len(PhaseOrder)
+	return b.turn * len(phaseOrder)
 }
 
 func (b *Board) unit(id string) *Unit {
@@ -93,7 +93,7 @@ func (b *Board) livingUnit(id string) (*Unit, error) {
 	if unit == nil {
 		return nil, fmt.Errorf("%w: %q", battle.ErrNoUnit, id)
 	}
-	if !unit.Alive() {
+	if !unit.alive() {
 		return nil, fmt.Errorf("%w: %q", battle.ErrDestroyed, id)
 	}
 	return unit, nil
@@ -107,24 +107,24 @@ func (b *Board) ReachableCells(unitID string) ([]protocol.Cell, error) {
 	return encodeCells(cells), nil
 }
 
-func (b *Board) reachableCells(unitID string) ([]Cell, error) {
+func (b *Board) reachableCells(unitID string) ([]cell, error) {
 	unit := b.unit(unitID)
 	if unit == nil {
 		return nil, fmt.Errorf("the board holds no unit %q", unitID)
 	}
-	return SortedCells(b.reachableAnchors(unit)), nil
+	return sortedCells(b.reachableAnchors(unit)), nil
 }
 
-func (b *Board) reachableAnchors(unit *Unit) CellSet {
-	return ReachableAnchors(unit.Footprint, unit.Mech.MoveRange,
+func (b *Board) reachableAnchors(unit *Unit) cellSet {
+	return reachableAnchors(unit.Footprint, unit.Mech.MoveRange,
 		b.blockingCells(unit), b.occupiedCells(unit), b.bounds)
 }
 
-func (b *Board) byFaction(faction Faction) []*Unit {
+func (b *Board) byFaction(faction faction) []*Unit {
 	var out []*Unit
 	for index := range b.units {
 		other := &b.units[index]
-		if other.Faction == faction && other.Alive() {
+		if other.Faction == faction && other.alive() {
 			out = append(out, other)
 		}
 	}
@@ -132,14 +132,14 @@ func (b *Board) byFaction(faction Faction) []*Unit {
 }
 
 func (b *Board) targetsOf(unit *Unit) []*Unit {
-	return b.byFaction(unit.Faction.Opposing())
+	return b.byFaction(unit.Faction.opposing())
 }
 
-func (b *Board) blockingCells(unit *Unit) CellSet {
-	out := CellSet{}
+func (b *Board) blockingCells(unit *Unit) cellSet {
+	out := cellSet{}
 	for index := range b.units {
 		other := &b.units[index]
-		if other.ID == unit.ID || !other.Alive() || other.Faction == unit.Faction {
+		if other.ID == unit.ID || !other.alive() || other.Faction == unit.Faction {
 			continue
 		}
 		addFootprint(out, other.Footprint)
@@ -147,11 +147,11 @@ func (b *Board) blockingCells(unit *Unit) CellSet {
 	return out
 }
 
-func (b *Board) occupiedCells(unit *Unit) CellSet {
-	out := CellSet{}
+func (b *Board) occupiedCells(unit *Unit) cellSet {
+	out := cellSet{}
 	for index := range b.units {
 		other := &b.units[index]
-		if other.ID == unit.ID || !other.Alive() {
+		if other.ID == unit.ID || !other.alive() {
 			continue
 		}
 		addFootprint(out, other.Footprint)

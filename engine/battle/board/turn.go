@@ -17,19 +17,19 @@ func (b *Board) Act(action *protocol.Decision, dice battle.Dice) ([]any, error) 
 	return encodeResolution(resolution), nil
 }
 
-func (b *Board) act(decision Decision, dice battle.Dice) (Resolution, error) {
+func (b *Board) act(decision decision, dice battle.Dice) (resolution, error) {
 	trace, err := b.Apply(decision, dice)
 	if err != nil {
-		return Resolution{}, err
+		return resolution{}, err
 	}
-	return Resolution{Trace: trace, Rotations: b.Advance()}, nil
+	return resolution{Trace: trace, Rotations: b.Advance()}, nil
 }
 
-func (b *Board) pending(faction Faction) []*Unit {
+func (b *Board) pending(faction faction) []*Unit {
 	var out []*Unit
 	for index := range b.units {
 		unit := &b.units[index]
-		if unit.Faction == faction && unit.Alive() && !unit.Acted {
+		if unit.Faction == faction && unit.alive() && !unit.Acted {
 			out = append(out, unit)
 		}
 	}
@@ -38,32 +38,32 @@ func (b *Board) pending(faction Faction) []*Unit {
 
 // A board with no living unit keeps its phase: every side would stay empty,
 // and the rotation would never end.
-func (b *Board) Advance() []Rotation {
+func (b *Board) Advance() []rotation {
 	if !b.anyAlive() {
 		return nil
 	}
-	var out []Rotation
+	var out []rotation
 	for len(b.pending(b.phase)) == 0 {
 		out = append(out, b.nextPhase())
 	}
 	return out
 }
 
-func (b *Board) nextPhase() Rotation {
-	slot := (b.phaseIndex() - b.turn*len(PhaseOrder) + 1) % len(PhaseOrder)
+func (b *Board) nextPhase() rotation {
+	slot := (b.phaseIndex() - b.turn*len(phaseOrder) + 1) % len(phaseOrder)
 	if slot == 0 {
 		b.turn++
 	}
-	b.phase = PhaseOrder[slot]
+	b.phase = phaseOrder[slot]
 	b.beginPhase()
-	return Rotation{Turn: b.turn, Phase: b.phase}
+	return rotation{Turn: b.turn, Phase: b.phase}
 }
 
 func (b *Board) beginPhase() {
 	now := b.phaseIndex()
 	for index := range b.units {
 		unit := &b.units[index]
-		if !unit.Alive() {
+		if !unit.alive() {
 			continue
 		}
 		unit.Debuffs = expired(unit.Debuffs, now)
@@ -75,10 +75,10 @@ func (b *Board) beginPhase() {
 	}
 }
 
-func expired(debuffs []Debuff, now int) []Debuff {
+func expired(debuffs []debuff, now int) []debuff {
 	kept := debuffs[:0]
 	for _, debuff := range debuffs {
-		if debuff.AppliedPhase+len(PhaseOrder) > now {
+		if debuff.AppliedPhase+len(phaseOrder) > now {
 			kept = append(kept, debuff)
 		}
 	}
@@ -87,16 +87,16 @@ func expired(debuffs []Debuff, now int) []Debuff {
 
 func (b *Board) anyAlive() bool {
 	for index := range b.units {
-		if b.units[index].Alive() {
+		if b.units[index].alive() {
 			return true
 		}
 	}
 	return false
 }
 
-func (b *Board) gone() []Faction {
-	var out []Faction
-	for _, faction := range []Faction{FactionAlly, FactionEnemy} {
+func (b *Board) gone() []faction {
+	var out []faction
+	for _, faction := range []faction{factionAlly, factionEnemy} {
 		if len(b.byFaction(faction)) == 0 {
 			out = append(out, faction)
 		}

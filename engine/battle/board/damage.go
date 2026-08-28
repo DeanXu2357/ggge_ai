@@ -34,7 +34,7 @@ func defenseCorrection(mech Mech, pilot Pilot) float64 {
 }
 
 func BaseDamage(weapon Weapon, attacker, defender *Unit) float64 {
-	attack := attacker.Pilot.AttackFor(weapon)
+	attack := attacker.Pilot.attackFor(weapon)
 	return weapon.Power * (pilotRatio(attack, defender.Pilot) +
 		mechRatio(attacker.Mech, defender.Mech) +
 		pilotSigmoid(attack, defender.Pilot) +
@@ -42,7 +42,7 @@ func BaseDamage(weapon Weapon, attacker, defender *Unit) float64 {
 }
 
 func CombatBaseDamage(weapon Weapon, attacker, defender *Unit, terrain float64) float64 {
-	factor := 1 + attackCorrection(attacker.Mech, attacker.Pilot.AttackFor(weapon)) +
+	factor := 1 + attackCorrection(attacker.Mech, attacker.Pilot.attackFor(weapon)) +
 		defenseCorrection(defender.Mech, defender.Pilot)
 	return BaseDamage(weapon, attacker, defender) * factor / terrain
 }

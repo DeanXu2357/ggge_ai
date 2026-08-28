@@ -18,10 +18,10 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
-			unit := &Unit{ID: "a1", Faction: FactionAlly, HP: 100, EN: one.en}
+			unit := &Unit{ID: "a1", Faction: factionAlly, HP: 100, EN: one.en}
 			weapon := Weapon{Name: "beam rifle", ENCost: one.cost}
 
-			if got := unit.HasENFor(weapon); got != one.want {
+			if got := unit.hasENFor(weapon); got != one.want {
 				t.Fatalf("EN %d against the cost %d: %v, want %v",
 					one.en, one.cost, got, one.want)
 			}
@@ -30,32 +30,32 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 }
 
 func TestTheENOfAShotComesFromThePanelAndNotFromTheMech(t *testing.T) {
-	unit := &Unit{ID: "a1", Faction: FactionAlly, HP: 100, EN: 10,
+	unit := &Unit{ID: "a1", Faction: factionAlly, HP: 100, EN: 10,
 		Mech: Mech{EN: 200}}
 	weapon := Weapon{Name: "beam rifle", ENCost: 20}
 
-	if unit.HasENFor(weapon) {
+	if unit.hasENFor(weapon) {
 		t.Fatal("the predicate read the base data of the mech")
 	}
 
 	unit.EN = 20
-	if !unit.HasENFor(weapon) {
+	if !unit.hasENFor(weapon) {
 		t.Fatal("the predicate did not read the final panel")
 	}
 }
 
 func TestAWeaponOfNoCategoryReadsTheHighestPilotValue(t *testing.T) {
 	pilot := Pilot{Ranged: 220, Melee: 180, Awaken: 240}
-	melee := Weapon{Categories: []WeaponCategory{WeaponCategoryMelee}}
-	both := Weapon{Categories: []WeaponCategory{WeaponCategoryMelee, WeaponCategoryRanged}}
+	melee := Weapon{Categories: []weaponCategory{weaponCategoryMelee}}
+	both := Weapon{Categories: []weaponCategory{weaponCategoryMelee, weaponCategoryRanged}}
 
-	if got := pilot.AttackFor(Weapon{}); got != 240 {
+	if got := pilot.attackFor(Weapon{}); got != 240 {
 		t.Fatalf("no category: %v", got)
 	}
-	if got := pilot.AttackFor(melee); got != 180 {
+	if got := pilot.attackFor(melee); got != 180 {
 		t.Fatalf("one category: %v", got)
 	}
-	if got := pilot.AttackFor(both); got != 220 {
+	if got := pilot.attackFor(both); got != 220 {
 		t.Fatalf("two categories: %v", got)
 	}
 }

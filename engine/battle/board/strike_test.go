@@ -6,7 +6,7 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
-func fighter(id string, faction Faction, anchor Cell) Unit {
+func fighter(id string, faction faction, anchor cell) Unit {
 	out := unit(id, faction, anchor)
 	out.HP, out.MaxHP = 12000, 12000
 	out.EN, out.ENMax = 140, 140
@@ -18,19 +18,19 @@ func fighter(id string, faction Faction, anchor Cell) Unit {
 }
 
 func beam() Weapon {
-	out := rifle("beam rifle", RadiusRange{Min: 1, Max: 3})
+	out := rifle("beam rifle", radiusRange{Min: 1, Max: 3})
 	out.Power, out.Accuracy, out.ENCost = 1800, 5, 10
 	return out
 }
 
 func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
-	attacker := fighter("a1", FactionAlly, Cell{0, 0})
-	defender := fighter("e1", FactionEnemy, Cell{2, 0})
+	attacker := fighter("a1", factionAlly, cell{0, 0})
+	defender := fighter("e1", factionEnemy, cell{2, 0})
 	weapon := beam()
 
 	plain := StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
 	defended := StrikeDamage(&attacker, &defender, &weapon, DefendMultiplier)
-	defender.Debuffs = []Debuff{{Kind: "armor_break", Magnitude: 0.2}}
+	defender.Debuffs = []debuff{{Kind: "armor_break", Magnitude: 0.2}}
 	broken := StrikeDamage(&attacker, &defender, &weapon, NoDefenseMultiplier)
 
 	if plain <= 0 || defended <= 0 {
@@ -63,8 +63,8 @@ func TestTheDamageRoundsAHalfToTheEvenInteger(t *testing.T) {
 }
 
 func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
-	attacker := fighter("a1", FactionAlly, Cell{0, 0})
-	defender := fighter("e1", FactionEnemy, Cell{2, 0})
+	attacker := fighter("a1", factionAlly, cell{0, 0})
+	defender := fighter("e1", factionEnemy, cell{2, 0})
 	weapon := beam()
 
 	plain := StrikeHitProbability(&attacker, &defender, &weapon, false)
@@ -79,40 +79,40 @@ func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
 }
 
 func TestTheStanceMultiplierOfEveryStance(t *testing.T) {
-	plain := fighter("d1", FactionAlly, Cell{0, 0})
-	shielded := fighter("d2", FactionAlly, Cell{0, 1})
+	plain := fighter("d1", factionAlly, cell{0, 0})
+	shielded := fighter("d2", factionAlly, cell{0, 1})
 	shielded.HasShield = true
 
-	want := map[Stance]float64{
-		StanceDefend:  DefendMultiplier,
-		StanceDodge:   NoDefenseMultiplier,
-		StanceCounter: NoDefenseMultiplier,
-		StanceNone:    NoDefenseMultiplier,
+	want := map[stance]float64{
+		stanceDefend:  DefendMultiplier,
+		stanceDodge:   NoDefenseMultiplier,
+		stanceCounter: NoDefenseMultiplier,
+		stanceNone:    NoDefenseMultiplier,
 	}
 	for stance, multiplier := range want {
 		if got := StanceMultiplier(stance, &plain); got != multiplier {
 			t.Errorf("%q: %v against %v", stance, got, multiplier)
 		}
 	}
-	if got := StanceMultiplier(StanceDefend, &shielded); got != ShieldMultiplier*DefendMultiplier {
+	if got := StanceMultiplier(stanceDefend, &shielded); got != ShieldMultiplier*DefendMultiplier {
 		t.Errorf("a defender that carries a shield pays both cuts: %v", got)
 	}
-	if got := StanceMultiplier(StanceDodge, &shielded); got != NoDefenseMultiplier {
+	if got := StanceMultiplier(stanceDodge, &shielded); got != NoDefenseMultiplier {
 		t.Errorf("a shield answers no dodge: %v", got)
 	}
 }
 
 func TestTheCounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
-	defender := fighter("d1", FactionAlly, Cell{0, 0})
+	defender := fighter("d1", factionAlly, cell{0, 0})
 	costly := beam()
 	costly.Name, costly.ENCost = "costly", 200
 	passive := beam()
 	passive.Name, passive.CanCounter = "net", false
 	shells := beam()
 	shells.Name, shells.MapWeapon = "shells", true
-	near := rifle("saber", RadiusRange{Min: 1, Max: 1})
+	near := rifle("saber", radiusRange{Min: 1, Max: 1})
 	defender.Mech.Weapons = []Weapon{costly, passive, shells, beam(), near}
-	state := board(defender, fighter("e1", FactionEnemy, Cell{2, 0}))
+	state := board(defender, fighter("e1", factionEnemy, cell{2, 0}))
 
 	attacker := state.unit("e1").Footprint
 	first := state.counterWeapon(state.unit("d1"), "", attacker)
