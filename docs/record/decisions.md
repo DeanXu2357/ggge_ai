@@ -1474,3 +1474,13 @@
   'WeaponCategoryAwaken'; the wire field is 'categories' of the
   weapon payload. The term "attack tag" is withdrawn from the
   terminology map (issue #84).
+- **(0828) The defender's answer is a response attack; 'reaction'
+  is the pilot value — user ruling**｜"pilot.reaction 與應對攻擊的
+  reaction 候選動作在名詞上衝突"; the user chose to keep 'reaction'
+  for the pilot value 反應值 (the game's word, the datamine's column)
+  and to rename the defender's answer: "response 名詞太容易撞到了，要
+  用精準指稱 response attack 會比較好". Identifiers: Go type
+  'ResponseAttack', wire field 'response_attack' on the action,
+  command 'response_attacks', the stance term 'response attack
+  stance' 應戰姿態. Done inside issue #84 while version 1.4 is
+  already the breaking step of the unit payload.
