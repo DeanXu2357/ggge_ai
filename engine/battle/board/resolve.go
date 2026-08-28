@@ -5,7 +5,10 @@ import (
 	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 )
+
+const maxSupportAttackers = 3
 
 type outcome struct {
 	killed         bool
@@ -118,7 +121,7 @@ func (b *Board) attack(actor *Unit, decision decision, dice battle.Dice) (trace,
 	// takes the strike is not measured, so the value of the oracle stands until
 	// a measurement lands.
 	trace = append(trace, shot.hit(strikeMain, actor, weapon,
-		dice.Lands(battle.NodeStrike, StrikeHitProbability(actor, target, weapon, dodging))))
+		dice.Lands(battle.NodeStrike, strikeHitProbability(actor, target, weapon, dodging))))
 	killed := !shot.struck.alive()
 
 	if answer.responseAttack != nil && target.alive() {
@@ -195,7 +198,7 @@ func (b *Board) namedSupportAttackers(supported *Unit, firing, foe footprint,
 	if len(names) == 0 {
 		return nil, nil
 	}
-	if limit := MaxSupportAttackers; len(names) > limit {
+	if limit := maxSupportAttackers; len(names) > limit {
 		return nil, fmt.Errorf("%w: unit %q names %d support attackers, and the rules permit %d",
 			battle.ErrIllegalAction, supported.ID, len(names), limit)
 	}
@@ -249,9 +252,9 @@ func (b *Board) receiverOf(target *Unit, answer answer) receiver {
 	if answer.supportDefender != nil {
 		return b.coveredReceiver(answer.supportDefender)
 	}
-	multiplier := NoDefenseMultiplier
+	multiplier := formula.NoDefenseMultiplier
 	if answer.responseAttack != nil {
-		multiplier = StanceMultiplier(answer.responseAttack.Stance, target)
+		multiplier = defenseMultiplier(answer.responseAttack.Stance, target)
 	}
 	return b.plainReceiver(target, multiplier)
 }
@@ -264,7 +267,7 @@ func (b *Board) coveredReceiver(supportDefender *Unit) receiver {
 	return receiver{
 		board:           b,
 		struck:          supportDefender,
-		multiplier:      StanceMultiplier(stanceDefend, supportDefender),
+		multiplier:      defenseMultiplier(stanceDefend, supportDefender),
 		supportDefender: supportDefender,
 	}
 }
@@ -284,7 +287,7 @@ func (v *receiver) hit(kind strikeKind, shooter *Unit, weapon *Weapon, landed bo
 		v.supportDefender.SupportDefendCharges--
 		v.chargeSpent = true
 	}
-	record.Damage = StrikeDamage(shooter, v.struck, weapon, v.multiplier)
+	record.Damage = strikeDamage(shooter, v.struck, weapon, v.multiplier)
 	v.board.wound(v.struck, weapon, record.Damage)
 	record.Killed = !v.struck.alive()
 	return record
@@ -327,7 +330,7 @@ func (b *Board) defenderReply(actor, target *Unit, answer answer, bearer *Unit,
 	dice battle.Dice) trace {
 	var out trace
 	if len(answer.joining) > 0 && actor.alive() {
-		shot := b.plainReceiver(actor, NoDefenseMultiplier)
+		shot := b.plainReceiver(actor, formula.NoDefenseMultiplier)
 		out = b.fire(battle.NodeDefenderSupport, strikeDefenderSupport, answer.joining, dice, &shot)
 	}
 	if answer.counter != nil && actor.alive() {
@@ -344,7 +347,7 @@ func (b *Board) fire(node battle.Node, kind strikeKind, joining []supportAttacke
 	}
 	// One die settles the whole support attack, so the probability is the one of
 	// the first shot. A die for each support attacker is issue #47.
-	landed := dice.Lands(node, StrikeHitProbability(shooters[0].Unit,
+	landed := dice.Lands(node, strikeHitProbability(shooters[0].Unit,
 		shot.struck, shooters[0].Weapon, false))
 	out := make(trace, 0, len(shooters))
 	for _, shooter := range shooters {
@@ -371,8 +374,8 @@ func (b *Board) counterStrike(defender, attacker *Unit, weapon *Weapon, bearer *
 	dice battle.Dice) strike {
 	defender.EN -= weapon.ENCost
 	landed := dice.Lands(battle.NodeCounter,
-		StrikeHitProbability(defender, attacker, weapon, false))
-	shot := b.plainReceiver(attacker, NoDefenseMultiplier)
+		strikeHitProbability(defender, attacker, weapon, false))
+	shot := b.plainReceiver(attacker, formula.NoDefenseMultiplier)
 	if bearer != nil && bearer.alive() && bearer.SupportDefendCharges > 0 {
 		shot = b.coveredReceiver(bearer)
 	}

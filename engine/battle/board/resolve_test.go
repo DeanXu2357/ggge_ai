@@ -200,7 +200,7 @@ func TestTheSupportAttackOfTheAttackerIsAChoice(t *testing.T) {
 func TestTheRulesCapTheNumberOfSupportAttackers(t *testing.T) {
 	state := covered()
 	names := []string{"a2"}
-	for index := 0; index <= MaxSupportAttackers; index++ {
+	for index := 0; index <= maxSupportAttackers; index++ {
 		joining := fighter(fmt.Sprintf("a%d", index+3), factionAlly, cell{2, index + 1})
 		joining.Mech.Weapons = []Weapon{beam()}
 		joining.Mech.MoveRange = 3
@@ -214,7 +214,7 @@ func TestTheRulesCapTheNumberOfSupportAttackers(t *testing.T) {
 	_, err := state.Apply(decision, battle.Forced{AttackerSupport: true, Strike: true})
 
 	if !errors.Is(err, battle.ErrIllegalAction) {
-		t.Fatalf("the cap of the rules is %d units: %v", MaxSupportAttackers, err)
+		t.Fatalf("the cap of the rules is %d units: %v", maxSupportAttackers, err)
 	}
 	for _, name := range names {
 		if state.unit(name).SupportAttackCharges != 1 {
@@ -452,7 +452,7 @@ func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheCover(t *testing.T) {
 	}
 
 	weapon := beam()
-	want := StrikeHitProbability(state.unit("a1"), state.unit("e1"), &weapon, true)
+	want := strikeHitProbability(state.unit("a1"), state.unit("e1"), &weapon, true)
 	if trace[0].StruckID != "e2" {
 		t.Fatalf("the support defender takes the strike: %+v", trace)
 	}

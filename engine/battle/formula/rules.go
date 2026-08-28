@@ -1,4 +1,4 @@
-package board
+package formula
 
 // The rules of the mechanism. Every value here holds for the whole title: no
 // stage changes one, so none of them reaches the wire. The user ruled on
@@ -19,18 +19,14 @@ const (
 	CritHighMorale = 1.2
 	CritSuper      = 1.3
 
-	DodgeHitPenalty     = 20.0
-	MaxSupportAttackers = 3
-	ENRegenPercent      = 10
+	DodgeHitPenalty = 20.0
 )
 
-// The response attack menu offers no shield stance, so a defender that
-// carries a shield defends with the shield here, in the damage (issue #63).
-func StanceMultiplier(stance stance, defender *Unit) float64 {
-	if stance != stanceDefend {
+func DefenseMultiplier(defending, shielded bool) float64 {
+	if !defending {
 		return NoDefenseMultiplier
 	}
-	if defender.HasShield {
+	if shielded {
 		return ShieldMultiplier * DefendMultiplier
 	}
 	return DefendMultiplier

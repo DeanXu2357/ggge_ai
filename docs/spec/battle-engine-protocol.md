@@ -33,6 +33,12 @@ issues of the port (#60 to #68).
   board with 'board.DecodeInit' or 'board.DecodeState', keeps it
   as a 'battle.Board', and speaks the types of 'engine/protocol'
   to it.
+- The package 'engine/battle/formula' holds every formula of
+  docs/reference/combat-formulas.md and every constant of the
+  mechanism. It imports no package of the engine: a formula reads
+  the input type 'formula.Side' and the values of the weapon, and
+  no unit. 'engine/battle/board' is its only caller, and it adapts
+  a unit and the weapon it fires into a 'Side' at each call.
 
 ## Transport
 
@@ -750,7 +756,7 @@ lands. What reads it is a weapon ability, and the section 'Weapon
 abilities' holds that gap.
 
 There is no rules payload. Every rule of the mechanism is a
-constant of 'engine/battle/board/rules.go', and the section 'Weapon
+constant of 'engine/battle/formula/rules.go', and the section 'Weapon
 abilities' holds the rule that does vary. One stage held one terrain
 value until 2026-08-26.
 
@@ -782,9 +788,9 @@ and the fields of a contract are not.
 
 The wire carries no ability today, and no ability kind is modelled.
 Issue #80 builds the model and adds the field of the weapon entry
-that holds the list. Until then the engine passes 1 for the terrain
+that holds the list. Until then the board passes 1 for the terrain
 correction of every weapon
-('StrikeDamage' in 'engine/battle/board/strike.go').
+('strikeDamage' in 'engine/battle/board/strike.go').
 
 ### Differential cases
 

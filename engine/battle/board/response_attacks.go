@@ -3,6 +3,7 @@ package board
 import (
 	"fmt"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -58,7 +59,7 @@ func (b *Board) responseAttacks(action decision, defenderID string) (engagement,
 		}
 		if counter.Range.holds(distance) {
 			option := b.stanceOption(attacker, defender, weapon, stanceCounter, counter.Name)
-			reply := b.forecastOf(defender, attacker, counter, NoDefenseMultiplier, false)
+			reply := b.forecastOf(defender, attacker, counter, formula.NoDefenseMultiplier, false)
 			option.Counter = &reply
 			out.ResponseAttacks = append(out.ResponseAttacks, option)
 		}
@@ -85,7 +86,7 @@ func (b *Board) stanceOption(attacker, defender *Unit, weapon *Weapon, stance st
 		Stance: stance,
 		Weapon: counter,
 		Incoming: b.forecastOf(attacker, defender, weapon,
-			StanceMultiplier(stance, defender), stance == stanceDodge),
+			defenseMultiplier(stance, defender), stance == stanceDodge),
 	}
 }
 
@@ -109,7 +110,7 @@ func (b *Board) attackOptions(foe *Unit, joining []supportAttacker) []supportAtt
 		out = append(out, supportAttackOption{
 			Unit:   one.Unit,
 			Weapon: one.Weapon,
-			Strike: b.forecastOf(one.Unit, foe, one.Weapon, NoDefenseMultiplier, false),
+			Strike: b.forecastOf(one.Unit, foe, one.Weapon, formula.NoDefenseMultiplier, false),
 		})
 	}
 	return out

@@ -5,6 +5,8 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
+const enRegenPercent = 10
+
 func (b *Board) Act(action *protocol.Decision, dice battle.Dice) ([]any, error) {
 	decision, err := DecodeDecision(action)
 	if err != nil {
@@ -71,7 +73,7 @@ func (b *Board) beginPhase() {
 			continue
 		}
 		unit.Acted = false
-		unit.EN = min(unit.ENMax, unit.EN+unit.ENMax*ENRegenPercent/100)
+		unit.EN = min(unit.ENMax, unit.EN+unit.ENMax*enRegenPercent/100)
 	}
 }
 

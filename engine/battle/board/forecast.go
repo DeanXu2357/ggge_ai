@@ -2,8 +2,8 @@ package board
 
 func (b *Board) forecastOf(shooter, struck *Unit, weapon *Weapon, multiplier float64,
 	dodging bool) forecast {
-	rate := StrikeHitProbability(shooter, struck, weapon, dodging)
-	damage := StrikeDamage(shooter, struck, weapon, multiplier)
+	rate := strikeHitProbability(shooter, struck, weapon, dodging)
+	damage := strikeDamage(shooter, struck, weapon, multiplier)
 	kill := damage >= struck.HP
 	return forecast{HitRate: &rate, Damage: &damage, Kill: &kill}
 }
@@ -11,8 +11,8 @@ func (b *Board) forecastOf(shooter, struck *Unit, weapon *Weapon, multiplier flo
 // The stance of the defender settles the hit roll of the strike, so a support
 // defense entry carries the damage alone and no hit rate.
 func (b *Board) supportDefenderForecast(attacker, supportDefender *Unit, weapon *Weapon) forecast {
-	damage := StrikeDamage(attacker, supportDefender, weapon,
-		StanceMultiplier(stanceDefend, supportDefender))
+	damage := strikeDamage(attacker, supportDefender, weapon,
+		defenseMultiplier(stanceDefend, supportDefender))
 	kill := damage >= supportDefender.HP
 	return forecast{Damage: &damage, Kill: &kill}
 }
