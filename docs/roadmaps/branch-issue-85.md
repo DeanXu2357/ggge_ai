@@ -105,11 +105,29 @@ Stays in 'battle':
 3. The two orchestration constants: stay in 'battle' (recommended)
    or move with the rest as the issue text says.
 
+## Rulings (2026-08-28)
+
+- Placement C is accepted, and it comes second. First, a separate
+  issue splits 'engine/battle' into a thin contract package (the
+  types, a 'Board' interface in a read side and an act side, the
+  errors, the dice) and the implementation package
+  'engine/battle/board'. This branch rebases on that merge, and the
+  formula package is then imported by 'board' alone.
+- The user's words: "engine/battle/ 下面應該只有少數檔案放置對外開放
+  的合約其中就有 server 會使用到的 board contract，然後 engine/battle/
+  下再另外一個 package 區隔 board 的實作，這樣先改，之後整合你 C 的提案
+  把公式會用到數字在自己的公式 package 中包裝成結構".
+- Package name for the formulas: 'formula', the session's pick
+  from the two candidates; the user did not object. The two
+  orchestration constants stay in the implementation package
+  (recommended; not ruled against).
+
 ## Resume point
 
-Waiting for the three rulings. Then: the formula package with its
-tests moved, the adapters in 'battle', the differential test on the
-new import, the spec section, gates.
+Waiting for the board split issue to merge. Then: the formula
+package 'engine/battle/formula' with 'Side' and its tests, the
+adapters in 'board', the differential test on the new import, the
+spec section, gates.
 
 ## Progress log
 
