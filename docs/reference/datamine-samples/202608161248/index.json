@@ -1,0 +1,153 @@
+{
+ "stamp": "202608161248",
+ "source": "https://soshage.com/ggetapi/en",
+ "crawled": "2026-08-28",
+ "units": [
+  {
+   "unit_id": 1001003050,
+   "unit": "Zeong (EX)",
+   "role": 1,
+   "role_name": "attack",
+   "pilot_id": 1001001800,
+   "pilot": "Char Aznable",
+   "pilot_role": 1,
+   "map_weapons": [],
+   "unusable_in": {
+    "All-Range Attack": [
+     "underwater"
+    ]
+   }
+  },
+  {
+   "unit_id": 1017000950,
+   "unit": "Kampfer (EX)",
+   "role": 1,
+   "role_name": "attack",
+   "pilot_id": 1017000400,
+   "pilot": "Mikhail Kaminsky",
+   "pilot_role": 1,
+   "map_weapons": [
+    "Barrage"
+   ],
+   "unusable_in": {}
+  },
+  {
+   "unit_id": 1031001250,
+   "unit": "Atlas Gundam (EX)",
+   "role": 1,
+   "role_name": "attack",
+   "pilot_id": 1031000102,
+   "pilot": "Io Fleming",
+   "pilot_role": 1,
+   "map_weapons": [
+    "Medusa's Arrow"
+   ],
+   "unusable_in": {}
+  },
+  {
+   "unit_id": 1060001850,
+   "unit": "Neue Ziel (EX)",
+   "role": 1,
+   "role_name": "attack",
+   "pilot_id": 1060001503,
+   "pilot": "Anavel Gato",
+   "pilot_role": 1,
+   "map_weapons": [
+    "Deflection Type Mega Particle Cannon"
+   ],
+   "unusable_in": {}
+  },
+  {
+   "unit_id": 1001000150,
+   "unit": "Gundam (EX)",
+   "role": 2,
+   "role_name": "defense",
+   "pilot_id": 1001000100,
+   "pilot": "Amuro Ray",
+   "pilot_role": 2,
+   "map_weapons": [],
+   "unusable_in": {}
+  },
+  {
+   "unit_id": 1013000850,
+   "unit": "Gouf Custom (EX)",
+   "role": 2,
+   "role_name": "defense",
+   "pilot_id": 1013001100,
+   "pilot": "Norris Packard",
+   "pilot_role": 2,
+   "map_weapons": [],
+   "unusable_in": {}
+  },
+  {
+   "unit_id": 1060000550,
+   "unit": "Gundam GP03 (EX)",
+   "role": 2,
+   "role_name": "defense",
+   "pilot_id": 1060000100,
+   "pilot": "Kou Uraki",
+   "pilot_role": 2,
+   "map_weapons": [
+    "Detonation Cord"
+   ],
+   "unusable_in": {}
+  },
+  {
+   "unit_id": 1009000550,
+   "unit": "Big-Rang (EX)",
+   "role": 3,
+   "role_name": "support",
+   "pilot_id": 1009000100,
+   "pilot": "Oliver May",
+   "pilot_role": 3,
+   "map_weapons": [
+    "Supply Function"
+   ],
+   "unusable_in": {}
+  },
+  {
+   "unit_id": 1110000150,
+   "unit": "Nu Gundam (EX)",
+   "role": 3,
+   "role_name": "support",
+   "pilot_id": 1110000100,
+   "pilot": "Amuro Ray",
+   "pilot_role": 3,
+   "map_weapons": [],
+   "unusable_in": {
+    "Fin Funnels": [
+     "underwater"
+    ]
+   }
+  },
+  {
+   "unit_id": 1114000250,
+   "unit": "Nightingale (EX)",
+   "role": 3,
+   "role_name": "support",
+   "pilot_id": 1110000202,
+   "pilot": "Char Aznable",
+   "pilot_role": 3,
+   "map_weapons": [
+    "Funnels",
+    "Large Mega Beam Rifle (Focused)"
+   ],
+   "unusable_in": {
+    "Funnels": [
+     "underwater"
+    ]
+   }
+  }
+ ],
+ "supporter": {
+  "supporter_id": 1001000150,
+  "name": "Bright Noa & White Base",
+  "rarity": 5
+ },
+ "stage": {
+  "stage_id": 900103,
+  "name": "The Serpent That Vanished at Loum",
+  "npcs": 14,
+  "conditions": 2
+ }
+}

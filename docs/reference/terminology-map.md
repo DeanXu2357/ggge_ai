@@ -118,6 +118,11 @@ term at its first use in each document, then use the short form.
 | command mode | 指令模式 | One battle through the commands of the engine, with no page: the loop of src/ggge_ai/engine/play.py and the script scripts/play_battle.py (user ruling 2026-08-27) |
 | gone | 全滅 | The summary field that names the sides with no living unit, 'ally' and 'enemy', in that order. The engine judges no end of the battle; the client stops on this field (user ruling 2026-08-27). It rides the board summary of 'act' and the answer of 'export'. Go: 'Board.Gone' in engine/battle/turn.go |
 | rotation | 階段輪轉 | One move of the phase to the next entry of the phase order, with the phase start that the move opens. The move from the enemy phase to the ally phase adds one to the turn. Go: the type 'Rotation'; the wire carries one move as the 'phase' event of 'act' |
+| datamine | 資料挖掘資料 | The master data of the game that the site soshage publishes over its public JSON API. The source, its addresses and its row counts are in docs/reference/datamine-source.md. The datamine is a second channel next to the screen, and it is never the authority for a live decision |
+| data version stamp | 資料版本 | The value that 'GET /ggetapi/version' of the datamine returns, for example '202608161248'. The crawler names the dump directory with it, so a game patch gives a new directory instead of a silent change |
+| datamine store | 資料挖掘庫 | The directory data/datamine/<data version stamp>/ that scripts/crawl_datamine.py writes. It holds one file for each source plus 'manifest.json'. It is gitignored, and two runs against one stamp write the same bytes |
+| datamine sample store | 資料挖掘樣本庫 | The directory docs/reference/datamine-samples/<data version stamp>/ that holds a hand-picked sample of the per-id forms of the datamine, in the repository. It exists so that a task can read the shape of a unit, a pilot or a support crew without a crawl |
+| unit role | 類型 | The enum 'role' of a unit row and of a pilot row of the datamine: 1 攻擊型, 2 耐久型, 3 支援型. It is the filter '類型' of the game and of the site. A pilot ability can require the unit role of the mech the pilot rides |
 
 Retired name — 'solver': the word names only the deleted legacy
 stack (ruling 2026-08-14). The current implementation is the

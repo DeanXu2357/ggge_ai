@@ -1372,3 +1372,59 @@
   'self' value would add a second way to write one area, so the
   contract removes the overload instead of adding the special case
   (issue #60).
+- **(0828) The datamine sample and the shapes it settles — user
+  rulings**｜The user answered the review questions of the datamine
+  exploration (issue #74, commit 43e4434) in one round. Each ruling
+  is recorded in the user's words.
+  - Crawler: "1 保留原順序 2 原地覆寫 3 留在 docs 4 不用". The dump
+    keeps the row order of the source, a re-run overwrites in place,
+    the sample store stays in docs/, and the crawler does not fetch
+    the pilot, the support crew or the per-id forms.
+  - Unit to pilot link: 'gacha.bonus.character' is "抽出機體的附屬駕駛
+    員而不是強制綁定的連結，並且也可以做替換". The pairing is free;
+    the UR pilot selection of issue #84 reads the pilot rows by
+    rarity, not through the unit.
+  - Weapon attack tags: "武裝上面有 '格鬥', '射擊', '覺醒' 三個標籤，
+    分別對應計算傷害時使用駕駛員的 '格鬥', '射擊', '覺醒' 能力值去計算傷
+    害 ... 如果武裝如果同時有複數標籤，則是依駕駛員那些標籤的能力值中取
+    最高者計算". The contract opens three pilot attack slots; the
+    strike picks the highest of the tagged values. The formula change
+    lands in issue #72.
+  - The sample of ten units: "一關通常都是兩隊 10 機，拿 10 個單位的數
+    據就是方便來做整合測試".
+  - The site's panel: "這個網站的 max_hp 是 mech 的 max_hp 而不是
+    unit 的 ... 這時候你該看的是駕駛員有沒有影響 hp 的能力值需要實作".
+    The final panel is the mech value after the pilot's abilities;
+    issue #77 reads the pilot abilities that change HP.
+  - Issue #72 takes the datamine ownership evidence: "可以".
+  - Map weapons: "地圖炮武裝可以選定方向 ... 地圖炮還有兩種發射方式，
+    一種是固定形狀然後選定四方位從四個方向按照技能範圍對敵人造成傷害，
+    另一種是在地圖炮允許施放的範圍中選定地點之後按照地圖炮的傷害範圍對
+    範圍內敵方造成傷害". Two firing modes: a fixed shape turned to one
+    of four directions, or an aim cell chosen inside the allowed
+    range with the area applied around it. A supply map weapon "是地
+    圖炮的一種，不過該地圖炮表現為覆蓋範圍內我方回復生命". Cost: "同時
+    消耗，地圖炮除了消耗 en 外還有彈數限制，必須有足夠的 en 並且還有剩
+    餘彈數才能使用".
+  - Weapon abilities (issue #80): "你要看武裝詞條，而不是我說地形怎樣
+    ... 目前有水中相關，那就寫水中相關的就好不要做多餘的事情". The
+    kinds follow the ability text of the weapon; today that is the
+    two underwater kinds and nothing generic.
+  - Skills (issue #81): "採樣的 10 個單位有什麼技能那就先做什麼技能";
+    the "(Range)" variants are in scope: "是".
+  - Terrain adaptability △ (issue #76): "進入特定地形後下次移動其移動
+    力就會受到該地形影響". The halving reads the terrain the unit
+    stands on when its next move starts; it is not per cell entered.
+  - Issue #75 closes as superseded by #80: "可以".
+  - The stage detail form (issue #83): "先當作參考，繼續研究關卡行為，
+    這邊應該是要成立案例來討論不是直接混為一談，畢竟每個關卡條件不同".
+    Reference only; each stage becomes its own case.
+- **(0828) Three follow-up rulings of the datamine round — user
+  rulings**｜Issue #80, the golden files: "a", the differential
+  comparer ignores a field that the recorded expectation lacks; the
+  recordings stay. Issue #79, the two-list reading of a map weapon:
+  the device check of one directional weapon and one aimed weapon
+  comes "before lands", before the wire form. Issue #77, the device
+  panel of a sample unit: "在 issue 裡面註記要我提供資料", the user
+  supplies the panel data; the issue carries the note. Issue #74:
+  "沒問題可以合併".

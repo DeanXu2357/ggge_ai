@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<body>
+<div data-slot="tabs-list"><button role="tab" data-value="calculator">Damage Calculator</button> <button role="tab" data-value="formula">Damage Formula</button></div>
+<div data-slot="tabs-content" role="tabpanel" data-value="calculator"><div><span>Total Damage</span> <span>31855</span></div></div>
+<div data-slot="tabs-content" class="flex-1 outline-none" id="bits-s56" role="tabpanel" hidden="" tabindex="0" data-value="formula" data-state="inactive" data-orientation="horizontal" data-tabs-content=""><div data-slot="card" class="bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm"><div data-slot="card-content" class="px-6 space-y-4 text-sm"><div><p><code class="px-1.5 py-0.5 font-mono">characterStatRatio = Max(0, attackerCharacterAtk - defenderCharacterDef) / 5000</code></p> <p><code class="px-1.5 py-0.5 font-mono">unitStatRatio = Max(0, RoundUp((attackerUnitAtk / 10.0) - (defenderUnitDef / 10.0))) /
+					5000</code></p> <p><code class="px-1.5 py-0.5 font-mono">characterSigmoidAdjustment = 1.0 / (Exp((250 * (defenderCharacterDef
+					- attackerCharacterAtk)) / 100000.0) + 1.0)</code></p> <p><code class="px-1.5 py-0.5 font-mono">unitSigmoidAdjustment = 1.0 / (Exp((25 * (defenderUnitDef - attackerUnitAtk))
+					/ 100000.0) + 1.0)</code></p> <p class="mt-2"><code class="px-1.5 py-0.5 font-mono">baseDamage = RoundUp((characterStatRatio + unitStatRatio + characterSigmoidAdjustment +
+					unitSigmoidAdjustment) * weaponPower)</code></p></div> <div><p><code class="px-1.5 py-0.5 font-mono">attackerCombinedStat = RoundUp((attackerUnitAtk + 2 * attackerCharacterAtk) / 10.0)</code></p> <p><code class="px-1.5 py-0.5 font-mono">targetCombinedStat = RoundUp((defenderUnitDef + 2 * defenderCharacterDef) / 10.0)</code></p> <p class="mt-2"><code class="px-1.5 py-0.5 font-mono">offenseCorrectionExponent = ((5000 - attackerCombinedStat) *
+					30) / 100000.0</code></p> <p><code class="px-1.5 py-0.5 font-mono">defenseCorrectionExponent = ((5000 - targetCombinedStat) *
+					3) / 100000.0</code></p> <p><code class="px-1.5 py-0.5 font-mono">offenseDamageComponent = (10000 / 100.0) / (Exp(offenseCorrectionExponent)
+					+ 1.0)</code></p> <p><code class="px-1.5 py-0.5 font-mono">defenseMitigationComponent = (-4000 / 100.0) / (Exp(defenseCorrectionExponent)
+					+ 1.0)</code></p> <p class="mt-2"><code class="px-1.5 py-0.5 font-mono">damageCorrection = (offenseDamageComponent + defenseMitigationComponent) * baseDamage</code></p></div> <div><p><code class="px-1.5 py-0.5 font-mono">battleDamage = RoundUp((baseDamage + damageCorrection) * terrainCorrection)</code></p></div> <div><p class="mt-2"><code class="px-1.5 py-0.5 font-mono">totalDamageMultiplierPercent = sumAttackerDamageDealtPercent +
+					sumAttackerCritDamageDealtPercent + attackerVigorDamageBonus -
+					sumDefenderDamageTakenPercent</code></p> <p><code class="px-1.5 py-0.5 font-mono">scaledDamage = RoundUp((totalDamageMultiplierPercent * battleDamage) / 100.0)</code></p> <p><code class="px-1.5 py-0.5 font-mono">combinedDamage = (battleDamage + scaledDamage ) * defensiveCorrection</code></p> <p><code class="px-1.5 py-0.5 font-mono text-lg font-semibold">finalDamage = Max(0, RoundUp(combinedDamage * ((criticalCorrectionPercent + 100.0) /
+					100.0)))</code></p></div> <div><div>For weapon with multiple types, the formula uses the best corresponding stat.</div> <div>attackerVigorDamageBonus : high vigor 10%, max 20%, supercharged 30%</div> <div>criticalCorrectionPercent : mid vigor 10%, high &amp; max 20%, supercharged 30%</div></div><!----></div><!----></div><!----></div>
+</body>
+</html>
