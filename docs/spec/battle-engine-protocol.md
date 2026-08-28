@@ -22,7 +22,12 @@ issues of the port (#60 to #68).
   reproduce the battle. The engine holds no other input.
 - The Go package 'engine/battle' holds the contract: the data
   types, the board interfaces, the sentinel errors and the dice.
-  The package 'engine/battle/board' holds the implementation.
+  The interfaces hold the methods that a consumer calls: 'Act' on
+  'BoardResolver'; 'Capabilities', 'ReachableCells',
+  'ResponseAttacks', 'Clone', 'State' and 'Summary' on
+  'BoardReader'. 'State' and 'Summary' give the wire types of
+  'engine/protocol', so the contract imports that package. The
+  package 'engine/battle/board' holds the implementation.
   'engine/server' constructs a board with 'board.DecodeInit' or
   'board.DecodeState' and keeps it as a 'battle.Board'.
 
