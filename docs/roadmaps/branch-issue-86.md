@@ -6,14 +6,17 @@ Issue: #86. Branch: issue-86-board-package. Status: awaiting-review.
 
 ## Change summary
 
-Four commits.
+Seven commits.
 
 | Commit | What |
 |---|---|
 | 7c9fd64 | This file |
 | c294023 | The split: 43 files, +1832 / -1675, a pure move |
 | 7530578 | The interfaces renamed 'BoardReader' and 'BoardResolver' on the user's ruling |
-| (next) | The interfaces narrowed to the six methods the server calls; the board exports its own state and summary |
+| d5c32ff | The interfaces narrowed to the six methods the server calls; the board exports its own state and summary |
+| 4c50706 | The spec names the contract methods and the protocol import |
+| ac8aaeb | The twelve methods only the package calls made private; two policy comments deleted from 'model.go' |
+| (next) | The terminology map points at the private names; one narrating comment deleted |
 
     engine/battle          model.go (the data types, the six sentinel
                            errors), board.go (the interfaces and the
@@ -56,6 +59,11 @@ The result types the interface methods return live in
 'battle/board.go'; 'State' and 'Summary' return the wire types of
 'engine/protocol'.
 
+Exported on '*board.Board' after ac8aaeb: the six contract methods,
+'Act''s two halves 'Apply' and 'Advance', and 'Roster'. Each has a
+caller in 'server' or 'differential'. The other twelve methods are
+private to the package.
+
 ## Call chain of the server
 
     server.session.board  battle.Board
@@ -67,12 +75,19 @@ The result types the interface methods return live in
 
 ## Verification
 
-- 'go vet ./...': clean. 'gofmt -l .': empty.
-- 'go test -race -count=1 ./...': five packages ok; the goldens under
-  'tests/fixtures/engine/' pass unchanged.
-- 'uv run pytest -q': 1027 passed, 4 skipped. 'ruff': clean.
-- A second, independent gate run and the code review are recorded
-  below when they land.
+- Gates green at every commit of the branch (the editor's run and
+  a separate run at c294023; a separate run at ac8aaeb pending).
+- The goldens under 'tests/fixtures/engine/' pass unchanged.
+- The main session read 'engine/battle/board.go' in full at d5c32ff
+  and at ac8aaeb, grepped every method call on the session board in
+  'engine/server' (Act, Capabilities, Clone, ReachableCells,
+  ResponseAttacks, State, Summary; Advance on the concrete value in
+  'load'), and listed the exported methods of '*board.Board' against
+  their outside callers. The interface text in this artifact is the
+  file's.
+- The first report of this branch relayed the editor's summary
+  without that read; the user found the 24-method reader and the
+  accessors. The ledger records it (0828).
 
 ## Contention points
 
