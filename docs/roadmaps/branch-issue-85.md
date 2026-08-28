@@ -124,11 +124,17 @@ Stays in 'battle':
 
 ## Resume point
 
-Waiting for the board split issue to merge. Then: the formula
-package 'engine/battle/formula' with 'Side' and its tests, the
-adapters in 'board', the differential test on the new import, the
-spec section, gates.
+Rebased on the merge of #86 (1b63a85): 'engine/battle' is the
+contract over the wire types, 'engine/battle/board' holds the
+private model, and the formulas sit in 'board' for now. The move
+is delegated: the package 'engine/battle/formula' with 'Side', its
+tests, the adapters in 'board', the differential test on the new
+input type, the spec, gates. When the differential tests build
+'formula.Side' instead of 'board.Unit', the four model types of
+'board' lose their last outside caller and go private in the same
+branch.
 
 ## Progress log
 
 - 2026-08-28: worktree added, assessment written.
+- 2026-08-28: rebased on 1b63a85; the move delegated.
