@@ -7,7 +7,8 @@ func fighter(id string, faction Faction, anchor Cell) Unit {
 	out.HP, out.MaxHP = 12000, 12000
 	out.EN, out.ENMax = 140, 140
 	out.Mech.Attack, out.Mech.Defense = 4200, 3900
-	out.Pilot.Attack, out.Pilot.Defense = 220, 190
+	out.Pilot.Ranged, out.Pilot.Melee, out.Pilot.Awaken = 220, 220, 220
+	out.Pilot.Defense = 190
 	out.Pilot.Reaction, out.Mech.Mobility = 205, 310
 	return out
 }
@@ -41,11 +42,11 @@ func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 
 func TestTheDamageRoundsAHalfToTheEvenInteger(t *testing.T) {
 	blank := Unit{}
-	scale := CombatBaseDamage(1, &blank, &blank, NoTerrainCorrection)
+	scale := CombatBaseDamage(Weapon{Power: 1}, &blank, &blank, NoTerrainCorrection)
 	low := Weapon{Power: 2.5 / scale}
 	high := Weapon{Power: 3.5 / scale}
 
-	raw := ExpectedDamage(low.Power, &blank, &blank, NoTerrainCorrection, 0, 0, NoDefenseMultiplier)
+	raw := ExpectedDamage(low, &blank, &blank, NoTerrainCorrection, 0, 0, NoDefenseMultiplier)
 	if raw != 2.5 {
 		t.Fatalf("the constructed value is %v, and the test needs a half", raw)
 	}
@@ -106,7 +107,7 @@ func TestTheCounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 	shells := beam()
 	shells.Name, shells.MapWeapon = "shells", true
 	near := rifle("saber", RadiusRange{Min: 1, Max: 1})
-	defender.Weapons = []Weapon{costly, passive, shells, beam(), near}
+	defender.Mech.Weapons = []Weapon{costly, passive, shells, beam(), near}
 	state := board(defender, fighter("e1", FactionEnemy, Cell{2, 0}))
 
 	attacker := state.Unit("e1").Footprint

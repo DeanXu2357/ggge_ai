@@ -11,8 +11,8 @@ import (
 
 const twoSidesLine = `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
 	`"units":[` +
-	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":100,"en_max":140,"move_range":1},` +
-	`{"unit_id":"a2","faction":"ally","pos":[1,2],"hp":100,"max_hp":100,"en":100,"en_max":140,"move_range":1},` +
+	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
+	`{"unit_id":"a2","faction":"ally","pos":[1,2],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
 	`{"unit_id":"e1","faction":"enemy","pos":[4,4],"hp":100,"max_hp":100,"en":100,"en_max":140}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`

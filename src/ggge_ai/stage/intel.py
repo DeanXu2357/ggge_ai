@@ -18,7 +18,7 @@ from typing import Any
 
 from ..runtime.perceive import Observation, Perceiver
 from ..engine.contract import Cell, Faction
-from ..engine.state import Skill, Unit, Weapon
+from ..engine.state import Mech, Pilot, Skill, Unit, Weapon
 from .state import StageState
 
 FORMAT_VERSION = 1
@@ -145,6 +145,10 @@ class UnitIntel:
         acted: bool = False,
         pilot_attack: float | None = None,
     ) -> Unit:
+        # 三欄原值還沒進沙盤武裝：to_weapon 不寫 categories，引擎的
+        # AttackFor 讀不到類別就取三欄最大值。三欄一律填已挑好的那一欄，
+        # 挑選才留在組裝端，數值與改型前相同。
+        attack = self.pilot_attack if pilot_attack is None else pilot_attack
         return Unit(
             unit_id=self.unit_id,
             faction=faction,
@@ -153,14 +157,22 @@ class UnitIntel:
             max_hp=self.max_hp,
             en=self.en_max if en is None else en,
             en_max=self.en_max,
-            unit_attack=self.unit_attack,
-            unit_defense=self.unit_defense,
-            pilot_attack=self.pilot_attack if pilot_attack is None else pilot_attack,
-            pilot_defense=self.pilot_defense,
-            reaction=self.reaction,
-            mobility=self.mobility,
-            move_range=self.move_range,
-            weapons=[weapon.to_weapon() for weapon in self.weapons],
+            pilot=Pilot(
+                ranged=attack,
+                melee=attack,
+                awaken=attack,
+                defense=self.pilot_defense,
+                reaction=self.reaction,
+            ),
+            mech=Mech(
+                hp=self.max_hp,
+                en=self.en_max,
+                attack=self.unit_attack,
+                defense=self.unit_defense,
+                mobility=self.mobility,
+                move_range=self.move_range,
+                weapons=[weapon.to_weapon() for weapon in self.weapons],
+            ),
             skills=[skill.to_skill() for skill in self.skills],
             acted=acted,
             chance_steps=self.chance_steps_max,

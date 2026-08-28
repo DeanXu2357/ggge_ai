@@ -676,11 +676,14 @@ function inspectUnit(uid) {
   tableRow(table, "HP", unit.hp + " / " + unit.max_hp);
   tableRow(table, "EN", unit.en + " / " + unit.en_max);
   tableRow(table, "已行動", unit.acted ? "是" : "否");
-  tableRow(table, "移動力", unit.move_range);
-  tableRow(table, "運動性", unit.mobility);
-  tableRow(table, "機體攻擊／防禦", unit.unit_attack + " / " + unit.unit_defense);
-  tableRow(table, "駕駛攻擊／防禦", unit.pilot_attack + " / " + unit.pilot_defense);
-  tableRow(table, "反應", unit.reaction);
+  tableRow(table, "SP", unit.sp + " / " + unit.sp_max);
+  tableRow(table, "移動力", unit.mech.move_range);
+  tableRow(table, "運動性", unit.mech.mobility);
+  tableRow(table, "機體攻擊／防禦", unit.mech.attack + " / " + unit.mech.defense);
+  tableRow(table, "駕駛射擊／格鬥／覺醒",
+    unit.pilot.ranged + " / " + unit.pilot.melee + " / " + unit.pilot.awaken);
+  tableRow(table, "駕駛防禦", unit.pilot.defense);
+  tableRow(table, "反應", unit.pilot.reaction);
   tableRow(table, "盾牌", unit.has_shield ? "有" : "無");
   tableRow(table, "覺醒步數", unit.chance_steps);
   tableRow(table, "支援攻擊餘額", unit.support_attack_charges);
@@ -688,7 +691,7 @@ function inspectUnit(uid) {
   tableRow(table, "技能", unit.skills.map((s) => s.kind + "×" + s.uses).join("、") || "無");
   panel.appendChild(table);
   const box = node("div", "wep");
-  unit.weapons.forEach((weapon) => {
+  unit.mech.weapons.forEach((weapon) => {
     const line = node("div");
     line.appendChild(node("b", null, weapon.name));
     const parts = [

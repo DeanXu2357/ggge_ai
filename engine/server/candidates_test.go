@@ -11,13 +11,13 @@ import (
 const candidateLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`"units":[` +
 	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,` +
-	`"weapons":[` +
+	`"mech":{"weapons":[` +
 	`{"name":"rifle","range_min":1,"range_max":2,"can_counter":true,"usable_after_move":true},` +
-	`{"name":"shells","range_min":1,"range_max":3,"map_weapon":true,"usable_after_move":true}],` +
+	`{"name":"shells","range_min":1,"range_max":3,"map_weapon":true,"usable_after_move":true}]},` +
 	`"ammo":{"shells":1}},` +
 	`{"unit_id":"a2","faction":"ally","pos":[4,4],"hp":100,"acted":true},` +
 	`{"unit_id":"e1","faction":"enemy","pos":[2,1],"hp":100,` +
-	`"weapons":[{"name":"lance","range_min":1,"range_max":1,"can_counter":true}]}` +
+	`"mech":{"weapons":[{"name":"lance","range_min":1,"range_max":1,"can_counter":true}]}}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 

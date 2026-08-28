@@ -127,17 +127,18 @@ func (a *SkillAffects) UnmarshalJSON(data []byte) error {
 type Bounds [2]Cell
 
 type Weapon struct {
-	Name            string  `json:"name"`
-	Power           float64 `json:"power"`
-	RangeMin        int     `json:"range_min"`
-	RangeMax        int     `json:"range_max"`
-	ENCost          int     `json:"en_cost"`
-	Accuracy        float64 `json:"accuracy"`
-	CanCounter      bool    `json:"can_counter"`
-	MapWeapon       bool    `json:"map_weapon"`
-	UsableAfterMove bool    `json:"usable_after_move"`
-	DebuffKind      *string `json:"debuff_kind"`
-	DebuffMagnitude float64 `json:"debuff_magnitude"`
+	Name            string   `json:"name"`
+	Power           float64  `json:"power"`
+	RangeMin        int      `json:"range_min"`
+	RangeMax        int      `json:"range_max"`
+	ENCost          int      `json:"en_cost"`
+	Accuracy        float64  `json:"accuracy"`
+	CanCounter      bool     `json:"can_counter"`
+	MapWeapon       bool     `json:"map_weapon"`
+	UsableAfterMove bool     `json:"usable_after_move"`
+	DebuffKind      *string  `json:"debuff_kind"`
+	DebuffMagnitude float64  `json:"debuff_magnitude"`
+	Categories      []string `json:"categories"`
 }
 
 type Skill struct {
@@ -159,14 +160,31 @@ type Debuff struct {
 	AppliedPhase int     `json:"applied_phase"`
 }
 
-// Two names mislead: Reaction is the reaction value of the pilot, not the
-// Reaction type of a defense, and ChanceSteps is the re-act grant after a kill
+// Reaction is the reaction value of the pilot, and not the Reaction type of a
+// defense.
+type Pilot struct {
+	Ranged   float64 `json:"ranged"`
+	Melee    float64 `json:"melee"`
+	Awaken   float64 `json:"awaken"`
+	Defense  float64 `json:"defense"`
+	Reaction float64 `json:"reaction"`
+	SP       int     `json:"sp"`
+}
+
+type Mech struct {
+	HP        int      `json:"hp"`
+	EN        int      `json:"en"`
+	Attack    float64  `json:"attack"`
+	Defense   float64  `json:"defense"`
+	Mobility  float64  `json:"mobility"`
+	MoveRange int      `json:"move_range"`
+	Weapons   []Weapon `json:"weapons"`
+}
+
+// Unit is the current state of the pairing on the board. It holds the state
+// and the maxima of the state; the pilot and the mech hold the values that a
+// formula reads. ChanceSteps is the re-act grant after a kill
 // (docs/reference/combat-formulas.md:134), which counts no dice.
-//
-// HP, EN, MoveRange and Weapons are the final panel of the deployed unit. The
-// four Mech fields are the base data of the machine, and they are engine-only:
-// 'model.py' holds one level, so they stay optional and a payload that omits
-// them leaves the base copy of the mech empty.
 type Unit struct {
 	UnitID                  string         `json:"unit_id"`
 	Faction                 Faction        `json:"faction"`
@@ -176,14 +194,10 @@ type Unit struct {
 	MaxHP                   int            `json:"max_hp"`
 	EN                      int            `json:"en"`
 	ENMax                   int            `json:"en_max"`
-	UnitAttack              float64        `json:"unit_attack"`
-	UnitDefense             float64        `json:"unit_defense"`
-	PilotAttack             float64        `json:"pilot_attack"`
-	PilotDefense            float64        `json:"pilot_defense"`
-	Reaction                float64        `json:"reaction"`
-	Mobility                float64        `json:"mobility"`
-	MoveRange               int            `json:"move_range"`
-	Weapons                 []Weapon       `json:"weapons"`
+	SP                      int            `json:"sp"`
+	SPMax                   int            `json:"sp_max"`
+	Pilot                   Pilot          `json:"pilot"`
+	Mech                    Mech           `json:"mech"`
 	Skills                  []Skill        `json:"skills"`
 	Acted                   bool           `json:"acted"`
 	ChanceSteps             int            `json:"chance_steps"`
@@ -196,10 +210,6 @@ type Unit struct {
 	SupportDefendWhenAttack bool           `json:"support_defend_when_attack"`
 	Ammo                    map[string]int `json:"ammo"`
 	Debuffs                 []Debuff       `json:"debuffs"`
-	MechHP                  int            `json:"mech_hp,omitempty"`
-	MechEN                  int            `json:"mech_en,omitempty"`
-	MechMoveRange           int            `json:"mech_move_range,omitempty"`
-	MechWeapons             []Weapon       `json:"mech_weapons,omitempty"`
 }
 
 type Reaction struct {

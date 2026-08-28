@@ -25,12 +25,12 @@ func stances(options []ReactionOption) []Stance {
 func duel() *Board {
 	defender := unit("d1", FactionAlly, Cell{0, 0})
 	defender.HasShield = true
-	defender.Weapons = []Weapon{rifle("saber", RadiusRange{Min: 1, Max: 1})}
+	defender.Mech.Weapons = []Weapon{rifle("saber", RadiusRange{Min: 1, Max: 1})}
 	helper := unit("h1", FactionAlly, Cell{0, 1})
-	helper.MoveRange = 1
+	helper.Mech.MoveRange = 1
 	helper.SupportDefendCharges = 1
 	attacker := unit("e1", FactionEnemy, Cell{1, 0})
-	attacker.Weapons = []Weapon{rifle("rifle", RadiusRange{Min: 1, Max: 2})}
+	attacker.Mech.Weapons = []Weapon{rifle("rifle", RadiusRange{Min: 1, Max: 2})}
 	return board(defender, helper, attacker)
 }
 
@@ -72,7 +72,7 @@ func TestACounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 	for name, break_ := range cases {
 		t.Run(name, func(t *testing.T) {
 			state := duel()
-			break_(&state.Unit("d1").Weapons[0])
+			break_(&state.Unit("d1").Mech.Weapons[0])
 
 			out := engagement(t, state, Cell{1, 0}, "rifle")
 
@@ -89,13 +89,13 @@ func TestACounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 	state := duel()
 	guard := unit("e2", FactionEnemy, Cell{2, 0})
-	guard.MoveRange = 1
+	guard.Mech.MoveRange = 1
 	guard.SupportDefendCharges = 1
 	guard.SupportAttackCharges = 1
-	guard.Weapons = []Weapon{rifle("rifle", RadiusRange{Min: 1, Max: 2})}
+	guard.Mech.Weapons = []Weapon{rifle("rifle", RadiusRange{Min: 1, Max: 2})}
 	state.Units = append(state.Units, guard)
 	state.Unit("h1").SupportAttackCharges = 1
-	state.Unit("h1").Weapons = []Weapon{rifle("rifle", RadiusRange{Min: 1, Max: 2})}
+	state.Unit("h1").Mech.Weapons = []Weapon{rifle("rifle", RadiusRange{Min: 1, Max: 2})}
 
 	out := engagement(t, state, Cell{1, 0}, "rifle")
 
@@ -120,9 +120,9 @@ func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 
 func TestASupporterOutOfItsMoveRangeJoinsNothing(t *testing.T) {
 	state := duel()
-	state.Unit("h1").MoveRange = 0
+	state.Unit("h1").Mech.MoveRange = 0
 	state.Unit("h1").SupportAttackCharges = 1
-	state.Unit("h1").Weapons = []Weapon{rifle("rifle", RadiusRange{Min: 1, Max: 2})}
+	state.Unit("h1").Mech.Weapons = []Weapon{rifle("rifle", RadiusRange{Min: 1, Max: 2})}
 
 	out := engagement(t, state, Cell{1, 0}, "rifle")
 
@@ -222,14 +222,14 @@ func TestAReactionRequestOutsideTheBoardIsAnError(t *testing.T) {
 
 func TestEachEntryCarriesTheForecastOfItsOwnStrike(t *testing.T) {
 	attacker := fighter("e1", FactionEnemy, Cell{1, 0})
-	attacker.Weapons = []Weapon{beam()}
+	attacker.Mech.Weapons = []Weapon{beam()}
 	defender := fighter("d1", FactionAlly, Cell{0, 0})
-	defender.Weapons = []Weapon{beam()}
+	defender.Mech.Weapons = []Weapon{beam()}
 	guard := fighter("h1", FactionAlly, Cell{0, 1})
-	guard.MoveRange = 1
+	guard.Mech.MoveRange = 1
 	guard.SupportDefendCharges = 1
 	guard.SupportAttackCharges = 1
-	guard.Weapons = []Weapon{beam()}
+	guard.Mech.Weapons = []Weapon{beam()}
 	state := board(defender, guard, attacker)
 
 	out, err := state.Reactions(Decision{UnitID: "e1", Kind: ActionAttack,

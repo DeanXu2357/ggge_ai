@@ -178,20 +178,24 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 		MaxHP:     unit.MaxHP,
 		EN:        unit.EN,
 		ENMax:     unit.ENMax,
+		SP:        unit.SP,
+		SPMax:     unit.SPMax,
 		Pilot: Pilot{
-			Attack:   unit.PilotAttack,
-			Defense:  unit.PilotDefense,
-			Reaction: unit.Reaction,
+			Ranged:   unit.Pilot.Ranged,
+			Melee:    unit.Pilot.Melee,
+			Awaken:   unit.Pilot.Awaken,
+			Defense:  unit.Pilot.Defense,
+			Reaction: unit.Pilot.Reaction,
+			SP:       unit.Pilot.SP,
 		},
 		Mech: Mech{
-			Attack:    unit.UnitAttack,
-			Defense:   unit.UnitDefense,
-			Mobility:  unit.Mobility,
-			HP:        unit.MechHP,
-			EN:        unit.MechEN,
-			MoveRange: unit.MechMoveRange,
+			HP:        unit.Mech.HP,
+			EN:        unit.Mech.EN,
+			Attack:    unit.Mech.Attack,
+			Defense:   unit.Mech.Defense,
+			Mobility:  unit.Mech.Mobility,
+			MoveRange: unit.Mech.MoveRange,
 		},
-		MoveRange:               unit.MoveRange,
 		Acted:                   unit.Acted,
 		ChanceSteps:             unit.ChanceSteps,
 		ChanceStepsMax:          unit.ChanceStepsMax,
@@ -202,10 +206,7 @@ func decodeUnit(unit *protocol.Unit) (Unit, error) {
 		HasShield:               unit.HasShield,
 		SupportDefendWhenAttack: unit.SupportDefendWhenAttack,
 	}
-	if out.Weapons, err = decodeWeapons(unit.UnitID, unit.Weapons); err != nil {
-		return Unit{}, err
-	}
-	if out.Mech.Weapons, err = decodeWeapons(unit.UnitID, unit.MechWeapons); err != nil {
+	if out.Mech.Weapons, err = decodeWeapons(unit.UnitID, unit.Mech.Weapons); err != nil {
 		return Unit{}, err
 	}
 	if unit.Skills != nil {
@@ -263,6 +264,13 @@ func decodeWeapon(weapon *protocol.Weapon) (Weapon, error) {
 	if weapon.DebuffKind != nil {
 		out.DebuffKind = *weapon.DebuffKind
 	}
+	for _, name := range weapon.Categories {
+		category, err := ParseWeaponCategory(name)
+		if err != nil {
+			return Weapon{}, fmt.Errorf("the weapon %q carries %w", weapon.Name, err)
+		}
+		out.Categories = append(out.Categories, category)
+	}
 	return out, nil
 }
 
@@ -317,14 +325,14 @@ func EncodeUnitStatus(unit *Unit) protocol.UnitStatus {
 		MaxHP:     unit.MaxHP,
 		EN:        unit.EN,
 		ENMax:     unit.ENMax,
-		MoveRange: unit.MoveRange,
+		MoveRange: unit.Mech.MoveRange,
 		Acted:     unit.Acted,
 	}
 }
 
 func EncodeWeapons(unit *Unit) []protocol.WeaponEntry {
-	out := make([]protocol.WeaponEntry, 0, len(unit.Weapons))
-	for _, weapon := range unit.Weapons {
+	out := make([]protocol.WeaponEntry, 0, len(unit.Mech.Weapons))
+	for _, weapon := range unit.Mech.Weapons {
 		entry := protocol.WeaponEntry{
 			Name:            weapon.Name,
 			RangeMin:        weapon.Range.Min,
@@ -507,25 +515,33 @@ func EncodeUnits(units []Unit) []protocol.Unit {
 // list and an empty object.
 func EncodeUnit(unit Unit) protocol.Unit {
 	out := protocol.Unit{
-		UnitID:                  unit.ID,
-		Faction:                 wireFactions[unit.Faction],
-		Pos:                     EncodeCell(unit.Footprint.Anchor),
-		Size:                    protocol.Cell{unit.Footprint.Size[0], unit.Footprint.Size[1]},
-		HP:                      unit.HP,
-		MaxHP:                   unit.MaxHP,
-		EN:                      unit.EN,
-		ENMax:                   unit.ENMax,
-		UnitAttack:              unit.Mech.Attack,
-		UnitDefense:             unit.Mech.Defense,
-		PilotAttack:             unit.Pilot.Attack,
-		PilotDefense:            unit.Pilot.Defense,
-		Reaction:                unit.Pilot.Reaction,
-		Mobility:                unit.Mech.Mobility,
-		MoveRange:               unit.MoveRange,
-		MechHP:                  unit.Mech.HP,
-		MechEN:                  unit.Mech.EN,
-		MechMoveRange:           unit.Mech.MoveRange,
-		Weapons:                 make([]protocol.Weapon, 0, len(unit.Weapons)),
+		UnitID:  unit.ID,
+		Faction: wireFactions[unit.Faction],
+		Pos:     EncodeCell(unit.Footprint.Anchor),
+		Size:    protocol.Cell{unit.Footprint.Size[0], unit.Footprint.Size[1]},
+		HP:      unit.HP,
+		MaxHP:   unit.MaxHP,
+		EN:      unit.EN,
+		ENMax:   unit.ENMax,
+		SP:      unit.SP,
+		SPMax:   unit.SPMax,
+		Pilot: protocol.Pilot{
+			Ranged:   unit.Pilot.Ranged,
+			Melee:    unit.Pilot.Melee,
+			Awaken:   unit.Pilot.Awaken,
+			Defense:  unit.Pilot.Defense,
+			Reaction: unit.Pilot.Reaction,
+			SP:       unit.Pilot.SP,
+		},
+		Mech: protocol.Mech{
+			HP:        unit.Mech.HP,
+			EN:        unit.Mech.EN,
+			Attack:    unit.Mech.Attack,
+			Defense:   unit.Mech.Defense,
+			Mobility:  unit.Mech.Mobility,
+			MoveRange: unit.Mech.MoveRange,
+			Weapons:   make([]protocol.Weapon, 0, len(unit.Mech.Weapons)),
+		},
 		Skills:                  make([]protocol.Skill, 0, len(unit.Skills)),
 		Acted:                   unit.Acted,
 		ChanceSteps:             unit.ChanceSteps,
@@ -539,16 +555,8 @@ func EncodeUnit(unit Unit) protocol.Unit {
 		Ammo:                    make(map[string]int, len(unit.Ammo)),
 		Debuffs:                 make([]protocol.Debuff, 0, len(unit.Debuffs)),
 	}
-	for _, weapon := range unit.Weapons {
-		out.Weapons = append(out.Weapons, encodeWeapon(weapon))
-	}
-	// The base weapons of the mech are 'omitempty' on the wire, so an absent
-	// list stays absent and the round trip gives the same bytes.
-	if len(unit.Mech.Weapons) > 0 {
-		out.MechWeapons = make([]protocol.Weapon, 0, len(unit.Mech.Weapons))
-		for _, weapon := range unit.Mech.Weapons {
-			out.MechWeapons = append(out.MechWeapons, encodeWeapon(weapon))
-		}
+	for _, weapon := range unit.Mech.Weapons {
+		out.Mech.Weapons = append(out.Mech.Weapons, encodeWeapon(weapon))
 	}
 	for _, skill := range unit.Skills {
 		out.Skills = append(out.Skills, encodeSkill(skill))
@@ -578,6 +586,9 @@ func encodeWeapon(weapon Weapon) protocol.Weapon {
 	if weapon.DebuffKind != "" {
 		kind := weapon.DebuffKind
 		out.DebuffKind = &kind
+	}
+	for _, category := range weapon.Categories {
+		out.Categories = append(out.Categories, string(category))
 	}
 	return out
 }
@@ -634,6 +645,7 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 	}
 	bounds := Bounds{High: Cell{request.Board.Width - 1, request.Board.Height - 1}}
 	for index := range units {
+		fillMaxima(&units[index])
 		if err := checkEnemy(&units[index], bounds); err != nil {
 			return nil, err
 		}
@@ -657,6 +669,21 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 	board.Phase = FactionAlly
 	board.Turn = 1
 	return board, nil
+}
+
+// A maximum that the payload leaves at zero comes from the pairing. An
+// explicit value stands: an ability of the pilot or of the mech can lift the
+// maximum above the base data (issue #77).
+func fillMaxima(unit *Unit) {
+	if unit.MaxHP == 0 {
+		unit.MaxHP = unit.Mech.HP
+	}
+	if unit.ENMax == 0 {
+		unit.ENMax = unit.Mech.EN
+	}
+	if unit.SPMax == 0 {
+		unit.SPMax = unit.Pilot.SP
+	}
 }
 
 func checkEnemy(unit *Unit, bounds Bounds) error {

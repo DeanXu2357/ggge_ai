@@ -10,7 +10,7 @@ import (
 
 const boardLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`"units":[` +
-	`{"unit_id":"a1","faction":"ally","pos":[2,2],"hp":100,"move_range":2},` +
+	`{"unit_id":"a1","faction":"ally","pos":[2,2],"hp":100,"mech":{"move_range":2}},` +
 	`{"unit_id":"e1","faction":"enemy","pos":[2,3],"hp":100}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
@@ -51,7 +51,7 @@ func TestReachAnswersTheCellsOfTheLoadedBoard(t *testing.T) {
 func TestReachAnswersTheAnchorsThatHoldTheWholeFootprint(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
 		`"units":[` +
-		`{"unit_id":"a1","faction":"ally","pos":[0,0],"size":[2,2],"hp":100,"move_range":1},` +
+		`{"unit_id":"a1","faction":"ally","pos":[0,0],"size":[2,2],"hp":100,"mech":{"move_range":1}},` +
 		`{"unit_id":"e1","faction":"enemy","pos":[2,1],"hp":100}` +
 		`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`

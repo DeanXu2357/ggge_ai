@@ -24,6 +24,8 @@ from .state import (
     Debuff,
     Decision,
     EventTable,
+    Mech,
+    Pilot,
     Reaction,
     Skill,
     StageEvent,
@@ -48,6 +50,7 @@ def encode_weapon(weapon: Weapon) -> dict[str, Any]:
         "usable_after_move": weapon.usable_after_move,
         "debuff_kind": weapon.debuff_kind,
         "debuff_magnitude": weapon.debuff_magnitude,
+        "categories": list(weapon.categories) or None,
     }
 
 
@@ -65,6 +68,7 @@ def decode_weapon(payload: dict[str, Any]) -> Weapon:
         usable_after_move=_bool(payload, "usable_after_move"),
         debuff_kind=_optional_str(payload, "debuff_kind"),
         debuff_magnitude=_float(payload, "debuff_magnitude"),
+        categories=[str(name) for name in payload.get("categories") or ()],
     )
 
 
@@ -116,6 +120,54 @@ def decode_debuff(payload: dict[str, Any]) -> Debuff:
     )
 
 
+def encode_pilot(pilot: Pilot) -> dict[str, Any]:
+    return {
+        "ranged": pilot.ranged,
+        "melee": pilot.melee,
+        "awaken": pilot.awaken,
+        "defense": pilot.defense,
+        "reaction": pilot.reaction,
+        "sp": pilot.sp,
+    }
+
+
+def decode_pilot(payload: dict[str, Any]) -> Pilot:
+    _known(payload, encode_pilot(Pilot()), "pilot")
+    return Pilot(
+        ranged=_float(payload, "ranged"),
+        melee=_float(payload, "melee"),
+        awaken=_float(payload, "awaken"),
+        defense=_float(payload, "defense"),
+        reaction=_float(payload, "reaction"),
+        sp=_int(payload, "sp"),
+    )
+
+
+def encode_mech(mech: Mech) -> dict[str, Any]:
+    return {
+        "hp": mech.hp,
+        "en": mech.en,
+        "attack": mech.attack,
+        "defense": mech.defense,
+        "mobility": mech.mobility,
+        "move_range": mech.move_range,
+        "weapons": [encode_weapon(weapon) for weapon in mech.weapons],
+    }
+
+
+def decode_mech(payload: dict[str, Any]) -> Mech:
+    _known(payload, encode_mech(Mech()), "mech")
+    return Mech(
+        hp=_int(payload, "hp"),
+        en=_int(payload, "en"),
+        attack=_float(payload, "attack"),
+        defense=_float(payload, "defense"),
+        mobility=_float(payload, "mobility"),
+        move_range=_int(payload, "move_range"),
+        weapons=[decode_weapon(entry) for entry in payload.get("weapons") or ()],
+    )
+
+
 def encode_unit(unit: Unit) -> dict[str, Any]:
     return {
         "unit_id": unit.unit_id,
@@ -126,14 +178,10 @@ def encode_unit(unit: Unit) -> dict[str, Any]:
         "max_hp": unit.max_hp,
         "en": unit.en,
         "en_max": unit.en_max,
-        "unit_attack": unit.unit_attack,
-        "unit_defense": unit.unit_defense,
-        "pilot_attack": unit.pilot_attack,
-        "pilot_defense": unit.pilot_defense,
-        "reaction": unit.reaction,
-        "mobility": unit.mobility,
-        "move_range": unit.move_range,
-        "weapons": [encode_weapon(weapon) for weapon in unit.weapons],
+        "sp": unit.sp,
+        "sp_max": unit.sp_max,
+        "pilot": encode_pilot(unit.pilot),
+        "mech": encode_mech(unit.mech),
         "skills": [encode_skill(skill) for skill in unit.skills],
         "acted": unit.acted,
         "chance_steps": unit.chance_steps,
@@ -160,14 +208,10 @@ def decode_unit(payload: dict[str, Any]) -> Unit:
         max_hp=_int(payload, "max_hp"),
         en=_int(payload, "en"),
         en_max=_int(payload, "en_max"),
-        unit_attack=_float(payload, "unit_attack"),
-        unit_defense=_float(payload, "unit_defense"),
-        pilot_attack=_float(payload, "pilot_attack"),
-        pilot_defense=_float(payload, "pilot_defense"),
-        reaction=_float(payload, "reaction"),
-        mobility=_float(payload, "mobility"),
-        move_range=_int(payload, "move_range"),
-        weapons=[decode_weapon(entry) for entry in payload.get("weapons") or ()],
+        sp=_int(payload, "sp"),
+        sp_max=_int(payload, "sp_max"),
+        pilot=decode_pilot(payload.get("pilot") or {}),
+        mech=decode_mech(payload.get("mech") or {}),
         skills=[decode_skill(entry) for entry in payload.get("skills") or ()],
         acted=_bool(payload, "acted"),
         chance_steps=_int(payload, "chance_steps"),

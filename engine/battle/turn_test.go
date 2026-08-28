@@ -19,15 +19,16 @@ func turnBoard(t *testing.T, phase Faction, turn int, units ...Unit) *Board {
 func basicUnit(id string, faction Faction, x, y int) Unit {
 	return Unit{
 		ID: id, Faction: faction, Footprint: Footprint{Anchor: Cell{x, y}, Size: Size{1, 1}},
-		HP: 100, MaxHP: 100, EN: 100, ENMax: 140, MoveRange: 1,
+		HP: 100, MaxHP: 100, EN: 100, ENMax: 140, Mech: Mech{MoveRange: 1},
 	}
 }
 
 func armed(id string, faction Faction, x, y int) Unit {
 	out := basicUnit(id, faction, x, y)
-	out.Weapons = []Weapon{{Name: "gun", Power: 5000, Range: RadiusRange{1, 3}, Accuracy: 100, CanCounter: true, UsableAfterMove: true}}
+	out.Mech.Weapons = []Weapon{{Name: "gun", Power: 5000, Range: RadiusRange{1, 3}, Accuracy: 100, CanCounter: true, UsableAfterMove: true}}
 	out.Mech.Attack, out.Mech.Defense = 4200, 3900
-	out.Pilot.Attack, out.Pilot.Defense = 220, 190
+	out.Pilot.Ranged, out.Pilot.Melee, out.Pilot.Awaken = 220, 220, 220
+	out.Pilot.Defense = 190
 	out.Pilot.Reaction, out.Mech.Mobility = 205, 310
 	return out
 }

@@ -16,7 +16,6 @@ func (b *Board) Clone() *Board {
 }
 
 func (u Unit) Clone() Unit {
-	u.Weapons = slices.Clone(u.Weapons)
 	u.Skills = slices.Clone(u.Skills)
 	for index := range u.Skills {
 		u.Skills[index].Amount = cloneAmount(u.Skills[index].Amount)

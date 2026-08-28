@@ -70,8 +70,8 @@ func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error
 	out.Reactions = append(out.Reactions,
 		b.stanceOption(attacker, defender, weapon, StanceDodge, ""),
 		b.stanceOption(attacker, defender, weapon, StanceDefend, ""))
-	for index := range defender.Weapons {
-		counter := &defender.Weapons[index]
+	for index := range defender.Mech.Weapons {
+		counter := &defender.Mech.Weapons[index]
 		if counter.MapWeapon || !counter.CanCounter || !defender.HasENFor(*counter) {
 			continue
 		}
@@ -168,8 +168,8 @@ func supportWeapon(other, supported *Unit, firing, foe Footprint) *Weapon {
 		return nil
 	}
 	distance := SpanDistance(other.Footprint, foe)
-	for index := range other.Weapons {
-		weapon := &other.Weapons[index]
+	for index := range other.Mech.Weapons {
+		weapon := &other.Mech.Weapons[index]
 		if !weapon.MapWeapon && other.HasENFor(*weapon) && weapon.Range.Holds(distance) {
 			return weapon
 		}
@@ -179,5 +179,5 @@ func supportWeapon(other, supported *Unit, firing, foe Footprint) *Weapon {
 
 func inSupportReach(other, supported *Unit, at Footprint, charges int) bool {
 	return other.ID != supported.ID && charges > 0 &&
-		SpanDistance(other.Footprint, at) <= other.MoveRange
+		SpanDistance(other.Footprint, at) <= other.Mech.MoveRange
 }

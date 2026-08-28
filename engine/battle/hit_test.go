@@ -4,7 +4,7 @@ import "testing"
 
 func TestTheHitRateHoldsBetweenZeroAndOneHundred(t *testing.T) {
 	weapon := Weapon{Accuracy: 96.45}
-	quick := &Unit{Pilot: Pilot{Attack: 400}, Mech: Mech{Mobility: 1000}}
+	quick := &Unit{Pilot: Pilot{Ranged: 400}, Mech: Mech{Mobility: 1000}}
 	still := &Unit{}
 	evasive := &Unit{Pilot: Pilot{Reaction: 3000}, Mech: Mech{Mobility: 500}}
 
@@ -55,7 +55,7 @@ func TestTheMobilityOfEachSideMovesTheHitRateItsOwnWay(t *testing.T) {
 
 func TestTheHitProbabilityIsTheRateOverOneHundred(t *testing.T) {
 	weapon := Weapon{Accuracy: 90}
-	attacker := &Unit{Pilot: Pilot{Attack: 220}, Mech: Mech{Mobility: 310}}
+	attacker := &Unit{Pilot: Pilot{Ranged: 220}, Mech: Mech{Mobility: 310}}
 	defender := &Unit{Pilot: Pilot{Reaction: 205}, Mech: Mech{Mobility: 310}}
 
 	got := HitProbability(weapon, attacker, defender, 0)
