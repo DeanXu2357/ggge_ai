@@ -2,40 +2,73 @@
 
 > Type: working—deleted at merge
 
-## Where the branch stands
+Issue: #87. Branch: issue-87-server-handler. Status: awaiting-review.
 
-The branch 'issue-87-server-handler' starts from 'dev' (1b63a85),
-after the merge of #86. It runs in parallel with #85: the two
-branches touch different packages, and their one shared line is
-the "Process model" bullet of the spec.
+## Change summary
 
-## What the code is today
+| Commit | What |
+|---|---|
+| 27834ca | This file |
+| 9980cea | The seven command bodies and the session move to 'engine/server/handler'; 'server' binds them |
+| c82d893 | The registry and its two types private to 'server'; two comments deleted |
+| (next) | The last narrating comments deleted; the local that shadowed the 'handler' package renamed |
 
-'engine/server' holds nine command handlers, each a method on
-'*Server' because it reads and writes 's.session', each registered
-by an 'init()' in its own file through 'Register(name, Binding)'.
-'server.go' holds the transport ('New', 'Serve', 'dispatch',
-'payloadOf', 'Handle') and 'registry.go' the binding table. Only
-'engine/main.go' imports the package: 'server.New().Serve(...)'.
+    engine/server           server.go (New, Serve, dispatch, payloadOf,
+                            hello), registry.go (register, binding,
+                            command, the 'hello' and 'ping' bindings),
+                            commands.go (the seven bindings), the four
+                            test files
+    engine/server/handler   commands.go (Commands, NewCommands), act.go,
+                            candidates.go, initbattle.go, session.go
 
-## Plan
+'server' exports 'New', 'Serve' and 'Server'; 'engine/main.go' calls
+the first two. 'handler' exports 'Commands', 'NewCommands' and the
+seven commands 'Act', 'Actions', 'Export', 'InitBattle', 'Load',
+'Reach', 'ResponseAttacks'; 'server' binds them and nothing else
+does. 'server' imports 'protocol' and 'handler'; 'handler' imports
+'battle', 'board' (for 'DecodeInit' and 'DecodeState' alone) and
+'protocol'. No cycle.
 
-1. 'engine/server/handler' takes every handler body and what the
-   handlers touch: the session type, 'newSession', 'openCommand',
-   'activationOf', 'openDice', 'refusalCode'. 'engine/server' keeps
-   the transport and the registry. The import runs 'server' ->
-   'handler' -> 'battle', 'board', 'protocol'; nothing the other
-   way.
-2. The shape of the binding is the branch's to settle under the
-   rules of 0828: the handler package exports what 'server' binds
-   and nothing else; identifiers name their owner; no comment
-   beyond the two kinds.
-3. The spec names the package. Gates, review, artifact.
+## Call chain
 
-## Resume point
+    main.go: server.New().Serve(stdin, stdout)
+      New: commands = handler.NewCommands(); for each binding, bind(server)
+        register("act", func(s *Server) command { return s.commands.Act })
+      Serve -> dispatch(line) -> handlers[cmd](id, payload)
+        handler.Commands.Act(id, payload)
+          openCommand[ActRequest] -> session, board battle.Board
+          board.Act(&request.Action, dice) -> events
+          protocol.Ok(id, ActResponse{Events, Board: board.Summary()})
 
-Step 1 is delegated to the code editor.
+## Verification
 
-## Progress log
+- Gates green at 9980cea and c82d893 (the editor's runs); a
+  separate run at the last commit is recorded when it lands.
+- Wire behaviour unchanged: every server test keeps its assertions;
+  the goldens are untouched.
+- The main session read 'handler/commands.go', 'server/commands.go',
+  'registry.go' and the 'server.go' diff, listed every comment of
+  both packages, and the exported surface of both.
 
-- 2026-08-28: worktree added, roadmap written.
+## Contention points
+
+1. **The tests stayed in 'server'.** All three command test files
+   drive the loop through 'Serve' and assert on the wire reply, so
+   they test the transport and the command together. Moving them
+   would need a second harness or an external test package that
+   imports 'server' back. 'handler' has no test file of its own and
+   is covered through the loop.
+2. **'Commands' as the state holder.** One value per server holds
+   the optional session; each command is a method on it, so a nil
+   session still answers 'no_session' as before. The registry stays
+   in the transport that dispatches it; the alternative, 'handler'
+   registering itself, would make 'handler' import 'server'.
+3. **The function type is 'command'.** The registry maps a contract
+   command name to it; 'handler' as a name collides with the
+   package.
+
+## Deferred
+
+- Nothing. The order was: after #85 merges, to keep 'act.go' from a
+  second rebase; the two branches touched different packages, and
+  only the "Process model" bullet of the spec is shared.
