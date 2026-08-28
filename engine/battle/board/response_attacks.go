@@ -55,15 +55,15 @@ func (b *Board) ResponseAttacks(action battle.Decision, defenderID string) (batt
 		b.stanceOption(attacker, defender, weapon, battle.StanceNone, ""))
 
 	out.Defender.SupportDefenders = b.defendOptions(attacker, weapon,
-		b.SupportDefenders(defender, defender.Footprint))
+		b.supportDefenders(defender, defender.Footprint))
 	out.Defender.SupportAttackers = b.attackOptions(attacker,
-		b.SupportAttackers(defender, defender.Footprint, origin))
+		b.supportAttackers(defender, defender.Footprint, origin))
 	// Which weapon counters is the pick of the defender, so the entry of a
 	// unit that covers the attacker carries no forecast.
 	out.Attacker.SupportDefenders = b.defendOptions(defender, nil,
-		b.SupportDefenders(attacker, origin))
+		b.supportDefenders(attacker, origin))
 	out.Attacker.SupportAttackers = b.attackOptions(defender,
-		b.SupportAttackers(attacker, origin, defender.Footprint))
+		b.supportAttackers(attacker, origin, defender.Footprint))
 	return out, nil
 }
 
@@ -112,9 +112,9 @@ func strikeCell(attacker *battle.Unit, action battle.Decision) battle.Cell {
 
 // The supported unit stands on 'at' after its move, so the reach of a
 // support unit reads that cell and not the cell of today.
-func (b *Board) SupportDefenders(supported *battle.Unit, at battle.Footprint) []*battle.Unit {
+func (b *Board) supportDefenders(supported *battle.Unit, at battle.Footprint) []*battle.Unit {
 	out := []*battle.Unit{}
-	for _, other := range b.ByFaction(supported.Faction) {
+	for _, other := range b.byFaction(supported.Faction) {
 		if inSupportReach(other, supported, at, other.SupportDefendCharges) {
 			out = append(out, other)
 		}
@@ -127,9 +127,9 @@ type SupportAttacker struct {
 	Weapon *battle.Weapon
 }
 
-func (b *Board) SupportAttackers(supported *battle.Unit, firing, foe battle.Footprint) []SupportAttacker {
+func (b *Board) supportAttackers(supported *battle.Unit, firing, foe battle.Footprint) []SupportAttacker {
 	out := []SupportAttacker{}
-	for _, other := range b.ByFaction(supported.Faction) {
+	for _, other := range b.byFaction(supported.Faction) {
 		if weapon := supportWeapon(other, supported, firing, foe); weapon != nil {
 			out = append(out, SupportAttacker{Unit: other, Weapon: weapon})
 		}

@@ -14,10 +14,10 @@ func TestACellTakesTheTerrainOfTheBoardOrItsOwn(t *testing.T) {
 		terrainCells:   map[battle.Cell]battle.Terrain{{2, 2}: battle.TerrainUnderwater},
 	}
 
-	if got := state.TerrainAt(battle.Cell{0, 0}); got != battle.TerrainGround {
+	if got := state.terrainAt(battle.Cell{0, 0}); got != battle.TerrainGround {
 		t.Fatalf("a cell with no override: %v", got)
 	}
-	if got := state.TerrainAt(battle.Cell{2, 2}); got != battle.TerrainUnderwater {
+	if got := state.terrainAt(battle.Cell{2, 2}); got != battle.TerrainUnderwater {
 		t.Fatalf("a cell with an override: %v", got)
 	}
 }
@@ -35,10 +35,10 @@ func TestAUnitStandsOnTheTerrainOfItsAnchorCell(t *testing.T) {
 		},
 	}
 
-	if got := state.TerrainOf(state.Unit("a1")); got != battle.TerrainUnderwater {
+	if got := state.terrainOf(state.unit("a1")); got != battle.TerrainUnderwater {
 		t.Fatalf("the anchor cell holds the terrain of the unit: %v", got)
 	}
-	if got := state.TerrainOf(state.Unit("e1")); got != battle.TerrainSurface {
+	if got := state.terrainOf(state.unit("e1")); got != battle.TerrainSurface {
 		t.Fatalf("a unit off every override: %v", got)
 	}
 }
@@ -49,7 +49,7 @@ func TestABoardWithNoTerrainReadsSpace(t *testing.T) {
 		t.Fatalf("board: %v", err)
 	}
 
-	if got := state.TerrainAt(battle.Cell{3, 1}); got != battle.TerrainSpace {
+	if got := state.terrainAt(battle.Cell{3, 1}); got != battle.TerrainSpace {
 		t.Fatalf("the zero value of the board: %v", got)
 	}
 }

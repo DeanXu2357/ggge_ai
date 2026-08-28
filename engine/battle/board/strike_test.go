@@ -114,10 +114,10 @@ func TestTheCounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 	defender.Mech.Weapons = []battle.Weapon{costly, passive, shells, beam(), near}
 	state := board(defender, fighter("e1", battle.FactionEnemy, battle.Cell{2, 0}))
 
-	attacker := state.Unit("e1").Footprint
-	first := state.CounterWeapon(state.Unit("d1"), "", attacker)
-	named := state.CounterWeapon(state.Unit("d1"), "saber", attacker)
-	unpaid := state.CounterWeapon(state.Unit("d1"), "costly", attacker)
+	attacker := state.unit("e1").Footprint
+	first := state.counterWeapon(state.unit("d1"), "", attacker)
+	named := state.counterWeapon(state.unit("d1"), "saber", attacker)
+	unpaid := state.counterWeapon(state.unit("d1"), "costly", attacker)
 
 	if first == nil || first.Name != "beam rifle" {
 		t.Fatalf("an empty name takes the first weapon that fits: %+v", first)

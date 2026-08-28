@@ -74,7 +74,7 @@ func TestACounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 	for name, break_ := range cases {
 		t.Run(name, func(t *testing.T) {
 			state := duel()
-			break_(&state.Unit("d1").Mech.Weapons[0])
+			break_(&state.unit("d1").Mech.Weapons[0])
 
 			out := engagement(t, state, battle.Cell{1, 0}, "rifle")
 
@@ -96,8 +96,8 @@ func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 	guard.SupportAttackCharges = 1
 	guard.Mech.Weapons = []battle.Weapon{rifle("rifle", battle.RadiusRange{Min: 1, Max: 2})}
 	state.units = append(state.units, guard)
-	state.Unit("h1").SupportAttackCharges = 1
-	state.Unit("h1").Mech.Weapons = []battle.Weapon{rifle("rifle", battle.RadiusRange{Min: 1, Max: 2})}
+	state.unit("h1").SupportAttackCharges = 1
+	state.unit("h1").Mech.Weapons = []battle.Weapon{rifle("rifle", battle.RadiusRange{Min: 1, Max: 2})}
 
 	out := engagement(t, state, battle.Cell{1, 0}, "rifle")
 
@@ -122,9 +122,9 @@ func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 
 func TestASupporterOutOfItsMoveRangeJoinsNothing(t *testing.T) {
 	state := duel()
-	state.Unit("h1").Mech.MoveRange = 0
-	state.Unit("h1").SupportAttackCharges = 1
-	state.Unit("h1").Mech.Weapons = []battle.Weapon{rifle("rifle", battle.RadiusRange{Min: 1, Max: 2})}
+	state.unit("h1").Mech.MoveRange = 0
+	state.unit("h1").SupportAttackCharges = 1
+	state.unit("h1").Mech.Weapons = []battle.Weapon{rifle("rifle", battle.RadiusRange{Min: 1, Max: 2})}
 
 	out := engagement(t, state, battle.Cell{1, 0}, "rifle")
 
@@ -159,7 +159,7 @@ func TestAResponseAttackOfADestroyedUnitIsAnError(t *testing.T) {
 	for name, id := range cases {
 		t.Run(name, func(t *testing.T) {
 			state := duel()
-			state.Unit(id).HP = 0
+			state.unit(id).HP = 0
 
 			_, err := state.ResponseAttacks(strike(battle.Cell{1, 0}, "rifle"), "d1")
 

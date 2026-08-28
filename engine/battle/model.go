@@ -155,10 +155,6 @@ type Skill struct {
 	Affects         SkillAffects
 }
 
-// Pilot and Mech are the data of the pairing. Unit is the current state of
-// that pairing on the board: it records the state and the maxima of the
-// state, and it takes no part in a computation. A formula reads the pilot and
-// the mech at computation time.
 type Pilot struct {
 	Ranged   float64
 	Melee    float64
@@ -168,9 +164,6 @@ type Pilot struct {
 	SP       int
 }
 
-// AttackFor is the pilot attack of one strike: the highest value among the
-// categories of the weapon. A weapon of no known category reads the highest of
-// the three.
 func (p Pilot) AttackFor(weapon Weapon) float64 {
 	categories := weapon.Categories
 	if len(categories) == 0 {

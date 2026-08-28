@@ -13,7 +13,7 @@ type outcome struct {
 }
 
 func (b *Board) Apply(decision battle.Decision, dice battle.Dice) (battle.Trace, error) {
-	actor, err := b.Activatable(decision.UnitID)
+	actor, err := b.activatable(decision.UnitID)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func (b *Board) answerOf(defender, attacker *battle.Unit, firing battle.Footprin
 			battle.ErrIllegalAction, defender.ID, responseAttack.Stance)
 	}
 	if responseAttack.Stance == battle.StanceCounter {
-		out.counter = b.CounterWeapon(defender, responseAttack.Weapon, firing)
+		out.counter = b.counterWeapon(defender, responseAttack.Weapon, firing)
 		if out.counter == nil {
 			return answer{}, fmt.Errorf("%w: unit %q counters the strike with no weapon %q",
 				battle.ErrIllegalAction, defender.ID, responseAttack.Weapon)
@@ -199,7 +199,7 @@ func (b *Board) namedSupportAttackers(supported *battle.Unit, firing, foe battle
 		return nil, fmt.Errorf("%w: unit %q names %d support attackers, and the rules permit %d",
 			battle.ErrIllegalAction, supported.ID, len(names), limit)
 	}
-	eligible := b.SupportAttackers(supported, firing, foe)
+	eligible := b.supportAttackers(supported, firing, foe)
 	out := make([]SupportAttacker, 0, len(names))
 	for _, name := range names {
 		if slices.ContainsFunc(out, func(one SupportAttacker) bool { return one.Unit.ID == name }) {
@@ -223,7 +223,7 @@ func (b *Board) namedSupportDefender(covered *battle.Unit, at battle.Footprint, 
 	if name == "" {
 		return nil, nil
 	}
-	for _, other := range b.SupportDefenders(covered, at) {
+	for _, other := range b.supportDefenders(covered, at) {
 		if other.ID == name && fits(other) {
 			return other, nil
 		}
@@ -319,7 +319,7 @@ func (b *Board) applyDebuff(victim *battle.Unit, weapon *battle.Weapon) {
 	victim.Debuffs = append(victim.Debuffs, battle.Debuff{
 		Kind:         weapon.DebuffKind,
 		Magnitude:    weapon.DebuffMagnitude,
-		AppliedPhase: b.PhaseIndex(),
+		AppliedPhase: b.phaseIndex(),
 	})
 }
 

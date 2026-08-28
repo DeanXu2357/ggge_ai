@@ -137,7 +137,7 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 			Affects:         battle.AffectsAlly,
 		}},
 	}
-	if got := board.Unit("a1"); !reflect.DeepEqual(*got, want) {
+	if got := board.unit("a1"); !reflect.DeepEqual(*got, want) {
 		t.Fatalf("unit:\n%+v\n%+v", *got, want)
 	}
 	if got := board.bounds; got != (battle.Bounds{Low: battle.Cell{0, 0}, High: battle.Cell{9, 9}}) {
@@ -155,7 +155,7 @@ func TestTheModelCopiesTheAmmoAndTheSkillAmount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	unit := board.Unit("a1")
+	unit := board.unit("a1")
 	unit.Ammo["missile"] = 0
 	*unit.Skills[0].Amount = 1.0
 
@@ -192,11 +192,11 @@ func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	filled := board.Unit("e1")
+	filled := board.unit("e1")
 	if filled.MaxHP != 9000 || filled.ENMax != 180 || filled.SPMax != 60 {
 		t.Fatalf("the pairing fills a maximum of zero: %+v", *filled)
 	}
-	stated := board.Unit("e2")
+	stated := board.unit("e2")
 	if stated.MaxHP != 7000 || stated.ENMax != 20 || stated.SPMax != 5 {
 		t.Fatalf("an explicit maximum stands: %+v", *stated)
 	}
@@ -209,7 +209,7 @@ func TestTheModelSharesNoMemoryWithTheWireState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	board.Unit("a1").Mech.Weapons[0].Name = "changed"
+	board.unit("a1").Mech.Weapons[0].Name = "changed"
 
 	if state.Units[0].Mech.Weapons[0].Name != "rifle" {
 		t.Fatal("a write into the model reached the payload")
@@ -228,7 +228,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if got := board.Unit("a1").Footprint.Size; got != (battle.Size{1, 1}) {
+	if got := board.unit("a1").Footprint.Size; got != (battle.Size{1, 1}) {
 		t.Fatalf("size: %v", got)
 	}
 }
@@ -477,17 +477,17 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	unit := board.Unit("a1")
+	unit := board.unit("a1")
 	if unit == nil || !unit.Alive() {
 		t.Fatalf("unit: %v", unit)
 	}
-	if board.Unit("ghost") != nil {
+	if board.unit("ghost") != nil {
 		t.Fatal("the board holds no unit 'ghost'")
 	}
 
 	unit.HP = 0
 
-	if unit.Alive() || board.Unit("ghost").Alive() {
+	if unit.Alive() || board.unit("ghost").Alive() {
 		t.Fatal("a unit with no hit points is not alive, and neither is a unit that is not there")
 	}
 }

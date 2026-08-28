@@ -96,11 +96,11 @@ func TestTheLastActivationOfTheEnemySideOpensTheNextTurn(t *testing.T) {
 	if !reflect.DeepEqual(resolution.Rotations, []battle.Rotation{{Turn: 2, Phase: battle.FactionAlly}}) {
 		t.Fatalf("rotations: %+v", resolution.Rotations)
 	}
-	got := board.Unit("a1")
+	got := board.unit("a1")
 	if got.Acted || got.EN != 140 {
 		t.Fatalf("the phase start must reset the activation and cap the regeneration: %+v", got)
 	}
-	if enemy := board.Unit("e1"); !enemy.Acted || enemy.EN != 100 {
+	if enemy := board.unit("e1"); !enemy.Acted || enemy.EN != 100 {
 		t.Fatalf("the enemy side must keep its state until its own phase start: %+v", enemy)
 	}
 }
@@ -114,7 +114,7 @@ func TestThePhaseStartRegeneratesTenPercentOfTheMaximumFloored(t *testing.T) {
 	if _, err := board.Act(standby("e1"), battle.NewManualRoll(nil)); err != nil {
 		t.Fatal(err)
 	}
-	if got := board.Unit("a1").EN; got != 61 {
+	if got := board.unit("a1").EN; got != 61 {
 		t.Fatalf("EN: %d, want 10 + floor(51.3)", got)
 	}
 }
@@ -133,10 +133,10 @@ func TestADebuffExpiresWhenItsRoundEnds(t *testing.T) {
 	if _, err := board.Act(standby("e1"), battle.NewManualRoll(nil)); err != nil {
 		t.Fatal(err)
 	}
-	if got := board.Unit("a1").Debuffs; !reflect.DeepEqual(got, []battle.Debuff{{Kind: "attack", Magnitude: 0.2, AppliedPhase: 4}}) {
+	if got := board.unit("a1").Debuffs; !reflect.DeepEqual(got, []battle.Debuff{{Kind: "attack", Magnitude: 0.2, AppliedPhase: 4}}) {
 		t.Fatalf("ally debuffs at index 6: %+v", got)
 	}
-	if got := board.Unit("e1").Debuffs; len(got) != 0 {
+	if got := board.unit("e1").Debuffs; len(got) != 0 {
 		t.Fatalf("the expiry reads every side: %+v", got)
 	}
 }
@@ -152,7 +152,7 @@ func TestASideWithNoUnitIsSkipped(t *testing.T) {
 	if !reflect.DeepEqual(resolution.Rotations, want) {
 		t.Fatalf("rotations: %+v", resolution.Rotations)
 	}
-	if board.Unit("e1").Acted {
+	if board.unit("e1").Acted {
 		t.Fatal("the enemy phase start must give the unit its activation back")
 	}
 }
@@ -165,7 +165,7 @@ func TestGoneNamesTheSidesWithNoLivingUnit(t *testing.T) {
 	if got := board.gone(); !reflect.DeepEqual(got, []battle.Faction{battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", got)
 	}
-	board.Unit("a1").HP = 0
+	board.unit("a1").HP = 0
 	if got := board.gone(); !reflect.DeepEqual(got, []battle.Faction{battle.FactionAlly, battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", got)
 	}
@@ -174,7 +174,7 @@ func TestGoneNamesTheSidesWithNoLivingUnit(t *testing.T) {
 func TestABoardWithNoLivingUnitDoesNotRotate(t *testing.T) {
 	last := basicUnit("a1", battle.FactionAlly, 1, 1)
 	board := turnBoard(t, battle.FactionAlly, 1, last)
-	board.Unit("a1").HP = 0
+	board.unit("a1").HP = 0
 
 	if got := board.Advance(); len(got) != 0 || board.phase != battle.FactionAlly || board.turn != 1 {
 		t.Fatalf("rotated on a dead board: %+v", got)
@@ -187,7 +187,7 @@ func TestARefusedActivationChangesNothing(t *testing.T) {
 	if _, err := board.Act(standby("e1"), battle.NewManualRoll(nil)); err == nil {
 		t.Fatal("an enemy unit cannot act in the ally phase")
 	}
-	if board.phase != battle.FactionAlly || board.Unit("a1").Acted {
+	if board.phase != battle.FactionAlly || board.unit("a1").Acted {
 		t.Fatal("the board changed on a refusal")
 	}
 }
@@ -202,7 +202,7 @@ func TestABattleRunsToAnnihilation(t *testing.T) {
 		}
 		pending := board.pending(board.phase)
 		actor := pending[0]
-		targets := board.TargetsOf(actor)
+		targets := board.targetsOf(actor)
 		decision := standby(actor.ID)
 		if len(targets) > 0 {
 			decision = battle.Decision{UnitID: actor.ID, Kind: battle.ActionAttack, TargetID: targets[0].ID, Weapon: "gun",

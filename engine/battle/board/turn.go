@@ -35,7 +35,7 @@ func (b *Board) Advance() []battle.Rotation {
 }
 
 func (b *Board) nextPhase() battle.Rotation {
-	slot := (b.PhaseIndex() - b.turn*len(PhaseOrder) + 1) % len(PhaseOrder)
+	slot := (b.phaseIndex() - b.turn*len(PhaseOrder) + 1) % len(PhaseOrder)
 	if slot == 0 {
 		b.turn++
 	}
@@ -45,7 +45,7 @@ func (b *Board) nextPhase() battle.Rotation {
 }
 
 func (b *Board) beginPhase() {
-	now := b.PhaseIndex()
+	now := b.phaseIndex()
 	for index := range b.units {
 		unit := &b.units[index]
 		if !unit.Alive() {
@@ -82,7 +82,7 @@ func (b *Board) anyAlive() bool {
 func (b *Board) gone() []battle.Faction {
 	var out []battle.Faction
 	for _, faction := range []battle.Faction{battle.FactionAlly, battle.FactionEnemy} {
-		if len(b.ByFaction(faction)) == 0 {
+		if len(b.byFaction(faction)) == 0 {
 			out = append(out, faction)
 		}
 	}

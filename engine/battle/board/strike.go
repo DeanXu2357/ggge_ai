@@ -40,7 +40,7 @@ func StrikeHitProbability(attacker, defender *battle.Unit, weapon *battle.Weapon
 	return HitProbability(*weapon, attacker, defender, ability)
 }
 
-func (b *Board) CounterWeapon(defender *battle.Unit, name string, attacker battle.Footprint) *battle.Weapon {
+func (b *Board) counterWeapon(defender *battle.Unit, name string, attacker battle.Footprint) *battle.Weapon {
 	distance := SpanDistance(defender.Footprint, attacker)
 	for index := range defender.Mech.Weapons {
 		weapon := &defender.Mech.Weapons[index]
