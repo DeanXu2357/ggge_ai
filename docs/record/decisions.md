@@ -1419,3 +1419,12 @@
   - The stage detail form (issue #83): "先當作參考，繼續研究關卡行為，
     這邊應該是要成立案例來討論不是直接混為一談，畢竟每個關卡條件不同".
     Reference only; each stage becomes its own case.
+- **(0828) Three follow-up rulings of the datamine round — user
+  rulings**｜Issue #80, the golden files: "a", the differential
+  comparer ignores a field that the recorded expectation lacks; the
+  recordings stay. Issue #79, the two-list reading of a map weapon:
+  the device check of one directional weapon and one aimed weapon
+  comes "before lands", before the wire form. Issue #77, the device
+  panel of a sample unit: "在 issue 裡面註記要我提供資料", the user
+  supplies the panel data; the issue carries the note. Issue #74:
+  "沒問題可以合併".
