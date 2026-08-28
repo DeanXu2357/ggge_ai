@@ -18,7 +18,8 @@ Eleven commits.
 | ac8aaeb | The twelve methods only the package calls made private; two policy comments deleted from 'model.go' |
 | 91ccc00, 9672ecf | The terminology map points at the private names; the narrating comment on 'Cell.Before' deleted |
 | 8709ad3 | The contract speaks the protocol on every method; the domain model moves into 'board'; the server runs no codec |
-| (next) | The map's Go references follow; the names of 'board' that nothing outside calls made private |
+| 8f362e7 | The map's Go references follow; the artifact gains the cut-A commit and the sentinel |
+| b9294e8 | The names of 'board' that nothing outside calls made private: 27 files, the model and the result types |
 
     engine/battle          model.go (the data types, the six sentinel
                            errors), board.go (the interfaces and the
@@ -129,4 +130,10 @@ package apart, needs the rejected accessors, so A was chosen.
 ## Deferred
 
 - The formulas move out of 'board' into their own package: issue
-  #85, on this merge.
+  #85, on this merge. 'StanceMultiplier' is exported over a private
+  parameter type until then, so it is uncallable from outside; #85
+  settles it with the rest.
+- The fields of 'Unit', 'Pilot', 'Mech' and 'Weapon' stay exported
+  because the differential formula tests set them. Once #85 gives
+  the formulas their own input type, those four types and their
+  fields can go private too.
