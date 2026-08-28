@@ -1519,3 +1519,17 @@
   first report relayed the editor's summary without a review of the
   file; the review of a contract is a read of the file against its
   callers, not a read of a report.
+- **(0828) The board contract speaks the protocol end to end — user
+  ruling**｜After the six-method cut, the user: "EncodeResolution 是不
+  是放錯位置了，以他的職責不應該放在 board 的實作裡面 ... 你要麻就是整個
+  Board interface 都是針對 protocol 的，然後自己的型別不往外開放，不然
+  就是一個專門的 codex 介面，你這樣不上不下的搞得很難看". Two
+  consistent cuts were put to the user: A, the contract speaks the
+  wire types of 'engine/protocol' on every method and the domain
+  types live inside 'engine/battle/board'; B, a codec package apart,
+  which needs the accessors already rejected. The user chose A:
+  "A 開始實作". Consequences: 'engine/battle' holds the interfaces,
+  the dice, 'DecodeOutcomes' and the sentinel errors, nothing else;
+  'model.go' and the result types move into 'board'; the server
+  runs no codec call; 'Act' keeps the untyped event list of the
+  response in this branch (issue #86).

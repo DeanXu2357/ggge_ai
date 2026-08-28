@@ -6,7 +6,7 @@ Issue: #86. Branch: issue-86-board-package. Status: awaiting-review.
 
 ## Change summary
 
-Eight commits.
+Nine commits.
 
 | Commit | What |
 |---|---|
@@ -17,6 +17,7 @@ Eight commits.
 | 4c50706 | The spec names the contract methods and the protocol import |
 | ac8aaeb | The twelve methods only the package calls made private; two policy comments deleted from 'model.go' |
 | 91ccc00, 9672ecf | The terminology map points at the private names; the narrating comment on 'Cell.Before' deleted |
+| (next) | The contract speaks the protocol on every method; the domain model moves into 'board'; the server runs no codec |
 
     engine/battle          model.go (the data types, the six sentinel
                            errors), board.go (the interfaces and the
@@ -35,43 +36,42 @@ the session, constructs through 'board.DecodeInit' and
 and 'board.Decode*'. 'differential' reads 'Roster()' in place of
 the field and imports the formulas from 'board'.
 
-## The interfaces
+## The interfaces (cut A, user ruling 2026-08-28)
 
-    battle.BoardResolver Act
-    battle.BoardReader   Capabilities ReachableCells ResponseAttacks
-                         Clone State Summary
-    battle.Board         BoardReader plus BoardResolver; 'Clone()'
-                         returns Board
+    battle.BoardReader   Capabilities(unitID) protocol.ActionsResponse
+                         ReachableCells(unitID) []protocol.Cell
+                         ResponseAttacks(*protocol.Decision, defenderID)
+                             protocol.ResponseAttacksResponse
+                         Clone() Board
+                         State() protocol.BattleState
+                         Summary() protocol.BoardSummary
+    battle.BoardResolver Act(*protocol.Decision, Dice) []any
+    battle.Board         BoardReader plus BoardResolver
 
-Rule (user ruling 2026-08-28): a method is on the interface because
-a consumer outside 'board' calls it today. The server calls 'Act',
-'Capabilities', 'ReachableCells', 'ResponseAttacks' and 'Clone', it
-exports the state ('State()', the 'export' command) and it reads
-the summary ('Summary()': turn, phase, pending, gone, for the 'act'
-and 'init' answers). The board exports itself, so the codec reads
-the struct and no field becomes an accessor on the contract.
-'Apply' and 'Advance' are the two halves of 'Act' and stay on the
-concrete type: 'load' calls 'Advance' on the value it decodes, and
-the differential replay calls 'Apply' on the concrete type.
+The contract speaks the wire types of 'engine/protocol' on every
+method. 'engine/battle' holds the three interfaces, the dice,
+'DecodeOutcomes' and the six sentinel errors, and nothing else. The
+domain model ('Unit', 'Pilot', 'Mech', 'Weapon', 'Decision', the
+result types) is the implementation's own, in 'engine/battle/board',
+with the codec internal to it. The server constructs with
+'board.DecodeInit' or 'board.DecodeState' and otherwise passes the
+request payloads to the board as they are.
 
-'var _ battle.Board = (*board.Board)(nil)' pins the implementation.
-The result types the interface methods return live in
-'battle/board.go'; 'State' and 'Summary' return the wire types of
-'engine/protocol'.
-
-Exported on '*board.Board' after ac8aaeb: the six contract methods,
-'Act''s two halves 'Apply' and 'Advance', and 'Roster'. Each has a
-caller in 'server' or 'differential'. The other twelve methods are
-private to the package.
+The path here: the first cut exposed 24 read methods and the
+codec's reads as accessors (rejected); the second cut kept six
+domain-typed methods beside two wire-typed ones and left nine codec
+calls in the server (rejected as half of each). Cut B, a codec
+package apart, needs the rejected accessors, so A was chosen.
 
 ## Call chain of the server
 
     server.session.board  battle.Board
       board.DecodeInit / board.DecodeState   -> *board.Board
-      b.Act                                  BoardResolver
+      b.Act(&request.Action, dice)           BoardResolver
       b.Capabilities / b.ReachableCells /
       b.ResponseAttacks / b.Clone            BoardReader
-      b.State() / b.Summary()                BoardReader, the wire form
+      b.State() / b.Summary()                BoardReader
+    no Encode or Decode call in the server
 
 ## Verification
 
