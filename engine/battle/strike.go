@@ -12,7 +12,7 @@ import "math"
 // takes no terrain and no board on purpose: issue #80 gives the weapon its
 // ability list, and the signature changes with it.
 func StrikeDamage(attacker, defender *Unit, weapon *Weapon, defense float64) int {
-	raw := ExpectedDamage(weapon.Power, attacker, defender, NoTerrainCorrection,
+	raw := ExpectedDamage(*weapon, attacker, defender, NoTerrainCorrection,
 		debuffBonus(defender), 0, defense)
 	return int(math.RoundToEven(raw))
 }
@@ -38,8 +38,8 @@ func StrikeHitProbability(attacker, defender *Unit, weapon *Weapon,
 
 func (b *Board) CounterWeapon(defender *Unit, name string, attacker Footprint) *Weapon {
 	distance := SpanDistance(defender.Footprint, attacker)
-	for index := range defender.Weapons {
-		weapon := &defender.Weapons[index]
+	for index := range defender.Mech.Weapons {
+		weapon := &defender.Mech.Weapons[index]
 		if name != "" && weapon.Name != name {
 			continue
 		}

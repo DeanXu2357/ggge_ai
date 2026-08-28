@@ -20,28 +20,40 @@
           "max_hp": 12000,
           "en": 140,
           "en_max": 140,
-          "unit_attack": 4200.0,
-          "unit_defense": 3900.0,
-          "pilot_attack": 220.0,
-          "pilot_defense": 190.0,
-          "reaction": 205.0,
-          "mobility": 310.0,
-          "move_range": 0,
-          "weapons": [
-            {
-              "name": "saber",
-              "power": 2400.0,
-              "range_min": 1,
-              "range_max": 1,
-              "en_cost": 0,
-              "accuracy": 10.0,
-              "can_counter": true,
-              "map_weapon": false,
-              "usable_after_move": true,
-              "debuff_kind": null,
-              "debuff_magnitude": 0.0
-            }
-          ],
+          "sp": 0,
+          "sp_max": 0,
+          "pilot": {
+            "ranged": 220.0,
+            "melee": 220.0,
+            "awaken": 220.0,
+            "defense": 190.0,
+            "reaction": 205.0,
+            "sp": 0
+          },
+          "mech": {
+            "hp": 12000,
+            "en": 140,
+            "attack": 4200.0,
+            "defense": 3900.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0,
+                "categories": null
+              }
+            ]
+          },
           "skills": [],
           "acted": false,
           "chance_steps": 0,
@@ -70,54 +82,68 @@
           "max_hp": 12000,
           "en": 60,
           "en_max": 140,
-          "unit_attack": 4200.0,
-          "unit_defense": 3900.0,
-          "pilot_attack": 220.0,
-          "pilot_defense": 190.0,
-          "reaction": 205.0,
-          "mobility": 310.0,
-          "move_range": 0,
-          "weapons": [
-            {
-              "name": "beam rifle",
-              "power": 1800.0,
-              "range_min": 1,
-              "range_max": 3,
-              "en_cost": 10,
-              "accuracy": 5.0,
-              "can_counter": true,
-              "map_weapon": false,
-              "usable_after_move": true,
-              "debuff_kind": null,
-              "debuff_magnitude": 0.0
-            },
-            {
-              "name": "wire net",
-              "power": 900.0,
-              "range_min": 1,
-              "range_max": 2,
-              "en_cost": 15,
-              "accuracy": 0.0,
-              "can_counter": false,
-              "map_weapon": false,
-              "usable_after_move": true,
-              "debuff_kind": "armor_break",
-              "debuff_magnitude": 0.2
-            },
-            {
-              "name": "heavy shell",
-              "power": 2000.0,
-              "range_min": 1,
-              "range_max": 6,
-              "en_cost": 5,
-              "accuracy": 0.0,
-              "can_counter": true,
-              "map_weapon": true,
-              "usable_after_move": true,
-              "debuff_kind": null,
-              "debuff_magnitude": 0.0
-            }
-          ],
+          "sp": 0,
+          "sp_max": 0,
+          "pilot": {
+            "ranged": 220.0,
+            "melee": 220.0,
+            "awaken": 220.0,
+            "defense": 190.0,
+            "reaction": 205.0,
+            "sp": 0
+          },
+          "mech": {
+            "hp": 12000,
+            "en": 140,
+            "attack": 4200.0,
+            "defense": 3900.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "beam rifle",
+                "power": 1800.0,
+                "range_min": 1,
+                "range_max": 3,
+                "en_cost": 10,
+                "accuracy": 5.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0,
+                "categories": null
+              },
+              {
+                "name": "wire net",
+                "power": 900.0,
+                "range_min": 1,
+                "range_max": 2,
+                "en_cost": 15,
+                "accuracy": 0.0,
+                "can_counter": false,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "debuff_kind": "armor_break",
+                "debuff_magnitude": 0.2,
+                "categories": null
+              },
+              {
+                "name": "heavy shell",
+                "power": 2000.0,
+                "range_min": 1,
+                "range_max": 6,
+                "en_cost": 5,
+                "accuracy": 0.0,
+                "can_counter": true,
+                "map_weapon": true,
+                "usable_after_move": true,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0,
+                "categories": null
+              }
+            ]
+          },
           "skills": [
             {
               "kind": "skill_heal",
@@ -173,28 +199,40 @@
           "max_hp": 12000,
           "en": 140,
           "en_max": 140,
-          "unit_attack": 4200.0,
-          "unit_defense": 3900.0,
-          "pilot_attack": 220.0,
-          "pilot_defense": 190.0,
-          "reaction": 205.0,
-          "mobility": 310.0,
-          "move_range": 0,
-          "weapons": [
-            {
-              "name": "saber",
-              "power": 2400.0,
-              "range_min": 1,
-              "range_max": 1,
-              "en_cost": 0,
-              "accuracy": 10.0,
-              "can_counter": true,
-              "map_weapon": false,
-              "usable_after_move": true,
-              "debuff_kind": null,
-              "debuff_magnitude": 0.0
-            }
-          ],
+          "sp": 0,
+          "sp_max": 0,
+          "pilot": {
+            "ranged": 220.0,
+            "melee": 220.0,
+            "awaken": 220.0,
+            "defense": 190.0,
+            "reaction": 205.0,
+            "sp": 0
+          },
+          "mech": {
+            "hp": 12000,
+            "en": 140,
+            "attack": 4200.0,
+            "defense": 3900.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0,
+                "categories": null
+              }
+            ]
+          },
           "skills": [],
           "acted": false,
           "chance_steps": 0,
@@ -229,28 +267,40 @@
           "max_hp": 12000,
           "en": 140,
           "en_max": 140,
-          "unit_attack": 4200.0,
-          "unit_defense": 3900.0,
-          "pilot_attack": 220.0,
-          "pilot_defense": 190.0,
-          "reaction": 205.0,
-          "mobility": 310.0,
-          "move_range": 0,
-          "weapons": [
-            {
-              "name": "saber",
-              "power": 2400.0,
-              "range_min": 1,
-              "range_max": 1,
-              "en_cost": 0,
-              "accuracy": 10.0,
-              "can_counter": true,
-              "map_weapon": false,
-              "usable_after_move": true,
-              "debuff_kind": null,
-              "debuff_magnitude": 0.0
-            }
-          ],
+          "sp": 0,
+          "sp_max": 0,
+          "pilot": {
+            "ranged": 220.0,
+            "melee": 220.0,
+            "awaken": 220.0,
+            "defense": 190.0,
+            "reaction": 205.0,
+            "sp": 0
+          },
+          "mech": {
+            "hp": 12000,
+            "en": 140,
+            "attack": 4200.0,
+            "defense": 3900.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0,
+                "categories": null
+              }
+            ]
+          },
           "skills": [],
           "acted": false,
           "chance_steps": 0,
@@ -285,28 +335,40 @@
           "max_hp": 12000,
           "en": 140,
           "en_max": 140,
-          "unit_attack": 4200.0,
-          "unit_defense": 3900.0,
-          "pilot_attack": 220.0,
-          "pilot_defense": 190.0,
-          "reaction": 205.0,
-          "mobility": 310.0,
-          "move_range": 0,
-          "weapons": [
-            {
-              "name": "saber",
-              "power": 2400.0,
-              "range_min": 1,
-              "range_max": 1,
-              "en_cost": 0,
-              "accuracy": 10.0,
-              "can_counter": true,
-              "map_weapon": false,
-              "usable_after_move": true,
-              "debuff_kind": null,
-              "debuff_magnitude": 0.0
-            }
-          ],
+          "sp": 0,
+          "sp_max": 0,
+          "pilot": {
+            "ranged": 220.0,
+            "melee": 220.0,
+            "awaken": 220.0,
+            "defense": 190.0,
+            "reaction": 205.0,
+            "sp": 0
+          },
+          "mech": {
+            "hp": 12000,
+            "en": 140,
+            "attack": 4200.0,
+            "defense": 3900.0,
+            "mobility": 310.0,
+            "move_range": 0,
+            "weapons": [
+              {
+                "name": "saber",
+                "power": 2400.0,
+                "range_min": 1,
+                "range_max": 1,
+                "en_cost": 0,
+                "accuracy": 10.0,
+                "can_counter": true,
+                "map_weapon": false,
+                "usable_after_move": true,
+                "debuff_kind": null,
+                "debuff_magnitude": 0.0,
+                "categories": null
+              }
+            ]
+          },
           "skills": [],
           "acted": false,
           "chance_steps": 0,
@@ -358,28 +420,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -408,54 +482,68 @@
             "max_hp": 12000,
             "en": 60,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "beam rifle",
-                "power": 1800.0,
-                "range_min": 1,
-                "range_max": 3,
-                "en_cost": 10,
-                "accuracy": 5.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              },
-              {
-                "name": "wire net",
-                "power": 900.0,
-                "range_min": 1,
-                "range_max": 2,
-                "en_cost": 15,
-                "accuracy": 0.0,
-                "can_counter": false,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": "armor_break",
-                "debuff_magnitude": 0.2
-              },
-              {
-                "name": "heavy shell",
-                "power": 2000.0,
-                "range_min": 1,
-                "range_max": 6,
-                "en_cost": 5,
-                "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "beam rifle",
+                  "power": 1800.0,
+                  "range_min": 1,
+                  "range_max": 3,
+                  "en_cost": 10,
+                  "accuracy": 5.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                },
+                {
+                  "name": "wire net",
+                  "power": 900.0,
+                  "range_min": 1,
+                  "range_max": 2,
+                  "en_cost": 15,
+                  "accuracy": 0.0,
+                  "can_counter": false,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": "armor_break",
+                  "debuff_magnitude": 0.2,
+                  "categories": null
+                },
+                {
+                  "name": "heavy shell",
+                  "power": 2000.0,
+                  "range_min": 1,
+                  "range_max": 6,
+                  "en_cost": 5,
+                  "accuracy": 0.0,
+                  "can_counter": true,
+                  "map_weapon": true,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [
               {
                 "kind": "skill_heal",
@@ -511,28 +599,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -567,28 +667,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -623,28 +735,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -690,7 +814,7 @@
           "target_id": "enemy_1",
           "weapon": "wire net",
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [],
           "aim": null,
@@ -722,28 +846,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -772,54 +908,68 @@
             "max_hp": 12000,
             "en": 45,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "beam rifle",
-                "power": 1800.0,
-                "range_min": 1,
-                "range_max": 3,
-                "en_cost": 10,
-                "accuracy": 5.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              },
-              {
-                "name": "wire net",
-                "power": 900.0,
-                "range_min": 1,
-                "range_max": 2,
-                "en_cost": 15,
-                "accuracy": 0.0,
-                "can_counter": false,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": "armor_break",
-                "debuff_magnitude": 0.2
-              },
-              {
-                "name": "heavy shell",
-                "power": 2000.0,
-                "range_min": 1,
-                "range_max": 6,
-                "en_cost": 5,
-                "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "beam rifle",
+                  "power": 1800.0,
+                  "range_min": 1,
+                  "range_max": 3,
+                  "en_cost": 10,
+                  "accuracy": 5.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                },
+                {
+                  "name": "wire net",
+                  "power": 900.0,
+                  "range_min": 1,
+                  "range_max": 2,
+                  "en_cost": 15,
+                  "accuracy": 0.0,
+                  "can_counter": false,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": "armor_break",
+                  "debuff_magnitude": 0.2,
+                  "categories": null
+                },
+                {
+                  "name": "heavy shell",
+                  "power": 2000.0,
+                  "range_min": 1,
+                  "range_max": 6,
+                  "en_cost": 5,
+                  "accuracy": 0.0,
+                  "can_counter": true,
+                  "map_weapon": true,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [
               {
                 "kind": "skill_heal",
@@ -875,28 +1025,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -931,28 +1093,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -987,28 +1161,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1035,7 +1221,7 @@
           "target_id": "enemy_2",
           "weapon": "wire net",
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [],
           "aim": null,
@@ -1067,28 +1253,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1117,54 +1315,68 @@
             "max_hp": 12000,
             "en": 45,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "beam rifle",
-                "power": 1800.0,
-                "range_min": 1,
-                "range_max": 3,
-                "en_cost": 10,
-                "accuracy": 5.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              },
-              {
-                "name": "wire net",
-                "power": 900.0,
-                "range_min": 1,
-                "range_max": 2,
-                "en_cost": 15,
-                "accuracy": 0.0,
-                "can_counter": false,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": "armor_break",
-                "debuff_magnitude": 0.2
-              },
-              {
-                "name": "heavy shell",
-                "power": 2000.0,
-                "range_min": 1,
-                "range_max": 6,
-                "en_cost": 5,
-                "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "beam rifle",
+                  "power": 1800.0,
+                  "range_min": 1,
+                  "range_max": 3,
+                  "en_cost": 10,
+                  "accuracy": 5.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                },
+                {
+                  "name": "wire net",
+                  "power": 900.0,
+                  "range_min": 1,
+                  "range_max": 2,
+                  "en_cost": 15,
+                  "accuracy": 0.0,
+                  "can_counter": false,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": "armor_break",
+                  "debuff_magnitude": 0.2,
+                  "categories": null
+                },
+                {
+                  "name": "heavy shell",
+                  "power": 2000.0,
+                  "range_min": 1,
+                  "range_max": 6,
+                  "en_cost": 5,
+                  "accuracy": 0.0,
+                  "can_counter": true,
+                  "map_weapon": true,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [
               {
                 "kind": "skill_heal",
@@ -1220,28 +1432,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1276,28 +1500,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1332,28 +1568,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1380,7 +1628,7 @@
           "target_id": "enemy_3",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [],
           "aim": null,
@@ -1412,28 +1660,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1462,54 +1722,68 @@
             "max_hp": 12000,
             "en": 50,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "beam rifle",
-                "power": 1800.0,
-                "range_min": 1,
-                "range_max": 3,
-                "en_cost": 10,
-                "accuracy": 5.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              },
-              {
-                "name": "wire net",
-                "power": 900.0,
-                "range_min": 1,
-                "range_max": 2,
-                "en_cost": 15,
-                "accuracy": 0.0,
-                "can_counter": false,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": "armor_break",
-                "debuff_magnitude": 0.2
-              },
-              {
-                "name": "heavy shell",
-                "power": 2000.0,
-                "range_min": 1,
-                "range_max": 6,
-                "en_cost": 5,
-                "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "beam rifle",
+                  "power": 1800.0,
+                  "range_min": 1,
+                  "range_max": 3,
+                  "en_cost": 10,
+                  "accuracy": 5.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                },
+                {
+                  "name": "wire net",
+                  "power": 900.0,
+                  "range_min": 1,
+                  "range_max": 2,
+                  "en_cost": 15,
+                  "accuracy": 0.0,
+                  "can_counter": false,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": "armor_break",
+                  "debuff_magnitude": 0.2,
+                  "categories": null
+                },
+                {
+                  "name": "heavy shell",
+                  "power": 2000.0,
+                  "range_min": 1,
+                  "range_max": 6,
+                  "en_cost": 5,
+                  "accuracy": 0.0,
+                  "can_counter": true,
+                  "map_weapon": true,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [
               {
                 "kind": "skill_heal",
@@ -1565,28 +1839,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1621,28 +1907,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1675,7 +1973,7 @@
           "target_id": "enemy_3",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [],
           "aim": null,
@@ -1707,28 +2005,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1757,54 +2067,68 @@
             "max_hp": 12000,
             "en": 50,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "beam rifle",
-                "power": 1800.0,
-                "range_min": 1,
-                "range_max": 3,
-                "en_cost": 10,
-                "accuracy": 5.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              },
-              {
-                "name": "wire net",
-                "power": 900.0,
-                "range_min": 1,
-                "range_max": 2,
-                "en_cost": 15,
-                "accuracy": 0.0,
-                "can_counter": false,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": "armor_break",
-                "debuff_magnitude": 0.2
-              },
-              {
-                "name": "heavy shell",
-                "power": 2000.0,
-                "range_min": 1,
-                "range_max": 6,
-                "en_cost": 5,
-                "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "beam rifle",
+                  "power": 1800.0,
+                  "range_min": 1,
+                  "range_max": 3,
+                  "en_cost": 10,
+                  "accuracy": 5.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                },
+                {
+                  "name": "wire net",
+                  "power": 900.0,
+                  "range_min": 1,
+                  "range_max": 2,
+                  "en_cost": 15,
+                  "accuracy": 0.0,
+                  "can_counter": false,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": "armor_break",
+                  "debuff_magnitude": 0.2,
+                  "categories": null
+                },
+                {
+                  "name": "heavy shell",
+                  "power": 2000.0,
+                  "range_min": 1,
+                  "range_max": 6,
+                  "en_cost": 5,
+                  "accuracy": 0.0,
+                  "can_counter": true,
+                  "map_weapon": true,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [
               {
                 "kind": "skill_heal",
@@ -1860,28 +2184,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1916,28 +2252,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -1972,28 +2320,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -2020,7 +2380,7 @@
           "target_id": null,
           "weapon": null,
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [],
           "aim": null,
@@ -2052,28 +2412,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -2102,54 +2474,68 @@
             "max_hp": 12000,
             "en": 60,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "beam rifle",
-                "power": 1800.0,
-                "range_min": 1,
-                "range_max": 3,
-                "en_cost": 10,
-                "accuracy": 5.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              },
-              {
-                "name": "wire net",
-                "power": 900.0,
-                "range_min": 1,
-                "range_max": 2,
-                "en_cost": 15,
-                "accuracy": 0.0,
-                "can_counter": false,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": "armor_break",
-                "debuff_magnitude": 0.2
-              },
-              {
-                "name": "heavy shell",
-                "power": 2000.0,
-                "range_min": 1,
-                "range_max": 6,
-                "en_cost": 5,
-                "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "beam rifle",
+                  "power": 1800.0,
+                  "range_min": 1,
+                  "range_max": 3,
+                  "en_cost": 10,
+                  "accuracy": 5.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                },
+                {
+                  "name": "wire net",
+                  "power": 900.0,
+                  "range_min": 1,
+                  "range_max": 2,
+                  "en_cost": 15,
+                  "accuracy": 0.0,
+                  "can_counter": false,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": "armor_break",
+                  "debuff_magnitude": 0.2,
+                  "categories": null
+                },
+                {
+                  "name": "heavy shell",
+                  "power": 2000.0,
+                  "range_min": 1,
+                  "range_max": 6,
+                  "en_cost": 5,
+                  "accuracy": 0.0,
+                  "can_counter": true,
+                  "map_weapon": true,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [
               {
                 "kind": "skill_heal",
@@ -2205,28 +2591,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -2261,28 +2659,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,
@@ -2317,28 +2727,40 @@
             "max_hp": 12000,
             "en": 140,
             "en_max": 140,
-            "unit_attack": 4200.0,
-            "unit_defense": 3900.0,
-            "pilot_attack": 220.0,
-            "pilot_defense": 190.0,
-            "reaction": 205.0,
-            "mobility": 310.0,
-            "move_range": 0,
-            "weapons": [
-              {
-                "name": "saber",
-                "power": 2400.0,
-                "range_min": 1,
-                "range_max": 1,
-                "en_cost": 0,
-                "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
-                "usable_after_move": true,
-                "debuff_kind": null,
-                "debuff_magnitude": 0.0
-              }
-            ],
+            "sp": 0,
+            "sp_max": 0,
+            "pilot": {
+              "ranged": 220.0,
+              "melee": 220.0,
+              "awaken": 220.0,
+              "defense": 190.0,
+              "reaction": 205.0,
+              "sp": 0
+            },
+            "mech": {
+              "hp": 12000,
+              "en": 140,
+              "attack": 4200.0,
+              "defense": 3900.0,
+              "mobility": 310.0,
+              "move_range": 0,
+              "weapons": [
+                {
+                  "name": "saber",
+                  "power": 2400.0,
+                  "range_min": 1,
+                  "range_max": 1,
+                  "en_cost": 0,
+                  "accuracy": 10.0,
+                  "can_counter": true,
+                  "map_weapon": false,
+                  "usable_after_move": true,
+                  "debuff_kind": null,
+                  "debuff_magnitude": 0.0,
+                  "categories": null
+                }
+              ]
+            },
             "skills": [],
             "acted": false,
             "chance_steps": 0,

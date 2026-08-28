@@ -10,7 +10,7 @@ import (
 
 func init() {
 	Register("actions", func(s *Server) Handler { return s.actions })
-	Register("reactions", func(s *Server) Handler { return s.reactions })
+	Register("response_attacks", func(s *Server) Handler { return s.responseAttacks })
 }
 
 func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
@@ -28,8 +28,8 @@ func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
 	return protocol.Ok(id, battle.EncodeCapabilities(capabilities))
 }
 
-func (s *Server) reactions(id string, payload json.RawMessage) protocol.Response {
-	request, board, fail := openCommand[protocol.ReactionsRequest](s, id, payload)
+func (s *Server) responseAttacks(id string, payload json.RawMessage) protocol.Response {
+	request, board, fail := openCommand[protocol.ResponseAttacksRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
@@ -37,7 +37,7 @@ func (s *Server) reactions(id string, payload json.RawMessage) protocol.Response
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	engagement, err := board.Reactions(action, request.DefenderID)
+	engagement, err := board.ResponseAttacks(action, request.DefenderID)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
 	}

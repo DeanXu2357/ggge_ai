@@ -21,7 +21,7 @@ func capabilities(t *testing.T, state *Board, id string) Capabilities {
 
 func TestTheCapabilitiesCarryTheCellsTheUnitReaches(t *testing.T) {
 	state := board(unit("a1", FactionAlly, Cell{0, 0}), unit("e1", FactionEnemy, Cell{1, 0}))
-	state.Units[0].MoveRange = 1
+	state.Units[0].Mech.MoveRange = 1
 
 	out := capabilities(t, state, "a1")
 
@@ -41,13 +41,13 @@ func TestTheCapabilitiesJudgeNoResourceAndNoBand(t *testing.T) {
 	costly := rifle("costly", RadiusRange{Min: 1, Max: 1})
 	costly.ENCost = 20
 	state.Units[0].EN = 0
-	state.Units[0].Weapons = []Weapon{costly}
+	state.Units[0].Mech.Weapons = []Weapon{costly}
 	state.Units[0].MaxHP = state.Units[0].HP
 	state.Units[0].Skills = []Skill{{Kind: "skill_heal", Uses: 1}}
 
 	out := capabilities(t, state, "a1")
 
-	if len(out.Unit.Weapons) != 1 || len(out.Unit.Skills) != 1 {
+	if len(out.Unit.Mech.Weapons) != 1 || len(out.Unit.Skills) != 1 {
 		t.Fatalf("the answer holds the whole panel: %+v", out.Unit)
 	}
 }
@@ -55,7 +55,7 @@ func TestTheCapabilitiesJudgeNoResourceAndNoBand(t *testing.T) {
 func TestAUnitThatActedKeepsItsCapabilities(t *testing.T) {
 	state := board(unit("a1", FactionAlly, Cell{0, 0}))
 	state.Units[0].Acted = true
-	state.Units[0].MoveRange = 1
+	state.Units[0].Mech.MoveRange = 1
 
 	out := capabilities(t, state, "a1")
 

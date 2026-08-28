@@ -215,5 +215,5 @@ def test_record_round_trips_through_the_intel_library():
     )
     unit = result.record.to_unit(Faction.ENEMY)
     assert unit.max_hp == 29265
-    assert unit.pilot_attack == 326.0
-    assert len(unit.weapons) == 2
+    assert unit.pilot.ranged == unit.pilot.melee == unit.pilot.awaken == 326.0
+    assert len(unit.mech.weapons) == 2

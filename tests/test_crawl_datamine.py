@@ -1,6 +1,6 @@
 """The datamine crawler gives the same bytes for the same upstream (issue #74).
 
-The fixture in tests/fixtures/datamine/ is a recorded slice of the four sources,
+The fixture in tests/fixtures/datamine/ is a recorded slice of the five sources,
 so the suite needs no network.
 """
 
@@ -25,6 +25,7 @@ RECORDED = {
     TABLE_PATHS["unit"]: "unit.json",
     TABLE_PATHS["weapon"]: "weapon.json",
     TABLE_PATHS["stage"]: "stage.json",
+    TABLE_PATHS["character"]: "character.json",
     FORMULA_PATH: "formula.html",
 }
 VERSION = "202608161248"
@@ -59,6 +60,7 @@ def test_the_dump_lands_under_the_version_stamp_of_the_source(tmp_path):
 
     assert out_dir == tmp_path / VERSION
     assert sorted(path.name for path in out_dir.iterdir()) == [
+        "character.json",
         "formula.json",
         "manifest.json",
         "stage.json",
@@ -73,6 +75,7 @@ def test_the_manifest_counts_the_rows_of_every_container(tmp_path):
     assert files["unit.json"]["rows"] == {"unit": 2}
     assert files["weapon.json"]["rows"] == {"weapons": 3, "units": 1}
     assert files["stage.json"]["rows"] == {"stage": 3}
+    assert files["character.json"]["rows"] == {"character": 3}
     assert files["formula.json"]["rows"] == {"lines": 17, "notes": 3}
 
 
@@ -87,6 +90,15 @@ def test_the_manifest_names_the_source_of_every_file(tmp_path):
 
 def test_the_manifest_names_the_address_that_the_run_crawled(tmp_path):
     assert _manifest(crawl(_fetch, tmp_path, SOURCE))["source"] == SOURCE
+
+
+def test_the_pilot_dump_keeps_the_value_group_of_every_row(tmp_path):
+    out_dir = crawl(_fetch, tmp_path, SOURCE)
+    rows = json.loads((out_dir / "character.json").read_text(encoding="utf-8"))
+
+    assert [row["id"] for row in rows] == [1001000100, 1001000101, 1001000200]
+    stats = next(row["stats"] for row in rows if row["id"] == 1001000100)
+    assert {"ranged", "melee", "defense", "reaction", "awaken"} <= set(stats)
 
 
 @pytest.mark.parametrize("version", ["../escape", "2026/08/16", "/absolute", "", "."])

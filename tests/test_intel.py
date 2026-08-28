@@ -98,8 +98,8 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert unit.acted
     assert (unit.hp, unit.max_hp) == (2400, 2400)
     assert (unit.en, unit.en_max) == (180, 180)
-    assert unit.move_range == 5
-    assert [weapon.name for weapon in unit.weapons] == ["ビームライフル", "メガ粒子砲"]
+    assert unit.mech.move_range == 5
+    assert [weapon.name for weapon in unit.mech.weapons] == ["ビームライフル", "メガ粒子砲"]
     assert unit.weapon("メガ粒子砲").map_weapon
     assert unit.ammo == {"メガ粒子砲": 2}
     assert [skill.kind for skill in unit.skills] == ["skill_en_refill"]
@@ -148,7 +148,7 @@ def test_the_caller_can_override_pilot_attack_per_weapon_at_assembly():
 
     unit = intel.unit("unicorn", Faction.ALLY, pilot_attack=700.0)
 
-    assert unit.pilot_attack == 700.0
+    assert unit.pilot.ranged == unit.pilot.melee == unit.pilot.awaken == 700.0
 
 
 def test_the_pilot_and_unit_levels_ride_along():

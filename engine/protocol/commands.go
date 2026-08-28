@@ -19,7 +19,7 @@ var Declared = []string{
 	"roster",
 	"reach",
 	"actions",
-	"reactions",
+	"response_attacks",
 	"act",
 	"rollback",
 	"set_unit",

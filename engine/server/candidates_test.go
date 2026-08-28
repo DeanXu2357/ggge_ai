@@ -11,13 +11,13 @@ import (
 const candidateLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`"units":[` +
 	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,` +
-	`"weapons":[` +
+	`"mech":{"weapons":[` +
 	`{"name":"rifle","range_min":1,"range_max":2,"can_counter":true,"usable_after_move":true},` +
-	`{"name":"shells","range_min":1,"range_max":3,"map_weapon":true,"usable_after_move":true}],` +
+	`{"name":"shells","range_min":1,"range_max":3,"map_weapon":true,"usable_after_move":true}]},` +
 	`"ammo":{"shells":1}},` +
 	`{"unit_id":"a2","faction":"ally","pos":[4,4],"hp":100,"acted":true},` +
 	`{"unit_id":"e1","faction":"enemy","pos":[2,1],"hp":100,` +
-	`"weapons":[{"name":"lance","range_min":1,"range_max":1,"can_counter":true}]}` +
+	`"mech":{"weapons":[{"name":"lance","range_min":1,"range_max":1,"can_counter":true}]}}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
@@ -117,9 +117,9 @@ func TestActionsOfAnActedUnitAnswersWithTheStateInThePayload(t *testing.T) {
 	}
 }
 
-func TestReactionsWithNoBoardIsRefused(t *testing.T) {
+func TestResponseAttacksWithNoBoardIsRefused(t *testing.T) {
 	replies := serve(t, New(),
-		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"attack","target_id":"e1","weapon":"rifle"}}}`)
 
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeNoSession {
@@ -127,21 +127,21 @@ func TestReactionsWithNoBoardIsRefused(t *testing.T) {
 	}
 }
 
-func engagementOf(t *testing.T, reply reply) protocol.ReactionsResponse {
+func engagementOf(t *testing.T, reply reply) protocol.ResponseAttacksResponse {
 	t.Helper()
 	if !reply.OK {
-		t.Fatalf("reactions: %+v", reply)
+		t.Fatalf("response attacks: %+v", reply)
 	}
-	var payload protocol.ReactionsResponse
+	var payload protocol.ResponseAttacksResponse
 	if err := json.Unmarshal(reply.Payload, &payload); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
 	return payload
 }
 
-func TestReactionsAnswersTheOptionsOfTheDefender(t *testing.T) {
+func TestResponseAttacksAnswersTheOptionsOfTheDefender(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
-		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"attack","target_id":"e1",`+
 			`"weapon":"rifle","move_to":[1,1]}}}`)
 
@@ -152,19 +152,19 @@ func TestReactionsAnswersTheOptionsOfTheDefender(t *testing.T) {
 	}
 	want := []protocol.Stance{protocol.StanceDodge, protocol.StanceDefend,
 		protocol.StanceCounter, protocol.StanceNone}
-	if len(payload.Defender.Reactions) != len(want) {
-		t.Fatalf("reactions: %+v", payload.Defender.Reactions)
+	if len(payload.Defender.ResponseAttacks) != len(want) {
+		t.Fatalf("response attacks: %+v", payload.Defender.ResponseAttacks)
 	}
 	for index, stance := range want {
-		if payload.Defender.Reactions[index].Stance != stance {
-			t.Fatalf("reactions: %+v", payload.Defender.Reactions)
+		if payload.Defender.ResponseAttacks[index].Stance != stance {
+			t.Fatalf("response attacks: %+v", payload.Defender.ResponseAttacks)
 		}
 	}
-	if *payload.Defender.Reactions[2].Weapon != "lance" ||
-		payload.Defender.Reactions[2].Counter == nil {
-		t.Fatalf("counter: %+v", payload.Defender.Reactions[2])
+	if *payload.Defender.ResponseAttacks[2].Weapon != "lance" ||
+		payload.Defender.ResponseAttacks[2].Counter == nil {
+		t.Fatalf("counter: %+v", payload.Defender.ResponseAttacks[2])
 	}
-	for index, option := range payload.Defender.Reactions {
+	for index, option := range payload.Defender.ResponseAttacks {
 		if option.Incoming.HitRate == nil || option.Incoming.Damage == nil ||
 			option.Incoming.Kill == nil {
 			t.Fatalf("the entry %d carries no forecast: %+v", index, option.Incoming)
@@ -172,26 +172,26 @@ func TestReactionsAnswersTheOptionsOfTheDefender(t *testing.T) {
 	}
 }
 
-func TestReactionsAgainstAnActionThatMakesNoStrikeIsAnIllegalAction(t *testing.T) {
+func TestResponseAttacksAgainstAnActionThatMakesNoStrikeIsAnIllegalAction(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
-		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"map_attack","weapon":"shells"}}}`,
-		`{"id":"r2","cmd":"reactions","payload":{"defender_id":"e1",`+
+		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"standby"}}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
-		t.Fatalf("a map attack permits no reaction: %+v", replies[1])
+		t.Fatalf("a map attack permits no response attack: %+v", replies[1])
 	}
 	if replies[2].OK || replies[2].Error.Code != protocol.CodeIllegalAction {
 		t.Fatalf("a standby asks the defender nothing: %+v", replies[2])
 	}
 }
 
-func TestAReactionRequestThatTheWeaponDoesNotReachIsAnIllegalAction(t *testing.T) {
+func TestAResponseAttackRequestThatTheWeaponDoesNotReachIsAnIllegalAction(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
-		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"attack","weapon":"rifle","move_to":[4,4]}}}`,
-		`{"id":"r2","cmd":"reactions","payload":{"defender_id":"e1",`+
+		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"attack","weapon":"lance"}}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
@@ -204,7 +204,7 @@ func TestAReactionRequestThatTheWeaponDoesNotReachIsAnIllegalAction(t *testing.T
 
 func TestAnActionOutsideTheContractIsABadRequest(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
-		`{"id":"r1","cmd":"reactions","payload":{"defender_id":"e1",`+
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"charge","weapon":"rifle"}}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeBadRequest {

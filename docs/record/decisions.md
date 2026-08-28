@@ -1428,3 +1428,59 @@
   panel of a sample unit: "在 issue 裡面註記要我提供資料", the user
   supplies the panel data; the issue carries the note. Issue #74:
   "沒問題可以合併".
+- **(0828) The unit is the state of the pairing; the pilot and the
+  mech are the data — user ruling**｜Issue #84 asked how the pilot
+  and mech values sit on the contract. The user: "pilot 基礎數值分
+  別是 射擊、格鬥、覺醒、守備、反應和 SP 值（技能用）"; "在計算時才會
+  用 pilot 的這些數值，不然一般的時候這些都是放著當作資料保存的"; "不
+  要有 unit attack, defense 那些，unit 就是棋盤上的組合的當前狀態，他
+  不介入計算，他只是記錄狀態和狀態最大值，就是初始化時計算 mech+pilot
+  的最大 hp 之後隨著遊戲進行不斷增減當前 hp，其他類似的屬性有 en, sp".
+  Consequences: the unit payload drops 'unit_attack', 'unit_defense',
+  'pilot_attack', 'pilot_defense', 'reaction', 'mobility',
+  'move_range', 'weapons' and the four 'mech_' fields; it carries
+  the nested objects 'pilot' and 'mech' as data, and its own state
+  and maxima: 'hp', 'max_hp', 'en', 'en_max', 'sp', 'sp_max'. A
+  formula reads the pilot and the mech at computation time. The
+  pilot attack of a strike is the highest pilot value among the
+  attack tags of the weapon (ruling of the same day). This
+  supersedes the 0821 reading of a stored "final panel" that every
+  rule reads; the terminology entries 'final panel' and 'base data'
+  are rewritten in the same branch. The datamine pilot row holds no
+  SP pool; the device is its source.
+- **(0828) The pilot decides the support and chance counts of the
+  unit — user ruling**｜"你原本把最大支援攻擊次數、最大支援防禦次數、最
+  大再動次數等資料記錄在 unit 上，這個作法很正確，但是 ... 決定 unit 是
+  否有支援能力的是 pilot，是 pilot 能力裏面的詞條和 mech 類型有契合、符
+  合 pilot 能力條件後才會改變 unit 以上三者的能力。這個東西可以其他
+  issue 再改，但是要記錄下來". The maxima
+  'support_attack_charges_max', 'support_defend_charges_max' and
+  'chance_steps_max' stay on the unit as state. Their values come
+  from the abilities of the pilot: an ability entry whose condition
+  matches the mech (its role, its tags or its series) raises the
+  count. The datamine shows the shape: pilot ability traits of
+  'trait_type' 51 ("Support Attack/Counter +1 time(s)"), 52
+  ("Support Defense +1 time(s)") and 19 ("Chance Step +1 time(s)"
+  with a tag condition), each with an 'active_condition' over
+  'unit_role', 'unit_tags' or 'unit_series'
+  (docs/reference/datamine-source.md, section "The pilot row").
+  Not built in issue #84; the pairing conditions belong to issue
+  #72, and the derivation of the maxima to issue #77.
+- **(0828) The weapon category is not a tag — user ruling**｜"武裝
+  類別命名不能叫做 AttackTag 應該更明確的指出這是武裝的類型，用
+  AttackRanged 容易造成混淆". The three values 射擊, 格鬥, 覺醒 of a
+  weapon are its category. Go: 'WeaponCategory' with
+  'WeaponCategoryRanged', 'WeaponCategoryMelee',
+  'WeaponCategoryAwaken'; the wire field is 'categories' of the
+  weapon payload. The term "attack tag" is withdrawn from the
+  terminology map (issue #84).
+- **(0828) The defender's answer is a response attack; 'reaction'
+  is the pilot value — user ruling**｜"pilot.reaction 與應對攻擊的
+  reaction 候選動作在名詞上衝突"; the user chose to keep 'reaction'
+  for the pilot value 反應值 (the game's word, the datamine's column)
+  and to rename the defender's answer: "response 名詞太容易撞到了，要
+  用精準指稱 response attack 會比較好". Identifiers: Go type
+  'ResponseAttack', wire field 'response_attack' on the action,
+  command 'response_attacks', the stance term 'response attack
+  stance' 應戰姿態. Done inside issue #84 while version 1.4 is
+  already the breaking step of the unit payload.

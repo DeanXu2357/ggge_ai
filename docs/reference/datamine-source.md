@@ -22,7 +22,7 @@ the source itself.
   the publisher of the game.
 - The licence is not stated on the site. Not verified.
 - The rate limit is not stated on the site. Not verified. One run of
-  the crawler makes five requests and downloads 57 MB.
+  the crawler makes six requests and downloads about 71 MB.
 
 ## The data version stamp
 
@@ -33,13 +33,13 @@ the source itself.
 ```
 
 The same value is in the payload of every rendered page, in the
-field `remoteVersion`. The three data addresses carry no stamp of
+field `remoteVersion`. The four data addresses carry no stamp of
 their own.
 
 The crawler names the dump directory with the stamp. A game patch
 changes the stamp, so a new dump lands beside the old one.
 
-## The four sources
+## The five sources
 
 The row counts come from a crawl on 2026-08-22, at the stamp
 `202608161248`.
@@ -49,6 +49,7 @@ The row counts come from a crawl on 2026-08-22, at the stamp
 | unit | `/ggetapi/en/unit` | JSON array | 1226 |
 | weapon | `/ggetapi/en/weapon` | JSON object | 4785 weapons, 1342 units |
 | stage | `/ggetapi/en/stage` | JSON array | 2104 |
+| character | `/ggetapi/en/character` | JSON array | 583 |
 | formula | `/gget/formula` | HTML page | 17 formula lines, 3 notes |
 
 The formula address is a rendered page, not an API. The page also
@@ -57,8 +58,9 @@ order in which they complete. Two fetches of the page therefore give
 different bytes. The formula tab of the page is static markup, and
 the crawler stores that tab alone.
 
-The three API addresses give the same bytes for two fetches at the
-same stamp. This was measured on 2026-08-22 for `unit` and `stage`.
+The four API addresses give the same bytes for two fetches at the
+same stamp. This was measured on 2026-08-22 for `unit` and `stage`,
+and on 2026-08-28 for `character`.
 
 The unit table and the weapon table do not hold the same set of
 units. The weapon table names 1342 owners. The unit table holds
@@ -75,7 +77,6 @@ same stamp, read these addresses. The crawler does not fetch them.
 | Address | Form | Rows |
 |---|---|---|
 | `/ggetapi/en/unit/{id}` | JSON object | One unit, with its weapons in full |
-| `/ggetapi/en/character` | JSON array | 583 pilots |
 | `/ggetapi/en/character/{id}` | JSON object | One pilot |
 | `/ggetapi/en/supporter` | JSON array | 86 support crews |
 | `/ggetapi/en/supporter/{id}` | JSON object | One support crew |
@@ -212,17 +213,17 @@ rendered pages of Gundam (EX) and Zeong (EX):
 Value 5 was not seen on a page. Its weapons in the sample, "Shotgun
 EX" and "Heat Saber EX", make 物理、特殊 the hypothesis.
 
-`attack_attr` is the attack tag: which pilot value the damage
-reads. The user ruled on 2026-08-28 that the three tags are 格鬥,
-射擊 and 覺醒, and that a weapon with more than one tag reads the
-highest of the tagged pilot values. The site draws the tags as
+`attack_attr` is the weapon category: which pilot value the damage
+reads. The user ruled on 2026-08-28 that the three categories are
+格鬥, 射擊 and 覺醒, and that a weapon with more than one reads the
+highest of those pilot values. The site draws the categories as
 badges before the attribute text. Seen on the Zeong (EX) page: a
 yellow badge on "5-Barrel Arm Mega Particle Cannon" (value 1), a
 purple badge on "All-Range Attack" (value 3), and yellow, red and
 purple on "All-Range Attack EX" (value 7). With Beam Saber at value
 2 and Beam Rifle at value 1, the map is:
 
-| Value | Tags | Pilot value |
+| Value | Categories | Pilot value |
 |---|---|---|
 | 1 | 射擊 | `ranged` |
 | 2 | 格鬥 | `melee` |
@@ -232,7 +233,8 @@ purple on "All-Range Attack EX" (value 7). With Beam Saber at value
 
 Value 4 was seen on the Blue Destiny Unit-1 (EX) page: yellow and
 red badges on "EXAM System". Value 5 ("Wired Claw Arm") is a pair
-with 覺醒 by this reading; which pair is not verified. `work_type`
+with 覺醒 by this reading; which pair is not verified. The engine
+field is `categories` of the weapon payload. `work_type`
 (five values) is not verified.
 
 `ammo` is the ammunition count. The user ruled on 2026-08-28 that a
@@ -576,13 +578,14 @@ Two statements differ from that document:
 
 ## What the crawler stores
 
-One run writes five files into `data/datamine/<stamp>/`:
+One run writes six files into `data/datamine/<stamp>/`:
 
 | File | Content |
 |---|---|
 | `unit.json` | The unit payload, written again |
 | `weapon.json` | The weapon payload, written again |
 | `stage.json` | The stage payload, written again |
+| `character.json` | The pilot payload, written again |
 | `formula.json` | The formula lines and the notes, read from the page |
 | `manifest.json` | The stamp, the crawled address, the address of each file, the row counts, the byte count and the SHA-256 |
 
@@ -597,11 +600,11 @@ stamp therefore give the same bytes, and a byte compare answers the
 drift question. The crawler prints the start time to stdout
 instead.
 
-The crawler reads the stamp a second time, after the four payloads.
-A new stamp at that moment stops the run, because the four payloads
+The crawler reads the stamp a second time, after the five payloads.
+A new stamp at that moment stops the run, because the five payloads
 can then hold two versions.
 
-A run at a stamp that already has a directory overwrites the five
+A run at a stamp that already has a directory overwrites the six
 files. It removes no other file of that directory. Give `--out` a
 second root to keep both dumps for a comparison.
 
@@ -629,7 +632,7 @@ Agreements:
 | `stats.attack` | `unit_attack` | |
 | `stats.defense` | `unit_defense` | |
 | `stats.mobility` | `mobility` | |
-| `defend`, `evade` | The stance set of the reaction | Both true everywhere, so they gate nothing today |
+| `defend`, `evade` | The stance set of the response attack | Both true everywhere, so they gate nothing today |
 | `mechanism` row "Shield Defense" | `has_shield` | Free text on one side, a boolean on the other |
 
 Divergences:
@@ -737,6 +740,62 @@ Divergences:
   each stage, next to the five flags. The two do not answer the
   same question: the terrain correction of formula eight reads the
   cell of the target, and the datamine gives no cell.
+
+### The UR selection
+
+A UR unit is a unit row with `rarity` 5: 112 rows at the stamp
+`202608161248`. A UR pilot is a pilot row with `rarity` 5: 84
+rows. The two selections are independent. The user ruled on
+2026-08-28 that a pilot and a mech pair freely, and that
+`gacha.bonus.character` of the unit detail form is the pilot
+bundled with a pull, not a link. No stored selection exists; a
+reader applies the one filter to each table.
+
+### The UR values against the engine contract
+
+The contract of issue #84 (`docs/spec/battle-engine-protocol.md`,
+section "The unit, the pilot and the mech") holds the pilot and
+the mech as data on the unit. This table maps every value of a UR
+mech row and of a UR pilot row to that contract.
+
+Mech, from the unit row and the unit detail form:
+
+| Datamine | Engine | Note |
+|---|---|---|
+| `stats.hp` | `mech.hp` | Which of the four value groups feeds it: issue #77 |
+| `stats.en` | `mech.en` | Same |
+| `stats.attack` | `mech.attack` | Same |
+| `stats.defense` | `mech.defense` | Same |
+| `stats.mobility` | `mech.mobility` | Same |
+| `stats.movement` | `mech.move_range` | Same |
+| `weapons[].weapon` | `mech.weapons[]` | The weapon table below |
+| `terrain` | none | Issue #76 owns the adaptability field |
+| `abilities`, `mechanism` | none | Text; the derivation of the maxima is issue #77, the shield is `has_shield` |
+| `defend`, `evade` | none | True on every row |
+| `rarity`, `role`, `series`, `series_set`, `tags`, `area`, `body_type`, `tr`, `acquisition`, `schedule_id`, `ult`, `mechanism_set`, `base_skill`, `ssp_config`, `transform_from`, `transform_to`, `get`, `gacha` | none | Team development, not the board |
+
+Pilot, from the pilot row:
+
+| Datamine | Engine | Note |
+|---|---|---|
+| `stats.ranged` | `pilot.ranged` | Value group: issue #77 |
+| `stats.melee` | `pilot.melee` | Same |
+| `stats.awaken` | `pilot.awaken` | Same |
+| `stats.defense` | `pilot.defense` | Same |
+| `stats.reaction` | `pilot.reaction` | Same |
+| — | `pilot.sp` | No column. The device is the source |
+| `skills` | none | Issue #81 owns the skill shape |
+| `abilities` | none | Issue #72 owns the pairing conditions; issue #77 the value effects |
+| `rarity`, `role`, `series_set`, `tags`, `acquisition`, the voice fields | none | Team development |
+
+Weapon, from the unit detail form:
+
+| Datamine | Engine |
+|---|---|
+| `attack_attr` | `categories`, by the table in section "The weapon row" |
+| `capability` | Issue #80 |
+| `map_weapon_*` | Issue #79 |
+| the rest | Section "The weapon row against the engine weapon" |
 
 ### The three sources against the intel data spec
 

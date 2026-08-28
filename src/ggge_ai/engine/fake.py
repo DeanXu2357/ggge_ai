@@ -24,7 +24,7 @@ IMPLEMENTED: tuple[str, ...] = (
     "export",
     "reach",
     "actions",
-    "reactions",
+    "response_attacks",
     "act",
 )
 
@@ -88,10 +88,10 @@ class FakeEngine:
         unit = self._unit(payload.get("unit_id"))
         return {"actions": [{"unit_id": unit.get("unit_id"), "kind": "standby"}]}
 
-    def _reactions(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _response_attacks(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._unit(payload.get("defender_id"))
         self._unit(payload.get("attacker_id"))
-        return {"reactions": []}
+        return {"response_attacks": []}
 
     def _act(self, payload: dict[str, Any]) -> dict[str, Any]:
         # The fake runs no action: it marks the unit and leaves the board.

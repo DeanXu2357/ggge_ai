@@ -27,6 +27,7 @@ class Weapon:
     usable_after_move: bool = True
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
+    categories: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -58,7 +59,38 @@ class Debuff:
 
 
 @dataclass
+class Pilot:
+    """The pilot of the pairing. A formula reads it at computation time."""
+
+    ranged: float = 0.0
+    melee: float = 0.0
+    awaken: float = 0.0
+    defense: float = 0.0
+    reaction: float = 0.0
+    sp: int = 0
+
+
+@dataclass
+class Mech:
+    """The machine of the pairing. A formula reads it at computation time."""
+
+    hp: int = 0
+    en: int = 0
+    attack: float = 0.0
+    defense: float = 0.0
+    mobility: float = 0.0
+    move_range: int = 0
+    weapons: list[Weapon] = field(default_factory=list)
+
+
+@dataclass
 class Unit:
+    """The current state of one pairing on the board.
+
+    The unit records the state and the maxima of the state. It takes no part in
+    a computation: the pilot and the mech carry the values that a formula reads.
+    """
+
     unit_id: str
     faction: Faction
     pos: Cell = (0, 0)
@@ -69,14 +101,10 @@ class Unit:
     max_hp: int = 1
     en: int = 0
     en_max: int = 0
-    unit_attack: float = 0.0
-    unit_defense: float = 0.0
-    pilot_attack: float = 0.0
-    pilot_defense: float = 0.0
-    reaction: float = 0.0
-    mobility: float = 0.0
-    move_range: int = 0
-    weapons: list[Weapon] = field(default_factory=list)
+    sp: int = 0
+    sp_max: int = 0
+    pilot: Pilot = field(default_factory=Pilot)
+    mech: Mech = field(default_factory=Mech)
     skills: list[Skill] = field(default_factory=list)
     acted: bool = False
     chance_steps: int = 0
@@ -96,8 +124,8 @@ class Unit:
 
     def weapon(self, name: str | None) -> Weapon | None:
         if name is None:
-            return self.weapons[0] if self.weapons else None
-        for w in self.weapons:
+            return self.mech.weapons[0] if self.mech.weapons else None
+        for w in self.mech.weapons:
             if w.name == name:
                 return w
         return None
@@ -105,7 +133,8 @@ class Unit:
     def clone(self) -> Unit:
         return replace(
             self,
-            weapons=list(self.weapons),
+            pilot=replace(self.pilot),
+            mech=replace(self.mech, weapons=list(self.mech.weapons)),
             skills=[replace(s) for s in self.skills],
             ammo=dict(self.ammo),
             debuffs=list(self.debuffs),
@@ -178,11 +207,11 @@ class BattleState:
 
 
 @dataclass(frozen=True)
-class Reaction:
+class ResponseAttack:
     """The answer of the defender to one strike.
 
-    A stance of None is a strike that settles no reaction. The contract holds
-    no such value, and the field is absent on the wire.
+    A stance of None is a strike that settles no response attack. The contract
+    holds no such value, and the field is absent on the wire.
     """
 
     stance: Stance | None = None
@@ -201,7 +230,7 @@ class Decision:
     target_id: str | None = None
     weapon: str | None = None
     amount: float | None = None
-    reaction: Reaction | None = None
+    response_attack: ResponseAttack | None = None
     support_defender: str | None = None
     support_attackers: tuple[str, ...] = ()
     aim: Cell | None = None

@@ -59,7 +59,7 @@ func TestADiagonalNeighbourIsTwoStepsAway(t *testing.T) {
 
 func TestReachIsTheDiamondOfTheMoveRange(t *testing.T) {
 	state := board(unit("a1", FactionAlly, Cell{2, 2}))
-	state.Units[0].MoveRange = 2
+	state.Units[0].Mech.MoveRange = 2
 
 	cells := set(reach(t, state, "a1"))
 
@@ -67,7 +67,7 @@ func TestReachIsTheDiamondOfTheMoveRange(t *testing.T) {
 		t.Fatalf("cells: %d, against the 13 of the diamond", len(cells))
 	}
 
-	state.Units[0].MoveRange = 1
+	state.Units[0].Mech.MoveRange = 1
 	near := set(reach(t, state, "a1"))
 
 	if len(near) != 5 {
@@ -83,7 +83,7 @@ func TestReachDropsTheCellsBehindABlocker(t *testing.T) {
 		unit("a1", FactionAlly, Cell{2, 2}),
 		unit("e1", FactionEnemy, Cell{2, 3}),
 	)
-	state.Units[0].MoveRange = 2
+	state.Units[0].Mech.MoveRange = 2
 
 	cells := reach(t, state, "a1")
 
@@ -104,7 +104,7 @@ func TestAnAllyLetsThePathThroughAndKeepsItsCell(t *testing.T) {
 		unit("a1", FactionAlly, Cell{2, 2}),
 		unit("a2", FactionAlly, Cell{2, 3}),
 	)
-	state.Units[0].MoveRange = 2
+	state.Units[0].Mech.MoveRange = 2
 
 	cells := set(reach(t, state, "a1"))
 
@@ -124,7 +124,7 @@ func TestAThirdPartyBlocksThePathOfAnAlly(t *testing.T) {
 		unit("a1", FactionAlly, Cell{2, 2}),
 		unit("t1", FactionThirdParty, Cell{2, 3}),
 	)
-	state.Units[0].MoveRange = 2
+	state.Units[0].Mech.MoveRange = 2
 
 	cells := set(reach(t, state, "a1"))
 
@@ -135,7 +135,7 @@ func TestAThirdPartyBlocksThePathOfAnAlly(t *testing.T) {
 
 func TestReachStopsAtTheBoardBounds(t *testing.T) {
 	state := board(unit("a1", FactionAlly, Cell{0, 0}))
-	state.Units[0].MoveRange = 1
+	state.Units[0].Mech.MoveRange = 1
 
 	cells := reach(t, state, "a1")
 
@@ -221,7 +221,7 @@ func TestReachOfAFootprintNeedsEveryCellOfIt(t *testing.T) {
 		unit("e1", FactionEnemy, Cell{2, 1}),
 	)
 	state.Units[0].Footprint.Size = Size{2, 2}
-	state.Units[0].MoveRange = 1
+	state.Units[0].Mech.MoveRange = 1
 
 	cells := reach(t, state, "a1")
 
@@ -234,7 +234,7 @@ func TestReachOfAFootprintNeedsEveryCellOfIt(t *testing.T) {
 func TestReachStopsWhereTheFootprintLeavesTheBoard(t *testing.T) {
 	state := board(unit("a1", FactionAlly, Cell{2, 2}))
 	state.Units[0].Footprint.Size = Size{2, 2}
-	state.Units[0].MoveRange = 2
+	state.Units[0].Mech.MoveRange = 2
 
 	cells := set(reach(t, state, "a1"))
 
@@ -255,7 +255,7 @@ func TestAnAllyLetsTheFootprintThroughAndDeniesEveryCellItCovers(t *testing.T) {
 		unit("a2", FactionAlly, Cell{2, 1}),
 	)
 	state.Units[0].Footprint.Size = Size{2, 2}
-	state.Units[0].MoveRange = 2
+	state.Units[0].Mech.MoveRange = 2
 
 	cells := reach(t, state, "a1")
 
@@ -281,7 +281,7 @@ func TestAUnitThatCannotMoveKeepsItsOwnCell(t *testing.T) {
 		unit("e1", FactionEnemy, Cell{1, 0}),
 		unit("e2", FactionEnemy, Cell{0, 1}),
 	)
-	state.Units[0].MoveRange = 3
+	state.Units[0].Mech.MoveRange = 3
 
 	cells := reach(t, state, "a1")
 

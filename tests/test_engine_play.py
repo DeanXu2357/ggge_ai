@@ -37,7 +37,7 @@ def _play_engagement(engine_executable, seed: int, max_turns: int = 30, dice: di
 def test_a_decision_carries_every_key_of_the_wire():
     assert decision("a", "standby") == {
         "unit_id": "a", "kind": "standby", "move_to": None, "target_id": None, "weapon": None,
-        "amount": None, "reaction": None, "support_defender": None, "support_attackers": [],
+        "amount": None, "response_attack": None, "support_defender": None, "support_attackers": [],
         "aim": None, "hit": None, "counter_hit": None, "support_hit": None,
     }
 
@@ -59,8 +59,8 @@ class _RefusesEveryPickButStandby:
                 {"name": "beam rifle", "usable_after_move": True},
                 {"name": "saber", "usable_after_move": True},
             ]}
-        if cmd == "reactions":
-            return {"defender": {"reactions": [{"stance": "dodge", "weapon": None}]}}
+        if cmd == "response_attacks":
+            return {"defender": {"response_attacks": [{"stance": "dodge", "weapon": None}]}}
         kind = payload["action"]["kind"]
         self.kinds.append(kind)
         if len(self.kinds) > 8:
@@ -102,13 +102,13 @@ def test_every_activation_is_of_the_side_of_its_phase(engine_executable):
         assert entry["actor_faction"] == entry["phase"]
 
 
-def test_an_attack_carries_the_reaction_of_the_defender(engine_executable):
+def test_an_attack_carries_the_response_attack_of_the_defender(engine_executable):
     outcome = _play_engagement(engine_executable, seed=3)
 
     attacks = [entry for entry in outcome.log if entry["request"]["action"]["kind"] == "attack"]
     assert attacks, "the engagement board holds foes in range"
     for entry in attacks:
-        assert set(entry["request"]["reaction"]) == {
+        assert set(entry["request"]["response_attack"]) == {
             "stance", "weapon", "support_defender", "support_attackers",
         }
         assert entry["answer"]["events"][0]["event"] == "strike"

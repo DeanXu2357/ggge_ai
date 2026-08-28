@@ -37,32 +37,34 @@ func wireBoard() *protocol.BattleState {
 					Blast:           1,
 					Affects:         protocol.AffectsAlly,
 				}},
-				UnitAttack:              4100,
-				UnitDefense:             3900,
-				PilotAttack:             220,
-				PilotDefense:            190,
-				Reaction:                205,
-				Mobility:                310,
-				MoveRange:               4,
+				SP:    30,
+				SPMax: 45,
+				Pilot: protocol.Pilot{
+					Ranged: 220, Melee: 180, Awaken: 240, Defense: 190, Reaction: 205, SP: 45,
+				},
+				Mech: protocol.Mech{
+					HP: 9000, EN: 180, Attack: 4100, Defense: 3900, Mobility: 310, MoveRange: 4,
+					Weapons: []protocol.Weapon{{
+						Name:            "rifle",
+						Power:           2400,
+						RangeMin:        1,
+						RangeMax:        4,
+						ENCost:          15,
+						Accuracy:        12,
+						CanCounter:      true,
+						MapWeapon:       false,
+						UsableAfterMove: true,
+						DebuffKind:      &kind,
+						DebuffMagnitude: 0.2,
+						Categories:      []string{"ranged"},
+					}},
+				},
 				SupportDefendCharges:    1,
 				SupportDefendChargesMax: 1,
 				SupportAttackCharges:    2,
 				SupportDefendWhenAttack: true,
 				Ammo:                    map[string]int{"missile": 3},
-				Weapons: []protocol.Weapon{{
-					Name:            "rifle",
-					Power:           2400,
-					RangeMin:        1,
-					RangeMax:        4,
-					ENCost:          15,
-					Accuracy:        12,
-					CanCounter:      true,
-					MapWeapon:       false,
-					UsableAfterMove: true,
-					DebuffKind:      &kind,
-					DebuffMagnitude: 0.2,
-				}},
-				Debuffs: []protocol.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
+				Debuffs:                 []protocol.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
 			},
 			{
 				UnitID:  "e1",
@@ -87,16 +89,18 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 
 	amount := 3000.0
 	want := Unit{
-		ID:                      "a1",
-		Faction:                 FactionAlly,
-		Footprint:               Footprint{Anchor: Cell{2, 3}, Size: Size{2, 3}},
-		HP:                      8200,
-		MaxHP:                   9000,
-		EN:                      120,
-		ENMax:                   180,
-		Pilot:                   Pilot{Attack: 220, Defense: 190, Reaction: 205},
-		Mech:                    Mech{Attack: 4100, Defense: 3900, Mobility: 310},
-		MoveRange:               4,
+		ID:        "a1",
+		Faction:   FactionAlly,
+		Footprint: Footprint{Anchor: Cell{2, 3}, Size: Size{2, 3}},
+		HP:        8200,
+		MaxHP:     9000,
+		EN:        120,
+		ENMax:     180,
+		SP:        30,
+		SPMax:     45,
+		Pilot: Pilot{
+			Ranged: 220, Melee: 180, Awaken: 240, Defense: 190, Reaction: 205, SP: 45,
+		},
 		Acted:                   true,
 		SupportDefendCharges:    1,
 		SupportDefendChargesMax: 1,
@@ -105,17 +109,21 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 		SupportDefendWhenAttack: true,
 		Ammo:                    map[string]int{"missile": 3},
 		Debuffs:                 []Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
-		Weapons: []Weapon{{
-			Name:            "rifle",
-			Power:           2400,
-			Range:           RadiusRange{Min: 1, Max: 4},
-			ENCost:          15,
-			Accuracy:        12,
-			CanCounter:      true,
-			UsableAfterMove: true,
-			DebuffKind:      "mobility",
-			DebuffMagnitude: 0.2,
-		}},
+		Mech: Mech{
+			HP: 9000, EN: 180, Attack: 4100, Defense: 3900, Mobility: 310, MoveRange: 4,
+			Weapons: []Weapon{{
+				Name:            "rifle",
+				Power:           2400,
+				Range:           RadiusRange{Min: 1, Max: 4},
+				ENCost:          15,
+				Accuracy:        12,
+				CanCounter:      true,
+				UsableAfterMove: true,
+				DebuffKind:      "mobility",
+				DebuffMagnitude: 0.2,
+				Categories:      []WeaponCategory{WeaponCategoryRanged},
+			}},
+		},
 		Skills: []Skill{{
 			Kind:            "skill_heal",
 			Source:          SourceMech,
@@ -155,67 +163,41 @@ func TestTheModelCopiesTheAmmoAndTheSkillAmount(t *testing.T) {
 	}
 }
 
-func TestAPayloadWithNoMechBaseLeavesTheBaseEmpty(t *testing.T) {
-	board, err := DecodeState(wireBoard())
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
+func TestAWeaponCategoryOutsideTheContractStopsTheDecode(t *testing.T) {
+	state := wireBoard()
+	state.Units[0].Mech.Weapons[0].Categories = []string{"psychic"}
 
-	unit := board.Unit("a1")
-	if unit.HP != 8200 || unit.EN != 120 || unit.MoveRange != 4 || len(unit.Weapons) != 1 {
-		t.Fatalf("the final panel: %+v", *unit)
-	}
-	if want := (Mech{Attack: 4100, Defense: 3900, Mobility: 310}); !reflect.DeepEqual(unit.Mech, want) {
-		t.Fatalf("the base of the mech: %+v", unit.Mech)
+	if _, err := DecodeState(state); err == nil {
+		t.Fatal("a category outside the contract must stop the decode")
 	}
 }
 
-func TestTheMechBaseOfThePayloadReachesTheMechAlone(t *testing.T) {
-	state := wireBoard()
-	state.Units[0].MechHP = 9000
-	state.Units[0].MechEN = 180
-	state.Units[0].MechMoveRange = 3
-	state.Units[0].MechWeapons = []protocol.Weapon{
-		{Name: "beam", RangeMin: 1, RangeMax: 2, ENCost: 20},
+func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
+	request := protocol.InitRequest{
+		Board: protocol.Board{Width: 6, Height: 5},
+		Enemies: []protocol.Unit{
+			{UnitID: "e1", Faction: protocol.FactionEnemy, Pos: protocol.Cell{1, 1}, HP: 10,
+				Pilot: protocol.Pilot{SP: 60},
+				Mech:  protocol.Mech{HP: 9000, EN: 180}},
+			{UnitID: "e2", Faction: protocol.FactionEnemy, Pos: protocol.Cell{2, 1}, HP: 10,
+				MaxHP: 7000, ENMax: 20, SPMax: 5,
+				Pilot: protocol.Pilot{SP: 60},
+				Mech:  protocol.Mech{HP: 9000, EN: 180}},
+		},
 	}
 
-	board, err := DecodeState(state)
+	board, err := DecodeInit(&request)
 	if err != nil {
-		t.Fatalf("decode: %v", err)
+		t.Fatal(err)
 	}
 
-	unit := board.Unit("a1")
-	want := Mech{
-		Attack: 4100, Defense: 3900, Mobility: 310,
-		HP: 9000, EN: 180, MoveRange: 3,
-		Weapons: []Weapon{{Name: "beam", Range: RadiusRange{Min: 1, Max: 2}, ENCost: 20}},
+	filled := board.Unit("e1")
+	if filled.MaxHP != 9000 || filled.ENMax != 180 || filled.SPMax != 60 {
+		t.Fatalf("the pairing fills a maximum of zero: %+v", *filled)
 	}
-	if !reflect.DeepEqual(unit.Mech, want) {
-		t.Fatalf("the base of the mech:\n%+v\n%+v", unit.Mech, want)
-	}
-	if unit.HP != 8200 || unit.EN != 120 || unit.MoveRange != 4 {
-		t.Fatalf("the final panel: %+v", *unit)
-	}
-	if len(unit.Weapons) != 1 || unit.Weapons[0].Name != "rifle" {
-		t.Fatalf("the weapons of the final panel: %v", unit.Weapons)
-	}
-}
-
-func TestTheFinalPanelAndTheMechBaseMoveApart(t *testing.T) {
-	state := wireBoard()
-	state.Units[0].MechHP = 9000
-	state.Units[0].MechWeapons = []protocol.Weapon{{Name: "rifle"}}
-
-	board, err := DecodeState(state)
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	unit := board.Unit("a1")
-	unit.HP = 1
-	unit.Weapons[0].Name = "changed"
-
-	if unit.Mech.HP != 9000 || unit.Mech.Weapons[0].Name != "rifle" {
-		t.Fatalf("a write into the final panel reached the mech: %+v", unit.Mech)
+	stated := board.Unit("e2")
+	if stated.MaxHP != 7000 || stated.ENMax != 20 || stated.SPMax != 5 {
+		t.Fatalf("an explicit maximum stands: %+v", *stated)
 	}
 }
 
@@ -226,9 +208,9 @@ func TestTheModelSharesNoMemoryWithTheWireState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	board.Unit("a1").Weapons[0].Name = "changed"
+	board.Unit("a1").Mech.Weapons[0].Name = "changed"
 
-	if state.Units[0].Weapons[0].Name != "rifle" {
+	if state.Units[0].Mech.Weapons[0].Name != "rifle" {
 		t.Fatal("a write into the model reached the payload")
 	}
 }
@@ -340,11 +322,13 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 		MaxHP:     1000,
 		EN:        40,
 		ENMax:     100,
-		MoveRange: 4,
-		Weapons: []Weapon{
-			{Name: "rifle", Range: RadiusRange{Min: 1, Max: 3}, ENCost: 10, Accuracy: 5,
-				CanCounter: true, UsableAfterMove: true},
-			{Name: "missile", Range: RadiusRange{Min: 2, Max: 5}, MapWeapon: true},
+		Mech: Mech{
+			MoveRange: 4,
+			Weapons: []Weapon{
+				{Name: "rifle", Range: RadiusRange{Min: 1, Max: 3}, ENCost: 10, Accuracy: 5,
+					CanCounter: true, UsableAfterMove: true},
+				{Name: "missile", Range: RadiusRange{Min: 2, Max: 5}, MapWeapon: true},
+			},
 		},
 		Skills: []Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
 			Range: RadiusRange{Min: 0, Max: 2}, Blast: 1, Affects: AffectsAlly}},
@@ -403,15 +387,15 @@ func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	defender := &Unit{ID: "d1", HP: 100}
 	attacker := &Unit{ID: "e1", HP: 100}
-	helper := &Unit{ID: "h1", HP: 100, Weapons: []Weapon{{Name: "rifle"}}}
+	helper := &Unit{ID: "h1", HP: 100, Mech: Mech{Weapons: []Weapon{{Name: "rifle"}}}}
 
 	counter := Forecast{}
 	encoded := EncodeEngagement(Engagement{
 		Defender: SideOptions{Unit: defender,
 			SupportDefenders: []SupportDefendOption{{Unit: helper}},
-			SupportAttackers: []SupportAttackOption{{Unit: helper, Weapon: &helper.Weapons[0]}}},
+			SupportAttackers: []SupportAttackOption{{Unit: helper, Weapon: &helper.Mech.Weapons[0]}}},
 		Attacker: SideOptions{Unit: attacker},
-		Reactions: []ReactionOption{
+		ResponseAttacks: []ResponseAttackOption{
 			{Stance: StanceDodge},
 			{Stance: StanceCounter, Weapon: "saber", Counter: &counter},
 			{Stance: StanceNone},
@@ -421,18 +405,18 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	if encoded.Defender.UnitID != "d1" || encoded.Attacker.UnitID != "e1" {
 		t.Fatalf("sides: %+v", encoded)
 	}
-	if encoded.Defender.Reactions[0].Stance != protocol.StanceDodge ||
-		encoded.Defender.Reactions[0].Weapon != nil ||
-		encoded.Defender.Reactions[0].Counter != nil {
-		t.Fatalf("dodge: %+v", encoded.Defender.Reactions[0])
+	if encoded.Defender.ResponseAttacks[0].Stance != protocol.StanceDodge ||
+		encoded.Defender.ResponseAttacks[0].Weapon != nil ||
+		encoded.Defender.ResponseAttacks[0].Counter != nil {
+		t.Fatalf("dodge: %+v", encoded.Defender.ResponseAttacks[0])
 	}
-	if *encoded.Defender.Reactions[1].Weapon != "saber" ||
-		encoded.Defender.Reactions[1].Counter == nil {
+	if *encoded.Defender.ResponseAttacks[1].Weapon != "saber" ||
+		encoded.Defender.ResponseAttacks[1].Counter == nil {
 		t.Fatalf("a counter carries the forecast of its own strike: %+v",
-			encoded.Defender.Reactions[1])
+			encoded.Defender.ResponseAttacks[1])
 	}
-	if encoded.Defender.Reactions[2].Stance != protocol.StanceNone {
-		t.Fatalf("the stand: %+v", encoded.Defender.Reactions[2])
+	if encoded.Defender.ResponseAttacks[2].Stance != protocol.StanceNone {
+		t.Fatalf("the stand: %+v", encoded.Defender.ResponseAttacks[2])
 	}
 	if encoded.Defender.SupportDefenders[0].UnitID != "h1" ||
 		encoded.Defender.SupportAttackers[0].Weapon != "rifle" {

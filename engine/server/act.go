@@ -17,9 +17,9 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	if fail != nil {
 		return *fail
 	}
-	if (request.Action.Kind == protocol.ActionAttack) != (request.Reaction != nil) {
+	if (request.Action.Kind == protocol.ActionAttack) != (request.ResponseAttack != nil) {
 		return protocol.Fail(id, protocol.CodeIllegalAction,
-			"the reaction is necessary for an attack and not permitted for every other kind")
+			"the response attack is necessary for an attack and not permitted for every other kind")
 	}
 	decision, err := decodeActivation(request)
 	if err != nil {
@@ -55,19 +55,19 @@ func decodeActivation(request *protocol.ActRequest) (battle.Decision, error) {
 	if request.Action.UnitID != request.UnitID {
 		return battle.Decision{}, errors.New("'unit_id' and 'action.unit_id' name two units")
 	}
-	if request.Action.Reaction != nil {
-		return battle.Decision{}, errors.New("the reaction travels in the field 'reaction' of the request")
+	if request.Action.ResponseAttack != nil {
+		return battle.Decision{}, errors.New("the response attack travels in the field 'response_attack' of the request")
 	}
 	decision, err := battle.DecodeDecision(&request.Action)
 	if err != nil {
 		return battle.Decision{}, err
 	}
-	if request.Reaction != nil {
-		reaction, err := battle.DecodeReaction(*request.Reaction)
+	if request.ResponseAttack != nil {
+		responseAttack, err := battle.DecodeResponseAttack(*request.ResponseAttack)
 		if err != nil {
 			return battle.Decision{}, err
 		}
-		decision.Reaction = &reaction
+		decision.ResponseAttack = &responseAttack
 	}
 	return decision, nil
 }

@@ -24,7 +24,9 @@ from ggge_ai.engine.state import (
     EventTable,
     Debuff,
     Decision,
-    Reaction,
+    Mech,
+    Pilot,
+    ResponseAttack,
     Skill,
     StageEvent,
     TerrainCell,
@@ -38,8 +40,10 @@ STRUCTS = {
     "Weapon": Weapon,
     "Skill": Skill,
     "Debuff": Debuff,
+    "Pilot": Pilot,
+    "Mech": Mech,
     "Unit": Unit,
-    "Reaction": Reaction,
+    "ResponseAttack": ResponseAttack,
     "Decision": Decision,
     "StageEvent": StageEvent,
     "TerrainCell": TerrainCell,
@@ -50,17 +54,19 @@ ENCODERS = {
     "Weapon": lambda: codec.encode_weapon(Weapon(name="w", power=1.0)),
     "Skill": lambda: codec.encode_skill(Skill(kind="skill_heal")),
     "Debuff": lambda: codec.encode_debuff(Debuff("k", 1.0, 2)),
+    "Pilot": lambda: codec.encode_pilot(Pilot()),
+    "Mech": lambda: codec.encode_mech(Mech()),
     "Unit": lambda: codec.encode_unit(Unit(unit_id="u", faction=Faction.ALLY)),
-    "Reaction": lambda: codec.encode_reaction(Reaction(stance=Stance.DEFEND)),
+    "ResponseAttack": lambda: codec.encode_response_attack(
+        ResponseAttack(stance=Stance.DEFEND)
+    ),
     "Decision": lambda: codec.encode_decision(Decision(unit_id="u", kind=ActionKind.STANDBY)),
     "StageEvent": lambda: codec.encode_event(StageEvent("e", {}, {})),
     "TerrainCell": lambda: codec.encode_terrain_cell(TerrainCell((0, 0), Terrain.SPACE)),
     "BattleState": lambda: codec.encode_state(BattleState()),
 }
 
-ENGINE_ONLY = {
-    "Unit": ["mech_hp", "mech_en", "mech_move_range", "mech_weapons"],
-}
+ENGINE_ONLY: dict[str, list[str]] = {}
 
 STRUCT = re.compile(r"^type (\w+) struct \{$")
 TAG = re.compile(r'json:"([^",]+)')
@@ -126,15 +132,15 @@ def test_an_absent_optional_field_decodes_to_the_same_value_as_null():
     assert codec.decode_decision(lean) == codec.decode_decision(full)
 
 
-def test_a_reaction_with_no_stance_never_reaches_the_wire():
+def test_a_response_attack_with_no_stance_never_reaches_the_wire():
     with pytest.raises(ValueError, match="no stance"):
-        codec.encode_reaction(Reaction())
+        codec.encode_response_attack(ResponseAttack())
 
 
 def test_the_stance_none_decodes():
-    payload = codec.encode_reaction(Reaction(stance=Stance.NONE))
+    payload = codec.encode_response_attack(ResponseAttack(stance=Stance.NONE))
 
-    assert codec.decode_reaction(payload).stance is Stance.NONE
+    assert codec.decode_response_attack(payload).stance is Stance.NONE
 
 
 def test_a_skill_enum_outside_the_contract_stops_the_decode():
@@ -144,6 +150,16 @@ def test_a_skill_enum_outside_the_contract_stops_the_decode():
         codec.decode_skill({**payload, "source": "squad"})
     with pytest.raises(ValueError, match="affects"):
         codec.decode_skill({**payload, "affects": "self"})
+
+
+def test_the_categories_of_a_weapon_survive_the_round_trip():
+    plain = codec.encode_weapon(Weapon(name="saber", power=1.0))
+    tagged = codec.encode_weapon(Weapon(name="saber", power=1.0, categories=["melee", "awaken"]))
+
+    assert plain["categories"] is None
+    assert tagged["categories"] == ["melee", "awaken"]
+    assert codec.decode_weapon(plain).categories == []
+    assert codec.decode_weapon(tagged).categories == ["melee", "awaken"]
 
 
 def test_a_field_outside_the_contract_stops_the_decode():
@@ -164,7 +180,8 @@ def _board() -> tuple[BattleState, EventTable]:
         max_hp=9000,
         en=40,
         en_max=80,
-        weapons=[weapon],
+        mech=Mech(hp=9000, en=80, move_range=4, weapons=[weapon]),
+        pilot=Pilot(ranged=220.0, melee=180.0, awaken=240.0, defense=190.0, reaction=205.0, sp=45),
         skills=[skill],
         ammo={"rifle": 2},
         debuffs=[Debuff(kind="attack", magnitude=0.2, applied_phase=3)],

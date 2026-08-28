@@ -26,7 +26,9 @@ type wireSide struct {
 func (side wireSide) unit() *battle.Unit {
 	return &battle.Unit{
 		Pilot: battle.Pilot{
-			Attack:   side.PilotAttack,
+			Ranged:   side.PilotAttack,
+			Melee:    side.PilotAttack,
+			Awaken:   side.PilotAttack,
 			Defense:  side.PilotDefense,
 			Reaction: side.Reaction,
 		},
@@ -90,6 +92,12 @@ func (in hitInput) weapon() battle.Weapon {
 	return battle.Weapon{Accuracy: in.Accuracy}
 }
 
+// The recorded inputs name the power alone. The three pilot values of a side
+// hold the one recorded number, so an untagged weapon reads it back.
+func shot(power float64) battle.Weapon {
+	return battle.Weapon{Power: power}
+}
+
 func decodeInput(input json.RawMessage, into any) error {
 	decoder := json.NewDecoder(bytes.NewReader(input))
 	decoder.DisallowUnknownFields()
@@ -102,14 +110,14 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.BaseDamage(in.Power, in.Attacker.unit(), in.Defender.unit()), nil
+		return battle.BaseDamage(shot(in.Power), in.Attacker.unit(), in.Defender.unit()), nil
 	},
 	"combat_base_damage": func(_ *differential.Setup, input json.RawMessage) (any, error) {
 		var in combatInput
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.CombatBaseDamage(in.Power, in.Attacker.unit(), in.Defender.unit(),
+		return battle.CombatBaseDamage(shot(in.Power), in.Attacker.unit(), in.Defender.unit(),
 			in.Terrain), nil
 	},
 	"damage_scale": func(_ *differential.Setup, input json.RawMessage) (any, error) {
@@ -139,7 +147,7 @@ var formulaOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		return battle.ExpectedDamage(in.Power, in.Attacker.unit(), in.Defender.unit(),
+		return battle.ExpectedDamage(shot(in.Power), in.Attacker.unit(), in.Defender.unit(),
 			in.Terrain, in.Bonuses, in.Penalties, in.DefenseMultiplier), nil
 	},
 	"hit_rate_percent": func(_ *differential.Setup, input json.RawMessage) (any, error) {

@@ -128,7 +128,7 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 	if err != nil {
 		return nil, outcome{}, err
 	}
-	answer, err := b.answerOf(target, actor, firing, decision.Reaction)
+	answer, err := b.answerOf(target, actor, firing, decision.ResponseAttack)
 	if err != nil {
 		return nil, outcome{}, err
 	}
@@ -137,7 +137,7 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 	actor.EN -= weapon.ENCost
 	shot := b.receiverOf(target, answer)
 	trace := b.fire(NodeAttackerSupport, StrikeSupport, joining, dice, &shot)
-	dodging := answer.reaction != nil && answer.reaction.Stance == StanceDodge
+	dodging := answer.responseAttack != nil && answer.responseAttack.Stance == StanceDodge
 	// The hit rate reads the target of the strike, and not the support defender
 	// that takes the strike in its place: the oracle 'decision_hit_probability'
 	// reads the target. Which evasion the game reads when a support defender
@@ -147,7 +147,7 @@ func (b *Board) attack(actor *Unit, decision Decision, dice Dice) (Trace, outcom
 		dice.Lands(NodeStrike, StrikeHitProbability(actor, target, weapon, dodging))))
 	killed := !shot.struck.Alive()
 
-	if answer.reaction != nil && target.Alive() {
+	if answer.responseAttack != nil && target.Alive() {
 		trace = append(trace, b.defenderReply(actor, target, answer, bearer, dice)...)
 	}
 	return trace, outcome{killed: killed, endsActivation: true}, nil
@@ -165,36 +165,37 @@ func (b *Board) foe(actor *Unit, targetID string) (*Unit, error) {
 	return target, nil
 }
 
-// A nil reaction stays legal in the domain: it says that the caller settles
-// the reaction somewhere else, as a node of a search tree does.
+// A nil response attack stays legal in the domain: it says that the caller
+// settles the response attack somewhere else, as a node of a search tree
+// does.
 type answer struct {
-	reaction        *Reaction
+	responseAttack  *ResponseAttack
 	counter         *Weapon
 	supportDefender *Unit
 	joining         []SupportAttacker
 }
 
 func (b *Board) answerOf(defender, attacker *Unit, firing Footprint,
-	reaction *Reaction) (answer, error) {
-	if reaction == nil {
+	responseAttack *ResponseAttack) (answer, error) {
+	if responseAttack == nil {
 		return answer{}, nil
 	}
-	out := answer{reaction: reaction}
-	if _, known := wireStances[reaction.Stance]; !known {
+	out := answer{responseAttack: responseAttack}
+	if _, known := wireStances[responseAttack.Stance]; !known {
 		return answer{}, fmt.Errorf("%w: unit %q takes the stance %q, which is not in the contract",
-			ErrIllegalAction, defender.ID, reaction.Stance)
+			ErrIllegalAction, defender.ID, responseAttack.Stance)
 	}
-	if reaction.Stance == StanceCounter {
-		out.counter = b.CounterWeapon(defender, reaction.Weapon, firing)
+	if responseAttack.Stance == StanceCounter {
+		out.counter = b.CounterWeapon(defender, responseAttack.Weapon, firing)
 		if out.counter == nil {
 			return answer{}, fmt.Errorf("%w: unit %q counters the strike with no weapon %q",
-				ErrIllegalAction, defender.ID, reaction.Weapon)
+				ErrIllegalAction, defender.ID, responseAttack.Weapon)
 		}
-	} else if reaction.Weapon != "" {
+	} else if responseAttack.Weapon != "" {
 		return answer{}, fmt.Errorf("%w: the stance %q of unit %q fires no weapon",
-			ErrIllegalAction, reaction.Stance, defender.ID)
+			ErrIllegalAction, responseAttack.Stance, defender.ID)
 	}
-	supportDefender, err := b.namedSupportDefender(defender, defender.Footprint, reaction.SupportDefender,
+	supportDefender, err := b.namedSupportDefender(defender, defender.Footprint, responseAttack.SupportDefender,
 		func(*Unit) bool { return true })
 	if err != nil {
 		return answer{}, err
@@ -203,13 +204,13 @@ func (b *Board) answerOf(defender, attacker *Unit, firing Footprint,
 	// supportDefender nothing to take (docs/reference/battle-prep-ui.md:279, issue
 	// #44). Whether the game pairs a support defender with the stand is not
 	// measured; the engine permits it until a measurement lands.
-	if supportDefender != nil && reaction.Stance == StanceDefend {
+	if supportDefender != nil && responseAttack.Stance == StanceDefend {
 		return answer{}, fmt.Errorf("%w: unit %q defends the strike itself and takes no support defender",
 			ErrIllegalAction, defender.ID)
 	}
 	out.supportDefender = supportDefender
 	if out.joining, err = b.namedSupportAttackers(defender, defender.Footprint, firing,
-		reaction.SupportAttackers); err != nil {
+		responseAttack.SupportAttackers); err != nil {
 		return answer{}, err
 	}
 	return out, nil
@@ -275,8 +276,8 @@ func (b *Board) receiverOf(target *Unit, answer answer) receiver {
 		return b.coveredReceiver(answer.supportDefender)
 	}
 	multiplier := NoDefenseMultiplier
-	if answer.reaction != nil {
-		multiplier = StanceMultiplier(answer.reaction.Stance, target)
+	if answer.responseAttack != nil {
+		multiplier = StanceMultiplier(answer.responseAttack.Stance, target)
 	}
 	return b.plainReceiver(target, multiplier)
 }

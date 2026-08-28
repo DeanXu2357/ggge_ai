@@ -28,6 +28,7 @@ TABLE_PATHS = {
     "unit": "/ggetapi/en/unit",
     "weapon": "/ggetapi/en/weapon",
     "stage": "/ggetapi/en/stage",
+    "character": "/ggetapi/en/character",
 }
 USER_AGENT = "ggge_ai-datamine-crawler/1 (+https://github.com/DeanXu2357/ggge_ai)"
 

@@ -24,8 +24,8 @@ const (
 	ENRegenPercent      = 10
 )
 
-// The reaction menu offers no shield stance, so a defender that carries a
-// shield defends with the shield here, in the damage (issue #63).
+// The response attack menu offers no shield stance, so a defender that
+// carries a shield defends with the shield here, in the damage (issue #63).
 func StanceMultiplier(stance Stance, defender *Unit) float64 {
 	if stance != StanceDefend {
 		return NoDefenseMultiplier

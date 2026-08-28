@@ -2,7 +2,8 @@
 
 The loop of the user ruling of 2026-08-27. It reads the pending units
 from the engine, the menu of each unit from 'actions', the answer of
-the struck unit from 'reactions', and lets 'act' settle the engagement.
+the struck unit from 'response_attacks', and lets 'act' settle the
+engagement.
 The loop holds no rule of the battle: the engine refuses an illegal
 pick, and the loop takes the refusal as the answer and tries the next
 pick. A standby closes the list of the picks, and the loop stops on the
@@ -38,7 +39,7 @@ def decision(
         "target_id": target_id,
         "weapon": weapon,
         "amount": None,
-        "reaction": None,
+        "response_attack": None,
         "support_defender": None,
         "support_attackers": [],
         "aim": None,
@@ -48,7 +49,7 @@ def decision(
     }
 
 
-def reaction_of(option: dict[str, Any]) -> dict[str, Any]:
+def response_attack_of(option: dict[str, Any]) -> dict[str, Any]:
     return {
         "stance": option.get("stance"),
         "weapon": option.get("weapon"),
@@ -141,17 +142,17 @@ class Player:
                     )
                     try:
                         options = self._engine.call(
-                            "reactions", {"action": action, "defender_id": foe["unit_id"]}
+                            "response_attacks", {"action": action, "defender_id": foe["unit_id"]}
                         )
                     except EngineError:
                         continue
-                    replies = options.get("defender", {}).get("reactions", [])
+                    replies = options.get("defender", {}).get("response_attacks", [])
                     if not replies:
                         continue
                     yield {
                         "unit_id": actor["unit_id"],
                         "action": action,
-                        "reaction": reaction_of(replies[0]),
+                        "response_attack": response_attack_of(replies[0]),
                         "dice": dict(self._dice),
                     }
         if len(cells) > 1 and cells[1] != actor["pos"]:

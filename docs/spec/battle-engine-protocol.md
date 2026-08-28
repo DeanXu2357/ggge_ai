@@ -46,7 +46,7 @@ Error codes:
 | bad_request | The payload does not match the schema |
 | no_session | The command needs a board, and 'init' did not run |
 | illegal_state | The board does not permit the command now |
-| illegal_action | The named action or reaction is not legal |
+| illegal_action | The named action or response attack is not legal |
 | empty_history | 'rollback' found no entry |
 | already_acted | The unit acted in this turn; the command answers |
 
@@ -189,15 +189,15 @@ Refusals: no_session; illegal_action for an unknown unit id;
 illegal_state when the unit is destroyed; illegal_state when the
 phase of the unit is not the current phase.
 
-### reactions
+### response_attacks
 
-Purpose: the legal reactions of one defender against one planned
-strike.
+Purpose: the legal response attacks of one defender against one
+planned strike.
 
 The client calls this command before it sends 'act'. The attacker
 chooses the action first. The client does not send that action yet.
-The client asks for the reactions of the defender, and it sends the
-action and the reaction together in one 'act'.
+The client asks for the response attacks of the defender, and it
+sends the action and the response attack together in one 'act'.
 
 Request:
 
@@ -213,27 +213,27 @@ therefore ask about a move that did not occur. An action with no
 
 Response: 'defender' and 'attacker'.
 
-'defender' holds 'unit_id', 'reactions', 'support_defenders' and
-'support_attackers'. 'attacker' holds 'unit_id',
-'support_defenders' and 'support_attackers'.
+'defender' holds 'unit_id', 'response_attacks',
+'support_defenders' and 'support_attackers'. 'attacker' holds
+'unit_id', 'support_defenders' and 'support_attackers'.
 
-The list 'reactions' holds dodge, defend, one entry for each weapon
-of the defender that can counter and reaches the attacker, and
-'none'. The stance 'none' is the unit that stands and takes the
-strike. The list holds no 'shield': the shield of a unit settles
-during the damage, in 'act'.
+The list 'response_attacks' holds dodge, defend, one entry for
+each weapon of the defender that can counter and reaches the
+attacker, and 'none'. The stance 'none' is the unit that stands and
+takes the strike. The list holds no 'shield': the shield of a unit
+settles during the damage, in 'act'.
 
 Only an action of the kind 'attack' asks the defender anything. A
-map attack permits no reaction, and no other kind of action reaches
-a unit, so the command refuses every other kind. A client that runs
-one of them sends 'act' and no question.
+map attack permits no response attack, and no other kind of action
+reaches a unit, so the command refuses every other kind. A client
+that runs one of them sends 'act' and no question.
 
-A reaction entry holds the forecast 'incoming': what the strike of
-the attacker does to the defender under that stance. A counter
-entry also holds the forecast 'counter': what the counter does to
-the attacker. A stance entry reads no support unit. A support
-defender changes no outcome of the stance, so each one carries its
-own forecast in 'support_defenders'.
+A response attack entry holds the forecast 'incoming': what the
+strike of the attacker does to the defender under that stance. A
+counter entry also holds the forecast 'counter': what the counter
+does to the attacker. A stance entry reads no support unit. A
+support defender changes no outcome of the stance, so each one
+carries its own forecast in 'support_defenders'.
 
 A support defense entry holds 'unit_id' and the forecast
 'incoming': what the strike does to that support defender. A support
@@ -278,35 +278,35 @@ Request:
 |---|---|
 | unit_id | The unit that acts |
 | action | The action of the unit |
-| reaction | The reaction of the defender |
+| response_attack | The response attack of the defender |
 | dice | The dice input |
 
 The field 'action' holds the move of the unit. The engine resolves
 the move first and the action second; the section 'Unit payload,
-action, and reaction' holds the rule.
+action, and response attack' holds the rule.
 
-The field 'reaction' is necessary for an action of the kind
+The field 'response_attack' is necessary for an action of the kind
 'attack', because such an action always gives a list. The field is
-not permitted for every other kind. A reaction inside 'action' is a
-bad_request: the reaction travels in the field 'reaction' of the
-request.
+not permitted for every other kind. A response attack inside
+'action' is a bad_request: the response attack travels in the field
+'response_attack' of the request.
 
 The client names every support unit of the engagement, and the
 engine names none. The action holds 'support_attackers', the units
 of the side of the actor that join the strike, and
 'support_defender', the unit that takes a counter strike for the
-actor. The reaction holds the same two fields for the defending
-side: 'support_attackers' join the answer of the defender, and
-'support_defender' is the unit that takes the strike in place of
-the defender. Each list holds the unit ids that
-'reactions' reports, and no unit two times.
+actor. The response attack holds the same two fields for the
+defending side: 'support_attackers' join the answer of the
+defender, and 'support_defender' is the unit that takes the strike
+in place of the defender. Each list holds the unit ids that
+'response_attacks' reports, and no unit two times.
 
 A defender that defends takes the strike itself and names no
 support defender. A defender that carries a shield defends with the
-shield: the reaction menu offers no shield stance, so the shield
-multiplier applies to the defend stance of that unit. Whether the
-game pairs a support defender with the stand is not measured; the
-engine permits it.
+shield: the response attack menu offers no shield stance, so the
+shield multiplier applies to the defend stance of that unit.
+Whether the game pairs a support defender with the stand is not
+measured; the engine permits it.
 
 The rules cap the number of support attackers of one strike. A unit
 that the engagement destroys or drains before its own shot fires
@@ -373,8 +373,9 @@ not the current phase, or when the unit acted in this turn;
 illegal_action for a target that is no foe, a weapon the unit does
 not carry, a weapon the unit cannot pay for, a weapon that does not
 reach the target, a support unit that cannot join or intercept, a
-support attacker list above the cap of the rules, a reaction that
-breaks a rule of the stance, an absent necessary reaction, a short
+support attacker list above the cap of the rules, a response
+attack that breaks a rule of the stance, an absent necessary
+response attack, a short
 'outcomes' list, an action that carries 'move_to' when its weapon
 or its skill holds 'usable_after_move' false, and an anchor that
 the unit does not reach; bad_request when an 'outcomes' label
@@ -419,8 +420,8 @@ the request holds no goal.
 Response: a 'Verdict'.
 
 The engine answers when the faction holds a decision that waits.
-An ally reaction against an enemy strike is such a decision, and
-the phase of that moment is the enemy phase. The gate is the
+An ally response attack against an enemy strike is such a decision,
+and the phase of that moment is the enemy phase. The gate is the
 decision, not the phase.
 
 Refusals: no_session; illegal_state when the faction holds no
@@ -534,9 +535,9 @@ eight king steps and one cell for every unit, and it retired with
 the rest of the Python rules (issue #73). A golden case that the
 Python side wrote therefore compares no result that reads the
 distance or the footprint, and a golden case that compares a
-reaction list holds units of one cell in one row. The 'actions'
-command left the comparison with issue 63: it reports what one unit
-carries, and the Python side holds no such answer.
+response attack list holds units of one cell in one row. The
+'actions' command left the comparison with issue 63: it reports
+what one unit carries, and the Python side holds no such answer.
 
 ## Types
 
@@ -571,7 +572,7 @@ The goal selects the statistic of the leaf evaluation.
 An exhausted budget gives the best action of that moment. The
 diagnostics record the exhaustion.
 
-### Unit payload, action, and reaction
+### Unit payload, action, and response attack
 
 The authority for these three schemas is the Go package
 'engine/protocol'. 'src/ggge_ai/engine/state.py' holds the same
@@ -646,41 +647,72 @@ the build before the field. The test names each one in
 'ENGINE_ONLY', so a Go field that nobody declared is still a test
 failure.
 
-### The final panel and the base data
+### The unit, the pilot and the mech
 
-A unit is a pilot that rides a mech. The payload carries two
-levels of values, and they are not the same numbers.
+A unit is a pilot that rides a mech, on the board of one stage. The
+payload keeps the three apart (user ruling 2026-08-28).
 
-The final panel is what the game shows for the deployed unit. The
-fields 'hp', 'en', 'move_range' and 'weapons' of the unit carry
-it, together with 'unit_attack', 'unit_defense', 'mobility',
-'pilot_attack', 'pilot_defense' and 'reaction'. Every rule of the
-board reads the final panel.
-
-The base data is what the mech and the pilot supply to the
-computation of the final panel. An ability of the mech or of the
-pilot can change what the unit ends up with, so the base copy and
-the final panel can differ (user ruling 2026-08-21).
-
-The mech carries its base copy in four optional fields:
+The unit is the current state of the pairing. It records state and
+the maxima of state, and it takes no part in a computation:
 
 | Field | Content |
 |---|---|
-| mech_hp | The hit points of the mech |
-| mech_en | The energy of the mech |
-| mech_move_range | The movement range of the mech |
-| mech_weapons | The weapons of the mech, in the weapon payload |
+| hp, max_hp | The hit points now, and their maximum |
+| en, en_max | The energy now, and its maximum |
+| sp, sp_max | The skill points of the pilot now, and their maximum |
+| pos, size, acted, the charge counters, ammo, debuffs, skills | The board state, as before |
+| pilot | The pilot, as data |
+| mech | The mech, as data |
 
-These four are engine-only. A payload that omits them leaves the
-base copy of the mech empty. It does not fill the base copy from
-the final panel. No code derives the one level from the other
-today, so a producer that reads the panel of the game alone sends
-the panel alone.
+The unit carries no attack, no defense, no mobility, no movement
+range and no weapon list of its own. A rule that needs one of them
+reads the pilot or the mech.
 
-The Go types keep the two levels apart by the struct that holds
-the field, and not by the name of the field: 'battle.Unit' holds
-the final panel, and 'battle.Mech' and 'battle.Pilot' hold the
-base data. 'Mech.HP' is the base copy, and 'Unit.HP' is the panel.
+The three maxima 'support_attack_charges_max',
+'support_defend_charges_max' and 'chance_steps_max' are state of
+the unit, and the pilot decides them: an ability of the pilot whose
+condition matches the mech (its role, its tags or its series) raises
+the count (user ruling 2026-08-28). No code derives them yet; a
+payload carries them as given. The pairing conditions belong to
+issue #72 and the derivation to issue #77.
+
+The pilot holds the values of the game's pilot panel:
+
+| Field | Content |
+|---|---|
+| ranged | 射擊值 |
+| melee | 格鬥值 |
+| awaken | 覺醒值 |
+| defense | 守備值 |
+| reaction | 反應值 |
+| sp | The skill point pool |
+
+The mech holds its own values:
+
+| Field | Content |
+|---|---|
+| hp, en | The hit points and the energy of the mech |
+| attack, defense, mobility | The three combat values of the mech |
+| move_range | The movement range of the mech |
+| weapons | The weapons of the mech, in the weapon payload |
+
+A weapon carries 'categories', a list over 'ranged', 'melee' and
+'awaken', null when the producer knows no category. The pilot
+attack of a strike is the highest pilot value among the categories
+of the weapon; a weapon with no category reads the highest of the
+three (user ruling 2026-08-28). Go: 'WeaponCategory',
+'Pilot.AttackFor'.
+
+At 'init', a unit whose 'max_hp' or 'en_max' is 0 takes the value
+of its mech, and a unit whose 'sp_max' is 0 takes the 'sp' of its
+pilot. An explicit value stays. The abilities of the pilot and of
+the mech do not enter the maxima yet; issue #77 owns that
+derivation. The datamine holds no SP pool for a pilot; the device
+is its source.
+
+This section replaces the reading of 2026-08-21 that the unit
+carries a stored final panel that every rule reads. That reading
+is retired (docs/record/decisions.md, 0828).
 
 ### Terrain
 
@@ -787,3 +819,9 @@ difference between two integers is 1.
 - 'hello' gives the version and the command list. A client reads
   them before it sends a command that it does not know to be
   implemented.
+- One exception on record: version 1.4 (2026-08-28, issue #84)
+  removed the flat value fields of the unit payload and put the
+  nested objects 'pilot' and 'mech' in their place, on a user
+  ruling that the unit records state and takes no part in a
+  computation. A client of version 1.3 does not read a 1.4 unit.
+  The section "The unit, the pilot and the mech" holds the shape.

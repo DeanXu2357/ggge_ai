@@ -43,3 +43,19 @@ func TestTheENOfAShotComesFromThePanelAndNotFromTheMech(t *testing.T) {
 		t.Fatal("the predicate did not read the final panel")
 	}
 }
+
+func TestAWeaponOfNoCategoryReadsTheHighestPilotValue(t *testing.T) {
+	pilot := Pilot{Ranged: 220, Melee: 180, Awaken: 240}
+	melee := Weapon{Categories: []WeaponCategory{WeaponCategoryMelee}}
+	both := Weapon{Categories: []WeaponCategory{WeaponCategoryMelee, WeaponCategoryRanged}}
+
+	if got := pilot.AttackFor(Weapon{}); got != 240 {
+		t.Fatalf("no category: %v", got)
+	}
+	if got := pilot.AttackFor(melee); got != 180 {
+		t.Fatalf("one category: %v", got)
+	}
+	if got := pilot.AttackFor(both); got != 220 {
+		t.Fatalf("two categories: %v", got)
+	}
+}

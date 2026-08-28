@@ -59,6 +59,27 @@ func (f Faction) Opposing() Faction {
 	return FactionAlly
 }
 
+type WeaponCategory string
+
+const (
+	WeaponCategoryRanged WeaponCategory = "ranged"
+	WeaponCategoryMelee  WeaponCategory = "melee"
+	WeaponCategoryAwaken WeaponCategory = "awaken"
+)
+
+var weaponCategories = [...]WeaponCategory{
+	WeaponCategoryRanged, WeaponCategoryMelee, WeaponCategoryAwaken,
+}
+
+func ParseWeaponCategory(name string) (WeaponCategory, error) {
+	for _, known := range weaponCategories {
+		if string(known) == name {
+			return known, nil
+		}
+	}
+	return "", fmt.Errorf("the weapon category %q is not in the contract", name)
+}
+
 type Weapon struct {
 	Name            string
 	Power           float64
@@ -70,6 +91,7 @@ type Weapon struct {
 	UsableAfterMove bool
 	DebuffKind      string
 	DebuffMagnitude float64
+	Categories      []WeaponCategory
 }
 
 type ActionKind string
@@ -131,23 +153,54 @@ type Skill struct {
 	Affects         SkillAffects
 }
 
-// Pilot and Mech hold base data: the values the character and the machine
-// bring to the computation. Unit holds the final panel: the values the game
-// shows for the deployed piece, after every ability of the pilot and of the
-// mech. No rule derives the one from the other yet, so each level takes its
-// own wire field.
+// Pilot and Mech are the data of the pairing. Unit is the current state of
+// that pairing on the board: it records the state and the maxima of the
+// state, and it takes no part in a computation. A formula reads the pilot and
+// the mech at computation time.
 type Pilot struct {
-	Attack   float64
+	Ranged   float64
+	Melee    float64
+	Awaken   float64
 	Defense  float64
 	Reaction float64
+	SP       int
+}
+
+// AttackFor is the pilot attack of one strike: the highest value among the
+// categories of the weapon. A weapon of no known category reads the highest of
+// the three.
+func (p Pilot) AttackFor(weapon Weapon) float64 {
+	categories := weapon.Categories
+	if len(categories) == 0 {
+		categories = weaponCategories[:]
+	}
+	highest := p.attackOf(categories[0])
+	for _, category := range categories[1:] {
+		if value := p.attackOf(category); value > highest {
+			highest = value
+		}
+	}
+	return highest
+}
+
+func (p Pilot) attackOf(category WeaponCategory) float64 {
+	switch category {
+	case WeaponCategoryRanged:
+		return p.Ranged
+	case WeaponCategoryMelee:
+		return p.Melee
+	case WeaponCategoryAwaken:
+		return p.Awaken
+	}
+	return 0
 }
 
 type Mech struct {
+	HP        int
+	EN        int
 	Attack    float64
 	Defense   float64
 	Mobility  float64
-	HP        int
-	EN        int
 	MoveRange int
 	Weapons   []Weapon
 }
@@ -160,10 +213,10 @@ type Unit struct {
 	MaxHP                   int
 	EN                      int
 	ENMax                   int
+	SP                      int
+	SPMax                   int
 	Pilot                   Pilot
 	Mech                    Mech
-	MoveRange               int
-	Weapons                 []Weapon
 	Skills                  []Skill
 	Acted                   bool
 	ChanceSteps             int
@@ -187,9 +240,9 @@ func (u *Unit) HasENFor(weapon Weapon) bool {
 }
 
 func (u *Unit) Weapon(name string) *Weapon {
-	for index := range u.Weapons {
-		if u.Weapons[index].Name == name {
-			return &u.Weapons[index]
+	for index := range u.Mech.Weapons {
+		if u.Mech.Weapons[index].Name == name {
+			return &u.Mech.Weapons[index]
 		}
 	}
 	return nil
@@ -199,20 +252,20 @@ func (u *Unit) Weapon(name string) *Weapon {
 // 'action' and the model names it 'Decision'; this package keeps the model
 // name.
 type Decision struct {
-	UnitID   string
-	Kind     ActionKind
-	MoveTo   *Cell
-	TargetID string
-	Weapon   string
-	Amount   *float64
-	Aim      *Cell
-	Reaction *Reaction
+	UnitID         string
+	Kind           ActionKind
+	MoveTo         *Cell
+	TargetID       string
+	Weapon         string
+	Amount         *float64
+	Aim            *Cell
+	ResponseAttack *ResponseAttack
 
 	SupportDefender  string
 	SupportAttackers []string
 }
 
-type Reaction struct {
+type ResponseAttack struct {
 	Stance           Stance
 	Weapon           string
 	SupportDefender  string
@@ -333,7 +386,7 @@ func (b *Board) ReachableCells(unitID string) ([]Cell, error) {
 }
 
 func (b *Board) reachableAnchors(unit *Unit) CellSet {
-	return ReachableAnchors(unit.Footprint, unit.MoveRange,
+	return ReachableAnchors(unit.Footprint, unit.Mech.MoveRange,
 		b.BlockingCells(unit), b.OccupiedCells(unit), b.Bounds)
 }
 

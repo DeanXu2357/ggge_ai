@@ -11,8 +11,8 @@ import (
 
 const twoSidesLine = `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
 	`"units":[` +
-	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":100,"en_max":140,"move_range":1},` +
-	`{"unit_id":"a2","faction":"ally","pos":[1,2],"hp":100,"max_hp":100,"en":100,"en_max":140,"move_range":1},` +
+	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
+	`{"unit_id":"a2","faction":"ally","pos":[1,2],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
 	`{"unit_id":"e1","faction":"enemy","pos":[4,4],"hp":100,"max_hp":100,"en":100,"en_max":140}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
@@ -84,18 +84,18 @@ func TestAUnitThatActedIsIllegalState(t *testing.T) {
 	}
 }
 
-func TestAReactionOnAStandbyIsIllegalAction(t *testing.T) {
+func TestAResponseAttackOnAStandbyIsIllegalAction(t *testing.T) {
 	line := `{"id":"a","cmd":"act","payload":{"unit_id":"a1","action":{"unit_id":"a1","kind":"standby"},` +
-		`"reaction":{"stance":"none"},"dice":{"mode":"sampled"}}}`
+		`"response_attack":{"stance":"none"},"dice":{"mode":"sampled"}}}`
 	replies := serve(t, New(), twoSidesLine, line)
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
 		t.Fatalf("reply: %+v", replies[1])
 	}
 }
 
-func TestAReactionInsideTheActionIsBadRequest(t *testing.T) {
+func TestAResponseAttackInsideTheActionIsBadRequest(t *testing.T) {
 	line := `{"id":"a","cmd":"act","payload":{"unit_id":"a1",` +
-		`"action":{"unit_id":"a1","kind":"standby","reaction":{"stance":"none"}},` +
+		`"action":{"unit_id":"a1","kind":"standby","response_attack":{"stance":"none"}},` +
 		`"dice":{"mode":"sampled"}}}`
 	replies := serve(t, New(), twoSidesLine, line)
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeBadRequest {
@@ -103,7 +103,7 @@ func TestAReactionInsideTheActionIsBadRequest(t *testing.T) {
 	}
 }
 
-func TestAnAttackWithNoReactionIsIllegalAction(t *testing.T) {
+func TestAnAttackWithNoResponseAttackIsIllegalAction(t *testing.T) {
 	line := `{"id":"a","cmd":"act","payload":{"unit_id":"a1","action":{"unit_id":"a1","kind":"attack","target_id":"e1","weapon":"gun"},` +
 		`"dice":{"mode":"forced","outcomes":["hit"]}}}`
 	replies := serve(t, New(), twoSidesLine, line)
@@ -355,26 +355,26 @@ func engagementLines(t *testing.T, seed int64) (string, string) {
 	}
 	var unitID string
 	var action map[string]any
-	var reaction any
+	var responseAttack any
 	for _, check := range fixture.Checks {
 		if check.Op != "apply" {
 			continue
 		}
 		decision := check.Input.Decision
-		if decision["kind"] != "attack" || decision["reaction"] == nil {
+		if decision["kind"] != "attack" || decision["response_attack"] == nil {
 			continue
 		}
 		unitID, _ = decision["unit_id"].(string)
-		reaction = decision["reaction"]
+		responseAttack = decision["response_attack"]
 		action = make(map[string]any, len(decision))
 		for key, value := range decision {
 			action[key] = value
 		}
-		action["reaction"] = nil
+		action["response_attack"] = nil
 		break
 	}
 	if action == nil {
-		t.Fatal("the fixture holds no attack check with a reaction")
+		t.Fatal("the fixture holds no attack check with a response attack")
 	}
 
 	loadPayload, err := json.Marshal(map[string]any{"seed": seed, "state": fixture.Setup.State})
@@ -387,7 +387,7 @@ func engagementLines(t *testing.T, seed int64) (string, string) {
 	}
 
 	actPayload, err := json.Marshal(map[string]any{
-		"unit_id": unitID, "action": action, "reaction": reaction, "dice": map[string]any{"mode": "sampled"},
+		"unit_id": unitID, "action": action, "response_attack": responseAttack, "dice": map[string]any{"mode": "sampled"},
 	})
 	if err != nil {
 		t.Fatal(err)

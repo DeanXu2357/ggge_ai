@@ -72,7 +72,7 @@ class SandboxHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlsplit(self.path).path
-        if path not in ("/api/reactions", "/api/act"):
+        if path not in ("/api/response_attacks", "/api/act"):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         try:
@@ -81,8 +81,8 @@ class SandboxHandler(BaseHTTPRequestHandler):
             if not isinstance(candidate, dict):
                 raise ValueError("請求要帶 candidate 物件")
             with self.lock:
-                if path == "/api/reactions":
-                    payload = self.sandbox.reaction_options(candidate)
+                if path == "/api/response_attacks":
+                    payload = self.sandbox.response_attack_options(candidate)
                 else:
                     payload = self._act(candidate, body)
         except ValueError as exc:
@@ -119,10 +119,10 @@ class SandboxHandler(BaseHTTPRequestHandler):
             return {"ok": False, "code": "engine_gone", "message": str(exc)}
 
     def _act(self, candidate: dict[str, Any], body: Mapping[str, Any]) -> dict[str, Any]:
-        reaction = body.get("reaction")
-        if reaction is not None and not isinstance(reaction, dict):
-            raise ValueError("reaction 要寫成物件或 null")
-        answer = self.sandbox.act(candidate, reaction, self._dice(body))
+        response_attack = body.get("response_attack")
+        if response_attack is not None and not isinstance(response_attack, dict):
+            raise ValueError("response_attack 要寫成物件或 null")
+        answer = self.sandbox.act(candidate, response_attack, self._dice(body))
         return {
             "events": answer["events"],
             "board": answer["board"],
@@ -322,7 +322,7 @@ let option = null;
 let lastDice = null;
 let error = "";
 let inspected = null;
-let reactionSeq = 0;
+let responseAttackSeq = 0;
 let engineReach = [];
 
 function node(tag, className, text) {
@@ -482,7 +482,7 @@ function command(uid) {
   engagement = null;
   option = null;
   error = "";
-  reactionSeq += 1;
+  responseAttackSeq += 1;
   drawBoard();
   renderPlay();
   refreshEngine();
@@ -493,16 +493,16 @@ function pick(candidate) {
   engagement = null;
   option = null;
   error = "";
-  reactionSeq += 1;
+  responseAttackSeq += 1;
   drawBoard();
   renderPlay();
   if (candidate.kind !== "attack") return;
   // 慢回來的應戰列舉屬於舊候選，序號對不上就丟掉，否則面板會顯示上一擊的選項。
-  const seq = reactionSeq;
-  post("/api/reactions", { candidate: candidate })
-    .then((payload) => { if (seq !== reactionSeq) return; engagement = payload; renderPlay(); })
+  const seq = responseAttackSeq;
+  post("/api/response_attacks", { candidate: candidate })
+    .then((payload) => { if (seq !== responseAttackSeq) return; engagement = payload; renderPlay(); })
     .catch((exc) => {
-      if (seq !== reactionSeq) return;
+      if (seq !== responseAttackSeq) return;
       error = String(exc.message || exc);
       renderPlay();
     });
@@ -615,7 +615,7 @@ function renderPlay() {
     box.appendChild(node("h3", null, "應戰"));
     if (!engagement) box.appendChild(node("div", "dim", "讀取應戰選項…"));
     else {
-      engagement.reactions.forEach((entryOption) => {
+      engagement.response_attacks.forEach((entryOption) => {
         box.appendChild(button(optionLabel(entryOption), () => {
           option = entryOption;
           renderPlay();
@@ -628,20 +628,20 @@ function renderPlay() {
 
 function act() {
   const candidate = Object.assign({}, picked);
-  const reaction = option === null ? null : {
+  const responseAttack = option === null ? null : {
     stance: option.stance,
     weapon: option.weapon,
     support_defend: option.support_defend,
     support_attack: option.support_attack,
   };
-  post("/api/act", { candidate: candidate, reaction: reaction })
+  post("/api/act", { candidate: candidate, response_attack: responseAttack })
     .then((payload) => {
       lastDice = payload.events.length + " 則事件";
       picked = null;
       engagement = null;
       option = null;
       error = "";
-      reactionSeq += 1;
+      responseAttackSeq += 1;
       apply(payload.state, payload.pending);
     })
     .catch((exc) => { error = String(exc.message || exc); renderPlay(); });
@@ -676,11 +676,14 @@ function inspectUnit(uid) {
   tableRow(table, "HP", unit.hp + " / " + unit.max_hp);
   tableRow(table, "EN", unit.en + " / " + unit.en_max);
   tableRow(table, "已行動", unit.acted ? "是" : "否");
-  tableRow(table, "移動力", unit.move_range);
-  tableRow(table, "運動性", unit.mobility);
-  tableRow(table, "機體攻擊／防禦", unit.unit_attack + " / " + unit.unit_defense);
-  tableRow(table, "駕駛攻擊／防禦", unit.pilot_attack + " / " + unit.pilot_defense);
-  tableRow(table, "反應", unit.reaction);
+  tableRow(table, "SP", unit.sp + " / " + unit.sp_max);
+  tableRow(table, "移動力", unit.mech.move_range);
+  tableRow(table, "運動性", unit.mech.mobility);
+  tableRow(table, "機體攻擊／防禦", unit.mech.attack + " / " + unit.mech.defense);
+  tableRow(table, "駕駛射擊／格鬥／覺醒",
+    unit.pilot.ranged + " / " + unit.pilot.melee + " / " + unit.pilot.awaken);
+  tableRow(table, "駕駛防禦", unit.pilot.defense);
+  tableRow(table, "反應", unit.pilot.reaction);
   tableRow(table, "盾牌", unit.has_shield ? "有" : "無");
   tableRow(table, "覺醒步數", unit.chance_steps);
   tableRow(table, "支援攻擊餘額", unit.support_attack_charges);
@@ -688,7 +691,7 @@ function inspectUnit(uid) {
   tableRow(table, "技能", unit.skills.map((s) => s.kind + "×" + s.uses).join("、") || "無");
   panel.appendChild(table);
   const box = node("div", "wep");
-  unit.weapons.forEach((weapon) => {
+  unit.mech.weapons.forEach((weapon) => {
     const line = node("div");
     line.appendChild(node("b", null, weapon.name));
     const parts = [
