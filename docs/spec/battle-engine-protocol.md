@@ -818,3 +818,9 @@ difference between two integers is 1.
 - 'hello' gives the version and the command list. A client reads
   them before it sends a command that it does not know to be
   implemented.
+- One exception on record: version 1.4 (2026-08-28, issue #84)
+  removed the flat value fields of the unit payload and put the
+  nested objects 'pilot' and 'mech' in their place, on a user
+  ruling that the unit records state and takes no part in a
+  computation. A client of version 1.3 does not read a 1.4 unit.
+  The section "The unit, the pilot and the mech" holds the shape.
