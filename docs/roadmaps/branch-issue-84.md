@@ -60,8 +60,9 @@ user rejected the name 'AttackTag' on 2026-08-28.
 
 ## Resume point
 
-Step 1 landed (e5186d8, 5df1516). Step 3 is delegated to the code
-editor; step 4 runs in the main session in parallel.
+Steps 1 to 4 landed. Step 5: the code review runs; its findings and
+the English rewrite of the new comment in 'src/ggge_ai/stage/intel.py'
+go in one commit, then the artifact.
 
 ## Progress log
 
@@ -69,6 +70,14 @@ editor; step 4 runs in the main session in parallel.
 - The pilot table crawled: e5186d8. The two measured sentences:
   5df1516.
 - The shape ruled by the user; the reshape delegated.
+- The spec, the terminology and the mapping table: 4c6259c. The
+  pilot-decides-the-counts ruling: e48dbd5. The category name:
+  1ebdeea. The version 1.4 exception: 1e2f59b.
+- The reshape of the engine and the Python mirror, with the goldens
+  converted: b52c922. Gates green, verified a second time by a
+  separate run.
+- The response attack named apart from the pilot reaction: df6f8bc
+  (the map), c0bd1a4 (the code, the goldens, the spec).
 
 ## Contention points
 
