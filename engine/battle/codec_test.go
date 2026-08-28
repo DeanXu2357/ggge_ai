@@ -395,7 +395,7 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 			SupportDefenders: []SupportDefendOption{{Unit: helper}},
 			SupportAttackers: []SupportAttackOption{{Unit: helper, Weapon: &helper.Mech.Weapons[0]}}},
 		Attacker: SideOptions{Unit: attacker},
-		Reactions: []ReactionOption{
+		ResponseAttacks: []ResponseAttackOption{
 			{Stance: StanceDodge},
 			{Stance: StanceCounter, Weapon: "saber", Counter: &counter},
 			{Stance: StanceNone},
@@ -405,18 +405,18 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	if encoded.Defender.UnitID != "d1" || encoded.Attacker.UnitID != "e1" {
 		t.Fatalf("sides: %+v", encoded)
 	}
-	if encoded.Defender.Reactions[0].Stance != protocol.StanceDodge ||
-		encoded.Defender.Reactions[0].Weapon != nil ||
-		encoded.Defender.Reactions[0].Counter != nil {
-		t.Fatalf("dodge: %+v", encoded.Defender.Reactions[0])
+	if encoded.Defender.ResponseAttacks[0].Stance != protocol.StanceDodge ||
+		encoded.Defender.ResponseAttacks[0].Weapon != nil ||
+		encoded.Defender.ResponseAttacks[0].Counter != nil {
+		t.Fatalf("dodge: %+v", encoded.Defender.ResponseAttacks[0])
 	}
-	if *encoded.Defender.Reactions[1].Weapon != "saber" ||
-		encoded.Defender.Reactions[1].Counter == nil {
+	if *encoded.Defender.ResponseAttacks[1].Weapon != "saber" ||
+		encoded.Defender.ResponseAttacks[1].Counter == nil {
 		t.Fatalf("a counter carries the forecast of its own strike: %+v",
-			encoded.Defender.Reactions[1])
+			encoded.Defender.ResponseAttacks[1])
 	}
-	if encoded.Defender.Reactions[2].Stance != protocol.StanceNone {
-		t.Fatalf("the stand: %+v", encoded.Defender.Reactions[2])
+	if encoded.Defender.ResponseAttacks[2].Stance != protocol.StanceNone {
+		t.Fatalf("the stand: %+v", encoded.Defender.ResponseAttacks[2])
 	}
 	if encoded.Defender.SupportDefenders[0].UnitID != "h1" ||
 		encoded.Defender.SupportAttackers[0].Weapon != "rifle" {

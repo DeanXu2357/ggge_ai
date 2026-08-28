@@ -10,8 +10,8 @@ Rules of the wire form:
 - A field that holds None is null on the wire, and null decodes back to None.
 - The encoder writes every field. A decoder that meets an absent field takes
   the zero of the type of the field, because the Go decoder does the same.
-- The stance 'none' does not reach the wire: the reaction menu of the game
-  holds no decline button, so the contract lists no such option.
+- The stance 'none' does not reach the wire: the response attack menu of the
+  game holds no decline button, so the contract lists no such option.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from .state import (
     EventTable,
     Mech,
     Pilot,
-    Reaction,
+    ResponseAttack,
     Skill,
     StageEvent,
     TerrainCell,
@@ -227,21 +227,25 @@ def decode_unit(payload: dict[str, Any]) -> Unit:
     )
 
 
-def encode_reaction(reaction: Reaction) -> dict[str, Any]:
-    if reaction.stance is None:
-        raise ValueError("A reaction with no stance does not reach the wire")
+def encode_response_attack(response_attack: ResponseAttack) -> dict[str, Any]:
+    if response_attack.stance is None:
+        raise ValueError("A response attack with no stance does not reach the wire")
     return {
-        "stance": str(reaction.stance),
-        "weapon": reaction.weapon,
-        "support_defender": reaction.support_defender,
-        "support_attackers": list(reaction.support_attackers),
+        "stance": str(response_attack.stance),
+        "weapon": response_attack.weapon,
+        "support_defender": response_attack.support_defender,
+        "support_attackers": list(response_attack.support_attackers),
     }
 
 
-def decode_reaction(payload: dict[str, Any]) -> Reaction:
-    _known(payload, encode_reaction(Reaction(stance=Stance.DODGE)), "reaction")
+def decode_response_attack(payload: dict[str, Any]) -> ResponseAttack:
+    _known(
+        payload,
+        encode_response_attack(ResponseAttack(stance=Stance.DODGE)),
+        "response_attack",
+    )
     stance = _stance(payload.get("stance"))
-    return Reaction(
+    return ResponseAttack(
         stance=stance,
         weapon=_optional_str(payload, "weapon"),
         support_defender=_optional_str(payload, "support_defender"),
@@ -257,7 +261,11 @@ def encode_decision(decision: Decision) -> dict[str, Any]:
         "target_id": decision.target_id,
         "weapon": decision.weapon,
         "amount": decision.amount,
-        "reaction": None if decision.reaction is None else encode_reaction(decision.reaction),
+        "response_attack": (
+            None
+            if decision.response_attack is None
+            else encode_response_attack(decision.response_attack)
+        ),
         "support_defender": decision.support_defender,
         "support_attackers": list(decision.support_attackers),
         "aim": _optional_cell(decision.aim),
@@ -269,7 +277,7 @@ def encode_decision(decision: Decision) -> dict[str, Any]:
 
 def decode_decision(payload: dict[str, Any]) -> Decision:
     _known(payload, encode_decision(Decision(unit_id="", kind=ActionKind.STANDBY)), "decision")
-    reaction = payload.get("reaction")
+    response_attack = payload.get("response_attack")
     return Decision(
         unit_id=_str(payload, "unit_id"),
         kind=_move_kind(payload.get("kind")),
@@ -277,7 +285,9 @@ def decode_decision(payload: dict[str, Any]) -> Decision:
         target_id=_optional_str(payload, "target_id"),
         weapon=_optional_str(payload, "weapon"),
         amount=_optional_float(payload, "amount"),
-        reaction=None if reaction is None else decode_reaction(reaction),
+        response_attack=(
+            None if response_attack is None else decode_response_attack(response_attack)
+        ),
         support_defender=_optional_str(payload, "support_defender"),
         support_attackers=_names(payload, "support_attackers"),
         aim=_optional_as_cell(payload.get("aim"), "decision.aim"),

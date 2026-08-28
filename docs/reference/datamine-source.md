@@ -632,7 +632,7 @@ Agreements:
 | `stats.attack` | `unit_attack` | |
 | `stats.defense` | `unit_defense` | |
 | `stats.mobility` | `mobility` | |
-| `defend`, `evade` | The stance set of the reaction | Both true everywhere, so they gate nothing today |
+| `defend`, `evade` | The stance set of the response attack | Both true everywhere, so they gate nothing today |
 | `mechanism` row "Shield Defense" | `has_shield` | Free text on one side, a boolean on the other |
 
 Divergences:

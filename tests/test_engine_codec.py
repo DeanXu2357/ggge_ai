@@ -26,7 +26,7 @@ from ggge_ai.engine.state import (
     Decision,
     Mech,
     Pilot,
-    Reaction,
+    ResponseAttack,
     Skill,
     StageEvent,
     TerrainCell,
@@ -43,7 +43,7 @@ STRUCTS = {
     "Pilot": Pilot,
     "Mech": Mech,
     "Unit": Unit,
-    "Reaction": Reaction,
+    "ResponseAttack": ResponseAttack,
     "Decision": Decision,
     "StageEvent": StageEvent,
     "TerrainCell": TerrainCell,
@@ -57,7 +57,9 @@ ENCODERS = {
     "Pilot": lambda: codec.encode_pilot(Pilot()),
     "Mech": lambda: codec.encode_mech(Mech()),
     "Unit": lambda: codec.encode_unit(Unit(unit_id="u", faction=Faction.ALLY)),
-    "Reaction": lambda: codec.encode_reaction(Reaction(stance=Stance.DEFEND)),
+    "ResponseAttack": lambda: codec.encode_response_attack(
+        ResponseAttack(stance=Stance.DEFEND)
+    ),
     "Decision": lambda: codec.encode_decision(Decision(unit_id="u", kind=ActionKind.STANDBY)),
     "StageEvent": lambda: codec.encode_event(StageEvent("e", {}, {})),
     "TerrainCell": lambda: codec.encode_terrain_cell(TerrainCell((0, 0), Terrain.SPACE)),
@@ -130,15 +132,15 @@ def test_an_absent_optional_field_decodes_to_the_same_value_as_null():
     assert codec.decode_decision(lean) == codec.decode_decision(full)
 
 
-def test_a_reaction_with_no_stance_never_reaches_the_wire():
+def test_a_response_attack_with_no_stance_never_reaches_the_wire():
     with pytest.raises(ValueError, match="no stance"):
-        codec.encode_reaction(Reaction())
+        codec.encode_response_attack(ResponseAttack())
 
 
 def test_the_stance_none_decodes():
-    payload = codec.encode_reaction(Reaction(stance=Stance.NONE))
+    payload = codec.encode_response_attack(ResponseAttack(stance=Stance.NONE))
 
-    assert codec.decode_reaction(payload).stance is Stance.NONE
+    assert codec.decode_response_attack(payload).stance is Stance.NONE
 
 
 def test_a_skill_enum_outside_the_contract_stops_the_decode():

@@ -169,12 +169,12 @@ type SkillEntry struct {
 	Affects         SkillAffects `json:"affects"`
 }
 
-type ReactionsRequest struct {
+type ResponseAttacksRequest struct {
 	Action     Decision `json:"action"`      // action of the attacker
 	DefenderID string   `json:"defender_id"` // target of the attacker
 }
 
-type ReactionsResponse struct {
+type ResponseAttacksResponse struct {
 	Defender DefenderOptions `json:"defender"`
 	Attacker AttackerOptions `json:"attacker"`
 }
@@ -185,7 +185,7 @@ type Forecast struct {
 	Kill    *bool    `json:"kill"`
 }
 
-type ReactionOption struct {
+type ResponseAttackOption struct {
 	Stance   Stance    `json:"stance"`
 	Weapon   *string   `json:"weapon"`
 	Incoming Forecast  `json:"incoming"`
@@ -204,10 +204,10 @@ type SupportAttackOption struct {
 }
 
 type DefenderOptions struct {
-	UnitID           string                `json:"unit_id"`
-	Reactions        []ReactionOption      `json:"reactions"`
-	SupportDefenders []SupportDefendOption `json:"support_defenders"`
-	SupportAttackers []SupportAttackOption `json:"support_attackers"`
+	UnitID           string                 `json:"unit_id"`
+	ResponseAttacks  []ResponseAttackOption `json:"response_attacks"`
+	SupportDefenders []SupportDefendOption  `json:"support_defenders"`
+	SupportAttackers []SupportAttackOption  `json:"support_attackers"`
 }
 
 type AttackerOptions struct {
@@ -217,10 +217,10 @@ type AttackerOptions struct {
 }
 
 type ActRequest struct {
-	UnitID   string    `json:"unit_id"`
-	Action   Decision  `json:"action"`
-	Reaction *Reaction `json:"reaction,omitempty"`
-	Dice     Dice      `json:"dice"`
+	UnitID         string          `json:"unit_id"`
+	Action         Decision        `json:"action"`
+	ResponseAttack *ResponseAttack `json:"response_attack,omitempty"`
+	Dice           Dice            `json:"dice"`
 }
 
 // An entry of 'events' is a StrikeEvent or a PhaseEvent; the field 'event'

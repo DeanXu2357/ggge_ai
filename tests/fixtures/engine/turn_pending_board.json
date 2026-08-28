@@ -516,7 +516,7 @@
           "target_id": null,
           "weapon": null,
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [],
           "aim": null,

@@ -21,7 +21,7 @@ DECLARED_COMMANDS: tuple[str, ...] = (
     "roster",
     "reach",
     "actions",
-    "reactions",
+    "response_attacks",
     "act",
     "rollback",
     "set_unit",
@@ -74,8 +74,8 @@ class Terrain(StrEnum):
 
 class Stance(StrEnum):
     """'none' is the unit that stands and takes the strike. 'shield' is no
-    answer of the 'reactions' command: the shield of a unit settles during the
-    damage, in 'act'.
+    answer of the 'response_attacks' command: the shield of a unit settles
+    during the damage, in 'act'.
     """
 
     DODGE = "dodge"

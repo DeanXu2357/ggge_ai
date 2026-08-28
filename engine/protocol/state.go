@@ -160,8 +160,8 @@ type Debuff struct {
 	AppliedPhase int     `json:"applied_phase"`
 }
 
-// Reaction is the reaction value of the pilot, and not the Reaction type of a
-// defense.
+// Reaction is the reaction value of the pilot, and not the response attack
+// of a defender.
 type Pilot struct {
 	Ranged   float64 `json:"ranged"`
 	Melee    float64 `json:"melee"`
@@ -212,7 +212,7 @@ type Unit struct {
 	Debuffs                 []Debuff       `json:"debuffs"`
 }
 
-type Reaction struct {
+type ResponseAttack struct {
 	Stance           Stance   `json:"stance"`
 	Weapon           *string  `json:"weapon"`
 	SupportDefender  *string  `json:"support_defender"`
@@ -222,19 +222,19 @@ type Reaction struct {
 // Decision carries three dice fields, and each holds three values: the node
 // landed, the node missed, and the caller settles the node somewhere else.
 type Decision struct {
-	UnitID           string     `json:"unit_id"`
-	Kind             ActionKind `json:"kind"`
-	MoveTo           *Cell      `json:"move_to"`
-	TargetID         *string    `json:"target_id"`
-	Weapon           *string    `json:"weapon"`
-	Amount           *float64   `json:"amount"`
-	Reaction         *Reaction  `json:"reaction"`
-	SupportDefender  *string    `json:"support_defender"`
-	SupportAttackers []string   `json:"support_attackers"`
-	Aim              *Cell      `json:"aim"`
-	Hit              *bool      `json:"hit"`
-	CounterHit       *bool      `json:"counter_hit"`
-	SupportHit       *bool      `json:"support_hit"`
+	UnitID           string          `json:"unit_id"`
+	Kind             ActionKind      `json:"kind"`
+	MoveTo           *Cell           `json:"move_to"`
+	TargetID         *string         `json:"target_id"`
+	Weapon           *string         `json:"weapon"`
+	Amount           *float64        `json:"amount"`
+	ResponseAttack   *ResponseAttack `json:"response_attack"`
+	SupportDefender  *string         `json:"support_defender"`
+	SupportAttackers []string        `json:"support_attackers"`
+	Aim              *Cell           `json:"aim"`
+	Hit              *bool           `json:"hit"`
+	CounterHit       *bool           `json:"counter_hit"`
+	SupportHit       *bool           `json:"support_hit"`
 }
 
 // StageEvent keeps its trigger and its effect raw: the model holds them as free

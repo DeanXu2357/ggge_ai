@@ -207,11 +207,11 @@ class BattleState:
 
 
 @dataclass(frozen=True)
-class Reaction:
+class ResponseAttack:
     """The answer of the defender to one strike.
 
-    A stance of None is a strike that settles no reaction. The contract holds
-    no such value, and the field is absent on the wire.
+    A stance of None is a strike that settles no response attack. The contract
+    holds no such value, and the field is absent on the wire.
     """
 
     stance: Stance | None = None
@@ -230,7 +230,7 @@ class Decision:
     target_id: str | None = None
     weapon: str | None = None
     amount: float | None = None
-    reaction: Reaction | None = None
+    response_attack: ResponseAttack | None = None
     support_defender: str | None = None
     support_attackers: tuple[str, ...] = ()
     aim: Cell | None = None

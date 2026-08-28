@@ -204,7 +204,7 @@ func TestABattleRunsToAnnihilation(t *testing.T) {
 		decision := standby(actor.ID)
 		if len(targets) > 0 {
 			decision = Decision{UnitID: actor.ID, Kind: ActionAttack, TargetID: targets[0].ID, Weapon: "gun",
-				Reaction: &Reaction{Stance: StanceNone}}
+				ResponseAttack: &ResponseAttack{Stance: StanceNone}}
 		}
 		if _, err := board.Act(decision, dice); err != nil {
 			t.Fatalf("act %d: %v", acts, err)

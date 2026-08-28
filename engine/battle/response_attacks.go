@@ -7,7 +7,7 @@ type SupportAttacker struct {
 	Weapon *Weapon
 }
 
-type ReactionOption struct {
+type ResponseAttackOption struct {
 	Stance   Stance
 	Weapon   string
 	Incoming Forecast
@@ -32,12 +32,12 @@ type SideOptions struct {
 }
 
 type Engagement struct {
-	Defender  SideOptions
-	Attacker  SideOptions
-	Reactions []ReactionOption
+	Defender        SideOptions
+	Attacker        SideOptions
+	ResponseAttacks []ResponseAttackOption
 }
 
-func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error) {
+func (b *Board) ResponseAttacks(action Decision, defenderID string) (Engagement, error) {
 	defender, err := b.livingUnit(defenderID)
 	if err != nil {
 		return Engagement{}, err
@@ -51,9 +51,9 @@ func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error
 			action.Kind, defenderID)
 	}
 	out := Engagement{
-		Defender:  SideOptions{Unit: defender},
-		Attacker:  SideOptions{Unit: attacker},
-		Reactions: []ReactionOption{},
+		Defender:        SideOptions{Unit: defender},
+		Attacker:        SideOptions{Unit: attacker},
+		ResponseAttacks: []ResponseAttackOption{},
 	}
 	weapon := attacker.Weapon(action.Weapon)
 	if weapon == nil {
@@ -67,7 +67,7 @@ func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error
 			action.Weapon, attacker.ID, defenderID, origin.Anchor)
 	}
 
-	out.Reactions = append(out.Reactions,
+	out.ResponseAttacks = append(out.ResponseAttacks,
 		b.stanceOption(attacker, defender, weapon, StanceDodge, ""),
 		b.stanceOption(attacker, defender, weapon, StanceDefend, ""))
 	for index := range defender.Mech.Weapons {
@@ -79,10 +79,10 @@ func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error
 			option := b.stanceOption(attacker, defender, weapon, StanceCounter, counter.Name)
 			reply := b.forecastOf(defender, attacker, counter, NoDefenseMultiplier, false)
 			option.Counter = &reply
-			out.Reactions = append(out.Reactions, option)
+			out.ResponseAttacks = append(out.ResponseAttacks, option)
 		}
 	}
-	out.Reactions = append(out.Reactions,
+	out.ResponseAttacks = append(out.ResponseAttacks,
 		b.stanceOption(attacker, defender, weapon, StanceNone, ""))
 
 	out.Defender.SupportDefenders = b.defendOptions(attacker, weapon,
@@ -99,8 +99,8 @@ func (b *Board) Reactions(action Decision, defenderID string) (Engagement, error
 }
 
 func (b *Board) stanceOption(attacker, defender *Unit, weapon *Weapon, stance Stance,
-	counter string) ReactionOption {
-	return ReactionOption{
+	counter string) ResponseAttackOption {
+	return ResponseAttackOption{
 		Stance: stance,
 		Weapon: counter,
 		Incoming: b.forecastOf(attacker, defender, weapon,

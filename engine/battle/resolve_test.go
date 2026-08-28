@@ -147,7 +147,7 @@ func TestTheSupportDefenderTakesEveryShotAndOneCharge(t *testing.T) {
 	state := covered()
 	decision := attackOn("e1", "beam rifle")
 	decision.SupportAttackers = []string{"a2"}
-	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefender: "e2"}
+	decision.ResponseAttack = &ResponseAttack{Stance: StanceDodge, SupportDefender: "e2"}
 
 	trace := apply(t, state, decision, Forced{AttackerSupport: true, Strike: true})
 
@@ -170,7 +170,7 @@ func TestASupportAttackThatMissesSpendsNoSupportDefendCharge(t *testing.T) {
 	state := covered()
 	decision := attackOn("e1", "beam rifle")
 	decision.SupportAttackers = []string{"a2"}
-	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefender: "e2"}
+	decision.ResponseAttack = &ResponseAttack{Stance: StanceDodge, SupportDefender: "e2"}
 
 	apply(t, state, decision, Forced{})
 
@@ -226,7 +226,7 @@ func TestTheDefenderRepliesWithItsSupportAndItsCounter(t *testing.T) {
 	state.Unit("e2").SupportAttackCharges = 1
 	state.Unit("e2").Mech.Weapons = []Weapon{beam()}
 	decision := attackOn("e1", "beam rifle")
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle",
+	decision.ResponseAttack = &ResponseAttack{Stance: StanceCounter, Weapon: "beam rifle",
 		SupportAttackers: []string{"e2"}}
 
 	trace := apply(t, state, decision, Forced{DefenderSupport: true, Strike: true, Counter: true})
@@ -247,7 +247,7 @@ func TestTheDefenderRepliesWithItsSupportAndItsCounter(t *testing.T) {
 func TestACounterThatMissesSpendsItsEnergy(t *testing.T) {
 	state := shootout()
 	decision := attackOn("e1", "beam rifle")
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	decision.ResponseAttack = &ResponseAttack{Stance: StanceCounter, Weapon: "beam rifle"}
 
 	trace := apply(t, state, decision, Forced{Strike: true})
 
@@ -263,7 +263,7 @@ func TestADeadTargetRepliesWithNothing(t *testing.T) {
 	state := shootout()
 	state.Unit("e1").HP = 1
 	decision := attackOn("e1", "beam rifle")
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	decision.ResponseAttack = &ResponseAttack{Stance: StanceCounter, Weapon: "beam rifle"}
 
 	trace := apply(t, state, decision, Forced{Strike: true, Counter: true})
 
@@ -281,7 +281,7 @@ func TestTheSupportDefendWhenAttackTakesTheCounterForTheAttacker(t *testing.T) {
 	state.Units = append(state.Units, bearer)
 	decision := attackOn("e1", "beam rifle")
 	decision.SupportDefender = "a2"
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	decision.ResponseAttack = &ResponseAttack{Stance: StanceCounter, Weapon: "beam rifle"}
 
 	trace := apply(t, state, decision, Forced{Strike: true, Counter: true})
 
@@ -390,8 +390,8 @@ func TestAStrikeNamesALivingFoeAndNoOtherUnit(t *testing.T) {
 	}
 }
 
-func TestAReactionThatBreaksARuleIsAnError(t *testing.T) {
-	cases := map[string]Reaction{
+func TestAResponseAttackThatBreaksARuleIsAnError(t *testing.T) {
+	cases := map[string]ResponseAttack{
 		"a defense that takes a support defender as well": {Stance: StanceDefend,
 			SupportDefender: "e2"},
 		"a unit of the other side as the support defender": {Stance: StanceDodge,
@@ -403,11 +403,11 @@ func TestAReactionThatBreaksARuleIsAnError(t *testing.T) {
 			Weapon: "wire net"},
 	}
 
-	for name, reaction := range cases {
+	for name, responseAttack := range cases {
 		t.Run(name, func(t *testing.T) {
 			state := covered()
 			decision := attackOn("e1", "beam rifle")
-			decision.Reaction = &reaction
+			decision.ResponseAttack = &responseAttack
 
 			_, err := state.Apply(decision, Forced{Strike: true})
 
@@ -421,10 +421,10 @@ func TestAReactionThatBreaksARuleIsAnError(t *testing.T) {
 	}
 }
 
-func TestAStrikeWithNoReactionAndOneWithACounterBothRun(t *testing.T) {
+func TestAStrikeWithNoResponseAttackAndOneWithACounterBothRun(t *testing.T) {
 	state := shootout()
 	counter := attackOn("e1", "beam rifle")
-	counter.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	counter.ResponseAttack = &ResponseAttack{Stance: StanceCounter, Weapon: "beam rifle"}
 
 	apply(t, state, counter, Forced{Strike: true, Counter: true})
 
@@ -432,7 +432,7 @@ func TestAStrikeWithNoReactionAndOneWithACounterBothRun(t *testing.T) {
 	apply(t, state, attackOn("e1", "beam rifle"), Forced{Strike: true})
 
 	if state.Unit("e1").HP >= 12000 {
-		t.Fatal("a strike that carries no reaction stays legal")
+		t.Fatal("a strike that carries no response attack stays legal")
 	}
 }
 
@@ -441,7 +441,7 @@ func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheCover(t *testing.T) {
 	state.Unit("e2").Mech.Mobility = 900
 	state.Unit("e2").Pilot.Reaction = 900
 	decision := attackOn("e1", "beam rifle")
-	decision.Reaction = &Reaction{Stance: StanceDodge, SupportDefender: "e2"}
+	decision.ResponseAttack = &ResponseAttack{Stance: StanceDodge, SupportDefender: "e2"}
 	nodes := probes{}
 
 	trace, err := state.Apply(decision, nodes)
@@ -495,7 +495,7 @@ func TestAnUnpaidWeaponAndAnEmptyCounterAreErrors(t *testing.T) {
 	state = shootout()
 	state.Unit("e1").Mech.Weapons[0].CanCounter = false
 	decision := attackOn("e1", "beam rifle")
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	decision.ResponseAttack = &ResponseAttack{Stance: StanceCounter, Weapon: "beam rifle"}
 
 	_, err := state.Apply(decision, Forced{Strike: true})
 
@@ -536,7 +536,7 @@ func TestTheAttackerNamesAUnitThatCanTakeTheCounterForIt(t *testing.T) {
 	state.Units = append(state.Units, plain)
 	decision := attackOn("e1", "beam rifle")
 	decision.SupportDefender = "a2"
-	decision.Reaction = &Reaction{Stance: StanceCounter, Weapon: "beam rifle"}
+	decision.ResponseAttack = &ResponseAttack{Stance: StanceCounter, Weapon: "beam rifle"}
 
 	_, err := state.Apply(decision, Forced{Strike: true, Counter: true})
 

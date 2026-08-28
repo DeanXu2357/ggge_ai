@@ -70,7 +70,7 @@ func TestHelloListsEveryDeclaredCommand(t *testing.T) {
 	}
 	built := map[string]bool{
 		"hello": true, "ping": true, "load": true, "reach": true,
-		"actions": true, "reactions": true,
+		"actions": true, "response_attacks": true,
 		"init": true, "act": true, "export": true,
 	}
 	for index, command := range payload.Commands {

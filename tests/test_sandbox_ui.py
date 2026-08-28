@@ -128,24 +128,24 @@ def test_the_decision_asks_the_engine_for_every_unit_of_the_phase(client):
     assert first["actions"] == [{"unit_id": first["unit_id"], "kind": "standby"}]
 
 
-def test_the_reaction_request_carries_the_strike_the_spec_names(client):
+def test_the_response_attack_request_carries_the_strike_the_spec_names(client):
     pending = client.get("/api/decision")
     attacker = pending["units"][0]["unit_id"]
     body = {"candidate": {"unit_id": attacker, "kind": "attack", "target_id": attacker}}
 
-    status, payload = client.post("/api/reactions", body)
+    status, payload = client.post("/api/response_attacks", body)
 
     assert status == 200
-    assert payload == {"reactions": []}
+    assert payload == {"response_attacks": []}
 
 
 def test_an_action_that_names_no_target_asks_the_engine_nothing(client):
     body = {"candidate": {"unit_id": "x", "kind": "standby"}}
 
-    status, payload = client.post("/api/reactions", body)
+    status, payload = client.post("/api/response_attacks", body)
 
     assert status == 200
-    assert payload == {"reactions": []}
+    assert payload == {"response_attacks": []}
 
 
 def test_the_step_reads_the_board_back_from_the_engine(client):

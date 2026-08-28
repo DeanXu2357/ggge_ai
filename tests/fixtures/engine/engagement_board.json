@@ -1,6 +1,6 @@
 {
   "name": "engagement_board",
-  "note": "One strike with every reaction: the stances, the interception, and the support attack of each side. The stance 'defend' of the shield holder is not here: the oracle read one shield value, and the shield is a second cut on top of the defense.",
+  "note": "One strike with every response attack: the stances, the interception, and the support attack of each side. The stance 'defend' of the shield holder is not here: the oracle read one shield value, and the shield is a second cut on top of the defense.",
   "setup": {
     "events": {},
     "state": {
@@ -860,7 +860,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [],
           "aim": null,
@@ -1290,7 +1290,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [],
           "aim": null,
@@ -1720,7 +1720,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": {
+          "response_attack": {
             "stance": "dodge",
             "weapon": null,
             "support_defender": null,
@@ -2155,7 +2155,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": {
+          "response_attack": {
             "stance": "counter",
             "weapon": "beam rifle",
             "support_defender": null,
@@ -2590,7 +2590,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": {
+          "response_attack": {
             "stance": "counter",
             "weapon": "beam rifle",
             "support_defender": null,
@@ -3025,7 +3025,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": {
+          "response_attack": {
             "stance": "dodge",
             "weapon": null,
             "support_defender": "enemy_2",
@@ -3460,7 +3460,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": {
+          "response_attack": {
             "stance": "dodge",
             "weapon": null,
             "support_defender": "enemy_2",
@@ -3895,7 +3895,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [
             "ally_3"
@@ -4327,7 +4327,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": null,
+          "response_attack": null,
           "support_defender": null,
           "support_attackers": [
             "ally_3"
@@ -4759,7 +4759,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": {
+          "response_attack": {
             "stance": "dodge",
             "weapon": null,
             "support_defender": "enemy_2",
@@ -5196,7 +5196,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": {
+          "response_attack": {
             "stance": "dodge",
             "weapon": null,
             "support_defender": null,
@@ -5633,7 +5633,7 @@
           "target_id": "enemy_1",
           "weapon": "beam rifle",
           "amount": null,
-          "reaction": {
+          "response_attack": {
             "stance": "counter",
             "weapon": "beam rifle",
             "support_defender": null,

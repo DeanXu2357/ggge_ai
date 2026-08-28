@@ -1,5 +1,5 @@
 {
-  "name": "reaction_board",
+  "name": "response_attack_board",
   "note": "Shields, counters, a support defender and a support attacker, in one row.",
   "setup": {
     "events": {},

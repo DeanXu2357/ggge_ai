@@ -14,7 +14,7 @@ import pytest
 from ggge_ai.engine.client import BattleEngine, EngineDead, EngineError, EngineTimeout
 from ggge_ai.engine.contract import DECLARED_COMMANDS, PROTOCOL_VERSION, ErrorCode
 
-IMPLEMENTED = {"hello", "ping", "init", "load", "export", "reach", "actions", "reactions", "act"}
+IMPLEMENTED = {"hello", "ping", "init", "load", "export", "reach", "actions", "response_attacks", "act"}
 
 
 def _script(path: Path, body: str) -> Path:

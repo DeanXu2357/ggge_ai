@@ -390,12 +390,12 @@ func DecodeDecision(action *protocol.Decision) (Decision, error) {
 		SupportDefender:  decodeOptionalName(action.SupportDefender),
 		SupportAttackers: append([]string(nil), action.SupportAttackers...),
 	}
-	if action.Reaction != nil {
-		reaction, err := DecodeReaction(*action.Reaction)
+	if action.ResponseAttack != nil {
+		responseAttack, err := DecodeResponseAttack(*action.ResponseAttack)
 		if err != nil {
 			return Decision{}, err
 		}
-		out.Reaction = &reaction
+		out.ResponseAttack = &responseAttack
 	}
 	if action.MoveTo != nil {
 		cell := DecodeCell(*action.MoveTo)
@@ -408,17 +408,17 @@ func DecodeDecision(action *protocol.Decision) (Decision, error) {
 	return out, nil
 }
 
-func DecodeReaction(reaction protocol.Reaction) (Reaction, error) {
-	stance, known := decodedStances[reaction.Stance]
+func DecodeResponseAttack(responseAttack protocol.ResponseAttack) (ResponseAttack, error) {
+	stance, known := decodedStances[responseAttack.Stance]
 	if !known {
-		return Reaction{}, fmt.Errorf("the reaction carries the stance %q, which is not in the contract",
-			reaction.Stance)
+		return ResponseAttack{}, fmt.Errorf("the response attack carries the stance %q, which is not in the contract",
+			responseAttack.Stance)
 	}
-	return Reaction{
+	return ResponseAttack{
 		Stance:           stance,
-		Weapon:           decodeOptionalName(reaction.Weapon),
-		SupportDefender:  decodeOptionalName(reaction.SupportDefender),
-		SupportAttackers: append([]string(nil), reaction.SupportAttackers...),
+		Weapon:           decodeOptionalName(responseAttack.Weapon),
+		SupportDefender:  decodeOptionalName(responseAttack.SupportDefender),
+		SupportAttackers: append([]string(nil), responseAttack.SupportAttackers...),
 	}, nil
 }
 
@@ -429,11 +429,11 @@ func decodeOptionalName(name *string) string {
 	return *name
 }
 
-func EncodeEngagement(engagement Engagement) protocol.ReactionsResponse {
-	return protocol.ReactionsResponse{
+func EncodeEngagement(engagement Engagement) protocol.ResponseAttacksResponse {
+	return protocol.ResponseAttacksResponse{
 		Defender: protocol.DefenderOptions{
 			UnitID:           engagement.Defender.Unit.ID,
-			Reactions:        encodeReactionOptions(engagement.Reactions),
+			ResponseAttacks:  encodeResponseAttackOptions(engagement.ResponseAttacks),
 			SupportDefenders: encodeSupportDefenders(engagement.Defender.SupportDefenders),
 			SupportAttackers: encodeSupportAttackers(engagement.Defender.SupportAttackers),
 		},
@@ -445,10 +445,10 @@ func EncodeEngagement(engagement Engagement) protocol.ReactionsResponse {
 	}
 }
 
-func encodeReactionOptions(options []ReactionOption) []protocol.ReactionOption {
-	out := make([]protocol.ReactionOption, 0, len(options))
+func encodeResponseAttackOptions(options []ResponseAttackOption) []protocol.ResponseAttackOption {
+	out := make([]protocol.ResponseAttackOption, 0, len(options))
 	for _, option := range options {
-		entry := protocol.ReactionOption{
+		entry := protocol.ResponseAttackOption{
 			Stance:   wireStances[option.Stance],
 			Weapon:   encodeOptionalName(option.Weapon),
 			Incoming: EncodeForecast(option.Incoming),

@@ -9,15 +9,15 @@ import (
 )
 
 func TestTheStanceNoneDecodes(t *testing.T) {
-	var reaction protocol.Reaction
+	var responseAttack protocol.ResponseAttack
 
-	if err := json.Unmarshal([]byte(`{"stance":"none"}`), &reaction); err != nil {
+	if err := json.Unmarshal([]byte(`{"stance":"none"}`), &responseAttack); err != nil {
 		t.Fatalf("error: %v", err)
 	}
-	if reaction.Stance != protocol.StanceNone {
-		t.Fatalf("stance: %v", reaction.Stance)
+	if responseAttack.Stance != protocol.StanceNone {
+		t.Fatalf("stance: %v", responseAttack.Stance)
 	}
-	if err := json.Unmarshal([]byte(`{"stance":"flee"}`), &reaction); err == nil ||
+	if err := json.Unmarshal([]byte(`{"stance":"flee"}`), &responseAttack); err == nil ||
 		!strings.Contains(err.Error(), `stance "flee"`) {
 		t.Fatalf("a stance outside the contract: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestAnAbsentOptionalFieldDecodesToTheSameValueAsNull(t *testing.T) {
 		t.Fatalf("absent: %v", err)
 	}
 	body := `{"unit_id":"a","kind":"standby","move_to":null,"target_id":null,"weapon":null,` +
-		`"amount":null,"reaction":null,"aim":null,"hit":null,"counter_hit":null,` +
+		`"amount":null,"response_attack":null,"aim":null,"hit":null,"counter_hit":null,` +
 		`"support_hit":null}`
 	if err := json.Unmarshal([]byte(body), &null); err != nil {
 		t.Fatalf("null: %v", err)

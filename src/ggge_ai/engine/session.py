@@ -69,16 +69,17 @@ class EngineSession:
             units.append({"unit_id": unit.unit_id, "actions": answer.get("actions", [])})
         return {"turn": self._state.turn, "phase": str(self._state.phase), "units": units}
 
-    def reaction_options(self, action: Mapping[str, Any]) -> dict[str, Any]:
+    def response_attack_options(self, action: Mapping[str, Any]) -> dict[str, Any]:
         request = self._strike(action)
         if request is None:
-            return {"reactions": []}
-        return {"reactions": self._ask("reactions", request).get("reactions", [])}
+            return {"response_attacks": []}
+        answer = self._ask("response_attacks", request)
+        return {"response_attacks": answer.get("response_attacks", [])}
 
     def act(
         self,
         action: Mapping[str, Any],
-        reaction: Mapping[str, Any] | None,
+        response_attack: Mapping[str, Any] | None,
         dice: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         request: dict[str, Any] = {
@@ -86,14 +87,14 @@ class EngineSession:
             "action": dict(action),
             "dice": dict(dice) if dice else {"mode": str(DiceMode.SAMPLED)},
         }
-        if reaction is not None:
-            request["reaction"] = dict(reaction)
+        if response_attack is not None:
+            request["response_attack"] = dict(response_attack)
         answer = self._ask("act", request)
         self._read_back()
         return {"events": answer.get("events", []), "board": answer.get("board", {})}
 
     def _strike(self, action: Mapping[str, Any]) -> dict[str, Any] | None:
-        """The reaction request that one attack of the action list asks about.
+        """The response attack request that one attack of the action list asks about.
 
         The command reads the cell of the attacker after its move, so a client
         can ask about a move that did not occur.

@@ -252,20 +252,20 @@ func (u *Unit) Weapon(name string) *Weapon {
 // 'action' and the model names it 'Decision'; this package keeps the model
 // name.
 type Decision struct {
-	UnitID   string
-	Kind     ActionKind
-	MoveTo   *Cell
-	TargetID string
-	Weapon   string
-	Amount   *float64
-	Aim      *Cell
-	Reaction *Reaction
+	UnitID         string
+	Kind           ActionKind
+	MoveTo         *Cell
+	TargetID       string
+	Weapon         string
+	Amount         *float64
+	Aim            *Cell
+	ResponseAttack *ResponseAttack
 
 	SupportDefender  string
 	SupportAttackers []string
 }
 
-type Reaction struct {
+type ResponseAttack struct {
 	Stance           Stance
 	Weapon           string
 	SupportDefender  string
