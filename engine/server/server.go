@@ -1,4 +1,3 @@
-// Package server holds the stdio loop and the command registry of the engine.
 package server
 
 import (
@@ -56,8 +55,8 @@ func (s *Server) dispatch(line []byte) protocol.Response {
 	if err := json.Unmarshal(line, &request); err != nil {
 		return protocol.Fail("", protocol.CodeBadRequest, err.Error())
 	}
-	if handler, ok := s.handlers[request.Cmd]; ok {
-		return handler(request.ID, payloadOf(request))
+	if run, ok := s.handlers[request.Cmd]; ok {
+		return run(request.ID, payloadOf(request))
 	}
 	if protocol.IsDeclared(request.Cmd) {
 		return protocol.Fail(request.ID, protocol.CodeNotImplemented,
