@@ -1,25 +1,42 @@
 package board
 
 import (
-	"math"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 )
 
-// The frozen goldens under tests/fixtures/engine hold the values of the
-// Python 'round', which rounds a half to the even integer, so the rounding
-// is RoundToEven and not Round.
-//
-// The terrain correction is NoTerrainCorrection for every weapon. The
-// correction is the effect of a weapon ability that reads the terrain of the
-// cell of the target, and the engine models no ability yet. The function
-// takes no terrain and no board on purpose: issue #80 gives the weapon its
-// ability list, and the signature changes with it.
-func StrikeDamage(attacker, defender *Unit, weapon *Weapon, defense float64) int {
-	raw := ExpectedDamage(*weapon, attacker, defender, NoTerrainCorrection,
-		debuffBonus(defender), 0, defense)
-	return int(math.RoundToEven(raw))
+func attackerSide(attacker *unit, weapon weapon) formula.Side {
+	return formula.Side{
+		PilotAttack:   attacker.Pilot.attackFor(weapon),
+		PilotDefense:  attacker.Pilot.Defense,
+		PilotReaction: attacker.Pilot.Reaction,
+		MechAttack:    attacker.Mech.Attack,
+		MechDefense:   attacker.Mech.Defense,
+		Mobility:      attacker.Mech.Mobility,
+	}
 }
 
-func debuffBonus(defender *Unit) float64 {
+// No formula reads the pilot attack of the defender, and the weapon of the
+// strike belongs to the attacker, so the defender side carries no attack value.
+func defenderSide(defender *unit) formula.Side {
+	return formula.Side{
+		PilotDefense:  defender.Pilot.Defense,
+		PilotReaction: defender.Pilot.Reaction,
+		MechAttack:    defender.Mech.Attack,
+		MechDefense:   defender.Mech.Defense,
+		Mobility:      defender.Mech.Mobility,
+	}
+}
+
+// The terrain correction is NoTerrainCorrection for every weapon. The
+// correction is the effect of a weapon ability that reads the terrain of the
+// cell of the target, and the engine models no ability yet.
+func strikeDamage(attacker, defender *unit, weapon *weapon, defense float64) int {
+	return formula.StrikeDamage(weapon.Power, attackerSide(attacker, *weapon),
+		defenderSide(defender), formula.NoTerrainCorrection, debuffBonus(defender), 0,
+		defense)
+}
+
+func debuffBonus(defender *unit) float64 {
 	var sum float64
 	for _, debuff := range defender.Debuffs {
 		sum += debuff.Magnitude
@@ -27,18 +44,18 @@ func debuffBonus(defender *Unit) float64 {
 	return sum
 }
 
-// The hit formula reads the accuracy from the weapon itself, so this
-// function passes the dodge penalty alone.
-func StrikeHitProbability(attacker, defender *Unit, weapon *Weapon,
-	dodging bool) float64 {
-	ability := 0.0
-	if dodging {
-		ability -= DodgeHitPenalty
-	}
-	return HitProbability(*weapon, attacker, defender, ability)
+func strikeHitProbability(attacker, defender *unit, weapon *weapon, dodging bool) float64 {
+	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(attacker, *weapon),
+		defenderSide(defender), dodging)
 }
 
-func (b *Board) counterWeapon(defender *Unit, name string, attacker footprint) *Weapon {
+// The response attack menu offers no shield stance, so a defender that
+// carries a shield defends with the shield here, in the damage (issue #63).
+func defenseMultiplier(stance stance, defender *unit) float64 {
+	return formula.DefenseMultiplier(stance == stanceDefend, defender.HasShield)
+}
+
+func (b *Board) counterWeapon(defender *unit, name string, attacker footprint) *weapon {
 	distance := spanDistance(defender.Footprint, attacker)
 	for index := range defender.Mech.Weapons {
 		weapon := &defender.Mech.Weapons[index]
@@ -52,7 +69,7 @@ func (b *Board) counterWeapon(defender *Unit, name string, attacker footprint) *
 	return nil
 }
 
-func counterFits(defender *Unit, weapon *Weapon, distance int) bool {
+func counterFits(defender *unit, weapon *weapon, distance int) bool {
 	return !weapon.MapWeapon && weapon.CanCounter && defender.hasENFor(*weapon) &&
 		weapon.Range.holds(distance)
 }

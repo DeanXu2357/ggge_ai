@@ -10,16 +10,16 @@ import (
 
 func shootout() *Board {
 	attacker := fighter("a1", factionAlly, cell{0, 0})
-	attacker.Mech.Weapons = []Weapon{beam()}
+	attacker.Mech.Weapons = []weapon{beam()}
 	target := fighter("e1", factionEnemy, cell{3, 0})
-	target.Mech.Weapons = []Weapon{beam()}
+	target.Mech.Weapons = []weapon{beam()}
 	return board(attacker, target)
 }
 
 func covered() *Board {
 	state := shootout()
 	supporter := fighter("a2", factionAlly, cell{1, 1})
-	supporter.Mech.Weapons = []Weapon{beam()}
+	supporter.Mech.Weapons = []weapon{beam()}
 	supporter.Mech.MoveRange = 2
 	supporter.SupportAttackCharges = 1
 	guard := fighter("e2", factionEnemy, cell{2, 0})
@@ -200,9 +200,9 @@ func TestTheSupportAttackOfTheAttackerIsAChoice(t *testing.T) {
 func TestTheRulesCapTheNumberOfSupportAttackers(t *testing.T) {
 	state := covered()
 	names := []string{"a2"}
-	for index := 0; index <= MaxSupportAttackers; index++ {
+	for index := 0; index <= maxSupportAttackers; index++ {
 		joining := fighter(fmt.Sprintf("a%d", index+3), factionAlly, cell{2, index + 1})
-		joining.Mech.Weapons = []Weapon{beam()}
+		joining.Mech.Weapons = []weapon{beam()}
 		joining.Mech.MoveRange = 3
 		joining.SupportAttackCharges = 1
 		state.units = append(state.units, joining)
@@ -214,7 +214,7 @@ func TestTheRulesCapTheNumberOfSupportAttackers(t *testing.T) {
 	_, err := state.Apply(decision, battle.Forced{AttackerSupport: true, Strike: true})
 
 	if !errors.Is(err, battle.ErrIllegalAction) {
-		t.Fatalf("the cap of the rules is %d units: %v", MaxSupportAttackers, err)
+		t.Fatalf("the cap of the rules is %d units: %v", maxSupportAttackers, err)
 	}
 	for _, name := range names {
 		if state.unit(name).SupportAttackCharges != 1 {
@@ -226,7 +226,7 @@ func TestTheRulesCapTheNumberOfSupportAttackers(t *testing.T) {
 func TestTheDefenderRepliesWithItsSupportAndItsCounter(t *testing.T) {
 	state := covered()
 	state.unit("e2").SupportAttackCharges = 1
-	state.unit("e2").Mech.Weapons = []Weapon{beam()}
+	state.unit("e2").Mech.Weapons = []weapon{beam()}
 	decision := attackOn("e1", "beam rifle")
 	decision.ResponseAttack = &responseAttack{Stance: stanceCounter, Weapon: "beam rifle",
 		SupportAttackers: []string{"e2"}}
@@ -306,7 +306,7 @@ func TestADebuffReplacesAWeakerOneAndLeavesAStrongerOne(t *testing.T) {
 	for name, one := range cases {
 		t.Run(name, func(t *testing.T) {
 			state := shootout()
-			state.unit("a1").Mech.Weapons = []Weapon{net}
+			state.unit("a1").Mech.Weapons = []weapon{net}
 			state.unit("e1").Debuffs = []debuff{
 				{Kind: "mobility_down", Magnitude: 0.3, AppliedPhase: 1},
 				{Kind: "armor_break", Magnitude: one.start, AppliedPhase: 1},
@@ -333,7 +333,7 @@ func TestAMapAttackIsRefusedAndLeavesTheBoard(t *testing.T) {
 	state := shootout()
 	shells := beam()
 	shells.Name, shells.MapWeapon, shells.ENCost = "shells", true, 5
-	state.unit("a1").Mech.Weapons = []Weapon{shells}
+	state.unit("a1").Mech.Weapons = []weapon{shells}
 	state.unit("a1").Ammo = map[string]int{"shells": 2}
 	aim := cell{3, 0}
 
@@ -452,7 +452,7 @@ func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheCover(t *testing.T) {
 	}
 
 	weapon := beam()
-	want := StrikeHitProbability(state.unit("a1"), state.unit("e1"), &weapon, true)
+	want := strikeHitProbability(state.unit("a1"), state.unit("e1"), &weapon, true)
 	if trace[0].StruckID != "e2" {
 		t.Fatalf("the support defender takes the strike: %+v", trace)
 	}

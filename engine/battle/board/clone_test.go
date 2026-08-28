@@ -6,12 +6,12 @@ import (
 
 func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 	amount := 0.5
-	state, err := newBoard(bounds{High: cell{4, 4}}, []Unit{{
+	state, err := newBoard(bounds{High: cell{4, 4}}, []unit{{
 		ID: "a1", Faction: factionAlly, HP: 10, MaxHP: 10, EN: 5, ENMax: 5,
 		Ammo:    map[string]int{"w": 3},
 		Debuffs: []debuff{{Kind: "defense", Magnitude: 0.1, AppliedPhase: 3}},
 		Skills:  []skill{{Kind: "boost", Amount: &amount, Uses: 1}},
-		Mech:    Mech{Weapons: []Weapon{{Name: "w"}}},
+		Mech:    mech{Weapons: []weapon{{Name: "w"}}},
 	}})
 	if err != nil {
 		t.Fatal(err)

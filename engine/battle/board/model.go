@@ -81,7 +81,7 @@ func parseWeaponCategory(name string) (weaponCategory, error) {
 	return "", fmt.Errorf("the weapon category %q is not in the contract", name)
 }
 
-type Weapon struct {
+type weapon struct {
 	Name            string
 	Power           float64
 	Range           radiusRange
@@ -154,7 +154,7 @@ type skill struct {
 	Affects         skillAffects
 }
 
-type Pilot struct {
+type pilot struct {
 	Ranged   float64
 	Melee    float64
 	Awaken   float64
@@ -163,7 +163,7 @@ type Pilot struct {
 	SP       int
 }
 
-func (p Pilot) attackFor(weapon Weapon) float64 {
+func (p pilot) attackFor(weapon weapon) float64 {
 	categories := weapon.Categories
 	if len(categories) == 0 {
 		categories = weaponCategories[:]
@@ -177,7 +177,7 @@ func (p Pilot) attackFor(weapon Weapon) float64 {
 	return highest
 }
 
-func (p Pilot) attackOf(category weaponCategory) float64 {
+func (p pilot) attackOf(category weaponCategory) float64 {
 	switch category {
 	case weaponCategoryRanged:
 		return p.Ranged
@@ -189,17 +189,17 @@ func (p Pilot) attackOf(category weaponCategory) float64 {
 	return 0
 }
 
-type Mech struct {
+type mech struct {
 	HP        int
 	EN        int
 	Attack    float64
 	Defense   float64
 	Mobility  float64
 	MoveRange int
-	Weapons   []Weapon
+	Weapons   []weapon
 }
 
-type Unit struct {
+type unit struct {
 	ID                      string
 	Faction                 faction
 	Footprint               footprint
@@ -209,8 +209,8 @@ type Unit struct {
 	ENMax                   int
 	SP                      int
 	SPMax                   int
-	Pilot                   Pilot
-	Mech                    Mech
+	Pilot                   pilot
+	Mech                    mech
 	Skills                  []skill
 	Acted                   bool
 	ChanceSteps             int
@@ -225,15 +225,15 @@ type Unit struct {
 	Debuffs                 []debuff
 }
 
-func (u *Unit) alive() bool {
+func (u *unit) alive() bool {
 	return u != nil && u.HP > 0
 }
 
-func (u *Unit) hasENFor(weapon Weapon) bool {
+func (u *unit) hasENFor(weapon weapon) bool {
 	return u.EN >= weapon.ENCost
 }
 
-func (u *Unit) weapon(name string) *Weapon {
+func (u *unit) weapon(name string) *weapon {
 	for index := range u.Mech.Weapons {
 		if u.Mech.Weapons[index].Name == name {
 			return &u.Mech.Weapons[index]
@@ -281,7 +281,7 @@ func (c cell) before(other cell) bool {
 	return c[1] < other[1]
 }
 
-func (u Unit) clone() Unit {
+func (u unit) clone() unit {
 	u.Skills = slices.Clone(u.Skills)
 	for index := range u.Skills {
 		u.Skills[index].Amount = cloneAmount(u.Skills[index].Amount)

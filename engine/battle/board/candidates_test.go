@@ -8,8 +8,8 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
-func rifle(name string, band radiusRange) Weapon {
-	return Weapon{Name: name, Range: band, CanCounter: true, UsableAfterMove: true}
+func rifle(name string, band radiusRange) weapon {
+	return weapon{Name: name, Range: band, CanCounter: true, UsableAfterMove: true}
 }
 
 func capabilitiesOf(t *testing.T, state *Board, id string) capabilities {
@@ -22,7 +22,7 @@ func capabilitiesOf(t *testing.T, state *Board, id string) capabilities {
 }
 
 func TestTheCapabilitiesCarryTheCellsTheUnitReaches(t *testing.T) {
-	state := board(unit("a1", factionAlly, cell{0, 0}), unit("e1", factionEnemy, cell{1, 0}))
+	state := board(unitAt("a1", factionAlly, cell{0, 0}), unitAt("e1", factionEnemy, cell{1, 0}))
 	state.units[0].Mech.MoveRange = 1
 
 	out := capabilitiesOf(t, state, "a1")
@@ -39,11 +39,11 @@ func TestTheCapabilitiesCarryTheCellsTheUnitReaches(t *testing.T) {
 // The command reads no resource and no band: a weapon with no energy left, a
 // weapon that reaches nothing and a skill with no room all stay in the answer.
 func TestTheCapabilitiesJudgeNoResourceAndNoBand(t *testing.T) {
-	state := board(unit("a1", factionAlly, cell{0, 0}), unit("e1", factionEnemy, cell{4, 4}))
+	state := board(unitAt("a1", factionAlly, cell{0, 0}), unitAt("e1", factionEnemy, cell{4, 4}))
 	costly := rifle("costly", radiusRange{Min: 1, Max: 1})
 	costly.ENCost = 20
 	state.units[0].EN = 0
-	state.units[0].Mech.Weapons = []Weapon{costly}
+	state.units[0].Mech.Weapons = []weapon{costly}
 	state.units[0].MaxHP = state.units[0].HP
 	state.units[0].Skills = []skill{{Kind: "skill_heal", Uses: 1}}
 
@@ -55,7 +55,7 @@ func TestTheCapabilitiesJudgeNoResourceAndNoBand(t *testing.T) {
 }
 
 func TestAUnitThatActedKeepsItsCapabilities(t *testing.T) {
-	state := board(unit("a1", factionAlly, cell{0, 0}))
+	state := board(unitAt("a1", factionAlly, cell{0, 0}))
 	state.units[0].Acted = true
 	state.units[0].Mech.MoveRange = 1
 
@@ -67,8 +67,8 @@ func TestAUnitThatActedKeepsItsCapabilities(t *testing.T) {
 }
 
 func TestTheCapabilitiesOfAUnitThatCannotAnswerAreAnError(t *testing.T) {
-	state := board(unit("a1", factionAlly, cell{0, 0}), unit("e1", factionEnemy, cell{2, 0}))
-	dead := unit("a2", factionAlly, cell{0, 1})
+	state := board(unitAt("a1", factionAlly, cell{0, 0}), unitAt("e1", factionEnemy, cell{2, 0}))
+	dead := unitAt("a2", factionAlly, cell{0, 1})
 	dead.HP = 0
 	state.units = append(state.units, dead)
 	cases := map[string]struct {

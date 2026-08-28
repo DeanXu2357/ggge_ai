@@ -7,16 +7,16 @@ import (
 
 var oneCell = size{1, 1}
 
-func unit(id string, faction faction, anchor cell) Unit {
-	return Unit{ID: id, Faction: faction, Footprint: footprint{Anchor: anchor, Size: oneCell}, HP: 100}
+func unitAt(id string, faction faction, anchor cell) unit {
+	return unit{ID: id, Faction: faction, Footprint: footprint{Anchor: anchor, Size: oneCell}, HP: 100}
 }
 
-func board(units ...Unit) *Board {
+func board(units ...unit) *Board {
 	return &Board{bounds: bounds{Low: cell{0, 0}, High: cell{4, 4}}, units: units,
 		phase: factionAlly, turn: 1}
 }
 
-func ids(units []*Unit) []string {
+func ids(units []*unit) []string {
 	out := make([]string, 0, len(units))
 	for _, one := range units {
 		out = append(out, one.ID)
@@ -58,7 +58,7 @@ func TestADiagonalNeighbourIsTwoStepsAway(t *testing.T) {
 }
 
 func TestReachIsTheDiamondOfTheMoveRange(t *testing.T) {
-	state := board(unit("a1", factionAlly, cell{2, 2}))
+	state := board(unitAt("a1", factionAlly, cell{2, 2}))
 	state.units[0].Mech.MoveRange = 2
 
 	cells := set(reach(t, state, "a1"))
@@ -80,8 +80,8 @@ func TestReachIsTheDiamondOfTheMoveRange(t *testing.T) {
 
 func TestReachDropsTheCellsBehindABlocker(t *testing.T) {
 	state := board(
-		unit("a1", factionAlly, cell{2, 2}),
-		unit("e1", factionEnemy, cell{2, 3}),
+		unitAt("a1", factionAlly, cell{2, 2}),
+		unitAt("e1", factionEnemy, cell{2, 3}),
 	)
 	state.units[0].Mech.MoveRange = 2
 
@@ -101,8 +101,8 @@ func TestReachDropsTheCellsBehindABlocker(t *testing.T) {
 
 func TestAnAllyLetsThePathThroughAndKeepsItsCell(t *testing.T) {
 	state := board(
-		unit("a1", factionAlly, cell{2, 2}),
-		unit("a2", factionAlly, cell{2, 3}),
+		unitAt("a1", factionAlly, cell{2, 2}),
+		unitAt("a2", factionAlly, cell{2, 3}),
 	)
 	state.units[0].Mech.MoveRange = 2
 
@@ -121,8 +121,8 @@ func TestAnAllyLetsThePathThroughAndKeepsItsCell(t *testing.T) {
 
 func TestAThirdPartyBlocksThePathOfAnAlly(t *testing.T) {
 	state := board(
-		unit("a1", factionAlly, cell{2, 2}),
-		unit("t1", factionThirdParty, cell{2, 3}),
+		unitAt("a1", factionAlly, cell{2, 2}),
+		unitAt("t1", factionThirdParty, cell{2, 3}),
 	)
 	state.units[0].Mech.MoveRange = 2
 
@@ -134,7 +134,7 @@ func TestAThirdPartyBlocksThePathOfAnAlly(t *testing.T) {
 }
 
 func TestReachStopsAtTheBoardBounds(t *testing.T) {
-	state := board(unit("a1", factionAlly, cell{0, 0}))
+	state := board(unitAt("a1", factionAlly, cell{0, 0}))
 	state.units[0].Mech.MoveRange = 1
 
 	cells := reach(t, state, "a1")
@@ -178,9 +178,9 @@ func TestNearestFreeCellFitsTheWholeFootprint(t *testing.T) {
 
 func TestTargetsOfAnswersTheOpposingFaction(t *testing.T) {
 	state := board(
-		unit("a1", factionAlly, cell{0, 0}),
-		unit("e1", factionEnemy, cell{1, 0}),
-		unit("t1", factionThirdParty, cell{2, 0}),
+		unitAt("a1", factionAlly, cell{0, 0}),
+		unitAt("e1", factionEnemy, cell{1, 0}),
+		unitAt("t1", factionThirdParty, cell{2, 0}),
 	)
 
 	if got := ids(state.targetsOf(&state.units[0])); !reflect.DeepEqual(got, []string{"e1"}) {
@@ -217,8 +217,8 @@ func TestTheDistanceOfTwoFootprintsIsTheLeastDistanceOfTheirCells(t *testing.T) 
 
 func TestReachOfAFootprintNeedsEveryCellOfIt(t *testing.T) {
 	state := board(
-		unit("a1", factionAlly, cell{0, 0}),
-		unit("e1", factionEnemy, cell{2, 1}),
+		unitAt("a1", factionAlly, cell{0, 0}),
+		unitAt("e1", factionEnemy, cell{2, 1}),
 	)
 	state.units[0].Footprint.Size = size{2, 2}
 	state.units[0].Mech.MoveRange = 1
@@ -232,7 +232,7 @@ func TestReachOfAFootprintNeedsEveryCellOfIt(t *testing.T) {
 }
 
 func TestReachStopsWhereTheFootprintLeavesTheBoard(t *testing.T) {
-	state := board(unit("a1", factionAlly, cell{2, 2}))
+	state := board(unitAt("a1", factionAlly, cell{2, 2}))
 	state.units[0].Footprint.Size = size{2, 2}
 	state.units[0].Mech.MoveRange = 2
 
@@ -251,8 +251,8 @@ func TestReachStopsWhereTheFootprintLeavesTheBoard(t *testing.T) {
 
 func TestAnAllyLetsTheFootprintThroughAndDeniesEveryCellItCovers(t *testing.T) {
 	state := board(
-		unit("a1", factionAlly, cell{0, 0}),
-		unit("a2", factionAlly, cell{2, 1}),
+		unitAt("a1", factionAlly, cell{0, 0}),
+		unitAt("a2", factionAlly, cell{2, 1}),
 	)
 	state.units[0].Footprint.Size = size{2, 2}
 	state.units[0].Mech.MoveRange = 2
@@ -266,7 +266,7 @@ func TestAnAllyLetsTheFootprintThroughAndDeniesEveryCellItCovers(t *testing.T) {
 }
 
 func TestTheReachOfAUnitThatIsNotOnTheBoardIsAnError(t *testing.T) {
-	state := board(unit("a1", factionAlly, cell{2, 2}))
+	state := board(unitAt("a1", factionAlly, cell{2, 2}))
 
 	cells, err := state.reachableCells("ghost")
 
@@ -277,9 +277,9 @@ func TestTheReachOfAUnitThatIsNotOnTheBoardIsAnError(t *testing.T) {
 
 func TestAUnitThatCannotMoveKeepsItsOwnCell(t *testing.T) {
 	state := board(
-		unit("a1", factionAlly, cell{0, 0}),
-		unit("e1", factionEnemy, cell{1, 0}),
-		unit("e2", factionEnemy, cell{0, 1}),
+		unitAt("a1", factionAlly, cell{0, 0}),
+		unitAt("e1", factionEnemy, cell{1, 0}),
+		unitAt("e2", factionEnemy, cell{0, 1}),
 	)
 	state.units[0].Mech.MoveRange = 3
 

@@ -18,8 +18,8 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
-			unit := &Unit{ID: "a1", Faction: factionAlly, HP: 100, EN: one.en}
-			weapon := Weapon{Name: "beam rifle", ENCost: one.cost}
+			unit := &unit{ID: "a1", Faction: factionAlly, HP: 100, EN: one.en}
+			weapon := weapon{Name: "beam rifle", ENCost: one.cost}
 
 			if got := unit.hasENFor(weapon); got != one.want {
 				t.Fatalf("EN %d against the cost %d: %v, want %v",
@@ -30,9 +30,9 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 }
 
 func TestTheENOfAShotComesFromThePanelAndNotFromTheMech(t *testing.T) {
-	unit := &Unit{ID: "a1", Faction: factionAlly, HP: 100, EN: 10,
-		Mech: Mech{EN: 200}}
-	weapon := Weapon{Name: "beam rifle", ENCost: 20}
+	unit := &unit{ID: "a1", Faction: factionAlly, HP: 100, EN: 10,
+		Mech: mech{EN: 200}}
+	weapon := weapon{Name: "beam rifle", ENCost: 20}
 
 	if unit.hasENFor(weapon) {
 		t.Fatal("the predicate read the base data of the mech")
@@ -45,11 +45,11 @@ func TestTheENOfAShotComesFromThePanelAndNotFromTheMech(t *testing.T) {
 }
 
 func TestAWeaponOfNoCategoryReadsTheHighestPilotValue(t *testing.T) {
-	pilot := Pilot{Ranged: 220, Melee: 180, Awaken: 240}
-	melee := Weapon{Categories: []weaponCategory{weaponCategoryMelee}}
-	both := Weapon{Categories: []weaponCategory{weaponCategoryMelee, weaponCategoryRanged}}
+	pilot := pilot{Ranged: 220, Melee: 180, Awaken: 240}
+	melee := weapon{Categories: []weaponCategory{weaponCategoryMelee}}
+	both := weapon{Categories: []weaponCategory{weaponCategoryMelee, weaponCategoryRanged}}
 
-	if got := pilot.attackFor(Weapon{}); got != 240 {
+	if got := pilot.attackFor(weapon{}); got != 240 {
 		t.Fatalf("no category: %v", got)
 	}
 	if got := pilot.attackFor(melee); got != 180 {

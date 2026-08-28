@@ -7,7 +7,7 @@ type forecast struct {
 }
 
 type capabilities struct {
-	Unit      *Unit
+	Unit      *unit
 	MoveCells []cell
 }
 
@@ -51,18 +51,18 @@ type responseAttackOption struct {
 }
 
 type supportDefendOption struct {
-	Unit     *Unit
+	Unit     *unit
 	Incoming forecast
 }
 
 type supportAttackOption struct {
-	Unit   *Unit
-	Weapon *Weapon
+	Unit   *unit
+	Weapon *weapon
 	Strike forecast
 }
 
 type sideOptions struct {
-	Unit             *Unit
+	Unit             *unit
 	SupportDefenders []supportDefendOption
 	SupportAttackers []supportAttackOption
 }

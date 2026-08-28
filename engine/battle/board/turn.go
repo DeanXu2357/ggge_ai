@@ -5,6 +5,8 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
+const enRegenPercent = 10
+
 func (b *Board) Act(action *protocol.Decision, dice battle.Dice) ([]any, error) {
 	decision, err := DecodeDecision(action)
 	if err != nil {
@@ -25,8 +27,8 @@ func (b *Board) act(decision decision, dice battle.Dice) (resolution, error) {
 	return resolution{Trace: trace, Rotations: b.Advance()}, nil
 }
 
-func (b *Board) pending(faction faction) []*Unit {
-	var out []*Unit
+func (b *Board) pending(faction faction) []*unit {
+	var out []*unit
 	for index := range b.units {
 		unit := &b.units[index]
 		if unit.Faction == faction && unit.alive() && !unit.Acted {
@@ -71,7 +73,7 @@ func (b *Board) beginPhase() {
 			continue
 		}
 		unit.Acted = false
-		unit.EN = min(unit.ENMax, unit.EN+unit.ENMax*ENRegenPercent/100)
+		unit.EN = min(unit.ENMax, unit.EN+unit.ENMax*enRegenPercent/100)
 	}
 }
 
