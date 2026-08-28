@@ -1,89 +1,58 @@
-package battle
+package board
 
-import "fmt"
+import (
+	"fmt"
 
-type SupportAttacker struct {
-	Unit   *Unit
-	Weapon *Weapon
-}
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
+)
 
-type ResponseAttackOption struct {
-	Stance   Stance
-	Weapon   string
-	Incoming Forecast
-	Counter  *Forecast
-}
-
-type SupportDefendOption struct {
-	Unit     *Unit
-	Incoming Forecast
-}
-
-type SupportAttackOption struct {
-	Unit   *Unit
-	Weapon *Weapon
-	Strike Forecast
-}
-
-type SideOptions struct {
-	Unit             *Unit
-	SupportDefenders []SupportDefendOption
-	SupportAttackers []SupportAttackOption
-}
-
-type Engagement struct {
-	Defender        SideOptions
-	Attacker        SideOptions
-	ResponseAttacks []ResponseAttackOption
-}
-
-func (b *Board) ResponseAttacks(action Decision, defenderID string) (Engagement, error) {
+func (b *Board) ResponseAttacks(action battle.Decision, defenderID string) (battle.Engagement, error) {
 	defender, err := b.livingUnit(defenderID)
 	if err != nil {
-		return Engagement{}, err
+		return battle.Engagement{}, err
 	}
 	attacker, err := b.livingUnit(action.UnitID)
 	if err != nil {
-		return Engagement{}, err
+		return battle.Engagement{}, err
 	}
-	if action.Kind != ActionAttack {
-		return Engagement{}, fmt.Errorf("an action of the kind %q asks unit %q nothing",
+	if action.Kind != battle.ActionAttack {
+		return battle.Engagement{}, fmt.Errorf("an action of the kind %q asks unit %q nothing",
 			action.Kind, defenderID)
 	}
-	out := Engagement{
-		Defender:        SideOptions{Unit: defender},
-		Attacker:        SideOptions{Unit: attacker},
-		ResponseAttacks: []ResponseAttackOption{},
+	out := battle.Engagement{
+		Defender:        battle.SideOptions{Unit: defender},
+		Attacker:        battle.SideOptions{Unit: attacker},
+		ResponseAttacks: []battle.ResponseAttackOption{},
 	}
 	weapon := attacker.Weapon(action.Weapon)
 	if weapon == nil {
-		return Engagement{}, fmt.Errorf("unit %q carries no weapon %q",
+		return battle.Engagement{}, fmt.Errorf("unit %q carries no weapon %q",
 			attacker.ID, action.Weapon)
 	}
 	origin := footprintAt(attacker, strikeCell(attacker, action))
 	distance := SpanDistance(defender.Footprint, origin)
 	if !weapon.Range.Holds(distance) {
-		return Engagement{}, fmt.Errorf("the weapon %q of unit %q does not reach unit %q from %v",
+		return battle.Engagement{}, fmt.Errorf("the weapon %q of unit %q does not reach unit %q from %v",
 			action.Weapon, attacker.ID, defenderID, origin.Anchor)
 	}
 
 	out.ResponseAttacks = append(out.ResponseAttacks,
-		b.stanceOption(attacker, defender, weapon, StanceDodge, ""),
-		b.stanceOption(attacker, defender, weapon, StanceDefend, ""))
+		b.stanceOption(attacker, defender, weapon, battle.StanceDodge, ""),
+		b.stanceOption(attacker, defender, weapon, battle.StanceDefend, ""))
 	for index := range defender.Mech.Weapons {
 		counter := &defender.Mech.Weapons[index]
 		if counter.MapWeapon || !counter.CanCounter || !defender.HasENFor(*counter) {
 			continue
 		}
 		if counter.Range.Holds(distance) {
-			option := b.stanceOption(attacker, defender, weapon, StanceCounter, counter.Name)
+			option := b.stanceOption(attacker, defender, weapon, battle.StanceCounter, counter.Name)
 			reply := b.forecastOf(defender, attacker, counter, NoDefenseMultiplier, false)
 			option.Counter = &reply
 			out.ResponseAttacks = append(out.ResponseAttacks, option)
 		}
 	}
 	out.ResponseAttacks = append(out.ResponseAttacks,
-		b.stanceOption(attacker, defender, weapon, StanceNone, ""))
+		b.stanceOption(attacker, defender, weapon, battle.StanceNone, ""))
 
 	out.Defender.SupportDefenders = b.defendOptions(attacker, weapon,
 		b.SupportDefenders(defender, defender.Footprint))
@@ -98,20 +67,20 @@ func (b *Board) ResponseAttacks(action Decision, defenderID string) (Engagement,
 	return out, nil
 }
 
-func (b *Board) stanceOption(attacker, defender *Unit, weapon *Weapon, stance Stance,
-	counter string) ResponseAttackOption {
-	return ResponseAttackOption{
+func (b *Board) stanceOption(attacker, defender *battle.Unit, weapon *battle.Weapon, stance battle.Stance,
+	counter string) battle.ResponseAttackOption {
+	return battle.ResponseAttackOption{
 		Stance: stance,
 		Weapon: counter,
 		Incoming: b.forecastOf(attacker, defender, weapon,
-			StanceMultiplier(stance, defender), stance == StanceDodge),
+			StanceMultiplier(stance, defender), stance == battle.StanceDodge),
 	}
 }
 
-func (b *Board) defendOptions(shooter *Unit, weapon *Weapon, units []*Unit) []SupportDefendOption {
-	out := make([]SupportDefendOption, 0, len(units))
+func (b *Board) defendOptions(shooter *battle.Unit, weapon *battle.Weapon, units []*battle.Unit) []battle.SupportDefendOption {
+	out := make([]battle.SupportDefendOption, 0, len(units))
 	for _, unit := range units {
-		option := SupportDefendOption{Unit: unit}
+		option := battle.SupportDefendOption{Unit: unit}
 		if weapon != nil {
 			option.Incoming = b.supportDefenderForecast(shooter, unit, weapon)
 		}
@@ -122,10 +91,10 @@ func (b *Board) defendOptions(shooter *Unit, weapon *Weapon, units []*Unit) []Su
 
 // The foe picks its stance after this answer, so the forecast of a support
 // attack reads no defense.
-func (b *Board) attackOptions(foe *Unit, joining []SupportAttacker) []SupportAttackOption {
-	out := make([]SupportAttackOption, 0, len(joining))
+func (b *Board) attackOptions(foe *battle.Unit, joining []battle.SupportAttacker) []battle.SupportAttackOption {
+	out := make([]battle.SupportAttackOption, 0, len(joining))
 	for _, one := range joining {
-		out = append(out, SupportAttackOption{
+		out = append(out, battle.SupportAttackOption{
 			Unit:   one.Unit,
 			Weapon: one.Weapon,
 			Strike: b.forecastOf(one.Unit, foe, one.Weapon, NoDefenseMultiplier, false),
@@ -134,7 +103,7 @@ func (b *Board) attackOptions(foe *Unit, joining []SupportAttacker) []SupportAtt
 	return out
 }
 
-func strikeCell(attacker *Unit, action Decision) Cell {
+func strikeCell(attacker *battle.Unit, action battle.Decision) battle.Cell {
 	if action.MoveTo == nil {
 		return attacker.Footprint.Anchor
 	}
@@ -143,8 +112,8 @@ func strikeCell(attacker *Unit, action Decision) Cell {
 
 // The supported unit stands on 'at' after its move, so the reach of a
 // support unit reads that cell and not the cell of today.
-func (b *Board) SupportDefenders(supported *Unit, at Footprint) []*Unit {
-	out := []*Unit{}
+func (b *Board) SupportDefenders(supported *battle.Unit, at battle.Footprint) []*battle.Unit {
+	out := []*battle.Unit{}
 	for _, other := range b.ByFaction(supported.Faction) {
 		if inSupportReach(other, supported, at, other.SupportDefendCharges) {
 			out = append(out, other)
@@ -153,17 +122,17 @@ func (b *Board) SupportDefenders(supported *Unit, at Footprint) []*Unit {
 	return out
 }
 
-func (b *Board) SupportAttackers(supported *Unit, firing, foe Footprint) []SupportAttacker {
-	out := []SupportAttacker{}
+func (b *Board) SupportAttackers(supported *battle.Unit, firing, foe battle.Footprint) []battle.SupportAttacker {
+	out := []battle.SupportAttacker{}
 	for _, other := range b.ByFaction(supported.Faction) {
 		if weapon := supportWeapon(other, supported, firing, foe); weapon != nil {
-			out = append(out, SupportAttacker{Unit: other, Weapon: weapon})
+			out = append(out, battle.SupportAttacker{Unit: other, Weapon: weapon})
 		}
 	}
 	return out
 }
 
-func supportWeapon(other, supported *Unit, firing, foe Footprint) *Weapon {
+func supportWeapon(other, supported *battle.Unit, firing, foe battle.Footprint) *battle.Weapon {
 	if !inSupportReach(other, supported, firing, other.SupportAttackCharges) {
 		return nil
 	}
@@ -177,7 +146,7 @@ func supportWeapon(other, supported *Unit, firing, foe Footprint) *Weapon {
 	return nil
 }
 
-func inSupportReach(other, supported *Unit, at Footprint, charges int) bool {
+func inSupportReach(other, supported *battle.Unit, at battle.Footprint, charges int) bool {
 	return other.ID != supported.ID && charges > 0 &&
 		SpanDistance(other.Footprint, at) <= other.Mech.MoveRange
 }

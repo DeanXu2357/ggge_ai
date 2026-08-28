@@ -1,4 +1,4 @@
-package battle
+package board
 
 import (
 	"encoding/json"
@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -88,17 +89,17 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 	}
 
 	amount := 3000.0
-	want := Unit{
+	want := battle.Unit{
 		ID:        "a1",
-		Faction:   FactionAlly,
-		Footprint: Footprint{Anchor: Cell{2, 3}, Size: Size{2, 3}},
+		Faction:   battle.FactionAlly,
+		Footprint: battle.Footprint{Anchor: battle.Cell{2, 3}, Size: battle.Size{2, 3}},
 		HP:        8200,
 		MaxHP:     9000,
 		EN:        120,
 		ENMax:     180,
 		SP:        30,
 		SPMax:     45,
-		Pilot: Pilot{
+		Pilot: battle.Pilot{
 			Ranged: 220, Melee: 180, Awaken: 240, Defense: 190, Reaction: 205, SP: 45,
 		},
 		Acted:                   true,
@@ -108,42 +109,42 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 		HasShield:               true,
 		SupportDefendWhenAttack: true,
 		Ammo:                    map[string]int{"missile": 3},
-		Debuffs:                 []Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
-		Mech: Mech{
+		Debuffs:                 []battle.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
+		Mech: battle.Mech{
 			HP: 9000, EN: 180, Attack: 4100, Defense: 3900, Mobility: 310, MoveRange: 4,
-			Weapons: []Weapon{{
+			Weapons: []battle.Weapon{{
 				Name:            "rifle",
 				Power:           2400,
-				Range:           RadiusRange{Min: 1, Max: 4},
+				Range:           battle.RadiusRange{Min: 1, Max: 4},
 				ENCost:          15,
 				Accuracy:        12,
 				CanCounter:      true,
 				UsableAfterMove: true,
 				DebuffKind:      "mobility",
 				DebuffMagnitude: 0.2,
-				Categories:      []WeaponCategory{WeaponCategoryRanged},
+				Categories:      []battle.WeaponCategory{battle.WeaponCategoryRanged},
 			}},
 		},
-		Skills: []Skill{{
+		Skills: []battle.Skill{{
 			Kind:            "skill_heal",
-			Source:          SourceMech,
+			Source:          battle.SourceMech,
 			Amount:          &amount,
 			Uses:            2,
 			EndsActivation:  true,
 			UsableAfterMove: true,
-			Range:           RadiusRange{Min: 0, Max: 1},
+			Range:           battle.RadiusRange{Min: 0, Max: 1},
 			Blast:           1,
-			Affects:         AffectsAlly,
+			Affects:         battle.AffectsAlly,
 		}},
 	}
 	if got := board.Unit("a1"); !reflect.DeepEqual(*got, want) {
 		t.Fatalf("unit:\n%+v\n%+v", *got, want)
 	}
-	if got := board.Bounds; got != (Bounds{Low: Cell{0, 0}, High: Cell{9, 9}}) {
+	if got := board.bounds; got != (battle.Bounds{Low: battle.Cell{0, 0}, High: battle.Cell{9, 9}}) {
 		t.Fatalf("bounds: %+v", got)
 	}
-	if board.Phase != FactionAlly || board.Turn != 3 {
-		t.Fatalf("phase %q, turn %d", board.Phase, board.Turn)
+	if board.phase != battle.FactionAlly || board.turn != 3 {
+		t.Fatalf("phase %q, turn %d", board.phase, board.turn)
 	}
 }
 
@@ -227,7 +228,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if got := board.Unit("a1").Footprint.Size; got != (Size{1, 1}) {
+	if got := board.Unit("a1").Footprint.Size; got != (battle.Size{1, 1}) {
 		t.Fatalf("size: %v", got)
 	}
 }
@@ -280,33 +281,33 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 }
 
 func TestAFootprintIsWithinTheBoardOnlyAsAWhole(t *testing.T) {
-	bounds := Bounds{Low: Cell{0, 0}, High: Cell{4, 4}}
+	bounds := battle.Bounds{Low: battle.Cell{0, 0}, High: battle.Cell{4, 4}}
 
-	if !(Footprint{Anchor: Cell{3, 3}, Size: Size{2, 2}}).Within(bounds) {
+	if !(battle.Footprint{Anchor: battle.Cell{3, 3}, Size: battle.Size{2, 2}}).Within(bounds) {
 		t.Fatal("the anchor (3,3) holds a footprint of 2 by 2 on a board of 5 by 5")
 	}
-	if (Footprint{Anchor: Cell{4, 3}, Size: Size{2, 2}}).Within(bounds) {
+	if (battle.Footprint{Anchor: battle.Cell{4, 3}, Size: battle.Size{2, 2}}).Within(bounds) {
 		t.Fatal("an anchor on the last column puts half of the footprint outside")
 	}
-	if (Footprint{Anchor: Cell{-1, 0}, Size: Size{1, 1}}).Within(bounds) {
+	if (battle.Footprint{Anchor: battle.Cell{-1, 0}, Size: battle.Size{1, 1}}).Within(bounds) {
 		t.Fatal("a cell below the low corner is outside")
 	}
 }
 
 func TestAFootprintKnowsItsCells(t *testing.T) {
-	footprint := Footprint{Anchor: Cell{1, 1}, Size: Size{2, 3}}
+	footprint := battle.Footprint{Anchor: battle.Cell{1, 1}, Size: battle.Size{2, 3}}
 
-	want := []Cell{{1, 1}, {1, 2}, {1, 3}, {2, 1}, {2, 2}, {2, 3}}
+	want := []battle.Cell{{1, 1}, {1, 2}, {1, 3}, {2, 1}, {2, 2}, {2, 3}}
 	if got := footprint.Cells(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("cells: %v", got)
 	}
 }
 
 func TestTheOpposingFactionOfEverySide(t *testing.T) {
-	if FactionAlly.Opposing() != FactionEnemy {
+	if battle.FactionAlly.Opposing() != battle.FactionEnemy {
 		t.Fatal("the ally side fights the enemy side")
 	}
-	if FactionEnemy.Opposing() != FactionAlly || FactionThirdParty.Opposing() != FactionAlly {
+	if battle.FactionEnemy.Opposing() != battle.FactionAlly || battle.FactionThirdParty.Opposing() != battle.FactionAlly {
 		t.Fatal("the enemy side and a third party fight the ally side")
 	}
 }
@@ -314,28 +315,28 @@ func TestTheOpposingFactionOfEverySide(t *testing.T) {
 func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	amount := 2500.0
 	ammo := 3
-	unit := &Unit{
+	unit := &battle.Unit{
 		ID:        "a1",
-		Faction:   FactionAlly,
-		Footprint: Footprint{Anchor: Cell{2, 3}, Size: Size{2, 1}},
+		Faction:   battle.FactionAlly,
+		Footprint: battle.Footprint{Anchor: battle.Cell{2, 3}, Size: battle.Size{2, 1}},
 		HP:        800,
 		MaxHP:     1000,
 		EN:        40,
 		ENMax:     100,
-		Mech: Mech{
+		Mech: battle.Mech{
 			MoveRange: 4,
-			Weapons: []Weapon{
-				{Name: "rifle", Range: RadiusRange{Min: 1, Max: 3}, ENCost: 10, Accuracy: 5,
+			Weapons: []battle.Weapon{
+				{Name: "rifle", Range: battle.RadiusRange{Min: 1, Max: 3}, ENCost: 10, Accuracy: 5,
 					CanCounter: true, UsableAfterMove: true},
-				{Name: "missile", Range: RadiusRange{Min: 2, Max: 5}, MapWeapon: true},
+				{Name: "missile", Range: battle.RadiusRange{Min: 2, Max: 5}, MapWeapon: true},
 			},
 		},
-		Skills: []Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
-			Range: RadiusRange{Min: 0, Max: 2}, Blast: 1, Affects: AffectsAlly}},
+		Skills: []battle.Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
+			Range: battle.RadiusRange{Min: 0, Max: 2}, Blast: 1, Affects: battle.AffectsAlly}},
 		Ammo: map[string]int{"missile": ammo},
 	}
 
-	out := EncodeCapabilities(Capabilities{Unit: unit, MoveCells: []Cell{{2, 3}, {2, 4}}})
+	out := EncodeCapabilities(battle.Capabilities{Unit: unit, MoveCells: []battle.Cell{{2, 3}, {2, 4}}})
 
 	if out.Unit.Pos != (protocol.Cell{2, 3}) || out.Unit.Size != (protocol.Cell{2, 1}) ||
 		out.Unit.Faction != protocol.FactionAlly || out.Unit.MaxHP != 1000 {
@@ -361,9 +362,9 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 }
 
 func TestTheCapabilityPayloadOfAnActedUnitCarriesTheState(t *testing.T) {
-	unit := &Unit{ID: "a1", Faction: FactionAlly, HP: 100, Acted: true}
+	unit := &battle.Unit{ID: "a1", Faction: battle.FactionAlly, HP: 100, Acted: true}
 
-	out := EncodeCapabilities(Capabilities{Unit: unit})
+	out := EncodeCapabilities(battle.Capabilities{Unit: unit})
 
 	if out.Error == nil || out.Error.Code != protocol.CodeAlreadyActed {
 		t.Fatalf("error: %+v", out.Error)
@@ -376,7 +377,7 @@ func TestTheCapabilityPayloadOfAnActedUnitCarriesTheState(t *testing.T) {
 func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 	amount := 2500.0
 
-	encoded := EncodeSkills([]Skill{{Kind: "skill_heal", Amount: &amount}})
+	encoded := EncodeSkills([]battle.Skill{{Kind: "skill_heal", Amount: &amount}})
 	amount = 0
 
 	if *encoded[0].Amount != 2500.0 {
@@ -385,20 +386,20 @@ func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 }
 
 func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
-	defender := &Unit{ID: "d1", HP: 100}
-	attacker := &Unit{ID: "e1", HP: 100}
-	helper := &Unit{ID: "h1", HP: 100, Mech: Mech{Weapons: []Weapon{{Name: "rifle"}}}}
+	defender := &battle.Unit{ID: "d1", HP: 100}
+	attacker := &battle.Unit{ID: "e1", HP: 100}
+	helper := &battle.Unit{ID: "h1", HP: 100, Mech: battle.Mech{Weapons: []battle.Weapon{{Name: "rifle"}}}}
 
-	counter := Forecast{}
-	encoded := EncodeEngagement(Engagement{
-		Defender: SideOptions{Unit: defender,
-			SupportDefenders: []SupportDefendOption{{Unit: helper}},
-			SupportAttackers: []SupportAttackOption{{Unit: helper, Weapon: &helper.Mech.Weapons[0]}}},
-		Attacker: SideOptions{Unit: attacker},
-		ResponseAttacks: []ResponseAttackOption{
-			{Stance: StanceDodge},
-			{Stance: StanceCounter, Weapon: "saber", Counter: &counter},
-			{Stance: StanceNone},
+	counter := battle.Forecast{}
+	encoded := EncodeEngagement(battle.Engagement{
+		Defender: battle.SideOptions{Unit: defender,
+			SupportDefenders: []battle.SupportDefendOption{{Unit: helper}},
+			SupportAttackers: []battle.SupportAttackOption{{Unit: helper, Weapon: &helper.Mech.Weapons[0]}}},
+		Attacker: battle.SideOptions{Unit: attacker},
+		ResponseAttacks: []battle.ResponseAttackOption{
+			{Stance: battle.StanceDodge},
+			{Stance: battle.StanceCounter, Weapon: "saber", Counter: &counter},
+			{Stance: battle.StanceNone},
 		},
 	})
 
@@ -432,8 +433,8 @@ func TestTheEncodedForecastCarriesEveryNumberItHolds(t *testing.T) {
 	damage := 2400
 	kill := true
 
-	full := EncodeForecast(Forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
-	lean := EncodeForecast(Forecast{Damage: &damage})
+	full := EncodeForecast(battle.Forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
+	lean := EncodeForecast(battle.Forecast{Damage: &damage})
 
 	if *full.HitRate != 0.75 || *full.Damage != 2400 || !*full.Kill {
 		t.Fatalf("forecast: %+v", full)
@@ -460,7 +461,7 @@ func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if action.Kind != ActionAttack || *action.MoveTo != (Cell{4, 5}) ||
+	if action.Kind != battle.ActionAttack || *action.MoveTo != (battle.Cell{4, 5}) ||
 		action.Weapon != "rifle" || action.TargetID != "e1" {
 		t.Fatalf("action: %+v", action)
 	}
@@ -493,7 +494,7 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 
 func decodeFixtureState(t *testing.T) *Board {
 	t.Helper()
-	raw, err := os.ReadFile("../../tests/fixtures/engine/debuff_ammo_board.json")
+	raw, err := os.ReadFile("../../../tests/fixtures/engine/debuff_ammo_board.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -523,17 +524,17 @@ func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if board.Turn != 1 || board.Phase != FactionAlly {
-		t.Fatalf("turn %d phase %s", board.Turn, board.Phase)
+	if board.turn != 1 || board.phase != battle.FactionAlly {
+		t.Fatalf("turn %d phase %s", board.turn, board.phase)
 	}
-	if board.Bounds != (Bounds{High: Cell{5, 4}}) {
-		t.Fatalf("bounds: %+v", board.Bounds)
+	if board.bounds != (battle.Bounds{High: battle.Cell{5, 4}}) {
+		t.Fatalf("bounds: %+v", board.bounds)
 	}
-	if board.DefaultTerrain != TerrainGround || board.TerrainCells[Cell{1, 1}] != TerrainSpace {
-		t.Fatalf("terrain: %v %v", board.DefaultTerrain, board.TerrainCells)
+	if board.defaultTerrain != battle.TerrainGround || board.terrainCells[battle.Cell{1, 1}] != battle.TerrainSpace {
+		t.Fatalf("terrain: %v %v", board.defaultTerrain, board.terrainCells)
 	}
-	if len(board.Units) != 1 || board.Units[0].ID != "e1" {
-		t.Fatalf("units: %+v", board.Units)
+	if len(board.units) != 1 || board.units[0].ID != "e1" {
+		t.Fatalf("units: %+v", board.units)
 	}
 }
 
@@ -582,7 +583,7 @@ func TestEncodeStateRoundTripsThroughDecodeState(t *testing.T) {
 	if string(a) != string(b) {
 		t.Fatalf("the second encode differs:\n%s\n%s", a, b)
 	}
-	if encoded.Turn != first.Turn || encoded.Phase != wireFactions[first.Phase] || encoded.Bounds == nil {
+	if encoded.Turn != first.turn || encoded.Phase != wireFactions[first.phase] || encoded.Bounds == nil {
 		t.Fatalf("state: %+v", encoded)
 	}
 }
@@ -598,9 +599,9 @@ func TestOutcomesReadHitAndMissOnly(t *testing.T) {
 }
 
 func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
-	events := EncodeResolution(Resolution{
-		Trace:     Trace{{Kind: StrikeMain, ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true}},
-		Rotations: []Rotation{{Turn: 1, Phase: FactionEnemy}},
+	events := EncodeResolution(battle.Resolution{
+		Trace:     battle.Trace{{Kind: battle.StrikeMain, ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true}},
+		Rotations: []battle.Rotation{{Turn: 1, Phase: battle.FactionEnemy}},
 	})
 	want := []any{
 		protocol.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true},
@@ -613,14 +614,14 @@ func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
 
 func TestTheSummaryNamesThePendingUnitsAndTheGoneSides(t *testing.T) {
 	board := decodeFixtureState(t)
-	board.Phase = FactionAlly
-	for index := range board.Units {
-		if board.Units[index].Faction == FactionEnemy {
-			board.Units[index].HP = 0
+	board.phase = battle.FactionAlly
+	for index := range board.units {
+		if board.units[index].Faction == battle.FactionEnemy {
+			board.units[index].HP = 0
 		}
 	}
 	summary := EncodeSummary(board)
-	if summary.Turn != board.Turn || summary.Phase != wireFactions[board.Phase] {
+	if summary.Turn != board.turn || summary.Phase != wireFactions[board.phase] {
 		t.Fatalf("summary: %+v", summary)
 	}
 	if !reflect.DeepEqual(summary.Gone, []protocol.Faction{protocol.FactionEnemy}) {

@@ -3,6 +3,8 @@ package battle
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 )
 
 type Cell [2]int
@@ -280,62 +282,23 @@ func cloneAmount(amount *float64) *float64 {
 	return &out
 }
 
-func NewBoard(bounds Bounds, units []Unit) (*Board, error) {
-	if bounds.High[0] < bounds.Low[0] || bounds.High[1] < bounds.Low[1] {
-		return nil, fmt.Errorf("the bounds %v run backward", bounds)
+// Before orders two cells: the column first, the row second.
+func (c Cell) Before(other Cell) bool {
+	if c[0] != other[0] {
+		return c[0] < other[0]
 	}
-	seen := make(map[string]bool, len(units))
-	for index := range units {
-		id := units[index].ID
-		if seen[id] {
-			return nil, fmt.Errorf("the board holds two units with the id %q", id)
-		}
-		seen[id] = true
-	}
-	return &Board{Bounds: bounds, Units: units}, nil
+	return c[1] < other[1]
 }
 
-type Board struct {
-	Bounds         Bounds
-	Units          []Unit
-	Phase          Faction
-	Turn           int
-	DefaultTerrain Terrain
-	TerrainCells   map[Cell]Terrain
-}
-
-func (b *Board) TerrainAt(cell Cell) Terrain {
-	if kind, declared := b.TerrainCells[cell]; declared {
-		return kind
+func (u Unit) Clone() Unit {
+	u.Skills = slices.Clone(u.Skills)
+	for index := range u.Skills {
+		u.Skills[index].Amount = cloneAmount(u.Skills[index].Amount)
 	}
-	return b.DefaultTerrain
-}
-
-func (b *Board) TerrainOf(unit *Unit) Terrain {
-	if unit == nil {
-		return b.DefaultTerrain
-	}
-	return b.TerrainAt(unit.Footprint.Anchor)
-}
-
-var PhaseOrder = [...]Faction{FactionAlly, FactionThirdParty, FactionEnemy}
-
-func (b *Board) PhaseIndex() int {
-	for index, faction := range PhaseOrder {
-		if faction == b.Phase {
-			return b.Turn*len(PhaseOrder) + index
-		}
-	}
-	return b.Turn * len(PhaseOrder)
-}
-
-func (b *Board) Unit(id string) *Unit {
-	for index := range b.Units {
-		if b.Units[index].ID == id {
-			return &b.Units[index]
-		}
-	}
-	return nil
+	u.Debuffs = slices.Clone(u.Debuffs)
+	u.Ammo = maps.Clone(u.Ammo)
+	u.Mech.Weapons = slices.Clone(u.Mech.Weapons)
+	return u
 }
 
 var (
@@ -343,88 +306,7 @@ var (
 	ErrDestroyed = errors.New("the unit is destroyed")
 	ErrOffPhase  = errors.New("the unit is not of the current phase")
 	ErrActed     = errors.New("the unit acted in this turn")
+
+	ErrIllegalAction = errors.New("the action is not legal")
+	ErrIllegalMove   = errors.New("the move is not legal")
 )
-
-// The command 'act' reads this gate; the reporting commands do not, because
-// a report of a unit that acted is still the answer to the question.
-func (b *Board) Activatable(unitID string) (*Unit, error) {
-	unit, err := b.livingUnit(unitID)
-	if err != nil {
-		return nil, err
-	}
-	if unit.Faction != b.Phase {
-		return nil, fmt.Errorf("%w: %q is of the side %q, and the phase is %q",
-			ErrOffPhase, unitID, unit.Faction, b.Phase)
-	}
-	if unit.Acted {
-		return nil, fmt.Errorf("%w: %q", ErrActed, unitID)
-	}
-	return unit, nil
-}
-
-func (b *Board) livingUnit(id string) (*Unit, error) {
-	unit := b.Unit(id)
-	if unit == nil {
-		return nil, fmt.Errorf("%w: %q", ErrNoUnit, id)
-	}
-	if !unit.Alive() {
-		return nil, fmt.Errorf("%w: %q", ErrDestroyed, id)
-	}
-	return unit, nil
-}
-
-func (b *Board) Roster() []Unit {
-	panic("to be implemented")
-}
-
-func (b *Board) ReachableCells(unitID string) ([]Cell, error) {
-	unit := b.Unit(unitID)
-	if unit == nil {
-		return nil, fmt.Errorf("the board holds no unit %q", unitID)
-	}
-	return SortedCells(b.reachableAnchors(unit)), nil
-}
-
-func (b *Board) reachableAnchors(unit *Unit) CellSet {
-	return ReachableAnchors(unit.Footprint, unit.Mech.MoveRange,
-		b.BlockingCells(unit), b.OccupiedCells(unit), b.Bounds)
-}
-
-func (b *Board) ByFaction(faction Faction) []*Unit {
-	var out []*Unit
-	for index := range b.Units {
-		other := &b.Units[index]
-		if other.Faction == faction && other.Alive() {
-			out = append(out, other)
-		}
-	}
-	return out
-}
-
-func (b *Board) TargetsOf(unit *Unit) []*Unit {
-	return b.ByFaction(unit.Faction.Opposing())
-}
-
-func (b *Board) BlockingCells(unit *Unit) CellSet {
-	out := CellSet{}
-	for index := range b.Units {
-		other := &b.Units[index]
-		if other.ID == unit.ID || !other.Alive() || other.Faction == unit.Faction {
-			continue
-		}
-		addFootprint(out, other.Footprint)
-	}
-	return out
-}
-
-func (b *Board) OccupiedCells(unit *Unit) CellSet {
-	out := CellSet{}
-	for index := range b.Units {
-		other := &b.Units[index]
-		if other.ID == unit.ID || !other.Alive() {
-			continue
-		}
-		addFootprint(out, other.Footprint)
-	}
-	return out
-}

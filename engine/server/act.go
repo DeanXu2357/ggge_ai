@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -13,7 +14,7 @@ func init() {
 }
 
 func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
-	request, board, fail := openCommand[protocol.ActRequest](s, id, payload)
+	request, b, fail := openCommand[protocol.ActRequest](s, id, payload)
 	if fail != nil {
 		return *fail
 	}
@@ -29,7 +30,7 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	clone := board.Clone()
+	clone := b.Clone()
 	resolution, err := clone.Act(decision, dice)
 	if err != nil {
 		return protocol.Fail(id, refusalCode(err), err.Error())
@@ -43,8 +44,8 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	}
 	s.session.history = append(s.session.history, protocol.HistoryEntry{Cmd: "act", Payload: payload})
 	return protocol.Ok(id, protocol.ActResponse{
-		Events: battle.EncodeResolution(resolution),
-		Board:  battle.EncodeSummary(clone),
+		Events: board.EncodeResolution(resolution),
+		Board:  board.EncodeSummary(clone),
 	})
 }
 
@@ -58,12 +59,12 @@ func decodeActivation(request *protocol.ActRequest) (battle.Decision, error) {
 	if request.Action.ResponseAttack != nil {
 		return battle.Decision{}, errors.New("the response attack travels in the field 'response_attack' of the request")
 	}
-	decision, err := battle.DecodeDecision(&request.Action)
+	decision, err := board.DecodeDecision(&request.Action)
 	if err != nil {
 		return battle.Decision{}, err
 	}
 	if request.ResponseAttack != nil {
-		responseAttack, err := battle.DecodeResponseAttack(*request.ResponseAttack)
+		responseAttack, err := board.DecodeResponseAttack(*request.ResponseAttack)
 		if err != nil {
 			return battle.Decision{}, err
 		}
@@ -75,7 +76,7 @@ func decodeActivation(request *protocol.ActRequest) (battle.Decision, error) {
 func (s *Server) openDice(dice *protocol.Dice) (battle.Dice, *battle.ManualRoll, error) {
 	switch dice.Mode {
 	case protocol.DiceForced:
-		outcomes, err := battle.DecodeOutcomes(dice.Outcomes)
+		outcomes, err := board.DecodeOutcomes(dice.Outcomes)
 		if err != nil {
 			return nil, nil, err
 		}

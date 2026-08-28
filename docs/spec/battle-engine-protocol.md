@@ -20,6 +20,11 @@ issues of the port (#60 to #68).
   command 'rollback' removes the last entry.
 - 'init' plus the sequence of the commands that change the board
   reproduce the battle. The engine holds no other input.
+- The Go package 'engine/battle' holds the contract: the data
+  types, the board interfaces, the sentinel errors and the dice.
+  The package 'engine/battle/board' holds the implementation.
+  'engine/server' constructs a board with 'board.DecodeInit' or
+  'board.DecodeState' and keeps it as a 'battle.Board'.
 
 ## Transport
 
@@ -737,7 +742,7 @@ lands. What reads it is a weapon ability, and the section 'Weapon
 abilities' holds that gap.
 
 There is no rules payload. Every rule of the mechanism is a
-constant of 'engine/battle/rules.go', and the section 'Weapon
+constant of 'engine/battle/board/rules.go', and the section 'Weapon
 abilities' holds the rule that does vary. One stage held one terrain
 value until 2026-08-26.
 
@@ -771,7 +776,7 @@ The wire carries no ability today, and no ability kind is modelled.
 Issue #80 builds the model and adds the field of the weapon entry
 that holds the list. Until then the engine passes 1 for the terrain
 correction of every weapon
-('StrikeDamage' in 'engine/battle/strike.go').
+('StrikeDamage' in 'engine/battle/board/strike.go').
 
 ### Differential cases
 
