@@ -1,4 +1,4 @@
-package server
+package handler
 
 import (
 	"encoding/json"
@@ -7,11 +7,7 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-func init() {
-	Register("init", func(s *Server) Handler { return s.initBattle })
-}
-
-func (s *Server) initBattle(id string, payload json.RawMessage) protocol.Response {
+func (c *Commands) InitBattle(id string, payload json.RawMessage) protocol.Response {
 	var request protocol.InitRequest
 	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
@@ -24,7 +20,7 @@ func (s *Server) initBattle(id string, payload json.RawMessage) protocol.Respons
 	opened.victory = request.Victory
 	opened.events = request.Events
 	opened.deployCells = request.DeployCells
-	s.session = opened
+	c.session = opened
 	summary := b.Summary()
 	return protocol.Ok(id, protocol.InitResponse{
 		Turn:       summary.Turn,

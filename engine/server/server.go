@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
+	"github.com/DeanXu2357/ggge_ai/engine/server/handler"
 )
 
 // A state snapshot is bigger than the default 64 KiB line limit of the scanner.
@@ -17,11 +18,14 @@ type Handler func(id string, payload json.RawMessage) protocol.Response
 
 type Server struct {
 	handlers map[string]Handler
-	session  *session
+	commands *handler.Commands
 }
 
 func New() *Server {
-	server := &Server{handlers: make(map[string]Handler, len(registry))}
+	server := &Server{
+		handlers: make(map[string]Handler, len(registry)),
+		commands: handler.NewCommands(),
+	}
 	for name, bind := range registry {
 		server.Handle(name, bind(server))
 	}

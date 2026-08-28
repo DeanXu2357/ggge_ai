@@ -1,4 +1,4 @@
-package server
+package handler
 
 import (
 	"encoding/json"
@@ -8,12 +8,8 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-func init() {
-	Register("act", func(s *Server) Handler { return s.act })
-}
-
-func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
-	request, b, fail := openCommand[protocol.ActRequest](s, id, payload)
+func (c *Commands) Act(id string, payload json.RawMessage) protocol.Response {
+	request, b, fail := openCommand[protocol.ActRequest](c, id, payload)
 	if fail != nil {
 		return *fail
 	}
@@ -25,7 +21,7 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	dice, manual, err := s.openDice(&request.Dice)
+	dice, manual, err := c.openDice(&request.Dice)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
@@ -37,11 +33,11 @@ func (s *Server) act(id string, payload json.RawMessage) protocol.Response {
 	if manual != nil && manual.Short() {
 		return protocol.Fail(id, protocol.CodeIllegalAction, "the 'outcomes' list is short")
 	}
-	s.session.board = clone
+	c.session.board = clone
 	if draw, ok := dice.(*battle.ServerDraw); ok {
-		s.session.draw = draw
+		c.session.draw = draw
 	}
-	s.session.history = append(s.session.history, protocol.HistoryEntry{Cmd: "act", Payload: payload})
+	c.session.history = append(c.session.history, protocol.HistoryEntry{Cmd: "act", Payload: payload})
 	return protocol.Ok(id, protocol.ActResponse{
 		Events: events,
 		Board:  clone.Summary(),
@@ -62,7 +58,7 @@ func activationOf(request *protocol.ActRequest) (*protocol.Decision, error) {
 	return &request.Action, nil
 }
 
-func (s *Server) openDice(dice *protocol.Dice) (battle.Dice, *battle.ManualRoll, error) {
+func (c *Commands) openDice(dice *protocol.Dice) (battle.Dice, *battle.ManualRoll, error) {
 	switch dice.Mode {
 	case protocol.DiceForced:
 		outcomes, err := battle.DecodeOutcomes(dice.Outcomes)
@@ -72,7 +68,7 @@ func (s *Server) openDice(dice *protocol.Dice) (battle.Dice, *battle.ManualRoll,
 		manual := battle.NewManualRoll(outcomes)
 		return manual, manual, nil
 	case protocol.DiceSampled:
-		return s.session.draw.Clone(), nil, nil
+		return c.session.draw.Clone(), nil, nil
 	}
 	return nil, nil, errors.New("'dice.mode' is not 'forced' or 'sampled'")
 }
