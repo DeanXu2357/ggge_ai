@@ -275,7 +275,6 @@ func cloneAmount(amount *float64) *float64 {
 	return &out
 }
 
-// Before orders two cells: the column first, the row second.
 func (c Cell) Before(other Cell) bool {
 	if c[0] != other[0] {
 		return c[0] < other[0]
