@@ -17,7 +17,7 @@ Issue: #85. Branch: issue-85-formula-package. Status: awaiting-review.
 | 7002b69, db3ac4e, f99e68f | This file: the assessment, the ordering behind #86, the rebase |
 | 043a5d5 | The formulas move to 'engine/battle/formula' over 'Side'; the adapters in 'board'; the differential test on 'Side' |
 | 0648762 | 'unit', 'pilot', 'mech', 'weapon' private in 'board': the differential harness no longer builds them |
-| (next) | Four comments that index files or narrate a plan dropped; the map follows |
+| feea212, 6a23324 | The artifact and the map; four comments that index files or narrate a plan dropped |
 
     engine/battle/formula   side.go, damage.go, hit.go, strike.go, rules.go
                             and their tests. Imports 'math' alone.
