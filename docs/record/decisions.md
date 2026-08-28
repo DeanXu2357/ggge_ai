@@ -1428,3 +1428,23 @@
   panel of a sample unit: "在 issue 裡面註記要我提供資料", the user
   supplies the panel data; the issue carries the note. Issue #74:
   "沒問題可以合併".
+- **(0828) The unit is the state of the pairing; the pilot and the
+  mech are the data — user ruling**｜Issue #84 asked how the pilot
+  and mech values sit on the contract. The user: "pilot 基礎數值分
+  別是 射擊、格鬥、覺醒、守備、反應和 SP 值（技能用）"; "在計算時才會
+  用 pilot 的這些數值，不然一般的時候這些都是放著當作資料保存的"; "不
+  要有 unit attack, defense 那些，unit 就是棋盤上的組合的當前狀態，他
+  不介入計算，他只是記錄狀態和狀態最大值，就是初始化時計算 mech+pilot
+  的最大 hp 之後隨著遊戲進行不斷增減當前 hp，其他類似的屬性有 en, sp".
+  Consequences: the unit payload drops 'unit_attack', 'unit_defense',
+  'pilot_attack', 'pilot_defense', 'reaction', 'mobility',
+  'move_range', 'weapons' and the four 'mech_' fields; it carries
+  the nested objects 'pilot' and 'mech' as data, and its own state
+  and maxima: 'hp', 'max_hp', 'en', 'en_max', 'sp', 'sp_max'. A
+  formula reads the pilot and the mech at computation time. The
+  pilot attack of a strike is the highest pilot value among the
+  attack tags of the weapon (ruling of the same day). This
+  supersedes the 0821 reading of a stored "final panel" that every
+  rule reads; the terminology entries 'final panel' and 'base data'
+  are rewritten in the same branch. The datamine pilot row holds no
+  SP pool; the device is its source.

@@ -21,6 +21,26 @@ of #74 are the ground of the mapping table.
 - The site's 'max_hp' is the mech's. The final panel is the mech
   value after the pilot's abilities (issue #77).
 
+## The shape (user ruling 2026-08-28)
+
+The unit is the current state of the pairing on the board. It
+records state and the maxima of state, and it takes no part in a
+computation. The pilot and the mech are data on the unit; a formula
+reads them at computation time.
+
+    Pilot  { ranged, melee, awaken, defense, reaction, sp }
+    Mech   { hp, en, attack, defense, mobility, move_range, weapons }
+    Weapon { ...existing..., attack_tags: [ranged | melee | awaken] }
+    Unit   { unit_id, faction, pos, size, hp, max_hp, en, en_max,
+             sp, sp_max, pilot, mech, skills, acted, charges, ammo,
+             debuffs }
+
+'max_hp' and 'en_max' come from the mech at 'init' (the pilot's
+abilities join in issue #77). 'sp_max' comes from the pilot. The
+pilot attack of a strike is 'Pilot.AttackFor(weapon)': the highest
+pilot value among the attack tags of the weapon; a weapon with no
+tag reads the highest of the three.
+
 ## Plan
 
 1. Crawler: add 'character' to 'TABLE_PATHS', a fixture slice of
@@ -29,34 +49,31 @@ of #74 are the ground of the mapping table.
 2. Reference: the UR selection rule and the mapping table, mech
    values and pilot values against the engine contract, in
    'docs/reference/datamine-source.md'.
-3. Contract: the new engine-only fields on 'protocol.Unit' and on
-   'protocol.Weapon', the 'ENGINE_ONLY' entries, the "Types"
-   section of the spec, and the codec that carries them into
-   'battle.Mech', 'battle.Pilot' and 'battle.Weapon' as data.
-4. Gates, review, artifact.
+3. Contract: the shape above in 'engine/protocol', 'engine/battle'
+   (domain, codec, the readers in 'hit.go' and the damage path),
+   the Python mirror and codec, the protocol version, the golden
+   files converted so the recorded numbers stay, the parity test.
+4. Spec "Types" section, the terminology entries 'final panel' and
+   'base data' rewritten, the mapping table in the reference.
+5. Gates, review, artifact.
 
 ## Resume point
 
-Step 1 is delegated. Step 3 waits for the user's answer on the
-field names (see the contention points).
+Step 1 landed (e5186d8, 5df1516). Step 3 is delegated to the code
+editor; step 4 runs in the main session in parallel.
 
 ## Progress log
 
 - 2026-08-28: worktree added, roadmap written.
+- The pilot table crawled: e5186d8. The two measured sentences:
+  5df1516.
+- The shape ruled by the user; the reshape delegated.
 
 ## Contention points
 
-1. Field names for the pilot base data. The panel already uses
-   'pilot_attack', 'pilot_defense' and 'reaction', and those names
-   are frozen. The base slots need other names. Proposed:
-   'pilot_ranged', 'pilot_melee', 'pilot_awaken' (new concepts, no
-   collision), 'pilot_base_defense', 'pilot_base_reaction', and for
-   the mech 'mech_attack', 'mech_defense', 'mech_mobility'.
-2. Whether the final panel also gains three pilot attack slots. The
-   game's pilot panel shows 射擊值, 格鬥值 and 覺醒值, and the intel
-   store already carries three pilot attack columns. If the panel
-   carries one 'pilot_attack' only, #72 has nothing to pick from.
-3. The weapon attack tags. A new optional field 'attack_tags' on
-   the weapon payload, a list over 'ranged', 'melee', 'awaken'. The
-   issue text keeps weapon fields out; the ruling of 2026-08-28
-   brings this one in.
+1. The golden files record the flat unit payloads of the retired
+   oracle. The conversion sets 'ranged', 'melee' and 'awaken' of
+   each pilot to the recorded 'pilot_attack', so the tag pick gives
+   the recorded number and the expectations stay a true record.
+2. 'sp' and 'sp_max' have no source in the datamine. They land as
+   state fields with 0 until the device reader fills them.
