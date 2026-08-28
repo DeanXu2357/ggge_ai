@@ -14,25 +14,25 @@ import (
 // A state snapshot is bigger than the default 64 KiB line limit of the scanner.
 const maxLineBytes = 16 << 20
 
-type Handler func(id string, payload json.RawMessage) protocol.Response
+type command func(id string, payload json.RawMessage) protocol.Response
 
 type Server struct {
-	handlers map[string]Handler
+	handlers map[string]command
 	commands *handler.Commands
 }
 
 func New() *Server {
 	server := &Server{
-		handlers: make(map[string]Handler, len(registry)),
+		handlers: make(map[string]command, len(registry)),
 		commands: handler.NewCommands(),
 	}
 	for name, bind := range registry {
-		server.Handle(name, bind(server))
+		server.handle(name, bind(server))
 	}
 	return server
 }
 
-func (s *Server) Handle(name string, fn Handler) {
+func (s *Server) handle(name string, fn command) {
 	s.handlers[name] = fn
 }
 

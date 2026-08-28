@@ -8,8 +8,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-// A session holds the board, the seed, and the history of one battle. The
-// deploy commands belong to the issue that implements them.
 type session struct {
 	board         battle.Board
 	victory       []protocol.Victory

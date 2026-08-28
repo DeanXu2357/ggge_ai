@@ -6,17 +6,17 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-// A Binding builds the handler of one command against the server that holds the
-// board. A port issue adds one Register call in an init function of its own
+// A binding builds the handler of one command against the server that holds the
+// board. A port issue adds one register call in an init function of its own
 // file, and the loop needs no change.
-type Binding func(*Server) Handler
+type binding func(*Server) command
 
-var registry = map[string]Binding{}
+var registry = map[string]binding{}
 
-// Register binds one declared command name to its handler. A name outside the
+// register binds one declared command name to its handler. A name outside the
 // contract, or a second binding of one name, stops the build at start: 'hello'
 // reads this registry, and its answer must match what the loop dispatches.
-func Register(name string, bind Binding) {
+func register(name string, bind binding) {
 	if !protocol.IsDeclared(name) {
 		panic(fmt.Sprintf("command %q is not in the contract", name))
 	}
@@ -27,6 +27,6 @@ func Register(name string, bind Binding) {
 }
 
 func init() {
-	Register("hello", func(s *Server) Handler { return s.hello })
-	Register("ping", func(*Server) Handler { return ping })
+	register("hello", func(s *Server) command { return s.hello })
+	register("ping", func(*Server) command { return ping })
 }

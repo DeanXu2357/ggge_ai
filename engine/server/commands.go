@@ -1,11 +1,11 @@
 package server
 
 func init() {
-	Register("init", func(s *Server) Handler { return s.commands.InitBattle })
-	Register("load", func(s *Server) Handler { return s.commands.Load })
-	Register("reach", func(s *Server) Handler { return s.commands.Reach })
-	Register("export", func(s *Server) Handler { return s.commands.Export })
-	Register("act", func(s *Server) Handler { return s.commands.Act })
-	Register("actions", func(s *Server) Handler { return s.commands.Actions })
-	Register("response_attacks", func(s *Server) Handler { return s.commands.ResponseAttacks })
+	register("init", func(s *Server) command { return s.commands.InitBattle })
+	register("load", func(s *Server) command { return s.commands.Load })
+	register("reach", func(s *Server) command { return s.commands.Reach })
+	register("export", func(s *Server) command { return s.commands.Export })
+	register("act", func(s *Server) command { return s.commands.Act })
+	register("actions", func(s *Server) command { return s.commands.Actions })
+	register("response_attacks", func(s *Server) command { return s.commands.ResponseAttacks })
 }

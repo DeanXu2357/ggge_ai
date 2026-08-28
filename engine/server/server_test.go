@@ -35,7 +35,7 @@ func serve(t *testing.T, s *Server, lines ...string) []reply {
 
 func TestResponseKeepsTheRequestID(t *testing.T) {
 	server := New()
-	server.Handle("init", func(id string, _ json.RawMessage) protocol.Response {
+	server.handle("init", func(id string, _ json.RawMessage) protocol.Response {
 		return protocol.Fail(id, protocol.CodeNoSession, "no board")
 	})
 
@@ -164,7 +164,7 @@ func TestRegisterRefusesANameOutsideTheContract(t *testing.T) {
 		}
 	}()
 
-	Register("teleport", func(*Server) Handler { return ping })
+	register("teleport", func(*Server) command { return ping })
 }
 
 func TestRegisterRefusesASecondHandlerForOneName(t *testing.T) {
@@ -174,5 +174,5 @@ func TestRegisterRefusesASecondHandlerForOneName(t *testing.T) {
 		}
 	}()
 
-	Register("ping", func(*Server) Handler { return ping })
+	register("ping", func(*Server) command { return ping })
 }
