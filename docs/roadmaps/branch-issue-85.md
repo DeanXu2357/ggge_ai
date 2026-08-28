@@ -8,133 +8,76 @@ The branch 'issue-85-formula-package' starts from 'dev' (692f511),
 after the merge of #84. No code has moved yet; this document holds
 the placement assessment the user asked for on 2026-08-28.
 
-## What the code is today
+Issue: #85. Branch: issue-85-formula-package. Status: awaiting-review.
 
-Three classes of code live in 'engine/battle':
+## Change summary
 
-1. Types. 'model.go' holds 22 types. Data types: 'Cell', 'Size',
-   'Footprint', 'Bounds', 'RadiusRange', 'Faction', 'WeaponCategory',
-   'Weapon', 'Stance', 'Debuff', 'Skill', 'Pilot', 'Mech', 'Unit',
-   'Decision', 'ResponseAttack', 'Terrain', and the small enums. One
-   behaviour type: 'Board', with 14 methods. 'Pilot.AttackFor' and
-   'Unit.HasENFor' are the only methods of the data types that a
-   formula reads.
-2. Formulas. 'damage.go' (formulas 1 to 11), 'hit.go' (the hit
-   chain), 'rules.go' (ten constants and 'StanceMultiplier'), and
-   the formula half of 'strike.go' ('StrikeDamage', 'debuffBonus',
-   'StrikeHitProbability'). 179 lines. What they read from the
-   types: 'Weapon.Power', 'Weapon.Accuracy', 'Pilot.AttackFor',
-   'Pilot.Defense', 'Pilot.Reaction', 'Mech.Attack', 'Mech.Defense',
-   'Mech.Mobility', 'Unit.Debuffs', 'Unit.HasShield', 'Stance'.
-   Nothing from 'Board', 'Footprint' or 'Decision'.
-3. Orchestration. 'resolve.go', 'response_attacks.go', 'turn.go',
-   'forecast.go', 'candidates.go', 'geometry.go', 'dice.go',
-   'codec.go', 'clone.go', 'terrain.go', and the 'Board' methods.
-   The callers of a formula: 'resolve.go' (9 sites), 'forecast.go'
-   (4), 'response_attacks.go' (3), 'turn.go' (1).
+| Commit | What |
+|---|---|
+| 7002b69, db3ac4e, f99e68f | This file: the assessment, the ordering behind #86, the rebase |
+| 043a5d5 | The formulas move to 'engine/battle/formula' over 'Side'; the adapters in 'board'; the differential test on 'Side' |
+| 0648762 | 'unit', 'pilot', 'mech', 'weapon' private in 'board': the differential harness no longer builds them |
+| (next) | Four comments that index files or narrate a plan dropped; the map follows |
 
-The cycle the issue names: a formula package that keeps the current
-signatures imports 'battle' for 'Unit', and 'battle' imports the
-formula package for the numbers.
+    engine/battle/formula   side.go, damage.go, hit.go, strike.go, rules.go
+                            and their tests. Imports 'math' alone.
+    engine/battle/board     the adapters 'attackerSide', 'defenderSide',
+                            'debuffBonus', 'defenseMultiplier',
+                            'strikeDamage', 'strikeHitProbability';
+                            'maxSupportAttackers' in resolve.go and
+                            'enRegenPercent' in turn.go; no 'math' call
+                            left; every type private
 
-## The three placements weighed
+'formula' exports 'Side', the damage chain ('BaseDamage',
+'CombatBaseDamage', 'DamageScale', 'FinalDamage', 'CriticalDamage',
+'ExpectedDamage'), the hit chain ('HitRatePercent',
+'HitProbability'), 'StrikeDamage', 'StrikeHitProbability',
+'DefenseMultiplier', and the eight formula constants. 'board'
+exports 'Board', its contract methods, 'Apply', 'Advance' and the
+three 'Decode*' constructors, nothing else.
 
-A. Plain numbers. The formula package exports functions of floats
-   ('BaseDamage(power, pilotAttack, pilotDefense, mechAttack, ...)').
-   No cycle, no type dependency, the package is pure math and
-   constants. Cost: positional float lists of six to eight values;
-   the composition ('StrikeDamage') stays in 'battle' as glue that
-   unpacks a 'Unit'.
+## Call chain
 
-B. A third package for the data types ('Pilot', 'Mech', 'Weapon',
-   'Unit', ...). The formula package imports it; 'battle' imports
-   both. Cost: 'Unit' is entangled with the board ('Alive',
-   'HasENFor', 'Weapon', the charge and debuff state, and 'codec.go'
-   builds it); 'Decision' and 'ResponseAttack' reference 'Stance';
-   moving them is a large surgery for a ticket that promises a pure
-   move, and it leaves a package of types with almost no behaviour.
+    board.resolve / forecast / response_attacks
+      attackerSide(unit, weapon) -> formula.Side   PilotAttack = pilot.AttackFor(weapon)
+      defenderSide(unit)         -> formula.Side   PilotAttack 0, never read
+      debuffBonus(unit)          -> the bonus term
+      defenseMultiplier(stance, unit) -> formula.DefenseMultiplier(defending, shielded)
+      strikeDamage(...)          -> formula.StrikeDamage(power, a, d, NoTerrainCorrection, bonus, 0, defense)
+      strikeHitProbability(...)  -> formula.StrikeHitProbability(accuracy, a, d, dodging)
+    differential.formulas_test builds formula.Side from the fixture sides
 
-C. Formula-side input structs. The formula package declares its
-   own small inputs, for example 'Side{PilotAttack, PilotDefense,
-   PilotReaction, MechAttack, MechDefense, Mobility}' and the
-   weapon's 'Power' and 'Accuracy' as values; 'battle' adapts a
-   'Unit' plus a 'Weapon' into a 'Side' at each call. No cycle. The
-   names of the reference document ('攻擊方駕駛攻擊值' and the
-   like) become field names, not positions. The differential case
-   'formulas.json' already stores its inputs as side objects, so its
-   test builds a 'Side' from the fixture without a 'Unit'.
+## Verification
 
-Recommendation: C. It is A with names. The formula package depends
-on nothing in 'battle', and 'battle' keeps one adapter per input.
+- Gates green at 043a5d5 and 0648762 (the editor's runs); a separate
+  run at the last commit is recorded when it lands.
+- 'git diff f99e68f --stat -- tests/fixtures' is empty: no golden
+  changed, no number moved.
+- The main session read 'formula/side.go', listed every comment of
+  'formula' and 'board', the exported surface of both packages, and
+  'go list -deps' of both.
 
-## What moves and what stays under C
+## Contention points
 
-Moves to the formula package:
+1. **'Side' field names.** 'MechAttack' and 'MechDefense' where
+   combat-formulas.md writes UnAtk and UnDef, because the map
+   forbids "unit attack" for a mech value. The map row 'formula
+   side' carries the symbol binding.
+2. **Two orchestration constants stayed in 'board'**
+   ('maxSupportAttackers', 'enRegenPercent') against the issue
+   text, on the criterion the user gave: orchestration apart from
+   formulas.
+3. **Board-side copies of three tests** cover the adapters
+   ('defenseMultiplier', 'debuffBonus', 'attackerSide') beside the
+   formula-level tests over 'Side'. They test the mapping, not the
+   arithmetic; delete them if the user reads them as duplication.
+4. **'DefenseMultiplier(defending, shielded bool)'** replaces
+   'StanceMultiplier(stance, unit)': the formula reads two facts,
+   and the map from a stance and a shield to those facts is the
+   board's.
 
-- The damage chain and the hit chain, over 'Side' and the weapon
-  values. 'Pilot.AttackFor' stays on 'Pilot' in 'battle'; the
-  adapter calls it and writes the result into 'Side.PilotAttack'.
-- The rounding rule of a strike ('RoundToEven' for the goldens).
-- 'DefenseMultiplier(defending, shielded bool)' in place of
-  'StanceMultiplier(stance, defender)': the formula reads two facts,
-  and the map from a 'Stance' and 'Unit.HasShield' to those facts is
-  the caller's.
-- The constants of the formulas: 'NoDefenseMultiplier',
-  'NoTerrainCorrection', 'DefendMultiplier', 'ShieldMultiplier',
-  'CritNormal', 'CritHighMorale', 'CritSuper', 'DodgeHitPenalty'.
+## Deferred
 
-Stays in 'battle':
-
-- The adapters: 'Unit' plus 'Weapon' to 'Side'; the sum of
-  'Unit.Debuffs' as the penalty term; the dodge flag to the ability
-  correction; 'Stance' plus 'HasShield' to the two booleans.
-- 'CounterWeapon' and 'counterFits' (weapon selection).
-- Two constants that are rules of the orchestration and not of a
-  formula: 'MaxSupportAttackers' (the cap of a response attack) and
-  'ENRegenPercent' (the turn cycle). The issue text moves every
-  constant of 'rules.go'; by the user's own criterion, orchestration
-  apart from formulas, these two belong to the orchestration. This
-  needs a ruling.
-
-## Open for the user
-
-1. The package name. Candidates in Go style: 'engine/formula'
-   (singular, as 'strconv' and 'math'), 'engine/combat'. The user
-   rules.
-2. Placement C, or A or B.
-3. The two orchestration constants: stay in 'battle' (recommended)
-   or move with the rest as the issue text says.
-
-## Rulings (2026-08-28)
-
-- Placement C is accepted, and it comes second. First, a separate
-  issue splits 'engine/battle' into a thin contract package (the
-  types, a 'Board' interface in a read side and an act side, the
-  errors, the dice) and the implementation package
-  'engine/battle/board'. This branch rebases on that merge, and the
-  formula package is then imported by 'board' alone.
-- The user's words: "engine/battle/ 下面應該只有少數檔案放置對外開放
-  的合約其中就有 server 會使用到的 board contract，然後 engine/battle/
-  下再另外一個 package 區隔 board 的實作，這樣先改，之後整合你 C 的提案
-  把公式會用到數字在自己的公式 package 中包裝成結構".
-- Package name for the formulas: 'formula', the session's pick
-  from the two candidates; the user did not object. The two
-  orchestration constants stay in the implementation package
-  (recommended; not ruled against).
-
-## Resume point
-
-Rebased on the merge of #86 (1b63a85): 'engine/battle' is the
-contract over the wire types, 'engine/battle/board' holds the
-private model, and the formulas sit in 'board' for now. The move
-is delegated: the package 'engine/battle/formula' with 'Side', its
-tests, the adapters in 'board', the differential test on the new
-input type, the spec, gates. When the differential tests build
-'formula.Side' instead of 'board.Unit', the four model types of
-'board' lose their last outside caller and go private in the same
-branch.
-
-## Progress log
-
-- 2026-08-28: worktree added, assessment written.
-- 2026-08-28: rebased on 1b63a85; the move delegated.
+- Issue #80 replaces the constant terrain correction with the
+  dispatch over weapon abilities; the warning on 'board.strikeDamage'
+  marks the call.
