@@ -22,7 +22,7 @@ the source itself.
   the publisher of the game.
 - The licence is not stated on the site. Not verified.
 - The rate limit is not stated on the site. Not verified. One run of
-  the crawler makes five requests and downloads 57 MB.
+  the crawler makes six requests and downloads about 71 MB.
 
 ## The data version stamp
 
@@ -39,7 +39,7 @@ their own.
 The crawler names the dump directory with the stamp. A game patch
 changes the stamp, so a new dump lands beside the old one.
 
-## The four sources
+## The five sources
 
 The row counts come from a crawl on 2026-08-22, at the stamp
 `202608161248`.
@@ -49,6 +49,7 @@ The row counts come from a crawl on 2026-08-22, at the stamp
 | unit | `/ggetapi/en/unit` | JSON array | 1226 |
 | weapon | `/ggetapi/en/weapon` | JSON object | 4785 weapons, 1342 units |
 | stage | `/ggetapi/en/stage` | JSON array | 2104 |
+| character | `/ggetapi/en/character` | JSON array | 583 |
 | formula | `/gget/formula` | HTML page | 17 formula lines, 3 notes |
 
 The formula address is a rendered page, not an API. The page also
@@ -75,7 +76,6 @@ same stamp, read these addresses. The crawler does not fetch them.
 | Address | Form | Rows |
 |---|---|---|
 | `/ggetapi/en/unit/{id}` | JSON object | One unit, with its weapons in full |
-| `/ggetapi/en/character` | JSON array | 583 pilots |
 | `/ggetapi/en/character/{id}` | JSON object | One pilot |
 | `/ggetapi/en/supporter` | JSON array | 86 support crews |
 | `/ggetapi/en/supporter/{id}` | JSON object | One support crew |
@@ -576,13 +576,14 @@ Two statements differ from that document:
 
 ## What the crawler stores
 
-One run writes five files into `data/datamine/<stamp>/`:
+One run writes six files into `data/datamine/<stamp>/`:
 
 | File | Content |
 |---|---|
 | `unit.json` | The unit payload, written again |
 | `weapon.json` | The weapon payload, written again |
 | `stage.json` | The stage payload, written again |
+| `character.json` | The pilot payload, written again |
 | `formula.json` | The formula lines and the notes, read from the page |
 | `manifest.json` | The stamp, the crawled address, the address of each file, the row counts, the byte count and the SHA-256 |
 
@@ -597,11 +598,11 @@ stamp therefore give the same bytes, and a byte compare answers the
 drift question. The crawler prints the start time to stdout
 instead.
 
-The crawler reads the stamp a second time, after the four payloads.
-A new stamp at that moment stops the run, because the four payloads
+The crawler reads the stamp a second time, after the five payloads.
+A new stamp at that moment stops the run, because the five payloads
 can then hold two versions.
 
-A run at a stamp that already has a directory overwrites the five
+A run at a stamp that already has a directory overwrites the six
 files. It removes no other file of that directory. Give `--out` a
 second root to keep both dumps for a comparison.
 
