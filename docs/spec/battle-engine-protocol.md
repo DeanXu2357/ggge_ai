@@ -695,11 +695,12 @@ The mech holds its own values:
 | move_range | The movement range of the mech |
 | weapons | The weapons of the mech, in the weapon payload |
 
-A weapon carries 'attack_tags', a list over 'ranged', 'melee' and
-'awaken', null when the producer knows no tag. The pilot attack of
-a strike is the highest pilot value among the tags of the weapon; a
-weapon with no tag reads the highest of the three (user ruling
-2026-08-28). Go: 'Pilot.AttackFor'.
+A weapon carries 'categories', a list over 'ranged', 'melee' and
+'awaken', null when the producer knows no category. The pilot
+attack of a strike is the highest pilot value among the categories
+of the weapon; a weapon with no category reads the highest of the
+three (user ruling 2026-08-28). Go: 'WeaponCategory',
+'Pilot.AttackFor'.
 
 At 'init', a unit whose 'max_hp' or 'en_max' is 0 takes the value
 of its mech, and a unit whose 'sp_max' is 0 takes the 'sp' of its

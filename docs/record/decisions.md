@@ -1466,3 +1466,11 @@
   (docs/reference/datamine-source.md, section "The pilot row").
   Not built in issue #84; the pairing conditions belong to issue
   #72, and the derivation of the maxima to issue #77.
+- **(0828) The weapon category is not a tag — user ruling**｜"武裝
+  類別命名不能叫做 AttackTag 應該更明確的指出這是武裝的類型，用
+  AttackRanged 容易造成混淆". The three values 射擊, 格鬥, 覺醒 of a
+  weapon are its category. Go: 'WeaponCategory' with
+  'WeaponCategoryRanged', 'WeaponCategoryMelee',
+  'WeaponCategoryAwaken'; the wire field is 'categories' of the
+  weapon payload. The term "attack tag" is withdrawn from the
+  terminology map (issue #84).

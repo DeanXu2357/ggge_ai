@@ -14,8 +14,8 @@ of #74 are the ground of the mapping table.
   pilot of a pull, not a link. UR pilots are the pilot rows with
   'rarity' 5 (84 rows); UR units are the unit rows with 'rarity' 5
   (112 rows). No stored selection: one filter each.
-- A weapon carries one or more attack tags (射擊, 格鬥, 覺醒). The
-  damage reads the pilot value of the tag; with more than one tag,
+- A weapon carries one or more categories (射擊, 格鬥, 覺醒). The
+  damage reads the pilot value of the category; with more than one,
   the highest. This branch opens the contract shape; the strike
   change is issue #72.
 - The site's 'max_hp' is the mech's. The final panel is the mech
@@ -30,7 +30,7 @@ reads them at computation time.
 
     Pilot  { ranged, melee, awaken, defense, reaction, sp }
     Mech   { hp, en, attack, defense, mobility, move_range, weapons }
-    Weapon { ...existing..., attack_tags: [ranged | melee | awaken] }
+    Weapon { ...existing..., categories: [ranged | melee | awaken] }
     Unit   { unit_id, faction, pos, size, hp, max_hp, en, en_max,
              sp, sp_max, pilot, mech, skills, acted, charges, ammo,
              debuffs }
@@ -38,8 +38,9 @@ reads them at computation time.
 'max_hp' and 'en_max' come from the mech at 'init' (the pilot's
 abilities join in issue #77). 'sp_max' comes from the pilot. The
 pilot attack of a strike is 'Pilot.AttackFor(weapon)': the highest
-pilot value among the attack tags of the weapon; a weapon with no
-tag reads the highest of the three.
+pilot value among the categories of the weapon; a weapon with no
+category reads the highest of the three. Go: 'WeaponCategory'; the
+user rejected the name 'AttackTag' on 2026-08-28.
 
 ## Plan
 

@@ -213,17 +213,17 @@ rendered pages of Gundam (EX) and Zeong (EX):
 Value 5 was not seen on a page. Its weapons in the sample, "Shotgun
 EX" and "Heat Saber EX", make 物理、特殊 the hypothesis.
 
-`attack_attr` is the attack tag: which pilot value the damage
-reads. The user ruled on 2026-08-28 that the three tags are 格鬥,
-射擊 and 覺醒, and that a weapon with more than one tag reads the
-highest of the tagged pilot values. The site draws the tags as
+`attack_attr` is the weapon category: which pilot value the damage
+reads. The user ruled on 2026-08-28 that the three categories are
+格鬥, 射擊 and 覺醒, and that a weapon with more than one reads the
+highest of those pilot values. The site draws the categories as
 badges before the attribute text. Seen on the Zeong (EX) page: a
 yellow badge on "5-Barrel Arm Mega Particle Cannon" (value 1), a
 purple badge on "All-Range Attack" (value 3), and yellow, red and
 purple on "All-Range Attack EX" (value 7). With Beam Saber at value
 2 and Beam Rifle at value 1, the map is:
 
-| Value | Tags | Pilot value |
+| Value | Categories | Pilot value |
 |---|---|---|
 | 1 | 射擊 | `ranged` |
 | 2 | 格鬥 | `melee` |
@@ -233,7 +233,8 @@ purple on "All-Range Attack EX" (value 7). With Beam Saber at value
 
 Value 4 was seen on the Blue Destiny Unit-1 (EX) page: yellow and
 red badges on "EXAM System". Value 5 ("Wired Claw Arm") is a pair
-with 覺醒 by this reading; which pair is not verified. `work_type`
+with 覺醒 by this reading; which pair is not verified. The engine
+field is `categories` of the weapon payload. `work_type`
 (five values) is not verified.
 
 `ammo` is the ammunition count. The user ruled on 2026-08-28 that a
@@ -791,7 +792,7 @@ Weapon, from the unit detail form:
 
 | Datamine | Engine |
 |---|---|
-| `attack_attr` | `attack_tags`, by the table in section "The weapon row" |
+| `attack_attr` | `categories`, by the table in section "The weapon row" |
 | `capability` | Issue #80 |
 | `map_weapon_*` | Issue #79 |
 | the rest | Section "The weapon row against the engine weapon" |
