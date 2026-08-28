@@ -646,41 +646,63 @@ the build before the field. The test names each one in
 'ENGINE_ONLY', so a Go field that nobody declared is still a test
 failure.
 
-### The final panel and the base data
+### The unit, the pilot and the mech
 
-A unit is a pilot that rides a mech. The payload carries two
-levels of values, and they are not the same numbers.
+A unit is a pilot that rides a mech, on the board of one stage. The
+payload keeps the three apart (user ruling 2026-08-28).
 
-The final panel is what the game shows for the deployed unit. The
-fields 'hp', 'en', 'move_range' and 'weapons' of the unit carry
-it, together with 'unit_attack', 'unit_defense', 'mobility',
-'pilot_attack', 'pilot_defense' and 'reaction'. Every rule of the
-board reads the final panel.
-
-The base data is what the mech and the pilot supply to the
-computation of the final panel. An ability of the mech or of the
-pilot can change what the unit ends up with, so the base copy and
-the final panel can differ (user ruling 2026-08-21).
-
-The mech carries its base copy in four optional fields:
+The unit is the current state of the pairing. It records state and
+the maxima of state, and it takes no part in a computation:
 
 | Field | Content |
 |---|---|
-| mech_hp | The hit points of the mech |
-| mech_en | The energy of the mech |
-| mech_move_range | The movement range of the mech |
-| mech_weapons | The weapons of the mech, in the weapon payload |
+| hp, max_hp | The hit points now, and their maximum |
+| en, en_max | The energy now, and its maximum |
+| sp, sp_max | The skill points of the pilot now, and their maximum |
+| pos, size, acted, the charge counters, ammo, debuffs, skills | The board state, as before |
+| pilot | The pilot, as data |
+| mech | The mech, as data |
 
-These four are engine-only. A payload that omits them leaves the
-base copy of the mech empty. It does not fill the base copy from
-the final panel. No code derives the one level from the other
-today, so a producer that reads the panel of the game alone sends
-the panel alone.
+The unit carries no attack, no defense, no mobility, no movement
+range and no weapon list of its own. A rule that needs one of them
+reads the pilot or the mech.
 
-The Go types keep the two levels apart by the struct that holds
-the field, and not by the name of the field: 'battle.Unit' holds
-the final panel, and 'battle.Mech' and 'battle.Pilot' hold the
-base data. 'Mech.HP' is the base copy, and 'Unit.HP' is the panel.
+The pilot holds the values of the game's pilot panel:
+
+| Field | Content |
+|---|---|
+| ranged | 射擊值 |
+| melee | 格鬥值 |
+| awaken | 覺醒值 |
+| defense | 守備值 |
+| reaction | 反應值 |
+| sp | The skill point pool |
+
+The mech holds its own values:
+
+| Field | Content |
+|---|---|
+| hp, en | The hit points and the energy of the mech |
+| attack, defense, mobility | The three combat values of the mech |
+| move_range | The movement range of the mech |
+| weapons | The weapons of the mech, in the weapon payload |
+
+A weapon carries 'attack_tags', a list over 'ranged', 'melee' and
+'awaken', null when the producer knows no tag. The pilot attack of
+a strike is the highest pilot value among the tags of the weapon; a
+weapon with no tag reads the highest of the three (user ruling
+2026-08-28). Go: 'Pilot.AttackFor'.
+
+At 'init', a unit whose 'max_hp' or 'en_max' is 0 takes the value
+of its mech, and a unit whose 'sp_max' is 0 takes the 'sp' of its
+pilot. An explicit value stays. The abilities of the pilot and of
+the mech do not enter the maxima yet; issue #77 owns that
+derivation. The datamine holds no SP pool for a pilot; the device
+is its source.
+
+This section replaces the reading of 2026-08-21 that the unit
+carries a stored final panel that every rule reads. That reading
+is retired (docs/record/decisions.md, 0828).
 
 ### Terrain
 

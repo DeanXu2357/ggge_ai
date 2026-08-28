@@ -740,6 +740,62 @@ Divergences:
   same question: the terrain correction of formula eight reads the
   cell of the target, and the datamine gives no cell.
 
+### The UR selection
+
+A UR unit is a unit row with `rarity` 5: 112 rows at the stamp
+`202608161248`. A UR pilot is a pilot row with `rarity` 5: 84
+rows. The two selections are independent. The user ruled on
+2026-08-28 that a pilot and a mech pair freely, and that
+`gacha.bonus.character` of the unit detail form is the pilot
+bundled with a pull, not a link. No stored selection exists; a
+reader applies the one filter to each table.
+
+### The UR values against the engine contract
+
+The contract of issue #84 (`docs/spec/battle-engine-protocol.md`,
+section "The unit, the pilot and the mech") holds the pilot and
+the mech as data on the unit. This table maps every value of a UR
+mech row and of a UR pilot row to that contract.
+
+Mech, from the unit row and the unit detail form:
+
+| Datamine | Engine | Note |
+|---|---|---|
+| `stats.hp` | `mech.hp` | Which of the four value groups feeds it: issue #77 |
+| `stats.en` | `mech.en` | Same |
+| `stats.attack` | `mech.attack` | Same |
+| `stats.defense` | `mech.defense` | Same |
+| `stats.mobility` | `mech.mobility` | Same |
+| `stats.movement` | `mech.move_range` | Same |
+| `weapons[].weapon` | `mech.weapons[]` | The weapon table below |
+| `terrain` | none | Issue #76 owns the adaptability field |
+| `abilities`, `mechanism` | none | Text; the derivation of the maxima is issue #77, the shield is `has_shield` |
+| `defend`, `evade` | none | True on every row |
+| `rarity`, `role`, `series`, `series_set`, `tags`, `area`, `body_type`, `tr`, `acquisition`, `schedule_id`, `ult`, `mechanism_set`, `base_skill`, `ssp_config`, `transform_from`, `transform_to`, `get`, `gacha` | none | Team development, not the board |
+
+Pilot, from the pilot row:
+
+| Datamine | Engine | Note |
+|---|---|---|
+| `stats.ranged` | `pilot.ranged` | Value group: issue #77 |
+| `stats.melee` | `pilot.melee` | Same |
+| `stats.awaken` | `pilot.awaken` | Same |
+| `stats.defense` | `pilot.defense` | Same |
+| `stats.reaction` | `pilot.reaction` | Same |
+| — | `pilot.sp` | No column. The device is the source |
+| `skills` | none | Issue #81 owns the skill shape |
+| `abilities` | none | Issue #72 owns the pairing conditions; issue #77 the value effects |
+| `rarity`, `role`, `series_set`, `tags`, `acquisition`, the voice fields | none | Team development |
+
+Weapon, from the unit detail form:
+
+| Datamine | Engine |
+|---|---|
+| `attack_attr` | `attack_tags`, by the table in section "The weapon row" |
+| `capability` | Issue #80 |
+| `map_weapon_*` | Issue #79 |
+| the rest | Section "The weapon row against the engine weapon" |
+
 ### The three sources against the intel data spec
 
 | Group of the intel spec | Datamine cover |
