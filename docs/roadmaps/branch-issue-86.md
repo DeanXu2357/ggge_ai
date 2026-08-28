@@ -6,13 +6,14 @@ Issue: #86. Branch: issue-86-board-package. Status: awaiting-review.
 
 ## Change summary
 
-Three commits.
+Four commits.
 
 | Commit | What |
 |---|---|
 | 7c9fd64 | This file |
 | c294023 | The split: 43 files, +1832 / -1675, a pure move |
 | 7530578 | The interfaces renamed 'BoardReader' and 'BoardResolver' on the user's ruling |
+| (next) | The interfaces narrowed to the methods a consumer calls: 'Act' alone on the resolver, twelve on the reader |
 
     engine/battle          model.go (the data types, the six sentinel
                            errors), board.go (the interfaces and the
@@ -33,29 +34,36 @@ the field and imports the formulas from 'board'.
 
 ## The interfaces
 
-    battle.BoardReader    Activatable BlockingCells Bounds ByFaction
-                         Capabilities Clone CounterWeapon DefaultTerrain
-                         Gone OccupiedCells Pending Phase PhaseIndex
-                         ReachableCells ResponseAttacks Roster
-                         SupportAttackers SupportDefenders TargetsOf
-                         TerrainAt TerrainCells TerrainOf Turn Unit
-    battle.BoardResolver Act Advance Apply
+    battle.BoardResolver Act
+    battle.BoardReader   Bounds Capabilities Clone DefaultTerrain Gone
+                         Pending Phase ReachableCells ResponseAttacks
+                         Roster TerrainCells Turn
     battle.Board         BoardReader plus BoardResolver; 'Clone()'
                          returns Board
 
+Rule (user ruling 2026-08-28): a method is on the interface because
+a consumer outside 'board' calls it today. The server commands call
+'Act', 'Capabilities', 'ReachableCells', 'ResponseAttacks', 'Clone',
+'Turn' and 'Phase'; the codec functions the server hands the board
+to, 'EncodeState' and 'EncodeSummary', read 'Bounds',
+'DefaultTerrain', 'TerrainCells', 'Roster', 'Pending', 'Gone',
+'Phase' and 'Turn'. 'Apply' and 'Advance' are the two halves of
+'Act' and stay on the concrete type: 'load' calls 'Advance' on the
+value it decodes, and the differential replay calls 'Apply' on the
+concrete type. The other ten methods stay exported on
+'*board.Board' with no caller outside it.
+
 'var _ battle.Board = (*board.Board)(nil)' pins the implementation.
-The result types the methods return moved to 'battle/board.go':
-'CellSet', 'Forecast', 'Capabilities', 'StrikeKind', 'Strike',
-'Trace', 'Rotation', 'Resolution', 'SupportAttacker',
-'ResponseAttackOption', 'SupportDefendOption',
-'SupportAttackOption', 'SideOptions', 'Engagement'.
+The result types the interface methods return live in
+'battle/board.go'.
 
 ## Call chain of the server
 
     server.session.board  battle.Board
       board.DecodeInit / board.DecodeState   -> *board.Board
-      b.Act / b.Apply / b.Advance            BoardResolver
-      b.Roster / b.Pending / b.Gone / ...    BoardReader
+      b.Act                                  BoardResolver
+      b.Capabilities / b.ReachableCells /
+      b.ResponseAttacks / b.Clone / b.Turn / b.Phase   BoardReader
       board.EncodeState(b) / EncodeSummary   take battle.Board
 
 ## Verification
@@ -75,12 +83,10 @@ The result types the methods return moved to 'battle/board.go':
    session holds. The alternative, a type assertion to the struct
    inside the codec, was rejected. The six struct fields are now
    unexported: Go forbids a field and a method of one name.
-2. **'BoardReader' is wide: 24 methods.** Twelve are called by nobody
-   outside 'battle' and 'board': 'Activatable', 'BlockingCells',
-   'ByFaction', 'CounterWeapon', 'OccupiedCells', 'PhaseIndex',
-   'SupportAttackers', 'SupportDefenders', 'TargetsOf', 'TerrainAt',
-   'TerrainOf', 'Unit'. The issue fixed the method set at the 22
-   that existed; a narrower 'BoardReader' is a separate decision.
+2. **The interfaces are narrowed to the callers**, on the user's
+   ruling of 2026-08-28, against the issue text that fixed the
+   method set at the 22 that existed. The issue closes on the
+   narrowed set; the ruling is in the ledger.
 3. **The codec lives with the implementation.** 'server' therefore
    imports 'board' in three files, for the codec and not only to
    construct. 'Encode*' take the interface now, so they could move
@@ -102,4 +108,3 @@ The result types the methods return moved to 'battle/board.go':
 
 - The formulas move out of 'board' into their own package: issue
   #85, on this merge.
-- Narrowing 'BoardReader' (point 2), if the user wants it.

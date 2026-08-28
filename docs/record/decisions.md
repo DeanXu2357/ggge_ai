@@ -1492,3 +1492,16 @@
   and keeps its name. Same rule as the 'WeaponCategory' and
   'ResponseAttack' rulings of the day: an identifier names the
   thing it belongs to.
+- **(0828) A contract interface holds what a consumer calls — user
+  ruling**｜The first cut of the board contract put 'Act', 'Apply'
+  and 'Advance' on one interface. The user: "你自己都講出 act = apply
+  + advance 你不會覺得很怪嗎？為什麼包裝的介面你要懂執行順序以及等價？如
+  果 advance 單純提供資訊那為什麼不等到實際有需求的功能出來時再開介
+  面，並且你不是要把執行和讀取分開，如果 advance 和 act 放一起那這個介
+  面是做什麼用的？". Rule: an interface method exists because a
+  consumer outside the implementation calls it today; a method
+  that only the implementation composes ('Apply', 'Advance') stays
+  on the concrete type; the interface never shows a caller that one
+  method equals two others in order. 'BoardResolver' is 'Act'
+  alone; 'BoardReader' is the twelve methods the server and the
+  codec call (issue #86).
