@@ -12,7 +12,7 @@ Three commits.
 |---|---|
 | 7c9fd64 | This file |
 | c294023 | The split: 43 files, +1832 / -1675, a pure move |
-| (next) | The interfaces renamed 'BoardReader' and 'BoardResolver' on the user's ruling |
+| 7530578 | The interfaces renamed 'BoardReader' and 'BoardResolver' on the user's ruling |
 
     engine/battle          model.go (the data types, the six sentinel
                            errors), board.go (the interfaces and the
