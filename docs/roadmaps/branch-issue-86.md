@@ -6,7 +6,7 @@ Issue: #86. Branch: issue-86-board-package. Status: awaiting-review.
 
 ## Change summary
 
-Nine commits.
+Eleven commits.
 
 | Commit | What |
 |---|---|
@@ -17,7 +17,8 @@ Nine commits.
 | 4c50706 | The spec names the contract methods and the protocol import |
 | ac8aaeb | The twelve methods only the package calls made private; two policy comments deleted from 'model.go' |
 | 91ccc00, 9672ecf | The terminology map points at the private names; the narrating comment on 'Cell.Before' deleted |
-| (next) | The contract speaks the protocol on every method; the domain model moves into 'board'; the server runs no codec |
+| 8709ad3 | The contract speaks the protocol on every method; the domain model moves into 'board'; the server runs no codec |
+| (next) | The map's Go references follow; the names of 'board' that nothing outside calls made private |
 
     engine/battle          model.go (the data types, the six sentinel
                            errors), board.go (the interfaces and the
@@ -90,6 +91,13 @@ package apart, needs the rejected accessors, so A was chosen.
   accessors. The ledger records it (0828).
 
 ## Contention points
+
+0. **'protocol.ErrOutsideContract'.** Once the action decodes
+   behind the interface, the server could not tell a malformed
+   payload from an illegal action, and the spec requires
+   'bad_request' for the former. The board wraps its two decode
+   refusals in this sentinel and the server maps it first. The two
+   refusal messages changed to name the contract.
 
 1. **The first cut leaked the codec's reads onto the contract** as
    accessors ('Bounds', 'DefaultTerrain', 'TerrainCells', 'Roster',
