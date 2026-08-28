@@ -195,9 +195,50 @@ The unit row holds no pilot. It holds no reaction value.
 2026-08-28, every map weapon has `type` 3, and no other weapon has
 it. The Ex weapon of Gundam (EX), "Beam Saber EX", has `type` 2.
 `type` 1 is the rest. The map 1 normal, 2 Ex, 3 map weapon is a
-hypothesis from that sample. The meaning of `work_type` (five
-values), `attack_attr` (seven) and `weapon_attr` (six) is not
-verified.
+hypothesis from that sample.
+
+`weapon_attr` is the damage attribute that the site writes in angle
+brackets after the weapon name. Verified on 2026-08-28 on the
+rendered pages of Gundam (EX) and Zeong (EX):
+
+| Value | Text | Example |
+|---|---|---|
+| 1 | 物理 | Hyper Bazooka |
+| 2 | 光束 | Beam Rifle |
+| 3 | 特殊 | All-Range Attack |
+| 4 | 光束、物理 | Beam Saber EX |
+| 6 | 光束、特殊 | All-Range Attack EX |
+
+Value 5 was not seen on a page. Its weapons in the sample, "Shotgun
+EX" and "Heat Saber EX", make 物理、特殊 the hypothesis.
+
+`attack_attr` is the attack tag: which pilot value the damage
+reads. The user ruled on 2026-08-28 that the three tags are 格鬥,
+射擊 and 覺醒, and that a weapon with more than one tag reads the
+highest of the tagged pilot values. The site draws the tags as
+badges before the attribute text. Seen on the Zeong (EX) page: a
+yellow badge on "5-Barrel Arm Mega Particle Cannon" (value 1), a
+purple badge on "All-Range Attack" (value 3), and yellow, red and
+purple on "All-Range Attack EX" (value 7). With Beam Saber at value
+2 and Beam Rifle at value 1, the map is:
+
+| Value | Tags | Pilot value |
+|---|---|---|
+| 1 | 射擊 | `ranged` |
+| 2 | 格鬥 | `melee` |
+| 3 | 覺醒 | `awaken` |
+| 7 | 射擊、格鬥、覺醒 | the highest of the three |
+
+Values 4 ("EXAM System") and 5 ("Wired Claw Arm") are pairs of tags
+by this reading; which pairs is not verified. `work_type` (five
+values) is not verified.
+
+`ammo` is the ammunition count. The user ruled on 2026-08-28 that a
+map weapon needs both the energy and one round: "必須有足夠的 en 並且
+還有剩餘彈數才能使用". Of the 226 map weapons (`type` 3), 131 hold
+`ammo` 1, 65 hold 2, 27 hold 3, 2 hold 4 and 1 holds 9. Whether
+`ammo` 1 on the 4459 normal weapons means one round or no limit is
+not verified.
 
 `growth` holds the list `wsc`. Each row of the list holds `level`,
 `power`, `en`, `hit_rate` and `crit_rate`. The four values are
@@ -239,9 +280,22 @@ A map weapon carries two cell lists, each one a string of `(x,y)`
 pairs. `map_weapon_effect_range` is the set of cells the weapon
 strikes. `map_weapon_shooting_range` is empty on six of the ten map
 weapons of the sample, and it holds 4 to 48 cells on the other
-four. `map_weapon_range` is 1 to 4. Which cell the offsets of each
-list are relative to, and what `map_weapon_range` and
-`map_weapon_trait` mean, is not verified. The sample:
+four. `map_weapon_range` is 1 to 4.
+
+The user ruled on 2026-08-28 that a map weapon fires in one of two
+modes: a fixed shape turned to one of four directions, or an aim
+cell chosen inside the allowed range with the area applied around
+it. The sample fits that ruling as a hypothesis: a weapon with an
+empty shooting list is the directional mode, and its effect list is
+the shape drawn facing +y; a weapon with a shooting list is the aimed
+mode, its shooting list is the set of aim cells relative to the
+unit, and its effect list is the area relative to the aim cell. On
+that reading `map_weapon_range` 1 is an area around the unit, 2 is
+the aimed mode, 3 is the directional mode, and 4 is a line
+("Detonation Cord": four aim cells in one line, twelve effect
+cells). `map_weapon_trait` 2 is the supply kind, which the user
+confirmed heals allies in the area. None of this is verified on the
+device. The sample:
 
 | Unit | Weapon | `map_weapon_range` | `map_weapon_trait` | Effect cells | Shooting cells |
 |---|---|---|---|---|---|
