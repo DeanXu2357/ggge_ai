@@ -227,11 +227,13 @@ purple on "All-Range Attack EX" (value 7). With Beam Saber at value
 | 1 | 射擊 | `ranged` |
 | 2 | 格鬥 | `melee` |
 | 3 | 覺醒 | `awaken` |
+| 4 | 射擊、格鬥 | the higher of `ranged` and `melee` |
 | 7 | 射擊、格鬥、覺醒 | the highest of the three |
 
-Values 4 ("EXAM System") and 5 ("Wired Claw Arm") are pairs of tags
-by this reading; which pairs is not verified. `work_type` (five
-values) is not verified.
+Value 4 was seen on the Blue Destiny Unit-1 (EX) page: yellow and
+red badges on "EXAM System". Value 5 ("Wired Claw Arm") is a pair
+with 覺醒 by this reading; which pair is not verified. `work_type`
+(five values) is not verified.
 
 `ammo` is the ammunition count. The user ruled on 2026-08-28 that a
 map weapon needs both the energy and one round: "必須有足夠的 en 並且
