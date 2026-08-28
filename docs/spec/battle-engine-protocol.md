@@ -39,6 +39,11 @@ issues of the port (#60 to #68).
   the input type 'formula.Side' and the values of the weapon, and
   no unit. 'engine/battle/board' is its only caller, and it adapts
   a unit and the weapon it fires into a 'Side' at each call.
+- The package 'engine/server' holds the transport: the stdio loop,
+  the command registry and the command 'hello'. The package
+  'engine/server/handler' holds the body of every other command,
+  the battle that the commands read and change, and the two calls
+  on 'engine/battle/board' named above.
 
 ## Transport
 

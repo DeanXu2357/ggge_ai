@@ -1,4 +1,3 @@
-// Package server holds the stdio loop and the command registry of the engine.
 package server
 
 import (
@@ -8,27 +7,31 @@ import (
 	"io"
 
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
+	"github.com/DeanXu2357/ggge_ai/engine/server/handler"
 )
 
 // A state snapshot is bigger than the default 64 KiB line limit of the scanner.
 const maxLineBytes = 16 << 20
 
-type Handler func(id string, payload json.RawMessage) protocol.Response
+type command func(id string, payload json.RawMessage) protocol.Response
 
 type Server struct {
-	handlers map[string]Handler
-	session  *session
+	handlers map[string]command
+	commands *handler.Commands
 }
 
 func New() *Server {
-	server := &Server{handlers: make(map[string]Handler, len(registry))}
+	server := &Server{
+		handlers: make(map[string]command, len(registry)),
+		commands: handler.NewCommands(),
+	}
 	for name, bind := range registry {
-		server.Handle(name, bind(server))
+		server.handle(name, bind(server))
 	}
 	return server
 }
 
-func (s *Server) Handle(name string, fn Handler) {
+func (s *Server) handle(name string, fn command) {
 	s.handlers[name] = fn
 }
 
@@ -52,8 +55,8 @@ func (s *Server) dispatch(line []byte) protocol.Response {
 	if err := json.Unmarshal(line, &request); err != nil {
 		return protocol.Fail("", protocol.CodeBadRequest, err.Error())
 	}
-	if handler, ok := s.handlers[request.Cmd]; ok {
-		return handler(request.ID, payloadOf(request))
+	if run, ok := s.handlers[request.Cmd]; ok {
+		return run(request.ID, payloadOf(request))
 	}
 	if protocol.IsDeclared(request.Cmd) {
 		return protocol.Fail(request.ID, protocol.CodeNotImplemented,

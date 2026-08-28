@@ -1,4 +1,4 @@
-package server
+package handler
 
 import (
 	"encoding/json"
@@ -8,8 +8,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-// A session holds the board, the seed, and the history of one battle. The
-// deploy commands belong to the issue that implements them.
 type session struct {
 	board         battle.Board
 	victory       []protocol.Victory
@@ -33,16 +31,10 @@ func newSession(b battle.Board, seed int64) *session {
 	}
 }
 
-func init() {
-	Register("load", func(s *Server) Handler { return s.load })
-	Register("reach", func(s *Server) Handler { return s.reach })
-	Register("export", func(s *Server) Handler { return s.export })
-}
-
-func openCommand[T any](s *Server, id string, payload json.RawMessage) (
+func openCommand[T any](c *Commands, id string, payload json.RawMessage) (
 	*T, battle.Board, *protocol.Response) {
 	var request T
-	if s.session == nil {
+	if c.session == nil {
 		fail := protocol.Fail(id, protocol.CodeNoSession, "the engine holds no board")
 		return nil, nil, &fail
 	}
@@ -50,10 +42,10 @@ func openCommand[T any](s *Server, id string, payload json.RawMessage) (
 		fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 		return nil, nil, &fail
 	}
-	return &request, s.session.board, nil
+	return &request, c.session.board, nil
 }
 
-func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
+func (c *Commands) Load(id string, payload json.RawMessage) protocol.Response {
 	var request protocol.LoadRequest
 	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
@@ -75,28 +67,28 @@ func (s *Server) load(id string, payload json.RawMessage) protocol.Response {
 	if request.State.FiredEvents != nil {
 		loaded.firedEvents = request.State.FiredEvents
 	}
-	s.session = loaded
+	c.session = loaded
 	return protocol.Ok(id, protocol.LoadResponse{})
 }
 
-func (s *Server) export(id string, payload json.RawMessage) protocol.Response {
-	_, b, fail := openCommand[protocol.ExportRequest](s, id, payload)
+func (c *Commands) Export(id string, payload json.RawMessage) protocol.Response {
+	_, b, fail := openCommand[protocol.ExportRequest](c, id, payload)
 	if fail != nil {
 		return *fail
 	}
 	state := b.State()
-	state.PendingEvents = s.session.pendingEvents
-	state.FiredEvents = s.session.firedEvents
+	state.PendingEvents = c.session.pendingEvents
+	state.FiredEvents = c.session.firedEvents
 	return protocol.Ok(id, protocol.ExportResponse{
 		State:   state,
-		History: s.session.history,
-		Seed:    s.session.seed,
+		History: c.session.history,
+		Seed:    c.session.seed,
 		Gone:    b.Summary().Gone,
 	})
 }
 
-func (s *Server) reach(id string, payload json.RawMessage) protocol.Response {
-	request, b, fail := openCommand[protocol.ReachRequest](s, id, payload)
+func (c *Commands) Reach(id string, payload json.RawMessage) protocol.Response {
+	request, b, fail := openCommand[protocol.ReachRequest](c, id, payload)
 	if fail != nil {
 		return *fail
 	}

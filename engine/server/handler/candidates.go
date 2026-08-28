@@ -1,4 +1,4 @@
-package server
+package handler
 
 import (
 	"encoding/json"
@@ -8,13 +8,8 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-func init() {
-	Register("actions", func(s *Server) Handler { return s.actions })
-	Register("response_attacks", func(s *Server) Handler { return s.responseAttacks })
-}
-
-func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
-	request, b, fail := openCommand[protocol.ActionsRequest](s, id, payload)
+func (c *Commands) Actions(id string, payload json.RawMessage) protocol.Response {
+	request, b, fail := openCommand[protocol.ActionsRequest](c, id, payload)
 	if fail != nil {
 		return *fail
 	}
@@ -28,8 +23,8 @@ func (s *Server) actions(id string, payload json.RawMessage) protocol.Response {
 	return protocol.Ok(id, capabilities)
 }
 
-func (s *Server) responseAttacks(id string, payload json.RawMessage) protocol.Response {
-	request, b, fail := openCommand[protocol.ResponseAttacksRequest](s, id, payload)
+func (c *Commands) ResponseAttacks(id string, payload json.RawMessage) protocol.Response {
+	request, b, fail := openCommand[protocol.ResponseAttacksRequest](c, id, payload)
 	if fail != nil {
 		return *fail
 	}
