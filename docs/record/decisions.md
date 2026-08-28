@@ -1505,3 +1505,17 @@
   method equals two others in order. 'BoardResolver' is 'Act'
   alone; 'BoardReader' is the twelve methods the server and the
   codec call (issue #86).
+- **(0828) Correction: the board exports its own state — user review**
+  ｜The entry above set 'BoardReader' at twelve methods. The user
+  reviewed the file: "Reader 開了一堆沒有使用到的介面，並且功能重複不說
+  連 Bounds 這種明顯該定義成自己內部使用的私有函式都公開出來". Root
+  cause: 'EncodeState' and 'EncodeSummary' sit in the implementation
+  package but took the interface, so every field they read became a
+  public accessor. Resolution: the board exports itself through
+  'State()' and 'Summary()', the codec reads the struct, and the
+  accessors leave the contract. 'BoardReader' is six methods, each a
+  server call: 'Capabilities', 'ReachableCells', 'ResponseAttacks',
+  'Clone', 'State', 'Summary'. The session also records that its
+  first report relayed the editor's summary without a review of the
+  file; the review of a contract is a read of the file against its
+  callers, not a read of a report.
