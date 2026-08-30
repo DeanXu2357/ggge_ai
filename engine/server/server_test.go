@@ -85,7 +85,7 @@ func TestHelloListsEveryDeclaredCommand(t *testing.T) {
 
 func TestDeclaredCommandWithNoHandlerIsNotImplemented(t *testing.T) {
 	replies := serve(t, New(),
-		`{"id":"n1","cmd":"rollback","payload":{}}`,
+		`{"id":"n1","cmd":"place","payload":{}}`,
 		`{"id":"n2","cmd":"ping","payload":{}}`)
 
 	if replies[0].OK || replies[0].ID != "n1" {

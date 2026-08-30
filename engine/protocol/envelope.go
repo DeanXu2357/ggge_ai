@@ -18,7 +18,6 @@ const (
 	CodeNoSession      = "no_session"
 	CodeIllegalState   = "illegal_state"
 	CodeIllegalAction  = "illegal_action"
-	CodeEmptyHistory   = "empty_history"
 )
 
 // The board decodes the payload behind the contract, so this sentinel tells

@@ -414,8 +414,8 @@ D. Spec process model, terminology map, ledger, the artifact.
     the presentation). 'battle' now holds the interfaces and the
     types they speak, with their JSON tags, and imports no package
     of the engine; 'protocol' keeps the envelope, the codes, the
-    command wrappers and the two types no contract method speaks
-    ('ChanceEvent', 'StageEvent') and imports 'battle'. The board
+    command wrappers and the one type no contract method speaks
+    ('StageEvent') and imports 'battle'. The board
     codec still imports 'protocol' for 'InitRequest' and
     'ErrOutsideContract'; moving the codec to the server side is
     the next step and a separate issue.

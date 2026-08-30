@@ -6,13 +6,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
-type Guarantee string
-
-const (
-	GuaranteeKill Guarantee = "kill"
-	GuaranteeNone Guarantee = "none"
-)
-
 type VictoryKind string
 
 const (
@@ -34,33 +27,9 @@ type Victory struct {
 	Cell     *battle.Cell `json:"cell,omitempty"`
 }
 
-type Score struct {
-	SurviveAll bool `json:"survive_all"`
-	HPFloor    int  `json:"hp_floor"`
-}
-
-type Goal struct {
-	Victory []Victory `json:"victory"`
-	Score   Score     `json:"score"`
-}
-
-type Budget struct {
-	TimeMS int `json:"time_ms"`
-	Nodes  int `json:"nodes"`
-}
-
 type Dice struct {
 	Mode     DiceMode `json:"mode"`
 	Outcomes []string `json:"outcomes,omitempty"`
-}
-
-type Verdict struct {
-	// The advisor issue lands the shape of the field: one decision, or the
-	// chosen sequence of one turn.
-	Action        json.RawMessage `json:"action"`
-	ExpectedValue float64         `json:"expected_value"`
-	Guarantee     Guarantee       `json:"guarantee"`
-	Diagnostics   map[string]any  `json:"diagnostics,omitempty"`
 }
 
 type Board struct {
@@ -69,10 +38,6 @@ type Board struct {
 	Terrain      battle.Terrain       `json:"terrain,omitempty"`
 	TerrainCells []battle.TerrainCell `json:"terrain_cells,omitempty"`
 }
-
-type HelloRequest struct{}
-
-type PingRequest struct{}
 
 type PingResponse struct{}
 
@@ -146,41 +111,6 @@ type ActResponse struct {
 type HistoryEntry struct {
 	Cmd     string          `json:"cmd"`
 	Payload json.RawMessage `json:"payload"`
-}
-
-type Undone = HistoryEntry
-
-type RollbackRequest struct{}
-
-type RollbackResponse struct {
-	Undone Undone          `json:"undone"`
-	Board  json.RawMessage `json:"board"`
-}
-
-type SetUnitRequest struct {
-	UnitID string          `json:"unit_id"`
-	Fields json.RawMessage `json:"fields"`
-}
-
-type SetUnitResponse struct {
-	Unit battle.Unit `json:"unit"`
-}
-
-type AdviceRequest struct {
-	Faction string `json:"faction"`
-	Budget  Budget `json:"budget"`
-	Algo    string `json:"algo"`
-	Goal    *Goal  `json:"goal,omitempty"`
-}
-
-type AdviceResponse = Verdict
-
-type CertifyRequest struct {
-	Action battle.Decision `json:"action"`
-}
-
-type CertifyResponse struct {
-	Guarantee Guarantee `json:"guarantee"`
 }
 
 type ExportRequest struct{}

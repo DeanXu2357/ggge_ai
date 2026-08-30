@@ -16,8 +16,7 @@ issues of the port (#60 to #68).
   battles starts two processes.
 - The engine is the authority for the board. A client keeps no
   second copy of the board.
-- The engine holds the operation history of the battle. The
-  command 'rollback' removes the last entry.
+- The engine holds the operation history of the battle.
 - 'init' plus the sequence of the commands that change the board
   reproduce the battle. The engine holds no other input.
 - The Go package 'engine/battle' holds the contract: the board
@@ -117,7 +116,6 @@ Error codes:
 | no_session | The command needs a board, and 'init' did not run |
 | illegal_state | The board does not permit the command now |
 | illegal_action | The named action or response attack is not legal |
-| empty_history | 'rollback' found no entry |
 
 An error response does not stop the process. An error response does
 not change the board.
@@ -159,6 +157,11 @@ again.
 The field 'board' carries 'width', 'height', 'terrain' (the default
 kind of the map) and 'terrain_cells' (the cells of another kind).
 The section 'Terrain' holds the kinds.
+
+An entry of 'victory' carries 'kind', one of 'destroy_all',
+'destroy_target' and 'reach_cell', with the parameters of that kind.
+The engine stores the list and reads no entry: the issue that judges
+the end of a battle reads it.
 
 The field 'events' is stored and not read: the issue that gives a
 stage event its shape reads the table (user ruling 2026-08-27). The
@@ -451,58 +454,6 @@ or its skill holds 'usable_after_move' false, and an anchor that
 the unit does not reach; bad_request when an 'outcomes' label
 stands outside 'hit' and 'miss'.
 
-### rollback
-
-Purpose: remove the last entry of the operation history.
-
-'rollback' removes the last command that changed the board. The
-commands 'act', 'place', and 'set_unit' write such an entry.
-
-Request: no fields. Response: 'undone' (the command name and its
-payload) and 'board'.
-
-Refusals: no_session; empty_history.
-
-### set_unit
-
-Purpose: write values into one unit, without the turn rules.
-
-This command serves a formula check: an operator sets the values
-that the device shows, and then runs one engagement.
-
-Request: 'unit_id' and 'fields' (the values to change: the cell,
-the HP, the EN, the weapons, the unit values, the pilot values, the
-debuffs).
-
-Response: 'unit'.
-
-Refusals: no_session; illegal_action for an unknown unit id, or
-for a cell that holds another unit.
-
-### advice
-
-Purpose: the decision of the advisor for one faction.
-
-Request: 'faction', 'budget', 'algo', and 'goal'. The field 'goal'
-is optional: the engine uses the victory conditions of 'init' when
-the request holds no goal.
-
-Response: a 'Verdict'.
-
-The engine answers when the faction holds a decision that waits.
-An ally response attack against an enemy strike is such a decision,
-and the phase of that moment is the enemy phase. The gate is the
-decision, not the phase.
-
-Refusals: no_session; illegal_state when the faction holds no
-decision that waits.
-
-### certify
-
-Purpose: the guarantee of one action.
-
-Request: 'action'. Response: 'guarantee'.
-
 ### export and load
 
 Purpose: the snapshot of the session, for a run log, a replay, and
@@ -511,10 +462,10 @@ a differential test.
 'export' takes no field and gives 'state', 'history', 'seed', and
 'gone'. 'load' takes 'state', 'history', and 'seed', and replaces
 the session. An entry of 'history' carries 'cmd' and 'payload', the
-request of one command that changed the board. 'seed' is optional
-on 'load'; an absent seed is 0. 'load' builds the session random
-source at the start of its stream: a loaded history is a record,
-not a replay.
+request of one command that changed the board: 'act' and 'place'
+write such an entry. 'seed' is optional on 'load'; an absent seed is
+0. 'load' builds the session random source at the start of its
+stream: a loaded history is a record, not a replay.
 
 'gone' names the sides 'ally' and 'enemy' with no living unit, in
 that order. It is the field of the board summary of 'act', so a
@@ -610,37 +561,6 @@ response attack list holds units of one cell in one row. The
 what one unit carries, and the Python side holds no such answer.
 
 ## Types
-
-### Verdict
-
-| Field | Content |
-|---|---|
-| action | The chosen action, or the chosen sequence of one turn |
-| expected_value | The value of the chosen action |
-| guarantee | KILL or NONE |
-| diagnostics | The statistics of the search |
-
-A 'guarantee' of NONE says that the engine holds no certificate. It
-does not say that the action fails.
-
-### Goal parameters
-
-| Field | Content |
-|---|---|
-| victory | destroy_all, destroy_target, or reach_cell, with its parameters |
-| score | The score constraints: the survival of every unit, and the HP limit |
-
-The goal selects the statistic of the leaf evaluation.
-
-### Budget
-
-| Field | Content |
-|---|---|
-| time_ms | The limit in milliseconds |
-| nodes | The limit in nodes |
-
-An exhausted budget gives the best action of that moment. The
-diagnostics record the exhaustion.
 
 ### Unit payload, action, and response attack
 
@@ -906,4 +826,9 @@ difference between two integers is 1.
   command now refuses a unit that acted with the code
   'illegal_state'. The code 'already_acted' is retired. The same
   change moved the contract types from 'engine/protocol' to
-  'engine/battle'. The JSON stays the same everywhere else.
+  'engine/battle'. The same version also dropped the commands
+  'rollback', 'set_unit', 'advice' and 'certify', with their request
+  and response types, the goal and the budget parameters, the verdict
+  and the guarantee: no build implements them, and the issue that
+  implements one declares it again. The unused chance-event types left
+  the contract with them. The JSON stays the same everywhere else.

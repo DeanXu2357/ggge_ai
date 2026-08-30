@@ -61,7 +61,7 @@ def test_hello_lists_every_declared_command_in_order(engine_executable):
 def test_a_declared_command_with_no_handler_is_not_implemented(engine_executable):
     responses, _ = _exchange(
         engine_executable,
-        '{"id":"d1","cmd":"certify","payload":{}}',
+        '{"id":"d1","cmd":"place","payload":{}}',
         '{"id":"d2","cmd":"ping","payload":{}}',
     )
 
@@ -122,7 +122,7 @@ def test_an_engine_of_another_protocol_version_is_refused_at_hello(tmp_path):
 def test_the_client_raises_engine_error_on_a_refusal(engine_executable):
     with BattleEngine(engine_executable) as engine:
         with pytest.raises(EngineError) as refusal:
-            engine.call("certify", {})
+            engine.call("place", {})
 
         assert refusal.value.code == ErrorCode.NOT_IMPLEMENTED
         assert engine.ping() == {}

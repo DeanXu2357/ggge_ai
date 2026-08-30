@@ -179,7 +179,7 @@ def test_the_engine_report_carries_the_command_entries_of_the_contract(client):
     assert "export" in report["answers"]
     entries = {entry["name"]: entry["implemented"] for entry in report["commands"]}
     assert entries["act"] is True
-    assert entries["certify"] is False
+    assert entries["place"] is False
 
 
 def test_a_request_with_no_candidate_is_refused(client):
