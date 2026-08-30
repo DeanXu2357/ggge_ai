@@ -27,7 +27,7 @@ func (b *Board) ReachableCells(unitID string) ([]protocol.Cell, error) {
 }
 
 func (b *Board) ResponseAttacks(action *protocol.Decision, defenderID string) (protocol.ResponseAttacksResponse, error) {
-	decision, err := DecodeDecision(action)
+	decision, err := decodeDecision(action)
 	if err != nil {
 		return protocol.ResponseAttacksResponse{}, err
 	}

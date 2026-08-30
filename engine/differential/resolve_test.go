@@ -40,11 +40,7 @@ var resolveOps = map[string]differential.Op{
 		if err != nil {
 			return nil, err
 		}
-		decision, err := board.DecodeDecision(&in.Decision)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := state.Apply(decision, battle.Forced(in.Dice)); err != nil {
+		if _, err := state.Act(&in.Decision, battle.Forced(in.Dice)); err != nil {
 			return nil, err
 		}
 		return applyAnswer{Units: livingUnits(state)}, nil

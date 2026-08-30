@@ -136,7 +136,7 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 	return b, nil
 }
 
-func DecodeDecision(action *protocol.Decision) (engagement.Decision, error) {
+func decodeDecision(action *protocol.Decision) (engagement.Decision, error) {
 	kind, known := actionKinds[action.Kind]
 	if !known {
 		return engagement.Decision{}, fmt.Errorf("%w: the action carries the kind %q",

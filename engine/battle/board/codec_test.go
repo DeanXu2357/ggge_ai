@@ -456,7 +456,7 @@ func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
 	name := "rifle"
 	target := "e1"
 
-	action, err := DecodeDecision(&protocol.Decision{
+	action, err := decodeDecision(&protocol.Decision{
 		UnitID: "a1", Kind: protocol.ActionAttack, MoveTo: &moveTo,
 		TargetID: &target, Weapon: &name,
 	})
@@ -468,7 +468,7 @@ func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
 		action.Weapon != "rifle" || action.TargetID != "e1" {
 		t.Fatalf("action: %+v", action)
 	}
-	lean, err := DecodeDecision(&protocol.Decision{UnitID: "a1", Kind: protocol.ActionStandby})
+	lean, err := decodeDecision(&protocol.Decision{UnitID: "a1", Kind: protocol.ActionStandby})
 	if err != nil || lean.MoveTo != nil || lean.Weapon != "" {
 		t.Fatalf("a field with no value stays empty: %+v, %v", lean, err)
 	}

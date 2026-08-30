@@ -13,7 +13,7 @@ type resolution struct {
 }
 
 func (b *Board) Act(action *protocol.Decision, dice battle.Dice) ([]any, error) {
-	decision, err := DecodeDecision(action)
+	decision, err := decodeDecision(action)
 	if err != nil {
 		return nil, err
 	}
@@ -25,22 +25,12 @@ func (b *Board) Act(action *protocol.Decision, dice battle.Dice) ([]any, error) 
 }
 
 func (b *Board) act(decision engagement.Decision, dice battle.Dice) (resolution, error) {
-	trace, err := b.Apply(decision, dice)
+	plan, err := engagement.Prepare(&b.state, decision)
 	if err != nil {
 		return resolution{}, err
 	}
+	trace := engagement.Commit(&b.state, plan, dice)
 	return resolution{Trace: trace, Rotations: b.Advance()}, nil
-}
-
-// Apply runs one activation and leaves the phase where it stands. The
-// 'apply' checks of the frozen golden files record the units before any
-// rotation, so the differential test cannot go through Act.
-func (b *Board) Apply(decision engagement.Decision, dice battle.Dice) (engagement.Trace, error) {
-	plan, err := engagement.Prepare(&b.state, decision)
-	if err != nil {
-		return nil, err
-	}
-	return engagement.Commit(&b.state, plan, dice), nil
 }
 
 func (b *Board) Advance() []turn.Rotation {
