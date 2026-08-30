@@ -255,6 +255,9 @@ D. Spec process model, terminology map, ledger, the artifact.
 | cdb3c4d, 91654ed, c616c12, 226c6b5, 8238ddc, 70511fd, 73fa207, a08ca8e | The code-review fixes: one 'state.Unit.Alive' and one 'engagement.LivingUnit'/'OnPhase'; 'state.PhaseOrder'/'Board.PhaseIndex' (engagement no longer imports turn); 'ReachableCells' through 'LivingUnit'; one 'fires' predicate; 'receiverFor' replaces the plan's mirror of the receiver; 'Menu' through 'Prepare'; the Python hello version check; the tolerant intel load |
 | cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
 | 3a5e186 | 'Apply' removed: the golden 'apply' checks pass through 'Act' (a user finding at review) |
+| 414ff43 | 'Plan.Draws' bounds the forced 'outcomes' list before the first write; the handler keeps no clone of the board or the generator; 'ServerDraw.Clone' and 'ManualRoll.Short' gone |
+| 4722c31 | 'board.NewBoard' from a 'battle.BattleState' for init, load and the tests; 'deploy.Opening' assembles the opening state; the handler parses 'InitRequest'; 'load' no longer rotates (a user ruling); 'Board.Advance' gone; 'ErrOutsideContract' in 'battle' |
+| f378713 | The four commands with no handler ('rollback', 'set_unit', 'advice', 'certify') and their types, the goal/budget/verdict types and the chance-event types left the contract and the Python mirror (a user ruling) |
 | ef77841 | The state and definition packages deleted; the systems and the shell work on the contract types ('helpers.go' holds the value helpers); the codec keeps validation, init assembly and the response projections (762 to 350 lines); 'reachableCells' inlined; the test-only helpers 'terrainAt'/'terrainOf'/'unit' gone |
 | b716a32 | The contract types moved from 'engine/protocol' to 'engine/battle' ('decision.go', 'snapshot.go', 'responses.go'); 'actions' refuses an acted unit, protocol 1.6 |
 | 15de5e6, f317328 | The board files sorted by contract role ('reader.go', 'resolver.go', 'codec.go' with the definition codec merged, 'board.go' the state) after a user finding at review; the dead map 'wireKinds' dropped |
@@ -360,11 +363,14 @@ D. Spec process model, terminology map, ledger, the artifact.
    defender that is also its support attacker may die in the main
    strike). The re-check is the old code's; a reduction to 'alive'
    is a behaviour-neutral cleanup left for the review.
-2. **The forced-dice path keeps a clone in the handler.** A manual
-   'outcomes' list is short only when a draw runs past its end,
-   which 'Commit' learns during the roll; the refusal must leave
-   the board unchanged, so that path clones. Sampled dice, the
-   production path, run on the session board.
+2. **No clone: 'Plan.Draws' bounds the 'outcomes' list.** The board
+   counts the chance events of the plan after 'Prepare' and before
+   the first write, and refuses a shorter list with
+   'ErrOutsideContract' (bad_request). The count reads the plan with
+   every unit alive, so a list that would have sufficed on the
+   actual path is refused as well: a kill that skips the counter
+   still asks for the label of the counter. The Python client sends
+   four labels. Both dice modes now run on the session board.
 3. **'Apply' removed; 'Advance' stays on the shell** off the
    contract. 'Apply' (prepare and commit with no rotation) existed
    for the 'apply' checks of the frozen golden files
