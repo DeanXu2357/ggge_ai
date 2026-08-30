@@ -21,7 +21,7 @@ const candidateLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
-func capabilitiesOf(t *testing.T, reply reply) protocol.ActionsResponse {
+func actionsOf(t *testing.T, reply reply) protocol.ActionsResponse {
 	t.Helper()
 	if !reply.OK {
 		t.Fatalf("actions: %+v", reply)
@@ -45,7 +45,7 @@ func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
 
-	payload := capabilitiesOf(t, replies[1])
+	payload := actionsOf(t, replies[1])
 	if payload.Unit.UnitID != "a1" || payload.Unit.Pos != (protocol.Cell{1, 1}) ||
 		payload.Unit.Acted {
 		t.Fatalf("status: %+v", payload.Unit)
@@ -74,7 +74,7 @@ func TestActionsJudgesNoTargetAndNoResource(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
 
-	payload := capabilitiesOf(t, replies[1])
+	payload := actionsOf(t, replies[1])
 
 	if len(payload.Weapons) != 2 {
 		t.Fatalf("weapons: %+v", payload.Weapons)
@@ -106,7 +106,7 @@ func TestActionsOfAnActedUnitAnswersWithTheStateInThePayload(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a2"}}`)
 
-	payload := capabilitiesOf(t, replies[1])
+	payload := actionsOf(t, replies[1])
 
 	if !payload.Unit.Acted || payload.Error == nil ||
 		payload.Error.Code != protocol.CodeAlreadyActed {

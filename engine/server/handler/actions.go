@@ -13,14 +13,14 @@ func (c *Commands) Actions(id string, payload json.RawMessage) protocol.Response
 	if fail != nil {
 		return *fail
 	}
-	capabilities, err := b.Capabilities(request.UnitID)
+	actions, err := b.Actions(request.UnitID)
 	if err != nil {
 		if errors.Is(err, battle.ErrNoUnit) {
 			return protocol.Fail(id, protocol.CodeIllegalAction, err.Error())
 		}
 		return protocol.Fail(id, protocol.CodeIllegalState, err.Error())
 	}
-	return protocol.Ok(id, capabilities)
+	return protocol.Ok(id, actions)
 }
 
 func (c *Commands) ResponseAttacks(id string, payload json.RawMessage) protocol.Response {

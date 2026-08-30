@@ -23,7 +23,7 @@ issues of the port (#60 to #68).
 - The Go package 'engine/battle' holds the contract: the board
   interfaces over the wire types of 'engine/protocol', the dice
   and the sentinel errors. The interfaces hold the methods that a
-  consumer calls: 'Act' on 'BoardResolver'; 'Capabilities',
+  consumer calls: 'Act' on 'BoardResolver'; 'Actions',
   'ReachableCells', 'ResponseAttacks', 'Clone', 'State' and
   'Summary' on 'BoardReader'. Each method takes and gives the
   types of 'engine/protocol', so the contract imports that

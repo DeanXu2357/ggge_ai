@@ -193,7 +193,7 @@ the exchange, the end of the activation.
          turn.Advance -> encode. Atomic by construction: Prepare
          returns before the first write and Commit cannot fail, so
          handler/act.go drops its clone.
-    Capabilities, ReachableCells: geometry
+    Actions, ReachableCells: geometry
     ResponseAttacks: engagement.Menu
     Clone: state.Board.Clone
     State, Summary: encode
@@ -260,7 +260,7 @@ D. Spec process model, terminology map, ledger, the artifact.
     engine/battle/turn        turn.go (118)
     engine/battle/deploy      deploy.go (20)
     engine/battle/board       board.go (139), codec.go, def_codec.go,
-                              candidates.go, clone.go
+                              actions.go, clone.go
     engine/server/handler     act.go
     engine/protocol           state.go, types.go, envelope.go (1.5)
     src/ggge_ai/engine        state.py, codec.py, contract.py (1.5)

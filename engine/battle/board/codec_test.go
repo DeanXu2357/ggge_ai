@@ -314,7 +314,7 @@ func TestTheOpposingFactionOfEverySide(t *testing.T) {
 	}
 }
 
-func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
+func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	amount := 2500.0
 	ammo := 3
 	unit := &state.Unit{
@@ -338,7 +338,7 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 		Ammo: map[string]int{"missile": ammo},
 	}
 
-	out := encodeCapabilities(capabilities{Unit: unit, MoveCells: []state.Cell{{2, 3}, {2, 4}}})
+	out := encodeActions(unit, []state.Cell{{2, 3}, {2, 4}})
 
 	if out.Unit.Pos != (protocol.Cell{2, 3}) || out.Unit.Size != (protocol.Cell{2, 1}) ||
 		out.Unit.Faction != protocol.FactionAlly || out.Unit.MaxHP != 1000 {
@@ -363,11 +363,11 @@ func TestTheCapabilityPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	}
 }
 
-func TestTheCapabilityPayloadOfAnActedUnitCarriesTheState(t *testing.T) {
+func TestTheActionsPayloadOfAnActedUnitCarriesTheState(t *testing.T) {
 	unit := &state.Unit{ID: "a1", Faction: state.FactionAlly, HP: 100, Acted: true,
 		Mech: &def.Mech{}}
 
-	out := encodeCapabilities(capabilities{Unit: unit})
+	out := encodeActions(unit, nil)
 
 	if out.Error == nil || out.Error.Code != protocol.CodeAlreadyActed {
 		t.Fatalf("error: %+v", out.Error)

@@ -265,11 +265,10 @@ func decodeSkill(unitID string, wire protocol.Skill) (state.Skill, error) {
 	}, nil
 }
 
-func encodeCapabilities(capabilities capabilities) protocol.ActionsResponse {
-	unit := capabilities.Unit
+func encodeActions(unit *state.Unit, moveCells []state.Cell) protocol.ActionsResponse {
 	out := protocol.ActionsResponse{
 		Unit:      encodeUnitStatus(unit),
-		MoveCells: encodeCells(capabilities.MoveCells),
+		MoveCells: encodeCells(moveCells),
 		Weapons:   encodeWeapons(unit),
 		Skills:    encodeSkills(unit.Skills),
 	}

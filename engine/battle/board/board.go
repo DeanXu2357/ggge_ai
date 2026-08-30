@@ -17,11 +17,6 @@ type Board struct {
 	state state.Board
 }
 
-type capabilities struct {
-	Unit      *state.Unit
-	MoveCells []state.Cell
-}
-
 type resolution struct {
 	Trace     engagement.Trace
 	Rotations []turn.Rotation
