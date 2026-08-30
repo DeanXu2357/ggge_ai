@@ -3,42 +3,42 @@ package engagement
 import (
 	"fmt"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-// Menu answers the question 'response_attacks' with the eligibility helpers
-// that Prepare reads, so the offer and the check never part.
+// Menu answers the question 'response_attacks' from the plan that 'act' would
+// run, so the menu refuses every action the action itself refuses, with the
+// same error. The response attack of the decision is the question, so the plan
+// is built without one.
 func Menu(board *state.Board, decision Decision, defenderID string) (Options, error) {
+	decision.Response = nil
+	plan, err := Prepare(board, decision)
+	if err != nil {
+		return Options{}, err
+	}
+	if plan.kind != ActionAttack {
+		return Options{}, fmt.Errorf("%w: an action of the kind %q asks unit %q nothing",
+			battle.ErrIllegalAction, plan.kind, defenderID)
+	}
 	defender, err := LivingUnit(board, defenderID)
 	if err != nil {
 		return Options{}, err
 	}
-	attacker, err := LivingUnit(board, decision.UnitID)
-	if err != nil {
-		return Options{}, err
-	}
-	if decision.Kind != ActionAttack {
-		return Options{}, fmt.Errorf("an action of the kind %q asks unit %q nothing",
-			decision.Kind, defenderID)
+	attacker, weapon := plan.actor, plan.weapon
+	origin := geometry.FootprintAt(attacker, plan.anchor)
+	distance := geometry.Distance(defender.Footprint, origin)
+	if !weapon.Range.Holds(distance) {
+		return Options{}, fmt.Errorf("%w: the weapon %q of unit %q does not reach unit %q from %v",
+			battle.ErrIllegalAction, weapon.Name, attacker.ID, defenderID, origin.Anchor)
 	}
 	out := Options{
 		Defender:        SideOptions{Unit: defender},
 		Attacker:        SideOptions{Unit: attacker},
 		ResponseAttacks: []ResponseAttackOption{},
-	}
-	weapon := weaponOf(attacker, decision.Weapon)
-	if weapon == nil {
-		return Options{}, fmt.Errorf("unit %q carries no weapon %q",
-			attacker.ID, decision.Weapon)
-	}
-	origin := geometry.FootprintAt(attacker, strikeCell(attacker, decision))
-	distance := geometry.Distance(defender.Footprint, origin)
-	if !weapon.Range.Holds(distance) {
-		return Options{}, fmt.Errorf("the weapon %q of unit %q does not reach unit %q from %v",
-			decision.Weapon, attacker.ID, defenderID, origin.Anchor)
 	}
 
 	out.ResponseAttacks = append(out.ResponseAttacks,
@@ -104,11 +104,4 @@ func attackOptions(foe *state.Unit, joining []supportAttacker) []SupportAttackOp
 		})
 	}
 	return out
-}
-
-func strikeCell(attacker *state.Unit, decision Decision) state.Cell {
-	if decision.MoveTo == nil {
-		return attacker.Footprint.Anchor
-	}
-	return *decision.MoveTo
 }

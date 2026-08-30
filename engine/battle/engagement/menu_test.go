@@ -34,8 +34,11 @@ func duel() *state.Board {
 	helper.Mech.MoveRange = 1
 	helper.SupportDefendCharges = 1
 	attacker := unitAt("e1", state.FactionEnemy, state.Cell{1, 0})
+	attacker.Mech.MoveRange = 2
 	attacker.Mech.Weapons = []def.Weapon{rifle("rifle", def.RadiusRange{Min: 1, Max: 2})}
-	return board(defender, helper, attacker)
+	b := board(defender, helper, attacker)
+	b.Phase = state.FactionEnemy
+	return b
 }
 
 func strikeAction(cell state.Cell, weapon string) Decision {
@@ -86,6 +89,24 @@ func TestACounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
 				t.Fatalf("response attacks: %v", stances(out.ResponseAttacks))
 			}
 		})
+	}
+}
+
+// The menu runs the plan of 'act', so an action that 'act' refuses carries no
+// menu, with the same error.
+func TestTheMenuRefusesWhatTheActionRefuses(t *testing.T) {
+	b := duel()
+	b.Unit("e1").Mech.Weapons[0].ENCost = 1000
+	decision := strikeAction(state.Cell{1, 0}, "rifle")
+
+	_, planned := Prepare(b, decision)
+	_, offered := Menu(b, decision, "d1")
+
+	if planned == nil || offered == nil || offered.Error() != planned.Error() {
+		t.Fatalf("the menu answers %v, and the action answers %v", offered, planned)
+	}
+	if !errors.Is(offered, battle.ErrIllegalAction) {
+		t.Fatalf("error: %v", offered)
 	}
 }
 
@@ -188,7 +209,8 @@ func TestTheStrikeComesFromTheCellOfTheAction(t *testing.T) {
 func TestTheStrikeOfAnActionWithNoMoveComesFromTheCellOfToday(t *testing.T) {
 	b := duel()
 
-	out, err := Menu(b, Decision{UnitID: "e1", Kind: ActionAttack, Weapon: "rifle"}, "d1")
+	out, err := Menu(b, Decision{UnitID: "e1", Kind: ActionAttack,
+		TargetID: "d1", Weapon: "rifle"}, "d1")
 
 	if err != nil {
 		t.Fatalf("response attacks: %v", err)
@@ -236,6 +258,7 @@ func TestEachEntryCarriesTheForecastOfItsOwnStrike(t *testing.T) {
 	guard.SupportAttackCharges = 1
 	guard.Mech.Weapons = []def.Weapon{beam()}
 	b := board(defender, guard, attacker)
+	b.Phase = state.FactionEnemy
 
 	out, err := Menu(b, Decision{UnitID: "e1", Kind: ActionAttack,
 		TargetID: "d1", Weapon: "beam rifle"}, "d1")
