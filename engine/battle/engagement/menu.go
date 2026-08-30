@@ -12,11 +12,11 @@ import (
 // Menu answers the question 'response_attacks' with the eligibility helpers
 // that Prepare reads, so the offer and the check never part.
 func Menu(board *state.Board, decision Decision, defenderID string) (Options, error) {
-	defender, err := livingUnit(board, defenderID)
+	defender, err := LivingUnit(board, defenderID)
 	if err != nil {
 		return Options{}, err
 	}
-	attacker, err := livingUnit(board, decision.UnitID)
+	attacker, err := LivingUnit(board, decision.UnitID)
 	if err != nil {
 		return Options{}, err
 	}

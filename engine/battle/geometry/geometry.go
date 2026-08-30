@@ -79,7 +79,7 @@ func Blocking(board *state.Board, unit *state.Unit) CellSet {
 	out := CellSet{}
 	for index := range board.Units {
 		other := &board.Units[index]
-		if other.ID == unit.ID || other.HP <= 0 || other.Faction == unit.Faction {
+		if other.ID == unit.ID || !other.Alive() || other.Faction == unit.Faction {
 			continue
 		}
 		AddFootprint(out, other.Footprint)
@@ -91,7 +91,7 @@ func Occupied(board *state.Board, except string) CellSet {
 	out := CellSet{}
 	for index := range board.Units {
 		other := &board.Units[index]
-		if other.ID == except || other.HP <= 0 {
+		if other.ID == except || !other.Alive() {
 			continue
 		}
 		AddFootprint(out, other.Footprint)

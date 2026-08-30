@@ -481,7 +481,7 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 	}
 
 	unit := board.unit("a1")
-	if unit == nil || !alive(unit) {
+	if !unit.Alive() {
 		t.Fatalf("unit: %v", unit)
 	}
 	if board.unit("ghost") != nil {
@@ -490,7 +490,7 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 
 	unit.HP = 0
 
-	if alive(unit) || alive(board.unit("ghost")) {
+	if unit.Alive() || board.unit("ghost").Alive() {
 		t.Fatal("a unit with no hit points is not alive, and neither is a unit that is not there")
 	}
 }

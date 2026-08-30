@@ -54,10 +54,6 @@ type Response struct {
 	SupportAttackers []string
 }
 
-func alive(unit *state.Unit) bool {
-	return unit != nil && unit.HP > 0
-}
-
 func hasENFor(unit *state.Unit, weapon def.Weapon) bool {
 	return unit.EN >= weapon.ENCost
 }
@@ -75,7 +71,7 @@ func byFaction(board *state.Board, faction state.Faction) []*state.Unit {
 	var out []*state.Unit
 	for index := range board.Units {
 		other := &board.Units[index]
-		if other.Faction == faction && alive(other) {
+		if other.Faction == faction && other.Alive() {
 			out = append(out, other)
 		}
 	}

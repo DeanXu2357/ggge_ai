@@ -41,7 +41,7 @@ func Pending(board *state.Board, faction state.Faction) []*state.Unit {
 	var out []*state.Unit
 	for index := range board.Units {
 		unit := &board.Units[index]
-		if unit.Faction == faction && alive(unit) && !unit.Acted {
+		if unit.Faction == faction && unit.Alive() && !unit.Acted {
 			out = append(out, unit)
 		}
 	}
@@ -72,7 +72,7 @@ func beginPhase(board *state.Board) {
 	now := PhaseIndex(board)
 	for index := range board.Units {
 		unit := &board.Units[index]
-		if !alive(unit) {
+		if !unit.Alive() {
 			continue
 		}
 		unit.Debuffs = expired(unit.Debuffs, now)
@@ -96,7 +96,7 @@ func expired(debuffs []state.Debuff, now int) []state.Debuff {
 
 func anyAlive(board *state.Board) bool {
 	for index := range board.Units {
-		if alive(&board.Units[index]) {
+		if board.Units[index].Alive() {
 			return true
 		}
 	}
@@ -106,13 +106,9 @@ func anyAlive(board *state.Board) bool {
 func holds(board *state.Board, faction state.Faction) bool {
 	for index := range board.Units {
 		unit := &board.Units[index]
-		if unit.Faction == faction && alive(unit) {
+		if unit.Faction == faction && unit.Alive() {
 			return true
 		}
 	}
 	return false
-}
-
-func alive(unit *state.Unit) bool {
-	return unit != nil && unit.HP > 0
 }

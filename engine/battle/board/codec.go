@@ -255,7 +255,7 @@ func decodeSkill(unitID string, wire protocol.Skill) (state.Skill, error) {
 	return state.Skill{
 		Kind:            state.SkillKind(wire.Kind),
 		Source:          source,
-		Amount:          cloneAmount(wire.Amount),
+		Amount:          state.CloneAmount(wire.Amount),
 		Uses:            wire.Uses,
 		EndsActivation:  wire.EndsActivation,
 		UsableAfterMove: wire.UsableAfterMove,
@@ -320,7 +320,7 @@ func encodeSkills(skills []state.Skill) []protocol.SkillEntry {
 	for _, skill := range skills {
 		out = append(out, protocol.SkillEntry{
 			Kind:            protocol.SkillKind(skill.Kind),
-			Amount:          cloneAmount(skill.Amount),
+			Amount:          state.CloneAmount(skill.Amount),
 			Uses:            skill.Uses,
 			EndsActivation:  skill.EndsActivation,
 			UsableAfterMove: skill.UsableAfterMove,
@@ -352,7 +352,7 @@ func DecodeDecision(action *protocol.Decision) (engagement.Decision, error) {
 		Kind:             kind,
 		TargetID:         decodeOptionalName(action.TargetID),
 		Weapon:           decodeOptionalName(action.Weapon),
-		Amount:           cloneAmount(action.Amount),
+		Amount:           state.CloneAmount(action.Amount),
 		SupportDefender:  decodeOptionalName(action.SupportDefender),
 		SupportAttackers: append([]string(nil), action.SupportAttackers...),
 	}
@@ -522,7 +522,7 @@ func encodeSkill(skill state.Skill) protocol.Skill {
 	return protocol.Skill{
 		Kind:            protocol.SkillKind(skill.Kind),
 		Source:          wireSources[skill.Source],
-		Amount:          cloneAmount(skill.Amount),
+		Amount:          state.CloneAmount(skill.Amount),
 		Uses:            skill.Uses,
 		EndsActivation:  skill.EndsActivation,
 		UsableAfterMove: skill.UsableAfterMove,
@@ -538,14 +538,6 @@ func encodeOptionalName(name string) *string {
 		return nil
 	}
 	return &name
-}
-
-func cloneAmount(amount *float64) *float64 {
-	if amount == nil {
-		return nil
-	}
-	out := *amount
-	return &out
 }
 
 func cellFootprint(cell state.Cell) state.Footprint {

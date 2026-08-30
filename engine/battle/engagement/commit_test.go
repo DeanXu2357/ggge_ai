@@ -121,7 +121,7 @@ func TestADestroyedUnitKeepsItsPlaceWithNoHitPointsLeft(t *testing.T) {
 
 	trace := apply(t, b, attackOn("e1", "beam rifle"), battle.Forced{Strike: true})
 
-	if got := b.Unit("e1"); got == nil || got.HP != 0 || alive(got) {
+	if got := b.Unit("e1"); got == nil || got.HP != 0 || got.Alive() {
 		t.Fatalf("unit: %+v", got)
 	}
 	if !trace[0].Killed {

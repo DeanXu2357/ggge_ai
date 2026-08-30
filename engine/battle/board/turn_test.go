@@ -53,7 +53,7 @@ func targetsOf(b *Board, unit *state.Unit) []*state.Unit {
 	var out []*state.Unit
 	for index := range b.state.Units {
 		other := &b.state.Units[index]
-		if other.Faction == unit.Faction.Opposing() && alive(other) {
+		if other.Faction == unit.Faction.Opposing() && other.Alive() {
 			out = append(out, other)
 		}
 	}

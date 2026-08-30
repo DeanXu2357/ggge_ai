@@ -137,13 +137,12 @@ func aimOf(target *state.Unit, answer answer) aim {
 // The command 'act' reads this gate; the reporting commands do not, because
 // a report of a unit that acted is still the answer to the question.
 func activatable(board *state.Board, unitID string) (*state.Unit, error) {
-	unit, err := livingUnit(board, unitID)
+	unit, err := LivingUnit(board, unitID)
 	if err != nil {
 		return nil, err
 	}
-	if unit.Faction != board.Phase {
-		return nil, fmt.Errorf("%w: %q is of the side %q, and the phase is %q",
-			battle.ErrOffPhase, unitID, unit.Faction, board.Phase)
+	if err := OnPhase(board, unit); err != nil {
+		return nil, err
 	}
 	if unit.Acted {
 		return nil, fmt.Errorf("%w: %q", battle.ErrActed, unitID)
@@ -151,19 +150,29 @@ func activatable(board *state.Board, unitID string) (*state.Unit, error) {
 	return unit, nil
 }
 
-func livingUnit(board *state.Board, id string) (*state.Unit, error) {
+// LivingUnit and OnPhase are the two gates that every command reads, so the
+// shell asks them here and no package writes the refusal twice.
+func LivingUnit(board *state.Board, id string) (*state.Unit, error) {
 	unit := board.Unit(id)
 	if unit == nil {
 		return nil, fmt.Errorf("%w: %q", battle.ErrNoUnit, id)
 	}
-	if !alive(unit) {
+	if !unit.Alive() {
 		return nil, fmt.Errorf("%w: %q", battle.ErrDestroyed, id)
 	}
 	return unit, nil
 }
 
+func OnPhase(board *state.Board, unit *state.Unit) error {
+	if unit.Faction != board.Phase {
+		return fmt.Errorf("%w: %q is of the side %q, and the phase is %q",
+			battle.ErrOffPhase, unit.ID, unit.Faction, board.Phase)
+	}
+	return nil
+}
+
 func foe(board *state.Board, actor *state.Unit, targetID string) (*state.Unit, error) {
-	target, err := livingUnit(board, targetID)
+	target, err := LivingUnit(board, targetID)
 	if err != nil {
 		return nil, err
 	}

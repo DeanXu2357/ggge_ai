@@ -60,21 +60,6 @@ func (b *Board) unit(id string) *state.Unit {
 	return b.state.Unit(id)
 }
 
-func alive(unit *state.Unit) bool {
-	return unit != nil && unit.HP > 0
-}
-
-func (b *Board) livingUnit(id string) (*state.Unit, error) {
-	unit := b.unit(id)
-	if unit == nil {
-		return nil, fmt.Errorf("%w: %q", battle.ErrNoUnit, id)
-	}
-	if !alive(unit) {
-		return nil, fmt.Errorf("%w: %q", battle.ErrDestroyed, id)
-	}
-	return unit, nil
-}
-
 func (b *Board) ReachableCells(unitID string) ([]protocol.Cell, error) {
 	cells, err := b.reachableCells(unitID)
 	if err != nil {

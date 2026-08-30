@@ -28,9 +28,9 @@ func Commit(board *state.Board, plan Plan, dice battle.Dice) Trace {
 	// a measurement lands.
 	trace = append(trace, shot.hit(StrikeMain, plan.actor, plan.weapon,
 		dice.Lands(battle.NodeStrike, strikeHitProbability(plan.actor, plan.target, plan.weapon, plan.dodging))))
-	killed := !alive(shot.struck)
+	killed := !shot.struck.Alive()
 
-	if plan.answer.response != nil && alive(plan.target) {
+	if plan.answer.response != nil && plan.target.Alive() {
 		trace = append(trace, defenderReply(board, plan, dice)...)
 	}
 	endActivation(plan.actor, killed)
@@ -38,7 +38,7 @@ func Commit(board *state.Board, plan Plan, dice battle.Dice) Trace {
 }
 
 func endActivation(actor *state.Unit, killed bool) {
-	if killed && alive(actor) && actor.ChanceSteps > 0 {
+	if killed && actor.Alive() && actor.ChanceSteps > 0 {
 		actor.ChanceSteps--
 		actor.Acted = false
 		return
@@ -84,7 +84,7 @@ func (v *receiver) hit(kind StrikeKind, shooter *state.Unit, weapon *def.Weapon,
 	}
 	record.Damage = strikeDamage(shooter, v.struck, weapon, v.multiplier)
 	wound(v.board, v.struck, weapon, record.Damage)
-	record.Killed = !alive(v.struck)
+	record.Killed = !v.struck.Alive()
 	return record
 }
 
@@ -123,11 +123,11 @@ func applyDebuff(board *state.Board, victim *state.Unit, weapon *def.Weapon) {
 
 func defenderReply(board *state.Board, plan Plan, dice battle.Dice) Trace {
 	var out Trace
-	if len(plan.answer.joining) > 0 && alive(plan.actor) {
+	if len(plan.answer.joining) > 0 && plan.actor.Alive() {
 		shot := plainReceiver(board, plan.actor, formula.NoDefenseMultiplier)
 		out = fire(board, battle.NodeDefenderSupport, StrikeDefenderSupport, plan.answer.joining, dice, &shot)
 	}
-	if plan.answer.counter != nil && alive(plan.actor) {
+	if plan.answer.counter != nil && plan.actor.Alive() {
 		out = append(out, counterStrike(board, plan.target, plan.actor, plan.answer.counter, plan.bearer, dice))
 	}
 	return out
@@ -155,7 +155,7 @@ func fire(board *state.Board, node battle.Node, kind StrikeKind, joining []suppo
 func able(joining []supportAttacker) []supportAttacker {
 	out := make([]supportAttacker, 0, len(joining))
 	for _, one := range joining {
-		if alive(one.Unit) && one.Unit.SupportAttackCharges > 0 &&
+		if one.Unit.Alive() && one.Unit.SupportAttackCharges > 0 &&
 			hasENFor(one.Unit, *one.Weapon) {
 			out = append(out, one)
 		}
@@ -170,7 +170,7 @@ func counterStrike(board *state.Board, defender, attacker *state.Unit, weapon *d
 	landed := dice.Lands(battle.NodeCounter,
 		strikeHitProbability(defender, attacker, weapon, false))
 	shot := plainReceiver(board, attacker, formula.NoDefenseMultiplier)
-	if bearer != nil && alive(bearer) && bearer.SupportDefendCharges > 0 {
+	if bearer != nil && bearer.Alive() && bearer.SupportDefendCharges > 0 {
 		shot = coveredReceiver(board, bearer)
 	}
 	return shot.hit(StrikeCounter, defender, weapon, landed)

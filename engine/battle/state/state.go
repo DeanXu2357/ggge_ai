@@ -144,6 +144,12 @@ type Unit struct {
 	Debuffs                 []Debuff
 }
 
+// A destroyed unit keeps its place on the board with no hit points left, and
+// a lookup that finds nothing answers with a nil unit.
+func (u *Unit) Alive() bool {
+	return u != nil && u.HP > 0
+}
+
 type Board struct {
 	Bounds         Bounds
 	Units          []Unit
@@ -177,14 +183,14 @@ func (b *Board) Clone() Board {
 func cloneUnit(unit Unit) Unit {
 	unit.Skills = slices.Clone(unit.Skills)
 	for index := range unit.Skills {
-		unit.Skills[index].Amount = cloneAmount(unit.Skills[index].Amount)
+		unit.Skills[index].Amount = CloneAmount(unit.Skills[index].Amount)
 	}
 	unit.Debuffs = slices.Clone(unit.Debuffs)
 	unit.Ammo = maps.Clone(unit.Ammo)
 	return unit
 }
 
-func cloneAmount(amount *float64) *float64 {
+func CloneAmount(amount *float64) *float64 {
 	if amount == nil {
 		return nil
 	}
