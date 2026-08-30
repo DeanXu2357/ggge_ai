@@ -1533,3 +1533,35 @@
   'model.go' and the result types move into 'board'; the server
   runs no codec call; 'Act' keeps the untyped event list of the
   response in this branch (issue #86).
+- **(0830) The battle engine is definitions, state and systems —
+  user ruling**｜After three refactors of the #72 branch (a file
+  classification, a rich 'unit' package with 'Engage', an
+  'engagement' package) the user ruled that the shape was wrong, not
+  the placement: "一個 board.Apply 動作你包了 run -> attack ->
+  engagement 那麼多層，但是你要處理的問題應該是整個流程。雙方決策傳入
+  Apply 後，先驗證所有人是否都能在這個階段做事之後決定發生順序，然後
+  按照發生順序調用 unit 行為 ... 不改變整個 board 動作". On the
+  model: "我們現在唯一可以確定的就是動態資料的所屬會在行為系統裡，這
+  樣看來富領域模型是絕對不適合我們的，純粹是因為多領域實體實體互動邏
+  輯寫在行為性統中天生就有優勢可以把動態資料的變動統統集合在一個地
+  方", and on the writes: "'EN -= cost' 由行為系統控制吧，就像是兩階段
+  提交要在一個協調服務中運作再把判決應用到兩端一樣". Decision: static
+  definitions (immutable, exported fields, shared by pointer),
+  dynamic state (small structs, exported fields, cloned by copy),
+  behavior systems as the only writers (engagement with a prepare
+  phase that writes nothing and a commit phase that cannot fail;
+  turn; deploy), pure systems (geometry; abilities with #72), and a
+  shell 'engine/battle/board' for the contract. 'Act' is atomic by
+  construction and the handler drops its clone. The work runs on a
+  branch off dev as issue #88 ("在另一個 #72 分支上先對原有的 dev 重構
+  成我們討論的樣子之後，再重新實作 #72 的實作範圍"); #72 is
+  implemented again on the result.
+- **(0830) A counter fires under the rule of an attack; a support
+  strike needs a support attack charge; the exchange ends when the
+  receiver is destroyed — user ruling**｜"沒有 CanCounter 這個設定，
+  你的武裝決定能不能進行支援反擊的原因只有與有沒有支援攻擊額度有關。
+  然後被攻擊時的反擊武裝也和攻擊武裝一樣，並沒有反武裝有限定只能攻擊
+  不能反擊使用 ... 反擊就和攻擊一樣，只是結算順序問題". The wire field
+  'can_counter' (engine 1.0, no datamine source) leaves the wire in
+  #88 (protocol 1.4 to 1.5). On the early end: "第四步驟應該要有如果
+  受擊者被擊破那就提早結束的階段才對".
