@@ -691,7 +691,9 @@ Divergences:
   2026-08-20.
 - The engine field `blast` has no numeric column. The unit detail
   form gives `map_weapon_effect_range` as a string.
-- The engine field `can_counter` has no field in the datamine.
+- The engine field `can_counter` had no field in the datamine.
+  The engine retired the field on 2026-08-30 (issue #88): a
+  counter fires under the rule of an attack.
 - The engine fields `debuff_kind` and `debuff_magnitude` have no
   column. The unit detail form gives the id `weapon_effect`, and
   the address `/ggetapi/en/weapon/effect` holds 388 rows of effect

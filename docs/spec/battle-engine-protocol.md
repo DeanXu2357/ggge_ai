@@ -191,8 +191,7 @@ the pick.
 order.
 
 A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
-'ammo', 'accuracy', 'can_counter', 'map_weapon' and
-'usable_after_move'. A null
+'ammo', 'accuracy', 'map_weapon' and 'usable_after_move'. A null
 'ammo' is a weapon that spends no ammunition. The entry carries no
 power: the engine drops the power of a weapon when it reads the
 state.
@@ -242,10 +241,15 @@ Response: 'defender' and 'attacker'.
 'unit_id', 'support_defenders' and 'support_attackers'.
 
 The list 'response_attacks' holds dodge, defend, one entry for
-each weapon of the defender that can counter and reaches the
-attacker, and 'none'. The stance 'none' is the unit that stands and
-takes the strike. The list holds no 'shield': the shield of a unit
-settles during the damage, in 'act'.
+each weapon of the defender that counters, and 'none'. The stance
+'none' is the unit that stands and takes the strike. The list holds
+no 'shield': the shield of a unit settles during the damage, in
+'act'.
+
+A counter fires under the rule of an attack: the weapon is not a
+map weapon, the weapon reaches the attacker, and the defender pays
+the EN. A weapon carries no counter permission. A support strike
+needs a support attack charge on top.
 
 Only an action of the kind 'attack' asks the defender anything. A
 map attack permits no response attack, and no other kind of action
@@ -849,3 +853,9 @@ difference between two integers is 1.
   ruling that the unit records state and takes no part in a
   computation. A client of version 1.3 does not read a 1.4 unit.
   The section "The unit, the pilot and the mech" holds the shape.
+- A second exception on record: version 1.5 (2026-08-30, issue #88)
+  removed 'can_counter' from the weapon of the state and from the
+  weapon entry of 'actions', on a user ruling that the game grants
+  no counter permission to a weapon. A counter fires under the rule
+  of an attack. A client of version 1.4 reads a 1.5 weapon, and it
+  reads no counter permission.
