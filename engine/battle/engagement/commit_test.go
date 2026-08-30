@@ -256,6 +256,40 @@ func TestTheDefenderRepliesWithItsSupportAndItsCounter(t *testing.T) {
 	}
 }
 
+// Protocol 1.5 retired the permission 'can_counter': a weapon counters under
+// the rule of an attack, so every weapon that reaches the attacker and holds
+// its energy stands in the menu and fires.
+func TestEveryWeaponThatReachesTheAttackerCounters(t *testing.T) {
+	b := shootout()
+	pod := beam()
+	pod.Name = "missile pod"
+	b.Unit("e1").Mech.Weapons = append(b.Unit("e1").Mech.Weapons, pod)
+
+	options, err := Menu(b, attackOn("e1", "beam rifle"), "e1")
+	if err != nil {
+		t.Fatalf("response attacks: %v", err)
+	}
+	var offered []string
+	for _, option := range options.ResponseAttacks {
+		if option.Stance == StanceCounter {
+			offered = append(offered, option.Weapon)
+		}
+	}
+	if len(offered) != 2 || offered[0] != "beam rifle" || offered[1] != "missile pod" {
+		t.Fatalf("counters: %v", offered)
+	}
+
+	decision := attackOn("e1", "beam rifle")
+	decision.Response = &Response{Stance: StanceCounter, Weapon: "missile pod"}
+
+	trace := apply(t, b, decision, battle.Forced{Strike: true, Counter: true})
+
+	last := trace[len(trace)-1]
+	if last.Kind != StrikeCounter || last.Weapon != "missile pod" || !last.Landed {
+		t.Fatalf("trace: %+v", trace)
+	}
+}
+
 func TestACounterThatMissesSpendsItsEnergy(t *testing.T) {
 	b := shootout()
 	decision := attackOn("e1", "beam rifle")

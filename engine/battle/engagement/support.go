@@ -40,7 +40,7 @@ func supportWeapon(other, supported *state.Unit, firing, foe state.Footprint) *d
 	distance := geometry.Distance(other.Footprint, foe)
 	for index := range other.Mech.Weapons {
 		weapon := &other.Mech.Weapons[index]
-		if !weapon.MapWeapon && hasENFor(other, *weapon) && weapon.Range.Holds(distance) {
+		if fires(other, weapon, distance) {
 			return weapon
 		}
 	}

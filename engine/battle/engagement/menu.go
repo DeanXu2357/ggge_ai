@@ -46,7 +46,7 @@ func Menu(board *state.Board, decision Decision, defenderID string) (Options, er
 		stanceOption(attacker, defender, weapon, StanceDefend, ""))
 	for index := range defender.Mech.Weapons {
 		counter := &defender.Mech.Weapons[index]
-		if !counterFits(defender, counter, distance) {
+		if !fires(defender, counter, distance) {
 			continue
 		}
 		option := stanceOption(attacker, defender, weapon, StanceCounter, counter.Name)
