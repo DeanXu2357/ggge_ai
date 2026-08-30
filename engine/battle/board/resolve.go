@@ -7,6 +7,7 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
@@ -66,7 +67,7 @@ func (b *Board) destination(actor *state.Unit, to *state.Cell, permitted bool) (
 		return state.Cell{}, fmt.Errorf("%w: the action of unit %q runs before a move",
 			battle.ErrIllegalMove, actor.ID)
 	}
-	if !b.reachableAnchors(actor)[*to] {
+	if !geometry.ReachableAnchors(&b.state, actor)[*to] {
 		return state.Cell{}, fmt.Errorf("%w: unit %q does not reach the anchor %v",
 			battle.ErrIllegalMove, actor.ID, *to)
 	}
@@ -93,8 +94,8 @@ func (b *Board) attack(actor *state.Unit, decision decision, dice battle.Dice) (
 	if err != nil {
 		return nil, outcome{}, err
 	}
-	firing := footprintAt(actor, anchor)
-	if !weapon.Range.Holds(spanDistance(firing, target.Footprint)) {
+	firing := geometry.FootprintAt(actor, anchor)
+	if !weapon.Range.Holds(geometry.Distance(firing, target.Footprint)) {
 		return nil, outcome{}, fmt.Errorf("%w: the weapon %q of unit %q does not reach unit %q",
 			battle.ErrIllegalAction, weapon.Name, actor.ID, target.ID)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
@@ -99,12 +100,7 @@ func (b *Board) reachableCells(unitID string) ([]state.Cell, error) {
 	if unit == nil {
 		return nil, fmt.Errorf("the board holds no unit %q", unitID)
 	}
-	return sortedCells(b.reachableAnchors(unit)), nil
-}
-
-func (b *Board) reachableAnchors(unit *state.Unit) cellSet {
-	return reachableAnchors(unit.Footprint, unit.Mech.MoveRange,
-		b.blockingCells(unit), b.occupiedCells(unit), b.state.Bounds)
+	return geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit)), nil
 }
 
 func (b *Board) byFaction(faction state.Faction) []*state.Unit {
@@ -120,28 +116,4 @@ func (b *Board) byFaction(faction state.Faction) []*state.Unit {
 
 func (b *Board) targetsOf(unit *state.Unit) []*state.Unit {
 	return b.byFaction(unit.Faction.Opposing())
-}
-
-func (b *Board) blockingCells(unit *state.Unit) cellSet {
-	out := cellSet{}
-	for index := range b.state.Units {
-		other := &b.state.Units[index]
-		if other.ID == unit.ID || !alive(other) || other.Faction == unit.Faction {
-			continue
-		}
-		addFootprint(out, other.Footprint)
-	}
-	return out
-}
-
-func (b *Board) occupiedCells(unit *state.Unit) cellSet {
-	out := cellSet{}
-	for index := range b.state.Units {
-		other := &b.state.Units[index]
-		if other.ID == unit.ID || !alive(other) {
-			continue
-		}
-		addFootprint(out, other.Footprint)
-	}
-	return out
 }

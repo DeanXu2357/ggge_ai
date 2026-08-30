@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
@@ -545,6 +546,10 @@ func cloneAmount(amount *float64) *float64 {
 	return &out
 }
 
+func cellFootprint(cell state.Cell) state.Footprint {
+	return state.Footprint{Anchor: cell, Size: state.Size{1, 1}}
+}
+
 func decodeFootprint(unit *protocol.Unit) (state.Footprint, error) {
 	size := state.Size{unit.Size[0], unit.Size[1]}
 	for axis := range size {
@@ -642,12 +647,12 @@ func (b *Board) State() protocol.BattleState {
 }
 
 func encodeTerrainCells(cells map[state.Cell]state.Terrain) []protocol.TerrainCell {
-	declared := make(cellSet, len(cells))
+	declared := make(geometry.CellSet, len(cells))
 	for cell := range cells {
 		declared[cell] = true
 	}
 	out := make([]protocol.TerrainCell, 0, len(cells))
-	for _, cell := range sortedCells(declared) {
+	for _, cell := range geometry.SortedCells(declared) {
 		out = append(out, protocol.TerrainCell{Cell: encodeCell(cell), Terrain: terrainName(cells[cell])})
 	}
 	return out

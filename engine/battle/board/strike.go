@@ -3,6 +3,7 @@ package board
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
@@ -84,7 +85,7 @@ func defenseMultiplier(stance stance, defender *state.Unit) float64 {
 }
 
 func (b *Board) counterWeapon(defender *state.Unit, name string, attacker state.Footprint) *def.Weapon {
-	distance := spanDistance(defender.Footprint, attacker)
+	distance := geometry.Distance(defender.Footprint, attacker)
 	for index := range defender.Mech.Weapons {
 		weapon := &defender.Mech.Weapons[index]
 		if name != "" && weapon.Name != name {

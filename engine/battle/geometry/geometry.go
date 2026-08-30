@@ -1,4 +1,4 @@
-package board
+package geometry
 
 import (
 	"sort"
@@ -6,11 +6,11 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-type cellSet map[state.Cell]bool
+type CellSet map[state.Cell]bool
 
 var steps = [4]state.Cell{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
 
-func spanDistance(a, b state.Footprint) int {
+func Distance(a, b state.Footprint) int {
 	return axisGap(a.Anchor[0], a.Size[0], b.Anchor[0], b.Size[0]) +
 		axisGap(a.Anchor[1], a.Size[1], b.Anchor[1], b.Size[1])
 }
@@ -25,7 +25,7 @@ func axisGap(lowA, spanA, lowB, spanB int) int {
 	return 0
 }
 
-func footprintClear(footprint state.Footprint, taken cellSet) bool {
+func footprintClear(footprint state.Footprint, taken CellSet) bool {
 	for _, cell := range footprint.Cells() {
 		if taken[cell] {
 			return false
@@ -34,15 +34,20 @@ func footprintClear(footprint state.Footprint, taken cellSet) bool {
 	return true
 }
 
-func addFootprint(set cellSet, footprint state.Footprint) {
+func AddFootprint(set CellSet, footprint state.Footprint) {
 	for _, cell := range footprint.Cells() {
 		set[cell] = true
 	}
 }
 
-func reachableAnchors(from state.Footprint, budget int, blocked, occupied cellSet, bounds state.Bounds) cellSet {
-	seen := cellSet{from.Anchor: true}
-	out := cellSet{from.Anchor: true}
+func ReachableAnchors(board *state.Board, unit *state.Unit) CellSet {
+	return reachableAnchors(unit.Footprint, unit.Mech.MoveRange,
+		Blocking(board, unit), Occupied(board, unit.ID), board.Bounds)
+}
+
+func reachableAnchors(from state.Footprint, budget int, blocked, occupied CellSet, bounds state.Bounds) CellSet {
+	seen := CellSet{from.Anchor: true}
+	out := CellSet{from.Anchor: true}
 	frontier := []walk{{from.Anchor, 0}}
 	for len(frontier) > 0 {
 		step := frontier[0]
@@ -70,8 +75,32 @@ type walk struct {
 	spent int
 }
 
-func nearestFreeCell(from state.Footprint, taken cellSet) state.Cell {
-	seen := cellSet{from.Anchor: true}
+func Blocking(board *state.Board, unit *state.Unit) CellSet {
+	out := CellSet{}
+	for index := range board.Units {
+		other := &board.Units[index]
+		if other.ID == unit.ID || other.HP <= 0 || other.Faction == unit.Faction {
+			continue
+		}
+		AddFootprint(out, other.Footprint)
+	}
+	return out
+}
+
+func Occupied(board *state.Board, except string) CellSet {
+	out := CellSet{}
+	for index := range board.Units {
+		other := &board.Units[index]
+		if other.ID == except || other.HP <= 0 {
+			continue
+		}
+		AddFootprint(out, other.Footprint)
+	}
+	return out
+}
+
+func nearestFreeCell(from state.Footprint, taken CellSet) state.Cell {
+	seen := CellSet{from.Anchor: true}
 	frontier := []state.Cell{from.Anchor}
 	for len(frontier) > 0 {
 		anchor := frontier[0]
@@ -90,21 +119,17 @@ func nearestFreeCell(from state.Footprint, taken cellSet) state.Cell {
 	return from.Anchor
 }
 
-func sortedCells(set cellSet) []state.Cell {
+func SortedCells(set CellSet) []state.Cell {
 	out := cellSlice(set)
 	sort.Slice(out, func(i, j int) bool { return out[i].Before(out[j]) })
 	return out
 }
 
-func footprintAt(unit *state.Unit, anchor state.Cell) state.Footprint {
+func FootprintAt(unit *state.Unit, anchor state.Cell) state.Footprint {
 	return state.Footprint{Anchor: anchor, Size: unit.Footprint.Size}
 }
 
-func cellFootprint(cell state.Cell) state.Footprint {
-	return state.Footprint{Anchor: cell, Size: state.Size{1, 1}}
-}
-
-func cellSlice(set cellSet) []state.Cell {
+func cellSlice(set CellSet) []state.Cell {
 	out := make([]state.Cell, 0, len(set))
 	for cell := range set {
 		out = append(out, cell)

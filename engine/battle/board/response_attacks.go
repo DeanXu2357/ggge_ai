@@ -5,6 +5,7 @@ import (
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
@@ -44,8 +45,8 @@ func (b *Board) responseAttacks(action decision, defenderID string) (engagement,
 		return engagement{}, fmt.Errorf("unit %q carries no weapon %q",
 			attacker.ID, action.Weapon)
 	}
-	origin := footprintAt(attacker, strikeCell(attacker, action))
-	distance := spanDistance(defender.Footprint, origin)
+	origin := geometry.FootprintAt(attacker, strikeCell(attacker, action))
+	distance := geometry.Distance(defender.Footprint, origin)
 	if !weapon.Range.Holds(distance) {
 		return engagement{}, fmt.Errorf("the weapon %q of unit %q does not reach unit %q from %v",
 			action.Weapon, attacker.ID, defenderID, origin.Anchor)
@@ -156,7 +157,7 @@ func supportWeapon(other, supported *state.Unit, firing, foe state.Footprint) *d
 	if !inSupportReach(other, supported, firing, other.SupportAttackCharges) {
 		return nil
 	}
-	distance := spanDistance(other.Footprint, foe)
+	distance := geometry.Distance(other.Footprint, foe)
 	for index := range other.Mech.Weapons {
 		weapon := &other.Mech.Weapons[index]
 		if !weapon.MapWeapon && hasENFor(other, *weapon) && weapon.Range.Holds(distance) {
@@ -168,5 +169,5 @@ func supportWeapon(other, supported *state.Unit, firing, foe state.Footprint) *d
 
 func inSupportReach(other, supported *state.Unit, at state.Footprint, charges int) bool {
 	return other.ID != supported.ID && charges > 0 &&
-		spanDistance(other.Footprint, at) <= other.Mech.MoveRange
+		geometry.Distance(other.Footprint, at) <= other.Mech.MoveRange
 }
