@@ -248,6 +248,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | 02a8784, 178dec3 | The spec process model, the terminology rows, this artifact |
 | cdb3c4d, 91654ed, c616c12, 226c6b5, 8238ddc, 70511fd, 73fa207, a08ca8e | The code-review fixes: one 'state.Unit.Alive' and one 'engagement.LivingUnit'/'OnPhase'; 'state.PhaseOrder'/'Board.PhaseIndex' (engagement no longer imports turn); 'ReachableCells' through 'LivingUnit'; one 'fires' predicate; 'receiverFor' replaces the plan's mirror of the receiver; 'Menu' through 'Prepare'; the Python hello version check; the tolerant intel load |
 | cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
+| 3a5e186 | 'Apply' removed: the golden 'apply' checks pass through 'Act' (a user finding at review) |
 | 15de5e6, f317328 | The board files sorted by contract role ('reader.go', 'resolver.go', 'codec.go' with the definition codec merged, 'board.go' the state) after a user finding at review; the dead map 'wireKinds' dropped |
 | 9dcce91, 2732e7e | The terminology drift of 178dec3 (the joined unit/mech row, two paths, the forecast row, the row 'salvo'), the spec import sentence, this artifact |
 
@@ -350,21 +351,17 @@ D. Spec process model, terminology map, ledger, the artifact.
    which 'Commit' learns during the roll; the refusal must leave
    the board unchanged, so that path clones. Sampled dice, the
    production path, run on the session board.
-3. **'Apply' and 'Advance' stay on the shell** beside 'Act', off
-   the contract. 'Apply' has two callers: 'Board.act' and the
-   'apply' op of 'engine/differential/resolve_test.go'. That op
-   runs one engagement on a frozen golden board and compares every
-   living unit with the values the Python side recorded before it
-   lost the rules (issue 73). The values were recorded after the
-   engagement and before any rotation, so a run through 'Act' would
-   fail on the EN that 'turn.Advance' regenerates. 'Board.state' and
-   the codec are private, so 'Apply' is the only entry that a test
-   outside the package has to a rotation-free engagement. Two files
-   hold 'apply' checks: 'engagement_board.json' and
-   'kill_skill_board.json'. 'Apply' is needed as long as those
-   checks stay; the user decides whether they stay. 'Advance' serves 'handler.Load' (a
-   hand-written snapshot can hold an empty phase). Both are one-line
-   delegations, now in 'resolver.go'.
+3. **'Apply' removed; 'Advance' stays on the shell** off the
+   contract. 'Apply' (prepare and commit with no rotation) existed
+   for the 'apply' checks of the frozen golden files
+   'engagement_board.json' and 'kill_skill_board.json', on the
+   belief that 'Act' would rotate the phase before the comparison.
+   'turn.Advance' rotates only when the acting side holds no
+   pending unit, and each golden board keeps one such unit on
+   purpose (the note in 'resolve_test.go'), so the seventeen checks
+   pass through 'Act' unchanged. The board offers one path into the
+   engagement, and 'decodeDecision' is private. 'Advance' serves
+   'handler.Load': a hand-written snapshot can hold an empty phase.
 4. **'state' holds value helpers** ('Unit.Alive',
    'Board.PhaseIndex', 'Footprint.Within' and its kin) although the
    design says "no rule": each reads only the fields of its own
