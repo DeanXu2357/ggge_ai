@@ -255,6 +255,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | cdb3c4d, 91654ed, c616c12, 226c6b5, 8238ddc, 70511fd, 73fa207, a08ca8e | The code-review fixes: one 'state.Unit.Alive' and one 'engagement.LivingUnit'/'OnPhase'; 'state.PhaseOrder'/'Board.PhaseIndex' (engagement no longer imports turn); 'ReachableCells' through 'LivingUnit'; one 'fires' predicate; 'receiverFor' replaces the plan's mirror of the receiver; 'Menu' through 'Prepare'; the Python hello version check; the tolerant intel load |
 | cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
 | 3a5e186 | 'Apply' removed: the golden 'apply' checks pass through 'Act' (a user finding at review) |
+| ef77841 | The state and definition packages deleted; the systems and the shell work on the contract types ('helpers.go' holds the value helpers); the codec keeps validation, init assembly and the response projections (762 to 350 lines); 'reachableCells' inlined; the test-only helpers 'terrainAt'/'terrainOf'/'unit' gone |
 | b716a32 | The contract types moved from 'engine/protocol' to 'engine/battle' ('decision.go', 'snapshot.go', 'responses.go'); 'actions' refuses an acted unit, protocol 1.6 |
 | 15de5e6, f317328 | The board files sorted by contract role ('reader.go', 'resolver.go', 'codec.go' with the definition codec merged, 'board.go' the state) after a user finding at review; the dead map 'wireKinds' dropped |
 | 9dcce91, 2732e7e | The terminology drift of 178dec3 (the joined unit/mech row, two paths, the forecast row, the row 'salvo'), the spec import sentence, this artifact |
@@ -428,6 +429,25 @@ D. Spec process model, terminology map, ledger, the artifact.
     destroyed unit is 'illegal_state' for 'actions' and
     'illegal_action' for 'act', as the spec stated before this
     change; unifying the two is a wire change left for the review.
+13. **The contract types are the state** (a user finding at review:
+    'state.go' and 'def.go' mirrored the contract types field by
+    field, and issue 72 wrote every new field three times). The
+    choices the collapse forced, each keeping the wire byte-identical
+    (the goldens pass unchanged): 'validate' normalizes a size of 0
+    to 1 and an empty terrain to 'space', as the old decode did,
+    because 'State' is now 'Clone' and no encode step remains to
+    normalize; 'validate' keeps the faction and phase checks for a
+    state built without JSON; the footprint-in-bounds check stays in
+    'DecodeInit' only, as before; 'TerrainCells' export in payload
+    order, not sorted (no golden carries terrain cells); an export
+    now echoes a 'null' list that a load carried as 'null' instead
+    of '[]' (every golden carries '[]'); 'Clone' shares 'Mech.Weapons'
+    with its source, as the old clone shared the definitions, and
+    deep-copies 'Bounds', 'TerrainCells' and the event lists that
+    'State' now hands out. 'BattleState.TerrainAt'/'TerrainOf' and
+    'Skill.Reaches' were written and then removed: no formula reads
+    terrain yet (issue 80) and no rule reads a skill range.
+    'validate' is private; nothing outside the codec calls it.
 
 ## Deferred
 
