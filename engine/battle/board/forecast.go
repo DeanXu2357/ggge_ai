@@ -1,6 +1,11 @@
 package board
 
-func (b *Board) forecastOf(shooter, struck *unit, weapon *weapon, multiplier float64,
+import (
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+)
+
+func (b *Board) forecastOf(shooter, struck *state.Unit, weapon *def.Weapon, multiplier float64,
 	dodging bool) forecast {
 	rate := strikeHitProbability(shooter, struck, weapon, dodging)
 	damage := strikeDamage(shooter, struck, weapon, multiplier)
@@ -10,7 +15,7 @@ func (b *Board) forecastOf(shooter, struck *unit, weapon *weapon, multiplier flo
 
 // The stance of the defender settles the hit roll of the strike, so a support
 // defense entry carries the damage alone and no hit rate.
-func (b *Board) supportDefenderForecast(attacker, supportDefender *unit, weapon *weapon) forecast {
+func (b *Board) supportDefenderForecast(attacker, supportDefender *state.Unit, weapon *def.Weapon) forecast {
 	damage := strikeDamage(attacker, supportDefender, weapon,
 		defenseMultiplier(stanceDefend, supportDefender))
 	kill := damage >= supportDefender.HP

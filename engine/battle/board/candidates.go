@@ -20,9 +20,9 @@ func (b *Board) capabilities(unitID string) (capabilities, error) {
 	if err != nil {
 		return capabilities{}, err
 	}
-	if unit.Faction != b.phase {
+	if unit.Faction != b.state.Phase {
 		return capabilities{}, fmt.Errorf("%w: %q is of the side %q, and the phase is %q",
-			battle.ErrOffPhase, unitID, unit.Faction, b.phase)
+			battle.ErrOffPhase, unitID, unit.Faction, b.state.Phase)
 	}
 	cells, err := b.reachableCells(unitID)
 	if err != nil {

@@ -2,6 +2,7 @@ package board
 
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -27,11 +28,11 @@ func (b *Board) act(decision decision, dice battle.Dice) (resolution, error) {
 	return resolution{Trace: trace, Rotations: b.Advance()}, nil
 }
 
-func (b *Board) pending(faction faction) []*unit {
-	var out []*unit
-	for index := range b.units {
-		unit := &b.units[index]
-		if unit.Faction == faction && unit.alive() && !unit.Acted {
+func (b *Board) pending(faction state.Faction) []*state.Unit {
+	var out []*state.Unit
+	for index := range b.state.Units {
+		unit := &b.state.Units[index]
+		if unit.Faction == faction && alive(unit) && !unit.Acted {
 			out = append(out, unit)
 		}
 	}
@@ -45,31 +46,31 @@ func (b *Board) Advance() []rotation {
 		return nil
 	}
 	var out []rotation
-	for len(b.pending(b.phase)) == 0 {
+	for len(b.pending(b.state.Phase)) == 0 {
 		out = append(out, b.nextPhase())
 	}
 	return out
 }
 
 func (b *Board) nextPhase() rotation {
-	slot := (b.phaseIndex() - b.turn*len(phaseOrder) + 1) % len(phaseOrder)
+	slot := (b.phaseIndex() - b.state.Turn*len(phaseOrder) + 1) % len(phaseOrder)
 	if slot == 0 {
-		b.turn++
+		b.state.Turn++
 	}
-	b.phase = phaseOrder[slot]
+	b.state.Phase = phaseOrder[slot]
 	b.beginPhase()
-	return rotation{Turn: b.turn, Phase: b.phase}
+	return rotation{Turn: b.state.Turn, Phase: b.state.Phase}
 }
 
 func (b *Board) beginPhase() {
 	now := b.phaseIndex()
-	for index := range b.units {
-		unit := &b.units[index]
-		if !unit.alive() {
+	for index := range b.state.Units {
+		unit := &b.state.Units[index]
+		if !alive(unit) {
 			continue
 		}
 		unit.Debuffs = expired(unit.Debuffs, now)
-		if unit.Faction != b.phase {
+		if unit.Faction != b.state.Phase {
 			continue
 		}
 		unit.Acted = false
@@ -77,7 +78,7 @@ func (b *Board) beginPhase() {
 	}
 }
 
-func expired(debuffs []debuff, now int) []debuff {
+func expired(debuffs []state.Debuff, now int) []state.Debuff {
 	kept := debuffs[:0]
 	for _, debuff := range debuffs {
 		if debuff.AppliedPhase+len(phaseOrder) > now {
@@ -88,17 +89,17 @@ func expired(debuffs []debuff, now int) []debuff {
 }
 
 func (b *Board) anyAlive() bool {
-	for index := range b.units {
-		if b.units[index].alive() {
+	for index := range b.state.Units {
+		if alive(&b.state.Units[index]) {
 			return true
 		}
 	}
 	return false
 }
 
-func (b *Board) gone() []faction {
-	var out []faction
-	for _, faction := range []faction{factionAlly, factionEnemy} {
+func (b *Board) gone() []state.Faction {
+	var out []state.Faction
+	for _, faction := range []state.Faction{state.FactionAlly, state.FactionEnemy} {
 		if len(b.byFaction(faction)) == 0 {
 			out = append(out, faction)
 		}

@@ -1,6 +1,11 @@
 package board
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+)
 
 func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 	cases := []struct {
@@ -18,10 +23,10 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
-			unit := &unit{ID: "a1", Faction: factionAlly, HP: 100, EN: one.en}
-			weapon := weapon{Name: "beam rifle", ENCost: one.cost}
+			unit := &state.Unit{ID: "a1", Faction: state.FactionAlly, HP: 100, EN: one.en}
+			weapon := def.Weapon{Name: "beam rifle", ENCost: one.cost}
 
-			if got := unit.hasENFor(weapon); got != one.want {
+			if got := hasENFor(unit, weapon); got != one.want {
 				t.Fatalf("EN %d against the cost %d: %v, want %v",
 					one.en, one.cost, got, one.want)
 			}
@@ -30,32 +35,32 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 }
 
 func TestTheENOfAShotComesFromThePanelAndNotFromTheMech(t *testing.T) {
-	unit := &unit{ID: "a1", Faction: factionAlly, HP: 100, EN: 10,
-		Mech: mech{EN: 200}}
-	weapon := weapon{Name: "beam rifle", ENCost: 20}
+	unit := &state.Unit{ID: "a1", Faction: state.FactionAlly, HP: 100, EN: 10,
+		Mech: &def.Mech{EN: 200}}
+	weapon := def.Weapon{Name: "beam rifle", ENCost: 20}
 
-	if unit.hasENFor(weapon) {
+	if hasENFor(unit, weapon) {
 		t.Fatal("the predicate read the base data of the mech")
 	}
 
 	unit.EN = 20
-	if !unit.hasENFor(weapon) {
+	if !hasENFor(unit, weapon) {
 		t.Fatal("the predicate did not read the final panel")
 	}
 }
 
 func TestAWeaponOfNoCategoryReadsTheHighestPilotValue(t *testing.T) {
-	pilot := pilot{Ranged: 220, Melee: 180, Awaken: 240}
-	melee := weapon{Categories: []weaponCategory{weaponCategoryMelee}}
-	both := weapon{Categories: []weaponCategory{weaponCategoryMelee, weaponCategoryRanged}}
+	pilot := &def.Pilot{Ranged: 220, Melee: 180, Awaken: 240}
+	melee := def.Weapon{Categories: []def.WeaponCategory{def.WeaponCategoryMelee}}
+	both := def.Weapon{Categories: []def.WeaponCategory{def.WeaponCategoryMelee, def.WeaponCategoryRanged}}
 
-	if got := pilot.attackFor(weapon{}); got != 240 {
+	if got := attackFor(pilot, def.Weapon{}); got != 240 {
 		t.Fatalf("no category: %v", got)
 	}
-	if got := pilot.attackFor(melee); got != 180 {
+	if got := attackFor(pilot, melee); got != 180 {
 		t.Fatalf("one category: %v", got)
 	}
-	if got := pilot.attackFor(both); got != 220 {
+	if got := attackFor(pilot, both); got != 220 {
 		t.Fatalf("two categories: %v", got)
 	}
 }

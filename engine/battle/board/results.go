@@ -1,5 +1,10 @@
 package board
 
+import (
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+)
+
 type forecast struct {
 	HitRate *float64
 	Damage  *int
@@ -7,8 +12,8 @@ type forecast struct {
 }
 
 type capabilities struct {
-	Unit      *unit
-	MoveCells []cell
+	Unit      *state.Unit
+	MoveCells []state.Cell
 }
 
 type strikeKind string
@@ -35,7 +40,7 @@ type trace []strike
 
 type rotation struct {
 	Turn  int
-	Phase faction
+	Phase state.Faction
 }
 
 type resolution struct {
@@ -51,18 +56,18 @@ type responseAttackOption struct {
 }
 
 type supportDefendOption struct {
-	Unit     *unit
+	Unit     *state.Unit
 	Incoming forecast
 }
 
 type supportAttackOption struct {
-	Unit   *unit
-	Weapon *weapon
+	Unit   *state.Unit
+	Weapon *def.Weapon
 	Strike forecast
 }
 
 type sideOptions struct {
-	Unit             *unit
+	Unit             *state.Unit
 	SupportDefenders []supportDefendOption
 	SupportAttackers []supportAttackOption
 }

@@ -2,13 +2,15 @@ package board
 
 import (
 	"sort"
+
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-type cellSet map[cell]bool
+type cellSet map[state.Cell]bool
 
-var steps = [4]cell{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
+var steps = [4]state.Cell{{-1, 0}, {0, -1}, {0, 1}, {1, 0}}
 
-func spanDistance(a, b footprint) int {
+func spanDistance(a, b state.Footprint) int {
 	return axisGap(a.Anchor[0], a.Size[0], b.Anchor[0], b.Size[0]) +
 		axisGap(a.Anchor[1], a.Size[1], b.Anchor[1], b.Size[1])
 }
@@ -23,8 +25,8 @@ func axisGap(lowA, spanA, lowB, spanB int) int {
 	return 0
 }
 
-func footprintClear(footprint footprint, taken cellSet) bool {
-	for _, cell := range footprint.cells() {
+func footprintClear(footprint state.Footprint, taken cellSet) bool {
+	for _, cell := range footprint.Cells() {
 		if taken[cell] {
 			return false
 		}
@@ -32,13 +34,13 @@ func footprintClear(footprint footprint, taken cellSet) bool {
 	return true
 }
 
-func addFootprint(set cellSet, footprint footprint) {
-	for _, cell := range footprint.cells() {
+func addFootprint(set cellSet, footprint state.Footprint) {
+	for _, cell := range footprint.Cells() {
 		set[cell] = true
 	}
 }
 
-func reachableAnchors(from footprint, budget int, blocked, occupied cellSet, bounds bounds) cellSet {
+func reachableAnchors(from state.Footprint, budget int, blocked, occupied cellSet, bounds state.Bounds) cellSet {
 	seen := cellSet{from.Anchor: true}
 	out := cellSet{from.Anchor: true}
 	frontier := []walk{{from.Anchor, 0}}
@@ -49,8 +51,8 @@ func reachableAnchors(from footprint, budget int, blocked, occupied cellSet, bou
 			continue
 		}
 		for _, delta := range steps {
-			next := footprint{Anchor: cell{step.cell[0] + delta[0], step.cell[1] + delta[1]}, Size: from.Size}
-			if seen[next.Anchor] || !next.within(bounds) || !footprintClear(next, blocked) {
+			next := state.Footprint{Anchor: state.Cell{step.cell[0] + delta[0], step.cell[1] + delta[1]}, Size: from.Size}
+			if seen[next.Anchor] || !next.Within(bounds) || !footprintClear(next, blocked) {
 				continue
 			}
 			seen[next.Anchor] = true
@@ -64,21 +66,21 @@ func reachableAnchors(from footprint, budget int, blocked, occupied cellSet, bou
 }
 
 type walk struct {
-	cell  cell
+	cell  state.Cell
 	spent int
 }
 
-func nearestFreeCell(from footprint, taken cellSet) cell {
+func nearestFreeCell(from state.Footprint, taken cellSet) state.Cell {
 	seen := cellSet{from.Anchor: true}
-	frontier := []cell{from.Anchor}
+	frontier := []state.Cell{from.Anchor}
 	for len(frontier) > 0 {
 		anchor := frontier[0]
 		frontier = frontier[1:]
-		if footprintClear(footprint{Anchor: anchor, Size: from.Size}, taken) {
+		if footprintClear(state.Footprint{Anchor: anchor, Size: from.Size}, taken) {
 			return anchor
 		}
 		for _, delta := range steps {
-			next := cell{anchor[0] + delta[0], anchor[1] + delta[1]}
+			next := state.Cell{anchor[0] + delta[0], anchor[1] + delta[1]}
 			if !seen[next] {
 				seen[next] = true
 				frontier = append(frontier, next)
@@ -88,22 +90,22 @@ func nearestFreeCell(from footprint, taken cellSet) cell {
 	return from.Anchor
 }
 
-func sortedCells(set cellSet) []cell {
+func sortedCells(set cellSet) []state.Cell {
 	out := cellSlice(set)
-	sort.Slice(out, func(i, j int) bool { return out[i].before(out[j]) })
+	sort.Slice(out, func(i, j int) bool { return out[i].Before(out[j]) })
 	return out
 }
 
-func footprintAt(unit *unit, anchor cell) footprint {
-	return footprint{Anchor: anchor, Size: unit.Footprint.Size}
+func footprintAt(unit *state.Unit, anchor state.Cell) state.Footprint {
+	return state.Footprint{Anchor: anchor, Size: unit.Footprint.Size}
 }
 
-func cellFootprint(cell cell) footprint {
-	return footprint{Anchor: cell, Size: size{1, 1}}
+func cellFootprint(cell state.Cell) state.Footprint {
+	return state.Footprint{Anchor: cell, Size: state.Size{1, 1}}
 }
 
-func cellSlice(set cellSet) []cell {
-	out := make([]cell, 0, len(set))
+func cellSlice(set cellSet) []state.Cell {
+	out := make([]state.Cell, 0, len(set))
 	for cell := range set {
 		out = append(out, cell)
 	}

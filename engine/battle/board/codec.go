@@ -3,13 +3,15 @@ package board
 import (
 	"fmt"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-var factions = map[protocol.Faction]faction{
-	protocol.FactionAlly:       factionAlly,
-	protocol.FactionEnemy:      factionEnemy,
-	protocol.FactionThirdParty: factionThirdParty,
+var factions = map[protocol.Faction]state.Faction{
+	protocol.FactionAlly:       state.FactionAlly,
+	protocol.FactionEnemy:      state.FactionEnemy,
+	protocol.FactionThirdParty: state.FactionThirdParty,
 }
 
 var actionKinds = map[protocol.ActionKind]actionKind{
@@ -19,10 +21,10 @@ var actionKinds = map[protocol.ActionKind]actionKind{
 	protocol.ActionStandby:    actionStandby,
 }
 
-var affectsKinds = map[protocol.SkillAffects]skillAffects{
-	protocol.AffectsAlly:  affectsAlly,
-	protocol.AffectsEnemy: affectsEnemy,
-	protocol.AffectsAll:   affectsAll,
+var affectsKinds = map[protocol.SkillAffects]state.SkillAffects{
+	protocol.AffectsAlly:  state.AffectsAlly,
+	protocol.AffectsEnemy: state.AffectsEnemy,
+	protocol.AffectsAll:   state.AffectsAll,
 }
 
 var wireKinds = map[actionKind]protocol.ActionKind{
@@ -32,10 +34,10 @@ var wireKinds = map[actionKind]protocol.ActionKind{
 	actionStandby:    protocol.ActionStandby,
 }
 
-var skillSources = map[protocol.SkillSource]skillSource{
-	protocol.SourcePilot: sourcePilot,
-	protocol.SourceCrew:  sourceCrew,
-	protocol.SourceMech:  sourceMech,
+var skillSources = map[protocol.SkillSource]state.SkillSource{
+	protocol.SourcePilot: state.SourcePilot,
+	protocol.SourceCrew:  state.SourceCrew,
+	protocol.SourceMech:  state.SourceMech,
 }
 
 var decodedStances = map[protocol.Stance]stance{
@@ -45,22 +47,22 @@ var decodedStances = map[protocol.Stance]stance{
 	protocol.StanceNone:    stanceNone,
 }
 
-var wireFactions = map[faction]protocol.Faction{
-	factionAlly:       protocol.FactionAlly,
-	factionEnemy:      protocol.FactionEnemy,
-	factionThirdParty: protocol.FactionThirdParty,
+var wireFactions = map[state.Faction]protocol.Faction{
+	state.FactionAlly:       protocol.FactionAlly,
+	state.FactionEnemy:      protocol.FactionEnemy,
+	state.FactionThirdParty: protocol.FactionThirdParty,
 }
 
-var wireAffects = map[skillAffects]protocol.SkillAffects{
-	affectsAlly:  protocol.AffectsAlly,
-	affectsEnemy: protocol.AffectsEnemy,
-	affectsAll:   protocol.AffectsAll,
+var wireAffects = map[state.SkillAffects]protocol.SkillAffects{
+	state.AffectsAlly:  protocol.AffectsAlly,
+	state.AffectsEnemy: protocol.AffectsEnemy,
+	state.AffectsAll:   protocol.AffectsAll,
 }
 
-var wireSources = map[skillSource]protocol.SkillSource{
-	sourcePilot: protocol.SourcePilot,
-	sourceCrew:  protocol.SourceCrew,
-	sourceMech:  protocol.SourceMech,
+var wireSources = map[state.SkillSource]protocol.SkillSource{
+	state.SourcePilot: protocol.SourcePilot,
+	state.SourceCrew:  protocol.SourceCrew,
+	state.SourceMech:  protocol.SourceMech,
 }
 
 var wireStances = map[stance]protocol.Stance{
@@ -70,19 +72,19 @@ var wireStances = map[stance]protocol.Stance{
 	stanceNone:    protocol.StanceNone,
 }
 
-func encodeFaction(faction faction) protocol.Faction {
+func encodeFaction(faction state.Faction) protocol.Faction {
 	return wireFactions[faction]
 }
 
-func DecodeState(state *protocol.BattleState) (*Board, error) {
-	if state == nil {
+func DecodeState(wire *protocol.BattleState) (*Board, error) {
+	if wire == nil {
 		return nil, fmt.Errorf("the payload carries no state")
 	}
-	bounds, err := decodeBounds(state.Bounds)
+	bounds, err := decodeBounds(wire.Bounds)
 	if err != nil {
 		return nil, err
 	}
-	units, err := decodeUnits(state.Units)
+	units, err := decodeUnits(wire.Units)
 	if err != nil {
 		return nil, err
 	}
@@ -90,34 +92,50 @@ func DecodeState(state *protocol.BattleState) (*Board, error) {
 	if err != nil {
 		return nil, err
 	}
-	if b.defaultTerrain, err = decodeTerrain(state.Terrain); err != nil {
+	if b.state.DefaultTerrain, err = decodeTerrain(wire.Terrain); err != nil {
 		return nil, err
 	}
-	if b.terrainCells, err = decodeTerrainCells(state.TerrainCells); err != nil {
+	if b.state.TerrainCells, err = decodeTerrainCells(wire.TerrainCells); err != nil {
 		return nil, err
 	}
-	phase, known := factions[state.Phase]
+	phase, known := factions[wire.Phase]
 	if !known {
 		return nil, fmt.Errorf("the state carries the phase %q, which is not in the contract",
-			state.Phase)
+			wire.Phase)
 	}
-	b.phase = phase
-	b.turn = state.Turn
+	b.state.Phase = phase
+	b.state.Turn = wire.Turn
 	return b, nil
 }
 
-func decodeTerrain(name string) (terrain, error) {
+func terrainName(kind state.Terrain) string {
+	if kind < 0 || int(kind) >= len(state.Names) {
+		return fmt.Sprintf("terrain(%d)", int(kind))
+	}
+	return state.Names[kind]
+}
+
+func parseTerrain(name string) (state.Terrain, error) {
+	for kind, known := range state.Names {
+		if known == name {
+			return state.Terrain(kind), nil
+		}
+	}
+	return 0, fmt.Errorf("the terrain %q is not in the contract", name)
+}
+
+func decodeTerrain(name string) (state.Terrain, error) {
 	if name == "" {
-		return terrainSpace, nil
+		return state.TerrainSpace, nil
 	}
 	return parseTerrain(name)
 }
 
-func decodeTerrainCells(cells []protocol.TerrainCell) (map[cell]terrain, error) {
+func decodeTerrainCells(cells []protocol.TerrainCell) (map[state.Cell]state.Terrain, error) {
 	if len(cells) == 0 {
 		return nil, nil
 	}
-	out := make(map[cell]terrain, len(cells))
+	out := make(map[state.Cell]state.Terrain, len(cells))
 	for _, entry := range cells {
 		kind, err := parseTerrain(entry.Terrain)
 		if err != nil {
@@ -129,11 +147,11 @@ func decodeTerrainCells(cells []protocol.TerrainCell) (map[cell]terrain, error) 
 	return out, nil
 }
 
-func decodeUnits(units []protocol.Unit) ([]unit, error) {
+func decodeUnits(units []protocol.Unit) ([]state.Unit, error) {
 	if units == nil {
 		return nil, nil
 	}
-	out := make([]unit, 0, len(units))
+	out := make([]state.Unit, 0, len(units))
 	for index := range units {
 		unit, err := decodeUnit(&units[index])
 		if err != nil {
@@ -144,15 +162,15 @@ func decodeUnits(units []protocol.Unit) ([]unit, error) {
 	return out, nil
 }
 
-func decodeCell(wire protocol.Cell) cell {
-	return cell{wire[0], wire[1]}
+func decodeCell(wire protocol.Cell) state.Cell {
+	return state.Cell{wire[0], wire[1]}
 }
 
-func encodeCell(cell cell) protocol.Cell {
+func encodeCell(cell state.Cell) protocol.Cell {
 	return protocol.Cell{cell[0], cell[1]}
 }
 
-func encodeCells(cells []cell) []protocol.Cell {
+func encodeCells(cells []state.Cell) []protocol.Cell {
 	out := make([]protocol.Cell, 0, len(cells))
 	for _, cell := range cells {
 		out = append(out, encodeCell(cell))
@@ -160,42 +178,27 @@ func encodeCells(cells []cell) []protocol.Cell {
 	return out
 }
 
-func decodeUnit(wire *protocol.Unit) (unit, error) {
+func decodeUnit(wire *protocol.Unit) (state.Unit, error) {
 	faction, known := factions[wire.Faction]
 	if !known {
-		return unit{}, fmt.Errorf("unit %q carries the faction %q, which is not in the contract",
+		return state.Unit{}, fmt.Errorf("unit %q carries the faction %q, which is not in the contract",
 			wire.UnitID, wire.Faction)
 	}
 	footprint, err := decodeFootprint(wire)
 	if err != nil {
-		return unit{}, err
+		return state.Unit{}, err
 	}
-	out := unit{
-		ID:        wire.UnitID,
-		Faction:   faction,
-		Footprint: footprint,
-		HP:        wire.HP,
-		MaxHP:     wire.MaxHP,
-		EN:        wire.EN,
-		ENMax:     wire.ENMax,
-		SP:        wire.SP,
-		SPMax:     wire.SPMax,
-		Pilot: pilot{
-			Ranged:   wire.Pilot.Ranged,
-			Melee:    wire.Pilot.Melee,
-			Awaken:   wire.Pilot.Awaken,
-			Defense:  wire.Pilot.Defense,
-			Reaction: wire.Pilot.Reaction,
-			SP:       wire.Pilot.SP,
-		},
-		Mech: mech{
-			HP:        wire.Mech.HP,
-			EN:        wire.Mech.EN,
-			Attack:    wire.Mech.Attack,
-			Defense:   wire.Mech.Defense,
-			Mobility:  wire.Mech.Mobility,
-			MoveRange: wire.Mech.MoveRange,
-		},
+	out := state.Unit{
+		ID:                      wire.UnitID,
+		Faction:                 faction,
+		Footprint:               footprint,
+		HP:                      wire.HP,
+		MaxHP:                   wire.MaxHP,
+		EN:                      wire.EN,
+		ENMax:                   wire.ENMax,
+		SP:                      wire.SP,
+		SPMax:                   wire.SPMax,
+		Pilot:                   decodePilot(&wire.Pilot),
 		Acted:                   wire.Acted,
 		ChanceSteps:             wire.ChanceSteps,
 		ChanceStepsMax:          wire.ChanceStepsMax,
@@ -206,15 +209,15 @@ func decodeUnit(wire *protocol.Unit) (unit, error) {
 		HasShield:               wire.HasShield,
 		SupportDefendWhenAttack: wire.SupportDefendWhenAttack,
 	}
-	if out.Mech.Weapons, err = decodeWeapons(wire.UnitID, wire.Mech.Weapons); err != nil {
-		return unit{}, err
+	if out.Mech, err = decodeMech(wire.UnitID, &wire.Mech); err != nil {
+		return state.Unit{}, err
 	}
 	if wire.Skills != nil {
-		out.Skills = make([]skill, 0, len(wire.Skills))
+		out.Skills = make([]state.Skill, 0, len(wire.Skills))
 		for _, skill := range wire.Skills {
 			decoded, err := decodeSkill(wire.UnitID, skill)
 			if err != nil {
-				return unit{}, err
+				return state.Unit{}, err
 			}
 			out.Skills = append(out.Skills, decoded)
 		}
@@ -226,73 +229,33 @@ func decodeUnit(wire *protocol.Unit) (unit, error) {
 		}
 	}
 	if wire.Debuffs != nil {
-		out.Debuffs = make([]debuff, 0, len(wire.Debuffs))
+		out.Debuffs = make([]state.Debuff, 0, len(wire.Debuffs))
 		for _, entry := range wire.Debuffs {
-			out.Debuffs = append(out.Debuffs, debuff(entry))
+			out.Debuffs = append(out.Debuffs, state.Debuff(entry))
 		}
 	}
 	return out, nil
 }
 
-func decodeWeapons(unitID string, weapons []protocol.Weapon) ([]weapon, error) {
-	if weapons == nil {
-		return nil, nil
-	}
-	out := make([]weapon, 0, len(weapons))
-	for index := range weapons {
-		weapon, err := decodeWeapon(&weapons[index])
-		if err != nil {
-			return nil, fmt.Errorf("unit %q: %w", unitID, err)
-		}
-		out = append(out, weapon)
-	}
-	return out, nil
-}
-
-func decodeWeapon(wire *protocol.Weapon) (weapon, error) {
-	out := weapon{
-		Name:            wire.Name,
-		Power:           wire.Power,
-		Range:           radiusRange{Min: wire.RangeMin, Max: wire.RangeMax},
-		ENCost:          wire.ENCost,
-		Accuracy:        wire.Accuracy,
-		CanCounter:      wire.CanCounter,
-		MapWeapon:       wire.MapWeapon,
-		UsableAfterMove: wire.UsableAfterMove,
-		DebuffMagnitude: wire.DebuffMagnitude,
-	}
-	if wire.DebuffKind != nil {
-		out.DebuffKind = *wire.DebuffKind
-	}
-	for _, name := range wire.Categories {
-		category, err := parseWeaponCategory(name)
-		if err != nil {
-			return weapon{}, fmt.Errorf("the weapon %q carries %w", wire.Name, err)
-		}
-		out.Categories = append(out.Categories, category)
-	}
-	return out, nil
-}
-
-func decodeSkill(unitID string, wire protocol.Skill) (skill, error) {
+func decodeSkill(unitID string, wire protocol.Skill) (state.Skill, error) {
 	source, known := skillSources[wire.Source]
 	if !known {
-		return skill{}, fmt.Errorf("unit %q carries a skill of the source %q, which is not in the contract",
+		return state.Skill{}, fmt.Errorf("unit %q carries a skill of the source %q, which is not in the contract",
 			unitID, wire.Source)
 	}
 	affects, known := affectsKinds[wire.Affects]
 	if !known {
-		return skill{}, fmt.Errorf("unit %q carries a skill that affects %q, which is not in the contract",
+		return state.Skill{}, fmt.Errorf("unit %q carries a skill that affects %q, which is not in the contract",
 			unitID, wire.Affects)
 	}
-	return skill{
-		Kind:            skillKind(wire.Kind),
+	return state.Skill{
+		Kind:            state.SkillKind(wire.Kind),
 		Source:          source,
 		Amount:          cloneAmount(wire.Amount),
 		Uses:            wire.Uses,
 		EndsActivation:  wire.EndsActivation,
 		UsableAfterMove: wire.UsableAfterMove,
-		Range:           radiusRange{Min: wire.RangeMin, Max: wire.RangeMax},
+		Range:           def.RadiusRange{Min: wire.RangeMin, Max: wire.RangeMax},
 		Blast:           wire.Blast,
 		Affects:         affects,
 	}, nil
@@ -315,7 +278,7 @@ func encodeCapabilities(capabilities capabilities) protocol.ActionsResponse {
 	return out
 }
 
-func encodeUnitStatus(unit *unit) protocol.UnitStatus {
+func encodeUnitStatus(unit *state.Unit) protocol.UnitStatus {
 	return protocol.UnitStatus{
 		UnitID:    unit.ID,
 		Faction:   wireFactions[unit.Faction],
@@ -330,7 +293,7 @@ func encodeUnitStatus(unit *unit) protocol.UnitStatus {
 	}
 }
 
-func encodeWeapons(unit *unit) []protocol.WeaponEntry {
+func encodeWeapons(unit *state.Unit) []protocol.WeaponEntry {
 	out := make([]protocol.WeaponEntry, 0, len(unit.Mech.Weapons))
 	for _, weapon := range unit.Mech.Weapons {
 		entry := protocol.WeaponEntry{
@@ -349,7 +312,7 @@ func encodeWeapons(unit *unit) []protocol.WeaponEntry {
 	return out
 }
 
-func encodeSkills(skills []skill) []protocol.SkillEntry {
+func encodeSkills(skills []state.Skill) []protocol.SkillEntry {
 	out := make([]protocol.SkillEntry, 0, len(skills))
 	for _, skill := range skills {
 		out = append(out, protocol.SkillEntry{
@@ -503,7 +466,7 @@ func encodeSupportAttackers(options []supportAttackOption) []protocol.SupportAtt
 	return out
 }
 
-func encodeUnits(units []unit) []protocol.Unit {
+func encodeUnits(units []state.Unit) []protocol.Unit {
 	out := make([]protocol.Unit, 0, len(units))
 	for _, unit := range units {
 		out = append(out, encodeUnit(unit))
@@ -513,35 +476,20 @@ func encodeUnits(units []unit) []protocol.Unit {
 
 // A list and a map hold no null on the wire, so an empty one is an empty
 // list and an empty object.
-func encodeUnit(unit unit) protocol.Unit {
+func encodeUnit(unit state.Unit) protocol.Unit {
 	out := protocol.Unit{
-		UnitID:  unit.ID,
-		Faction: wireFactions[unit.Faction],
-		Pos:     encodeCell(unit.Footprint.Anchor),
-		Size:    protocol.Cell{unit.Footprint.Size[0], unit.Footprint.Size[1]},
-		HP:      unit.HP,
-		MaxHP:   unit.MaxHP,
-		EN:      unit.EN,
-		ENMax:   unit.ENMax,
-		SP:      unit.SP,
-		SPMax:   unit.SPMax,
-		Pilot: protocol.Pilot{
-			Ranged:   unit.Pilot.Ranged,
-			Melee:    unit.Pilot.Melee,
-			Awaken:   unit.Pilot.Awaken,
-			Defense:  unit.Pilot.Defense,
-			Reaction: unit.Pilot.Reaction,
-			SP:       unit.Pilot.SP,
-		},
-		Mech: protocol.Mech{
-			HP:        unit.Mech.HP,
-			EN:        unit.Mech.EN,
-			Attack:    unit.Mech.Attack,
-			Defense:   unit.Mech.Defense,
-			Mobility:  unit.Mech.Mobility,
-			MoveRange: unit.Mech.MoveRange,
-			Weapons:   make([]protocol.Weapon, 0, len(unit.Mech.Weapons)),
-		},
+		UnitID:                  unit.ID,
+		Faction:                 wireFactions[unit.Faction],
+		Pos:                     encodeCell(unit.Footprint.Anchor),
+		Size:                    protocol.Cell{unit.Footprint.Size[0], unit.Footprint.Size[1]},
+		HP:                      unit.HP,
+		MaxHP:                   unit.MaxHP,
+		EN:                      unit.EN,
+		ENMax:                   unit.ENMax,
+		SP:                      unit.SP,
+		SPMax:                   unit.SPMax,
+		Pilot:                   encodePilot(unit.Pilot),
+		Mech:                    encodeMech(unit.Mech),
 		Skills:                  make([]protocol.Skill, 0, len(unit.Skills)),
 		Acted:                   unit.Acted,
 		ChanceSteps:             unit.ChanceSteps,
@@ -555,9 +503,6 @@ func encodeUnit(unit unit) protocol.Unit {
 		Ammo:                    make(map[string]int, len(unit.Ammo)),
 		Debuffs:                 make([]protocol.Debuff, 0, len(unit.Debuffs)),
 	}
-	for _, weapon := range unit.Mech.Weapons {
-		out.Mech.Weapons = append(out.Mech.Weapons, encodeWeapon(weapon))
-	}
 	for _, skill := range unit.Skills {
 		out.Skills = append(out.Skills, encodeSkill(skill))
 	}
@@ -570,30 +515,7 @@ func encodeUnit(unit unit) protocol.Unit {
 	return out
 }
 
-func encodeWeapon(weapon weapon) protocol.Weapon {
-	out := protocol.Weapon{
-		Name:            weapon.Name,
-		Power:           weapon.Power,
-		RangeMin:        weapon.Range.Min,
-		RangeMax:        weapon.Range.Max,
-		ENCost:          weapon.ENCost,
-		Accuracy:        weapon.Accuracy,
-		CanCounter:      weapon.CanCounter,
-		MapWeapon:       weapon.MapWeapon,
-		UsableAfterMove: weapon.UsableAfterMove,
-		DebuffMagnitude: weapon.DebuffMagnitude,
-	}
-	if weapon.DebuffKind != "" {
-		kind := weapon.DebuffKind
-		out.DebuffKind = &kind
-	}
-	for _, category := range weapon.Categories {
-		out.Categories = append(out.Categories, string(category))
-	}
-	return out
-}
-
-func encodeSkill(skill skill) protocol.Skill {
+func encodeSkill(skill state.Skill) protocol.Skill {
 	return protocol.Skill{
 		Kind:            protocol.SkillKind(skill.Kind),
 		Source:          wireSources[skill.Source],
@@ -615,24 +537,32 @@ func encodeOptionalName(name string) *string {
 	return &name
 }
 
-func decodeFootprint(unit *protocol.Unit) (footprint, error) {
-	size := size{unit.Size[0], unit.Size[1]}
+func cloneAmount(amount *float64) *float64 {
+	if amount == nil {
+		return nil
+	}
+	out := *amount
+	return &out
+}
+
+func decodeFootprint(unit *protocol.Unit) (state.Footprint, error) {
+	size := state.Size{unit.Size[0], unit.Size[1]}
 	for axis := range size {
 		if size[axis] < 0 {
-			return footprint{}, fmt.Errorf("unit %q carries the size %v", unit.UnitID, unit.Size)
+			return state.Footprint{}, fmt.Errorf("unit %q carries the size %v", unit.UnitID, unit.Size)
 		}
 		if size[axis] == 0 {
 			size[axis] = 1
 		}
 	}
-	return footprint{Anchor: decodeCell(unit.Pos), Size: size}, nil
+	return state.Footprint{Anchor: decodeCell(unit.Pos), Size: size}, nil
 }
 
-func decodeBounds(wire *protocol.Bounds) (bounds, error) {
+func decodeBounds(wire *protocol.Bounds) (state.Bounds, error) {
 	if wire == nil {
-		return bounds{}, fmt.Errorf("the state carries no bounds")
+		return state.Bounds{}, fmt.Errorf("the state carries no bounds")
 	}
-	return bounds{Low: decodeCell(wire[0]), High: decodeCell(wire[1])}, nil
+	return state.Bounds{Low: decodeCell(wire[0]), High: decodeCell(wire[1])}, nil
 }
 
 func DecodeInit(request *protocol.InitRequest) (*Board, error) {
@@ -643,7 +573,7 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 	if err != nil {
 		return nil, err
 	}
-	bounds := bounds{High: cell{request.Board.Width - 1, request.Board.Height - 1}}
+	bounds := state.Bounds{High: state.Cell{request.Board.Width - 1, request.Board.Height - 1}}
 	for index := range units {
 		fillMaxima(&units[index])
 		if err := checkEnemy(&units[index], bounds); err != nil {
@@ -652,7 +582,7 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 	}
 	for _, entry := range request.Board.TerrainCells {
 		cell := decodeCell(entry.Cell)
-		if !cellFootprint(cell).within(bounds) {
+		if !cellFootprint(cell).Within(bounds) {
 			return nil, fmt.Errorf("the terrain cell %v stands outside the board", cell)
 		}
 	}
@@ -660,21 +590,21 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 	if err != nil {
 		return nil, err
 	}
-	if b.defaultTerrain, err = decodeTerrain(request.Board.Terrain); err != nil {
+	if b.state.DefaultTerrain, err = decodeTerrain(request.Board.Terrain); err != nil {
 		return nil, err
 	}
-	if b.terrainCells, err = decodeTerrainCells(request.Board.TerrainCells); err != nil {
+	if b.state.TerrainCells, err = decodeTerrainCells(request.Board.TerrainCells); err != nil {
 		return nil, err
 	}
-	b.phase = factionAlly
-	b.turn = 1
+	b.state.Phase = state.FactionAlly
+	b.state.Turn = 1
 	return b, nil
 }
 
 // A maximum that the payload leaves at zero comes from the pairing. An
 // explicit value stands: an ability of the pilot or of the mech can lift the
 // maximum above the base data (issue #77).
-func fillMaxima(unit *unit) {
+func fillMaxima(unit *state.Unit) {
 	if unit.MaxHP == 0 {
 		unit.MaxHP = unit.Mech.HP
 	}
@@ -686,39 +616,39 @@ func fillMaxima(unit *unit) {
 	}
 }
 
-func checkEnemy(unit *unit, bounds bounds) error {
-	if unit.Faction != factionEnemy {
+func checkEnemy(unit *state.Unit, bounds state.Bounds) error {
+	if unit.Faction != state.FactionEnemy {
 		return fmt.Errorf("the unit %q of 'enemies' carries the faction %q",
 			unit.ID, encodeFaction(unit.Faction))
 	}
-	if !unit.Footprint.within(bounds) {
+	if !unit.Footprint.Within(bounds) {
 		return fmt.Errorf("the unit %q stands outside the board", unit.ID)
 	}
 	return nil
 }
 
 func (b *Board) State() protocol.BattleState {
-	bounds := protocol.Bounds{encodeCell(b.bounds.Low), encodeCell(b.bounds.High)}
+	bounds := protocol.Bounds{encodeCell(b.state.Bounds.Low), encodeCell(b.state.Bounds.High)}
 	return protocol.BattleState{
-		Units:         encodeUnits(b.units),
-		Phase:         wireFactions[b.phase],
-		Turn:          b.turn,
+		Units:         encodeUnits(b.state.Units),
+		Phase:         wireFactions[b.state.Phase],
+		Turn:          b.state.Turn,
 		Bounds:        &bounds,
 		PendingEvents: []string{},
 		FiredEvents:   []string{},
-		Terrain:       b.defaultTerrain.String(),
-		TerrainCells:  encodeTerrainCells(b.terrainCells),
+		Terrain:       terrainName(b.state.DefaultTerrain),
+		TerrainCells:  encodeTerrainCells(b.state.TerrainCells),
 	}
 }
 
-func encodeTerrainCells(cells map[cell]terrain) []protocol.TerrainCell {
+func encodeTerrainCells(cells map[state.Cell]state.Terrain) []protocol.TerrainCell {
 	declared := make(cellSet, len(cells))
 	for cell := range cells {
 		declared[cell] = true
 	}
 	out := make([]protocol.TerrainCell, 0, len(cells))
 	for _, cell := range sortedCells(declared) {
-		out = append(out, protocol.TerrainCell{Cell: encodeCell(cell), Terrain: cells[cell].String()})
+		out = append(out, protocol.TerrainCell{Cell: encodeCell(cell), Terrain: terrainName(cells[cell])})
 	}
 	return out
 }
@@ -740,10 +670,10 @@ func encodeResolution(resolution resolution) []any {
 
 func (b *Board) Summary() protocol.BoardSummary {
 	out := protocol.BoardSummary{
-		Turn: b.turn, Phase: wireFactions[b.phase],
+		Turn: b.state.Turn, Phase: wireFactions[b.state.Phase],
 		Pending: []string{}, Gone: []protocol.Faction{},
 	}
-	for _, unit := range b.pending(b.phase) {
+	for _, unit := range b.pending(b.state.Phase) {
 		out.Pending = append(out.Pending, unit.ID)
 	}
 	for _, faction := range b.gone() {

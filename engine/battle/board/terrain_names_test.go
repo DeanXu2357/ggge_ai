@@ -1,20 +1,24 @@
 package board
 
-import "testing"
+import (
+	"testing"
 
-var everyTerrain = []terrain{
-	terrainSpace,
-	terrainAtmospheric,
-	terrainGround,
-	terrainSurface,
-	terrainUnderwater,
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+)
+
+var everyTerrain = []state.Terrain{
+	state.TerrainSpace,
+	state.TerrainAtmospheric,
+	state.TerrainGround,
+	state.TerrainSurface,
+	state.TerrainUnderwater,
 }
 
 func TestEveryTerrainCarriesItsWireName(t *testing.T) {
 	want := []string{"space", "atmospheric", "ground", "surface", "underwater"}
 
 	for index, kind := range everyTerrain {
-		if got := kind.String(); got != want[index] {
+		if got := terrainName(kind); got != want[index] {
 			t.Fatalf("name of %d: %q, want %q", int(kind), got, want[index])
 		}
 		parsed, err := parseTerrain(want[index])

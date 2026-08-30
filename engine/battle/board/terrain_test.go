@@ -3,81 +3,83 @@ package board
 import (
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 func TestACellTakesTheTerrainOfTheBoardOrItsOwn(t *testing.T) {
-	state := &Board{
-		bounds:         bounds{Low: cell{0, 0}, High: cell{4, 4}},
-		defaultTerrain: terrainGround,
-		terrainCells:   map[cell]terrain{{2, 2}: terrainUnderwater},
-	}
+	b := &Board{state: state.Board{
+		Bounds:         state.Bounds{Low: state.Cell{0, 0}, High: state.Cell{4, 4}},
+		DefaultTerrain: state.TerrainGround,
+		TerrainCells:   map[state.Cell]state.Terrain{{2, 2}: state.TerrainUnderwater},
+	}}
 
-	if got := state.terrainAt(cell{0, 0}); got != terrainGround {
+	if got := b.terrainAt(state.Cell{0, 0}); got != state.TerrainGround {
 		t.Fatalf("a cell with no override: %v", got)
 	}
-	if got := state.terrainAt(cell{2, 2}); got != terrainUnderwater {
+	if got := b.terrainAt(state.Cell{2, 2}); got != state.TerrainUnderwater {
 		t.Fatalf("a cell with an override: %v", got)
 	}
 }
 
 func TestAUnitStandsOnTheTerrainOfItsAnchorCell(t *testing.T) {
-	state := &Board{
-		bounds:         bounds{Low: cell{0, 0}, High: cell{4, 4}},
-		defaultTerrain: terrainSurface,
-		terrainCells:   map[cell]terrain{{1, 1}: terrainUnderwater, {2, 1}: terrainGround},
-		units: []unit{
-			{ID: "a1", Faction: factionAlly, HP: 1,
-				Footprint: footprint{Anchor: cell{1, 1}, Size: size{2, 2}}},
-			{ID: "e1", Faction: factionEnemy, HP: 1,
-				Footprint: footprint{Anchor: cell{3, 3}, Size: size{1, 1}}},
+	b := &Board{state: state.Board{
+		Bounds:         state.Bounds{Low: state.Cell{0, 0}, High: state.Cell{4, 4}},
+		DefaultTerrain: state.TerrainSurface,
+		TerrainCells: map[state.Cell]state.Terrain{
+			{1, 1}: state.TerrainUnderwater, {2, 1}: state.TerrainGround},
+		Units: []state.Unit{
+			{ID: "a1", Faction: state.FactionAlly, HP: 1,
+				Footprint: state.Footprint{Anchor: state.Cell{1, 1}, Size: state.Size{2, 2}}},
+			{ID: "e1", Faction: state.FactionEnemy, HP: 1,
+				Footprint: state.Footprint{Anchor: state.Cell{3, 3}, Size: state.Size{1, 1}}},
 		},
-	}
+	}}
 
-	if got := state.terrainOf(state.unit("a1")); got != terrainUnderwater {
+	if got := b.terrainOf(b.unit("a1")); got != state.TerrainUnderwater {
 		t.Fatalf("the anchor cell holds the terrain of the unit: %v", got)
 	}
-	if got := state.terrainOf(state.unit("e1")); got != terrainSurface {
+	if got := b.terrainOf(b.unit("e1")); got != state.TerrainSurface {
 		t.Fatalf("a unit off every override: %v", got)
 	}
 }
 
 func TestABoardWithNoTerrainReadsSpace(t *testing.T) {
-	state, err := newBoard(bounds{Low: cell{0, 0}, High: cell{4, 4}}, nil)
+	b, err := newBoard(state.Bounds{Low: state.Cell{0, 0}, High: state.Cell{4, 4}}, nil)
 	if err != nil {
 		t.Fatalf("board: %v", err)
 	}
 
-	if got := state.terrainAt(cell{3, 1}); got != terrainSpace {
+	if got := b.terrainAt(state.Cell{3, 1}); got != state.TerrainSpace {
 		t.Fatalf("the zero value of the board: %v", got)
 	}
 }
 
 func TestAPayloadWithNoTerrainDecodesToNoRestriction(t *testing.T) {
-	state, err := DecodeState(wireBoard())
+	b, err := DecodeState(wireBoard())
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if state.defaultTerrain != terrainSpace || state.terrainCells != nil {
-		t.Fatalf("board: %v %v", state.defaultTerrain, state.terrainCells)
+	if b.state.DefaultTerrain != state.TerrainSpace || b.state.TerrainCells != nil {
+		t.Fatalf("board: %v %v", b.state.DefaultTerrain, b.state.TerrainCells)
 	}
 }
 
 func TestTheDecodeRefusesATerrainOutsideTheContract(t *testing.T) {
 	cases := map[string]func(*protocol.BattleState){
-		"the map": func(state *protocol.BattleState) { state.Terrain = "orbit" },
-		"a cell": func(state *protocol.BattleState) {
-			state.TerrainCells = []protocol.TerrainCell{{Cell: protocol.Cell{1, 1}, Terrain: "lava"}}
+		"the map": func(wire *protocol.BattleState) { wire.Terrain = "orbit" },
+		"a cell": func(wire *protocol.BattleState) {
+			wire.TerrainCells = []protocol.TerrainCell{{Cell: protocol.Cell{1, 1}, Terrain: "lava"}}
 		},
 	}
 
 	for name, spoil := range cases {
 		t.Run(name, func(t *testing.T) {
-			state := wireBoard()
-			spoil(state)
+			wire := wireBoard()
+			spoil(wire)
 
-			if _, err := DecodeState(state); err == nil {
+			if _, err := DecodeState(wire); err == nil {
 				t.Fatal("the decode took a terrain outside the contract")
 			}
 		})

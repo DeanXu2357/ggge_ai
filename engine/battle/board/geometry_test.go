@@ -3,20 +3,26 @@ package board
 import (
 	"reflect"
 	"testing"
+
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-var oneCell = size{1, 1}
+var oneCell = state.Size{1, 1}
 
-func unitAt(id string, faction faction, anchor cell) unit {
-	return unit{ID: id, Faction: faction, Footprint: footprint{Anchor: anchor, Size: oneCell}, HP: 100}
+func unitAt(id string, faction state.Faction, anchor state.Cell) state.Unit {
+	return state.Unit{ID: id, Faction: faction,
+		Footprint: state.Footprint{Anchor: anchor, Size: oneCell}, HP: 100,
+		Mech: &def.Mech{}, Pilot: &def.Pilot{}}
 }
 
-func board(units ...unit) *Board {
-	return &Board{bounds: bounds{Low: cell{0, 0}, High: cell{4, 4}}, units: units,
-		phase: factionAlly, turn: 1}
+func board(units ...state.Unit) *Board {
+	return &Board{state: state.Board{
+		Bounds: state.Bounds{Low: state.Cell{0, 0}, High: state.Cell{4, 4}}, Units: units,
+		Phase: state.FactionAlly, Turn: 1}}
 }
 
-func ids(units []*unit) []string {
+func ids(units []*state.Unit) []string {
 	out := make([]string, 0, len(units))
 	for _, one := range units {
 		out = append(out, one.ID)
@@ -24,16 +30,16 @@ func ids(units []*unit) []string {
 	return out
 }
 
-func reach(t *testing.T, state *Board, id string) []cell {
+func reach(t *testing.T, b *Board, id string) []state.Cell {
 	t.Helper()
-	cells, err := state.reachableCells(id)
+	cells, err := b.reachableCells(id)
 	if err != nil {
 		t.Fatalf("reach: %v", err)
 	}
 	return cells
 }
 
-func set(cells []cell) cellSet {
+func set(cells []state.Cell) cellSet {
 	out := cellSet{}
 	for _, cell := range cells {
 		out[cell] = true
@@ -41,53 +47,53 @@ func set(cells []cell) cellSet {
 	return out
 }
 
-func at(cell cell) footprint {
-	return footprint{Anchor: cell, Size: oneCell}
+func at(cell state.Cell) state.Footprint {
+	return state.Footprint{Anchor: cell, Size: oneCell}
 }
 
 func TestADiagonalNeighbourIsTwoStepsAway(t *testing.T) {
-	if got := spanDistance(at(cell{2, 2}), at(cell{3, 3})); got != 2 {
+	if got := spanDistance(at(state.Cell{2, 2}), at(state.Cell{3, 3})); got != 2 {
 		t.Fatalf("diagonal distance: %d", got)
 	}
-	if got := spanDistance(at(cell{2, 2}), at(cell{2, 3})); got != 1 {
+	if got := spanDistance(at(state.Cell{2, 2}), at(state.Cell{2, 3})); got != 1 {
 		t.Fatalf("orthogonal distance: %d", got)
 	}
-	if got := spanDistance(at(cell{4, 1}), at(cell{1, 3})); got != 5 {
+	if got := spanDistance(at(state.Cell{4, 1}), at(state.Cell{1, 3})); got != 5 {
 		t.Fatalf("distance: %d", got)
 	}
 }
 
 func TestReachIsTheDiamondOfTheMoveRange(t *testing.T) {
-	state := board(unitAt("a1", factionAlly, cell{2, 2}))
-	state.units[0].Mech.MoveRange = 2
+	b := board(unitAt("a1", state.FactionAlly, state.Cell{2, 2}))
+	b.state.Units[0].Mech.MoveRange = 2
 
-	cells := set(reach(t, state, "a1"))
+	cells := set(reach(t, b, "a1"))
 
 	if len(cells) != 13 {
 		t.Fatalf("cells: %d, against the 13 of the diamond", len(cells))
 	}
 
-	state.units[0].Mech.MoveRange = 1
-	near := set(reach(t, state, "a1"))
+	b.state.Units[0].Mech.MoveRange = 1
+	near := set(reach(t, b, "a1"))
 
 	if len(near) != 5 {
 		t.Fatalf("cells: %d, against the 5 of the diamond", len(near))
 	}
-	if near[cell{3, 3}] {
+	if near[state.Cell{3, 3}] {
 		t.Fatal("a diagonal cell costs two steps, and this unit holds one")
 	}
 }
 
 func TestReachDropsTheCellsBehindABlocker(t *testing.T) {
-	state := board(
-		unitAt("a1", factionAlly, cell{2, 2}),
-		unitAt("e1", factionEnemy, cell{2, 3}),
+	b := board(
+		unitAt("a1", state.FactionAlly, state.Cell{2, 2}),
+		unitAt("e1", state.FactionEnemy, state.Cell{2, 3}),
 	)
-	state.units[0].Mech.MoveRange = 2
+	b.state.Units[0].Mech.MoveRange = 2
 
-	cells := reach(t, state, "a1")
+	cells := reach(t, b, "a1")
 
-	want := []cell{
+	want := []state.Cell{
 		{0, 2},
 		{1, 1}, {1, 2}, {1, 3},
 		{2, 0}, {2, 1}, {2, 2},
@@ -100,18 +106,18 @@ func TestReachDropsTheCellsBehindABlocker(t *testing.T) {
 }
 
 func TestAnAllyLetsThePathThroughAndKeepsItsCell(t *testing.T) {
-	state := board(
-		unitAt("a1", factionAlly, cell{2, 2}),
-		unitAt("a2", factionAlly, cell{2, 3}),
+	b := board(
+		unitAt("a1", state.FactionAlly, state.Cell{2, 2}),
+		unitAt("a2", state.FactionAlly, state.Cell{2, 3}),
 	)
-	state.units[0].Mech.MoveRange = 2
+	b.state.Units[0].Mech.MoveRange = 2
 
-	cells := set(reach(t, state, "a1"))
+	cells := set(reach(t, b, "a1"))
 
-	if cells[cell{2, 3}] {
+	if cells[state.Cell{2, 3}] {
 		t.Fatal("the cell of the ally holds a unit and is no destination")
 	}
-	if !cells[cell{2, 4}] {
+	if !cells[state.Cell{2, 4}] {
 		t.Fatal("the path through the ally is open")
 	}
 	if len(cells) != 12 {
@@ -120,26 +126,26 @@ func TestAnAllyLetsThePathThroughAndKeepsItsCell(t *testing.T) {
 }
 
 func TestAThirdPartyBlocksThePathOfAnAlly(t *testing.T) {
-	state := board(
-		unitAt("a1", factionAlly, cell{2, 2}),
-		unitAt("t1", factionThirdParty, cell{2, 3}),
+	b := board(
+		unitAt("a1", state.FactionAlly, state.Cell{2, 2}),
+		unitAt("t1", state.FactionThirdParty, state.Cell{2, 3}),
 	)
-	state.units[0].Mech.MoveRange = 2
+	b.state.Units[0].Mech.MoveRange = 2
 
-	cells := set(reach(t, state, "a1"))
+	cells := set(reach(t, b, "a1"))
 
-	if cells[cell{2, 4}] {
+	if cells[state.Cell{2, 4}] {
 		t.Fatal("a unit of another faction blocks the path")
 	}
 }
 
 func TestReachStopsAtTheBoardBounds(t *testing.T) {
-	state := board(unitAt("a1", factionAlly, cell{0, 0}))
-	state.units[0].Mech.MoveRange = 1
+	b := board(unitAt("a1", state.FactionAlly, state.Cell{0, 0}))
+	b.state.Units[0].Mech.MoveRange = 1
 
-	cells := reach(t, state, "a1")
+	cells := reach(t, b, "a1")
 
-	want := []cell{{0, 0}, {0, 1}, {1, 0}}
+	want := []state.Cell{{0, 0}, {0, 1}, {1, 0}}
 	if !reflect.DeepEqual(cells, want) {
 		t.Fatalf("cells: %v", cells)
 	}
@@ -147,17 +153,17 @@ func TestReachStopsAtTheBoardBounds(t *testing.T) {
 
 func TestNearestFreeCellSearchesOnTheOrthogonalSteps(t *testing.T) {
 	taken := cellSet{{0, 0}: true}
-	one := footprint{Anchor: cell{0, 0}, Size: oneCell}
+	one := state.Footprint{Anchor: state.Cell{0, 0}, Size: oneCell}
 
-	if got := nearestFreeCell(one, taken); got != (cell{-1, 0}) {
+	if got := nearestFreeCell(one, taken); got != (state.Cell{-1, 0}) {
 		t.Fatalf("first free cell: %v", got)
 	}
 
-	for _, cell := range []cell{{-1, 0}, {0, -1}, {0, 1}, {1, 0}} {
+	for _, cell := range []state.Cell{{-1, 0}, {0, -1}, {0, 1}, {1, 0}} {
 		taken[cell] = true
 	}
 
-	if got := nearestFreeCell(one, taken); got != (cell{-2, 0}) {
+	if got := nearestFreeCell(one, taken); got != (state.Cell{-2, 0}) {
 		t.Fatalf("the search leaves the ring on a step of the board, not on a diagonal: %v", got)
 	}
 }
@@ -165,83 +171,83 @@ func TestNearestFreeCellSearchesOnTheOrthogonalSteps(t *testing.T) {
 func TestNearestFreeCellFitsTheWholeFootprint(t *testing.T) {
 	taken := cellSet{{1, 1}: true}
 
-	wide := footprint{Anchor: cell{0, 0}, Size: size{2, 2}}
-	if got := nearestFreeCell(wide, taken); got != (cell{-1, 0}) {
+	wide := state.Footprint{Anchor: state.Cell{0, 0}, Size: state.Size{2, 2}}
+	if got := nearestFreeCell(wide, taken); got != (state.Cell{-1, 0}) {
 		t.Fatalf("the anchor is free and the footprint is not: %v", got)
 	}
 
-	one := footprint{Anchor: cell{0, 0}, Size: oneCell}
-	if got := nearestFreeCell(one, taken); got != (cell{0, 0}) {
+	one := state.Footprint{Anchor: state.Cell{0, 0}, Size: oneCell}
+	if got := nearestFreeCell(one, taken); got != (state.Cell{0, 0}) {
 		t.Fatalf("a footprint of one cell keeps the anchor: %v", got)
 	}
 }
 
 func TestTargetsOfAnswersTheOpposingFaction(t *testing.T) {
-	state := board(
-		unitAt("a1", factionAlly, cell{0, 0}),
-		unitAt("e1", factionEnemy, cell{1, 0}),
-		unitAt("t1", factionThirdParty, cell{2, 0}),
+	b := board(
+		unitAt("a1", state.FactionAlly, state.Cell{0, 0}),
+		unitAt("e1", state.FactionEnemy, state.Cell{1, 0}),
+		unitAt("t1", state.FactionThirdParty, state.Cell{2, 0}),
 	)
 
-	if got := ids(state.targetsOf(&state.units[0])); !reflect.DeepEqual(got, []string{"e1"}) {
+	if got := ids(b.targetsOf(&b.state.Units[0])); !reflect.DeepEqual(got, []string{"e1"}) {
 		t.Fatalf("targets of the ally: %v", got)
 	}
-	if got := ids(state.targetsOf(&state.units[1])); !reflect.DeepEqual(got, []string{"a1"}) {
+	if got := ids(b.targetsOf(&b.state.Units[1])); !reflect.DeepEqual(got, []string{"a1"}) {
 		t.Fatalf("targets of the enemy: %v", got)
 	}
-	if got := ids(state.targetsOf(&state.units[2])); !reflect.DeepEqual(got, []string{"a1"}) {
+	if got := ids(b.targetsOf(&b.state.Units[2])); !reflect.DeepEqual(got, []string{"a1"}) {
 		t.Fatalf("targets of the third party: %v", got)
 	}
 }
 
 func TestTheDistanceOfTwoFootprintsIsTheLeastDistanceOfTheirCells(t *testing.T) {
-	big := footprint{Anchor: cell{0, 0}, Size: size{2, 2}}
-	tall := footprint{Anchor: cell{0, 0}, Size: size{2, 3}}
+	big := state.Footprint{Anchor: state.Cell{0, 0}, Size: state.Size{2, 2}}
+	tall := state.Footprint{Anchor: state.Cell{0, 0}, Size: state.Size{2, 3}}
 
-	if got := spanDistance(big, footprint{Anchor: cell{2, 0}, Size: oneCell}); got != 1 {
+	if got := spanDistance(big, state.Footprint{Anchor: state.Cell{2, 0}, Size: oneCell}); got != 1 {
 		t.Fatalf("a foe beside the footprint is one step away, not two: %d", got)
 	}
-	if got := spanDistance(big, footprint{Anchor: cell{2, 1}, Size: oneCell}); got != 1 {
+	if got := spanDistance(big, state.Footprint{Anchor: state.Cell{2, 1}, Size: oneCell}); got != 1 {
 		t.Fatalf("the near cell of the footprint decides, not the anchor: %d", got)
 	}
-	if got := spanDistance(tall, footprint{Anchor: cell{4, 1}, Size: size{2, 2}}); got != 3 {
+	if got := spanDistance(tall, state.Footprint{Anchor: state.Cell{4, 1}, Size: state.Size{2, 2}}); got != 3 {
 		t.Fatalf("two footprints measure from their near cells: %d", got)
 	}
-	if got := spanDistance(at(cell{2, 2}), at(cell{3, 3})); got != 2 {
+	if got := spanDistance(at(state.Cell{2, 2}), at(state.Cell{3, 3})); got != 2 {
 		t.Fatalf("two footprints of one cell keep the cell distance: %d", got)
 	}
-	if got := spanDistance(big, footprint{Anchor: cell{1, 1}, Size: size{2, 2}}); got != 0 {
+	if got := spanDistance(big, state.Footprint{Anchor: state.Cell{1, 1}, Size: state.Size{2, 2}}); got != 0 {
 		t.Fatalf("two footprints that share a cell are at distance zero: %d", got)
 	}
 }
 
 func TestReachOfAFootprintNeedsEveryCellOfIt(t *testing.T) {
-	state := board(
-		unitAt("a1", factionAlly, cell{0, 0}),
-		unitAt("e1", factionEnemy, cell{2, 1}),
+	b := board(
+		unitAt("a1", state.FactionAlly, state.Cell{0, 0}),
+		unitAt("e1", state.FactionEnemy, state.Cell{2, 1}),
 	)
-	state.units[0].Footprint.Size = size{2, 2}
-	state.units[0].Mech.MoveRange = 1
+	b.state.Units[0].Footprint.Size = state.Size{2, 2}
+	b.state.Units[0].Mech.MoveRange = 1
 
-	cells := reach(t, state, "a1")
+	cells := reach(t, b, "a1")
 
-	want := []cell{{0, 0}, {0, 1}}
+	want := []state.Cell{{0, 0}, {0, 1}}
 	if !reflect.DeepEqual(cells, want) {
 		t.Fatalf("the anchor (1,0) is free and the footprint of that anchor holds the foe: %v", cells)
 	}
 }
 
 func TestReachStopsWhereTheFootprintLeavesTheBoard(t *testing.T) {
-	state := board(unitAt("a1", factionAlly, cell{2, 2}))
-	state.units[0].Footprint.Size = size{2, 2}
-	state.units[0].Mech.MoveRange = 2
+	b := board(unitAt("a1", state.FactionAlly, state.Cell{2, 2}))
+	b.state.Units[0].Footprint.Size = state.Size{2, 2}
+	b.state.Units[0].Mech.MoveRange = 2
 
-	cells := set(reach(t, state, "a1"))
+	cells := set(reach(t, b, "a1"))
 
-	if cells[cell{4, 2}] || cells[cell{2, 4}] {
+	if cells[state.Cell{4, 2}] || cells[state.Cell{2, 4}] {
 		t.Fatal("an anchor on the last row or column puts half of the footprint outside the board")
 	}
-	if !cells[cell{3, 3}] {
+	if !cells[state.Cell{3, 3}] {
 		t.Fatal("the last anchor that holds the whole footprint is on the board")
 	}
 	if len(cells) != 11 {
@@ -250,25 +256,25 @@ func TestReachStopsWhereTheFootprintLeavesTheBoard(t *testing.T) {
 }
 
 func TestAnAllyLetsTheFootprintThroughAndDeniesEveryCellItCovers(t *testing.T) {
-	state := board(
-		unitAt("a1", factionAlly, cell{0, 0}),
-		unitAt("a2", factionAlly, cell{2, 1}),
+	b := board(
+		unitAt("a1", state.FactionAlly, state.Cell{0, 0}),
+		unitAt("a2", state.FactionAlly, state.Cell{2, 1}),
 	)
-	state.units[0].Footprint.Size = size{2, 2}
-	state.units[0].Mech.MoveRange = 2
+	b.state.Units[0].Footprint.Size = state.Size{2, 2}
+	b.state.Units[0].Mech.MoveRange = 2
 
-	cells := reach(t, state, "a1")
+	cells := reach(t, b, "a1")
 
-	want := []cell{{0, 0}, {0, 1}, {0, 2}}
+	want := []state.Cell{{0, 0}, {0, 1}, {0, 2}}
 	if !reflect.DeepEqual(cells, want) {
 		t.Fatalf("an anchor whose footprint covers the ally is no destination: %v", cells)
 	}
 }
 
 func TestTheReachOfAUnitThatIsNotOnTheBoardIsAnError(t *testing.T) {
-	state := board(unitAt("a1", factionAlly, cell{2, 2}))
+	b := board(unitAt("a1", state.FactionAlly, state.Cell{2, 2}))
 
-	cells, err := state.reachableCells("ghost")
+	cells, err := b.reachableCells("ghost")
 
 	if err == nil {
 		t.Fatalf("cells: %v", cells)
@@ -276,16 +282,16 @@ func TestTheReachOfAUnitThatIsNotOnTheBoardIsAnError(t *testing.T) {
 }
 
 func TestAUnitThatCannotMoveKeepsItsOwnCell(t *testing.T) {
-	state := board(
-		unitAt("a1", factionAlly, cell{0, 0}),
-		unitAt("e1", factionEnemy, cell{1, 0}),
-		unitAt("e2", factionEnemy, cell{0, 1}),
+	b := board(
+		unitAt("a1", state.FactionAlly, state.Cell{0, 0}),
+		unitAt("e1", state.FactionEnemy, state.Cell{1, 0}),
+		unitAt("e2", state.FactionEnemy, state.Cell{0, 1}),
 	)
-	state.units[0].Mech.MoveRange = 3
+	b.state.Units[0].Mech.MoveRange = 3
 
-	cells := reach(t, state, "a1")
+	cells := reach(t, b, "a1")
 
-	if !reflect.DeepEqual(cells, []cell{{0, 0}}) {
+	if !reflect.DeepEqual(cells, []state.Cell{{0, 0}}) {
 		t.Fatalf("a unit that is boxed in answers its own cell, not nothing: %v", cells)
 	}
 }

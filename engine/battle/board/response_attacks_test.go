@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 func coverIDs(options []supportDefendOption) []string {
@@ -25,25 +27,25 @@ func stances(options []responseAttackOption) []stance {
 }
 
 func duel() *Board {
-	defender := unitAt("d1", factionAlly, cell{0, 0})
+	defender := unitAt("d1", state.FactionAlly, state.Cell{0, 0})
 	defender.HasShield = true
-	defender.Mech.Weapons = []weapon{rifle("saber", radiusRange{Min: 1, Max: 1})}
-	helper := unitAt("h1", factionAlly, cell{0, 1})
+	defender.Mech.Weapons = []def.Weapon{rifle("saber", def.RadiusRange{Min: 1, Max: 1})}
+	helper := unitAt("h1", state.FactionAlly, state.Cell{0, 1})
 	helper.Mech.MoveRange = 1
 	helper.SupportDefendCharges = 1
-	attacker := unitAt("e1", factionEnemy, cell{1, 0})
-	attacker.Mech.Weapons = []weapon{rifle("rifle", radiusRange{Min: 1, Max: 2})}
+	attacker := unitAt("e1", state.FactionEnemy, state.Cell{1, 0})
+	attacker.Mech.Weapons = []def.Weapon{rifle("rifle", def.RadiusRange{Min: 1, Max: 2})}
 	return board(defender, helper, attacker)
 }
 
-func strikeAction(cell cell, weapon string) decision {
+func strikeAction(cell state.Cell, weapon string) decision {
 	at := cell
 	return decision{UnitID: "e1", Kind: actionAttack, MoveTo: &at, TargetID: "d1", Weapon: weapon}
 }
 
-func engagementOf(t *testing.T, state *Board, cell cell, weapon string) engagement {
+func engagementOf(t *testing.T, b *Board, cell state.Cell, weapon string) engagement {
 	t.Helper()
-	out, err := state.responseAttacks(strikeAction(cell, weapon), "d1")
+	out, err := b.responseAttacks(strikeAction(cell, weapon), "d1")
 	if err != nil {
 		t.Fatalf("response attacks: %v", err)
 	}
@@ -53,9 +55,9 @@ func engagementOf(t *testing.T, state *Board, cell cell, weapon string) engageme
 // The defender stands and takes the strike with 'none'. The shield is no
 // answer of this command: it settles during the damage.
 func TestTheResponseAttackListHoldsTheStandAndNoShield(t *testing.T) {
-	state := duel()
+	b := duel()
 
-	out := engagementOf(t, state, cell{1, 0}, "rifle")
+	out := engagementOf(t, b, state.Cell{1, 0}, "rifle")
 
 	want := []stance{stanceDodge, stanceDefend, stanceCounter, stanceNone}
 	if !reflect.DeepEqual(stances(out.ResponseAttacks), want) {
@@ -64,19 +66,21 @@ func TestTheResponseAttackListHoldsTheStandAndNoShield(t *testing.T) {
 }
 
 func TestACounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
-	cases := map[string]func(weapon *weapon){
-		"a weapon that cannot counter": func(weapon *weapon) { weapon.CanCounter = false },
-		"a map weapon":                 func(weapon *weapon) { weapon.MapWeapon = true },
-		"a weapon it cannot pay for":   func(weapon *weapon) { weapon.ENCost = 1000 },
-		"a weapon out of its band":     func(weapon *weapon) { weapon.Range = radiusRange{Min: 3, Max: 4} },
+	cases := map[string]func(weapon *def.Weapon){
+		"a weapon that cannot counter": func(weapon *def.Weapon) { weapon.CanCounter = false },
+		"a map weapon":                 func(weapon *def.Weapon) { weapon.MapWeapon = true },
+		"a weapon it cannot pay for":   func(weapon *def.Weapon) { weapon.ENCost = 1000 },
+		"a weapon out of its band": func(weapon *def.Weapon) {
+			weapon.Range = def.RadiusRange{Min: 3, Max: 4}
+		},
 	}
 
 	for name, break_ := range cases {
 		t.Run(name, func(t *testing.T) {
-			state := duel()
-			break_(&state.unit("d1").Mech.Weapons[0])
+			b := duel()
+			break_(&b.unit("d1").Mech.Weapons[0])
 
-			out := engagementOf(t, state, cell{1, 0}, "rifle")
+			out := engagementOf(t, b, state.Cell{1, 0}, "rifle")
 
 			want := []stance{stanceDodge, stanceDefend, stanceNone}
 			if !reflect.DeepEqual(stances(out.ResponseAttacks), want) {
@@ -89,17 +93,17 @@ func TestACounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
 // A stance carries no support unit: a support defender changes no outcome of the
 // stance, and it stands in its own list.
 func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
-	state := duel()
-	guard := unitAt("e2", factionEnemy, cell{2, 0})
+	b := duel()
+	guard := unitAt("e2", state.FactionEnemy, state.Cell{2, 0})
 	guard.Mech.MoveRange = 1
 	guard.SupportDefendCharges = 1
 	guard.SupportAttackCharges = 1
-	guard.Mech.Weapons = []weapon{rifle("rifle", radiusRange{Min: 1, Max: 2})}
-	state.units = append(state.units, guard)
-	state.unit("h1").SupportAttackCharges = 1
-	state.unit("h1").Mech.Weapons = []weapon{rifle("rifle", radiusRange{Min: 1, Max: 2})}
+	guard.Mech.Weapons = []def.Weapon{rifle("rifle", def.RadiusRange{Min: 1, Max: 2})}
+	b.state.Units = append(b.state.Units, guard)
+	b.unit("h1").SupportAttackCharges = 1
+	b.unit("h1").Mech.Weapons = []def.Weapon{rifle("rifle", def.RadiusRange{Min: 1, Max: 2})}
 
-	out := engagementOf(t, state, cell{1, 0}, "rifle")
+	out := engagementOf(t, b, state.Cell{1, 0}, "rifle")
 
 	if len(out.ResponseAttacks) != 4 {
 		t.Fatalf("the support units add no stance: %v", stances(out.ResponseAttacks))
@@ -121,12 +125,12 @@ func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 }
 
 func TestASupporterOutOfItsMoveRangeJoinsNothing(t *testing.T) {
-	state := duel()
-	state.unit("h1").Mech.MoveRange = 0
-	state.unit("h1").SupportAttackCharges = 1
-	state.unit("h1").Mech.Weapons = []weapon{rifle("rifle", radiusRange{Min: 1, Max: 2})}
+	b := duel()
+	b.unit("h1").Mech.MoveRange = 0
+	b.unit("h1").SupportAttackCharges = 1
+	b.unit("h1").Mech.Weapons = []def.Weapon{rifle("rifle", def.RadiusRange{Min: 1, Max: 2})}
 
-	out := engagementOf(t, state, cell{1, 0}, "rifle")
+	out := engagementOf(t, b, state.Cell{1, 0}, "rifle")
 
 	if len(out.Defender.SupportDefenders) != 0 || len(out.Defender.SupportAttackers) != 0 {
 		t.Fatalf("the support reach is the move range of the supporter: %+v", out.Defender)
@@ -136,8 +140,8 @@ func TestASupporterOutOfItsMoveRangeJoinsNothing(t *testing.T) {
 // Only an attack asks the defender anything, so the command refuses every
 // other kind. A client that runs a map attack sends 'act' and no question.
 func TestAnActionThatMakesNoStrikeIsAnError(t *testing.T) {
-	state := duel()
-	cell := cell{4, 4}
+	b := duel()
+	cell := state.Cell{4, 4}
 	cases := map[string]decision{
 		"a map attack":             {UnitID: "e1", Kind: actionMapAttack, Weapon: "rifle"},
 		"a map attack out of band": {UnitID: "e1", Kind: actionMapAttack, MoveTo: &cell, Weapon: "rifle"},
@@ -146,7 +150,7 @@ func TestAnActionThatMakesNoStrikeIsAnError(t *testing.T) {
 
 	for name, action := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := state.responseAttacks(action, "d1"); err == nil {
+			if _, err := b.responseAttacks(action, "d1"); err == nil {
 				t.Fatal("the action asks the defender nothing")
 			}
 		})
@@ -158,10 +162,10 @@ func TestAResponseAttackOfADestroyedUnitIsAnError(t *testing.T) {
 
 	for name, id := range cases {
 		t.Run(name, func(t *testing.T) {
-			state := duel()
-			state.unit(id).HP = 0
+			b := duel()
+			b.unit(id).HP = 0
 
-			_, err := state.responseAttacks(strikeAction(cell{1, 0}, "rifle"), "d1")
+			_, err := b.responseAttacks(strikeAction(state.Cell{1, 0}, "rifle"), "d1")
 
 			if !errors.Is(err, battle.ErrDestroyed) {
 				t.Fatalf("error: %v", err)
@@ -171,10 +175,10 @@ func TestAResponseAttackOfADestroyedUnitIsAnError(t *testing.T) {
 }
 
 func TestTheStrikeComesFromTheCellOfTheAction(t *testing.T) {
-	state := duel()
+	b := duel()
 
-	near := engagementOf(t, state, cell{1, 0}, "rifle")
-	far := engagementOf(t, state, cell{2, 0}, "rifle")
+	near := engagementOf(t, b, state.Cell{1, 0}, "rifle")
+	far := engagementOf(t, b, state.Cell{2, 0}, "rifle")
 
 	if len(near.ResponseAttacks) != 4 || len(far.ResponseAttacks) != 3 {
 		t.Fatalf("the counter of the defender reaches one cell: %v %v",
@@ -183,9 +187,9 @@ func TestTheStrikeComesFromTheCellOfTheAction(t *testing.T) {
 }
 
 func TestTheStrikeOfAnActionWithNoMoveComesFromTheCellOfToday(t *testing.T) {
-	state := duel()
+	b := duel()
 
-	out, err := state.responseAttacks(decision{UnitID: "e1", Kind: actionAttack, Weapon: "rifle"}, "d1")
+	out, err := b.responseAttacks(decision{UnitID: "e1", Kind: actionAttack, Weapon: "rifle"}, "d1")
 
 	if err != nil {
 		t.Fatalf("response attacks: %v", err)
@@ -196,45 +200,45 @@ func TestTheStrikeOfAnActionWithNoMoveComesFromTheCellOfToday(t *testing.T) {
 }
 
 func TestAResponseAttackRequestOutsideTheBoardIsAnError(t *testing.T) {
-	state := duel()
+	b := duel()
 	cases := map[string]struct {
 		defender, weapon string
-		cell             cell
+		cell             state.Cell
 	}{
-		"an unknown defender":      {"ghost", "rifle", cell{1, 0}},
-		"an unknown weapon":        {"d1", "lance", cell{1, 0}},
-		"a weapon out of its band": {"d1", "rifle", cell{3, 0}},
+		"an unknown defender":      {"ghost", "rifle", state.Cell{1, 0}},
+		"an unknown weapon":        {"d1", "lance", state.Cell{1, 0}},
+		"a weapon out of its band": {"d1", "rifle", state.Cell{3, 0}},
 	}
 
 	for name, one := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := state.responseAttacks(strikeAction(one.cell, one.weapon), one.defender); err == nil {
+			if _, err := b.responseAttacks(strikeAction(one.cell, one.weapon), one.defender); err == nil {
 				t.Fatal("the request stands outside the board")
 			}
 		})
 	}
-	if _, err := state.responseAttacks(strikeAction(cell{1, 0}, "rifle"), "d1"); err != nil {
+	if _, err := b.responseAttacks(strikeAction(state.Cell{1, 0}, "rifle"), "d1"); err != nil {
 		t.Fatalf("the request of the board: %v", err)
 	}
 	ghost := decision{UnitID: "ghost", Kind: actionAttack, Weapon: "rifle"}
-	if _, err := state.responseAttacks(ghost, "d1"); !errors.Is(err, battle.ErrNoUnit) {
+	if _, err := b.responseAttacks(ghost, "d1"); !errors.Is(err, battle.ErrNoUnit) {
 		t.Fatalf("an unknown attacker: %v", err)
 	}
 }
 
 func TestEachEntryCarriesTheForecastOfItsOwnStrike(t *testing.T) {
-	attacker := fighter("e1", factionEnemy, cell{1, 0})
-	attacker.Mech.Weapons = []weapon{beam()}
-	defender := fighter("d1", factionAlly, cell{0, 0})
-	defender.Mech.Weapons = []weapon{beam()}
-	guard := fighter("h1", factionAlly, cell{0, 1})
+	attacker := fighter("e1", state.FactionEnemy, state.Cell{1, 0})
+	attacker.Mech.Weapons = []def.Weapon{beam()}
+	defender := fighter("d1", state.FactionAlly, state.Cell{0, 0})
+	defender.Mech.Weapons = []def.Weapon{beam()}
+	guard := fighter("h1", state.FactionAlly, state.Cell{0, 1})
 	guard.Mech.MoveRange = 1
 	guard.SupportDefendCharges = 1
 	guard.SupportAttackCharges = 1
-	guard.Mech.Weapons = []weapon{beam()}
-	state := board(defender, guard, attacker)
+	guard.Mech.Weapons = []def.Weapon{beam()}
+	b := board(defender, guard, attacker)
 
-	out, err := state.responseAttacks(decision{UnitID: "e1", Kind: actionAttack,
+	out, err := b.responseAttacks(decision{UnitID: "e1", Kind: actionAttack,
 		TargetID: "d1", Weapon: "beam rifle"}, "d1")
 	if err != nil {
 		t.Fatalf("response attacks: %v", err)
