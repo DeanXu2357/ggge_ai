@@ -8,7 +8,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
 func shootout() *state.Board {
@@ -333,7 +332,7 @@ func TestADebuffReplacesAWeakerOneAndLeavesAStrongerOne(t *testing.T) {
 			if last.Kind != "armor_break" || last.Magnitude != one.want {
 				t.Fatalf("debuffs: %+v", debuffs)
 			}
-			if one.start != one.want && last.AppliedPhase != turn.PhaseIndex(b) {
+			if one.start != one.want && last.AppliedPhase != b.PhaseIndex() {
 				t.Fatalf("a fresh debuff carries the phase of this strike: %+v", last)
 			}
 		})

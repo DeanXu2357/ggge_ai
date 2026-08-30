@@ -5,7 +5,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
 // Commit writes the plan of Prepare. Every rule of the exchange is judged
@@ -117,7 +116,7 @@ func applyDebuff(board *state.Board, victim *state.Unit, weapon *def.Weapon) {
 	victim.Debuffs = append(victim.Debuffs, state.Debuff{
 		Kind:         weapon.DebuffKind,
 		Magnitude:    weapon.DebuffMagnitude,
-		AppliedPhase: turn.PhaseIndex(board),
+		AppliedPhase: board.PhaseIndex(),
 	})
 }
 

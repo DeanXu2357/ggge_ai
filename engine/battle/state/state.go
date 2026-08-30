@@ -52,6 +52,9 @@ const (
 	FactionThirdParty Faction = "third_party"
 )
 
+// PhaseOrder is the rotation of the sides inside one turn.
+var PhaseOrder = [...]Faction{FactionAlly, FactionThirdParty, FactionEnemy}
+
 func (f Faction) Opposing() Faction {
 	if f == FactionAlly {
 		return FactionEnemy
@@ -166,6 +169,17 @@ func (b *Board) Unit(id string) *Unit {
 		}
 	}
 	return nil
+}
+
+// PhaseIndex counts the phases from the first phase of the first turn. A
+// debuff carries the index of the phase that applied it.
+func (b *Board) PhaseIndex() int {
+	for index, faction := range PhaseOrder {
+		if faction == b.Phase {
+			return b.Turn*len(PhaseOrder) + index
+		}
+	}
+	return b.Turn * len(PhaseOrder)
 }
 
 // The definitions are immutable after the decode, so the clone shares the mech

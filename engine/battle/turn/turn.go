@@ -6,22 +6,9 @@ import (
 
 const enRegenPercent = 10
 
-var phaseOrder = [...]state.Faction{state.FactionAlly, state.FactionThirdParty, state.FactionEnemy}
-
 type Rotation struct {
 	Turn  int
 	Phase state.Faction
-}
-
-// PhaseIndex counts the phases from the first phase of the first turn. A
-// debuff carries the index of the phase that applied it.
-func PhaseIndex(board *state.Board) int {
-	for index, faction := range phaseOrder {
-		if faction == board.Phase {
-			return board.Turn*len(phaseOrder) + index
-		}
-	}
-	return board.Turn * len(phaseOrder)
 }
 
 // A board with no living unit keeps its phase: every side would stay empty,
@@ -59,17 +46,17 @@ func Gone(board *state.Board) []state.Faction {
 }
 
 func nextPhase(board *state.Board) Rotation {
-	slot := (PhaseIndex(board) - board.Turn*len(phaseOrder) + 1) % len(phaseOrder)
+	slot := (board.PhaseIndex() - board.Turn*len(state.PhaseOrder) + 1) % len(state.PhaseOrder)
 	if slot == 0 {
 		board.Turn++
 	}
-	board.Phase = phaseOrder[slot]
+	board.Phase = state.PhaseOrder[slot]
 	beginPhase(board)
 	return Rotation{Turn: board.Turn, Phase: board.Phase}
 }
 
 func beginPhase(board *state.Board) {
-	now := PhaseIndex(board)
+	now := board.PhaseIndex()
 	for index := range board.Units {
 		unit := &board.Units[index]
 		if !unit.Alive() {
@@ -87,7 +74,7 @@ func beginPhase(board *state.Board) {
 func expired(debuffs []state.Debuff, now int) []state.Debuff {
 	kept := debuffs[:0]
 	for _, debuff := range debuffs {
-		if debuff.AppliedPhase+len(phaseOrder) > now {
+		if debuff.AppliedPhase+len(state.PhaseOrder) > now {
 			kept = append(kept, debuff)
 		}
 	}
