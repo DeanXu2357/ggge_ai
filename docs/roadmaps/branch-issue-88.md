@@ -101,7 +101,7 @@ stats); in this issue the maxima come from the definitions alone.
 'engine/battle/engagement' — one activation of one unit: the move,
 the exchange, the end of the activation.
 
-    type Decision struct {          // the domain form of protocol.Decision
+    type Decision struct {          // the domain form of battle.Decision
         UnitID   string
         Kind     ActionKind         // attack, map_attack, reposition, standby
         MoveTo   *state.Cell
@@ -249,9 +249,14 @@ D. Spec process model, terminology map, ledger, the artifact.
 | cdb3c4d, 91654ed, c616c12, 226c6b5, 8238ddc, 70511fd, 73fa207, a08ca8e | The code-review fixes: one 'state.Unit.Alive' and one 'engagement.LivingUnit'/'OnPhase'; 'state.PhaseOrder'/'Board.PhaseIndex' (engagement no longer imports turn); 'ReachableCells' through 'LivingUnit'; one 'fires' predicate; 'receiverFor' replaces the plan's mirror of the receiver; 'Menu' through 'Prepare'; the Python hello version check; the tolerant intel load |
 | cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
 | 3a5e186 | 'Apply' removed: the golden 'apply' checks pass through 'Act' (a user finding at review) |
+| b716a32 | The contract types moved from 'engine/protocol' to 'engine/battle' ('decision.go', 'snapshot.go', 'responses.go'); 'actions' refuses an acted unit, protocol 1.6 |
 | 15de5e6, f317328 | The board files sorted by contract role ('reader.go', 'resolver.go', 'codec.go' with the definition codec merged, 'board.go' the state) after a user finding at review; the dead map 'wireKinds' dropped |
 | 9dcce91, 2732e7e | The terminology drift of 178dec3 (the joined unit/mech row, two paths, the forecast row, the row 'salvo'), the spec import sentence, this artifact |
 
+    engine/battle             board.go (the three interfaces),
+                              decision.go, snapshot.go,
+                              responses.go (the wire types),
+                              dice.go, errors.go
     engine/battle/def         def.go (55)
     engine/battle/state       state.go (193): Unit, Board, the grid
                               vocabulary, Clone
@@ -270,8 +275,10 @@ D. Spec process model, terminology map, ledger, the artifact.
                               geometry_test.go, terrain_test.go,
                               terrain_names_test.go, turn_test.go
     engine/server/handler     act.go
-    engine/protocol           state.go, types.go, envelope.go (1.5)
-    src/ggge_ai/engine        state.py, codec.py, contract.py (1.5)
+    engine/protocol           types.go (the per-command wrappers),
+                              envelope.go (1.6), commands.go,
+                              state.go
+    src/ggge_ai/engine        state.py, codec.py, contract.py (1.6)
 
 ## Call chain
 
@@ -393,6 +400,28 @@ D. Spec process model, terminology map, ledger, the artifact.
     and the range check; it shares 'directWeapon' and 'hasENFor'
     with 'fires', which 'counterWeapon', 'supportWeapon' and 'Menu'
     call.
+
+11. **The contract types live in 'engine/battle'** (a user finding
+    at review: the wire structures were spread over 'protocol',
+    the contract and the board codec, and the contract imported
+    the presentation). 'battle' now holds the interfaces and the
+    types they speak, with their JSON tags, and imports no package
+    of the engine; 'protocol' keeps the envelope, the codes, the
+    command wrappers and the two types no contract method speaks
+    ('ChanceEvent', 'StageEvent') and imports 'battle'. The board
+    codec still imports 'protocol' for 'InitRequest' and
+    'ErrOutsideContract'; moving the codec to the server side is
+    the next step and a separate issue.
+12. **'actions' refuses an acted unit** (protocol 1.6, the user's
+    ruling: the embedded error becomes the sentinel). 'Board.Actions'
+    reads 'engagement.Activatable', the gate 'act' reads, so an acted
+    unit answers 'battle.ErrActed' and the handler maps it to
+    'illegal_state', the code 'act' gives for the same error. No
+    reader of the old field existed on either side. The handler of
+    'actions' keeps its own mapping instead of 'refusalCode': a
+    destroyed unit is 'illegal_state' for 'actions' and
+    'illegal_action' for 'act', as the spec stated before this
+    change; unifying the two is a wire change left for the review.
 
 ## Deferred
 
