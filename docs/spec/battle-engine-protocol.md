@@ -27,23 +27,58 @@ issues of the port (#60 to #68).
   'ReachableCells', 'ResponseAttacks', 'Clone', 'State' and
   'Summary' on 'BoardReader'. Each method takes and gives the
   types of 'engine/protocol', so the contract imports that
-  package and no other package of the engine. The package
-  'engine/battle/board' holds the implementation: its own model
-  of the battle and its own codec. 'engine/server' constructs a
-  board with 'board.DecodeInit' or 'board.DecodeState', keeps it
-  as a 'battle.Board', and speaks the types of 'engine/protocol'
-  to it.
+  package and no other package of the engine. Below the contract
+  the implementation is three kinds of package and one shell, and
+  the imports run one way: the shell imports the systems, a
+  system imports 'state' and 'def', 'state' imports 'def', and
+  'def' imports nothing of the engine (user ruling 2026-08-30,
+  issue #88).
+- The package 'engine/battle/def' holds the static definitions:
+  'def.Mech', 'def.Pilot', 'def.Weapon', 'def.RadiusRange',
+  'def.WeaponCategory'. A definition does not change during a
+  battle; its fields are exported; every clone of a board shares
+  the same definition by pointer.
+- The package 'engine/battle/state' holds the dynamic state:
+  'state.Unit' (the id, the faction, the footprint, HP, EN, SP and
+  their maxima, the charges, the chance steps, the acted flag, the
+  ammo, the debuffs, the skills, and a pointer to its 'def.Mech'
+  and 'def.Pilot') and 'state.Board' (the bounds, the terrain, the
+  phase, the turn, the units). The fields are exported; the
+  package holds no rule; 'state.Board.Clone' copies the state and
+  keeps the definitions shared.
+- The behavior systems are the only code that writes state.
+  'engine/battle/engagement' resolves one activation:
+  'engagement.Prepare(board, decision)' reads the board, judges
+  every participant (the actor, the target, the weapon, the reach,
+  the EN, the supporters, the bearer, the response) and returns
+  every error of 'act' before the first write, or a 'Plan';
+  'engagement.Commit(board, plan, dice)' writes the plan in order
+  and cannot fail; 'engagement.Menu' answers 'response_attacks'
+  with the eligibility helpers of 'Prepare'. 'engine/battle/turn'
+  ('turn.Advance') rotates the phase, regenerates the EN, expires
+  the debuffs and resets the acted flags. 'engine/battle/deploy'
+  ('deploy.Assemble') fills the maxima of a unit at 'init'. The
+  pure system 'engine/battle/geometry' answers the distance, the
+  reachable anchors and the occupied cells and writes nothing.
+- The package 'engine/battle/board' is the shell: it implements
+  the contract, holds a 'state.Board', decodes and encodes the
+  wire types, and calls the systems. 'Act' is 'Prepare', 'Commit',
+  'turn.Advance' in that order, so a refused 'act' leaves the
+  board as it was; 'engine/server/handler' runs 'Act' on the
+  session board and clones only for a forced-dice request, whose
+  short-list refusal is known only after the draws.
 - The package 'engine/battle/formula' holds every formula of
   docs/reference/combat-formulas.md and every constant of the
   mechanism. It imports no package of the engine: a formula reads
   the input type 'formula.Side' and the values of the weapon, and
-  no unit. 'engine/battle/board' is its only caller, and it adapts
-  a unit and the weapon it fires into a 'Side' at each call.
+  no unit. 'engine/battle/engagement' is its only caller, and it
+  adapts a unit and the weapon it fires into a 'Side' at each
+  call.
 - The package 'engine/server' holds the transport: the stdio loop,
   the command registry and the command 'hello'. The package
   'engine/server/handler' holds the body of every other command,
-  the battle that the commands read and change, and the two calls
-  on 'engine/battle/board' named above.
+  the battle that the commands read and change, and the calls on
+  the shell 'engine/battle/board'.
 
 ## Transport
 
@@ -799,7 +834,7 @@ The wire carries no ability today, and no ability kind is modelled.
 Issue #80 builds the model and adds the field of the weapon entry
 that holds the list. Until then the board passes 1 for the terrain
 correction of every weapon
-('strikeDamage' in 'engine/battle/board/strike.go').
+('strikeDamage' in 'engine/battle/engagement/strike.go').
 
 ### Differential cases
 

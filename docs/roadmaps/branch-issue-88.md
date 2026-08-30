@@ -2,7 +2,7 @@
 
 > Type: working—deleted at merge
 
-Issue: #88. Branch: issue-88-engine-restructure. Status: in-progress.
+Issue: #88. Branch: issue-88-engine-restructure. Status: awaiting-review.
 Base: dev c65f416. The #72 branch (issue-72-mech-pilot-unit, head
 9cad225) is the source of parts for #72 after this branch merges.
 
@@ -225,3 +225,134 @@ D. Spec process model, terminology map, ledger, the artifact.
 - 2026-08-30: the design above, for the user's approval before code.
 - 2026-08-30: approved ("開始吧"); the exit point of the exchange
   stated by the user. Stage A starts.
+- 2026-08-30: stage A (c27751f, 077f5d1, 1e2fa3a), stage B
+  (373a69d, 15d62c2), stage C (04dbde7, 6e943b2, 2d5e28f), stage D
+  (this commit). Every stage: gates green, goldens byte-identical
+  apart from the removed key.
+
+## Change summary
+
+| Commit | What |
+|---|---|
+| 2015ab0, c7dbd1a | The design and the ledger entries of the 0830 rulings |
+| c27751f | 'engine/battle/def' and 'engine/battle/state'; the board decodes into them ('def_codec.go' for the definitions) |
+| 077f5d1 | 'engine/battle/geometry'; the board reads it |
+| 1e2fa3a | The state clone test: definitions shared, state copied |
+| 373a69d | 'engine/battle/engagement' ('Prepare', 'Commit', 'Menu', the decision and result types), 'engine/battle/turn' ('Advance', 'PhaseIndex', 'Pending', 'Gone'), 'engine/battle/deploy' ('Assemble'); the board still drove the old flow |
+| 15d62c2 | The board reduced to the shell: 'Act' = 'Prepare', 'Commit', 'turn.Advance'; resolve.go, strike.go, forecast.go, response_attacks.go, results.go, turn.go, model.go deleted; tests moved |
+| 04dbde7 | The handler runs 'Act' on the session board; a clone only on the forced-dice path; the atomicity test |
+| 6e943b2 | 'can_counter' removed from the definitions, the codecs, the wire (protocol 1.5), the Python mirror, the fixtures (306 lines) and the scenario placeholder |
+| 2d5e28f | The counter rule and the 1.5 entry in the spec; the datamine note |
+| (this) | The spec process model, the terminology rows, this artifact |
+
+    engine/battle/def         def.go (55)
+    engine/battle/state       state.go (193): Unit, Board, the grid
+                              vocabulary, Clone
+    engine/battle/geometry    geometry.go (138)
+    engine/battle/engagement  model.go (Decision, Response, Plan),
+                              prepare.go (279), commit.go (177),
+                              menu.go (114), strike.go (104),
+                              support.go (53), forecast.go, results.go
+    engine/battle/turn        turn.go (118)
+    engine/battle/deploy      deploy.go (20)
+    engine/battle/board       board.go (139), codec.go, def_codec.go,
+                              candidates.go, clone.go
+    engine/server/handler     act.go
+    engine/protocol           state.go, types.go, envelope.go (1.5)
+    src/ggge_ai/engine        state.py, codec.py, contract.py (1.5)
+
+## Call chain
+
+    act {unit_id, action, response_attack, dice}
+      handler.Commands.Act
+        target = session board (a clone only when the dice are forced)
+        board.Act(decision, dice)                       the shell
+          DecodeDecision -> engagement.Decision
+          engagement.Prepare(state, decision)           reads only
+            actor: exists, alive, of the phase, not acted
+            kind: attack | reposition | standby (map_attack refused)
+            anchor: reachable (geometry), permitted after the move
+            attack: target (alive, opposing), weapon (not map, exists),
+              EN, reach (geometry.Distance), the actor's supporters
+              (<= 3, unique, eligible), the bearer, the response
+              (stance, counter weapon, support defender, the
+              defender's supporters)
+            -> Plan, or the first error
+          engagement.Commit(state, plan, dice)          writes, cannot fail
+            anchor; actor.EN -= cost
+            salvo of the actor's supporters (one die; charge--, EN-=)
+            main strike (receiver = the defender's support defender
+              or the target; hit rate reads the target)
+            defender alive? -> the defender's salvo; the counter
+              (bearer covers when it holds a charge)
+            endActivation: chance step or acted
+          turn.Advance(state)                           rotations
+          encodeResolution
+        session.board stays the same object
+    response_attacks -> engagement.Menu(state, decision, defender)
+    actions / reach -> geometry.ReachableAnchors
+    init -> decode -> deploy.Assemble for every unit
+
+## Verification
+
+- Gates at every stage in the editors' runs and at the final head in
+  a separate subagent run: 'gofmt -l' empty, 'go vet' silent, 'go
+  test -race ./...' every package ok, 'uv run pytest -q' 1027
+  passed 4 skipped, ruff clean.
+- Goldens: 'git diff dev -- tests/fixtures assets/scenarios' shows
+  306 removed lines, every one a 'can_counter' line, zero added
+  lines; the differential suite passes on the frozen files.
+- Test names: 187 on dev, 187 after stage B (none lost, none
+  gained), plus the atomicity test and the state clone test after;
+  two names changed with their subject when the counter permission
+  left ('...NeedsTheReachAndTheEnergy').
+- The write grep: every assignment to a 'state.Unit' or
+  'state.Board' field outside tests sits in engagement/commit.go,
+  turn/turn.go, deploy/deploy.go, board/codec.go or
+  state/state.go (its own 'Clone').
+- Prepare's check order is today's order statement for statement
+  (the editor's report), so every error text and precedence a test
+  asserts is unchanged.
+- The main session read commit.go in full and the design's
+  correspondence in the editors' reports.
+
+## Contention points
+
+1. **'Commit' re-checks a supporter** ('able': alive, a charge, the
+   EN) although 'Prepare' proved the charge and the EN. Only
+   'alive' can change between the phases (a defender's support
+   defender that is also its support attacker may die in the main
+   strike). The re-check is the old code's; a reduction to 'alive'
+   is a behaviour-neutral cleanup left for the review.
+2. **The forced-dice path keeps a clone in the handler.** A manual
+   'outcomes' list is short only when a draw runs past its end,
+   which 'Commit' learns during the roll; the refusal must leave
+   the board unchanged, so that path clones. Sampled dice, the
+   production path, run on the session board.
+3. **'Apply' and 'Advance' stay on the shell** beside 'Act':
+   'engine/differential' drives 'Apply' (no rotation, the oracle
+   rotates itself) and 'handler.Load' calls 'Advance' on a snapshot.
+   Both are one-line delegations.
+4. **The off-phase message text is in two packages**
+   ('board/candidates.go' for 'actions', 'engagement/prepare.go' for
+   'act'); 'capabilities' needs living and on-phase but not the
+   acted gate, so no shared helper served both.
+5. **'Menu' returns 'engagement.Options'** because Go forbids a type
+   and a function of the same name in one package.
+6. **The exit point** is the user's: the attacker's sequence runs
+   whole; the defender's reply needs the defender alive; the counter
+   needs the attacker alive. The goldens encode all three.
+7. **'Decision' keeps 'Amount' and 'Aim'** (skills, map attack)
+   although no rule reads them yet (#81).
+
+## Deferred
+
+- #72 on this structure: the ability fields on 'def', the pure
+  system 'abilities', 'deploy.Assemble' reading the abilities,
+  'engagement' reading the modified stats; the catalog, the
+  converter and the docs from the #72 branch.
+- 'nearestFreeCell' in geometry has no caller outside its tests
+  (as on dev).
+- The Python sandbox and the fake server: unchanged by the wire
+  removal except the key.
+
