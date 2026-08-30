@@ -47,7 +47,6 @@ class WeaponIntel:
     range_max: int = 1
     en_cost: int = 0
     accuracy: float = 0.0
-    can_counter: bool = True
     map_weapon: bool = False
     ammo: int = 0
     debuff_kind: str | None = None
@@ -64,7 +63,6 @@ class WeaponIntel:
             range_max=self.range_max,
             en_cost=self.en_cost,
             accuracy=self.accuracy,
-            can_counter=self.can_counter,
             map_weapon=self.map_weapon,
             debuff_kind=self.debuff_kind,
             debuff_magnitude=self.debuff_magnitude,

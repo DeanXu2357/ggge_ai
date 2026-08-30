@@ -25,7 +25,6 @@ type Weapon struct {
 	Range           RadiusRange
 	ENCost          int
 	Accuracy        float64
-	CanCounter      bool
 	MapWeapon       bool
 	UsableAfterMove bool
 	DebuffKind      string

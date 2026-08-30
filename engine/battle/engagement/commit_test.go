@@ -506,7 +506,7 @@ func TestAnUnpaidWeaponAndAnEmptyCounterAreErrors(t *testing.T) {
 	}
 
 	b = shootout()
-	b.Unit("e1").Mech.Weapons[0].CanCounter = false
+	b.Unit("e1").Mech.Weapons[0].ENCost = 1000
 	decision := attackOn("e1", "beam rifle")
 	decision.Response = &Response{Stance: StanceCounter, Weapon: "beam rifle"}
 

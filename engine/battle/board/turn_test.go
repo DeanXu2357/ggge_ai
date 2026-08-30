@@ -33,7 +33,7 @@ func basicUnit(id string, faction state.Faction, x, y int) state.Unit {
 
 func armed(id string, faction state.Faction, x, y int) state.Unit {
 	out := basicUnit(id, faction, x, y)
-	out.Mech.Weapons = []def.Weapon{{Name: "gun", Power: 5000, Range: def.RadiusRange{Min: 1, Max: 3}, Accuracy: 100, CanCounter: true, UsableAfterMove: true}}
+	out.Mech.Weapons = []def.Weapon{{Name: "gun", Power: 5000, Range: def.RadiusRange{Min: 1, Max: 3}, Accuracy: 100, UsableAfterMove: true}}
 	out.Mech.Attack, out.Mech.Defense = 4200, 3900
 	out.Pilot.Ranged, out.Pilot.Melee, out.Pilot.Awaken = 220, 220, 220
 	out.Pilot.Defense = 190

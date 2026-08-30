@@ -11,7 +11,7 @@ import (
 )
 
 func rifle(name string, band def.RadiusRange) def.Weapon {
-	return def.Weapon{Name: name, Range: band, CanCounter: true, UsableAfterMove: true}
+	return def.Weapon{Name: name, Range: band, UsableAfterMove: true}
 }
 
 func capabilitiesOf(t *testing.T, b *Board, id string) capabilities {

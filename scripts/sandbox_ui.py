@@ -701,7 +701,6 @@ function inspectUnit(uid) {
       "命中補正 " + weapon.accuracy,
     ];
     if (weapon.ammo !== null && weapon.ammo !== undefined) parts.push("彈藥 " + weapon.ammo);
-    if (!weapon.can_counter) parts.push("不可反擊");
     if (weapon.map_weapon) parts.push("地圖兵器");
     line.appendChild(node("div", "dim", parts.join("／")));
     box.appendChild(line);

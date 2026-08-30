@@ -22,7 +22,6 @@ class Weapon:
     range_max: int = 1
     en_cost: int = 0
     accuracy: float = 0.0
-    can_counter: bool = True
     map_weapon: bool = False
     usable_after_move: bool = True
     debuff_kind: str | None = None

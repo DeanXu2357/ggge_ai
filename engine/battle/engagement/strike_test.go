@@ -24,7 +24,7 @@ func board(units ...state.Unit) *state.Board {
 }
 
 func rifle(name string, band def.RadiusRange) def.Weapon {
-	return def.Weapon{Name: name, Range: band, CanCounter: true, UsableAfterMove: true}
+	return def.Weapon{Name: name, Range: band, UsableAfterMove: true}
 }
 
 func fighter(id string, faction state.Faction, anchor state.Cell) state.Unit {
@@ -109,16 +109,14 @@ func TestTheDefenseMultiplierOfEveryStance(t *testing.T) {
 	}
 }
 
-func TestTheCounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
+func TestTheCounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
 	defender := fighter("d1", state.FactionAlly, state.Cell{0, 0})
 	costly := beam()
 	costly.Name, costly.ENCost = "costly", 200
-	passive := beam()
-	passive.Name, passive.CanCounter = "net", false
 	shells := beam()
 	shells.Name, shells.MapWeapon = "shells", true
 	near := rifle("saber", def.RadiusRange{Min: 1, Max: 1})
-	defender.Mech.Weapons = []def.Weapon{costly, passive, shells, beam(), near}
+	defender.Mech.Weapons = []def.Weapon{costly, shells, beam(), near}
 	b := board(defender, fighter("e1", state.FactionEnemy, state.Cell{2, 0}))
 
 	attacker := b.Unit("e1").Footprint

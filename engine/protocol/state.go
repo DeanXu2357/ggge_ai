@@ -133,7 +133,6 @@ type Weapon struct {
 	RangeMax        int      `json:"range_max"`
 	ENCost          int      `json:"en_cost"`
 	Accuracy        float64  `json:"accuracy"`
-	CanCounter      bool     `json:"can_counter"`
 	MapWeapon       bool     `json:"map_weapon"`
 	UsableAfterMove bool     `json:"usable_after_move"`
 	DebuffKind      *string  `json:"debuff_kind"`

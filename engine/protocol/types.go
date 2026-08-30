@@ -152,7 +152,6 @@ type WeaponEntry struct {
 	ENCost          int     `json:"en_cost"`
 	Ammo            *int    `json:"ammo"` // A null 'ammo' is a weapon that spends no ammunition.
 	Accuracy        float64 `json:"accuracy"`
-	CanCounter      bool    `json:"can_counter"`
 	MapWeapon       bool    `json:"map_weapon"`
 	UsableAfterMove bool    `json:"usable_after_move"`
 }

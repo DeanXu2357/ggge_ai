@@ -307,7 +307,6 @@ func encodeWeapons(unit *state.Unit) []protocol.WeaponEntry {
 			ENCost:          weapon.ENCost,
 			Ammo:            encodeAmmo(unit.Ammo, weapon.Name),
 			Accuracy:        weapon.Accuracy,
-			CanCounter:      weapon.CanCounter,
 			MapWeapon:       weapon.MapWeapon,
 			UsableAfterMove: weapon.UsableAfterMove,
 		}

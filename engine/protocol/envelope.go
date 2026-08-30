@@ -7,7 +7,7 @@ import (
 	"errors"
 )
 
-const Version = "1.4"
+const Version = "1.5"
 
 const (
 	CodeUnknownCommand = "unknown_command"

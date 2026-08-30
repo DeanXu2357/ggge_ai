@@ -65,11 +65,10 @@ func TestTheResponseAttackListHoldsTheStandAndNoShield(t *testing.T) {
 	}
 }
 
-func TestACounterWeaponNeedsTheReachTheEnergyAndThePermission(t *testing.T) {
+func TestACounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
 	cases := map[string]func(weapon *def.Weapon){
-		"a weapon that cannot counter": func(weapon *def.Weapon) { weapon.CanCounter = false },
-		"a map weapon":                 func(weapon *def.Weapon) { weapon.MapWeapon = true },
-		"a weapon it cannot pay for":   func(weapon *def.Weapon) { weapon.ENCost = 1000 },
+		"a map weapon":               func(weapon *def.Weapon) { weapon.MapWeapon = true },
+		"a weapon it cannot pay for": func(weapon *def.Weapon) { weapon.ENCost = 1000 },
 		"a weapon out of its band": func(weapon *def.Weapon) {
 			weapon.Range = def.RadiusRange{Min: 3, Max: 4}
 		},

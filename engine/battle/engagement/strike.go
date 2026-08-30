@@ -99,6 +99,5 @@ func counterWeapon(defender *state.Unit, name string, attacker state.Footprint) 
 }
 
 func counterFits(defender *state.Unit, weapon *def.Weapon, distance int) bool {
-	return !weapon.MapWeapon && weapon.CanCounter && hasENFor(defender, *weapon) &&
-		weapon.Range.Holds(distance)
+	return !weapon.MapWeapon && hasENFor(defender, *weapon) && weapon.Range.Holds(distance)
 }
