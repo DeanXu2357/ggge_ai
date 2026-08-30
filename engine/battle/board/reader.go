@@ -3,6 +3,7 @@ package board
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
@@ -11,7 +12,7 @@ func (b *Board) Actions(unitID string) (battle.ActionsResponse, error) {
 	if err != nil {
 		return battle.ActionsResponse{}, err
 	}
-	return encodeActions(unit, b.reachableCells(unit)), nil
+	return encodeActions(unit, geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit))), nil
 }
 
 func (b *Board) ReachableCells(unitID string) ([]battle.Cell, error) {
@@ -19,7 +20,7 @@ func (b *Board) ReachableCells(unitID string) ([]battle.Cell, error) {
 	if err != nil {
 		return nil, err
 	}
-	return encodeCells(b.reachableCells(unit)), nil
+	return encodeCells(geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit))), nil
 }
 
 func (b *Board) ResponseAttacks(action *battle.Decision, defenderID string) (battle.ResponseAttacksResponse, error) {
@@ -39,29 +40,17 @@ func (b *Board) Clone() battle.Board {
 }
 
 func (b *Board) State() battle.BattleState {
-	bounds := battle.Bounds{encodeCell(b.state.Bounds.Low), encodeCell(b.state.Bounds.High)}
-	return battle.BattleState{
-		Units:         encodeUnits(b.state.Units),
-		Phase:         wireFactions[b.state.Phase],
-		Turn:          b.state.Turn,
-		Bounds:        &bounds,
-		PendingEvents: []string{},
-		FiredEvents:   []string{},
-		Terrain:       terrainName(b.state.DefaultTerrain),
-		TerrainCells:  encodeTerrainCells(b.state.TerrainCells),
-	}
+	return b.state.Clone()
 }
 
 func (b *Board) Summary() battle.BoardSummary {
 	out := battle.BoardSummary{
-		Turn: b.state.Turn, Phase: wireFactions[b.state.Phase],
+		Turn: b.state.Turn, Phase: b.state.Phase,
 		Pending: []string{}, Gone: []battle.Faction{},
 	}
 	for _, unit := range turn.Pending(&b.state, b.state.Phase) {
 		out.Pending = append(out.Pending, unit.ID)
 	}
-	for _, faction := range turn.Gone(&b.state) {
-		out.Gone = append(out.Gone, wireFactions[faction])
-	}
+	out.Gone = append(out.Gone, turn.Gone(&b.state)...)
 	return out
 }

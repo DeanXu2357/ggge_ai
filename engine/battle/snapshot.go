@@ -82,22 +82,22 @@ func (a *SkillAffects) UnmarshalJSON(data []byte) error {
 	return decodeEnum(data, a, skillAffects, "affects")
 }
 
-// Bounds is the pair of corner cells of the board. A state with no bounds runs
-// on an open plane; it is not an empty board.
+// Bounds is the pair of corner cells of the board, the low corner first. The
+// wire permits a null; 'board.Validate' refuses a state that carries one.
 type Bounds [2]Cell
 
 type Weapon struct {
-	Name            string   `json:"name"`
-	Power           float64  `json:"power"`
-	RangeMin        int      `json:"range_min"`
-	RangeMax        int      `json:"range_max"`
-	ENCost          int      `json:"en_cost"`
-	Accuracy        float64  `json:"accuracy"`
-	MapWeapon       bool     `json:"map_weapon"`
-	UsableAfterMove bool     `json:"usable_after_move"`
-	DebuffKind      *string  `json:"debuff_kind"`
-	DebuffMagnitude float64  `json:"debuff_magnitude"`
-	Categories      []string `json:"categories"`
+	Name            string           `json:"name"`
+	Power           float64          `json:"power"`
+	RangeMin        int              `json:"range_min"`
+	RangeMax        int              `json:"range_max"`
+	ENCost          int              `json:"en_cost"`
+	Accuracy        float64          `json:"accuracy"`
+	MapWeapon       bool             `json:"map_weapon"`
+	UsableAfterMove bool             `json:"usable_after_move"`
+	DebuffKind      *string          `json:"debuff_kind"`
+	DebuffMagnitude float64          `json:"debuff_magnitude"`
+	Categories      []WeaponCategory `json:"categories"`
 }
 
 type Skill struct {
@@ -145,7 +145,7 @@ type Mech struct {
 // formula reads. ChanceSteps is the re-act grant after a kill
 // (docs/reference/combat-formulas.md:134), which counts no dice.
 type Unit struct {
-	UnitID                  string         `json:"unit_id"`
+	ID                      string         `json:"unit_id"`
 	Faction                 Faction        `json:"faction"`
 	Pos                     Cell           `json:"pos"`
 	Size                    Cell           `json:"size"`
@@ -174,8 +174,8 @@ type Unit struct {
 // TerrainCell binds one cell of the map to one terrain wire name. A cell is a
 // JSON pair, so the overrides travel as a list and not as an object.
 type TerrainCell struct {
-	Cell    Cell   `json:"cell"`
-	Terrain string `json:"terrain"`
+	Cell    Cell    `json:"cell"`
+	Terrain Terrain `json:"terrain"`
 }
 
 type BattleState struct {
@@ -185,6 +185,6 @@ type BattleState struct {
 	Bounds        *Bounds       `json:"bounds"`
 	PendingEvents []string      `json:"pending_events"`
 	FiredEvents   []string      `json:"fired_events"`
-	Terrain       string        `json:"terrain,omitempty"`
+	Terrain       Terrain       `json:"terrain,omitempty"`
 	TerrainCells  []TerrainCell `json:"terrain_cells,omitempty"`
 }

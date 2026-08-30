@@ -4,17 +4,15 @@ import (
 	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 // Menu answers the question 'response_attacks' from the plan that 'act' would
 // run, so the menu refuses every action the action itself refuses, with the
 // same error. The response attack of the decision is the question, so the plan
 // is built without one.
-func Menu(board *state.Board, decision Decision, defenderID string) (Options, error) {
+func Menu(board *battle.BattleState, decision Decision, defenderID string) (Options, error) {
 	decision.Response = nil
 	plan, err := Prepare(board, decision)
 	if err != nil {
@@ -30,8 +28,8 @@ func Menu(board *state.Board, decision Decision, defenderID string) (Options, er
 	}
 	attacker, weapon := plan.actor, plan.weapon
 	origin := geometry.FootprintAt(attacker, plan.anchor)
-	distance := geometry.Distance(defender.Footprint, origin)
-	if !weapon.Range.Holds(distance) {
+	distance := geometry.Distance(defender.Footprint(), origin)
+	if !weapon.Reaches(distance) {
 		return Options{}, fmt.Errorf("%w: the weapon %q of unit %q does not reach unit %q from %v",
 			battle.ErrIllegalAction, weapon.Name, attacker.ID, defenderID, origin.Anchor)
 	}
@@ -58,19 +56,19 @@ func Menu(board *state.Board, decision Decision, defenderID string) (Options, er
 		stanceOption(attacker, defender, weapon, StanceNone, ""))
 
 	out.Defender.SupportDefenders = defendOptions(attacker, weapon,
-		supportDefenders(board, defender, defender.Footprint))
+		supportDefenders(board, defender, defender.Footprint()))
 	out.Defender.SupportAttackers = attackOptions(attacker,
-		supportAttackers(board, defender, defender.Footprint, origin))
+		supportAttackers(board, defender, defender.Footprint(), origin))
 	// Which weapon counters is the pick of the defender, so the entry of a
 	// unit that covers the attacker carries no forecast.
 	out.Attacker.SupportDefenders = defendOptions(defender, nil,
 		supportDefenders(board, attacker, origin))
 	out.Attacker.SupportAttackers = attackOptions(defender,
-		supportAttackers(board, attacker, origin, defender.Footprint))
+		supportAttackers(board, attacker, origin, defender.Footprint()))
 	return out, nil
 }
 
-func stanceOption(attacker, defender *state.Unit, weapon *def.Weapon, stance Stance,
+func stanceOption(attacker, defender *battle.Unit, weapon *battle.Weapon, stance Stance,
 	counter string) ResponseAttackOption {
 	return ResponseAttackOption{
 		Stance: stance,
@@ -80,7 +78,7 @@ func stanceOption(attacker, defender *state.Unit, weapon *def.Weapon, stance Sta
 	}
 }
 
-func defendOptions(shooter *state.Unit, weapon *def.Weapon, units []*state.Unit) []SupportDefendOption {
+func defendOptions(shooter *battle.Unit, weapon *battle.Weapon, units []*battle.Unit) []SupportDefendOption {
 	out := make([]SupportDefendOption, 0, len(units))
 	for _, unit := range units {
 		option := SupportDefendOption{Unit: unit}
@@ -94,7 +92,7 @@ func defendOptions(shooter *state.Unit, weapon *def.Weapon, units []*state.Unit)
 
 // The foe picks its stance after this answer, so the forecast of a support
 // attack reads no defense.
-func attackOptions(foe *state.Unit, joining []supportAttacker) []SupportAttackOption {
+func attackOptions(foe *battle.Unit, joining []supportAttacker) []SupportAttackOption {
 	out := make([]SupportAttackOption, 0, len(joining))
 	for _, one := range joining {
 		out = append(out, SupportAttackOption{

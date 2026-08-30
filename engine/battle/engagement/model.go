@@ -1,8 +1,7 @@
 package engagement
 
 import (
-	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
 type ActionKind string
@@ -36,11 +35,11 @@ var knownStances = map[Stance]bool{
 type Decision struct {
 	UnitID   string
 	Kind     ActionKind
-	MoveTo   *state.Cell
+	MoveTo   *battle.Cell
 	TargetID string
 	Weapon   string
 	Amount   *float64
-	Aim      *state.Cell
+	Aim      *battle.Cell
 	Response *Response
 
 	SupportDefender  string
@@ -54,21 +53,21 @@ type Response struct {
 	SupportAttackers []string
 }
 
-func hasENFor(unit *state.Unit, weapon def.Weapon) bool {
+func hasENFor(unit *battle.Unit, weapon battle.Weapon) bool {
 	return unit.EN >= weapon.ENCost
 }
 
 // A map weapon fires at an area, and the area is not in the contract, so no
 // exchange reads one.
-func directWeapon(weapon *def.Weapon) bool {
+func directWeapon(weapon *battle.Weapon) bool {
 	return weapon != nil && !weapon.MapWeapon
 }
 
-func fires(unit *state.Unit, weapon *def.Weapon, distance int) bool {
-	return directWeapon(weapon) && hasENFor(unit, *weapon) && weapon.Range.Holds(distance)
+func fires(unit *battle.Unit, weapon *battle.Weapon, distance int) bool {
+	return directWeapon(weapon) && hasENFor(unit, *weapon) && weapon.Reaches(distance)
 }
 
-func weaponOf(unit *state.Unit, name string) *def.Weapon {
+func weaponOf(unit *battle.Unit, name string) *battle.Weapon {
 	for index := range unit.Mech.Weapons {
 		if unit.Mech.Weapons[index].Name == name {
 			return &unit.Mech.Weapons[index]
@@ -77,8 +76,8 @@ func weaponOf(unit *state.Unit, name string) *def.Weapon {
 	return nil
 }
 
-func byFaction(board *state.Board, faction state.Faction) []*state.Unit {
-	var out []*state.Unit
+func byFaction(board *battle.BattleState, faction battle.Faction) []*battle.Unit {
+	var out []*battle.Unit
 	for index := range board.Units {
 		other := &board.Units[index]
 		if other.Faction == faction && other.Alive() {

@@ -8,6 +8,12 @@ Base: dev c65f416. The #72 branch (issue-72-mech-pilot-unit, head
 
 ## Design (approved before code)
 
+Note: 'engine/battle/def' and 'engine/battle/state' are gone. The
+contract types of 'engine/battle' are the state, and the systems
+read and write them. The two sections below record the design as
+the user approved it; the file inventory and the call chain record
+the tree of today.
+
 Three kinds of package below the contract 'engine/battle', and one
 shell. Imports run one way: shell -> systems -> state -> def ->
 formula. A system never imports another system except through the
@@ -256,21 +262,21 @@ D. Spec process model, terminology map, ledger, the artifact.
     engine/battle             board.go (the three interfaces),
                               decision.go, snapshot.go,
                               responses.go (the wire types),
-                              dice.go, errors.go
-    engine/battle/def         def.go (55)
-    engine/battle/state       state.go (193): Unit, Board, the grid
-                              vocabulary, Clone
-    engine/battle/geometry    geometry.go (138)
+                              helpers.go (204): the value helpers on
+                              the wire types, Terrain, WeaponCategory,
+                              Footprint, Clone; dice.go, errors.go
+    engine/battle/geometry    geometry.go (142)
     engine/battle/engagement  model.go (Decision, Response, Plan),
-                              prepare.go (279), commit.go (177),
-                              menu.go (114), strike.go (104),
-                              support.go (53), forecast.go, results.go
-    engine/battle/turn        turn.go (118)
+                              prepare.go (261), commit.go (186),
+                              menu.go (105), strike.go (98),
+                              support.go (52), forecast.go, results.go
+    engine/battle/turn        turn.go (101)
     engine/battle/deploy      deploy.go (20)
-    engine/battle/board       board.go (the state and its readers),
+    engine/battle/board       board.go (the state and the reach),
                               reader.go ('BoardReader'),
                               resolver.go ('BoardResolver'), codec.go
-                              (the wire conversions); the tests:
+                              (350): Validate, the two decodes, the
+                              response projections; the tests:
                               reader_test.go, codec_test.go,
                               geometry_test.go, terrain_test.go,
                               terrain_names_test.go, turn_test.go

@@ -2,15 +2,13 @@ package engagement
 
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 // Commit writes the plan of Prepare. Every rule of the exchange is judged
 // there, so nothing here can refuse the plan.
-func Commit(board *state.Board, plan Plan, dice battle.Dice) Trace {
-	plan.actor.Footprint.Anchor = plan.anchor
+func Commit(board *battle.BattleState, plan Plan, dice battle.Dice) Trace {
+	plan.actor.Pos = plan.anchor
 	if plan.kind != ActionAttack {
 		endActivation(plan.actor, false)
 		return nil
@@ -34,7 +32,7 @@ func Commit(board *state.Board, plan Plan, dice battle.Dice) Trace {
 	return trace
 }
 
-func endActivation(actor *state.Unit, killed bool) {
+func endActivation(actor *battle.Unit, killed bool) {
 	if killed && actor.Alive() && actor.ChanceSteps > 0 {
 		actor.ChanceSteps--
 		actor.Acted = false
@@ -44,16 +42,16 @@ func endActivation(actor *state.Unit, killed bool) {
 }
 
 type receiver struct {
-	board           *state.Board
-	struck          *state.Unit
+	board           *battle.BattleState
+	struck          *battle.Unit
 	multiplier      float64
-	supportDefender *state.Unit
+	supportDefender *battle.Unit
 	chargeSpent     bool
 }
 
 // The support defender of the defender takes the main strike in its place,
 // and it takes it in a defense state.
-func receiverFor(board *state.Board, target *state.Unit, reply answer) receiver {
+func receiverFor(board *battle.BattleState, target *battle.Unit, reply answer) receiver {
 	if reply.supportDefender != nil {
 		return coveredReceiver(board, reply.supportDefender)
 	}
@@ -64,11 +62,11 @@ func receiverFor(board *state.Board, target *state.Unit, reply answer) receiver 
 	return plainReceiver(board, target, multiplier)
 }
 
-func plainReceiver(board *state.Board, struck *state.Unit, multiplier float64) receiver {
+func plainReceiver(board *battle.BattleState, struck *battle.Unit, multiplier float64) receiver {
 	return receiver{board: board, struck: struck, multiplier: multiplier}
 }
 
-func coveredReceiver(board *state.Board, supportDefender *state.Unit) receiver {
+func coveredReceiver(board *battle.BattleState, supportDefender *battle.Unit) receiver {
 	return receiver{
 		board:           board,
 		struck:          supportDefender,
@@ -77,7 +75,7 @@ func coveredReceiver(board *state.Board, supportDefender *state.Unit) receiver {
 	}
 }
 
-func (v *receiver) hit(kind StrikeKind, shooter *state.Unit, weapon *def.Weapon, landed bool) Strike {
+func (v *receiver) hit(kind StrikeKind, shooter *battle.Unit, weapon *battle.Weapon, landed bool) Strike {
 	record := Strike{
 		Kind:      kind,
 		ShooterID: shooter.ID,
@@ -100,7 +98,7 @@ func (v *receiver) hit(kind StrikeKind, shooter *state.Unit, weapon *def.Weapon,
 
 // A destroyed unit keeps its place on the board with no hit points left.
 // Every roster query filters on Alive.
-func wound(board *state.Board, victim *state.Unit, weapon *def.Weapon, damage int) {
+func wound(board *battle.BattleState, victim *battle.Unit, weapon *battle.Weapon, damage int) {
 	victim.HP -= damage
 	if victim.HP < 0 {
 		victim.HP = 0
@@ -110,12 +108,13 @@ func wound(board *state.Board, victim *state.Unit, weapon *def.Weapon, damage in
 
 // The fresh debuff takes the last place of the list, as the frozen goldens
 // under tests/fixtures/engine write it.
-func applyDebuff(board *state.Board, victim *state.Unit, weapon *def.Weapon) {
-	if weapon.DebuffKind == "" {
+func applyDebuff(board *battle.BattleState, victim *battle.Unit, weapon *battle.Weapon) {
+	kind := weapon.Debuff()
+	if kind == "" {
 		return
 	}
 	for index := range victim.Debuffs {
-		if victim.Debuffs[index].Kind != weapon.DebuffKind {
+		if victim.Debuffs[index].Kind != kind {
 			continue
 		}
 		if victim.Debuffs[index].Magnitude >= weapon.DebuffMagnitude {
@@ -124,14 +123,14 @@ func applyDebuff(board *state.Board, victim *state.Unit, weapon *def.Weapon) {
 		victim.Debuffs = append(victim.Debuffs[:index], victim.Debuffs[index+1:]...)
 		break
 	}
-	victim.Debuffs = append(victim.Debuffs, state.Debuff{
-		Kind:         weapon.DebuffKind,
+	victim.Debuffs = append(victim.Debuffs, battle.Debuff{
+		Kind:         kind,
 		Magnitude:    weapon.DebuffMagnitude,
 		AppliedPhase: board.PhaseIndex(),
 	})
 }
 
-func defenderReply(board *state.Board, plan Plan, dice battle.Dice) Trace {
+func defenderReply(board *battle.BattleState, plan Plan, dice battle.Dice) Trace {
 	var out Trace
 	if len(plan.answer.joining) > 0 && plan.actor.Alive() {
 		shot := plainReceiver(board, plan.actor, formula.NoDefenseMultiplier)
@@ -143,7 +142,7 @@ func defenderReply(board *state.Board, plan Plan, dice battle.Dice) Trace {
 	return out
 }
 
-func fire(board *state.Board, node battle.Node, kind StrikeKind, joining []supportAttacker,
+func fire(board *battle.BattleState, node battle.Node, kind StrikeKind, joining []supportAttacker,
 	dice battle.Dice, shot *receiver) Trace {
 	shooters := able(joining)
 	if len(shooters) == 0 {
@@ -174,8 +173,8 @@ func able(joining []supportAttacker) []supportAttacker {
 }
 
 // The counter weapon spends its energy on a miss as well.
-func counterStrike(board *state.Board, defender, attacker *state.Unit, weapon *def.Weapon,
-	bearer *state.Unit, dice battle.Dice) Strike {
+func counterStrike(board *battle.BattleState, defender, attacker *battle.Unit, weapon *battle.Weapon,
+	bearer *battle.Unit, dice battle.Dice) Strike {
 	defender.EN -= weapon.ENCost
 	landed := dice.Lands(battle.NodeCounter,
 		strikeHitProbability(defender, attacker, weapon, false))

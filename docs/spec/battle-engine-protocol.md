@@ -31,29 +31,31 @@ issues of the port (#60 to #68).
   'BoardReader'. The contract imports no package of the engine.
   The package 'engine/protocol' holds the envelope, the codes,
   the command list and the per-command wrappers. It imports
-  'engine/battle'. Below the contract the implementation is three
+  'engine/battle'. Below the contract the implementation is two
   kinds of package and one shell, and the imports run one way:
-  the shell imports the systems; a writing system imports
-  'state', 'def', the pure system 'geometry', 'formula' and the
-  contract 'engine/battle', and never another writing system;
-  'state' imports 'def'; 'def' imports nothing of the engine
-  (user ruling 2026-08-30, issue #88).
-- The package 'engine/battle/def' holds the static definitions:
-  'def.Mech', 'def.Pilot', 'def.Weapon', 'def.RadiusRange',
-  'def.WeaponCategory'. A definition does not change during a
-  battle; its fields are exported; every clone of a board shares
-  the same definition by pointer.
-- The package 'engine/battle/state' holds the dynamic state:
-  'state.Unit' (the id, the faction, the footprint, HP, EN, SP and
-  their maxima, the charges, the chance steps, the acted flag, the
-  ammo, the debuffs, the skills, and a pointer to its 'def.Mech'
-  and 'def.Pilot') and 'state.Board' (the bounds, the terrain, the
-  phase, the turn, the units). The fields are exported; the
-  package holds no rule, only value helpers on its own fields
-  ('Unit.Alive', 'Board.PhaseIndex', 'Footprint.Within');
-  'state.Board.Clone' copies the state and keeps the definitions
-  shared.
-- The behavior systems are the only code that writes state.
+  the shell imports the systems; a writing system imports the
+  contract 'engine/battle', the pure systems 'geometry' and
+  'formula', and never another writing system (user ruling
+  2026-08-30, issue #88).
+- The contract types are the state. There is no separate
+  definition package and no separate state package. 'battle.Unit'
+  holds the id, the faction, the position, the size, HP, EN, SP
+  and their maxima, the charges, the chance steps, the acted flag,
+  the ammo, the debuffs, the skills, its 'battle.Mech' and its
+  'battle.Pilot'; 'battle.BattleState' holds the bounds, the
+  terrain, the phase, the turn and the units. The fields are
+  exported and they carry the JSON tags of the wire. The contract
+  holds no rule, only value helpers on its own fields
+  ('Unit.Alive', 'Unit.Footprint', 'Weapon.Reaches',
+  'BattleState.PhaseIndex', 'Footprint.Within'). 'BattleState.Clone' copies every field that
+  a system writes and shares the weapons of a mech, which no code
+  writes after the decode.
+- The behavior systems are the only code that writes state during
+  a battle. Three files assign a field of a 'battle.BattleState':
+  'commit.go' of 'engagement', 'turn.go' of 'turn' and 'deploy.go'
+  of 'deploy'. Before the battle, 'codec.go' of 'board' fills the
+  two values that a payload can leave out: a size of zero and an
+  empty terrain.
   'engine/battle/engagement' resolves one activation:
   'engagement.Prepare(board, decision)' reads the board, judges
   every participant (the actor, the target, the weapon, the reach,
@@ -69,8 +71,9 @@ issues of the port (#60 to #68).
   pure system 'engine/battle/geometry' answers the distance, the
   reachable anchors and the occupied cells and writes nothing.
 - The package 'engine/battle/board' is the shell: it implements
-  the contract, holds a 'state.Board', decodes and encodes the
-  wire types, and calls the systems. 'Act' is 'Prepare', 'Commit',
+  the contract, holds a 'battle.BattleState', judges a payload
+  ('board.Validate'), projects the answers of the read commands,
+  and calls the systems. 'Act' is 'Prepare', 'Commit',
   'turn.Advance' in that order, so a refused 'act' leaves the
   board as it was; 'engine/server/handler' runs 'Act' on the
   session board and clones only for a forced-dice request, whose

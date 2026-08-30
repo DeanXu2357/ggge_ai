@@ -155,7 +155,7 @@ func TestExportCarriesTheHistoryOfTheActivations(t *testing.T) {
 	}
 	acted := map[string]bool{}
 	for _, one := range export.State.Units {
-		acted[one.UnitID] = one.Acted
+		acted[one.ID] = one.Acted
 	}
 	if !acted["a1"] || acted["a2"] {
 		t.Fatalf("state: %+v", acted)

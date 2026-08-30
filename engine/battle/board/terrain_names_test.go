@@ -1,28 +1,29 @@
 package board
 
 import (
+	"encoding/json"
 	"testing"
 
-	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
-var everyTerrain = []state.Terrain{
-	state.TerrainSpace,
-	state.TerrainAtmospheric,
-	state.TerrainGround,
-	state.TerrainSurface,
-	state.TerrainUnderwater,
+var everyTerrain = []battle.Terrain{
+	battle.TerrainSpace,
+	battle.TerrainAtmospheric,
+	battle.TerrainGround,
+	battle.TerrainSurface,
+	battle.TerrainUnderwater,
 }
 
 func TestEveryTerrainCarriesItsWireName(t *testing.T) {
 	want := []string{"space", "atmospheric", "ground", "surface", "underwater"}
 
 	for index, kind := range everyTerrain {
-		if got := terrainName(kind); got != want[index] {
-			t.Fatalf("name of %d: %q, want %q", int(kind), got, want[index])
+		if string(kind) != want[index] {
+			t.Fatalf("name of %v: %q, want %q", kind, string(kind), want[index])
 		}
-		parsed, err := parseTerrain(want[index])
-		if err != nil {
+		var parsed battle.Terrain
+		if err := json.Unmarshal([]byte(`"`+want[index]+`"`), &parsed); err != nil {
 			t.Fatalf("parse %q: %v", want[index], err)
 		}
 		if parsed != kind {
@@ -31,10 +32,15 @@ func TestEveryTerrainCarriesItsWireName(t *testing.T) {
 	}
 }
 
-func TestParseRefusesATerrainOutsideTheContract(t *testing.T) {
-	for _, name := range []string{"", "Space", "水中", "orbit"} {
-		if _, err := parseTerrain(name); err == nil {
-			t.Fatalf("the parse took %q", name)
+func TestAnEmptyTerrainNameReadsAsSpaceAndAnUnknownOneIsRefused(t *testing.T) {
+	var empty battle.Terrain
+	if err := json.Unmarshal([]byte(`""`), &empty); err != nil {
+		t.Fatalf("the empty name is the terrain that a state leaves out: %v", err)
+	}
+	for _, name := range []string{"Space", "orbit"} {
+		var parsed battle.Terrain
+		if err := json.Unmarshal([]byte(`"`+name+`"`), &parsed); err == nil {
+			t.Fatalf("the decode took %q", name)
 		}
 	}
 }

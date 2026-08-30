@@ -66,7 +66,7 @@ type Verdict struct {
 type Board struct {
 	Width        int                  `json:"width"`
 	Height       int                  `json:"height"`
-	Terrain      string               `json:"terrain,omitempty"`
+	Terrain      battle.Terrain       `json:"terrain,omitempty"`
 	TerrainCells []battle.TerrainCell `json:"terrain_cells,omitempty"`
 }
 
