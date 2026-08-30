@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from ggge_ai.runtime.perceive import Observation
 from ggge_ai.engine.contract import Faction
 from ggge_ai.stage.intel import (
@@ -179,6 +181,18 @@ def test_the_json_round_trip_keeps_every_field_of_both_sections():
     assert restored.roster == intel.roster
     assert restored.stage == intel.stage
     assert restored.record("unicorn").skills == (REFILL,)
+
+
+# protocol 1.4 的武器帶 can_counter，1.5 退役了它（issue #88）。
+def test_a_dump_that_carries_a_retired_weapon_key_still_loads():
+    intel = Intelligence()
+    intel.learn(UnitIntel(unit_id="zaku", max_hp=900, weapons=(BEAM,)), Side.STAGE)
+    dump = json.loads(intel.dumps())
+    dump[Side.STAGE.value]["zaku"]["weapons"][0]["can_counter"] = False
+
+    restored = loads(json.dumps(dump))
+
+    assert restored.record("zaku").weapons == (BEAM,)
 
 
 def test_reloading_a_file_restores_priors_not_confirmations():

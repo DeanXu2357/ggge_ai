@@ -12,7 +12,7 @@ known，所以規劃仍會排 Inspect 去確認。
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from enum import StrEnum
 from typing import Any
 
@@ -259,7 +259,10 @@ def _record_from_dict(data: dict[str, Any]) -> UnitIntel:
 
 def _weapon_from_dict(data: dict[str, Any]) -> WeaponIntel:
     # json 沒有 tuple：categories 讀回來是 list，不轉回去往返比較就不相等。
-    return WeaponIntel(**{**data, "categories": tuple(data.get("categories", ()))})
+    # 只讀認得的欄位：舊 dump 會帶已退役的鍵（protocol 1.4 的 can_counter）。
+    known = {entry.name for entry in fields(WeaponIntel)}
+    kept = {key: value for key, value in data.items() if key in known}
+    return WeaponIntel(**{**kept, "categories": tuple(data.get("categories", ()))})
 
 
 def _skill_from_dict(data: dict[str, Any]) -> SkillIntel:
