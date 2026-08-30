@@ -352,15 +352,17 @@ D. Spec process model, terminology map, ledger, the artifact.
    production path, run on the session board.
 3. **'Apply' and 'Advance' stay on the shell** beside 'Act', off
    the contract. 'Apply' has two callers: 'Board.act' and the
-   'apply' op of 'engine/differential/resolve_test.go', which
-   compares the living units after 'engagement.Commit' and before
-   'turn.Advance' because the Python oracle rotates the phase under
-   a rule of its own (0818: 'model.py' is a transitional oracle).
-   'Board.state' and the codec are private, so 'Apply' is the only
-   entry that a test outside the package has to a rotation-free
-   engagement. 'Apply' is needed as long as the 'apply' cases of the
-   differential harness stay; when the oracle retires, the cases and
-   'Apply' go together. 'Advance' serves 'handler.Load' (a
+   'apply' op of 'engine/differential/resolve_test.go'. That op
+   runs one engagement on a frozen golden board and compares every
+   living unit with the values the Python side recorded before it
+   lost the rules (issue 73). The values were recorded after the
+   engagement and before any rotation, so a run through 'Act' would
+   fail on the EN that 'turn.Advance' regenerates. 'Board.state' and
+   the codec are private, so 'Apply' is the only entry that a test
+   outside the package has to a rotation-free engagement. Two files
+   hold 'apply' checks: 'engagement_board.json' and
+   'kill_skill_board.json'. 'Apply' is needed as long as those
+   checks stay; the user decides whether they stay. 'Advance' serves 'handler.Load' (a
    hand-written snapshot can hold an empty phase). Both are one-line
    delegations, now in 'resolver.go'.
 4. **'state' holds value helpers** ('Unit.Alive',

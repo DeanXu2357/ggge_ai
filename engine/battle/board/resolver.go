@@ -33,8 +33,8 @@ func (b *Board) act(decision engagement.Decision, dice battle.Dice) (resolution,
 }
 
 // Apply runs one activation and leaves the phase where it stands. The
-// differential harness drives it, because the Python oracle rotates the phase
-// under a rule of its own.
+// 'apply' checks of the frozen golden files record the units before any
+// rotation, so the differential test cannot go through Act.
 func (b *Board) Apply(decision engagement.Decision, dice battle.Dice) (engagement.Trace, error) {
 	plan, err := engagement.Prepare(&b.state, decision)
 	if err != nil {
