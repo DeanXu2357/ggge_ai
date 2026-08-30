@@ -29,10 +29,12 @@ issues of the port (#60 to #68).
   types of 'engine/protocol', so the contract imports that
   package and no other package of the engine. Below the contract
   the implementation is three kinds of package and one shell, and
-  the imports run one way: the shell imports the systems, a
-  system imports 'state' and 'def', 'state' imports 'def', and
-  'def' imports nothing of the engine (user ruling 2026-08-30,
-  issue #88).
+  the imports run one way: the shell imports the systems; a
+  writing system imports 'state', 'def', the pure system
+  'geometry', 'formula' and the contract 'engine/battle', and
+  never another writing system; 'state' imports 'def'; 'def'
+  imports nothing of the engine (user ruling 2026-08-30, issue
+  #88).
 - The package 'engine/battle/def' holds the static definitions:
   'def.Mech', 'def.Pilot', 'def.Weapon', 'def.RadiusRange',
   'def.WeaponCategory'. A definition does not change during a
@@ -44,8 +46,10 @@ issues of the port (#60 to #68).
   ammo, the debuffs, the skills, and a pointer to its 'def.Mech'
   and 'def.Pilot') and 'state.Board' (the bounds, the terrain, the
   phase, the turn, the units). The fields are exported; the
-  package holds no rule; 'state.Board.Clone' copies the state and
-  keeps the definitions shared.
+  package holds no rule, only value helpers on its own fields
+  ('Unit.Alive', 'Board.PhaseIndex', 'Footprint.Within');
+  'state.Board.Clone' copies the state and keeps the definitions
+  shared.
 - The behavior systems are the only code that writes state.
   'engine/battle/engagement' resolves one activation:
   'engagement.Prepare(board, decision)' reads the board, judges
@@ -54,7 +58,8 @@ issues of the port (#60 to #68).
   every error of 'act' before the first write, or a 'Plan';
   'engagement.Commit(board, plan, dice)' writes the plan in order
   and cannot fail; 'engagement.Menu' answers 'response_attacks'
-  with the eligibility helpers of 'Prepare'. 'engine/battle/turn'
+  through 'Prepare' with no response, so it refuses exactly what
+  'act' refuses. 'engine/battle/turn'
   ('turn.Advance') rotates the phase, regenerates the EN, expires
   the debuffs and resets the acted flags. 'engine/battle/deploy'
   ('deploy.Assemble') fills the maxima of a unit at 'init'. The

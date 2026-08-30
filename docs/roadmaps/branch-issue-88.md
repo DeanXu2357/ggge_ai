@@ -227,8 +227,10 @@ D. Spec process model, terminology map, ledger, the artifact.
   stated by the user. Stage A starts.
 - 2026-08-30: stage A (c27751f, 077f5d1, 1e2fa3a), stage B
   (373a69d, 15d62c2), stage C (04dbde7, 6e943b2, 2d5e28f), stage D
-  (this commit). Every stage: gates green, goldens byte-identical
+  (02a8784, 178dec3). Every stage: gates green, goldens byte-identical
   apart from the removed key.
+- 2026-08-30: '/code-review' (high): ten findings, eight code fixes
+  in cdb3c4d..a08ca8e, two docs fixes in 9dcce91 and this commit.
 
 ## Change summary
 
@@ -243,7 +245,9 @@ D. Spec process model, terminology map, ledger, the artifact.
 | 04dbde7 | The handler runs 'Act' on the session board; a clone only on the forced-dice path; the atomicity test |
 | 6e943b2 | 'can_counter' removed from the definitions, the codecs, the wire (protocol 1.5), the Python mirror, the fixtures (306 lines) and the scenario placeholder |
 | 2d5e28f | The counter rule and the 1.5 entry in the spec; the datamine note |
-| (this) | The spec process model, the terminology rows, this artifact |
+| 02a8784, 178dec3 | The spec process model, the terminology rows, this artifact |
+| cdb3c4d, 91654ed, c616c12, 226c6b5, 8238ddc, 70511fd, 73fa207, a08ca8e | The code-review fixes: one 'state.Unit.Alive' and one 'engagement.LivingUnit'/'OnPhase'; 'state.PhaseOrder'/'Board.PhaseIndex' (engagement no longer imports turn); 'ReachableCells' through 'LivingUnit'; one 'fires' predicate; 'receiverFor' replaces the plan's mirror of the receiver; 'Menu' through 'Prepare'; the Python hello version check; the tolerant intel load |
+| 9dcce91, (this) | The terminology drift of 178dec3 (the joined unit/mech row, two paths, the forecast row, the row 'salvo'), the spec import sentence, this artifact |
 
     engine/battle/def         def.go (55)
     engine/battle/state       state.go (193): Unit, Board, the grid
@@ -281,7 +285,7 @@ D. Spec process model, terminology map, ledger, the artifact.
           engagement.Commit(state, plan, dice)          writes, cannot fail
             anchor; actor.EN -= cost
             salvo of the actor's supporters (one die; charge--, EN-=)
-            main strike (receiver = the defender's support defender
+            main strike (receiverFor: the defender's support defender
               or the target; hit rate reads the target)
             defender alive? -> the defender's salvo; the counter
               (bearer covers when it holds a charge)
@@ -289,16 +293,26 @@ D. Spec process model, terminology map, ledger, the artifact.
           turn.Advance(state)                           rotations
           encodeResolution
         session.board stays the same object
-    response_attacks -> engagement.Menu(state, decision, defender)
+    response_attacks -> engagement.Menu = Prepare(decision, no
+                        response) -> the options from the Plan
     actions / reach -> geometry.ReachableAnchors
     init -> decode -> deploy.Assemble for every unit
 
 ## Verification
 
-- Gates at every stage in the editors' runs and at the final head in
-  a separate subagent run: 'gofmt -l' empty, 'go vet' silent, 'go
-  test -race ./...' every package ok, 'uv run pytest -q' 1027
-  passed 4 skipped, ruff clean.
+- Gates at every stage in the editors' runs, at 178dec3 in a
+  separate subagent run, and at a08ca8e (the editor's run after the
+  review fixes): 'gofmt -l' empty, 'go vet' silent, 'go test -race
+  ./...' every package ok, 'uv run pytest -q' 1027 then 1029 passed
+  4 skipped, ruff clean.
+- '/code-review' at high: ten findings. Fixed: the menu gates (1),
+  the reach-cells sentinel (2), the Python hello version check (3),
+  the intel load (4), the engagement-to-turn import (5), the
+  terminology drift (6), the fire predicate (7), the copies of
+  'alive'/'livingUnit'/the off-phase text/'cloneAmount' (8), the
+  plan's mirror of the receiver (9), the term 'salvo' (10). Not
+  done: the two commit bodies that restate the diff (15d62c2,
+  c27751f) stay; a rebase would rewrite eleven commits.
 - Goldens: 'git diff dev -- tests/fixtures assets/scenarios' shows
   306 removed lines, every one a 'can_counter' line, zero added
   lines; the differential suite passes on the frozen files.
@@ -333,10 +347,12 @@ D. Spec process model, terminology map, ledger, the artifact.
    'engine/differential' drives 'Apply' (no rotation, the oracle
    rotates itself) and 'handler.Load' calls 'Advance' on a snapshot.
    Both are one-line delegations.
-4. **The off-phase message text is in two packages**
-   ('board/candidates.go' for 'actions', 'engagement/prepare.go' for
-   'act'); 'capabilities' needs living and on-phase but not the
-   acted gate, so no shared helper served both.
+4. **'state' holds value helpers** ('Unit.Alive',
+   'Board.PhaseIndex', 'Footprint.Within' and its kin) although the
+   design says "no rule": each reads only the fields of its own
+   struct and decides nothing about the battle; the alternative was
+   four copies of 'alive' and an engagement-to-turn import. The spec
+   names them.
 5. **'Menu' returns 'engagement.Options'** because Go forbids a type
    and a function of the same name in one package.
 6. **The exit point** is the user's: the attacker's sequence runs
@@ -344,6 +360,24 @@ D. Spec process model, terminology map, ledger, the artifact.
    needs the attacker alive. The goldens encode all three.
 7. **'Decision' keeps 'Amount' and 'Aim'** (skills, map attack)
    although no rule reads them yet (#81).
+8. **'Menu' now refuses what 'act' refuses** (a review fix, a
+   behaviour change no golden covers): an off-phase or acted
+   attacker, a map weapon, an unpaid weapon, an unreachable
+   'move_to', a weapon that fires before a move, a target of the
+   attacker's side. 'play.py' catches the refusal and prunes the
+   candidate. 'reach' on a destroyed unit is 'ErrDestroyed' now, as
+   'actions' already was. Three menu tests were corrected to legal
+   attacks (the phase, the move range, the target id); no assertion
+   weakened.
+9. **'Menu' still measures the distance to the named defender**, not
+   to 'plan.target', so a 'defender_id' that is not the target keeps
+   today's answer; every caller sends the same id. A refusal when
+   they differ would be a new contract rule, left for the review.
+10. **'prepareAttack' does not call 'fires'**: its three parts carry
+    three error texts and 'destination' runs between the EN check
+    and the range check; it shares 'directWeapon' and 'hasENFor'
+    with 'fires', which 'counterWeapon', 'supportWeapon' and 'Menu'
+    call.
 
 ## Deferred
 
