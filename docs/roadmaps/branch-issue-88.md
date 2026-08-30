@@ -162,15 +162,17 @@ the exchange, the end of the activation.
   (each supporter: charge, EN, one die for the salvo, strike); the
   main strike (the receiver is the defender's support defender when
   named — its charge — else the target with the stance multiplier;
-  the hit rate reads the target); stop if the receiver is destroyed
-  [golden check: engagement_board.json and kill_skill_board.json
-  decide whether a salvo that kills the target still lets the main
-  strike land on the corpse; if a golden contradicts the rule the
-  user rules]; the defender's salvo (defender alive, attacker alive);
-  the counter (attacker alive; the bearer covers when it holds a
-  charge — its charge; the EN of the counter is spent on a miss as
-  well); the end of the activation (a kill with a chance step left
-  spends the step and keeps the unit active, else acted).
+  the hit rate reads the target); the exit point (user ruling
+  2026-08-30): the exchange ends where the attacked unit would act
+  but cannot because it is destroyed — the attacker's sequence runs
+  whole (a main strike lands even on a target the salvo destroyed),
+  and the defender's reply (its salvo, its counter) does not run when
+  the defender is destroyed; a counter has no receiver when the
+  attacker is destroyed by the defender's salvo (the goldens encode
+  both); the defender's salvo; the counter (the bearer covers when it
+  holds a charge — its charge; the EN of the counter is spent on a
+  miss as well); the end of the activation (a kill with a chance step
+  left spends the step and keeps the unit active, else acted).
 
 'engine/battle/turn':
 
@@ -221,3 +223,5 @@ D. Spec process model, terminology map, ledger, the artifact.
 ## Progress log
 
 - 2026-08-30: the design above, for the user's approval before code.
+- 2026-08-30: approved ("開始吧"); the exit point of the exchange
+  stated by the user. Stage A starts.

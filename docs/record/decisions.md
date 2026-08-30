@@ -1565,3 +1565,8 @@
   'can_counter' (engine 1.0, no datamine source) leaves the wire in
   #88 (protocol 1.4 to 1.5). On the early end: "第四步驟應該要有如果
   受擊者被擊破那就提早結束的階段才對".
+- **(0830) The exit point of an exchange — user ruling**｜"傷害結算的
+  退出點是被攻擊者要做出行為時，但是因為已經被擊破而無法做出行為時".
+  The attacker's sequence (its support salvo, its main strike) runs
+  whole; the defender's reply (its support salvo, its counter) does
+  not run when the defender is destroyed. The goldens agree.
