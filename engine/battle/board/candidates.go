@@ -21,9 +21,5 @@ func (b *Board) capabilities(unitID string) (capabilities, error) {
 	if err := engagement.OnPhase(&b.state, unit); err != nil {
 		return capabilities{}, err
 	}
-	cells, err := b.reachableCells(unitID)
-	if err != nil {
-		return capabilities{}, err
-	}
-	return capabilities{Unit: unit, MoveCells: cells}, nil
+	return capabilities{Unit: unit, MoveCells: b.reachableCells(unit)}, nil
 }

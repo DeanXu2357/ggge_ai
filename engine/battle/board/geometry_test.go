@@ -1,9 +1,11 @@
 package board
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
@@ -33,11 +35,11 @@ func ids(units []*state.Unit) []string {
 
 func reach(t *testing.T, b *Board, id string) []state.Cell {
 	t.Helper()
-	cells, err := b.reachableCells(id)
-	if err != nil {
-		t.Fatalf("reach: %v", err)
+	unit := b.unit(id)
+	if unit == nil {
+		t.Fatalf("the board holds no unit %q", id)
 	}
-	return cells
+	return b.reachableCells(unit)
 }
 
 func set(cells []state.Cell) geometry.CellSet {
@@ -207,10 +209,10 @@ func TestAnAllyLetsTheFootprintThroughAndDeniesEveryCellItCovers(t *testing.T) {
 func TestTheReachOfAUnitThatIsNotOnTheBoardIsAnError(t *testing.T) {
 	b := board(unitAt("a1", state.FactionAlly, state.Cell{2, 2}))
 
-	cells, err := b.reachableCells("ghost")
+	cells, err := b.ReachableCells("ghost")
 
-	if err == nil {
-		t.Fatalf("cells: %v", cells)
+	if !errors.Is(err, battle.ErrNoUnit) {
+		t.Fatalf("cells: %v, error: %v", cells, err)
 	}
 }
 

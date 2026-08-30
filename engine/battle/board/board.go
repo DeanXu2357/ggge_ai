@@ -61,19 +61,15 @@ func (b *Board) unit(id string) *state.Unit {
 }
 
 func (b *Board) ReachableCells(unitID string) ([]protocol.Cell, error) {
-	cells, err := b.reachableCells(unitID)
+	unit, err := engagement.LivingUnit(&b.state, unitID)
 	if err != nil {
 		return nil, err
 	}
-	return encodeCells(cells), nil
+	return encodeCells(b.reachableCells(unit)), nil
 }
 
-func (b *Board) reachableCells(unitID string) ([]state.Cell, error) {
-	unit := b.unit(unitID)
-	if unit == nil {
-		return nil, fmt.Errorf("the board holds no unit %q", unitID)
-	}
-	return geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit)), nil
+func (b *Board) reachableCells(unit *state.Unit) []state.Cell {
+	return geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit))
 }
 
 func (b *Board) Act(action *protocol.Decision, dice battle.Dice) ([]any, error) {
