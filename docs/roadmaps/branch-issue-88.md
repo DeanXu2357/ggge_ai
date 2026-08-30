@@ -247,7 +247,8 @@ D. Spec process model, terminology map, ledger, the artifact.
 | 2d5e28f | The counter rule and the 1.5 entry in the spec; the datamine note |
 | 02a8784, 178dec3 | The spec process model, the terminology rows, this artifact |
 | cdb3c4d, 91654ed, c616c12, 226c6b5, 8238ddc, 70511fd, 73fa207, a08ca8e | The code-review fixes: one 'state.Unit.Alive' and one 'engagement.LivingUnit'/'OnPhase'; 'state.PhaseOrder'/'Board.PhaseIndex' (engagement no longer imports turn); 'ReachableCells' through 'LivingUnit'; one 'fires' predicate; 'receiverFor' replaces the plan's mirror of the receiver; 'Menu' through 'Prepare'; the Python hello version check; the tolerant intel load |
-| 9dcce91, (this) | The terminology drift of 178dec3 (the joined unit/mech row, two paths, the forecast row, the row 'salvo'), the spec import sentence, this artifact |
+| cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
+| 9dcce91, 2732e7e | The terminology drift of 178dec3 (the joined unit/mech row, two paths, the forecast row, the row 'salvo'), the spec import sentence, this artifact |
 
     engine/battle/def         def.go (55)
     engine/battle/state       state.go (193): Unit, Board, the grid
