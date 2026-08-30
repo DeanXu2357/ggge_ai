@@ -415,6 +415,10 @@ func (p probes) Lands(node battle.Node, probability float64) bool {
 	return true
 }
 
+func (p probes) Covers(int) bool {
+	return true
+}
+
 func TestAStrikeNamesALivingFoeAndNoOtherUnit(t *testing.T) {
 	cases := map[string]string{"an ally": "a2", "the actor itself": "a1"}
 
@@ -605,5 +609,86 @@ func TestASupportAttackerJoinsOneStrikeOneTime(t *testing.T) {
 	}
 	if b.Unit("a2").SupportAttackCharges != 1 {
 		t.Fatal("an error leaves the board as it was")
+	}
+}
+
+type countingDice struct {
+	inner battle.Dice
+	count int
+}
+
+func (c *countingDice) Lands(node battle.Node, probability float64) bool {
+	c.count++
+	return c.inner.Lands(node, probability)
+}
+
+func (c *countingDice) Covers(draws int) bool {
+	return c.inner.Covers(draws)
+}
+
+func repliesWithSupportAndCounter() (*battle.BattleState, Decision) {
+	b := covered()
+	b.Unit("e2").SupportAttackCharges = 1
+	b.Unit("e2").Mech.Weapons = []battle.Weapon{beam()}
+	decision := attackOn("e1", "beam rifle")
+	decision.Response = &Response{Stance: StanceCounter, Weapon: "beam rifle",
+		SupportAttackers: []string{"e2"}}
+	return b, decision
+}
+
+func TestTheDrawsOfAPlanBoundTheDrawsOfTheCommit(t *testing.T) {
+	anchor := battle.Cell{1, 0}
+	cases := []struct {
+		name  string
+		build func() (*battle.BattleState, Decision)
+		want  int
+	}{
+		{"a standby", func() (*battle.BattleState, Decision) {
+			return shootout(), Decision{UnitID: "a1", Kind: ActionStandby}
+		}, 0},
+		{"a reposition", func() (*battle.BattleState, Decision) {
+			b := shootout()
+			b.Unit("a1").Mech.MoveRange = 2
+			return b, Decision{UnitID: "a1", Kind: ActionReposition, MoveTo: &anchor}
+		}, 0},
+		{"a strike with no reply", func() (*battle.BattleState, Decision) {
+			return shootout(), attackOn("e1", "beam rifle")
+		}, 1},
+		{"a strike that takes a counter", func() (*battle.BattleState, Decision) {
+			decision := attackOn("e1", "beam rifle")
+			decision.Response = &Response{Stance: StanceCounter, Weapon: "beam rifle"}
+			return shootout(), decision
+		}, 2},
+		{"a strike with the support of the attacker", func() (*battle.BattleState, Decision) {
+			decision := attackOn("e1", "beam rifle")
+			decision.SupportAttackers = []string{"a2"}
+			decision.Response = &Response{Stance: StanceDodge, SupportDefender: "e2"}
+			return covered(), decision
+		}, 2},
+		{"a strike that takes the support and the counter of the defender",
+			repliesWithSupportAndCounter, 3},
+		{"a strike that takes every node", func() (*battle.BattleState, Decision) {
+			b, decision := repliesWithSupportAndCounter()
+			decision.SupportAttackers = []string{"a2"}
+			return b, decision
+		}, 4},
+	}
+
+	for _, one := range cases {
+		t.Run(one.name, func(t *testing.T) {
+			b, decision := one.build()
+			plan, err := Prepare(b, decision)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.Draws() != one.want {
+				t.Fatalf("draws: %d, want %d", plan.Draws(), one.want)
+			}
+			dice := &countingDice{inner: battle.Forced{}}
+			Commit(b, plan, dice)
+			if dice.count > plan.Draws() {
+				t.Fatalf("commit drew %d times, and the bound is %d", dice.count, plan.Draws())
+			}
+		})
 	}
 }

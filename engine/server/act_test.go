@@ -284,12 +284,12 @@ func withForcedEmptyOutcomes(t *testing.T, line string) string {
 	return string(out)
 }
 
-func TestAShortOutcomesListIsRefusedAfterTheRun(t *testing.T) {
+func TestAShortOutcomesListIsRefusedBeforeTheRun(t *testing.T) {
 	loadLine, actLine := engagementLines(t, 11)
 	shortAct := withForcedEmptyOutcomes(t, actLine)
 
 	replies := serve(t, New(), loadLine, shortAct, `{"id":"x","cmd":"export","payload":{}}`)
-	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
+	if replies[1].OK || replies[1].Error.Code != protocol.CodeBadRequest {
 		t.Fatalf("act: %+v", replies[1])
 	}
 

@@ -15,9 +15,11 @@ const (
 )
 
 // The probability comes in with the node, so an implementation that draws
-// needs no second computation of the hit rate.
+// needs no second computation of the hit rate. Covers answers whether the
+// dice can settle that many nodes; the board asks before the first write.
 type Dice interface {
 	Lands(node Node, probability float64) bool
+	Covers(draws int) bool
 }
 
 type Forced struct {
@@ -41,10 +43,13 @@ func (f Forced) Lands(node Node, _ float64) bool {
 	return false
 }
 
+func (f Forced) Covers(int) bool {
+	return true
+}
+
 type ManualRoll struct {
 	outcomes []bool
 	next     int
-	short    bool
 }
 
 func NewManualRoll(outcomes []bool) *ManualRoll {
@@ -52,46 +57,29 @@ func NewManualRoll(outcomes []bool) *ManualRoll {
 }
 
 func (m *ManualRoll) Lands(_ Node, _ float64) bool {
-	if m.next >= len(m.outcomes) {
-		m.short = true
-		return false
-	}
 	landed := m.outcomes[m.next]
 	m.next++
 	return landed
 }
 
-func (m *ManualRoll) Short() bool {
-	return m.short
+func (m *ManualRoll) Covers(draws int) bool {
+	return draws <= len(m.outcomes)
 }
 
 type ServerDraw struct {
-	source *rand.PCG
-	draw   *rand.Rand
+	draw *rand.Rand
 }
 
 func NewServerDraw(seed int64) *ServerDraw {
-	return newServerDraw(rand.NewPCG(uint64(seed), 0))
-}
-
-func newServerDraw(source *rand.PCG) *ServerDraw {
-	return &ServerDraw{source: source, draw: rand.New(source)}
+	return &ServerDraw{draw: rand.New(rand.NewPCG(uint64(seed), 0))}
 }
 
 func (d *ServerDraw) Lands(_ Node, probability float64) bool {
 	return d.draw.Float64() < probability
 }
 
-func (d *ServerDraw) Clone() *ServerDraw {
-	state, err := d.source.MarshalBinary()
-	if err != nil {
-		panic(err)
-	}
-	source := rand.NewPCG(0, 0)
-	if err := source.UnmarshalBinary(state); err != nil {
-		panic(err)
-	}
-	return newServerDraw(source)
+func (d *ServerDraw) Covers(int) bool {
+	return true
 }
 
 func DecodeOutcomes(labels []string) ([]bool, error) {

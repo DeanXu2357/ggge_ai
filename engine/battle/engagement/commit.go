@@ -32,6 +32,28 @@ func Commit(board *battle.BattleState, plan Plan, dice battle.Dice) Trace {
 	return trace
 }
 
+// Draws counts the nodes of Commit with every unit alive. A kill can cut the
+// defender reply short, so the count is an upper bound and never falls under
+// the draws that Commit makes.
+func (p Plan) Draws() int {
+	if p.kind != ActionAttack {
+		return 0
+	}
+	draws := 1
+	if len(p.joining) > 0 {
+		draws++
+	}
+	if p.answer.response != nil {
+		if len(p.answer.joining) > 0 {
+			draws++
+		}
+		if p.answer.counter != nil {
+			draws++
+		}
+	}
+	return draws
+}
+
 func endActivation(actor *battle.Unit, killed bool) {
 	if killed && actor.Alive() && actor.ChanceSteps > 0 {
 		actor.ChanceSteps--

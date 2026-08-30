@@ -76,8 +76,7 @@ issues of the port (#60 to #68).
   commands, and calls the systems. 'Act' is 'Prepare', 'Commit',
   'turn.Advance' in that order, so a refused 'act' leaves the
   board as it was; 'engine/server/handler' runs 'Act' on the
-  session board and clones only for a forced-dice request, whose
-  short-list refusal is known only after the draws.
+  session board and keeps no copy of it.
 - The package 'engine/battle/formula' holds every formula of
   docs/reference/combat-formulas.md and every constant of the
   mechanism. It imports no package of the engine: a formula reads
@@ -392,7 +391,14 @@ nothing.
 The field 'dice' holds 'mode'. The value 'forced' is the manual
 roll: it also holds 'outcomes', a list of the labels 'hit' and
 'miss', and the engine reads one label for each chance event, in
-the resolution order. A label past the last chance event is not
+the resolution order. The list must hold one label for each chance
+event that the action can reach: one for the support attack of the
+attacker when the request names one, one for the strike, one for
+the support attack of the defender when the response attack names
+one, and one for the counter when the response attack names one.
+The engine counts them before the first write, with every unit
+alive, so a list that a kill would have made long enough is refused
+as well. A label past the last chance event is not
 read. The value 'sampled' is the server draw: the
 engine draws from the session random source, one draw for each
 chance event. One volley of support attackers is one chance event
@@ -452,11 +458,11 @@ not carry, a weapon the unit cannot pay for, a weapon that does not
 reach the target, a support unit that cannot join or intercept, a
 support attacker list above the cap of the rules, a response
 attack that breaks a rule of the stance, an absent necessary
-response attack, a short
-'outcomes' list, an action that carries 'move_to' when its weapon
+response attack, an action that carries 'move_to' when its weapon
 or its skill holds 'usable_after_move' false, and an anchor that
 the unit does not reach; bad_request when an 'outcomes' label
-stands outside 'hit' and 'miss'.
+stands outside 'hit' and 'miss', and when the 'outcomes' list holds
+fewer labels than the chance events the action can reach.
 
 ### export and load
 

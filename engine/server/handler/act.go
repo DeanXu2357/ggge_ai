@@ -21,33 +21,18 @@ func (c *Commands) Act(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	dice, manual, err := c.openDice(&request.Dice)
+	dice, err := c.openDice(&request.Dice)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	// 'Act' is atomic, so the session board resolves the activation itself.
-	// A forced roll carries the one refusal that comes after the writes: the
-	// list is short only when a draw runs past its end. That path takes a
-	// clone.
-	target := b
-	if manual != nil {
-		target = b.Clone()
-	}
-	events, err := target.Act(action, dice)
+	events, err := b.Act(action, dice)
 	if err != nil {
 		return protocol.Fail(id, refusalCode(err), err.Error())
-	}
-	if manual != nil && manual.Short() {
-		return protocol.Fail(id, protocol.CodeIllegalAction, "the 'outcomes' list is short")
-	}
-	c.session.board = target
-	if draw, ok := dice.(*battle.ServerDraw); ok {
-		c.session.draw = draw
 	}
 	c.session.history = append(c.session.history, protocol.HistoryEntry{Cmd: "act", Payload: payload})
 	return protocol.Ok(id, protocol.ActResponse{
 		Events: events,
-		Board:  target.Summary(),
+		Board:  b.Summary(),
 	})
 }
 
@@ -65,19 +50,18 @@ func activationOf(request *protocol.ActRequest) (*battle.Decision, error) {
 	return &request.Action, nil
 }
 
-func (c *Commands) openDice(dice *protocol.Dice) (battle.Dice, *battle.ManualRoll, error) {
+func (c *Commands) openDice(dice *protocol.Dice) (battle.Dice, error) {
 	switch dice.Mode {
 	case protocol.DiceForced:
 		outcomes, err := battle.DecodeOutcomes(dice.Outcomes)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		manual := battle.NewManualRoll(outcomes)
-		return manual, manual, nil
+		return battle.NewManualRoll(outcomes), nil
 	case protocol.DiceSampled:
-		return c.session.draw.Clone(), nil, nil
+		return c.session.draw, nil
 	}
-	return nil, nil, errors.New("'dice.mode' is not 'forced' or 'sampled'")
+	return nil, errors.New("'dice.mode' is not 'forced' or 'sampled'")
 }
 
 func refusalCode(err error) string {

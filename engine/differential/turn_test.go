@@ -2,7 +2,6 @@ package differential_test
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
@@ -43,9 +42,6 @@ var turnOps = map[string]differential.Op{
 		roll := battle.NewManualRoll(outcomes)
 		if _, err := state.Act(&in.Decision, roll); err != nil {
 			return nil, err
-		}
-		if roll.Short() {
-			return nil, errors.New("the 'outcomes' list is short")
 		}
 		summary := state.Summary()
 		return actAnswer{Turn: summary.Turn, Phase: summary.Phase, Pending: summary.Pending, Units: livingUnits(state)}, nil
