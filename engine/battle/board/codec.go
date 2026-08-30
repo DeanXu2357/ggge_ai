@@ -4,8 +4,11 @@ import (
 	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/deploy"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -15,11 +18,11 @@ var factions = map[protocol.Faction]state.Faction{
 	protocol.FactionThirdParty: state.FactionThirdParty,
 }
 
-var actionKinds = map[protocol.ActionKind]actionKind{
-	protocol.ActionAttack:     actionAttack,
-	protocol.ActionMapAttack:  actionMapAttack,
-	protocol.ActionReposition: actionReposition,
-	protocol.ActionStandby:    actionStandby,
+var actionKinds = map[protocol.ActionKind]engagement.ActionKind{
+	protocol.ActionAttack:     engagement.ActionAttack,
+	protocol.ActionMapAttack:  engagement.ActionMapAttack,
+	protocol.ActionReposition: engagement.ActionReposition,
+	protocol.ActionStandby:    engagement.ActionStandby,
 }
 
 var affectsKinds = map[protocol.SkillAffects]state.SkillAffects{
@@ -28,11 +31,11 @@ var affectsKinds = map[protocol.SkillAffects]state.SkillAffects{
 	protocol.AffectsAll:   state.AffectsAll,
 }
 
-var wireKinds = map[actionKind]protocol.ActionKind{
-	actionAttack:     protocol.ActionAttack,
-	actionMapAttack:  protocol.ActionMapAttack,
-	actionReposition: protocol.ActionReposition,
-	actionStandby:    protocol.ActionStandby,
+var wireKinds = map[engagement.ActionKind]protocol.ActionKind{
+	engagement.ActionAttack:     protocol.ActionAttack,
+	engagement.ActionMapAttack:  protocol.ActionMapAttack,
+	engagement.ActionReposition: protocol.ActionReposition,
+	engagement.ActionStandby:    protocol.ActionStandby,
 }
 
 var skillSources = map[protocol.SkillSource]state.SkillSource{
@@ -41,11 +44,11 @@ var skillSources = map[protocol.SkillSource]state.SkillSource{
 	protocol.SourceMech:  state.SourceMech,
 }
 
-var decodedStances = map[protocol.Stance]stance{
-	protocol.StanceDodge:   stanceDodge,
-	protocol.StanceDefend:  stanceDefend,
-	protocol.StanceCounter: stanceCounter,
-	protocol.StanceNone:    stanceNone,
+var decodedStances = map[protocol.Stance]engagement.Stance{
+	protocol.StanceDodge:   engagement.StanceDodge,
+	protocol.StanceDefend:  engagement.StanceDefend,
+	protocol.StanceCounter: engagement.StanceCounter,
+	protocol.StanceNone:    engagement.StanceNone,
 }
 
 var wireFactions = map[state.Faction]protocol.Faction{
@@ -66,11 +69,11 @@ var wireSources = map[state.SkillSource]protocol.SkillSource{
 	state.SourceMech:  protocol.SourceMech,
 }
 
-var wireStances = map[stance]protocol.Stance{
-	stanceDodge:   protocol.StanceDodge,
-	stanceDefend:  protocol.StanceDefend,
-	stanceCounter: protocol.StanceCounter,
-	stanceNone:    protocol.StanceNone,
+var wireStances = map[engagement.Stance]protocol.Stance{
+	engagement.StanceDodge:   protocol.StanceDodge,
+	engagement.StanceDefend:  protocol.StanceDefend,
+	engagement.StanceCounter: protocol.StanceCounter,
+	engagement.StanceNone:    protocol.StanceNone,
 }
 
 func encodeFaction(faction state.Faction) protocol.Faction {
@@ -339,13 +342,13 @@ func encodeAmmo(ammo map[string]int, name string) *int {
 	return &count
 }
 
-func DecodeDecision(action *protocol.Decision) (decision, error) {
+func DecodeDecision(action *protocol.Decision) (engagement.Decision, error) {
 	kind, known := actionKinds[action.Kind]
 	if !known {
-		return decision{}, fmt.Errorf("%w: the action carries the kind %q",
+		return engagement.Decision{}, fmt.Errorf("%w: the action carries the kind %q",
 			protocol.ErrOutsideContract, action.Kind)
 	}
-	out := decision{
+	out := engagement.Decision{
 		UnitID:           action.UnitID,
 		Kind:             kind,
 		TargetID:         decodeOptionalName(action.TargetID),
@@ -355,11 +358,11 @@ func DecodeDecision(action *protocol.Decision) (decision, error) {
 		SupportAttackers: append([]string(nil), action.SupportAttackers...),
 	}
 	if action.ResponseAttack != nil {
-		responseAttack, err := decodeResponseAttack(*action.ResponseAttack)
+		response, err := decodeResponseAttack(*action.ResponseAttack)
 		if err != nil {
-			return decision{}, err
+			return engagement.Decision{}, err
 		}
-		out.ResponseAttack = &responseAttack
+		out.Response = &response
 	}
 	if action.MoveTo != nil {
 		cell := decodeCell(*action.MoveTo)
@@ -372,13 +375,13 @@ func DecodeDecision(action *protocol.Decision) (decision, error) {
 	return out, nil
 }
 
-func decodeResponseAttack(wire protocol.ResponseAttack) (responseAttack, error) {
+func decodeResponseAttack(wire protocol.ResponseAttack) (engagement.Response, error) {
 	stance, known := decodedStances[wire.Stance]
 	if !known {
-		return responseAttack{}, fmt.Errorf("%w: the response attack carries the stance %q",
+		return engagement.Response{}, fmt.Errorf("%w: the response attack carries the stance %q",
 			protocol.ErrOutsideContract, wire.Stance)
 	}
-	return responseAttack{
+	return engagement.Response{
 		Stance:           stance,
 		Weapon:           decodeOptionalName(wire.Weapon),
 		SupportDefender:  decodeOptionalName(wire.SupportDefender),
@@ -393,23 +396,23 @@ func decodeOptionalName(name *string) string {
 	return *name
 }
 
-func encodeEngagement(engagement engagement) protocol.ResponseAttacksResponse {
+func encodeOptions(options engagement.Options) protocol.ResponseAttacksResponse {
 	return protocol.ResponseAttacksResponse{
 		Defender: protocol.DefenderOptions{
-			UnitID:           engagement.Defender.Unit.ID,
-			ResponseAttacks:  encodeResponseAttackOptions(engagement.ResponseAttacks),
-			SupportDefenders: encodeSupportDefenders(engagement.Defender.SupportDefenders),
-			SupportAttackers: encodeSupportAttackers(engagement.Defender.SupportAttackers),
+			UnitID:           options.Defender.Unit.ID,
+			ResponseAttacks:  encodeResponseAttackOptions(options.ResponseAttacks),
+			SupportDefenders: encodeSupportDefenders(options.Defender.SupportDefenders),
+			SupportAttackers: encodeSupportAttackers(options.Defender.SupportAttackers),
 		},
 		Attacker: protocol.AttackerOptions{
-			UnitID:           engagement.Attacker.Unit.ID,
-			SupportDefenders: encodeSupportDefenders(engagement.Attacker.SupportDefenders),
-			SupportAttackers: encodeSupportAttackers(engagement.Attacker.SupportAttackers),
+			UnitID:           options.Attacker.Unit.ID,
+			SupportDefenders: encodeSupportDefenders(options.Attacker.SupportDefenders),
+			SupportAttackers: encodeSupportAttackers(options.Attacker.SupportAttackers),
 		},
 	}
 }
 
-func encodeResponseAttackOptions(options []responseAttackOption) []protocol.ResponseAttackOption {
+func encodeResponseAttackOptions(options []engagement.ResponseAttackOption) []protocol.ResponseAttackOption {
 	out := make([]protocol.ResponseAttackOption, 0, len(options))
 	for _, option := range options {
 		entry := protocol.ResponseAttackOption{
@@ -427,7 +430,7 @@ func encodeResponseAttackOptions(options []responseAttackOption) []protocol.Resp
 }
 
 // The wire carries no integer type, so the damage goes out as a number.
-func encodeForecast(forecast forecast) protocol.Forecast {
+func encodeForecast(forecast engagement.Forecast) protocol.Forecast {
 	out := protocol.Forecast{HitRate: forecast.HitRate, Kill: forecast.Kill}
 	if forecast.HitRate != nil {
 		rate := *forecast.HitRate
@@ -444,7 +447,7 @@ func encodeForecast(forecast forecast) protocol.Forecast {
 	return out
 }
 
-func encodeSupportDefenders(options []supportDefendOption) []protocol.SupportDefendOption {
+func encodeSupportDefenders(options []engagement.SupportDefendOption) []protocol.SupportDefendOption {
 	out := make([]protocol.SupportDefendOption, 0, len(options))
 	for _, option := range options {
 		out = append(out, protocol.SupportDefendOption{
@@ -455,7 +458,7 @@ func encodeSupportDefenders(options []supportDefendOption) []protocol.SupportDef
 	return out
 }
 
-func encodeSupportAttackers(options []supportAttackOption) []protocol.SupportAttackOption {
+func encodeSupportAttackers(options []engagement.SupportAttackOption) []protocol.SupportAttackOption {
 	out := make([]protocol.SupportAttackOption, 0, len(options))
 	for _, option := range options {
 		out = append(out, protocol.SupportAttackOption{
@@ -580,7 +583,7 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 	}
 	bounds := state.Bounds{High: state.Cell{request.Board.Width - 1, request.Board.Height - 1}}
 	for index := range units {
-		fillMaxima(&units[index])
+		deploy.Assemble(&units[index])
 		if err := checkEnemy(&units[index], bounds); err != nil {
 			return nil, err
 		}
@@ -604,21 +607,6 @@ func DecodeInit(request *protocol.InitRequest) (*Board, error) {
 	b.state.Phase = state.FactionAlly
 	b.state.Turn = 1
 	return b, nil
-}
-
-// A maximum that the payload leaves at zero comes from the pairing. An
-// explicit value stands: an ability of the pilot or of the mech can lift the
-// maximum above the base data (issue #77).
-func fillMaxima(unit *state.Unit) {
-	if unit.MaxHP == 0 {
-		unit.MaxHP = unit.Mech.HP
-	}
-	if unit.ENMax == 0 {
-		unit.ENMax = unit.Mech.EN
-	}
-	if unit.SPMax == 0 {
-		unit.SPMax = unit.Pilot.SP
-	}
 }
 
 func checkEnemy(unit *state.Unit, bounds state.Bounds) error {
@@ -678,10 +666,10 @@ func (b *Board) Summary() protocol.BoardSummary {
 		Turn: b.state.Turn, Phase: wireFactions[b.state.Phase],
 		Pending: []string{}, Gone: []protocol.Faction{},
 	}
-	for _, unit := range b.pending(b.state.Phase) {
+	for _, unit := range turn.Pending(&b.state, b.state.Phase) {
 		out.Pending = append(out.Pending, unit.ID)
 	}
-	for _, faction := range b.gone() {
+	for _, faction := range turn.Gone(&b.state) {
 		out.Gone = append(out.Gone, wireFactions[faction])
 	}
 	return out

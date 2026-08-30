@@ -4,8 +4,10 @@ import (
 	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -13,6 +15,16 @@ var _ battle.Board = (*Board)(nil)
 
 type Board struct {
 	state state.Board
+}
+
+type capabilities struct {
+	Unit      *state.Unit
+	MoveCells []state.Cell
+}
+
+type resolution struct {
+	Trace     engagement.Trace
+	Rotations []turn.Rotation
 }
 
 func newBoard(bounds state.Bounds, units []state.Unit) (*Board, error) {
@@ -44,36 +56,12 @@ func (b *Board) terrainOf(unit *state.Unit) state.Terrain {
 	return b.terrainAt(unit.Footprint.Anchor)
 }
 
-var phaseOrder = [...]state.Faction{state.FactionAlly, state.FactionThirdParty, state.FactionEnemy}
-
-func (b *Board) phaseIndex() int {
-	for index, faction := range phaseOrder {
-		if faction == b.state.Phase {
-			return b.state.Turn*len(phaseOrder) + index
-		}
-	}
-	return b.state.Turn * len(phaseOrder)
-}
-
 func (b *Board) unit(id string) *state.Unit {
 	return b.state.Unit(id)
 }
 
-// The command 'act' reads this gate; the reporting commands do not, because
-// a report of a unit that acted is still the answer to the question.
-func (b *Board) activatable(unitID string) (*state.Unit, error) {
-	unit, err := b.livingUnit(unitID)
-	if err != nil {
-		return nil, err
-	}
-	if unit.Faction != b.state.Phase {
-		return nil, fmt.Errorf("%w: %q is of the side %q, and the phase is %q",
-			battle.ErrOffPhase, unitID, unit.Faction, b.state.Phase)
-	}
-	if unit.Acted {
-		return nil, fmt.Errorf("%w: %q", battle.ErrActed, unitID)
-	}
-	return unit, nil
+func alive(unit *state.Unit) bool {
+	return unit != nil && unit.HP > 0
 }
 
 func (b *Board) livingUnit(id string) (*state.Unit, error) {
@@ -103,17 +91,49 @@ func (b *Board) reachableCells(unitID string) ([]state.Cell, error) {
 	return geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit)), nil
 }
 
-func (b *Board) byFaction(faction state.Faction) []*state.Unit {
-	var out []*state.Unit
-	for index := range b.state.Units {
-		other := &b.state.Units[index]
-		if other.Faction == faction && alive(other) {
-			out = append(out, other)
-		}
+func (b *Board) Act(action *protocol.Decision, dice battle.Dice) ([]any, error) {
+	decision, err := DecodeDecision(action)
+	if err != nil {
+		return nil, err
 	}
-	return out
+	resolution, err := b.act(decision, dice)
+	if err != nil {
+		return nil, err
+	}
+	return encodeResolution(resolution), nil
 }
 
-func (b *Board) targetsOf(unit *state.Unit) []*state.Unit {
-	return b.byFaction(unit.Faction.Opposing())
+func (b *Board) act(decision engagement.Decision, dice battle.Dice) (resolution, error) {
+	trace, err := b.Apply(decision, dice)
+	if err != nil {
+		return resolution{}, err
+	}
+	return resolution{Trace: trace, Rotations: b.Advance()}, nil
+}
+
+func (b *Board) Advance() []turn.Rotation {
+	return turn.Advance(&b.state)
+}
+
+// Apply runs one activation and leaves the phase where it stands. The
+// differential harness drives it, because the Python oracle rotates the phase
+// under a rule of its own.
+func (b *Board) Apply(decision engagement.Decision, dice battle.Dice) (engagement.Trace, error) {
+	plan, err := engagement.Prepare(&b.state, decision)
+	if err != nil {
+		return nil, err
+	}
+	return engagement.Commit(&b.state, plan, dice), nil
+}
+
+func (b *Board) ResponseAttacks(action *protocol.Decision, defenderID string) (protocol.ResponseAttacksResponse, error) {
+	decision, err := DecodeDecision(action)
+	if err != nil {
+		return protocol.ResponseAttacksResponse{}, err
+	}
+	options, err := engagement.Menu(&b.state, decision, defenderID)
+	if err != nil {
+		return protocol.ResponseAttacksResponse{}, err
+	}
+	return encodeOptions(options), nil
 }

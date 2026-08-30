@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -393,16 +395,16 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	attacker := &state.Unit{ID: "e1", HP: 100}
 	helper := &state.Unit{ID: "h1", HP: 100, Mech: &def.Mech{Weapons: []def.Weapon{{Name: "rifle"}}}}
 
-	counter := forecast{}
-	encoded := encodeEngagement(engagement{
-		Defender: sideOptions{Unit: defender,
-			SupportDefenders: []supportDefendOption{{Unit: helper}},
-			SupportAttackers: []supportAttackOption{{Unit: helper, Weapon: &helper.Mech.Weapons[0]}}},
-		Attacker: sideOptions{Unit: attacker},
-		ResponseAttacks: []responseAttackOption{
-			{Stance: stanceDodge},
-			{Stance: stanceCounter, Weapon: "saber", Counter: &counter},
-			{Stance: stanceNone},
+	counter := engagement.Forecast{}
+	encoded := encodeOptions(engagement.Options{
+		Defender: engagement.SideOptions{Unit: defender,
+			SupportDefenders: []engagement.SupportDefendOption{{Unit: helper}},
+			SupportAttackers: []engagement.SupportAttackOption{{Unit: helper, Weapon: &helper.Mech.Weapons[0]}}},
+		Attacker: engagement.SideOptions{Unit: attacker},
+		ResponseAttacks: []engagement.ResponseAttackOption{
+			{Stance: engagement.StanceDodge},
+			{Stance: engagement.StanceCounter, Weapon: "saber", Counter: &counter},
+			{Stance: engagement.StanceNone},
 		},
 	})
 
@@ -436,8 +438,8 @@ func TestTheEncodedForecastCarriesEveryNumberItHolds(t *testing.T) {
 	damage := 2400
 	kill := true
 
-	full := encodeForecast(forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
-	lean := encodeForecast(forecast{Damage: &damage})
+	full := encodeForecast(engagement.Forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
+	lean := encodeForecast(engagement.Forecast{Damage: &damage})
 
 	if *full.HitRate != 0.75 || *full.Damage != 2400 || !*full.Kill {
 		t.Fatalf("forecast: %+v", full)
@@ -464,7 +466,7 @@ func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if action.Kind != actionAttack || *action.MoveTo != (state.Cell{4, 5}) ||
+	if action.Kind != engagement.ActionAttack || *action.MoveTo != (state.Cell{4, 5}) ||
 		action.Weapon != "rifle" || action.TargetID != "e1" {
 		t.Fatalf("action: %+v", action)
 	}
@@ -595,8 +597,8 @@ func TestEncodeStateRoundTripsThroughDecodeState(t *testing.T) {
 
 func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
 	events := encodeResolution(resolution{
-		Trace:     trace{{Kind: strikeMain, ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true}},
-		Rotations: []rotation{{Turn: 1, Phase: state.FactionEnemy}},
+		Trace:     engagement.Trace{{Kind: engagement.StrikeMain, ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true}},
+		Rotations: []turn.Rotation{{Turn: 1, Phase: state.FactionEnemy}},
 	})
 	want := []any{
 		protocol.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true},

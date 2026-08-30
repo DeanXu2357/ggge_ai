@@ -143,13 +143,13 @@ func TestTargetsOfAnswersTheOpposingFaction(t *testing.T) {
 		unitAt("t1", state.FactionThirdParty, state.Cell{2, 0}),
 	)
 
-	if got := ids(b.targetsOf(&b.state.Units[0])); !reflect.DeepEqual(got, []string{"e1"}) {
+	if got := ids(targetsOf(b, &b.state.Units[0])); !reflect.DeepEqual(got, []string{"e1"}) {
 		t.Fatalf("targets of the ally: %v", got)
 	}
-	if got := ids(b.targetsOf(&b.state.Units[1])); !reflect.DeepEqual(got, []string{"a1"}) {
+	if got := ids(targetsOf(b, &b.state.Units[1])); !reflect.DeepEqual(got, []string{"a1"}) {
 		t.Fatalf("targets of the enemy: %v", got)
 	}
-	if got := ids(b.targetsOf(&b.state.Units[2])); !reflect.DeepEqual(got, []string{"a1"}) {
+	if got := ids(targetsOf(b, &b.state.Units[2])); !reflect.DeepEqual(got, []string{"a1"}) {
 		t.Fatalf("targets of the third party: %v", got)
 	}
 }

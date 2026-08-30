@@ -6,7 +6,9 @@ import (
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
 func turnBoard(t *testing.T, phase state.Faction, turn int, units ...state.Unit) *Board {
@@ -39,24 +41,23 @@ func armed(id string, faction state.Faction, x, y int) state.Unit {
 	return out
 }
 
-func standby(id string) decision {
-	return decision{UnitID: id, Kind: actionStandby}
+func standby(id string) engagement.Decision {
+	return engagement.Decision{UnitID: id, Kind: engagement.ActionStandby}
 }
 
-func TestPendingHoldsTheLivingUnitsOfTheSideThatDidNotAct(t *testing.T) {
-	acted := basicUnit("a2", state.FactionAlly, 1, 2)
-	acted.Acted = true
-	dead := basicUnit("a3", state.FactionAlly, 1, 3)
-	dead.HP = 0
-	board := turnBoard(t, state.FactionAlly, 1, basicUnit("a1", state.FactionAlly, 1, 1), acted, dead, basicUnit("e1", state.FactionEnemy, 4, 4))
+func pendingOf(b *Board) []*state.Unit {
+	return turn.Pending(&b.state, b.state.Phase)
+}
 
-	var ids []string
-	for _, pending := range board.pending(state.FactionAlly) {
-		ids = append(ids, pending.ID)
+func targetsOf(b *Board, unit *state.Unit) []*state.Unit {
+	var out []*state.Unit
+	for index := range b.state.Units {
+		other := &b.state.Units[index]
+		if other.Faction == unit.Faction.Opposing() && alive(other) {
+			out = append(out, other)
+		}
 	}
-	if !reflect.DeepEqual(ids, []string{"a1"}) {
-		t.Fatalf("pending: %v", ids)
-	}
+	return out
 }
 
 func TestAnActivationWithAPendingSiblingDoesNotRotate(t *testing.T) {
@@ -78,7 +79,7 @@ func TestTheLastActivationOfTheAllySideOpensTheEnemyPhase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []rotation{{Turn: 1, Phase: state.FactionThirdParty}, {Turn: 1, Phase: state.FactionEnemy}}
+	want := []turn.Rotation{{Turn: 1, Phase: state.FactionThirdParty}, {Turn: 1, Phase: state.FactionEnemy}}
 	if !reflect.DeepEqual(resolution.Rotations, want) {
 		t.Fatalf("rotations: %+v", resolution.Rotations)
 	}
@@ -97,7 +98,7 @@ func TestTheLastActivationOfTheEnemySideOpensTheNextTurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(resolution.Rotations, []rotation{{Turn: 2, Phase: state.FactionAlly}}) {
+	if !reflect.DeepEqual(resolution.Rotations, []turn.Rotation{{Turn: 2, Phase: state.FactionAlly}}) {
 		t.Fatalf("rotations: %+v", resolution.Rotations)
 	}
 	got := board.unit("a1")
@@ -152,36 +153,12 @@ func TestASideWithNoUnitIsSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []rotation{{Turn: 3, Phase: state.FactionAlly}, {Turn: 3, Phase: state.FactionThirdParty}, {Turn: 3, Phase: state.FactionEnemy}}
+	want := []turn.Rotation{{Turn: 3, Phase: state.FactionAlly}, {Turn: 3, Phase: state.FactionThirdParty}, {Turn: 3, Phase: state.FactionEnemy}}
 	if !reflect.DeepEqual(resolution.Rotations, want) {
 		t.Fatalf("rotations: %+v", resolution.Rotations)
 	}
 	if board.unit("e1").Acted {
 		t.Fatal("the enemy phase start must give the unit its activation back")
-	}
-}
-
-func TestGoneNamesTheSidesWithNoLivingUnit(t *testing.T) {
-	dead := basicUnit("e1", state.FactionEnemy, 4, 4)
-	dead.HP = 0
-	board := turnBoard(t, state.FactionAlly, 1, basicUnit("a1", state.FactionAlly, 1, 1), dead)
-
-	if got := board.gone(); !reflect.DeepEqual(got, []state.Faction{state.FactionEnemy}) {
-		t.Fatalf("gone: %v", got)
-	}
-	board.unit("a1").HP = 0
-	if got := board.gone(); !reflect.DeepEqual(got, []state.Faction{state.FactionAlly, state.FactionEnemy}) {
-		t.Fatalf("gone: %v", got)
-	}
-}
-
-func TestABoardWithNoLivingUnitDoesNotRotate(t *testing.T) {
-	last := basicUnit("a1", state.FactionAlly, 1, 1)
-	board := turnBoard(t, state.FactionAlly, 1, last)
-	board.unit("a1").HP = 0
-
-	if got := board.Advance(); len(got) != 0 || board.state.Phase != state.FactionAlly || board.state.Turn != 1 {
-		t.Fatalf("rotated on a dead board: %+v", got)
 	}
 }
 
@@ -200,17 +177,17 @@ func TestABattleRunsToAnnihilation(t *testing.T) {
 	board := turnBoard(t, state.FactionAlly, 1, armed("a1", state.FactionAlly, 1, 1), armed("a2", state.FactionAlly, 1, 2), armed("e1", state.FactionEnemy, 2, 1))
 	dice := battle.Forced{AttackerSupport: true, DefenderSupport: true, Strike: true, Counter: true}
 
-	for acts := 0; len(board.gone()) == 0; acts++ {
+	for acts := 0; len(turn.Gone(&board.state)) == 0; acts++ {
 		if acts > 100 {
 			t.Fatal("no side is gone after 100 activations")
 		}
-		pending := board.pending(board.state.Phase)
-		actor := pending[0]
-		targets := board.targetsOf(actor)
+		actor := pendingOf(board)[0]
+		targets := targetsOf(board, actor)
 		action := standby(actor.ID)
 		if len(targets) > 0 {
-			action = decision{UnitID: actor.ID, Kind: actionAttack, TargetID: targets[0].ID, Weapon: "gun",
-				ResponseAttack: &responseAttack{Stance: stanceNone}}
+			action = engagement.Decision{UnitID: actor.ID, Kind: engagement.ActionAttack,
+				TargetID: targets[0].ID, Weapon: "gun",
+				Response: &engagement.Response{Stance: engagement.StanceNone}}
 		}
 		if _, err := board.act(action, dice); err != nil {
 			t.Fatalf("act %d: %v", acts, err)
