@@ -29,9 +29,5 @@ func (b *Board) act(decision engagement.Decision, dice battle.Dice) (resolution,
 		return resolution{}, err
 	}
 	trace := engagement.Commit(&b.state, plan, dice)
-	return resolution{Trace: trace, Rotations: b.Advance()}, nil
-}
-
-func (b *Board) Advance() []turn.Rotation {
-	return turn.Advance(&b.state)
+	return resolution{Trace: trace, Rotations: turn.Advance(&b.state)}, nil
 }

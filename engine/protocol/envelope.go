@@ -4,10 +4,7 @@
 // live in the package 'engine/battle'.
 package protocol
 
-import (
-	"encoding/json"
-	"errors"
-)
+import "encoding/json"
 
 const Version = "1.6"
 
@@ -19,10 +16,6 @@ const (
 	CodeIllegalState   = "illegal_state"
 	CodeIllegalAction  = "illegal_action"
 )
-
-// The board decodes the payload behind the contract, so this sentinel tells
-// the server that a refusal is a bad request and not an illegal action.
-var ErrOutsideContract = errors.New("the payload stands outside the contract")
 
 type Request struct {
 	ID      string          `json:"id"`

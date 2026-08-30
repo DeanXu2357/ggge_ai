@@ -4,9 +4,7 @@ import (
 	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/deploy"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
-	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 var knownFactions = map[battle.Faction]bool{
@@ -75,64 +73,11 @@ func validate(state *battle.BattleState) error {
 	return nil
 }
 
-func DecodeState(wire *battle.BattleState) (*Board, error) {
-	if wire == nil {
-		return nil, fmt.Errorf("the payload carries no state")
-	}
-	out := &Board{state: wire.Clone()}
-	if err := validate(&out.state); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func DecodeInit(request *protocol.InitRequest) (*Board, error) {
-	if request.Board.Width < 1 || request.Board.Height < 1 {
-		return nil, fmt.Errorf("the board %dx%d holds no cell", request.Board.Width, request.Board.Height)
-	}
-	bounds := battle.Bounds{{0, 0}, {request.Board.Width - 1, request.Board.Height - 1}}
-	opening := battle.BattleState{
-		Units:        request.Enemies,
-		Phase:        battle.FactionAlly,
-		Turn:         1,
-		Bounds:       &bounds,
-		Terrain:      request.Board.Terrain,
-		TerrainCells: request.Board.TerrainCells,
-	}
-	out := &Board{state: opening.Clone()}
-	if err := validate(&out.state); err != nil {
-		return nil, err
-	}
-	for index := range out.state.Units {
-		unit := &out.state.Units[index]
-		deploy.Assemble(unit)
-		if err := checkEnemy(unit, bounds); err != nil {
-			return nil, err
-		}
-	}
-	for _, entry := range out.state.TerrainCells {
-		if !(battle.Footprint{Anchor: entry.Cell, Size: battle.Cell{1, 1}}).Within(bounds) {
-			return nil, fmt.Errorf("the terrain cell %v stands outside the board", entry.Cell)
-		}
-	}
-	return out, nil
-}
-
-func checkEnemy(unit *battle.Unit, bounds battle.Bounds) error {
-	if unit.Faction != battle.FactionEnemy {
-		return fmt.Errorf("the unit %q of 'enemies' carries the faction %q", unit.ID, unit.Faction)
-	}
-	if !unit.Footprint().Within(bounds) {
-		return fmt.Errorf("the unit %q stands outside the board", unit.ID)
-	}
-	return nil
-}
-
 func decodeDecision(action *battle.Decision) (engagement.Decision, error) {
 	kind, known := actionKinds[action.Kind]
 	if !known {
 		return engagement.Decision{}, fmt.Errorf("%w: the action carries the kind %q",
-			protocol.ErrOutsideContract, action.Kind)
+			battle.ErrOutsideContract, action.Kind)
 	}
 	out := engagement.Decision{
 		UnitID:           action.UnitID,
@@ -165,7 +110,7 @@ func decodeResponseAttack(wire battle.ResponseAttack) (engagement.Response, erro
 	stance, known := decodedStances[wire.Stance]
 	if !known {
 		return engagement.Response{}, fmt.Errorf("%w: the response attack carries the stance %q",
-			protocol.ErrOutsideContract, wire.Stance)
+			battle.ErrOutsideContract, wire.Stance)
 	}
 	return engagement.Response{
 		Stance:           stance,

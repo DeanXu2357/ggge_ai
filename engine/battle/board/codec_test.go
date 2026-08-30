@@ -8,10 +8,19 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/deploy"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
-	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
+
+func openingBoard(bounds battle.Bounds, terrain battle.Terrain,
+	terrainCells []battle.TerrainCell, enemies []battle.Unit) (*Board, error) {
+	state, err := deploy.Opening(bounds, terrain, terrainCells, enemies)
+	if err != nil {
+		return nil, err
+	}
+	return NewBoard(&state)
+}
 
 func wireBoard() *battle.BattleState {
 	kind := "mobility"
@@ -87,7 +96,7 @@ func wireBoard() *battle.BattleState {
 func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 	wire := wireBoard()
 
-	board, err := DecodeState(wire)
+	board, err := NewBoard(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -106,7 +115,7 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 func TestTheModelCopiesTheAmmoAndTheSkillAmount(t *testing.T) {
 	wire := wireBoard()
 
-	board, err := DecodeState(wire)
+	board, err := NewBoard(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -130,20 +139,17 @@ func TestAWeaponCategoryOutsideTheContractStopsTheDecode(t *testing.T) {
 }
 
 func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
-	request := protocol.InitRequest{
-		Board: protocol.Board{Width: 6, Height: 5},
-		Enemies: []battle.Unit{
-			{ID: "e1", Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, HP: 10,
-				Pilot: battle.Pilot{SP: 60},
-				Mech:  battle.Mech{HP: 9000, EN: 180}},
-			{ID: "e2", Faction: battle.FactionEnemy, Pos: battle.Cell{2, 1}, HP: 10,
-				MaxHP: 7000, ENMax: 20, SPMax: 5,
-				Pilot: battle.Pilot{SP: 60},
-				Mech:  battle.Mech{HP: 9000, EN: 180}},
-		},
+	enemies := []battle.Unit{
+		{ID: "e1", Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, HP: 10,
+			Pilot: battle.Pilot{SP: 60},
+			Mech:  battle.Mech{HP: 9000, EN: 180}},
+		{ID: "e2", Faction: battle.FactionEnemy, Pos: battle.Cell{2, 1}, HP: 10,
+			MaxHP: 7000, ENMax: 20, SPMax: 5,
+			Pilot: battle.Pilot{SP: 60},
+			Mech:  battle.Mech{HP: 9000, EN: 180}},
 	}
 
-	board, err := DecodeInit(&request)
+	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "", nil, enemies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +167,7 @@ func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 func TestTheModelCopiesEveryFieldThatASystemWrites(t *testing.T) {
 	wire := wireBoard()
 
-	board, err := DecodeState(wire)
+	board, err := NewBoard(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -183,7 +189,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 		Units:  []battle.Unit{{ID: "a1", Faction: battle.FactionAlly, HP: 1}},
 	}
 
-	board, err := DecodeState(wire)
+	board, err := NewBoard(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -233,7 +239,7 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 
 	for name, wire := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := DecodeState(wire); err == nil {
+			if _, err := NewBoard(wire); err == nil {
 				t.Fatal("the decode took a payload outside the contract")
 			}
 		})
@@ -431,7 +437,7 @@ func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
 }
 
 func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
-	board, err := DecodeState(wireBoard())
+	board, err := NewBoard(wireBoard())
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -465,7 +471,7 @@ func decodeFixtureState(t *testing.T) *Board {
 	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	board, err := DecodeState(&fixture.Setup.State)
+	board, err := NewBoard(&fixture.Setup.State)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,13 +479,9 @@ func decodeFixtureState(t *testing.T) *Board {
 }
 
 func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
-	request := protocol.InitRequest{
-		Board:   protocol.Board{Width: 6, Height: 5, Terrain: "ground", TerrainCells: []battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "space"}}},
-		Enemies: []battle.Unit{{ID: "e1", Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, HP: 10}},
-		Seed:    9,
-	}
-
-	board, err := DecodeInit(&request)
+	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "ground",
+		[]battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "space"}},
+		[]battle.Unit{{ID: "e1", Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, HP: 10}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,42 +500,36 @@ func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	}
 }
 
-func TestInitRefusesABoardWithNoCell(t *testing.T) {
-	if _, err := DecodeInit(&protocol.InitRequest{Board: protocol.Board{Width: 0, Height: 5}}); err == nil {
-		t.Fatal("a width of 0 must fail")
-	}
-}
-
 func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
-	board := protocol.Board{Width: 3, Height: 3}
+	bounds := battle.Bounds{{0, 0}, {2, 2}}
 	cases := []struct {
-		name    string
-		request protocol.InitRequest
+		name         string
+		terrainCells []battle.TerrainCell
+		enemies      []battle.Unit
 	}{
-		{"a unit of 'enemies' that is no enemy", protocol.InitRequest{Board: board,
-			Enemies: []battle.Unit{{ID: "x1", Faction: battle.FactionAlly,
-				Pos: battle.Cell{1, 1}, HP: 10}}}},
-		{"a footprint outside the bounds", protocol.InitRequest{Board: board,
-			Enemies: []battle.Unit{{ID: "x1", Faction: battle.FactionEnemy,
-				Pos: battle.Cell{2, 2}, Size: battle.Cell{2, 2}, HP: 10}}}},
-		{"a terrain cell outside the bounds", protocol.InitRequest{
-			Board: protocol.Board{Width: 3, Height: 3,
-				TerrainCells: []battle.TerrainCell{{Cell: battle.Cell{9, 9}, Terrain: "space"}}}}},
+		{name: "a unit of 'enemies' that is no enemy",
+			enemies: []battle.Unit{{ID: "x1", Faction: battle.FactionAlly,
+				Pos: battle.Cell{1, 1}, HP: 10}}},
+		{name: "a footprint outside the bounds",
+			enemies: []battle.Unit{{ID: "x1", Faction: battle.FactionEnemy,
+				Pos: battle.Cell{2, 2}, Size: battle.Cell{2, 2}, HP: 10}}},
+		{name: "a terrain cell outside the bounds",
+			terrainCells: []battle.TerrainCell{{Cell: battle.Cell{9, 9}, Terrain: "space"}}},
 	}
 
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
-			if _, err := DecodeInit(&one.request); err == nil {
+			if _, err := openingBoard(bounds, "", one.terrainCells, one.enemies); err == nil {
 				t.Fatal("the payload must fail")
 			}
 		})
 	}
 }
 
-func TestEncodeStateRoundTripsThroughDecodeState(t *testing.T) {
+func TestEncodeStateRoundTripsThroughNewBoard(t *testing.T) {
 	first := decodeFixtureState(t)
 	encoded := first.State()
-	second, err := DecodeState(&encoded)
+	second, err := NewBoard(&encoded)
 	if err != nil {
 		t.Fatal(err)
 	}

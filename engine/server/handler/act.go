@@ -82,7 +82,7 @@ func (c *Commands) openDice(dice *protocol.Dice) (battle.Dice, *battle.ManualRol
 
 func refusalCode(err error) string {
 	switch {
-	case errors.Is(err, protocol.ErrOutsideContract):
+	case errors.Is(err, battle.ErrOutsideContract):
 		return protocol.CodeBadRequest
 	case errors.Is(err, battle.ErrOffPhase), errors.Is(err, battle.ErrActed):
 		return protocol.CodeIllegalState

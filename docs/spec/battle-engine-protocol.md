@@ -52,9 +52,9 @@ issues of the port (#60 to #68).
 - The behavior systems are the only code that writes state during
   a battle. Three files assign a field of a 'battle.BattleState':
   'commit.go' of 'engagement', 'turn.go' of 'turn' and 'deploy.go'
-  of 'deploy'. Before the battle, 'codec.go' of 'board' fills the
-  two values that a payload can leave out: a size of zero and an
-  empty terrain.
+  of 'deploy'. Before the battle, 'board.NewBoard' fills the two
+  values that a payload can leave out: a size of zero and an empty
+  terrain.
   'engine/battle/engagement' resolves one activation:
   'engagement.Prepare(board, decision)' reads the board, judges
   every participant (the actor, the target, the weapon, the reach,
@@ -66,13 +66,14 @@ issues of the port (#60 to #68).
   'act' refuses. 'engine/battle/turn'
   ('turn.Advance') rotates the phase, regenerates the EN, expires
   the debuffs and resets the acted flags. 'engine/battle/deploy'
-  ('deploy.Assemble') fills the maxima of a unit at 'init'. The
+  assembles the opening state of 'init' ('deploy.Opening') and fills
+  the maxima of a unit ('deploy.Assemble'). The
   pure system 'engine/battle/geometry' answers the distance, the
   reachable anchors and the occupied cells and writes nothing.
-- The package 'engine/battle/board' is the shell: it implements
-  the contract, holds a 'battle.BattleState', judges a payload
-  ('board.Validate'), projects the answers of the read commands,
-  and calls the systems. 'Act' is 'Prepare', 'Commit',
+- The package 'engine/battle/board' is the shell: 'board.NewBoard'
+  builds it from a 'battle.BattleState', which it clones and judges.
+  It implements the contract, projects the answers of the read
+  commands, and calls the systems. 'Act' is 'Prepare', 'Commit',
   'turn.Advance' in that order, so a refused 'act' leaves the
   board as it was; 'engine/server/handler' runs 'Act' on the
   session board and clones only for a forced-dice request, whose
@@ -88,7 +89,10 @@ issues of the port (#60 to #68).
   the command registry and the command 'hello'. The package
   'engine/server/handler' holds the body of every other command,
   the battle that the commands read and change, and the calls on
-  the shell 'engine/battle/board'.
+  the shell 'engine/battle/board'. The handler parses every request:
+  it reads 'InitRequest', calls 'deploy.Opening' and hands the state
+  to 'board.NewBoard'. No package of 'engine/battle' reads a type of
+  'engine/protocol'.
 
 ## Transport
 
@@ -471,13 +475,6 @@ stream: a loaded history is a record, not a replay.
 that order. It is the field of the board summary of 'act', so a
 client that resumes a session reads the end of the battle from
 'export' alone.
-
-'load' rotates the phase when the loaded phase holds no pending
-unit: it moves to the first phase that holds one, and the phase
-start of that faction runs. No engine exports such a state, and a
-hand-written snapshot that carries one would take no command at
-all. 'init' does not rotate, because the deploy phase waits for
-'place'.
 
 'export' gives back the 'pending_events' and the 'fired_events' of
 the loaded state. The engine reads neither list today, and it holds

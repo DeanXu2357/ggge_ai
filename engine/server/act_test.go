@@ -197,27 +197,6 @@ func TestExportNamesTheSideWithNoLivingUnit(t *testing.T) {
 	}
 }
 
-func TestLoadRotatesToThePhaseThatHoldsAPendingUnit(t *testing.T) {
-	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
-		`"units":[` +
-		`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"acted":true},` +
-		`{"unit_id":"e1","faction":"enemy","pos":[4,4],"hp":100,"acted":false}` +
-		`],"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
-		`"pending_events":[],"fired_events":[]},"history":[]}}`
-	replies := serve(t, New(), line, `{"id":"x","cmd":"export","payload":{}}`,
-		act("a", "e1", "standby", `{"mode":"sampled"}`))
-	var export protocol.ExportResponse
-	if err := json.Unmarshal(replies[1].Payload, &export); err != nil {
-		t.Fatal(err)
-	}
-	if export.State.Phase != battle.FactionEnemy || export.State.Turn != 1 {
-		t.Fatalf("state after the load: phase %q turn %d", export.State.Phase, export.State.Turn)
-	}
-	if !replies[2].OK {
-		t.Fatalf("act: %+v", replies[2])
-	}
-}
-
 func TestExportEchoesTheEventsOfTheLoadedState(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
 		`"units":[{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100}],` +

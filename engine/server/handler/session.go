@@ -50,13 +50,10 @@ func (c *Commands) Load(id string, payload json.RawMessage) protocol.Response {
 	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	b, err := board.DecodeState(&request.State)
+	b, err := board.NewBoard(&request.State)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	// No engine exports a phase that holds no pending unit, but a hand-written
-	// snapshot can carry one. The rotation makes such a board playable.
-	b.Advance()
 	loaded := newSession(b, request.Seed)
 	if request.History != nil {
 		loaded.history = request.History

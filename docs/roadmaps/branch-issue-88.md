@@ -194,7 +194,7 @@ the exchange, the end of the activation.
 ### The shell: 'engine/battle/board'
 
     type Board struct{ state state.Board }   // implements battle.Board
-    DecodeInit, DecodeState                  // wire -> def + state
+    NewBoard(state)                          // clone + validate
     Act: decode -> engagement.Prepare -> engagement.Commit ->
          turn.Advance -> encode. Atomic by construction: Prepare
          returns before the first write and Commit cannot fail, so
@@ -415,10 +415,11 @@ D. Spec process model, terminology map, ledger, the artifact.
     types they speak, with their JSON tags, and imports no package
     of the engine; 'protocol' keeps the envelope, the codes, the
     command wrappers and the one type no contract method speaks
-    ('StageEvent') and imports 'battle'. The board
-    codec still imports 'protocol' for 'InitRequest' and
-    'ErrOutsideContract'; moving the codec to the server side is
-    the next step and a separate issue.
+    ('StageEvent') and imports 'battle'. No package of 'battle'
+    imports 'protocol': 'board.NewBoard' builds the shell from a
+    'battle.BattleState', 'deploy.Opening' assembles the opening
+    state of 'init', the handler parses 'InitRequest', and
+    'ErrOutsideContract' lives in 'engine/battle'.
 12. **'actions' refuses an acted unit** (protocol 1.6, the user's
     ruling: the embedded error becomes the sentinel). 'Board.Actions'
     reads 'engagement.Activatable', the gate 'act' reads, so an acted
@@ -437,8 +438,8 @@ D. Spec process model, terminology map, ledger, the artifact.
     to 1 and an empty terrain to 'space', as the old decode did,
     because 'State' is now 'Clone' and no encode step remains to
     normalize; 'validate' keeps the faction and phase checks for a
-    state built without JSON; the footprint-in-bounds check stays in
-    'DecodeInit' only, as before; 'TerrainCells' export in payload
+    state built without JSON; the footprint-in-bounds check stays on
+    the opening path only, as before; 'TerrainCells' export in payload
     order, not sorted (no golden carries terrain cells); an export
     now echoes a 'null' list that a load carried as 'null' instead
     of '[]' (every golden carries '[]'); 'Clone' shares 'Mech.Weapons'
