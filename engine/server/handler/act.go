@@ -25,22 +25,29 @@ func (c *Commands) Act(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	clone := b.Clone()
-	events, err := clone.Act(action, dice)
+	// 'Act' is atomic, so the session board resolves the activation itself.
+	// A forced roll carries the one refusal that comes after the writes: the
+	// list is short only when a draw runs past its end. That path takes a
+	// clone.
+	target := b
+	if manual != nil {
+		target = b.Clone()
+	}
+	events, err := target.Act(action, dice)
 	if err != nil {
 		return protocol.Fail(id, refusalCode(err), err.Error())
 	}
 	if manual != nil && manual.Short() {
 		return protocol.Fail(id, protocol.CodeIllegalAction, "the 'outcomes' list is short")
 	}
-	c.session.board = clone
+	c.session.board = target
 	if draw, ok := dice.(*battle.ServerDraw); ok {
 		c.session.draw = draw
 	}
 	c.session.history = append(c.session.history, protocol.HistoryEntry{Cmd: "act", Payload: payload})
 	return protocol.Ok(id, protocol.ActResponse{
 		Events: events,
-		Board:  clone.Summary(),
+		Board:  target.Summary(),
 	})
 }
 

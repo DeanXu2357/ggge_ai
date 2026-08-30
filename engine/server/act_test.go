@@ -398,3 +398,43 @@ func engagementLines(t *testing.T, seed int64) (string, string) {
 	}
 	return string(loadLine), string(actLine)
 }
+
+const armedLine = `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
+	`"units":[` +
+	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":10,"en_max":100,"mech":{"move_range":0,` +
+	`"weapons":[{"name":"gun","power":1000,"range_min":1,"range_max":2,"accuracy":100},` +
+	`{"name":"costly","power":9000,"range_min":1,"range_max":2,"en_cost":80,"accuracy":100}]}},` +
+	`{"unit_id":"e1","faction":"enemy","pos":[1,2],"hp":100,"max_hp":100},` +
+	`{"unit_id":"e2","faction":"enemy","pos":[8,8],"hp":100,"max_hp":100}` +
+	`],"phase":"ally","turn":1,"bounds":[[0,0],[9,9]],` +
+	`"pending_events":[],"fired_events":[]},"history":[]}}`
+
+func attack(id, unit, target, weapon string) string {
+	return `{"id":"` + id + `","cmd":"act","payload":{"unit_id":"` + unit + `","action":{"unit_id":"` + unit +
+		`","kind":"attack","target_id":"` + target + `","weapon":"` + weapon + `"},` +
+		`"response_attack":{"stance":"none"},"dice":{"mode":"sampled"}}}`
+}
+
+func TestARefusedActLeavesTheStateByteIdentical(t *testing.T) {
+	const exportLine = `{"id":"x","cmd":"export","payload":{}}`
+	fresh := serve(t, New(), armedLine, exportLine)
+	if !fresh[0].OK {
+		t.Fatalf("load: %+v", fresh[0])
+	}
+	refusals := map[string]string{
+		"an unpaid weapon":      attack("a", "a1", "e1", "costly"),
+		"an off-phase unit":     act("a", "e1", "standby", `{"mode":"sampled"}`),
+		"an unreachable target": attack("a", "a1", "e2", "gun"),
+	}
+	for name, line := range refusals {
+		t.Run(name, func(t *testing.T) {
+			replies := serve(t, New(), armedLine, line, exportLine)
+			if replies[1].OK {
+				t.Fatalf("the act stands: %+v", replies[1])
+			}
+			if string(replies[2].Payload) != string(fresh[1].Payload) {
+				t.Fatalf("the state moved:\n%s\n%s", replies[2].Payload, fresh[1].Payload)
+			}
+		})
+	}
+}
