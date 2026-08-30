@@ -10,15 +10,13 @@ import (
 // Commit writes the plan of Prepare. Every rule of the exchange is judged
 // there, so nothing here can refuse the plan.
 func Commit(board *state.Board, plan Plan, dice battle.Dice) Trace {
+	plan.actor.Footprint.Anchor = plan.anchor
 	if plan.kind != ActionAttack {
-		plan.actor.Footprint.Anchor = plan.anchor
 		endActivation(plan.actor, false)
 		return nil
 	}
-	plan.actor.Footprint.Anchor = plan.anchor
 	plan.actor.EN -= plan.weapon.ENCost
-	shot := receiver{board: board, struck: plan.shot.struck, multiplier: plan.shot.multiplier,
-		supportDefender: plan.shot.supportDefender}
+	shot := receiverFor(board, plan.target, plan.answer)
 	trace := fire(board, battle.NodeAttackerSupport, StrikeSupport, plan.joining, dice, &shot)
 	// The hit rate reads the target of the strike, and not the support defender
 	// that takes the strike in its place: the oracle 'decision_hit_probability'
@@ -26,7 +24,7 @@ func Commit(board *state.Board, plan Plan, dice battle.Dice) Trace {
 	// takes the strike is not measured, so the value of the oracle stands until
 	// a measurement lands.
 	trace = append(trace, shot.hit(StrikeMain, plan.actor, plan.weapon,
-		dice.Lands(battle.NodeStrike, strikeHitProbability(plan.actor, plan.target, plan.weapon, plan.dodging))))
+		dice.Lands(battle.NodeStrike, strikeHitProbability(plan.actor, plan.target, plan.weapon, plan.answer.dodging()))))
 	killed := !shot.struck.Alive()
 
 	if plan.answer.response != nil && plan.target.Alive() {
@@ -51,6 +49,19 @@ type receiver struct {
 	multiplier      float64
 	supportDefender *state.Unit
 	chargeSpent     bool
+}
+
+// The support defender of the defender takes the main strike in its place,
+// and it takes it in a defense state.
+func receiverFor(board *state.Board, target *state.Unit, reply answer) receiver {
+	if reply.supportDefender != nil {
+		return coveredReceiver(board, reply.supportDefender)
+	}
+	multiplier := formula.NoDefenseMultiplier
+	if reply.response != nil {
+		multiplier = defenseMultiplier(reply.response.Stance, target)
+	}
+	return plainReceiver(board, target, multiplier)
 }
 
 func plainReceiver(board *state.Board, struck *state.Unit, multiplier float64) receiver {

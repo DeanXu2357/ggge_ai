@@ -6,7 +6,6 @@ import (
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
@@ -24,15 +23,6 @@ type Plan struct {
 	joining []supportAttacker
 	bearer  *state.Unit
 	answer  answer
-	shot    aim
-	dodging bool
-}
-
-// aim names the unit that takes the main strike and the cut it takes it with.
-type aim struct {
-	struck          *state.Unit
-	multiplier      float64
-	supportDefender *state.Unit
 }
 
 // A nil response attack stays legal in the domain: it says that the caller
@@ -43,6 +33,10 @@ type answer struct {
 	counter         *def.Weapon
 	supportDefender *state.Unit
 	joining         []supportAttacker
+}
+
+func (a answer) dodging() bool {
+	return a.response != nil && a.response.Stance == StanceDodge
 }
 
 // Every rule is judged before the first change of the board, so a refused
@@ -114,24 +108,7 @@ func prepareAttack(board *state.Board, actor *state.Unit, decision Decision) (Pl
 		joining: joining,
 		bearer:  bearer,
 		answer:  answer,
-		shot:    aimOf(target, answer),
-		dodging: answer.response != nil && answer.response.Stance == StanceDodge,
 	}, nil
-}
-
-func aimOf(target *state.Unit, answer answer) aim {
-	if answer.supportDefender != nil {
-		return aim{
-			struck:          answer.supportDefender,
-			multiplier:      defenseMultiplier(StanceDefend, answer.supportDefender),
-			supportDefender: answer.supportDefender,
-		}
-	}
-	multiplier := formula.NoDefenseMultiplier
-	if answer.response != nil {
-		multiplier = defenseMultiplier(answer.response.Stance, target)
-	}
-	return aim{struck: target, multiplier: multiplier}
 }
 
 // The command 'act' reads this gate; the reporting commands do not, because
