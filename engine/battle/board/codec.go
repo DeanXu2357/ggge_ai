@@ -30,13 +30,6 @@ var affectsKinds = map[protocol.SkillAffects]state.SkillAffects{
 	protocol.AffectsAll:   state.AffectsAll,
 }
 
-var wireKinds = map[engagement.ActionKind]protocol.ActionKind{
-	engagement.ActionAttack:     protocol.ActionAttack,
-	engagement.ActionMapAttack:  protocol.ActionMapAttack,
-	engagement.ActionReposition: protocol.ActionReposition,
-	engagement.ActionStandby:    protocol.ActionStandby,
-}
-
 var skillSources = map[protocol.SkillSource]state.SkillSource{
 	protocol.SourcePilot: state.SourcePilot,
 	protocol.SourceCrew:  state.SourceCrew,
