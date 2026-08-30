@@ -8,14 +8,13 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
-	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 func rifle(name string, band def.RadiusRange) def.Weapon {
 	return def.Weapon{Name: name, Range: band, UsableAfterMove: true}
 }
 
-func actionsOf(t *testing.T, b *Board, id string) protocol.ActionsResponse {
+func actionsOf(t *testing.T, b *Board, id string) battle.ActionsResponse {
 	t.Helper()
 	out, err := b.Actions(id)
 	if err != nil {
@@ -31,7 +30,7 @@ func TestTheActionsCarryTheCellsTheUnitReaches(t *testing.T) {
 
 	out := actionsOf(t, b, "a1")
 
-	want := []protocol.Cell{{0, 0}, {0, 1}}
+	want := []battle.Cell{{0, 0}, {0, 1}}
 	if !reflect.DeepEqual(out.MoveCells, want) {
 		t.Fatalf("the foe blocks the cell (1,0): %v", out.MoveCells)
 	}
@@ -56,18 +55,6 @@ func TestTheActionsJudgeNoResourceAndNoBand(t *testing.T) {
 
 	if len(out.Weapons) != 1 || len(out.Skills) != 1 {
 		t.Fatalf("the answer holds the whole panel: %+v", out)
-	}
-}
-
-func TestAUnitThatActedKeepsItsActions(t *testing.T) {
-	b := board(unitAt("a1", state.FactionAlly, state.Cell{0, 0}))
-	b.state.Units[0].Acted = true
-	b.state.Units[0].Mech.MoveRange = 1
-
-	out := actionsOf(t, b, "a1")
-
-	if !out.Unit.Acted || len(out.MoveCells) == 0 {
-		t.Fatalf("an acted unit answers with its cells and its state: %+v", out)
 	}
 }
 

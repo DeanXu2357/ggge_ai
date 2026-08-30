@@ -21,20 +21,23 @@ issues of the port (#60 to #68).
 - 'init' plus the sequence of the commands that change the board
   reproduce the battle. The engine holds no other input.
 - The Go package 'engine/battle' holds the contract: the board
-  interfaces over the wire types of 'engine/protocol', the dice
-  and the sentinel errors. The interfaces hold the methods that a
-  consumer calls: 'Act' on 'BoardResolver'; 'Actions',
-  'ReachableCells', 'ResponseAttacks', 'Clone', 'State' and
-  'Summary' on 'BoardReader'. Each method takes and gives the
-  types of 'engine/protocol', so the contract imports that
-  package and no other package of the engine. Below the contract
-  the implementation is three kinds of package and one shell, and
-  the imports run one way: the shell imports the systems; a
-  writing system imports 'state', 'def', the pure system
-  'geometry', 'formula' and the contract 'engine/battle', and
-  never another writing system; 'state' imports 'def'; 'def'
-  imports nothing of the engine (user ruling 2026-08-30, issue
-  #88).
+  interfaces, the types that the interfaces speak, the dice and
+  the sentinel errors. The types carry the JSON tags of the wire.
+  They are 'Decision', 'BattleState', 'ActionsResponse',
+  'ResponseAttacksResponse', 'BoardSummary' and the events. The
+  interfaces hold the methods that a consumer calls: 'Act' on
+  'BoardResolver'; 'Actions', 'ReachableCells',
+  'ResponseAttacks', 'Clone', 'State' and 'Summary' on
+  'BoardReader'. The contract imports no package of the engine.
+  The package 'engine/protocol' holds the envelope, the codes,
+  the command list and the per-command wrappers. It imports
+  'engine/battle'. Below the contract the implementation is three
+  kinds of package and one shell, and the imports run one way:
+  the shell imports the systems; a writing system imports
+  'state', 'def', the pure system 'geometry', 'formula' and the
+  contract 'engine/battle', and never another writing system;
+  'state' imports 'def'; 'def' imports nothing of the engine
+  (user ruling 2026-08-30, issue #88).
 - The package 'engine/battle/def' holds the static definitions:
   'def.Mech', 'def.Pilot', 'def.Weapon', 'def.RadiusRange',
   'def.WeaponCategory'. A definition does not change during a
@@ -112,7 +115,6 @@ Error codes:
 | illegal_state | The board does not permit the command now |
 | illegal_action | The named action or response attack is not legal |
 | empty_history | 'rollback' found no entry |
-| already_acted | The unit acted in this turn; the command answers |
 
 An error response does not stop the process. An error response does
 not change the board.
@@ -214,8 +216,8 @@ Refusals: no_session; illegal_action for an unknown unit id.
 
 Purpose: what one unit carries.
 
-Request: 'unit_id'. Response: 'unit', 'move_cells', 'weapons',
-'skills', and 'error' when a state stops the unit from acting.
+Request: 'unit_id'. Response: 'unit', 'move_cells', 'weapons'
+and 'skills'.
 
 The command reports. It selects nothing and it removes nothing. It
 reads no target, no band and no resource: a weapon with no energy
@@ -245,12 +247,9 @@ A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
 action kinds: the engine validates nothing and resolves nothing
 until issue #81 closes the set. A producer writes what it read.
 
-A unit that acted keeps the whole payload. Its 'error' holds the
-code 'already_acted' and a message.
-
 Refusals: no_session; illegal_action for an unknown unit id;
-illegal_state when the unit is destroyed; illegal_state when the
-phase of the unit is not the current phase.
+illegal_state when the unit is destroyed, when the phase of the
+unit is not the current phase, or when the unit acted.
 
 ### response_attacks
 
@@ -643,7 +642,7 @@ diagnostics record the exhaustion.
 ### Unit payload, action, and response attack
 
 The authority for these three schemas is the Go package
-'engine/protocol'. 'src/ggge_ai/engine/state.py' holds the same
+'engine/battle'. 'src/ggge_ai/engine/state.py' holds the same
 structs in Python and 'src/ggge_ai/engine/codec.py' writes the
 wire form from them. The contract names the payload of one
 activation 'action'; the struct names the same thing 'Decision'.
@@ -899,3 +898,9 @@ difference between two integers is 1.
   no counter permission to a weapon. A counter fires under the rule
   of an attack. A client of version 1.4 reads a 1.5 weapon, and it
   reads no counter permission.
+- A third exception on record: version 1.6 (2026-08-31, issue #88)
+  removed the field 'error' from the answer of 'actions'. The
+  command now refuses a unit that acted with the code
+  'illegal_state'. The code 'already_acted' is retired. The same
+  change moved the contract types from 'engine/protocol' to
+  'engine/battle'. The JSON stays the same everywhere else.

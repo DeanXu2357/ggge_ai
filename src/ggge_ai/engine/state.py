@@ -1,7 +1,7 @@
 """The battle state in Python (spec: docs/spec/battle-engine-protocol.md).
 
-The Go package 'engine/protocol' holds the same structs in 'state.go'. A change
-here needs the same change there.
+The Go package 'engine/battle' holds the same structs in 'snapshot.go' and
+'decision.go'. A change here needs the same change there.
 
 The file holds the data of one battle and the accessors that read it. It holds
 no rule: the engine answers every question that needs one.

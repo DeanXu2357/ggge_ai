@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
@@ -77,7 +78,7 @@ func TestTheGoldenStateEncodingIsStable(t *testing.T) {
 			if err != nil {
 				t.Fatalf("marshal: %v", err)
 			}
-			if err := differential.Stable[protocol.BattleState](state); err != nil {
+			if err := differential.Stable[battle.BattleState](state); err != nil {
 				t.Error(err)
 			}
 			events, err := json.Marshal(one.Setup.Events)

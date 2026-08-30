@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -35,13 +36,13 @@ func TestAStandbyAnswersNoEventAndThePendingSibling(t *testing.T) {
 		t.Fatalf("act: %+v", replies[1])
 	}
 	var answer struct {
-		Events []json.RawMessage     `json:"events"`
-		Board  protocol.BoardSummary `json:"board"`
+		Events []json.RawMessage   `json:"events"`
+		Board  battle.BoardSummary `json:"board"`
 	}
 	if err := json.Unmarshal(replies[1].Payload, &answer); err != nil {
 		t.Fatal(err)
 	}
-	if len(answer.Events) != 0 || answer.Board.Turn != 1 || answer.Board.Phase != protocol.FactionAlly {
+	if len(answer.Events) != 0 || answer.Board.Turn != 1 || answer.Board.Phase != battle.FactionAlly {
 		t.Fatalf("answer: %+v", answer)
 	}
 	if len(answer.Board.Pending) != 1 || answer.Board.Pending[0] != "a2" || len(answer.Board.Gone) != 0 {
@@ -54,13 +55,13 @@ func TestTheLastActivationRotatesAndTheEventsSayWhere(t *testing.T) {
 		act("a", "a1", "standby", `{"mode":"sampled"}`),
 		act("b", "a2", "standby", `{"mode":"sampled"}`))
 	var answer struct {
-		Events []json.RawMessage     `json:"events"`
-		Board  protocol.BoardSummary `json:"board"`
+		Events []json.RawMessage   `json:"events"`
+		Board  battle.BoardSummary `json:"board"`
 	}
 	if err := json.Unmarshal(replies[2].Payload, &answer); err != nil {
 		t.Fatal(err)
 	}
-	if answer.Board.Phase != protocol.FactionEnemy || len(answer.Events) != 2 {
+	if answer.Board.Phase != battle.FactionEnemy || len(answer.Events) != 2 {
 		t.Fatalf("answer: %+v", answer)
 	}
 	if string(answer.Events[1]) != `{"event":"phase","turn":1,"phase":"enemy"}` {
@@ -127,7 +128,7 @@ func TestARefusalLeavesTheBoardAndTheHistory(t *testing.T) {
 	if err := json.Unmarshal(replies[2].Payload, &export); err != nil {
 		t.Fatal(err)
 	}
-	if len(export.History) != 0 || export.State.Phase != protocol.FactionAlly || export.Seed != 5 {
+	if len(export.History) != 0 || export.State.Phase != battle.FactionAlly || export.Seed != 5 {
 		t.Fatalf("export after a refusal: %+v", export)
 	}
 }
@@ -191,7 +192,7 @@ func TestExportNamesTheSideWithNoLivingUnit(t *testing.T) {
 	if err := json.Unmarshal(replies[1].Payload, &export); err != nil {
 		t.Fatal(err)
 	}
-	if len(export.Gone) != 1 || export.Gone[0] != protocol.FactionEnemy {
+	if len(export.Gone) != 1 || export.Gone[0] != battle.FactionEnemy {
 		t.Fatalf("gone: %+v", export.Gone)
 	}
 }
@@ -209,7 +210,7 @@ func TestLoadRotatesToThePhaseThatHoldsAPendingUnit(t *testing.T) {
 	if err := json.Unmarshal(replies[1].Payload, &export); err != nil {
 		t.Fatal(err)
 	}
-	if export.State.Phase != protocol.FactionEnemy || export.State.Turn != 1 {
+	if export.State.Phase != battle.FactionEnemy || export.State.Turn != 1 {
 		t.Fatalf("state after the load: phase %q turn %d", export.State.Phase, export.State.Turn)
 	}
 	if !replies[2].OK {

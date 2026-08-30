@@ -1,5 +1,7 @@
-// Package protocol holds the envelope, the command list, and the types of
-// the battle engine contract (docs/spec/battle-engine-protocol.md).
+// Package protocol holds the envelope, the command list, and the per-command
+// wrappers of the battle engine contract
+// (docs/spec/battle-engine-protocol.md). The types that the contract speaks
+// live in the package 'engine/battle'.
 package protocol
 
 import (
@@ -7,7 +9,7 @@ import (
 	"errors"
 )
 
-const Version = "1.5"
+const Version = "1.6"
 
 const (
 	CodeUnknownCommand = "unknown_command"
@@ -17,7 +19,6 @@ const (
 	CodeIllegalState   = "illegal_state"
 	CodeIllegalAction  = "illegal_action"
 	CodeEmptyHistory   = "empty_history"
-	CodeAlreadyActed   = "already_acted"
 )
 
 // The board decodes the payload behind the contract, so this sentinel tells

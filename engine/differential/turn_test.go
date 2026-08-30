@@ -7,7 +7,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
-	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 func init() {
@@ -15,15 +14,15 @@ func init() {
 }
 
 type actInput struct {
-	Decision protocol.Decision `json:"decision"`
-	Outcomes []string          `json:"outcomes"`
+	Decision battle.Decision `json:"decision"`
+	Outcomes []string        `json:"outcomes"`
 }
 
 type actAnswer struct {
-	Turn    int              `json:"turn"`
-	Phase   protocol.Faction `json:"phase"`
-	Pending []string         `json:"pending"`
-	Units   []protocol.Unit  `json:"units"`
+	Turn    int            `json:"turn"`
+	Phase   battle.Faction `json:"phase"`
+	Pending []string       `json:"pending"`
+	Units   []battle.Unit  `json:"units"`
 }
 
 // The two turn-cycle cases are hand-derived; no oracle wrote them.

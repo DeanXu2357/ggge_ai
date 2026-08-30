@@ -1,7 +1,7 @@
 """The battle engine contract in Python (spec: docs/spec/battle-engine-protocol.md).
 
-The Go package 'engine/protocol' holds the same names. A change here needs the
-same change there.
+The Go packages 'engine/protocol' and 'engine/battle' hold the same names. A
+change here needs the same change there.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-PROTOCOL_VERSION = "1.5"
+PROTOCOL_VERSION = "1.6"
 
 DECLARED_COMMANDS: tuple[str, ...] = (
     "hello",
@@ -92,7 +92,6 @@ class ErrorCode(StrEnum):
     ILLEGAL_STATE = "illegal_state"
     ILLEGAL_ACTION = "illegal_action"
     EMPTY_HISTORY = "empty_history"
-    ALREADY_ACTED = "already_acted"
 
 
 class Guarantee(StrEnum):

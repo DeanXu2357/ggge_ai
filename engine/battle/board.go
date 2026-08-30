@@ -1,18 +1,16 @@
 package battle
 
-import "github.com/DeanXu2357/ggge_ai/engine/protocol"
-
 type BoardReader interface {
-	Actions(unitID string) (protocol.ActionsResponse, error)
-	ReachableCells(unitID string) ([]protocol.Cell, error)
-	ResponseAttacks(action *protocol.Decision, defenderID string) (protocol.ResponseAttacksResponse, error)
+	Actions(unitID string) (ActionsResponse, error)
+	ReachableCells(unitID string) ([]Cell, error)
+	ResponseAttacks(action *Decision, defenderID string) (ResponseAttacksResponse, error)
 	Clone() Board
-	State() protocol.BattleState
-	Summary() protocol.BoardSummary
+	State() BattleState
+	Summary() BoardSummary
 }
 
 type BoardResolver interface {
-	Act(action *protocol.Decision, dice Dice) ([]any, error)
+	Act(action *Decision, dice Dice) ([]any, error)
 }
 
 type Board interface {

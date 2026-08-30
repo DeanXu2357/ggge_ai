@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -36,7 +37,7 @@ func TestReachAnswersTheCellsOfTheLoadedBoard(t *testing.T) {
 	if err := json.Unmarshal(replies[1].Payload, &payload); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
-	want := []protocol.Cell{
+	want := []battle.Cell{
 		{0, 2},
 		{1, 1}, {1, 2}, {1, 3},
 		{2, 0}, {2, 1}, {2, 2},
@@ -65,7 +66,7 @@ func TestReachAnswersTheAnchorsThatHoldTheWholeFootprint(t *testing.T) {
 	if err := json.Unmarshal(replies[1].Payload, &payload); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
-	want := []protocol.Cell{{0, 0}, {0, 1}}
+	want := []battle.Cell{{0, 0}, {0, 1}}
 	if !reflect.DeepEqual(payload.Cells, want) {
 		t.Fatalf("cells: %v", payload.Cells)
 	}

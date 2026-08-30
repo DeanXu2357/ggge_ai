@@ -3,8 +3,8 @@ package board
 import (
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
-	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 func TestACellTakesTheTerrainOfTheBoardOrItsOwn(t *testing.T) {
@@ -67,10 +67,10 @@ func TestAPayloadWithNoTerrainDecodesToNoRestriction(t *testing.T) {
 }
 
 func TestTheDecodeRefusesATerrainOutsideTheContract(t *testing.T) {
-	cases := map[string]func(*protocol.BattleState){
-		"the map": func(wire *protocol.BattleState) { wire.Terrain = "orbit" },
-		"a cell": func(wire *protocol.BattleState) {
-			wire.TerrainCells = []protocol.TerrainCell{{Cell: protocol.Cell{1, 1}, Terrain: "lava"}}
+	cases := map[string]func(*battle.BattleState){
+		"the map": func(wire *battle.BattleState) { wire.Terrain = "orbit" },
+		"a cell": func(wire *battle.BattleState) {
+			wire.TerrainCells = []battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "lava"}}
 		},
 	}
 

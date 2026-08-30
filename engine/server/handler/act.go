@@ -13,7 +13,7 @@ func (c *Commands) Act(id string, payload json.RawMessage) protocol.Response {
 	if fail != nil {
 		return *fail
 	}
-	if (request.Action.Kind == protocol.ActionAttack) != (request.ResponseAttack != nil) {
+	if (request.Action.Kind == battle.ActionAttack) != (request.ResponseAttack != nil) {
 		return protocol.Fail(id, protocol.CodeIllegalAction,
 			"the response attack is necessary for an attack and not permitted for every other kind")
 	}
@@ -51,7 +51,7 @@ func (c *Commands) Act(id string, payload json.RawMessage) protocol.Response {
 	})
 }
 
-func activationOf(request *protocol.ActRequest) (*protocol.Decision, error) {
+func activationOf(request *protocol.ActRequest) (*battle.Decision, error) {
 	if request.Action.UnitID == "" {
 		request.Action.UnitID = request.UnitID
 	}

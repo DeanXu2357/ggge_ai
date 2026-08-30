@@ -1,8 +1,9 @@
 """The state codec: field parity with the Go structs, and the round trip.
 
-The parity check parses the JSON tags of 'engine/protocol/state.go' here, in
-the Python gate: 'engine/state.py' must hold every field that the wire holds,
-and a change on either side must fail this gate.
+The parity check parses the JSON tags of 'engine/battle/snapshot.go' and
+'engine/battle/decision.go' here, in the Python gate: 'engine/state.py' must
+hold every field that the wire holds, and a change on either side must fail
+this gate.
 
 A Go struct can hold a field that the dataclass does not, for a rule that the
 engine alone runs. 'ENGINE_ONLY' names each one, so an undeclared Go field
@@ -34,7 +35,8 @@ from ggge_ai.engine.state import (
     Weapon,
 )
 
-STATE_GO = Path(__file__).resolve().parents[1] / "engine" / "protocol" / "state.go"
+CONTRACT = Path(__file__).resolve().parents[1] / "engine" / "battle"
+STATE_GO = (CONTRACT / "snapshot.go", CONTRACT / "decision.go", CONTRACT.parent / "protocol" / "state.go")
 
 STRUCTS = {
     "Weapon": Weapon,
@@ -75,17 +77,18 @@ TAG = re.compile(r'json:"([^",]+)')
 def _go_structs() -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     name = ""
-    for line in STATE_GO.read_text(encoding="utf-8").splitlines():
-        header = STRUCT.match(line)
-        if header:
-            name = header.group(1)
-            out[name] = []
-        elif line == "}":
-            name = ""
-        elif name:
-            tag = TAG.search(line)
-            if tag:
-                out[name].append(tag.group(1))
+    for path in STATE_GO:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            header = STRUCT.match(line)
+            if header:
+                name = header.group(1)
+                out[name] = []
+            elif line == "}":
+                name = ""
+            elif name:
+                tag = TAG.search(line)
+                if tag:
+                    out[name].append(tag.group(1))
     return out
 
 

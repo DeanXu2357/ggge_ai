@@ -12,7 +12,7 @@ type session struct {
 	board         battle.Board
 	victory       []protocol.Victory
 	events        json.RawMessage
-	deployCells   []protocol.Cell
+	deployCells   []battle.Cell
 	seed          int64
 	draw          *battle.ServerDraw
 	history       []protocol.HistoryEntry

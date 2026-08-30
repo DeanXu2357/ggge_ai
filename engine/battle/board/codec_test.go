@@ -2,10 +2,12 @@ package board
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"reflect"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
@@ -13,42 +15,42 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
-func wireBoard() *protocol.BattleState {
+func wireBoard() *battle.BattleState {
 	kind := "mobility"
 	amount := 3000.0
-	bounds := protocol.Bounds{{0, 0}, {9, 9}}
-	return &protocol.BattleState{
-		Units: []protocol.Unit{
+	bounds := battle.Bounds{{0, 0}, {9, 9}}
+	return &battle.BattleState{
+		Units: []battle.Unit{
 			{
 				UnitID:    "a1",
-				Faction:   protocol.FactionAlly,
-				Pos:       protocol.Cell{2, 3},
-				Size:      protocol.Cell{2, 3},
+				Faction:   battle.FactionAlly,
+				Pos:       battle.Cell{2, 3},
+				Size:      battle.Cell{2, 3},
 				HP:        8200,
 				MaxHP:     9000,
 				EN:        120,
 				ENMax:     180,
 				HasShield: true,
 				Acted:     true,
-				Skills: []protocol.Skill{{
+				Skills: []battle.Skill{{
 					Kind:            "skill_heal",
-					Source:          protocol.SourceMech,
+					Source:          battle.SourceMech,
 					Amount:          &amount,
 					Uses:            2,
 					EndsActivation:  true,
 					UsableAfterMove: true,
 					RangeMax:        1,
 					Blast:           1,
-					Affects:         protocol.AffectsAlly,
+					Affects:         battle.AffectsAlly,
 				}},
 				SP:    30,
 				SPMax: 45,
-				Pilot: protocol.Pilot{
+				Pilot: battle.Pilot{
 					Ranged: 220, Melee: 180, Awaken: 240, Defense: 190, Reaction: 205, SP: 45,
 				},
-				Mech: protocol.Mech{
+				Mech: battle.Mech{
 					HP: 9000, EN: 180, Attack: 4100, Defense: 3900, Mobility: 310, MoveRange: 4,
-					Weapons: []protocol.Weapon{{
+					Weapons: []battle.Weapon{{
 						Name:            "rifle",
 						Power:           2400,
 						RangeMin:        1,
@@ -67,17 +69,17 @@ func wireBoard() *protocol.BattleState {
 				SupportAttackCharges:    2,
 				SupportDefendWhenAttack: true,
 				Ammo:                    map[string]int{"missile": 3},
-				Debuffs:                 []protocol.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
+				Debuffs:                 []battle.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
 			},
 			{
 				UnitID:  "e1",
-				Faction: protocol.FactionEnemy,
-				Pos:     protocol.Cell{7, 7},
-				Size:    protocol.Cell{1, 1},
+				Faction: battle.FactionEnemy,
+				Pos:     battle.Cell{7, 7},
+				Size:    battle.Cell{1, 1},
 				HP:      5000,
 			},
 		},
-		Phase:         protocol.FactionAlly,
+		Phase:         battle.FactionAlly,
 		Turn:          3,
 		Bounds:        &bounds,
 		PendingEvents: []string{"reinforcement"},
@@ -177,14 +179,14 @@ func TestAWeaponCategoryOutsideTheContractStopsTheDecode(t *testing.T) {
 func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 	request := protocol.InitRequest{
 		Board: protocol.Board{Width: 6, Height: 5},
-		Enemies: []protocol.Unit{
-			{UnitID: "e1", Faction: protocol.FactionEnemy, Pos: protocol.Cell{1, 1}, HP: 10,
-				Pilot: protocol.Pilot{SP: 60},
-				Mech:  protocol.Mech{HP: 9000, EN: 180}},
-			{UnitID: "e2", Faction: protocol.FactionEnemy, Pos: protocol.Cell{2, 1}, HP: 10,
+		Enemies: []battle.Unit{
+			{UnitID: "e1", Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, HP: 10,
+				Pilot: battle.Pilot{SP: 60},
+				Mech:  battle.Mech{HP: 9000, EN: 180}},
+			{UnitID: "e2", Faction: battle.FactionEnemy, Pos: battle.Cell{2, 1}, HP: 10,
 				MaxHP: 7000, ENMax: 20, SPMax: 5,
-				Pilot: protocol.Pilot{SP: 60},
-				Mech:  protocol.Mech{HP: 9000, EN: 180}},
+				Pilot: battle.Pilot{SP: 60},
+				Mech:  battle.Mech{HP: 9000, EN: 180}},
 		},
 	}
 
@@ -218,10 +220,10 @@ func TestTheModelSharesNoMemoryWithTheWireState(t *testing.T) {
 }
 
 func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
-	wire := &protocol.BattleState{
-		Bounds: &protocol.Bounds{{0, 0}, {4, 4}},
-		Phase:  protocol.FactionAlly,
-		Units:  []protocol.Unit{{UnitID: "a1", Faction: protocol.FactionAlly, HP: 1}},
+	wire := &battle.BattleState{
+		Bounds: &battle.Bounds{{0, 0}, {4, 4}},
+		Phase:  battle.FactionAlly,
+		Units:  []battle.Unit{{UnitID: "a1", Faction: battle.FactionAlly, HP: 1}},
 	}
 
 	board, err := DecodeState(wire)
@@ -235,39 +237,39 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 }
 
 func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
-	square := protocol.Bounds{{0, 0}, {4, 4}}
-	ally := protocol.FactionAlly
-	cases := map[string]*protocol.BattleState{
+	square := battle.Bounds{{0, 0}, {4, 4}}
+	ally := battle.FactionAlly
+	cases := map[string]*battle.BattleState{
 		"no state":  nil,
-		"no bounds": {Phase: ally, Units: []protocol.Unit{{UnitID: "a1", Faction: ally}}},
+		"no bounds": {Phase: ally, Units: []battle.Unit{{UnitID: "a1", Faction: ally}}},
 		"no phase": {
 			Bounds: &square,
-			Units:  []protocol.Unit{{UnitID: "a1", Faction: ally}},
+			Units:  []battle.Unit{{UnitID: "a1", Faction: ally}},
 		},
 		"an unknown faction": {
 			Bounds: &square,
 			Phase:  ally,
-			Units:  []protocol.Unit{{UnitID: "a1", Faction: protocol.Faction("pirate")}},
+			Units:  []battle.Unit{{UnitID: "a1", Faction: battle.Faction("pirate")}},
 		},
 		"two units with one id": {
 			Bounds: &square,
 			Phase:  ally,
-			Units: []protocol.Unit{
+			Units: []battle.Unit{
 				{UnitID: "a1", Faction: ally},
-				{UnitID: "a1", Faction: protocol.FactionEnemy},
+				{UnitID: "a1", Faction: battle.FactionEnemy},
 			},
 		},
 		"a size below zero": {
 			Bounds: &square,
 			Phase:  ally,
-			Units: []protocol.Unit{{
+			Units: []battle.Unit{{
 				UnitID:  "a1",
 				Faction: ally,
-				Size:    protocol.Cell{-1, 2},
+				Size:    battle.Cell{-1, 2},
 			}},
 		},
 		"bounds that run backward": {
-			Bounds: &protocol.Bounds{{4, 4}, {0, 0}},
+			Bounds: &battle.Bounds{{4, 4}, {0, 0}},
 			Phase:  ally,
 		},
 	}
@@ -340,11 +342,11 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 
 	out := encodeActions(unit, []state.Cell{{2, 3}, {2, 4}})
 
-	if out.Unit.Pos != (protocol.Cell{2, 3}) || out.Unit.Size != (protocol.Cell{2, 1}) ||
-		out.Unit.Faction != protocol.FactionAlly || out.Unit.MaxHP != 1000 {
+	if out.Unit.Pos != (battle.Cell{2, 3}) || out.Unit.Size != (battle.Cell{2, 1}) ||
+		out.Unit.Faction != battle.FactionAlly || out.Unit.MaxHP != 1000 {
 		t.Fatalf("status: %+v", out.Unit)
 	}
-	if len(out.MoveCells) != 2 || out.MoveCells[1] != (protocol.Cell{2, 4}) {
+	if len(out.MoveCells) != 2 || out.MoveCells[1] != (battle.Cell{2, 4}) {
 		t.Fatalf("cells: %+v", out.MoveCells)
 	}
 	if out.Weapons[0].RangeMax != 3 || out.Weapons[0].Ammo != nil {
@@ -355,25 +357,22 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	}
 	if out.Skills[0].Kind != "skill_heal" || *out.Skills[0].Amount != amount ||
 		out.Skills[0].Uses != 2 || out.Skills[0].Blast != 1 ||
-		out.Skills[0].Affects != protocol.AffectsAlly {
+		out.Skills[0].Affects != battle.AffectsAlly {
 		t.Fatalf("skill: %+v", out.Skills[0])
-	}
-	if out.Error != nil {
-		t.Fatalf("a unit that has not acted carries no error: %+v", out.Error)
-	}
-}
-
-func TestTheActionsPayloadOfAnActedUnitCarriesTheState(t *testing.T) {
-	unit := &state.Unit{ID: "a1", Faction: state.FactionAlly, HP: 100, Acted: true,
-		Mech: &def.Mech{}}
-
-	out := encodeActions(unit, nil)
-
-	if out.Error == nil || out.Error.Code != protocol.CodeAlreadyActed {
-		t.Fatalf("error: %+v", out.Error)
 	}
 	if out.Weapons == nil || out.Skills == nil || out.MoveCells == nil {
 		t.Fatalf("an empty list is a list, not a null: %+v", out)
+	}
+}
+
+func TestTheActionsOfAnActedUnitAreARefusal(t *testing.T) {
+	b := board(unitAt("a1", state.FactionAlly, state.Cell{0, 0}))
+	b.state.Units[0].Acted = true
+
+	_, err := b.Actions("a1")
+
+	if !errors.Is(err, battle.ErrActed) {
+		t.Fatalf("error: %v", err)
 	}
 }
 
@@ -409,7 +408,7 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	if encoded.Defender.UnitID != "d1" || encoded.Attacker.UnitID != "e1" {
 		t.Fatalf("sides: %+v", encoded)
 	}
-	if encoded.Defender.ResponseAttacks[0].Stance != protocol.StanceDodge ||
+	if encoded.Defender.ResponseAttacks[0].Stance != battle.StanceDodge ||
 		encoded.Defender.ResponseAttacks[0].Weapon != nil ||
 		encoded.Defender.ResponseAttacks[0].Counter != nil {
 		t.Fatalf("dodge: %+v", encoded.Defender.ResponseAttacks[0])
@@ -419,7 +418,7 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 		t.Fatalf("a counter carries the forecast of its own strike: %+v",
 			encoded.Defender.ResponseAttacks[1])
 	}
-	if encoded.Defender.ResponseAttacks[2].Stance != protocol.StanceNone {
+	if encoded.Defender.ResponseAttacks[2].Stance != battle.StanceNone {
 		t.Fatalf("the stand: %+v", encoded.Defender.ResponseAttacks[2])
 	}
 	if encoded.Defender.SupportDefenders[0].UnitID != "h1" ||
@@ -452,12 +451,12 @@ func TestTheEncodedForecastCarriesEveryNumberItHolds(t *testing.T) {
 }
 
 func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
-	moveTo := protocol.Cell{4, 5}
+	moveTo := battle.Cell{4, 5}
 	name := "rifle"
 	target := "e1"
 
-	action, err := decodeDecision(&protocol.Decision{
-		UnitID: "a1", Kind: protocol.ActionAttack, MoveTo: &moveTo,
+	action, err := decodeDecision(&battle.Decision{
+		UnitID: "a1", Kind: battle.ActionAttack, MoveTo: &moveTo,
 		TargetID: &target, Weapon: &name,
 	})
 
@@ -468,7 +467,7 @@ func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
 		action.Weapon != "rifle" || action.TargetID != "e1" {
 		t.Fatalf("action: %+v", action)
 	}
-	lean, err := decodeDecision(&protocol.Decision{UnitID: "a1", Kind: protocol.ActionStandby})
+	lean, err := decodeDecision(&battle.Decision{UnitID: "a1", Kind: battle.ActionStandby})
 	if err != nil || lean.MoveTo != nil || lean.Weapon != "" {
 		t.Fatalf("a field with no value stays empty: %+v, %v", lean, err)
 	}
@@ -503,7 +502,7 @@ func decodeFixtureState(t *testing.T) *Board {
 	}
 	var fixture struct {
 		Setup struct {
-			State protocol.BattleState
+			State battle.BattleState
 		}
 	}
 	if err := json.Unmarshal(raw, &fixture); err != nil {
@@ -518,8 +517,8 @@ func decodeFixtureState(t *testing.T) *Board {
 
 func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	request := protocol.InitRequest{
-		Board:   protocol.Board{Width: 6, Height: 5, Terrain: "ground", TerrainCells: []protocol.TerrainCell{{Cell: protocol.Cell{1, 1}, Terrain: "space"}}},
-		Enemies: []protocol.Unit{{UnitID: "e1", Faction: protocol.FactionEnemy, Pos: protocol.Cell{4, 4}, HP: 10}},
+		Board:   protocol.Board{Width: 6, Height: 5, Terrain: "ground", TerrainCells: []battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "space"}}},
+		Enemies: []battle.Unit{{UnitID: "e1", Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, HP: 10}},
 		Seed:    9,
 	}
 
@@ -555,14 +554,14 @@ func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
 		request protocol.InitRequest
 	}{
 		{"a unit of 'enemies' that is no enemy", protocol.InitRequest{Board: board,
-			Enemies: []protocol.Unit{{UnitID: "x1", Faction: protocol.FactionAlly,
-				Pos: protocol.Cell{1, 1}, HP: 10}}}},
+			Enemies: []battle.Unit{{UnitID: "x1", Faction: battle.FactionAlly,
+				Pos: battle.Cell{1, 1}, HP: 10}}}},
 		{"a footprint outside the bounds", protocol.InitRequest{Board: board,
-			Enemies: []protocol.Unit{{UnitID: "x1", Faction: protocol.FactionEnemy,
-				Pos: protocol.Cell{2, 2}, Size: protocol.Cell{2, 2}, HP: 10}}}},
+			Enemies: []battle.Unit{{UnitID: "x1", Faction: battle.FactionEnemy,
+				Pos: battle.Cell{2, 2}, Size: battle.Cell{2, 2}, HP: 10}}}},
 		{"a terrain cell outside the bounds", protocol.InitRequest{
 			Board: protocol.Board{Width: 3, Height: 3,
-				TerrainCells: []protocol.TerrainCell{{Cell: protocol.Cell{9, 9}, Terrain: "space"}}}}},
+				TerrainCells: []battle.TerrainCell{{Cell: battle.Cell{9, 9}, Terrain: "space"}}}}},
 	}
 
 	for _, one := range cases {
@@ -599,8 +598,8 @@ func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
 		Rotations: []turn.Rotation{{Turn: 1, Phase: state.FactionEnemy}},
 	})
 	want := []any{
-		protocol.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true},
-		protocol.PhaseEvent{Event: "phase", Turn: 1, Phase: protocol.FactionEnemy},
+		battle.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true},
+		battle.PhaseEvent{Event: "phase", Turn: 1, Phase: battle.FactionEnemy},
 	}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events: %+v", events)
@@ -619,7 +618,7 @@ func TestTheSummaryNamesThePendingUnitsAndTheGoneSides(t *testing.T) {
 	if summary.Turn != board.state.Turn || summary.Phase != wireFactions[board.state.Phase] {
 		t.Fatalf("summary: %+v", summary)
 	}
-	if !reflect.DeepEqual(summary.Gone, []protocol.Faction{protocol.FactionEnemy}) {
+	if !reflect.DeepEqual(summary.Gone, []battle.Faction{battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", summary.Gone)
 	}
 	if len(summary.Pending) == 0 {

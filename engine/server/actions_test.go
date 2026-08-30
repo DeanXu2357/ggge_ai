@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -21,12 +22,12 @@ const candidateLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
-func actionsOf(t *testing.T, reply reply) protocol.ActionsResponse {
+func actionsOf(t *testing.T, reply reply) battle.ActionsResponse {
 	t.Helper()
 	if !reply.OK {
 		t.Fatalf("actions: %+v", reply)
 	}
-	var payload protocol.ActionsResponse
+	var payload battle.ActionsResponse
 	if err := json.Unmarshal(reply.Payload, &payload); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
@@ -46,11 +47,11 @@ func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
 
 	payload := actionsOf(t, replies[1])
-	if payload.Unit.UnitID != "a1" || payload.Unit.Pos != (protocol.Cell{1, 1}) ||
+	if payload.Unit.UnitID != "a1" || payload.Unit.Pos != (battle.Cell{1, 1}) ||
 		payload.Unit.Acted {
 		t.Fatalf("status: %+v", payload.Unit)
 	}
-	if len(payload.MoveCells) != 1 || payload.MoveCells[0] != (protocol.Cell{1, 1}) {
+	if len(payload.MoveCells) != 1 || payload.MoveCells[0] != (battle.Cell{1, 1}) {
 		t.Fatalf("a unit with no move range holds its own cell: %+v", payload.MoveCells)
 	}
 	if len(payload.Weapons) != 2 || payload.Weapons[0].Name != "rifle" ||
@@ -62,9 +63,6 @@ func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 	}
 	if payload.Weapons[1].Ammo == nil || *payload.Weapons[1].Ammo != 1 {
 		t.Fatalf("shells: %+v", payload.Weapons[1])
-	}
-	if payload.Error != nil {
-		t.Fatalf("error: %+v", payload.Error)
 	}
 }
 
@@ -102,18 +100,12 @@ func TestActionsOutsideThePhaseIsAnIllegalState(t *testing.T) {
 	}
 }
 
-func TestActionsOfAnActedUnitAnswersWithTheStateInThePayload(t *testing.T) {
+func TestActionsOfAnActedUnitIsAnIllegalState(t *testing.T) {
 	replies := serve(t, New(), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a2"}}`)
 
-	payload := actionsOf(t, replies[1])
-
-	if !payload.Unit.Acted || payload.Error == nil ||
-		payload.Error.Code != protocol.CodeAlreadyActed {
-		t.Fatalf("unit 'a2' acted: %+v", payload)
-	}
-	if len(payload.MoveCells) == 0 {
-		t.Fatalf("the payload of an acted unit stays whole: %+v", payload)
+	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalState {
+		t.Fatalf("unit 'a2' acted: %+v", replies[1])
 	}
 }
 
@@ -127,12 +119,12 @@ func TestResponseAttacksWithNoBoardIsRefused(t *testing.T) {
 	}
 }
 
-func engagementOf(t *testing.T, reply reply) protocol.ResponseAttacksResponse {
+func engagementOf(t *testing.T, reply reply) battle.ResponseAttacksResponse {
 	t.Helper()
 	if !reply.OK {
 		t.Fatalf("response attacks: %+v", reply)
 	}
-	var payload protocol.ResponseAttacksResponse
+	var payload battle.ResponseAttacksResponse
 	if err := json.Unmarshal(reply.Payload, &payload); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
@@ -150,8 +142,8 @@ func TestResponseAttacksAnswersTheOptionsOfTheDefender(t *testing.T) {
 	if payload.Defender.UnitID != "e1" || payload.Attacker.UnitID != "a1" {
 		t.Fatalf("sides: %+v", payload)
 	}
-	want := []protocol.Stance{protocol.StanceDodge, protocol.StanceDefend,
-		protocol.StanceCounter, protocol.StanceNone}
+	want := []battle.Stance{battle.StanceDodge, battle.StanceDefend,
+		battle.StanceCounter, battle.StanceNone}
 	if len(payload.Defender.ResponseAttacks) != len(want) {
 		t.Fatalf("response attacks: %+v", payload.Defender.ResponseAttacks)
 	}

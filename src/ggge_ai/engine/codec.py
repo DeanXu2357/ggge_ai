@@ -1,7 +1,7 @@
 """The wire form of the battle state (spec: docs/spec/battle-engine-protocol.md).
 
 'ggge_ai/engine/state.py' holds the Python structs and the Go package
-'engine/protocol' holds the same ones. 'tests/test_engine_codec.py' compares
+'engine/battle' holds the same ones. 'tests/test_engine_codec.py' compares
 the two field lists.
 
 Rules of the wire form:

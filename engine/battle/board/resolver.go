@@ -4,7 +4,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
-	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 type resolution struct {
@@ -12,7 +11,7 @@ type resolution struct {
 	Rotations []turn.Rotation
 }
 
-func (b *Board) Act(action *protocol.Decision, dice battle.Dice) ([]any, error) {
+func (b *Board) Act(action *battle.Decision, dice battle.Dice) ([]any, error) {
 	decision, err := decodeDecision(action)
 	if err != nil {
 		return nil, err

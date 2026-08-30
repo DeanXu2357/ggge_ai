@@ -42,7 +42,7 @@ func (a answer) dodging() bool {
 // Every rule is judged before the first change of the board, so a refused
 // pick leaves the board as it was.
 func Prepare(board *state.Board, decision Decision) (Plan, error) {
-	actor, err := activatable(board, decision.UnitID)
+	actor, err := Activatable(board, decision.UnitID)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -111,9 +111,7 @@ func prepareAttack(board *state.Board, actor *state.Unit, decision Decision) (Pl
 	}, nil
 }
 
-// The command 'act' reads this gate; the reporting commands do not, because
-// a report of a unit that acted is still the answer to the question.
-func activatable(board *state.Board, unitID string) (*state.Unit, error) {
+func Activatable(board *state.Board, unitID string) (*state.Unit, error) {
 	unit, err := LivingUnit(board, unitID)
 	if err != nil {
 		return nil, err
