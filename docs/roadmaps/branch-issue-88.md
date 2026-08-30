@@ -237,7 +237,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | Commit | What |
 |---|---|
 | 2015ab0, c7dbd1a | The design and the ledger entries of the 0830 rulings |
-| c27751f | 'engine/battle/def' and 'engine/battle/state'; the board decodes into them ('def_codec.go' for the definitions) |
+| c27751f | 'engine/battle/def' and 'engine/battle/state'; the board decodes into them, the definitions included |
 | 077f5d1 | 'engine/battle/geometry'; the board reads it |
 | 1e2fa3a | The state clone test: definitions shared, state copied |
 | 373a69d | 'engine/battle/engagement' ('Prepare', 'Commit', 'Menu', the decision and result types), 'engine/battle/turn' ('Advance', 'PhaseIndex', 'Pending', 'Gone'), 'engine/battle/deploy' ('Assemble'); the board still drove the old flow |
@@ -260,8 +260,13 @@ D. Spec process model, terminology map, ledger, the artifact.
                               support.go (53), forecast.go, results.go
     engine/battle/turn        turn.go (118)
     engine/battle/deploy      deploy.go (20)
-    engine/battle/board       board.go (139), codec.go, def_codec.go,
-                              actions.go, clone.go
+    engine/battle/board       board.go (the state and its readers),
+                              reader.go ('BoardReader'),
+                              resolver.go ('BoardResolver'), codec.go
+                              (the wire conversions); the tests:
+                              reader_test.go, codec_test.go,
+                              geometry_test.go, terrain_test.go,
+                              terrain_names_test.go, turn_test.go
     engine/server/handler     act.go
     engine/protocol           state.go, types.go, envelope.go (1.5)
     src/ggge_ai/engine        state.py, codec.py, contract.py (1.5)
