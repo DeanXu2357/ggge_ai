@@ -11,6 +11,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
+from .contract import PROTOCOL_VERSION
+
 READ_CHUNK = 65536
 
 
@@ -25,6 +27,10 @@ class EngineError(RuntimeError):
 
 class EngineDead(RuntimeError):
     """The engine process is gone, or its stream is out of step."""
+
+
+class EngineProtocolMismatch(EngineDead):
+    """The engine speaks another version of the protocol."""
 
 
 class EngineTimeout(RuntimeError):
@@ -109,7 +115,14 @@ class BattleEngine:
         return response.get("payload") or {}
 
     def hello(self) -> dict[str, Any]:
-        return self.call("hello")
+        answer = self.call("hello")
+        spoken = str(answer.get("protocol", ""))
+        if spoken != PROTOCOL_VERSION:
+            raise EngineProtocolMismatch(
+                f"the engine speaks the protocol {spoken!r}, "
+                f"and this client speaks {PROTOCOL_VERSION!r}"
+            )
+        return answer
 
     def ping(self) -> dict[str, Any]:
         return self.call("ping")
