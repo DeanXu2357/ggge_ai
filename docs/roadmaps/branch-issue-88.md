@@ -266,6 +266,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | ef77841 | The state and definition packages deleted; the systems and the shell work on the contract types ('helpers.go' holds the value helpers); the codec keeps validation, init assembly and the response projections (762 to 350 lines); 'reachableCells' inlined; the test-only helpers 'terrainAt'/'terrainOf'/'unit' gone |
 | b716a32 | The contract types moved from 'engine/protocol' to 'engine/battle' ('decision.go', 'snapshot.go', 'responses.go'); 'actions' refuses an acted unit, protocol 1.6 |
 | 15de5e6, f317328 | The board files sorted by contract role ('reader.go', 'resolver.go', 'codec.go' with the definition codec merged, 'board.go' the state) after a user finding at review; the dead map 'wireKinds' dropped |
+| 507fb40 | The mirror 'engagement.Decision', 'engagement.Response' and their enums removed: the engagement speaks 'battle.Decision', the board loses the decode layer, 'Act' and 'ResponseAttacks' pass the payload through (a user finding at review) |
 | 9dcce91, 2732e7e | The terminology drift of 178dec3 (the joined unit/mech row, two paths, the forecast row, the row 'salvo'), the spec import sentence, this artifact |
 
     engine/battle             board.go (the three interfaces),
@@ -275,7 +276,8 @@ D. Spec process model, terminology map, ledger, the artifact.
                               the wire types, Terrain, WeaponCategory,
                               Footprint, Clone; dice.go, errors.go
     engine/battle/geometry    geometry.go (142)
-    engine/battle/engagement  model.go (Decision, Response, Plan),
+    engine/battle/engagement  model.go (the shared predicates,
+                              'nameOf'),
                               prepare.go (261), commit.go (186),
                               menu.go (105), strike.go (98),
                               support.go (52), forecast.go, results.go
@@ -302,7 +304,6 @@ D. Spec process model, terminology map, ledger, the artifact.
       handler.Commands.Act
         target = session board (a clone only when the dice are forced)
         board.Act(decision, dice)                       the shell
-          DecodeDecision -> engagement.Decision
           engagement.Prepare(state, decision)           reads only
             actor: exists, alive, of the phase, not acted
             kind: attack | reposition | standby (map_attack refused)
@@ -350,7 +351,8 @@ D. Spec process model, terminology map, ledger, the artifact.
 - Test names: 187 on dev, 187 after stage B (none lost, none
   gained), plus the atomicity test and the state clone test after;
   two names changed with their subject when the counter permission
-  left ('...NeedsTheReachAndTheEnergy').
+  left ('...NeedsTheReachAndTheEnergy'). The codec decode test died with
+  'decodeDecision' at review round 3 (contention point 14).
 - The write grep: every assignment to a 'battle.Unit' or
   'battle.BattleState' field outside tests sits in
   engagement/commit.go, turn/turn.go, board/board.go ('NewBoard',
@@ -399,8 +401,8 @@ D. Spec process model, terminology map, ledger, the artifact.
 6. **The exit point** is the user's: the attacker's sequence runs
    whole; the defender's reply needs the defender alive; the counter
    needs the attacker alive. The goldens encode all three.
-7. **'Decision' keeps 'Amount' and 'Aim'** (skills, map attack)
-   although no rule reads them yet (#81).
+7. **'Prepare' ignores 'Amount', 'Aim' and the dice fields** of the
+   decision (skills, map attack) because no rule reads them yet (#81).
 8. **'Menu' now refuses what 'act' refuses** (a review fix, a
    behaviour change no golden covers): an off-phase or acted
    attacker, a map weapon, an unpaid weapon, an unreachable
@@ -470,6 +472,22 @@ D. Spec process model, terminology map, ledger, the artifact.
     'Skill.Reaches' were written and then removed: no formula reads
     terrain yet (issue 80) and no rule reads a skill range.
     'validate' is private; nothing outside the codec calls it.
+
+14. **The engagement speaks 'battle.Decision'** (a user finding at
+    review: 'engagement.Decision', 'engagement.Response' and their
+    enums mirrored the contract field by field, and the board
+    translated on every call). The mirror types, 'decodeDecision',
+    'decodeResponseAttack' and the three enum maps are gone; 'Act'
+    and 'ResponseAttacks' pass the payload through, and the
+    engagement reads the optional pointer fields through 'nameOf'.
+    The codec's two 'ErrOutsideContract' refusals (an unknown kind,
+    an unknown stance) fold into the engagement, which answers
+    'battle.ErrIllegalAction' from 'Prepare' and from 'answerOf'.
+    The wire reaches neither path: the JSON decode of the enums
+    refuses first, and no golden changed. The codec test
+    'TestTheDecodedActionCarriesTheFieldsOfTheEngagement' died with
+    its subject; the standby and reposition tests of 'Prepare' keep
+    the tolerance of absent optional fields covered.
 
 ## Deferred
 
