@@ -5,14 +5,10 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 )
 
-func encodeCells(cells []battle.Cell) []battle.Cell {
-	return append(make([]battle.Cell, 0, len(cells)), cells...)
-}
-
 func encodeActions(unit *battle.Unit, moveCells []battle.Cell) battle.ActionsResponse {
 	return battle.ActionsResponse{
 		Unit:      encodeUnitStatus(unit),
-		MoveCells: encodeCells(moveCells),
+		MoveCells: moveCells,
 		Weapons:   encodeWeapons(unit),
 		Skills:    encodeSkills(unit.Skills),
 	}

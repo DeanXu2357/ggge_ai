@@ -20,7 +20,7 @@ func (b *Board) ReachableCells(unitID string) ([]battle.Cell, error) {
 	if err != nil {
 		return nil, err
 	}
-	return encodeCells(geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit))), nil
+	return geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit)), nil
 }
 
 func (b *Board) ResponseAttacks(action *battle.Decision, defenderID string) (battle.ResponseAttacksResponse, error) {
