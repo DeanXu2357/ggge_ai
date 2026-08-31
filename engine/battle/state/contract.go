@@ -1,0 +1,268 @@
+package state
+
+import (
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+)
+
+func FromContract(s battle.BattleState) Battle {
+	s = s.Clone()
+	out := Battle{
+		Units:        make([]Unit, len(s.Units)),
+		Phase:        s.Phase,
+		Turn:         s.Turn,
+		Terrain:      s.Terrain,
+		TerrainCells: s.TerrainCells,
+	}
+	if s.Bounds != nil {
+		out.Bounds = *s.Bounds
+	}
+	for index := range s.Units {
+		out.Units[index] = fromContractUnit(s.Units[index])
+	}
+	return out
+}
+
+func (b *Battle) ToContract() battle.BattleState {
+	bounds := b.Bounds
+	out := battle.BattleState{
+		Units:        make([]battle.Unit, len(b.Units)),
+		Phase:        b.Phase,
+		Turn:         b.Turn,
+		Bounds:       &bounds,
+		Terrain:      b.Terrain,
+		TerrainCells: b.TerrainCells,
+	}
+	for index := range b.Units {
+		out.Units[index] = b.toContractUnit(&b.Units[index])
+	}
+	return out.Clone()
+}
+
+func fromContractUnit(u battle.Unit) Unit {
+	mech, pilot := convertMech(u.Mech), convertPilot(u.Pilot)
+	out := Unit{
+		ID:                      u.ID,
+		Faction:                 u.Faction,
+		Size:                    u.Size,
+		MaxHP:                   u.MaxHP,
+		ENMax:                   u.ENMax,
+		SPMax:                   u.SPMax,
+		ChanceStepsMax:          u.ChanceStepsMax,
+		SupportDefendChargesMax: u.SupportDefendChargesMax,
+		SupportAttackChargesMax: u.SupportAttackChargesMax,
+		HasShield:               u.HasShield,
+		SupportDefendWhenAttack: u.SupportDefendWhenAttack,
+		Value: UnitValue{
+			Pos:                  u.Pos,
+			HP:                   u.HP,
+			EN:                   u.EN,
+			SP:                   u.SP,
+			Acted:                u.Acted,
+			ChanceSteps:          u.ChanceSteps,
+			SupportDefendCharges: u.SupportDefendCharges,
+			SupportAttackCharges: u.SupportAttackCharges,
+			Skills:               convertSlice(u.Skills, convertSkill),
+			Ammo:                 u.Ammo,
+			Debuffs:              u.Debuffs,
+		},
+	}
+	out.Mech, out.Pilot = &mech, &pilot
+	return out
+}
+
+func (b *Battle) toContractUnit(u *Unit) battle.Unit {
+	return battle.Unit{
+		ID:                      u.ID,
+		Faction:                 u.Faction,
+		Pos:                     u.Value.Pos,
+		Size:                    u.Size,
+		HP:                      u.Value.HP,
+		MaxHP:                   u.MaxHP,
+		EN:                      u.Value.EN,
+		ENMax:                   u.ENMax,
+		SP:                      u.Value.SP,
+		SPMax:                   u.SPMax,
+		Pilot:                   exportPilot(u.Pilot),
+		Mech:                    exportMech(u.Mech),
+		Skills:                  convertSlice(u.Value.Skills, exportSkill),
+		Acted:                   u.Value.Acted,
+		ChanceSteps:             u.Value.ChanceSteps,
+		ChanceStepsMax:          u.ChanceStepsMax,
+		SupportDefendCharges:    u.Value.SupportDefendCharges,
+		SupportDefendChargesMax: u.SupportDefendChargesMax,
+		SupportAttackCharges:    u.Value.SupportAttackCharges,
+		SupportAttackChargesMax: u.SupportAttackChargesMax,
+		HasShield:               u.HasShield,
+		SupportDefendWhenAttack: u.SupportDefendWhenAttack,
+		Ammo:                    u.Value.Ammo,
+		Debuffs:                 u.Value.Debuffs,
+	}
+}
+
+func convertMech(m battle.Mech) def.Mech {
+	return def.Mech{
+		HP:         m.HP,
+		EN:         m.EN,
+		Attack:     m.Attack,
+		Defense:    m.Defense,
+		Mobility:   m.Mobility,
+		MoveRange:  m.MoveRange,
+		Weapons:    convertSlice(m.Weapons, convertWeapon),
+		MapWeapons: convertSlice(m.MapWeapons, convertMapWeapon),
+	}
+}
+
+func exportMech(m *def.Mech) battle.Mech {
+	if m == nil {
+		return battle.Mech{}
+	}
+	return battle.Mech{
+		MapWeapons: convertSlice(m.MapWeapons, exportMapWeapon),
+		Weapons:    convertSlice(m.Weapons, exportWeapon),
+		MoveRange:  m.MoveRange,
+		Mobility:   m.Mobility,
+		Defense:    m.Defense,
+		Attack:     m.Attack,
+		EN:         m.EN,
+		HP:         m.HP,
+	}
+}
+
+func convertPilot(p battle.Pilot) def.Pilot {
+	return def.Pilot{
+		Ranged:   p.Ranged,
+		Melee:    p.Melee,
+		Awaken:   p.Awaken,
+		Defense:  p.Defense,
+		Reaction: p.Reaction,
+		SP:       p.SP,
+	}
+}
+
+func exportPilot(p *def.Pilot) battle.Pilot {
+	if p == nil {
+		return battle.Pilot{}
+	}
+	return battle.Pilot{
+		SP:       p.SP,
+		Reaction: p.Reaction,
+		Defense:  p.Defense,
+		Awaken:   p.Awaken,
+		Melee:    p.Melee,
+		Ranged:   p.Ranged,
+	}
+}
+
+func convertWeapon(w battle.Weapon) def.Weapon {
+	return def.Weapon{
+		Name:            w.Name,
+		Power:           w.Power,
+		RangeMin:        w.RangeMin,
+		RangeMax:        w.RangeMax,
+		ENCost:          w.ENCost,
+		Accuracy:        w.Accuracy,
+		UsableAfterMove: w.UsableAfterMove,
+		DebuffKind:      w.DebuffKind,
+		DebuffMagnitude: w.DebuffMagnitude,
+		Categories:      w.Categories,
+	}
+}
+
+func exportWeapon(w def.Weapon) battle.Weapon {
+	return battle.Weapon{
+		Categories:      w.Categories,
+		DebuffMagnitude: w.DebuffMagnitude,
+		DebuffKind:      w.DebuffKind,
+		UsableAfterMove: w.UsableAfterMove,
+		Accuracy:        w.Accuracy,
+		ENCost:          w.ENCost,
+		RangeMax:        w.RangeMax,
+		RangeMin:        w.RangeMin,
+		Power:           w.Power,
+		Name:            w.Name,
+	}
+}
+
+func convertMapWeapon(w battle.MapWeapon) def.MapWeapon {
+	return def.MapWeapon{
+		Name:            w.Name,
+		Power:           w.Power,
+		ApplyShape:      convertShape(w.ApplyShape),
+		EffectShape:     convertShape(w.EffectShape),
+		AmmoMax:         w.AmmoMax,
+		ENCost:          w.ENCost,
+		Accuracy:        w.Accuracy,
+		Affects:         w.Affects,
+		UsableAfterMove: w.UsableAfterMove,
+		DebuffKind:      w.DebuffKind,
+		DebuffMagnitude: w.DebuffMagnitude,
+		Categories:      w.Categories,
+	}
+}
+
+func exportMapWeapon(w def.MapWeapon) battle.MapWeapon {
+	return battle.MapWeapon{
+		Categories:      w.Categories,
+		DebuffMagnitude: w.DebuffMagnitude,
+		DebuffKind:      w.DebuffKind,
+		UsableAfterMove: w.UsableAfterMove,
+		Affects:         w.Affects,
+		Accuracy:        w.Accuracy,
+		ENCost:          w.ENCost,
+		AmmoMax:         w.AmmoMax,
+		EffectShape:     exportShape(w.EffectShape),
+		ApplyShape:      exportShape(w.ApplyShape),
+		Power:           w.Power,
+		Name:            w.Name,
+	}
+}
+
+func convertSkill(s battle.Skill) def.Skill {
+	return def.Skill{
+		Kind:            s.Kind,
+		Source:          s.Source,
+		Amount:          s.Amount,
+		Uses:            s.Uses,
+		EndsActivation:  s.EndsActivation,
+		UsableAfterMove: s.UsableAfterMove,
+		Affects:         s.Affects,
+	}
+}
+
+func exportSkill(s def.Skill) battle.Skill {
+	return battle.Skill{
+		Affects:         s.Affects,
+		UsableAfterMove: s.UsableAfterMove,
+		EndsActivation:  s.EndsActivation,
+		Uses:            s.Uses,
+		Amount:          s.Amount,
+		Source:          s.Source,
+		Kind:            s.Kind,
+	}
+}
+
+func convertShape(s battle.ShapeRange) def.ShapeRange {
+	return def.ShapeRange{
+		Cells:     s.Cells,
+		Direction: s.Direction,
+	}
+}
+
+func exportShape(s def.ShapeRange) battle.ShapeRange {
+	return battle.ShapeRange{
+		Direction: s.Direction,
+		Cells:     s.Cells,
+	}
+}
+
+func convertSlice[In, Out any](in []In, convert func(In) Out) []Out {
+	if in == nil {
+		return nil
+	}
+	out := make([]Out, len(in))
+	for index, item := range in {
+		out[index] = convert(item)
+	}
+	return out
+}
