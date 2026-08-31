@@ -31,12 +31,7 @@ class Weapon:
 
 @dataclass
 class Skill:
-    """The area fields hold no 'self' value of 'affects'.
-
-    A skill that acts on the caster alone is 'range_min' 0, 'range_max' 0,
-    'blast' 0 and 'affects' ally: the area is the cell of the caster, and the
-    caster is an ally in its own cell.
-    """
+    """A skill carries no area. The representation of the area is not decided."""
 
     kind: str
     source: SkillSource = SkillSource.MECH
@@ -44,9 +39,6 @@ class Skill:
     uses: int = 1
     ends_activation: bool = True
     usable_after_move: bool = True
-    range_min: int = 0
-    range_max: int = 0
-    blast: int = 0
     affects: SkillAffects = SkillAffects.ALLY
 
 

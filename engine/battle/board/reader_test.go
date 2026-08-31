@@ -136,7 +136,7 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 			},
 		},
 		Skills: []battle.Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
-			RangeMin: 0, RangeMax: 2, Blast: 1, Affects: battle.AffectsAlly}},
+			Affects: battle.AffectsAlly}},
 		Ammo: map[string]int{"missile": ammo},
 	}
 
@@ -156,8 +156,7 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 		t.Fatalf("missile: %+v", out.Weapons[1])
 	}
 	if out.Skills[0].Kind != "skill_heal" || *out.Skills[0].Amount != amount ||
-		out.Skills[0].Uses != 2 || out.Skills[0].Blast != 1 ||
-		out.Skills[0].Affects != battle.AffectsAlly {
+		out.Skills[0].Uses != 2 || out.Skills[0].Affects != battle.AffectsAlly {
 		t.Fatalf("skill: %+v", out.Skills[0])
 	}
 	if out.Weapons == nil || out.Skills == nil || out.MoveCells == nil {

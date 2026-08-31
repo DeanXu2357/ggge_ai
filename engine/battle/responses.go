@@ -37,9 +37,6 @@ type SkillEntry struct {
 	Uses            int          `json:"uses"`
 	EndsActivation  bool         `json:"ends_activation"`
 	UsableAfterMove bool         `json:"usable_after_move"`
-	RangeMin        int          `json:"range_min"`
-	RangeMax        int          `json:"range_max"`
-	Blast           int          `json:"blast"`
 	Affects         SkillAffects `json:"affects"`
 }
 

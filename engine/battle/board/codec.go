@@ -46,9 +46,6 @@ func encodeSkills(skills []battle.Skill) []battle.SkillEntry {
 			Uses:            skill.Uses,
 			EndsActivation:  skill.EndsActivation,
 			UsableAfterMove: skill.UsableAfterMove,
-			RangeMin:        skill.RangeMin,
-			RangeMax:        skill.RangeMax,
-			Blast:           skill.Blast,
 			Affects:         skill.Affects,
 		})
 	}

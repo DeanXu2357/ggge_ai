@@ -1584,3 +1584,18 @@
   narrows to "a complete snapshot is unchanged"; the bounds check
   judges the load path too; the enemies-only rule lives in the init
   handler.
+- **(0831) A skill carries no area on the wire — user ruling**｜The
+  user removed 'range_min', 'range_max' and 'blast' from the skill
+  types of 'engine/battle'. The reason: the area of a skill is an
+  arbitrary set of cells. It takes any shape, for example the shape
+  of the letters "ILOVEU". A minimum range, a maximum range and a
+  radius cannot express such a shape. The three fields are therefore
+  the wrong description of the area, and not an incomplete one. The
+  fields leave 'battle.Skill' and 'battle.SkillEntry', their Python
+  mirror in 'engine/state.py', both codec sides and the goldens
+  (protocol 1.6 to 1.7). No Go rule read them: they were data on the
+  wire only. The replacement representation is not decided. The 0820
+  entry above states the area as those four fields; that reading ends
+  here, and the filter 'affects' stands alone. A skill that acts on
+  the caster alone still carries 'affects' ally, because the caster
+  is an ally in its own cell (issue #88).

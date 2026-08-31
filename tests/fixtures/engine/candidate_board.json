@@ -113,9 +113,6 @@
               "uses": 2,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
               "affects": "ally"
             },
             {
@@ -125,9 +122,6 @@
               "uses": 1,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
               "affects": "ally"
             },
             {
@@ -137,9 +131,6 @@
               "uses": 0,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
               "affects": "ally"
             }
           ],
@@ -214,9 +205,6 @@
               "uses": 1,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
               "affects": "ally"
             },
             {
@@ -226,9 +214,6 @@
               "uses": 1,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
               "affects": "ally"
             }
           ],
@@ -558,9 +543,6 @@
                 "uses": 2,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
                 "affects": "ally"
               },
               {
@@ -570,9 +552,6 @@
                 "uses": 1,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
                 "affects": "ally"
               },
               {
@@ -582,9 +561,6 @@
                 "uses": 0,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
                 "affects": "ally"
               }
             ],
@@ -659,9 +635,6 @@
                 "uses": 1,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
                 "affects": "ally"
               },
               {
@@ -671,9 +644,6 @@
                 "uses": 1,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
                 "affects": "ally"
               }
             ],

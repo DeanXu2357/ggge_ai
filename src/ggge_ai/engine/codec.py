@@ -78,9 +78,6 @@ def encode_skill(skill: Skill) -> dict[str, Any]:
         "uses": skill.uses,
         "ends_activation": skill.ends_activation,
         "usable_after_move": skill.usable_after_move,
-        "range_min": skill.range_min,
-        "range_max": skill.range_max,
-        "blast": skill.blast,
         "affects": str(skill.affects),
     }
 
@@ -94,9 +91,6 @@ def decode_skill(payload: dict[str, Any]) -> Skill:
         uses=_int(payload, "uses"),
         ends_activation=_bool(payload, "ends_activation"),
         usable_after_move=_bool(payload, "usable_after_move"),
-        range_min=_int(payload, "range_min"),
-        range_max=_int(payload, "range_max"),
-        blast=_int(payload, "blast"),
         affects=_skill_affects(payload.get("affects")),
     )
 

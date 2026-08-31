@@ -60,8 +60,6 @@ func wireBoard() *battle.BattleState {
 					Uses:            2,
 					EndsActivation:  true,
 					UsableAfterMove: true,
-					RangeMax:        1,
-					Blast:           1,
 					Affects:         battle.AffectsAlly,
 				}},
 				SP:    30,

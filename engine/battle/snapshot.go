@@ -33,9 +33,6 @@ const (
 	SourceMech  SkillSource = "mech"
 )
 
-// SkillAffects holds no 'self' value. A skill that acts on the caster alone
-// carries a range of zero, a blast of zero and the value ally: the area is the
-// cell of the caster, and the caster is an ally in its own cell.
 type SkillAffects string
 
 const (
@@ -107,9 +104,6 @@ type Skill struct {
 	Uses            int          `json:"uses"`
 	EndsActivation  bool         `json:"ends_activation"`
 	UsableAfterMove bool         `json:"usable_after_move"`
-	RangeMin        int          `json:"range_min"`
-	RangeMax        int          `json:"range_max"`
-	Blast           int          `json:"blast"`
 	Affects         SkillAffects `json:"affects"`
 }
 

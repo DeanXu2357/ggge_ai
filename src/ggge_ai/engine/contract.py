@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-PROTOCOL_VERSION = "1.6"
+PROTOCOL_VERSION = "1.7"
 
 DECLARED_COMMANDS: tuple[str, ...] = (
     "hello",
@@ -49,8 +49,7 @@ class SkillSource(StrEnum):
 
 
 class SkillAffects(StrEnum):
-    """A skill that acts on the caster alone carries the value ally: its range
-    and its blast are zero, so the area is the cell of the caster, and the
+    """A skill that acts on the caster alone carries the value ally, because the
     caster is an ally in its own cell. The enum holds no 'self' value.
     """
 

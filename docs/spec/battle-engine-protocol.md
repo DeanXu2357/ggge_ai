@@ -255,10 +255,11 @@ The entry carries no weapon ability. The section 'Weapon abilities'
 holds the gap and the reason.
 
 A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
-'usable_after_move', 'range_min', 'range_max', 'blast' and
-'affects'. The field 'kind' is an open string, not a value of the
-action kinds: the engine validates nothing and resolves nothing
-until issue #81 closes the set. A producer writes what it read.
+'usable_after_move' and 'affects'. The entry carries no area: the
+section 'Types' holds the reason. The field 'kind' is an open
+string, not a value of the action kinds: the engine validates
+nothing and resolves nothing until issue #81 closes the set. A
+producer writes what it read.
 
 Refusals: no_session; illegal_action for an unknown unit id;
 illegal_state when the unit is destroyed, when the phase of the
@@ -547,11 +548,10 @@ footprints that touch are at distance 1. Two footprints that share
 a cell are at distance 0. Two units of one cell give the distance
 of the two cells.
 
-Every range answer reads this distance: the band of a weapon, the
-band of a skill, the blast of a skill, and the move range that lets
-a support unit join. A weapon with a 'range_min' of
-2 does not fire at a foe that touches the footprint, because that
-foe is at distance 1.
+Every range answer reads this distance: the band of a weapon and
+the move range that lets a support unit join. A weapon with a
+'range_min' of 2 does not fire at a foe that touches the
+footprint, because that foe is at distance 1.
 
 A unit moves as one body. Each step of the path carries the whole
 footprint. An anchor is a destination only when every cell of the
@@ -597,21 +597,19 @@ weapon is a common holder of a false value, but some map weapons
 fire after a move, and some skills of the source 'pilot' or 'crew'
 hold a false value (user ruling 2026-08-20).
 
-A skill carries its area in four fields. The fields 'range_min'
-and 'range_max' hold the distance from the caster to the center of
-the area. The field 'blast' holds the radius around the center, in
-the distance of the section 'Board geometry'; a blast of 0 is one
-cell. The field 'affects' holds the
-faction filter of the units in the area: 'ally', 'enemy', or 'all'.
-The center travels in the field 'aim' of the action, and a single
-target travels in the field 'target_id'; the action carries no
-other field for the area.
+A skill carries no area on the wire. The area of a skill is an
+arbitrary set of cells. It takes any shape, for example the shape
+of the letters "ILOVEU". A minimum range, a maximum range and a
+radius cannot express such a shape, so they are the wrong
+description of the area and not an incomplete one (user ruling
+2026-08-31). The representation of the area is not decided, and a
+later issue decides it. The center travels in the field 'aim' of
+the action, and a single target travels in the field 'target_id'.
 
-The value set of 'affects' holds no 'self'. A skill that acts on
-the caster alone is a 'range_min' of 0, a 'range_max' of 0, a
-'blast' of 0 and an 'affects' of 'ally': the area is the cell of
-the caster, and the caster is an ally in its own cell. A 'self'
-value would make a second way to write the same area.
+The field 'affects' holds the faction filter of the units that a
+skill acts on: 'ally', 'enemy', or 'all'. The value set holds no
+'self'. A skill that acts on the caster alone carries an 'affects'
+of 'ally', because the caster is an ally in its own cell.
 
 The fields 'pos' and 'size' of a unit hold its footprint. The
 section 'Board geometry' holds their meaning.
@@ -840,3 +838,10 @@ difference between two integers is 1.
   and the guarantee: no build implements them, and the issue that
   implements one declares it again. The unused chance-event types left
   the contract with them. The JSON stays the same everywhere else.
+- A fourth exception on record: version 1.7 (2026-08-31, issue #88)
+  removed 'range_min', 'range_max' and 'blast' from the skill of the
+  state and from the skill entry of 'actions', on a user ruling that
+  the area of a skill is an arbitrary set of cells that these three
+  fields cannot express. A skill carries no area on the wire, and the
+  representation of the area is not decided. A client of version 1.6
+  reads a 1.7 skill, and it reads no area.

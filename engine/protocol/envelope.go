@@ -6,7 +6,7 @@ package protocol
 
 import "encoding/json"
 
-const Version = "1.6"
+const Version = "1.7"
 
 const (
 	CodeUnknownCommand = "unknown_command"
