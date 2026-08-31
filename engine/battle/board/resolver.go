@@ -111,7 +111,7 @@ func (b *Board) Act(action *battle.Decision, dice battle.Dice) ([]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return encodeResolution(resolution), nil
+	return eventsOf(resolution), nil
 }
 
 func (b *Board) act(decision battle.Decision, dice battle.Dice) (resolution, error) {
@@ -128,7 +128,7 @@ func (b *Board) act(decision battle.Decision, dice battle.Dice) (resolution, err
 	return resolution{Trace: trace, Rotations: turn.Advance(&b.state)}, nil
 }
 
-func encodeResolution(resolution resolution) []any {
+func eventsOf(resolution resolution) []any {
 	out := make([]any, 0, len(resolution.Trace)+len(resolution.Rotations))
 	for _, strike := range resolution.Trace {
 		out = append(out, battle.StrikeEvent{

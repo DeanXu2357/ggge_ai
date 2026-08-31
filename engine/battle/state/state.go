@@ -1,6 +1,6 @@
 // Package state holds the battle that the systems read and write. The package
-// 'engine/battle' holds the contract, and 'engine/battle/board' converts
-// between the two.
+// 'engine/battle' holds the contract, and this package converts between the
+// two forms.
 package state
 
 import (

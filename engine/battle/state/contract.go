@@ -1,6 +1,8 @@
 package state
 
 import (
+	"slices"
+
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
@@ -40,7 +42,7 @@ func (b *Battle) ToContract() battle.BattleState {
 }
 
 func fromContractUnit(u battle.Unit) Unit {
-	mech, pilot := convertMech(u.Mech), convertPilot(u.Pilot)
+	mech, pilot := fromContractMech(u.Mech), fromContractPilot(u.Pilot)
 	out := Unit{
 		ID:                      u.ID,
 		Faction:                 u.Faction,
@@ -62,7 +64,7 @@ func fromContractUnit(u battle.Unit) Unit {
 			ChanceSteps:          u.ChanceSteps,
 			SupportDefendCharges: u.SupportDefendCharges,
 			SupportAttackCharges: u.SupportAttackCharges,
-			Skills:               convertSlice(u.Skills, convertSkill),
+			Skills:               mapSlice(u.Skills, fromContractSkill),
 			Ammo:                 u.Ammo,
 			Debuffs:              u.Debuffs,
 		},
@@ -83,9 +85,9 @@ func (b *Battle) toContractUnit(u *Unit) battle.Unit {
 		ENMax:                   u.ENMax,
 		SP:                      u.Value.SP,
 		SPMax:                   u.SPMax,
-		Pilot:                   exportPilot(u.Pilot),
-		Mech:                    exportMech(u.Mech),
-		Skills:                  convertSlice(u.Value.Skills, exportSkill),
+		Pilot:                   toContractPilot(u.Pilot),
+		Mech:                    toContractMech(u.Mech),
+		Skills:                  mapSlice(u.Value.Skills, toContractSkill),
 		Acted:                   u.Value.Acted,
 		ChanceSteps:             u.Value.ChanceSteps,
 		ChanceStepsMax:          u.ChanceStepsMax,
@@ -100,7 +102,7 @@ func (b *Battle) toContractUnit(u *Unit) battle.Unit {
 	}
 }
 
-func convertMech(m battle.Mech) def.Mech {
+func fromContractMech(m battle.Mech) def.Mech {
 	return def.Mech{
 		HP:         m.HP,
 		EN:         m.EN,
@@ -108,18 +110,18 @@ func convertMech(m battle.Mech) def.Mech {
 		Defense:    m.Defense,
 		Mobility:   m.Mobility,
 		MoveRange:  m.MoveRange,
-		Weapons:    convertSlice(m.Weapons, convertWeapon),
-		MapWeapons: convertSlice(m.MapWeapons, convertMapWeapon),
+		Weapons:    mapSlice(m.Weapons, fromContractWeapon),
+		MapWeapons: mapSlice(m.MapWeapons, fromContractMapWeapon),
 	}
 }
 
-func exportMech(m *def.Mech) battle.Mech {
+func toContractMech(m *def.Mech) battle.Mech {
 	if m == nil {
 		return battle.Mech{}
 	}
 	return battle.Mech{
-		MapWeapons: convertSlice(m.MapWeapons, exportMapWeapon),
-		Weapons:    convertSlice(m.Weapons, exportWeapon),
+		MapWeapons: mapSlice(m.MapWeapons, toContractMapWeapon),
+		Weapons:    mapSlice(m.Weapons, toContractWeapon),
 		MoveRange:  m.MoveRange,
 		Mobility:   m.Mobility,
 		Defense:    m.Defense,
@@ -129,7 +131,7 @@ func exportMech(m *def.Mech) battle.Mech {
 	}
 }
 
-func convertPilot(p battle.Pilot) def.Pilot {
+func fromContractPilot(p battle.Pilot) def.Pilot {
 	return def.Pilot{
 		Ranged:   p.Ranged,
 		Melee:    p.Melee,
@@ -140,7 +142,7 @@ func convertPilot(p battle.Pilot) def.Pilot {
 	}
 }
 
-func exportPilot(p *def.Pilot) battle.Pilot {
+func toContractPilot(p *def.Pilot) battle.Pilot {
 	if p == nil {
 		return battle.Pilot{}
 	}
@@ -154,7 +156,7 @@ func exportPilot(p *def.Pilot) battle.Pilot {
 	}
 }
 
-func convertWeapon(w battle.Weapon) def.Weapon {
+func fromContractWeapon(w battle.Weapon) def.Weapon {
 	return def.Weapon{
 		Name:            w.Name,
 		Power:           w.Power,
@@ -169,7 +171,7 @@ func convertWeapon(w battle.Weapon) def.Weapon {
 	}
 }
 
-func exportWeapon(w def.Weapon) battle.Weapon {
+func toContractWeapon(w def.Weapon) battle.Weapon {
 	return battle.Weapon{
 		Categories:      w.Categories,
 		DebuffMagnitude: w.DebuffMagnitude,
@@ -184,11 +186,11 @@ func exportWeapon(w def.Weapon) battle.Weapon {
 	}
 }
 
-func convertMapWeapon(w battle.MapWeapon) def.MapWeapon {
+func fromContractMapWeapon(w battle.MapWeapon) def.MapWeapon {
 	return def.MapWeapon{
 		Name:            w.Name,
 		Power:           w.Power,
-		AffectArea:      convertAffectArea(w.AffectArea),
+		AffectArea:      fromContractAffectArea(w.AffectArea),
 		AmmoMax:         w.AmmoMax,
 		ENCost:          w.ENCost,
 		Accuracy:        w.Accuracy,
@@ -200,7 +202,7 @@ func convertMapWeapon(w battle.MapWeapon) def.MapWeapon {
 	}
 }
 
-func exportMapWeapon(w def.MapWeapon) battle.MapWeapon {
+func toContractMapWeapon(w def.MapWeapon) battle.MapWeapon {
 	return battle.MapWeapon{
 		Categories:      w.Categories,
 		DebuffMagnitude: w.DebuffMagnitude,
@@ -210,13 +212,13 @@ func exportMapWeapon(w def.MapWeapon) battle.MapWeapon {
 		Accuracy:        w.Accuracy,
 		ENCost:          w.ENCost,
 		AmmoMax:         w.AmmoMax,
-		AffectArea:      exportAffectArea(w.AffectArea),
+		AffectArea:      toContractAffectArea(w.AffectArea),
 		Power:           w.Power,
 		Name:            w.Name,
 	}
 }
 
-func convertSkill(s battle.Skill) def.Skill {
+func fromContractSkill(s battle.Skill) def.Skill {
 	return def.Skill{
 		Kind:            s.Kind,
 		Source:          s.Source,
@@ -224,15 +226,15 @@ func convertSkill(s battle.Skill) def.Skill {
 		Uses:            s.Uses,
 		EndsActivation:  s.EndsActivation,
 		UsableAfterMove: s.UsableAfterMove,
-		AffectArea:      convertAffectArea(s.AffectArea),
+		AffectArea:      fromContractAffectArea(s.AffectArea),
 		Affects:         s.Affects,
 	}
 }
 
-func exportSkill(s def.Skill) battle.Skill {
+func toContractSkill(s def.Skill) battle.Skill {
 	return battle.Skill{
 		Affects:         s.Affects,
-		AffectArea:      exportAffectArea(s.AffectArea),
+		AffectArea:      toContractAffectArea(s.AffectArea),
 		UsableAfterMove: s.UsableAfterMove,
 		EndsActivation:  s.EndsActivation,
 		Uses:            s.Uses,
@@ -242,41 +244,41 @@ func exportSkill(s def.Skill) battle.Skill {
 	}
 }
 
-func convertAffectArea(a battle.AffectArea) def.AffectArea {
+func fromContractAffectArea(a battle.AffectArea) def.AffectArea {
 	return def.AffectArea{
-		ApplyShape:  convertShape(a.ApplyShape),
-		EffectShape: convertShape(a.EffectShape),
+		ApplyShape:  fromContractShape(a.ApplyShape),
+		EffectShape: fromContractShape(a.EffectShape),
 	}
 }
 
-func exportAffectArea(a def.AffectArea) battle.AffectArea {
+func toContractAffectArea(a def.AffectArea) battle.AffectArea {
 	return battle.AffectArea{
-		EffectShape: exportShape(a.EffectShape),
-		ApplyShape:  exportShape(a.ApplyShape),
+		EffectShape: ToContractShape(a.EffectShape),
+		ApplyShape:  ToContractShape(a.ApplyShape),
 	}
 }
 
-func convertShape(s battle.ShapeRange) def.ShapeRange {
+func fromContractShape(s battle.ShapeRange) def.ShapeRange {
 	return def.ShapeRange{
 		Cells:     s.Cells,
 		Direction: s.Direction,
 	}
 }
 
-func exportShape(s def.ShapeRange) battle.ShapeRange {
+func ToContractShape(s def.ShapeRange) battle.ShapeRange {
 	return battle.ShapeRange{
 		Direction: s.Direction,
-		Cells:     s.Cells,
+		Cells:     slices.Clone(s.Cells),
 	}
 }
 
-func convertSlice[In, Out any](in []In, convert func(In) Out) []Out {
+func mapSlice[In, Out any](in []In, transform func(In) Out) []Out {
 	if in == nil {
 		return nil
 	}
 	out := make([]Out, len(in))
 	for index, item := range in {
-		out[index] = convert(item)
+		out[index] = transform(item)
 	}
 	return out
 }

@@ -307,12 +307,12 @@ contract form before the conversion.
     Actions, ReachableCells: geometry
     ResponseAttacks: engagement.Menu
     State: state.Battle.ToContract
-    Summary, the read answers: codec.go
+    Summary, the read answers: projection.go
 
 The conversion between the two forms is one file of the 'state'
-package, not two files of the shell. The shell keeps 'codec.go' for
-the answers of the read commands, which project the state onto the
-wire answer types and hold no second form of a unit.
+package, not two files of the shell. The shell keeps 'projection.go'
+for the answers of the read commands, which project the state onto
+the wire answer types and hold no second form of a unit.
 
 ### Rule of writes
 
@@ -430,9 +430,9 @@ D. Spec process model, terminology map, ledger, the artifact.
                               reader.go ('BoardReader'),
                               resolver.go ('BoardResolver': 'Load',
                               'assemble', 'validate', 'Act'),
-                              codec.go (the read answers); tests by
-                              subject: resolver_test.go,
-                              reader_test.go, codec_test.go,
+                              projection.go (the read answers);
+                              tests by subject: resolver_test.go,
+                              reader_test.go, projection_test.go,
                               geometry_test.go, turn_test.go (the
                               value-helper tests live in
                               engine/battle/helpers_test.go)
@@ -467,7 +467,7 @@ D. Spec process model, terminology map, ledger, the artifact.
               (bearer covers when it holds a charge)
             endActivation: chance step or acted
           turn.Advance(b.state)                        rotations
-          encodeResolution
+          eventsOf
         session.board stays the same object
     response_attacks -> engagement.Menu = Prepare(decision, no
                         response) -> the options from the Plan
@@ -631,7 +631,7 @@ D. Spec process model, terminology map, ledger, the artifact.
     'State' now hands out. 'BattleState.TerrainAt'/'TerrainOf' and
     'Skill.Reaches' were written and then removed: no formula reads
     terrain yet (issue 80) and no rule reads a skill range.
-    'validate' is private; nothing outside the codec calls it.
+    'validate' is private; nothing outside 'board' calls it.
 
 14. **The engagement speaks 'battle.Decision'** (a user finding at
     review: 'engagement.Decision', 'engagement.Response' and their
@@ -675,7 +675,7 @@ D. Spec process model, terminology map, ledger, the artifact.
     into cells, no rotation, no ammunition spending, no target
     selection, no damage. 'directWeapon' dies, because 'Mech.Weapons'
     holds direct weapons alone. 'WeaponEntry' loses 'ammo': a direct
-    weapon spends none, and 'encodeAmmo' now fills
+    weapon spends none, and 'ammoOf' now fills
     'MapWeaponEntry.Ammo'.
     The goldens have no writer, so a script moved every weapon object
     with 'map_weapon': true into 'map_weapons' and gave the new
@@ -836,6 +836,57 @@ D. Spec process model, terminology map, ledger, the artifact.
     'kill_skill_board.json' and 4 in 'debuff_ammo_board.json'. No
     shape source feeds a golden.
     No rule reads either field, exactly as with the map weapon.
+
+20. **A conversion carries its direction in its name** (a user
+    ruling, 2026-09-01). Two rules, and the reviewer applies them to
+    new code as well:
+    - A cross-layer conversion is 'fromContract<Type>' or
+      'toContract<Type>'. The contract is the named end. The return
+      type states the other end, so the name states it once.
+    - A same-layer projection is '<result>Of'. 'actionsOf' of
+      reader.go is the model: it reads as "the actions of a unit".
+    Why the old names go. 'encode' promises a serialization that
+    never happens: each function takes a struct and answers a
+    struct, and 'encoding/json' does the encoding. 'convert' carries
+    no direction, so a reader must learn the asymmetric pair
+    'convert'/'export' to know which way a call runs. The top-level
+    'FromContract', 'ToContract', 'fromContractUnit' and
+    'toContractUnit' already obeyed rule one, and the rest now match
+    them.
+    Fourteen functions of 'state/contract.go', eleven of
+    'board/projection.go' and one of 'board/resolver.go' took the new
+    names. Two names needed a decision:
+    - 'encodeResolution' is 'eventsOf'. It answers the strike events
+      and the phase events of one resolution, in the order the wire
+      carries them, so the result is the events.
+    - 'convertSlice' is 'mapSlice'. It is a generic helper and no
+      conversion, so neither rule covers it. The new name is the
+      usual one for the operation, and the word 'convert' leaves the
+      engine with it.
+    One conversion, one implementation. 'cloneShape' of the board and
+    'exportShape' of the state both answered 'battle.ShapeRange' from
+    'def.ShapeRange', so one conversion answered to three names with
+    'convertShape' counted. 'cloneShape' is deleted. The state one is
+    exported as 'ToContractShape' and the board calls it; the board
+    already imports 'state', so the export has a caller. The kept
+    body is the one that clones the cells, because the board answered
+    a cloned list before this change and must answer one after it.
+    The contract path gains one copy that no golden byte can show:
+    'ToContract' ends with 'BattleState.Clone', which shares
+    'Mech.Weapons' with its source.
+    The file 'codec.go' holds no codec: every function in it projects
+    the state onto a wire answer type. 'git mv' gives it and its test
+    the names 'projection.go' and 'projection_test.go', so the
+    history follows.
+    A note on the file scheme for the reviewer. The board files sort
+    by contract role ('15de5e6'): board.go the state, reader.go
+    'BoardReader', resolver.go 'BoardResolver'. 'projection.go' names
+    no role, so it cuts across that scheme. It sorts by shape of code
+    instead, and today every function in it serves the reader.
+    The rename changes nothing else: the wire, the goldens, the
+    fixtures, the protocol version, the Python side and every
+    exported name but 'ToContractShape' stand. No test changed its
+    name; the census holds at 257 'RUN' lines.
 
 ## Deferred
 

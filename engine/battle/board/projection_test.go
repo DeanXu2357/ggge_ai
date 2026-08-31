@@ -70,7 +70,7 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 	amount := 2500.0
 
-	encoded := encodeSkills([]def.Skill{{Kind: "skill_heal", Amount: &amount}})
+	encoded := skillEntriesOf([]def.Skill{{Kind: "skill_heal", Amount: &amount}})
 	amount = 0
 
 	if *encoded[0].Amount != 2500.0 {
@@ -85,7 +85,7 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 		Mech: &def.Mech{Weapons: []def.Weapon{{Name: "rifle"}}}}
 
 	counter := engagement.Forecast{}
-	encoded := encodeOptions(engagement.Options{
+	encoded := responseAttacksOf(engagement.Options{
 		Defender: engagement.SideOptions{Unit: defender,
 			SupportDefenders: []engagement.SupportDefendOption{{Unit: helper}},
 			SupportAttackers: []engagement.SupportAttackOption{{Unit: helper, Weapon: &helper.Mech.Weapons[0]}}},
@@ -127,8 +127,8 @@ func TestTheEncodedForecastCarriesEveryNumberItHolds(t *testing.T) {
 	damage := 2400
 	kill := true
 
-	full := encodeForecast(engagement.Forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
-	lean := encodeForecast(engagement.Forecast{Damage: &damage})
+	full := forecastOf(engagement.Forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
+	lean := forecastOf(engagement.Forecast{Damage: &damage})
 
 	if *full.HitRate != 0.75 || *full.Damage != 2400 || !*full.Kill {
 		t.Fatalf("forecast: %+v", full)

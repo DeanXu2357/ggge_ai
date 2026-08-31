@@ -292,7 +292,7 @@ func TestEncodeStateRoundTripsThroughLoad(t *testing.T) {
 }
 
 func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
-	events := encodeResolution(resolution{
+	events := eventsOf(resolution{
 		Trace:     engagement.Trace{{Kind: engagement.StrikeMain, ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true}},
 		Rotations: []turn.Rotation{{Turn: 1, Phase: battle.FactionEnemy}},
 	})

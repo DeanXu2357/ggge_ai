@@ -1811,3 +1811,34 @@
   No rule reads either field after this change, exactly as with the
   map weapon. Shape expansion, rotation, target selection and the
   audience filter stay out of scope.
+- **(0901) A conversion function carries its direction in its name —
+  user ruling**｜Two naming rules for the battle engine, issue #88.
+  Rule one: a cross-layer conversion is 'fromContract<Type>' or
+  'toContract<Type>'. The contract is the named end, and the return
+  type states the other end. Rule two: a same-layer projection is
+  '<result>Of', after the model 'actionsOf' in
+  engine/battle/board/reader.go.
+  The user's reason for rule one: "convert" carries no direction, so
+  a reader must learn the asymmetric pair 'convert'/'export' to know
+  which way a call runs. The reason for rule two: "encode" promises a
+  serialization that never happens, because each function takes a
+  struct and answers a struct and 'encoding/json' does the encoding.
+  Fourteen functions of engine/battle/state/contract.go took rule
+  one; twelve of the board package took rule two. Two names needed a
+  decision inside the pass: 'encodeResolution' answers the strike and
+  phase events of one resolution and is now 'eventsOf';
+  'convertSlice' is a generic helper and no conversion, so neither
+  rule covers it, and it is now 'mapSlice'.
+  Third ruling of the same pass: one conversion has one
+  implementation. 'cloneShape' of the board and 'exportShape' of the
+  state both answered 'battle.ShapeRange' from 'def.ShapeRange', so
+  one conversion answered to three names with 'convertShape' counted.
+  'cloneShape' is deleted, the state one is exported as
+  'ToContractShape', and the board calls it. The kept body is the one
+  that clones the cells, so the board answers a cloned list as
+  before.
+  The file engine/battle/board/codec.go holds no codec after the
+  rename: every function in it projects the state onto a wire answer
+  type. It is 'projection.go' now, with its test, moved by 'git mv'.
+  The wire, the goldens, the fixtures, the protocol version and the
+  Python side did not move, and no test changed its name.

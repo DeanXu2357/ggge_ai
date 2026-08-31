@@ -1,15 +1,13 @@
 package board
 
 import (
-	"slices"
-
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-func encodeUnitStatus(unit *state.Unit) battle.UnitStatus {
+func unitStatusOf(unit *state.Unit) battle.UnitStatus {
 	return battle.UnitStatus{
 		UnitID:    unit.ID,
 		Faction:   unit.Faction,
@@ -24,7 +22,7 @@ func encodeUnitStatus(unit *state.Unit) battle.UnitStatus {
 	}
 }
 
-func encodeWeapons(unit *state.Unit) []battle.WeaponEntry {
+func weaponEntriesOf(unit *state.Unit) []battle.WeaponEntry {
 	out := make([]battle.WeaponEntry, 0, len(unit.Mech.Weapons))
 	for _, weapon := range unit.Mech.Weapons {
 		out = append(out, battle.WeaponEntry{
@@ -39,15 +37,15 @@ func encodeWeapons(unit *state.Unit) []battle.WeaponEntry {
 	return out
 }
 
-func encodeMapWeapons(unit *state.Unit) []battle.MapWeaponEntry {
+func mapWeaponEntriesOf(unit *state.Unit) []battle.MapWeaponEntry {
 	out := make([]battle.MapWeaponEntry, 0, len(unit.Mech.MapWeapons))
 	for _, weapon := range unit.Mech.MapWeapons {
 		out = append(out, battle.MapWeaponEntry{
 			Name:            weapon.Name,
-			ApplyShape:      cloneShape(weapon.ApplyShape),
-			EffectShape:     cloneShape(weapon.EffectShape),
+			ApplyShape:      state.ToContractShape(weapon.ApplyShape),
+			EffectShape:     state.ToContractShape(weapon.EffectShape),
 			ENCost:          weapon.ENCost,
-			Ammo:            encodeAmmo(unit.Value.Ammo, weapon.Name),
+			Ammo:            ammoOf(unit.Value.Ammo, weapon.Name),
 			Accuracy:        weapon.Accuracy,
 			Affects:         weapon.Affects,
 			UsableAfterMove: weapon.UsableAfterMove,
@@ -56,7 +54,7 @@ func encodeMapWeapons(unit *state.Unit) []battle.MapWeaponEntry {
 	return out
 }
 
-func encodeSkills(skills []def.Skill) []battle.SkillEntry {
+func skillEntriesOf(skills []def.Skill) []battle.SkillEntry {
 	out := make([]battle.SkillEntry, 0, len(skills))
 	for _, skill := range skills {
 		out = append(out, battle.SkillEntry{
@@ -65,19 +63,15 @@ func encodeSkills(skills []def.Skill) []battle.SkillEntry {
 			Uses:            skill.Uses,
 			EndsActivation:  skill.EndsActivation,
 			UsableAfterMove: skill.UsableAfterMove,
-			ApplyShape:      cloneShape(skill.ApplyShape),
-			EffectShape:     cloneShape(skill.EffectShape),
+			ApplyShape:      state.ToContractShape(skill.ApplyShape),
+			EffectShape:     state.ToContractShape(skill.EffectShape),
 			Affects:         skill.Affects,
 		})
 	}
 	return out
 }
 
-func cloneShape(shape def.ShapeRange) battle.ShapeRange {
-	return battle.ShapeRange{Cells: slices.Clone(shape.Cells), Direction: shape.Direction}
-}
-
-func encodeAmmo(ammo map[string]int, name string) *int {
+func ammoOf(ammo map[string]int, name string) *int {
 	count, carried := ammo[name]
 	if !carried {
 		return nil
@@ -85,32 +79,32 @@ func encodeAmmo(ammo map[string]int, name string) *int {
 	return &count
 }
 
-func encodeOptions(options engagement.Options) battle.ResponseAttacksResponse {
+func responseAttacksOf(options engagement.Options) battle.ResponseAttacksResponse {
 	return battle.ResponseAttacksResponse{
 		Defender: battle.DefenderOptions{
 			UnitID:           options.Defender.Unit.ID,
-			ResponseAttacks:  encodeResponseAttackOptions(options.ResponseAttacks),
-			SupportDefenders: encodeSupportDefenders(options.Defender.SupportDefenders),
-			SupportAttackers: encodeSupportAttackers(options.Defender.SupportAttackers),
+			ResponseAttacks:  responseAttackOptionsOf(options.ResponseAttacks),
+			SupportDefenders: supportDefendersOf(options.Defender.SupportDefenders),
+			SupportAttackers: supportAttackersOf(options.Defender.SupportAttackers),
 		},
 		Attacker: battle.AttackerOptions{
 			UnitID:           options.Attacker.Unit.ID,
-			SupportDefenders: encodeSupportDefenders(options.Attacker.SupportDefenders),
-			SupportAttackers: encodeSupportAttackers(options.Attacker.SupportAttackers),
+			SupportDefenders: supportDefendersOf(options.Attacker.SupportDefenders),
+			SupportAttackers: supportAttackersOf(options.Attacker.SupportAttackers),
 		},
 	}
 }
 
-func encodeResponseAttackOptions(options []engagement.ResponseAttackOption) []battle.ResponseAttackOption {
+func responseAttackOptionsOf(options []engagement.ResponseAttackOption) []battle.ResponseAttackOption {
 	out := make([]battle.ResponseAttackOption, 0, len(options))
 	for _, option := range options {
 		entry := battle.ResponseAttackOption{
 			Stance:   option.Stance,
-			Weapon:   encodeOptionalName(option.Weapon),
-			Incoming: encodeForecast(option.Incoming),
+			Weapon:   optionalNameOf(option.Weapon),
+			Incoming: forecastOf(option.Incoming),
 		}
 		if option.Counter != nil {
-			counter := encodeForecast(*option.Counter)
+			counter := forecastOf(*option.Counter)
 			entry.Counter = &counter
 		}
 		out = append(out, entry)
@@ -119,7 +113,7 @@ func encodeResponseAttackOptions(options []engagement.ResponseAttackOption) []ba
 }
 
 // The wire carries no integer type, so the damage goes out as a number.
-func encodeForecast(forecast engagement.Forecast) battle.Forecast {
+func forecastOf(forecast engagement.Forecast) battle.Forecast {
 	out := battle.Forecast{HitRate: forecast.HitRate, Kill: forecast.Kill}
 	if forecast.HitRate != nil {
 		rate := *forecast.HitRate
@@ -136,30 +130,30 @@ func encodeForecast(forecast engagement.Forecast) battle.Forecast {
 	return out
 }
 
-func encodeSupportDefenders(options []engagement.SupportDefendOption) []battle.SupportDefendOption {
+func supportDefendersOf(options []engagement.SupportDefendOption) []battle.SupportDefendOption {
 	out := make([]battle.SupportDefendOption, 0, len(options))
 	for _, option := range options {
 		out = append(out, battle.SupportDefendOption{
 			UnitID:   option.Unit.ID,
-			Incoming: encodeForecast(option.Incoming),
+			Incoming: forecastOf(option.Incoming),
 		})
 	}
 	return out
 }
 
-func encodeSupportAttackers(options []engagement.SupportAttackOption) []battle.SupportAttackOption {
+func supportAttackersOf(options []engagement.SupportAttackOption) []battle.SupportAttackOption {
 	out := make([]battle.SupportAttackOption, 0, len(options))
 	for _, option := range options {
 		out = append(out, battle.SupportAttackOption{
 			UnitID: option.Unit.ID,
 			Weapon: option.Weapon.Name,
-			Strike: encodeForecast(option.Strike),
+			Strike: forecastOf(option.Strike),
 		})
 	}
 	return out
 }
 
-func encodeOptionalName(name string) *string {
+func optionalNameOf(name string) *string {
 	if name == "" {
 		return nil
 	}

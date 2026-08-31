@@ -18,11 +18,11 @@ func (b *Board) Actions(unitID string) (battle.ActionsResponse, error) {
 
 func actionsOf(unit *state.Unit, moveCells []battle.Cell) battle.ActionsResponse {
 	return battle.ActionsResponse{
-		Unit:       encodeUnitStatus(unit),
+		Unit:       unitStatusOf(unit),
 		MoveCells:  moveCells,
-		Weapons:    encodeWeapons(unit),
-		MapWeapons: encodeMapWeapons(unit),
-		Skills:     encodeSkills(unit.Value.Skills),
+		Weapons:    weaponEntriesOf(unit),
+		MapWeapons: mapWeaponEntriesOf(unit),
+		Skills:     skillEntriesOf(unit.Value.Skills),
 	}
 }
 
@@ -39,7 +39,7 @@ func (b *Board) ResponseAttacks(action *battle.Decision, defenderID string) (bat
 	if err != nil {
 		return battle.ResponseAttacksResponse{}, err
 	}
-	return encodeOptions(options), nil
+	return responseAttacksOf(options), nil
 }
 
 func (b *Board) State() battle.BattleState {
