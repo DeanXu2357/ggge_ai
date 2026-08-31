@@ -14,7 +14,26 @@ import (
 
 func openingBoard(bounds battle.Bounds, terrain battle.Terrain,
 	terrainCells []battle.TerrainCell, enemies []battle.Unit) (*Board, error) {
-	return NewBoard(bounds, terrain, terrainCells, enemies)
+	out := New()
+	if err := out.Load(bounds, terrain, terrainCells, enemies, battle.FactionAlly, 1); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func restore(state *battle.BattleState) (*Board, error) {
+	if state == nil {
+		return nil, errors.New("the payload carries no state")
+	}
+	if state.Bounds == nil {
+		return nil, errors.New("the state carries no bounds")
+	}
+	out := New()
+	if err := out.Load(*state.Bounds, state.Terrain, state.TerrainCells, state.Units,
+		state.Phase, state.Turn); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func wireBoard() *battle.BattleState {
@@ -91,7 +110,7 @@ func wireBoard() *battle.BattleState {
 func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 	wire := wireBoard()
 
-	board, err := Restore(wire)
+	board, err := restore(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -110,7 +129,7 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 func TestTheModelCopiesTheAmmoAndTheSkillAmount(t *testing.T) {
 	wire := wireBoard()
 
-	board, err := Restore(wire)
+	board, err := restore(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -162,7 +181,7 @@ func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 func TestTheModelCopiesEveryFieldThatASystemWrites(t *testing.T) {
 	wire := wireBoard()
 
-	board, err := Restore(wire)
+	board, err := restore(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -184,7 +203,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 		Units:  []battle.Unit{{ID: "a1", Faction: battle.FactionAlly, HP: 1}},
 	}
 
-	board, err := Restore(wire)
+	board, err := restore(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -234,7 +253,7 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 
 	for name, wire := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := Restore(wire); err == nil {
+			if _, err := restore(wire); err == nil {
 				t.Fatal("the decode took a payload outside the contract")
 			}
 		})
@@ -432,7 +451,7 @@ func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
 }
 
 func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
-	board, err := Restore(wireBoard())
+	board, err := restore(wireBoard())
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -466,7 +485,7 @@ func decodeFixtureState(t *testing.T) *Board {
 	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	board, err := Restore(&fixture.Setup.State)
+	board, err := restore(&fixture.Setup.State)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -502,9 +521,6 @@ func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
 		terrainCells []battle.TerrainCell
 		enemies      []battle.Unit
 	}{
-		{name: "a unit of 'enemies' that is no enemy",
-			enemies: []battle.Unit{{ID: "x1", Faction: battle.FactionAlly,
-				Pos: battle.Cell{1, 1}, HP: 10}}},
 		{name: "a footprint outside the bounds",
 			enemies: []battle.Unit{{ID: "x1", Faction: battle.FactionEnemy,
 				Pos: battle.Cell{2, 2}, Size: battle.Cell{2, 2}, HP: 10}}},
@@ -524,7 +540,7 @@ func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
 func TestEncodeStateRoundTripsThroughRestore(t *testing.T) {
 	first := decodeFixtureState(t)
 	encoded := first.State()
-	second, err := Restore(&encoded)
+	second, err := restore(&encoded)
 	if err != nil {
 		t.Fatal(err)
 	}

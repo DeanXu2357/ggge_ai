@@ -36,7 +36,7 @@ func actionsOf(t *testing.T, reply reply) battle.ActionsResponse {
 }
 
 func TestActionsWithNoBoardIsRefused(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), `{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
+	replies := serve(t, New(board.New()), `{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
 
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeNoSession {
 		t.Fatalf("reply: %+v", replies[0])
@@ -44,7 +44,7 @@ func TestActionsWithNoBoardIsRefused(t *testing.T) {
 }
 
 func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), candidateLine,
+	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
 
 	payload := actionsOf(t, replies[1])
@@ -70,7 +70,7 @@ func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 // The band and the energy stay out of the answer: unit 'a1' reaches the foe
 // with the rifle alone, and both weapons are in the list.
 func TestActionsJudgesNoTargetAndNoResource(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), candidateLine,
+	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
 
 	payload := actionsOf(t, replies[1])
@@ -84,7 +84,7 @@ func TestActionsJudgesNoTargetAndNoResource(t *testing.T) {
 }
 
 func TestActionsOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), candidateLine,
+	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"ghost"}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
@@ -93,7 +93,7 @@ func TestActionsOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
 }
 
 func TestActionsOutsideThePhaseIsAnIllegalState(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), candidateLine,
+	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"e1"}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalState {
@@ -102,7 +102,7 @@ func TestActionsOutsideThePhaseIsAnIllegalState(t *testing.T) {
 }
 
 func TestActionsOfAnActedUnitIsAnIllegalState(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), candidateLine,
+	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a2"}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalState {
@@ -111,7 +111,7 @@ func TestActionsOfAnActedUnitIsAnIllegalState(t *testing.T) {
 }
 
 func TestResponseAttacksWithNoBoardIsRefused(t *testing.T) {
-	replies := serve(t, New(board.Factory{}),
+	replies := serve(t, New(board.New()),
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"attack","target_id":"e1","weapon":"rifle"}}}`)
 
@@ -133,7 +133,7 @@ func engagementOf(t *testing.T, reply reply) battle.ResponseAttacksResponse {
 }
 
 func TestResponseAttacksAnswersTheOptionsOfTheDefender(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), candidateLine,
+	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"attack","target_id":"e1",`+
 			`"weapon":"rifle","move_to":[1,1]}}}`)
@@ -166,7 +166,7 @@ func TestResponseAttacksAnswersTheOptionsOfTheDefender(t *testing.T) {
 }
 
 func TestResponseAttacksAgainstAnActionThatMakesNoStrikeIsAnIllegalAction(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), candidateLine,
+	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"map_attack","weapon":"shells"}}}`,
 		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":"e1",`+
@@ -181,7 +181,7 @@ func TestResponseAttacksAgainstAnActionThatMakesNoStrikeIsAnIllegalAction(t *tes
 }
 
 func TestAResponseAttackRequestThatTheWeaponDoesNotReachIsAnIllegalAction(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), candidateLine,
+	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"attack","weapon":"rifle","move_to":[4,4]}}}`,
 		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":"e1",`+
@@ -196,7 +196,7 @@ func TestAResponseAttackRequestThatTheWeaponDoesNotReachIsAnIllegalAction(t *tes
 }
 
 func TestAnActionOutsideTheContractIsABadRequest(t *testing.T) {
-	replies := serve(t, New(board.Factory{}), candidateLine,
+	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
 			`"action":{"unit_id":"a1","kind":"charge","weapon":"rifle"}}}`)
 

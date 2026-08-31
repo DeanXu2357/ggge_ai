@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	if err := server.New(board.Factory{}).Serve(os.Stdin, os.Stdout); err != nil {
+	if err := server.New(board.New()).Serve(os.Stdin, os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

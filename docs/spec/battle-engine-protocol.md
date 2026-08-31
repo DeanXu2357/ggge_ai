@@ -24,8 +24,8 @@ issues of the port (#60 to #68).
   the sentinel errors. The types carry the JSON tags of the wire.
   They are 'Decision', 'BattleState', 'ActionsResponse',
   'ResponseAttacksResponse', 'BoardSummary' and the events. The
-  interfaces hold the methods that a consumer calls: 'Act' on
-  'BoardResolver'; 'Actions', 'ReachableCells',
+  interfaces hold the methods that a consumer calls: 'Act' and
+  'Load' on 'BoardResolver'; 'Actions', 'ReachableCells',
   'ResponseAttacks', 'State' and 'Summary' on
   'BoardReader'. The contract imports no package of the engine.
   The package 'engine/protocol' holds the envelope, the codes,
@@ -52,7 +52,7 @@ issues of the port (#60 to #68).
 - The behavior systems are the only code that writes state during
   a battle. The writers of a field of a 'battle.BattleState' are
   'engagement/commit.go', 'turn/turn.go' and the board package
-  ('NewBoard', 'assemble', 'validate' and 'Clone'). Before the
+  ('Load', 'assemble', 'validate' and 'Clone'). Before the
   battle, the board fills the two values that a payload can leave
   out: a size of zero and an empty terrain.
   'engine/battle/engagement' resolves one activation:
@@ -68,17 +68,16 @@ issues of the port (#60 to #68).
   the debuffs and resets the acted flags. The
   pure system 'engine/battle/geometry' answers the distance, the
   reachable anchors and the occupied cells and writes nothing.
-- The package 'engine/battle/board' is the shell. It has two
-  constructors. 'board.NewBoard' builds a new battle from the
-  bounds, the terrain, the terrain cells and the enemies. It
-  assembles each unit. 'board.Restore' rebuilds a board from a
-  snapshot 'battle.BattleState'. It does no assembly. Each
-  constructor clones the state and judges it.
+- The package 'engine/battle/board' is the shell. 'board.New'
+  gives an empty board. 'Load' builds the content, assembles each
+  unit and judges the result. It does this for 'init' and for
+  'load' alike. It clones the content before it keeps it. A
+  refused 'Load' leaves the board unchanged.
   It implements the contract, projects the answers of the read
   commands, and calls the systems. 'Act' is 'Prepare', 'Commit',
   'turn.Advance' in that order, so a refused 'act' leaves the
   board as it was; 'engine/server/handler' runs 'Act' on the
-  session board and keeps no copy of it.
+  board of the server and keeps no copy of it.
 - The package 'engine/battle/formula' holds every formula of
   docs/reference/combat-formulas.md and every constant of the
   mechanism. It imports no package of the engine: a formula reads
@@ -91,10 +90,10 @@ issues of the port (#60 to #68).
   'engine/server/handler' holds the body of every other command,
   the battle that the commands read and change, and the calls on
   the board. The handler parses every request: it reads
-  'InitRequest' and passes the fields to the factory. The contract
-  holds the interface 'BoardFactory'. The handler builds each board
-  through this interface, and 'main.go' injects 'board.Factory', the
-  one production import of the concrete package.
+  'InitRequest' and passes the fields to the board. The server
+  holds one board. 'main.go' injects it with 'board.New()', the
+  one production import of the concrete package. The handler
+  calls only the contract.
   No handler imports a system package. No package of
   'engine/battle' reads a type of 'engine/protocol'.
 
@@ -492,7 +491,8 @@ the loaded state. The engine reads neither list today, and it holds
 them unread so that a snapshot survives a load and an export.
 
 The state carries 'phase'. A state without that field is a
-bad_request.
+bad_request. 'load' judges the units against the bounds, and a
+unit that stands outside the board is a bad_request.
 
 ## Turn cycle
 

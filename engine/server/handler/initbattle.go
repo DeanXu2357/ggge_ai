@@ -17,17 +17,25 @@ func (c *Commands) InitBattle(id string, payload json.RawMessage) protocol.Respo
 		return protocol.Fail(id, protocol.CodeBadRequest,
 			fmt.Sprintf("the board %dx%d holds no cell", request.Board.Width, request.Board.Height))
 	}
+	for index := range request.Enemies {
+		unit := &request.Enemies[index]
+		if unit.Faction != battle.FactionEnemy {
+			return protocol.Fail(id, protocol.CodeBadRequest,
+				fmt.Sprintf("the unit %q of 'enemies' carries the faction %q",
+					unit.ID, unit.Faction))
+		}
+	}
 	bounds := battle.Bounds{{0, 0}, {request.Board.Width - 1, request.Board.Height - 1}}
-	b, err := c.factory.NewBoard(bounds, request.Board.Terrain, request.Board.TerrainCells, request.Enemies)
-	if err != nil {
+	if err := c.board.Load(bounds, request.Board.Terrain, request.Board.TerrainCells,
+		request.Enemies, battle.FactionAlly, 1); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	opened := newSession(b, request.Seed)
+	opened := newSession(request.Seed)
 	opened.victory = request.Victory
 	opened.events = request.Events
 	opened.deployCells = request.DeployCells
 	c.session = opened
-	summary := b.Summary()
+	summary := c.board.Summary()
 	return protocol.Ok(id, protocol.InitResponse{
 		Turn:       summary.Turn,
 		Phase:      string(summary.Phase),

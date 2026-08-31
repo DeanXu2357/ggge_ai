@@ -426,13 +426,17 @@ D. Spec process model, terminology map, ledger, the artifact.
     command wrappers and the one type no contract method speaks
     ('StageEvent') and imports 'battle'. No package of 'battle'
     imports 'protocol': the handler parses 'InitRequest' and passes
-    the fields, 'board.NewBoard' builds a new battle and assembles
-    each unit, 'board.Restore' rebuilds a board from a snapshot,
-    there is no deploy package, and 'ErrOutsideContract' lives in
-    'engine/battle'. The contract also holds 'BoardFactory': the
-    handler builds each board through it, and 'main.go' injects
-    'board.Factory', the one production import of the concrete
-    package.
+    the fields, there is no deploy package, and 'ErrOutsideContract'
+    lives in 'engine/battle'. The contract holds one method for the
+    content: 'BoardResolver.Load' fills a board for 'init' and for
+    'load' alike. There is no factory. The server holds one board,
+    and 'main.go' injects it with 'board.New()', the one production
+    import of the concrete package. The init handler judges that
+    every unit of 'enemies' carries the faction 'enemy', the check
+    that the board package ran before. Two behaviors change: the
+    load path now judges the units against the bounds, and
+    'assemble' runs on both paths but fills only a maximum of zero,
+    so a complete snapshot comes back unchanged.
 12. **'actions' refuses an acted unit** (protocol 1.6, the user's
     ruling: the embedded error becomes the sentinel). 'Board.Actions'
     reads 'engagement.Activatable', the gate 'act' reads, so an acted
@@ -451,8 +455,9 @@ D. Spec process model, terminology map, ledger, the artifact.
     to 1 and an empty terrain to 'space', as the old decode did,
     because 'State' is now 'Clone' and no encode step remains to
     normalize; 'validate' keeps the faction and phase checks for a
-    state built without JSON; the footprint-in-bounds check stays on
-    the opening path only, as before; 'TerrainCells' export in payload
+    state built without JSON; the footprint-in-bounds check stayed on
+    the opening path only until contention point 11 moved it onto
+    'Load'; 'TerrainCells' export in payload
     order, not sorted (no golden carries terrain cells); an export
     now echoes a 'null' list that a load carried as 'null' instead
     of '[]' (every golden carries '[]'); 'Clone' shares 'Mech.Weapons'

@@ -21,10 +21,10 @@ type Server struct {
 	commands *handler.Commands
 }
 
-func New(factory battle.BoardFactory) *Server {
+func New(b battle.Board) *Server {
 	server := &Server{
 		handlers: make(map[string]command, len(registry)),
-		commands: handler.NewCommands(factory),
+		commands: handler.NewCommands(b),
 	}
 	for name, bind := range registry {
 		server.handle(name, bind(server))

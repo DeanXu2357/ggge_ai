@@ -8,7 +8,6 @@ import (
 )
 
 type session struct {
-	board         battle.Board
 	victory       []protocol.Victory
 	events        json.RawMessage
 	deployCells   []battle.Cell
@@ -19,9 +18,8 @@ type session struct {
 	firedEvents   []string
 }
 
-func newSession(b battle.Board, seed int64) *session {
+func newSession(seed int64) *session {
 	return &session{
-		board:         b,
 		seed:          seed,
 		draw:          battle.NewServerDraw(seed),
 		history:       []protocol.HistoryEntry{},
@@ -41,7 +39,7 @@ func openCommand[T any](c *Commands, id string, payload json.RawMessage) (
 		fail := protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 		return nil, nil, &fail
 	}
-	return &request, c.session.board, nil
+	return &request, c.board, nil
 }
 
 func (c *Commands) Load(id string, payload json.RawMessage) protocol.Response {
@@ -49,11 +47,15 @@ func (c *Commands) Load(id string, payload json.RawMessage) protocol.Response {
 	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	b, err := c.factory.Restore(&request.State)
-	if err != nil {
+	if request.State.Bounds == nil {
+		return protocol.Fail(id, protocol.CodeBadRequest, "the state carries no bounds")
+	}
+	if err := c.board.Load(*request.State.Bounds, request.State.Terrain,
+		request.State.TerrainCells, request.State.Units,
+		request.State.Phase, request.State.Turn); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	loaded := newSession(b, request.Seed)
+	loaded := newSession(request.Seed)
 	if request.History != nil {
 		loaded.history = request.History
 	}

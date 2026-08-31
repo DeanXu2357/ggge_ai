@@ -3,10 +3,10 @@ package handler
 import "github.com/DeanXu2357/ggge_ai/engine/battle"
 
 type Commands struct {
-	factory battle.BoardFactory
+	board   battle.Board
 	session *session
 }
 
-func NewCommands(factory battle.BoardFactory) *Commands {
-	return &Commands{factory: factory}
+func NewCommands(b battle.Board) *Commands {
+	return &Commands{board: b}
 }

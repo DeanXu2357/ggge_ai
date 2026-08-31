@@ -10,14 +10,11 @@ type BoardReader interface {
 
 type BoardResolver interface {
 	Act(action *Decision, dice Dice) ([]any, error)
+	Load(bounds Bounds, terrain Terrain, terrainCells []TerrainCell, units []Unit,
+		phase Faction, turn int) error
 }
 
 type Board interface {
 	BoardReader
 	BoardResolver
-}
-
-type BoardFactory interface {
-	NewBoard(bounds Bounds, terrain Terrain, terrainCells []TerrainCell, enemies []Unit) (Board, error)
-	Restore(state *BattleState) (Board, error)
 }

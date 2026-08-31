@@ -12,48 +12,40 @@ type Board struct {
 	state battle.BattleState
 }
 
-func NewBoard(bounds battle.Bounds, terrain battle.Terrain,
-	terrainCells []battle.TerrainCell, enemies []battle.Unit) (*Board, error) {
-	state := battle.BattleState{
-		Units:        enemies,
-		Phase:        battle.FactionAlly,
-		Turn:         1,
+func New() *Board {
+	return &Board{}
+}
+
+func (b *Board) Load(bounds battle.Bounds, terrain battle.Terrain,
+	terrainCells []battle.TerrainCell, units []battle.Unit,
+	phase battle.Faction, turn int) error {
+	candidate := battle.BattleState{
+		Units:        units,
+		Phase:        phase,
+		Turn:         turn,
 		Bounds:       &bounds,
 		Terrain:      terrain,
 		TerrainCells: terrainCells,
 	}
-	for index := range state.Units {
-		unit := &state.Units[index]
-		assemble(unit)
-		if unit.Faction != battle.FactionEnemy {
-			return nil, fmt.Errorf("the unit %q of 'enemies' carries the faction %q",
-				unit.ID, unit.Faction)
-		}
+	for index := range candidate.Units {
+		assemble(&candidate.Units[index])
+	}
+	if err := validate(&candidate); err != nil {
+		return err
+	}
+	for index := range candidate.Units {
+		unit := &candidate.Units[index]
 		if !unit.Footprint().Within(bounds) {
-			return nil, fmt.Errorf("the unit %q stands outside the board", unit.ID)
+			return fmt.Errorf("the unit %q stands outside the board", unit.ID)
 		}
 	}
-	for _, entry := range state.TerrainCells {
+	for _, entry := range candidate.TerrainCells {
 		if !(battle.Footprint{Anchor: entry.Cell, Size: battle.Cell{1, 1}}).Within(bounds) {
-			return nil, fmt.Errorf("the terrain cell %v stands outside the board", entry.Cell)
+			return fmt.Errorf("the terrain cell %v stands outside the board", entry.Cell)
 		}
 	}
-	out := &Board{state: state.Clone()}
-	if err := validate(&out.state); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func Restore(state *battle.BattleState) (*Board, error) {
-	if state == nil {
-		return nil, fmt.Errorf("the payload carries no state")
-	}
-	out := &Board{state: state.Clone()}
-	if err := validate(&out.state); err != nil {
-		return nil, err
-	}
-	return out, nil
+	b.state = candidate.Clone()
+	return nil
 }
 
 // A maximum that the payload leaves at zero comes from the pairing. An

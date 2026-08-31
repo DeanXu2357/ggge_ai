@@ -35,7 +35,7 @@ var resolveOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		state, err := board.Restore(&setup.State)
+		state, err := restoreBoard(&setup.State)
 		if err != nil {
 			return nil, err
 		}
