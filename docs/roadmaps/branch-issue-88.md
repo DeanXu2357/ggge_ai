@@ -256,6 +256,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
 | 3a5e186 | 'Apply' removed: the golden 'apply' checks pass through 'Act' (a user finding at review) |
 | 414ff43 | 'Plan.Draws' bounds the forced 'outcomes' list before the first write; the handler keeps no clone of the board or the generator; 'ServerDraw.Clone' and 'ManualRoll.Short' gone |
+| 4a5d3da | The board files re-homed by role: 'Load'/'assemble'/'validate' in resolver.go, codec.go conversions only, tests sorted by subject, the value-helper tests moved to the battle package |
 | 312bac1 | One 'Load' on 'BoardResolver' for init and load; the factory gone; 'main.go' injects 'board.New()'; assembly on both paths fills only zeros; the bounds check judges the load path; the enemies rule in the init handler (a user ruling) |
 | 92ec720 | 'Clone' left 'BoardReader': no production caller since the dice bound; 'BattleState.Clone' stays (a user ruling) |
 | 119ebd8 | 'battle.BoardFactory' on the contract; 'main.go' injects 'board.Factory'; the handler no longer imports the concrete board package (a user ruling) |
@@ -279,15 +280,16 @@ D. Spec process model, terminology map, ledger, the artifact.
                               menu.go (105), strike.go (98),
                               support.go (52), forecast.go, results.go
     engine/battle/turn        turn.go (101)
-    engine/battle/board       board.go ('NewBoard', 'Restore',
-                              'assemble', the state and the reach),
+    engine/battle/board       board.go (the struct and 'New'),
                               reader.go ('BoardReader'),
-                              resolver.go ('BoardResolver'), codec.go
-                              (350): Validate, the two decodes, the
-                              response projections; the tests:
+                              resolver.go ('BoardResolver': 'Load',
+                              'assemble', 'validate', 'Act'),
+                              codec.go (conversions only); tests by
+                              subject: resolver_test.go,
                               reader_test.go, codec_test.go,
-                              geometry_test.go, terrain_test.go,
-                              terrain_names_test.go, turn_test.go
+                              geometry_test.go, turn_test.go (the
+                              value-helper tests live in
+                              engine/battle/helpers_test.go)
     engine/server/handler     act.go
     engine/protocol           types.go (the per-command wrappers),
                               envelope.go (1.6), commands.go,
