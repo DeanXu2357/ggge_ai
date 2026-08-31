@@ -8,18 +8,13 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/deploy"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
 func openingBoard(bounds battle.Bounds, terrain battle.Terrain,
 	terrainCells []battle.TerrainCell, enemies []battle.Unit) (*Board, error) {
-	state, err := deploy.Opening(bounds, terrain, terrainCells, enemies)
-	if err != nil {
-		return nil, err
-	}
-	return NewBoard(&state)
+	return NewBoard(bounds, terrain, terrainCells, enemies)
 }
 
 func wireBoard() *battle.BattleState {
@@ -96,7 +91,7 @@ func wireBoard() *battle.BattleState {
 func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 	wire := wireBoard()
 
-	board, err := NewBoard(wire)
+	board, err := Restore(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -115,7 +110,7 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 func TestTheModelCopiesTheAmmoAndTheSkillAmount(t *testing.T) {
 	wire := wireBoard()
 
-	board, err := NewBoard(wire)
+	board, err := Restore(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -167,7 +162,7 @@ func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 func TestTheModelCopiesEveryFieldThatASystemWrites(t *testing.T) {
 	wire := wireBoard()
 
-	board, err := NewBoard(wire)
+	board, err := Restore(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -189,7 +184,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 		Units:  []battle.Unit{{ID: "a1", Faction: battle.FactionAlly, HP: 1}},
 	}
 
-	board, err := NewBoard(wire)
+	board, err := Restore(wire)
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -239,7 +234,7 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 
 	for name, wire := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := NewBoard(wire); err == nil {
+			if _, err := Restore(wire); err == nil {
 				t.Fatal("the decode took a payload outside the contract")
 			}
 		})
@@ -437,7 +432,7 @@ func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
 }
 
 func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
-	board, err := NewBoard(wireBoard())
+	board, err := Restore(wireBoard())
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -471,7 +466,7 @@ func decodeFixtureState(t *testing.T) *Board {
 	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	board, err := NewBoard(&fixture.Setup.State)
+	board, err := Restore(&fixture.Setup.State)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -526,10 +521,10 @@ func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
 	}
 }
 
-func TestEncodeStateRoundTripsThroughNewBoard(t *testing.T) {
+func TestEncodeStateRoundTripsThroughRestore(t *testing.T) {
 	first := decodeFixtureState(t)
 	encoded := first.State()
-	second, err := NewBoard(&encoded)
+	second, err := Restore(&encoded)
 	if err != nil {
 		t.Fatal(err)
 	}

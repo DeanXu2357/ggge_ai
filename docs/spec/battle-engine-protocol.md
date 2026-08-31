@@ -50,11 +50,11 @@ issues of the port (#60 to #68).
   a system writes and shares the weapons of a mech, which no code
   writes after the decode.
 - The behavior systems are the only code that writes state during
-  a battle. Three files assign a field of a 'battle.BattleState':
-  'commit.go' of 'engagement', 'turn.go' of 'turn' and 'deploy.go'
-  of 'deploy'. Before the battle, 'board.NewBoard' fills the two
-  values that a payload can leave out: a size of zero and an empty
-  terrain.
+  a battle. The writers of a field of a 'battle.BattleState' are
+  'engagement/commit.go', 'turn/turn.go' and the board package
+  ('NewBoard', 'assemble', 'validate' and 'Clone'). Before the
+  battle, the board fills the two values that a payload can leave
+  out: a size of zero and an empty terrain.
   'engine/battle/engagement' resolves one activation:
   'engagement.Prepare(board, decision)' reads the board, judges
   every participant (the actor, the target, the weapon, the reach,
@@ -65,13 +65,15 @@ issues of the port (#60 to #68).
   through 'Prepare' with no response, so it refuses exactly what
   'act' refuses. 'engine/battle/turn'
   ('turn.Advance') rotates the phase, regenerates the EN, expires
-  the debuffs and resets the acted flags. 'engine/battle/deploy'
-  assembles the opening state of 'init' ('deploy.Opening') and fills
-  the maxima of a unit ('deploy.Assemble'). The
+  the debuffs and resets the acted flags. The
   pure system 'engine/battle/geometry' answers the distance, the
   reachable anchors and the occupied cells and writes nothing.
-- The package 'engine/battle/board' is the shell: 'board.NewBoard'
-  builds it from a 'battle.BattleState', which it clones and judges.
+- The package 'engine/battle/board' is the shell. It has two
+  constructors. 'board.NewBoard' builds a new battle from the
+  bounds, the terrain, the terrain cells and the enemies. It
+  assembles each unit. 'board.Restore' rebuilds a board from a
+  snapshot 'battle.BattleState'. It does no assembly. Each
+  constructor clones the state and judges it.
   It implements the contract, projects the answers of the read
   commands, and calls the systems. 'Act' is 'Prepare', 'Commit',
   'turn.Advance' in that order, so a refused 'act' leaves the
@@ -89,9 +91,9 @@ issues of the port (#60 to #68).
   'engine/server/handler' holds the body of every other command,
   the battle that the commands read and change, and the calls on
   the shell 'engine/battle/board'. The handler parses every request:
-  it reads 'InitRequest', calls 'deploy.Opening' and hands the state
-  to 'board.NewBoard'. No package of 'engine/battle' reads a type of
-  'engine/protocol'.
+  it reads 'InitRequest' and passes the fields to 'board.NewBoard'.
+  No handler imports a system package. No package of
+  'engine/battle' reads a type of 'engine/protocol'.
 
 ## Transport
 

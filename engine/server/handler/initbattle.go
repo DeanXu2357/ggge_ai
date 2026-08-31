@@ -6,7 +6,6 @@ import (
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/deploy"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -20,11 +19,7 @@ func (c *Commands) InitBattle(id string, payload json.RawMessage) protocol.Respo
 			fmt.Sprintf("the board %dx%d holds no cell", request.Board.Width, request.Board.Height))
 	}
 	bounds := battle.Bounds{{0, 0}, {request.Board.Width - 1, request.Board.Height - 1}}
-	state, err := deploy.Opening(bounds, request.Board.Terrain, request.Board.TerrainCells, request.Enemies)
-	if err != nil {
-		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
-	}
-	b, err := board.NewBoard(&state)
+	b, err := board.NewBoard(bounds, request.Board.Terrain, request.Board.TerrainCells, request.Enemies)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}

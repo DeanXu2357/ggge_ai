@@ -256,6 +256,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
 | 3a5e186 | 'Apply' removed: the golden 'apply' checks pass through 'Act' (a user finding at review) |
 | 414ff43 | 'Plan.Draws' bounds the forced 'outcomes' list before the first write; the handler keeps no clone of the board or the generator; 'ServerDraw.Clone' and 'ManualRoll.Short' gone |
+| f13696b | The handler builds the opening state; 'deploy.Opening(state)' applies only the rules (a user ruling: conversion out of the battle tree) |
 | 4722c31 | 'board.NewBoard' from a 'battle.BattleState' for init, load and the tests; 'deploy.Opening' assembles the opening state; the handler parses 'InitRequest'; 'load' no longer rotates (a user ruling); 'Board.Advance' gone; 'ErrOutsideContract' in 'battle' |
 | f378713 | The four commands with no handler ('rollback', 'set_unit', 'advice', 'certify') and their types, the goal/budget/verdict types and the chance-event types left the contract and the Python mirror (a user ruling) |
 | ef77841 | The state and definition packages deleted; the systems and the shell work on the contract types ('helpers.go' holds the value helpers); the codec keeps validation, init assembly and the response projections (762 to 350 lines); 'reachableCells' inlined; the test-only helpers 'terrainAt'/'terrainOf'/'unit' gone |
@@ -275,8 +276,8 @@ D. Spec process model, terminology map, ledger, the artifact.
                               menu.go (105), strike.go (98),
                               support.go (52), forecast.go, results.go
     engine/battle/turn        turn.go (101)
-    engine/battle/deploy      deploy.go (20)
-    engine/battle/board       board.go (the state and the reach),
+    engine/battle/board       board.go ('NewBoard', 'Restore',
+                              'assemble', the state and the reach),
                               reader.go ('BoardReader'),
                               resolver.go ('BoardResolver'), codec.go
                               (350): Validate, the two decodes, the
@@ -422,10 +423,11 @@ D. Spec process model, terminology map, ledger, the artifact.
     of the engine; 'protocol' keeps the envelope, the codes, the
     command wrappers and the one type no contract method speaks
     ('StageEvent') and imports 'battle'. No package of 'battle'
-    imports 'protocol': 'board.NewBoard' builds the shell from a
-    'battle.BattleState', 'deploy.Opening' assembles the opening
-    state of 'init', the handler parses 'InitRequest', and
-    'ErrOutsideContract' lives in 'engine/battle'.
+    imports 'protocol': the handler parses 'InitRequest' and passes
+    the fields, 'board.NewBoard' builds a new battle and assembles
+    each unit, 'board.Restore' rebuilds a board from a snapshot,
+    there is no deploy package, and 'ErrOutsideContract' lives in
+    'engine/battle'.
 12. **'actions' refuses an acted unit** (protocol 1.6, the user's
     ruling: the embedded error becomes the sentinel). 'Board.Actions'
     reads 'engagement.Activatable', the gate 'act' reads, so an acted

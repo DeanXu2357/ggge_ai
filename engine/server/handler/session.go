@@ -50,7 +50,7 @@ func (c *Commands) Load(id string, payload json.RawMessage) protocol.Response {
 	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	b, err := board.NewBoard(&request.State)
+	b, err := board.Restore(&request.State)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}

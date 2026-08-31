@@ -31,7 +31,7 @@ var turnOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		state, err := board.NewBoard(&setup.State)
+		state, err := board.Restore(&setup.State)
 		if err != nil {
 			return nil, err
 		}
