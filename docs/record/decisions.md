@@ -1700,3 +1700,62 @@
   no heading. That empty 'effect_shape' is missing data, not the
   caster rule above. The goldens under 'tests/fixtures/engine/' hold
   empty shapes for the same reason: no shape source feeds them.
+- **(0831) The definition package and the state package come back —
+  user ruling**｜The commit 'ef77841' of this branch deleted
+  'engine/battle/def' and 'engine/battle/state' and made the contract
+  types the state of a battle. Its reason stands on the record: "The
+  state and definition packages mirrored the contract types field by
+  field, and the board codec copied between the two forms in both
+  directions. Every new field, as issue 72 showed, was written three
+  times." The user reversed that collapse on 2026-08-31. The reason
+  for the reversal: a reader of the flat contract type cannot see
+  which data a battle changes, because the hit points of a unit and
+  the move range of its mech sit in one struct.
+  Why the second attempt is not the first. 'engine/battle' imports no
+  package of the engine, so 'def' and 'state' both import it and
+  reuse its vocabulary word for word. The deleted 'state.go'
+  re-declared 'Cell', 'Size', 'Footprint', 'Bounds', 'Faction',
+  'Terrain', 'Debuff', 'Skill' and the skill enums; the deleted
+  'def.go' re-declared 'WeaponCategory' and wrapped a pair of
+  integers in 'RadiusRange'. The new 'state.go' declares three types
+  and re-declares nothing, and the new 'def.go' declares six and
+  re-declares nothing. The mirror is gone; the split stands.
+  The four rulings:
+  1. The state package stays internal. The contract keeps
+     'battle.Unit'. The conversion happens at two points only:
+     'board.Load' fills the state form, and 'board.State' answers the
+     contract form.
+  2. The static data lives in 'engine/battle/def' as distinct types,
+     not as aliases of the contract types.
+  3. A named field, not an embedded struct: 'unit.Value.HP', never
+     'unit.HP'. The user chose the larger edit so that a reader sees
+     which data changes.
+  4. The unit layer only. 'battle.BattleState' is not wrapped this
+     time.
+  The cost, stated and accepted. A new dynamic field of a unit is
+  written in four places: 'battle.Unit' in snapshot.go, 'UnitValue'
+  in state.go, and one line in each direction of contract.go. A new
+  field of a mech, a pilot or a weapon is also four, because 'def'
+  holds distinct types. Three of the four fail loudly: the partition
+  test of state_test.go names a field that sits in no state struct,
+  and the reflection round trip of contract_test.go names a field
+  that a conversion dropped. The fourth, which half of a new field
+  belongs in, is a judgment that no test makes. The placement rule
+  for that judgment: 'UnitValue' holds every field that a rule of a
+  battle writes, plus the three pools a unit spends ('SP', 'Ammo',
+  'Skills'); a maximum is the bound of a pool and not a pool, so it
+  stands for the whole battle and sits on 'state.Unit'.
+  Which reading this narrows. The 0830 entry above, "The battle
+  engine is definitions, state and systems", says "dynamic state
+  (small structs, exported fields, cloned by copy)". The state
+  package holds no 'Clone'. 'battle.BattleState.Clone' is the one
+  deep copy of the engine, and the two conversion functions are its
+  callers. The same entry planned a package 'deploy'; that package
+  was folded into the shell earlier on this branch, and 'assemble'
+  runs on the contract form inside 'board.Load'. No older entry is
+  edited: the 'ef77841' reasoning is correct about the first attempt
+  and it is why this attempt declares no vocabulary of its own.
+  Landed in #88 as c4a0edc (the two packages), 0cc8dc5 (the
+  conversion) and d479bb2 (the systems and the shell on the state
+  form). The wire did not move: no fixture, no scenario, no Python
+  file and no protocol version changed across the three commits.

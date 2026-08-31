@@ -31,30 +31,64 @@ issues of the port (#60 to #68).
   The package 'engine/protocol' holds the envelope, the codes,
   the command list and the per-command wrappers. It imports
   'engine/battle'. Below the contract the implementation is two
-  kinds of package and one shell, and the imports run one way:
-  the shell imports the systems; a writing system imports the
-  contract 'engine/battle', the pure systems 'geometry' and
-  'formula', and never another writing system (user ruling
-  2026-08-30, issue #88).
-- The contract types are the state. There is no separate
-  definition package and no separate state package. 'battle.Unit'
-  holds the id, the faction, the position, the size, HP, EN, SP
-  and their maxima, the charges, the chance steps, the acted flag,
-  the ammo, the debuffs, the skills, its 'battle.Mech' and its
+  data packages, two kinds of system package and one shell, and
+  the imports run one way: the shell imports the systems; a
+  system imports the two data packages 'engine/battle/state' and
+  'engine/battle/def', the contract 'engine/battle' and the pure
+  systems 'geometry' and 'formula', and never another writing
+  system (user ruling 2026-08-30, issue #88).
+- Three layers hold the data of a battle. The contract
+  'engine/battle' holds the wire form. 'battle.Unit' holds the id,
+  the faction, the position, the size, HP, EN, SP and their
+  maxima, the charges, the chance steps, the acted flag, the ammo,
+  the debuffs, the skills, its 'battle.Mech' and its
   'battle.Pilot'; 'battle.BattleState' holds the bounds, the
   terrain, the phase, the turn and the units. The fields are
-  exported and they carry the JSON tags of the wire. The contract
-  holds no rule, only value helpers on its own fields
-  ('Unit.Alive', 'Unit.Footprint', 'Weapon.Reaches',
-  'BattleState.PhaseIndex', 'Footprint.Within'). 'BattleState.Clone' copies every field that
-  a system writes and shares the weapons of a mech, which no code
-  writes after the decode.
-- The behavior systems are the only code that writes state during
-  a battle. The writers of a field of a 'battle.BattleState' are
-  'engagement/commit.go', 'turn/turn.go' and the board package
-  ('Load', 'assemble', 'validate' and 'Clone'). Before the
-  battle, the board fills the two values that a payload can leave
-  out: a size of zero and an empty terrain.
+  exported and they carry the JSON tags of the wire. A consumer of
+  the contract reads these types, and no other form of the data
+  leaves the engine.
+- 'engine/battle/def' holds the data of a battle that no rule
+  writes: 'Mech', 'Pilot', 'Weapon', 'MapWeapon', 'Skill' and
+  'ShapeRange'. They are distinct structs with exported fields and
+  no JSON tag. The package declares no vocabulary of its own: it
+  reads 'Cell', 'Direction', 'WeaponCategory', 'MapWeaponAffects'
+  and the skill enums from the contract. A unit points at its mech
+  and at its pilot, so every copy of a battle shares them.
+- 'engine/battle/state' holds the data that a battle writes.
+  'state.Unit' holds the identity, the bounds of the pools and the
+  two pointers into 'def'. 'state.UnitValue', in the field
+  'Value', holds the position, HP, EN, SP, the acted flag, the
+  chance steps, the two charge counts, the skills, the ammo and
+  the debuffs. 'state.Battle' holds the units, the phase, the
+  turn, the bounds, the terrain and the terrain cells. The
+  placement rule: 'UnitValue' holds every field that a rule of a
+  battle writes, plus the three pools a unit spends ('SP', 'Ammo'
+  and 'Skills'); a maximum is the bound of a pool and not a pool,
+  so it stands for the whole battle and sits on 'state.Unit'. A
+  rule reads and writes 'unit.Value.HP', never 'unit.HP' (user
+  ruling 2026-08-31).
+- The conversion between the two forms runs at two points and
+  nowhere else: 'state.FromContract' inside 'board.Load', and
+  '(*state.Battle).ToContract' inside 'board.State'. Both lean on
+  'battle.BattleState.Clone', which is the one deep copy of the
+  engine, so the answer of 'State' shares nothing writable with
+  the board. 'Clone' copies every field that a system writes and
+  shares the weapons of a mech, which no code writes after the
+  decode. Two units that carry equal mechs point at two mechs.
+- No layer holds a rule. Each layer holds value helpers that read
+  the fields of their own struct and decide nothing about the
+  battle. The contract holds 'Unit.Footprint', 'Footprint.Within',
+  'Footprint.Cells', 'Cell.Before' and 'Faction.Opposing'. The
+  state package holds 'Unit.Alive', 'Unit.Footprint',
+  'Battle.Unit' and 'Battle.PhaseIndex'. The definition package
+  holds 'Weapon.Reaches' and 'Weapon.Debuff'.
+- The behavior systems are the only code that writes the state of
+  a battle. The writers of a field of a 'state.Battle' are
+  'engagement/commit.go' and 'turn/turn.go'. Before the battle,
+  'board.Load' works on the wire form: 'assemble' fills a maximum
+  that the payload leaves at zero, and 'validate' fills the two
+  values that a payload can leave out, a size of zero and an empty
+  terrain.
   'engine/battle/engagement' resolves one activation:
   'engagement.Prepare(board, decision)' reads the board, judges
   every participant (the actor, the target, the weapon, the reach,
@@ -68,11 +102,12 @@ issues of the port (#60 to #68).
   the debuffs and resets the acted flags. The
   pure system 'engine/battle/geometry' answers the distance, the
   reachable anchors and the occupied cells and writes nothing.
-- The package 'engine/battle/board' is the shell. 'board.New'
-  gives an empty board. 'Load' builds the content, assembles each
-  unit and judges the result. It does this for 'init' and for
-  'load' alike. It clones the content before it keeps it. A
-  refused 'Load' leaves the board unchanged.
+- The package 'engine/battle/board' is the shell. It holds the
+  state form. 'board.New' gives an empty board. 'Load' builds the
+  content, assembles each unit, judges the result and converts it
+  into the state form. It does this for 'init' and for 'load'
+  alike. It clones the content before it keeps it. A refused
+  'Load' leaves the board unchanged.
   It implements the contract, projects the answers of the read
   commands, and calls the systems. 'Act' is 'Prepare', 'Commit',
   'turn.Advance' in that order, so a refused 'act' leaves the

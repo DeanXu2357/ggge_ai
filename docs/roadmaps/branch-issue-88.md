@@ -8,96 +8,211 @@ Base: dev c65f416. The #72 branch (issue-72-mech-pilot-unit, head
 
 ## Design (approved before code)
 
-Note: 'engine/battle/def' and 'engine/battle/state' are gone. The
-contract types of 'engine/battle' are the state, and the systems
-read and write them. The two sections below record the design as
-the user approved it; the file inventory and the call chain record
-the tree of today.
+Note: 'engine/battle/def' and 'engine/battle/state' are back. The
+commit 'ef77841' deleted them, and the commits 'c4a0edc', '0cc8dc5'
+and 'd479bb2' wrote them again in a different shape. Contention
+point 18 holds the two rulings, the difference between the attempts
+and the cost. The two sections below record the shape that shipped.
+Each one ends with the parts of the first design that died, and the
+reason for each part.
 
-Three kinds of package below the contract 'engine/battle', and one
-shell. Imports run one way: shell -> systems -> state -> def ->
-formula. A system never imports another system except through the
-pure ones (geometry).
+Two data packages and two kinds of system package below the
+contract 'engine/battle', and one shell. Imports run one way:
+shell -> systems -> state -> def -> contract. The contract imports
+no package of the engine, and 'formula' imports no package of the
+engine. A system never imports another system except through the
+pure ones (geometry, formula).
 
 ### Static definitions: 'engine/battle/def'
 
-Immutable after decode. Exported fields. Shared by pointer between
-every clone of a board.
+No rule writes a field of this package. A unit points at its mech
+and at its pilot, so every copy of a battle shares them. The
+package declares no vocabulary. It reads 'battle.Cell',
+'battle.Direction', 'battle.WeaponCategory',
+'battle.MapWeaponAffects', 'battle.SkillKind', 'battle.SkillSource'
+and 'battle.SkillAffects' from the contract. The types carry no
+JSON tag: the conversion is the only bridge to the wire.
 
     type Mech struct {
         HP, EN                      int
         Attack, Defense, Mobility   float64
         MoveRange                   int
         Weapons                     []Weapon
+        MapWeapons                  []MapWeapon
     }
     type Pilot struct {
         Ranged, Melee, Awaken, Defense, Reaction float64
         SP                                      int
     }
     type Weapon struct {
-        Name            string
-        Power           float64
-        Range           RadiusRange
-        ENCost          int
-        Accuracy        float64
-        MapWeapon       bool
-        UsableAfterMove bool
-        DebuffKind      string
-        DebuffMagnitude float64
-        Categories      []WeaponCategory
+        Name               string
+        Power              float64
+        RangeMin, RangeMax int
+        ENCost             int
+        Accuracy           float64
+        UsableAfterMove    bool
+        DebuffKind         *string
+        DebuffMagnitude    float64
+        Categories         []battle.WeaponCategory
     }
-    type RadiusRange struct{ Min, Max int }   // Holds(distance int) bool
-    type WeaponCategory string                // ranged, melee, awaken
+    type MapWeapon struct {
+        Name                    string
+        Power                   float64
+        ApplyShape, EffectShape ShapeRange
+        AmmoMax, ENCost         int
+        Accuracy                float64
+        Affects                 battle.MapWeaponAffects
+        UsableAfterMove         bool
+        DebuffKind              *string
+        DebuffMagnitude         float64
+        Categories              []battle.WeaponCategory
+    }
+    type ShapeRange struct {
+        Cells     []battle.Cell
+        Direction battle.Direction
+    }
+    type Skill struct {
+        Kind            battle.SkillKind
+        Source          battle.SkillSource
+        Amount          *float64
+        Uses            int
+        EndsActivation  bool
+        UsableAfterMove bool
+        Affects         battle.SkillAffects
+    }
+    func (w Weapon) Reaches(distance int) bool
+    func (w Weapon) Debuff() string
+
+'Skill' is a type of 'def', but the skill list of a unit sits in
+'state.UnitValue'. A use of a skill spends 'Uses', so the list is a
+pool of the unit. The type is the shape of one entry only.
+
+What the first design lost:
+
+- 'RadiusRange' with 'Holds'. The weapon keeps the two integers of
+  the wire, 'RangeMin' and 'RangeMax', and 'Weapon.Reaches' answers
+  the distance question. A second shape for a pair of integers is
+  one more mirror, and the mirror killed the first attempt.
+- The flag 'MapWeapon'. The map weapon became its own type in
+  'ca8ae83' (protocol 1.8), before this restructure.
+- The declaration 'type WeaponCategory string' and its constants.
+  The package reads the contract enum.
+- The plain 'DebuffKind string'. The field keeps the '*string' of
+  the wire. A plain string cannot tell an absent debuff from an
+  empty one, and the round trip of contract_test.go compares the
+  two forms field by field.
 
 No 'CanCounter': a counter fires under the rule of an attack (user
 ruling 2026-08-30). The ability fields of #72 land here later.
 
 ### Dynamic state: 'engine/battle/state'
 
-Small structs, exported fields, no methods that decide anything.
-'Board.Clone' copies the units and their slices and maps; the
-definitions stay shared.
+The package holds what a battle writes. It declares three types and
+re-declares nothing. 'battle.Cell', 'battle.Faction',
+'battle.Bounds', 'battle.Terrain', 'battle.TerrainCell' and
+'battle.Debuff' come from the contract.
 
     type Unit struct {
         ID        string
-        Faction   Faction
-        Footprint Footprint
+        Faction   battle.Faction
+        Size      battle.Cell
+        MaxHP, ENMax, SPMax                              int
+        ChanceStepsMax                                   int
+        SupportDefendChargesMax, SupportAttackChargesMax int
+        HasShield, SupportDefendWhenAttack               bool
         Mech      *def.Mech
         Pilot     *def.Pilot
-        HP, MaxHP, EN, ENMax, SP, SPMax int
-        Acted     bool
-        ChanceSteps, ChanceStepsMax                     int
-        SupportDefendCharges, SupportDefendChargesMax   int
-        SupportAttackCharges, SupportAttackChargesMax   int
-        HasShield, SupportDefendWhenAttack              bool
+        Value     UnitValue
+    }
+    type UnitValue struct {
+        Pos       battle.Cell
+        HP, EN, SP                                 int
+        Acted                                      bool
+        ChanceSteps                                int
+        SupportDefendCharges, SupportAttackCharges int
+        Skills    []def.Skill
         Ammo      map[string]int
-        Debuffs   []Debuff
-        Skills    []Skill        // per-unit wire data; no rule reads it (#81)
+        Debuffs   []battle.Debuff
     }
-    type Board struct {
-        Bounds         Bounds
-        Units          []Unit
-        Phase          Faction
-        Turn           int
-        DefaultTerrain Terrain
-        TerrainCells   map[Cell]Terrain
+    type Battle struct {
+        Units        []Unit
+        Phase        battle.Faction
+        Turn         int
+        Bounds       battle.Bounds
+        Terrain      battle.Terrain
+        TerrainCells []battle.TerrainCell
     }
-    // Vocabulary of the grid: Cell, Size, Footprint, Bounds, Faction,
-    // Terrain, Debuff, Skill and the skill enums.
-    func (b *Board) Unit(id string) *Unit      // lookup, nil when absent
-    func (b *Board) Clone() Board
+    func (u *Unit) Alive() bool                  // nil receiver = dead
+    func (u *Unit) Footprint() battle.Footprint
+    func (b *Battle) Unit(id string) *Unit       // lookup, nil when absent
+    func (b *Battle) PhaseIndex() int
+
+The placement rule, which a reviewer applies to a new field:
+'UnitValue' holds every field that a rule of a battle writes, plus
+the three pools a unit spends ('SP', 'Ammo', 'Skills'). A maximum
+is the bound of a pool and not a pool, so it stands for the whole
+battle and sits on 'state.Unit'.
+
+'state.Battle' holds no 'PendingEvents' and no 'FiredEvents'. The
+two lists belong to the session of the handler
+('engine/server/handler/session.go' fills them into the answer of
+'export'), and 'Load' never took them.
+
+The package holds no 'Clone'. 'battle.BattleState.Clone' is the one
+deep copy of the engine, and the two conversion functions are its
+callers.
+
+What the first design lost:
+
+- The vocabulary of the grid. The first 'state.go' declared 'Cell',
+  'Size', 'Footprint', 'Bounds', 'Faction', 'Terrain', 'Debuff',
+  'Skill' and the skill enums a second time. That is what killed it
+  (contention point 18).
+- 'Bounds{Low, High}'. The state holds 'battle.Bounds' by value.
+  The contract holds a pointer to it, so the conversion reads
+  through the pointer on the way in and takes an address on the way
+  out.
+- The 'Terrain' enum of int with the table 'Names'. 'battle.Terrain'
+  is a string, and its value is its wire name.
+- 'TerrainCells map[Cell]Terrain'. The state keeps the wire list, so
+  an export answers in payload order.
+- 'Footprint' as a field of a unit. The unit holds 'Size' and
+  'Value.Pos' as the wire holds them, and 'Unit.Footprint' builds
+  the rectangle. The state method does not lift a size of zero to
+  one. 'board.validate' lifts it before the conversion runs.
+- The name 'Board'. The type is 'state.Battle', and 'board.Board' is
+  the shell.
+- One flat unit. The unit splits in two: 'state.Unit' for the
+  identity and the bounds, 'state.UnitValue' behind the named field
+  'Value' for the eleven fields a battle writes.
+
+### The conversion: 'engine/battle/state/contract.go'
+
+    func FromContract(s battle.BattleState) Battle
+    func (b *Battle) ToContract() battle.BattleState
+
+It runs at two points and nowhere else: 'FromContract' in
+'board.Load', 'ToContract' in 'board.State'. 'FromContract' clones
+its input first and 'ToContract' clones its answer last, both
+through 'battle.BattleState.Clone', so the answer of 'State' shares
+nothing writable with the board. A mech and a pilot go into a local
+before the conversion takes the address, so two units that carry
+equal mechs never point at one mech.
 
 ### Pure systems (read, never write)
 
 'engine/battle/geometry':
 
-    func Distance(a, b state.Footprint) int
-    func FootprintAt(unit *state.Unit, anchor state.Cell) state.Footprint
-    func Within(f state.Footprint, bounds state.Bounds) bool
-    func Occupied(board *state.Board, except string) CellSet
-    func Blocking(board *state.Board, unit *state.Unit) CellSet
-    func ReachableAnchors(board *state.Board, unit *state.Unit) CellSet
-    func SortedCells(set CellSet) []state.Cell
+    func Distance(a, b battle.Footprint) int
+    func FootprintAt(unit *state.Unit, anchor battle.Cell) battle.Footprint
+    func AddFootprint(set CellSet, footprint battle.Footprint)
+    func Occupied(board *state.Battle, except string) CellSet
+    func Blocking(board *state.Battle, unit *state.Unit) CellSet
+    func ReachableAnchors(board *state.Battle, unit *state.Unit) CellSet
+    func SortedCells(set CellSet) []battle.Cell
+
+The board argument is 'state.Battle' and the geometry types are the
+contract types: 'Within' is 'battle.Footprint.Within'.
 
 'engine/battle/abilities' arrives with #72 (condition sums, scaled
 stats); in this issue the maxima come from the definitions alone.
@@ -107,27 +222,14 @@ stats); in this issue the maxima come from the definitions alone.
 'engine/battle/engagement' — one activation of one unit: the move,
 the exchange, the end of the activation.
 
-    type Decision struct {          // the domain form of battle.Decision
-        UnitID   string
-        Kind     ActionKind         // attack, map_attack, reposition, standby
-        MoveTo   *state.Cell
-        TargetID string
-        Weapon   string
-        SupportDefender  string
-        SupportAttackers []string
-        Response *Response
-    }
-    type Response struct {
-        Stance           Stance
-        Weapon           string
-        SupportDefender  string
-        SupportAttackers []string
-    }
+    // The mirror types 'engagement.Decision' and 'engagement.Response'
+    // are gone (contention point 14). The engagement speaks
+    // 'battle.Decision' and 'battle.ResponseAttack'.
 
     // Prepare validates every participant and writes nothing. Every
     // error of 'Act' comes from here: battle.ErrNoUnit, ErrDestroyed,
     // ErrOffPhase, ErrActed, ErrIllegalMove, ErrIllegalAction.
-    func Prepare(board *state.Board, decision Decision) (Plan, error)
+    func Prepare(board *state.Battle, decision battle.Decision) (Plan, error)
 
     // Plan is the ordered list of steps with every choice resolved:
     // the anchor, the target, the weapon, each supporter with its
@@ -137,11 +239,12 @@ the exchange, the end of the activation.
     // Commit writes the plan in order and cannot fail. It stops when
     // the receiver of the next strike is destroyed; a shooter that
     // died earlier in the exchange is skipped.
-    func Commit(board *state.Board, plan Plan, dice battle.Dice) Trace
+    func Commit(board *state.Battle, plan Plan, dice battle.Dice) Trace
 
     // Menu answers 'response_attacks' with the same eligibility
     // helpers Prepare uses, so the menu and the check never diverge.
-    func Menu(board *state.Board, decision Decision, defenderID string) (Menu, error)
+    // It returns 'Options' (contention point 5).
+    func Menu(board *state.Battle, decision battle.Decision, defenderID string) (Options, error)
 
     type Trace []Strike; type Strike struct {Kind, ShooterID, StruckID,
     Weapon, Landed, Damage, Killed}; type Forecast; type Menu with the
@@ -182,38 +285,44 @@ the exchange, the end of the activation.
 
 'engine/battle/turn':
 
-    func Advance(board *state.Board) []Rotation     // phase rotation,
+    func Advance(board *state.Battle) []Rotation    // phase rotation,
         // EN regeneration, debuff expiry, acted reset, as turn.go today
 
-'engine/battle/deploy':
+'engine/battle/deploy' is gone: the user folded it into the shell.
+'assemble' is a function of board/resolver.go, and it runs on the
+contract form before the conversion.
 
-    func Assemble(unit *state.Unit)   // maxima from the definitions
-        // (fillMaxima today); #72 adds the abilities
-    // 'Place' comes with #72.
+    func assemble(unit *battle.Unit)  // maxima from the definitions;
+        // #72 adds the abilities. 'Place' comes with #72.
 
 ### The shell: 'engine/battle/board'
 
-    type Board struct{ state state.Board }   // implements battle.Board
-    NewBoard(state)                          // clone + validate
-    Act: decode -> engagement.Prepare -> engagement.Commit ->
+    type Board struct{ state state.Battle }  // implements battle.Board
+    New()                                    // an empty board
+    Load: assemble, validate, state.FromContract
+    Act: engagement.Prepare -> engagement.Commit ->
          turn.Advance -> encode. Atomic by construction: Prepare
          returns before the first write and Commit cannot fail, so
          handler/act.go drops its clone.
     Actions, ReachableCells: geometry
     ResponseAttacks: engagement.Menu
-    Clone: state.Board.Clone
-    State, Summary: encode
+    State: state.Battle.ToContract
+    Summary, the read answers: codec.go
 
-The codec (wire <-> def/state) stays in the shell in two files: one
-for the definitions, one for the state. Every parse of a wire name
-lives there.
+The conversion between the two forms is one file of the 'state'
+package, not two files of the shell. The shell keeps 'codec.go' for
+the answers of the read commands, which project the state onto the
+wire answer types and hold no second form of a unit.
 
 ### Rule of writes
 
-Only 'engagement.Commit', 'turn.Advance' and the board package
-('NewBoard', 'assemble', 'validate', 'Clone') assign a field of
-'battle.Unit' or 'battle.BattleState'. Review check: grep for
-assignments to those fields outside the two systems and the shell.
+Only 'engagement/commit.go' and 'turn/turn.go' assign a field of
+'state.Unit' or 'state.Battle' during a battle. Before the battle,
+'board/resolver.go' ('assemble', 'validate') writes 'battle.Unit'
+fields on the contract form, and 'state/contract.go' writes both
+forms in the conversion. 'battle/helpers.go' ('Clone') writes the
+copy. Review check: grep for assignments to those fields outside
+the two systems, the shell and the conversion.
 
 ### Stages (each with every gate green and the goldens byte-identical)
 
@@ -241,7 +350,16 @@ D. Spec process model, terminology map, ledger, the artifact.
   new type 'ShapeRange' (protocol 1.8). Shape only; no firing.
 - 2026-08-31: the user ruled the area fields of 'MapWeapon':
   'ApplyShape' and 'EffectShape', with no 'Origin' and no
-  'CenterRange' (protocol 1.9). In the working tree, uncommitted.
+  'CenterRange' (protocol 1.9, a429965).
+- 2026-08-31: the user reversed 'ef77841'. 'def' and 'state' come
+  back, and 'battle' stays the one vocabulary. Three commits:
+  c4a0edc (the two packages, nothing imports them), 0cc8dc5 (the
+  conversion, nothing calls it), d479bb2 (the systems and the shell
+  on the state form). The wire did not move: no fixture, no
+  scenario, no Python file and no protocol version changed.
+- 2026-08-31: this commit records the reversal in the two design
+  sections, in contention point 18, in the spec, in the terminology
+  map and in the ledger.
 
 ## Change summary
 
@@ -274,25 +392,45 @@ D. Spec process model, terminology map, ledger, the artifact.
 | 507fb40 | The mirror 'engagement.Decision', 'engagement.Response' and their enums removed: the engagement speaks 'battle.Decision', the board loses the decode layer, 'Act' and 'ResponseAttacks' pass the payload through (a user finding at review) |
 | de450a9 | The composition of the 'actions' answer moved from the codec to reader.go as 'actionsOf': it selects what the actionable list of one unit holds, so it is the business logic of the query and no conversion; the test helper of the old name is 'mustActions' (a user finding at review) |
 | 9dcce91, 2732e7e | The terminology drift of 178dec3 (the joined unit/mech row, two paths, the forecast row, the row 'salvo'), the spec import sentence, this artifact |
+| ca8ae83, a429965 | The map weapon split out of 'battle.Weapon' as 'battle.MapWeapon' with 'ShapeRange' (protocol 1.8), then the two shapes 'ApplyShape' and 'EffectShape' (protocol 1.9), both user rulings; see contention points 16 and 17 |
+| c4a0edc | 'engine/battle/def' and 'engine/battle/state'; the two packages declare no vocabulary of the contract, and nothing imports them yet; the field-partition test of state_test.go |
+| 0cc8dc5 | 'state.FromContract' and 'state.Battle.ToContract'; the reflection round trip and the sharing test of contract_test.go; nothing calls the two functions yet |
+| d479bb2 | The systems and the shell on the state form: 'engagement', 'turn', 'geometry' and 'board' take 'state.Battle' and 'state.Unit', and every write of a pool goes through 'Value'; 'Load' converts in and 'State' converts out; five value helpers leave helpers.go with their callers; 'assemble' and 'validate' keep their signatures on the contract form |
+| this commit | The reversal in the two design sections, contention point 18, the spec process model, three terminology rows and the ledger entry of 2026-08-31 |
 
     engine/battle             board.go (the three interfaces),
                               decision.go, snapshot.go,
                               responses.go (the wire types),
-                              helpers.go (204): the value helpers on
-                              the wire types, Terrain, WeaponCategory,
-                              Footprint, Clone; dice.go, errors.go
-    engine/battle/geometry    geometry.go (142)
+                              helpers.go (140): Terrain,
+                              WeaponCategory, 'Cell.Before',
+                              Footprint and its methods,
+                              'Unit.Footprint', PhaseOrder,
+                              'Faction.Opposing', 'Clone',
+                              'cloneUnit', 'CloneAmount';
+                              dice.go, errors.go
+    engine/battle/def         def.go (79): Mech, Pilot, Weapon,
+                              MapWeapon, Skill, ShapeRange,
+                              'Weapon.Reaches', 'Weapon.Debuff'
+    engine/battle/state       state.go (82): Unit, UnitValue, Battle,
+                              'Unit.Alive', 'Unit.Footprint',
+                              'Battle.Unit', 'Battle.PhaseIndex';
+                              contract.go (268): 'FromContract',
+                              'ToContract' and the per-type
+                              conversions; state_test.go (the field
+                              partition), contract_test.go (the round
+                              trip, the sharing, the two mechs)
+    engine/battle/geometry    geometry.go (143)
     engine/battle/engagement  model.go (the shared predicates,
                               'nameOf'),
-                              prepare.go (261), commit.go (186),
-                              menu.go (105), strike.go (98),
-                              support.go (52), forecast.go, results.go
-    engine/battle/turn        turn.go (101)
+                              prepare.go (263), commit.go (210),
+                              menu.go (107), strike.go (100),
+                              support.go (54), forecast.go, results.go
+    engine/battle/turn        turn.go (102)
     engine/battle/board       board.go (the struct and 'New'),
                               reader.go ('BoardReader'),
                               resolver.go ('BoardResolver': 'Load',
                               'assemble', 'validate', 'Act'),
-                              codec.go (conversions only); tests by
+                              codec.go (the read answers); tests by
                               subject: resolver_test.go,
                               reader_test.go, codec_test.go,
                               geometry_test.go, turn_test.go (the
@@ -300,9 +438,9 @@ D. Spec process model, terminology map, ledger, the artifact.
                               engine/battle/helpers_test.go)
     engine/server/handler     act.go
     engine/protocol           types.go (the per-command wrappers),
-                              envelope.go (1.8), commands.go,
+                              envelope.go (1.9), commands.go,
                               state.go
-    src/ggge_ai/engine        state.py, codec.py, contract.py (1.8)
+    src/ggge_ai/engine        state.py, codec.py, contract.py (1.9)
 
 ## Call chain
 
@@ -310,7 +448,7 @@ D. Spec process model, terminology map, ledger, the artifact.
       handler.Commands.Act
         target = session board (a clone only when the dice are forced)
         board.Act(decision, dice)                       the shell
-          engagement.Prepare(state, decision)           reads only
+          engagement.Prepare(b.state, decision)         reads only
             actor: exists, alive, of the phase, not acted
             kind: attack | reposition | standby (map_attack refused)
             anchor: reachable (geometry), permitted after the move
@@ -320,21 +458,23 @@ D. Spec process model, terminology map, ledger, the artifact.
               (stance, counter weapon, support defender, the
               defender's supporters)
             -> Plan, or the first error
-          engagement.Commit(state, plan, dice)          writes, cannot fail
-            anchor; actor.EN -= cost
+          engagement.Commit(b.state, plan, dice)       writes, cannot fail
+            anchor; actor.Value.EN -= cost
             salvo of the actor's supporters (one die; charge--, EN-=)
             main strike (receiverFor: the defender's support defender
               or the target; hit rate reads the target)
             defender alive? -> the defender's salvo; the counter
               (bearer covers when it holds a charge)
             endActivation: chance step or acted
-          turn.Advance(state)                           rotations
+          turn.Advance(b.state)                        rotations
           encodeResolution
         session.board stays the same object
     response_attacks -> engagement.Menu = Prepare(decision, no
                         response) -> the options from the Plan
     actions / reach -> geometry.ReachableAnchors
-    init -> board.NewBoard -> assemble for every unit
+    init / load -> board.Load -> assemble for every unit, validate,
+                   state.FromContract (the first conversion point)
+    export -> board.State -> state.Battle.ToContract (the second)
 
 ## Verification
 
@@ -359,10 +499,24 @@ D. Spec process model, terminology map, ledger, the artifact.
   two names changed with their subject when the counter permission
   left ('...NeedsTheReachAndTheEnergy'). The codec decode test died with
   'decodeDecision' at review round 3 (contention point 14).
-- The write grep: every assignment to a 'battle.Unit' or
+- The write grep: every assignment to a 'state.Unit' or
+  'state.Battle' field outside tests sits in engagement/commit.go or
+  turn/turn.go. Every assignment to a 'battle.Unit' or
   'battle.BattleState' field outside tests sits in
-  engagement/commit.go, turn/turn.go, board/board.go ('NewBoard',
-  'assemble'), board/codec.go ('validate') or helpers.go ('Clone').
+  board/resolver.go ('assemble', 'validate'), state/contract.go (the
+  conversion) or helpers.go ('Clone').
+- The reversal (c4a0edc, 0cc8dc5, d479bb2), measured at this docs
+  commit: 'uv run pytest -q' 1034 passed 4 skipped, 'cd engine &&
+  go test ./...' every package ok ('def' carries no test file),
+  'uv run ruff check src tests scripts' clean. The differential
+  suite of 'engine/differential' is one of the green packages, and
+  no fixture moved, so the wire form is unchanged.
+- The two guard tests of the split: state_test.go partitions the
+  fields of 'battle.Unit' over 'state.Unit' and 'state.UnitValue'
+  and compares the shape of each pair; contract_test.go fills every
+  field through reflection, runs the round trip, proves the answer
+  of 'ToContract' shares nothing writable with the state, and proves
+  that two units with equal mechs point at two mechs.
 - Prepare's check order is today's order statement for statement
   (the editor's report), so every error text and precedence a test
   asserts is unchanged.
@@ -565,12 +719,75 @@ D. Spec process model, terminology map, ledger, the artifact.
     Both shapes stay empty there, because no shape source feeds a
     golden.
 
+18. **'def' and 'state' come back** (a user ruling, 2026-08-31).
+    Two rulings of this branch conflict across time, and the second
+    one wins:
+    - 'ef77841' (2026-08-30) deleted the two packages. Its reason:
+      "The state and definition packages mirrored the contract types
+      field by field, and the board codec copied between the two
+      forms in both directions. Every new field, as issue 72 showed,
+      was written three times." Contention point 13 records the same
+      finding.
+    - This ruling writes the two packages again. Its reason: a reader
+      cannot see which data a battle changes, because the hit points
+      of a unit and the move range of its mech sit in one flat
+      struct.
+    What makes the second attempt different: 'engine/battle' imports
+    no package of the engine. 'def' and 'state' both import it and
+    reuse its vocabulary word for word. The deleted 'state.go'
+    re-declared 'Cell', 'Size', 'Footprint', 'Bounds', 'Faction',
+    'Terrain', 'Debuff', 'Skill' and the skill enums, and the deleted
+    'def.go' re-declared 'WeaponCategory' and wrapped a pair of
+    integers in 'RadiusRange'. The new 'state.go' declares three
+    types and re-declares nothing; the new 'def.go' declares six and
+    re-declares nothing. The mirror is gone; the split is not.
+    The cost, stated plainly. A new dynamic field of a unit is now
+    written in four places: 'battle.Unit' in snapshot.go, 'UnitValue'
+    in state.go, and one line in each direction of contract.go. A new
+    field of a mech, a pilot or a weapon is also four, because 'def'
+    holds distinct types. Three of the four fail loudly:
+    - state_test.go partitions the fields. A field of 'battle.Unit'
+      that sits in no state struct fails, and a field of the state
+      that sits in no field of 'battle.Unit' fails as well. The test
+      also compares the shape of each pair.
+    - contract_test.go fills every field through reflection and runs
+      the round trip. A dropped line of either direction fails and
+      names the field it dropped.
+    The fourth place, which half of a new field belongs in, is a
+    judgment that no test makes. The placement rule for the reviewer:
+    'UnitValue' holds every field that a rule of a battle writes,
+    plus the three pools a unit spends ('SP', 'Ammo', 'Skills'). A
+    maximum is the bound of a pool and not a pool, so it stands for
+    the whole battle and sits on 'state.Unit'.
+    Distinct 'def' types, not aliases of the contract types (the
+    user's ruling). The price of the distinct types is the four-place
+    cost above on every static field. The price of an alias is that
+    'def.Weapon' would carry the JSON tags of the wire, so a wire
+    rename would reshape the definition in silence and the two layers
+    would be one type with two names. The user paid the first price.
+    Three more rulings ride with this one:
+    - 'state' stays internal. The contract keeps 'battle.Unit', and
+      the conversion happens at two points only: 'Load' and 'State'.
+    - A named field, not an embedded struct: 'unit.Value.HP', never
+      'unit.HP'. The user chose the larger edit so that a reader sees
+      which data changes.
+    - The unit layer only. 'battle.BattleState' is not wrapped this
+      time: 'state.Battle' is a distinct type, and its units are the
+      split ones.
+    Contention point 4 stands again: 'state' holds value helpers
+    ('Unit.Alive', 'Battle.PhaseIndex', 'Unit.Footprint'). Each one
+    reads only the fields of its own struct and decides nothing about
+    the battle. 'Weapon.Reaches' and 'Weapon.Debuff' moved to
+    'def.Weapon' for the same reason. 'battle.BattleState.Clone'
+    stays on the contract and is the one deep copy of the engine.
+
 ## Deferred
 
-- #72 on this structure: the ability fields on the contract types,
-  the pure system 'abilities', the assembly reading the abilities,
-  'engagement' reading the modified stats; the catalog, the
-  converter and the docs from the #72 branch.
+- #72 on this structure: the ability fields on the contract types
+  and on 'def', the pure system 'abilities', the assembly reading
+  the abilities, 'engagement' reading the modified stats; the
+  catalog, the converter and the docs from the #72 branch. Each new
+  field costs the four places of contention point 18.
 - 'nearestFreeCell' in geometry has no caller outside its tests
   (as on dev).
 - The Python sandbox and the fake server: unchanged by the wire
