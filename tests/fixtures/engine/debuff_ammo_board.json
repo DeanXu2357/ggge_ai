@@ -45,7 +45,6 @@
                 "range_max": 3,
                 "en_cost": 10,
                 "accuracy": 5.0,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
@@ -58,20 +57,26 @@
                 "range_max": 2,
                 "en_cost": 15,
                 "accuracy": 0.0,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": "armor_break",
                 "debuff_magnitude": 0.2,
                 "categories": null
-              },
+              }
+            ],
+            "map_weapons": [
               {
                 "name": "missile pod",
                 "power": 1500.0,
-                "range_min": 2,
-                "range_max": 5,
+                "shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "origin": "self",
+                "center_range": 0,
+                "ammo_max": 0,
                 "en_cost": 20,
                 "accuracy": 0.0,
-                "map_weapon": true,
+                "affects": "enemy",
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
@@ -153,13 +158,13 @@
                 "range_max": 1,
                 "en_cost": 0,
                 "accuracy": 10.0,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
                 "categories": null
               }
-            ]
+            ],
+            "map_weapons": []
           },
           "skills": [],
           "acted": false,
@@ -225,7 +230,6 @@
                 "range_max": 3,
                 "en_cost": 10,
                 "accuracy": 5.0,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
@@ -238,13 +242,13 @@
                 "range_max": 1,
                 "en_cost": 0,
                 "accuracy": 10.0,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
                 "categories": null
               }
-            ]
+            ],
+            "map_weapons": []
           },
           "skills": [],
           "acted": false,
@@ -322,7 +326,6 @@
                   "range_max": 3,
                   "en_cost": 10,
                   "accuracy": 5.0,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
@@ -335,20 +338,26 @@
                   "range_max": 2,
                   "en_cost": 15,
                   "accuracy": 0.0,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": "armor_break",
                   "debuff_magnitude": 0.2,
                   "categories": null
-                },
+                }
+              ],
+              "map_weapons": [
                 {
                   "name": "missile pod",
                   "power": 1500.0,
-                  "range_min": 2,
-                  "range_max": 5,
+                  "shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
+                  "origin": "self",
+                  "center_range": 0,
+                  "ammo_max": 0,
                   "en_cost": 20,
                   "accuracy": 0.0,
-                  "map_weapon": true,
+                  "affects": "enemy",
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
@@ -430,13 +439,13 @@
                   "range_max": 1,
                   "en_cost": 0,
                   "accuracy": 10.0,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
                   "categories": null
                 }
-              ]
+              ],
+              "map_weapons": []
             },
             "skills": [],
             "acted": false,
@@ -502,7 +511,6 @@
                   "range_max": 3,
                   "en_cost": 10,
                   "accuracy": 5.0,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
@@ -515,13 +523,13 @@
                   "range_max": 1,
                   "en_cost": 0,
                   "accuracy": 10.0,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
                   "categories": null
                 }
-              ]
+              ],
+              "map_weapons": []
             },
             "skills": [],
             "acted": false,

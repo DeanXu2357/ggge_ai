@@ -25,9 +25,11 @@ from ggge_ai.engine.state import (
     EventTable,
     Debuff,
     Decision,
+    MapWeapon,
     Mech,
     Pilot,
     ResponseAttack,
+    ShapeRange,
     Skill,
     StageEvent,
     TerrainCell,
@@ -39,7 +41,9 @@ CONTRACT = Path(__file__).resolve().parents[1] / "engine" / "battle"
 STATE_GO = (CONTRACT / "snapshot.go", CONTRACT / "decision.go", CONTRACT.parent / "protocol" / "state.go")
 
 STRUCTS = {
+    "ShapeRange": ShapeRange,
     "Weapon": Weapon,
+    "MapWeapon": MapWeapon,
     "Skill": Skill,
     "Debuff": Debuff,
     "Pilot": Pilot,
@@ -53,7 +57,9 @@ STRUCTS = {
 }
 
 ENCODERS = {
+    "ShapeRange": lambda: codec.encode_shape_range(ShapeRange()),
     "Weapon": lambda: codec.encode_weapon(Weapon(name="w", power=1.0)),
+    "MapWeapon": lambda: codec.encode_map_weapon(MapWeapon(name="w", power=1.0)),
     "Skill": lambda: codec.encode_skill(Skill(kind="skill_heal")),
     "Debuff": lambda: codec.encode_debuff(Debuff("k", 1.0, 2)),
     "Pilot": lambda: codec.encode_pilot(Pilot()),

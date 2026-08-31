@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from ggge_ai.runtime.perceive import Observation
-from ggge_ai.engine.contract import Faction
+from ggge_ai.engine.contract import Direction, Faction, MapWeaponOrigin
 from ggge_ai.stage.intel import (
     IntelPerceiver,
     Intelligence,
@@ -101,14 +101,25 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert (unit.hp, unit.max_hp) == (2400, 2400)
     assert (unit.en, unit.en_max) == (180, 180)
     assert unit.mech.move_range == 5
-    assert [weapon.name for weapon in unit.mech.weapons] == ["ビームライフル", "メガ粒子砲"]
-    assert unit.weapon("メガ粒子砲").map_weapon
+    assert [weapon.name for weapon in unit.mech.weapons] == ["ビームライフル"]
+    assert [weapon.name for weapon in unit.mech.map_weapons] == ["メガ粒子砲"]
     assert unit.ammo == {"メガ粒子砲": 2}
     assert [skill.kind for skill in unit.skills] == ["skill_en_refill"]
     assert unit.chance_steps == unit.chance_steps_max == 1
     assert unit.support_attack_charges == 2
     assert unit.support_defend_charges == 1
     assert (unit.has_shield, unit.support_defend_when_attack) == (True, True)
+
+
+def test_a_map_weapon_carries_no_shape_because_the_panel_shows_none():
+    """面板讀不到格子、朝向與原點，所以形狀留空、朝向 none、原點取預設 self。"""
+    area = MAP_GUN.to_map_weapon()
+
+    assert area.shape.cells == []
+    assert area.shape.direction is Direction.NONE
+    assert area.origin is MapWeaponOrigin.SELF
+    assert area.center_range == 0
+    assert area.ammo_max == 2
 
 
 def test_the_weapon_carries_its_badges_its_crit_and_its_level():

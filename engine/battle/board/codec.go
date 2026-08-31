@@ -1,6 +1,8 @@
 package board
 
 import (
+	"slices"
+
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 )
@@ -28,9 +30,25 @@ func encodeWeapons(unit *battle.Unit) []battle.WeaponEntry {
 			RangeMin:        weapon.RangeMin,
 			RangeMax:        weapon.RangeMax,
 			ENCost:          weapon.ENCost,
+			Accuracy:        weapon.Accuracy,
+			UsableAfterMove: weapon.UsableAfterMove,
+		})
+	}
+	return out
+}
+
+func encodeMapWeapons(unit *battle.Unit) []battle.MapWeaponEntry {
+	out := make([]battle.MapWeaponEntry, 0, len(unit.Mech.MapWeapons))
+	for _, weapon := range unit.Mech.MapWeapons {
+		out = append(out, battle.MapWeaponEntry{
+			Name:            weapon.Name,
+			Shape:           battle.ShapeRange{Cells: slices.Clone(weapon.Shape.Cells), Direction: weapon.Shape.Direction},
+			Origin:          weapon.Origin,
+			CenterRange:     weapon.CenterRange,
+			ENCost:          weapon.ENCost,
 			Ammo:            encodeAmmo(unit.Ammo, weapon.Name),
 			Accuracy:        weapon.Accuracy,
-			MapWeapon:       weapon.MapWeapon,
+			Affects:         weapon.Affects,
 			UsableAfterMove: weapon.UsableAfterMove,
 		})
 	}

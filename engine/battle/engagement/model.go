@@ -22,14 +22,8 @@ func hasENFor(unit *battle.Unit, weapon battle.Weapon) bool {
 	return unit.EN >= weapon.ENCost
 }
 
-// A map weapon fires at an area, and the area is not in the contract, so no
-// exchange reads one.
-func directWeapon(weapon *battle.Weapon) bool {
-	return weapon != nil && !weapon.MapWeapon
-}
-
 func fires(unit *battle.Unit, weapon *battle.Weapon, distance int) bool {
-	return directWeapon(weapon) && hasENFor(unit, *weapon) && weapon.Reaches(distance)
+	return weapon != nil && hasENFor(unit, *weapon) && weapon.Reaches(distance)
 }
 
 func weaponOf(unit *battle.Unit, name string) *battle.Weapon {

@@ -1,10 +1,11 @@
 package battle
 
 type ActionsResponse struct {
-	Unit      UnitStatus    `json:"unit"`
-	MoveCells []Cell        `json:"move_cells"`
-	Weapons   []WeaponEntry `json:"weapons"`
-	Skills    []SkillEntry  `json:"skills"`
+	Unit       UnitStatus       `json:"unit"`
+	MoveCells  []Cell           `json:"move_cells"`
+	Weapons    []WeaponEntry    `json:"weapons"`
+	MapWeapons []MapWeaponEntry `json:"map_weapons"`
+	Skills     []SkillEntry     `json:"skills"`
 }
 
 type UnitStatus struct {
@@ -25,10 +26,20 @@ type WeaponEntry struct {
 	RangeMin        int     `json:"range_min"`
 	RangeMax        int     `json:"range_max"`
 	ENCost          int     `json:"en_cost"`
-	Ammo            *int    `json:"ammo"` // A null 'ammo' is a weapon that spends no ammunition.
 	Accuracy        float64 `json:"accuracy"`
-	MapWeapon       bool    `json:"map_weapon"`
 	UsableAfterMove bool    `json:"usable_after_move"`
+}
+
+type MapWeaponEntry struct {
+	Name            string           `json:"name"`
+	Shape           ShapeRange       `json:"shape"`
+	Origin          MapWeaponOrigin  `json:"origin"`
+	CenterRange     int              `json:"center_range"`
+	ENCost          int              `json:"en_cost"`
+	Ammo            *int             `json:"ammo"` // A null 'ammo' is a weapon that spends no ammunition.
+	Accuracy        float64          `json:"accuracy"`
+	Affects         MapWeaponAffects `json:"affects"`
+	UsableAfterMove bool             `json:"usable_after_move"`
 }
 
 type SkillEntry struct {

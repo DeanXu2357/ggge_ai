@@ -378,9 +378,7 @@ func TestADebuffReplacesAWeakerOneAndLeavesAStrongerOne(t *testing.T) {
 
 func TestAMapAttackIsRefusedAndLeavesTheBoard(t *testing.T) {
 	b := shootout()
-	shells := beam()
-	shells.Name, shells.MapWeapon, shells.ENCost = "shells", true, 5
-	b.Unit("a1").Mech.Weapons = []battle.Weapon{shells}
+	b.Unit("a1").Mech.MapWeapons = []battle.MapWeapon{mapShells()}
 	b.Unit("a1").Ammo = map[string]int{"shells": 2}
 	aim := battle.Cell{3, 0}
 
@@ -526,9 +524,7 @@ func TestAnActionOutsideTheBoardIsAnError(t *testing.T) {
 	for name, decision := range cases {
 		t.Run(name, func(t *testing.T) {
 			b := shootout()
-			shells := beam()
-			shells.Name, shells.MapWeapon = "shells", true
-			b.Unit("a1").Mech.Weapons = append(b.Unit("a1").Mech.Weapons, shells)
+			b.Unit("a1").Mech.MapWeapons = []battle.MapWeapon{mapShells()}
 			b.Units = append(b.Units, fighter("e2", battle.FactionEnemy, battle.Cell{4, 4}))
 
 			if _, err := resolve(b, decision, battle.Forced{Strike: true}); err == nil {

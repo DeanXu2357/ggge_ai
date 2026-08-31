@@ -130,7 +130,7 @@ class Player:
             ]
         for cell in cells:
             for weapon in menu.get("weapons", []):
-                if weapon.get("map_weapon") or (cell is not None and not weapon.get("usable_after_move")):
+                if cell is not None and not weapon.get("usable_after_move"):
                     continue
                 for foe in ordered_foes:
                     action = decision(

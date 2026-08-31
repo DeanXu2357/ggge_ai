@@ -237,6 +237,9 @@ D. Spec process model, terminology map, ledger, the artifact.
   apart from the removed key.
 - 2026-08-30: '/code-review' (high): ten findings, eight code fixes
   in cdb3c4d..a08ca8e, two docs fixes in 9dcce91 and this commit.
+- 2026-08-31: the weapon split into 'Weapon' and 'MapWeapon' with the
+  new type 'ShapeRange' (protocol 1.8). Shape only; no firing. In the
+  working tree, uncommitted.
 
 ## Change summary
 
@@ -295,9 +298,9 @@ D. Spec process model, terminology map, ledger, the artifact.
                               engine/battle/helpers_test.go)
     engine/server/handler     act.go
     engine/protocol           types.go (the per-command wrappers),
-                              envelope.go (1.6), commands.go,
+                              envelope.go (1.8), commands.go,
                               state.go
-    src/ggge_ai/engine        state.py, codec.py, contract.py (1.6)
+    src/ggge_ai/engine        state.py, codec.py, contract.py (1.8)
 
 ## Call chain
 
@@ -501,6 +504,37 @@ D. Spec process model, terminology map, ledger, the artifact.
     none: a brace-balanced walk stripped the keys only from the
     objects that hold 'affects'. The replacement representation is
     not decided.
+
+16. **The weapon splits into two types** (a user ruling at review
+    round 3, after the skill area). 'battle.Weapon' is a direct
+    weapon and 'battle.MapWeapon' is an area weapon; a mech holds
+    two lists. The area is the new type 'battle.ShapeRange': a set
+    of cell offsets from an origin plus a 'Direction' that turns
+    them. 'MapWeaponOrigin' says where the offsets start, 'self' or
+    'cell', and 'CenterRange' bounds the picked center.
+    'MapWeaponAffects' is the audience, a separate enum from
+    'SkillAffects' by the user's ruling. The wire moves to 1.8; both
+    version constants move together.
+    This version defines the shape and fires nothing: no expansion
+    into cells, no rotation, no ammunition spending, no target
+    selection, no damage. 'directWeapon' dies, because 'Mech.Weapons'
+    holds direct weapons alone. 'WeaponEntry' loses 'ammo': a direct
+    weapon spends none, and 'encodeAmmo' now fills
+    'MapWeaponEntry.Ammo'.
+    The goldens have no writer, so a script moved every weapon object
+    with 'map_weapon': true into 'map_weapons' and gave the new
+    fields their zero values. The files are byte-identical to their
+    canonical JSON dump, which proves the rewrite touched nothing
+    else.
+    Two open points for the user. First, the identifiers of this
+    design are the implementing session's proposal, not the user's
+    words. Second, 'CenterRange' is one integer, but the datamine
+    states the allowed set of aim cells as a cell list with holes
+    ('map_weapon_shooting_range'), which an integer cannot hold. The
+    session implemented the field as specified and raises the
+    mismatch. The panel of the game shows no shape at all, so
+    'WeaponIntel.to_map_weapon' writes an empty shape and documented
+    defaults; issue #79 owns the shape source and the firing rules.
 
 ## Deferred
 

@@ -17,10 +17,11 @@ func (b *Board) Actions(unitID string) (battle.ActionsResponse, error) {
 
 func actionsOf(unit *battle.Unit, moveCells []battle.Cell) battle.ActionsResponse {
 	return battle.ActionsResponse{
-		Unit:      encodeUnitStatus(unit),
-		MoveCells: moveCells,
-		Weapons:   encodeWeapons(unit),
-		Skills:    encodeSkills(unit.Skills),
+		Unit:       encodeUnitStatus(unit),
+		MoveCells:  moveCells,
+		Weapons:    encodeWeapons(unit),
+		MapWeapons: encodeMapWeapons(unit),
+		Skills:     encodeSkills(unit.Skills),
 	}
 }
 

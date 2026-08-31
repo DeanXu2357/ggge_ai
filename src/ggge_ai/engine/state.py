@@ -11,18 +11,62 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance, Terrain
+from .contract import (
+    ActionKind,
+    Cell,
+    Direction,
+    Faction,
+    MapWeaponAffects,
+    MapWeaponOrigin,
+    SkillAffects,
+    SkillSource,
+    Stance,
+    Terrain,
+)
+
+
+@dataclass(frozen=True)
+class ShapeRange:
+    """A set of cell offsets from an origin, and the heading that turns them."""
+
+    cells: list[Cell] = field(default_factory=list)
+    direction: Direction = Direction.NONE
 
 
 @dataclass(frozen=True)
 class Weapon:
+    """A direct weapon: it strikes one unit, and an exchange resolves it."""
+
     name: str
     power: float
     range_min: int = 1
     range_max: int = 1
     en_cost: int = 0
     accuracy: float = 0.0
-    map_weapon: bool = False
+    usable_after_move: bool = True
+    debuff_kind: str | None = None
+    debuff_magnitude: float = 0.0
+    categories: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class MapWeapon:
+    """An area weapon: it strikes every unit of its shape, and it starts no
+    exchange. No rule of this version fires one (issue #79).
+
+    center_range bounds how far the picked center can sit from the caster. It
+    carries a meaning only when origin is 'cell'.
+    """
+
+    name: str
+    power: float
+    shape: ShapeRange = field(default_factory=ShapeRange)
+    origin: MapWeaponOrigin = MapWeaponOrigin.SELF
+    center_range: int = 0
+    ammo_max: int = 0
+    en_cost: int = 0
+    accuracy: float = 0.0
+    affects: MapWeaponAffects = MapWeaponAffects.ENEMY
     usable_after_move: bool = True
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
@@ -72,6 +116,7 @@ class Mech:
     mobility: float = 0.0
     move_range: int = 0
     weapons: list[Weapon] = field(default_factory=list)
+    map_weapons: list[MapWeapon] = field(default_factory=list)
 
 
 @dataclass

@@ -229,8 +229,8 @@ Refusals: no_session; illegal_action for an unknown unit id.
 
 Purpose: what one unit carries.
 
-Request: 'unit_id'. Response: 'unit', 'move_cells', 'weapons'
-and 'skills'.
+Request: 'unit_id'. Response: 'unit', 'move_cells', 'weapons',
+'map_weapons' and 'skills'.
 
 The command reports. It selects nothing and it removes nothing. It
 reads no target, no band and no resource: a weapon with no energy
@@ -245,14 +245,23 @@ the pick.
 'move_cells' holds the cells that 'reach' answers, in the same
 order.
 
-A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
-'ammo', 'accuracy', 'map_weapon' and 'usable_after_move'. A null
-'ammo' is a weapon that spends no ammunition. The entry carries no
-power: the engine drops the power of a weapon when it reads the
-state.
+The answer holds two weapon lists. 'weapons' holds the direct
+weapons and 'map_weapons' holds the area weapons. A weapon is in
+one list or in the other, never in both.
 
-The entry carries no weapon ability. The section 'Weapon abilities'
-holds the gap and the reason.
+A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
+'accuracy' and 'usable_after_move'. The entry carries no
+ammunition: a direct weapon spends none. It carries no power: the
+engine drops the power of a weapon when it reads the state.
+
+A map weapon entry holds 'name', 'shape', 'origin',
+'center_range', 'en_cost', 'ammo', 'accuracy', 'affects' and
+'usable_after_move'. A null 'ammo' is a map weapon that spends no
+ammunition. The section 'Types' holds the meaning of 'shape',
+'origin' and 'affects'.
+
+An entry of the two lists carries no weapon ability. The section
+'Weapon abilities' holds the gap and the reason.
 
 A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
 'usable_after_move' and 'affects'. The entry carries no area: the
@@ -299,10 +308,11 @@ each weapon of the defender that counters, and 'none'. The stance
 no 'shield': the shield of a unit settles during the damage, in
 'act'.
 
-A counter fires under the rule of an attack: the weapon is not a
-map weapon, the weapon reaches the attacker, and the defender pays
-the EN. A weapon carries no counter permission. A support strike
-needs a support attack charge on top.
+A counter fires under the rule of an attack: the weapon reaches the
+attacker, and the defender pays the EN. The list of the direct
+weapons is the only source, so a map weapon enters no exchange. A
+weapon carries no counter permission. A support strike needs a
+support attack charge on top.
 
 Only an action of the kind 'attack' asks the defender anything. A
 map attack permits no response attack, and no other kind of action
@@ -435,10 +445,12 @@ not against a list of actions: the reporting commands read the same
 rules, so a pick that the report offers passes here. A refusal
 leaves the board as it was.
 
-The command resolves no action of the kind 'map_attack'. The area
-of a map weapon is a shape of that weapon, and no contract of this
-repository holds that shape. The engine refuses the kind until the
-shape lands (issue #79).
+The command resolves no action of the kind 'map_attack'. The
+contract holds the shape of a map weapon from version 1.8, but no
+rule reads it: nothing expands a shape into cells, nothing turns a
+shape, nothing spends the ammunition, and nothing picks the units
+of the area. The engine refuses the kind until these rules land
+(issue #79).
 
 The command resolves no skill either. A skill starts no engagement,
 and the contract holds no shape for what a skill does. The user
@@ -643,6 +655,56 @@ the build before the field. The test names each one in
 'ENGINE_ONLY', so a Go field that nobody declared is still a test
 failure.
 
+### The two weapon types
+
+A weapon is a direct weapon or a map weapon. The two are separate
+types, and a mech holds them in two lists: 'weapons' and
+'map_weapons'.
+
+A direct weapon strikes one unit. It carries a band, 'range_min'
+and 'range_max', and an exchange resolves it. A direct weapon
+spends no ammunition, so it carries no ammunition field.
+
+A map weapon strikes every unit of an area. It starts no exchange,
+and it grants no response attack. Version 1.8 gives the map weapon
+its fields. It gives no rule: no rule expands a shape, turns a
+shape, spends the ammunition, picks the units of the area, or
+computes the damage. Issue #79 writes those rules.
+
+'ShapeRange' is the area. It holds 'cells', a list of cell offsets
+from an origin, and 'direction'. The author writes the offsets one
+time, against one base heading. The direction then turns the full
+set of the offsets. The rotation is a rule, and version 1.8 holds
+no rule, so no code turns a shape yet.
+
+'Direction' holds 'none', 'up', 'down', 'left' and 'right'. The
+value 'none' is a shape that needs no heading, for example a shape
+that is the same in every heading.
+
+'MapWeaponOrigin' tells where the offsets start. 'self' opens the
+shape at the cell of the caster. 'cell' opens it at a cell that the
+player picks; the picked cell travels in the field 'aim' of the
+action. The field 'center_range' bounds how far the picked cell can
+sit from the caster, and it carries a meaning only when 'origin' is
+'cell'.
+
+'MapWeaponAffects' holds the faction filter of the units that the
+area strikes: 'ally', 'enemy', or 'all'. It is a separate enum from
+'SkillAffects', because the audience of a map weapon and the
+audience of a skill are two different sets (user ruling
+2026-08-31).
+
+The field 'ammo_max' of a map weapon is the static maximum. The
+field 'ammo' of a unit is the count that is left, keyed by the name
+of the weapon. The maximum belongs to the definition, and the count
+belongs to the state.
+
+The producer of a map weapon can leave the shape empty. The panel
+of the game shows no cells, no heading and no origin, so the vision
+layer of this repository writes an empty 'cells', a 'direction' of
+'none' and an 'origin' of 'self'. An empty shape is data that is
+missing, and not an area of no cells.
+
 ### The unit, the pilot and the mech
 
 A unit is a pilot that rides a mech, on the board of one stage. The
@@ -690,7 +752,8 @@ The mech holds its own values:
 | hp, en | The hit points and the energy of the mech |
 | attack, defense, mobility | The three combat values of the mech |
 | move_range | The movement range of the mech |
-| weapons | The weapons of the mech, in the weapon payload |
+| weapons | The direct weapons of the mech, in the weapon payload |
+| map_weapons | The map weapons of the mech, in the map weapon payload |
 
 A weapon carries 'categories', a list over 'ranged', 'melee' and
 'awaken', null when the producer knows no category. The pilot
@@ -791,7 +854,9 @@ Go build does not implement is skipped, not failed, so a port issue
 finds its checks waiting. The files are frozen: the writer retired
 with the Python rules (issue #73), and no process writes them
 again. A case that the engine must not keep is deleted, never
-regenerated.
+regenerated. A change of the contract moves the files to the new
+shape in place. It moves the fields and it changes no expectation,
+because a regeneration is not available.
 
 A case can also be written by hand from the reference documents.
 Its 'note' says so and names the document lines that give each
@@ -845,3 +910,16 @@ difference between two integers is 1.
   fields cannot express. A skill carries no area on the wire, and the
   representation of the area is not decided. A client of version 1.6
   reads a 1.7 skill, and it reads no area.
+- A fifth exception on record: version 1.8 (2026-08-31, issue #88)
+  split the weapon into two types. 'Weapon' is a direct weapon and
+  'MapWeapon' is an area weapon. The field 'map_weapon' of the
+  weapon is removed, and the field 'ammo' of the weapon entry of
+  'actions' is removed with it: a direct weapon spends no
+  ammunition. A mech carries the new list 'map_weapons' beside
+  'weapons', and the answer of 'actions' carries the new list
+  'map_weapons' beside 'weapons'. The wire loses no information: a
+  map weapon moves from one list to the other. The new type
+  'ShapeRange' holds the area, with the new enums 'Direction',
+  'MapWeaponOrigin' and 'MapWeaponAffects'. This version defines the
+  shape and it fires no map weapon: no rule reads the new fields.
+  A client of version 1.7 does not read a 1.8 weapon list.

@@ -43,6 +43,20 @@ func beam() battle.Weapon {
 	return out
 }
 
+func mapShells() battle.MapWeapon {
+	return battle.MapWeapon{
+		Name:            "shells",
+		Power:           1800,
+		Shape:           battle.ShapeRange{Cells: []battle.Cell{{0, 0}}, Direction: battle.DirectionNone},
+		Origin:          battle.MapWeaponOriginCell,
+		CenterRange:     3,
+		AmmoMax:         2,
+		ENCost:          5,
+		Affects:         battle.MapWeaponAffectsEnemy,
+		UsableAfterMove: true,
+	}
+}
+
 func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 	attacker := fighter("a1", battle.FactionAlly, battle.Cell{0, 0})
 	defender := fighter("e1", battle.FactionEnemy, battle.Cell{2, 0})
@@ -112,10 +126,8 @@ func TestTheCounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
 	defender := fighter("d1", battle.FactionAlly, battle.Cell{0, 0})
 	costly := beam()
 	costly.Name, costly.ENCost = "costly", 200
-	shells := beam()
-	shells.Name, shells.MapWeapon = "shells", true
 	near := rifle("saber", 1, 1)
-	defender.Mech.Weapons = []battle.Weapon{costly, shells, beam(), near}
+	defender.Mech.Weapons = []battle.Weapon{costly, beam(), near}
 	b := board(defender, fighter("e1", battle.FactionEnemy, battle.Cell{2, 0}))
 
 	attacker := b.Unit("e1").Footprint()

@@ -1599,3 +1599,68 @@
   here, and the filter 'affects' stands alone. A skill that acts on
   the caster alone still carries 'affects' ally, because the caster
   is an ally in its own cell (issue #88).
+- **(0831) The weapon splits into two types — user ruling**｜The user
+  split 'battle.Weapon' into a direct weapon 'Weapon' and an area
+  weapon 'MapWeapon', and gave the area its own type 'ShapeRange'
+  (protocol 1.7 to 1.8, issue #88). The four rulings:
+  1. This change defines the structures and opens the fields. It
+     implements no firing: no expansion of a shape into cells, no
+     rotation, no ammunition spending, no target selection, no damage.
+     A map weapon still enters no exchange.
+  2. The origin of a shape depends on the weapon. Some shapes open
+     from the cell of the caster, others open from a cell that the
+     player picks. Both must be expressible, so the type carries
+     'MapWeaponOrigin' with the values 'self' and 'cell'.
+  3. A direction turns the cells. The cells are authored one time
+     against one base heading, and a chosen direction turns the whole
+     offset set. The value 'none' is a shape that needs no direction.
+     The rotation function is not written in this change.
+  4. The audience of a map weapon gets its own identifier,
+     'MapWeaponAffects'. It does not reuse 'SkillAffects'.
+  The rulings agree with the 0826 user words on map weapons already in
+  this ledger: two firing modes (a fixed shape turned to one of four
+  directions, or an aim cell chosen inside the allowed range), and a
+  cost that spends EN and ammunition together.
+  The identifiers of the design ('ShapeRange', 'Direction',
+  'MapWeaponAffects', 'MapWeaponOrigin', 'MapWeapon', 'MapWeaponEntry',
+  'CenterRange', 'AmmoMax', and the wire keys 'map_weapons', 'shape',
+  'cells', 'direction', 'origin', 'center_range', 'ammo_max',
+  'affects') are a proposal of the implementing session. They wait for
+  the approval of the user.
+  Consequences of the split: 'Weapon' loses 'map_weapon' and
+  'WeaponEntry' loses 'ammo', because a direct weapon spends no
+  ammunition. 'Unit.ammo' stays the remaining count keyed by the name,
+  and it now serves a map weapon alone; 'MapWeapon.ammo_max' is the
+  static maximum. The rule 'directWeapon' of 'engagement/model.go'
+  dies: 'Mech.Weapons' holds direct weapons alone, so no exchange
+  needs the test.
+  The vision-layer gap: the panel of the game shows no shape. The
+  reader reads no cells, no direction, no origin and no audience. So
+  'WeaponIntel.to_map_weapon' writes an empty 'cells', a 'direction' of
+  'none', an 'origin' of 'self' and an 'affects' of 'enemy'. The last
+  two are documented defaults, not read data. An empty shape is data
+  that is missing, and no rule may read it as an area of no cells.
+  Issue #79 owns the shape source and the firing rules.
+  A shape source does exist outside the panel. The datamine holds the
+  area as a list of cell offsets, which is the same representation as
+  'ShapeRange.cells': the fields 'map_weapon_effect_range',
+  'map_weapon_shooting_range', 'map_weapon_range',
+  'map_weapon_ammo_capacity' and 'map_weapon_can_use_after_move' (see
+  docs/reference/datamine-samples/202608161248/unit/1001003050.json).
+  The sample shows the two firing modes of the 0826 ruling: a weapon
+  with an empty 'map_weapon_shooting_range' opens its area at the cell
+  of the caster, and a weapon that holds one picks an aim cell inside
+  that set. It also shows a shape that needs a heading, a column three
+  cells wide and six cells long.
+  One open point for the user. The datamine states the allowed set of
+  aim cells as a cell list with holes, for example a diamond of radius
+  five with a hollow center of radius two. The field 'center_range' is
+  one integer, so it cannot hold such a set. The integer matches the
+  datamine field 'map_weapon_range' alone. The session implemented
+  'center_range' as the user specified it and raises the mismatch here.
+  Golden migration: the goldens under 'tests/fixtures/engine/' have no
+  writer (it retired with the Python rules, issue #73). A script moved
+  every weapon object that carried 'map_weapon': true into the new list
+  'map_weapons', with zero values for the fields that no source fills.
+  The files are byte-identical to their canonical JSON dump, so the
+  rewrite touched no other byte and changed no expectation.

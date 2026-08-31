@@ -14,8 +14,9 @@ const candidateLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`"units":[` +
 	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,` +
 	`"mech":{"weapons":[` +
-	`{"name":"rifle","range_min":1,"range_max":2,"usable_after_move":true},` +
-	`{"name":"shells","range_min":1,"range_max":3,"map_weapon":true,"usable_after_move":true}]},` +
+	`{"name":"rifle","range_min":1,"range_max":2,"usable_after_move":true}],` +
+	`"map_weapons":[{"name":"shells","origin":"self","affects":"enemy",` +
+	`"shape":{"cells":[[0,0]],"direction":"none"},"usable_after_move":true}]},` +
 	`"ammo":{"shells":1}},` +
 	`{"unit_id":"a2","faction":"ally","pos":[4,4],"hp":100,"acted":true},` +
 	`{"unit_id":"e1","faction":"enemy","pos":[2,1],"hp":100,` +
@@ -55,28 +56,28 @@ func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 	if len(payload.MoveCells) != 1 || payload.MoveCells[0] != (battle.Cell{1, 1}) {
 		t.Fatalf("a unit with no move range holds its own cell: %+v", payload.MoveCells)
 	}
-	if len(payload.Weapons) != 2 || payload.Weapons[0].Name != "rifle" ||
+	if len(payload.Weapons) != 1 || payload.Weapons[0].Name != "rifle" ||
 		payload.Weapons[0].RangeMax != 2 {
 		t.Fatalf("weapons: %+v", payload.Weapons)
 	}
-	if payload.Weapons[0].Ammo != nil {
-		t.Fatalf("the rifle spends no ammunition: %+v", payload.Weapons[0])
+	if len(payload.MapWeapons) != 1 || payload.MapWeapons[0].Name != "shells" {
+		t.Fatalf("map weapons: %+v", payload.MapWeapons)
 	}
-	if payload.Weapons[1].Ammo == nil || *payload.Weapons[1].Ammo != 1 {
-		t.Fatalf("shells: %+v", payload.Weapons[1])
+	if payload.MapWeapons[0].Ammo == nil || *payload.MapWeapons[0].Ammo != 1 {
+		t.Fatalf("shells: %+v", payload.MapWeapons[0])
 	}
 }
 
 // The band and the energy stay out of the answer: unit 'a1' reaches the foe
-// with the rifle alone, and both weapons are in the list.
+// with the rifle alone, and both weapons are in their lists.
 func TestActionsJudgesNoTargetAndNoResource(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
 
 	payload := actionsOf(t, replies[1])
 
-	if len(payload.Weapons) != 2 {
-		t.Fatalf("weapons: %+v", payload.Weapons)
+	if len(payload.Weapons) != 1 || len(payload.MapWeapons) != 1 {
+		t.Fatalf("weapons: %+v, map weapons: %+v", payload.Weapons, payload.MapWeapons)
 	}
 	if strings.Contains(string(replies[1].Payload), `"target_id"`) {
 		t.Fatalf("the answer names no target: %s", replies[1].Payload)

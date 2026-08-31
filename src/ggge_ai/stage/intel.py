@@ -18,7 +18,7 @@ from typing import Any
 
 from ..runtime.perceive import Observation, Perceiver
 from ..engine.contract import Cell, Faction
-from ..engine.state import Mech, Pilot, Skill, Unit, Weapon
+from ..engine.state import MapWeapon, Mech, Pilot, Skill, Unit, Weapon
 from .state import StageState
 
 FORMAT_VERSION = 1
@@ -63,7 +63,19 @@ class WeaponIntel:
             range_max=self.range_max,
             en_cost=self.en_cost,
             accuracy=self.accuracy,
-            map_weapon=self.map_weapon,
+            debuff_kind=self.debuff_kind,
+            debuff_magnitude=self.debuff_magnitude,
+        )
+
+    def to_map_weapon(self) -> MapWeapon:
+        # 面板讀不到地圖兵器的範圍形狀：沒有格子、沒有朝向、沒有原點。
+        # shape 留空、origin 取預設 self，等有形狀來源再填（issue #79）。
+        return MapWeapon(
+            name=self.name,
+            power=self.power,
+            ammo_max=self.ammo,
+            en_cost=self.en_cost,
+            accuracy=self.accuracy,
             debuff_kind=self.debuff_kind,
             debuff_magnitude=self.debuff_magnitude,
         )
@@ -169,7 +181,12 @@ class UnitIntel:
                 defense=self.unit_defense,
                 mobility=self.mobility,
                 move_range=self.move_range,
-                weapons=[weapon.to_weapon() for weapon in self.weapons],
+                weapons=[
+                    weapon.to_weapon() for weapon in self.weapons if not weapon.map_weapon
+                ],
+                map_weapons=[
+                    weapon.to_map_weapon() for weapon in self.weapons if weapon.map_weapon
+                ],
             ),
             skills=[skill.to_skill() for skill in self.skills],
             acted=acted,

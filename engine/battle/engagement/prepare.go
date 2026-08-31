@@ -67,7 +67,7 @@ func prepareAttack(board *battle.BattleState, actor *battle.Unit, decision battl
 		return Plan{}, err
 	}
 	weapon := weaponOf(actor, nameOf(decision.Weapon))
-	if !directWeapon(weapon) {
+	if weapon == nil {
 		return Plan{}, fmt.Errorf("%w: unit %q carries no attack weapon %q",
 			battle.ErrIllegalAction, actor.ID, nameOf(decision.Weapon))
 	}

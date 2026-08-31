@@ -76,7 +76,6 @@ func wireBoard() *battle.BattleState {
 						RangeMax:        4,
 						ENCost:          15,
 						Accuracy:        12,
-						MapWeapon:       false,
 						UsableAfterMove: true,
 						DebuffKind:      &kind,
 						DebuffMagnitude: 0.2,

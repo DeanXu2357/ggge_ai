@@ -132,7 +132,12 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 			Weapons: []battle.Weapon{
 				{Name: "rifle", RangeMin: 1, RangeMax: 3, ENCost: 10, Accuracy: 5,
 					UsableAfterMove: true},
-				{Name: "missile", RangeMin: 2, RangeMax: 5, MapWeapon: true},
+			},
+			MapWeapons: []battle.MapWeapon{
+				{Name: "missile", CenterRange: 5, Origin: battle.MapWeaponOriginCell,
+					Affects: battle.MapWeaponAffectsEnemy,
+					Shape: battle.ShapeRange{Cells: []battle.Cell{{0, 0}, {1, 0}},
+						Direction: battle.DirectionUp}},
 			},
 		},
 		Skills: []battle.Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
@@ -149,17 +154,20 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	if len(out.MoveCells) != 2 || out.MoveCells[1] != (battle.Cell{2, 4}) {
 		t.Fatalf("cells: %+v", out.MoveCells)
 	}
-	if out.Weapons[0].RangeMax != 3 || out.Weapons[0].Ammo != nil {
-		t.Fatalf("rifle: %+v", out.Weapons[0])
+	if len(out.Weapons) != 1 || out.Weapons[0].RangeMax != 3 {
+		t.Fatalf("rifle: %+v", out.Weapons)
 	}
-	if out.Weapons[1].Ammo == nil || *out.Weapons[1].Ammo != 3 || !out.Weapons[1].MapWeapon {
-		t.Fatalf("missile: %+v", out.Weapons[1])
+	area := out.MapWeapons[0]
+	if area.Ammo == nil || *area.Ammo != 3 || area.CenterRange != 5 ||
+		area.Origin != battle.MapWeaponOriginCell || area.Affects != battle.MapWeaponAffectsEnemy ||
+		area.Shape.Direction != battle.DirectionUp || len(area.Shape.Cells) != 2 {
+		t.Fatalf("missile: %+v", area)
 	}
 	if out.Skills[0].Kind != "skill_heal" || *out.Skills[0].Amount != amount ||
 		out.Skills[0].Uses != 2 || out.Skills[0].Affects != battle.AffectsAlly {
 		t.Fatalf("skill: %+v", out.Skills[0])
 	}
-	if out.Weapons == nil || out.Skills == nil || out.MoveCells == nil {
+	if out.Weapons == nil || out.MapWeapons == nil || out.Skills == nil || out.MoveCells == nil {
 		t.Fatalf("an empty list is a list, not a null: %+v", out)
 	}
 }

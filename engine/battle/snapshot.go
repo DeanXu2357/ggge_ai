@@ -41,6 +41,37 @@ const (
 	AffectsAll   SkillAffects = "all"
 )
 
+// Direction turns the cells of a shape. The author writes the cells one time,
+// against one base heading, and the direction turns the full set of the
+// offsets. The value 'none' is a shape that needs no heading.
+type Direction string
+
+const (
+	DirectionNone  Direction = "none"
+	DirectionUp    Direction = "up"
+	DirectionDown  Direction = "down"
+	DirectionLeft  Direction = "left"
+	DirectionRight Direction = "right"
+)
+
+type MapWeaponAffects string
+
+const (
+	MapWeaponAffectsAlly  MapWeaponAffects = "ally"
+	MapWeaponAffectsEnemy MapWeaponAffects = "enemy"
+	MapWeaponAffectsAll   MapWeaponAffects = "all"
+)
+
+// MapWeaponOrigin tells where the offsets of the shape start. 'self' opens the
+// shape at the cell of the caster. 'cell' opens it at a cell that the player
+// picks.
+type MapWeaponOrigin string
+
+const (
+	MapWeaponOriginSelf MapWeaponOrigin = "self"
+	MapWeaponOriginCell MapWeaponOrigin = "cell"
+)
+
 var (
 	factions     = map[Faction]bool{FactionAlly: true, FactionEnemy: true, FactionThirdParty: true}
 	skillSources = map[SkillSource]bool{
@@ -52,6 +83,22 @@ var (
 		AffectsAlly:  true,
 		AffectsEnemy: true,
 		AffectsAll:   true,
+	}
+	directions = map[Direction]bool{
+		DirectionNone:  true,
+		DirectionUp:    true,
+		DirectionDown:  true,
+		DirectionLeft:  true,
+		DirectionRight: true,
+	}
+	mapWeaponAffects = map[MapWeaponAffects]bool{
+		MapWeaponAffectsAlly:  true,
+		MapWeaponAffectsEnemy: true,
+		MapWeaponAffectsAll:   true,
+	}
+	mapWeaponOrigins = map[MapWeaponOrigin]bool{
+		MapWeaponOriginSelf: true,
+		MapWeaponOriginCell: true,
 	}
 )
 
@@ -79,10 +126,30 @@ func (a *SkillAffects) UnmarshalJSON(data []byte) error {
 	return decodeEnum(data, a, skillAffects, "affects")
 }
 
+func (d *Direction) UnmarshalJSON(data []byte) error {
+	return decodeEnum(data, d, directions, "direction")
+}
+
+func (a *MapWeaponAffects) UnmarshalJSON(data []byte) error {
+	return decodeEnum(data, a, mapWeaponAffects, "affects")
+}
+
+func (o *MapWeaponOrigin) UnmarshalJSON(data []byte) error {
+	return decodeEnum(data, o, mapWeaponOrigins, "origin")
+}
+
 // Bounds is the pair of corner cells of the board, the low corner first. The
 // wire permits a null; 'board.Validate' refuses a state that carries one.
 type Bounds [2]Cell
 
+// ShapeRange is a set of cell offsets from an origin, and the heading that
+// turns them.
+type ShapeRange struct {
+	Cells     []Cell    `json:"cells"`
+	Direction Direction `json:"direction"`
+}
+
+// Weapon is a direct weapon: it strikes one unit, and an exchange resolves it.
 type Weapon struct {
 	Name            string           `json:"name"`
 	Power           float64          `json:"power"`
@@ -90,7 +157,27 @@ type Weapon struct {
 	RangeMax        int              `json:"range_max"`
 	ENCost          int              `json:"en_cost"`
 	Accuracy        float64          `json:"accuracy"`
-	MapWeapon       bool             `json:"map_weapon"`
+	UsableAfterMove bool             `json:"usable_after_move"`
+	DebuffKind      *string          `json:"debuff_kind"`
+	DebuffMagnitude float64          `json:"debuff_magnitude"`
+	Categories      []WeaponCategory `json:"categories"`
+}
+
+// MapWeapon is an area weapon: it strikes every unit of its shape, and it
+// starts no exchange. No rule of this version fires one (issue #79).
+//
+// CenterRange bounds how far the picked center can sit from the caster. It
+// carries a meaning only when Origin is MapWeaponOriginCell.
+type MapWeapon struct {
+	Name            string           `json:"name"`
+	Power           float64          `json:"power"`
+	Shape           ShapeRange       `json:"shape"`
+	Origin          MapWeaponOrigin  `json:"origin"`
+	CenterRange     int              `json:"center_range"`
+	AmmoMax         int              `json:"ammo_max"`
+	ENCost          int              `json:"en_cost"`
+	Accuracy        float64          `json:"accuracy"`
+	Affects         MapWeaponAffects `json:"affects"`
 	UsableAfterMove bool             `json:"usable_after_move"`
 	DebuffKind      *string          `json:"debuff_kind"`
 	DebuffMagnitude float64          `json:"debuff_magnitude"`
@@ -125,13 +212,14 @@ type Pilot struct {
 }
 
 type Mech struct {
-	HP        int      `json:"hp"`
-	EN        int      `json:"en"`
-	Attack    float64  `json:"attack"`
-	Defense   float64  `json:"defense"`
-	Mobility  float64  `json:"mobility"`
-	MoveRange int      `json:"move_range"`
-	Weapons   []Weapon `json:"weapons"`
+	HP         int         `json:"hp"`
+	EN         int         `json:"en"`
+	Attack     float64     `json:"attack"`
+	Defense    float64     `json:"defense"`
+	Mobility   float64     `json:"mobility"`
+	MoveRange  int         `json:"move_range"`
+	Weapons    []Weapon    `json:"weapons"`
+	MapWeapons []MapWeapon `json:"map_weapons"`
 }
 
 // Unit is the current state of the pairing on the board. It holds the state

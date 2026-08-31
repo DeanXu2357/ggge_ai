@@ -68,7 +68,6 @@ func TestTheResponseAttackListHoldsTheStandAndNoShield(t *testing.T) {
 
 func TestACounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
 	cases := map[string]func(weapon *battle.Weapon){
-		"a map weapon":               func(weapon *battle.Weapon) { weapon.MapWeapon = true },
 		"a weapon it cannot pay for": func(weapon *battle.Weapon) { weapon.ENCost = 1000 },
 		"a weapon out of its band": func(weapon *battle.Weapon) {
 			weapon.RangeMin, weapon.RangeMax = 3, 4
