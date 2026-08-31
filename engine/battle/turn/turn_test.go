@@ -5,12 +5,14 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-func turnBoard(phase battle.Faction, turn int, units ...battle.Unit) *battle.BattleState {
+func turnBoard(phase battle.Faction, turn int, units ...battle.Unit) *state.Battle {
 	bounds := battle.Bounds{{0, 0}, {5, 4}}
-	return &battle.BattleState{Bounds: &bounds, Units: units,
-		Phase: phase, Turn: turn}
+	out := state.FromContract(battle.BattleState{Bounds: &bounds, Units: units,
+		Phase: phase, Turn: turn})
+	return &out
 }
 
 func basicUnit(id string, faction battle.Faction, x, y int) battle.Unit {
@@ -46,7 +48,7 @@ func TestGoneNamesTheSidesWithNoLivingUnit(t *testing.T) {
 	if got := Gone(board); !reflect.DeepEqual(got, []battle.Faction{battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", got)
 	}
-	board.Unit("a1").HP = 0
+	board.Unit("a1").Value.HP = 0
 	if got := Gone(board); !reflect.DeepEqual(got, []battle.Faction{battle.FactionAlly, battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", got)
 	}
@@ -55,7 +57,7 @@ func TestGoneNamesTheSidesWithNoLivingUnit(t *testing.T) {
 func TestABoardWithNoLivingUnitDoesNotRotate(t *testing.T) {
 	last := basicUnit("a1", battle.FactionAlly, 1, 1)
 	board := turnBoard(battle.FactionAlly, 1, last)
-	board.Unit("a1").HP = 0
+	board.Unit("a1").Value.HP = 0
 
 	if got := Advance(board); len(got) != 0 || board.Phase != battle.FactionAlly || board.Turn != 1 {
 		t.Fatalf("rotated on a dead board: %+v", got)

@@ -93,23 +93,6 @@ func (u *Unit) Footprint() Footprint {
 	return out
 }
 
-// A destroyed unit keeps its place on the board with no hit points left, and
-// a lookup that finds nothing answers with a nil unit.
-func (u *Unit) Alive() bool {
-	return u != nil && u.HP > 0
-}
-
-func (w Weapon) Reaches(distance int) bool {
-	return w.RangeMin <= distance && distance <= w.RangeMax
-}
-
-func (w Weapon) Debuff() string {
-	if w.DebuffKind == nil {
-		return ""
-	}
-	return *w.DebuffKind
-}
-
 // PhaseOrder is the rotation of the sides inside one turn.
 var PhaseOrder = [...]Faction{FactionAlly, FactionThirdParty, FactionEnemy}
 
@@ -118,26 +101,6 @@ func (f Faction) Opposing() Faction {
 		return FactionEnemy
 	}
 	return FactionAlly
-}
-
-func (s *BattleState) Unit(id string) *Unit {
-	for index := range s.Units {
-		if s.Units[index].ID == id {
-			return &s.Units[index]
-		}
-	}
-	return nil
-}
-
-// PhaseIndex counts the phases from the first phase of the first turn. A
-// debuff carries the index of the phase that applied it.
-func (s *BattleState) PhaseIndex() int {
-	for index, faction := range PhaseOrder {
-		if faction == s.Phase {
-			return s.Turn*len(PhaseOrder) + index
-		}
-	}
-	return s.Turn * len(PhaseOrder)
 }
 
 // The weapons of a mech are never written after the decode, so the clone

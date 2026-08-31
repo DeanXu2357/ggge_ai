@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 func TestAWeaponCategoryOutsideTheContractStopsTheDecode(t *testing.T) {
@@ -68,7 +70,7 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 	amount := 2500.0
 
-	encoded := encodeSkills([]battle.Skill{{Kind: "skill_heal", Amount: &amount}})
+	encoded := encodeSkills([]def.Skill{{Kind: "skill_heal", Amount: &amount}})
 	amount = 0
 
 	if *encoded[0].Amount != 2500.0 {
@@ -77,9 +79,10 @@ func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 }
 
 func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
-	defender := &battle.Unit{ID: "d1", HP: 100}
-	attacker := &battle.Unit{ID: "e1", HP: 100}
-	helper := &battle.Unit{ID: "h1", HP: 100, Mech: battle.Mech{Weapons: []battle.Weapon{{Name: "rifle"}}}}
+	defender := &state.Unit{ID: "d1", Value: state.UnitValue{HP: 100}}
+	attacker := &state.Unit{ID: "e1", Value: state.UnitValue{HP: 100}}
+	helper := &state.Unit{ID: "h1", Value: state.UnitValue{HP: 100},
+		Mech: &def.Mech{Weapons: []def.Weapon{{Name: "rifle"}}}}
 
 	counter := engagement.Forecast{}
 	encoded := encodeOptions(engagement.Options{

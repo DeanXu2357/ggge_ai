@@ -2,6 +2,7 @@ package turn
 
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 const enRegenPercent = 10
@@ -13,7 +14,7 @@ type Rotation struct {
 
 // A board with no living unit keeps its phase: every side would stay empty,
 // and the rotation would never end.
-func Advance(board *battle.BattleState) []Rotation {
+func Advance(board *state.Battle) []Rotation {
 	if !anyAlive(board) {
 		return nil
 	}
@@ -24,18 +25,18 @@ func Advance(board *battle.BattleState) []Rotation {
 	return out
 }
 
-func Pending(board *battle.BattleState, faction battle.Faction) []*battle.Unit {
-	var out []*battle.Unit
+func Pending(board *state.Battle, faction battle.Faction) []*state.Unit {
+	var out []*state.Unit
 	for index := range board.Units {
 		unit := &board.Units[index]
-		if unit.Faction == faction && unit.Alive() && !unit.Acted {
+		if unit.Faction == faction && unit.Alive() && !unit.Value.Acted {
 			out = append(out, unit)
 		}
 	}
 	return out
 }
 
-func Gone(board *battle.BattleState) []battle.Faction {
+func Gone(board *state.Battle) []battle.Faction {
 	var out []battle.Faction
 	for _, faction := range []battle.Faction{battle.FactionAlly, battle.FactionEnemy} {
 		if !holds(board, faction) {
@@ -45,7 +46,7 @@ func Gone(board *battle.BattleState) []battle.Faction {
 	return out
 }
 
-func nextPhase(board *battle.BattleState) Rotation {
+func nextPhase(board *state.Battle) Rotation {
 	slot := (board.PhaseIndex() - board.Turn*len(battle.PhaseOrder) + 1) % len(battle.PhaseOrder)
 	if slot == 0 {
 		board.Turn++
@@ -55,19 +56,19 @@ func nextPhase(board *battle.BattleState) Rotation {
 	return Rotation{Turn: board.Turn, Phase: board.Phase}
 }
 
-func beginPhase(board *battle.BattleState) {
+func beginPhase(board *state.Battle) {
 	now := board.PhaseIndex()
 	for index := range board.Units {
 		unit := &board.Units[index]
 		if !unit.Alive() {
 			continue
 		}
-		unit.Debuffs = expired(unit.Debuffs, now)
+		unit.Value.Debuffs = expired(unit.Value.Debuffs, now)
 		if unit.Faction != board.Phase {
 			continue
 		}
-		unit.Acted = false
-		unit.EN = min(unit.ENMax, unit.EN+unit.ENMax*enRegenPercent/100)
+		unit.Value.Acted = false
+		unit.Value.EN = min(unit.ENMax, unit.Value.EN+unit.ENMax*enRegenPercent/100)
 	}
 }
 
@@ -81,7 +82,7 @@ func expired(debuffs []battle.Debuff, now int) []battle.Debuff {
 	return kept
 }
 
-func anyAlive(board *battle.BattleState) bool {
+func anyAlive(board *state.Battle) bool {
 	for index := range board.Units {
 		if board.Units[index].Alive() {
 			return true
@@ -90,7 +91,7 @@ func anyAlive(board *battle.BattleState) bool {
 	return false
 }
 
-func holds(board *battle.BattleState, faction battle.Faction) bool {
+func holds(board *state.Battle, faction battle.Faction) bool {
 	for index := range board.Units {
 		unit := &board.Units[index]
 		if unit.Faction == faction && unit.Alive() {

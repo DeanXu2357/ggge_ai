@@ -178,7 +178,7 @@ func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	if board.state.Turn != 1 || board.state.Phase != battle.FactionAlly {
 		t.Fatalf("turn %d phase %s", board.state.Turn, board.state.Phase)
 	}
-	if board.state.Bounds == nil || *board.state.Bounds != (battle.Bounds{{0, 0}, {5, 4}}) {
+	if board.state.Bounds != (battle.Bounds{{0, 0}, {5, 4}}) {
 		t.Fatalf("bounds: %+v", board.state.Bounds)
 	}
 	if board.state.Terrain != battle.TerrainGround ||
@@ -221,14 +221,15 @@ func TestTheDecodeKeepsWhatARuleReads(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if got := board.state.Unit("a1"); !reflect.DeepEqual(*got, wire.Units[0]) {
-		t.Fatalf("unit:\n%+v\n%+v", *got, wire.Units[0])
+	got := board.State()
+	if !reflect.DeepEqual(got.Units[0], wire.Units[0]) {
+		t.Fatalf("unit:\n%+v\n%+v", got.Units[0], wire.Units[0])
 	}
-	if got := board.state.Bounds; got == nil || *got != (battle.Bounds{{0, 0}, {9, 9}}) {
-		t.Fatalf("bounds: %+v", got)
+	if got.Bounds == nil || *got.Bounds != (battle.Bounds{{0, 0}, {9, 9}}) {
+		t.Fatalf("bounds: %+v", got.Bounds)
 	}
-	if board.state.Phase != battle.FactionAlly || board.state.Turn != 3 {
-		t.Fatalf("phase %q, turn %d", board.state.Phase, board.state.Turn)
+	if got.Phase != battle.FactionAlly || got.Turn != 3 {
+		t.Fatalf("phase %q, turn %d", got.Phase, got.Turn)
 	}
 }
 
@@ -240,8 +241,8 @@ func TestTheModelCopiesTheAmmoAndTheSkillAmount(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	unit := board.state.Unit("a1")
-	unit.Ammo["missile"] = 0
-	*unit.Skills[0].Amount = 1.0
+	unit.Value.Ammo["missile"] = 0
+	*unit.Value.Skills[0].Amount = 1.0
 
 	if wire.Units[0].Ammo["missile"] != 3 || *wire.Units[0].Skills[0].Amount != 3000.0 {
 		t.Fatal("a write into the model reached the payload")
@@ -256,12 +257,17 @@ func TestTheModelCopiesEveryFieldThatASystemWrites(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	unit := board.state.Unit("a1")
-	unit.HP, unit.Pos, unit.Acted = 0, battle.Cell{9, 9}, false
-	unit.Debuffs[0].Kind = "changed"
+	unit.Value.HP, unit.Value.EN, unit.Value.SP = 0, 0, 0
+	unit.Value.Pos, unit.Value.Acted = battle.Cell{9, 9}, false
+	unit.Value.ChanceSteps = 7
+	unit.Value.SupportDefendCharges, unit.Value.SupportAttackCharges = 0, 0
+	unit.Value.Debuffs[0].Kind = "changed"
 
 	payload := wire.Units[0]
-	if payload.HP != 8200 || payload.Pos != (battle.Cell{2, 3}) || !payload.Acted ||
-		payload.Debuffs[0].Kind != "mobility" {
+	if payload.HP != 8200 || payload.EN != 120 || payload.SP != 30 ||
+		payload.Pos != (battle.Cell{2, 3}) || !payload.Acted ||
+		payload.ChanceSteps != 0 || payload.SupportDefendCharges != 1 ||
+		payload.SupportAttackCharges != 2 || payload.Debuffs[0].Kind != "mobility" {
 		t.Fatalf("a write into the model reached the payload: %+v", payload)
 	}
 }

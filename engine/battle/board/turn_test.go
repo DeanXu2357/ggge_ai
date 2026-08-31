@@ -5,18 +5,19 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
 func turnBoard(t *testing.T, phase battle.Faction, turn int, units ...battle.Unit) *Board {
 	t.Helper()
 	bounds := battle.Bounds{{0, 0}, {5, 4}}
-	board := &Board{state: battle.BattleState{
-		Bounds: &bounds, Units: units, Phase: phase, Turn: turn}}
-	if err := validate(&board.state); err != nil {
+	candidate := battle.BattleState{
+		Bounds: &bounds, Units: units, Phase: phase, Turn: turn}
+	if err := validate(&candidate); err != nil {
 		t.Fatal(err)
 	}
-	return board
+	return &Board{state: state.FromContract(candidate)}
 }
 
 func basicUnit(id string, faction battle.Faction, x, y int) battle.Unit {
@@ -46,12 +47,12 @@ func standby(id string) battle.Decision {
 	return battle.Decision{UnitID: id, Kind: battle.ActionStandby}
 }
 
-func pendingOf(b *Board) []*battle.Unit {
+func pendingOf(b *Board) []*state.Unit {
 	return turn.Pending(&b.state, b.state.Phase)
 }
 
-func targetsOf(b *Board, unit *battle.Unit) []*battle.Unit {
-	var out []*battle.Unit
+func targetsOf(b *Board, unit *state.Unit) []*state.Unit {
+	var out []*state.Unit
 	for index := range b.state.Units {
 		other := &b.state.Units[index]
 		if other.Faction == unit.Faction.Opposing() && other.Alive() {
@@ -103,10 +104,10 @@ func TestTheLastActivationOfTheEnemySideOpensTheNextTurn(t *testing.T) {
 		t.Fatalf("rotations: %+v", resolution.Rotations)
 	}
 	got := board.state.Unit("a1")
-	if got.Acted || got.EN != 140 {
+	if got.Value.Acted || got.Value.EN != 140 {
 		t.Fatalf("the phase start must reset the activation and cap the regeneration: %+v", got)
 	}
-	if enemy := board.state.Unit("e1"); !enemy.Acted || enemy.EN != 100 {
+	if enemy := board.state.Unit("e1"); !enemy.Value.Acted || enemy.Value.EN != 100 {
 		t.Fatalf("the enemy side must keep its state until its own phase start: %+v", enemy)
 	}
 }
@@ -120,7 +121,7 @@ func TestThePhaseStartRegeneratesTenPercentOfTheMaximumFloored(t *testing.T) {
 	if _, err := board.act(standby("e1"), battle.NewManualRoll(nil)); err != nil {
 		t.Fatal(err)
 	}
-	if got := board.state.Unit("a1").EN; got != 61 {
+	if got := board.state.Unit("a1").Value.EN; got != 61 {
 		t.Fatalf("EN: %d, want 10 + floor(51.3)", got)
 	}
 }
@@ -139,10 +140,10 @@ func TestADebuffExpiresWhenItsRoundEnds(t *testing.T) {
 	if _, err := board.act(standby("e1"), battle.NewManualRoll(nil)); err != nil {
 		t.Fatal(err)
 	}
-	if got := board.state.Unit("a1").Debuffs; !reflect.DeepEqual(got, []battle.Debuff{{Kind: "attack", Magnitude: 0.2, AppliedPhase: 4}}) {
+	if got := board.state.Unit("a1").Value.Debuffs; !reflect.DeepEqual(got, []battle.Debuff{{Kind: "attack", Magnitude: 0.2, AppliedPhase: 4}}) {
 		t.Fatalf("ally debuffs at index 6: %+v", got)
 	}
-	if got := board.state.Unit("e1").Debuffs; len(got) != 0 {
+	if got := board.state.Unit("e1").Value.Debuffs; len(got) != 0 {
 		t.Fatalf("the expiry reads every side: %+v", got)
 	}
 }
@@ -158,7 +159,7 @@ func TestASideWithNoUnitIsSkipped(t *testing.T) {
 	if !reflect.DeepEqual(resolution.Rotations, want) {
 		t.Fatalf("rotations: %+v", resolution.Rotations)
 	}
-	if board.state.Unit("e1").Acted {
+	if board.state.Unit("e1").Value.Acted {
 		t.Fatal("the enemy phase start must give the unit its activation back")
 	}
 }
@@ -169,7 +170,7 @@ func TestARefusedActivationChangesNothing(t *testing.T) {
 	if _, err := board.act(standby("e1"), battle.NewManualRoll(nil)); err == nil {
 		t.Fatal("an enemy unit cannot act in the ally phase")
 	}
-	if board.state.Phase != battle.FactionAlly || board.state.Unit("a1").Acted {
+	if board.state.Phase != battle.FactionAlly || board.state.Unit("a1").Value.Acted {
 		t.Fatal("the board changed on a refusal")
 	}
 }

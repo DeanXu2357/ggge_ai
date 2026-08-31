@@ -4,6 +4,7 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
@@ -15,13 +16,13 @@ func (b *Board) Actions(unitID string) (battle.ActionsResponse, error) {
 	return actionsOf(unit, geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit))), nil
 }
 
-func actionsOf(unit *battle.Unit, moveCells []battle.Cell) battle.ActionsResponse {
+func actionsOf(unit *state.Unit, moveCells []battle.Cell) battle.ActionsResponse {
 	return battle.ActionsResponse{
 		Unit:       encodeUnitStatus(unit),
 		MoveCells:  moveCells,
 		Weapons:    encodeWeapons(unit),
 		MapWeapons: encodeMapWeapons(unit),
-		Skills:     encodeSkills(unit.Skills),
+		Skills:     encodeSkills(unit.Value.Skills),
 	}
 }
 
@@ -42,7 +43,7 @@ func (b *Board) ResponseAttacks(action *battle.Decision, defenderID string) (bat
 }
 
 func (b *Board) State() battle.BattleState {
-	return b.state.Clone()
+	return b.state.ToContract()
 }
 
 func (b *Board) Summary() battle.BoardSummary {

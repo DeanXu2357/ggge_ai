@@ -4,15 +4,17 @@ import (
 	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 // Menu answers the question 'response_attacks' from the plan that 'act' would
 // run, so the menu refuses every action the action itself refuses, with the
 // same error. The response attack of the decision is the question, so the plan
 // is built without one.
-func Menu(board *battle.BattleState, decision battle.Decision, defenderID string) (Options, error) {
+func Menu(board *state.Battle, decision battle.Decision, defenderID string) (Options, error) {
 	decision.ResponseAttack = nil
 	plan, err := Prepare(board, decision)
 	if err != nil {
@@ -68,7 +70,7 @@ func Menu(board *battle.BattleState, decision battle.Decision, defenderID string
 	return out, nil
 }
 
-func stanceOption(attacker, defender *battle.Unit, weapon *battle.Weapon, stance battle.Stance,
+func stanceOption(attacker, defender *state.Unit, weapon *def.Weapon, stance battle.Stance,
 	counter string) ResponseAttackOption {
 	return ResponseAttackOption{
 		Stance: stance,
@@ -78,7 +80,7 @@ func stanceOption(attacker, defender *battle.Unit, weapon *battle.Weapon, stance
 	}
 }
 
-func defendOptions(shooter *battle.Unit, weapon *battle.Weapon, units []*battle.Unit) []SupportDefendOption {
+func defendOptions(shooter *state.Unit, weapon *def.Weapon, units []*state.Unit) []SupportDefendOption {
 	out := make([]SupportDefendOption, 0, len(units))
 	for _, unit := range units {
 		option := SupportDefendOption{Unit: unit}
@@ -92,7 +94,7 @@ func defendOptions(shooter *battle.Unit, weapon *battle.Weapon, units []*battle.
 
 // The foe picks its stance after this answer, so the forecast of a support
 // attack reads no defense.
-func attackOptions(foe *battle.Unit, joining []supportAttacker) []SupportAttackOption {
+func attackOptions(foe *state.Unit, joining []supportAttacker) []SupportAttackOption {
 	out := make([]SupportAttackOption, 0, len(joining))
 	for _, one := range joining {
 		out = append(out, SupportAttackOption{

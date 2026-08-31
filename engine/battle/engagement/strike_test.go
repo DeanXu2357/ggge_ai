@@ -5,6 +5,7 @@ import (
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 var oneCell = battle.Cell{1, 1}
@@ -15,11 +16,21 @@ func unitAt(id string, faction battle.Faction, anchor battle.Cell) battle.Unit {
 		Mech: battle.Mech{}, Pilot: battle.Pilot{}}
 }
 
-func board(units ...battle.Unit) *battle.BattleState {
+func board(units ...battle.Unit) *state.Battle {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	return &battle.BattleState{
+	out := state.FromContract(battle.BattleState{
 		Bounds: &bounds, Units: units,
-		Phase: battle.FactionAlly, Turn: 1}
+		Phase: battle.FactionAlly, Turn: 1})
+	return &out
+}
+
+func unitIn(units []battle.Unit, id string) *battle.Unit {
+	for index := range units {
+		if units[index].ID == id {
+			return &units[index]
+		}
+	}
+	return nil
 }
 
 func rifle(name string, rangeMin, rangeMax int) battle.Weapon {
@@ -57,14 +68,14 @@ func mapShells() battle.MapWeapon {
 }
 
 func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
-	attacker := fighter("a1", battle.FactionAlly, battle.Cell{0, 0})
-	defender := fighter("e1", battle.FactionEnemy, battle.Cell{2, 0})
-	weapon := beam()
+	b := shootout()
+	attacker, defender := b.Unit("a1"), b.Unit("e1")
+	weapon := &attacker.Mech.Weapons[0]
 
-	plain := strikeDamage(&attacker, &defender, &weapon, formula.NoDefenseMultiplier)
-	defended := strikeDamage(&attacker, &defender, &weapon, formula.DefendMultiplier)
-	defender.Debuffs = []battle.Debuff{{Kind: "armor_break", Magnitude: 0.2}}
-	broken := strikeDamage(&attacker, &defender, &weapon, formula.NoDefenseMultiplier)
+	plain := strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
+	defended := strikeDamage(attacker, defender, weapon, formula.DefendMultiplier)
+	defender.Value.Debuffs = []battle.Debuff{{Kind: "armor_break", Magnitude: 0.2}}
+	broken := strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
 
 	if plain <= 0 || defended <= 0 {
 		t.Fatalf("damage: %d %d", plain, defended)
@@ -78,15 +89,15 @@ func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 }
 
 func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
-	attacker := fighter("a1", battle.FactionAlly, battle.Cell{0, 0})
-	defender := fighter("e1", battle.FactionEnemy, battle.Cell{2, 0})
-	weapon := beam()
+	b := shootout()
+	attacker, defender := b.Unit("a1"), b.Unit("e1")
+	weapon := &attacker.Mech.Weapons[0]
 
-	plain := strikeHitProbability(&attacker, &defender, &weapon, false)
-	dodged := strikeHitProbability(&attacker, &defender, &weapon, true)
+	plain := strikeHitProbability(attacker, defender, weapon, false)
+	dodged := strikeHitProbability(attacker, defender, weapon, true)
 
-	attackSide := attackerSide(&attacker, weapon)
-	defendSide := defenderSide(&defender)
+	attackSide := attackerSide(attacker, *weapon)
+	defendSide := defenderSide(defender)
 	if plain != formula.HitProbability(weapon.Accuracy, attackSide, defendSide, 0) {
 		t.Fatalf("a shot that meets no dodge carries no correction: %v", plain)
 	}
@@ -97,9 +108,10 @@ func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
 }
 
 func TestTheDefenseMultiplierOfEveryStance(t *testing.T) {
-	plain := fighter("d1", battle.FactionAlly, battle.Cell{0, 0})
-	shielded := fighter("d2", battle.FactionAlly, battle.Cell{0, 1})
-	shielded.HasShield = true
+	guard := fighter("d2", battle.FactionAlly, battle.Cell{0, 1})
+	guard.HasShield = true
+	b := board(fighter("d1", battle.FactionAlly, battle.Cell{0, 0}), guard)
+	plain, shielded := b.Unit("d1"), b.Unit("d2")
 
 	want := map[battle.Stance]float64{
 		battle.StanceDefend:  formula.DefendMultiplier,
@@ -108,15 +120,15 @@ func TestTheDefenseMultiplierOfEveryStance(t *testing.T) {
 		battle.StanceNone:    formula.NoDefenseMultiplier,
 	}
 	for stance, multiplier := range want {
-		if got := defenseMultiplier(stance, &plain); got != multiplier {
+		if got := defenseMultiplier(stance, plain); got != multiplier {
 			t.Errorf("%q: %v against %v", stance, got, multiplier)
 		}
 	}
-	if got := defenseMultiplier(battle.StanceDefend, &shielded); got !=
+	if got := defenseMultiplier(battle.StanceDefend, shielded); got !=
 		formula.ShieldMultiplier*formula.DefendMultiplier {
 		t.Errorf("a defender that carries a shield pays both cuts: %v", got)
 	}
-	if got := defenseMultiplier(battle.StanceDodge, &shielded); got != formula.NoDefenseMultiplier {
+	if got := defenseMultiplier(battle.StanceDodge, shielded); got != formula.NoDefenseMultiplier {
 		t.Errorf("a shield answers no dodge: %v", got)
 	}
 }

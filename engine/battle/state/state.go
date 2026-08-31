@@ -48,6 +48,8 @@ type Battle struct {
 	TerrainCells []battle.TerrainCell
 }
 
+// A lookup that finds nothing answers with a nil unit, so this method
+// tolerates a nil receiver.
 func (u *Unit) Alive() bool {
 	return u != nil && u.Value.HP > 0
 }
@@ -68,6 +70,8 @@ func (b *Battle) Unit(id string) *Unit {
 	return nil
 }
 
+// PhaseIndex counts the phases from the first phase of the first turn. A
+// debuff carries the index of the phase that applied it.
 func (b *Battle) PhaseIndex() int {
 	for index, faction := range battle.PhaseOrder {
 		if faction == b.Phase {

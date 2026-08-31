@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 var oneCell = battle.Cell{1, 1}
@@ -18,12 +19,12 @@ func unitAt(id string, faction battle.Faction, anchor battle.Cell) battle.Unit {
 
 func board(units ...battle.Unit) *Board {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	return &Board{state: battle.BattleState{
+	return &Board{state: state.FromContract(battle.BattleState{
 		Bounds: &bounds, Units: units,
-		Phase: battle.FactionAlly, Turn: 1}}
+		Phase: battle.FactionAlly, Turn: 1})}
 }
 
-func ids(units []*battle.Unit) []string {
+func ids(units []*state.Unit) []string {
 	out := make([]string, 0, len(units))
 	for _, one := range units {
 		out = append(out, one.ID)

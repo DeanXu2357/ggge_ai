@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 type CellSet map[battle.Cell]bool
@@ -40,9 +41,9 @@ func AddFootprint(set CellSet, footprint battle.Footprint) {
 	}
 }
 
-func ReachableAnchors(state *battle.BattleState, unit *battle.Unit) CellSet {
+func ReachableAnchors(board *state.Battle, unit *state.Unit) CellSet {
 	return reachableAnchors(unit.Footprint(), unit.Mech.MoveRange,
-		Blocking(state, unit), Occupied(state, unit.ID), *state.Bounds)
+		Blocking(board, unit), Occupied(board, unit.ID), board.Bounds)
 }
 
 func reachableAnchors(from battle.Footprint, budget int, blocked, occupied CellSet,
@@ -79,10 +80,10 @@ type walk struct {
 	spent int
 }
 
-func Blocking(state *battle.BattleState, unit *battle.Unit) CellSet {
+func Blocking(board *state.Battle, unit *state.Unit) CellSet {
 	out := CellSet{}
-	for index := range state.Units {
-		other := &state.Units[index]
+	for index := range board.Units {
+		other := &board.Units[index]
 		if other.ID == unit.ID || !other.Alive() || other.Faction == unit.Faction {
 			continue
 		}
@@ -91,10 +92,10 @@ func Blocking(state *battle.BattleState, unit *battle.Unit) CellSet {
 	return out
 }
 
-func Occupied(state *battle.BattleState, except string) CellSet {
+func Occupied(board *state.Battle, except string) CellSet {
 	out := CellSet{}
-	for index := range state.Units {
-		other := &state.Units[index]
+	for index := range board.Units {
+		other := &board.Units[index]
 		if other.ID == except || !other.Alive() {
 			continue
 		}
@@ -129,7 +130,7 @@ func SortedCells(set CellSet) []battle.Cell {
 	return out
 }
 
-func FootprintAt(unit *battle.Unit, anchor battle.Cell) battle.Footprint {
+func FootprintAt(unit *state.Unit, anchor battle.Cell) battle.Footprint {
 	return battle.Footprint{Anchor: anchor, Size: unit.Footprint().Size}
 }
 

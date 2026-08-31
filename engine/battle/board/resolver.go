@@ -5,6 +5,7 @@ import (
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
@@ -36,7 +37,7 @@ func (b *Board) Load(bounds battle.Bounds, terrain battle.Terrain,
 			return fmt.Errorf("the terrain cell %v stands outside the board", entry.Cell)
 		}
 	}
-	b.state = candidate.Clone()
+	b.state = state.FromContract(candidate)
 	return nil
 }
 

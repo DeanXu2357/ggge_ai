@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 func coverIDs(options []SupportDefendOption) []string {
@@ -24,7 +26,7 @@ func stances(options []ResponseAttackOption) []battle.Stance {
 	return out
 }
 
-func duel() *battle.BattleState {
+func duelUnits() []battle.Unit {
 	defender := unitAt("d1", battle.FactionAlly, battle.Cell{0, 0})
 	defender.HasShield = true
 	defender.Mech.Weapons = []battle.Weapon{rifle("saber", 1, 1)}
@@ -34,9 +36,17 @@ func duel() *battle.BattleState {
 	attacker := unitAt("e1", battle.FactionEnemy, battle.Cell{1, 0})
 	attacker.Mech.MoveRange = 2
 	attacker.Mech.Weapons = []battle.Weapon{rifle("rifle", 1, 2)}
-	b := board(defender, helper, attacker)
+	return []battle.Unit{defender, helper, attacker}
+}
+
+func duelBoard(units ...battle.Unit) *state.Battle {
+	b := board(units...)
 	b.Phase = battle.FactionEnemy
 	return b
+}
+
+func duel() *state.Battle {
+	return duelBoard(duelUnits()...)
 }
 
 func strikeAction(cell battle.Cell, weapon string) battle.Decision {
@@ -44,7 +54,7 @@ func strikeAction(cell battle.Cell, weapon string) battle.Decision {
 	return battle.Decision{UnitID: "e1", Kind: battle.ActionAttack, MoveTo: &at, TargetID: named("d1"), Weapon: &weapon}
 }
 
-func engagementOf(t *testing.T, b *battle.BattleState, cell battle.Cell, weapon string) Options {
+func engagementOf(t *testing.T, b *state.Battle, cell battle.Cell, weapon string) Options {
 	t.Helper()
 	out, err := Menu(b, strikeAction(cell, weapon), "d1")
 	if err != nil {
@@ -67,9 +77,9 @@ func TestTheResponseAttackListHoldsTheStandAndNoShield(t *testing.T) {
 }
 
 func TestACounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
-	cases := map[string]func(weapon *battle.Weapon){
-		"a weapon it cannot pay for": func(weapon *battle.Weapon) { weapon.ENCost = 1000 },
-		"a weapon out of its band": func(weapon *battle.Weapon) {
+	cases := map[string]func(weapon *def.Weapon){
+		"a weapon it cannot pay for": func(weapon *def.Weapon) { weapon.ENCost = 1000 },
+		"a weapon out of its band": func(weapon *def.Weapon) {
 			weapon.RangeMin, weapon.RangeMax = 3, 4
 		},
 	}
@@ -110,15 +120,16 @@ func TestTheMenuRefusesWhatTheActionRefuses(t *testing.T) {
 // A stance carries no support unit: a support defender changes no outcome of the
 // stance, and it stands in its own list.
 func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
-	b := duel()
+	units := duelUnits()
+	helper := unitIn(units, "h1")
+	helper.SupportAttackCharges = 1
+	helper.Mech.Weapons = []battle.Weapon{rifle("rifle", 1, 2)}
 	guard := unitAt("e2", battle.FactionEnemy, battle.Cell{2, 0})
 	guard.Mech.MoveRange = 1
 	guard.SupportDefendCharges = 1
 	guard.SupportAttackCharges = 1
 	guard.Mech.Weapons = []battle.Weapon{rifle("rifle", 1, 2)}
-	b.Units = append(b.Units, guard)
-	b.Unit("h1").SupportAttackCharges = 1
-	b.Unit("h1").Mech.Weapons = []battle.Weapon{rifle("rifle", 1, 2)}
+	b := duelBoard(append(units, guard)...)
 
 	out := engagementOf(t, b, battle.Cell{1, 0}, "rifle")
 
@@ -142,10 +153,12 @@ func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 }
 
 func TestASupporterOutOfItsMoveRangeJoinsNothing(t *testing.T) {
-	b := duel()
-	b.Unit("h1").Mech.MoveRange = 0
-	b.Unit("h1").SupportAttackCharges = 1
-	b.Unit("h1").Mech.Weapons = []battle.Weapon{rifle("rifle", 1, 2)}
+	units := duelUnits()
+	helper := unitIn(units, "h1")
+	helper.Mech.MoveRange = 0
+	helper.SupportAttackCharges = 1
+	helper.Mech.Weapons = []battle.Weapon{rifle("rifle", 1, 2)}
+	b := duelBoard(units...)
 
 	out := engagementOf(t, b, battle.Cell{1, 0}, "rifle")
 
@@ -180,7 +193,7 @@ func TestAResponseAttackOfADestroyedUnitIsAnError(t *testing.T) {
 	for name, id := range cases {
 		t.Run(name, func(t *testing.T) {
 			b := duel()
-			b.Unit(id).HP = 0
+			b.Unit(id).Value.HP = 0
 
 			_, err := Menu(b, strikeAction(battle.Cell{1, 0}, "rifle"), "d1")
 
@@ -254,8 +267,7 @@ func TestEachEntryCarriesTheForecastOfItsOwnStrike(t *testing.T) {
 	guard.SupportDefendCharges = 1
 	guard.SupportAttackCharges = 1
 	guard.Mech.Weapons = []battle.Weapon{beam()}
-	b := board(defender, guard, attacker)
-	b.Phase = battle.FactionEnemy
+	b := duelBoard(defender, guard, attacker)
 
 	out, err := Menu(b, battle.Decision{UnitID: "e1", Kind: battle.ActionAttack,
 		TargetID: named("d1"), Weapon: named("beam rifle")}, "d1")

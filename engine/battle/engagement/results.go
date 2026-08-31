@@ -2,6 +2,8 @@ package engagement
 
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 type Forecast struct {
@@ -40,18 +42,18 @@ type ResponseAttackOption struct {
 }
 
 type SupportDefendOption struct {
-	Unit     *battle.Unit
+	Unit     *state.Unit
 	Incoming Forecast
 }
 
 type SupportAttackOption struct {
-	Unit   *battle.Unit
-	Weapon *battle.Weapon
+	Unit   *state.Unit
+	Weapon *def.Weapon
 	Strike Forecast
 }
 
 type SideOptions struct {
-	Unit             *battle.Unit
+	Unit             *state.Unit
 	SupportDefenders []SupportDefendOption
 	SupportAttackers []SupportAttackOption
 }

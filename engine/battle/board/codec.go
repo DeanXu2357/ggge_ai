@@ -4,25 +4,27 @@ import (
 	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-func encodeUnitStatus(unit *battle.Unit) battle.UnitStatus {
+func encodeUnitStatus(unit *state.Unit) battle.UnitStatus {
 	return battle.UnitStatus{
 		UnitID:    unit.ID,
 		Faction:   unit.Faction,
-		Pos:       unit.Pos,
+		Pos:       unit.Value.Pos,
 		Size:      unit.Footprint().Size,
-		HP:        unit.HP,
+		HP:        unit.Value.HP,
 		MaxHP:     unit.MaxHP,
-		EN:        unit.EN,
+		EN:        unit.Value.EN,
 		ENMax:     unit.ENMax,
 		MoveRange: unit.Mech.MoveRange,
-		Acted:     unit.Acted,
+		Acted:     unit.Value.Acted,
 	}
 }
 
-func encodeWeapons(unit *battle.Unit) []battle.WeaponEntry {
+func encodeWeapons(unit *state.Unit) []battle.WeaponEntry {
 	out := make([]battle.WeaponEntry, 0, len(unit.Mech.Weapons))
 	for _, weapon := range unit.Mech.Weapons {
 		out = append(out, battle.WeaponEntry{
@@ -37,7 +39,7 @@ func encodeWeapons(unit *battle.Unit) []battle.WeaponEntry {
 	return out
 }
 
-func encodeMapWeapons(unit *battle.Unit) []battle.MapWeaponEntry {
+func encodeMapWeapons(unit *state.Unit) []battle.MapWeaponEntry {
 	out := make([]battle.MapWeaponEntry, 0, len(unit.Mech.MapWeapons))
 	for _, weapon := range unit.Mech.MapWeapons {
 		out = append(out, battle.MapWeaponEntry{
@@ -45,7 +47,7 @@ func encodeMapWeapons(unit *battle.Unit) []battle.MapWeaponEntry {
 			ApplyShape:      cloneShape(weapon.ApplyShape),
 			EffectShape:     cloneShape(weapon.EffectShape),
 			ENCost:          weapon.ENCost,
-			Ammo:            encodeAmmo(unit.Ammo, weapon.Name),
+			Ammo:            encodeAmmo(unit.Value.Ammo, weapon.Name),
 			Accuracy:        weapon.Accuracy,
 			Affects:         weapon.Affects,
 			UsableAfterMove: weapon.UsableAfterMove,
@@ -54,7 +56,7 @@ func encodeMapWeapons(unit *battle.Unit) []battle.MapWeaponEntry {
 	return out
 }
 
-func encodeSkills(skills []battle.Skill) []battle.SkillEntry {
+func encodeSkills(skills []def.Skill) []battle.SkillEntry {
 	out := make([]battle.SkillEntry, 0, len(skills))
 	for _, skill := range skills {
 		out = append(out, battle.SkillEntry{
@@ -69,7 +71,7 @@ func encodeSkills(skills []battle.Skill) []battle.SkillEntry {
 	return out
 }
 
-func cloneShape(shape battle.ShapeRange) battle.ShapeRange {
+func cloneShape(shape def.ShapeRange) battle.ShapeRange {
 	return battle.ShapeRange{Cells: slices.Clone(shape.Cells), Direction: shape.Direction}
 }
 
