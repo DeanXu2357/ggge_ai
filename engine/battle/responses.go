@@ -47,6 +47,8 @@ type SkillEntry struct {
 	Uses            int          `json:"uses"`
 	EndsActivation  bool         `json:"ends_activation"`
 	UsableAfterMove bool         `json:"usable_after_move"`
+	ApplyShape      ShapeRange   `json:"apply_shape"`
+	EffectShape     ShapeRange   `json:"effect_shape"`
 	Affects         SkillAffects `json:"affects"`
 }
 

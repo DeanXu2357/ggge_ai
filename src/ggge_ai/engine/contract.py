@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-PROTOCOL_VERSION = "1.9"
+PROTOCOL_VERSION = "1.10"
 
 DECLARED_COMMANDS: tuple[str, ...] = (
     "hello",

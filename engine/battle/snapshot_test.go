@@ -32,13 +32,15 @@ func TestAMapWeaponOfAMechSurvivesTheRoundTrip(t *testing.T) {
 		MoveRange: 4,
 		Weapons:   []Weapon{{Name: "rifle", RangeMin: 1, RangeMax: 3}},
 		MapWeapons: []MapWeapon{{
-			Name:        "shells",
-			Power:       1800,
-			ApplyShape:  ShapeRange{Cells: []Cell{{0, 0}, {1, 0}, {1, 1}}, Direction: DirectionRight},
-			EffectShape: ShapeRange{Cells: []Cell{{0, 2}, {2, 0}}, Direction: DirectionNone},
-			AmmoMax:     2,
-			ENCost:      5,
-			Affects:     MapWeaponAffectsAll,
+			Name:  "shells",
+			Power: 1800,
+			AffectArea: AffectArea{
+				ApplyShape:  ShapeRange{Cells: []Cell{{0, 0}, {1, 0}, {1, 1}}, Direction: DirectionRight},
+				EffectShape: ShapeRange{Cells: []Cell{{0, 2}, {2, 0}}, Direction: DirectionNone},
+			},
+			AmmoMax: 2,
+			ENCost:  5,
+			Affects: MapWeaponAffectsAll,
 		}},
 	}
 

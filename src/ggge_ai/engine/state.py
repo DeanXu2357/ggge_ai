@@ -76,7 +76,14 @@ class MapWeapon:
 
 @dataclass
 class Skill:
-    """A skill carries no area. The representation of the area is not decided."""
+    """A skill that acts on a set of cells.
+
+    The two shape names cross over the two datamine columns. Read the column,
+    not the name. apply_shape holds 'effect_range': the cells that the skill
+    acts on. effect_shape holds the cells where the center of the skill can
+    sit. An empty effect_shape is no choice of center: the skill opens its area
+    at the cell of the caster.
+    """
 
     kind: str
     source: SkillSource = SkillSource.MECH
@@ -84,6 +91,8 @@ class Skill:
     uses: int = 1
     ends_activation: bool = True
     usable_after_move: bool = True
+    apply_shape: ShapeRange = field(default_factory=ShapeRange)
+    effect_shape: ShapeRange = field(default_factory=ShapeRange)
     affects: SkillAffects = SkillAffects.ALLY
 
 

@@ -1759,3 +1759,55 @@
   conversion) and d479bb2 (the systems and the shell on the state
   form). The wire did not move: no fixture, no scenario, no Python
   file and no protocol version changed across the three commits.
+- **(0831) The skill carries the same two shapes as a map weapon, in a
+  shared 'AffectArea' — user ruling**｜The user asked for the two shape
+  fields of a map weapon on the skill definition as well: 'ApplyShape'
+  and 'EffectShape', both of the type 'ShapeRange'. Protocol 1.9 to
+  1.10, issue #88.
+  This is the replacement for the three fields that 6af4a7b removed
+  ('range_min', 'range_max' and 'blast'), and it is not a revert of
+  that commit. Those three said a range band with a radius. The area
+  of a skill is an arbitrary set of cells, which a band cannot state,
+  so the three fields were the wrong description and not an incomplete
+  one. The pair of shapes is the right description, and it is the same
+  pair the map weapon got at a429965.
+  The datamine proves the shape and the naming. The supporter ability
+  1001000150 in
+  docs/reference/datamine-samples/202608161248/supporter/1001000150.json
+  carries the description "Allies in range: Restore EN by 50%" and the
+  column 'effect_range' with the value
+  "(0,4),(-1,3),(0,3),...,(0,0),...,(0,-4)": a diamond of radius four
+  that holds the origin (0,0). The record carries no shooting range of
+  its own. That is the caster-centered case, and an empty
+  'EffectShape' on a map weapon already says it.
+  The names cross over the datamine columns, on the skill as on the
+  map weapon. 'ApplyShape' holds 'effect_range' on a skill and
+  'map_weapon_effect_range' on a map weapon. 'EffectShape' holds
+  'map_weapon_shooting_range' on a map weapon; a skill sample carries
+  no such column.
+  Mid-task the user ruled the second half: the pair goes in one type,
+  'AffectArea', and the map weapon and the skill share it. Three
+  reasons. The pair carries one rule, and one rule belongs in one
+  type. The crossover comment was about to stand in two places, and it
+  now stands once, on the fields of 'AffectArea'. Two adjacent
+  parameters of one type invite a swapped call when a later issue
+  implements the expansion.
+  The type is an anonymous embedded field, in 'battle' and in 'def'
+  alike. 'encoding/json' flattens an embedded struct at its position,
+  so the wire keeps '{"apply_shape": ..., "effect_shape": ...}' flat
+  and in the same order, and Go field promotion keeps every call site
+  ('weapon.ApplyShape') as it was. A composite literal cannot name a
+  promoted field, so the four conversion functions and three Go tests
+  now name 'AffectArea' in their literals. 'src/ggge_ai/engine/state.py'
+  follows the wire and keeps two flat fields.
+  Two gates needed a change. The reflection partition test of
+  state_test.go reads an embedded field as one field named
+  'AffectArea' on both sides and recurses into it, so it needed
+  nothing. The Go-to-Python field-order gate of
+  tests/test_engine_codec.py parses the JSON tags of snapshot.go line
+  by line, and an embedded field carries no tag, so the parser dropped
+  the two keys. It now records an embedded member and flattens it at
+  its position, the way 'encoding/json' does.
+  No rule reads either field after this change, exactly as with the
+  map weapon. Shape expansion, rotation, target selection and the
+  audience filter stay out of scope.

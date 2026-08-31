@@ -188,8 +188,7 @@ func convertMapWeapon(w battle.MapWeapon) def.MapWeapon {
 	return def.MapWeapon{
 		Name:            w.Name,
 		Power:           w.Power,
-		ApplyShape:      convertShape(w.ApplyShape),
-		EffectShape:     convertShape(w.EffectShape),
+		AffectArea:      convertAffectArea(w.AffectArea),
 		AmmoMax:         w.AmmoMax,
 		ENCost:          w.ENCost,
 		Accuracy:        w.Accuracy,
@@ -211,8 +210,7 @@ func exportMapWeapon(w def.MapWeapon) battle.MapWeapon {
 		Accuracy:        w.Accuracy,
 		ENCost:          w.ENCost,
 		AmmoMax:         w.AmmoMax,
-		EffectShape:     exportShape(w.EffectShape),
-		ApplyShape:      exportShape(w.ApplyShape),
+		AffectArea:      exportAffectArea(w.AffectArea),
 		Power:           w.Power,
 		Name:            w.Name,
 	}
@@ -226,6 +224,7 @@ func convertSkill(s battle.Skill) def.Skill {
 		Uses:            s.Uses,
 		EndsActivation:  s.EndsActivation,
 		UsableAfterMove: s.UsableAfterMove,
+		AffectArea:      convertAffectArea(s.AffectArea),
 		Affects:         s.Affects,
 	}
 }
@@ -233,12 +232,27 @@ func convertSkill(s battle.Skill) def.Skill {
 func exportSkill(s def.Skill) battle.Skill {
 	return battle.Skill{
 		Affects:         s.Affects,
+		AffectArea:      exportAffectArea(s.AffectArea),
 		UsableAfterMove: s.UsableAfterMove,
 		EndsActivation:  s.EndsActivation,
 		Uses:            s.Uses,
 		Amount:          s.Amount,
 		Source:          s.Source,
 		Kind:            s.Kind,
+	}
+}
+
+func convertAffectArea(a battle.AffectArea) def.AffectArea {
+	return def.AffectArea{
+		ApplyShape:  convertShape(a.ApplyShape),
+		EffectShape: convertShape(a.EffectShape),
+	}
+}
+
+func exportAffectArea(a def.AffectArea) battle.AffectArea {
+	return battle.AffectArea{
+		EffectShape: exportShape(a.EffectShape),
+		ApplyShape:  exportShape(a.ApplyShape),
 	}
 }
 

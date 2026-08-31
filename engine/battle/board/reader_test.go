@@ -138,10 +138,11 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 			MapWeapons: []def.MapWeapon{
 				{Name: "missile",
 					Affects: battle.MapWeaponAffectsEnemy,
-					ApplyShape: def.ShapeRange{Cells: []battle.Cell{{0, 0}, {1, 0}},
-						Direction: battle.DirectionUp},
-					EffectShape: def.ShapeRange{Cells: []battle.Cell{{0, 5}},
-						Direction: battle.DirectionNone}},
+					AffectArea: def.AffectArea{
+						ApplyShape: def.ShapeRange{Cells: []battle.Cell{{0, 0}, {1, 0}},
+							Direction: battle.DirectionUp},
+						EffectShape: def.ShapeRange{Cells: []battle.Cell{{0, 5}},
+							Direction: battle.DirectionNone}}},
 			},
 		},
 		Value: state.UnitValue{

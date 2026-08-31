@@ -3,7 +3,8 @@
 The parity check parses the JSON tags of 'engine/battle/snapshot.go' and
 'engine/battle/decision.go' here, in the Python gate: 'engine/state.py' must
 hold every field that the wire holds, and a change on either side must fail
-this gate.
+this gate. It flattens an embedded struct at its position, as 'encoding/json'
+flattens it, so the mirror stays flat where the Go side wraps a group.
 
 A Go struct can hold a field that the dataclass does not, for a rule that the
 engine alone runs. 'ENGINE_ONLY' names each one, so an undeclared Go field
@@ -78,10 +79,11 @@ ENGINE_ONLY: dict[str, list[str]] = {}
 
 STRUCT = re.compile(r"^type (\w+) struct \{$")
 TAG = re.compile(r'json:"([^",]+)')
+EMBEDDED = re.compile(r"^\t([A-Z]\w*)$")
 
 
-def _go_structs() -> dict[str, list[str]]:
-    out: dict[str, list[str]] = {}
+def _go_members() -> dict[str, list[tuple[str, str]]]:
+    out: dict[str, list[tuple[str, str]]] = {}
     name = ""
     for path in STATE_GO:
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -93,9 +95,24 @@ def _go_structs() -> dict[str, list[str]]:
                 name = ""
             elif name:
                 tag = TAG.search(line)
+                embedded = EMBEDDED.match(line)
                 if tag:
-                    out[name].append(tag.group(1))
+                    out[name].append(("field", tag.group(1)))
+                elif embedded:
+                    out[name].append(("embed", embedded.group(1)))
     return out
+
+
+def _go_structs() -> dict[str, list[str]]:
+    members = _go_members()
+
+    def flatten(name: str) -> list[str]:
+        out: list[str] = []
+        for kind, value in members[name]:
+            out.extend([value] if kind == "field" else flatten(value))
+        return out
+
+    return {name: flatten(name) for name in members}
 
 
 @pytest.mark.parametrize("name", sorted(STRUCTS))

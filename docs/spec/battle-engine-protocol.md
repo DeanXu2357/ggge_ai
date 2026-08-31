@@ -48,9 +48,11 @@ issues of the port (#60 to #68).
   the contract reads these types, and no other form of the data
   leaves the engine.
 - 'engine/battle/def' holds the data of a battle that no rule
-  writes: 'Mech', 'Pilot', 'Weapon', 'MapWeapon', 'Skill' and
-  'ShapeRange'. They are distinct structs with exported fields and
-  no JSON tag. The package declares no vocabulary of its own: it
+  writes: 'Mech', 'Pilot', 'Weapon', 'MapWeapon', 'Skill',
+  'AffectArea' and 'ShapeRange'. They are distinct structs with
+  exported fields and no JSON tag. 'MapWeapon' and 'Skill' each
+  embed 'AffectArea', as they do in the contract.
+  The package declares no vocabulary of its own: it
   reads 'Cell', 'Direction', 'WeaponCategory', 'MapWeaponAffects'
   and the skill enums from the contract. A unit points at its mech
   and at its pilot, so every copy of a battle shares them.
@@ -298,8 +300,9 @@ An entry of the two lists carries no weapon ability. The section
 'Weapon abilities' holds the gap and the reason.
 
 A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
-'usable_after_move' and 'affects'. The entry carries no area: the
-section 'Types' holds the reason. The field 'kind' is an open
+'usable_after_move', 'apply_shape', 'effect_shape' and 'affects'.
+The section 'Types' holds the meaning of the two shapes and of
+'affects'. The field 'kind' is an open
 string, not a value of the action kinds: the engine validates
 nothing and resolves nothing until issue #81 closes the set. A
 producer writes what it read.
@@ -643,14 +646,42 @@ weapon is a common holder of a false value, but some map weapons
 fire after a move, and some skills of the source 'pilot' or 'crew'
 hold a false value (user ruling 2026-08-20).
 
-A skill carries no area on the wire. The area of a skill is an
-arbitrary set of cells. It takes any shape, for example the shape
-of the letters "ILOVEU". A minimum range, a maximum range and a
-radius cannot express such a shape, so they are the wrong
-description of the area and not an incomplete one (user ruling
-2026-08-31). The representation of the area is not decided, and a
-later issue decides it. The center travels in the field 'aim' of
-the action, and a single target travels in the field 'target_id'.
+A skill holds an 'AffectArea', the same pair of shapes that a map
+weapon holds. The area of a skill is an arbitrary set of cells. It
+takes any shape, for example the shape of the letters "ILOVEU". A
+minimum range, a maximum range and a radius cannot express such a
+shape, so they are the wrong description of the area and not an
+incomplete one (user ruling 2026-08-31). The pair replaces them.
+
+The two names cross over the datamine, as they do on a map weapon.
+Read the column, not the name:
+
+| Field | Datamine column | Content |
+|---|---|---|
+| apply_shape | effect_range | The cells that the skill acts on |
+| effect_shape | (no column) | The cells where the center of the skill can sit |
+
+An empty 'effect_shape.cells' is no choice of center. The skill
+opens its area at the cell of the caster, and the player picks
+nothing. A set that holds cells is a choice: the player picks one
+cell of the set, and the picked cell travels in the field 'aim' of
+the action. A single target travels in the field 'target_id'.
+
+The supporter ability 1001000150 of
+docs/reference/datamine-samples/202608161248/supporter/ is the
+caster-centered case. Its 'effect_range' is a diamond of radius four
+that holds the origin (0,0), and the record holds no shooting range
+of its own.
+
+This version defines the two shapes and it gives no rule. No rule
+expands a shape, turns a shape, or picks the units of the area.
+
+The producer of a skill can leave the two shapes empty. The panel
+of the game shows no cells and no heading, so the vision layer of
+this repository writes an empty 'cells' and a 'direction' of 'none'
+in each shape. An empty shape from this source is data that is
+missing. No rule may read it as an area of no cells, and no rule
+may read such an 'effect_shape' as the caster rule above.
 
 The field 'affects' holds the faction filter of the units that a
 skill acts on: 'ally', 'enemy', or 'all'. The value set holds no
@@ -715,8 +746,11 @@ no rule, so no code turns a shape yet.
 value 'none' is a shape that needs no heading, for example a shape
 that is the same in every heading.
 
-A map weapon holds two shapes. The two names cross over the two
-columns of the datamine. Read the column, not the name:
+'AffectArea' is the pair of shapes of one owner. A map weapon holds
+one, and a skill holds one. It is an anonymous embedded field in Go,
+so its two shapes stay flat on the wire and keep their position. The
+two names cross over the two columns of the datamine. Read the
+column, not the name:
 
 | Field | Datamine column | Content |
 |---|---|---|
@@ -984,3 +1018,16 @@ difference between two integers is 1.
   of the datamine. This version defines the shape and it fires no
   map weapon: no rule reads the fields. A client of version 1.8
   does not read a 1.9 map weapon.
+- A seventh exception on record: version 1.10 (2026-08-31, issue
+  #88) gave the skill an area. The skill of the state and the skill
+  entry of 'actions' each carry the new fields 'apply_shape' and
+  'effect_shape', both of the type 'ShapeRange'. They are the
+  replacement of 'range_min', 'range_max' and 'blast', which version
+  1.7 removed, and they are not a return of those three fields. The
+  two names cross over the datamine, as they do on a map weapon. The
+  same version puts the pair in the new Go type 'AffectArea', which
+  the map weapon and the skill share. The wire does not move: the
+  type is an anonymous embedded field, so the two keys stay flat and
+  keep their position. This version gives the skill an area and it
+  gives no rule: no rule reads the two fields. A client of version
+  1.9 does not read a 1.10 skill.

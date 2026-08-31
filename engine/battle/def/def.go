@@ -9,6 +9,11 @@ type ShapeRange struct {
 	Direction battle.Direction
 }
 
+type AffectArea struct {
+	ApplyShape  ShapeRange
+	EffectShape ShapeRange
+}
+
 type Weapon struct {
 	Name            string
 	Power           float64
@@ -23,10 +28,9 @@ type Weapon struct {
 }
 
 type MapWeapon struct {
-	Name            string
-	Power           float64
-	ApplyShape      ShapeRange
-	EffectShape     ShapeRange
+	Name  string
+	Power float64
+	AffectArea
 	AmmoMax         int
 	ENCost          int
 	Accuracy        float64
@@ -44,7 +48,8 @@ type Skill struct {
 	Uses            int
 	EndsActivation  bool
 	UsableAfterMove bool
-	Affects         battle.SkillAffects
+	AffectArea
+	Affects battle.SkillAffects
 }
 
 type Pilot struct {

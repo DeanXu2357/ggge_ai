@@ -781,6 +781,62 @@ D. Spec process model, terminology map, ledger, the artifact.
     'def.Weapon' for the same reason. 'battle.BattleState.Clone'
     stays on the contract and is the one deep copy of the engine.
 
+19. **The skill gets an area, and 'AffectArea' holds it for both
+    owners** (a user ruling, 2026-08-31). Protocol 1.9 to 1.10.
+    The skill carried no area at all. '6af4a7b' removed 'range_min',
+    'range_max' and 'blast' from it, and nothing took their place.
+    This change is that replacement, not a revert of '6af4a7b': the
+    three removed fields state a range band with a radius, and the
+    area of a skill is an arbitrary set of cells that no band can
+    state. The skill now carries the same pair the map weapon got at
+    'a429965'.
+    The datamine proves the shape and the naming. The supporter
+    ability 1001000150 of
+    'docs/reference/datamine-samples/202608161248/supporter/' has the
+    description "Allies in range: Restore EN by 50%" and the column
+    'effect_range' with a diamond of radius four that holds the
+    origin (0,0). It carries no shooting range of its own, so it is
+    the caster-centered case that an empty 'EffectShape' already
+    states on a map weapon.
+    Mid-task ruling, folded into the same pass: the pair goes in one
+    type, 'AffectArea', and 'MapWeapon' and 'Skill' share it, in
+    'battle' and in 'def' alike. The reasons: the pair carries one
+    rule; the crossover comment now stands once instead of twice; two
+    adjacent parameters of one type invite a swapped call when a
+    later issue implements the expansion.
+    An anonymous embedded field, not a named one. 'encoding/json'
+    flattens it at its position, so the wire keeps 'apply_shape' and
+    'effect_shape' flat and in the same order, and field promotion
+    keeps 'weapon.ApplyShape' working. Verified by encoding
+    'MapWeapon', 'Skill', 'SkillEntry' and 'MapWeaponEntry' before
+    and after the wrapping: the two dumps are byte-identical.
+    Two review points for the reader:
+    - A composite literal cannot name a promoted field. Four
+      conversion functions in 'contract.go' and three Go test
+      literals now name 'AffectArea'. That is the whole cost.
+    - The Go-to-Python field-order gate in
+      'tests/test_engine_codec.py' parses the JSON tags of
+      'snapshot.go' line by line. An embedded field carries no tag,
+      so the parser dropped both keys and the gate failed. The parser
+      now records an embedded member and flattens it at its position,
+      the way 'encoding/json' does. It was not un-embedded to dodge
+      the gate.
+    The partition test of 'state_test.go' needed no change: it reads
+    an embedded field as one field named 'AffectArea' on both sides
+    and recurses into it. The deliberate failure is on record: with
+    the fields on 'battle.Skill' alone, it reported 'the field
+    "Skills" carries []battle.Skill in the contract and []def.Skill
+    in the state'.
+    'SkillEntry' and 'MapWeaponEntry' in 'responses.go' keep two flat
+    fields and embed nothing. The ruling named the four definition
+    types, and an entry is built with named fields at one call site,
+    so it carries no swapped-call risk.
+    28 skill objects gained the two keys, each an empty cell list
+    with a direction of 'none': 10 in 'candidate_board.json', 14 in
+    'kill_skill_board.json' and 4 in 'debuff_ammo_board.json'. No
+    shape source feeds a golden.
+    No rule reads either field, exactly as with the map weapon.
+
 ## Deferred
 
 - #72 on this structure: the ability fields on the contract types

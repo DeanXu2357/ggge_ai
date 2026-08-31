@@ -126,6 +126,14 @@
               "uses": 2,
               "ends_activation": true,
               "usable_after_move": true,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             },
             {
@@ -135,6 +143,14 @@
               "uses": 1,
               "ends_activation": true,
               "usable_after_move": true,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             },
             {
@@ -144,6 +160,14 @@
               "uses": 0,
               "ends_activation": true,
               "usable_after_move": true,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             }
           ],
@@ -218,6 +242,14 @@
               "uses": 1,
               "ends_activation": true,
               "usable_after_move": true,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             },
             {
@@ -227,6 +259,14 @@
               "uses": 1,
               "ends_activation": true,
               "usable_after_move": true,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             }
           ],
@@ -569,6 +609,14 @@
                 "uses": 2,
                 "ends_activation": true,
                 "usable_after_move": true,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               },
               {
@@ -578,6 +626,14 @@
                 "uses": 1,
                 "ends_activation": true,
                 "usable_after_move": true,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               },
               {
@@ -587,6 +643,14 @@
                 "uses": 0,
                 "ends_activation": true,
                 "usable_after_move": true,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               }
             ],
@@ -661,6 +725,14 @@
                 "uses": 1,
                 "ends_activation": true,
                 "usable_after_move": true,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               },
               {
@@ -670,6 +742,14 @@
                 "uses": 1,
                 "ends_activation": true,
                 "usable_after_move": true,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               }
             ],

@@ -138,6 +138,8 @@ def encode_skill(skill: Skill) -> dict[str, Any]:
         "uses": skill.uses,
         "ends_activation": skill.ends_activation,
         "usable_after_move": skill.usable_after_move,
+        "apply_shape": encode_shape_range(skill.apply_shape),
+        "effect_shape": encode_shape_range(skill.effect_shape),
         "affects": str(skill.affects),
     }
 
@@ -151,6 +153,8 @@ def decode_skill(payload: dict[str, Any]) -> Skill:
         uses=_int(payload, "uses"),
         ends_activation=_bool(payload, "ends_activation"),
         usable_after_move=_bool(payload, "usable_after_move"),
+        apply_shape=decode_shape_range(payload.get("apply_shape") or {}),
+        effect_shape=decode_shape_range(payload.get("effect_shape") or {}),
         affects=_skill_affects(payload.get("affects")),
     )
 

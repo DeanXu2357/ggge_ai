@@ -65,6 +65,8 @@ func encodeSkills(skills []def.Skill) []battle.SkillEntry {
 			Uses:            skill.Uses,
 			EndsActivation:  skill.EndsActivation,
 			UsableAfterMove: skill.UsableAfterMove,
+			ApplyShape:      cloneShape(skill.ApplyShape),
+			EffectShape:     cloneShape(skill.EffectShape),
 			Affects:         skill.Affects,
 		})
 	}

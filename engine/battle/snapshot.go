@@ -131,6 +131,21 @@ type ShapeRange struct {
 	Direction Direction `json:"direction"`
 }
 
+// AffectArea is the area of a map weapon or of a skill. An empty EffectShape
+// is no choice of center: the owner opens its ApplyShape at the cell of the
+// caster.
+type AffectArea struct {
+	// The two shape names cross over the datamine columns that fill them.
+	// Read the column, not the name.
+	//
+	// ApplyShape holds 'map_weapon_effect_range' on a map weapon and
+	// 'effect_range' on a skill: the cells that the owner acts on.
+	ApplyShape ShapeRange `json:"apply_shape"`
+	// EffectShape holds 'map_weapon_shooting_range' on a map weapon: the
+	// cells where the center can sit. A skill sample carries no such column.
+	EffectShape ShapeRange `json:"effect_shape"`
+}
+
 // Weapon is a direct weapon: it strikes one unit, and an exchange resolves it.
 type Weapon struct {
 	Name            string           `json:"name"`
@@ -150,16 +165,7 @@ type Weapon struct {
 type MapWeapon struct {
 	Name  string  `json:"name"`
 	Power float64 `json:"power"`
-	// The two shape names cross over the two datamine columns. Read the
-	// column, not the name.
-	//
-	// ApplyShape holds 'map_weapon_effect_range': the cells that the strike
-	// hits.
-	ApplyShape ShapeRange `json:"apply_shape"`
-	// EffectShape holds 'map_weapon_shooting_range': the cells where the
-	// center of the strike can sit. An empty set is no choice of center: the
-	// weapon opens its area at the cell of the caster.
-	EffectShape     ShapeRange       `json:"effect_shape"`
+	AffectArea
 	AmmoMax         int              `json:"ammo_max"`
 	ENCost          int              `json:"en_cost"`
 	Accuracy        float64          `json:"accuracy"`
@@ -171,13 +177,14 @@ type MapWeapon struct {
 }
 
 type Skill struct {
-	Kind            SkillKind    `json:"kind"`
-	Source          SkillSource  `json:"source"`
-	Amount          *float64     `json:"amount"`
-	Uses            int          `json:"uses"`
-	EndsActivation  bool         `json:"ends_activation"`
-	UsableAfterMove bool         `json:"usable_after_move"`
-	Affects         SkillAffects `json:"affects"`
+	Kind            SkillKind   `json:"kind"`
+	Source          SkillSource `json:"source"`
+	Amount          *float64    `json:"amount"`
+	Uses            int         `json:"uses"`
+	EndsActivation  bool        `json:"ends_activation"`
+	UsableAfterMove bool        `json:"usable_after_move"`
+	AffectArea
+	Affects SkillAffects `json:"affects"`
 }
 
 type Debuff struct {
