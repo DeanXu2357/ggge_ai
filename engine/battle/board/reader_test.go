@@ -115,3 +115,104 @@ func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 		t.Fatalf("the board fields changed with the clone")
 	}
 }
+
+func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
+	amount := 2500.0
+	ammo := 3
+	unit := &battle.Unit{
+		ID:      "a1",
+		Faction: battle.FactionAlly,
+		Pos:     battle.Cell{2, 3}, Size: battle.Cell{2, 1},
+		HP:    800,
+		MaxHP: 1000,
+		EN:    40,
+		ENMax: 100,
+		Mech: battle.Mech{
+			MoveRange: 4,
+			Weapons: []battle.Weapon{
+				{Name: "rifle", RangeMin: 1, RangeMax: 3, ENCost: 10, Accuracy: 5,
+					UsableAfterMove: true},
+				{Name: "missile", RangeMin: 2, RangeMax: 5, MapWeapon: true},
+			},
+		},
+		Skills: []battle.Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
+			RangeMin: 0, RangeMax: 2, Blast: 1, Affects: battle.AffectsAlly}},
+		Ammo: map[string]int{"missile": ammo},
+	}
+
+	out := encodeActions(unit, []battle.Cell{{2, 3}, {2, 4}})
+
+	if out.Unit.Pos != (battle.Cell{2, 3}) || out.Unit.Size != (battle.Cell{2, 1}) ||
+		out.Unit.Faction != battle.FactionAlly || out.Unit.MaxHP != 1000 {
+		t.Fatalf("status: %+v", out.Unit)
+	}
+	if len(out.MoveCells) != 2 || out.MoveCells[1] != (battle.Cell{2, 4}) {
+		t.Fatalf("cells: %+v", out.MoveCells)
+	}
+	if out.Weapons[0].RangeMax != 3 || out.Weapons[0].Ammo != nil {
+		t.Fatalf("rifle: %+v", out.Weapons[0])
+	}
+	if out.Weapons[1].Ammo == nil || *out.Weapons[1].Ammo != 3 || !out.Weapons[1].MapWeapon {
+		t.Fatalf("missile: %+v", out.Weapons[1])
+	}
+	if out.Skills[0].Kind != "skill_heal" || *out.Skills[0].Amount != amount ||
+		out.Skills[0].Uses != 2 || out.Skills[0].Blast != 1 ||
+		out.Skills[0].Affects != battle.AffectsAlly {
+		t.Fatalf("skill: %+v", out.Skills[0])
+	}
+	if out.Weapons == nil || out.Skills == nil || out.MoveCells == nil {
+		t.Fatalf("an empty list is a list, not a null: %+v", out)
+	}
+}
+
+func TestTheActionsOfAnActedUnitAreARefusal(t *testing.T) {
+	b := board(unitAt("a1", battle.FactionAlly, battle.Cell{0, 0}))
+	b.state.Units[0].Acted = true
+
+	_, err := b.Actions("a1")
+
+	if !errors.Is(err, battle.ErrActed) {
+		t.Fatalf("error: %v", err)
+	}
+}
+
+func TestTheSummaryNamesThePendingUnitsAndTheGoneSides(t *testing.T) {
+	board := decodeFixtureState(t)
+	board.state.Phase = battle.FactionAlly
+	for index := range board.state.Units {
+		if board.state.Units[index].Faction == battle.FactionEnemy {
+			board.state.Units[index].HP = 0
+		}
+	}
+	summary := board.Summary()
+	if summary.Turn != board.state.Turn || summary.Phase != board.state.Phase {
+		t.Fatalf("summary: %+v", summary)
+	}
+	if !reflect.DeepEqual(summary.Gone, []battle.Faction{battle.FactionEnemy}) {
+		t.Fatalf("gone: %v", summary.Gone)
+	}
+	if len(summary.Pending) == 0 {
+		t.Fatal("the pending list must name the ally units that did not act")
+	}
+}
+
+func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
+	board, err := restore(wireBoard())
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	unit := board.state.Unit("a1")
+	if !unit.Alive() {
+		t.Fatalf("unit: %v", unit)
+	}
+	if board.state.Unit("ghost") != nil {
+		t.Fatal("the board holds no unit 'ghost'")
+	}
+
+	unit.HP = 0
+
+	if unit.Alive() || board.state.Unit("ghost").Alive() {
+		t.Fatal("a unit with no hit points is not alive, and neither is a unit that is not there")
+	}
+}

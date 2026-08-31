@@ -7,12 +7,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 )
 
-var knownFactions = map[battle.Faction]bool{
-	battle.FactionAlly:       true,
-	battle.FactionEnemy:      true,
-	battle.FactionThirdParty: true,
-}
-
 var actionKinds = map[battle.ActionKind]engagement.ActionKind{
 	battle.ActionAttack:     engagement.ActionAttack,
 	battle.ActionMapAttack:  engagement.ActionMapAttack,
@@ -32,45 +26,6 @@ var wireStances = map[engagement.Stance]battle.Stance{
 	engagement.StanceDefend:  battle.StanceDefend,
 	engagement.StanceCounter: battle.StanceCounter,
 	engagement.StanceNone:    battle.StanceNone,
-}
-
-// Validate judges every fact of a state that the JSON decode cannot, and it
-// fills the two values that the wire leaves out: a size of zero and an empty
-// terrain.
-func validate(state *battle.BattleState) error {
-	if state.Bounds == nil {
-		return fmt.Errorf("the state carries no bounds")
-	}
-	bounds := *state.Bounds
-	if bounds[1][0] < bounds[0][0] || bounds[1][1] < bounds[0][1] {
-		return fmt.Errorf("the bounds %v run backward", bounds)
-	}
-	if !knownFactions[state.Phase] {
-		return fmt.Errorf("the state carries the phase %q, which is not in the contract",
-			state.Phase)
-	}
-	seen := make(map[string]bool, len(state.Units))
-	for index := range state.Units {
-		unit := &state.Units[index]
-		if !knownFactions[unit.Faction] {
-			return fmt.Errorf("unit %q carries the faction %q, which is not in the contract",
-				unit.ID, unit.Faction)
-		}
-		if seen[unit.ID] {
-			return fmt.Errorf("the board holds two units with the id %q", unit.ID)
-		}
-		seen[unit.ID] = true
-		for axis := range unit.Size {
-			if unit.Size[axis] < 0 {
-				return fmt.Errorf("unit %q carries the size %v", unit.ID, unit.Size)
-			}
-		}
-		unit.Size = unit.Footprint().Size
-	}
-	if state.Terrain == "" {
-		state.Terrain = battle.TerrainSpace
-	}
-	return nil
 }
 
 func decodeDecision(action *battle.Decision) (engagement.Decision, error) {
