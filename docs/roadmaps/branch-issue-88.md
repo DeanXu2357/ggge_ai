@@ -256,6 +256,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
 | 3a5e186 | 'Apply' removed: the golden 'apply' checks pass through 'Act' (a user finding at review) |
 | 414ff43 | 'Plan.Draws' bounds the forced 'outcomes' list before the first write; the handler keeps no clone of the board or the generator; 'ServerDraw.Clone' and 'ManualRoll.Short' gone |
+| 119ebd8 | 'battle.BoardFactory' on the contract; 'main.go' injects 'board.Factory'; the handler no longer imports the concrete board package (a user ruling) |
 | c272c45 | The deploy package folded into the shell (a user ruling): 'NewBoard(bounds, terrain, terrainCells, enemies)' builds and assembles a new battle, 'Restore(state)' rebuilds a snapshot with no assembly, the handler parses and passes fields |
 | 4722c31 | 'board.NewBoard' from a 'battle.BattleState' for init, load and the tests; 'deploy.Opening' assembles the opening state; the handler parses 'InitRequest'; 'load' no longer rotates (a user ruling); 'Board.Advance' gone; 'ErrOutsideContract' in 'battle' |
 | f378713 | The four commands with no handler ('rollback', 'set_unit', 'advice', 'certify') and their types, the goal/budget/verdict types and the chance-event types left the contract and the Python mirror (a user ruling) |
