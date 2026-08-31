@@ -24,11 +24,7 @@ func (b *Board) ReachableCells(unitID string) ([]battle.Cell, error) {
 }
 
 func (b *Board) ResponseAttacks(action *battle.Decision, defenderID string) (battle.ResponseAttacksResponse, error) {
-	decision, err := decodeDecision(action)
-	if err != nil {
-		return battle.ResponseAttacksResponse{}, err
-	}
-	options, err := engagement.Menu(&b.state, decision, defenderID)
+	options, err := engagement.Menu(&b.state, *action, defenderID)
 	if err != nil {
 		return battle.ResponseAttacksResponse{}, err
 	}

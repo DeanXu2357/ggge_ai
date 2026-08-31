@@ -13,7 +13,7 @@ const maxSupportAttackers = 3
 // Plan carries every choice of one activation with every participant already
 // judged. Commit writes it and cannot fail.
 type Plan struct {
-	kind    ActionKind
+	kind    battle.ActionKind
 	actor   *battle.Unit
 	anchor  battle.Cell
 	target  *battle.Unit
@@ -27,30 +27,30 @@ type Plan struct {
 // settles the response attack somewhere else, as a node of a search tree
 // does.
 type answer struct {
-	response        *Response
+	response        *battle.ResponseAttack
 	counter         *battle.Weapon
 	supportDefender *battle.Unit
 	joining         []supportAttacker
 }
 
 func (a answer) dodging() bool {
-	return a.response != nil && a.response.Stance == StanceDodge
+	return a.response != nil && a.response.Stance == battle.StanceDodge
 }
 
 // Every rule is judged before the first change of the board, so a refused
 // pick leaves the board as it was.
-func Prepare(board *battle.BattleState, decision Decision) (Plan, error) {
+func Prepare(board *battle.BattleState, decision battle.Decision) (Plan, error) {
 	actor, err := Activatable(board, decision.UnitID)
 	if err != nil {
 		return Plan{}, err
 	}
 	switch decision.Kind {
-	case ActionAttack:
+	case battle.ActionAttack:
 		return prepareAttack(board, actor, decision)
-	case ActionMapAttack:
+	case battle.ActionMapAttack:
 		return Plan{}, fmt.Errorf("%w: the engine resolves no map attack, because the area of a map weapon is not in the contract",
 			battle.ErrIllegalAction)
-	case ActionReposition, ActionStandby:
+	case battle.ActionReposition, battle.ActionStandby:
 		anchor, err := destination(board, actor, decision.MoveTo, true)
 		if err != nil {
 			return Plan{}, err
@@ -61,15 +61,15 @@ func Prepare(board *battle.BattleState, decision Decision) (Plan, error) {
 		battle.ErrIllegalAction, decision.Kind)
 }
 
-func prepareAttack(board *battle.BattleState, actor *battle.Unit, decision Decision) (Plan, error) {
-	target, err := foe(board, actor, decision.TargetID)
+func prepareAttack(board *battle.BattleState, actor *battle.Unit, decision battle.Decision) (Plan, error) {
+	target, err := foe(board, actor, nameOf(decision.TargetID))
 	if err != nil {
 		return Plan{}, err
 	}
-	weapon := weaponOf(actor, decision.Weapon)
+	weapon := weaponOf(actor, nameOf(decision.Weapon))
 	if !directWeapon(weapon) {
 		return Plan{}, fmt.Errorf("%w: unit %q carries no attack weapon %q",
-			battle.ErrIllegalAction, actor.ID, decision.Weapon)
+			battle.ErrIllegalAction, actor.ID, nameOf(decision.Weapon))
 	}
 	if !hasENFor(actor, *weapon) {
 		return Plan{}, fmt.Errorf("%w: unit %q cannot pay for the weapon %q",
@@ -89,16 +89,16 @@ func prepareAttack(board *battle.BattleState, actor *battle.Unit, decision Decis
 	if err != nil {
 		return Plan{}, err
 	}
-	bearer, err := namedSupportDefendWhenAttack(board, actor, firing, decision.SupportDefender)
+	bearer, err := namedSupportDefendWhenAttack(board, actor, firing, nameOf(decision.SupportDefender))
 	if err != nil {
 		return Plan{}, err
 	}
-	answer, err := answerOf(board, target, firing, decision.Response)
+	answer, err := answerOf(board, target, firing, decision.ResponseAttack)
 	if err != nil {
 		return Plan{}, err
 	}
 	return Plan{
-		kind:    ActionAttack,
+		kind:    battle.ActionAttack,
 		actor:   actor,
 		anchor:  anchor,
 		target:  target,
@@ -172,7 +172,7 @@ func destination(board *battle.BattleState, actor *battle.Unit, to *battle.Cell,
 }
 
 func answerOf(board *battle.BattleState, defender *battle.Unit, firing battle.Footprint,
-	response *Response) (answer, error) {
+	response *battle.ResponseAttack) (answer, error) {
 	if response == nil {
 		return answer{}, nil
 	}
@@ -181,17 +181,17 @@ func answerOf(board *battle.BattleState, defender *battle.Unit, firing battle.Fo
 		return answer{}, fmt.Errorf("%w: unit %q takes the stance %q, which is not in the contract",
 			battle.ErrIllegalAction, defender.ID, response.Stance)
 	}
-	if response.Stance == StanceCounter {
-		out.counter = counterWeapon(defender, response.Weapon, firing)
+	if response.Stance == battle.StanceCounter {
+		out.counter = counterWeapon(defender, nameOf(response.Weapon), firing)
 		if out.counter == nil {
 			return answer{}, fmt.Errorf("%w: unit %q counters the strike with no weapon %q",
-				battle.ErrIllegalAction, defender.ID, response.Weapon)
+				battle.ErrIllegalAction, defender.ID, nameOf(response.Weapon))
 		}
-	} else if response.Weapon != "" {
+	} else if nameOf(response.Weapon) != "" {
 		return answer{}, fmt.Errorf("%w: the stance %q of unit %q fires no weapon",
 			battle.ErrIllegalAction, response.Stance, defender.ID)
 	}
-	supportDefender, err := namedSupportDefender(board, defender, defender.Footprint(), response.SupportDefender,
+	supportDefender, err := namedSupportDefender(board, defender, defender.Footprint(), nameOf(response.SupportDefender),
 		func(*battle.Unit) bool { return true })
 	if err != nil {
 		return answer{}, err
@@ -200,7 +200,7 @@ func answerOf(board *battle.BattleState, defender *battle.Unit, firing battle.Fo
 	// supportDefender nothing to take (docs/reference/battle-prep-ui.md:279, issue
 	// #44). Whether the game pairs a support defender with the stand is not
 	// measured; the engine permits it until a measurement lands.
-	if supportDefender != nil && response.Stance == StanceDefend {
+	if supportDefender != nil && response.Stance == battle.StanceDefend {
 		return answer{}, fmt.Errorf("%w: unit %q defends the strike itself and takes no support defender",
 			battle.ErrIllegalAction, defender.ID)
 	}

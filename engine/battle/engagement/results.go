@@ -33,7 +33,7 @@ type Strike struct {
 type Trace []Strike
 
 type ResponseAttackOption struct {
-	Stance   Stance
+	Stance   battle.Stance
 	Weapon   string
 	Incoming Forecast
 	Counter  *Forecast

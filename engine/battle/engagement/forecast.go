@@ -16,7 +16,7 @@ func forecastOf(shooter, struck *battle.Unit, weapon *battle.Weapon, multiplier 
 // defense entry carries the damage alone and no hit rate.
 func supportDefenderForecast(attacker, supportDefender *battle.Unit, weapon *battle.Weapon) Forecast {
 	damage := strikeDamage(attacker, supportDefender, weapon,
-		defenseMultiplier(StanceDefend, supportDefender))
+		defenseMultiplier(battle.StanceDefend, supportDefender))
 	kill := damage >= supportDefender.HP
 	return Forecast{Damage: &damage, Kill: &kill}
 }

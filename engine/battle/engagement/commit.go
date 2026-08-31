@@ -9,7 +9,7 @@ import (
 // there, so nothing here can refuse the plan.
 func Commit(board *battle.BattleState, plan Plan, dice battle.Dice) Trace {
 	plan.actor.Pos = plan.anchor
-	if plan.kind != ActionAttack {
+	if plan.kind != battle.ActionAttack {
 		endActivation(plan.actor, false)
 		return nil
 	}
@@ -36,7 +36,7 @@ func Commit(board *battle.BattleState, plan Plan, dice battle.Dice) Trace {
 // defender reply short, so the count is an upper bound and never falls under
 // the draws that Commit makes.
 func (p Plan) Draws() int {
-	if p.kind != ActionAttack {
+	if p.kind != battle.ActionAttack {
 		return 0
 	}
 	draws := 1
@@ -92,7 +92,7 @@ func coveredReceiver(board *battle.BattleState, supportDefender *battle.Unit) re
 	return receiver{
 		board:           board,
 		struck:          supportDefender,
-		multiplier:      defenseMultiplier(StanceDefend, supportDefender),
+		multiplier:      defenseMultiplier(battle.StanceDefend, supportDefender),
 		supportDefender: supportDefender,
 	}
 }

@@ -88,22 +88,22 @@ func TestTheDefenseMultiplierOfEveryStance(t *testing.T) {
 	shielded := fighter("d2", battle.FactionAlly, battle.Cell{0, 1})
 	shielded.HasShield = true
 
-	want := map[Stance]float64{
-		StanceDefend:  formula.DefendMultiplier,
-		StanceDodge:   formula.NoDefenseMultiplier,
-		StanceCounter: formula.NoDefenseMultiplier,
-		StanceNone:    formula.NoDefenseMultiplier,
+	want := map[battle.Stance]float64{
+		battle.StanceDefend:  formula.DefendMultiplier,
+		battle.StanceDodge:   formula.NoDefenseMultiplier,
+		battle.StanceCounter: formula.NoDefenseMultiplier,
+		battle.StanceNone:    formula.NoDefenseMultiplier,
 	}
 	for stance, multiplier := range want {
 		if got := defenseMultiplier(stance, &plain); got != multiplier {
 			t.Errorf("%q: %v against %v", stance, got, multiplier)
 		}
 	}
-	if got := defenseMultiplier(StanceDefend, &shielded); got !=
+	if got := defenseMultiplier(battle.StanceDefend, &shielded); got !=
 		formula.ShieldMultiplier*formula.DefendMultiplier {
 		t.Errorf("a defender that carries a shield pays both cuts: %v", got)
 	}
-	if got := defenseMultiplier(StanceDodge, &shielded); got != formula.NoDefenseMultiplier {
+	if got := defenseMultiplier(battle.StanceDodge, &shielded); got != formula.NoDefenseMultiplier {
 		t.Errorf("a shield answers no dodge: %v", got)
 	}
 }

@@ -12,13 +12,13 @@ import (
 // run, so the menu refuses every action the action itself refuses, with the
 // same error. The response attack of the decision is the question, so the plan
 // is built without one.
-func Menu(board *battle.BattleState, decision Decision, defenderID string) (Options, error) {
-	decision.Response = nil
+func Menu(board *battle.BattleState, decision battle.Decision, defenderID string) (Options, error) {
+	decision.ResponseAttack = nil
 	plan, err := Prepare(board, decision)
 	if err != nil {
 		return Options{}, err
 	}
-	if plan.kind != ActionAttack {
+	if plan.kind != battle.ActionAttack {
 		return Options{}, fmt.Errorf("%w: an action of the kind %q asks unit %q nothing",
 			battle.ErrIllegalAction, plan.kind, defenderID)
 	}
@@ -40,20 +40,20 @@ func Menu(board *battle.BattleState, decision Decision, defenderID string) (Opti
 	}
 
 	out.ResponseAttacks = append(out.ResponseAttacks,
-		stanceOption(attacker, defender, weapon, StanceDodge, ""),
-		stanceOption(attacker, defender, weapon, StanceDefend, ""))
+		stanceOption(attacker, defender, weapon, battle.StanceDodge, ""),
+		stanceOption(attacker, defender, weapon, battle.StanceDefend, ""))
 	for index := range defender.Mech.Weapons {
 		counter := &defender.Mech.Weapons[index]
 		if !fires(defender, counter, distance) {
 			continue
 		}
-		option := stanceOption(attacker, defender, weapon, StanceCounter, counter.Name)
+		option := stanceOption(attacker, defender, weapon, battle.StanceCounter, counter.Name)
 		reply := forecastOf(defender, attacker, counter, formula.NoDefenseMultiplier, false)
 		option.Counter = &reply
 		out.ResponseAttacks = append(out.ResponseAttacks, option)
 	}
 	out.ResponseAttacks = append(out.ResponseAttacks,
-		stanceOption(attacker, defender, weapon, StanceNone, ""))
+		stanceOption(attacker, defender, weapon, battle.StanceNone, ""))
 
 	out.Defender.SupportDefenders = defendOptions(attacker, weapon,
 		supportDefenders(board, defender, defender.Footprint()))
@@ -68,13 +68,13 @@ func Menu(board *battle.BattleState, decision Decision, defenderID string) (Opti
 	return out, nil
 }
 
-func stanceOption(attacker, defender *battle.Unit, weapon *battle.Weapon, stance Stance,
+func stanceOption(attacker, defender *battle.Unit, weapon *battle.Weapon, stance battle.Stance,
 	counter string) ResponseAttackOption {
 	return ResponseAttackOption{
 		Stance: stance,
 		Weapon: counter,
 		Incoming: forecastOf(attacker, defender, weapon,
-			defenseMultiplier(stance, defender), stance == StanceDodge),
+			defenseMultiplier(stance, defender), stance == battle.StanceDodge),
 	}
 }
 

@@ -106,18 +106,14 @@ type resolution struct {
 }
 
 func (b *Board) Act(action *battle.Decision, dice battle.Dice) ([]any, error) {
-	decision, err := decodeDecision(action)
-	if err != nil {
-		return nil, err
-	}
-	resolution, err := b.act(decision, dice)
+	resolution, err := b.act(*action, dice)
 	if err != nil {
 		return nil, err
 	}
 	return encodeResolution(resolution), nil
 }
 
-func (b *Board) act(decision engagement.Decision, dice battle.Dice) (resolution, error) {
+func (b *Board) act(decision battle.Decision, dice battle.Dice) (resolution, error) {
 	plan, err := engagement.Prepare(&b.state, decision)
 	if err != nil {
 		return resolution{}, err

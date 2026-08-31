@@ -1,86 +1,9 @@
 package board
 
 import (
-	"fmt"
-
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 )
-
-var actionKinds = map[battle.ActionKind]engagement.ActionKind{
-	battle.ActionAttack:     engagement.ActionAttack,
-	battle.ActionMapAttack:  engagement.ActionMapAttack,
-	battle.ActionReposition: engagement.ActionReposition,
-	battle.ActionStandby:    engagement.ActionStandby,
-}
-
-var decodedStances = map[battle.Stance]engagement.Stance{
-	battle.StanceDodge:   engagement.StanceDodge,
-	battle.StanceDefend:  engagement.StanceDefend,
-	battle.StanceCounter: engagement.StanceCounter,
-	battle.StanceNone:    engagement.StanceNone,
-}
-
-var wireStances = map[engagement.Stance]battle.Stance{
-	engagement.StanceDodge:   battle.StanceDodge,
-	engagement.StanceDefend:  battle.StanceDefend,
-	engagement.StanceCounter: battle.StanceCounter,
-	engagement.StanceNone:    battle.StanceNone,
-}
-
-func decodeDecision(action *battle.Decision) (engagement.Decision, error) {
-	kind, known := actionKinds[action.Kind]
-	if !known {
-		return engagement.Decision{}, fmt.Errorf("%w: the action carries the kind %q",
-			battle.ErrOutsideContract, action.Kind)
-	}
-	out := engagement.Decision{
-		UnitID:           action.UnitID,
-		Kind:             kind,
-		TargetID:         decodeOptionalName(action.TargetID),
-		Weapon:           decodeOptionalName(action.Weapon),
-		Amount:           battle.CloneAmount(action.Amount),
-		SupportDefender:  decodeOptionalName(action.SupportDefender),
-		SupportAttackers: append([]string(nil), action.SupportAttackers...),
-	}
-	if action.ResponseAttack != nil {
-		response, err := decodeResponseAttack(*action.ResponseAttack)
-		if err != nil {
-			return engagement.Decision{}, err
-		}
-		out.Response = &response
-	}
-	if action.MoveTo != nil {
-		cell := *action.MoveTo
-		out.MoveTo = &cell
-	}
-	if action.Aim != nil {
-		aim := *action.Aim
-		out.Aim = &aim
-	}
-	return out, nil
-}
-
-func decodeResponseAttack(wire battle.ResponseAttack) (engagement.Response, error) {
-	stance, known := decodedStances[wire.Stance]
-	if !known {
-		return engagement.Response{}, fmt.Errorf("%w: the response attack carries the stance %q",
-			battle.ErrOutsideContract, wire.Stance)
-	}
-	return engagement.Response{
-		Stance:           stance,
-		Weapon:           decodeOptionalName(wire.Weapon),
-		SupportDefender:  decodeOptionalName(wire.SupportDefender),
-		SupportAttackers: append([]string(nil), wire.SupportAttackers...),
-	}, nil
-}
-
-func decodeOptionalName(name *string) string {
-	if name == nil {
-		return ""
-	}
-	return *name
-}
 
 func encodeCells(cells []battle.Cell) []battle.Cell {
 	return append(make([]battle.Cell, 0, len(cells)), cells...)
@@ -173,7 +96,7 @@ func encodeResponseAttackOptions(options []engagement.ResponseAttackOption) []ba
 	out := make([]battle.ResponseAttackOption, 0, len(options))
 	for _, option := range options {
 		entry := battle.ResponseAttackOption{
-			Stance:   wireStances[option.Stance],
+			Stance:   option.Stance,
 			Weapon:   encodeOptionalName(option.Weapon),
 			Incoming: encodeForecast(option.Incoming),
 		}

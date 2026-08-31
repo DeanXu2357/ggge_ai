@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
@@ -39,8 +38,12 @@ func armed(id string, faction battle.Faction, x, y int) battle.Unit {
 	return out
 }
 
-func standby(id string) engagement.Decision {
-	return engagement.Decision{UnitID: id, Kind: engagement.ActionStandby}
+func named(id string) *string {
+	return &id
+}
+
+func standby(id string) battle.Decision {
+	return battle.Decision{UnitID: id, Kind: battle.ActionStandby}
 }
 
 func pendingOf(b *Board) []*battle.Unit {
@@ -183,9 +186,9 @@ func TestABattleRunsToAnnihilation(t *testing.T) {
 		targets := targetsOf(board, actor)
 		action := standby(actor.ID)
 		if len(targets) > 0 {
-			action = engagement.Decision{UnitID: actor.ID, Kind: engagement.ActionAttack,
-				TargetID: targets[0].ID, Weapon: "gun",
-				Response: &engagement.Response{Stance: engagement.StanceNone}}
+			action = battle.Decision{UnitID: actor.ID, Kind: battle.ActionAttack,
+				TargetID: named(targets[0].ID), Weapon: named("gun"),
+				ResponseAttack: &battle.ResponseAttack{Stance: battle.StanceNone}}
 		}
 		if _, err := board.act(action, dice); err != nil {
 			t.Fatalf("act %d: %v", acts, err)

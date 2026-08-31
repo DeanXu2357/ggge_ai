@@ -88,9 +88,9 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 			SupportAttackers: []engagement.SupportAttackOption{{Unit: helper, Weapon: &helper.Mech.Weapons[0]}}},
 		Attacker: engagement.SideOptions{Unit: attacker},
 		ResponseAttacks: []engagement.ResponseAttackOption{
-			{Stance: engagement.StanceDodge},
-			{Stance: engagement.StanceCounter, Weapon: "saber", Counter: &counter},
-			{Stance: engagement.StanceNone},
+			{Stance: battle.StanceDodge},
+			{Stance: battle.StanceCounter, Weapon: "saber", Counter: &counter},
+			{Stance: battle.StanceNone},
 		},
 	})
 
@@ -136,28 +136,5 @@ func TestTheEncodedForecastCarriesEveryNumberItHolds(t *testing.T) {
 	rate, damage, kill = 0, 0, false
 	if *full.HitRate != 0.75 || *full.Damage != 2400 || !*full.Kill {
 		t.Fatalf("the encode shares no memory with the model: %+v", full)
-	}
-}
-
-func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
-	moveTo := battle.Cell{4, 5}
-	name := "rifle"
-	target := "e1"
-
-	action, err := decodeDecision(&battle.Decision{
-		UnitID: "a1", Kind: battle.ActionAttack, MoveTo: &moveTo,
-		TargetID: &target, Weapon: &name,
-	})
-
-	if err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if action.Kind != engagement.ActionAttack || *action.MoveTo != (battle.Cell{4, 5}) ||
-		action.Weapon != "rifle" || action.TargetID != "e1" {
-		t.Fatalf("action: %+v", action)
-	}
-	lean, err := decodeDecision(&battle.Decision{UnitID: "a1", Kind: battle.ActionStandby})
-	if err != nil || lean.MoveTo != nil || lean.Weapon != "" {
-		t.Fatalf("a field with no value stays empty: %+v, %v", lean, err)
 	}
 }

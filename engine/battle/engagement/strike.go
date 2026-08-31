@@ -79,8 +79,8 @@ func strikeHitProbability(attacker, defender *battle.Unit, weapon *battle.Weapon
 
 // The response attack menu offers no shield stance, so a defender that
 // carries a shield defends with the shield here, in the damage (issue #63).
-func defenseMultiplier(stance Stance, defender *battle.Unit) float64 {
-	return formula.DefenseMultiplier(stance == StanceDefend, defender.HasShield)
+func defenseMultiplier(stance battle.Stance, defender *battle.Unit) float64 {
+	return formula.DefenseMultiplier(stance == battle.StanceDefend, defender.HasShield)
 }
 
 func counterWeapon(defender *battle.Unit, name string, attacker battle.Footprint) *battle.Weapon {

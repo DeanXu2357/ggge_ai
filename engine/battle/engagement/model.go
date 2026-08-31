@@ -4,53 +4,18 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
-type ActionKind string
-
-const (
-	ActionAttack     ActionKind = "attack"
-	ActionMapAttack  ActionKind = "map_attack"
-	ActionReposition ActionKind = "reposition"
-	ActionStandby    ActionKind = "standby"
-)
-
-type Stance string
-
-const (
-	StanceDodge   Stance = "dodge"
-	StanceDefend  Stance = "defend"
-	StanceCounter Stance = "counter"
-	StanceNone    Stance = "none"
-)
-
-var knownStances = map[Stance]bool{
-	StanceDodge:   true,
-	StanceDefend:  true,
-	StanceCounter: true,
-	StanceNone:    true,
+var knownStances = map[battle.Stance]bool{
+	battle.StanceDodge:   true,
+	battle.StanceDefend:  true,
+	battle.StanceCounter: true,
+	battle.StanceNone:    true,
 }
 
-// Decision is one activation of one unit. The contract names the payload
-// 'action' and the model names it 'decision'; this package keeps the model
-// name.
-type Decision struct {
-	UnitID   string
-	Kind     ActionKind
-	MoveTo   *battle.Cell
-	TargetID string
-	Weapon   string
-	Amount   *float64
-	Aim      *battle.Cell
-	Response *Response
-
-	SupportDefender  string
-	SupportAttackers []string
-}
-
-type Response struct {
-	Stance           Stance
-	Weapon           string
-	SupportDefender  string
-	SupportAttackers []string
+func nameOf(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
 }
 
 func hasENFor(unit *battle.Unit, weapon battle.Weapon) bool {
