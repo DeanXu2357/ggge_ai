@@ -95,7 +95,7 @@ func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 	b.state.TerrainCells = []battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: battle.TerrainGround}}
 	b.state.Phase = battle.FactionAlly
 
-	clone := b.Clone().(*Board)
+	clone := &Board{state: b.state.Clone()}
 	clone.state.Units[0].HP = 1
 	clone.state.Units[0].Ammo["w"] = 0
 	clone.state.Units[0].Debuffs[0].Kind = "changed"

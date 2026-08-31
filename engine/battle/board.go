@@ -4,7 +4,6 @@ type BoardReader interface {
 	Actions(unitID string) (ActionsResponse, error)
 	ReachableCells(unitID string) ([]Cell, error)
 	ResponseAttacks(action *Decision, defenderID string) (ResponseAttacksResponse, error)
-	Clone() Board
 	State() BattleState
 	Summary() BoardSummary
 }

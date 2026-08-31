@@ -35,10 +35,6 @@ func (b *Board) ResponseAttacks(action *battle.Decision, defenderID string) (bat
 	return encodeOptions(options), nil
 }
 
-func (b *Board) Clone() battle.Board {
-	return &Board{state: b.state.Clone()}
-}
-
 func (b *Board) State() battle.BattleState {
 	return b.state.Clone()
 }

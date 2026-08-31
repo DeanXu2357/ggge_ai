@@ -26,7 +26,7 @@ issues of the port (#60 to #68).
   'ResponseAttacksResponse', 'BoardSummary' and the events. The
   interfaces hold the methods that a consumer calls: 'Act' on
   'BoardResolver'; 'Actions', 'ReachableCells',
-  'ResponseAttacks', 'Clone', 'State' and 'Summary' on
+  'ResponseAttacks', 'State' and 'Summary' on
   'BoardReader'. The contract imports no package of the engine.
   The package 'engine/protocol' holds the envelope, the codes,
   the command list and the per-command wrappers. It imports
