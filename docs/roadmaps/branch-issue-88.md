@@ -210,10 +210,10 @@ lives there.
 
 ### Rule of writes
 
-Only 'engagement.Commit', 'turn.Advance', 'deploy.Assemble' and the
-shell's decoders assign a field of 'state.Unit' or 'state.Board'.
-Review check: grep for assignments to those fields outside the three
-systems and the codec files.
+Only 'engagement.Commit', 'turn.Advance' and the board package
+('NewBoard', 'assemble', 'validate', 'Clone') assign a field of
+'battle.Unit' or 'battle.BattleState'. Review check: grep for
+assignments to those fields outside the two systems and the shell.
 
 ### Stages (each with every gate green and the goldens byte-identical)
 
@@ -256,7 +256,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
 | 3a5e186 | 'Apply' removed: the golden 'apply' checks pass through 'Act' (a user finding at review) |
 | 414ff43 | 'Plan.Draws' bounds the forced 'outcomes' list before the first write; the handler keeps no clone of the board or the generator; 'ServerDraw.Clone' and 'ManualRoll.Short' gone |
-| f13696b | The handler builds the opening state; 'deploy.Opening(state)' applies only the rules (a user ruling: conversion out of the battle tree) |
+| c272c45 | The deploy package folded into the shell (a user ruling): 'NewBoard(bounds, terrain, terrainCells, enemies)' builds and assembles a new battle, 'Restore(state)' rebuilds a snapshot with no assembly, the handler parses and passes fields |
 | 4722c31 | 'board.NewBoard' from a 'battle.BattleState' for init, load and the tests; 'deploy.Opening' assembles the opening state; the handler parses 'InitRequest'; 'load' no longer rotates (a user ruling); 'Board.Advance' gone; 'ErrOutsideContract' in 'battle' |
 | f378713 | The four commands with no handler ('rollback', 'set_unit', 'advice', 'certify') and their types, the goal/budget/verdict types and the chance-event types left the contract and the Python mirror (a user ruling) |
 | ef77841 | The state and definition packages deleted; the systems and the shell work on the contract types ('helpers.go' holds the value helpers); the codec keeps validation, init assembly and the response projections (762 to 350 lines); 'reachableCells' inlined; the test-only helpers 'terrainAt'/'terrainOf'/'unit' gone |
@@ -322,7 +322,7 @@ D. Spec process model, terminology map, ledger, the artifact.
     response_attacks -> engagement.Menu = Prepare(decision, no
                         response) -> the options from the Plan
     actions / reach -> geometry.ReachableAnchors
-    init -> decode -> deploy.Assemble for every unit
+    init -> board.NewBoard -> assemble for every unit
 
 ## Verification
 
@@ -346,10 +346,10 @@ D. Spec process model, terminology map, ledger, the artifact.
   gained), plus the atomicity test and the state clone test after;
   two names changed with their subject when the counter permission
   left ('...NeedsTheReachAndTheEnergy').
-- The write grep: every assignment to a 'state.Unit' or
-  'state.Board' field outside tests sits in engagement/commit.go,
-  turn/turn.go, deploy/deploy.go, board/codec.go or
-  state/state.go (its own 'Clone').
+- The write grep: every assignment to a 'battle.Unit' or
+  'battle.BattleState' field outside tests sits in
+  engagement/commit.go, turn/turn.go, board/board.go ('NewBoard',
+  'assemble'), board/codec.go ('validate') or helpers.go ('Clone').
 - Prepare's check order is today's order statement for statement
   (the editor's report), so every error text and precedence a test
   asserts is unchanged.
@@ -460,8 +460,8 @@ D. Spec process model, terminology map, ledger, the artifact.
 
 ## Deferred
 
-- #72 on this structure: the ability fields on 'def', the pure
-  system 'abilities', 'deploy.Assemble' reading the abilities,
+- #72 on this structure: the ability fields on the contract types,
+  the pure system 'abilities', the assembly reading the abilities,
   'engagement' reading the modified stats; the catalog, the
   converter and the docs from the #72 branch.
 - 'nearestFreeCell' in geometry has no caller outside its tests
