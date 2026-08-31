@@ -267,6 +267,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | b716a32 | The contract types moved from 'engine/protocol' to 'engine/battle' ('decision.go', 'snapshot.go', 'responses.go'); 'actions' refuses an acted unit, protocol 1.6 |
 | 15de5e6, f317328 | The board files sorted by contract role ('reader.go', 'resolver.go', 'codec.go' with the definition codec merged, 'board.go' the state) after a user finding at review; the dead map 'wireKinds' dropped |
 | 507fb40 | The mirror 'engagement.Decision', 'engagement.Response' and their enums removed: the engagement speaks 'battle.Decision', the board loses the decode layer, 'Act' and 'ResponseAttacks' pass the payload through (a user finding at review) |
+| de450a9 | The composition of the 'actions' answer moved from the codec to reader.go as 'actionsOf': it selects what the actionable list of one unit holds, so it is the business logic of the query and no conversion; the test helper of the old name is 'mustActions' (a user finding at review) |
 | 9dcce91, 2732e7e | The terminology drift of 178dec3 (the joined unit/mech row, two paths, the forecast row, the row 'salvo'), the spec import sentence, this artifact |
 
     engine/battle             board.go (the three interfaces),
