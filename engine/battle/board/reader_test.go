@@ -12,7 +12,7 @@ func rifle(name string, rangeMin, rangeMax int) battle.Weapon {
 	return battle.Weapon{Name: name, RangeMin: rangeMin, RangeMax: rangeMax, UsableAfterMove: true}
 }
 
-func actionsOf(t *testing.T, b *Board, id string) battle.ActionsResponse {
+func mustActions(t *testing.T, b *Board, id string) battle.ActionsResponse {
 	t.Helper()
 	out, err := b.Actions(id)
 	if err != nil {
@@ -26,7 +26,7 @@ func TestTheActionsCarryTheCellsTheUnitReaches(t *testing.T) {
 		unitAt("e1", battle.FactionEnemy, battle.Cell{1, 0}))
 	b.state.Units[0].Mech.MoveRange = 1
 
-	out := actionsOf(t, b, "a1")
+	out := mustActions(t, b, "a1")
 
 	want := []battle.Cell{{0, 0}, {0, 1}}
 	if !reflect.DeepEqual(out.MoveCells, want) {
@@ -49,7 +49,7 @@ func TestTheActionsJudgeNoResourceAndNoBand(t *testing.T) {
 	b.state.Units[0].MaxHP = b.state.Units[0].HP
 	b.state.Units[0].Skills = []battle.Skill{{Kind: "skill_heal", Uses: 1}}
 
-	out := actionsOf(t, b, "a1")
+	out := mustActions(t, b, "a1")
 
 	if len(out.Weapons) != 1 || len(out.Skills) != 1 {
 		t.Fatalf("the answer holds the whole panel: %+v", out)
@@ -140,7 +140,7 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 		Ammo: map[string]int{"missile": ammo},
 	}
 
-	out := encodeActions(unit, []battle.Cell{{2, 3}, {2, 4}})
+	out := actionsOf(unit, []battle.Cell{{2, 3}, {2, 4}})
 
 	if out.Unit.Pos != (battle.Cell{2, 3}) || out.Unit.Size != (battle.Cell{2, 1}) ||
 		out.Unit.Faction != battle.FactionAlly || out.Unit.MaxHP != 1000 {

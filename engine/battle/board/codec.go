@@ -5,15 +5,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 )
 
-func encodeActions(unit *battle.Unit, moveCells []battle.Cell) battle.ActionsResponse {
-	return battle.ActionsResponse{
-		Unit:      encodeUnitStatus(unit),
-		MoveCells: moveCells,
-		Weapons:   encodeWeapons(unit),
-		Skills:    encodeSkills(unit.Skills),
-	}
-}
-
 func encodeUnitStatus(unit *battle.Unit) battle.UnitStatus {
 	return battle.UnitStatus{
 		UnitID:    unit.ID,

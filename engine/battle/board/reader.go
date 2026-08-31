@@ -12,7 +12,16 @@ func (b *Board) Actions(unitID string) (battle.ActionsResponse, error) {
 	if err != nil {
 		return battle.ActionsResponse{}, err
 	}
-	return encodeActions(unit, geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit))), nil
+	return actionsOf(unit, geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit))), nil
+}
+
+func actionsOf(unit *battle.Unit, moveCells []battle.Cell) battle.ActionsResponse {
+	return battle.ActionsResponse{
+		Unit:      encodeUnitStatus(unit),
+		MoveCells: moveCells,
+		Weapons:   encodeWeapons(unit),
+		Skills:    encodeSkills(unit.Skills),
+	}
 }
 
 func (b *Board) ReachableCells(unitID string) ([]battle.Cell, error) {
