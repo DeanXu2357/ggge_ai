@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from ggge_ai.runtime.perceive import Observation
-from ggge_ai.engine.contract import Direction, Faction, MapWeaponOrigin
+from ggge_ai.engine.contract import Direction, Faction
 from ggge_ai.stage.intel import (
     IntelPerceiver,
     Intelligence,
@@ -112,13 +112,13 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
 
 
 def test_a_map_weapon_carries_no_shape_because_the_panel_shows_none():
-    """面板讀不到格子、朝向與原點，所以形狀留空、朝向 none、原點取預設 self。"""
+    """面板讀不到格子與朝向，所以兩個形狀都留空、朝向取 none。"""
     area = MAP_GUN.to_map_weapon()
 
-    assert area.shape.cells == []
-    assert area.shape.direction is Direction.NONE
-    assert area.origin is MapWeaponOrigin.SELF
-    assert area.center_range == 0
+    assert area.apply_shape.cells == []
+    assert area.apply_shape.direction is Direction.NONE
+    assert area.effect_shape.cells == []
+    assert area.effect_shape.direction is Direction.NONE
     assert area.ammo_max == 2
 
 

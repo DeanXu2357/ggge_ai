@@ -710,8 +710,8 @@ function inspectUnit(uid) {
     const parts = [
       "地圖兵器",
       "威力 " + weapon.power,
-      "原點 " + weapon.origin,
-      "中心射程 " + weapon.center_range,
+      "施放形狀 " + weapon.apply_shape.cells.length + " 格",
+      "效果形狀 " + weapon.effect_shape.cells.length + " 格",
       "EN " + weapon.en_cost,
       "命中補正 " + weapon.accuracy,
       "作用對象 " + weapon.affects,

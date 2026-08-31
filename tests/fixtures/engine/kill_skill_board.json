@@ -128,12 +128,14 @@
               {
                 "name": "heavy shell",
                 "power": 2000.0,
-                "shape": {
+                "apply_shape": {
                   "cells": [],
                   "direction": "none"
                 },
-                "origin": "self",
-                "center_range": 0,
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "ammo_max": 0,
                 "en_cost": 5,
                 "accuracy": 0.0,
@@ -520,12 +522,14 @@
                 {
                   "name": "heavy shell",
                   "power": 2000.0,
-                  "shape": {
+                  "apply_shape": {
                     "cells": [],
                     "direction": "none"
                   },
-                  "origin": "self",
-                  "center_range": 0,
+                  "effect_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
                   "ammo_max": 0,
                   "en_cost": 5,
                   "accuracy": 0.0,
@@ -938,12 +942,14 @@
                 {
                   "name": "heavy shell",
                   "power": 2000.0,
-                  "shape": {
+                  "apply_shape": {
                     "cells": [],
                     "direction": "none"
                   },
-                  "origin": "self",
-                  "center_range": 0,
+                  "effect_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
                   "ammo_max": 0,
                   "en_cost": 5,
                   "accuracy": 0.0,
@@ -1337,12 +1343,14 @@
                 {
                   "name": "heavy shell",
                   "power": 2000.0,
-                  "shape": {
+                  "apply_shape": {
                     "cells": [],
                     "direction": "none"
                   },
-                  "origin": "self",
-                  "center_range": 0,
+                  "effect_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
                   "ammo_max": 0,
                   "en_cost": 5,
                   "accuracy": 0.0,
@@ -1736,12 +1744,14 @@
                 {
                   "name": "heavy shell",
                   "power": 2000.0,
-                  "shape": {
+                  "apply_shape": {
                     "cells": [],
                     "direction": "none"
                   },
-                  "origin": "self",
-                  "center_range": 0,
+                  "effect_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
                   "ammo_max": 0,
                   "en_cost": 5,
                   "accuracy": 0.0,
@@ -2074,12 +2084,14 @@
                 {
                   "name": "heavy shell",
                   "power": 2000.0,
-                  "shape": {
+                  "apply_shape": {
                     "cells": [],
                     "direction": "none"
                   },
-                  "origin": "self",
-                  "center_range": 0,
+                  "effect_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
                   "ammo_max": 0,
                   "en_cost": 5,
                   "accuracy": 0.0,
@@ -2473,12 +2485,14 @@
                 {
                   "name": "heavy shell",
                   "power": 2000.0,
-                  "shape": {
+                  "apply_shape": {
                     "cells": [],
                     "direction": "none"
                   },
-                  "origin": "self",
-                  "center_range": 0,
+                  "effect_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
                   "ammo_max": 0,
                   "en_cost": 5,
                   "accuracy": 0.0,

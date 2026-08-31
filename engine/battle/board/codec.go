@@ -42,9 +42,8 @@ func encodeMapWeapons(unit *battle.Unit) []battle.MapWeaponEntry {
 	for _, weapon := range unit.Mech.MapWeapons {
 		out = append(out, battle.MapWeaponEntry{
 			Name:            weapon.Name,
-			Shape:           battle.ShapeRange{Cells: slices.Clone(weapon.Shape.Cells), Direction: weapon.Shape.Direction},
-			Origin:          weapon.Origin,
-			CenterRange:     weapon.CenterRange,
+			ApplyShape:      cloneShape(weapon.ApplyShape),
+			EffectShape:     cloneShape(weapon.EffectShape),
 			ENCost:          weapon.ENCost,
 			Ammo:            encodeAmmo(unit.Ammo, weapon.Name),
 			Accuracy:        weapon.Accuracy,
@@ -68,6 +67,10 @@ func encodeSkills(skills []battle.Skill) []battle.SkillEntry {
 		})
 	}
 	return out
+}
+
+func cloneShape(shape battle.ShapeRange) battle.ShapeRange {
+	return battle.ShapeRange{Cells: slices.Clone(shape.Cells), Direction: shape.Direction}
 }
 
 func encodeAmmo(ammo map[string]int, name string) *int {

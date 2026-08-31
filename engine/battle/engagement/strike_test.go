@@ -47,9 +47,8 @@ func mapShells() battle.MapWeapon {
 	return battle.MapWeapon{
 		Name:            "shells",
 		Power:           1800,
-		Shape:           battle.ShapeRange{Cells: []battle.Cell{{0, 0}}, Direction: battle.DirectionNone},
-		Origin:          battle.MapWeaponOriginCell,
-		CenterRange:     3,
+		ApplyShape:      battle.ShapeRange{Cells: []battle.Cell{{0, 0}}, Direction: battle.DirectionNone},
+		EffectShape:     battle.ShapeRange{Cells: []battle.Cell{{0, 3}}, Direction: battle.DirectionNone},
 		AmmoMax:         2,
 		ENCost:          5,
 		Affects:         battle.MapWeaponAffectsEnemy,

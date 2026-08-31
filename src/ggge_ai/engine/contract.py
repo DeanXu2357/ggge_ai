@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-PROTOCOL_VERSION = "1.8"
+PROTOCOL_VERSION = "1.9"
 
 DECLARED_COMMANDS: tuple[str, ...] = (
     "hello",
@@ -75,15 +75,6 @@ class MapWeaponAffects(StrEnum):
     ALLY = "ally"
     ENEMY = "enemy"
     ALL = "all"
-
-
-class MapWeaponOrigin(StrEnum):
-    """Where the offsets of a shape start. 'self' opens the shape at the cell of
-    the caster. 'cell' opens it at a cell that the player picks.
-    """
-
-    SELF = "self"
-    CELL = "cell"
 
 
 class Terrain(StrEnum):

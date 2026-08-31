@@ -134,10 +134,12 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 					UsableAfterMove: true},
 			},
 			MapWeapons: []battle.MapWeapon{
-				{Name: "missile", CenterRange: 5, Origin: battle.MapWeaponOriginCell,
+				{Name: "missile",
 					Affects: battle.MapWeaponAffectsEnemy,
-					Shape: battle.ShapeRange{Cells: []battle.Cell{{0, 0}, {1, 0}},
-						Direction: battle.DirectionUp}},
+					ApplyShape: battle.ShapeRange{Cells: []battle.Cell{{0, 0}, {1, 0}},
+						Direction: battle.DirectionUp},
+					EffectShape: battle.ShapeRange{Cells: []battle.Cell{{0, 5}},
+						Direction: battle.DirectionNone}},
 			},
 		},
 		Skills: []battle.Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
@@ -158,9 +160,9 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 		t.Fatalf("rifle: %+v", out.Weapons)
 	}
 	area := out.MapWeapons[0]
-	if area.Ammo == nil || *area.Ammo != 3 || area.CenterRange != 5 ||
-		area.Origin != battle.MapWeaponOriginCell || area.Affects != battle.MapWeaponAffectsEnemy ||
-		area.Shape.Direction != battle.DirectionUp || len(area.Shape.Cells) != 2 {
+	if area.Ammo == nil || *area.Ammo != 3 || len(area.EffectShape.Cells) != 1 ||
+		area.Affects != battle.MapWeaponAffectsEnemy ||
+		area.ApplyShape.Direction != battle.DirectionUp || len(area.ApplyShape.Cells) != 2 {
 		t.Fatalf("missile: %+v", area)
 	}
 	if out.Skills[0].Kind != "skill_heal" || *out.Skills[0].Amount != amount ||

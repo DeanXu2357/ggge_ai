@@ -32,9 +32,8 @@ type WeaponEntry struct {
 
 type MapWeaponEntry struct {
 	Name            string           `json:"name"`
-	Shape           ShapeRange       `json:"shape"`
-	Origin          MapWeaponOrigin  `json:"origin"`
-	CenterRange     int              `json:"center_range"`
+	ApplyShape      ShapeRange       `json:"apply_shape"`
+	EffectShape     ShapeRange       `json:"effect_shape"`
 	ENCost          int              `json:"en_cost"`
 	Ammo            *int             `json:"ammo"` // A null 'ammo' is a weapon that spends no ammunition.
 	Accuracy        float64          `json:"accuracy"`

@@ -68,8 +68,9 @@ class WeaponIntel:
         )
 
     def to_map_weapon(self) -> MapWeapon:
-        # 面板讀不到地圖兵器的範圍形狀：沒有格子、沒有朝向、沒有原點。
-        # shape 留空、origin 取預設 self，等有形狀來源再填（issue #79）。
+        # 面板讀不到地圖兵器的形狀：沒有格子、沒有朝向。兩個形狀都留空，
+        # 等有形狀來源再填（issue #79）。空的 effect_shape 在契約裡代表以
+        # 自機格為中心，這裡卻只是缺資料，規則不得照字面讀。
         return MapWeapon(
             name=self.name,
             power=self.power,

@@ -17,7 +17,6 @@ from .contract import (
     Direction,
     Faction,
     MapWeaponAffects,
-    MapWeaponOrigin,
     SkillAffects,
     SkillSource,
     Stance,
@@ -54,15 +53,17 @@ class MapWeapon:
     """An area weapon: it strikes every unit of its shape, and it starts no
     exchange. No rule of this version fires one (issue #79).
 
-    center_range bounds how far the picked center can sit from the caster. It
-    carries a meaning only when origin is 'cell'.
+    The two shape names cross over the two datamine columns. Read the column,
+    not the name. apply_shape holds 'map_weapon_effect_range': the cells that
+    the strike hits. effect_shape holds 'map_weapon_shooting_range': the cells
+    where the center of the strike can sit. An empty effect_shape is no choice
+    of center: the weapon opens its area at the cell of the caster.
     """
 
     name: str
     power: float
-    shape: ShapeRange = field(default_factory=ShapeRange)
-    origin: MapWeaponOrigin = MapWeaponOrigin.SELF
-    center_range: int = 0
+    apply_shape: ShapeRange = field(default_factory=ShapeRange)
+    effect_shape: ShapeRange = field(default_factory=ShapeRange)
     ammo_max: int = 0
     en_cost: int = 0
     accuracy: float = 0.0

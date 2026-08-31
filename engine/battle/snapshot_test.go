@@ -18,13 +18,12 @@ func TestAValueOutsideAnEnumIsADecodeError(t *testing.T) {
 	source := json.Unmarshal([]byte(`{"source":"squad"}`), &skill)
 	affects := json.Unmarshal([]byte(`{"affects":"self"}`), &skill)
 	audience := json.Unmarshal([]byte(`{"affects":"self"}`), &area)
-	origin := json.Unmarshal([]byte(`{"origin":"aim"}`), &area)
 	direction := json.Unmarshal([]byte(`{"direction":"north"}`), &shape)
 
 	if faction == nil || kind == nil || source == nil || affects == nil ||
-		audience == nil || origin == nil || direction == nil {
-		t.Fatalf("faction: %v, kind: %v, source: %v, affects: %v, audience: %v, origin: %v, direction: %v",
-			faction, kind, source, affects, audience, origin, direction)
+		audience == nil || direction == nil {
+		t.Fatalf("faction: %v, kind: %v, source: %v, affects: %v, audience: %v, direction: %v",
+			faction, kind, source, affects, audience, direction)
 	}
 }
 
@@ -35,9 +34,8 @@ func TestAMapWeaponOfAMechSurvivesTheRoundTrip(t *testing.T) {
 		MapWeapons: []MapWeapon{{
 			Name:        "shells",
 			Power:       1800,
-			Shape:       ShapeRange{Cells: []Cell{{0, 0}, {1, 0}, {1, 1}}, Direction: DirectionRight},
-			Origin:      MapWeaponOriginCell,
-			CenterRange: 4,
+			ApplyShape:  ShapeRange{Cells: []Cell{{0, 0}, {1, 0}, {1, 1}}, Direction: DirectionRight},
+			EffectShape: ShapeRange{Cells: []Cell{{0, 2}, {2, 0}}, Direction: DirectionNone},
 			AmmoMax:     2,
 			ENCost:      5,
 			Affects:     MapWeaponAffectsAll,
@@ -57,8 +55,8 @@ func TestAMapWeaponOfAMechSurvivesTheRoundTrip(t *testing.T) {
 		t.Fatalf("the round trip changed the mech: %+v", back)
 	}
 	area := back.MapWeapons[0]
-	if area.Shape.Direction != DirectionRight || len(area.Shape.Cells) != 3 ||
-		area.Origin != MapWeaponOriginCell || area.Affects != MapWeaponAffectsAll {
+	if area.ApplyShape.Direction != DirectionRight || len(area.ApplyShape.Cells) != 3 ||
+		len(area.EffectShape.Cells) != 2 || area.Affects != MapWeaponAffectsAll {
 		t.Fatalf("map weapon: %+v", area)
 	}
 }

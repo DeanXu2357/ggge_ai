@@ -254,11 +254,10 @@ A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
 ammunition: a direct weapon spends none. It carries no power: the
 engine drops the power of a weapon when it reads the state.
 
-A map weapon entry holds 'name', 'shape', 'origin',
-'center_range', 'en_cost', 'ammo', 'accuracy', 'affects' and
-'usable_after_move'. A null 'ammo' is a map weapon that spends no
-ammunition. The section 'Types' holds the meaning of 'shape',
-'origin' and 'affects'.
+A map weapon entry holds 'name', 'apply_shape', 'effect_shape',
+'en_cost', 'ammo', 'accuracy', 'affects' and 'usable_after_move'. A
+null 'ammo' is a map weapon that spends no ammunition. The section
+'Types' holds the meaning of the two shapes and of 'affects'.
 
 An entry of the two lists carries no weapon ability. The section
 'Weapon abilities' holds the gap and the reason.
@@ -666,27 +665,42 @@ and 'range_max', and an exchange resolves it. A direct weapon
 spends no ammunition, so it carries no ammunition field.
 
 A map weapon strikes every unit of an area. It starts no exchange,
-and it grants no response attack. Version 1.8 gives the map weapon
+and it grants no response attack. Version 1.9 gives the map weapon
 its fields. It gives no rule: no rule expands a shape, turns a
 shape, spends the ammunition, picks the units of the area, or
 computes the damage. Issue #79 writes those rules.
 
-'ShapeRange' is the area. It holds 'cells', a list of cell offsets
+'ShapeRange' is one area. It holds 'cells', a list of cell offsets
 from an origin, and 'direction'. The author writes the offsets one
 time, against one base heading. The direction then turns the full
-set of the offsets. The rotation is a rule, and version 1.8 holds
+set of the offsets. The rotation is a rule, and version 1.9 holds
 no rule, so no code turns a shape yet.
 
 'Direction' holds 'none', 'up', 'down', 'left' and 'right'. The
 value 'none' is a shape that needs no heading, for example a shape
 that is the same in every heading.
 
-'MapWeaponOrigin' tells where the offsets start. 'self' opens the
-shape at the cell of the caster. 'cell' opens it at a cell that the
-player picks; the picked cell travels in the field 'aim' of the
-action. The field 'center_range' bounds how far the picked cell can
-sit from the caster, and it carries a meaning only when 'origin' is
-'cell'.
+A map weapon holds two shapes. The two names cross over the two
+columns of the datamine. Read the column, not the name:
+
+| Field | Datamine column | Content |
+|---|---|---|
+| apply_shape | map_weapon_effect_range | The cells that the strike hits |
+| effect_shape | map_weapon_shooting_range | The cells where the center of the strike can sit |
+
+An empty 'effect_shape.cells' is no choice of center. The weapon
+opens its area at the cell of the caster, and the player picks
+nothing. A set that holds cells is a choice: the player picks one
+cell of the set, and the picked cell travels in the field 'aim' of
+the action. This rule replaces the enum 'MapWeaponOrigin' of
+version 1.8.
+
+An integer cannot hold 'effect_shape', because the set has holes.
+The unit 1114000250 of
+docs/reference/datamine-samples/202608161248/unit/ carries a hollow
+diamond: the set reaches five cells, and the cells inside radius
+two are absent. A radius states a full disc, so a radius states the
+wrong set.
 
 'MapWeaponAffects' holds the faction filter of the units that the
 area strikes: 'ally', 'enemy', or 'all'. It is a separate enum from
@@ -699,11 +713,12 @@ field 'ammo' of a unit is the count that is left, keyed by the name
 of the weapon. The maximum belongs to the definition, and the count
 belongs to the state.
 
-The producer of a map weapon can leave the shape empty. The panel
-of the game shows no cells, no heading and no origin, so the vision
-layer of this repository writes an empty 'cells', a 'direction' of
-'none' and an 'origin' of 'self'. An empty shape is data that is
-missing, and not an area of no cells.
+The producer of a map weapon can leave the two shapes empty. The
+panel of the game shows no cells and no heading, so the vision
+layer of this repository writes an empty 'cells' and a 'direction'
+of 'none' in each shape. An empty shape from this source is data
+that is missing. No rule may read it as an area of no cells, and no
+rule may read such an 'effect_shape' as the caster rule above.
 
 ### The unit, the pilot and the mech
 
@@ -923,3 +938,14 @@ difference between two integers is 1.
   'MapWeaponOrigin' and 'MapWeaponAffects'. This version defines the
   shape and it fires no map weapon: no rule reads the new fields.
   A client of version 1.7 does not read a 1.8 weapon list.
+- A sixth exception on record: version 1.9 (2026-08-31, issue #88)
+  gave the map weapon two shapes. The field 'shape' became
+  'apply_shape' and it keeps its meaning. The new field
+  'effect_shape' holds the cells where the center of the strike can
+  sit. The enum 'MapWeaponOrigin' and the field 'center_range' are
+  removed: an empty 'effect_shape' now says what 'origin' said,
+  and one integer cannot hold a cell set that has holes. The user
+  ruled the two names, and the two names cross over the two columns
+  of the datamine. This version defines the shape and it fires no
+  map weapon: no rule reads the fields. A client of version 1.8
+  does not read a 1.9 map weapon.

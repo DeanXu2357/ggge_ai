@@ -238,8 +238,10 @@ D. Spec process model, terminology map, ledger, the artifact.
 - 2026-08-30: '/code-review' (high): ten findings, eight code fixes
   in cdb3c4d..a08ca8e, two docs fixes in 9dcce91 and this commit.
 - 2026-08-31: the weapon split into 'Weapon' and 'MapWeapon' with the
-  new type 'ShapeRange' (protocol 1.8). Shape only; no firing. In the
-  working tree, uncommitted.
+  new type 'ShapeRange' (protocol 1.8). Shape only; no firing.
+- 2026-08-31: the user ruled the area fields of 'MapWeapon':
+  'ApplyShape' and 'EffectShape', with no 'Origin' and no
+  'CenterRange' (protocol 1.9). In the working tree, uncommitted.
 
 ## Change summary
 
@@ -510,11 +512,11 @@ D. Spec process model, terminology map, ledger, the artifact.
     weapon and 'battle.MapWeapon' is an area weapon; a mech holds
     two lists. The area is the new type 'battle.ShapeRange': a set
     of cell offsets from an origin plus a 'Direction' that turns
-    them. 'MapWeaponOrigin' says where the offsets start, 'self' or
-    'cell', and 'CenterRange' bounds the picked center.
-    'MapWeaponAffects' is the audience, a separate enum from
-    'SkillAffects' by the user's ruling. The wire moves to 1.8; both
-    version constants move together.
+    them. A map weapon carries two of them, 'ApplyShape' and
+    'EffectShape' (see point 17). 'MapWeaponAffects' is the
+    audience, a separate enum from 'SkillAffects' by the user's
+    ruling. The wire moves to 1.8 and then to 1.9; both version
+    constants move together.
     This version defines the shape and fires nothing: no expansion
     into cells, no rotation, no ammunition spending, no target
     selection, no damage. 'directWeapon' dies, because 'Mech.Weapons'
@@ -526,15 +528,42 @@ D. Spec process model, terminology map, ledger, the artifact.
     fields their zero values. The files are byte-identical to their
     canonical JSON dump, which proves the rewrite touched nothing
     else.
-    Two open points for the user. First, the identifiers of this
+    One open point stays for the user: the identifiers of this
     design are the implementing session's proposal, not the user's
-    words. Second, 'CenterRange' is one integer, but the datamine
-    states the allowed set of aim cells as a cell list with holes
-    ('map_weapon_shooting_range'), which an integer cannot hold. The
-    session implemented the field as specified and raises the
-    mismatch. The panel of the game shows no shape at all, so
-    'WeaponIntel.to_map_weapon' writes an empty shape and documented
-    defaults; issue #79 owns the shape source and the firing rules.
+    words. The second open point, the integer 'CenterRange' against
+    a cell set with holes, is closed by point 17. The panel of the
+    game shows no shape at all, so 'WeaponIntel.to_map_weapon'
+    writes empty shapes; issue #79 owns the shape source and the
+    firing rules.
+
+17. **The map weapon carries two shapes** (a user ruling at review
+    round 3, after the weapon split). The user ruled the names.
+    'Shape' is now 'ApplyShape' and keeps its meaning. 'Origin' and
+    'CenterRange' are both gone, and the new 'EffectShape' takes
+    their place; the enum 'MapWeaponOrigin' with 'self' and 'cell'
+    is gone with them. The wire moves to 1.9.
+    The pitfall: the two names cross over the two columns of the
+    datamine. 'ApplyShape' carries 'map_weapon_effect_range', the
+    cells that the strike hits. 'EffectShape' carries
+    'map_weapon_shooting_range', the cells where the center of the
+    strike can sit. A why-comment on each field of 'battle.MapWeapon'
+    states the binding, because the name alone reads wrong.
+    Why the integer dies: the shooting range has holes. The unit
+    1114000250 of the datamine samples is a hollow diamond of reach
+    five with the cells inside radius two absent. One integer states
+    a full disc, so it states the wrong set.
+    The rule that replaces the enum: an empty 'EffectShape.Cells' is
+    no choice of center, and the weapon opens its area at the cell of
+    the caster. A set that holds cells is a choice.
+    Scope is unchanged from point 16: shape only, no firing. No rule
+    reads the two fields.
+    The goldens moved with the same method as point 16. Every file
+    was byte-identical to its canonical JSON dump before the rewrite
+    and after it, and 15 map weapon objects changed: 4 in
+    'candidate_board.json', 2 in 'debuff_ammo_board.json', 7 in
+    'kill_skill_board.json' and 2 in 'response_attack_board.json'.
+    Both shapes stay empty there, because no shape source feeds a
+    golden.
 
 ## Deferred
 

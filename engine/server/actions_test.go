@@ -15,8 +15,9 @@ const candidateLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,` +
 	`"mech":{"weapons":[` +
 	`{"name":"rifle","range_min":1,"range_max":2,"usable_after_move":true}],` +
-	`"map_weapons":[{"name":"shells","origin":"self","affects":"enemy",` +
-	`"shape":{"cells":[[0,0]],"direction":"none"},"usable_after_move":true}]},` +
+	`"map_weapons":[{"name":"shells","affects":"enemy",` +
+	`"apply_shape":{"cells":[[0,0]],"direction":"none"},` +
+	`"effect_shape":{"cells":[],"direction":"none"},"usable_after_move":true}]},` +
 	`"ammo":{"shells":1}},` +
 	`{"unit_id":"a2","faction":"ally","pos":[4,4],"hp":100,"acted":true},` +
 	`{"unit_id":"e1","faction":"enemy","pos":[2,1],"hp":100,` +

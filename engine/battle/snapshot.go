@@ -62,16 +62,6 @@ const (
 	MapWeaponAffectsAll   MapWeaponAffects = "all"
 )
 
-// MapWeaponOrigin tells where the offsets of the shape start. 'self' opens the
-// shape at the cell of the caster. 'cell' opens it at a cell that the player
-// picks.
-type MapWeaponOrigin string
-
-const (
-	MapWeaponOriginSelf MapWeaponOrigin = "self"
-	MapWeaponOriginCell MapWeaponOrigin = "cell"
-)
-
 var (
 	factions     = map[Faction]bool{FactionAlly: true, FactionEnemy: true, FactionThirdParty: true}
 	skillSources = map[SkillSource]bool{
@@ -95,10 +85,6 @@ var (
 		MapWeaponAffectsAlly:  true,
 		MapWeaponAffectsEnemy: true,
 		MapWeaponAffectsAll:   true,
-	}
-	mapWeaponOrigins = map[MapWeaponOrigin]bool{
-		MapWeaponOriginSelf: true,
-		MapWeaponOriginCell: true,
 	}
 )
 
@@ -134,10 +120,6 @@ func (a *MapWeaponAffects) UnmarshalJSON(data []byte) error {
 	return decodeEnum(data, a, mapWeaponAffects, "affects")
 }
 
-func (o *MapWeaponOrigin) UnmarshalJSON(data []byte) error {
-	return decodeEnum(data, o, mapWeaponOrigins, "origin")
-}
-
 // Bounds is the pair of corner cells of the board, the low corner first. The
 // wire permits a null; 'board.Validate' refuses a state that carries one.
 type Bounds [2]Cell
@@ -165,15 +147,19 @@ type Weapon struct {
 
 // MapWeapon is an area weapon: it strikes every unit of its shape, and it
 // starts no exchange. No rule of this version fires one (issue #79).
-//
-// CenterRange bounds how far the picked center can sit from the caster. It
-// carries a meaning only when Origin is MapWeaponOriginCell.
 type MapWeapon struct {
-	Name            string           `json:"name"`
-	Power           float64          `json:"power"`
-	Shape           ShapeRange       `json:"shape"`
-	Origin          MapWeaponOrigin  `json:"origin"`
-	CenterRange     int              `json:"center_range"`
+	Name  string  `json:"name"`
+	Power float64 `json:"power"`
+	// The two shape names cross over the two datamine columns. Read the
+	// column, not the name.
+	//
+	// ApplyShape holds 'map_weapon_effect_range': the cells that the strike
+	// hits.
+	ApplyShape ShapeRange `json:"apply_shape"`
+	// EffectShape holds 'map_weapon_shooting_range': the cells where the
+	// center of the strike can sit. An empty set is no choice of center: the
+	// weapon opens its area at the cell of the caster.
+	EffectShape     ShapeRange       `json:"effect_shape"`
 	AmmoMax         int              `json:"ammo_max"`
 	ENCost          int              `json:"en_cost"`
 	Accuracy        float64          `json:"accuracy"`

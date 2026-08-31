@@ -67,12 +67,14 @@
               {
                 "name": "missile pod",
                 "power": 1500.0,
-                "shape": {
+                "apply_shape": {
                   "cells": [],
                   "direction": "none"
                 },
-                "origin": "self",
-                "center_range": 0,
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "ammo_max": 0,
                 "en_cost": 20,
                 "accuracy": 0.0,
@@ -348,12 +350,14 @@
                 {
                   "name": "missile pod",
                   "power": 1500.0,
-                  "shape": {
+                  "apply_shape": {
                     "cells": [],
                     "direction": "none"
                   },
-                  "origin": "self",
-                  "center_range": 0,
+                  "effect_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
                   "ammo_max": 0,
                   "en_cost": 20,
                   "accuracy": 0.0,

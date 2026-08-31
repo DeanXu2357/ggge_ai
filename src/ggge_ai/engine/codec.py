@@ -24,7 +24,6 @@ from .contract import (
     Direction,
     Faction,
     MapWeaponAffects,
-    MapWeaponOrigin,
     SkillAffects,
     SkillSource,
     Stance,
@@ -58,7 +57,7 @@ def encode_shape_range(shape: ShapeRange) -> dict[str, Any]:
 
 
 def decode_shape_range(payload: dict[str, Any]) -> ShapeRange:
-    _known(payload, encode_shape_range(ShapeRange()), "shape")
+    _known(payload, encode_shape_range(ShapeRange()), "shape range")
     return ShapeRange(
         cells=[_as_cell(raw, "shape cell") for raw in payload.get("cells") or ()],
         direction=_direction(payload.get("direction")),
@@ -100,9 +99,8 @@ def encode_map_weapon(weapon: MapWeapon) -> dict[str, Any]:
     return {
         "name": weapon.name,
         "power": weapon.power,
-        "shape": encode_shape_range(weapon.shape),
-        "origin": str(weapon.origin),
-        "center_range": weapon.center_range,
+        "apply_shape": encode_shape_range(weapon.apply_shape),
+        "effect_shape": encode_shape_range(weapon.effect_shape),
         "ammo_max": weapon.ammo_max,
         "en_cost": weapon.en_cost,
         "accuracy": weapon.accuracy,
@@ -119,9 +117,8 @@ def decode_map_weapon(payload: dict[str, Any]) -> MapWeapon:
     return MapWeapon(
         name=_str(payload, "name"),
         power=_float(payload, "power"),
-        shape=decode_shape_range(payload.get("shape") or {}),
-        origin=_map_weapon_origin(payload.get("origin")),
-        center_range=_int(payload, "center_range"),
+        apply_shape=decode_shape_range(payload.get("apply_shape") or {}),
+        effect_shape=decode_shape_range(payload.get("effect_shape") or {}),
         ammo_max=_int(payload, "ammo_max"),
         en_cost=_int(payload, "en_cost"),
         accuracy=_float(payload, "accuracy"),
@@ -512,13 +509,6 @@ def _map_weapon_affects(raw: Any) -> MapWeaponAffects:
         return MapWeaponAffects(raw)
     except ValueError as exc:
         raise ValueError(f"affects {raw!r} is not in the contract") from exc
-
-
-def _map_weapon_origin(raw: Any) -> MapWeaponOrigin:
-    try:
-        return MapWeaponOrigin(raw)
-    except ValueError as exc:
-        raise ValueError(f"origin {raw!r} is not in the contract") from exc
 
 
 def _stance(raw: Any) -> Stance:

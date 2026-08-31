@@ -1664,3 +1664,39 @@
   'map_weapons', with zero values for the fields that no source fills.
   The files are byte-identical to their canonical JSON dump, so the
   rewrite touched no other byte and changed no expectation.
+- **(0831) The map weapon carries two shapes — user ruling**｜The user
+  ruled the names of the area fields of 'battle.MapWeapon'. The type
+  carries two shapes and no integer (protocol 1.8 to 1.9, issue #88):
+  1. 'Shape' is renamed 'ApplyShape'. Its meaning does not change.
+  2. 'Origin' and 'CenterRange' are both deleted, and the new field
+     'EffectShape' takes their place. The enum 'MapWeaponOrigin' with
+     its values 'self' and 'cell' is deleted. Nothing keeps them.
+  The names come from the user. They stay as the user gave them.
+  The two names cross over the two columns of the datamine. This is
+  the pitfall of the change, and the code carries a why-comment on
+  each field for it:
+  - 'ApplyShape' carries 'map_weapon_effect_range', the cells that
+    the strike hits.
+  - 'EffectShape' carries 'map_weapon_shooting_range', the cells
+    where the center of the strike can sit.
+  Why the integer dies: the shooting range has holes. The unit
+  1114000250 of docs/reference/datamine-samples/202608161248/unit/
+  states a hollow diamond. The set reaches five cells, and the cells
+  inside radius two are absent: (0,2), (-1,1), (0,1), (1,1), (-2,0),
+  (-1,0), (0,0), (1,0) and (2,0) are all missing from it. One integer
+  states a full disc, so it states the wrong set. The 0831 entry above
+  raised this mismatch as an open point; the ruling closes it.
+  The rule that replaces the enum: an empty 'EffectShape.Cells' is no
+  choice of center. The weapon opens its area at the cell of the
+  caster, and the player picks nothing. A set that holds cells is a
+  choice, and the player picks one cell inside it. The rule stands in
+  docs/spec/battle-engine-protocol.md and in the terminology map.
+  The scope of the 0831 split does not change: this defines the shape
+  alone. No rule expands a shape, turns a shape, spends the
+  ammunition, picks the units of the area, or computes the damage.
+  No rule reads the two fields.
+  One trap for the vision layer. 'WeaponIntel.to_map_weapon' writes
+  both shapes empty, because the panel of the game shows no cells and
+  no heading. That empty 'effect_shape' is missing data, not the
+  caster rule above. The goldens under 'tests/fixtures/engine/' hold
+  empty shapes for the same reason: no shape source feeds them.
