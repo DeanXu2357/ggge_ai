@@ -90,8 +90,11 @@ issues of the port (#60 to #68).
   the command registry and the command 'hello'. The package
   'engine/server/handler' holds the body of every other command,
   the battle that the commands read and change, and the calls on
-  the shell 'engine/battle/board'. The handler parses every request:
-  it reads 'InitRequest' and passes the fields to 'board.NewBoard'.
+  the board. The handler parses every request: it reads
+  'InitRequest' and passes the fields to the factory. The contract
+  holds the interface 'BoardFactory'. The handler builds each board
+  through this interface, and 'main.go' injects 'board.Factory', the
+  one production import of the concrete package.
   No handler imports a system package. No package of
   'engine/battle' reads a type of 'engine/protocol'.
 

@@ -427,7 +427,10 @@ D. Spec process model, terminology map, ledger, the artifact.
     the fields, 'board.NewBoard' builds a new battle and assembles
     each unit, 'board.Restore' rebuilds a board from a snapshot,
     there is no deploy package, and 'ErrOutsideContract' lives in
-    'engine/battle'.
+    'engine/battle'. The contract also holds 'BoardFactory': the
+    handler builds each board through it, and 'main.go' injects
+    'board.Factory', the one production import of the concrete
+    package.
 12. **'actions' refuses an acted unit** (protocol 1.6, the user's
     ruling: the embedded error becomes the sentinel). 'Board.Actions'
     reads 'engagement.Activatable', the gate 'act' reads, so an acted

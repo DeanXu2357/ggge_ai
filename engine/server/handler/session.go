@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -50,7 +49,7 @@ func (c *Commands) Load(id string, payload json.RawMessage) protocol.Response {
 	if err := json.Unmarshal(payload, &request); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	b, err := board.Restore(&request.State)
+	b, err := c.factory.Restore(&request.State)
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}

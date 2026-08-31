@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -17,7 +18,7 @@ const boardLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
 func TestReachWithNoBoardIsRefused(t *testing.T) {
-	replies := serve(t, New(), `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
+	replies := serve(t, New(board.Factory{}), `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
 
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeNoSession {
 		t.Fatalf("reply: %+v", replies[0])
@@ -25,7 +26,7 @@ func TestReachWithNoBoardIsRefused(t *testing.T) {
 }
 
 func TestReachAnswersTheCellsOfTheLoadedBoard(t *testing.T) {
-	replies := serve(t, New(), boardLine, `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
+	replies := serve(t, New(board.Factory{}), boardLine, `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
 
 	if !replies[0].OK {
 		t.Fatalf("load: %+v", replies[0])
@@ -57,7 +58,7 @@ func TestReachAnswersTheAnchorsThatHoldTheWholeFootprint(t *testing.T) {
 		`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
 
-	replies := serve(t, New(), line, `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
+	replies := serve(t, New(board.Factory{}), line, `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
 
 	if !replies[1].OK {
 		t.Fatalf("reach: %+v", replies[1])
@@ -73,7 +74,7 @@ func TestReachAnswersTheAnchorsThatHoldTheWholeFootprint(t *testing.T) {
 }
 
 func TestReachOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
-	replies := serve(t, New(), boardLine, `{"id":"r1","cmd":"reach","payload":{"unit_id":"ghost"}}`)
+	replies := serve(t, New(board.Factory{}), boardLine, `{"id":"r1","cmd":"reach","payload":{"unit_id":"ghost"}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
 		t.Fatalf("reply: %+v", replies[1])
@@ -81,7 +82,7 @@ func TestReachOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
 }
 
 func TestLoadRefusesAPayloadOutsideTheContract(t *testing.T) {
-	replies := serve(t, New(),
+	replies := serve(t, New(board.Factory{}),
 		`{"id":"l1","cmd":"load","payload":{"state":{"units":[{"faction":"pirate"}]}}}`,
 		`{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
 

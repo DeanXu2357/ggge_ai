@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 	"github.com/DeanXu2357/ggge_ai/engine/server/handler"
 )
@@ -20,10 +21,10 @@ type Server struct {
 	commands *handler.Commands
 }
 
-func New() *Server {
+func New(factory battle.BoardFactory) *Server {
 	server := &Server{
 		handlers: make(map[string]command, len(registry)),
-		commands: handler.NewCommands(),
+		commands: handler.NewCommands(factory),
 	}
 	for name, bind := range registry {
 		server.handle(name, bind(server))

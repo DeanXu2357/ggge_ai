@@ -17,3 +17,8 @@ type Board interface {
 	BoardReader
 	BoardResolver
 }
+
+type BoardFactory interface {
+	NewBoard(bounds Bounds, terrain Terrain, terrainCells []TerrainCell, enemies []Unit) (Board, error)
+	Restore(state *BattleState) (Board, error)
+}
