@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
 func openingBoard(bounds battle.Bounds, terrain battle.Terrain,
@@ -283,5 +285,19 @@ func TestEncodeStateRoundTripsThroughLoad(t *testing.T) {
 	if encoded.Turn != first.state.Turn || encoded.Phase != first.state.Phase ||
 		encoded.Bounds == nil {
 		t.Fatalf("state: %+v", encoded)
+	}
+}
+
+func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
+	events := encodeResolution(resolution{
+		Trace:     engagement.Trace{{Kind: engagement.StrikeMain, ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true}},
+		Rotations: []turn.Rotation{{Turn: 1, Phase: battle.FactionEnemy}},
+	})
+	want := []any{
+		battle.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true},
+		battle.PhaseEvent{Event: "phase", Turn: 1, Phase: battle.FactionEnemy},
+	}
+	if !reflect.DeepEqual(events, want) {
+		t.Fatalf("events: %+v", events)
 	}
 }

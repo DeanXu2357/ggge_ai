@@ -130,3 +130,18 @@ func (b *Board) act(decision engagement.Decision, dice battle.Dice) (resolution,
 	trace := engagement.Commit(&b.state, plan, dice)
 	return resolution{Trace: trace, Rotations: turn.Advance(&b.state)}, nil
 }
+
+func encodeResolution(resolution resolution) []any {
+	out := make([]any, 0, len(resolution.Trace)+len(resolution.Rotations))
+	for _, strike := range resolution.Trace {
+		out = append(out, battle.StrikeEvent{
+			Event: "strike", Strike: string(strike.Kind),
+			ShooterID: strike.ShooterID, StruckID: strike.StruckID, Weapon: strike.Weapon,
+			Landed: strike.Landed, Damage: strike.Damage, Killed: strike.Killed,
+		})
+	}
+	for _, rotation := range resolution.Rotations {
+		out = append(out, battle.PhaseEvent{Event: "phase", Turn: rotation.Turn, Phase: rotation.Phase})
+	}
+	return out
+}

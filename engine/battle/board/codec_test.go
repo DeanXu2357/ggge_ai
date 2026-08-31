@@ -2,12 +2,10 @@ package board
 
 import (
 	"encoding/json"
-	"reflect"
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
 func TestAWeaponCategoryOutsideTheContractStopsTheDecode(t *testing.T) {
@@ -161,19 +159,5 @@ func TestTheDecodedActionCarriesTheFieldsOfTheEngagement(t *testing.T) {
 	lean, err := decodeDecision(&battle.Decision{UnitID: "a1", Kind: battle.ActionStandby})
 	if err != nil || lean.MoveTo != nil || lean.Weapon != "" {
 		t.Fatalf("a field with no value stays empty: %+v, %v", lean, err)
-	}
-}
-
-func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
-	events := encodeResolution(resolution{
-		Trace:     engagement.Trace{{Kind: engagement.StrikeMain, ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true}},
-		Rotations: []turn.Rotation{{Turn: 1, Phase: battle.FactionEnemy}},
-	})
-	want := []any{
-		battle.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true},
-		battle.PhaseEvent{Event: "phase", Turn: 1, Phase: battle.FactionEnemy},
-	}
-	if !reflect.DeepEqual(events, want) {
-		t.Fatalf("events: %+v", events)
 	}
 }
