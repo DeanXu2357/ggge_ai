@@ -490,6 +490,18 @@ D. Spec process model, terminology map, ledger, the artifact.
     its subject; the standby and reposition tests of 'Prepare' keep
     the tolerance of absent optional fields covered.
 
+15. **The skill carries no area** (a user ruling at review round 3).
+    'range_min', 'range_max' and 'blast' left 'battle.Skill' and
+    'battle.SkillEntry'. The area of a skill is an arbitrary set of
+    cells and can take any shape. The three fields cannot express
+    such a shape, so they were the wrong description of the area,
+    not an incomplete one. No rule read them. The wire moves to 1.7,
+    and the two version constants move together because 'hello'
+    refuses a mismatch. The goldens lost 84 key lines and gained
+    none: a brace-balanced walk stripped the keys only from the
+    objects that hold 'affects'. The replacement representation is
+    not decided.
+
 ## Deferred
 
 - #72 on this structure: the ability fields on the contract types,
