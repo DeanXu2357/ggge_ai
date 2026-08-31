@@ -256,6 +256,7 @@ D. Spec process model, terminology map, ledger, the artifact.
 | cb3d66b | The board query 'Capabilities' renamed 'Actions' after the wire command; the private 'capabilities' struct removed (a user finding at review: the word named four things in one function and reads as a synonym of the issue 72 abilities) |
 | 3a5e186 | 'Apply' removed: the golden 'apply' checks pass through 'Act' (a user finding at review) |
 | 414ff43 | 'Plan.Draws' bounds the forced 'outcomes' list before the first write; the handler keeps no clone of the board or the generator; 'ServerDraw.Clone' and 'ManualRoll.Short' gone |
+| 312bac1 | One 'Load' on 'BoardResolver' for init and load; the factory gone; 'main.go' injects 'board.New()'; assembly on both paths fills only zeros; the bounds check judges the load path; the enemies rule in the init handler (a user ruling) |
 | 92ec720 | 'Clone' left 'BoardReader': no production caller since the dice bound; 'BattleState.Clone' stays (a user ruling) |
 | 119ebd8 | 'battle.BoardFactory' on the contract; 'main.go' injects 'board.Factory'; the handler no longer imports the concrete board package (a user ruling) |
 | c272c45 | The deploy package folded into the shell (a user ruling): 'NewBoard(bounds, terrain, terrainCells, enemies)' builds and assembles a new battle, 'Restore(state)' rebuilds a snapshot with no assembly, the handler parses and passes fields |

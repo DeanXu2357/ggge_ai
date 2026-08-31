@@ -1570,3 +1570,17 @@
   The attacker's sequence (its support salvo, its main strike) runs
   whole; the defender's reply (its support salvo, its counter) does
   not run when the defender is destroyed. The goldens agree.
+- **(0831) One 'Load' on the board contract — user ruling**｜"NewBattle
+  和 Restore 兩者職責相同，但是各自持有資料不夠完整 正確應該是只有
+  Load 方法，然後必須如 NewBattle 現在這樣，指定地圖大小、地形、敵人、
+  我方初級和當前可變動資料，這樣 init & load 兩個指令都可以使用同一個
+  介面". Earlier the same day: "現在來看你的工廠模式解法太過冗余了，
+  應該是在 server 那邊初始化完成 board 後注入，然後 handler 都只是
+  呼叫 Board 合約方法". Landed in #88 (312bac1): 'BoardResolver.Load'
+  takes bounds, terrain, terrain cells, units, phase and turn; the
+  factory is gone; 'main.go' injects 'board.New()'. Consequences the
+  user approved with "先改": assembly runs on both paths and fills
+  only zero maxima, so the 0829 sentence "'load' never assembles"
+  narrows to "a complete snapshot is unchanged"; the bounds check
+  judges the load path too; the enemies-only rule lives in the init
+  handler.
