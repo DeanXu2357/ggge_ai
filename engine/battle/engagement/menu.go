@@ -14,31 +14,33 @@ import (
 // run, so the menu refuses every action the action itself refuses, with the
 // same error. The response attack of the decision is the question, so the plan
 // is built without one.
-func Menu(board *state.Battle, decision battle.Decision, defenderID int) (Options, error) {
+func Menu(content state.Content, values state.Values, decision battle.Decision,
+	defenderID int) (Options, error) {
+	board := state.Compose(&content, values)
 	decision.ResponseAttack = nil
-	plan, err := Prepare(board, decision)
+	made, err := prepare(&board, decision)
 	if err != nil {
 		return Options{}, err
 	}
-	if plan.kind != battle.ActionAttack {
+	if made.kind != battle.ActionAttack {
 		return Options{}, fmt.Errorf("%w: an action of the kind %q asks unit %d nothing",
-			battle.ErrIllegalAction, plan.kind, defenderID)
+			battle.ErrIllegalAction, made.kind, defenderID)
 	}
-	defender, err := LivingUnit(board, defenderID)
+	defender, err := LivingUnit(&board, defenderID)
 	if err != nil {
 		return Options{}, err
 	}
-	attacker := unitOf(board, plan.actorID)
-	weapon := weaponOf(attacker, *plan.weaponID)
-	origin := geometry.FootprintAt(attacker, plan.anchor)
+	attacker := unitOf(&board, made.actorID)
+	weapon := weaponOf(attacker, *made.weaponID)
+	origin := geometry.FootprintAt(attacker, made.anchor)
 	distance := geometry.Distance(defender.Footprint(), origin)
 	if !weapon.Reaches(distance) {
 		return Options{}, fmt.Errorf("%w: the weapon %q of unit %d does not reach unit %d from %v",
-			battle.ErrIllegalAction, weapon.Name, plan.actorID, defenderID, origin.Anchor)
+			battle.ErrIllegalAction, weapon.Name, made.actorID, defenderID, origin.Anchor)
 	}
 	out := Options{
 		Defender:        SideOptions{UnitID: defenderID},
-		Attacker:        SideOptions{UnitID: plan.actorID},
+		Attacker:        SideOptions{UnitID: made.actorID},
 		ResponseAttacks: []ResponseAttackOption{},
 	}
 
@@ -59,16 +61,16 @@ func Menu(board *state.Battle, decision battle.Decision, defenderID int) (Option
 	out.ResponseAttacks = append(out.ResponseAttacks,
 		stanceOption(attacker, defender, weapon, battle.StanceNone, nil))
 
-	out.Defender.SupportDefenders = defendOptions(board, attacker, weapon,
-		supportDefenders(board, defenderID, defender.Footprint()))
-	out.Defender.SupportAttackers = attackOptions(board, attacker,
-		supportAttackers(board, defenderID, defender.Footprint(), origin))
+	out.Defender.SupportDefenders = defendOptions(&board, attacker, weapon,
+		supportDefenders(&board, defenderID, defender.Footprint()))
+	out.Defender.SupportAttackers = attackOptions(&board, attacker,
+		supportAttackers(&board, defenderID, defender.Footprint(), origin))
 	// Which weapon counters is the choice of the defender, so the entry of a
 	// unit that covers the attacker carries no forecast.
-	out.Attacker.SupportDefenders = defendOptions(board, defender, nil,
-		supportDefenders(board, plan.actorID, origin))
-	out.Attacker.SupportAttackers = attackOptions(board, defender,
-		supportAttackers(board, plan.actorID, origin, defender.Footprint()))
+	out.Attacker.SupportDefenders = defendOptions(&board, defender, nil,
+		supportDefenders(&board, made.actorID, origin))
+	out.Attacker.SupportAttackers = attackOptions(&board, defender,
+		supportAttackers(&board, made.actorID, origin, defender.Footprint()))
 	return out, nil
 }
 

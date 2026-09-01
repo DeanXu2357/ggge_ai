@@ -5,10 +5,39 @@ package state
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
+
+type UnitContent struct {
+	Faction                 battle.Faction
+	Size                    battle.Cell
+	MaxHP                   int
+	ENMax                   int
+	SPMax                   int
+	ChanceStepsMax          int
+	SupportDefendChargesMax int
+	SupportAttackChargesMax int
+	HasShield               bool
+	SupportDefendWhenAttack bool
+	Mech                    *def.Mech
+	Pilot                   *def.Pilot
+}
+
+type Content struct {
+	Units        []UnitContent
+	Bounds       battle.Bounds
+	Terrain      battle.Terrain
+	TerrainCells []battle.TerrainCell
+}
+
+type Values struct {
+	Units []UnitValue
+	Phase battle.Faction
+	Turn  int
+}
 
 type Unit struct {
 	Faction                 battle.Faction
@@ -47,6 +76,64 @@ type Battle struct {
 	Bounds       battle.Bounds
 	Terrain      battle.Terrain
 	TerrainCells []battle.TerrainCell
+}
+
+// Compose is the entry copy of a system. It deep-copies the slices of each
+// value, so a system that writes the working form never reaches the column it
+// received. The definition data is shared, as everywhere.
+func Compose(content *Content, values Values) Battle {
+	out := Battle{
+		Units:        make([]Unit, len(content.Units)),
+		Phase:        values.Phase,
+		Turn:         values.Turn,
+		Bounds:       content.Bounds,
+		Terrain:      content.Terrain,
+		TerrainCells: content.TerrainCells,
+	}
+	for index := range content.Units {
+		out.Units[index] = composeUnit(content.Units[index], values.Units[index])
+	}
+	return out
+}
+
+// The working form owns its column after Compose, so the extraction moves the
+// headers and copies nothing.
+func (b *Battle) Column() Values {
+	out := Values{Units: make([]UnitValue, len(b.Units)), Phase: b.Phase, Turn: b.Turn}
+	for index := range b.Units {
+		out.Units[index] = b.Units[index].Value
+	}
+	return out
+}
+
+func composeUnit(content UnitContent, value UnitValue) Unit {
+	return Unit{
+		Faction:                 content.Faction,
+		Size:                    content.Size,
+		MaxHP:                   content.MaxHP,
+		ENMax:                   content.ENMax,
+		SPMax:                   content.SPMax,
+		ChanceStepsMax:          content.ChanceStepsMax,
+		SupportDefendChargesMax: content.SupportDefendChargesMax,
+		SupportAttackChargesMax: content.SupportAttackChargesMax,
+		HasShield:               content.HasShield,
+		SupportDefendWhenAttack: content.SupportDefendWhenAttack,
+		Mech:                    content.Mech,
+		Pilot:                   content.Pilot,
+		Value:                   copyValue(value),
+	}
+}
+
+func copyValue(value UnitValue) UnitValue {
+	value.Skills = mapSlice(value.Skills, copySkill)
+	value.MapWeaponAmmo = slices.Clone(value.MapWeaponAmmo)
+	value.Debuffs = slices.Clone(value.Debuffs)
+	return value
+}
+
+func copySkill(skill def.Skill) def.Skill {
+	skill.Amount = battle.CloneAmount(skill.Amount)
+	return skill
 }
 
 // A lookup that finds nothing answers with a nil unit, so this method

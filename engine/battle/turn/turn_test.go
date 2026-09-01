@@ -5,13 +5,19 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-func turnBoard(phase battle.Faction, turn int, units ...battle.Unit) *state.Battle {
+func turnPair(phase battle.Faction, turn int, units ...battle.Unit) (state.Content, state.Values) {
 	bounds := battle.Bounds{{0, 0}, {5, 4}}
-	out := state.FromContract(battle.BattleState{Bounds: &bounds, Units: units,
+	return state.FromContract(battle.BattleState{Bounds: &bounds, Units: units,
 		Phase: phase, Turn: turn})
+}
+
+func turnBoard(phase battle.Faction, turn int, units ...battle.Unit) *state.Battle {
+	content, values := turnPair(phase, turn, units...)
+	out := state.Compose(&content, values)
 	return &out
 }
 
@@ -52,10 +58,12 @@ func TestGoneNamesTheSidesWithNoLivingUnit(t *testing.T) {
 
 func TestABoardWithNoLivingUnitDoesNotRotate(t *testing.T) {
 	last := basicUnit(battle.FactionAlly, 1, 1)
-	board := turnBoard(battle.FactionAlly, 1, last)
-	board.Units[0].Value.HP = 0
+	content, values := turnPair(battle.FactionAlly, 1, last)
+	values.Units[0].HP = 0
 
-	if got := Advance(board); len(got) != 0 || board.Phase != battle.FactionAlly || board.Turn != 1 {
+	after, got := Advance(content, values)
+
+	if len(got) != 0 || after.Phase != battle.FactionAlly || after.Turn != 1 {
 		t.Fatalf("rotated on a dead board: %+v", got)
 	}
 }
@@ -63,24 +71,29 @@ func TestABoardWithNoLivingUnitDoesNotRotate(t *testing.T) {
 func TestAnActivationWithAPendingSiblingDoesNotRotate(t *testing.T) {
 	acted := basicUnit(battle.FactionAlly, 1, 1)
 	acted.Acted = true
-	board := turnBoard(battle.FactionAlly, 1, acted, basicUnit(battle.FactionAlly, 1, 2), basicUnit(battle.FactionEnemy, 4, 4))
+	content, values := turnPair(battle.FactionAlly, 1, acted,
+		basicUnit(battle.FactionAlly, 1, 2), basicUnit(battle.FactionEnemy, 4, 4))
 
-	if got := Advance(board); len(got) != 0 || board.Phase != battle.FactionAlly || board.Turn != 1 {
-		t.Fatalf("rotated: %+v turn %d phase %s", got, board.Turn, board.Phase)
+	after, got := Advance(content, values)
+
+	if len(got) != 0 || after.Phase != battle.FactionAlly || after.Turn != 1 {
+		t.Fatalf("rotated: %+v turn %d phase %s", got, after.Turn, after.Phase)
 	}
 }
 
 func TestTheLastActivationOfTheAllySideOpensTheEnemyPhase(t *testing.T) {
 	acted := basicUnit(battle.FactionAlly, 1, 1)
 	acted.Acted = true
-	board := turnBoard(battle.FactionAlly, 1, acted, basicUnit(battle.FactionEnemy, 4, 4))
+	content, values := turnPair(battle.FactionAlly, 1, acted, basicUnit(battle.FactionEnemy, 4, 4))
+
+	after, got := Advance(content, values)
 
 	want := []Rotation{{Turn: 1, Phase: battle.FactionThirdParty}, {Turn: 1, Phase: battle.FactionEnemy}}
-	if got := Advance(board); !reflect.DeepEqual(got, want) {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("rotations: %+v", got)
 	}
-	if board.Phase != battle.FactionEnemy || board.Turn != 1 {
-		t.Fatalf("turn %d phase %s", board.Turn, board.Phase)
+	if after.Phase != battle.FactionEnemy || after.Turn != 1 {
+		t.Fatalf("turn %d phase %s", after.Turn, after.Phase)
 	}
 }
 
@@ -90,17 +103,18 @@ func TestTheLastActivationOfTheEnemySideOpensTheNextTurn(t *testing.T) {
 	ally.EN = 130
 	enemy := basicUnit(battle.FactionEnemy, 4, 4)
 	enemy.Acted = true
-	board := turnBoard(battle.FactionEnemy, 1, ally, enemy)
+	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
 
-	rotations := Advance(board)
+	after, rotations := Advance(content, values)
+
 	if !reflect.DeepEqual(rotations, []Rotation{{Turn: 2, Phase: battle.FactionAlly}}) {
 		t.Fatalf("rotations: %+v", rotations)
 	}
-	allyUnit := &board.Units[0]
-	if allyUnit.Value.Acted || allyUnit.Value.EN != 140 {
+	allyUnit := &after.Units[0]
+	if allyUnit.Acted || allyUnit.EN != 140 {
 		t.Fatalf("the phase start must reset the activation and cap the regeneration: %+v", allyUnit)
 	}
-	if enemyUnit := &board.Units[1]; !enemyUnit.Value.Acted || enemyUnit.Value.EN != 100 {
+	if enemyUnit := &after.Units[1]; !enemyUnit.Acted || enemyUnit.EN != 100 {
 		t.Fatalf("the enemy side must keep its state until its own phase start: %+v", enemyUnit)
 	}
 }
@@ -111,10 +125,11 @@ func TestThePhaseStartRegeneratesTenPercentOfTheMaximumFloored(t *testing.T) {
 	ally.EN, ally.ENMax = 10, 513
 	enemy := basicUnit(battle.FactionEnemy, 4, 4)
 	enemy.Acted = true
-	board := turnBoard(battle.FactionEnemy, 1, ally, enemy)
+	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
 
-	Advance(board)
-	if got := board.Units[0].Value.EN; got != 61 {
+	after, _ := Advance(content, values)
+
+	if got := after.Units[0].EN; got != 61 {
 		t.Fatalf("EN: %d, want 10 + floor(51.3)", got)
 	}
 }
@@ -129,13 +144,14 @@ func TestADebuffExpiresWhenItsRoundEnds(t *testing.T) {
 	enemy := basicUnit(battle.FactionEnemy, 4, 4)
 	enemy.Acted = true
 	enemy.Debuffs = []battle.Debuff{{Kind: "defense", Magnitude: 0.3, AppliedPhase: 3}}
-	board := turnBoard(battle.FactionEnemy, 1, ally, enemy)
+	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
 
-	Advance(board)
-	if got := board.Units[0].Value.Debuffs; !reflect.DeepEqual(got, []battle.Debuff{{Kind: "attack", Magnitude: 0.2, AppliedPhase: 4}}) {
+	after, _ := Advance(content, values)
+
+	if got := after.Units[0].Debuffs; !reflect.DeepEqual(got, []battle.Debuff{{Kind: "attack", Magnitude: 0.2, AppliedPhase: 4}}) {
 		t.Fatalf("ally debuffs at index 6: %+v", got)
 	}
-	if got := board.Units[1].Value.Debuffs; len(got) != 0 {
+	if got := after.Units[1].Debuffs; len(got) != 0 {
 		t.Fatalf("the expiry reads every side: %+v", got)
 	}
 }
@@ -143,13 +159,72 @@ func TestADebuffExpiresWhenItsRoundEnds(t *testing.T) {
 func TestASideWithNoUnitIsSkipped(t *testing.T) {
 	enemy := basicUnit(battle.FactionEnemy, 4, 4)
 	enemy.Acted = true
-	board := turnBoard(battle.FactionEnemy, 2, enemy)
+	content, values := turnPair(battle.FactionEnemy, 2, enemy)
+
+	after, got := Advance(content, values)
 
 	want := []Rotation{{Turn: 3, Phase: battle.FactionAlly}, {Turn: 3, Phase: battle.FactionThirdParty}, {Turn: 3, Phase: battle.FactionEnemy}}
-	if got := Advance(board); !reflect.DeepEqual(got, want) {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("rotations: %+v", got)
 	}
-	if board.Units[0].Value.Acted {
+	if after.Units[0].Acted {
 		t.Fatal("the enemy phase start must give the unit its activation back")
+	}
+}
+
+// The rotation reads a pair alone. No engagement runs before it, and the pair
+// below comes from no conversion.
+func TestTheRotationRunsOnAPairThatNoEngagementProduced(t *testing.T) {
+	content := state.Content{
+		Units: []state.UnitContent{
+			{Faction: battle.FactionAlly, Size: battle.Cell{1, 1}, MaxHP: 100, ENMax: 140,
+				Mech: &def.Mech{MoveRange: 1}, Pilot: &def.Pilot{}},
+			{Faction: battle.FactionEnemy, Size: battle.Cell{1, 1}, MaxHP: 100, ENMax: 140,
+				Mech: &def.Mech{MoveRange: 1}, Pilot: &def.Pilot{}},
+		},
+		Bounds: battle.Bounds{{0, 0}, {5, 4}},
+	}
+	values := state.Values{
+		Units: []state.UnitValue{
+			{Pos: battle.Cell{1, 1}, HP: 100, EN: 100, Acted: true},
+			{Pos: battle.Cell{4, 4}, HP: 100, EN: 100},
+		},
+		Phase: battle.FactionAlly,
+		Turn:  1,
+	}
+
+	after, rotations := Advance(content, values)
+
+	want := []Rotation{{Turn: 1, Phase: battle.FactionThirdParty}, {Turn: 1, Phase: battle.FactionEnemy}}
+	if !reflect.DeepEqual(rotations, want) {
+		t.Fatalf("rotations: %+v", rotations)
+	}
+	if after.Phase != battle.FactionEnemy || after.Turn != 1 || after.Units[1].Acted {
+		t.Fatalf("values: %+v", after)
+	}
+}
+
+func TestTheAnsweredColumnSharesNoWritableMemoryWithTheInput(t *testing.T) {
+	ally := basicUnit(battle.FactionAlly, 1, 1)
+	ally.Acted = true
+	ally.Debuffs = []battle.Debuff{{Kind: "defense", Magnitude: 0.1, AppliedPhase: 40}}
+	enemy := basicUnit(battle.FactionEnemy, 4, 4)
+	enemy.Acted = true
+	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
+
+	after, _ := Advance(content, values)
+
+	after.Units[0].EN, after.Units[0].Acted = 404, true
+	after.Units[0].Debuffs[0].Magnitude = 404
+	after.Phase, after.Turn = battle.FactionThirdParty, 404
+
+	if values.Units[0].EN != 100 || !values.Units[0].Acted {
+		t.Fatalf("the input column changed: %+v", values.Units[0])
+	}
+	if values.Units[0].Debuffs[0].Magnitude != 0.1 {
+		t.Fatalf("a slice of the input column changed: %+v", values.Units[0].Debuffs)
+	}
+	if values.Phase != battle.FactionEnemy || values.Turn != 1 {
+		t.Fatalf("the headers of the input column changed: %+v", values)
 	}
 }

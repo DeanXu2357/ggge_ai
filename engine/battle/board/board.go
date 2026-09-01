@@ -8,9 +8,14 @@ import (
 var _ battle.Board = (*Board)(nil)
 
 type Board struct {
-	state state.Battle
+	content state.Content
+	values  state.Values
 }
 
 func New() *Board {
 	return &Board{}
+}
+
+func (b *Board) compose() state.Battle {
+	return state.Compose(&b.content, b.values)
 }

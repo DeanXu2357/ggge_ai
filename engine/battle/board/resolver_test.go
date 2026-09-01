@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
@@ -141,11 +140,11 @@ func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	filled := &board.state.Units[0]
+	filled := &board.content.Units[0]
 	if filled.MaxHP != 9000 || filled.ENMax != 180 || filled.SPMax != 60 {
 		t.Fatalf("the pairing fills a maximum of zero: %+v", *filled)
 	}
-	stated := &board.state.Units[1]
+	stated := &board.content.Units[1]
 	if stated.MaxHP != 7000 || stated.ENMax != 20 || stated.SPMax != 5 {
 		t.Fatalf("an explicit maximum stands: %+v", *stated)
 	}
@@ -163,7 +162,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if got := board.state.Units[0].Size; got != (battle.Cell{1, 1}) {
+	if got := board.content.Units[0].Size; got != (battle.Cell{1, 1}) {
 		t.Fatalf("size: %v", got)
 	}
 }
@@ -175,18 +174,19 @@ func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if board.state.Turn != 1 || board.state.Phase != battle.FactionAlly {
-		t.Fatalf("turn %d phase %s", board.state.Turn, board.state.Phase)
+	if board.values.Turn != 1 || board.values.Phase != battle.FactionAlly {
+		t.Fatalf("turn %d phase %s", board.values.Turn, board.values.Phase)
 	}
-	if board.state.Bounds != (battle.Bounds{{0, 0}, {5, 4}}) {
-		t.Fatalf("bounds: %+v", board.state.Bounds)
+	if board.content.Bounds != (battle.Bounds{{0, 0}, {5, 4}}) {
+		t.Fatalf("bounds: %+v", board.content.Bounds)
 	}
-	if board.state.Terrain != battle.TerrainGround ||
-		len(board.state.TerrainCells) != 1 || board.state.TerrainCells[0].Terrain != battle.TerrainSpace {
-		t.Fatalf("terrain: %v %v", board.state.Terrain, board.state.TerrainCells)
+	if board.content.Terrain != battle.TerrainGround ||
+		len(board.content.TerrainCells) != 1 ||
+		board.content.TerrainCells[0].Terrain != battle.TerrainSpace {
+		t.Fatalf("terrain: %v %v", board.content.Terrain, board.content.TerrainCells)
 	}
-	if len(board.state.Units) != 1 || board.state.Units[0].Faction != battle.FactionEnemy {
-		t.Fatalf("units: %+v", board.state.Units)
+	if len(board.content.Units) != 1 || board.content.Units[0].Faction != battle.FactionEnemy {
+		t.Fatalf("units: %+v", board.content.Units)
 	}
 }
 
@@ -240,9 +240,9 @@ func TestTheModelCopiesTheAmmoAndTheSkillAmount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	unit := &board.state.Units[0]
-	unit.Value.MapWeaponAmmo[0] = 0
-	*unit.Value.Skills[0].Amount = 1.0
+	unit := &board.values.Units[0]
+	unit.MapWeaponAmmo[0] = 0
+	*unit.Skills[0].Amount = 1.0
 
 	if wire.Units[0].MapWeaponAmmo[0] != 3 || *wire.Units[0].Skills[0].Amount != 3000.0 {
 		t.Fatal("a write into the model reached the payload")
@@ -256,12 +256,12 @@ func TestTheModelCopiesEveryFieldThatASystemWrites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	unit := &board.state.Units[0]
-	unit.Value.HP, unit.Value.EN, unit.Value.SP = 0, 0, 0
-	unit.Value.Pos, unit.Value.Acted = battle.Cell{9, 9}, false
-	unit.Value.ChanceSteps = 7
-	unit.Value.SupportDefendCharges, unit.Value.SupportAttackCharges = 0, 0
-	unit.Value.Debuffs[0].Kind = "changed"
+	unit := &board.values.Units[0]
+	unit.HP, unit.EN, unit.SP = 0, 0, 0
+	unit.Pos, unit.Acted = battle.Cell{9, 9}, false
+	unit.ChanceSteps = 7
+	unit.SupportDefendCharges, unit.SupportAttackCharges = 0, 0
+	unit.Debuffs[0].Kind = "changed"
 
 	payload := wire.Units[0]
 	if payload.HP != 8200 || payload.EN != 120 || payload.SP != 30 ||
@@ -285,23 +285,39 @@ func TestEncodeStateRoundTripsThroughLoad(t *testing.T) {
 	if string(a) != string(b) {
 		t.Fatalf("the second encode differs:\n%s\n%s", a, b)
 	}
-	if encoded.Turn != first.state.Turn || encoded.Phase != first.state.Phase ||
+	if encoded.Turn != first.values.Turn || encoded.Phase != first.values.Phase ||
 		encoded.Bounds == nil {
 		t.Fatalf("state: %+v", encoded)
 	}
 }
 
-func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
-	events := eventsOf(resolution{
-		Trace:     engagement.Trace{{Kind: engagement.StrikeMain, ShooterID: 0, StruckID: 1, WeaponID: 2, Landed: true, Damage: 7, Killed: true}},
-		Rotations: []turn.Rotation{{Turn: 1, Phase: battle.FactionEnemy}},
-	})
+func TestTheEventsOfAnActCarryTheStrikesThenTheRotations(t *testing.T) {
+	survivor := armed(battle.FactionEnemy, 2, 1)
+	survivor.HP, survivor.MaxHP = 99000, 99000
+	board := turnBoard(t, battle.FactionAlly, 1, armed(battle.FactionAlly, 1, 1), survivor)
+	action := battle.Decision{UnitID: 0, Kind: battle.ActionAttack,
+		TargetID: idOf(1), WeaponID: idOf(0),
+		ResponseAttack: &battle.ResponseAttack{Stance: battle.StanceNone}}
+
+	events, err := board.Act(&action, battle.Forced{Strike: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(events) != 3 {
+		t.Fatalf("events: %+v", events)
+	}
+	strike, isStrike := events[0].(battle.StrikeEvent)
+	if !isStrike || strike.Event != "strike" || strike.Strike != "strike" ||
+		strike.ShooterID != 0 || strike.StruckID != 1 || !strike.Landed || strike.Damage <= 0 {
+		t.Fatalf("the strikes come first: %+v", events[0])
+	}
 	want := []any{
-		battle.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: 0, StruckID: 1, WeaponID: 2, Landed: true, Damage: 7, Killed: true},
+		battle.PhaseEvent{Event: "phase", Turn: 1, Phase: battle.FactionThirdParty},
 		battle.PhaseEvent{Event: "phase", Turn: 1, Phase: battle.FactionEnemy},
 	}
-	if !reflect.DeepEqual(events, want) {
-		t.Fatalf("events: %+v", events)
+	if !reflect.DeepEqual(events[1:], want) {
+		t.Fatalf("the rotations come after: %+v", events[1:])
 	}
 }
 
@@ -313,7 +329,8 @@ func turnBoard(t *testing.T, phase battle.Faction, turnNumber int, units ...batt
 	if err := validate(&candidate); err != nil {
 		t.Fatal(err)
 	}
-	return &Board{state: state.FromContract(candidate)}
+	content, values := state.FromContract(candidate)
+	return &Board{content: content, values: values}
 }
 
 func basicUnit(faction battle.Faction, x, y int) battle.Unit {
@@ -344,14 +361,15 @@ func standby(id int) battle.Decision {
 }
 
 func pendingOf(b *Board) []int {
-	return turn.Pending(&b.state, b.state.Phase)
+	working := b.compose()
+	return turn.Pending(&working, working.Phase)
 }
 
 func targetsOf(b *Board, unitID int) []int {
 	var out []int
-	for index := range b.state.Units {
-		other := &b.state.Units[index]
-		if other.Faction == b.state.Units[unitID].Faction.Opposing() && other.Alive() {
+	for index := range b.content.Units {
+		if b.content.Units[index].Faction == b.content.Units[unitID].Faction.Opposing() &&
+			b.values.Units[index].HP > 0 {
 			out = append(out, index)
 		}
 	}
@@ -361,10 +379,11 @@ func targetsOf(b *Board, unitID int) []int {
 func TestARefusedActivationChangesNothing(t *testing.T) {
 	board := turnBoard(t, battle.FactionAlly, 1, basicUnit(battle.FactionAlly, 1, 1), basicUnit(battle.FactionEnemy, 4, 4))
 
-	if _, err := board.act(standby(1), battle.NewManualRoll(nil)); err == nil {
+	refused := standby(1)
+	if _, err := board.Act(&refused, battle.NewManualRoll(nil)); err == nil {
 		t.Fatal("an enemy unit cannot act in the ally phase")
 	}
-	if board.state.Phase != battle.FactionAlly || board.state.Units[0].Value.Acted {
+	if board.values.Phase != battle.FactionAlly || board.values.Units[0].Acted {
 		t.Fatal("the board changed on a refusal")
 	}
 }
@@ -373,7 +392,7 @@ func TestABattleRunsToAnnihilation(t *testing.T) {
 	board := turnBoard(t, battle.FactionAlly, 1, armed(battle.FactionAlly, 1, 1), armed(battle.FactionAlly, 1, 2), armed(battle.FactionEnemy, 2, 1))
 	dice := battle.Forced{AttackerSupport: true, DefenderSupport: true, Strike: true, Counter: true}
 
-	for acts := 0; len(turn.Gone(&board.state)) == 0; acts++ {
+	for acts := 0; len(goneOf(board)) == 0; acts++ {
 		if acts > 100 {
 			t.Fatal("no side is gone after 100 activations")
 		}
@@ -385,8 +404,13 @@ func TestABattleRunsToAnnihilation(t *testing.T) {
 				TargetID: idOf(targets[0]), WeaponID: idOf(0),
 				ResponseAttack: &battle.ResponseAttack{Stance: battle.StanceNone}}
 		}
-		if _, err := board.act(action, dice); err != nil {
+		if _, err := board.Act(&action, dice); err != nil {
 			t.Fatalf("act %d: %v", acts, err)
 		}
 	}
+}
+
+func goneOf(b *Board) []battle.Faction {
+	working := b.compose()
+	return turn.Gone(&working)
 }

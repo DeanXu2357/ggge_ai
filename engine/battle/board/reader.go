@@ -9,12 +9,13 @@ import (
 )
 
 func (b *Board) Actions(unitID int) (battle.ActionsResponse, error) {
-	unit, err := engagement.Activatable(&b.state, unitID)
+	working := b.compose()
+	unit, err := engagement.Activatable(&working, unitID)
 	if err != nil {
 		return battle.ActionsResponse{}, err
 	}
 	return actionsOf(unitID, unit,
-		geometry.SortedCells(geometry.ReachableAnchors(&b.state, unitID))), nil
+		geometry.SortedCells(geometry.ReachableAnchors(&working, unitID))), nil
 }
 
 func actionsOf(unitID int, unit *state.Unit, moveCells []battle.Cell) battle.ActionsResponse {
@@ -28,14 +29,15 @@ func actionsOf(unitID int, unit *state.Unit, moveCells []battle.Cell) battle.Act
 }
 
 func (b *Board) ReachableCells(unitID int) ([]battle.Cell, error) {
-	if _, err := engagement.LivingUnit(&b.state, unitID); err != nil {
+	working := b.compose()
+	if _, err := engagement.LivingUnit(&working, unitID); err != nil {
 		return nil, err
 	}
-	return geometry.SortedCells(geometry.ReachableAnchors(&b.state, unitID)), nil
+	return geometry.SortedCells(geometry.ReachableAnchors(&working, unitID)), nil
 }
 
 func (b *Board) ResponseAttacks(action *battle.Decision, defenderID int) (battle.ResponseAttacksResponse, error) {
-	options, err := engagement.Menu(&b.state, *action, defenderID)
+	options, err := engagement.Menu(b.content, b.values, *action, defenderID)
 	if err != nil {
 		return battle.ResponseAttacksResponse{}, err
 	}
@@ -43,15 +45,17 @@ func (b *Board) ResponseAttacks(action *battle.Decision, defenderID int) (battle
 }
 
 func (b *Board) State() battle.BattleState {
-	return b.state.ToContract()
+	working := b.compose()
+	return working.ToContract()
 }
 
 func (b *Board) Summary() battle.BoardSummary {
+	working := b.compose()
 	out := battle.BoardSummary{
-		Turn: b.state.Turn, Phase: b.state.Phase,
+		Turn: working.Turn, Phase: working.Phase,
 		PendingIDs: []int{}, Gone: []battle.Faction{},
 	}
-	out.PendingIDs = append(out.PendingIDs, turn.Pending(&b.state, b.state.Phase)...)
-	out.Gone = append(out.Gone, turn.Gone(&b.state)...)
+	out.PendingIDs = append(out.PendingIDs, turn.Pending(&working, working.Phase)...)
+	out.Gone = append(out.Gone, turn.Gone(&working)...)
 	return out
 }

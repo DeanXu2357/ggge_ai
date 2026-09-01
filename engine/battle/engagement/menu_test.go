@@ -48,14 +48,14 @@ func duelUnits() []battle.Unit {
 	return []battle.Unit{defender, helper, attacker}
 }
 
-func duelBoard(units ...battle.Unit) *state.Battle {
-	b := board(units...)
-	b.Phase = battle.FactionEnemy
-	return b
+func duelPair(units ...battle.Unit) (state.Content, state.Values) {
+	content, values := pair(units...)
+	values.Phase = battle.FactionEnemy
+	return content, values
 }
 
-func duel() *state.Battle {
-	return duelBoard(duelUnits()...)
+func duel() (state.Content, state.Values) {
+	return duelPair(duelUnits()...)
 }
 
 func strikeAction(cell battle.Cell, weaponID int) battle.Decision {
@@ -64,9 +64,10 @@ func strikeAction(cell battle.Cell, weaponID int) battle.Decision {
 		TargetID: idOf(duelDefenderID), WeaponID: idOf(weaponID)}
 }
 
-func engagementOf(t *testing.T, b *state.Battle, cell battle.Cell, weaponID int) Options {
+func engagementOf(t *testing.T, content state.Content, values state.Values,
+	cell battle.Cell, weaponID int) Options {
 	t.Helper()
-	out, err := Menu(b, strikeAction(cell, weaponID), duelDefenderID)
+	out, err := Menu(content, values, strikeAction(cell, weaponID), duelDefenderID)
 	if err != nil {
 		t.Fatalf("response attacks: %v", err)
 	}
@@ -76,9 +77,9 @@ func engagementOf(t *testing.T, b *state.Battle, cell battle.Cell, weaponID int)
 // The defender stands and takes the strike with 'none'. The shield is no
 // answer of this command: it settles during the damage.
 func TestTheResponseAttackListHoldsTheStandAndNoShield(t *testing.T) {
-	b := duel()
+	content, values := duel()
 
-	out := engagementOf(t, b, battle.Cell{1, 0}, 0)
+	out := engagementOf(t, content, values, battle.Cell{1, 0}, 0)
 
 	want := []battle.Stance{battle.StanceDodge, battle.StanceDefend, battle.StanceCounter, battle.StanceNone}
 	if !reflect.DeepEqual(stances(out.ResponseAttacks), want) {
@@ -96,10 +97,10 @@ func TestACounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
 
 	for name, break_ := range cases {
 		t.Run(name, func(t *testing.T) {
-			b := duel()
-			break_(&b.Units[duelDefenderID].Mech.Weapons[0])
+			content, values := duel()
+			break_(&content.Units[duelDefenderID].Mech.Weapons[0])
 
-			out := engagementOf(t, b, battle.Cell{1, 0}, 0)
+			out := engagementOf(t, content, values, battle.Cell{1, 0}, 0)
 
 			want := []battle.Stance{battle.StanceDodge, battle.StanceDefend, battle.StanceNone}
 			if !reflect.DeepEqual(stances(out.ResponseAttacks), want) {
@@ -112,12 +113,13 @@ func TestACounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
 // The menu runs the plan of 'act', so an action that 'act' refuses carries no
 // menu, with the same error.
 func TestTheMenuRefusesWhatTheActionRefuses(t *testing.T) {
-	b := duel()
-	b.Units[duelAttackerID].Mech.Weapons[0].ENCost = 1000
+	content, values := duel()
+	content.Units[duelAttackerID].Mech.Weapons[0].ENCost = 1000
 	decision := strikeAction(battle.Cell{1, 0}, 0)
+	working := state.Compose(&content, values)
 
-	_, planned := Prepare(b, decision)
-	_, offered := Menu(b, decision, duelDefenderID)
+	_, planned := prepare(&working, decision)
+	_, offered := Menu(content, values, decision, duelDefenderID)
 
 	if planned == nil || offered == nil || offered.Error() != planned.Error() {
 		t.Fatalf("the menu answers %v, and the action answers %v", offered, planned)
@@ -138,9 +140,9 @@ func TestTheTwoSidesCarryTheirOwnSupportUnits(t *testing.T) {
 	guard.SupportDefendCharges = 1
 	guard.SupportAttackCharges = 1
 	guard.Mech.Weapons = []battle.Weapon{rifle("rifle", 1, 2)}
-	b := duelBoard(append(units, guard)...)
+	content, values := duelPair(append(units, guard)...)
 
-	out := engagementOf(t, b, battle.Cell{1, 0}, 0)
+	out := engagementOf(t, content, values, battle.Cell{1, 0}, 0)
 
 	if len(out.ResponseAttacks) != 4 {
 		t.Fatalf("the support units add no stance: %v", stances(out.ResponseAttacks))
@@ -166,9 +168,9 @@ func TestASupporterOutOfItsMoveRangeJoinsNothing(t *testing.T) {
 	units[duelHelperID].Mech.MoveRange = 0
 	units[duelHelperID].SupportAttackCharges = 1
 	units[duelHelperID].Mech.Weapons = []battle.Weapon{rifle("rifle", 1, 2)}
-	b := duelBoard(units...)
+	content, values := duelPair(units...)
 
-	out := engagementOf(t, b, battle.Cell{1, 0}, 0)
+	out := engagementOf(t, content, values, battle.Cell{1, 0}, 0)
 
 	if len(out.Defender.SupportDefenders) != 0 || len(out.Defender.SupportAttackers) != 0 {
 		t.Fatalf("the support reach is the move range of the supporter: %+v", out.Defender)
@@ -178,7 +180,7 @@ func TestASupporterOutOfItsMoveRangeJoinsNothing(t *testing.T) {
 // Only an attack asks the defender anything, so the command refuses every
 // other kind. A client that runs a map attack sends 'act' and no question.
 func TestAnActionThatMakesNoStrikeIsAnError(t *testing.T) {
-	b := duel()
+	content, values := duel()
 	cell := battle.Cell{4, 4}
 	cases := map[string]battle.Decision{
 		"a map attack":             {UnitID: duelAttackerID, Kind: battle.ActionMapAttack},
@@ -188,7 +190,7 @@ func TestAnActionThatMakesNoStrikeIsAnError(t *testing.T) {
 
 	for name, decision := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := Menu(b, decision, duelDefenderID); err == nil {
+			if _, err := Menu(content, values, decision, duelDefenderID); err == nil {
 				t.Fatal("the action asks the defender nothing")
 			}
 		})
@@ -203,10 +205,10 @@ func TestAResponseAttackOfADestroyedUnitIsAnError(t *testing.T) {
 
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
-			b := duel()
-			b.Units[one.unitID].Value.HP = 0
+			content, values := duel()
+			values.Units[one.unitID].HP = 0
 
-			_, err := Menu(b, strikeAction(battle.Cell{1, 0}, 0), duelDefenderID)
+			_, err := Menu(content, values, strikeAction(battle.Cell{1, 0}, 0), duelDefenderID)
 
 			if !errors.Is(err, battle.ErrDestroyed) {
 				t.Fatalf("error: %v", err)
@@ -216,10 +218,10 @@ func TestAResponseAttackOfADestroyedUnitIsAnError(t *testing.T) {
 }
 
 func TestTheStrikeComesFromTheCellOfTheAction(t *testing.T) {
-	b := duel()
+	content, values := duel()
 
-	near := engagementOf(t, b, battle.Cell{1, 0}, 0)
-	far := engagementOf(t, b, battle.Cell{2, 0}, 0)
+	near := engagementOf(t, content, values, battle.Cell{1, 0}, 0)
+	far := engagementOf(t, content, values, battle.Cell{2, 0}, 0)
 
 	if len(near.ResponseAttacks) != 4 || len(far.ResponseAttacks) != 3 {
 		t.Fatalf("the counter of the defender reaches one cell: %v %v",
@@ -228,10 +230,11 @@ func TestTheStrikeComesFromTheCellOfTheAction(t *testing.T) {
 }
 
 func TestTheStrikeOfAnActionWithNoMoveComesFromTheCellOfToday(t *testing.T) {
-	b := duel()
+	content, values := duel()
 
-	out, err := Menu(b, battle.Decision{UnitID: duelAttackerID, Kind: battle.ActionAttack,
-		TargetID: idOf(duelDefenderID), WeaponID: idOf(0)}, duelDefenderID)
+	out, err := Menu(content, values, battle.Decision{UnitID: duelAttackerID,
+		Kind: battle.ActionAttack, TargetID: idOf(duelDefenderID), WeaponID: idOf(0)},
+		duelDefenderID)
 
 	if err != nil {
 		t.Fatalf("response attacks: %v", err)
@@ -242,7 +245,7 @@ func TestTheStrikeOfAnActionWithNoMoveComesFromTheCellOfToday(t *testing.T) {
 }
 
 func TestAResponseAttackRequestOutsideTheBoardIsAnError(t *testing.T) {
-	b := duel()
+	content, values := duel()
 	cases := map[string]struct {
 		defenderID, weaponID int
 		cell                 battle.Cell
@@ -254,16 +257,18 @@ func TestAResponseAttackRequestOutsideTheBoardIsAnError(t *testing.T) {
 
 	for name, one := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := Menu(b, strikeAction(one.cell, one.weaponID), one.defenderID); err == nil {
+			if _, err := Menu(content, values, strikeAction(one.cell, one.weaponID),
+				one.defenderID); err == nil {
 				t.Fatal("the request stands outside the board")
 			}
 		})
 	}
-	if _, err := Menu(b, strikeAction(battle.Cell{1, 0}, 0), duelDefenderID); err != nil {
+	if _, err := Menu(content, values, strikeAction(battle.Cell{1, 0}, 0),
+		duelDefenderID); err != nil {
 		t.Fatalf("the request of the board: %v", err)
 	}
 	ghost := battle.Decision{UnitID: 9, Kind: battle.ActionAttack, WeaponID: idOf(0)}
-	if _, err := Menu(b, ghost, duelDefenderID); !errors.Is(err, battle.ErrNoUnit) {
+	if _, err := Menu(content, values, ghost, duelDefenderID); !errors.Is(err, battle.ErrNoUnit) {
 		t.Fatalf("an unknown attacker: %v", err)
 	}
 }
@@ -278,10 +283,11 @@ func TestEachEntryCarriesTheForecastOfItsOwnStrike(t *testing.T) {
 	guard.Mech.Weapons = []battle.Weapon{beam()}
 	attacker := fighter(battle.FactionEnemy, battle.Cell{1, 0})
 	attacker.Mech.Weapons = []battle.Weapon{beam()}
-	b := duelBoard(defender, guard, attacker)
+	content, values := duelPair(defender, guard, attacker)
 
-	out, err := Menu(b, battle.Decision{UnitID: duelAttackerID, Kind: battle.ActionAttack,
-		TargetID: idOf(duelDefenderID), WeaponID: idOf(0)}, duelDefenderID)
+	out, err := Menu(content, values, battle.Decision{UnitID: duelAttackerID,
+		Kind: battle.ActionAttack, TargetID: idOf(duelDefenderID), WeaponID: idOf(0)},
+		duelDefenderID)
 	if err != nil {
 		t.Fatalf("response attacks: %v", err)
 	}
