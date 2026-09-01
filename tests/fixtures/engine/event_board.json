@@ -29,7 +29,6 @@
           "type": "spawn",
           "units": [
             {
-              "unit_id": "enemy_9",
               "faction": "enemy",
               "pos": [
                 7,
@@ -86,7 +85,7 @@
               "support_attack_charges_max": 0,
               "has_shield": false,
               "support_defend_when_attack": false,
-              "ammo": {},
+              "map_weapon_ammo": [],
               "debuffs": []
             }
           ]
@@ -443,7 +442,6 @@
             "type": "spawn",
             "units": [
               {
-                "unit_id": "enemy_9",
                 "faction": "enemy",
                 "pos": [
                   7,
@@ -500,7 +498,7 @@
                 "support_attack_charges_max": 0,
                 "has_shield": false,
                 "support_defend_when_attack": false,
-                "ammo": {},
+                "map_weapon_ammo": [],
                 "debuffs": []
               }
             ]
