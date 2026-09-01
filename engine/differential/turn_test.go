@@ -17,10 +17,10 @@ type actInput struct {
 }
 
 type actAnswer struct {
-	Turn    int            `json:"turn"`
-	Phase   battle.Faction `json:"phase"`
-	Pending []string       `json:"pending"`
-	Units   []battle.Unit  `json:"units"`
+	Turn       int            `json:"turn"`
+	Phase      battle.Faction `json:"phase"`
+	PendingIDs []int          `json:"pending_ids"`
+	Units      []battle.Unit  `json:"units"`
 }
 
 // The two turn-cycle cases are hand-derived; no oracle wrote them.
@@ -43,6 +43,6 @@ var turnOps = map[string]differential.Op{
 			return nil, err
 		}
 		summary := state.Summary()
-		return actAnswer{Turn: summary.Turn, Phase: summary.Phase, Pending: summary.Pending, Units: livingUnits(state)}, nil
+		return actAnswer{Turn: summary.Turn, Phase: summary.Phase, PendingIDs: summary.PendingIDs, Units: livingUnits(state)}, nil
 	},
 }

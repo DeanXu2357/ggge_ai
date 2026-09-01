@@ -61,12 +61,13 @@ class EngineSession:
         }
 
     def pending_decision(self) -> dict[str, Any]:
+        phase = Faction(self._state.phase)
         units = []
-        for unit in self._state.by_faction(Faction(self._state.phase)):
-            if unit.acted:
+        for unit_id, unit in enumerate(self._state.units):
+            if unit.faction is not phase or unit.acted or not unit.alive:
                 continue
-            answer = self._ask("actions", {"unit_id": unit.unit_id})
-            units.append({"unit_id": unit.unit_id, "actions": answer.get("actions", [])})
+            answer = self._ask("actions", {"unit_id": unit_id})
+            units.append({"unit_id": unit_id, "actions": answer.get("actions", [])})
         return {"turn": self._state.turn, "phase": str(self._state.phase), "units": units}
 
     def response_attack_options(self, action: Mapping[str, Any]) -> dict[str, Any]:
@@ -102,13 +103,7 @@ class EngineSession:
         attacker = self._state.unit(action.get("unit_id"))
         if attacker is None or action.get("kind") != "attack" or action.get("target_id") is None:
             return None
-        cell = action.get("move_to") or list(attacker.pos)
-        return {
-            "defender_id": action.get("target_id"),
-            "attacker_id": attacker.unit_id,
-            "attacker_cell": list(cell),
-            "weapon_id": action.get("weapon"),
-        }
+        return {"defender_id": action.get("target_id"), "action": dict(action)}
 
     def _read_back(self) -> None:
         state = self._ask("export").get("state")

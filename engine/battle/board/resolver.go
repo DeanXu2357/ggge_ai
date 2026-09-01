@@ -29,7 +29,7 @@ func (b *Board) Load(bounds battle.Bounds, terrain battle.Terrain,
 	for index := range candidate.Units {
 		unit := &candidate.Units[index]
 		if !unit.Footprint().Within(bounds) {
-			return fmt.Errorf("the unit %q stands outside the board", unit.ID)
+			return fmt.Errorf("the unit %d stands outside the board", index)
 		}
 	}
 	for _, entry := range candidate.TerrainCells {
@@ -77,20 +77,19 @@ func validate(state *battle.BattleState) error {
 		return fmt.Errorf("the state carries the phase %q, which is not in the contract",
 			state.Phase)
 	}
-	seen := make(map[string]bool, len(state.Units))
 	for index := range state.Units {
 		unit := &state.Units[index]
 		if !knownFactions[unit.Faction] {
-			return fmt.Errorf("unit %q carries the faction %q, which is not in the contract",
-				unit.ID, unit.Faction)
+			return fmt.Errorf("unit %d carries the faction %q, which is not in the contract",
+				index, unit.Faction)
 		}
-		if seen[unit.ID] {
-			return fmt.Errorf("the board holds two units with the id %q", unit.ID)
+		if len(unit.MapWeaponAmmo) != len(unit.Mech.MapWeapons) {
+			return fmt.Errorf("unit %d carries %d ammunition counts and %d map weapons",
+				index, len(unit.MapWeaponAmmo), len(unit.Mech.MapWeapons))
 		}
-		seen[unit.ID] = true
 		for axis := range unit.Size {
 			if unit.Size[axis] < 0 {
-				return fmt.Errorf("unit %q carries the size %v", unit.ID, unit.Size)
+				return fmt.Errorf("unit %d carries the size %v", index, unit.Size)
 			}
 		}
 		unit.Size = unit.Footprint().Size
@@ -133,7 +132,7 @@ func eventsOf(resolution resolution) []any {
 	for _, strike := range resolution.Trace {
 		out = append(out, battle.StrikeEvent{
 			Event: "strike", Strike: string(strike.Kind),
-			ShooterID: strike.ShooterID, StruckID: strike.StruckID, Weapon: strike.Weapon,
+			ShooterID: strike.ShooterID, StruckID: strike.StruckID, WeaponID: strike.WeaponID,
 			Landed: strike.Landed, Damage: strike.Damage, Killed: strike.Killed,
 		})
 	}

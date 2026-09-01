@@ -5,9 +5,9 @@ from the engine, the menu of each unit from 'actions', the answer of
 the struck unit from 'response_attacks', and lets 'act' settle the
 engagement.
 The loop holds no rule of the battle: the engine refuses an illegal
-pick, and the loop takes the refusal as the answer and tries the next
-pick. A standby closes the list of the picks, and the loop stops on the
-field 'gone' of the answer of 'act'. The order of the picks is a
+candidate, and the loop takes the refusal as the answer and tries the
+next candidate. A standby closes the list, and the loop stops on the
+field 'gone' of the answer of 'act'. The order of the candidates is a
 preference, not a rule; '_steps' gives that order and is not the
 distance of the board, which the engine alone holds.
 """
@@ -25,23 +25,24 @@ FORCED_HITS = {"mode": str(DiceMode.FORCED), "outcomes": ["hit", "hit", "hit", "
 
 
 def decision(
-    unit_id: str,
+    unit_id: int,
     kind: str,
     *,
     move_to: list[int] | None = None,
-    target_id: str | None = None,
-    weapon: str | None = None,
+    target_id: int | None = None,
+    weapon_id: int | None = None,
 ) -> dict[str, Any]:
     return {
         "unit_id": unit_id,
         "kind": kind,
         "move_to": move_to,
         "target_id": target_id,
-        "weapon": weapon,
+        "weapon_id": weapon_id,
+        "map_weapon_id": None,
         "amount": None,
         "response_attack": None,
-        "support_defender": None,
-        "support_attackers": [],
+        "support_defender_id": None,
+        "support_attacker_ids": [],
         "aim": None,
         "hit": None,
         "counter_hit": None,
@@ -52,9 +53,9 @@ def decision(
 def response_attack_of(option: dict[str, Any]) -> dict[str, Any]:
     return {
         "stance": option.get("stance"),
-        "weapon": option.get("weapon"),
-        "support_defender": None,
-        "support_attackers": [],
+        "weapon_id": option.get("weapon_id"),
+        "support_defender_id": None,
+        "support_attacker_ids": [],
     }
 
 
@@ -63,6 +64,14 @@ class Outcome:
     gone: list[str]
     turn: int
     log: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class Standing:
+    """One unit of the board, with the position that names it."""
+
+    unit_id: int
+    unit: dict[str, Any]
 
 
 class Player:
@@ -87,19 +96,25 @@ class Player:
             if turn > max_turns:
                 break
             phase = state["phase"]
-            living = [unit for unit in state["units"] if unit["hp"] > 0]
-            pending = [unit for unit in living if unit["faction"] == phase and not unit["acted"]]
+            living = [
+                Standing(unit_id=index, unit=unit)
+                for index, unit in enumerate(state["units"])
+                if unit["hp"] > 0
+            ]
+            pending = [
+                one for one in living if one.unit["faction"] == phase and not one.unit["acted"]
+            ]
             if not pending:
                 raise RuntimeError(f"the engine left the phase {phase!r} with no pending unit")
             actor = pending[0]
-            foes = [unit for unit in living if unit["faction"] != phase]
+            foes = [one for one in living if one.unit["faction"] != phase]
             request, answer = self._settle(actor, foes)
             gone = answer["board"]["gone"]
             log.append(
                 {
                     "turn": turn,
                     "phase": phase,
-                    "actor_faction": actor["faction"],
+                    "actor_faction": actor.unit["faction"],
                     "request": request,
                     "answer": answer,
                 }
@@ -107,42 +122,40 @@ class Player:
         return Outcome(gone=gone, turn=turn, log=log)
 
     def _settle(
-        self, actor: dict[str, Any], foes: list[dict[str, Any]]
+        self, actor: Standing, foes: list[Standing]
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        for request in self._picks(actor, foes):
+        for request in self._candidates(actor, foes):
             try:
                 return request, self._engine.call("act", request)
             except EngineError:
                 continue
-        standby = self._standby(actor["unit_id"])
+        standby = self._standby(actor.unit_id)
         return standby, self._engine.call("act", standby)
 
-    def _picks(
-        self, actor: dict[str, Any], foes: list[dict[str, Any]]
-    ) -> Iterator[dict[str, Any]]:
-        menu = self._engine.call("actions", {"unit_id": actor["unit_id"]})
-        ordered_foes = sorted(foes, key=lambda foe: _steps(actor["pos"], foe["pos"]))
+    def _candidates(self, actor: Standing, foes: list[Standing]) -> Iterator[dict[str, Any]]:
+        menu = self._engine.call("actions", {"unit_id": actor.unit_id})
+        ordered_foes = sorted(foes, key=lambda foe: _steps(actor.unit["pos"], foe.unit["pos"]))
         cells: list[list[int] | None] = [None]
         if ordered_foes:
-            nearest = ordered_foes[0]["pos"]
+            nearest = ordered_foes[0].unit["pos"]
             cells += sorted(menu.get("move_cells", []), key=lambda cell: _steps(cell, nearest))[
                 : self._move_tries
             ]
         for cell in cells:
-            for weapon in menu.get("weapons", []):
+            for weapon_id, weapon in enumerate(menu.get("weapons", [])):
                 if cell is not None and not weapon.get("usable_after_move"):
                     continue
                 for foe in ordered_foes:
                     action = decision(
-                        actor["unit_id"],
+                        actor.unit_id,
                         "attack",
                         move_to=cell,
-                        target_id=foe["unit_id"],
-                        weapon=weapon["name"],
+                        target_id=foe.unit_id,
+                        weapon_id=weapon_id,
                     )
                     try:
                         options = self._engine.call(
-                            "response_attacks", {"action": action, "defender_id": foe["unit_id"]}
+                            "response_attacks", {"action": action, "defender_id": foe.unit_id}
                         )
                     except EngineError:
                         continue
@@ -150,19 +163,19 @@ class Player:
                     if not replies:
                         continue
                     yield {
-                        "unit_id": actor["unit_id"],
+                        "unit_id": actor.unit_id,
                         "action": action,
                         "response_attack": response_attack_of(replies[0]),
                         "dice": dict(self._dice),
                     }
-        if len(cells) > 1 and cells[1] != actor["pos"]:
+        if len(cells) > 1 and cells[1] != actor.unit["pos"]:
             yield {
-                "unit_id": actor["unit_id"],
-                "action": decision(actor["unit_id"], "reposition", move_to=cells[1]),
+                "unit_id": actor.unit_id,
+                "action": decision(actor.unit_id, "reposition", move_to=cells[1]),
                 "dice": dict(self._dice),
             }
 
-    def _standby(self, unit_id: str) -> dict[str, Any]:
+    def _standby(self, unit_id: int) -> dict[str, Any]:
         return {
             "unit_id": unit_id,
             "action": decision(unit_id, "standby"),

@@ -228,7 +228,6 @@ def decode_mech(payload: dict[str, Any]) -> Mech:
 
 def encode_unit(unit: Unit) -> dict[str, Any]:
     return {
-        "unit_id": unit.unit_id,
         "faction": str(unit.faction),
         "pos": _cell(unit.pos),
         "size": _cell(unit.size),
@@ -250,15 +249,14 @@ def encode_unit(unit: Unit) -> dict[str, Any]:
         "support_attack_charges_max": unit.support_attack_charges_max,
         "has_shield": unit.has_shield,
         "support_defend_when_attack": unit.support_defend_when_attack,
-        "ammo": dict(unit.ammo),
+        "map_weapon_ammo": list(unit.map_weapon_ammo),
         "debuffs": [encode_debuff(debuff) for debuff in unit.debuffs],
     }
 
 
 def decode_unit(payload: dict[str, Any]) -> Unit:
-    _known(payload, encode_unit(Unit(unit_id="", faction=Faction.ALLY)), "unit")
+    _known(payload, encode_unit(Unit(faction=Faction.ALLY)), "unit")
     return Unit(
-        unit_id=_str(payload, "unit_id"),
         faction=_faction(payload.get("faction")),
         pos=_as_cell(payload.get("pos"), "unit.pos"),
         size=_as_cell(payload.get("size", (1, 1)), "unit.size"),
@@ -280,7 +278,7 @@ def decode_unit(payload: dict[str, Any]) -> Unit:
         support_attack_charges_max=_int(payload, "support_attack_charges_max"),
         has_shield=_bool(payload, "has_shield"),
         support_defend_when_attack=_bool(payload, "support_defend_when_attack"),
-        ammo={str(name): int(count) for name, count in (payload.get("ammo") or {}).items()},
+        map_weapon_ammo=[int(count) for count in payload.get("map_weapon_ammo") or ()],
         debuffs=[decode_debuff(entry) for entry in payload.get("debuffs") or ()],
     )
 
@@ -290,9 +288,9 @@ def encode_response_attack(response_attack: ResponseAttack) -> dict[str, Any]:
         raise ValueError("A response attack with no stance does not reach the wire")
     return {
         "stance": str(response_attack.stance),
-        "weapon": response_attack.weapon,
-        "support_defender": response_attack.support_defender,
-        "support_attackers": list(response_attack.support_attackers),
+        "weapon_id": response_attack.weapon_id,
+        "support_defender_id": response_attack.support_defender_id,
+        "support_attacker_ids": list(response_attack.support_attacker_ids),
     }
 
 
@@ -305,9 +303,9 @@ def decode_response_attack(payload: dict[str, Any]) -> ResponseAttack:
     stance = _stance(payload.get("stance"))
     return ResponseAttack(
         stance=stance,
-        weapon=_optional_str(payload, "weapon"),
-        support_defender=_optional_str(payload, "support_defender"),
-        support_attackers=_names(payload, "support_attackers"),
+        weapon_id=_optional_int(payload, "weapon_id"),
+        support_defender_id=_optional_int(payload, "support_defender_id"),
+        support_attacker_ids=_ids(payload, "support_attacker_ids"),
     )
 
 
@@ -317,15 +315,16 @@ def encode_decision(decision: Decision) -> dict[str, Any]:
         "kind": str(decision.kind),
         "move_to": _optional_cell(decision.move_to),
         "target_id": decision.target_id,
-        "weapon": decision.weapon,
+        "weapon_id": decision.weapon_id,
+        "map_weapon_id": decision.map_weapon_id,
         "amount": decision.amount,
         "response_attack": (
             None
             if decision.response_attack is None
             else encode_response_attack(decision.response_attack)
         ),
-        "support_defender": decision.support_defender,
-        "support_attackers": list(decision.support_attackers),
+        "support_defender_id": decision.support_defender_id,
+        "support_attacker_ids": list(decision.support_attacker_ids),
         "aim": _optional_cell(decision.aim),
         "hit": decision.hit,
         "counter_hit": decision.counter_hit,
@@ -334,20 +333,21 @@ def encode_decision(decision: Decision) -> dict[str, Any]:
 
 
 def decode_decision(payload: dict[str, Any]) -> Decision:
-    _known(payload, encode_decision(Decision(unit_id="", kind=ActionKind.STANDBY)), "decision")
+    _known(payload, encode_decision(Decision(unit_id=0, kind=ActionKind.STANDBY)), "decision")
     response_attack = payload.get("response_attack")
     return Decision(
-        unit_id=_str(payload, "unit_id"),
+        unit_id=_int(payload, "unit_id"),
         kind=_move_kind(payload.get("kind")),
         move_to=_optional_as_cell(payload.get("move_to"), "decision.move_to"),
-        target_id=_optional_str(payload, "target_id"),
-        weapon=_optional_str(payload, "weapon"),
+        target_id=_optional_int(payload, "target_id"),
+        weapon_id=_optional_int(payload, "weapon_id"),
+        map_weapon_id=_optional_int(payload, "map_weapon_id"),
         amount=_optional_float(payload, "amount"),
         response_attack=(
             None if response_attack is None else decode_response_attack(response_attack)
         ),
-        support_defender=_optional_str(payload, "support_defender"),
-        support_attackers=_names(payload, "support_attackers"),
+        support_defender_id=_optional_int(payload, "support_defender_id"),
+        support_attacker_ids=_ids(payload, "support_attacker_ids"),
         aim=_optional_as_cell(payload.get("aim"), "decision.aim"),
         hit=_optional_bool(payload, "hit"),
         counter_hit=_optional_bool(payload, "counter_hit"),
@@ -532,12 +532,17 @@ def _optional_str(payload: dict[str, Any], name: str) -> str | None:
     return None if raw is None else str(raw)
 
 
-def _names(payload: dict[str, Any], name: str) -> tuple[str, ...]:
-    return tuple(str(entry) for entry in payload.get(name) or ())
+def _ids(payload: dict[str, Any], name: str) -> tuple[int, ...]:
+    return tuple(int(entry) for entry in payload.get(name) or ())
 
 
 def _int(payload: dict[str, Any], name: str) -> int:
     return int(payload.get(name, 0))
+
+
+def _optional_int(payload: dict[str, Any], name: str) -> int | None:
+    raw = payload.get(name)
+    return None if raw is None else int(raw)
 
 
 def _float(payload: dict[str, Any], name: str) -> float:

@@ -164,7 +164,6 @@ class UnitIntel:
         # 挑選才留在組裝端，數值與改型前相同。
         attack = self.pilot_attack if pilot_attack is None else pilot_attack
         return Unit(
-            unit_id=self.unit_id,
             faction=faction,
             pos=pos,
             hp=self.max_hp if hp is None else hp,
@@ -202,7 +201,9 @@ class UnitIntel:
             support_attack_charges_max=self.support_attack_charges_max,
             has_shield=self.has_shield,
             support_defend_when_attack=self.support_defend_when_attack,
-            ammo={weapon.name: weapon.ammo for weapon in self.weapons if weapon.ammo > 0},
+            map_weapon_ammo=[
+                weapon.ammo for weapon in self.weapons if weapon.map_weapon
+            ],
         )
 
 

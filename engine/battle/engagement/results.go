@@ -2,8 +2,6 @@ package engagement
 
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 type Forecast struct {
@@ -24,9 +22,9 @@ const (
 // The Damage of a skill record is the value that the skill gave back.
 type Strike struct {
 	Kind      StrikeKind
-	ShooterID string
-	StruckID  string
-	Weapon    string
+	ShooterID int
+	StruckID  int
+	WeaponID  int
 	Landed    bool
 	Damage    int
 	Killed    bool
@@ -36,24 +34,24 @@ type Trace []Strike
 
 type ResponseAttackOption struct {
 	Stance   battle.Stance
-	Weapon   string
+	WeaponID *int
 	Incoming Forecast
 	Counter  *Forecast
 }
 
 type SupportDefendOption struct {
-	Unit     *state.Unit
+	UnitID   int
 	Incoming Forecast
 }
 
 type SupportAttackOption struct {
-	Unit   *state.Unit
-	Weapon *def.Weapon
-	Strike Forecast
+	UnitID   int
+	WeaponID int
+	Strike   Forecast
 }
 
 type SideOptions struct {
-	Unit             *state.Unit
+	UnitID           int
 	SupportDefenders []SupportDefendOption
 	SupportAttackers []SupportAttackOption
 }

@@ -46,27 +46,31 @@ func (s *Stance) UnmarshalJSON(data []byte) error {
 	return decodeEnum(data, s, stances, "stance")
 }
 
+// Every id of this file is a position: a unit id is the position of the unit in
+// 'BattleState.Units', a weapon id is the position of the weapon in
+// 'Mech.Weapons', and a map weapon id is the position in 'Mech.MapWeapons'.
 type ResponseAttack struct {
-	Stance           Stance   `json:"stance"`
-	Weapon           *string  `json:"weapon"`
-	SupportDefender  *string  `json:"support_defender"`
-	SupportAttackers []string `json:"support_attackers"`
+	Stance             Stance `json:"stance"`
+	WeaponID           *int   `json:"weapon_id"`
+	SupportDefenderID  *int   `json:"support_defender_id"`
+	SupportAttackerIDs []int  `json:"support_attacker_ids"`
 }
 
 // Decision carries three dice fields, and each holds three values: the node
 // landed, the node missed, and the caller settles the node somewhere else.
 type Decision struct {
-	UnitID           string          `json:"unit_id"`
-	Kind             ActionKind      `json:"kind"`
-	MoveTo           *Cell           `json:"move_to"`
-	TargetID         *string         `json:"target_id"`
-	Weapon           *string         `json:"weapon"`
-	Amount           *float64        `json:"amount"`
-	ResponseAttack   *ResponseAttack `json:"response_attack"`
-	SupportDefender  *string         `json:"support_defender"`
-	SupportAttackers []string        `json:"support_attackers"`
-	Aim              *Cell           `json:"aim"`
-	Hit              *bool           `json:"hit"`
-	CounterHit       *bool           `json:"counter_hit"`
-	SupportHit       *bool           `json:"support_hit"`
+	UnitID             int             `json:"unit_id"`
+	Kind               ActionKind      `json:"kind"`
+	MoveTo             *Cell           `json:"move_to"`
+	TargetID           *int            `json:"target_id"`
+	WeaponID           *int            `json:"weapon_id"`
+	MapWeaponID        *int            `json:"map_weapon_id"`
+	Amount             *float64        `json:"amount"`
+	ResponseAttack     *ResponseAttack `json:"response_attack"`
+	SupportDefenderID  *int            `json:"support_defender_id"`
+	SupportAttackerIDs []int           `json:"support_attacker_ids"`
+	Aim                *Cell           `json:"aim"`
+	Hit                *bool           `json:"hit"`
+	CounterHit         *bool           `json:"counter_hit"`
+	SupportHit         *bool           `json:"support_hit"`
 }

@@ -116,7 +116,8 @@ def test_the_board_carries_the_units_of_the_layout(client):
     assert board["turn"] == 1
     assert board["phase"] == "ally"
     assert board["units"]
-    assert {"unit_id", "faction", "pos", "hp"} <= set(board["units"][0])
+    assert {"faction", "pos", "hp"} <= set(board["units"][0])
+    assert "unit_id" not in board["units"][0], "the position of a unit is its id"
 
 
 def test_the_decision_asks_the_engine_for_every_unit_of_the_phase(client):
@@ -140,7 +141,7 @@ def test_the_response_attack_request_carries_the_strike_the_spec_names(client):
 
 
 def test_an_action_that_names_no_target_asks_the_engine_nothing(client):
-    body = {"candidate": {"unit_id": "x", "kind": "standby"}}
+    body = {"candidate": {"unit_id": 0, "kind": "standby"}}
 
     status, payload = client.post("/api/response_attacks", body)
 
@@ -158,8 +159,9 @@ def test_the_step_reads_the_board_back_from_the_engine(client):
 
     assert status == 200
     assert payload["events"] == []
-    acted = {entry["unit_id"]: entry["acted"] for entry in payload["state"]["units"]}
-    assert acted[unit] is True, "the fake marks the unit, and 'export' brings it back"
+    assert payload["state"]["units"][unit]["acted"] is True, (
+        "the fake marks the unit, and 'export' brings it back"
+    )
 
 
 def test_a_unit_that_acted_leaves_the_decision(client):
@@ -173,7 +175,7 @@ def test_a_unit_that_acted_leaves_the_decision(client):
 
 
 def test_the_engine_report_carries_the_command_entries_of_the_contract(client):
-    report = client.get("/api/engine?unit=" + quote("x"))
+    report = client.get("/api/engine?unit=" + quote("0"))
 
     assert report["available"] is True
     assert "export" in report["answers"]
@@ -207,6 +209,6 @@ def test_the_act_answer_carries_the_summary_of_the_contract(client):
 
     _, payload = client.post("/api/act", {"candidate": {"unit_id": unit, "kind": "standby"}})
 
-    assert set(payload["board"]) == {"turn", "phase", "pending", "gone"}
-    assert unit not in payload["board"]["pending"]
+    assert set(payload["board"]) == {"turn", "phase", "pending_ids", "gone"}
+    assert unit not in payload["board"]["pending_ids"]
     assert payload["board"]["gone"] == []

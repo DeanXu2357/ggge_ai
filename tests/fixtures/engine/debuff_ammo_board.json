@@ -6,7 +6,6 @@
     "state": {
       "units": [
         {
-          "unit_id": "ally_1",
           "faction": "ally",
           "pos": [
             2,
@@ -131,13 +130,12 @@
           "support_attack_charges_max": 2,
           "has_shield": true,
           "support_defend_when_attack": true,
-          "ammo": {
-            "missile pod": 2
-          },
+          "map_weapon_ammo": [
+            2
+          ],
           "debuffs": []
         },
         {
-          "unit_id": "enemy_1",
           "faction": "enemy",
           "pos": [
             4,
@@ -194,7 +192,7 @@
           "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false,
-          "ammo": {},
+          "map_weapon_ammo": [],
           "debuffs": [
             {
               "kind": "armor_break",
@@ -209,7 +207,6 @@
           ]
         },
         {
-          "unit_id": "third_1",
           "faction": "third_party",
           "pos": [
             6,
@@ -278,7 +275,7 @@
           "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false,
-          "ammo": {},
+          "map_weapon_ammo": [],
           "debuffs": []
         }
       ],
@@ -305,7 +302,6 @@
       "expect": {
         "units": [
           {
-            "unit_id": "ally_1",
             "faction": "ally",
             "pos": [
               2,
@@ -430,13 +426,12 @@
             "support_attack_charges_max": 2,
             "has_shield": true,
             "support_defend_when_attack": true,
-            "ammo": {
-              "missile pod": 2
-            },
+            "map_weapon_ammo": [
+              2
+            ],
             "debuffs": []
           },
           {
-            "unit_id": "enemy_1",
             "faction": "enemy",
             "pos": [
               4,
@@ -493,7 +488,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": [
               {
                 "kind": "armor_break",
@@ -508,7 +503,6 @@
             ]
           },
           {
-            "unit_id": "third_1",
             "faction": "third_party",
             "pos": [
               6,
@@ -577,7 +571,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": []
           }
         ],

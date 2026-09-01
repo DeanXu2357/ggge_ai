@@ -7,7 +7,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 func TestAWeaponCategoryOutsideTheContractStopsTheDecode(t *testing.T) {
@@ -25,29 +24,25 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 	ally := battle.FactionAlly
 	cases := map[string]*battle.BattleState{
 		"no state":  nil,
-		"no bounds": {Phase: ally, Units: []battle.Unit{{ID: "a1", Faction: ally}}},
+		"no bounds": {Phase: ally, Units: []battle.Unit{{Faction: ally}}},
 		"no phase": {
 			Bounds: &square,
-			Units:  []battle.Unit{{ID: "a1", Faction: ally}},
+			Units:  []battle.Unit{{Faction: ally}},
 		},
 		"an unknown faction": {
 			Bounds: &square,
 			Phase:  ally,
-			Units:  []battle.Unit{{ID: "a1", Faction: battle.Faction("pirate")}},
+			Units:  []battle.Unit{{Faction: battle.Faction("pirate")}},
 		},
-		"two units with one id": {
+		"an ammunition count for a map weapon the unit does not carry": {
 			Bounds: &square,
 			Phase:  ally,
-			Units: []battle.Unit{
-				{ID: "a1", Faction: ally},
-				{ID: "a1", Faction: battle.FactionEnemy},
-			},
+			Units:  []battle.Unit{{Faction: ally, MapWeaponAmmo: []int{3}}},
 		},
 		"a size below zero": {
 			Bounds: &square,
 			Phase:  ally,
 			Units: []battle.Unit{{
-				ID:      "a1",
 				Faction: ally,
 				Size:    battle.Cell{-1, 2},
 			}},
@@ -79,33 +74,28 @@ func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 }
 
 func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
-	defender := &state.Unit{ID: "d1", Value: state.UnitValue{HP: 100}}
-	attacker := &state.Unit{ID: "e1", Value: state.UnitValue{HP: 100}}
-	helper := &state.Unit{ID: "h1", Value: state.UnitValue{HP: 100},
-		Mech: &def.Mech{Weapons: []def.Weapon{{Name: "rifle"}}}}
-
 	counter := engagement.Forecast{}
 	encoded := responseAttacksOf(engagement.Options{
-		Defender: engagement.SideOptions{Unit: defender,
-			SupportDefenders: []engagement.SupportDefendOption{{Unit: helper}},
-			SupportAttackers: []engagement.SupportAttackOption{{Unit: helper, Weapon: &helper.Mech.Weapons[0]}}},
-		Attacker: engagement.SideOptions{Unit: attacker},
+		Defender: engagement.SideOptions{UnitID: 0,
+			SupportDefenders: []engagement.SupportDefendOption{{UnitID: 2}},
+			SupportAttackers: []engagement.SupportAttackOption{{UnitID: 2, WeaponID: 1}}},
+		Attacker: engagement.SideOptions{UnitID: 1},
 		ResponseAttacks: []engagement.ResponseAttackOption{
 			{Stance: battle.StanceDodge},
-			{Stance: battle.StanceCounter, Weapon: "saber", Counter: &counter},
+			{Stance: battle.StanceCounter, WeaponID: idOf(3), Counter: &counter},
 			{Stance: battle.StanceNone},
 		},
 	})
 
-	if encoded.Defender.UnitID != "d1" || encoded.Attacker.UnitID != "e1" {
+	if encoded.Defender.UnitID != 0 || encoded.Attacker.UnitID != 1 {
 		t.Fatalf("sides: %+v", encoded)
 	}
 	if encoded.Defender.ResponseAttacks[0].Stance != battle.StanceDodge ||
-		encoded.Defender.ResponseAttacks[0].Weapon != nil ||
+		encoded.Defender.ResponseAttacks[0].WeaponID != nil ||
 		encoded.Defender.ResponseAttacks[0].Counter != nil {
 		t.Fatalf("dodge: %+v", encoded.Defender.ResponseAttacks[0])
 	}
-	if *encoded.Defender.ResponseAttacks[1].Weapon != "saber" ||
+	if *encoded.Defender.ResponseAttacks[1].WeaponID != 3 ||
 		encoded.Defender.ResponseAttacks[1].Counter == nil {
 		t.Fatalf("a counter carries the forecast of its own strike: %+v",
 			encoded.Defender.ResponseAttacks[1])
@@ -113,8 +103,8 @@ func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
 	if encoded.Defender.ResponseAttacks[2].Stance != battle.StanceNone {
 		t.Fatalf("the stand: %+v", encoded.Defender.ResponseAttacks[2])
 	}
-	if encoded.Defender.SupportDefenders[0].UnitID != "h1" ||
-		encoded.Defender.SupportAttackers[0].Weapon != "rifle" {
+	if encoded.Defender.SupportDefenders[0].UnitID != 2 ||
+		encoded.Defender.SupportAttackers[0].WeaponID != 1 {
 		t.Fatalf("the support units: %+v", encoded.Defender)
 	}
 	if encoded.Attacker.SupportDefenders == nil || encoded.Attacker.SupportAttackers == nil {

@@ -10,17 +10,27 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
+// The three units of the load stand at the positions 0, 1 and 2, and each
+// position is the id of its unit. The weapon 'rifle' is the weapon 0 of the
+// unit 0, and the weapon 'lance' is the weapon 0 of the unit 2.
+const (
+	armedAllyID = 0
+	actedAllyID = 1
+	foeID       = 2
+	rifleID     = 0
+)
+
 const candidateLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`"units":[` +
-	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,` +
+	`{"faction":"ally","pos":[1,1],"hp":100,"max_hp":100,` +
 	`"mech":{"weapons":[` +
 	`{"name":"rifle","range_min":1,"range_max":2,"usable_after_move":true}],` +
 	`"map_weapons":[{"name":"shells","affects":"enemy",` +
 	`"apply_shape":{"cells":[[0,0]],"direction":"none"},` +
 	`"effect_shape":{"cells":[],"direction":"none"},"usable_after_move":true}]},` +
-	`"ammo":{"shells":1}},` +
-	`{"unit_id":"a2","faction":"ally","pos":[4,4],"hp":100,"acted":true},` +
-	`{"unit_id":"e1","faction":"enemy","pos":[2,1],"hp":100,` +
+	`"map_weapon_ammo":[1]},` +
+	`{"faction":"ally","pos":[4,4],"hp":100,"acted":true},` +
+	`{"faction":"enemy","pos":[2,1],"hp":100,` +
 	`"mech":{"weapons":[{"name":"lance","range_min":1,"range_max":1}]}}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
@@ -38,7 +48,7 @@ func actionsOf(t *testing.T, reply reply) battle.ActionsResponse {
 }
 
 func TestActionsWithNoBoardIsRefused(t *testing.T) {
-	replies := serve(t, New(board.New()), `{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
+	replies := serve(t, New(board.New()), `{"id":"c1","cmd":"actions","payload":{"unit_id":0}}`)
 
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeNoSession {
 		t.Fatalf("reply: %+v", replies[0])
@@ -47,10 +57,10 @@ func TestActionsWithNoBoardIsRefused(t *testing.T) {
 
 func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
-		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
+		`{"id":"c1","cmd":"actions","payload":{"unit_id":0}}`)
 
 	payload := actionsOf(t, replies[1])
-	if payload.Unit.UnitID != "a1" || payload.Unit.Pos != (battle.Cell{1, 1}) ||
+	if payload.Unit.UnitID != armedAllyID || payload.Unit.Pos != (battle.Cell{1, 1}) ||
 		payload.Unit.Acted {
 		t.Fatalf("status: %+v", payload.Unit)
 	}
@@ -64,7 +74,7 @@ func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 	if len(payload.MapWeapons) != 1 || payload.MapWeapons[0].Name != "shells" {
 		t.Fatalf("map weapons: %+v", payload.MapWeapons)
 	}
-	if payload.MapWeapons[0].Ammo == nil || *payload.MapWeapons[0].Ammo != 1 {
+	if payload.MapWeapons[0].Ammo != 1 {
 		t.Fatalf("shells: %+v", payload.MapWeapons[0])
 	}
 }
@@ -73,7 +83,7 @@ func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 // with the rifle alone, and both weapons are in their lists.
 func TestActionsJudgesNoTargetAndNoResource(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
-		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a1"}}`)
+		`{"id":"c1","cmd":"actions","payload":{"unit_id":0}}`)
 
 	payload := actionsOf(t, replies[1])
 
@@ -87,7 +97,7 @@ func TestActionsJudgesNoTargetAndNoResource(t *testing.T) {
 
 func TestActionsOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
-		`{"id":"c1","cmd":"actions","payload":{"unit_id":"ghost"}}`)
+		`{"id":"c1","cmd":"actions","payload":{"unit_id":9}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
 		t.Fatalf("reply: %+v", replies[1])
@@ -96,7 +106,7 @@ func TestActionsOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
 
 func TestActionsOutsideThePhaseIsAnIllegalState(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
-		`{"id":"c1","cmd":"actions","payload":{"unit_id":"e1"}}`)
+		`{"id":"c1","cmd":"actions","payload":{"unit_id":2}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalState {
 		t.Fatalf("the phase is the ally side: %+v", replies[1])
@@ -105,17 +115,17 @@ func TestActionsOutsideThePhaseIsAnIllegalState(t *testing.T) {
 
 func TestActionsOfAnActedUnitIsAnIllegalState(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
-		`{"id":"c1","cmd":"actions","payload":{"unit_id":"a2"}}`)
+		`{"id":"c1","cmd":"actions","payload":{"unit_id":1}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalState {
-		t.Fatalf("unit 'a2' acted: %+v", replies[1])
+		t.Fatalf("the second ally acted: %+v", replies[1])
 	}
 }
 
 func TestResponseAttacksWithNoBoardIsRefused(t *testing.T) {
 	replies := serve(t, New(board.New()),
-		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
-			`"action":{"unit_id":"a1","kind":"attack","target_id":"e1","weapon":"rifle"}}}`)
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
+			`"action":{"unit_id":0,"kind":"attack","target_id":2,"weapon_id":0}}}`)
 
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeNoSession {
 		t.Fatalf("reply: %+v", replies[0])
@@ -136,13 +146,13 @@ func engagementOf(t *testing.T, reply reply) battle.ResponseAttacksResponse {
 
 func TestResponseAttacksAnswersTheOptionsOfTheDefender(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
-		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
-			`"action":{"unit_id":"a1","kind":"attack","target_id":"e1",`+
-			`"weapon":"rifle","move_to":[1,1]}}}`)
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
+			`"action":{"unit_id":0,"kind":"attack","target_id":2,`+
+			`"weapon_id":0,"move_to":[1,1]}}}`)
 
 	payload := engagementOf(t, replies[1])
 
-	if payload.Defender.UnitID != "e1" || payload.Attacker.UnitID != "a1" {
+	if payload.Defender.UnitID != foeID || payload.Attacker.UnitID != armedAllyID {
 		t.Fatalf("sides: %+v", payload)
 	}
 	want := []battle.Stance{battle.StanceDodge, battle.StanceDefend,
@@ -155,7 +165,7 @@ func TestResponseAttacksAnswersTheOptionsOfTheDefender(t *testing.T) {
 			t.Fatalf("response attacks: %+v", payload.Defender.ResponseAttacks)
 		}
 	}
-	if *payload.Defender.ResponseAttacks[2].Weapon != "lance" ||
+	if *payload.Defender.ResponseAttacks[2].WeaponID != rifleID ||
 		payload.Defender.ResponseAttacks[2].Counter == nil {
 		t.Fatalf("counter: %+v", payload.Defender.ResponseAttacks[2])
 	}
@@ -169,10 +179,10 @@ func TestResponseAttacksAnswersTheOptionsOfTheDefender(t *testing.T) {
 
 func TestResponseAttacksAgainstAnActionThatMakesNoStrikeIsAnIllegalAction(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
-		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
-			`"action":{"unit_id":"a1","kind":"map_attack","weapon":"shells"}}}`,
-		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":"e1",`+
-			`"action":{"unit_id":"a1","kind":"standby"}}}`)
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
+			`"action":{"unit_id":0,"kind":"map_attack"}}}`,
+		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":2,`+
+			`"action":{"unit_id":0,"kind":"standby"}}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
 		t.Fatalf("a map attack permits no response attack: %+v", replies[1])
@@ -184,23 +194,23 @@ func TestResponseAttacksAgainstAnActionThatMakesNoStrikeIsAnIllegalAction(t *tes
 
 func TestAResponseAttackRequestThatTheWeaponDoesNotReachIsAnIllegalAction(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
-		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
-			`"action":{"unit_id":"a1","kind":"attack","weapon":"rifle","move_to":[4,4]}}}`,
-		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":"e1",`+
-			`"action":{"unit_id":"a1","kind":"attack","weapon":"lance"}}}`)
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
+			`"action":{"unit_id":0,"kind":"attack","target_id":2,"weapon_id":0,"move_to":[4,4]}}}`,
+		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":2,`+
+			`"action":{"unit_id":0,"kind":"attack","target_id":2,"weapon_id":1}}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
 		t.Fatalf("the cell (4,4) stands outside the band: %+v", replies[1])
 	}
 	if replies[2].OK || replies[2].Error.Code != protocol.CodeIllegalAction {
-		t.Fatalf("unit 'a1' carries no weapon 'lance': %+v", replies[2])
+		t.Fatalf("the first ally carries no weapon 1: %+v", replies[2])
 	}
 }
 
 func TestAnActionOutsideTheContractIsABadRequest(t *testing.T) {
 	replies := serve(t, New(board.New()), candidateLine,
-		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":"e1",`+
-			`"action":{"unit_id":"a1","kind":"charge","weapon":"rifle"}}}`)
+		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
+			`"action":{"unit_id":0,"kind":"charge","weapon_id":0}}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeBadRequest {
 		t.Fatalf("the kind \"charge\" is not in the contract: %+v", replies[1])

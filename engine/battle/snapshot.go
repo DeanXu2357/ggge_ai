@@ -216,31 +216,34 @@ type Mech struct {
 // and the maxima of the state; the pilot and the mech hold the values that a
 // formula reads. ChanceSteps is the re-act grant after a kill
 // (docs/reference/combat-formulas.md:134), which counts no dice.
+//
+// The unit carries no id: the position of the unit in 'BattleState.Units' is
+// its id. MapWeaponAmmo holds one count for each entry of 'Mech.MapWeapons',
+// in the same order.
 type Unit struct {
-	ID                      string         `json:"unit_id"`
-	Faction                 Faction        `json:"faction"`
-	Pos                     Cell           `json:"pos"`
-	Size                    Cell           `json:"size"`
-	HP                      int            `json:"hp"`
-	MaxHP                   int            `json:"max_hp"`
-	EN                      int            `json:"en"`
-	ENMax                   int            `json:"en_max"`
-	SP                      int            `json:"sp"`
-	SPMax                   int            `json:"sp_max"`
-	Pilot                   Pilot          `json:"pilot"`
-	Mech                    Mech           `json:"mech"`
-	Skills                  []Skill        `json:"skills"`
-	Acted                   bool           `json:"acted"`
-	ChanceSteps             int            `json:"chance_steps"`
-	ChanceStepsMax          int            `json:"chance_steps_max"`
-	SupportDefendCharges    int            `json:"support_defend_charges"`
-	SupportDefendChargesMax int            `json:"support_defend_charges_max"`
-	SupportAttackCharges    int            `json:"support_attack_charges"`
-	SupportAttackChargesMax int            `json:"support_attack_charges_max"`
-	HasShield               bool           `json:"has_shield"`
-	SupportDefendWhenAttack bool           `json:"support_defend_when_attack"`
-	Ammo                    map[string]int `json:"ammo"`
-	Debuffs                 []Debuff       `json:"debuffs"`
+	Faction                 Faction  `json:"faction"`
+	Pos                     Cell     `json:"pos"`
+	Size                    Cell     `json:"size"`
+	HP                      int      `json:"hp"`
+	MaxHP                   int      `json:"max_hp"`
+	EN                      int      `json:"en"`
+	ENMax                   int      `json:"en_max"`
+	SP                      int      `json:"sp"`
+	SPMax                   int      `json:"sp_max"`
+	Pilot                   Pilot    `json:"pilot"`
+	Mech                    Mech     `json:"mech"`
+	Skills                  []Skill  `json:"skills"`
+	Acted                   bool     `json:"acted"`
+	ChanceSteps             int      `json:"chance_steps"`
+	ChanceStepsMax          int      `json:"chance_steps_max"`
+	SupportDefendCharges    int      `json:"support_defend_charges"`
+	SupportDefendChargesMax int      `json:"support_defend_charges_max"`
+	SupportAttackCharges    int      `json:"support_attack_charges"`
+	SupportAttackChargesMax int      `json:"support_attack_charges_max"`
+	HasShield               bool     `json:"has_shield"`
+	SupportDefendWhenAttack bool     `json:"support_defend_when_attack"`
+	MapWeaponAmmo           []int    `json:"map_weapon_ammo"`
+	Debuffs                 []Debuff `json:"debuffs"`
 }
 
 // TerrainCell binds one cell of the map to one terrain wire name. A cell is a

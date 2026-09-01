@@ -65,11 +65,11 @@ ENCODERS = {
     "Debuff": lambda: codec.encode_debuff(Debuff("k", 1.0, 2)),
     "Pilot": lambda: codec.encode_pilot(Pilot()),
     "Mech": lambda: codec.encode_mech(Mech()),
-    "Unit": lambda: codec.encode_unit(Unit(unit_id="u", faction=Faction.ALLY)),
+    "Unit": lambda: codec.encode_unit(Unit(faction=Faction.ALLY)),
     "ResponseAttack": lambda: codec.encode_response_attack(
         ResponseAttack(stance=Stance.DEFEND)
     ),
-    "Decision": lambda: codec.encode_decision(Decision(unit_id="u", kind=ActionKind.STANDBY)),
+    "Decision": lambda: codec.encode_decision(Decision(unit_id=0, kind=ActionKind.STANDBY)),
     "StageEvent": lambda: codec.encode_event(StageEvent("e", {}, {})),
     "TerrainCell": lambda: codec.encode_terrain_cell(TerrainCell((0, 0), Terrain.SPACE)),
     "BattleState": lambda: codec.encode_state(BattleState()),
@@ -143,7 +143,7 @@ def test_a_three_valued_die_keeps_its_three_values():
     values = [None, True, False]
 
     payloads = [
-        codec.encode_decision(Decision(unit_id="u", kind=ActionKind.ATTACK, hit=value))
+        codec.encode_decision(Decision(unit_id=0, kind=ActionKind.ATTACK, hit=value))
         for value in values
     ]
 
@@ -152,7 +152,7 @@ def test_a_three_valued_die_keeps_its_three_values():
 
 
 def test_an_absent_optional_field_decodes_to_the_same_value_as_null():
-    full = codec.encode_decision(Decision(unit_id="u", kind=ActionKind.STANDBY))
+    full = codec.encode_decision(Decision(unit_id=0, kind=ActionKind.STANDBY))
     lean = {key: value for key, value in full.items() if value is not None}
 
     assert codec.decode_decision(lean) == codec.decode_decision(full)
@@ -189,7 +189,7 @@ def test_the_categories_of_a_weapon_survive_the_round_trip():
 
 
 def test_a_field_outside_the_contract_stops_the_decode():
-    payload = codec.encode_unit(Unit(unit_id="u", faction=Faction.ALLY))
+    payload = codec.encode_unit(Unit(faction=Faction.ALLY))
 
     with pytest.raises(ValueError, match="morale"):
         codec.decode_unit({**payload, "morale": 7})
@@ -197,22 +197,22 @@ def test_a_field_outside_the_contract_stops_the_decode():
 
 def _board() -> tuple[BattleState, EventTable]:
     weapon = Weapon(name="rifle", power=1200.0, range_min=1, range_max=3, en_cost=10)
+    area = MapWeapon(name="missile pod", power=1800.0, ammo_max=2)
     skill = Skill(kind="skill_heal", amount=500.0)
     unit = Unit(
-        unit_id="ally_1",
         faction=Faction.ALLY,
         pos=(1, 2),
         hp=8000,
         max_hp=9000,
         en=40,
         en_max=80,
-        mech=Mech(hp=9000, en=80, move_range=4, weapons=[weapon]),
+        mech=Mech(hp=9000, en=80, move_range=4, weapons=[weapon], map_weapons=[area]),
         pilot=Pilot(ranged=220.0, melee=180.0, awaken=240.0, defense=190.0, reaction=205.0, sp=45),
         skills=[skill],
-        ammo={"rifle": 2},
+        map_weapon_ammo=[2],
         debuffs=[Debuff(kind="attack", magnitude=0.2, applied_phase=3)],
     )
-    foe = Unit(unit_id="enemy_1", faction=Faction.ENEMY, pos=(5, 2), hp=7000, max_hp=7000)
+    foe = Unit(faction=Faction.ENEMY, pos=(5, 2), hp=7000, max_hp=7000)
     state = BattleState(units=[unit, foe], phase=Faction.ALLY, turn=2, bounds=((0, 0), (7, 7)))
     events = {"e1": StageEvent(event_id="e1", trigger={"type": "turn_start", "turn": 3},
                                effect={"type": "weaken", "uids": ["enemy_1"]})}
@@ -223,7 +223,7 @@ def test_the_terrain_of_the_map_survives_the_round_trip():
     state = BattleState(
         terrain=Terrain.GROUND,
         terrain_cells=(TerrainCell((3, 2), Terrain.UNDERWATER),),
-        units=[Unit(unit_id="u", faction=Faction.ALLY)],
+        units=[Unit(faction=Faction.ALLY)],
     )
 
     payload = codec.encode_state(state)

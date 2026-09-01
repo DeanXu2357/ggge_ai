@@ -4,12 +4,13 @@
 package state
 
 import (
+	"fmt"
+
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
 
 type Unit struct {
-	ID                      string
 	Faction                 battle.Faction
 	Size                    battle.Cell
 	MaxHP                   int
@@ -35,7 +36,7 @@ type UnitValue struct {
 	SupportDefendCharges int
 	SupportAttackCharges int
 	Skills               []def.Skill
-	Ammo                 map[string]int
+	MapWeaponAmmo        []int
 	Debuffs              []battle.Debuff
 }
 
@@ -61,13 +62,26 @@ func (u *Unit) Footprint() battle.Footprint {
 	return battle.Footprint{Anchor: u.Value.Pos, Size: u.Size}
 }
 
-func (b *Battle) Unit(id string) *Unit {
-	for index := range b.Units {
-		if b.Units[index].ID == id {
-			return &b.Units[index]
-		}
+// UnitAt is the one door from a unit id to the data behind it.
+func (b *Battle) UnitAt(id int) (*Unit, error) {
+	if id < 0 || id >= len(b.Units) {
+		return nil, fmt.Errorf("%w: %d", battle.ErrNoUnit, id)
 	}
-	return nil
+	return &b.Units[id], nil
+}
+
+func (u *Unit) WeaponAt(id int) (*def.Weapon, error) {
+	if u.Mech == nil || id < 0 || id >= len(u.Mech.Weapons) {
+		return nil, fmt.Errorf("%w: the unit carries no weapon %d", battle.ErrIllegalAction, id)
+	}
+	return &u.Mech.Weapons[id], nil
+}
+
+func (u *Unit) MapWeaponAt(id int) (*def.MapWeapon, error) {
+	if u.Mech == nil || id < 0 || id >= len(u.Mech.MapWeapons) {
+		return nil, fmt.Errorf("%w: the unit carries no map weapon %d", battle.ErrIllegalAction, id)
+	}
+	return &u.Mech.MapWeapons[id], nil
 }
 
 // PhaseIndex counts the phases from the first phase of the first turn. A

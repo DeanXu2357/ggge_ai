@@ -10,27 +10,30 @@ import (
 // Commit writes the plan of Prepare. Every rule of the exchange is judged
 // there, so nothing here can refuse the plan.
 func Commit(board *state.Battle, plan Plan, dice battle.Dice) Trace {
-	plan.actor.Value.Pos = plan.anchor
+	actor := unitOf(board, plan.actorID)
+	actor.Value.Pos = plan.anchor
 	if plan.kind != battle.ActionAttack {
-		endActivation(plan.actor, false)
+		endActivation(actor, false)
 		return nil
 	}
-	plan.actor.Value.EN -= plan.weapon.ENCost
-	shot := receiverFor(board, plan.target, plan.answer)
+	target := unitOf(board, *plan.targetID)
+	weapon := weaponOf(actor, *plan.weaponID)
+	actor.Value.EN -= weapon.ENCost
+	shot := receiverFor(board, *plan.targetID, plan.answer)
 	trace := fire(board, battle.NodeAttackerSupport, StrikeSupport, plan.joining, dice, &shot)
 	// The hit rate reads the target of the strike, and not the support defender
 	// that takes the strike in its place: the oracle 'decision_hit_probability'
 	// reads the target. Which evasion the game reads when a support defender
 	// takes the strike is not measured, so the value of the oracle stands until
 	// a measurement lands.
-	trace = append(trace, shot.hit(StrikeMain, plan.actor, plan.weapon,
-		dice.Lands(battle.NodeStrike, strikeHitProbability(plan.actor, plan.target, plan.weapon, plan.answer.dodging()))))
-	killed := !shot.struck.Alive()
+	trace = append(trace, shot.hit(StrikeMain, plan.actorID, *plan.weaponID,
+		dice.Lands(battle.NodeStrike, strikeHitProbability(actor, target, weapon, plan.answer.dodging()))))
+	killed := !unitOf(board, shot.struckID).Alive()
 
-	if plan.answer.response != nil && plan.target.Alive() {
+	if plan.answer.response != nil && target.Alive() {
 		trace = append(trace, defenderReply(board, plan, dice)...)
 	}
-	endActivation(plan.actor, killed)
+	endActivation(actor, killed)
 	return trace
 }
 
@@ -49,7 +52,7 @@ func (p Plan) Draws() int {
 		if len(p.answer.joining) > 0 {
 			draws++
 		}
-		if p.answer.counter != nil {
+		if p.answer.counterWeaponID != nil {
 			draws++
 		}
 	}
@@ -66,57 +69,60 @@ func endActivation(actor *state.Unit, killed bool) {
 }
 
 type receiver struct {
-	board           *state.Battle
-	struck          *state.Unit
-	multiplier      float64
-	supportDefender *state.Unit
-	chargeSpent     bool
+	board             *state.Battle
+	struckID          int
+	multiplier        float64
+	supportDefenderID *int
+	chargeSpent       bool
 }
 
 // The support defender of the defender takes the main strike in its place,
 // and it takes it in a defense state.
-func receiverFor(board *state.Battle, target *state.Unit, reply answer) receiver {
-	if reply.supportDefender != nil {
-		return coveredReceiver(board, reply.supportDefender)
+func receiverFor(board *state.Battle, targetID int, reply answer) receiver {
+	if reply.supportDefenderID != nil {
+		return coveredReceiver(board, *reply.supportDefenderID)
 	}
 	multiplier := formula.NoDefenseMultiplier
 	if reply.response != nil {
-		multiplier = defenseMultiplier(reply.response.Stance, target)
+		multiplier = defenseMultiplier(reply.response.Stance, unitOf(board, targetID))
 	}
-	return plainReceiver(board, target, multiplier)
+	return plainReceiver(board, targetID, multiplier)
 }
 
-func plainReceiver(board *state.Battle, struck *state.Unit, multiplier float64) receiver {
-	return receiver{board: board, struck: struck, multiplier: multiplier}
+func plainReceiver(board *state.Battle, struckID int, multiplier float64) receiver {
+	return receiver{board: board, struckID: struckID, multiplier: multiplier}
 }
 
-func coveredReceiver(board *state.Battle, supportDefender *state.Unit) receiver {
+func coveredReceiver(board *state.Battle, supportDefenderID int) receiver {
 	return receiver{
-		board:           board,
-		struck:          supportDefender,
-		multiplier:      defenseMultiplier(battle.StanceDefend, supportDefender),
-		supportDefender: supportDefender,
+		board:             board,
+		struckID:          supportDefenderID,
+		multiplier:        defenseMultiplier(battle.StanceDefend, unitOf(board, supportDefenderID)),
+		supportDefenderID: &supportDefenderID,
 	}
 }
 
-func (v *receiver) hit(kind StrikeKind, shooter *state.Unit, weapon *def.Weapon, landed bool) Strike {
+func (v *receiver) hit(kind StrikeKind, shooterID, weaponID int, landed bool) Strike {
 	record := Strike{
 		Kind:      kind,
-		ShooterID: shooter.ID,
-		StruckID:  v.struck.ID,
-		Weapon:    weapon.Name,
+		ShooterID: shooterID,
+		StruckID:  v.struckID,
+		WeaponID:  weaponID,
 		Landed:    landed,
 	}
 	if !landed {
 		return record
 	}
-	if v.supportDefender != nil && !v.chargeSpent {
-		v.supportDefender.Value.SupportDefendCharges--
+	if v.supportDefenderID != nil && !v.chargeSpent {
+		unitOf(v.board, *v.supportDefenderID).Value.SupportDefendCharges--
 		v.chargeSpent = true
 	}
-	record.Damage = strikeDamage(shooter, v.struck, weapon, v.multiplier)
-	wound(v.board, v.struck, weapon, record.Damage)
-	record.Killed = !v.struck.Alive()
+	shooter := unitOf(v.board, shooterID)
+	struck := unitOf(v.board, v.struckID)
+	weapon := weaponOf(shooter, weaponID)
+	record.Damage = strikeDamage(shooter, struck, weapon, v.multiplier)
+	wound(v.board, struck, weapon, record.Damage)
+	record.Killed = !struck.Alive()
 	return record
 }
 
@@ -156,40 +162,45 @@ func applyDebuff(board *state.Battle, victim *state.Unit, weapon *def.Weapon) {
 
 func defenderReply(board *state.Battle, plan Plan, dice battle.Dice) Trace {
 	var out Trace
-	if len(plan.answer.joining) > 0 && plan.actor.Alive() {
-		shot := plainReceiver(board, plan.actor, formula.NoDefenseMultiplier)
+	actor := unitOf(board, plan.actorID)
+	if len(plan.answer.joining) > 0 && actor.Alive() {
+		shot := plainReceiver(board, plan.actorID, formula.NoDefenseMultiplier)
 		out = fire(board, battle.NodeDefenderSupport, StrikeDefenderSupport, plan.answer.joining, dice, &shot)
 	}
-	if plan.answer.counter != nil && plan.actor.Alive() {
-		out = append(out, counterStrike(board, plan.target, plan.actor, plan.answer.counter, plan.bearer, dice))
+	if plan.answer.counterWeaponID != nil && actor.Alive() {
+		out = append(out, counterStrike(board, *plan.targetID, plan.actorID,
+			*plan.answer.counterWeaponID, plan.bearerID, dice))
 	}
 	return out
 }
 
 func fire(board *state.Battle, node battle.Node, kind StrikeKind, joining []supportAttacker,
 	dice battle.Dice, shot *receiver) Trace {
-	shooters := able(joining)
+	shooters := able(board, joining)
 	if len(shooters) == 0 {
 		return nil
 	}
 	// One die settles the whole support attack, so the probability is the one of
 	// the first shot. A die for each support attacker is issue #47.
-	landed := dice.Lands(node, strikeHitProbability(shooters[0].Unit,
-		shot.struck, shooters[0].Weapon, false))
+	first := unitOf(board, shooters[0].UnitID)
+	landed := dice.Lands(node, strikeHitProbability(first, unitOf(board, shot.struckID),
+		weaponOf(first, shooters[0].WeaponID), false))
 	out := make(Trace, 0, len(shooters))
 	for _, shooter := range shooters {
-		shooter.Unit.Value.SupportAttackCharges--
-		shooter.Unit.Value.EN -= shooter.Weapon.ENCost
-		out = append(out, shot.hit(kind, shooter.Unit, shooter.Weapon, landed))
+		unit := unitOf(board, shooter.UnitID)
+		unit.Value.SupportAttackCharges--
+		unit.Value.EN -= weaponOf(unit, shooter.WeaponID).ENCost
+		out = append(out, shot.hit(kind, shooter.UnitID, shooter.WeaponID, landed))
 	}
 	return out
 }
 
-func able(joining []supportAttacker) []supportAttacker {
+func able(board *state.Battle, joining []supportAttacker) []supportAttacker {
 	out := make([]supportAttacker, 0, len(joining))
 	for _, one := range joining {
-		if one.Unit.Alive() && one.Unit.Value.SupportAttackCharges > 0 &&
-			hasENFor(one.Unit, *one.Weapon) {
+		unit := unitOf(board, one.UnitID)
+		if unit.Alive() && unit.Value.SupportAttackCharges > 0 &&
+			hasENFor(unit, *weaponOf(unit, one.WeaponID)) {
 			out = append(out, one)
 		}
 	}
@@ -197,14 +208,19 @@ func able(joining []supportAttacker) []supportAttacker {
 }
 
 // The counter weapon spends its energy on a miss as well.
-func counterStrike(board *state.Battle, defender, attacker *state.Unit, weapon *def.Weapon,
-	bearer *state.Unit, dice battle.Dice) Strike {
+func counterStrike(board *state.Battle, defenderID, attackerID, weaponID int,
+	bearerID *int, dice battle.Dice) Strike {
+	defender := unitOf(board, defenderID)
+	weapon := weaponOf(defender, weaponID)
 	defender.Value.EN -= weapon.ENCost
 	landed := dice.Lands(battle.NodeCounter,
-		strikeHitProbability(defender, attacker, weapon, false))
-	shot := plainReceiver(board, attacker, formula.NoDefenseMultiplier)
-	if bearer != nil && bearer.Alive() && bearer.Value.SupportDefendCharges > 0 {
-		shot = coveredReceiver(board, bearer)
+		strikeHitProbability(defender, unitOf(board, attackerID), weapon, false))
+	shot := plainReceiver(board, attackerID, formula.NoDefenseMultiplier)
+	if bearerID != nil {
+		bearer := unitOf(board, *bearerID)
+		if bearer.Alive() && bearer.Value.SupportDefendCharges > 0 {
+			shot = coveredReceiver(board, *bearerID)
+		}
 	}
-	return shot.hit(StrikeCounter, defender, weapon, landed)
+	return shot.hit(StrikeCounter, defenderID, weaponID, landed)
 }

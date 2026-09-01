@@ -38,10 +38,10 @@ issues of the port (#60 to #68).
   systems 'geometry' and 'formula', and never another writing
   system (user ruling 2026-08-30, issue #88).
 - Three layers hold the data of a battle. The contract
-  'engine/battle' holds the wire form. 'battle.Unit' holds the id,
-  the faction, the position, the size, HP, EN, SP and their
-  maxima, the charges, the chance steps, the acted flag, the ammo,
-  the debuffs, the skills, its 'battle.Mech' and its
+  'engine/battle' holds the wire form. 'battle.Unit' holds the
+  faction, the position, the size, HP, EN, SP and their
+  maxima, the charges, the chance steps, the acted flag, the map
+  weapon ammunition, the debuffs, the skills, its 'battle.Mech' and its
   'battle.Pilot'; 'battle.BattleState' holds the bounds, the
   terrain, the phase, the turn and the units. The fields are
   exported and they carry the JSON tags of the wire. A consumer of
@@ -57,14 +57,14 @@ issues of the port (#60 to #68).
   and the skill enums from the contract. A unit points at its mech
   and at its pilot, so every copy of a battle shares them.
 - 'engine/battle/state' holds the data that a battle writes.
-  'state.Unit' holds the identity, the bounds of the pools and the
-  two pointers into 'def'. 'state.UnitValue', in the field
+  'state.Unit' holds the bounds of the pools and the two
+  pointers into 'def'. 'state.UnitValue', in the field
   'Value', holds the position, HP, EN, SP, the acted flag, the
-  chance steps, the two charge counts, the skills, the ammo and
-  the debuffs. 'state.Battle' holds the units, the phase, the
+  chance steps, the two charge counts, the skills, the map weapon
+  ammunition and the debuffs. 'state.Battle' holds the units, the phase, the
   turn, the bounds, the terrain and the terrain cells. The
   placement rule: 'UnitValue' holds every field that a rule of a
-  battle writes, plus the three pools a unit spends ('SP', 'Ammo'
+  battle writes, plus the three pools a unit spends ('SP', 'MapWeaponAmmo'
   and 'Skills'); a maximum is the bound of a pool and not a pool,
   so it stands for the whole battle and sits on 'state.Unit'. A
   rule reads and writes 'unit.Value.HP', never 'unit.HP' (user
@@ -82,7 +82,7 @@ issues of the port (#60 to #68).
   battle. The contract holds 'Unit.Footprint', 'Footprint.Within',
   'Footprint.Cells', 'Cell.Before' and 'Faction.Opposing'. The
   state package holds 'Unit.Alive', 'Unit.Footprint',
-  'Battle.Unit' and 'Battle.PhaseIndex'. The definition package
+  'Unit.WeaponAt', 'Battle.UnitAt' and 'Battle.PhaseIndex'. The definition package
   holds 'Weapon.Reaches' and 'Weapon.Debuff'.
 - The behavior systems are the only code that writes the state of
   a battle. The writers of a field of a 'state.Battle' are
@@ -204,7 +204,8 @@ The section 'Terrain' holds the kinds.
 
 An entry of 'victory' carries 'kind', one of 'destroy_all',
 'destroy_target' and 'reach_cell', with the parameters of that kind.
-The engine stores the list and reads no entry: the issue that judges
+The parameter 'target_id' of 'destroy_target' is a position in the
+list 'enemies' of this request. The engine stores the list and reads no entry: the issue that judges
 the end of a battle reads it.
 
 The field 'events' is stored and not read: the issue that gives a
@@ -236,8 +237,8 @@ Response: 'placed' (the unit ids on the board) and 'cells' (the
 cells that still accept a unit).
 
 Refusals: no_session; illegal_state when the deploy phase is over;
-illegal_action when the cell is not a deploy cell, when the cell
-holds a unit, or when the unit id is on the board.
+illegal_action when the cell is not a deploy cell, or when the cell
+holds a unit.
 
 ### roster
 
@@ -292,8 +293,11 @@ ammunition: a direct weapon spends none. It carries no power: the
 engine drops the power of a weapon when it reads the state.
 
 A map weapon entry holds 'name', 'apply_shape', 'effect_shape',
-'en_cost', 'ammo', 'accuracy', 'affects' and 'usable_after_move'. A
-null 'ammo' is a map weapon that spends no ammunition. The section
+'en_cost', 'ammo', 'accuracy', 'affects' and 'usable_after_move'.
+'ammo' is the count that is left: the entry at position i reads
+'map_weapon_ammo[i]' of the unit. Whether a map weapon spends
+ammunition at all is a fact of its definition, in 'ammo_max', and
+not of the count. The section
 'Types' holds the meaning of the two shapes and of 'affects'.
 
 An entry of the two lists carries no weapon ability. The section
@@ -356,7 +360,8 @@ map attack permits no response attack, and no other kind of action
 reaches a unit, so the command refuses every other kind. A client
 that runs one of them sends 'act' and no question.
 
-A response attack entry holds the forecast 'incoming': what the
+A response attack entry holds 'stance' and, on a counter entry,
+the 'weapon_id' that counters. It holds the forecast 'incoming': what the
 strike of the attacker does to the defender under that stance. A
 counter entry also holds the forecast 'counter': what the counter
 does to the attacker. A stance entry reads no support unit. A
@@ -365,7 +370,7 @@ carries its own forecast in 'support_defenders'.
 
 A support defense entry holds 'unit_id' and the forecast
 'incoming': what the strike does to that support defender. A support
-attack entry holds 'unit_id', 'weapon' and the forecast 'strike':
+attack entry holds 'unit_id', 'weapon_id' and the forecast 'strike':
 what the shot of that unit does to its foe. The support attackers
 of the defender fire at the attacker, and the support attackers of
 the attacker fire at the defender.
@@ -413,6 +418,9 @@ The field 'action' holds the move of the unit. The engine resolves
 the move first and the action second; the section 'Unit payload,
 action, and response attack' holds the rule.
 
+The 'unit_id' of the request and the 'unit_id' of the action name
+one unit. A request where the two differ is a bad_request.
+
 The field 'response_attack' is necessary for an action of the kind
 'attack', because such an action always gives a list. The field is
 not permitted for every other kind. A response attack inside
@@ -420,12 +428,12 @@ not permitted for every other kind. A response attack inside
 'response_attack' of the request.
 
 The client names every support unit of the engagement, and the
-engine names none. The action holds 'support_attackers', the units
+engine names none. The action holds 'support_attacker_ids', the units
 of the side of the actor that join the strike, and
-'support_defender', the unit that takes a counter strike for the
+'support_defender_id', the unit that takes a counter strike for the
 actor. The response attack holds the same two fields for the
-defending side: 'support_attackers' join the answer of the
-defender, and 'support_defender' is the unit that takes the strike
+defending side: 'support_attacker_ids' join the answer of the
+defender, and 'support_defender_id' is the unit that takes the strike
 in place of the defender. Each list holds the unit ids that
 'response_attacks' reports, and no unit two times.
 
@@ -460,12 +468,12 @@ Response: 'events' and 'board'.
 
 'events' is the resolution in order. An entry carries 'event'. The
 value 'strike' carries 'strike' (support, strike, defender_support,
-or counter), 'shooter_id', 'struck_id', 'weapon', 'landed',
+or counter), 'shooter_id', 'struck_id', 'weapon_id', 'landed',
 'damage', and 'killed'. The value 'phase' carries 'turn' and
 'phase': the engine rotated the phase after the activation, and
 the section 'Turn cycle' holds the rule.
 
-'board' is the summary: 'turn', 'phase', 'pending' (the ids of the
+'board' is the summary: 'turn', 'phase', 'pending_ids' (the
 units of the phase that can still act), and 'gone' (the sides
 'ally' and 'enemy' with no living unit, in that order). The engine
 judges no end of the battle: a board with one side gone answers
@@ -507,8 +515,9 @@ what a skill does.
 
 Refusals: no_session; illegal_state when the phase of the unit is
 not the current phase, or when the unit acted in this turn;
-illegal_action for a target that is no foe, a weapon the unit does
-not carry, a weapon the unit cannot pay for, a weapon that does not
+illegal_action for a target that is no foe, an attack that fills
+both 'weapon_id' and 'map_weapon_id' or neither, a weapon the unit
+does not carry, a weapon the unit cannot pay for, a weapon that does not
 reach the target, a support unit that cannot join or intercept, a
 support attacker list above the cap of the rules, a response
 attack that breaks a rule of the stance, an absent necessary
@@ -619,6 +628,39 @@ what one unit carries, and the Python side holds no such answer.
 
 ## Types
 
+### Identity
+
+The engine issues every identifier, and an identifier is a
+position. A unit id is the position of the unit in the unit list
+of the state. A weapon id is the position of the weapon in
+'weapons' of its mech. A map weapon id is the position in
+'map_weapons'. Every id on the wire is an integer, and the name of
+an id field ends in '_id' or '_ids'.
+
+A client holds an id as an opaque handle. It does not interpret
+the handle, it does not reorder the list that the handle indexes,
+and it hands the handle back unchanged. An id is stable inside one
+session and promises nothing across sessions.
+
+The unit list is append only. The engine never deletes a unit and
+never reorders the list. A destroyed unit keeps its place with no
+hit points left.
+
+A name is not an identifier. The 'name' of a weapon entry says
+what the weapon is, for a person. The position says which weapon
+it is, for the engine.
+
+The engine bounds-checks every id that arrives on the wire, and it
+refuses a bad id with 'illegal_action'. There is no in-band value
+for "no unit": a field that can hold no id is null.
+
+A stage definition can point at an enemy by position. The victory
+entry and the enemy list travel in one 'init' payload, so its
+'target_id' indexes the list beside it. The loader sends the enemy
+list in the order of the definition, and the engine keeps that
+order, so one definition gives the same positions in every
+session.
+
 ### Unit payload, action, and response attack
 
 The authority for these three schemas is the Go package
@@ -697,6 +739,9 @@ The rules of the wire form:
   The engine does not derive the center from the cell of the actor.
 - Every field of the type is on the wire. A field that holds no
   value is null.
+- An action that fires carries exactly one of 'weapon_id' and
+  'map_weapon_id'. An action of a kind that fires nothing carries
+  both null.
 - A field with three values keeps its three values: 'hit' is true,
   false, or null. Null says that the caller settles that node
   somewhere else.
@@ -776,9 +821,11 @@ audience of a skill are two different sets (user ruling
 2026-08-31).
 
 The field 'ammo_max' of a map weapon is the static maximum. The
-field 'ammo' of a unit is the count that is left, keyed by the name
-of the weapon. The maximum belongs to the definition, and the count
-belongs to the state.
+field 'map_weapon_ammo' of a unit is the count that is left: one
+entry for each entry of 'map_weapons' of its mech, in the same
+order. The maximum belongs to the definition, and the count belongs
+to the state. 'load' refuses a unit whose count list and map weapon
+list differ in length.
 
 The producer of a map weapon can leave the two shapes empty. The
 panel of the game shows no cells and no heading, so the vision
@@ -800,7 +847,7 @@ the maxima of state, and it takes no part in a computation:
 | hp, max_hp | The hit points now, and their maximum |
 | en, en_max | The energy now, and its maximum |
 | sp, sp_max | The skill points of the pilot now, and their maximum |
-| pos, size, acted, the charge counters, ammo, debuffs, skills | The board state, as before |
+| pos, size, acted, the charge counters, map_weapon_ammo, debuffs, skills | The board state, as before |
 | pilot | The pilot, as data |
 | mech | The mech, as data |
 
@@ -1041,3 +1088,23 @@ difference between two integers is 1.
   exchange. This version moves no byte of any board: every shape that
   a producer writes today is empty. A client of version 1.10 reads a
   1.11 area and it reads the two shapes reversed.
+- A ninth exception on record: version 2.0 (2026-09-01, issue #89)
+  made the position the identity. The engine issues every id, and
+  an id is the position in the list that holds the thing; the
+  section 'Identity' holds the scheme. The unit payload loses
+  'unit_id' and the ammunition map: the list 'map_weapon_ammo'
+  stands in the place of 'ammo', one count for each map weapon, in
+  the same order. The action and the response attack lose 'weapon',
+  'support_defender' and 'support_attackers'; they carry
+  'weapon_id', 'map_weapon_id', 'support_defender_id' and
+  'support_attacker_ids', and an action that fires fills exactly
+  one of the two weapon fields. The 'target_id' of an action and of
+  a victory entry is a position. The answers move with the wire:
+  every 'unit_id' is a position, a support attack entry carries
+  'weapon_id', a strike event carries 'shooter_id', 'struck_id' and
+  'weapon_id', the board summary carries 'pending_ids' in the place
+  of 'pending', 'placed' of 'place' is a position list, and 'ammo'
+  of a map weapon entry is an integer, never null. A weapon keeps
+  its 'name' as data for a person. This is the first breaking wire
+  change of the engine: a client of a 1.x version does not read a
+  2.0 board.

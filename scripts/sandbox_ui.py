@@ -44,6 +44,14 @@ MAX_BODY_BYTES = 1 << 20
 ENGINE_QUERIES = ("roster", "deploy_cells")
 
 
+def _unit_id(raw: str | None) -> int | None:
+    """A unit id is a position, so a query that carries no integer names none."""
+    try:
+        return None if raw is None else int(raw)
+    except ValueError:
+        return None
+
+
 class SandboxHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     sandbox: EngineSession
@@ -65,7 +73,7 @@ class SandboxHandler(BaseHTTPRequestHandler):
         elif path == "/api/engine":
             wanted = parse_qs(urlsplit(self.path).query).get("unit", [None])[0]
             with self.lock:
-                payload = self._engine_report(wanted)
+                payload = self._engine_report(_unit_id(wanted))
             self._json(HTTPStatus.OK, payload)
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -93,7 +101,7 @@ class SandboxHandler(BaseHTTPRequestHandler):
     def log_message(self, *args: Any) -> None:
         return
 
-    def _engine_report(self, unit_id: str | None = None) -> dict[str, Any]:
+    def _engine_report(self, unit_id: int | None = None) -> dict[str, Any]:
         try:
             hello = self.engine.hello()
         except (EngineError, EngineDead, EngineTimeout) as exc:
@@ -361,10 +369,15 @@ function entryOf(uid) {
   return pending.units.find((entry) => entry.unit_id === uid) || null;
 }
 
+// 單位在 units 陣列的位置就是引擎給的識別；頁面另外掛一個標籤給人看。
+function labelOf(uid) {
+  return "#" + uid;
+}
+
 function apply(snapshot, decision) {
   state = snapshot;
   pending = decision;
-  if (actor && !entryOf(actor)) actor = null;
+  if (actor !== null && !entryOf(actor)) actor = null;
   drawHeader();
   drawBoard();
   renderPlay();
@@ -373,7 +386,7 @@ function apply(snapshot, decision) {
 }
 
 function refreshEngine() {
-  const query = actor ? "?unit=" + encodeURIComponent(actor) : "";
+  const query = actor === null ? "" : "?unit=" + encodeURIComponent(actor);
   return fetch("/api/engine" + query)
     .then((response) => response.json())
     .then((report) => {
@@ -438,7 +451,7 @@ function drawBoard() {
     }
   }
   const at = (cell) => cells[cell[1] * cols + cell[0]];
-  const entry = actor ? entryOf(actor) : null;
+  const entry = actor === null ? null : entryOf(actor);
   if (entry) {
     entry.actions
       .filter((candidate) => candidate.kind === "reposition")
@@ -453,22 +466,21 @@ function drawBoard() {
   if (picked && picked.move_to) { const c = at(picked.move_to); if (c) c.classList.add("aim"); }
   if (picked && picked.aim) { const c = at(picked.aim); if (c) c.classList.add("aim"); }
 
-  state.units.forEach((unit) => {
+  state.units.forEach((unit, uid) => {
     const cell = at(unit.pos);
     if (!cell) return;
-    const name = unit.unit_id;
-    const piece = node("div", "piece " + unit.faction + (unit.acted ? " acted" : ""), name);
-    piece.dataset.uid = name;
-    if (name === inspected) piece.classList.add("on");
-    if (name === actor) piece.classList.add("actor");
+    const piece = node("div", "piece " + unit.faction + (unit.acted ? " acted" : ""), labelOf(uid));
+    piece.dataset.uid = String(uid);
+    if (uid === inspected) piece.classList.add("on");
+    if (uid === actor) piece.classList.add("actor");
     const bar = node("div", "bar");
     const fill = node("i");
     fill.style.width = Math.max(0, Math.round(100 * unit.hp / unit.max_hp)) + "%";
     bar.appendChild(fill);
     piece.appendChild(bar);
     piece.addEventListener("click", () => {
-      inspectUnit(name);
-      if (entryOf(name)) command(name);
+      inspectUnit(uid);
+      if (entryOf(uid)) command(uid);
       else drawBoard();
     });
     cell.appendChild(piece);
@@ -519,11 +531,13 @@ function forecast(candidate) {
 
 function candidateLabel(candidate) {
   if (candidate.kind === "attack") {
-    return "攻擊 " + candidate.target_id + "／" + candidate.weapon + forecast(candidate)
+    return "攻擊 " + labelOf(candidate.target_id) + "／武裝 " + candidate.weapon_id
+      + forecast(candidate)
       + (candidate.move_to ? "　移動 " + cellText(candidate.move_to) : "");
   }
   if (candidate.kind === "map_attack") {
-    return "地圖兵器 " + candidate.weapon + " → " + cellText(candidate.aim) + forecast(candidate);
+    return "地圖兵器 " + candidate.map_weapon_id + " → " + cellText(candidate.aim)
+      + forecast(candidate);
   }
   if (candidate.kind === "reposition") return "移動 → " + cellText(candidate.move_to);
   if (candidate.kind === "standby") return "待機";
@@ -533,10 +547,8 @@ function candidateLabel(candidate) {
 
 function optionLabel(entry) {
   const parts = [STANCE_NAME[entry.stance] || entry.stance];
-  if (entry.weapon) parts.push(entry.weapon);
-  if (entry.support_defend) parts.push("支援防禦");
-  if ((entry.support_attackers || []).length) {
-    parts.push("支援攻擊 " + entry.support_attackers.join("、"));
+  if (entry.weapon_id !== null && entry.weapon_id !== undefined) {
+    parts.push("武裝 " + entry.weapon_id);
   }
   const shape = forecast(entry).trim();
   if (shape) parts.push(shape);
@@ -591,12 +603,12 @@ function renderPlay() {
   box.appendChild(node("h3", null, "待啟動（" + pending.units.length + "）"));
   const list = node("div", "units");
   pending.units.forEach((entry) => {
-    list.appendChild(button(entry.unit_id, () => command(entry.unit_id),
+    list.appendChild(button(labelOf(entry.unit_id), () => command(entry.unit_id),
       entry.unit_id === actor));
   });
   box.appendChild(list);
 
-  const entry = actor ? entryOf(actor) : null;
+  const entry = actor === null ? null : entryOf(actor);
   if (!entry) {
     box.appendChild(node("p", "dim", "選一台單位下令。"));
     return;
@@ -630,9 +642,9 @@ function act() {
   const candidate = Object.assign({}, picked);
   const responseAttack = option === null ? null : {
     stance: option.stance,
-    weapon: option.weapon,
-    support_defend: option.support_defend,
-    support_attack: option.support_attack,
+    weapon_id: option.weapon_id === undefined ? null : option.weapon_id,
+    support_defender_id: null,
+    support_attacker_ids: [],
   };
   post("/api/act", { candidate: candidate, response_attack: responseAttack })
     .then((payload) => {
@@ -658,19 +670,19 @@ function tableRow(table, key, value) {
 function inspectUnit(uid) {
   inspected = uid;
   document.querySelectorAll(".piece").forEach((piece) => {
-    piece.classList.toggle("on", piece.dataset.uid === uid);
+    piece.classList.toggle("on", piece.dataset.uid === String(uid));
   });
-  const unit = state.units.find((candidate) => candidate.unit_id === uid);
+  const unit = state.units[uid];
   const panel = el("panel");
   panel.textContent = "";
   if (!unit) {
     panel.appendChild(node("h2", null, "單位資訊"));
-    panel.appendChild(node("p", "dim", uid + " 已不在盤面上。"));
+    panel.appendChild(node("p", "dim", labelOf(uid) + " 已不在盤面上。"));
     return;
   }
   panel.appendChild(
     node("h2", null,
-      unit.unit_id + "（" + (FACTION_NAME[unit.faction] || unit.faction) + "）"));
+      labelOf(uid) + "（" + (FACTION_NAME[unit.faction] || unit.faction) + "）"));
   const table = document.createElement("table");
   tableRow(table, "格位", cellText(unit.pos));
   tableRow(table, "HP", unit.hp + " / " + unit.max_hp);
@@ -691,22 +703,21 @@ function inspectUnit(uid) {
   tableRow(table, "技能", unit.skills.map((s) => s.kind + "×" + s.uses).join("、") || "無");
   panel.appendChild(table);
   const box = node("div", "wep");
-  unit.mech.weapons.forEach((weapon) => {
+  unit.mech.weapons.forEach((weapon, weaponId) => {
     const line = node("div");
-    line.appendChild(node("b", null, weapon.name));
+    line.appendChild(node("b", null, "#" + weaponId + " " + weapon.name));
     const parts = [
       "威力 " + weapon.power,
       "射程 " + weapon.range_min + "-" + weapon.range_max,
       "EN " + weapon.en_cost,
       "命中補正 " + weapon.accuracy,
     ];
-    if (weapon.ammo !== null && weapon.ammo !== undefined) parts.push("彈藥 " + weapon.ammo);
     line.appendChild(node("div", "dim", parts.join("／")));
     box.appendChild(line);
   });
-  (unit.mech.map_weapons || []).forEach((weapon) => {
+  (unit.mech.map_weapons || []).forEach((weapon, weaponId) => {
     const line = node("div");
-    line.appendChild(node("b", null, weapon.name));
+    line.appendChild(node("b", null, "#" + weaponId + " " + weapon.name));
     const parts = [
       "地圖兵器",
       "威力 " + weapon.power,
@@ -715,6 +726,7 @@ function inspectUnit(uid) {
       "EN " + weapon.en_cost,
       "命中補正 " + weapon.accuracy,
       "作用對象 " + weapon.affects,
+      "彈藥 " + (unit.map_weapon_ammo || [])[weaponId],
     ];
     if (weapon.ammo_max) parts.push("彈藥上限 " + weapon.ammo_max);
     line.appendChild(node("div", "dim", parts.join("／")));

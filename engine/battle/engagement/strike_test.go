@@ -10,8 +10,12 @@ import (
 
 var oneCell = battle.Cell{1, 1}
 
-func unitAt(id string, faction battle.Faction, anchor battle.Cell) battle.Unit {
-	return battle.Unit{ID: id, Faction: faction,
+func idOf(value int) *int {
+	return &value
+}
+
+func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
+	return battle.Unit{Faction: faction,
 		Pos: anchor, Size: oneCell, HP: 100,
 		Mech: battle.Mech{}, Pilot: battle.Pilot{}}
 }
@@ -24,21 +28,12 @@ func board(units ...battle.Unit) *state.Battle {
 	return &out
 }
 
-func unitIn(units []battle.Unit, id string) *battle.Unit {
-	for index := range units {
-		if units[index].ID == id {
-			return &units[index]
-		}
-	}
-	return nil
-}
-
 func rifle(name string, rangeMin, rangeMax int) battle.Weapon {
 	return battle.Weapon{Name: name, RangeMin: rangeMin, RangeMax: rangeMax, UsableAfterMove: true}
 }
 
-func fighter(id string, faction battle.Faction, anchor battle.Cell) battle.Unit {
-	out := unitAt(id, faction, anchor)
+func fighter(faction battle.Faction, anchor battle.Cell) battle.Unit {
+	out := unitAt(faction, anchor)
 	out.HP, out.MaxHP = 12000, 12000
 	out.EN, out.ENMax = 140, 140
 	out.Mech.Attack, out.Mech.Defense = 4200, 3900
@@ -71,7 +66,7 @@ func mapShells() battle.MapWeapon {
 
 func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 	b := shootout()
-	attacker, defender := b.Unit("a1"), b.Unit("e1")
+	attacker, defender := &b.Units[actorID], &b.Units[targetID]
 	weapon := &attacker.Mech.Weapons[0]
 
 	plain := strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
@@ -92,7 +87,7 @@ func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 
 func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
 	b := shootout()
-	attacker, defender := b.Unit("a1"), b.Unit("e1")
+	attacker, defender := &b.Units[actorID], &b.Units[targetID]
 	weapon := &attacker.Mech.Weapons[0]
 
 	plain := strikeHitProbability(attacker, defender, weapon, false)
@@ -110,10 +105,10 @@ func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
 }
 
 func TestTheDefenseMultiplierOfEveryStance(t *testing.T) {
-	guard := fighter("d2", battle.FactionAlly, battle.Cell{0, 1})
+	guard := fighter(battle.FactionAlly, battle.Cell{0, 1})
 	guard.HasShield = true
-	b := board(fighter("d1", battle.FactionAlly, battle.Cell{0, 0}), guard)
-	plain, shielded := b.Unit("d1"), b.Unit("d2")
+	b := board(fighter(battle.FactionAlly, battle.Cell{0, 0}), guard)
+	plain, shielded := &b.Units[0], &b.Units[1]
 
 	want := map[battle.Stance]float64{
 		battle.StanceDefend:  formula.DefendMultiplier,
@@ -136,26 +131,26 @@ func TestTheDefenseMultiplierOfEveryStance(t *testing.T) {
 }
 
 func TestTheCounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
-	defender := fighter("d1", battle.FactionAlly, battle.Cell{0, 0})
+	defender := fighter(battle.FactionAlly, battle.Cell{0, 0})
 	costly := beam()
 	costly.Name, costly.ENCost = "costly", 200
 	near := rifle("saber", 1, 1)
 	defender.Mech.Weapons = []battle.Weapon{costly, beam(), near}
-	b := board(defender, fighter("e1", battle.FactionEnemy, battle.Cell{2, 0}))
+	b := board(defender, fighter(battle.FactionEnemy, battle.Cell{2, 0}))
 
-	attacker := b.Unit("e1").Footprint()
-	first := counterWeapon(b.Unit("d1"), "", attacker)
-	named := counterWeapon(b.Unit("d1"), "saber", attacker)
-	unpaid := counterWeapon(b.Unit("d1"), "costly", attacker)
+	attacker := b.Units[1].Footprint()
+	first, firstFires := counterWeapon(&b.Units[0], nil, attacker)
+	_, saberFires := counterWeapon(&b.Units[0], idOf(2), attacker)
+	_, costlyFires := counterWeapon(&b.Units[0], idOf(0), attacker)
 
-	if first == nil || first.Name != "beam rifle" {
-		t.Fatalf("an empty name takes the first weapon that fits: %+v", first)
+	if !firstFires || first != 1 {
+		t.Fatalf("no choice takes the first weapon that fits: %d %v", first, firstFires)
 	}
-	if named != nil {
-		t.Fatalf("the saber reaches one cell, and the attacker stands two away: %+v", named)
+	if saberFires {
+		t.Fatal("the saber reaches one cell, and the attacker stands two away")
 	}
-	if unpaid != nil {
-		t.Fatalf("a weapon that the unit cannot pay for counters nothing: %+v", unpaid)
+	if costlyFires {
+		t.Fatal("a weapon that the unit cannot pay for counters nothing")
 	}
 }
 

@@ -72,9 +72,9 @@ func livingUnits(state *board.Board) []battle.Unit {
 //     removes it at the end of 'step'. The op filters its answer on the life of
 //     the unit, and the expectation of Python holds the same units.
 //  5. The client names the support units of each side (issue #63). Python fires
-//     every eligible supporter on every attack, and it picks the support defender
-//     itself. Each decision here names the units that Python picked, so the two
-//     runtimes fire the same units.
+//     every eligible supporter on every attack, and it chooses the support
+//     defender itself. Each decision here names the units that Python chose, so
+//     the two runtimes fire the same units.
 //  6. The support attack of the attacking side and the support attack of the
 //     defending side are two chance nodes of the engine. Python settles both
 //     with the one field 'support_hit'. The dice object of each check gives the
@@ -106,7 +106,7 @@ func TestTheResolutionBoardsRunTheApplyOp(t *testing.T) {
 func TestAnApplyInputOutsideTheContractStopsTheOp(t *testing.T) {
 	op := ops["apply"]
 
-	_, err := op(nil, json.RawMessage(`{"decision":{"unit_id":"a1"},"morale":7}`))
+	_, err := op(nil, json.RawMessage(`{"decision":{"unit_id":0},"morale":7}`))
 
 	if err == nil {
 		t.Fatal("a field that the op does not hold must stop the check")

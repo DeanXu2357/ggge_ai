@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
@@ -11,28 +12,37 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
+// The three units of the load stand at the positions 0, 1 and 2, and each
+// position is the id of its unit.
+const (
+	firstAllyID  = 0
+	secondAllyID = 1
+	enemyID      = 2
+)
+
 const twoSidesLine = `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
 	`"units":[` +
-	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
-	`{"unit_id":"a2","faction":"ally","pos":[1,2],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
-	`{"unit_id":"e1","faction":"enemy","pos":[4,4],"hp":100,"max_hp":100,"en":100,"en_max":140}` +
+	`{"faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
+	`{"faction":"ally","pos":[1,2],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
+	`{"faction":"enemy","pos":[4,4],"hp":100,"max_hp":100,"en":100,"en_max":140}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
-func act(id, unit, kind, dice string) string {
-	return `{"id":"` + id + `","cmd":"act","payload":{"unit_id":"` + unit + `","action":{"unit_id":"` + unit +
-		`","kind":"` + kind + `"},"dice":` + dice + `}}`
+func act(id string, unit int, kind, dice string) string {
+	position := strconv.Itoa(unit)
+	return `{"id":"` + id + `","cmd":"act","payload":{"unit_id":` + position + `,"action":{"unit_id":` + position +
+		`,"kind":"` + kind + `"},"dice":` + dice + `}}`
 }
 
 func TestActWithNoBoardIsRefused(t *testing.T) {
-	replies := serve(t, New(board.New()), act("a", "a1", "standby", `{"mode":"sampled"}`))
+	replies := serve(t, New(board.New()), act("a", firstAllyID, "standby", `{"mode":"sampled"}`))
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeNoSession {
 		t.Fatalf("reply: %+v", replies[0])
 	}
 }
 
 func TestAStandbyAnswersNoEventAndThePendingSibling(t *testing.T) {
-	replies := serve(t, New(board.New()), twoSidesLine, act("a", "a1", "standby", `{"mode":"sampled"}`))
+	replies := serve(t, New(board.New()), twoSidesLine, act("a", firstAllyID, "standby", `{"mode":"sampled"}`))
 	if !replies[1].OK {
 		t.Fatalf("act: %+v", replies[1])
 	}
@@ -46,15 +56,16 @@ func TestAStandbyAnswersNoEventAndThePendingSibling(t *testing.T) {
 	if len(answer.Events) != 0 || answer.Board.Turn != 1 || answer.Board.Phase != battle.FactionAlly {
 		t.Fatalf("answer: %+v", answer)
 	}
-	if len(answer.Board.Pending) != 1 || answer.Board.Pending[0] != "a2" || len(answer.Board.Gone) != 0 {
+	if len(answer.Board.PendingIDs) != 1 || answer.Board.PendingIDs[0] != secondAllyID ||
+		len(answer.Board.Gone) != 0 {
 		t.Fatalf("summary: %+v", answer.Board)
 	}
 }
 
 func TestTheLastActivationRotatesAndTheEventsSayWhere(t *testing.T) {
 	replies := serve(t, New(board.New()), twoSidesLine,
-		act("a", "a1", "standby", `{"mode":"sampled"}`),
-		act("b", "a2", "standby", `{"mode":"sampled"}`))
+		act("a", firstAllyID, "standby", `{"mode":"sampled"}`),
+		act("b", secondAllyID, "standby", `{"mode":"sampled"}`))
 	var answer struct {
 		Events []json.RawMessage   `json:"events"`
 		Board  battle.BoardSummary `json:"board"`
@@ -71,7 +82,7 @@ func TestTheLastActivationRotatesAndTheEventsSayWhere(t *testing.T) {
 }
 
 func TestAUnitOffPhaseIsIllegalState(t *testing.T) {
-	replies := serve(t, New(board.New()), twoSidesLine, act("a", "e1", "standby", `{"mode":"sampled"}`))
+	replies := serve(t, New(board.New()), twoSidesLine, act("a", enemyID, "standby", `{"mode":"sampled"}`))
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalState {
 		t.Fatalf("reply: %+v", replies[1])
 	}
@@ -79,15 +90,15 @@ func TestAUnitOffPhaseIsIllegalState(t *testing.T) {
 
 func TestAUnitThatActedIsIllegalState(t *testing.T) {
 	replies := serve(t, New(board.New()), twoSidesLine,
-		act("a", "a1", "standby", `{"mode":"sampled"}`),
-		act("b", "a1", "standby", `{"mode":"sampled"}`))
+		act("a", firstAllyID, "standby", `{"mode":"sampled"}`),
+		act("b", firstAllyID, "standby", `{"mode":"sampled"}`))
 	if replies[2].OK || replies[2].Error.Code != protocol.CodeIllegalState {
 		t.Fatalf("reply: %+v", replies[2])
 	}
 }
 
 func TestAResponseAttackOnAStandbyIsIllegalAction(t *testing.T) {
-	line := `{"id":"a","cmd":"act","payload":{"unit_id":"a1","action":{"unit_id":"a1","kind":"standby"},` +
+	line := `{"id":"a","cmd":"act","payload":{"unit_id":0,"action":{"unit_id":0,"kind":"standby"},` +
 		`"response_attack":{"stance":"none"},"dice":{"mode":"sampled"}}}`
 	replies := serve(t, New(board.New()), twoSidesLine, line)
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
@@ -96,8 +107,8 @@ func TestAResponseAttackOnAStandbyIsIllegalAction(t *testing.T) {
 }
 
 func TestAResponseAttackInsideTheActionIsBadRequest(t *testing.T) {
-	line := `{"id":"a","cmd":"act","payload":{"unit_id":"a1",` +
-		`"action":{"unit_id":"a1","kind":"standby","response_attack":{"stance":"none"}},` +
+	line := `{"id":"a","cmd":"act","payload":{"unit_id":0,` +
+		`"action":{"unit_id":0,"kind":"standby","response_attack":{"stance":"none"}},` +
 		`"dice":{"mode":"sampled"}}}`
 	replies := serve(t, New(board.New()), twoSidesLine, line)
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeBadRequest {
@@ -106,7 +117,7 @@ func TestAResponseAttackInsideTheActionIsBadRequest(t *testing.T) {
 }
 
 func TestAnAttackWithNoResponseAttackIsIllegalAction(t *testing.T) {
-	line := `{"id":"a","cmd":"act","payload":{"unit_id":"a1","action":{"unit_id":"a1","kind":"attack","target_id":"e1","weapon":"gun"},` +
+	line := `{"id":"a","cmd":"act","payload":{"unit_id":0,"action":{"unit_id":0,"kind":"attack","target_id":2,"weapon_id":0},` +
 		`"dice":{"mode":"forced","outcomes":["hit"]}}}`
 	replies := serve(t, New(board.New()), twoSidesLine, line)
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
@@ -115,7 +126,7 @@ func TestAnAttackWithNoResponseAttackIsIllegalAction(t *testing.T) {
 }
 
 func TestAnOutcomeOutsideTheLabelsIsBadRequest(t *testing.T) {
-	replies := serve(t, New(board.New()), twoSidesLine, act("a", "a1", "standby", `{"mode":"forced","outcomes":["yes"]}`))
+	replies := serve(t, New(board.New()), twoSidesLine, act("a", firstAllyID, "standby", `{"mode":"forced","outcomes":["yes"]}`))
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeBadRequest {
 		t.Fatalf("reply: %+v", replies[1])
 	}
@@ -123,7 +134,7 @@ func TestAnOutcomeOutsideTheLabelsIsBadRequest(t *testing.T) {
 
 func TestARefusalLeavesTheBoardAndTheHistory(t *testing.T) {
 	replies := serve(t, New(board.New()), twoSidesLine,
-		act("a", "e1", "standby", `{"mode":"sampled"}`),
+		act("a", enemyID, "standby", `{"mode":"sampled"}`),
 		`{"id":"x","cmd":"export","payload":{}}`)
 	var export protocol.ExportResponse
 	if err := json.Unmarshal(replies[2].Payload, &export); err != nil {
@@ -136,7 +147,7 @@ func TestARefusalLeavesTheBoardAndTheHistory(t *testing.T) {
 
 func TestExportCarriesTheHistoryOfTheActivations(t *testing.T) {
 	replies := serve(t, New(board.New()), twoSidesLine,
-		act("a", "a1", "standby", `{"mode":"sampled"}`),
+		act("a", firstAllyID, "standby", `{"mode":"sampled"}`),
 		`{"id":"x","cmd":"export","payload":{}}`)
 	var export protocol.ExportResponse
 	if err := json.Unmarshal(replies[2].Payload, &export); err != nil {
@@ -149,23 +160,19 @@ func TestExportCarriesTheHistoryOfTheActivations(t *testing.T) {
 		t.Fatalf("both sides live, and 'gone' is %+v", export.Gone)
 	}
 	var unit struct {
-		UnitID string `json:"unit_id"`
+		UnitID int `json:"unit_id"`
 	}
-	if err := json.Unmarshal(export.History[0].Payload, &unit); err != nil || unit.UnitID != "a1" {
+	if err := json.Unmarshal(export.History[0].Payload, &unit); err != nil || unit.UnitID != firstAllyID {
 		t.Fatalf("payload: %s", export.History[0].Payload)
 	}
-	acted := map[string]bool{}
-	for _, one := range export.State.Units {
-		acted[one.ID] = one.Acted
-	}
-	if !acted["a1"] || acted["a2"] {
-		t.Fatalf("state: %+v", acted)
+	if !export.State.Units[firstAllyID].Acted || export.State.Units[secondAllyID].Acted {
+		t.Fatalf("state: %+v", export.State.Units)
 	}
 }
 
 func TestABoardCommandTakesALineWithNoPayload(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
-		`"units":[{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100}],` +
+		`"units":[{"faction":"ally","pos":[1,1],"hp":100}],` +
 		`"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
 	replies := serve(t, New(board.New()), line, `{"id":"x","cmd":"export"}`)
@@ -184,8 +191,8 @@ func TestABoardCommandTakesALineWithNoPayload(t *testing.T) {
 func TestExportNamesTheSideWithNoLivingUnit(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
 		`"units":[` +
-		`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100},` +
-		`{"unit_id":"e1","faction":"enemy","pos":[4,4],"hp":0}` +
+		`{"faction":"ally","pos":[1,1],"hp":100},` +
+		`{"faction":"enemy","pos":[4,4],"hp":0}` +
 		`],"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
 	replies := serve(t, New(board.New()), line, `{"id":"x","cmd":"export","payload":{}}`)
@@ -200,7 +207,7 @@ func TestExportNamesTheSideWithNoLivingUnit(t *testing.T) {
 
 func TestExportEchoesTheEventsOfTheLoadedState(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
-		`"units":[{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100}],` +
+		`"units":[{"faction":"ally","pos":[1,1],"hp":100}],` +
 		`"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 		`"pending_events":["reinforce_t2"],"fired_events":["opening"]},"history":[]}}`
 	replies := serve(t, New(board.New()), line, `{"id":"x","cmd":"export","payload":{}}`)
@@ -216,7 +223,7 @@ func TestExportEchoesTheEventsOfTheLoadedState(t *testing.T) {
 
 func TestLoadFillsAMaximumThatTheStateLeavesAtZero(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
-		`"units":[{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,` +
+		`"units":[{"faction":"ally","pos":[1,1],"hp":100,` +
 		`"mech":{"hp":12000,"en":140}}],` +
 		`"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
@@ -236,7 +243,7 @@ func TestLoadFillsAMaximumThatTheStateLeavesAtZero(t *testing.T) {
 
 func TestInitOpensTurnOneWithTheEnemies(t *testing.T) {
 	line := `{"id":"i","cmd":"init","payload":{"board":{"width":6,"height":5},` +
-		`"enemies":[{"unit_id":"e1","faction":"enemy","pos":[4,4],"hp":10}],` +
+		`"enemies":[{"faction":"enemy","pos":[4,4],"hp":10}],` +
 		`"victory":[{"kind":"destroy_all"}],"events":{},"deploy_cells":[[0,0]],"seed":3}}`
 	replies := serve(t, New(board.New()), line, `{"id":"x","cmd":"export","payload":{}}`)
 	if !replies[0].OK {
@@ -267,7 +274,7 @@ func TestInitWithABadBoardIsBadRequest(t *testing.T) {
 
 func TestInitWithAUnitOfEnemiesThatIsNoEnemyIsBadRequest(t *testing.T) {
 	line := `{"id":"i","cmd":"init","payload":{"board":{"width":6,"height":5},` +
-		`"enemies":[{"unit_id":"x1","faction":"ally","pos":[1,1],"hp":10}]}}`
+		`"enemies":[{"faction":"ally","pos":[1,1],"hp":10}]}}`
 	replies := serve(t, New(board.New()), line)
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeBadRequest {
 		t.Fatalf("reply: %+v", replies[0])
@@ -363,7 +370,7 @@ func engagementLines(t *testing.T, seed int64) (string, string) {
 	if err := json.Unmarshal(raw, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	var unitID string
+	var unitID any
 	var action map[string]any
 	var responseAttack any
 	for _, check := range fixture.Checks {
@@ -374,7 +381,7 @@ func engagementLines(t *testing.T, seed int64) (string, string) {
 		if decision["kind"] != "attack" || decision["response_attack"] == nil {
 			continue
 		}
-		unitID, _ = decision["unit_id"].(string)
+		unitID = decision["unit_id"]
 		responseAttack = decision["response_attack"]
 		action = make(map[string]any, len(decision))
 		for key, value := range decision {
@@ -411,17 +418,18 @@ func engagementLines(t *testing.T, seed int64) (string, string) {
 
 const armedLine = `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
 	`"units":[` +
-	`{"unit_id":"a1","faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":10,"en_max":100,"mech":{"move_range":0,` +
+	`{"faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":10,"en_max":100,"mech":{"move_range":0,` +
 	`"weapons":[{"name":"gun","power":1000,"range_min":1,"range_max":2,"accuracy":100},` +
 	`{"name":"costly","power":9000,"range_min":1,"range_max":2,"en_cost":80,"accuracy":100}]}},` +
-	`{"unit_id":"e1","faction":"enemy","pos":[1,2],"hp":100,"max_hp":100},` +
-	`{"unit_id":"e2","faction":"enemy","pos":[8,8],"hp":100,"max_hp":100}` +
+	`{"faction":"enemy","pos":[1,2],"hp":100,"max_hp":100},` +
+	`{"faction":"enemy","pos":[8,8],"hp":100,"max_hp":100}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[9,9]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
-func attack(id, unit, target, weapon string) string {
-	return `{"id":"` + id + `","cmd":"act","payload":{"unit_id":"` + unit + `","action":{"unit_id":"` + unit +
-		`","kind":"attack","target_id":"` + target + `","weapon":"` + weapon + `"},` +
+func attack(id string, unit, target, weapon int) string {
+	position := strconv.Itoa(unit)
+	return `{"id":"` + id + `","cmd":"act","payload":{"unit_id":` + position + `,"action":{"unit_id":` + position +
+		`,"kind":"attack","target_id":` + strconv.Itoa(target) + `,"weapon_id":` + strconv.Itoa(weapon) + `},` +
 		`"response_attack":{"stance":"none"},"dice":{"mode":"sampled"}}}`
 }
 
@@ -432,9 +440,9 @@ func TestARefusedActLeavesTheStateByteIdentical(t *testing.T) {
 		t.Fatalf("load: %+v", fresh[0])
 	}
 	refusals := map[string]string{
-		"an unpaid weapon":      attack("a", "a1", "e1", "costly"),
-		"an off-phase unit":     act("a", "e1", "standby", `{"mode":"sampled"}`),
-		"an unreachable target": attack("a", "a1", "e2", "gun"),
+		"an unpaid weapon":      attack("a", 0, 1, 1),
+		"an off-phase unit":     act("a", 1, "standby", `{"mode":"sampled"}`),
+		"an unreachable target": attack("a", 0, 2, 0),
 	}
 	for name, line := range refusals {
 		t.Run(name, func(t *testing.T) {
