@@ -234,3 +234,28 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 		t.Fatal("a unit with no hit points is not alive, and neither is a unit that is not there")
 	}
 }
+
+var oneCell = battle.Cell{1, 1}
+
+func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
+	return battle.Unit{Faction: faction,
+		Pos: anchor, Size: oneCell, HP: 100,
+		Mech: battle.Mech{}, Pilot: battle.Pilot{}}
+}
+
+func board(units ...battle.Unit) *Board {
+	bounds := battle.Bounds{{0, 0}, {4, 4}}
+	return &Board{state: state.FromContract(battle.BattleState{
+		Bounds: &bounds, Units: units,
+		Phase: battle.FactionAlly, Turn: 1})}
+}
+
+func TestTheReachOfAUnitThatIsNotOnTheBoardIsAnError(t *testing.T) {
+	b := board(unitAt(battle.FactionAlly, battle.Cell{2, 2}))
+
+	cells, err := b.ReachableCells(9)
+
+	if !errors.Is(err, battle.ErrNoUnit) {
+		t.Fatalf("cells: %v, error: %v", cells, err)
+	}
+}

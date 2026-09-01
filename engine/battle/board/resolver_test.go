@@ -9,6 +9,7 @@ import (
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
@@ -301,5 +302,91 @@ func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
 	}
 	if !reflect.DeepEqual(events, want) {
 		t.Fatalf("events: %+v", events)
+	}
+}
+
+func turnBoard(t *testing.T, phase battle.Faction, turnNumber int, units ...battle.Unit) *Board {
+	t.Helper()
+	bounds := battle.Bounds{{0, 0}, {5, 4}}
+	candidate := battle.BattleState{
+		Bounds: &bounds, Units: units, Phase: phase, Turn: turnNumber}
+	if err := validate(&candidate); err != nil {
+		t.Fatal(err)
+	}
+	return &Board{state: state.FromContract(candidate)}
+}
+
+func basicUnit(faction battle.Faction, x, y int) battle.Unit {
+	return battle.Unit{
+		Faction: faction,
+		Pos:     battle.Cell{x, y}, Size: battle.Cell{1, 1},
+		HP: 100, MaxHP: 100, EN: 100, ENMax: 140,
+		Mech: battle.Mech{MoveRange: 1}, Pilot: battle.Pilot{},
+	}
+}
+
+func armed(faction battle.Faction, x, y int) battle.Unit {
+	out := basicUnit(faction, x, y)
+	out.Mech.Weapons = []battle.Weapon{{Name: "gun", Power: 5000, RangeMin: 1, RangeMax: 3, Accuracy: 100, UsableAfterMove: true}}
+	out.Mech.Attack, out.Mech.Defense = 4200, 3900
+	out.Pilot.Ranged, out.Pilot.Melee, out.Pilot.Awaken = 220, 220, 220
+	out.Pilot.Defense = 190
+	out.Pilot.Reaction, out.Mech.Mobility = 205, 310
+	return out
+}
+
+func idOf(value int) *int {
+	return &value
+}
+
+func standby(id int) battle.Decision {
+	return battle.Decision{UnitID: id, Kind: battle.ActionStandby}
+}
+
+func pendingOf(b *Board) []int {
+	return turn.Pending(&b.state, b.state.Phase)
+}
+
+func targetsOf(b *Board, unitID int) []int {
+	var out []int
+	for index := range b.state.Units {
+		other := &b.state.Units[index]
+		if other.Faction == b.state.Units[unitID].Faction.Opposing() && other.Alive() {
+			out = append(out, index)
+		}
+	}
+	return out
+}
+
+func TestARefusedActivationChangesNothing(t *testing.T) {
+	board := turnBoard(t, battle.FactionAlly, 1, basicUnit(battle.FactionAlly, 1, 1), basicUnit(battle.FactionEnemy, 4, 4))
+
+	if _, err := board.act(standby(1), battle.NewManualRoll(nil)); err == nil {
+		t.Fatal("an enemy unit cannot act in the ally phase")
+	}
+	if board.state.Phase != battle.FactionAlly || board.state.Units[0].Value.Acted {
+		t.Fatal("the board changed on a refusal")
+	}
+}
+
+func TestABattleRunsToAnnihilation(t *testing.T) {
+	board := turnBoard(t, battle.FactionAlly, 1, armed(battle.FactionAlly, 1, 1), armed(battle.FactionAlly, 1, 2), armed(battle.FactionEnemy, 2, 1))
+	dice := battle.Forced{AttackerSupport: true, DefenderSupport: true, Strike: true, Counter: true}
+
+	for acts := 0; len(turn.Gone(&board.state)) == 0; acts++ {
+		if acts > 100 {
+			t.Fatal("no side is gone after 100 activations")
+		}
+		actorID := pendingOf(board)[0]
+		targets := targetsOf(board, actorID)
+		action := standby(actorID)
+		if len(targets) > 0 {
+			action = battle.Decision{UnitID: actorID, Kind: battle.ActionAttack,
+				TargetID: idOf(targets[0]), WeaponID: idOf(0),
+				ResponseAttack: &battle.ResponseAttack{Stance: battle.StanceNone}}
+		}
+		if _, err := board.act(action, dice); err != nil {
+			t.Fatalf("act %d: %v", acts, err)
+		}
 	}
 }
