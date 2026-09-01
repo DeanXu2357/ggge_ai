@@ -71,12 +71,10 @@ issues of the port (#60 to #68).
   ruling 2026-08-31).
 - The conversion between the two forms runs at two points and
   nowhere else: 'state.FromContract' inside 'board.Load', and
-  '(*state.Battle).ToContract' inside 'board.State'. Both lean on
-  'battle.BattleState.Clone', which is the one deep copy of the
-  engine, so the answer of 'State' shares nothing writable with
-  the board. 'Clone' copies every field that a system writes and
-  shares the weapons of a mech, which no code writes after the
-  decode. Two units that carry equal mechs point at two mechs.
+  '(*state.Battle).ToContract' inside 'board.State'. A loaded
+  board shares nothing writable with its payload, and the answer
+  of 'State' shares nothing writable with the board. The
+  definition data is shared; no code writes it after the decode.
 - No layer holds a rule. Each layer holds value helpers that read
   the fields of their own struct and decide nothing about the
   battle. The contract holds 'Unit.Footprint', 'Footprint.Within',
@@ -108,8 +106,7 @@ issues of the port (#60 to #68).
   state form. 'board.New' gives an empty board. 'Load' builds the
   content, assembles each unit, judges the result and converts it
   into the state form. It does this for 'init' and for 'load'
-  alike. It clones the content before it keeps it. A refused
-  'Load' leaves the board unchanged.
+  alike. A refused 'Load' leaves the board unchanged.
   It implements the contract, projects the answers of the read
   commands, and calls the systems. 'Act' is 'Prepare', 'Commit',
   'turn.Advance' in that order, so a refused 'act' leaves the

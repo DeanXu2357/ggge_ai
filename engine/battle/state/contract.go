@@ -8,13 +8,12 @@ import (
 )
 
 func FromContract(s battle.BattleState) Battle {
-	s = s.Clone()
 	out := Battle{
 		Units:        make([]Unit, len(s.Units)),
 		Phase:        s.Phase,
 		Turn:         s.Turn,
 		Terrain:      s.Terrain,
-		TerrainCells: s.TerrainCells,
+		TerrainCells: slices.Clone(s.TerrainCells),
 	}
 	if s.Bounds != nil {
 		out.Bounds = *s.Bounds
@@ -33,12 +32,12 @@ func (b *Battle) ToContract() battle.BattleState {
 		Turn:         b.Turn,
 		Bounds:       &bounds,
 		Terrain:      b.Terrain,
-		TerrainCells: b.TerrainCells,
+		TerrainCells: slices.Clone(b.TerrainCells),
 	}
 	for index := range b.Units {
 		out.Units[index] = b.toContractUnit(&b.Units[index])
 	}
-	return out.Clone()
+	return out
 }
 
 func fromContractUnit(u battle.Unit) Unit {
@@ -64,8 +63,8 @@ func fromContractUnit(u battle.Unit) Unit {
 			SupportDefendCharges: u.SupportDefendCharges,
 			SupportAttackCharges: u.SupportAttackCharges,
 			Skills:               mapSlice(u.Skills, fromContractSkill),
-			MapWeaponAmmo:        u.MapWeaponAmmo,
-			Debuffs:              u.Debuffs,
+			MapWeaponAmmo:        slices.Clone(u.MapWeaponAmmo),
+			Debuffs:              slices.Clone(u.Debuffs),
 		},
 	}
 	out.Mech, out.Pilot = &mech, &pilot
@@ -95,8 +94,8 @@ func (b *Battle) toContractUnit(u *Unit) battle.Unit {
 		SupportAttackChargesMax: u.SupportAttackChargesMax,
 		HasShield:               u.HasShield,
 		SupportDefendWhenAttack: u.SupportDefendWhenAttack,
-		MapWeaponAmmo:           u.Value.MapWeaponAmmo,
-		Debuffs:                 u.Value.Debuffs,
+		MapWeaponAmmo:           slices.Clone(u.Value.MapWeaponAmmo),
+		Debuffs:                 slices.Clone(u.Value.Debuffs),
 	}
 }
 
@@ -220,7 +219,7 @@ func fromContractSkill(s battle.Skill) def.Skill {
 	return def.Skill{
 		Kind:            s.Kind,
 		Source:          s.Source,
-		Amount:          s.Amount,
+		Amount:          battle.CloneAmount(s.Amount),
 		Uses:            s.Uses,
 		EndsActivation:  s.EndsActivation,
 		UsableAfterMove: s.UsableAfterMove,
@@ -236,7 +235,7 @@ func toContractSkill(s def.Skill) battle.Skill {
 		UsableAfterMove: s.UsableAfterMove,
 		EndsActivation:  s.EndsActivation,
 		Uses:            s.Uses,
-		Amount:          s.Amount,
+		Amount:          battle.CloneAmount(s.Amount),
 		Source:          s.Source,
 		Kind:            s.Kind,
 	}

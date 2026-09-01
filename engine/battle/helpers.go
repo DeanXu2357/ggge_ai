@@ -1,7 +1,5 @@
 package battle
 
-import "slices"
-
 type Terrain string
 
 const (
@@ -98,34 +96,6 @@ func (f Faction) Opposing() Faction {
 		return FactionEnemy
 	}
 	return FactionAlly
-}
-
-// The weapons of a mech are never written after the decode, so the clone
-// shares them with the state it comes from.
-func (s *BattleState) Clone() BattleState {
-	out := *s
-	if s.Bounds != nil {
-		bounds := *s.Bounds
-		out.Bounds = &bounds
-	}
-	out.Units = make([]Unit, len(s.Units))
-	for index := range s.Units {
-		out.Units[index] = cloneUnit(s.Units[index])
-	}
-	out.TerrainCells = slices.Clone(s.TerrainCells)
-	out.PendingEvents = slices.Clone(s.PendingEvents)
-	out.FiredEvents = slices.Clone(s.FiredEvents)
-	return out
-}
-
-func cloneUnit(unit Unit) Unit {
-	unit.Skills = slices.Clone(unit.Skills)
-	for index := range unit.Skills {
-		unit.Skills[index].Amount = CloneAmount(unit.Skills[index].Amount)
-	}
-	unit.Debuffs = slices.Clone(unit.Debuffs)
-	unit.MapWeaponAmmo = slices.Clone(unit.MapWeaponAmmo)
-	return unit
 }
 
 func CloneAmount(amount *float64) *float64 {
