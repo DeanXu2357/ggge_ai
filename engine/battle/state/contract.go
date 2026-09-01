@@ -44,7 +44,6 @@ func (b *Battle) ToContract() battle.BattleState {
 func fromContractUnit(u battle.Unit) Unit {
 	mech, pilot := fromContractMech(u.Mech), fromContractPilot(u.Pilot)
 	out := Unit{
-		ID:                      u.ID,
 		Faction:                 u.Faction,
 		Size:                    u.Size,
 		MaxHP:                   u.MaxHP,
@@ -65,7 +64,7 @@ func fromContractUnit(u battle.Unit) Unit {
 			SupportDefendCharges: u.SupportDefendCharges,
 			SupportAttackCharges: u.SupportAttackCharges,
 			Skills:               mapSlice(u.Skills, fromContractSkill),
-			Ammo:                 u.Ammo,
+			MapWeaponAmmo:        u.MapWeaponAmmo,
 			Debuffs:              u.Debuffs,
 		},
 	}
@@ -75,7 +74,6 @@ func fromContractUnit(u battle.Unit) Unit {
 
 func (b *Battle) toContractUnit(u *Unit) battle.Unit {
 	return battle.Unit{
-		ID:                      u.ID,
 		Faction:                 u.Faction,
 		Pos:                     u.Value.Pos,
 		Size:                    u.Size,
@@ -97,7 +95,7 @@ func (b *Battle) toContractUnit(u *Unit) battle.Unit {
 		SupportAttackChargesMax: u.SupportAttackChargesMax,
 		HasShield:               u.HasShield,
 		SupportDefendWhenAttack: u.SupportDefendWhenAttack,
-		Ammo:                    u.Value.Ammo,
+		MapWeaponAmmo:           u.Value.MapWeaponAmmo,
 		Debuffs:                 u.Value.Debuffs,
 	}
 }

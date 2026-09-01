@@ -35,11 +35,11 @@ def test_placeholder_enemy_matches_the_verified_truth_row():
     scenario = scenario_mod.load(PLACEHOLDER)
     state, _events = scenario.build()
 
-    unit = next(u for u in state.units if u.pos == (9, 4))
+    unit = state.units[0]
 
+    assert unit.pos == (9, 4)
     assert (unit.hp, unit.max_hp) == (83811, 83811)
     assert (unit.en, unit.en_max) == (513, 513)
-    assert unit.unit_id == "e1"
     assert unit.faction is Faction.ENEMY
 
 
@@ -105,7 +105,6 @@ def test_spawn_effect_units_are_assembled_from_intel_references(placeholder):
     assert isinstance(event, StageEvent)
     assert state.pending_events == ("wave2",)
     (template,) = event.effect["units"]
-    assert template.unit_id == "e19"
     assert template.faction is Faction.ENEMY
     assert template.pos == (12, 2)
     assert template.hp == template.max_hp == 29265

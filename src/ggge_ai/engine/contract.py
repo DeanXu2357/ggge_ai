@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-PROTOCOL_VERSION = "1.11"
+PROTOCOL_VERSION = "2.0"
 
 DECLARED_COMMANDS: tuple[str, ...] = (
     "hello",
@@ -120,7 +120,7 @@ class DiceMode(StrEnum):
 @dataclass(frozen=True)
 class Victory:
     kind: VictoryKind
-    target_id: str | None = None
+    target_id: int | None = None
     cell: Cell | None = None
 
 

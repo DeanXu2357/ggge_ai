@@ -43,7 +43,6 @@ func wireBoard() *battle.BattleState {
 	return &battle.BattleState{
 		Units: []battle.Unit{
 			{
-				ID:        "a1",
 				Faction:   battle.FactionAlly,
 				Pos:       battle.Cell{2, 3},
 				Size:      battle.Cell{2, 3},
@@ -69,6 +68,7 @@ func wireBoard() *battle.BattleState {
 				},
 				Mech: battle.Mech{
 					HP: 9000, EN: 180, Attack: 4100, Defense: 3900, Mobility: 310, MoveRange: 4,
+					MapWeapons: []battle.MapWeapon{{Name: "missile"}},
 					Weapons: []battle.Weapon{{
 						Name:            "rifle",
 						Power:           2400,
@@ -86,11 +86,10 @@ func wireBoard() *battle.BattleState {
 				SupportDefendChargesMax: 1,
 				SupportAttackCharges:    2,
 				SupportDefendWhenAttack: true,
-				Ammo:                    map[string]int{"missile": 3},
+				MapWeaponAmmo:           []int{3},
 				Debuffs:                 []battle.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
 			},
 			{
-				ID:      "e1",
 				Faction: battle.FactionEnemy,
 				Pos:     battle.Cell{7, 7},
 				Size:    battle.Cell{1, 1},
@@ -127,10 +126,10 @@ func decodeFixtureState(t *testing.T) *Board {
 
 func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 	enemies := []battle.Unit{
-		{ID: "e1", Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, HP: 10,
+		{Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, HP: 10,
 			Pilot: battle.Pilot{SP: 60},
 			Mech:  battle.Mech{HP: 9000, EN: 180}},
-		{ID: "e2", Faction: battle.FactionEnemy, Pos: battle.Cell{2, 1}, HP: 10,
+		{Faction: battle.FactionEnemy, Pos: battle.Cell{2, 1}, HP: 10,
 			MaxHP: 7000, ENMax: 20, SPMax: 5,
 			Pilot: battle.Pilot{SP: 60},
 			Mech:  battle.Mech{HP: 9000, EN: 180}},
@@ -141,11 +140,11 @@ func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	filled := board.state.Unit("e1")
+	filled := &board.state.Units[0]
 	if filled.MaxHP != 9000 || filled.ENMax != 180 || filled.SPMax != 60 {
 		t.Fatalf("the pairing fills a maximum of zero: %+v", *filled)
 	}
-	stated := board.state.Unit("e2")
+	stated := &board.state.Units[1]
 	if stated.MaxHP != 7000 || stated.ENMax != 20 || stated.SPMax != 5 {
 		t.Fatalf("an explicit maximum stands: %+v", *stated)
 	}
@@ -155,7 +154,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 	wire := &battle.BattleState{
 		Bounds: &battle.Bounds{{0, 0}, {4, 4}},
 		Phase:  battle.FactionAlly,
-		Units:  []battle.Unit{{ID: "a1", Faction: battle.FactionAlly, HP: 1}},
+		Units:  []battle.Unit{{Faction: battle.FactionAlly, HP: 1}},
 	}
 
 	board, err := restore(wire)
@@ -163,7 +162,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if got := board.state.Unit("a1").Size; got != (battle.Cell{1, 1}) {
+	if got := board.state.Units[0].Size; got != (battle.Cell{1, 1}) {
 		t.Fatalf("size: %v", got)
 	}
 }
@@ -171,7 +170,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "ground",
 		[]battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "space"}},
-		[]battle.Unit{{ID: "e1", Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, HP: 10}})
+		[]battle.Unit{{Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, HP: 10}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +184,7 @@ func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 		len(board.state.TerrainCells) != 1 || board.state.TerrainCells[0].Terrain != battle.TerrainSpace {
 		t.Fatalf("terrain: %v %v", board.state.Terrain, board.state.TerrainCells)
 	}
-	if len(board.state.Units) != 1 || board.state.Units[0].ID != "e1" {
+	if len(board.state.Units) != 1 || board.state.Units[0].Faction != battle.FactionEnemy {
 		t.Fatalf("units: %+v", board.state.Units)
 	}
 }
@@ -198,7 +197,7 @@ func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
 		enemies      []battle.Unit
 	}{
 		{name: "a footprint outside the bounds",
-			enemies: []battle.Unit{{ID: "x1", Faction: battle.FactionEnemy,
+			enemies: []battle.Unit{{Faction: battle.FactionEnemy,
 				Pos: battle.Cell{2, 2}, Size: battle.Cell{2, 2}, HP: 10}}},
 		{name: "a terrain cell outside the bounds",
 			terrainCells: []battle.TerrainCell{{Cell: battle.Cell{9, 9}, Terrain: "space"}}},
@@ -240,11 +239,11 @@ func TestTheModelCopiesTheAmmoAndTheSkillAmount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	unit := board.state.Unit("a1")
-	unit.Value.Ammo["missile"] = 0
+	unit := &board.state.Units[0]
+	unit.Value.MapWeaponAmmo[0] = 0
 	*unit.Value.Skills[0].Amount = 1.0
 
-	if wire.Units[0].Ammo["missile"] != 3 || *wire.Units[0].Skills[0].Amount != 3000.0 {
+	if wire.Units[0].MapWeaponAmmo[0] != 3 || *wire.Units[0].Skills[0].Amount != 3000.0 {
 		t.Fatal("a write into the model reached the payload")
 	}
 }
@@ -256,7 +255,7 @@ func TestTheModelCopiesEveryFieldThatASystemWrites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	unit := board.state.Unit("a1")
+	unit := &board.state.Units[0]
 	unit.Value.HP, unit.Value.EN, unit.Value.SP = 0, 0, 0
 	unit.Value.Pos, unit.Value.Acted = battle.Cell{9, 9}, false
 	unit.Value.ChanceSteps = 7
@@ -293,11 +292,11 @@ func TestEncodeStateRoundTripsThroughLoad(t *testing.T) {
 
 func TestTheResolutionEncodesStrikesThenRotations(t *testing.T) {
 	events := eventsOf(resolution{
-		Trace:     engagement.Trace{{Kind: engagement.StrikeMain, ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true}},
+		Trace:     engagement.Trace{{Kind: engagement.StrikeMain, ShooterID: 0, StruckID: 1, WeaponID: 2, Landed: true, Damage: 7, Killed: true}},
 		Rotations: []turn.Rotation{{Turn: 1, Phase: battle.FactionEnemy}},
 	})
 	want := []any{
-		battle.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: "a1", StruckID: "e1", Weapon: "gun", Landed: true, Damage: 7, Killed: true},
+		battle.StrikeEvent{Event: "strike", Strike: "strike", ShooterID: 0, StruckID: 1, WeaponID: 2, Landed: true, Damage: 7, Killed: true},
 		battle.PhaseEvent{Event: "phase", Turn: 1, Phase: battle.FactionEnemy},
 	}
 	if !reflect.DeepEqual(events, want) {

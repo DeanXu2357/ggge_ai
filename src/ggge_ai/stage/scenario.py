@@ -167,6 +167,7 @@ def _unit(
     taken: set[str],
     where: str,
 ) -> Unit:
+    # uid 是情境檔自己的名稱，只用來擋重複；引擎收到的識別是出場順序。
     uid = entry.get("uid")
     if not uid:
         raise ValueError(f"{where} 有一筆沒寫 uid")
@@ -174,15 +175,13 @@ def _unit(
         raise ValueError(f"uid 重複：{uid}")
     taken.add(uid)
     record = _record(knowledge, entry.get("intel_id", ""), f"{where} {uid}")
-    unit = record.to_unit(
+    return record.to_unit(
         _faction(entry.get("faction", Faction.ENEMY), f"{where} {uid}"),
         pos=_cell(entry.get("cell", [0, 0]), board, f"{where} {uid}"),
         hp=entry.get("hp"),
         en=entry.get("en"),
         acted=bool(entry.get("acted", False)),
     )
-    unit.unit_id = uid
-    return unit
 
 
 def _events(

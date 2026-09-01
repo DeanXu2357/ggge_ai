@@ -85,12 +85,13 @@ class FakeEngine:
         return {"cells": [unit.get("pos")]}
 
     def _actions(self, payload: dict[str, Any]) -> dict[str, Any]:
-        unit = self._unit(payload.get("unit_id"))
-        return {"actions": [{"unit_id": unit.get("unit_id"), "kind": "standby"}]}
+        unit_id = payload.get("unit_id")
+        self._unit(unit_id)
+        return {"actions": [{"unit_id": unit_id, "kind": "standby"}]}
 
     def _response_attacks(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._unit(payload.get("defender_id"))
-        self._unit(payload.get("attacker_id"))
+        self._unit((payload.get("action") or {}).get("unit_id"))
         return {"response_attacks": []}
 
     def _act(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -105,8 +106,8 @@ class FakeEngine:
     def _summary(self) -> dict[str, Any]:
         state = self._loaded()
         pending = [
-            unit.get("unit_id")
-            for unit in state.get("units", [])
+            unit_id
+            for unit_id, unit in enumerate(state.get("units", []))
             if unit.get("faction") == state.get("phase")
             and not unit.get("acted")
             and unit.get("hp", 0) > 0
@@ -114,7 +115,7 @@ class FakeEngine:
         return {
             "turn": state.get("turn"),
             "phase": state.get("phase"),
-            "pending": pending,
+            "pending_ids": pending,
             "gone": [],
         }
 
@@ -124,7 +125,7 @@ class FakeEngine:
         return self._state
 
     def _unit(self, unit_id: Any) -> dict[str, Any]:
-        for unit in self._loaded().get("units", []):
-            if unit.get("unit_id") == unit_id:
-                return unit
+        units = self._loaded().get("units", [])
+        if isinstance(unit_id, int) and not isinstance(unit_id, bool) and 0 <= unit_id < len(units):
+            return units[unit_id]
         raise EngineError(ErrorCode.ILLEGAL_ACTION, f"the board holds no unit {unit_id!r}")

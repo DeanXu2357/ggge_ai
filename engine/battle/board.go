@@ -1,9 +1,9 @@
 package battle
 
 type BoardReader interface {
-	Actions(unitID string) (ActionsResponse, error)
-	ReachableCells(unitID string) ([]Cell, error)
-	ResponseAttacks(action *Decision, defenderID string) (ResponseAttacksResponse, error)
+	Actions(unitID int) (ActionsResponse, error)
+	ReachableCells(unitID int) ([]Cell, error)
+	ResponseAttacks(action *Decision, defenderID int) (ResponseAttacksResponse, error)
 	State() BattleState
 	Summary() BoardSummary
 }

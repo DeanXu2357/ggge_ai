@@ -24,7 +24,7 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
-			unit := &state.Unit{ID: "a1", Faction: battle.FactionAlly,
+			unit := &state.Unit{Faction: battle.FactionAlly,
 				Value: state.UnitValue{HP: 100, EN: one.en}}
 			weapon := def.Weapon{Name: "beam rifle", ENCost: one.cost}
 
@@ -37,7 +37,7 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 }
 
 func TestTheENOfAShotComesFromThePanelAndNotFromTheMech(t *testing.T) {
-	unit := &state.Unit{ID: "a1", Faction: battle.FactionAlly, Mech: &def.Mech{EN: 200},
+	unit := &state.Unit{Faction: battle.FactionAlly, Mech: &def.Mech{EN: 200},
 		Value: state.UnitValue{HP: 100, EN: 10}}
 	weapon := def.Weapon{Name: "beam rifle", ENCost: 20}
 

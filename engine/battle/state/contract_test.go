@@ -25,8 +25,8 @@ func TestTheExportedContractSharesNothingWithTheState(t *testing.T) {
 	answer := got.ToContract()
 
 	*answer.Units[0].Skills[0].Amount = 404
-	for name := range answer.Units[0].Ammo {
-		answer.Units[0].Ammo[name] = 404
+	for index := range answer.Units[0].MapWeaponAmmo {
+		answer.Units[0].MapWeaponAmmo[index] = 404
 	}
 	answer.Units[0].Debuffs[0].Magnitude = 404
 	(*answer.Bounds)[0][0] = 404
@@ -41,7 +41,7 @@ func TestTheExportedContractSharesNothingWithTheState(t *testing.T) {
 func TestTwoUnitsWithEqualMechsPointAtTwoMechs(t *testing.T) {
 	original := filledState()
 	second := original.Units[0]
-	second.ID = "second"
+	second.HP = 404
 	original.Units = append(original.Units, second)
 
 	got := FromContract(original)

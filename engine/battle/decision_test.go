@@ -24,12 +24,12 @@ func TestTheStanceNoneDecodes(t *testing.T) {
 func TestAnAbsentOptionalFieldDecodesToTheSameValueAsNull(t *testing.T) {
 	var absent, null Decision
 
-	if err := json.Unmarshal([]byte(`{"unit_id":"a","kind":"standby"}`), &absent); err != nil {
+	if err := json.Unmarshal([]byte(`{"unit_id":0,"kind":"standby"}`), &absent); err != nil {
 		t.Fatalf("absent: %v", err)
 	}
-	body := `{"unit_id":"a","kind":"standby","move_to":null,"target_id":null,"weapon":null,` +
-		`"amount":null,"response_attack":null,"aim":null,"hit":null,"counter_hit":null,` +
-		`"support_hit":null}`
+	body := `{"unit_id":0,"kind":"standby","move_to":null,"target_id":null,"weapon_id":null,` +
+		`"map_weapon_id":null,"amount":null,"response_attack":null,"aim":null,"hit":null,` +
+		`"counter_hit":null,"support_hit":null}`
 	if err := json.Unmarshal([]byte(body), &null); err != nil {
 		t.Fatalf("null: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestAnAbsentOptionalFieldDecodesToTheSameValueAsNull(t *testing.T) {
 func TestAThreeValuedDieKeepsItsThreeValues(t *testing.T) {
 	for _, body := range []string{`null`, `true`, `false`} {
 		var decision Decision
-		line := `{"unit_id":"a","kind":"attack","hit":` + body + `}`
+		line := `{"unit_id":0,"kind":"attack","hit":` + body + `}`
 		if err := json.Unmarshal([]byte(line), &decision); err != nil {
 			t.Fatalf("%s: %v", body, err)
 		}

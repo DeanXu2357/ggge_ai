@@ -7,9 +7,9 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-func unitStatusOf(unit *state.Unit) battle.UnitStatus {
+func unitStatusOf(unitID int, unit *state.Unit) battle.UnitStatus {
 	return battle.UnitStatus{
-		UnitID:    unit.ID,
+		UnitID:    unitID,
 		Faction:   unit.Faction,
 		Pos:       unit.Value.Pos,
 		Size:      unit.Footprint().Size,
@@ -39,13 +39,13 @@ func weaponEntriesOf(unit *state.Unit) []battle.WeaponEntry {
 
 func mapWeaponEntriesOf(unit *state.Unit) []battle.MapWeaponEntry {
 	out := make([]battle.MapWeaponEntry, 0, len(unit.Mech.MapWeapons))
-	for _, weapon := range unit.Mech.MapWeapons {
+	for index, weapon := range unit.Mech.MapWeapons {
 		out = append(out, battle.MapWeaponEntry{
 			Name:            weapon.Name,
 			ApplyShape:      state.ToContractShape(weapon.ApplyShape),
 			EffectShape:     state.ToContractShape(weapon.EffectShape),
 			ENCost:          weapon.ENCost,
-			Ammo:            ammoOf(unit.Value.Ammo, weapon.Name),
+			Ammo:            unit.Value.MapWeaponAmmo[index],
 			Accuracy:        weapon.Accuracy,
 			Affects:         weapon.Affects,
 			UsableAfterMove: weapon.UsableAfterMove,
@@ -71,24 +71,16 @@ func skillEntriesOf(skills []def.Skill) []battle.SkillEntry {
 	return out
 }
 
-func ammoOf(ammo map[string]int, name string) *int {
-	count, carried := ammo[name]
-	if !carried {
-		return nil
-	}
-	return &count
-}
-
 func responseAttacksOf(options engagement.Options) battle.ResponseAttacksResponse {
 	return battle.ResponseAttacksResponse{
 		Defender: battle.DefenderOptions{
-			UnitID:           options.Defender.Unit.ID,
+			UnitID:           options.Defender.UnitID,
 			ResponseAttacks:  responseAttackOptionsOf(options.ResponseAttacks),
 			SupportDefenders: supportDefendersOf(options.Defender.SupportDefenders),
 			SupportAttackers: supportAttackersOf(options.Defender.SupportAttackers),
 		},
 		Attacker: battle.AttackerOptions{
-			UnitID:           options.Attacker.Unit.ID,
+			UnitID:           options.Attacker.UnitID,
 			SupportDefenders: supportDefendersOf(options.Attacker.SupportDefenders),
 			SupportAttackers: supportAttackersOf(options.Attacker.SupportAttackers),
 		},
@@ -100,7 +92,7 @@ func responseAttackOptionsOf(options []engagement.ResponseAttackOption) []battle
 	for _, option := range options {
 		entry := battle.ResponseAttackOption{
 			Stance:   option.Stance,
-			Weapon:   optionalNameOf(option.Weapon),
+			WeaponID: cloneID(option.WeaponID),
 			Incoming: forecastOf(option.Incoming),
 		}
 		if option.Counter != nil {
@@ -134,7 +126,7 @@ func supportDefendersOf(options []engagement.SupportDefendOption) []battle.Suppo
 	out := make([]battle.SupportDefendOption, 0, len(options))
 	for _, option := range options {
 		out = append(out, battle.SupportDefendOption{
-			UnitID:   option.Unit.ID,
+			UnitID:   option.UnitID,
 			Incoming: forecastOf(option.Incoming),
 		})
 	}
@@ -145,17 +137,18 @@ func supportAttackersOf(options []engagement.SupportAttackOption) []battle.Suppo
 	out := make([]battle.SupportAttackOption, 0, len(options))
 	for _, option := range options {
 		out = append(out, battle.SupportAttackOption{
-			UnitID: option.Unit.ID,
-			Weapon: option.Weapon.Name,
-			Strike: forecastOf(option.Strike),
+			UnitID:   option.UnitID,
+			WeaponID: option.WeaponID,
+			Strike:   forecastOf(option.Strike),
 		})
 	}
 	return out
 }
 
-func optionalNameOf(name string) *string {
-	if name == "" {
+func cloneID(id *int) *int {
+	if id == nil {
 		return nil
 	}
-	return &name
+	out := *id
+	return &out
 }

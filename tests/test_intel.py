@@ -103,7 +103,7 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert unit.mech.move_range == 5
     assert [weapon.name for weapon in unit.mech.weapons] == ["ビームライフル"]
     assert [weapon.name for weapon in unit.mech.map_weapons] == ["メガ粒子砲"]
-    assert unit.ammo == {"メガ粒子砲": 2}
+    assert unit.map_weapon_ammo == [2]
     assert [skill.kind for skill in unit.skills] == ["skill_en_refill"]
     assert unit.chance_steps == unit.chance_steps_max == 1
     assert unit.support_attack_charges == 2

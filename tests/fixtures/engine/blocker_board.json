@@ -6,7 +6,6 @@
     "state": {
       "units": [
         {
-          "unit_id": "ally_1",
           "faction": "ally",
           "pos": [
             0,
@@ -75,11 +74,10 @@
           "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false,
-          "ammo": {},
+          "map_weapon_ammo": [],
           "debuffs": []
         },
         {
-          "unit_id": "enemy_1",
           "faction": "enemy",
           "pos": [
             2,
@@ -136,11 +134,10 @@
           "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false,
-          "ammo": {},
+          "map_weapon_ammo": [],
           "debuffs": []
         },
         {
-          "unit_id": "enemy_2",
           "faction": "enemy",
           "pos": [
             5,
@@ -209,7 +206,7 @@
           "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false,
-          "ammo": {},
+          "map_weapon_ammo": [],
           "debuffs": []
         }
       ],
@@ -236,7 +233,6 @@
       "expect": {
         "units": [
           {
-            "unit_id": "ally_1",
             "faction": "ally",
             "pos": [
               0,
@@ -305,11 +301,10 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": []
           },
           {
-            "unit_id": "enemy_1",
             "faction": "enemy",
             "pos": [
               2,
@@ -366,11 +361,10 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": []
           },
           {
-            "unit_id": "enemy_2",
             "faction": "enemy",
             "pos": [
               5,
@@ -439,7 +433,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": []
           }
         ],

@@ -1,9 +1,6 @@
 package battle
 
-import (
-	"maps"
-	"slices"
-)
+import "slices"
 
 type Terrain string
 
@@ -127,7 +124,7 @@ func cloneUnit(unit Unit) Unit {
 		unit.Skills[index].Amount = CloneAmount(unit.Skills[index].Amount)
 	}
 	unit.Debuffs = slices.Clone(unit.Debuffs)
-	unit.Ammo = maps.Clone(unit.Ammo)
+	unit.MapWeaponAmmo = slices.Clone(unit.MapWeaponAmmo)
 	return unit
 }
 

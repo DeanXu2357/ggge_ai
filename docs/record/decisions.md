@@ -1877,3 +1877,17 @@
   The version history of the spec keeps the crossover sentence in the
   entries for version 1.9 and version 1.10. Those two entries state
   what those two versions did, and they stay true.
+- **(0901) Two wire fields outside the 24-field scope retype too —
+  user ruling**｜Issue #89 lists 24 string identifier fields that
+  leave the wire. The re-examination of the roadmap found two more
+  string unit identifiers on the wire: 'Victory.TargetID' in
+  engine/protocol/types.go, stored at 'init' and read by no rule, and
+  'PlaceResponse.Placed', the answer of the declared and unhandled
+  command 'place'. The session put both to the user with the
+  alternative of leaving each string for a later ticket, at the price
+  of a second breaking wire change. The user selected the retype for
+  both: 'Victory.TargetID' becomes a nullable position with the key
+  'target_id', and 'PlaceResponse.Placed' becomes a position list.
+  The commands 'place', 'roster' and 'deploy_cells' stay declared and
+  unhandled; only the types move. Protocol 2.0, issue #89. The
+  roadmap docs/roadmaps/branch-issue-89.md records both rulings.

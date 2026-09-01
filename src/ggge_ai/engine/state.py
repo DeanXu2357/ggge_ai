@@ -133,9 +133,12 @@ class Unit:
 
     The unit records the state and the maxima of the state. It takes no part in
     a computation: the pilot and the mech carry the values that a formula reads.
+
+    The unit carries no id: the position of the unit in 'BattleState.units' is
+    its id. map_weapon_ammo holds one count for each entry of mech.map_weapons,
+    in the same order.
     """
 
-    unit_id: str
     faction: Faction
     pos: Cell = (0, 0)
     # The size is data only. The geometry of this module gives every unit one
@@ -159,20 +162,12 @@ class Unit:
     support_attack_charges_max: int = 0
     has_shield: bool = False
     support_defend_when_attack: bool = False
-    ammo: dict[str, int] = field(default_factory=dict)
+    map_weapon_ammo: list[int] = field(default_factory=list)
     debuffs: list[Debuff] = field(default_factory=list)
 
     @property
     def alive(self) -> bool:
         return self.hp > 0
-
-    def weapon(self, name: str | None) -> Weapon | None:
-        if name is None:
-            return self.mech.weapons[0] if self.mech.weapons else None
-        for w in self.mech.weapons:
-            if w.name == name:
-                return w
-        return None
 
     def clone(self) -> Unit:
         return replace(
@@ -180,7 +175,7 @@ class Unit:
             pilot=replace(self.pilot),
             mech=replace(self.mech, weapons=list(self.mech.weapons)),
             skills=[replace(s) for s in self.skills],
-            ammo=dict(self.ammo),
+            map_weapon_ammo=list(self.map_weapon_ammo),
             debuffs=list(self.debuffs),
         )
 
@@ -222,13 +217,10 @@ class BattleState:
     terrain: Terrain | None = None
     terrain_cells: tuple[TerrainCell, ...] = ()
 
-    def unit(self, unit_id: str | None) -> Unit | None:
-        if unit_id is None:
+    def unit(self, unit_id: int | None) -> Unit | None:
+        if unit_id is None or not 0 <= unit_id < len(self.units):
             return None
-        for u in self.units:
-            if u.unit_id == unit_id:
-                return u
-        return None
+        return self.units[unit_id]
 
     def by_faction(self, faction: Faction) -> list[Unit]:
         return [u for u in self.units if u.faction is faction and u.alive]
@@ -256,27 +248,36 @@ class ResponseAttack:
 
     A stance of None is a strike that settles no response attack. The contract
     holds no such value, and the field is absent on the wire.
+
+    Every id below is a position: a unit id is the position of the unit in
+    'BattleState.units', and a weapon id is the position of the weapon in
+    'Mech.weapons'.
     """
 
     stance: Stance | None = None
-    weapon: str | None = None
-    support_defender: str | None = None
-    support_attackers: tuple[str, ...] = ()
+    weapon_id: int | None = None
+    support_defender_id: int | None = None
+    support_attacker_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
 class Decision:
-    """One action of one unit."""
+    """One action of one unit.
 
-    unit_id: str
+    Exactly one of weapon_id and map_weapon_id is filled on an attack. Every
+    other kind of action fills neither.
+    """
+
+    unit_id: int
     kind: ActionKind
     move_to: Cell | None = None
-    target_id: str | None = None
-    weapon: str | None = None
+    target_id: int | None = None
+    weapon_id: int | None = None
+    map_weapon_id: int | None = None
     amount: float | None = None
     response_attack: ResponseAttack | None = None
-    support_defender: str | None = None
-    support_attackers: tuple[str, ...] = ()
+    support_defender_id: int | None = None
+    support_attacker_ids: tuple[int, ...] = ()
     aim: Cell | None = None
     hit: bool | None = None
     counter_hit: bool | None = None

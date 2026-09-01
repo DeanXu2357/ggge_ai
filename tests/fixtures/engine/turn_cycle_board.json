@@ -6,7 +6,6 @@
     "state": {
       "units": [
         {
-          "unit_id": "ally_1",
           "faction": "ally",
           "pos": [
             1,
@@ -75,7 +74,7 @@
           "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false,
-          "ammo": {},
+          "map_weapon_ammo": [],
           "debuffs": [
             {
               "kind": "defense",
@@ -85,7 +84,6 @@
           ]
         },
         {
-          "unit_id": "ally_2",
           "faction": "ally",
           "pos": [
             1,
@@ -154,7 +152,7 @@
           "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false,
-          "ammo": {},
+          "map_weapon_ammo": [],
           "debuffs": [
             {
               "kind": "attack",
@@ -164,7 +162,6 @@
           ]
         },
         {
-          "unit_id": "enemy_1",
           "faction": "enemy",
           "pos": [
             4,
@@ -233,7 +230,7 @@
           "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false,
-          "ammo": {},
+          "map_weapon_ammo": [],
           "debuffs": []
         }
       ],
@@ -260,7 +257,6 @@
       "expect": {
         "units": [
           {
-            "unit_id": "ally_1",
             "faction": "ally",
             "pos": [
               1,
@@ -329,7 +325,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": [
               {
                 "kind": "defense",
@@ -339,7 +335,6 @@
             ]
           },
           {
-            "unit_id": "ally_2",
             "faction": "ally",
             "pos": [
               1,
@@ -408,7 +403,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": [
               {
                 "kind": "attack",
@@ -418,7 +413,6 @@
             ]
           },
           {
-            "unit_id": "enemy_1",
             "faction": "enemy",
             "pos": [
               4,
@@ -487,7 +481,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": []
           }
         ],
@@ -516,15 +510,16 @@
       "op": "act",
       "input": {
         "decision": {
-          "unit_id": "enemy_1",
+          "unit_id": 2,
           "kind": "standby",
           "move_to": null,
           "target_id": null,
-          "weapon": null,
+          "weapon_id": null,
+          "map_weapon_id": null,
           "amount": null,
           "response_attack": null,
-          "support_defender": null,
-          "support_attackers": [],
+          "support_defender_id": null,
+          "support_attacker_ids": [],
           "aim": null,
           "hit": null,
           "counter_hit": null,
@@ -535,13 +530,12 @@
       "expect": {
         "turn": 2,
         "phase": "ally",
-        "pending": [
-          "ally_1",
-          "ally_2"
+        "pending_ids": [
+          0,
+          1
         ],
         "units": [
           {
-            "unit_id": "ally_1",
             "faction": "ally",
             "pos": [
               1,
@@ -610,11 +604,10 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": []
           },
           {
-            "unit_id": "ally_2",
             "faction": "ally",
             "pos": [
               1,
@@ -683,7 +676,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": [
               {
                 "kind": "attack",
@@ -693,7 +686,6 @@
             ]
           },
           {
-            "unit_id": "enemy_1",
             "faction": "enemy",
             "pos": [
               4,
@@ -762,7 +754,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": []
           }
         ]
@@ -772,18 +764,19 @@
       "op": "act",
       "input": {
         "decision": {
-          "unit_id": "enemy_1",
+          "unit_id": 2,
           "kind": "reposition",
           "move_to": [
             4,
             2
           ],
           "target_id": null,
-          "weapon": null,
+          "weapon_id": null,
+          "map_weapon_id": null,
           "amount": null,
           "response_attack": null,
-          "support_defender": null,
-          "support_attackers": [],
+          "support_defender_id": null,
+          "support_attacker_ids": [],
           "aim": null,
           "hit": null,
           "counter_hit": null,
@@ -794,13 +787,12 @@
       "expect": {
         "turn": 2,
         "phase": "ally",
-        "pending": [
-          "ally_1",
-          "ally_2"
+        "pending_ids": [
+          0,
+          1
         ],
         "units": [
           {
-            "unit_id": "ally_1",
             "faction": "ally",
             "pos": [
               1,
@@ -869,11 +861,10 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": []
           },
           {
-            "unit_id": "ally_2",
             "faction": "ally",
             "pos": [
               1,
@@ -942,7 +933,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": [
               {
                 "kind": "attack",
@@ -952,7 +943,6 @@
             ]
           },
           {
-            "unit_id": "enemy_1",
             "faction": "enemy",
             "pos": [
               4,
@@ -1021,7 +1011,7 @@
             "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false,
-            "ammo": {},
+            "map_weapon_ammo": [],
             "debuffs": []
           }
         ]

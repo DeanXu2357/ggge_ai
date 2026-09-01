@@ -23,7 +23,7 @@ const (
 
 type Victory struct {
 	Kind     VictoryKind  `json:"kind"`
-	TargetID string       `json:"target_id,omitempty"`
+	TargetID *int         `json:"target_id,omitempty"`
 	Cell     *battle.Cell `json:"cell,omitempty"`
 }
 
@@ -69,7 +69,7 @@ type PlaceRequest struct {
 }
 
 type PlaceResponse struct {
-	Placed []string      `json:"placed"`
+	Placed []int         `json:"placed"`
 	Cells  []battle.Cell `json:"cells"`
 }
 
@@ -80,7 +80,7 @@ type RosterResponse struct {
 }
 
 type ReachRequest struct {
-	UnitID string `json:"unit_id"`
+	UnitID int `json:"unit_id"`
 }
 
 type ReachResponse struct {
@@ -88,16 +88,16 @@ type ReachResponse struct {
 }
 
 type ActionsRequest struct {
-	UnitID string `json:"unit_id"`
+	UnitID int `json:"unit_id"`
 }
 
 type ResponseAttacksRequest struct {
 	Action     battle.Decision `json:"action"`      // action of the attacker
-	DefenderID string          `json:"defender_id"` // target of the attacker
+	DefenderID int             `json:"defender_id"` // target of the attacker
 }
 
 type ActRequest struct {
-	UnitID         string                 `json:"unit_id"`
+	UnitID         int                    `json:"unit_id"`
 	Action         battle.Decision        `json:"action"`
 	ResponseAttack *battle.ResponseAttack `json:"response_attack,omitempty"`
 	Dice           Dice                   `json:"dice"`

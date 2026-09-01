@@ -2,7 +2,8 @@
 
 > Type: working—deleted at merge
 
-Issue #89. Branch off 'dev' at 'eb3d2f4'.
+Issue #89. Branch off 'dev', rebased onto '2bd25f2' (the #90 merge,
+protocol base 1.11).
 
 ## The design
 
@@ -51,6 +52,13 @@ one. The name stays data, and the position takes the identity.
 
 Removed, because a position replaces it and it has nothing else to be:
 'Unit.ID'. That string is a made-up handle and nothing more.
+
+Two fields outside the issue's 24-field list also carry string unit
+identifiers. The user ruled on 2026-09-01 that both retype in this
+change: 'Victory.TargetID' becomes a nullable position (key
+'target_id'), and 'PlaceResponse.Placed' becomes a position list. The
+commands 'place', 'roster' and 'deploy_cells' stay declared and
+unhandled; only the types move.
 
 The rule everywhere: to point at a thing, use a position; to say what a
 thing is, use its name, its kind or its category.
@@ -190,6 +198,9 @@ unit.
   reachable crash.
 - 'validate' refuses a load where 'len(MapWeaponAmmo)' differs from
   'len(Mech.MapWeapons)'.
+- 'UnitAt' refuses with 'battle.ErrNoUnit'. Every gate wraps a
+  position refusal so the wire answers the code 'illegal_action',
+  which is what the acceptance criteria assert.
 - The unit slice is append only: never delete, never reorder. A
   destroyed unit keeps its place with no hit points, which is already
   the behavior. A test pins it across a turn cycle that includes a
@@ -208,8 +219,12 @@ the engine move together.
 
 Proven four times on issue #88: every golden is byte-identical to
 'json.dumps(payload, indent=2, ensure_ascii=True)' plus a newline.
-Verify that for all eleven before writing, transform the parsed tree,
-and dump it back the same way.
+Verify that for all twelve files before writing: the eleven goldens in
+'tests/fixtures/engine/' and
+'assets/scenarios/uc_hard_1_placeholder.json'. Transform the parsed
+tree, and dump it back the same way. A 'load' payload embeds a
+history, and each history entry embeds a decision: the transform
+rewrites those nested payloads too, not only the state trees.
 
 ## Progress log
 
@@ -218,7 +233,24 @@ and dump it back the same way.
   kept the names, resolved them by walking the slice, and invented a
   sentinel for a missing count. The section "What this forbids" records
   what it did wrong.
+- 2026-09-01: rebased onto 'dev' at '2bd25f2' (#90 merge, protocol
+  base 1.11). The roadmap was re-examined against the code: every
+  named symbol verified at its stated location.
+- 2026-09-01: the user ruled two additions: 'Victory.TargetID' and
+  'PlaceResponse.Placed' retype in this change; both were outside the
+  issue's 24-field list.
+- 2026-09-01: the transform covers twelve files, not eleven: the
+  scenario 'uc_hard_1_placeholder.json' also carries unit ids, and
+  golden histories embed decision payloads.
+- 2026-09-01: the code-editor agent delivered the rewrite in one
+  change: the Go engine, the eleven goldens and the Python mirror, 66
+  files. All gates pass: 'gofmt', 'go vet', 'go test -race', pytest
+  (1034 passed), ruff. Test census 257 to 281. The scenario file was
+  verified to carry no wire id, so eleven files moved, not twelve.
+  The two 0901 rulings are in: 'Victory.TargetID' and
+  'PlaceResponse.Placed' are positions.
 
 ## Resume point
 
-The rewrite, not started.
+The code rewrite is done and gate-verified. Open: the spec rewrite
+to protocol 2.0, the commit, and the finish-task steps.

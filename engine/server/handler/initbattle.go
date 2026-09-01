@@ -21,8 +21,8 @@ func (c *Commands) InitBattle(id string, payload json.RawMessage) protocol.Respo
 		unit := &request.Enemies[index]
 		if unit.Faction != battle.FactionEnemy {
 			return protocol.Fail(id, protocol.CodeBadRequest,
-				fmt.Sprintf("the unit %q of 'enemies' carries the faction %q",
-					unit.ID, unit.Faction))
+				fmt.Sprintf("the unit %d of 'enemies' carries the faction %q",
+					index, unit.Faction))
 		}
 	}
 	bounds := battle.Bounds{{0, 0}, {request.Board.Width - 1, request.Board.Height - 1}}

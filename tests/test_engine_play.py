@@ -35,9 +35,10 @@ def _play_engagement(engine_executable, seed: int, max_turns: int = 30, dice: di
 
 
 def test_a_decision_carries_every_key_of_the_wire():
-    assert decision("a", "standby") == {
-        "unit_id": "a", "kind": "standby", "move_to": None, "target_id": None, "weapon": None,
-        "amount": None, "response_attack": None, "support_defender": None, "support_attackers": [],
+    assert decision(0, "standby") == {
+        "unit_id": 0, "kind": "standby", "move_to": None, "target_id": None, "weapon_id": None,
+        "map_weapon_id": None, "amount": None, "response_attack": None,
+        "support_defender_id": None, "support_attacker_ids": [],
         "aim": None, "hit": None, "counter_hit": None, "support_hit": None,
     }
 
@@ -51,8 +52,8 @@ class _RefusesEveryPickButStandby:
     def call(self, cmd: str, payload: dict | None = None) -> dict:
         if cmd == "export":
             return {"state": {"turn": 1, "phase": "ally", "units": [
-                {"unit_id": "a", "faction": "ally", "pos": [0, 0], "hp": 10, "acted": False},
-                {"unit_id": "b", "faction": "enemy", "pos": [3, 0], "hp": 10, "acted": False},
+                {"faction": "ally", "pos": [0, 0], "hp": 10, "acted": False},
+                {"faction": "enemy", "pos": [3, 0], "hp": 10, "acted": False},
             ]}}
         if cmd == "actions":
             return {"move_cells": [[1, 0]], "weapons": [
@@ -60,7 +61,7 @@ class _RefusesEveryPickButStandby:
                 {"name": "saber", "usable_after_move": True},
             ]}
         if cmd == "response_attacks":
-            return {"defender": {"response_attacks": [{"stance": "dodge", "weapon": None}]}}
+            return {"defender": {"response_attacks": [{"stance": "dodge", "weapon_id": None}]}}
         kind = payload["action"]["kind"]
         self.kinds.append(kind)
         if len(self.kinds) > 8:
@@ -109,7 +110,7 @@ def test_an_attack_carries_the_response_attack_of_the_defender(engine_executable
     assert attacks, "the engagement board holds foes in range"
     for entry in attacks:
         assert set(entry["request"]["response_attack"]) == {
-            "stance", "weapon", "support_defender", "support_attackers",
+            "stance", "weapon_id", "support_defender_id", "support_attacker_ids",
         }
         assert entry["answer"]["events"][0]["event"] == "strike"
 

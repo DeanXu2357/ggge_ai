@@ -14,7 +14,7 @@ func rifle(name string, rangeMin, rangeMax int) battle.Weapon {
 	return battle.Weapon{Name: name, RangeMin: rangeMin, RangeMax: rangeMax, UsableAfterMove: true}
 }
 
-func mustActions(t *testing.T, b *Board, id string) battle.ActionsResponse {
+func mustActions(t *testing.T, b *Board, id int) battle.ActionsResponse {
 	t.Helper()
 	out, err := b.Actions(id)
 	if err != nil {
@@ -24,17 +24,17 @@ func mustActions(t *testing.T, b *Board, id string) battle.ActionsResponse {
 }
 
 func TestTheActionsCarryTheCellsTheUnitReaches(t *testing.T) {
-	b := board(unitAt("a1", battle.FactionAlly, battle.Cell{0, 0}),
-		unitAt("e1", battle.FactionEnemy, battle.Cell{1, 0}))
+	b := board(unitAt(battle.FactionAlly, battle.Cell{0, 0}),
+		unitAt(battle.FactionEnemy, battle.Cell{1, 0}))
 	b.state.Units[0].Mech.MoveRange = 1
 
-	out := mustActions(t, b, "a1")
+	out := mustActions(t, b, 0)
 
 	want := []battle.Cell{{0, 0}, {0, 1}}
 	if !reflect.DeepEqual(out.MoveCells, want) {
 		t.Fatalf("the foe blocks the cell (1,0): %v", out.MoveCells)
 	}
-	if out.Unit.UnitID != "a1" {
+	if out.Unit.UnitID != 0 {
 		t.Fatalf("unit: %v", out.Unit)
 	}
 }
@@ -44,14 +44,14 @@ func TestTheActionsCarryTheCellsTheUnitReaches(t *testing.T) {
 func TestTheActionsJudgeNoResourceAndNoBand(t *testing.T) {
 	costly := rifle("costly", 1, 1)
 	costly.ENCost = 20
-	ally := unitAt("a1", battle.FactionAlly, battle.Cell{0, 0})
+	ally := unitAt(battle.FactionAlly, battle.Cell{0, 0})
 	ally.EN = 0
 	ally.MaxHP = ally.HP
 	ally.Mech.Weapons = []battle.Weapon{costly}
 	ally.Skills = []battle.Skill{{Kind: "skill_heal", Uses: 1}}
-	b := board(ally, unitAt("e1", battle.FactionEnemy, battle.Cell{4, 4}))
+	b := board(ally, unitAt(battle.FactionEnemy, battle.Cell{4, 4}))
 
-	out := mustActions(t, b, "a1")
+	out := mustActions(t, b, 0)
 
 	if len(out.Weapons) != 1 || len(out.Skills) != 1 {
 		t.Fatalf("the answer holds the whole panel: %+v", out)
@@ -59,17 +59,17 @@ func TestTheActionsJudgeNoResourceAndNoBand(t *testing.T) {
 }
 
 func TestTheActionsOfAUnitThatCannotAnswerAreAnError(t *testing.T) {
-	dead := unitAt("a2", battle.FactionAlly, battle.Cell{0, 1})
+	dead := unitAt(battle.FactionAlly, battle.Cell{0, 1})
 	dead.HP = 0
-	b := board(unitAt("a1", battle.FactionAlly, battle.Cell{0, 0}),
-		unitAt("e1", battle.FactionEnemy, battle.Cell{2, 0}), dead)
+	b := board(unitAt(battle.FactionAlly, battle.Cell{0, 0}),
+		unitAt(battle.FactionEnemy, battle.Cell{2, 0}), dead)
 	cases := map[string]struct {
-		unitID string
+		unitID int
 		want   error
 	}{
-		"an unknown unit":      {"ghost", battle.ErrNoUnit},
-		"a destroyed unit":     {"a2", battle.ErrDestroyed},
-		"a unit off the phase": {"e1", battle.ErrOffPhase},
+		"an unknown unit":      {9, battle.ErrNoUnit},
+		"a destroyed unit":     {2, battle.ErrDestroyed},
+		"a unit off the phase": {1, battle.ErrOffPhase},
 	}
 
 	for name, one := range cases {
@@ -90,18 +90,18 @@ func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 		Bounds: &bounds,
 		Phase:  battle.FactionAlly,
 		Units: []battle.Unit{{
-			ID: "a1", Faction: battle.FactionAlly, HP: 10, MaxHP: 10, EN: 5, ENMax: 5,
-			Ammo:    map[string]int{"w": 3},
-			Debuffs: []battle.Debuff{{Kind: "defense", Magnitude: 0.1, AppliedPhase: 3}},
-			Skills:  []battle.Skill{{Kind: "boost", Amount: &amount, Uses: 1}},
-			Mech:    battle.Mech{Weapons: []battle.Weapon{{Name: "w"}}},
+			Faction: battle.FactionAlly, HP: 10, MaxHP: 10, EN: 5, ENMax: 5,
+			MapWeaponAmmo: []int{3},
+			Debuffs:       []battle.Debuff{{Kind: "defense", Magnitude: 0.1, AppliedPhase: 3}},
+			Skills:        []battle.Skill{{Kind: "boost", Amount: &amount, Uses: 1}},
+			Mech:          battle.Mech{MapWeapons: []battle.MapWeapon{{Name: "w"}}},
 		}},
 		TerrainCells: []battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: battle.TerrainGround}},
 	})}
 
 	clone := b.State()
 	clone.Units[0].HP = 1
-	clone.Units[0].Ammo["w"] = 0
+	clone.Units[0].MapWeaponAmmo[0] = 0
 	clone.Units[0].Debuffs[0].Kind = "changed"
 	*clone.Units[0].Skills[0].Amount = 9
 	clone.Units[0].Skills[0].Uses = 2
@@ -109,7 +109,7 @@ func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 	clone.Phase = battle.FactionEnemy
 
 	unit := b.state.Units[0]
-	if unit.Value.HP != 10 || unit.Value.Ammo["w"] != 3 || unit.Value.Debuffs[0].Kind != "defense" {
+	if unit.Value.HP != 10 || unit.Value.MapWeaponAmmo[0] != 3 || unit.Value.Debuffs[0].Kind != "defense" {
 		t.Fatalf("the board changed with its clone: %+v", unit)
 	}
 	if *unit.Value.Skills[0].Amount != 0.5 || unit.Value.Skills[0].Uses != 1 {
@@ -124,7 +124,6 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	amount := 2500.0
 	ammo := 3
 	unit := &state.Unit{
-		ID:      "a1",
 		Faction: battle.FactionAlly,
 		Size:    battle.Cell{2, 1},
 		MaxHP:   1000,
@@ -151,13 +150,14 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 			EN:  40,
 			Skills: []def.Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2,
 				Affects: battle.AffectsAlly}},
-			Ammo: map[string]int{"missile": ammo},
+			MapWeaponAmmo: []int{ammo},
 		},
 	}
 
-	out := actionsOf(unit, []battle.Cell{{2, 3}, {2, 4}})
+	out := actionsOf(4, unit, []battle.Cell{{2, 3}, {2, 4}})
 
-	if out.Unit.Pos != (battle.Cell{2, 3}) || out.Unit.Size != (battle.Cell{2, 1}) ||
+	if out.Unit.UnitID != 4 || out.Unit.Pos != (battle.Cell{2, 3}) ||
+		out.Unit.Size != (battle.Cell{2, 1}) ||
 		out.Unit.Faction != battle.FactionAlly || out.Unit.MaxHP != 1000 {
 		t.Fatalf("status: %+v", out.Unit)
 	}
@@ -168,7 +168,7 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 		t.Fatalf("rifle: %+v", out.Weapons)
 	}
 	area := out.MapWeapons[0]
-	if area.Ammo == nil || *area.Ammo != 3 || len(area.EffectShape.Cells) != 1 ||
+	if area.Ammo != 3 || len(area.EffectShape.Cells) != 1 ||
 		area.Affects != battle.MapWeaponAffectsEnemy ||
 		area.ApplyShape.Direction != battle.DirectionUp || len(area.ApplyShape.Cells) != 2 {
 		t.Fatalf("missile: %+v", area)
@@ -183,10 +183,10 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 }
 
 func TestTheActionsOfAnActedUnitAreARefusal(t *testing.T) {
-	b := board(unitAt("a1", battle.FactionAlly, battle.Cell{0, 0}))
+	b := board(unitAt(battle.FactionAlly, battle.Cell{0, 0}))
 	b.state.Units[0].Value.Acted = true
 
-	_, err := b.Actions("a1")
+	_, err := b.Actions(0)
 
 	if !errors.Is(err, battle.ErrActed) {
 		t.Fatalf("error: %v", err)
@@ -208,7 +208,7 @@ func TestTheSummaryNamesThePendingUnitsAndTheGoneSides(t *testing.T) {
 	if !reflect.DeepEqual(summary.Gone, []battle.Faction{battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", summary.Gone)
 	}
-	if len(summary.Pending) == 0 {
+	if len(summary.PendingIDs) == 0 {
 		t.Fatal("the pending list must name the ally units that did not act")
 	}
 }
@@ -219,17 +219,18 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	unit := board.state.Unit("a1")
-	if !unit.Alive() {
-		t.Fatalf("unit: %v", unit)
+	unit, err := board.state.UnitAt(0)
+	if err != nil || !unit.Alive() {
+		t.Fatalf("unit: %v, error: %v", unit, err)
 	}
-	if board.state.Unit("ghost") != nil {
-		t.Fatal("the board holds no unit 'ghost'")
+	ghost, err := board.state.UnitAt(len(board.state.Units))
+	if ghost != nil || !errors.Is(err, battle.ErrNoUnit) {
+		t.Fatalf("a position outside the slice: %v, error: %v", ghost, err)
 	}
 
 	unit.Value.HP = 0
 
-	if unit.Alive() || board.state.Unit("ghost").Alive() {
+	if unit.Alive() || ghost.Alive() {
 		t.Fatal("a unit with no hit points is not alive, and neither is a unit that is not there")
 	}
 }

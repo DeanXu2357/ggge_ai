@@ -13,11 +13,22 @@ var knownStances = map[battle.Stance]bool{
 	battle.StanceNone:    true,
 }
 
-func nameOf(p *string) string {
-	if p == nil {
-		return ""
+// Prepare bounds-checks every id of a plan before Commit reads it, so a
+// refusal here is a broken invariant of the engine and not a bad request.
+func unitOf(board *state.Battle, id int) *state.Unit {
+	unit, err := board.UnitAt(id)
+	if err != nil {
+		panic(err)
 	}
-	return *p
+	return unit
+}
+
+func weaponOf(unit *state.Unit, id int) *def.Weapon {
+	weapon, err := unit.WeaponAt(id)
+	if err != nil {
+		panic(err)
+	}
+	return weapon
 }
 
 func hasENFor(unit *state.Unit, weapon def.Weapon) bool {
@@ -28,21 +39,12 @@ func fires(unit *state.Unit, weapon *def.Weapon, distance int) bool {
 	return weapon != nil && hasENFor(unit, *weapon) && weapon.Reaches(distance)
 }
 
-func weaponOf(unit *state.Unit, name string) *def.Weapon {
-	for index := range unit.Mech.Weapons {
-		if unit.Mech.Weapons[index].Name == name {
-			return &unit.Mech.Weapons[index]
-		}
-	}
-	return nil
-}
-
-func byFaction(board *state.Battle, faction battle.Faction) []*state.Unit {
-	var out []*state.Unit
+func byFaction(board *state.Battle, faction battle.Faction) []int {
+	var out []int
 	for index := range board.Units {
 		other := &board.Units[index]
 		if other.Faction == faction && other.Alive() {
-			out = append(out, other)
+			out = append(out, index)
 		}
 	}
 	return out

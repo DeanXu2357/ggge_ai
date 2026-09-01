@@ -85,16 +85,17 @@ func defenseMultiplier(stance battle.Stance, defender *state.Unit) float64 {
 	return formula.DefenseMultiplier(stance == battle.StanceDefend, defender.HasShield)
 }
 
-func counterWeapon(defender *state.Unit, name string, attacker battle.Footprint) *def.Weapon {
+// A nil weaponID takes the first weapon that fires, as the game does when the
+// defender counters with no choice of its own.
+func counterWeapon(defender *state.Unit, weaponID *int, attacker battle.Footprint) (int, bool) {
 	distance := geometry.Distance(defender.Footprint(), attacker)
 	for index := range defender.Mech.Weapons {
-		weapon := &defender.Mech.Weapons[index]
-		if name != "" && weapon.Name != name {
+		if weaponID != nil && index != *weaponID {
 			continue
 		}
-		if fires(defender, weapon, distance) {
-			return weapon
+		if fires(defender, &defender.Mech.Weapons[index], distance) {
+			return index, true
 		}
 	}
-	return nil
+	return 0, false
 }

@@ -37,9 +37,6 @@ func (c *Commands) Act(id string, payload json.RawMessage) protocol.Response {
 }
 
 func activationOf(request *protocol.ActRequest) (*battle.Decision, error) {
-	if request.Action.UnitID == "" {
-		request.Action.UnitID = request.UnitID
-	}
 	if request.Action.UnitID != request.UnitID {
 		return nil, errors.New("'unit_id' and 'action.unit_id' name two units")
 	}

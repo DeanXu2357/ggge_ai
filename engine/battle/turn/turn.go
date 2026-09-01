@@ -25,12 +25,12 @@ func Advance(board *state.Battle) []Rotation {
 	return out
 }
 
-func Pending(board *state.Battle, faction battle.Faction) []*state.Unit {
-	var out []*state.Unit
+func Pending(board *state.Battle, faction battle.Faction) []int {
+	var out []int
 	for index := range board.Units {
 		unit := &board.Units[index]
 		if unit.Faction == faction && unit.Alive() && !unit.Value.Acted {
-			out = append(out, unit)
+			out = append(out, index)
 		}
 	}
 	return out

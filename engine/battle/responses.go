@@ -1,5 +1,7 @@
 package battle
 
+// An answer that lists things in order carries no id field: the position of an
+// entry in the list is its id.
 type ActionsResponse struct {
 	Unit       UnitStatus       `json:"unit"`
 	MoveCells  []Cell           `json:"move_cells"`
@@ -9,7 +11,7 @@ type ActionsResponse struct {
 }
 
 type UnitStatus struct {
-	UnitID    string  `json:"unit_id"`
+	UnitID    int     `json:"unit_id"`
 	Faction   Faction `json:"faction"`
 	Pos       Cell    `json:"pos"`
 	Size      Cell    `json:"size"`
@@ -35,7 +37,7 @@ type MapWeaponEntry struct {
 	ApplyShape      ShapeRange       `json:"apply_shape"`
 	EffectShape     ShapeRange       `json:"effect_shape"`
 	ENCost          int              `json:"en_cost"`
-	Ammo            *int             `json:"ammo"` // A null 'ammo' is a weapon that spends no ammunition.
+	Ammo            int              `json:"ammo"`
 	Accuracy        float64          `json:"accuracy"`
 	Affects         MapWeaponAffects `json:"affects"`
 	UsableAfterMove bool             `json:"usable_after_move"`
@@ -65,31 +67,31 @@ type Forecast struct {
 
 type ResponseAttackOption struct {
 	Stance   Stance    `json:"stance"`
-	Weapon   *string   `json:"weapon"`
+	WeaponID *int      `json:"weapon_id"`
 	Incoming Forecast  `json:"incoming"`
 	Counter  *Forecast `json:"counter,omitempty"`
 }
 
 type SupportDefendOption struct {
-	UnitID   string   `json:"unit_id"`
+	UnitID   int      `json:"unit_id"`
 	Incoming Forecast `json:"incoming"`
 }
 
 type SupportAttackOption struct {
-	UnitID string   `json:"unit_id"`
-	Weapon string   `json:"weapon"`
-	Strike Forecast `json:"strike"`
+	UnitID   int      `json:"unit_id"`
+	WeaponID int      `json:"weapon_id"`
+	Strike   Forecast `json:"strike"`
 }
 
 type DefenderOptions struct {
-	UnitID           string                 `json:"unit_id"`
+	UnitID           int                    `json:"unit_id"`
 	ResponseAttacks  []ResponseAttackOption `json:"response_attacks"`
 	SupportDefenders []SupportDefendOption  `json:"support_defenders"`
 	SupportAttackers []SupportAttackOption  `json:"support_attackers"`
 }
 
 type AttackerOptions struct {
-	UnitID           string                `json:"unit_id"`
+	UnitID           int                   `json:"unit_id"`
 	SupportDefenders []SupportDefendOption `json:"support_defenders"`
 	SupportAttackers []SupportAttackOption `json:"support_attackers"`
 }
@@ -99,9 +101,9 @@ type AttackerOptions struct {
 type StrikeEvent struct {
 	Event     string `json:"event"`
 	Strike    string `json:"strike"`
-	ShooterID string `json:"shooter_id"`
-	StruckID  string `json:"struck_id"`
-	Weapon    string `json:"weapon"`
+	ShooterID int    `json:"shooter_id"`
+	StruckID  int    `json:"struck_id"`
+	WeaponID  int    `json:"weapon_id"`
 	Landed    bool   `json:"landed"`
 	Damage    int    `json:"damage"`
 	Killed    bool   `json:"killed"`
@@ -114,8 +116,8 @@ type PhaseEvent struct {
 }
 
 type BoardSummary struct {
-	Turn    int       `json:"turn"`
-	Phase   Faction   `json:"phase"`
-	Pending []string  `json:"pending"`
-	Gone    []Faction `json:"gone"`
+	Turn       int       `json:"turn"`
+	Phase      Faction   `json:"phase"`
+	PendingIDs []int     `json:"pending_ids"`
+	Gone       []Faction `json:"gone"`
 }

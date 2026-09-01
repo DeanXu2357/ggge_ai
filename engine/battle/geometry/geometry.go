@@ -41,9 +41,13 @@ func AddFootprint(set CellSet, footprint battle.Footprint) {
 	}
 }
 
-func ReachableAnchors(board *state.Battle, unit *state.Unit) CellSet {
+func ReachableAnchors(board *state.Battle, unitID int) CellSet {
+	unit, err := board.UnitAt(unitID)
+	if err != nil {
+		return CellSet{}
+	}
 	return reachableAnchors(unit.Footprint(), unit.Mech.MoveRange,
-		Blocking(board, unit), Occupied(board, unit.ID), board.Bounds)
+		Blocking(board, unitID), Occupied(board, unitID), board.Bounds)
 }
 
 func reachableAnchors(from battle.Footprint, budget int, blocked, occupied CellSet,
@@ -80,11 +84,15 @@ type walk struct {
 	spent int
 }
 
-func Blocking(board *state.Battle, unit *state.Unit) CellSet {
+func Blocking(board *state.Battle, unitID int) CellSet {
 	out := CellSet{}
+	unit, err := board.UnitAt(unitID)
+	if err != nil {
+		return out
+	}
 	for index := range board.Units {
 		other := &board.Units[index]
-		if other.ID == unit.ID || !other.Alive() || other.Faction == unit.Faction {
+		if index == unitID || !other.Alive() || other.Faction == unit.Faction {
 			continue
 		}
 		AddFootprint(out, other.Footprint())
@@ -92,11 +100,11 @@ func Blocking(board *state.Battle, unit *state.Unit) CellSet {
 	return out
 }
 
-func Occupied(board *state.Battle, except string) CellSet {
+func Occupied(board *state.Battle, exceptID int) CellSet {
 	out := CellSet{}
 	for index := range board.Units {
 		other := &board.Units[index]
-		if other.ID == except || !other.Alive() {
+		if index == exceptID || !other.Alive() {
 			continue
 		}
 		AddFootprint(out, other.Footprint())

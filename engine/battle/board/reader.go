@@ -8,17 +8,18 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
-func (b *Board) Actions(unitID string) (battle.ActionsResponse, error) {
+func (b *Board) Actions(unitID int) (battle.ActionsResponse, error) {
 	unit, err := engagement.Activatable(&b.state, unitID)
 	if err != nil {
 		return battle.ActionsResponse{}, err
 	}
-	return actionsOf(unit, geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit))), nil
+	return actionsOf(unitID, unit,
+		geometry.SortedCells(geometry.ReachableAnchors(&b.state, unitID))), nil
 }
 
-func actionsOf(unit *state.Unit, moveCells []battle.Cell) battle.ActionsResponse {
+func actionsOf(unitID int, unit *state.Unit, moveCells []battle.Cell) battle.ActionsResponse {
 	return battle.ActionsResponse{
-		Unit:       unitStatusOf(unit),
+		Unit:       unitStatusOf(unitID, unit),
 		MoveCells:  moveCells,
 		Weapons:    weaponEntriesOf(unit),
 		MapWeapons: mapWeaponEntriesOf(unit),
@@ -26,15 +27,14 @@ func actionsOf(unit *state.Unit, moveCells []battle.Cell) battle.ActionsResponse
 	}
 }
 
-func (b *Board) ReachableCells(unitID string) ([]battle.Cell, error) {
-	unit, err := engagement.LivingUnit(&b.state, unitID)
-	if err != nil {
+func (b *Board) ReachableCells(unitID int) ([]battle.Cell, error) {
+	if _, err := engagement.LivingUnit(&b.state, unitID); err != nil {
 		return nil, err
 	}
-	return geometry.SortedCells(geometry.ReachableAnchors(&b.state, unit)), nil
+	return geometry.SortedCells(geometry.ReachableAnchors(&b.state, unitID)), nil
 }
 
-func (b *Board) ResponseAttacks(action *battle.Decision, defenderID string) (battle.ResponseAttacksResponse, error) {
+func (b *Board) ResponseAttacks(action *battle.Decision, defenderID int) (battle.ResponseAttacksResponse, error) {
 	options, err := engagement.Menu(&b.state, *action, defenderID)
 	if err != nil {
 		return battle.ResponseAttacksResponse{}, err
@@ -49,11 +49,9 @@ func (b *Board) State() battle.BattleState {
 func (b *Board) Summary() battle.BoardSummary {
 	out := battle.BoardSummary{
 		Turn: b.state.Turn, Phase: b.state.Phase,
-		Pending: []string{}, Gone: []battle.Faction{},
+		PendingIDs: []int{}, Gone: []battle.Faction{},
 	}
-	for _, unit := range turn.Pending(&b.state, b.state.Phase) {
-		out.Pending = append(out.Pending, unit.ID)
-	}
+	out.PendingIDs = append(out.PendingIDs, turn.Pending(&b.state, b.state.Phase)...)
 	out.Gone = append(out.Gone, turn.Gone(&b.state)...)
 	return out
 }
