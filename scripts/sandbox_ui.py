@@ -701,8 +701,22 @@ function inspectUnit(uid) {
       "命中補正 " + weapon.accuracy,
     ];
     if (weapon.ammo !== null && weapon.ammo !== undefined) parts.push("彈藥 " + weapon.ammo);
-    if (!weapon.can_counter) parts.push("不可反擊");
-    if (weapon.map_weapon) parts.push("地圖兵器");
+    line.appendChild(node("div", "dim", parts.join("／")));
+    box.appendChild(line);
+  });
+  (unit.mech.map_weapons || []).forEach((weapon) => {
+    const line = node("div");
+    line.appendChild(node("b", null, weapon.name));
+    const parts = [
+      "地圖兵器",
+      "威力 " + weapon.power,
+      "施放形狀 " + weapon.apply_shape.cells.length + " 格",
+      "效果形狀 " + weapon.effect_shape.cells.length + " 格",
+      "EN " + weapon.en_cost,
+      "命中補正 " + weapon.accuracy,
+      "作用對象 " + weapon.affects,
+    ];
+    if (weapon.ammo_max) parts.push("彈藥上限 " + weapon.ammo_max);
     line.appendChild(node("div", "dim", parts.join("／")));
     box.appendChild(line);
   });

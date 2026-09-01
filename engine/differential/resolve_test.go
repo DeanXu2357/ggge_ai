@@ -7,7 +7,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
-	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 func init() {
@@ -22,12 +21,12 @@ type forcedDice struct {
 }
 
 type applyInput struct {
-	Decision protocol.Decision `json:"decision"`
-	Dice     forcedDice        `json:"dice"`
+	Decision battle.Decision `json:"decision"`
+	Dice     forcedDice      `json:"dice"`
 }
 
 type applyAnswer struct {
-	Units []protocol.Unit `json:"units"`
+	Units []battle.Unit `json:"units"`
 }
 
 var resolveOps = map[string]differential.Op{
@@ -36,24 +35,20 @@ var resolveOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		state, err := board.DecodeState(&setup.State)
+		state, err := restoreBoard(&setup.State)
 		if err != nil {
 			return nil, err
 		}
-		decision, err := board.DecodeDecision(&in.Decision)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := state.Apply(decision, battle.Forced(in.Dice)); err != nil {
+		if _, err := state.Act(&in.Decision, battle.Forced(in.Dice)); err != nil {
 			return nil, err
 		}
 		return applyAnswer{Units: livingUnits(state)}, nil
 	},
 }
 
-func livingUnits(state *board.Board) []protocol.Unit {
+func livingUnits(state *board.Board) []battle.Unit {
 	units := state.State().Units
-	out := make([]protocol.Unit, 0, len(units))
+	out := make([]battle.Unit, 0, len(units))
 	for _, unit := range units {
 		if unit.HP > 0 {
 			out = append(out, unit)

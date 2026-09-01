@@ -2,12 +2,9 @@ package differential_test
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
-	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 func init() {
@@ -15,15 +12,15 @@ func init() {
 }
 
 type actInput struct {
-	Decision protocol.Decision `json:"decision"`
-	Outcomes []string          `json:"outcomes"`
+	Decision battle.Decision `json:"decision"`
+	Outcomes []string        `json:"outcomes"`
 }
 
 type actAnswer struct {
-	Turn    int              `json:"turn"`
-	Phase   protocol.Faction `json:"phase"`
-	Pending []string         `json:"pending"`
-	Units   []protocol.Unit  `json:"units"`
+	Turn    int            `json:"turn"`
+	Phase   battle.Faction `json:"phase"`
+	Pending []string       `json:"pending"`
+	Units   []battle.Unit  `json:"units"`
 }
 
 // The two turn-cycle cases are hand-derived; no oracle wrote them.
@@ -33,7 +30,7 @@ var turnOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		state, err := board.DecodeState(&setup.State)
+		state, err := restoreBoard(&setup.State)
 		if err != nil {
 			return nil, err
 		}
@@ -44,9 +41,6 @@ var turnOps = map[string]differential.Op{
 		roll := battle.NewManualRoll(outcomes)
 		if _, err := state.Act(&in.Decision, roll); err != nil {
 			return nil, err
-		}
-		if roll.Short() {
-			return nil, errors.New("the 'outcomes' list is short")
 		}
 		summary := state.Summary()
 		return actAnswer{Turn: summary.Turn, Phase: summary.Phase, Pending: summary.Pending, Units: livingUnits(state)}, nil

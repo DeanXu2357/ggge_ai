@@ -21,10 +21,6 @@ var Declared = []string{
 	"actions",
 	"response_attacks",
 	"act",
-	"rollback",
-	"set_unit",
-	"advice",
-	"certify",
 	"export",
 	"load",
 }

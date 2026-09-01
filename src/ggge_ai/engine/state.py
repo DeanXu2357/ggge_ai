@@ -1,7 +1,7 @@
 """The battle state in Python (spec: docs/spec/battle-engine-protocol.md).
 
-The Go package 'engine/protocol' holds the same structs in 'state.go'. A change
-here needs the same change there.
+The Go package 'engine/battle' holds the same structs in 'snapshot.go' and
+'decision.go'. A change here needs the same change there.
 
 The file holds the data of one battle and the accessors that read it. It holds
 no rule: the engine answers every question that needs one.
@@ -11,19 +11,63 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance, Terrain
+from .contract import (
+    ActionKind,
+    Cell,
+    Direction,
+    Faction,
+    MapWeaponAffects,
+    SkillAffects,
+    SkillSource,
+    Stance,
+    Terrain,
+)
+
+
+@dataclass(frozen=True)
+class ShapeRange:
+    """A set of cell offsets from an origin, and the heading that turns them."""
+
+    cells: list[Cell] = field(default_factory=list)
+    direction: Direction = Direction.NONE
 
 
 @dataclass(frozen=True)
 class Weapon:
+    """A direct weapon: it strikes one unit, and an exchange resolves it."""
+
     name: str
     power: float
     range_min: int = 1
     range_max: int = 1
     en_cost: int = 0
     accuracy: float = 0.0
-    can_counter: bool = True
-    map_weapon: bool = False
+    usable_after_move: bool = True
+    debuff_kind: str | None = None
+    debuff_magnitude: float = 0.0
+    categories: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class MapWeapon:
+    """An area weapon: it strikes every unit of its shape, and it starts no
+    exchange. No rule of this version fires one (issue #79).
+
+    The two shape names cross over the two datamine columns. Read the column,
+    not the name. apply_shape holds 'map_weapon_effect_range': the cells that
+    the strike hits. effect_shape holds 'map_weapon_shooting_range': the cells
+    where the center of the strike can sit. An empty effect_shape is no choice
+    of center: the weapon opens its area at the cell of the caster.
+    """
+
+    name: str
+    power: float
+    apply_shape: ShapeRange = field(default_factory=ShapeRange)
+    effect_shape: ShapeRange = field(default_factory=ShapeRange)
+    ammo_max: int = 0
+    en_cost: int = 0
+    accuracy: float = 0.0
+    affects: MapWeaponAffects = MapWeaponAffects.ENEMY
     usable_after_move: bool = True
     debuff_kind: str | None = None
     debuff_magnitude: float = 0.0
@@ -32,11 +76,13 @@ class Weapon:
 
 @dataclass
 class Skill:
-    """The area fields hold no 'self' value of 'affects'.
+    """A skill that acts on a set of cells.
 
-    A skill that acts on the caster alone is 'range_min' 0, 'range_max' 0,
-    'blast' 0 and 'affects' ally: the area is the cell of the caster, and the
-    caster is an ally in its own cell.
+    The two shape names cross over the two datamine columns. Read the column,
+    not the name. apply_shape holds 'effect_range': the cells that the skill
+    acts on. effect_shape holds the cells where the center of the skill can
+    sit. An empty effect_shape is no choice of center: the skill opens its area
+    at the cell of the caster.
     """
 
     kind: str
@@ -45,9 +91,8 @@ class Skill:
     uses: int = 1
     ends_activation: bool = True
     usable_after_move: bool = True
-    range_min: int = 0
-    range_max: int = 0
-    blast: int = 0
+    apply_shape: ShapeRange = field(default_factory=ShapeRange)
+    effect_shape: ShapeRange = field(default_factory=ShapeRange)
     affects: SkillAffects = SkillAffects.ALLY
 
 
@@ -81,6 +126,7 @@ class Mech:
     mobility: float = 0.0
     move_range: int = 0
     weapons: list[Weapon] = field(default_factory=list)
+    map_weapons: list[MapWeapon] = field(default_factory=list)
 
 
 @dataclass

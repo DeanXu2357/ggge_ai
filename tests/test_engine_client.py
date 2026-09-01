@@ -11,7 +11,13 @@ from pathlib import Path
 
 import pytest
 
-from ggge_ai.engine.client import BattleEngine, EngineDead, EngineError, EngineTimeout
+from ggge_ai.engine.client import (
+    BattleEngine,
+    EngineDead,
+    EngineError,
+    EngineProtocolMismatch,
+    EngineTimeout,
+)
 from ggge_ai.engine.contract import DECLARED_COMMANDS, PROTOCOL_VERSION, ErrorCode
 
 IMPLEMENTED = {"hello", "ping", "init", "load", "export", "reach", "actions", "response_attacks", "act"}
@@ -55,7 +61,7 @@ def test_hello_lists_every_declared_command_in_order(engine_executable):
 def test_a_declared_command_with_no_handler_is_not_implemented(engine_executable):
     responses, _ = _exchange(
         engine_executable,
-        '{"id":"d1","cmd":"certify","payload":{}}',
+        '{"id":"d1","cmd":"place","payload":{}}',
         '{"id":"d2","cmd":"ping","payload":{}}',
     )
 
@@ -97,10 +103,26 @@ def test_the_client_calls_hello_and_ping(engine_executable):
     assert tuple(command["name"] for command in hello["commands"]) == DECLARED_COMMANDS
 
 
+def test_an_engine_of_another_protocol_version_is_refused_at_hello(tmp_path):
+    stale = _script(
+        tmp_path / "stale",
+        "sys.stdin.readline()\n"
+        "print('{\"id\":\"1\",\"ok\":true,\"payload\":{\"protocol\":\"1.4\","
+        "\"commands\":[]}}', flush=True)\ntime.sleep(30)",
+    )
+
+    with BattleEngine(stale, timeout_s=5.0) as engine:
+        with pytest.raises(EngineProtocolMismatch) as mismatch:
+            engine.hello()
+
+    assert "1.4" in str(mismatch.value)
+    assert PROTOCOL_VERSION in str(mismatch.value)
+
+
 def test_the_client_raises_engine_error_on_a_refusal(engine_executable):
     with BattleEngine(engine_executable) as engine:
         with pytest.raises(EngineError) as refusal:
-            engine.call("certify", {})
+            engine.call("place", {})
 
         assert refusal.value.code == ErrorCode.NOT_IMPLEMENTED
         assert engine.ping() == {}

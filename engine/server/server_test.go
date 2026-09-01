@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -34,7 +35,7 @@ func serve(t *testing.T, s *Server, lines ...string) []reply {
 }
 
 func TestResponseKeepsTheRequestID(t *testing.T) {
-	server := New()
+	server := New(board.New())
 	server.handle("init", func(id string, _ json.RawMessage) protocol.Response {
 		return protocol.Fail(id, protocol.CodeNoSession, "no board")
 	})
@@ -56,7 +57,7 @@ func TestResponseKeepsTheRequestID(t *testing.T) {
 }
 
 func TestHelloListsEveryDeclaredCommand(t *testing.T) {
-	replies := serve(t, New(), `{"id":"h1","cmd":"hello","payload":{}}`)
+	replies := serve(t, New(board.New()), `{"id":"h1","cmd":"hello","payload":{}}`)
 
 	var payload protocol.HelloPayload
 	if err := json.Unmarshal(replies[0].Payload, &payload); err != nil {
@@ -84,8 +85,8 @@ func TestHelloListsEveryDeclaredCommand(t *testing.T) {
 }
 
 func TestDeclaredCommandWithNoHandlerIsNotImplemented(t *testing.T) {
-	replies := serve(t, New(),
-		`{"id":"n1","cmd":"rollback","payload":{}}`,
+	replies := serve(t, New(board.New()),
+		`{"id":"n1","cmd":"place","payload":{}}`,
 		`{"id":"n2","cmd":"ping","payload":{}}`)
 
 	if replies[0].OK || replies[0].ID != "n1" {
@@ -100,7 +101,7 @@ func TestDeclaredCommandWithNoHandlerIsNotImplemented(t *testing.T) {
 }
 
 func TestUnknownCommandIsRefused(t *testing.T) {
-	replies := serve(t, New(),
+	replies := serve(t, New(board.New()),
 		`{"id":"u1","cmd":"teleport","payload":{}}`,
 		`{"id":"u2","cmd":"ping","payload":{}}`)
 
@@ -113,7 +114,7 @@ func TestUnknownCommandIsRefused(t *testing.T) {
 }
 
 func TestMalformedLineIsBadRequestWithAnEmptyID(t *testing.T) {
-	replies := serve(t, New(), `{"id":"m1",`, `{"id":"m2","cmd":"ping","payload":{}}`)
+	replies := serve(t, New(board.New()), `{"id":"m1",`, `{"id":"m2","cmd":"ping","payload":{}}`)
 
 	if replies[0].OK || replies[0].ID != "" {
 		t.Fatalf("reply: %+v", replies[0])
@@ -128,7 +129,7 @@ func TestMalformedLineIsBadRequestWithAnEmptyID(t *testing.T) {
 
 func TestServeReturnsOnEOF(t *testing.T) {
 	var out strings.Builder
-	if err := New().Serve(strings.NewReader(""), &out); err != nil {
+	if err := New(board.New()).Serve(strings.NewReader(""), &out); err != nil {
 		t.Fatalf("serve: %v", err)
 	}
 	if out.String() != "" {
@@ -139,7 +140,7 @@ func TestServeReturnsOnEOF(t *testing.T) {
 func TestServeReadsALineBiggerThanTheScannerDefault(t *testing.T) {
 	line := `{"id":"b1","cmd":"ping","payload":{"pad":"` + strings.Repeat("x", 1<<20) + `"}}`
 
-	replies := serve(t, New(), line)
+	replies := serve(t, New(board.New()), line)
 
 	if !replies[0].OK || replies[0].ID != "b1" {
 		t.Fatalf("reply: %+v", replies[0])
@@ -147,7 +148,7 @@ func TestServeReadsALineBiggerThanTheScannerDefault(t *testing.T) {
 }
 
 func TestTheRegistryBindsEveryCommandOfTheBuild(t *testing.T) {
-	server := New()
+	server := New(board.New())
 
 	if _, bound := server.handlers["hello"]; !bound {
 		t.Fatal("hello has no handler")

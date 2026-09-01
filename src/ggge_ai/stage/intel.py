@@ -12,13 +12,13 @@ known，所以規劃仍會排 Inspect 去確認。
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from enum import StrEnum
 from typing import Any
 
 from ..runtime.perceive import Observation, Perceiver
 from ..engine.contract import Cell, Faction
-from ..engine.state import Mech, Pilot, Skill, Unit, Weapon
+from ..engine.state import MapWeapon, Mech, Pilot, Skill, Unit, Weapon
 from .state import StageState
 
 FORMAT_VERSION = 1
@@ -47,7 +47,6 @@ class WeaponIntel:
     range_max: int = 1
     en_cost: int = 0
     accuracy: float = 0.0
-    can_counter: bool = True
     map_weapon: bool = False
     ammo: int = 0
     debuff_kind: str | None = None
@@ -64,8 +63,20 @@ class WeaponIntel:
             range_max=self.range_max,
             en_cost=self.en_cost,
             accuracy=self.accuracy,
-            can_counter=self.can_counter,
-            map_weapon=self.map_weapon,
+            debuff_kind=self.debuff_kind,
+            debuff_magnitude=self.debuff_magnitude,
+        )
+
+    def to_map_weapon(self) -> MapWeapon:
+        # 面板讀不到地圖兵器的形狀：沒有格子、沒有朝向。兩個形狀都留空，
+        # 等有形狀來源再填（issue #79）。空的 effect_shape 在契約裡代表以
+        # 自機格為中心，這裡卻只是缺資料，規則不得照字面讀。
+        return MapWeapon(
+            name=self.name,
+            power=self.power,
+            ammo_max=self.ammo,
+            en_cost=self.en_cost,
+            accuracy=self.accuracy,
             debuff_kind=self.debuff_kind,
             debuff_magnitude=self.debuff_magnitude,
         )
@@ -79,6 +90,9 @@ class SkillIntel:
     ends_activation: bool = True
 
     def to_skill(self) -> Skill:
+        # 面板讀不到技能的形狀：沒有格子、沒有朝向。兩個形狀都留空，等有形狀
+        # 來源再填。空的 effect_shape 在契約裡代表以自機格為中心，這裡卻只是
+        # 缺資料，規則不得照字面讀。
         return Skill(
             kind=self.kind,
             amount=self.amount,
@@ -171,7 +185,12 @@ class UnitIntel:
                 defense=self.unit_defense,
                 mobility=self.mobility,
                 move_range=self.move_range,
-                weapons=[weapon.to_weapon() for weapon in self.weapons],
+                weapons=[
+                    weapon.to_weapon() for weapon in self.weapons if not weapon.map_weapon
+                ],
+                map_weapons=[
+                    weapon.to_map_weapon() for weapon in self.weapons if weapon.map_weapon
+                ],
             ),
             skills=[skill.to_skill() for skill in self.skills],
             acted=acted,
@@ -261,7 +280,10 @@ def _record_from_dict(data: dict[str, Any]) -> UnitIntel:
 
 def _weapon_from_dict(data: dict[str, Any]) -> WeaponIntel:
     # json 沒有 tuple：categories 讀回來是 list，不轉回去往返比較就不相等。
-    return WeaponIntel(**{**data, "categories": tuple(data.get("categories", ()))})
+    # 只讀認得的欄位：舊 dump 會帶已退役的鍵（protocol 1.4 的 can_counter）。
+    known = {entry.name for entry in fields(WeaponIntel)}
+    kept = {key: value for key, value in data.items() if key in known}
+    return WeaponIntel(**{**kept, "categories": tuple(data.get("categories", ()))})
 
 
 def _skill_from_dict(data: dict[str, Any]) -> SkillIntel:

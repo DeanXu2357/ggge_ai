@@ -1,8 +1,10 @@
 """The state codec: field parity with the Go structs, and the round trip.
 
-The parity check parses the JSON tags of 'engine/protocol/state.go' here, in
-the Python gate: 'engine/state.py' must hold every field that the wire holds,
-and a change on either side must fail this gate.
+The parity check parses the JSON tags of 'engine/battle/snapshot.go' and
+'engine/battle/decision.go' here, in the Python gate: 'engine/state.py' must
+hold every field that the wire holds, and a change on either side must fail
+this gate. It flattens an embedded struct at its position, as 'encoding/json'
+flattens it, so the mirror stays flat where the Go side wraps a group.
 
 A Go struct can hold a field that the dataclass does not, for a rule that the
 engine alone runs. 'ENGINE_ONLY' names each one, so an undeclared Go field
@@ -24,9 +26,11 @@ from ggge_ai.engine.state import (
     EventTable,
     Debuff,
     Decision,
+    MapWeapon,
     Mech,
     Pilot,
     ResponseAttack,
+    ShapeRange,
     Skill,
     StageEvent,
     TerrainCell,
@@ -34,10 +38,13 @@ from ggge_ai.engine.state import (
     Weapon,
 )
 
-STATE_GO = Path(__file__).resolve().parents[1] / "engine" / "protocol" / "state.go"
+CONTRACT = Path(__file__).resolve().parents[1] / "engine" / "battle"
+STATE_GO = (CONTRACT / "snapshot.go", CONTRACT / "decision.go", CONTRACT.parent / "protocol" / "state.go")
 
 STRUCTS = {
+    "ShapeRange": ShapeRange,
     "Weapon": Weapon,
+    "MapWeapon": MapWeapon,
     "Skill": Skill,
     "Debuff": Debuff,
     "Pilot": Pilot,
@@ -51,7 +58,9 @@ STRUCTS = {
 }
 
 ENCODERS = {
+    "ShapeRange": lambda: codec.encode_shape_range(ShapeRange()),
     "Weapon": lambda: codec.encode_weapon(Weapon(name="w", power=1.0)),
+    "MapWeapon": lambda: codec.encode_map_weapon(MapWeapon(name="w", power=1.0)),
     "Skill": lambda: codec.encode_skill(Skill(kind="skill_heal")),
     "Debuff": lambda: codec.encode_debuff(Debuff("k", 1.0, 2)),
     "Pilot": lambda: codec.encode_pilot(Pilot()),
@@ -70,23 +79,40 @@ ENGINE_ONLY: dict[str, list[str]] = {}
 
 STRUCT = re.compile(r"^type (\w+) struct \{$")
 TAG = re.compile(r'json:"([^",]+)')
+EMBEDDED = re.compile(r"^\t([A-Z]\w*)$")
+
+
+def _go_members() -> dict[str, list[tuple[str, str]]]:
+    out: dict[str, list[tuple[str, str]]] = {}
+    name = ""
+    for path in STATE_GO:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            header = STRUCT.match(line)
+            if header:
+                name = header.group(1)
+                out[name] = []
+            elif line == "}":
+                name = ""
+            elif name:
+                tag = TAG.search(line)
+                embedded = EMBEDDED.match(line)
+                if tag:
+                    out[name].append(("field", tag.group(1)))
+                elif embedded:
+                    out[name].append(("embed", embedded.group(1)))
+    return out
 
 
 def _go_structs() -> dict[str, list[str]]:
-    out: dict[str, list[str]] = {}
-    name = ""
-    for line in STATE_GO.read_text(encoding="utf-8").splitlines():
-        header = STRUCT.match(line)
-        if header:
-            name = header.group(1)
-            out[name] = []
-        elif line == "}":
-            name = ""
-        elif name:
-            tag = TAG.search(line)
-            if tag:
-                out[name].append(tag.group(1))
-    return out
+    members = _go_members()
+
+    def flatten(name: str) -> list[str]:
+        out: list[str] = []
+        for kind, value in members[name]:
+            out.extend([value] if kind == "field" else flatten(value))
+        return out
+
+    return {name: flatten(name) for name in members}
 
 
 @pytest.mark.parametrize("name", sorted(STRUCTS))

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
+
 from ggge_ai.runtime.perceive import Observation
-from ggge_ai.engine.contract import Faction
+from ggge_ai.engine.contract import Direction, Faction
 from ggge_ai.stage.intel import (
     IntelPerceiver,
     Intelligence,
@@ -99,14 +101,25 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert (unit.hp, unit.max_hp) == (2400, 2400)
     assert (unit.en, unit.en_max) == (180, 180)
     assert unit.mech.move_range == 5
-    assert [weapon.name for weapon in unit.mech.weapons] == ["ビームライフル", "メガ粒子砲"]
-    assert unit.weapon("メガ粒子砲").map_weapon
+    assert [weapon.name for weapon in unit.mech.weapons] == ["ビームライフル"]
+    assert [weapon.name for weapon in unit.mech.map_weapons] == ["メガ粒子砲"]
     assert unit.ammo == {"メガ粒子砲": 2}
     assert [skill.kind for skill in unit.skills] == ["skill_en_refill"]
     assert unit.chance_steps == unit.chance_steps_max == 1
     assert unit.support_attack_charges == 2
     assert unit.support_defend_charges == 1
     assert (unit.has_shield, unit.support_defend_when_attack) == (True, True)
+
+
+def test_a_map_weapon_carries_no_shape_because_the_panel_shows_none():
+    """面板讀不到格子與朝向，所以兩個形狀都留空、朝向取 none。"""
+    area = MAP_GUN.to_map_weapon()
+
+    assert area.apply_shape.cells == []
+    assert area.apply_shape.direction is Direction.NONE
+    assert area.effect_shape.cells == []
+    assert area.effect_shape.direction is Direction.NONE
+    assert area.ammo_max == 2
 
 
 def test_the_weapon_carries_its_badges_its_crit_and_its_level():
@@ -179,6 +192,18 @@ def test_the_json_round_trip_keeps_every_field_of_both_sections():
     assert restored.roster == intel.roster
     assert restored.stage == intel.stage
     assert restored.record("unicorn").skills == (REFILL,)
+
+
+# protocol 1.4 的武器帶 can_counter，1.5 退役了它（issue #88）。
+def test_a_dump_that_carries_a_retired_weapon_key_still_loads():
+    intel = Intelligence()
+    intel.learn(UnitIntel(unit_id="zaku", max_hp=900, weapons=(BEAM,)), Side.STAGE)
+    dump = json.loads(intel.dumps())
+    dump[Side.STAGE.value]["zaku"]["weapons"][0]["can_counter"] = False
+
+    restored = loads(json.dumps(dump))
+
+    assert restored.record("zaku").weapons == (BEAM,)
 
 
 def test_reloading_a_file_restores_priors_not_confirmations():

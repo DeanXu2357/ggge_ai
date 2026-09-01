@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -16,7 +18,7 @@ const boardLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
 func TestReachWithNoBoardIsRefused(t *testing.T) {
-	replies := serve(t, New(), `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
+	replies := serve(t, New(board.New()), `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
 
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeNoSession {
 		t.Fatalf("reply: %+v", replies[0])
@@ -24,7 +26,7 @@ func TestReachWithNoBoardIsRefused(t *testing.T) {
 }
 
 func TestReachAnswersTheCellsOfTheLoadedBoard(t *testing.T) {
-	replies := serve(t, New(), boardLine, `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
+	replies := serve(t, New(board.New()), boardLine, `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
 
 	if !replies[0].OK {
 		t.Fatalf("load: %+v", replies[0])
@@ -36,7 +38,7 @@ func TestReachAnswersTheCellsOfTheLoadedBoard(t *testing.T) {
 	if err := json.Unmarshal(replies[1].Payload, &payload); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
-	want := []protocol.Cell{
+	want := []battle.Cell{
 		{0, 2},
 		{1, 1}, {1, 2}, {1, 3},
 		{2, 0}, {2, 1}, {2, 2},
@@ -56,7 +58,7 @@ func TestReachAnswersTheAnchorsThatHoldTheWholeFootprint(t *testing.T) {
 		`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
 
-	replies := serve(t, New(), line, `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
+	replies := serve(t, New(board.New()), line, `{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
 
 	if !replies[1].OK {
 		t.Fatalf("reach: %+v", replies[1])
@@ -65,14 +67,14 @@ func TestReachAnswersTheAnchorsThatHoldTheWholeFootprint(t *testing.T) {
 	if err := json.Unmarshal(replies[1].Payload, &payload); err != nil {
 		t.Fatalf("payload: %v", err)
 	}
-	want := []protocol.Cell{{0, 0}, {0, 1}}
+	want := []battle.Cell{{0, 0}, {0, 1}}
 	if !reflect.DeepEqual(payload.Cells, want) {
 		t.Fatalf("cells: %v", payload.Cells)
 	}
 }
 
 func TestReachOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
-	replies := serve(t, New(), boardLine, `{"id":"r1","cmd":"reach","payload":{"unit_id":"ghost"}}`)
+	replies := serve(t, New(board.New()), boardLine, `{"id":"r1","cmd":"reach","payload":{"unit_id":"ghost"}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
 		t.Fatalf("reply: %+v", replies[1])
@@ -80,8 +82,25 @@ func TestReachOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
 }
 
 func TestLoadRefusesAPayloadOutsideTheContract(t *testing.T) {
-	replies := serve(t, New(),
+	replies := serve(t, New(board.New()),
 		`{"id":"l1","cmd":"load","payload":{"state":{"units":[{"faction":"pirate"}]}}}`,
+		`{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
+
+	if replies[0].OK || replies[0].Error.Code != protocol.CodeBadRequest {
+		t.Fatalf("load: %+v", replies[0])
+	}
+	if replies[1].Error.Code != protocol.CodeNoSession {
+		t.Fatalf("a refused load holds no board: %+v", replies[1])
+	}
+}
+
+func TestLoadRefusesAUnitOutsideTheBounds(t *testing.T) {
+	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
+		`"units":[{"unit_id":"a1","faction":"ally","pos":[5,5],"hp":100}],` +
+		`"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
+		`"pending_events":[],"fired_events":[]},"history":[]}}`
+
+	replies := serve(t, New(board.New()), line,
 		`{"id":"r1","cmd":"reach","payload":{"unit_id":"a1"}}`)
 
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeBadRequest {

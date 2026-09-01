@@ -1,13 +1,12 @@
-// Package protocol holds the envelope, the command list, and the types of
-// the battle engine contract (docs/spec/battle-engine-protocol.md).
+// Package protocol holds the envelope, the command list, and the per-command
+// wrappers of the battle engine contract
+// (docs/spec/battle-engine-protocol.md). The types that the contract speaks
+// live in the package 'engine/battle'.
 package protocol
 
-import (
-	"encoding/json"
-	"errors"
-)
+import "encoding/json"
 
-const Version = "1.4"
+const Version = "1.10"
 
 const (
 	CodeUnknownCommand = "unknown_command"
@@ -16,13 +15,7 @@ const (
 	CodeNoSession      = "no_session"
 	CodeIllegalState   = "illegal_state"
 	CodeIllegalAction  = "illegal_action"
-	CodeEmptyHistory   = "empty_history"
-	CodeAlreadyActed   = "already_acted"
 )
-
-// The board decodes the payload behind the contract, so this sentinel tells
-// the server that a refusal is a bad request and not an illegal action.
-var ErrOutsideContract = errors.New("the payload stands outside the contract")
 
 type Request struct {
 	ID      string          `json:"id"`

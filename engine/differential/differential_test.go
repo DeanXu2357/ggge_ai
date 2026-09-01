@@ -2,13 +2,28 @@ package differential_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
+
+func restoreBoard(state *battle.BattleState) (*board.Board, error) {
+	if state.Bounds == nil {
+		return nil, errors.New("the state carries no bounds")
+	}
+	out := board.New()
+	if err := out.Load(*state.Bounds, state.Terrain, state.TerrainCells, state.Units,
+		state.Phase, state.Turn); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 
 var fixtures = filepath.Join("..", "..", "tests", "fixtures", "engine")
 
@@ -77,7 +92,7 @@ func TestTheGoldenStateEncodingIsStable(t *testing.T) {
 			if err != nil {
 				t.Fatalf("marshal: %v", err)
 			}
-			if err := differential.Stable[protocol.BattleState](state); err != nil {
+			if err := differential.Stable[battle.BattleState](state); err != nil {
 				t.Error(err)
 			}
 			events, err := json.Marshal(one.Setup.Events)

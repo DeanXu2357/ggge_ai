@@ -1533,3 +1533,312 @@
   'model.go' and the result types move into 'board'; the server
   runs no codec call; 'Act' keeps the untyped event list of the
   response in this branch (issue #86).
+- **(0830) The battle engine is definitions, state and systems —
+  user ruling**｜After three refactors of the #72 branch (a file
+  classification, a rich 'unit' package with 'Engage', an
+  'engagement' package) the user ruled that the shape was wrong, not
+  the placement: "一個 board.Apply 動作你包了 run -> attack ->
+  engagement 那麼多層，但是你要處理的問題應該是整個流程。雙方決策傳入
+  Apply 後，先驗證所有人是否都能在這個階段做事之後決定發生順序，然後
+  按照發生順序調用 unit 行為 ... 不改變整個 board 動作". On the
+  model: "我們現在唯一可以確定的就是動態資料的所屬會在行為系統裡，這
+  樣看來富領域模型是絕對不適合我們的，純粹是因為多領域實體實體互動邏
+  輯寫在行為性統中天生就有優勢可以把動態資料的變動統統集合在一個地
+  方", and on the writes: "'EN -= cost' 由行為系統控制吧，就像是兩階段
+  提交要在一個協調服務中運作再把判決應用到兩端一樣". Decision: static
+  definitions (immutable, exported fields, shared by pointer),
+  dynamic state (small structs, exported fields, cloned by copy),
+  behavior systems as the only writers (engagement with a prepare
+  phase that writes nothing and a commit phase that cannot fail;
+  turn; deploy), pure systems (geometry; abilities with #72), and a
+  shell 'engine/battle/board' for the contract. 'Act' is atomic by
+  construction and the handler drops its clone. The work runs on a
+  branch off dev as issue #88 ("在另一個 #72 分支上先對原有的 dev 重構
+  成我們討論的樣子之後，再重新實作 #72 的實作範圍"); #72 is
+  implemented again on the result.
+- **(0830) A counter fires under the rule of an attack; a support
+  strike needs a support attack charge; the exchange ends when the
+  receiver is destroyed — user ruling**｜"沒有 CanCounter 這個設定，
+  你的武裝決定能不能進行支援反擊的原因只有與有沒有支援攻擊額度有關。
+  然後被攻擊時的反擊武裝也和攻擊武裝一樣，並沒有反武裝有限定只能攻擊
+  不能反擊使用 ... 反擊就和攻擊一樣，只是結算順序問題". The wire field
+  'can_counter' (engine 1.0, no datamine source) leaves the wire in
+  #88 (protocol 1.4 to 1.5). On the early end: "第四步驟應該要有如果
+  受擊者被擊破那就提早結束的階段才對".
+- **(0830) The exit point of an exchange — user ruling**｜"傷害結算的
+  退出點是被攻擊者要做出行為時，但是因為已經被擊破而無法做出行為時".
+  The attacker's sequence (its support salvo, its main strike) runs
+  whole; the defender's reply (its support salvo, its counter) does
+  not run when the defender is destroyed. The goldens agree.
+- **(0831) One 'Load' on the board contract — user ruling**｜"NewBattle
+  和 Restore 兩者職責相同，但是各自持有資料不夠完整 正確應該是只有
+  Load 方法，然後必須如 NewBattle 現在這樣，指定地圖大小、地形、敵人、
+  我方初級和當前可變動資料，這樣 init & load 兩個指令都可以使用同一個
+  介面". Earlier the same day: "現在來看你的工廠模式解法太過冗余了，
+  應該是在 server 那邊初始化完成 board 後注入，然後 handler 都只是
+  呼叫 Board 合約方法". Landed in #88 (312bac1): 'BoardResolver.Load'
+  takes bounds, terrain, terrain cells, units, phase and turn; the
+  factory is gone; 'main.go' injects 'board.New()'. Consequences the
+  user approved with "先改": assembly runs on both paths and fills
+  only zero maxima, so the 0829 sentence "'load' never assembles"
+  narrows to "a complete snapshot is unchanged"; the bounds check
+  judges the load path too; the enemies-only rule lives in the init
+  handler.
+- **(0831) A skill carries no area on the wire — user ruling**｜The
+  user removed 'range_min', 'range_max' and 'blast' from the skill
+  types of 'engine/battle'. The reason: the area of a skill is an
+  arbitrary set of cells. It takes any shape, for example the shape
+  of the letters "ILOVEU". A minimum range, a maximum range and a
+  radius cannot express such a shape. The three fields are therefore
+  the wrong description of the area, and not an incomplete one. The
+  fields leave 'battle.Skill' and 'battle.SkillEntry', their Python
+  mirror in 'engine/state.py', both codec sides and the goldens
+  (protocol 1.6 to 1.7). No Go rule read them: they were data on the
+  wire only. The replacement representation is not decided. The 0820
+  entry above states the area as those four fields; that reading ends
+  here, and the filter 'affects' stands alone. A skill that acts on
+  the caster alone still carries 'affects' ally, because the caster
+  is an ally in its own cell (issue #88).
+- **(0831) The weapon splits into two types — user ruling**｜The user
+  split 'battle.Weapon' into a direct weapon 'Weapon' and an area
+  weapon 'MapWeapon', and gave the area its own type 'ShapeRange'
+  (protocol 1.7 to 1.8, issue #88). The four rulings:
+  1. This change defines the structures and opens the fields. It
+     implements no firing: no expansion of a shape into cells, no
+     rotation, no ammunition spending, no target selection, no damage.
+     A map weapon still enters no exchange.
+  2. The origin of a shape depends on the weapon. Some shapes open
+     from the cell of the caster, others open from a cell that the
+     player picks. Both must be expressible, so the type carries
+     'MapWeaponOrigin' with the values 'self' and 'cell'.
+  3. A direction turns the cells. The cells are authored one time
+     against one base heading, and a chosen direction turns the whole
+     offset set. The value 'none' is a shape that needs no direction.
+     The rotation function is not written in this change.
+  4. The audience of a map weapon gets its own identifier,
+     'MapWeaponAffects'. It does not reuse 'SkillAffects'.
+  The rulings agree with the 0826 user words on map weapons already in
+  this ledger: two firing modes (a fixed shape turned to one of four
+  directions, or an aim cell chosen inside the allowed range), and a
+  cost that spends EN and ammunition together.
+  The identifiers of the design ('ShapeRange', 'Direction',
+  'MapWeaponAffects', 'MapWeaponOrigin', 'MapWeapon', 'MapWeaponEntry',
+  'CenterRange', 'AmmoMax', and the wire keys 'map_weapons', 'shape',
+  'cells', 'direction', 'origin', 'center_range', 'ammo_max',
+  'affects') are a proposal of the implementing session. They wait for
+  the approval of the user.
+  Consequences of the split: 'Weapon' loses 'map_weapon' and
+  'WeaponEntry' loses 'ammo', because a direct weapon spends no
+  ammunition. 'Unit.ammo' stays the remaining count keyed by the name,
+  and it now serves a map weapon alone; 'MapWeapon.ammo_max' is the
+  static maximum. The rule 'directWeapon' of 'engagement/model.go'
+  dies: 'Mech.Weapons' holds direct weapons alone, so no exchange
+  needs the test.
+  The vision-layer gap: the panel of the game shows no shape. The
+  reader reads no cells, no direction, no origin and no audience. So
+  'WeaponIntel.to_map_weapon' writes an empty 'cells', a 'direction' of
+  'none', an 'origin' of 'self' and an 'affects' of 'enemy'. The last
+  two are documented defaults, not read data. An empty shape is data
+  that is missing, and no rule may read it as an area of no cells.
+  Issue #79 owns the shape source and the firing rules.
+  A shape source does exist outside the panel. The datamine holds the
+  area as a list of cell offsets, which is the same representation as
+  'ShapeRange.cells': the fields 'map_weapon_effect_range',
+  'map_weapon_shooting_range', 'map_weapon_range',
+  'map_weapon_ammo_capacity' and 'map_weapon_can_use_after_move' (see
+  docs/reference/datamine-samples/202608161248/unit/1001003050.json).
+  The sample shows the two firing modes of the 0826 ruling: a weapon
+  with an empty 'map_weapon_shooting_range' opens its area at the cell
+  of the caster, and a weapon that holds one picks an aim cell inside
+  that set. It also shows a shape that needs a heading, a column three
+  cells wide and six cells long.
+  One open point for the user. The datamine states the allowed set of
+  aim cells as a cell list with holes, for example a diamond of radius
+  five with a hollow center of radius two. The field 'center_range' is
+  one integer, so it cannot hold such a set. The integer matches the
+  datamine field 'map_weapon_range' alone. The session implemented
+  'center_range' as the user specified it and raises the mismatch here.
+  Golden migration: the goldens under 'tests/fixtures/engine/' have no
+  writer (it retired with the Python rules, issue #73). A script moved
+  every weapon object that carried 'map_weapon': true into the new list
+  'map_weapons', with zero values for the fields that no source fills.
+  The files are byte-identical to their canonical JSON dump, so the
+  rewrite touched no other byte and changed no expectation.
+- **(0831) The map weapon carries two shapes — user ruling**｜The user
+  ruled the names of the area fields of 'battle.MapWeapon'. The type
+  carries two shapes and no integer (protocol 1.8 to 1.9, issue #88):
+  1. 'Shape' is renamed 'ApplyShape'. Its meaning does not change.
+  2. 'Origin' and 'CenterRange' are both deleted, and the new field
+     'EffectShape' takes their place. The enum 'MapWeaponOrigin' with
+     its values 'self' and 'cell' is deleted. Nothing keeps them.
+  The names come from the user. They stay as the user gave them.
+  The two names cross over the two columns of the datamine. This is
+  the pitfall of the change, and the code carries a why-comment on
+  each field for it:
+  - 'ApplyShape' carries 'map_weapon_effect_range', the cells that
+    the strike hits.
+  - 'EffectShape' carries 'map_weapon_shooting_range', the cells
+    where the center of the strike can sit.
+  Why the integer dies: the shooting range has holes. The unit
+  1114000250 of docs/reference/datamine-samples/202608161248/unit/
+  states a hollow diamond. The set reaches five cells, and the cells
+  inside radius two are absent: (0,2), (-1,1), (0,1), (1,1), (-2,0),
+  (-1,0), (0,0), (1,0) and (2,0) are all missing from it. One integer
+  states a full disc, so it states the wrong set. The 0831 entry above
+  raised this mismatch as an open point; the ruling closes it.
+  The rule that replaces the enum: an empty 'EffectShape.Cells' is no
+  choice of center. The weapon opens its area at the cell of the
+  caster, and the player picks nothing. A set that holds cells is a
+  choice, and the player picks one cell inside it. The rule stands in
+  docs/spec/battle-engine-protocol.md and in the terminology map.
+  The scope of the 0831 split does not change: this defines the shape
+  alone. No rule expands a shape, turns a shape, spends the
+  ammunition, picks the units of the area, or computes the damage.
+  No rule reads the two fields.
+  One trap for the vision layer. 'WeaponIntel.to_map_weapon' writes
+  both shapes empty, because the panel of the game shows no cells and
+  no heading. That empty 'effect_shape' is missing data, not the
+  caster rule above. The goldens under 'tests/fixtures/engine/' hold
+  empty shapes for the same reason: no shape source feeds them.
+- **(0831) The definition package and the state package come back —
+  user ruling**｜The commit 'ef77841' of this branch deleted
+  'engine/battle/def' and 'engine/battle/state' and made the contract
+  types the state of a battle. Its reason stands on the record: "The
+  state and definition packages mirrored the contract types field by
+  field, and the board codec copied between the two forms in both
+  directions. Every new field, as issue 72 showed, was written three
+  times." The user reversed that collapse on 2026-08-31. The reason
+  for the reversal: a reader of the flat contract type cannot see
+  which data a battle changes, because the hit points of a unit and
+  the move range of its mech sit in one struct.
+  Why the second attempt is not the first. 'engine/battle' imports no
+  package of the engine, so 'def' and 'state' both import it and
+  reuse its vocabulary word for word. The deleted 'state.go'
+  re-declared 'Cell', 'Size', 'Footprint', 'Bounds', 'Faction',
+  'Terrain', 'Debuff', 'Skill' and the skill enums; the deleted
+  'def.go' re-declared 'WeaponCategory' and wrapped a pair of
+  integers in 'RadiusRange'. The new 'state.go' declares three types
+  and re-declares nothing, and the new 'def.go' declares six and
+  re-declares nothing. The mirror is gone; the split stands.
+  The four rulings:
+  1. The state package stays internal. The contract keeps
+     'battle.Unit'. The conversion happens at two points only:
+     'board.Load' fills the state form, and 'board.State' answers the
+     contract form.
+  2. The static data lives in 'engine/battle/def' as distinct types,
+     not as aliases of the contract types.
+  3. A named field, not an embedded struct: 'unit.Value.HP', never
+     'unit.HP'. The user chose the larger edit so that a reader sees
+     which data changes.
+  4. The unit layer only. 'battle.BattleState' is not wrapped this
+     time.
+  The cost, stated and accepted. A new dynamic field of a unit is
+  written in four places: 'battle.Unit' in snapshot.go, 'UnitValue'
+  in state.go, and one line in each direction of contract.go. A new
+  field of a mech, a pilot or a weapon is also four, because 'def'
+  holds distinct types. Three of the four fail loudly: the partition
+  test of state_test.go names a field that sits in no state struct,
+  and the reflection round trip of contract_test.go names a field
+  that a conversion dropped. The fourth, which half of a new field
+  belongs in, is a judgment that no test makes. The placement rule
+  for that judgment: 'UnitValue' holds every field that a rule of a
+  battle writes, plus the three pools a unit spends ('SP', 'Ammo',
+  'Skills'); a maximum is the bound of a pool and not a pool, so it
+  stands for the whole battle and sits on 'state.Unit'.
+  Which reading this narrows. The 0830 entry above, "The battle
+  engine is definitions, state and systems", says "dynamic state
+  (small structs, exported fields, cloned by copy)". The state
+  package holds no 'Clone'. 'battle.BattleState.Clone' is the one
+  deep copy of the engine, and the two conversion functions are its
+  callers. The same entry planned a package 'deploy'; that package
+  was folded into the shell earlier on this branch, and 'assemble'
+  runs on the contract form inside 'board.Load'. No older entry is
+  edited: the 'ef77841' reasoning is correct about the first attempt
+  and it is why this attempt declares no vocabulary of its own.
+  Landed in #88 as c4a0edc (the two packages), 0cc8dc5 (the
+  conversion) and d479bb2 (the systems and the shell on the state
+  form). The wire did not move: no fixture, no scenario, no Python
+  file and no protocol version changed across the three commits.
+- **(0831) The skill carries the same two shapes as a map weapon, in a
+  shared 'AffectArea' — user ruling**｜The user asked for the two shape
+  fields of a map weapon on the skill definition as well: 'ApplyShape'
+  and 'EffectShape', both of the type 'ShapeRange'. Protocol 1.9 to
+  1.10, issue #88.
+  This is the replacement for the three fields that 6af4a7b removed
+  ('range_min', 'range_max' and 'blast'), and it is not a revert of
+  that commit. Those three said a range band with a radius. The area
+  of a skill is an arbitrary set of cells, which a band cannot state,
+  so the three fields were the wrong description and not an incomplete
+  one. The pair of shapes is the right description, and it is the same
+  pair the map weapon got at a429965.
+  The datamine proves the shape and the naming. The supporter ability
+  1001000150 in
+  docs/reference/datamine-samples/202608161248/supporter/1001000150.json
+  carries the description "Allies in range: Restore EN by 50%" and the
+  column 'effect_range' with the value
+  "(0,4),(-1,3),(0,3),...,(0,0),...,(0,-4)": a diamond of radius four
+  that holds the origin (0,0). The record carries no shooting range of
+  its own. That is the caster-centered case, and an empty
+  'EffectShape' on a map weapon already says it.
+  The names cross over the datamine columns, on the skill as on the
+  map weapon. 'ApplyShape' holds 'effect_range' on a skill and
+  'map_weapon_effect_range' on a map weapon. 'EffectShape' holds
+  'map_weapon_shooting_range' on a map weapon; a skill sample carries
+  no such column.
+  Mid-task the user ruled the second half: the pair goes in one type,
+  'AffectArea', and the map weapon and the skill share it. Three
+  reasons. The pair carries one rule, and one rule belongs in one
+  type. The crossover comment was about to stand in two places, and it
+  now stands once, on the fields of 'AffectArea'. Two adjacent
+  parameters of one type invite a swapped call when a later issue
+  implements the expansion.
+  The type is an anonymous embedded field, in 'battle' and in 'def'
+  alike. 'encoding/json' flattens an embedded struct at its position,
+  so the wire keeps '{"apply_shape": ..., "effect_shape": ...}' flat
+  and in the same order, and Go field promotion keeps every call site
+  ('weapon.ApplyShape') as it was. A composite literal cannot name a
+  promoted field, so the four conversion functions and three Go tests
+  now name 'AffectArea' in their literals. 'src/ggge_ai/engine/state.py'
+  follows the wire and keeps two flat fields.
+  Two gates needed a change. The reflection partition test of
+  state_test.go reads an embedded field as one field named
+  'AffectArea' on both sides and recurses into it, so it needed
+  nothing. The Go-to-Python field-order gate of
+  tests/test_engine_codec.py parses the JSON tags of snapshot.go line
+  by line, and an embedded field carries no tag, so the parser dropped
+  the two keys. It now records an embedded member and flattens it at
+  its position, the way 'encoding/json' does.
+  No rule reads either field after this change, exactly as with the
+  map weapon. Shape expansion, rotation, target selection and the
+  audience filter stay out of scope.
+- **(0901) A conversion function carries its direction in its name —
+  user ruling**｜Two naming rules for the battle engine, issue #88.
+  Rule one: a cross-layer conversion is 'fromContract<Type>' or
+  'toContract<Type>'. The contract is the named end, and the return
+  type states the other end. Rule two: a same-layer projection is
+  '<result>Of', after the model 'actionsOf' in
+  engine/battle/board/reader.go.
+  The user's reason for rule one: "convert" carries no direction, so
+  a reader must learn the asymmetric pair 'convert'/'export' to know
+  which way a call runs. The reason for rule two: "encode" promises a
+  serialization that never happens, because each function takes a
+  struct and answers a struct and 'encoding/json' does the encoding.
+  Fourteen functions of engine/battle/state/contract.go took rule
+  one; twelve of the board package took rule two. Two names needed a
+  decision inside the pass: 'encodeResolution' answers the strike and
+  phase events of one resolution and is now 'eventsOf';
+  'convertSlice' is a generic helper and no conversion, so neither
+  rule covers it, and it is now 'mapSlice'.
+  Third ruling of the same pass: one conversion has one
+  implementation. 'cloneShape' of the board and 'exportShape' of the
+  state both answered 'battle.ShapeRange' from 'def.ShapeRange', so
+  one conversion answered to three names with 'convertShape' counted.
+  'cloneShape' is deleted, the state one is exported as
+  'ToContractShape', and the board calls it. The kept body is the one
+  that clones the cells, so the board answers a cloned list as
+  before.
+  The file engine/battle/board/codec.go holds no codec after the
+  rename: every function in it projects the state onto a wire answer
+  type. It is 'projection.go' now, with its test, moved by 'git mv'.
+  The wire, the goldens, the fixtures, the protocol version and the
+  Python side did not move, and no test changed its name.

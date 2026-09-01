@@ -45,8 +45,6 @@
                 "range_max": 3,
                 "en_cost": 10,
                 "accuracy": 5.0,
-                "can_counter": true,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
@@ -59,8 +57,6 @@
                 "range_max": 1,
                 "en_cost": 0,
                 "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
@@ -73,22 +69,28 @@
                 "range_max": 1,
                 "en_cost": 200,
                 "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
                 "categories": null
-              },
+              }
+            ],
+            "map_weapons": [
               {
                 "name": "missile pod",
                 "power": 1500.0,
-                "range_min": 2,
-                "range_max": 5,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "ammo_max": 0,
                 "en_cost": 20,
                 "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
+                "affects": "enemy",
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
@@ -97,12 +99,18 @@
               {
                 "name": "heavy shell",
                 "power": 2000.0,
-                "range_min": 1,
-                "range_max": 6,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "ammo_max": 0,
                 "en_cost": 5,
                 "accuracy": 0.0,
-                "can_counter": true,
-                "map_weapon": true,
+                "affects": "enemy",
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
@@ -118,9 +126,14 @@
               "uses": 2,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             },
             {
@@ -130,9 +143,14 @@
               "uses": 1,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             },
             {
@@ -142,9 +160,14 @@
               "uses": 0,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             }
           ],
@@ -203,14 +226,13 @@
                 "range_max": 1,
                 "en_cost": 0,
                 "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
                 "categories": null
               }
-            ]
+            ],
+            "map_weapons": []
           },
           "skills": [
             {
@@ -220,9 +242,14 @@
               "uses": 1,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             },
             {
@@ -232,9 +259,14 @@
               "uses": 1,
               "ends_activation": true,
               "usable_after_move": true,
-              "range_min": 0,
-              "range_max": 0,
-              "blast": 0,
+              "apply_shape": {
+                "cells": [],
+                "direction": "none"
+              },
+              "effect_shape": {
+                "cells": [],
+                "direction": "none"
+              },
               "affects": "ally"
             }
           ],
@@ -290,14 +322,13 @@
                 "range_max": 1,
                 "en_cost": 0,
                 "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
                 "categories": null
               }
-            ]
+            ],
+            "map_weapons": []
           },
           "skills": [],
           "acted": false,
@@ -352,14 +383,13 @@
                 "range_max": 1,
                 "en_cost": 0,
                 "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
                 "categories": null
               }
-            ]
+            ],
+            "map_weapons": []
           },
           "skills": [],
           "acted": false,
@@ -414,14 +444,13 @@
                 "range_max": 1,
                 "en_cost": 0,
                 "accuracy": 10.0,
-                "can_counter": true,
-                "map_weapon": false,
                 "usable_after_move": true,
                 "debuff_kind": null,
                 "debuff_magnitude": 0.0,
                 "categories": null
               }
-            ]
+            ],
+            "map_weapons": []
           },
           "skills": [],
           "acted": false,
@@ -499,8 +528,6 @@
                   "range_max": 3,
                   "en_cost": 10,
                   "accuracy": 5.0,
-                  "can_counter": true,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
@@ -513,8 +540,6 @@
                   "range_max": 1,
                   "en_cost": 0,
                   "accuracy": 10.0,
-                  "can_counter": true,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
@@ -527,22 +552,28 @@
                   "range_max": 1,
                   "en_cost": 200,
                   "accuracy": 0.0,
-                  "can_counter": true,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
                   "categories": null
-                },
+                }
+              ],
+              "map_weapons": [
                 {
                   "name": "missile pod",
                   "power": 1500.0,
-                  "range_min": 2,
-                  "range_max": 5,
+                  "apply_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
+                  "effect_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
+                  "ammo_max": 0,
                   "en_cost": 20,
                   "accuracy": 0.0,
-                  "can_counter": true,
-                  "map_weapon": true,
+                  "affects": "enemy",
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
@@ -551,12 +582,18 @@
                 {
                   "name": "heavy shell",
                   "power": 2000.0,
-                  "range_min": 1,
-                  "range_max": 6,
+                  "apply_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
+                  "effect_shape": {
+                    "cells": [],
+                    "direction": "none"
+                  },
+                  "ammo_max": 0,
                   "en_cost": 5,
                   "accuracy": 0.0,
-                  "can_counter": true,
-                  "map_weapon": true,
+                  "affects": "enemy",
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
@@ -572,9 +609,14 @@
                 "uses": 2,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               },
               {
@@ -584,9 +626,14 @@
                 "uses": 1,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               },
               {
@@ -596,9 +643,14 @@
                 "uses": 0,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               }
             ],
@@ -657,14 +709,13 @@
                   "range_max": 1,
                   "en_cost": 0,
                   "accuracy": 10.0,
-                  "can_counter": true,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
                   "categories": null
                 }
-              ]
+              ],
+              "map_weapons": []
             },
             "skills": [
               {
@@ -674,9 +725,14 @@
                 "uses": 1,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               },
               {
@@ -686,9 +742,14 @@
                 "uses": 1,
                 "ends_activation": true,
                 "usable_after_move": true,
-                "range_min": 0,
-                "range_max": 0,
-                "blast": 0,
+                "apply_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
+                "effect_shape": {
+                  "cells": [],
+                  "direction": "none"
+                },
                 "affects": "ally"
               }
             ],
@@ -744,14 +805,13 @@
                   "range_max": 1,
                   "en_cost": 0,
                   "accuracy": 10.0,
-                  "can_counter": true,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
                   "categories": null
                 }
-              ]
+              ],
+              "map_weapons": []
             },
             "skills": [],
             "acted": false,
@@ -806,14 +866,13 @@
                   "range_max": 1,
                   "en_cost": 0,
                   "accuracy": 10.0,
-                  "can_counter": true,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
                   "categories": null
                 }
-              ]
+              ],
+              "map_weapons": []
             },
             "skills": [],
             "acted": false,
@@ -868,14 +927,13 @@
                   "range_max": 1,
                   "en_cost": 0,
                   "accuracy": 10.0,
-                  "can_counter": true,
-                  "map_weapon": false,
                   "usable_after_move": true,
                   "debuff_kind": null,
                   "debuff_magnitude": 0.0,
                   "categories": null
                 }
-              ]
+              ],
+              "map_weapons": []
             },
             "skills": [],
             "acted": false,

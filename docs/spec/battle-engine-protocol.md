@@ -16,34 +16,123 @@ issues of the port (#60 to #68).
   battles starts two processes.
 - The engine is the authority for the board. A client keeps no
   second copy of the board.
-- The engine holds the operation history of the battle. The
-  command 'rollback' removes the last entry.
+- The engine holds the operation history of the battle.
 - 'init' plus the sequence of the commands that change the board
   reproduce the battle. The engine holds no other input.
 - The Go package 'engine/battle' holds the contract: the board
-  interfaces over the wire types of 'engine/protocol', the dice
-  and the sentinel errors. The interfaces hold the methods that a
-  consumer calls: 'Act' on 'BoardResolver'; 'Capabilities',
-  'ReachableCells', 'ResponseAttacks', 'Clone', 'State' and
-  'Summary' on 'BoardReader'. Each method takes and gives the
-  types of 'engine/protocol', so the contract imports that
-  package and no other package of the engine. The package
-  'engine/battle/board' holds the implementation: its own model
-  of the battle and its own codec. 'engine/server' constructs a
-  board with 'board.DecodeInit' or 'board.DecodeState', keeps it
-  as a 'battle.Board', and speaks the types of 'engine/protocol'
-  to it.
+  interfaces, the types that the interfaces speak, the dice and
+  the sentinel errors. The types carry the JSON tags of the wire.
+  They are 'Decision', 'BattleState', 'ActionsResponse',
+  'ResponseAttacksResponse', 'BoardSummary' and the events. The
+  interfaces hold the methods that a consumer calls: 'Act' and
+  'Load' on 'BoardResolver'; 'Actions', 'ReachableCells',
+  'ResponseAttacks', 'State' and 'Summary' on
+  'BoardReader'. The contract imports no package of the engine.
+  The package 'engine/protocol' holds the envelope, the codes,
+  the command list and the per-command wrappers. It imports
+  'engine/battle'. Below the contract the implementation is two
+  data packages, two kinds of system package and one shell, and
+  the imports run one way: the shell imports the systems; a
+  system imports the two data packages 'engine/battle/state' and
+  'engine/battle/def', the contract 'engine/battle' and the pure
+  systems 'geometry' and 'formula', and never another writing
+  system (user ruling 2026-08-30, issue #88).
+- Three layers hold the data of a battle. The contract
+  'engine/battle' holds the wire form. 'battle.Unit' holds the id,
+  the faction, the position, the size, HP, EN, SP and their
+  maxima, the charges, the chance steps, the acted flag, the ammo,
+  the debuffs, the skills, its 'battle.Mech' and its
+  'battle.Pilot'; 'battle.BattleState' holds the bounds, the
+  terrain, the phase, the turn and the units. The fields are
+  exported and they carry the JSON tags of the wire. A consumer of
+  the contract reads these types, and no other form of the data
+  leaves the engine.
+- 'engine/battle/def' holds the data of a battle that no rule
+  writes: 'Mech', 'Pilot', 'Weapon', 'MapWeapon', 'Skill',
+  'AffectArea' and 'ShapeRange'. They are distinct structs with
+  exported fields and no JSON tag. 'MapWeapon' and 'Skill' each
+  embed 'AffectArea', as they do in the contract.
+  The package declares no vocabulary of its own: it
+  reads 'Cell', 'Direction', 'WeaponCategory', 'MapWeaponAffects'
+  and the skill enums from the contract. A unit points at its mech
+  and at its pilot, so every copy of a battle shares them.
+- 'engine/battle/state' holds the data that a battle writes.
+  'state.Unit' holds the identity, the bounds of the pools and the
+  two pointers into 'def'. 'state.UnitValue', in the field
+  'Value', holds the position, HP, EN, SP, the acted flag, the
+  chance steps, the two charge counts, the skills, the ammo and
+  the debuffs. 'state.Battle' holds the units, the phase, the
+  turn, the bounds, the terrain and the terrain cells. The
+  placement rule: 'UnitValue' holds every field that a rule of a
+  battle writes, plus the three pools a unit spends ('SP', 'Ammo'
+  and 'Skills'); a maximum is the bound of a pool and not a pool,
+  so it stands for the whole battle and sits on 'state.Unit'. A
+  rule reads and writes 'unit.Value.HP', never 'unit.HP' (user
+  ruling 2026-08-31).
+- The conversion between the two forms runs at two points and
+  nowhere else: 'state.FromContract' inside 'board.Load', and
+  '(*state.Battle).ToContract' inside 'board.State'. Both lean on
+  'battle.BattleState.Clone', which is the one deep copy of the
+  engine, so the answer of 'State' shares nothing writable with
+  the board. 'Clone' copies every field that a system writes and
+  shares the weapons of a mech, which no code writes after the
+  decode. Two units that carry equal mechs point at two mechs.
+- No layer holds a rule. Each layer holds value helpers that read
+  the fields of their own struct and decide nothing about the
+  battle. The contract holds 'Unit.Footprint', 'Footprint.Within',
+  'Footprint.Cells', 'Cell.Before' and 'Faction.Opposing'. The
+  state package holds 'Unit.Alive', 'Unit.Footprint',
+  'Battle.Unit' and 'Battle.PhaseIndex'. The definition package
+  holds 'Weapon.Reaches' and 'Weapon.Debuff'.
+- The behavior systems are the only code that writes the state of
+  a battle. The writers of a field of a 'state.Battle' are
+  'engagement/commit.go' and 'turn/turn.go'. Before the battle,
+  'board.Load' works on the wire form: 'assemble' fills a maximum
+  that the payload leaves at zero, and 'validate' fills the two
+  values that a payload can leave out, a size of zero and an empty
+  terrain.
+  'engine/battle/engagement' resolves one activation:
+  'engagement.Prepare(board, decision)' reads the board, judges
+  every participant (the actor, the target, the weapon, the reach,
+  the EN, the supporters, the bearer, the response) and returns
+  every error of 'act' before the first write, or a 'Plan';
+  'engagement.Commit(board, plan, dice)' writes the plan in order
+  and cannot fail; 'engagement.Menu' answers 'response_attacks'
+  through 'Prepare' with no response, so it refuses exactly what
+  'act' refuses. 'engine/battle/turn'
+  ('turn.Advance') rotates the phase, regenerates the EN, expires
+  the debuffs and resets the acted flags. The
+  pure system 'engine/battle/geometry' answers the distance, the
+  reachable anchors and the occupied cells and writes nothing.
+- The package 'engine/battle/board' is the shell. It holds the
+  state form. 'board.New' gives an empty board. 'Load' builds the
+  content, assembles each unit, judges the result and converts it
+  into the state form. It does this for 'init' and for 'load'
+  alike. It clones the content before it keeps it. A refused
+  'Load' leaves the board unchanged.
+  It implements the contract, projects the answers of the read
+  commands, and calls the systems. 'Act' is 'Prepare', 'Commit',
+  'turn.Advance' in that order, so a refused 'act' leaves the
+  board as it was; 'engine/server/handler' runs 'Act' on the
+  board of the server and keeps no copy of it.
 - The package 'engine/battle/formula' holds every formula of
   docs/reference/combat-formulas.md and every constant of the
   mechanism. It imports no package of the engine: a formula reads
   the input type 'formula.Side' and the values of the weapon, and
-  no unit. 'engine/battle/board' is its only caller, and it adapts
-  a unit and the weapon it fires into a 'Side' at each call.
+  no unit. 'engine/battle/engagement' is its only caller, and it
+  adapts a unit and the weapon it fires into a 'Side' at each
+  call.
 - The package 'engine/server' holds the transport: the stdio loop,
   the command registry and the command 'hello'. The package
   'engine/server/handler' holds the body of every other command,
-  the battle that the commands read and change, and the two calls
-  on 'engine/battle/board' named above.
+  the battle that the commands read and change, and the calls on
+  the board. The handler parses every request: it reads
+  'InitRequest' and passes the fields to the board. The server
+  holds one board. 'main.go' injects it with 'board.New()', the
+  one production import of the concrete package. The handler
+  calls only the contract.
+  No handler imports a system package. No package of
+  'engine/battle' reads a type of 'engine/protocol'.
 
 ## Transport
 
@@ -71,8 +160,6 @@ Error codes:
 | no_session | The command needs a board, and 'init' did not run |
 | illegal_state | The board does not permit the command now |
 | illegal_action | The named action or response attack is not legal |
-| empty_history | 'rollback' found no entry |
-| already_acted | The unit acted in this turn; the command answers |
 
 An error response does not stop the process. An error response does
 not change the board.
@@ -114,6 +201,11 @@ again.
 The field 'board' carries 'width', 'height', 'terrain' (the default
 kind of the map) and 'terrain_cells' (the cells of another kind).
 The section 'Terrain' holds the kinds.
+
+An entry of 'victory' carries 'kind', one of 'destroy_all',
+'destroy_target' and 'reach_cell', with the parameters of that kind.
+The engine stores the list and reads no entry: the issue that judges
+the end of a battle reads it.
 
 The field 'events' is stored and not read: the issue that gives a
 stage event its shape reads the table (user ruling 2026-08-27). The
@@ -175,7 +267,7 @@ Refusals: no_session; illegal_action for an unknown unit id.
 Purpose: what one unit carries.
 
 Request: 'unit_id'. Response: 'unit', 'move_cells', 'weapons',
-'skills', and 'error' when a state stops the unit from acting.
+'map_weapons' and 'skills'.
 
 The command reports. It selects nothing and it removes nothing. It
 reads no target, no band and no resource: a weapon with no energy
@@ -190,28 +282,34 @@ the pick.
 'move_cells' holds the cells that 'reach' answers, in the same
 order.
 
-A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
-'ammo', 'accuracy', 'can_counter', 'map_weapon' and
-'usable_after_move'. A null
-'ammo' is a weapon that spends no ammunition. The entry carries no
-power: the engine drops the power of a weapon when it reads the
-state.
+The answer holds two weapon lists. 'weapons' holds the direct
+weapons and 'map_weapons' holds the area weapons. A weapon is in
+one list or in the other, never in both.
 
-The entry carries no weapon ability. The section 'Weapon abilities'
-holds the gap and the reason.
+A weapon entry holds 'name', 'range_min', 'range_max', 'en_cost',
+'accuracy' and 'usable_after_move'. The entry carries no
+ammunition: a direct weapon spends none. It carries no power: the
+engine drops the power of a weapon when it reads the state.
+
+A map weapon entry holds 'name', 'apply_shape', 'effect_shape',
+'en_cost', 'ammo', 'accuracy', 'affects' and 'usable_after_move'. A
+null 'ammo' is a map weapon that spends no ammunition. The section
+'Types' holds the meaning of the two shapes and of 'affects'.
+
+An entry of the two lists carries no weapon ability. The section
+'Weapon abilities' holds the gap and the reason.
 
 A skill entry holds 'kind', 'amount', 'uses', 'ends_activation',
-'usable_after_move', 'range_min', 'range_max', 'blast' and
-'affects'. The field 'kind' is an open string, not a value of the
-action kinds: the engine validates nothing and resolves nothing
-until issue #81 closes the set. A producer writes what it read.
-
-A unit that acted keeps the whole payload. Its 'error' holds the
-code 'already_acted' and a message.
+'usable_after_move', 'apply_shape', 'effect_shape' and 'affects'.
+The section 'Types' holds the meaning of the two shapes and of
+'affects'. The field 'kind' is an open
+string, not a value of the action kinds: the engine validates
+nothing and resolves nothing until issue #81 closes the set. A
+producer writes what it read.
 
 Refusals: no_session; illegal_action for an unknown unit id;
-illegal_state when the unit is destroyed; illegal_state when the
-phase of the unit is not the current phase.
+illegal_state when the unit is destroyed, when the phase of the
+unit is not the current phase, or when the unit acted.
 
 ### response_attacks
 
@@ -242,10 +340,16 @@ Response: 'defender' and 'attacker'.
 'unit_id', 'support_defenders' and 'support_attackers'.
 
 The list 'response_attacks' holds dodge, defend, one entry for
-each weapon of the defender that can counter and reaches the
-attacker, and 'none'. The stance 'none' is the unit that stands and
-takes the strike. The list holds no 'shield': the shield of a unit
-settles during the damage, in 'act'.
+each weapon of the defender that counters, and 'none'. The stance
+'none' is the unit that stands and takes the strike. The list holds
+no 'shield': the shield of a unit settles during the damage, in
+'act'.
+
+A counter fires under the rule of an attack: the weapon reaches the
+attacker, and the defender pays the EN. The list of the direct
+weapons is the only source, so a map weapon enters no exchange. A
+weapon carries no counter permission. A support strike needs a
+support attack charge on top.
 
 Only an action of the kind 'attack' asks the defender anything. A
 map attack permits no response attack, and no other kind of action
@@ -339,7 +443,14 @@ nothing.
 The field 'dice' holds 'mode'. The value 'forced' is the manual
 roll: it also holds 'outcomes', a list of the labels 'hit' and
 'miss', and the engine reads one label for each chance event, in
-the resolution order. A label past the last chance event is not
+the resolution order. The list must hold one label for each chance
+event that the action can reach: one for the support attack of the
+attacker when the request names one, one for the strike, one for
+the support attack of the defender when the response attack names
+one, and one for the counter when the response attack names one.
+The engine counts them before the first write, with every unit
+alive, so a list that a kill would have made long enough is refused
+as well. A label past the last chance event is not
 read. The value 'sampled' is the server draw: the
 engine draws from the session random source, one draw for each
 chance event. One volley of support attackers is one chance event
@@ -371,10 +482,12 @@ not against a list of actions: the reporting commands read the same
 rules, so a pick that the report offers passes here. A refusal
 leaves the board as it was.
 
-The command resolves no action of the kind 'map_attack'. The area
-of a map weapon is a shape of that weapon, and no contract of this
-repository holds that shape. The engine refuses the kind until the
-shape lands (issue #79).
+The command resolves no action of the kind 'map_attack'. The
+contract holds the shape of a map weapon from version 1.8, but no
+rule reads it: nothing expands a shape into cells, nothing turns a
+shape, nothing spends the ammunition, and nothing picks the units
+of the area. The engine refuses the kind until these rules land
+(issue #79).
 
 The command resolves no skill either. A skill starts no engagement,
 and the contract holds no shape for what a skill does. The user
@@ -399,63 +512,11 @@ not carry, a weapon the unit cannot pay for, a weapon that does not
 reach the target, a support unit that cannot join or intercept, a
 support attacker list above the cap of the rules, a response
 attack that breaks a rule of the stance, an absent necessary
-response attack, a short
-'outcomes' list, an action that carries 'move_to' when its weapon
+response attack, an action that carries 'move_to' when its weapon
 or its skill holds 'usable_after_move' false, and an anchor that
 the unit does not reach; bad_request when an 'outcomes' label
-stands outside 'hit' and 'miss'.
-
-### rollback
-
-Purpose: remove the last entry of the operation history.
-
-'rollback' removes the last command that changed the board. The
-commands 'act', 'place', and 'set_unit' write such an entry.
-
-Request: no fields. Response: 'undone' (the command name and its
-payload) and 'board'.
-
-Refusals: no_session; empty_history.
-
-### set_unit
-
-Purpose: write values into one unit, without the turn rules.
-
-This command serves a formula check: an operator sets the values
-that the device shows, and then runs one engagement.
-
-Request: 'unit_id' and 'fields' (the values to change: the cell,
-the HP, the EN, the weapons, the unit values, the pilot values, the
-debuffs).
-
-Response: 'unit'.
-
-Refusals: no_session; illegal_action for an unknown unit id, or
-for a cell that holds another unit.
-
-### advice
-
-Purpose: the decision of the advisor for one faction.
-
-Request: 'faction', 'budget', 'algo', and 'goal'. The field 'goal'
-is optional: the engine uses the victory conditions of 'init' when
-the request holds no goal.
-
-Response: a 'Verdict'.
-
-The engine answers when the faction holds a decision that waits.
-An ally response attack against an enemy strike is such a decision,
-and the phase of that moment is the enemy phase. The gate is the
-decision, not the phase.
-
-Refusals: no_session; illegal_state when the faction holds no
-decision that waits.
-
-### certify
-
-Purpose: the guarantee of one action.
-
-Request: 'action'. Response: 'guarantee'.
+stands outside 'hit' and 'miss', and when the 'outcomes' list holds
+fewer labels than the chance events the action can reach.
 
 ### export and load
 
@@ -465,29 +526,23 @@ a differential test.
 'export' takes no field and gives 'state', 'history', 'seed', and
 'gone'. 'load' takes 'state', 'history', and 'seed', and replaces
 the session. An entry of 'history' carries 'cmd' and 'payload', the
-request of one command that changed the board. 'seed' is optional
-on 'load'; an absent seed is 0. 'load' builds the session random
-source at the start of its stream: a loaded history is a record,
-not a replay.
+request of one command that changed the board: 'act' and 'place'
+write such an entry. 'seed' is optional on 'load'; an absent seed is
+0. 'load' builds the session random source at the start of its
+stream: a loaded history is a record, not a replay.
 
 'gone' names the sides 'ally' and 'enemy' with no living unit, in
 that order. It is the field of the board summary of 'act', so a
 client that resumes a session reads the end of the battle from
 'export' alone.
 
-'load' rotates the phase when the loaded phase holds no pending
-unit: it moves to the first phase that holds one, and the phase
-start of that faction runs. No engine exports such a state, and a
-hand-written snapshot that carries one would take no command at
-all. 'init' does not rotate, because the deploy phase waits for
-'place'.
-
 'export' gives back the 'pending_events' and the 'fired_events' of
 the loaded state. The engine reads neither list today, and it holds
 them unread so that a snapshot survives a load and an export.
 
 The state carries 'phase'. A state without that field is a
-bad_request.
+bad_request. 'load' judges the units against the bounds, and a
+unit that stands outside the board is a bad_request.
 
 ## Turn cycle
 
@@ -542,11 +597,10 @@ footprints that touch are at distance 1. Two footprints that share
 a cell are at distance 0. Two units of one cell give the distance
 of the two cells.
 
-Every range answer reads this distance: the band of a weapon, the
-band of a skill, the blast of a skill, and the move range that lets
-a support unit join. A weapon with a 'range_min' of
-2 does not fire at a foe that touches the footprint, because that
-foe is at distance 1.
+Every range answer reads this distance: the band of a weapon and
+the move range that lets a support unit join. A weapon with a
+'range_min' of 2 does not fire at a foe that touches the
+footprint, because that foe is at distance 1.
 
 A unit moves as one body. Each step of the path carries the whole
 footprint. An anchor is a destination only when every cell of the
@@ -565,41 +619,10 @@ what one unit carries, and the Python side holds no such answer.
 
 ## Types
 
-### Verdict
-
-| Field | Content |
-|---|---|
-| action | The chosen action, or the chosen sequence of one turn |
-| expected_value | The value of the chosen action |
-| guarantee | KILL or NONE |
-| diagnostics | The statistics of the search |
-
-A 'guarantee' of NONE says that the engine holds no certificate. It
-does not say that the action fails.
-
-### Goal parameters
-
-| Field | Content |
-|---|---|
-| victory | destroy_all, destroy_target, or reach_cell, with its parameters |
-| score | The score constraints: the survival of every unit, and the HP limit |
-
-The goal selects the statistic of the leaf evaluation.
-
-### Budget
-
-| Field | Content |
-|---|---|
-| time_ms | The limit in milliseconds |
-| nodes | The limit in nodes |
-
-An exhausted budget gives the best action of that moment. The
-diagnostics record the exhaustion.
-
 ### Unit payload, action, and response attack
 
 The authority for these three schemas is the Go package
-'engine/protocol'. 'src/ggge_ai/engine/state.py' holds the same
+'engine/battle'. 'src/ggge_ai/engine/state.py' holds the same
 structs in Python and 'src/ggge_ai/engine/codec.py' writes the
 wire form from them. The contract names the payload of one
 activation 'action'; the struct names the same thing 'Decision'.
@@ -623,21 +646,47 @@ weapon is a common holder of a false value, but some map weapons
 fire after a move, and some skills of the source 'pilot' or 'crew'
 hold a false value (user ruling 2026-08-20).
 
-A skill carries its area in four fields. The fields 'range_min'
-and 'range_max' hold the distance from the caster to the center of
-the area. The field 'blast' holds the radius around the center, in
-the distance of the section 'Board geometry'; a blast of 0 is one
-cell. The field 'affects' holds the
-faction filter of the units in the area: 'ally', 'enemy', or 'all'.
-The center travels in the field 'aim' of the action, and a single
-target travels in the field 'target_id'; the action carries no
-other field for the area.
+A skill holds an 'AffectArea', the same pair of shapes that a map
+weapon holds. The area of a skill is an arbitrary set of cells. It
+takes any shape, for example the shape of the letters "ILOVEU". A
+minimum range, a maximum range and a radius cannot express such a
+shape, so they are the wrong description of the area and not an
+incomplete one (user ruling 2026-08-31). The pair replaces them.
 
-The value set of 'affects' holds no 'self'. A skill that acts on
-the caster alone is a 'range_min' of 0, a 'range_max' of 0, a
-'blast' of 0 and an 'affects' of 'ally': the area is the cell of
-the caster, and the caster is an ally in its own cell. A 'self'
-value would make a second way to write the same area.
+The two names cross over the datamine, as they do on a map weapon.
+Read the column, not the name:
+
+| Field | Datamine column | Content |
+|---|---|---|
+| apply_shape | effect_range | The cells that the skill acts on |
+| effect_shape | (no column) | The cells where the center of the skill can sit |
+
+An empty 'effect_shape.cells' is no choice of center. The skill
+opens its area at the cell of the caster, and the player picks
+nothing. A set that holds cells is a choice: the player picks one
+cell of the set, and the picked cell travels in the field 'aim' of
+the action. A single target travels in the field 'target_id'.
+
+The supporter ability 1001000150 of
+docs/reference/datamine-samples/202608161248/supporter/ is the
+caster-centered case. Its 'effect_range' is a diamond of radius four
+that holds the origin (0,0), and the record holds no shooting range
+of its own.
+
+This version defines the two shapes and it gives no rule. No rule
+expands a shape, turns a shape, or picks the units of the area.
+
+The producer of a skill can leave the two shapes empty. The panel
+of the game shows no cells and no heading, so the vision layer of
+this repository writes an empty 'cells' and a 'direction' of 'none'
+in each shape. An empty shape from this source is data that is
+missing. No rule may read it as an area of no cells, and no rule
+may read such an 'effect_shape' as the caster rule above.
+
+The field 'affects' holds the faction filter of the units that a
+skill acts on: 'ally', 'enemy', or 'all'. The value set holds no
+'self'. A skill that acts on the caster alone carries an 'affects'
+of 'ally', because the caster is an ally in its own cell.
 
 The fields 'pos' and 'size' of a unit hold its footprint. The
 section 'Board geometry' holds their meaning.
@@ -670,6 +719,75 @@ optional on the wire: a payload that omits it keeps the behavior of
 the build before the field. The test names each one in
 'ENGINE_ONLY', so a Go field that nobody declared is still a test
 failure.
+
+### The two weapon types
+
+A weapon is a direct weapon or a map weapon. The two are separate
+types, and a mech holds them in two lists: 'weapons' and
+'map_weapons'.
+
+A direct weapon strikes one unit. It carries a band, 'range_min'
+and 'range_max', and an exchange resolves it. A direct weapon
+spends no ammunition, so it carries no ammunition field.
+
+A map weapon strikes every unit of an area. It starts no exchange,
+and it grants no response attack. Version 1.9 gives the map weapon
+its fields. It gives no rule: no rule expands a shape, turns a
+shape, spends the ammunition, picks the units of the area, or
+computes the damage. Issue #79 writes those rules.
+
+'ShapeRange' is one area. It holds 'cells', a list of cell offsets
+from an origin, and 'direction'. The author writes the offsets one
+time, against one base heading. The direction then turns the full
+set of the offsets. The rotation is a rule, and version 1.9 holds
+no rule, so no code turns a shape yet.
+
+'Direction' holds 'none', 'up', 'down', 'left' and 'right'. The
+value 'none' is a shape that needs no heading, for example a shape
+that is the same in every heading.
+
+'AffectArea' is the pair of shapes of one owner. A map weapon holds
+one, and a skill holds one. It is an anonymous embedded field in Go,
+so its two shapes stay flat on the wire and keep their position. The
+two names cross over the two columns of the datamine. Read the
+column, not the name:
+
+| Field | Datamine column | Content |
+|---|---|---|
+| apply_shape | map_weapon_effect_range | The cells that the strike hits |
+| effect_shape | map_weapon_shooting_range | The cells where the center of the strike can sit |
+
+An empty 'effect_shape.cells' is no choice of center. The weapon
+opens its area at the cell of the caster, and the player picks
+nothing. A set that holds cells is a choice: the player picks one
+cell of the set, and the picked cell travels in the field 'aim' of
+the action. This rule replaces the enum 'MapWeaponOrigin' of
+version 1.8.
+
+An integer cannot hold 'effect_shape', because the set has holes.
+The unit 1114000250 of
+docs/reference/datamine-samples/202608161248/unit/ carries a hollow
+diamond: the set reaches five cells, and the cells inside radius
+two are absent. A radius states a full disc, so a radius states the
+wrong set.
+
+'MapWeaponAffects' holds the faction filter of the units that the
+area strikes: 'ally', 'enemy', or 'all'. It is a separate enum from
+'SkillAffects', because the audience of a map weapon and the
+audience of a skill are two different sets (user ruling
+2026-08-31).
+
+The field 'ammo_max' of a map weapon is the static maximum. The
+field 'ammo' of a unit is the count that is left, keyed by the name
+of the weapon. The maximum belongs to the definition, and the count
+belongs to the state.
+
+The producer of a map weapon can leave the two shapes empty. The
+panel of the game shows no cells and no heading, so the vision
+layer of this repository writes an empty 'cells' and a 'direction'
+of 'none' in each shape. An empty shape from this source is data
+that is missing. No rule may read it as an area of no cells, and no
+rule may read such an 'effect_shape' as the caster rule above.
 
 ### The unit, the pilot and the mech
 
@@ -718,7 +836,8 @@ The mech holds its own values:
 | hp, en | The hit points and the energy of the mech |
 | attack, defense, mobility | The three combat values of the mech |
 | move_range | The movement range of the mech |
-| weapons | The weapons of the mech, in the weapon payload |
+| weapons | The direct weapons of the mech, in the weapon payload |
+| map_weapons | The map weapons of the mech, in the map weapon payload |
 
 A weapon carries 'categories', a list over 'ranged', 'melee' and
 'awaken', null when the producer knows no category. The pilot
@@ -795,7 +914,7 @@ The wire carries no ability today, and no ability kind is modelled.
 Issue #80 builds the model and adds the field of the weapon entry
 that holds the list. Until then the board passes 1 for the terrain
 correction of every weapon
-('strikeDamage' in 'engine/battle/board/strike.go').
+('strikeDamage' in 'engine/battle/engagement/strike.go').
 
 ### Differential cases
 
@@ -819,7 +938,9 @@ Go build does not implement is skipped, not failed, so a port issue
 finds its checks waiting. The files are frozen: the writer retired
 with the Python rules (issue #73), and no process writes them
 again. A case that the engine must not keep is deleted, never
-regenerated.
+regenerated. A change of the contract moves the files to the new
+shape in place. It moves the fields and it changes no expectation,
+because a regeneration is not available.
 
 A case can also be written by hand from the reference documents.
 Its 'note' says so and names the document lines that give each
@@ -849,3 +970,64 @@ difference between two integers is 1.
   ruling that the unit records state and takes no part in a
   computation. A client of version 1.3 does not read a 1.4 unit.
   The section "The unit, the pilot and the mech" holds the shape.
+- A second exception on record: version 1.5 (2026-08-30, issue #88)
+  removed 'can_counter' from the weapon of the state and from the
+  weapon entry of 'actions', on a user ruling that the game grants
+  no counter permission to a weapon. A counter fires under the rule
+  of an attack. A client of version 1.4 reads a 1.5 weapon, and it
+  reads no counter permission.
+- A third exception on record: version 1.6 (2026-08-31, issue #88)
+  removed the field 'error' from the answer of 'actions'. The
+  command now refuses a unit that acted with the code
+  'illegal_state'. The code 'already_acted' is retired. The same
+  change moved the contract types from 'engine/protocol' to
+  'engine/battle'. The same version also dropped the commands
+  'rollback', 'set_unit', 'advice' and 'certify', with their request
+  and response types, the goal and the budget parameters, the verdict
+  and the guarantee: no build implements them, and the issue that
+  implements one declares it again. The unused chance-event types left
+  the contract with them. The JSON stays the same everywhere else.
+- A fourth exception on record: version 1.7 (2026-08-31, issue #88)
+  removed 'range_min', 'range_max' and 'blast' from the skill of the
+  state and from the skill entry of 'actions', on a user ruling that
+  the area of a skill is an arbitrary set of cells that these three
+  fields cannot express. A skill carries no area on the wire, and the
+  representation of the area is not decided. A client of version 1.6
+  reads a 1.7 skill, and it reads no area.
+- A fifth exception on record: version 1.8 (2026-08-31, issue #88)
+  split the weapon into two types. 'Weapon' is a direct weapon and
+  'MapWeapon' is an area weapon. The field 'map_weapon' of the
+  weapon is removed, and the field 'ammo' of the weapon entry of
+  'actions' is removed with it: a direct weapon spends no
+  ammunition. A mech carries the new list 'map_weapons' beside
+  'weapons', and the answer of 'actions' carries the new list
+  'map_weapons' beside 'weapons'. The wire loses no information: a
+  map weapon moves from one list to the other. The new type
+  'ShapeRange' holds the area, with the new enums 'Direction',
+  'MapWeaponOrigin' and 'MapWeaponAffects'. This version defines the
+  shape and it fires no map weapon: no rule reads the new fields.
+  A client of version 1.7 does not read a 1.8 weapon list.
+- A sixth exception on record: version 1.9 (2026-08-31, issue #88)
+  gave the map weapon two shapes. The field 'shape' became
+  'apply_shape' and it keeps its meaning. The new field
+  'effect_shape' holds the cells where the center of the strike can
+  sit. The enum 'MapWeaponOrigin' and the field 'center_range' are
+  removed: an empty 'effect_shape' now says what 'origin' said,
+  and one integer cannot hold a cell set that has holes. The user
+  ruled the two names, and the two names cross over the two columns
+  of the datamine. This version defines the shape and it fires no
+  map weapon: no rule reads the fields. A client of version 1.8
+  does not read a 1.9 map weapon.
+- A seventh exception on record: version 1.10 (2026-08-31, issue
+  #88) gave the skill an area. The skill of the state and the skill
+  entry of 'actions' each carry the new fields 'apply_shape' and
+  'effect_shape', both of the type 'ShapeRange'. They are the
+  replacement of 'range_min', 'range_max' and 'blast', which version
+  1.7 removed, and they are not a return of those three fields. The
+  two names cross over the datamine, as they do on a map weapon. The
+  same version puts the pair in the new Go type 'AffectArea', which
+  the map weapon and the skill share. The wire does not move: the
+  type is an anonymous embedded field, so the two keys stay flat and
+  keep their position. This version gives the skill an area and it
+  gives no rule: no rule reads the two fields. A client of version
+  1.9 does not read a 1.10 skill.

@@ -16,12 +16,13 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
 type Setup struct {
-	Events protocol.EventTable  `json:"events"`
-	State  protocol.BattleState `json:"state"`
+	Events protocol.EventTable `json:"events"`
+	State  battle.BattleState  `json:"state"`
 }
 
 type Check struct {

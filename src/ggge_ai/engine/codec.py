@@ -1,7 +1,7 @@
 """The wire form of the battle state (spec: docs/spec/battle-engine-protocol.md).
 
 'ggge_ai/engine/state.py' holds the Python structs and the Go package
-'engine/protocol' holds the same ones. 'tests/test_engine_codec.py' compares
+'engine/battle' holds the same ones. 'tests/test_engine_codec.py' compares
 the two field lists.
 
 Rules of the wire form:
@@ -18,15 +18,27 @@ from __future__ import annotations
 
 from typing import Any
 
-from .contract import ActionKind, Cell, Faction, SkillAffects, SkillSource, Stance, Terrain
+from .contract import (
+    ActionKind,
+    Cell,
+    Direction,
+    Faction,
+    MapWeaponAffects,
+    SkillAffects,
+    SkillSource,
+    Stance,
+    Terrain,
+)
 from .state import (
     BattleState,
     Debuff,
     Decision,
     EventTable,
+    MapWeapon,
     Mech,
     Pilot,
     ResponseAttack,
+    ShapeRange,
     Skill,
     StageEvent,
     TerrainCell,
@@ -37,6 +49,21 @@ from .state import (
 SPAWN = "spawn"
 
 
+def encode_shape_range(shape: ShapeRange) -> dict[str, Any]:
+    return {
+        "cells": [_cell(cell) for cell in shape.cells],
+        "direction": str(shape.direction),
+    }
+
+
+def decode_shape_range(payload: dict[str, Any]) -> ShapeRange:
+    _known(payload, encode_shape_range(ShapeRange()), "shape range")
+    return ShapeRange(
+        cells=[_as_cell(raw, "shape cell") for raw in payload.get("cells") or ()],
+        direction=_direction(payload.get("direction")),
+    )
+
+
 def encode_weapon(weapon: Weapon) -> dict[str, Any]:
     return {
         "name": weapon.name,
@@ -45,8 +72,6 @@ def encode_weapon(weapon: Weapon) -> dict[str, Any]:
         "range_max": weapon.range_max,
         "en_cost": weapon.en_cost,
         "accuracy": weapon.accuracy,
-        "can_counter": weapon.can_counter,
-        "map_weapon": weapon.map_weapon,
         "usable_after_move": weapon.usable_after_move,
         "debuff_kind": weapon.debuff_kind,
         "debuff_magnitude": weapon.debuff_magnitude,
@@ -63,8 +88,41 @@ def decode_weapon(payload: dict[str, Any]) -> Weapon:
         range_max=_int(payload, "range_max"),
         en_cost=_int(payload, "en_cost"),
         accuracy=_float(payload, "accuracy"),
-        can_counter=_bool(payload, "can_counter"),
-        map_weapon=_bool(payload, "map_weapon"),
+        usable_after_move=_bool(payload, "usable_after_move"),
+        debuff_kind=_optional_str(payload, "debuff_kind"),
+        debuff_magnitude=_float(payload, "debuff_magnitude"),
+        categories=[str(name) for name in payload.get("categories") or ()],
+    )
+
+
+def encode_map_weapon(weapon: MapWeapon) -> dict[str, Any]:
+    return {
+        "name": weapon.name,
+        "power": weapon.power,
+        "apply_shape": encode_shape_range(weapon.apply_shape),
+        "effect_shape": encode_shape_range(weapon.effect_shape),
+        "ammo_max": weapon.ammo_max,
+        "en_cost": weapon.en_cost,
+        "accuracy": weapon.accuracy,
+        "affects": str(weapon.affects),
+        "usable_after_move": weapon.usable_after_move,
+        "debuff_kind": weapon.debuff_kind,
+        "debuff_magnitude": weapon.debuff_magnitude,
+        "categories": list(weapon.categories) or None,
+    }
+
+
+def decode_map_weapon(payload: dict[str, Any]) -> MapWeapon:
+    _known(payload, encode_map_weapon(MapWeapon(name="", power=0.0)), "map weapon")
+    return MapWeapon(
+        name=_str(payload, "name"),
+        power=_float(payload, "power"),
+        apply_shape=decode_shape_range(payload.get("apply_shape") or {}),
+        effect_shape=decode_shape_range(payload.get("effect_shape") or {}),
+        ammo_max=_int(payload, "ammo_max"),
+        en_cost=_int(payload, "en_cost"),
+        accuracy=_float(payload, "accuracy"),
+        affects=_map_weapon_affects(payload.get("affects")),
         usable_after_move=_bool(payload, "usable_after_move"),
         debuff_kind=_optional_str(payload, "debuff_kind"),
         debuff_magnitude=_float(payload, "debuff_magnitude"),
@@ -80,9 +138,8 @@ def encode_skill(skill: Skill) -> dict[str, Any]:
         "uses": skill.uses,
         "ends_activation": skill.ends_activation,
         "usable_after_move": skill.usable_after_move,
-        "range_min": skill.range_min,
-        "range_max": skill.range_max,
-        "blast": skill.blast,
+        "apply_shape": encode_shape_range(skill.apply_shape),
+        "effect_shape": encode_shape_range(skill.effect_shape),
         "affects": str(skill.affects),
     }
 
@@ -96,9 +153,8 @@ def decode_skill(payload: dict[str, Any]) -> Skill:
         uses=_int(payload, "uses"),
         ends_activation=_bool(payload, "ends_activation"),
         usable_after_move=_bool(payload, "usable_after_move"),
-        range_min=_int(payload, "range_min"),
-        range_max=_int(payload, "range_max"),
-        blast=_int(payload, "blast"),
+        apply_shape=decode_shape_range(payload.get("apply_shape") or {}),
+        effect_shape=decode_shape_range(payload.get("effect_shape") or {}),
         affects=_skill_affects(payload.get("affects")),
     )
 
@@ -152,6 +208,7 @@ def encode_mech(mech: Mech) -> dict[str, Any]:
         "mobility": mech.mobility,
         "move_range": mech.move_range,
         "weapons": [encode_weapon(weapon) for weapon in mech.weapons],
+        "map_weapons": [encode_map_weapon(weapon) for weapon in mech.map_weapons],
     }
 
 
@@ -165,6 +222,7 @@ def decode_mech(payload: dict[str, Any]) -> Mech:
         mobility=_float(payload, "mobility"),
         move_range=_int(payload, "move_range"),
         weapons=[decode_weapon(entry) for entry in payload.get("weapons") or ()],
+        map_weapons=[decode_map_weapon(entry) for entry in payload.get("map_weapons") or ()],
     )
 
 
@@ -439,6 +497,20 @@ def _skill_source(raw: Any) -> SkillSource:
 def _skill_affects(raw: Any) -> SkillAffects:
     try:
         return SkillAffects(raw)
+    except ValueError as exc:
+        raise ValueError(f"affects {raw!r} is not in the contract") from exc
+
+
+def _direction(raw: Any) -> Direction:
+    try:
+        return Direction(raw)
+    except ValueError as exc:
+        raise ValueError(f"direction {raw!r} is not in the contract") from exc
+
+
+def _map_weapon_affects(raw: Any) -> MapWeaponAffects:
+    try:
+        return MapWeaponAffects(raw)
     except ValueError as exc:
         raise ValueError(f"affects {raw!r} is not in the contract") from exc
 

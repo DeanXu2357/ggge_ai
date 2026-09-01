@@ -5,20 +5,28 @@ import (
 	"testing"
 )
 
-func TestManualRollReadsTheOutcomesInOrderAndReportsAShortList(t *testing.T) {
+func TestManualRollReadsTheOutcomesInOrder(t *testing.T) {
 	roll := NewManualRoll([]bool{true, false})
 
 	if !roll.Lands(NodeStrike, 0.5) || roll.Lands(NodeCounter, 0.5) {
 		t.Fatal("the two outcomes must come back in order")
 	}
-	if roll.Short() {
-		t.Fatal("two reads of two outcomes are not short")
+}
+
+func TestManualRollCoversNoMoreDrawsThanItHoldsLabels(t *testing.T) {
+	roll := NewManualRoll([]bool{true, false})
+
+	if !roll.Covers(0) || !roll.Covers(2) {
+		t.Fatal("two labels cover two draws")
 	}
-	if roll.Lands(NodeStrike, 0.5) {
-		t.Fatal("a read past the end must miss")
+	if roll.Covers(3) {
+		t.Fatal("two labels cover no third draw")
 	}
-	if !roll.Short() {
-		t.Fatal("a read past the end must mark the roll short")
+}
+
+func TestTheDrawnDiceCoverEveryNumberOfDraws(t *testing.T) {
+	if !NewServerDraw(1).Covers(4) || !(Forced{}).Covers(4) {
+		t.Fatal("a dice that draws its own outcome needs no label")
 	}
 }
 
@@ -38,34 +46,6 @@ func TestTheDrawFollowsTheProbability(t *testing.T) {
 	}
 	if !draw.Lands(NodeStrike, 1) {
 		t.Fatal("probability 1 must land")
-	}
-}
-
-func TestACloneContinuesFromTheSamePlace(t *testing.T) {
-	draw := NewServerDraw(3)
-	draw.Lands(NodeStrike, 0.5)
-	clone := draw.Clone()
-	for i := 0; i < 32; i++ {
-		if draw.Lands(NodeStrike, 0.5) != clone.Lands(NodeStrike, 0.5) {
-			t.Fatalf("draw %d differs after the clone", i)
-		}
-	}
-}
-
-func TestACloneDoesNotMoveTheOriginal(t *testing.T) {
-	draw := NewServerDraw(3)
-	clone := draw.Clone()
-	var fromClone, fromOriginal []bool
-	for i := 0; i < 16; i++ {
-		fromClone = append(fromClone, clone.Lands(NodeStrike, 0.5))
-	}
-	for i := 0; i < 16; i++ {
-		fromOriginal = append(fromOriginal, draw.Lands(NodeStrike, 0.5))
-	}
-	for i := range fromClone {
-		if fromClone[i] != fromOriginal[i] {
-			t.Fatalf("draw %d: the original moved with the clone", i)
-		}
 	}
 }
 
