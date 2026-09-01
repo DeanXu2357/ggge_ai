@@ -14,15 +14,16 @@ type Rotation struct {
 
 // A board with no living unit keeps its phase: every side would stay empty,
 // and the rotation would never end.
-func Advance(board *state.Battle) []Rotation {
-	if !anyAlive(board) {
-		return nil
+func Advance(content state.Content, values state.Values) (state.Values, []Rotation) {
+	board := state.Compose(&content, values)
+	if !anyAlive(&board) {
+		return board.Column(), nil
 	}
 	var out []Rotation
-	for len(Pending(board, board.Phase)) == 0 {
-		out = append(out, nextPhase(board))
+	for len(Pending(&board, board.Phase)) == 0 {
+		out = append(out, nextPhase(&board))
 	}
-	return out
+	return board.Column(), out
 }
 
 func Pending(board *state.Battle, faction battle.Faction) []int {

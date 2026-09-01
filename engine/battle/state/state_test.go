@@ -41,6 +41,28 @@ func TestEveryFieldOfTheContractUnitSitsInOnePlaceOfTheState(t *testing.T) {
 	}
 }
 
+func TestTheContentOfAUnitHoldsEveryFieldBesideTheValue(t *testing.T) {
+	content := fieldsOf(reflect.TypeOf(UnitContent{}))
+	for name, want := range fieldsOf(reflect.TypeOf(Unit{})) {
+		if name == "Value" {
+			continue
+		}
+		got, held := content[name]
+		if !held {
+			t.Errorf("the field %q of the working unit sits in no content", name)
+			continue
+		}
+		if got != want {
+			t.Errorf("the field %q carries %s in the working unit and %s in the content",
+				name, want, got)
+		}
+		delete(content, name)
+	}
+	for name := range content {
+		t.Errorf("the field %q of the content sits in no field of the working unit", name)
+	}
+}
+
 func fieldsOf(kind reflect.Type) map[string]reflect.Type {
 	out := make(map[string]reflect.Type, kind.NumField())
 	for index := range kind.NumField() {

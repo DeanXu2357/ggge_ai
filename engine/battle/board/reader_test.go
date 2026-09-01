@@ -26,7 +26,7 @@ func mustActions(t *testing.T, b *Board, id int) battle.ActionsResponse {
 func TestTheActionsCarryTheCellsTheUnitReaches(t *testing.T) {
 	b := board(unitAt(battle.FactionAlly, battle.Cell{0, 0}),
 		unitAt(battle.FactionEnemy, battle.Cell{1, 0}))
-	b.state.Units[0].Mech.MoveRange = 1
+	b.content.Units[0].Mech.MoveRange = 1
 
 	out := mustActions(t, b, 0)
 
@@ -86,7 +86,7 @@ func TestTheActionsOfAUnitThatCannotAnswerAreAnError(t *testing.T) {
 func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 	amount := 0.5
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	b := &Board{state: state.FromContract(battle.BattleState{
+	content, values := state.FromContract(battle.BattleState{
 		Bounds: &bounds,
 		Phase:  battle.FactionAlly,
 		Units: []battle.Unit{{
@@ -97,7 +97,8 @@ func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 			Mech:          battle.Mech{MapWeapons: []battle.MapWeapon{{Name: "w"}}},
 		}},
 		TerrainCells: []battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: battle.TerrainGround}},
-	})}
+	})
+	b := &Board{content: content, values: values}
 
 	clone := b.State()
 	clone.Units[0].HP = 1
@@ -108,14 +109,15 @@ func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 	clone.TerrainCells[0].Terrain = battle.TerrainSpace
 	clone.Phase = battle.FactionEnemy
 
-	unit := b.state.Units[0]
-	if unit.Value.HP != 10 || unit.Value.MapWeaponAmmo[0] != 3 || unit.Value.Debuffs[0].Kind != "defense" {
+	unit := b.values.Units[0]
+	if unit.HP != 10 || unit.MapWeaponAmmo[0] != 3 || unit.Debuffs[0].Kind != "defense" {
 		t.Fatalf("the board changed with its clone: %+v", unit)
 	}
-	if *unit.Value.Skills[0].Amount != 0.5 || unit.Value.Skills[0].Uses != 1 {
-		t.Fatalf("the board skill changed with the clone: %+v", unit.Value.Skills[0])
+	if *unit.Skills[0].Amount != 0.5 || unit.Skills[0].Uses != 1 {
+		t.Fatalf("the board skill changed with the clone: %+v", unit.Skills[0])
 	}
-	if b.state.TerrainCells[0].Terrain != battle.TerrainGround || b.state.Phase != battle.FactionAlly {
+	if b.content.TerrainCells[0].Terrain != battle.TerrainGround ||
+		b.values.Phase != battle.FactionAlly {
 		t.Fatalf("the board fields changed with the clone")
 	}
 }
@@ -184,7 +186,7 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 
 func TestTheActionsOfAnActedUnitAreARefusal(t *testing.T) {
 	b := board(unitAt(battle.FactionAlly, battle.Cell{0, 0}))
-	b.state.Units[0].Value.Acted = true
+	b.values.Units[0].Acted = true
 
 	_, err := b.Actions(0)
 
@@ -195,14 +197,14 @@ func TestTheActionsOfAnActedUnitAreARefusal(t *testing.T) {
 
 func TestTheSummaryNamesThePendingUnitsAndTheGoneSides(t *testing.T) {
 	board := decodeFixtureState(t)
-	board.state.Phase = battle.FactionAlly
-	for index := range board.state.Units {
-		if board.state.Units[index].Faction == battle.FactionEnemy {
-			board.state.Units[index].Value.HP = 0
+	board.values.Phase = battle.FactionAlly
+	for index := range board.content.Units {
+		if board.content.Units[index].Faction == battle.FactionEnemy {
+			board.values.Units[index].HP = 0
 		}
 	}
 	summary := board.Summary()
-	if summary.Turn != board.state.Turn || summary.Phase != board.state.Phase {
+	if summary.Turn != board.values.Turn || summary.Phase != board.values.Phase {
 		t.Fatalf("summary: %+v", summary)
 	}
 	if !reflect.DeepEqual(summary.Gone, []battle.Faction{battle.FactionEnemy}) {
@@ -219,11 +221,12 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	unit, err := board.state.UnitAt(0)
+	working := board.compose()
+	unit, err := working.UnitAt(0)
 	if err != nil || !unit.Alive() {
 		t.Fatalf("unit: %v, error: %v", unit, err)
 	}
-	ghost, err := board.state.UnitAt(len(board.state.Units))
+	ghost, err := working.UnitAt(len(working.Units))
 	if ghost != nil || !errors.Is(err, battle.ErrNoUnit) {
 		t.Fatalf("a position outside the slice: %v, error: %v", ghost, err)
 	}
@@ -245,9 +248,10 @@ func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
 
 func board(units ...battle.Unit) *Board {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	return &Board{state: state.FromContract(battle.BattleState{
+	content, values := state.FromContract(battle.BattleState{
 		Bounds: &bounds, Units: units,
-		Phase: battle.FactionAlly, Turn: 1})}
+		Phase: battle.FactionAlly, Turn: 1})
+	return &Board{content: content, values: values}
 }
 
 func TestTheReachOfAUnitThatIsNotOnTheBoardIsAnError(t *testing.T) {

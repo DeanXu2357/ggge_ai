@@ -11,9 +11,9 @@ import (
 
 const maxSupportAttackers = 3
 
-// Plan carries every choice of one activation with every participant already
+// A plan carries every choice of one activation with every participant already
 // judged. Commit writes it and cannot fail.
-type Plan struct {
+type plan struct {
 	kind     battle.ActionKind
 	actorID  int
 	anchor   battle.Cell
@@ -40,28 +40,28 @@ func (a answer) dodging() bool {
 
 // Every rule is judged before the first change of the board, so a refused
 // action leaves the board as it was.
-func Prepare(board *state.Battle, decision battle.Decision) (Plan, error) {
+func prepare(board *state.Battle, decision battle.Decision) (plan, error) {
 	actor, err := Activatable(board, decision.UnitID)
 	if err != nil {
-		return Plan{}, err
+		return plan{}, err
 	}
 	if err := checkIDs(board, decision); err != nil {
-		return Plan{}, err
+		return plan{}, err
 	}
 	switch decision.Kind {
 	case battle.ActionAttack:
 		return prepareAttack(board, decision, actor)
 	case battle.ActionMapAttack:
-		return Plan{}, fmt.Errorf("%w: the engine resolves no map attack, because the area of a map weapon is not in the contract",
+		return plan{}, fmt.Errorf("%w: the engine resolves no map attack, because the area of a map weapon is not in the contract",
 			battle.ErrIllegalAction)
 	case battle.ActionReposition, battle.ActionStandby:
 		anchor, err := destination(board, decision.UnitID, decision.MoveTo, true)
 		if err != nil {
-			return Plan{}, err
+			return plan{}, err
 		}
-		return Plan{kind: decision.Kind, actorID: decision.UnitID, anchor: anchor}, nil
+		return plan{kind: decision.Kind, actorID: decision.UnitID, anchor: anchor}, nil
 	}
-	return Plan{}, fmt.Errorf("%w: the kind %q is no action of a unit",
+	return plan{}, fmt.Errorf("%w: the kind %q is no action of a unit",
 		battle.ErrIllegalAction, decision.Kind)
 }
 
@@ -147,46 +147,46 @@ func checkArmament(decision battle.Decision) error {
 	return nil
 }
 
-func prepareAttack(board *state.Battle, decision battle.Decision, actor *state.Unit) (Plan, error) {
+func prepareAttack(board *state.Battle, decision battle.Decision, actor *state.Unit) (plan, error) {
 	if decision.MapWeaponID != nil {
-		return Plan{}, fmt.Errorf("%w: the engine fires no map weapon, because the area of a map weapon is not in the contract",
+		return plan{}, fmt.Errorf("%w: the engine fires no map weapon, because the area of a map weapon is not in the contract",
 			battle.ErrIllegalAction)
 	}
 	targetID, err := foe(board, decision.UnitID, decision.TargetID)
 	if err != nil {
-		return Plan{}, err
+		return plan{}, err
 	}
 	target := unitOf(board, targetID)
 	weaponID := *decision.WeaponID
 	weapon := weaponOf(actor, weaponID)
 	if !hasENFor(actor, *weapon) {
-		return Plan{}, fmt.Errorf("%w: unit %d cannot pay for the weapon %q",
+		return plan{}, fmt.Errorf("%w: unit %d cannot pay for the weapon %q",
 			battle.ErrIllegalAction, decision.UnitID, weapon.Name)
 	}
 	anchor, err := destination(board, decision.UnitID, decision.MoveTo, weapon.UsableAfterMove)
 	if err != nil {
-		return Plan{}, err
+		return plan{}, err
 	}
 	firing := geometry.FootprintAt(actor, anchor)
 	if !weapon.Reaches(geometry.Distance(firing, target.Footprint())) {
-		return Plan{}, fmt.Errorf("%w: the weapon %q of unit %d does not reach unit %d",
+		return plan{}, fmt.Errorf("%w: the weapon %q of unit %d does not reach unit %d",
 			battle.ErrIllegalAction, weapon.Name, decision.UnitID, targetID)
 	}
 	joining, err := chosenSupportAttackers(board, decision.UnitID, firing, target.Footprint(),
 		decision.SupportAttackerIDs)
 	if err != nil {
-		return Plan{}, err
+		return plan{}, err
 	}
 	bearerID, err := chosenSupportDefendWhenAttack(board, decision.UnitID, firing,
 		decision.SupportDefenderID)
 	if err != nil {
-		return Plan{}, err
+		return plan{}, err
 	}
 	reply, err := answerOf(board, targetID, firing, decision.ResponseAttack)
 	if err != nil {
-		return Plan{}, err
+		return plan{}, err
 	}
-	return Plan{
+	return plan{
 		kind:     battle.ActionAttack,
 		actorID:  decision.UnitID,
 		anchor:   anchor,
@@ -203,7 +203,7 @@ func Activatable(board *state.Battle, unitID int) (*state.Unit, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := OnPhase(board, unit); err != nil {
+	if err := onPhase(board, unit); err != nil {
 		return nil, err
 	}
 	if unit.Value.Acted {
@@ -212,7 +212,7 @@ func Activatable(board *state.Battle, unitID int) (*state.Unit, error) {
 	return unit, nil
 }
 
-// LivingUnit and OnPhase are the two gates that every command reads, so the
+// LivingUnit and onPhase are the two gates that every command reads, so the
 // shell asks them here and no package writes the refusal twice.
 func LivingUnit(board *state.Battle, unitID int) (*state.Unit, error) {
 	unit, err := board.UnitAt(unitID)
@@ -225,7 +225,7 @@ func LivingUnit(board *state.Battle, unitID int) (*state.Unit, error) {
 	return unit, nil
 }
 
-func OnPhase(board *state.Battle, unit *state.Unit) error {
+func onPhase(board *state.Battle, unit *state.Unit) error {
 	if unit.Faction != board.Phase {
 		return fmt.Errorf("%w: the side %q does not hold the phase %q",
 			battle.ErrOffPhase, unit.Faction, board.Phase)

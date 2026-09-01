@@ -10,7 +10,8 @@ import (
 
 func TestAContractStateSurvivesTheTripIntoTheStateAndBack(t *testing.T) {
 	original := filledState()
-	inside := FromContract(original)
+	content, values := FromContract(original)
+	inside := Compose(&content, values)
 	back := inside.ToContract()
 	if !reflect.DeepEqual(back, original) {
 		t.Errorf("the trip changed %s", firstDifference("state",
@@ -20,9 +21,10 @@ func TestAContractStateSurvivesTheTripIntoTheStateAndBack(t *testing.T) {
 
 func TestTheExportedContractSharesNothingWithTheState(t *testing.T) {
 	original := filledState()
-	want := FromContract(original)
-	got := FromContract(original)
-	answer := got.ToContract()
+	wantContent, wantValues := FromContract(original)
+	content, values := FromContract(original)
+	inside := Compose(&content, values)
+	answer := inside.ToContract()
 
 	*answer.Units[0].Skills[0].Amount = 404
 	for index := range answer.Units[0].MapWeaponAmmo {
@@ -32,9 +34,51 @@ func TestTheExportedContractSharesNothingWithTheState(t *testing.T) {
 	(*answer.Bounds)[0][0] = 404
 	answer.TerrainCells[0].Terrain = battle.TerrainUnderwater
 
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("a write into the answer reached the state at %s",
-			firstDifference("state", reflect.ValueOf(want), reflect.ValueOf(got)))
+	if !reflect.DeepEqual(content, wantContent) {
+		t.Errorf("a write into the answer reached the content at %s",
+			firstDifference("content", reflect.ValueOf(wantContent), reflect.ValueOf(content)))
+	}
+	if !reflect.DeepEqual(values, wantValues) {
+		t.Errorf("a write into the answer reached the values at %s",
+			firstDifference("values", reflect.ValueOf(wantValues), reflect.ValueOf(values)))
+	}
+}
+
+func TestTheWorkingFormSharesNoWritableMemoryWithItsColumn(t *testing.T) {
+	original := filledState()
+	content, values := FromContract(original)
+	wantSkill := *values.Units[0].Skills[0].Amount
+	wantAmmo, wantDebuff := values.Units[0].MapWeaponAmmo[0], values.Units[0].Debuffs[0].Magnitude
+
+	inside := Compose(&content, values)
+	inside.Units[0].Value.HP = 404
+	*inside.Units[0].Value.Skills[0].Amount = 404
+	inside.Units[0].Value.MapWeaponAmmo[0] = 404
+	inside.Units[0].Value.Debuffs[0].Magnitude = 404
+	inside.Phase = battle.FactionThirdParty
+
+	if values.Units[0].HP == 404 || values.Phase == battle.FactionThirdParty {
+		t.Errorf("a write into the working form reached the column: %+v", values.Units[0])
+	}
+	if *values.Units[0].Skills[0].Amount != wantSkill ||
+		values.Units[0].MapWeaponAmmo[0] != wantAmmo ||
+		values.Units[0].Debuffs[0].Magnitude != wantDebuff {
+		t.Errorf("a write into a slice of the working form reached the column: %+v",
+			values.Units[0])
+	}
+}
+
+func TestTheColumnOfTheWorkingFormCarriesEveryValue(t *testing.T) {
+	original := filledState()
+	content, values := FromContract(original)
+
+	inside := Compose(&content, values)
+	inside.Units[0].Value.HP = 404
+	inside.Turn, inside.Phase = 404, battle.FactionThirdParty
+	got := inside.Column()
+
+	if got.Units[0].HP != 404 || got.Turn != 404 || got.Phase != battle.FactionThirdParty {
+		t.Errorf("column: %+v", got)
 	}
 }
 
@@ -44,7 +88,7 @@ func TestTwoUnitsWithEqualMechsPointAtTwoMechs(t *testing.T) {
 	second.HP = 404
 	original.Units = append(original.Units, second)
 
-	got := FromContract(original)
+	got, _ := FromContract(original)
 	if got.Units[0].Mech == got.Units[1].Mech {
 		t.Fatal("the two units point at one mech")
 	}

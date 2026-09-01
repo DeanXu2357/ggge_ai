@@ -37,7 +37,7 @@ func (b *Board) Load(bounds battle.Bounds, terrain battle.Terrain,
 			return fmt.Errorf("the terrain cell %v stands outside the board", entry.Cell)
 		}
 	}
-	b.state = state.FromContract(candidate)
+	b.content, b.values = state.FromContract(candidate)
 	return nil
 }
 
@@ -100,44 +100,23 @@ func validate(state *battle.BattleState) error {
 	return nil
 }
 
-type resolution struct {
-	Trace     engagement.Trace
-	Rotations []turn.Rotation
-}
-
 func (b *Board) Act(action *battle.Decision, dice battle.Dice) ([]any, error) {
-	resolution, err := b.act(*action, dice)
+	engaged, trace, err := engagement.Commit(b.content, b.values, *action, dice)
 	if err != nil {
 		return nil, err
 	}
-	return eventsOf(resolution), nil
-}
-
-func (b *Board) act(decision battle.Decision, dice battle.Dice) (resolution, error) {
-	plan, err := engagement.Prepare(&b.state, decision)
-	if err != nil {
-		return resolution{}, err
-	}
-	if !dice.Covers(plan.Draws()) {
-		return resolution{}, fmt.Errorf(
-			"%w: the 'outcomes' list holds fewer labels than the %d draws the action can make",
-			battle.ErrOutsideContract, plan.Draws())
-	}
-	trace := engagement.Commit(&b.state, plan, dice)
-	return resolution{Trace: trace, Rotations: turn.Advance(&b.state)}, nil
-}
-
-func eventsOf(resolution resolution) []any {
-	out := make([]any, 0, len(resolution.Trace)+len(resolution.Rotations))
-	for _, strike := range resolution.Trace {
+	rotated, rotations := turn.Advance(b.content, engaged)
+	b.values = rotated
+	out := make([]any, 0, len(trace)+len(rotations))
+	for _, strike := range trace {
 		out = append(out, battle.StrikeEvent{
 			Event: "strike", Strike: string(strike.Kind),
 			ShooterID: strike.ShooterID, StruckID: strike.StruckID, WeaponID: strike.WeaponID,
 			Landed: strike.Landed, Damage: strike.Damage, Killed: strike.Killed,
 		})
 	}
-	for _, rotation := range resolution.Rotations {
+	for _, rotation := range rotations {
 		out = append(out, battle.PhaseEvent{Event: "phase", Turn: rotation.Turn, Phase: rotation.Phase})
 	}
-	return out
+	return out, nil
 }

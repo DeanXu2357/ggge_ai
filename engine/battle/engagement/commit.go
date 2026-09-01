@@ -1,15 +1,35 @@
 package engagement
 
 import (
+	"fmt"
+
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-// Commit writes the plan of Prepare. Every rule of the exchange is judged
-// there, so nothing here can refuse the plan.
-func Commit(board *state.Battle, plan Plan, dice battle.Dice) Trace {
+// Commit resolves one activation and answers the values column the activation
+// leaves. A refusal comes back before the first write.
+func Commit(content state.Content, values state.Values, decision battle.Decision,
+	dice battle.Dice) (state.Values, Trace, error) {
+	board := state.Compose(&content, values)
+	made, err := prepare(&board, decision)
+	if err != nil {
+		return state.Values{}, nil, err
+	}
+	if !dice.Covers(made.draws()) {
+		return state.Values{}, nil, fmt.Errorf(
+			"%w: the 'outcomes' list holds fewer labels than the %d draws the action can make",
+			battle.ErrOutsideContract, made.draws())
+	}
+	trace := write(&board, made, dice)
+	return board.Column(), trace, nil
+}
+
+// The write phase writes the plan of the prepare phase. Every rule of the
+// exchange is judged there, so nothing here can refuse the plan.
+func write(board *state.Battle, plan plan, dice battle.Dice) Trace {
 	actor := unitOf(board, plan.actorID)
 	actor.Value.Pos = plan.anchor
 	if plan.kind != battle.ActionAttack {
@@ -37,10 +57,10 @@ func Commit(board *state.Battle, plan Plan, dice battle.Dice) Trace {
 	return trace
 }
 
-// Draws counts the nodes of Commit with every unit alive. A kill can cut the
-// defender reply short, so the count is an upper bound and never falls under
-// the draws that Commit makes.
-func (p Plan) Draws() int {
+// The count reads the nodes of the write phase with every unit alive. A kill
+// can cut the defender reply short, so the count is an upper bound and never
+// falls under the draws that the write phase makes.
+func (p plan) draws() int {
 	if p.kind != battle.ActionAttack {
 		return 0
 	}
@@ -160,7 +180,7 @@ func applyDebuff(board *state.Battle, victim *state.Unit, weapon *def.Weapon) {
 	})
 }
 
-func defenderReply(board *state.Battle, plan Plan, dice battle.Dice) Trace {
+func defenderReply(board *state.Battle, plan plan, dice battle.Dice) Trace {
 	var out Trace
 	actor := unitOf(board, plan.actorID)
 	if len(plan.answer.joining) > 0 && actor.Alive() {

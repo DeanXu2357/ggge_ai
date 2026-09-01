@@ -55,11 +55,11 @@ func attackOn(target, weapon int) battle.Decision {
 }
 
 func resolve(b *state.Battle, decision battle.Decision, dice battle.Dice) (Trace, error) {
-	plan, err := Prepare(b, decision)
+	made, err := prepare(b, decision)
 	if err != nil {
 		return nil, err
 	}
-	return Commit(b, plan, dice), nil
+	return write(b, made, dice), nil
 }
 
 func apply(t *testing.T, b *state.Battle, decision battle.Decision, dice battle.Dice) Trace {
@@ -306,9 +306,9 @@ func TestEveryWeaponThatReachesTheAttackerCounters(t *testing.T) {
 	pod := beam()
 	pod.Name = "missile pod"
 	units[targetID].Mech.Weapons = append(units[targetID].Mech.Weapons, pod)
-	b := board(units...)
+	content, values := pair(units...)
 
-	options, err := Menu(b, attackOn(targetID, beamID), targetID)
+	options, err := Menu(content, values, attackOn(targetID, beamID), targetID)
 	if err != nil {
 		t.Fatalf("response attacks: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestEveryWeaponThatReachesTheAttackerCounters(t *testing.T) {
 	decision := attackOn(targetID, beamID)
 	decision.ResponseAttack = &battle.ResponseAttack{Stance: battle.StanceCounter, WeaponID: idOf(1)}
 
-	trace := apply(t, b, decision, battle.Forced{Strike: true, Counter: true})
+	trace := apply(t, board(units...), decision, battle.Forced{Strike: true, Counter: true})
 
 	last := trace[len(trace)-1]
 	if last.Kind != StrikeCounter || last.WeaponID != 1 || !last.Landed {
@@ -771,7 +771,7 @@ func repliesWithSupportAndCounter() (*state.Battle, battle.Decision) {
 	return b, decision
 }
 
-func TestTheDrawsOfAPlanBoundTheDrawsOfTheCommit(t *testing.T) {
+func TestTheDrawsOfAPlanBoundTheDrawsOfTheWritePhase(t *testing.T) {
 	anchor := battle.Cell{1, 0}
 	cases := []struct {
 		name  string
@@ -814,18 +814,102 @@ func TestTheDrawsOfAPlanBoundTheDrawsOfTheCommit(t *testing.T) {
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
 			b, decision := one.build()
-			plan, err := Prepare(b, decision)
+			made, err := prepare(b, decision)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if plan.Draws() != one.want {
-				t.Fatalf("draws: %d, want %d", plan.Draws(), one.want)
+			if made.draws() != one.want {
+				t.Fatalf("draws: %d, want %d", made.draws(), one.want)
 			}
 			dice := &countingDice{inner: battle.Forced{}}
-			Commit(b, plan, dice)
-			if dice.count > plan.Draws() {
-				t.Fatalf("commit drew %d times, and the bound is %d", dice.count, plan.Draws())
+			write(b, made, dice)
+			if dice.count > made.draws() {
+				t.Fatalf("the write phase drew %d times, and the bound is %d",
+					dice.count, made.draws())
 			}
 		})
+	}
+}
+
+func TestTheAnsweredColumnSharesNoWritableMemoryWithTheInput(t *testing.T) {
+	amount := 3000.0
+	units := shootoutUnits()
+	units[actorID].Mech.MapWeapons = []battle.MapWeapon{mapShells()}
+	units[actorID].MapWeaponAmmo = []int{2}
+	units[actorID].Skills = []battle.Skill{{Kind: "skill_heal", Amount: &amount, Uses: 2}}
+	units[targetID].Debuffs = []battle.Debuff{{Kind: "mobility_down", Magnitude: 0.3, AppliedPhase: 1}}
+	content, values := pair(units...)
+
+	answer, _, err := Commit(content, values, attackOn(targetID, beamID),
+		battle.Forced{Strike: true})
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	answer.Units[actorID].EN, answer.Units[actorID].Acted = 404, false
+	answer.Units[actorID].MapWeaponAmmo[0] = 404
+	*answer.Units[actorID].Skills[0].Amount = 404
+	answer.Units[targetID].Debuffs[0].Magnitude = 404
+	answer.Phase, answer.Turn = battle.FactionEnemy, 404
+
+	if values.Units[actorID].EN != 140 || values.Units[actorID].Acted ||
+		values.Units[targetID].HP != 12000 {
+		t.Fatalf("the input column changed: %+v", values.Units)
+	}
+	if values.Units[actorID].MapWeaponAmmo[0] != 2 ||
+		*values.Units[actorID].Skills[0].Amount != 3000.0 ||
+		values.Units[targetID].Debuffs[0].Magnitude != 0.3 {
+		t.Fatalf("a slice of the input column changed: %+v", values.Units)
+	}
+	if values.Phase != battle.FactionAlly || values.Turn != 1 {
+		t.Fatalf("the headers of the input column changed: %+v", values)
+	}
+}
+
+func TestTheAnswerOfTheCommitCarriesTheChangesOfTheActivation(t *testing.T) {
+	content, values := pair(shootoutUnits()...)
+
+	answer, trace, err := Commit(content, values, attackOn(targetID, beamID),
+		battle.Forced{Strike: true})
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	if len(trace) != 1 || !trace[0].Landed {
+		t.Fatalf("trace: %+v", trace)
+	}
+	if !answer.Units[actorID].Acted || answer.Units[actorID].EN != 130 ||
+		answer.Units[targetID].HP >= 12000 {
+		t.Fatalf("the answer carries the changes: %+v", answer.Units)
+	}
+}
+
+func TestARefusedCommitAnswersTheErrorAndNoColumn(t *testing.T) {
+	content, values := pair(shootoutUnits()...)
+
+	answer, trace, err := Commit(content, values, attackOn(actorID, beamID),
+		battle.Forced{Strike: true})
+
+	if !errors.Is(err, battle.ErrIllegalAction) {
+		t.Fatalf("error: %v", err)
+	}
+	if answer.Units != nil || trace != nil {
+		t.Fatalf("a refusal answers no column: %+v %+v", answer, trace)
+	}
+	if values.Units[actorID].Acted || values.Units[targetID].HP != 12000 {
+		t.Fatalf("a refusal leaves the input column as it was: %+v", values.Units)
+	}
+}
+
+func TestTheCommitRefusesADiceListThatCoversFewerDrawsThanTheAction(t *testing.T) {
+	content, values := pair(shootoutUnits()...)
+	decision := attackOn(targetID, beamID)
+	decision.ResponseAttack = &battle.ResponseAttack{Stance: battle.StanceCounter,
+		WeaponID: idOf(beamID)}
+
+	_, _, err := Commit(content, values, decision, battle.NewManualRoll([]bool{true}))
+
+	if !errors.Is(err, battle.ErrOutsideContract) {
+		t.Fatalf("error: %v", err)
 	}
 }

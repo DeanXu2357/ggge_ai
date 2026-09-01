@@ -20,11 +20,16 @@ func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
 		Mech: battle.Mech{}, Pilot: battle.Pilot{}}
 }
 
-func board(units ...battle.Unit) *state.Battle {
+func pair(units ...battle.Unit) (state.Content, state.Values) {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	out := state.FromContract(battle.BattleState{
+	return state.FromContract(battle.BattleState{
 		Bounds: &bounds, Units: units,
 		Phase: battle.FactionAlly, Turn: 1})
+}
+
+func board(units ...battle.Unit) *state.Battle {
+	content, values := pair(units...)
+	out := state.Compose(&content, values)
 	return &out
 }
 

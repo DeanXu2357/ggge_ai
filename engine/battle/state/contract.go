@@ -7,21 +7,24 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
 
-func FromContract(s battle.BattleState) Battle {
-	out := Battle{
-		Units:        make([]Unit, len(s.Units)),
-		Phase:        s.Phase,
-		Turn:         s.Turn,
+func FromContract(s battle.BattleState) (Content, Values) {
+	content := Content{
+		Units:        make([]UnitContent, len(s.Units)),
 		Terrain:      s.Terrain,
 		TerrainCells: slices.Clone(s.TerrainCells),
 	}
+	values := Values{
+		Units: make([]UnitValue, len(s.Units)),
+		Phase: s.Phase,
+		Turn:  s.Turn,
+	}
 	if s.Bounds != nil {
-		out.Bounds = *s.Bounds
+		content.Bounds = *s.Bounds
 	}
 	for index := range s.Units {
-		out.Units[index] = fromContractUnit(s.Units[index])
+		content.Units[index], values.Units[index] = fromContractUnit(s.Units[index])
 	}
-	return out
+	return content, values
 }
 
 func (b *Battle) ToContract() battle.BattleState {
@@ -40,9 +43,9 @@ func (b *Battle) ToContract() battle.BattleState {
 	return out
 }
 
-func fromContractUnit(u battle.Unit) Unit {
+func fromContractUnit(u battle.Unit) (UnitContent, UnitValue) {
 	mech, pilot := fromContractMech(u.Mech), fromContractPilot(u.Pilot)
-	out := Unit{
+	content := UnitContent{
 		Faction:                 u.Faction,
 		Size:                    u.Size,
 		MaxHP:                   u.MaxHP,
@@ -53,22 +56,22 @@ func fromContractUnit(u battle.Unit) Unit {
 		SupportAttackChargesMax: u.SupportAttackChargesMax,
 		HasShield:               u.HasShield,
 		SupportDefendWhenAttack: u.SupportDefendWhenAttack,
-		Value: UnitValue{
-			Pos:                  u.Pos,
-			HP:                   u.HP,
-			EN:                   u.EN,
-			SP:                   u.SP,
-			Acted:                u.Acted,
-			ChanceSteps:          u.ChanceSteps,
-			SupportDefendCharges: u.SupportDefendCharges,
-			SupportAttackCharges: u.SupportAttackCharges,
-			Skills:               mapSlice(u.Skills, fromContractSkill),
-			MapWeaponAmmo:        slices.Clone(u.MapWeaponAmmo),
-			Debuffs:              slices.Clone(u.Debuffs),
-		},
+		Mech:                    &mech,
+		Pilot:                   &pilot,
 	}
-	out.Mech, out.Pilot = &mech, &pilot
-	return out
+	return content, UnitValue{
+		Pos:                  u.Pos,
+		HP:                   u.HP,
+		EN:                   u.EN,
+		SP:                   u.SP,
+		Acted:                u.Acted,
+		ChanceSteps:          u.ChanceSteps,
+		SupportDefendCharges: u.SupportDefendCharges,
+		SupportAttackCharges: u.SupportAttackCharges,
+		Skills:               mapSlice(u.Skills, fromContractSkill),
+		MapWeaponAmmo:        slices.Clone(u.MapWeaponAmmo),
+		Debuffs:              slices.Clone(u.Debuffs),
+	}
 }
 
 func (b *Battle) toContractUnit(u *Unit) battle.Unit {
