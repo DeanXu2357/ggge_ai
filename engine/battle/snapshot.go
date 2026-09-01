@@ -131,18 +131,15 @@ type ShapeRange struct {
 	Direction Direction `json:"direction"`
 }
 
-// AffectArea is the area of a map weapon or of a skill. An empty EffectShape
-// is no choice of center: the owner opens its ApplyShape at the cell of the
+// AffectArea is the area of a map weapon or of a skill. An empty ApplyShape
+// is no choice of center: the owner opens its EffectShape at the cell of the
 // caster.
 type AffectArea struct {
-	// The two shape names cross over the datamine columns that fill them.
-	// Read the column, not the name.
-	//
-	// ApplyShape holds 'map_weapon_effect_range' on a map weapon and
-	// 'effect_range' on a skill: the cells that the owner acts on.
-	ApplyShape ShapeRange `json:"apply_shape"`
-	// EffectShape holds 'map_weapon_shooting_range' on a map weapon: the
+	// ApplyShape holds 'map_weapon_shooting_range' on a map weapon: the
 	// cells where the center can sit. A skill sample carries no such column.
+	ApplyShape ShapeRange `json:"apply_shape"`
+	// EffectShape holds 'map_weapon_effect_range' on a map weapon and
+	// 'effect_range' on a skill: the cells that the owner acts on.
 	EffectShape ShapeRange `json:"effect_shape"`
 }
 

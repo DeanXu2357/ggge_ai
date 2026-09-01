@@ -653,15 +653,14 @@ minimum range, a maximum range and a radius cannot express such a
 shape, so they are the wrong description of the area and not an
 incomplete one (user ruling 2026-08-31). The pair replaces them.
 
-The two names cross over the datamine, as they do on a map weapon.
-Read the column, not the name:
+The name of each field matches the column that fills it:
 
 | Field | Datamine column | Content |
 |---|---|---|
-| apply_shape | effect_range | The cells that the skill acts on |
-| effect_shape | (no column) | The cells where the center of the skill can sit |
+| apply_shape | (no column) | The cells where the center of the skill can sit |
+| effect_shape | effect_range | The cells that the skill acts on |
 
-An empty 'effect_shape.cells' is no choice of center. The skill
+An empty 'apply_shape.cells' is no choice of center. The skill
 opens its area at the cell of the caster, and the player picks
 nothing. A set that holds cells is a choice: the player picks one
 cell of the set, and the picked cell travels in the field 'aim' of
@@ -681,7 +680,7 @@ of the game shows no cells and no heading, so the vision layer of
 this repository writes an empty 'cells' and a 'direction' of 'none'
 in each shape. An empty shape from this source is data that is
 missing. No rule may read it as an area of no cells, and no rule
-may read such an 'effect_shape' as the caster rule above.
+may read such an 'apply_shape' as the caster rule above.
 
 The field 'affects' holds the faction filter of the units that a
 skill acts on: 'ally', 'enemy', or 'all'. The value set holds no
@@ -749,22 +748,21 @@ that is the same in every heading.
 'AffectArea' is the pair of shapes of one owner. A map weapon holds
 one, and a skill holds one. It is an anonymous embedded field in Go,
 so its two shapes stay flat on the wire and keep their position. The
-two names cross over the two columns of the datamine. Read the
-column, not the name:
+name of each field matches the column that fills it:
 
 | Field | Datamine column | Content |
 |---|---|---|
-| apply_shape | map_weapon_effect_range | The cells that the strike hits |
-| effect_shape | map_weapon_shooting_range | The cells where the center of the strike can sit |
+| apply_shape | map_weapon_shooting_range | The cells where the center of the strike can sit |
+| effect_shape | map_weapon_effect_range | The cells that the strike hits |
 
-An empty 'effect_shape.cells' is no choice of center. The weapon
+An empty 'apply_shape.cells' is no choice of center. The weapon
 opens its area at the cell of the caster, and the player picks
 nothing. A set that holds cells is a choice: the player picks one
 cell of the set, and the picked cell travels in the field 'aim' of
 the action. This rule replaces the enum 'MapWeaponOrigin' of
 version 1.8.
 
-An integer cannot hold 'effect_shape', because the set has holes.
+An integer cannot hold 'apply_shape', because the set has holes.
 The unit 1114000250 of
 docs/reference/datamine-samples/202608161248/unit/ carries a hollow
 diamond: the set reaches five cells, and the cells inside radius
@@ -787,7 +785,7 @@ panel of the game shows no cells and no heading, so the vision
 layer of this repository writes an empty 'cells' and a 'direction'
 of 'none' in each shape. An empty shape from this source is data
 that is missing. No rule may read it as an area of no cells, and no
-rule may read such an 'effect_shape' as the caster rule above.
+rule may read such an 'apply_shape' as the caster rule above.
 
 ### The unit, the pilot and the mech
 
@@ -1031,3 +1029,15 @@ difference between two integers is 1.
   keep their position. This version gives the skill an area and it
   gives no rule: no rule reads the two fields. A client of version
   1.9 does not read a 1.10 skill.
+- An eighth exception on record: version 1.11 (2026-09-01, issue #90)
+  exchanged the contents of 'apply_shape' and 'effect_shape'. The two
+  names stay. 'apply_shape' now holds the cells where the center of
+  the area can sit, and 'effect_shape' now holds the cells that the
+  owner acts on. The crossover of version 1.9 and version 1.10 ends:
+  'effect_shape' carries 'map_weapon_effect_range' on a map weapon and
+  'effect_range' on a skill, so the name matches the column. The
+  caster rule follows its content, so an empty 'apply_shape' is the
+  rule that an empty 'effect_shape' held before. The user ruled the
+  exchange. This version moves no byte of any board: every shape that
+  a producer writes today is empty. A client of version 1.10 reads a
+  1.11 area and it reads the two shapes reversed.
