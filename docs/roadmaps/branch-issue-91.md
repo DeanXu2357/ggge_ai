@@ -80,6 +80,62 @@ Python change.
   plus the new bindings 'content' and 'values'.
 - Gates: gofmt, go vet, go test -race, pytest, ruff.
 
+## Change summary
+
+One commit, 'e63bf30', 20 files, +815/-322, off 'dev' at 'b7055ac'.
+
+- state: 'Content', 'UnitContent' and 'Values'; 'Compose' is the
+  entry deep copy of the column and 'Column' the header-move
+  extraction; 'FromContract' answers the pair. 'Battle', 'Unit',
+  'UnitValue' and 'ToContract' keep their shapes.
+- engagement: the one entry 'Commit(content, values, decision,
+  dice)' answers '(Values, Trace, error)'; 'prepare', 'write',
+  'draws', 'plan' and 'onPhase' are package names; 'Menu' takes the
+  pair.
+- turn: 'Advance(content, values)' answers '(Values, []Rotation)'.
+- board: stores the pair; 'Act' is the four ruled steps with the
+  event list inline; 'act', 'resolution' and 'eventsOf' are gone;
+  the readers compose per call.
+- Tests: no rule assertion changed. New: the standalone rotation,
+  the column isolation of both systems, the zero-column refusal,
+  the dice-cover refusal, the content field census, the
+  working-form isolation, and the event order through 'Act'.
+- Docs: the spec process-model section and the terminology rows,
+  plus the bindings 'content' and 'values'.
+
+Gates: 'gofmt -l' empty, 'go vet' clean, 'go test -race' nine
+packages ok, pytest 1034 passed, ruff clean. The wire is frozen:
+the fixtures diff is empty and the protocol stays "2.0".
+
+## Call chain
+
+An 'act' request reaches 'Board.Act'. Step 1:
+'engagement.Commit(&b.content, b.values, ...)' composes a working
+'state.Battle' with a deep-copied column, judges through 'prepare'
+with the refusal codes unchanged, checks the dice cover, runs
+'write' and extracts the new column. Step 2:
+'turn.Advance(&b.content, exchanged)' composes again, rotates and
+extracts. Step 3: 'b.values = final' is the one write of the
+shell. Step 4: the event list assembles inline from the trace and
+the rotations. The readers compose per call and write nothing.
+
+## Contention points
+
+- 'UnitContent' is a per-unit type the roadmap did not name.
+- A refused 'Commit' answers the zero 'Values': the error is the
+  answer, and the shell reads the error first.
+- 'Compose' panics on a length-mismatched pair. Every production
+  path builds the pair together, so a mismatch is a broken
+  invariant, not a bad request.
+- Two composes per 'act' and one per read command: the ruled
+  entry-copy discipline, a real allocation cost, not benchmarked.
+- The terminology term 'commit phase' is renamed to 'write phase'
+  (寫入階段), an implementation proposal, one row to revert.
+- The bindings 'content' 內容 and 'values' 值欄 are proposals of
+  the implementation, not user rulings.
+- The dice-cover refusal moved verbatim into 'Commit'; the wire
+  error is unchanged.
+
 ## Progress log
 
 - 2026-09-01: issue #91 opened from the session design; branch
@@ -96,4 +152,5 @@ Python change.
 
 ## Resume point
 
-The code review and the finish steps.
+The change is committed at 'e63bf30'. The code review runs;
+the issue comment and the notification follow.
