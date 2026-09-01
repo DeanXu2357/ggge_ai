@@ -69,7 +69,7 @@ class WeaponIntel:
 
     def to_map_weapon(self) -> MapWeapon:
         # 面板讀不到地圖兵器的形狀：沒有格子、沒有朝向。兩個形狀都留空，
-        # 等有形狀來源再填（issue #79）。空的 effect_shape 在契約裡代表以
+        # 等有形狀來源再填（issue #79）。空的 apply_shape 在契約裡代表以
         # 自機格為中心，這裡卻只是缺資料，規則不得照字面讀。
         return MapWeapon(
             name=self.name,
@@ -91,7 +91,7 @@ class SkillIntel:
 
     def to_skill(self) -> Skill:
         # 面板讀不到技能的形狀：沒有格子、沒有朝向。兩個形狀都留空，等有形狀
-        # 來源再填。空的 effect_shape 在契約裡代表以自機格為中心，這裡卻只是
+        # 來源再填。空的 apply_shape 在契約裡代表以自機格為中心，這裡卻只是
         # 缺資料，規則不得照字面讀。
         return Skill(
             kind=self.kind,

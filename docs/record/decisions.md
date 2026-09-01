@@ -1842,3 +1842,38 @@
   type. It is 'projection.go' now, with its test, moved by 'git mv'.
   The wire, the goldens, the fixtures, the protocol version and the
   Python side did not move, and no test changed its name.
+- **(0901) The two shapes exchange their contents — user ruling**｜The
+  user ruled that 'ApplyShape' and 'EffectShape' exchange what they
+  hold. The two names stay. The user's words: 「把兩個翻轉過來。
+  ApplyShape 應該是 the center of the area can sit 而 EffectShape 應該
+  是 the cell acts on」. Protocol 1.10 to 1.11, issue #90.
+  After the ruling, 'ApplyShape' holds the cells where the center of
+  the area can sit, which is 'map_weapon_shooting_range' on a map
+  weapon and no column on a skill. 'EffectShape' holds the cells that
+  the owner acts on, which is 'map_weapon_effect_range' on a map weapon
+  and 'effect_range' on a skill.
+  What the exchange buys: the crossover of the 0831 rulings ends. Those
+  two entries above state "The two names cross over the two columns of
+  the datamine. Read the column, not the name", and the code carried
+  that warning at every declaration. 'EffectShape' now carries the two
+  columns whose names hold "effect", so a reader who trusts the name is
+  right. The warning is deleted from engine/battle/snapshot.go, from
+  src/ggge_ai/engine/state.py and from the two tables of
+  docs/spec/battle-engine-protocol.md.
+  The Chinese bindings of docs/reference/terminology-map.md did not
+  move: 施放形狀 is where the area is placed and 效果形狀 is the result
+  on the cells, so the two Chinese terms already described the contents
+  that the ruling gives them. Only the English descriptions changed.
+  The caster rule followed its content, from 'EffectShape' to
+  'ApplyShape'. An empty 'ApplyShape.Cells' is no choice of center: the
+  owner opens its 'EffectShape' at the cell of the caster.
+  Why the change costs nothing to run: no rule reads either field, and
+  every shape in the tree is empty. The four board fixtures under
+  tests/fixtures/engine/ hold empty cell lists, and
+  'WeaponIntel.to_map_weapon' writes both shapes empty. No fixture byte
+  moved, and engine/battle/state/contract.go and
+  engine/battle/board/projection.go needed no edit, because each copies
+  a name to the same name and both ends swapped together.
+  The version history of the spec keeps the crossover sentence in the
+  entries for version 1.9 and version 1.10. Those two entries state
+  what those two versions did, and they stay true.

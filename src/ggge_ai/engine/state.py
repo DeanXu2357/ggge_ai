@@ -53,11 +53,10 @@ class MapWeapon:
     """An area weapon: it strikes every unit of its shape, and it starts no
     exchange. No rule of this version fires one (issue #79).
 
-    The two shape names cross over the two datamine columns. Read the column,
-    not the name. apply_shape holds 'map_weapon_effect_range': the cells that
-    the strike hits. effect_shape holds 'map_weapon_shooting_range': the cells
-    where the center of the strike can sit. An empty effect_shape is no choice
-    of center: the weapon opens its area at the cell of the caster.
+    apply_shape holds 'map_weapon_shooting_range': the cells where the center
+    of the strike can sit. effect_shape holds 'map_weapon_effect_range': the
+    cells that the strike hits. An empty apply_shape is no choice of center:
+    the weapon opens its area at the cell of the caster.
     """
 
     name: str
@@ -78,11 +77,10 @@ class MapWeapon:
 class Skill:
     """A skill that acts on a set of cells.
 
-    The two shape names cross over the two datamine columns. Read the column,
-    not the name. apply_shape holds 'effect_range': the cells that the skill
-    acts on. effect_shape holds the cells where the center of the skill can
-    sit. An empty effect_shape is no choice of center: the skill opens its area
-    at the cell of the caster.
+    apply_shape holds the cells where the center of the skill can sit, and no
+    datamine column fills it. effect_shape holds 'effect_range': the cells that
+    the skill acts on. An empty apply_shape is no choice of center: the skill
+    opens its area at the cell of the caster.
     """
 
     kind: str
