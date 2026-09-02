@@ -25,11 +25,18 @@ func (c *Commands) Act(id string, payload json.RawMessage) protocol.Response {
 	if err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
-	events, err := b.Act(action, dice)
+	result, err := b.Act(action, dice)
 	if err != nil {
 		return protocol.Fail(id, refusalCode(err), err.Error())
 	}
 	c.session.history = append(c.session.history, protocol.HistoryEntry{Cmd: "act", Payload: payload})
+	events := make([]any, 0, len(result.Strikes)+len(result.Rotations))
+	for _, strike := range result.Strikes {
+		events = append(events, strike)
+	}
+	for _, rotation := range result.Rotations {
+		events = append(events, rotation)
+	}
 	return protocol.Ok(id, protocol.ActResponse{
 		Events: events,
 		Board:  b.Summary(),

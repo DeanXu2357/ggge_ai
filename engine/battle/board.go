@@ -9,7 +9,7 @@ type BoardReader interface {
 }
 
 type BoardResolver interface {
-	Act(action *Decision, dice Dice) ([]any, error)
+	Act(action *Decision, dice Dice) (ActResult, error)
 	Load(bounds Bounds, terrain Terrain, terrainCells []TerrainCell, units []Unit,
 		phase Faction, turn int) error
 }

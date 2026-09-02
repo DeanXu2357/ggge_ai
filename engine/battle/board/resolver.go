@@ -100,23 +100,24 @@ func validate(state *battle.BattleState) error {
 	return nil
 }
 
-func (b *Board) Act(action *battle.Decision, dice battle.Dice) ([]any, error) {
+func (b *Board) Act(action *battle.Decision, dice battle.Dice) (battle.ActResult, error) {
 	engaged, trace, err := engagement.Commit(b.content, b.values, *action, dice)
 	if err != nil {
-		return nil, err
+		return battle.ActResult{}, err
 	}
 	rotated, rotations := turn.Advance(b.content, engaged)
 	b.values = rotated
-	out := make([]any, 0, len(trace)+len(rotations))
+	var result battle.ActResult
 	for _, strike := range trace {
-		out = append(out, battle.StrikeEvent{
+		result.Strikes = append(result.Strikes, battle.StrikeEvent{
 			Event: "strike", Strike: string(strike.Kind),
 			ShooterID: strike.ShooterID, StruckID: strike.StruckID, WeaponID: strike.WeaponID,
 			Landed: strike.Landed, Damage: strike.Damage, Killed: strike.Killed,
 		})
 	}
 	for _, rotation := range rotations {
-		out = append(out, battle.PhaseEvent{Event: "phase", Turn: rotation.Turn, Phase: rotation.Phase})
+		result.Rotations = append(result.Rotations,
+			battle.PhaseEvent{Event: "phase", Turn: rotation.Turn, Phase: rotation.Phase})
 	}
-	return out, nil
+	return result, nil
 }

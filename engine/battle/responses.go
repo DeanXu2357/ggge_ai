@@ -96,8 +96,13 @@ type AttackerOptions struct {
 	SupportAttackers []SupportAttackOption `json:"support_attackers"`
 }
 
-// An entry of 'events' is a StrikeEvent or a PhaseEvent; the field 'event'
-// tells them apart on the wire.
+// The wire carries the result of an act as one list 'events'; the field
+// 'event' tells the two kinds apart there.
+type ActResult struct {
+	Strikes   []StrikeEvent
+	Rotations []PhaseEvent
+}
+
 type StrikeEvent struct {
 	Event     string `json:"event"`
 	Strike    string `json:"strike"`

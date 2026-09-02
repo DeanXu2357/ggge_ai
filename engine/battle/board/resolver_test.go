@@ -291,7 +291,7 @@ func TestEncodeStateRoundTripsThroughLoad(t *testing.T) {
 	}
 }
 
-func TestTheEventsOfAnActCarryTheStrikesThenTheRotations(t *testing.T) {
+func TestTheResultOfAnActCarriesTheStrikesAndTheRotations(t *testing.T) {
 	survivor := armed(battle.FactionEnemy, 2, 1)
 	survivor.HP, survivor.MaxHP = 99000, 99000
 	board := turnBoard(t, battle.FactionAlly, 1, armed(battle.FactionAlly, 1, 1), survivor)
@@ -299,25 +299,25 @@ func TestTheEventsOfAnActCarryTheStrikesThenTheRotations(t *testing.T) {
 		TargetID: idOf(1), WeaponID: idOf(0),
 		ResponseAttack: &battle.ResponseAttack{Stance: battle.StanceNone}}
 
-	events, err := board.Act(&action, battle.Forced{Strike: true})
+	result, err := board.Act(&action, battle.Forced{Strike: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(events) != 3 {
-		t.Fatalf("events: %+v", events)
+	if len(result.Strikes) != 1 {
+		t.Fatalf("strikes: %+v", result.Strikes)
 	}
-	strike, isStrike := events[0].(battle.StrikeEvent)
-	if !isStrike || strike.Event != "strike" || strike.Strike != "strike" ||
+	strike := result.Strikes[0]
+	if strike.Event != "strike" || strike.Strike != "strike" ||
 		strike.ShooterID != 0 || strike.StruckID != 1 || !strike.Landed || strike.Damage <= 0 {
-		t.Fatalf("the strikes come first: %+v", events[0])
+		t.Fatalf("strike: %+v", strike)
 	}
-	want := []any{
-		battle.PhaseEvent{Event: "phase", Turn: 1, Phase: battle.FactionThirdParty},
-		battle.PhaseEvent{Event: "phase", Turn: 1, Phase: battle.FactionEnemy},
+	want := []battle.PhaseEvent{
+		{Event: "phase", Turn: 1, Phase: battle.FactionThirdParty},
+		{Event: "phase", Turn: 1, Phase: battle.FactionEnemy},
 	}
-	if !reflect.DeepEqual(events[1:], want) {
-		t.Fatalf("the rotations come after: %+v", events[1:])
+	if !reflect.DeepEqual(result.Rotations, want) {
+		t.Fatalf("rotations: %+v", result.Rotations)
 	}
 }
 
