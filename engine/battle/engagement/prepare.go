@@ -40,7 +40,7 @@ func (a answer) dodging() bool {
 
 // Every rule is judged before the first change of the board, so a refused
 // action leaves the board as it was.
-func prepare(board *state.Battle, decision battle.Decision) (plan, error) {
+func prepare(board state.Battle, decision battle.Decision) (plan, error) {
 	actor, err := Activatable(board, decision.UnitID)
 	if err != nil {
 		return plan{}, err
@@ -67,7 +67,7 @@ func prepare(board *state.Battle, decision battle.Decision) (plan, error) {
 
 // checkIDs bounds-checks every id that the wire carries, one time, before the
 // first write. Past this gate an id names a thing of the board.
-func checkIDs(board *state.Battle, decision battle.Decision) error {
+func checkIDs(board state.Battle, decision battle.Decision) error {
 	actor, err := board.UnitAt(decision.UnitID)
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func unitIDsOf(decision battle.Decision) []int {
 }
 
 // The weapon of a response attack belongs to the unit that the action strikes.
-func checkCounterWeaponID(board *state.Battle, decision battle.Decision) error {
+func checkCounterWeaponID(board state.Battle, decision battle.Decision) error {
 	response := decision.ResponseAttack
 	if response == nil || response.WeaponID == nil {
 		return nil
@@ -147,7 +147,7 @@ func checkArmament(decision battle.Decision) error {
 	return nil
 }
 
-func prepareAttack(board *state.Battle, decision battle.Decision, actor *state.Unit) (plan, error) {
+func prepareAttack(board state.Battle, decision battle.Decision, actor state.Unit) (plan, error) {
 	if decision.MapWeaponID != nil {
 		return plan{}, fmt.Errorf("%w: the engine fires no map weapon, because the area of a map weapon is not in the contract",
 			battle.ErrIllegalAction)
@@ -198,42 +198,42 @@ func prepareAttack(board *state.Battle, decision battle.Decision, actor *state.U
 	}, nil
 }
 
-func Activatable(board *state.Battle, unitID int) (*state.Unit, error) {
+func Activatable(board state.Battle, unitID int) (state.Unit, error) {
 	unit, err := LivingUnit(board, unitID)
 	if err != nil {
-		return nil, err
+		return state.Unit{}, err
 	}
 	if err := onPhase(board, unit); err != nil {
-		return nil, err
+		return state.Unit{}, err
 	}
 	if unit.Value.Acted {
-		return nil, fmt.Errorf("%w: %d", battle.ErrActed, unitID)
+		return state.Unit{}, fmt.Errorf("%w: %d", battle.ErrActed, unitID)
 	}
 	return unit, nil
 }
 
 // LivingUnit and onPhase are the two gates that every command reads, so the
 // shell asks them here and no package writes the refusal twice.
-func LivingUnit(board *state.Battle, unitID int) (*state.Unit, error) {
+func LivingUnit(board state.Battle, unitID int) (state.Unit, error) {
 	unit, err := board.UnitAt(unitID)
 	if err != nil {
-		return nil, err
+		return state.Unit{}, err
 	}
 	if !unit.Alive() {
-		return nil, fmt.Errorf("%w: %d", battle.ErrDestroyed, unitID)
+		return state.Unit{}, fmt.Errorf("%w: %d", battle.ErrDestroyed, unitID)
 	}
 	return unit, nil
 }
 
-func onPhase(board *state.Battle, unit *state.Unit) error {
-	if unit.Faction != board.Phase {
+func onPhase(board state.Battle, unit state.Unit) error {
+	if unit.Faction != board.Values.Phase {
 		return fmt.Errorf("%w: the side %q does not hold the phase %q",
-			battle.ErrOffPhase, unit.Faction, board.Phase)
+			battle.ErrOffPhase, unit.Faction, board.Values.Phase)
 	}
 	return nil
 }
 
-func foe(board *state.Battle, actorID int, targetID *int) (int, error) {
+func foe(board state.Battle, actorID int, targetID *int) (int, error) {
 	if targetID == nil {
 		return 0, fmt.Errorf("%w: the attack of unit %d names no target",
 			battle.ErrIllegalAction, actorID)
@@ -249,7 +249,7 @@ func foe(board *state.Battle, actorID int, targetID *int) (int, error) {
 	return *targetID, nil
 }
 
-func destination(board *state.Battle, actorID int, to *battle.Cell, permitted bool) (battle.Cell, error) {
+func destination(board state.Battle, actorID int, to *battle.Cell, permitted bool) (battle.Cell, error) {
 	actor := unitOf(board, actorID)
 	if to == nil {
 		return actor.Value.Pos, nil
@@ -265,7 +265,7 @@ func destination(board *state.Battle, actorID int, to *battle.Cell, permitted bo
 	return *to, nil
 }
 
-func answerOf(board *state.Battle, defenderID int, firing battle.Footprint,
+func answerOf(board state.Battle, defenderID int, firing battle.Footprint,
 	response *battle.ResponseAttack) (answer, error) {
 	if response == nil {
 		return answer{}, nil
@@ -288,7 +288,7 @@ func answerOf(board *state.Battle, defenderID int, firing battle.Footprint,
 			battle.ErrIllegalAction, response.Stance, defenderID)
 	}
 	supportDefenderID, err := chosenSupportDefender(board, defenderID, defender.Footprint(),
-		response.SupportDefenderID, func(*state.Unit) bool { return true })
+		response.SupportDefenderID, func(state.Unit) bool { return true })
 	if err != nil {
 		return answer{}, err
 	}
@@ -308,7 +308,7 @@ func answerOf(board *state.Battle, defenderID int, firing battle.Footprint,
 	return out, nil
 }
 
-func chosenSupportAttackers(board *state.Battle, supportedID int, firing, foe battle.Footprint,
+func chosenSupportAttackers(board state.Battle, supportedID int, firing, foe battle.Footprint,
 	ids []int) ([]supportAttacker, error) {
 	if len(ids) == 0 {
 		return nil, nil
@@ -337,8 +337,8 @@ func chosenSupportAttackers(board *state.Battle, supportedID int, firing, foe ba
 	return out, nil
 }
 
-func chosenSupportDefender(board *state.Battle, coveredID int, at battle.Footprint, id *int,
-	fits func(*state.Unit) bool) (*int, error) {
+func chosenSupportDefender(board state.Battle, coveredID int, at battle.Footprint, id *int,
+	fits func(state.Unit) bool) (*int, error) {
 	if id == nil {
 		return nil, nil
 	}
@@ -349,8 +349,8 @@ func chosenSupportDefender(board *state.Battle, coveredID int, at battle.Footpri
 		battle.ErrIllegalAction, *id, coveredID)
 }
 
-func chosenSupportDefendWhenAttack(board *state.Battle, actorID int, firing battle.Footprint,
+func chosenSupportDefendWhenAttack(board state.Battle, actorID int, firing battle.Footprint,
 	id *int) (*int, error) {
 	return chosenSupportDefender(board, actorID, firing, id,
-		func(other *state.Unit) bool { return other.SupportDefendWhenAttack })
+		func(other state.Unit) bool { return other.SupportDefendWhenAttack })
 }

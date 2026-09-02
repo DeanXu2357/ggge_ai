@@ -16,6 +16,6 @@ func New() *Board {
 	return &Board{}
 }
 
-func (b *Board) compose() state.Battle {
-	return state.Compose(&b.content, b.values)
+func (b *Board) view() state.Battle {
+	return state.Battle{Content: &b.content, Values: &b.values}
 }

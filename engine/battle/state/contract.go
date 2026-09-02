@@ -27,18 +27,18 @@ func FromContract(s battle.BattleState) (Content, Values) {
 	return content, values
 }
 
-func (b *Battle) ToContract() battle.BattleState {
-	bounds := b.Bounds
+func (b Battle) ToContract() battle.BattleState {
+	bounds := b.Content.Bounds
 	out := battle.BattleState{
-		Units:        make([]battle.Unit, len(b.Units)),
-		Phase:        b.Phase,
-		Turn:         b.Turn,
+		Units:        make([]battle.Unit, len(b.Content.Units)),
+		Phase:        b.Values.Phase,
+		Turn:         b.Values.Turn,
 		Bounds:       &bounds,
-		Terrain:      b.Terrain,
-		TerrainCells: slices.Clone(b.TerrainCells),
+		Terrain:      b.Content.Terrain,
+		TerrainCells: slices.Clone(b.Content.TerrainCells),
 	}
-	for index := range b.Units {
-		out.Units[index] = b.toContractUnit(&b.Units[index])
+	for index, unit := range b.Units() {
+		out.Units[index] = toContractUnit(unit)
 	}
 	return out
 }
@@ -74,7 +74,7 @@ func fromContractUnit(u battle.Unit) (UnitContent, UnitValue) {
 	}
 }
 
-func (b *Battle) toContractUnit(u *Unit) battle.Unit {
+func toContractUnit(u Unit) battle.Unit {
 	return battle.Unit{
 		Faction:                 u.Faction,
 		Pos:                     u.Value.Pos,

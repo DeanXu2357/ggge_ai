@@ -24,8 +24,8 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
-			unit := &state.Unit{Faction: battle.FactionAlly,
-				Value: state.UnitValue{HP: 100, EN: one.en}}
+			unit := state.Unit{UnitContent: &state.UnitContent{Faction: battle.FactionAlly},
+				Value: &state.UnitValue{HP: 100, EN: one.en}}
 			weapon := def.Weapon{Name: "beam rifle", ENCost: one.cost}
 
 			if got := hasENFor(unit, weapon); got != one.want {
@@ -37,8 +37,9 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 }
 
 func TestTheENOfAShotComesFromThePanelAndNotFromTheMech(t *testing.T) {
-	unit := &state.Unit{Faction: battle.FactionAlly, Mech: &def.Mech{EN: 200},
-		Value: state.UnitValue{HP: 100, EN: 10}}
+	unit := state.Unit{
+		UnitContent: &state.UnitContent{Faction: battle.FactionAlly, Mech: &def.Mech{EN: 200}},
+		Value:       &state.UnitValue{HP: 100, EN: 10}}
 	weapon := def.Weapon{Name: "beam rifle", ENCost: 20}
 
 	if hasENFor(unit, weapon) {

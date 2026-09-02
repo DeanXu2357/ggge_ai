@@ -9,16 +9,10 @@ import (
 
 func TestEveryFieldOfTheContractUnitSitsInOnePlaceOfTheState(t *testing.T) {
 	contract := fieldsOf(reflect.TypeOf(battle.Unit{}))
-	split := map[string]reflect.Type{}
-	for name, kind := range fieldsOf(reflect.TypeOf(Unit{})) {
-		if name == "Value" {
-			continue
-		}
-		split[name] = kind
-	}
+	split := fieldsOf(reflect.TypeOf(UnitContent{}))
 	for name, kind := range fieldsOf(reflect.TypeOf(UnitValue{})) {
 		if _, twice := split[name]; twice {
-			t.Errorf("the field %q sits in Unit and in UnitValue", name)
+			t.Errorf("the field %q sits in UnitContent and in UnitValue", name)
 			continue
 		}
 		split[name] = kind
@@ -42,24 +36,24 @@ func TestEveryFieldOfTheContractUnitSitsInOnePlaceOfTheState(t *testing.T) {
 }
 
 func TestTheContentOfAUnitHoldsEveryFieldBesideTheValue(t *testing.T) {
-	content := fieldsOf(reflect.TypeOf(UnitContent{}))
-	for name, want := range fieldsOf(reflect.TypeOf(Unit{})) {
-		if name == "Value" {
+	handle := reflect.TypeOf(Unit{})
+	for index := range handle.NumField() {
+		field := handle.Field(index)
+		if field.Name == "Value" {
+			if field.Type != reflect.PointerTo(reflect.TypeFor[UnitValue]()) {
+				t.Errorf("the handle carries the value as %s", field.Type)
+			}
 			continue
 		}
-		got, held := content[name]
-		if !held {
-			t.Errorf("the field %q of the working unit sits in no content", name)
-			continue
+		if !field.Anonymous || field.Type != reflect.PointerTo(reflect.TypeFor[UnitContent]()) {
+			t.Errorf("the handle carries the field %q beside the content and the value",
+				field.Name)
 		}
-		if got != want {
-			t.Errorf("the field %q carries %s in the working unit and %s in the content",
-				name, want, got)
-		}
-		delete(content, name)
 	}
-	for name := range content {
-		t.Errorf("the field %q of the content sits in no field of the working unit", name)
+	for name := range fieldsOf(reflect.TypeFor[UnitContent]()) {
+		if _, reachable := handle.FieldByName(name); !reachable {
+			t.Errorf("the field %q of the content is not reachable on the handle", name)
+		}
 	}
 }
 

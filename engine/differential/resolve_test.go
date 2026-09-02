@@ -2,10 +2,13 @@ package differential_test
 
 import (
 	"encoding/json"
+	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 	"github.com/DeanXu2357/ggge_ai/engine/differential"
 )
 
@@ -35,19 +38,24 @@ var resolveOps = map[string]differential.Op{
 		if err := decodeInput(input, &in); err != nil {
 			return nil, err
 		}
-		state, err := restoreBoard(&setup.State)
+		played, err := restoreBoard(&setup.State)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := state.Act(&in.Decision, battle.Forced(in.Dice)); err != nil {
+		before, _ := state.FromContract(played.State())
+		if _, err := played.Act(&in.Decision, battle.Forced(in.Dice)); err != nil {
 			return nil, err
 		}
-		return applyAnswer{Units: livingUnits(state)}, nil
+		after, _ := state.FromContract(played.State())
+		if !reflect.DeepEqual(before, after) {
+			return nil, errors.New("the act wrote the content column")
+		}
+		return applyAnswer{Units: livingUnits(played)}, nil
 	},
 }
 
-func livingUnits(state *board.Board) []battle.Unit {
-	units := state.State().Units
+func livingUnits(played *board.Board) []battle.Unit {
+	units := played.State().Units
 	out := make([]battle.Unit, 0, len(units))
 	for _, unit := range units {
 		if unit.HP > 0 {

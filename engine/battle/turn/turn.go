@@ -14,22 +14,22 @@ type Rotation struct {
 
 // A board with no living unit keeps its phase: every side would stay empty,
 // and the rotation would never end.
-func Advance(content state.Content, values state.Values) (state.Values, []Rotation) {
-	board := state.Compose(&content, values)
-	if !anyAlive(&board) {
-		return board.Column(), nil
+func Advance(board state.Battle) (state.Values, []Rotation) {
+	working := board.Values.Clone()
+	scratch := state.Battle{Content: board.Content, Values: &working}
+	if !anyAlive(scratch) {
+		return working, nil
 	}
 	var out []Rotation
-	for len(Pending(&board, board.Phase)) == 0 {
-		out = append(out, nextPhase(&board))
+	for len(Pending(scratch, working.Phase)) == 0 {
+		out = append(out, nextPhase(scratch))
 	}
-	return board.Column(), out
+	return working, out
 }
 
-func Pending(board *state.Battle, faction battle.Faction) []int {
+func Pending(board state.Battle, faction battle.Faction) []int {
 	var out []int
-	for index := range board.Units {
-		unit := &board.Units[index]
+	for index, unit := range board.Units() {
 		if unit.Faction == faction && unit.Alive() && !unit.Value.Acted {
 			out = append(out, index)
 		}
@@ -37,7 +37,7 @@ func Pending(board *state.Battle, faction battle.Faction) []int {
 	return out
 }
 
-func Gone(board *state.Battle) []battle.Faction {
+func Gone(board state.Battle) []battle.Faction {
 	var out []battle.Faction
 	for _, faction := range []battle.Faction{battle.FactionAlly, battle.FactionEnemy} {
 		if !holds(board, faction) {
@@ -47,25 +47,25 @@ func Gone(board *state.Battle) []battle.Faction {
 	return out
 }
 
-func nextPhase(board *state.Battle) Rotation {
-	slot := (board.PhaseIndex() - board.Turn*len(battle.PhaseOrder) + 1) % len(battle.PhaseOrder)
+func nextPhase(board state.Battle) Rotation {
+	values := board.Values
+	slot := (values.PhaseIndex() - values.Turn*len(battle.PhaseOrder) + 1) % len(battle.PhaseOrder)
 	if slot == 0 {
-		board.Turn++
+		values.Turn++
 	}
-	board.Phase = battle.PhaseOrder[slot]
+	values.Phase = battle.PhaseOrder[slot]
 	beginPhase(board)
-	return Rotation{Turn: board.Turn, Phase: board.Phase}
+	return Rotation{Turn: values.Turn, Phase: values.Phase}
 }
 
-func beginPhase(board *state.Battle) {
-	now := board.PhaseIndex()
-	for index := range board.Units {
-		unit := &board.Units[index]
+func beginPhase(board state.Battle) {
+	now := board.Values.PhaseIndex()
+	for _, unit := range board.Units() {
 		if !unit.Alive() {
 			continue
 		}
 		unit.Value.Debuffs = expired(unit.Value.Debuffs, now)
-		if unit.Faction != board.Phase {
+		if unit.Faction != board.Values.Phase {
 			continue
 		}
 		unit.Value.Acted = false
@@ -83,18 +83,17 @@ func expired(debuffs []battle.Debuff, now int) []battle.Debuff {
 	return kept
 }
 
-func anyAlive(board *state.Battle) bool {
-	for index := range board.Units {
-		if board.Units[index].Alive() {
+func anyAlive(board state.Battle) bool {
+	for _, unit := range board.Units() {
+		if unit.Alive() {
 			return true
 		}
 	}
 	return false
 }
 
-func holds(board *state.Battle, faction battle.Faction) bool {
-	for index := range board.Units {
-		unit := &board.Units[index]
+func holds(board state.Battle, faction battle.Faction) bool {
+	for _, unit := range board.Units() {
 		if unit.Faction == faction && unit.Alive() {
 			return true
 		}

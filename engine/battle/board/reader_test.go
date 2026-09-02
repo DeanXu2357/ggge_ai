@@ -125,28 +125,30 @@ func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 	amount := 2500.0
 	ammo := 3
-	unit := &state.Unit{
-		Faction: battle.FactionAlly,
-		Size:    battle.Cell{2, 1},
-		MaxHP:   1000,
-		ENMax:   100,
-		Mech: &def.Mech{
-			MoveRange: 4,
-			Weapons: []def.Weapon{
-				{Name: "rifle", RangeMin: 1, RangeMax: 3, ENCost: 10, Accuracy: 5,
-					UsableAfterMove: true},
-			},
-			MapWeapons: []def.MapWeapon{
-				{Name: "missile",
-					Affects: battle.MapWeaponAffectsEnemy,
-					AffectArea: def.AffectArea{
-						ApplyShape: def.ShapeRange{Cells: []battle.Cell{{0, 0}, {1, 0}},
-							Direction: battle.DirectionUp},
-						EffectShape: def.ShapeRange{Cells: []battle.Cell{{0, 5}},
-							Direction: battle.DirectionNone}}},
+	unit := state.Unit{
+		UnitContent: &state.UnitContent{
+			Faction: battle.FactionAlly,
+			Size:    battle.Cell{2, 1},
+			MaxHP:   1000,
+			ENMax:   100,
+			Mech: &def.Mech{
+				MoveRange: 4,
+				Weapons: []def.Weapon{
+					{Name: "rifle", RangeMin: 1, RangeMax: 3, ENCost: 10, Accuracy: 5,
+						UsableAfterMove: true},
+				},
+				MapWeapons: []def.MapWeapon{
+					{Name: "missile",
+						Affects: battle.MapWeaponAffectsEnemy,
+						AffectArea: def.AffectArea{
+							ApplyShape: def.ShapeRange{Cells: []battle.Cell{{0, 0}, {1, 0}},
+								Direction: battle.DirectionUp},
+							EffectShape: def.ShapeRange{Cells: []battle.Cell{{0, 5}},
+								Direction: battle.DirectionNone}}},
+				},
 			},
 		},
-		Value: state.UnitValue{
+		Value: &state.UnitValue{
 			Pos: battle.Cell{2, 3},
 			HP:  800,
 			EN:  40,
@@ -221,13 +223,13 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	working := board.compose()
-	unit, err := working.UnitAt(0)
+	view := board.view()
+	unit, err := view.UnitAt(0)
 	if err != nil || !unit.Alive() {
 		t.Fatalf("unit: %v, error: %v", unit, err)
 	}
-	ghost, err := working.UnitAt(len(working.Units))
-	if ghost != nil || !errors.Is(err, battle.ErrNoUnit) {
+	ghost, err := view.UnitAt(len(view.Content.Units))
+	if ghost.Value != nil || !errors.Is(err, battle.ErrNoUnit) {
 		t.Fatalf("a position outside the slice: %v, error: %v", ghost, err)
 	}
 

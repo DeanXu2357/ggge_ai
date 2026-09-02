@@ -101,11 +101,11 @@ func validate(state *battle.BattleState) error {
 }
 
 func (b *Board) Act(action *battle.Decision, dice battle.Dice) (battle.ActResult, error) {
-	engaged, trace, err := engagement.Commit(b.content, b.values, *action, dice)
+	engaged, trace, err := engagement.Commit(b.view(), *action, dice)
 	if err != nil {
 		return battle.ActResult{}, err
 	}
-	rotated, rotations := turn.Advance(b.content, engaged)
+	rotated, rotations := turn.Advance(state.Battle{Content: &b.content, Values: &engaged})
 	b.values = rotated
 	var result battle.ActResult
 	for _, strike := range trace {

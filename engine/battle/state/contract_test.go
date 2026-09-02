@@ -1,6 +1,7 @@
 package state
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -11,8 +12,7 @@ import (
 func TestAContractStateSurvivesTheTripIntoTheStateAndBack(t *testing.T) {
 	original := filledState()
 	content, values := FromContract(original)
-	inside := Compose(&content, values)
-	back := inside.ToContract()
+	back := Battle{Content: &content, Values: &values}.ToContract()
 	if !reflect.DeepEqual(back, original) {
 		t.Errorf("the trip changed %s", firstDifference("state",
 			reflect.ValueOf(original), reflect.ValueOf(back)))
@@ -23,8 +23,7 @@ func TestTheExportedContractSharesNothingWithTheState(t *testing.T) {
 	original := filledState()
 	wantContent, wantValues := FromContract(original)
 	content, values := FromContract(original)
-	inside := Compose(&content, values)
-	answer := inside.ToContract()
+	answer := Battle{Content: &content, Values: &values}.ToContract()
 
 	*answer.Units[0].Skills[0].Amount = 404
 	for index := range answer.Units[0].MapWeaponAmmo {
@@ -44,41 +43,45 @@ func TestTheExportedContractSharesNothingWithTheState(t *testing.T) {
 	}
 }
 
-func TestTheWorkingFormSharesNoWritableMemoryWithItsColumn(t *testing.T) {
-	original := filledState()
-	content, values := FromContract(original)
+func TestACloneOfTheValuesSharesNoWritableMemoryWithItsInput(t *testing.T) {
+	_, values := FromContract(filledState())
 	wantSkill := *values.Units[0].Skills[0].Amount
 	wantAmmo, wantDebuff := values.Units[0].MapWeaponAmmo[0], values.Units[0].Debuffs[0].Magnitude
 
-	inside := Compose(&content, values)
-	inside.Units[0].Value.HP = 404
-	*inside.Units[0].Value.Skills[0].Amount = 404
-	inside.Units[0].Value.MapWeaponAmmo[0] = 404
-	inside.Units[0].Value.Debuffs[0].Magnitude = 404
-	inside.Phase = battle.FactionThirdParty
+	clone := values.Clone()
+	clone.Units[0].HP = 404
+	*clone.Units[0].Skills[0].Amount = 404
+	clone.Units[0].MapWeaponAmmo[0] = 404
+	clone.Units[0].Debuffs[0].Magnitude = 404
+	clone.Phase = battle.FactionThirdParty
 
 	if values.Units[0].HP == 404 || values.Phase == battle.FactionThirdParty {
-		t.Errorf("a write into the working form reached the column: %+v", values.Units[0])
+		t.Errorf("a write into the clone reached the input: %+v", values.Units[0])
 	}
 	if *values.Units[0].Skills[0].Amount != wantSkill ||
 		values.Units[0].MapWeaponAmmo[0] != wantAmmo ||
 		values.Units[0].Debuffs[0].Magnitude != wantDebuff {
-		t.Errorf("a write into a slice of the working form reached the column: %+v",
-			values.Units[0])
+		t.Errorf("a write into a slice of the clone reached the input: %+v", values.Units[0])
 	}
 }
 
-func TestTheColumnOfTheWorkingFormCarriesEveryValue(t *testing.T) {
-	original := filledState()
-	content, values := FromContract(original)
+func TestTheHandleOfAUnitPointsAtTheTwoColumns(t *testing.T) {
+	content, values := FromContract(filledState())
+	view := Battle{Content: &content, Values: &values}
 
-	inside := Compose(&content, values)
-	inside.Units[0].Value.HP = 404
-	inside.Turn, inside.Phase = 404, battle.FactionThirdParty
-	got := inside.Column()
+	unit, err := view.UnitAt(0)
+	if err != nil {
+		t.Fatalf("unit: %v", err)
+	}
+	unit.Value.HP = 404
+	unit.MaxHP = 404
 
-	if got.Units[0].HP != 404 || got.Turn != 404 || got.Phase != battle.FactionThirdParty {
-		t.Errorf("column: %+v", got)
+	if values.Units[0].HP != 404 || content.Units[0].MaxHP != 404 {
+		t.Errorf("a write through the handle reached no column: %+v %+v",
+			content.Units[0], values.Units[0])
+	}
+	if _, err := view.UnitAt(len(view.Content.Units)); !errors.Is(err, battle.ErrNoUnit) {
+		t.Errorf("a position outside the columns: %v", err)
 	}
 }
 

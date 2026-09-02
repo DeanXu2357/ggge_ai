@@ -15,7 +15,7 @@ var knownStances = map[battle.Stance]bool{
 
 // Prepare bounds-checks every id of a plan before Commit reads it, so a
 // refusal here is a broken invariant of the engine and not a bad request.
-func unitOf(board *state.Battle, id int) *state.Unit {
+func unitOf(board state.Battle, id int) state.Unit {
 	unit, err := board.UnitAt(id)
 	if err != nil {
 		panic(err)
@@ -23,7 +23,7 @@ func unitOf(board *state.Battle, id int) *state.Unit {
 	return unit
 }
 
-func weaponOf(unit *state.Unit, id int) *def.Weapon {
+func weaponOf(unit state.Unit, id int) *def.Weapon {
 	weapon, err := unit.WeaponAt(id)
 	if err != nil {
 		panic(err)
@@ -31,18 +31,17 @@ func weaponOf(unit *state.Unit, id int) *def.Weapon {
 	return weapon
 }
 
-func hasENFor(unit *state.Unit, weapon def.Weapon) bool {
+func hasENFor(unit state.Unit, weapon def.Weapon) bool {
 	return unit.Value.EN >= weapon.ENCost
 }
 
-func fires(unit *state.Unit, weapon *def.Weapon, distance int) bool {
+func fires(unit state.Unit, weapon *def.Weapon, distance int) bool {
 	return weapon != nil && hasENFor(unit, *weapon) && weapon.Reaches(distance)
 }
 
-func byFaction(board *state.Battle, faction battle.Faction) []int {
+func byFaction(board state.Battle, faction battle.Faction) []int {
 	var out []int
-	for index := range board.Units {
-		other := &board.Units[index]
+	for index, other := range board.Units() {
 		if other.Faction == faction && other.Alive() {
 			out = append(out, index)
 		}

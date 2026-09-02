@@ -57,7 +57,7 @@ issues of the port (#60 to #68).
   and the skill enums from the contract. A unit points at its mech
   and at its pilot, so every copy of a battle shares them.
 - 'engine/battle/state' holds the data of a battle in two stored
-  halves and one working form. 'state.Content' holds the invariants:
+  halves and one view. 'state.Content' holds the invariants:
   'Units []UnitContent' and the bounds, the terrain and the terrain
   cells. 'state.UnitContent' holds the faction, the size, the six
   maxima, the shield flag, the support defense flag and the two
@@ -66,63 +66,67 @@ issues of the port (#60 to #68).
   and the turn. 'state.UnitValue' holds the position, HP, EN, SP,
   the acted flag, the chance steps, the two charge counts, the
   skills, the map weapon ammunition and the debuffs. 'state.Battle'
-  is the working form of one call: it holds 'state.Unit', which
-  joins the content of one unit with its value in the field 'Value',
-  plus the phase, the turn, the bounds, the terrain and the terrain
-  cells. The placement rule: 'UnitValue' holds every field that a
-  rule of a battle writes, plus the three pools a unit spends ('SP',
-  'MapWeaponAmmo' and 'Skills'); a maximum is the bound of a pool
-  and not a pool, so it stands for the whole battle and sits in the
-  content. A rule reads and writes 'unit.Value.HP', never 'unit.HP'
-  (user ruling 2026-08-31).
-- 'state.Compose(content, values)' builds the working form, and
-  '(*state.Battle).Column()' takes the values back out. Compose is
-  the entry copy of a system: it deep-copies the slices of each
-  value ('Skills' with their amounts, 'MapWeaponAmmo' and
-  'Debuffs'), so a system never writes the column it received. The
-  extraction copies nothing, because the working form owns its
-  column after Compose (user ruling 2026-09-01, issue #91).
+  is the view: two pointers, 'Content *Content' and 'Values
+  *Values', and no data of its own. No type joins a content field
+  and a value field in one struct (user ruling 2026-09-02).
+  'state.Unit' is the handle of one unit: the embedded pointer
+  '*UnitContent' and the pointer 'Value *UnitValue'. 'Battle.Units'
+  walks the handles with their ids, and 'Battle.UnitAt' is the door
+  for an id from the wire. The placement rule: 'UnitValue' holds
+  every field that a rule of a battle writes, plus the three pools a
+  unit spends ('SP', 'MapWeaponAmmo' and 'Skills'); a maximum is the
+  bound of a pool and not a pool, so it stands for the whole battle
+  and sits in the content. A rule reads and writes 'unit.Value.HP',
+  never 'unit.HP' (user ruling 2026-08-31).
+- 'Values.Clone()' answers the working column of a writer. It
+  deep-copies the slices of each value ('Skills' with their amounts,
+  'MapWeaponAmmo' and 'Debuffs'), so a writer never reaches the
+  column it received. A reader clones nothing: it reads the view
+  over the columns of the board.
 - The conversion between the wire form and the engine form runs at
   two points and nowhere else: 'state.FromContract' inside
-  'board.Load', and '(*state.Battle).ToContract' inside
-  'board.State'. 'FromContract' answers the pair. 'board.State'
-  composes the working form and converts it. A loaded board shares
-  nothing writable with its payload, and the answer of 'State'
-  shares nothing writable with the board. The definition data is
-  shared; no code writes it after the decode.
+  'board.Load', and 'state.Battle.ToContract' inside 'board.State'.
+  'FromContract' answers the pair. 'board.State' converts the view.
+  A loaded board shares nothing writable with its payload, and the
+  answer of 'State' shares nothing writable with the board. The
+  definition data is shared; no code writes it after the decode.
 - No layer holds a rule. Each layer holds value helpers that read
   the fields of their own struct and decide nothing about the
   battle. The contract holds 'Unit.Footprint', 'Footprint.Within',
   'Footprint.Cells', 'Cell.Before' and 'Faction.Opposing'. The state
   package holds 'Unit.Alive', 'Unit.Footprint', 'Unit.WeaponAt',
-  'Battle.UnitAt', 'Battle.PhaseIndex' and 'Battle.Column'. The
-  definition package holds 'Weapon.Reaches' and 'Weapon.Debuff'.
+  'Battle.Units', 'Battle.UnitAt', 'Values.Clone' and
+  'Values.PhaseIndex'. The definition package holds 'Weapon.Reaches'
+  and 'Weapon.Debuff'.
 - The behavior systems are the only code that writes the state of a
-  battle. Each one is a pure computation over the pair: it composes
-  the working form at its entry, writes that form, and answers a new
-  values column (user ruling 2026-09-01, issue #91). Neither system
-  depends on the other. The writers of a field of the working form
-  are 'engagement/commit.go' and 'turn/turn.go'. Before the battle,
+  battle. Each one is a pure computation over the view: it clones
+  the values column at its entry, writes the clone through a view
+  over the same content, and answers the clone as the new values
+  column (user ruling 2026-09-01, issue #91). The content column is
+  never written: the test 'TestAnActLeavesTheContentColumnAsItWas'
+  and every golden 'apply' check compare the content before and
+  after an act. Neither system depends on the other. The writers of
+  a value are 'engagement/commit.go' and 'turn/turn.go'. Before the battle,
   'board.Load' works on the wire form: 'assemble' fills a maximum
   that the payload leaves at zero, and 'validate' fills the two
   values that a payload can leave out, a size of zero and an empty
   terrain. 'engine/battle/engagement' resolves one activation, and
-  it exports one entry for the write: 'engagement.Commit(content,
-  values, decision, dice)' answers the values column that the
+  it exports one entry for the write: 'engagement.Commit(board,
+  decision, dice)' answers the values column that the
   activation leaves, or an error. Three steps run inside the
   package. The prepare phase reads the board, judges every
   participant (the actor, the target, the weapon, the reach, the EN,
   the supporters, the bearer, the response) and returns every error
   of 'act' before the first write, or a plan. The dice coverage
   check reads the draws of that plan. The write phase writes the
-  plan in order and cannot fail. 'engagement.Menu(content, values,
-  decision, defenderID)' answers 'response_attacks' through the same
-  prepare phase with no response, so it refuses exactly what 'act'
-  refuses. 'engine/battle/turn' holds 'turn.Advance(content,
-  values)': it rotates the phase, regenerates the EN, expires the
-  debuffs and resets the acted flags, and it answers the new values
-  column with its rotations. 'Advance' runs for any pair, and it
-  needs no prior engagement. The pure system
+  plan in order and cannot fail. 'engagement.Menu(board, decision,
+  defenderID)' answers 'response_attacks' through the same prepare
+  phase with no response, so it refuses exactly what 'act' refuses.
+  'engine/battle/turn' holds 'turn.Advance(board)': it rotates the
+  phase, regenerates the EN, expires the debuffs and resets the
+  acted flags, and it answers the new values column with its
+  rotations. 'Advance' runs for any view, and it needs no prior
+  engagement. The pure system
   'engine/battle/geometry' answers the distance, the reachable
   anchors and the occupied cells and writes nothing.
 - The package 'engine/battle/board' is the shell. It stores the
@@ -131,14 +135,16 @@ issues of the port (#60 to #68).
   result and converts it into the pair. It does this for 'init' and
   for 'load' alike. A refused 'Load' leaves the board unchanged. It
   implements the contract, projects the answers of the read
-  commands, and calls the systems. A read command composes the
-  working form for its own call. 'Act' is four steps:
-  'engagement.Commit'; 'turn.Advance' on the column that step one
-  answered; one assignment of the final column to the board; the
-  event list, assembled inline. A refused 'act' returns before that
-  assignment, so it leaves the board as it was;
-  'engine/server/handler' runs 'Act' on the board of the server and
-  keeps no copy of it.
+  commands, and calls the systems. A read command hands the systems
+  the view over the columns of the board. 'Act' is four steps:
+  'engagement.Commit' on that view; 'turn.Advance' on a view over
+  the content and the column that step one answered; one assignment
+  of the final column to the board; the typed 'battle.ActResult'
+  with the strikes and the rotations. A refused 'act' returns before
+  that assignment, so it leaves the board as it was;
+  'engine/server/handler' runs 'Act' on the board of the server,
+  flattens the result into the event list of the wire, and keeps no
+  copy of the board.
 - The package 'engine/battle/formula' holds every formula of
   docs/reference/combat-formulas.md and every constant of the
   mechanism. It imports no package of the engine: a formula reads

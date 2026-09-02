@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
@@ -321,6 +322,36 @@ func TestTheResultOfAnActCarriesTheStrikesAndTheRotations(t *testing.T) {
 	}
 }
 
+func TestAnActLeavesTheContentColumnAsItWas(t *testing.T) {
+	survivor := armed(battle.FactionEnemy, 2, 1)
+	survivor.HP, survivor.MaxHP = 99000, 99000
+	board := turnBoard(t, battle.FactionAlly, 1, armed(battle.FactionAlly, 1, 1), survivor)
+	action := battle.Decision{UnitID: 0, Kind: battle.ActionAttack,
+		TargetID: idOf(1), WeaponID: idOf(0),
+		ResponseAttack: &battle.ResponseAttack{Stance: battle.StanceCounter, WeaponID: idOf(0)}}
+	before, _ := state.FromContract(board.State())
+	definitions := slices.Clone(board.content.Units)
+
+	result, err := board.Act(&action, battle.Forced{Strike: true, Counter: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Strikes) == 0 || !result.Strikes[0].Landed {
+		t.Fatalf("the case must land a strike: %+v", result.Strikes)
+	}
+	after, _ := state.FromContract(board.State())
+	if !reflect.DeepEqual(before, after) {
+		t.Fatalf("the act wrote the content column:\n%+v\n%+v", before, after)
+	}
+	for index := range board.content.Units {
+		if board.content.Units[index].Mech != definitions[index].Mech ||
+			board.content.Units[index].Pilot != definitions[index].Pilot {
+			t.Errorf("the act gave unit %d another mech or another pilot", index)
+		}
+	}
+}
+
 func turnBoard(t *testing.T, phase battle.Faction, turnNumber int, units ...battle.Unit) *Board {
 	t.Helper()
 	bounds := battle.Bounds{{0, 0}, {5, 4}}
@@ -361,8 +392,8 @@ func standby(id int) battle.Decision {
 }
 
 func pendingOf(b *Board) []int {
-	working := b.compose()
-	return turn.Pending(&working, working.Phase)
+	view := b.view()
+	return turn.Pending(view, view.Values.Phase)
 }
 
 func targetsOf(b *Board, unitID int) []int {
@@ -411,6 +442,5 @@ func TestABattleRunsToAnnihilation(t *testing.T) {
 }
 
 func goneOf(b *Board) []battle.Faction {
-	working := b.compose()
-	return turn.Gone(&working)
+	return turn.Gone(b.view())
 }

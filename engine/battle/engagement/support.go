@@ -13,14 +13,14 @@ type supportAttacker struct {
 
 // The supported unit stands on 'at' after its move, so the reach of a
 // support unit reads that cell and not the cell of today.
-func supportDefenders(board *state.Battle, supportedID int, at battle.Footprint) []int {
+func supportDefenders(board state.Battle, supportedID int, at battle.Footprint) []int {
 	out := []int{}
 	supported, err := board.UnitAt(supportedID)
 	if err != nil {
 		return out
 	}
 	for _, otherID := range byFaction(board, supported.Faction) {
-		other := &board.Units[otherID]
+		other := unitOf(board, otherID)
 		if inSupportReach(board, otherID, supportedID, at, other.Value.SupportDefendCharges) {
 			out = append(out, otherID)
 		}
@@ -28,7 +28,7 @@ func supportDefenders(board *state.Battle, supportedID int, at battle.Footprint)
 	return out
 }
 
-func supportAttackers(board *state.Battle, supportedID int,
+func supportAttackers(board state.Battle, supportedID int,
 	firing, foe battle.Footprint) []supportAttacker {
 	out := []supportAttacker{}
 	supported, err := board.UnitAt(supportedID)
@@ -43,7 +43,7 @@ func supportAttackers(board *state.Battle, supportedID int,
 	return out
 }
 
-func supportWeapon(board *state.Battle, otherID, supportedID int,
+func supportWeapon(board state.Battle, otherID, supportedID int,
 	firing, foe battle.Footprint) (int, bool) {
 	other, err := board.UnitAt(otherID)
 	if err != nil {
@@ -61,7 +61,7 @@ func supportWeapon(board *state.Battle, otherID, supportedID int,
 	return 0, false
 }
 
-func inSupportReach(board *state.Battle, otherID, supportedID int,
+func inSupportReach(board state.Battle, otherID, supportedID int,
 	at battle.Footprint, charges int) bool {
 	if otherID == supportedID || charges <= 0 {
 		return false

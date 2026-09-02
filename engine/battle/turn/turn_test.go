@@ -15,10 +15,9 @@ func turnPair(phase battle.Faction, turn int, units ...battle.Unit) (state.Conte
 		Phase: phase, Turn: turn})
 }
 
-func turnBoard(phase battle.Faction, turn int, units ...battle.Unit) *state.Battle {
+func turnBoard(phase battle.Faction, turn int, units ...battle.Unit) state.Battle {
 	content, values := turnPair(phase, turn, units...)
-	out := state.Compose(&content, values)
-	return &out
+	return state.Battle{Content: &content, Values: &values}
 }
 
 func basicUnit(faction battle.Faction, x, y int) battle.Unit {
@@ -50,7 +49,7 @@ func TestGoneNamesTheSidesWithNoLivingUnit(t *testing.T) {
 	if got := Gone(board); !reflect.DeepEqual(got, []battle.Faction{battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", got)
 	}
-	board.Units[0].Value.HP = 0
+	board.Values.Units[0].HP = 0
 	if got := Gone(board); !reflect.DeepEqual(got, []battle.Faction{battle.FactionAlly, battle.FactionEnemy}) {
 		t.Fatalf("gone: %v", got)
 	}
@@ -61,7 +60,7 @@ func TestABoardWithNoLivingUnitDoesNotRotate(t *testing.T) {
 	content, values := turnPair(battle.FactionAlly, 1, last)
 	values.Units[0].HP = 0
 
-	after, got := Advance(content, values)
+	after, got := Advance(state.Battle{Content: &content, Values: &values})
 
 	if len(got) != 0 || after.Phase != battle.FactionAlly || after.Turn != 1 {
 		t.Fatalf("rotated on a dead board: %+v", got)
@@ -74,7 +73,7 @@ func TestAnActivationWithAPendingSiblingDoesNotRotate(t *testing.T) {
 	content, values := turnPair(battle.FactionAlly, 1, acted,
 		basicUnit(battle.FactionAlly, 1, 2), basicUnit(battle.FactionEnemy, 4, 4))
 
-	after, got := Advance(content, values)
+	after, got := Advance(state.Battle{Content: &content, Values: &values})
 
 	if len(got) != 0 || after.Phase != battle.FactionAlly || after.Turn != 1 {
 		t.Fatalf("rotated: %+v turn %d phase %s", got, after.Turn, after.Phase)
@@ -86,7 +85,7 @@ func TestTheLastActivationOfTheAllySideOpensTheEnemyPhase(t *testing.T) {
 	acted.Acted = true
 	content, values := turnPair(battle.FactionAlly, 1, acted, basicUnit(battle.FactionEnemy, 4, 4))
 
-	after, got := Advance(content, values)
+	after, got := Advance(state.Battle{Content: &content, Values: &values})
 
 	want := []Rotation{{Turn: 1, Phase: battle.FactionThirdParty}, {Turn: 1, Phase: battle.FactionEnemy}}
 	if !reflect.DeepEqual(got, want) {
@@ -105,7 +104,7 @@ func TestTheLastActivationOfTheEnemySideOpensTheNextTurn(t *testing.T) {
 	enemy.Acted = true
 	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
 
-	after, rotations := Advance(content, values)
+	after, rotations := Advance(state.Battle{Content: &content, Values: &values})
 
 	if !reflect.DeepEqual(rotations, []Rotation{{Turn: 2, Phase: battle.FactionAlly}}) {
 		t.Fatalf("rotations: %+v", rotations)
@@ -127,7 +126,7 @@ func TestThePhaseStartRegeneratesTenPercentOfTheMaximumFloored(t *testing.T) {
 	enemy.Acted = true
 	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
 
-	after, _ := Advance(content, values)
+	after, _ := Advance(state.Battle{Content: &content, Values: &values})
 
 	if got := after.Units[0].EN; got != 61 {
 		t.Fatalf("EN: %d, want 10 + floor(51.3)", got)
@@ -146,7 +145,7 @@ func TestADebuffExpiresWhenItsRoundEnds(t *testing.T) {
 	enemy.Debuffs = []battle.Debuff{{Kind: "defense", Magnitude: 0.3, AppliedPhase: 3}}
 	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
 
-	after, _ := Advance(content, values)
+	after, _ := Advance(state.Battle{Content: &content, Values: &values})
 
 	if got := after.Units[0].Debuffs; !reflect.DeepEqual(got, []battle.Debuff{{Kind: "attack", Magnitude: 0.2, AppliedPhase: 4}}) {
 		t.Fatalf("ally debuffs at index 6: %+v", got)
@@ -161,7 +160,7 @@ func TestASideWithNoUnitIsSkipped(t *testing.T) {
 	enemy.Acted = true
 	content, values := turnPair(battle.FactionEnemy, 2, enemy)
 
-	after, got := Advance(content, values)
+	after, got := Advance(state.Battle{Content: &content, Values: &values})
 
 	want := []Rotation{{Turn: 3, Phase: battle.FactionAlly}, {Turn: 3, Phase: battle.FactionThirdParty}, {Turn: 3, Phase: battle.FactionEnemy}}
 	if !reflect.DeepEqual(got, want) {
@@ -193,7 +192,7 @@ func TestTheRotationRunsOnAPairThatNoEngagementProduced(t *testing.T) {
 		Turn:  1,
 	}
 
-	after, rotations := Advance(content, values)
+	after, rotations := Advance(state.Battle{Content: &content, Values: &values})
 
 	want := []Rotation{{Turn: 1, Phase: battle.FactionThirdParty}, {Turn: 1, Phase: battle.FactionEnemy}}
 	if !reflect.DeepEqual(rotations, want) {
@@ -212,7 +211,7 @@ func TestTheAnsweredColumnSharesNoWritableMemoryWithTheInput(t *testing.T) {
 	enemy.Acted = true
 	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
 
-	after, _ := Advance(content, values)
+	after, _ := Advance(state.Battle{Content: &content, Values: &values})
 
 	after.Units[0].EN, after.Units[0].Acted = 404, true
 	after.Units[0].Debuffs[0].Magnitude = 404

@@ -7,7 +7,7 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-func unitStatusOf(unitID int, unit *state.Unit) battle.UnitStatus {
+func unitStatusOf(unitID int, unit state.Unit) battle.UnitStatus {
 	return battle.UnitStatus{
 		UnitID:    unitID,
 		Faction:   unit.Faction,
@@ -22,7 +22,7 @@ func unitStatusOf(unitID int, unit *state.Unit) battle.UnitStatus {
 	}
 }
 
-func weaponEntriesOf(unit *state.Unit) []battle.WeaponEntry {
+func weaponEntriesOf(unit state.Unit) []battle.WeaponEntry {
 	out := make([]battle.WeaponEntry, 0, len(unit.Mech.Weapons))
 	for _, weapon := range unit.Mech.Weapons {
 		out = append(out, battle.WeaponEntry{
@@ -37,7 +37,7 @@ func weaponEntriesOf(unit *state.Unit) []battle.WeaponEntry {
 	return out
 }
 
-func mapWeaponEntriesOf(unit *state.Unit) []battle.MapWeaponEntry {
+func mapWeaponEntriesOf(unit state.Unit) []battle.MapWeaponEntry {
 	out := make([]battle.MapWeaponEntry, 0, len(unit.Mech.MapWeapons))
 	for index, weapon := range unit.Mech.MapWeapons {
 		out = append(out, battle.MapWeaponEntry{

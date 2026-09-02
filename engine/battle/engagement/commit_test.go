@@ -30,7 +30,7 @@ func shootoutUnits() []battle.Unit {
 	return []battle.Unit{attacker, target}
 }
 
-func shootout() *state.Battle {
+func shootout() state.Battle {
 	return board(shootoutUnits()...)
 }
 
@@ -45,7 +45,7 @@ func coveredUnits() []battle.Unit {
 	return append(shootoutUnits(), supporter, guard)
 }
 
-func covered() *state.Battle {
+func covered() state.Battle {
 	return board(coveredUnits()...)
 }
 
@@ -54,7 +54,7 @@ func attackOn(target, weapon int) battle.Decision {
 		TargetID: idOf(target), WeaponID: idOf(weapon)}
 }
 
-func resolve(b *state.Battle, decision battle.Decision, dice battle.Dice) (Trace, error) {
+func resolve(b state.Battle, decision battle.Decision, dice battle.Dice) (Trace, error) {
 	made, err := prepare(b, decision)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func resolve(b *state.Battle, decision battle.Decision, dice battle.Dice) (Trace
 	return write(b, made, dice), nil
 }
 
-func apply(t *testing.T, b *state.Battle, decision battle.Decision, dice battle.Dice) Trace {
+func apply(t *testing.T, b state.Battle, decision battle.Decision, dice battle.Dice) Trace {
 	t.Helper()
 	trace, err := resolve(b, decision, dice)
 	if err != nil {
@@ -73,23 +73,23 @@ func apply(t *testing.T, b *state.Battle, decision battle.Decision, dice battle.
 
 func TestTheMoveComesBeforeTheStrike(t *testing.T) {
 	b := shootout()
-	b.Units[actorID].Mech.MoveRange = 2
-	b.Units[targetID].Value.Pos = battle.Cell{4, 0}
+	unitOf(b, actorID).Mech.MoveRange = 2
+	unitOf(b, targetID).Value.Pos = battle.Cell{4, 0}
 	anchor := battle.Cell{1, 0}
 
 	trace := apply(t, b, battle.Decision{UnitID: actorID, Kind: battle.ActionAttack, MoveTo: &anchor,
 		TargetID: idOf(targetID), WeaponID: idOf(beamID)}, battle.Forced{Strike: true})
 
-	if got := b.Units[actorID].Value.Pos; got != anchor {
+	if got := unitOf(b, actorID).Value.Pos; got != anchor {
 		t.Fatalf("anchor: %v", got)
 	}
 	if len(trace) != 1 || trace[0].Kind != StrikeMain || !trace[0].Landed {
 		t.Fatalf("trace: %+v", trace)
 	}
-	if b.Units[targetID].Value.HP >= 12000 || b.Units[actorID].Value.EN != 130 {
-		t.Fatalf("the strike takes hit points and energy: %+v", b.Units)
+	if unitOf(b, targetID).Value.HP >= 12000 || unitOf(b, actorID).Value.EN != 130 {
+		t.Fatalf("the strike takes hit points and energy: %+v", b.Values.Units)
 	}
-	if !b.Units[actorID].Value.Acted {
+	if !unitOf(b, actorID).Value.Acted {
 		t.Fatal("an attack ends the activation")
 	}
 }
@@ -98,18 +98,18 @@ func TestAnIllegalMoveStopsTheAction(t *testing.T) {
 	far := battle.Cell{4, 4}
 	near := battle.Cell{1, 0}
 	cases := map[string]struct {
-		build    func(*state.Battle)
+		build    func(state.Battle)
 		decision battle.Decision
 	}{
 		"an anchor out of the move range": {
-			func(b *state.Battle) { b.Units[actorID].Mech.MoveRange = 1 },
+			func(b state.Battle) { unitOf(b, actorID).Mech.MoveRange = 1 },
 			battle.Decision{UnitID: actorID, Kind: battle.ActionAttack, MoveTo: &far,
 				TargetID: idOf(targetID), WeaponID: idOf(beamID)},
 		},
 		"a weapon that fires before the move": {
-			func(b *state.Battle) {
-				b.Units[actorID].Mech.MoveRange = 2
-				b.Units[actorID].Mech.Weapons[0].UsableAfterMove = false
+			func(b state.Battle) {
+				unitOf(b, actorID).Mech.MoveRange = 2
+				unitOf(b, actorID).Mech.Weapons[0].UsableAfterMove = false
 			},
 			battle.Decision{UnitID: actorID, Kind: battle.ActionAttack, MoveTo: &near,
 				TargetID: idOf(targetID), WeaponID: idOf(beamID)},
@@ -126,7 +126,7 @@ func TestAnIllegalMoveStopsTheAction(t *testing.T) {
 			if !errors.Is(err, battle.ErrIllegalMove) {
 				t.Fatalf("error: %v", err)
 			}
-			if b.Units[actorID].Value.Pos != (battle.Cell{0, 0}) || b.Units[actorID].Value.Acted {
+			if unitOf(b, actorID).Value.Pos != (battle.Cell{0, 0}) || unitOf(b, actorID).Value.Acted {
 				t.Fatal("an error leaves the board as it was")
 			}
 		})
@@ -135,66 +135,66 @@ func TestAnIllegalMoveStopsTheAction(t *testing.T) {
 
 func TestADestroyedUnitKeepsItsPlaceWithNoHitPointsLeft(t *testing.T) {
 	b := shootout()
-	b.Units[targetID].Value.HP = 1
+	unitOf(b, targetID).Value.HP = 1
 
 	trace := apply(t, b, attackOn(targetID, beamID), battle.Forced{Strike: true})
 
-	if got := &b.Units[targetID]; got.Value.HP != 0 || got.Alive() {
+	if got := unitOf(b, targetID); got.Value.HP != 0 || got.Alive() {
 		t.Fatalf("unit: %+v", got)
 	}
 	if !trace[0].Killed {
 		t.Fatalf("trace: %+v", trace)
 	}
-	if len(byFaction(b, battle.FactionEnemy)) != 0 || len(b.Units) != 2 {
+	if len(byFaction(b, battle.FactionEnemy)) != 0 || len(b.Content.Units) != 2 {
 		t.Fatal("a roster query filters on Alive, and the board keeps the unit")
 	}
 }
 
 func TestAFullTurnCycleWithAKillKeepsTheUnitOrder(t *testing.T) {
 	b := covered()
-	b.Units[targetID].Value.HP = 1
-	before := len(b.Units)
+	unitOf(b, targetID).Value.HP = 1
+	before := len(b.Content.Units)
 	factions := make([]battle.Faction, before)
-	for index := range b.Units {
-		factions[index] = b.Units[index].Faction
+	for index := range before {
+		factions[index] = unitOf(b, index).Faction
 	}
 
 	apply(t, b, attackOn(targetID, beamID), battle.Forced{Strike: true})
 	apply(t, b, battle.Decision{UnitID: joinerID, Kind: battle.ActionStandby}, battle.Forced{})
 
-	if len(b.Units) != before {
-		t.Fatalf("the unit slice is append only: %d against %d", len(b.Units), before)
+	if len(b.Content.Units) != before {
+		t.Fatalf("the unit slice is append only: %d against %d", len(b.Content.Units), before)
 	}
-	for index := range b.Units {
-		if b.Units[index].Faction != factions[index] {
+	for index, unit := range b.Units() {
+		if unit.Faction != factions[index] {
 			t.Fatalf("the unit %d changed side, so the order moved", index)
 		}
 	}
-	if b.Units[targetID].Alive() || b.Units[targetID].Value.HP != 0 {
+	if unitOf(b, targetID).Alive() || unitOf(b, targetID).Value.HP != 0 {
 		t.Fatal("the destroyed unit keeps its place with no hit points left")
 	}
 }
 
 func TestAKillGivesTheAttackerItsActivationAgain(t *testing.T) {
 	b := shootout()
-	b.Units[targetID].Value.HP = 1
-	b.Units[actorID].Value.ChanceSteps = 1
-	b.Units[actorID].ChanceStepsMax = 1
+	unitOf(b, targetID).Value.HP = 1
+	unitOf(b, actorID).Value.ChanceSteps = 1
+	unitOf(b, actorID).ChanceStepsMax = 1
 
 	apply(t, b, attackOn(targetID, beamID), battle.Forced{Strike: true})
 
-	if b.Units[actorID].Value.Acted || b.Units[actorID].Value.ChanceSteps != 0 {
-		t.Fatalf("actor: %+v", b.Units[actorID])
+	if unitOf(b, actorID).Value.Acted || unitOf(b, actorID).Value.ChanceSteps != 0 {
+		t.Fatalf("actor: %+v", unitOf(b, actorID))
 	}
 }
 
 func TestAKillWithNoChanceStepLeftEndsTheActivation(t *testing.T) {
 	b := shootout()
-	b.Units[targetID].Value.HP = 1
+	unitOf(b, targetID).Value.HP = 1
 
 	apply(t, b, attackOn(targetID, beamID), battle.Forced{Strike: true})
 
-	if !b.Units[actorID].Value.Acted {
+	if !unitOf(b, actorID).Value.Acted {
 		t.Fatal("the unit holds no chance step, so the kill gives no second activation")
 	}
 }
@@ -211,15 +211,15 @@ func TestTheSupportDefenderTakesEveryShotAndOneCharge(t *testing.T) {
 	if len(trace) != 2 || trace[0].StruckID != coveredBy || trace[1].StruckID != coveredBy {
 		t.Fatalf("every shot goes to the support defender: %+v", trace)
 	}
-	if b.Units[coveredBy].Value.SupportDefendCharges != 0 {
+	if unitOf(b, coveredBy).Value.SupportDefendCharges != 0 {
 		t.Fatal("every shot together spends one charge")
 	}
-	if b.Units[targetID].Value.HP != 12000 {
+	if unitOf(b, targetID).Value.HP != 12000 {
 		t.Fatal("the target takes nothing")
 	}
-	if b.Units[joinerID].Value.SupportAttackCharges != 0 || b.Units[joinerID].Value.EN != 130 {
+	if unitOf(b, joinerID).Value.SupportAttackCharges != 0 || unitOf(b, joinerID).Value.EN != 130 {
 		t.Fatalf("the supporter spends one charge and the energy of its weapon: %+v",
-			b.Units[joinerID])
+			unitOf(b, joinerID))
 	}
 }
 
@@ -232,10 +232,10 @@ func TestASupportAttackThatMissesSpendsNoSupportDefendCharge(t *testing.T) {
 
 	apply(t, b, decision, battle.Forced{})
 
-	if b.Units[coveredBy].Value.SupportDefendCharges != 1 || b.Units[coveredBy].Value.HP != 12000 {
-		t.Fatalf("supportDefender: %+v", b.Units[coveredBy])
+	if unitOf(b, coveredBy).Value.SupportDefendCharges != 1 || unitOf(b, coveredBy).Value.HP != 12000 {
+		t.Fatalf("supportDefender: %+v", unitOf(b, coveredBy))
 	}
-	if b.Units[joinerID].Value.SupportAttackCharges != 0 || b.Units[joinerID].Value.EN != 130 {
+	if unitOf(b, joinerID).Value.SupportAttackCharges != 0 || unitOf(b, joinerID).Value.EN != 130 {
 		t.Fatal("a supporter that misses spends its charge and its energy")
 	}
 }
@@ -248,7 +248,7 @@ func TestTheSupportAttackOfTheAttackerIsAChoice(t *testing.T) {
 	if len(trace) != 1 || trace[0].Kind != StrikeMain {
 		t.Fatalf("the action names no support attacker, so none fires: %+v", trace)
 	}
-	if b.Units[joinerID].Value.SupportAttackCharges != 1 {
+	if unitOf(b, joinerID).Value.SupportAttackCharges != 1 {
 		t.Fatal("the supporter keeps its charge")
 	}
 }
@@ -274,7 +274,7 @@ func TestTheRulesCapTheNumberOfSupportAttackers(t *testing.T) {
 		t.Fatalf("the cap of the rules is %d units: %v", maxSupportAttackers, err)
 	}
 	for _, id := range ids {
-		if b.Units[id].Value.SupportAttackCharges != 1 {
+		if unitOf(b, id).Value.SupportAttackCharges != 1 {
 			t.Fatalf("an error leaves the board as it was: %d", id)
 		}
 	}
@@ -293,8 +293,8 @@ func TestTheDefenderRepliesWithItsSupportAndItsCounter(t *testing.T) {
 	if !trace[1].Landed {
 		t.Fatal("the support attack of the defender reads the node of its own side")
 	}
-	if b.Units[actorID].Value.HP >= 12000 || b.Units[targetID].Value.EN != 130 {
-		t.Fatalf("attacker: %+v", b.Units[actorID])
+	if unitOf(b, actorID).Value.HP >= 12000 || unitOf(b, targetID).Value.EN != 130 {
+		t.Fatalf("attacker: %+v", unitOf(b, actorID))
 	}
 }
 
@@ -308,7 +308,8 @@ func TestEveryWeaponThatReachesTheAttackerCounters(t *testing.T) {
 	units[targetID].Mech.Weapons = append(units[targetID].Mech.Weapons, pod)
 	content, values := pair(units...)
 
-	options, err := Menu(content, values, attackOn(targetID, beamID), targetID)
+	options, err := Menu(state.Battle{Content: &content, Values: &values},
+		attackOn(targetID, beamID), targetID)
 	if err != nil {
 		t.Fatalf("response attacks: %v", err)
 	}
@@ -343,20 +344,20 @@ func TestACounterThatMissesSpendsItsEnergy(t *testing.T) {
 	if len(trace) != 2 || trace[1].Kind != StrikeCounter || trace[1].Landed {
 		t.Fatalf("trace: %+v", trace)
 	}
-	if b.Units[targetID].Value.EN != 130 || b.Units[actorID].Value.HP != 12000 {
-		t.Fatalf("the weapon spends its energy on a miss: %+v", b.Units[targetID])
+	if unitOf(b, targetID).Value.EN != 130 || unitOf(b, actorID).Value.HP != 12000 {
+		t.Fatalf("the weapon spends its energy on a miss: %+v", unitOf(b, targetID))
 	}
 }
 
 func TestADeadTargetRepliesWithNothing(t *testing.T) {
 	b := shootout()
-	b.Units[targetID].Value.HP = 1
+	unitOf(b, targetID).Value.HP = 1
 	decision := attackOn(targetID, beamID)
 	decision.ResponseAttack = &battle.ResponseAttack{Stance: battle.StanceCounter, WeaponID: idOf(beamID)}
 
 	trace := apply(t, b, decision, battle.Forced{Strike: true, Counter: true})
 
-	if len(trace) != 1 || b.Units[actorID].Value.HP != 12000 {
+	if len(trace) != 1 || unitOf(b, actorID).Value.HP != 12000 {
 		t.Fatalf("trace: %+v", trace)
 	}
 }
@@ -373,11 +374,11 @@ func TestTheSupportDefendWhenAttackTakesTheCounterForTheAttacker(t *testing.T) {
 
 	trace := apply(t, b, decision, battle.Forced{Strike: true, Counter: true})
 
-	if trace[1].StruckID != bearerID || b.Units[actorID].Value.HP != 12000 {
+	if trace[1].StruckID != bearerID || unitOf(b, actorID).Value.HP != 12000 {
 		t.Fatalf("the bearer takes the counter: %+v", trace)
 	}
-	if b.Units[bearerID].Value.SupportDefendCharges != 0 || b.Units[bearerID].Value.HP >= 12000 {
-		t.Fatalf("bearer: %+v", b.Units[bearerID])
+	if unitOf(b, bearerID).Value.SupportDefendCharges != 0 || unitOf(b, bearerID).Value.HP >= 12000 {
+		t.Fatalf("bearer: %+v", unitOf(b, bearerID))
 	}
 }
 
@@ -402,7 +403,7 @@ func TestADebuffReplacesAWeakerOneAndLeavesAStrongerOne(t *testing.T) {
 
 			apply(t, b, attackOn(targetID, 0), battle.Forced{Strike: true})
 
-			debuffs := b.Units[targetID].Value.Debuffs
+			debuffs := unitOf(b, targetID).Value.Debuffs
 			if len(debuffs) != 2 {
 				t.Fatalf("debuffs: %+v", debuffs)
 			}
@@ -410,7 +411,7 @@ func TestADebuffReplacesAWeakerOneAndLeavesAStrongerOne(t *testing.T) {
 			if last.Kind != "armor_break" || last.Magnitude != one.want {
 				t.Fatalf("debuffs: %+v", debuffs)
 			}
-			if one.start != one.want && last.AppliedPhase != b.PhaseIndex() {
+			if one.start != one.want && last.AppliedPhase != b.Values.PhaseIndex() {
 				t.Fatalf("a fresh debuff carries the phase of this strike: %+v", last)
 			}
 		})
@@ -430,9 +431,9 @@ func TestAMapAttackIsRefusedAndLeavesTheBoard(t *testing.T) {
 	if !errors.Is(err, battle.ErrIllegalAction) {
 		t.Fatalf("the engine resolves no map attack: %v", err)
 	}
-	if b.Units[targetID].Value.HP != 12000 || b.Units[actorID].Value.MapWeaponAmmo[0] != 2 ||
-		b.Units[actorID].Value.Acted {
-		t.Fatalf("the refused action changes no field: %+v", b.Units[actorID])
+	if unitOf(b, targetID).Value.HP != 12000 || unitOf(b, actorID).Value.MapWeaponAmmo[0] != 2 ||
+		unitOf(b, actorID).Value.Acted {
+		t.Fatalf("the refused action changes no field: %+v", unitOf(b, actorID))
 	}
 }
 
@@ -457,7 +458,7 @@ func TestAnAttackThatFiresAMapWeaponIsRefused(t *testing.T) {
 			if _, err := resolve(b, decision, battle.Forced{Strike: true}); !errors.Is(err, battle.ErrIllegalAction) {
 				t.Fatalf("error: %v", err)
 			}
-			if b.Units[targetID].Value.HP != 12000 || b.Units[actorID].Value.Acted {
+			if unitOf(b, targetID).Value.HP != 12000 || unitOf(b, actorID).Value.Acted {
 				t.Fatal("an error leaves the board as it was")
 			}
 		})
@@ -472,24 +473,24 @@ func TestAnActionThatIsNoAttackFiresNoWeapon(t *testing.T) {
 	if _, err := resolve(b, decision, battle.Forced{}); !errors.Is(err, battle.ErrIllegalAction) {
 		t.Fatalf("error: %v", err)
 	}
-	if b.Units[actorID].Value.Acted {
+	if unitOf(b, actorID).Value.Acted {
 		t.Fatal("an error leaves the board as it was")
 	}
 }
 
 func TestASkillIsRefusedAndLeavesTheBoard(t *testing.T) {
 	b := shootout()
-	b.Units[actorID].Value.HP = 8000
-	b.Units[actorID].Value.Skills = []def.Skill{{Kind: "skill_heal", Uses: 1}}
+	unitOf(b, actorID).Value.HP = 8000
+	unitOf(b, actorID).Value.Skills = []def.Skill{{Kind: "skill_heal", Uses: 1}}
 
 	_, err := resolve(b, battle.Decision{UnitID: actorID, Kind: "skill_heal"}, battle.Forced{Strike: true})
 
 	if !errors.Is(err, battle.ErrIllegalAction) {
 		t.Fatalf("the engine resolves no skill: %v", err)
 	}
-	if b.Units[actorID].Value.HP != 8000 || b.Units[actorID].Value.Skills[0].Uses != 1 ||
-		b.Units[actorID].Value.Acted {
-		t.Fatalf("the refused action changes no field: %+v", b.Units[actorID])
+	if unitOf(b, actorID).Value.HP != 8000 || unitOf(b, actorID).Value.Skills[0].Uses != 1 ||
+		unitOf(b, actorID).Value.Acted {
+		t.Fatalf("the refused action changes no field: %+v", unitOf(b, actorID))
 	}
 }
 
@@ -520,7 +521,7 @@ func TestAStrikeNamesALivingFoeAndNoOtherUnit(t *testing.T) {
 			if !errors.Is(err, battle.ErrIllegalAction) {
 				t.Fatalf("error: %v", err)
 			}
-			if b.Units[one.targetID].Value.HP != 12000 {
+			if unitOf(b, one.targetID).Value.HP != 12000 {
 				t.Fatal("an error leaves the board as it was")
 			}
 		})
@@ -551,7 +552,7 @@ func TestAResponseAttackThatBreaksARuleIsAnError(t *testing.T) {
 			if !errors.Is(err, battle.ErrIllegalAction) {
 				t.Fatalf("error: %v", err)
 			}
-			if b.Units[targetID].Value.HP != 12000 || b.Units[actorID].Value.Acted {
+			if unitOf(b, targetID).Value.HP != 12000 || unitOf(b, actorID).Value.Acted {
 				t.Fatal("an error leaves the board as it was")
 			}
 		})
@@ -568,15 +569,15 @@ func TestAStrikeWithNoResponseAttackAndOneWithACounterBothRun(t *testing.T) {
 	b = shootout()
 	apply(t, b, attackOn(targetID, beamID), battle.Forced{Strike: true})
 
-	if b.Units[targetID].Value.HP >= 12000 {
+	if unitOf(b, targetID).Value.HP >= 12000 {
 		t.Fatal("a strike that carries no response attack stays legal")
 	}
 }
 
 func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheCover(t *testing.T) {
 	b := covered()
-	b.Units[coveredBy].Mech.Mobility = 900
-	b.Units[coveredBy].Pilot.Reaction = 900
+	unitOf(b, coveredBy).Mech.Mobility = 900
+	unitOf(b, coveredBy).Pilot.Reaction = 900
 	decision := attackOn(targetID, beamID)
 	decision.ResponseAttack = &battle.ResponseAttack{Stance: battle.StanceDodge,
 		SupportDefenderID: idOf(coveredBy)}
@@ -587,8 +588,8 @@ func TestTheHitRateOfTheStrikeReadsTheTargetAndNotTheCover(t *testing.T) {
 		t.Fatalf("apply: %v", err)
 	}
 
-	want := strikeHitProbability(&b.Units[actorID], &b.Units[targetID],
-		&b.Units[actorID].Mech.Weapons[0], true)
+	want := strikeHitProbability(unitOf(b, actorID), unitOf(b, targetID),
+		&unitOf(b, actorID).Mech.Weapons[0], true)
 	if trace[0].StruckID != coveredBy {
 		t.Fatalf("the support defender takes the strike: %+v", trace)
 	}
@@ -661,7 +662,7 @@ func TestEveryPositionOfTheWireIsBoundsChecked(t *testing.T) {
 				if err == nil {
 					t.Fatal("a position outside its list must be a refusal")
 				}
-				if b.Units[targetID].Value.HP != 12000 || b.Units[actorID].Value.Acted {
+				if unitOf(b, targetID).Value.HP != 12000 || unitOf(b, actorID).Value.Acted {
 					t.Fatal("a refusal leaves the board as it was")
 				}
 			})
@@ -671,13 +672,13 @@ func TestEveryPositionOfTheWireIsBoundsChecked(t *testing.T) {
 
 func TestAnUnpaidWeaponAndAnEmptyCounterAreErrors(t *testing.T) {
 	b := shootout()
-	b.Units[actorID].Value.EN = 9
+	unitOf(b, actorID).Value.EN = 9
 	if _, err := resolve(b, attackOn(targetID, beamID), battle.Forced{}); !errors.Is(err, battle.ErrIllegalAction) {
 		t.Fatalf("error: %v", err)
 	}
 
 	b = shootout()
-	b.Units[targetID].Mech.Weapons[0].ENCost = 1000
+	unitOf(b, targetID).Mech.Weapons[0].ENCost = 1000
 	decision := attackOn(targetID, beamID)
 	decision.ResponseAttack = &battle.ResponseAttack{Stance: battle.StanceCounter, WeaponID: idOf(beamID)}
 
@@ -686,14 +687,14 @@ func TestAnUnpaidWeaponAndAnEmptyCounterAreErrors(t *testing.T) {
 	if !errors.Is(err, battle.ErrIllegalAction) {
 		t.Fatalf("error: %v", err)
 	}
-	if b.Units[targetID].Value.HP != 12000 {
+	if unitOf(b, targetID).Value.HP != 12000 {
 		t.Fatal("an error leaves the board as it was")
 	}
 }
 
 func TestAUnitThatCannotActRunsNoAction(t *testing.T) {
 	b := shootout()
-	b.Units[actorID].Value.Acted = true
+	unitOf(b, actorID).Value.Acted = true
 
 	_, err := resolve(b, attackOn(targetID, beamID), battle.Forced{Strike: true})
 
@@ -707,7 +708,7 @@ func TestAStandbyEndsTheActivationAndAsksNoDie(t *testing.T) {
 
 	trace := apply(t, b, battle.Decision{UnitID: actorID, Kind: battle.ActionStandby}, battle.Forced{})
 
-	if len(trace) != 0 || !b.Units[actorID].Value.Acted {
+	if len(trace) != 0 || !unitOf(b, actorID).Value.Acted {
 		t.Fatalf("trace: %+v", trace)
 	}
 }
@@ -726,7 +727,7 @@ func TestTheAttackerNamesAUnitThatCanTakeTheCounterForIt(t *testing.T) {
 	if !errors.Is(err, battle.ErrIllegalAction) {
 		t.Fatalf("a unit with no attack shield takes no counter for its side: %v", err)
 	}
-	if b.Units[actorID].Value.Acted || b.Units[targetID].Value.HP != 12000 {
+	if unitOf(b, actorID).Value.Acted || unitOf(b, targetID).Value.HP != 12000 {
 		t.Fatal("an error leaves the board as it was")
 	}
 }
@@ -741,7 +742,7 @@ func TestASupportAttackerJoinsOneStrikeOneTime(t *testing.T) {
 	if !errors.Is(err, battle.ErrIllegalAction) {
 		t.Fatalf("error: %v", err)
 	}
-	if b.Units[joinerID].Value.SupportAttackCharges != 1 {
+	if unitOf(b, joinerID).Value.SupportAttackCharges != 1 {
 		t.Fatal("an error leaves the board as it was")
 	}
 }
@@ -760,7 +761,7 @@ func (c *countingDice) Covers(draws int) bool {
 	return c.inner.Covers(draws)
 }
 
-func repliesWithSupportAndCounter() (*state.Battle, battle.Decision) {
+func repliesWithSupportAndCounter() (state.Battle, battle.Decision) {
 	units := coveredUnits()
 	units[coveredBy].SupportAttackCharges = 1
 	units[coveredBy].Mech.Weapons = []battle.Weapon{beam()}
@@ -775,27 +776,27 @@ func TestTheDrawsOfAPlanBoundTheDrawsOfTheWritePhase(t *testing.T) {
 	anchor := battle.Cell{1, 0}
 	cases := []struct {
 		name  string
-		build func() (*state.Battle, battle.Decision)
+		build func() (state.Battle, battle.Decision)
 		want  int
 	}{
-		{"a standby", func() (*state.Battle, battle.Decision) {
+		{"a standby", func() (state.Battle, battle.Decision) {
 			return shootout(), battle.Decision{UnitID: actorID, Kind: battle.ActionStandby}
 		}, 0},
-		{"a reposition", func() (*state.Battle, battle.Decision) {
+		{"a reposition", func() (state.Battle, battle.Decision) {
 			b := shootout()
-			b.Units[actorID].Mech.MoveRange = 2
+			unitOf(b, actorID).Mech.MoveRange = 2
 			return b, battle.Decision{UnitID: actorID, Kind: battle.ActionReposition, MoveTo: &anchor}
 		}, 0},
-		{"a strike with no reply", func() (*state.Battle, battle.Decision) {
+		{"a strike with no reply", func() (state.Battle, battle.Decision) {
 			return shootout(), attackOn(targetID, beamID)
 		}, 1},
-		{"a strike that takes a counter", func() (*state.Battle, battle.Decision) {
+		{"a strike that takes a counter", func() (state.Battle, battle.Decision) {
 			decision := attackOn(targetID, beamID)
 			decision.ResponseAttack = &battle.ResponseAttack{Stance: battle.StanceCounter,
 				WeaponID: idOf(beamID)}
 			return shootout(), decision
 		}, 2},
-		{"a strike with the support of the attacker", func() (*state.Battle, battle.Decision) {
+		{"a strike with the support of the attacker", func() (state.Battle, battle.Decision) {
 			decision := attackOn(targetID, beamID)
 			decision.SupportAttackerIDs = []int{joinerID}
 			decision.ResponseAttack = &battle.ResponseAttack{Stance: battle.StanceDodge,
@@ -804,7 +805,7 @@ func TestTheDrawsOfAPlanBoundTheDrawsOfTheWritePhase(t *testing.T) {
 		}, 2},
 		{"a strike that takes the support and the counter of the defender",
 			repliesWithSupportAndCounter, 3},
-		{"a strike that takes every node", func() (*state.Battle, battle.Decision) {
+		{"a strike that takes every node", func() (state.Battle, battle.Decision) {
 			b, decision := repliesWithSupportAndCounter()
 			decision.SupportAttackerIDs = []int{joinerID}
 			return b, decision
@@ -840,8 +841,8 @@ func TestTheAnsweredColumnSharesNoWritableMemoryWithTheInput(t *testing.T) {
 	units[targetID].Debuffs = []battle.Debuff{{Kind: "mobility_down", Magnitude: 0.3, AppliedPhase: 1}}
 	content, values := pair(units...)
 
-	answer, _, err := Commit(content, values, attackOn(targetID, beamID),
-		battle.Forced{Strike: true})
+	answer, _, err := Commit(state.Battle{Content: &content, Values: &values},
+		attackOn(targetID, beamID), battle.Forced{Strike: true})
 	if err != nil {
 		t.Fatalf("commit: %v", err)
 	}
@@ -869,8 +870,8 @@ func TestTheAnsweredColumnSharesNoWritableMemoryWithTheInput(t *testing.T) {
 func TestTheAnswerOfTheCommitCarriesTheChangesOfTheActivation(t *testing.T) {
 	content, values := pair(shootoutUnits()...)
 
-	answer, trace, err := Commit(content, values, attackOn(targetID, beamID),
-		battle.Forced{Strike: true})
+	answer, trace, err := Commit(state.Battle{Content: &content, Values: &values},
+		attackOn(targetID, beamID), battle.Forced{Strike: true})
 	if err != nil {
 		t.Fatalf("commit: %v", err)
 	}
@@ -887,8 +888,8 @@ func TestTheAnswerOfTheCommitCarriesTheChangesOfTheActivation(t *testing.T) {
 func TestARefusedCommitAnswersTheErrorAndNoColumn(t *testing.T) {
 	content, values := pair(shootoutUnits()...)
 
-	answer, trace, err := Commit(content, values, attackOn(actorID, beamID),
-		battle.Forced{Strike: true})
+	answer, trace, err := Commit(state.Battle{Content: &content, Values: &values},
+		attackOn(actorID, beamID), battle.Forced{Strike: true})
 
 	if !errors.Is(err, battle.ErrIllegalAction) {
 		t.Fatalf("error: %v", err)
@@ -907,7 +908,8 @@ func TestTheCommitRefusesADiceListThatCoversFewerDrawsThanTheAction(t *testing.T
 	decision.ResponseAttack = &battle.ResponseAttack{Stance: battle.StanceCounter,
 		WeaponID: idOf(beamID)}
 
-	_, _, err := Commit(content, values, decision, battle.NewManualRoll([]bool{true}))
+	_, _, err := Commit(state.Battle{Content: &content, Values: &values}, decision,
+		battle.NewManualRoll([]bool{true}))
 
 	if !errors.Is(err, battle.ErrOutsideContract) {
 		t.Fatalf("error: %v", err)

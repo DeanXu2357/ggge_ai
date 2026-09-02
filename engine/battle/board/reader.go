@@ -9,16 +9,16 @@ import (
 )
 
 func (b *Board) Actions(unitID int) (battle.ActionsResponse, error) {
-	working := b.compose()
-	unit, err := engagement.Activatable(&working, unitID)
+	view := b.view()
+	unit, err := engagement.Activatable(view, unitID)
 	if err != nil {
 		return battle.ActionsResponse{}, err
 	}
 	return actionsOf(unitID, unit,
-		geometry.SortedCells(geometry.ReachableAnchors(&working, unitID))), nil
+		geometry.SortedCells(geometry.ReachableAnchors(view, unitID))), nil
 }
 
-func actionsOf(unitID int, unit *state.Unit, moveCells []battle.Cell) battle.ActionsResponse {
+func actionsOf(unitID int, unit state.Unit, moveCells []battle.Cell) battle.ActionsResponse {
 	return battle.ActionsResponse{
 		Unit:       unitStatusOf(unitID, unit),
 		MoveCells:  moveCells,
@@ -29,15 +29,15 @@ func actionsOf(unitID int, unit *state.Unit, moveCells []battle.Cell) battle.Act
 }
 
 func (b *Board) ReachableCells(unitID int) ([]battle.Cell, error) {
-	working := b.compose()
-	if _, err := engagement.LivingUnit(&working, unitID); err != nil {
+	view := b.view()
+	if _, err := engagement.LivingUnit(view, unitID); err != nil {
 		return nil, err
 	}
-	return geometry.SortedCells(geometry.ReachableAnchors(&working, unitID)), nil
+	return geometry.SortedCells(geometry.ReachableAnchors(view, unitID)), nil
 }
 
 func (b *Board) ResponseAttacks(action *battle.Decision, defenderID int) (battle.ResponseAttacksResponse, error) {
-	options, err := engagement.Menu(b.content, b.values, *action, defenderID)
+	options, err := engagement.Menu(b.view(), *action, defenderID)
 	if err != nil {
 		return battle.ResponseAttacksResponse{}, err
 	}
@@ -45,17 +45,16 @@ func (b *Board) ResponseAttacks(action *battle.Decision, defenderID int) (battle
 }
 
 func (b *Board) State() battle.BattleState {
-	working := b.compose()
-	return working.ToContract()
+	return b.view().ToContract()
 }
 
 func (b *Board) Summary() battle.BoardSummary {
-	working := b.compose()
+	view := b.view()
 	out := battle.BoardSummary{
-		Turn: working.Turn, Phase: working.Phase,
+		Turn: view.Values.Turn, Phase: view.Values.Phase,
 		PendingIDs: []int{}, Gone: []battle.Faction{},
 	}
-	out.PendingIDs = append(out.PendingIDs, turn.Pending(&working, working.Phase)...)
-	out.Gone = append(out.Gone, turn.Gone(&working)...)
+	out.PendingIDs = append(out.PendingIDs, turn.Pending(view, view.Values.Phase)...)
+	out.Gone = append(out.Gone, turn.Gone(view)...)
 	return out
 }

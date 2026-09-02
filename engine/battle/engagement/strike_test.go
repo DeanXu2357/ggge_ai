@@ -27,10 +27,9 @@ func pair(units ...battle.Unit) (state.Content, state.Values) {
 		Phase: battle.FactionAlly, Turn: 1})
 }
 
-func board(units ...battle.Unit) *state.Battle {
+func board(units ...battle.Unit) state.Battle {
 	content, values := pair(units...)
-	out := state.Compose(&content, values)
-	return &out
+	return state.Battle{Content: &content, Values: &values}
 }
 
 func rifle(name string, rangeMin, rangeMax int) battle.Weapon {
@@ -71,7 +70,7 @@ func mapShells() battle.MapWeapon {
 
 func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 	b := shootout()
-	attacker, defender := &b.Units[actorID], &b.Units[targetID]
+	attacker, defender := unitOf(b, actorID), unitOf(b, targetID)
 	weapon := &attacker.Mech.Weapons[0]
 
 	plain := strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
@@ -92,7 +91,7 @@ func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 
 func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
 	b := shootout()
-	attacker, defender := &b.Units[actorID], &b.Units[targetID]
+	attacker, defender := unitOf(b, actorID), unitOf(b, targetID)
 	weapon := &attacker.Mech.Weapons[0]
 
 	plain := strikeHitProbability(attacker, defender, weapon, false)
@@ -113,7 +112,7 @@ func TestTheDefenseMultiplierOfEveryStance(t *testing.T) {
 	guard := fighter(battle.FactionAlly, battle.Cell{0, 1})
 	guard.HasShield = true
 	b := board(fighter(battle.FactionAlly, battle.Cell{0, 0}), guard)
-	plain, shielded := &b.Units[0], &b.Units[1]
+	plain, shielded := unitOf(b, 0), unitOf(b, 1)
 
 	want := map[battle.Stance]float64{
 		battle.StanceDefend:  formula.DefendMultiplier,
@@ -143,10 +142,10 @@ func TestTheCounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
 	defender.Mech.Weapons = []battle.Weapon{costly, beam(), near}
 	b := board(defender, fighter(battle.FactionEnemy, battle.Cell{2, 0}))
 
-	attacker := b.Units[1].Footprint()
-	first, firstFires := counterWeapon(&b.Units[0], nil, attacker)
-	_, saberFires := counterWeapon(&b.Units[0], idOf(2), attacker)
-	_, costlyFires := counterWeapon(&b.Units[0], idOf(0), attacker)
+	attacker := unitOf(b, 1).Footprint()
+	first, firstFires := counterWeapon(unitOf(b, 0), nil, attacker)
+	_, saberFires := counterWeapon(unitOf(b, 0), idOf(2), attacker)
+	_, costlyFires := counterWeapon(unitOf(b, 0), idOf(0), attacker)
 
 	if !firstFires || first != 1 {
 		t.Fatalf("no choice takes the first weapon that fits: %d %v", first, firstFires)

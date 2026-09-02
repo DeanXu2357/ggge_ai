@@ -34,7 +34,7 @@ func attackOf(pilot *def.Pilot, category battle.WeaponCategory) float64 {
 	return 0
 }
 
-func attackerSide(attacker *state.Unit, weapon def.Weapon) formula.Side {
+func attackerSide(attacker state.Unit, weapon def.Weapon) formula.Side {
 	return formula.Side{
 		PilotAttack:   attackFor(attacker.Pilot, weapon),
 		PilotDefense:  attacker.Pilot.Defense,
@@ -47,7 +47,7 @@ func attackerSide(attacker *state.Unit, weapon def.Weapon) formula.Side {
 
 // No formula reads the pilot attack of the defender, and the weapon of the
 // strike belongs to the attacker, so the defender side carries no attack value.
-func defenderSide(defender *state.Unit) formula.Side {
+func defenderSide(defender state.Unit) formula.Side {
 	return formula.Side{
 		PilotDefense:  defender.Pilot.Defense,
 		PilotReaction: defender.Pilot.Reaction,
@@ -60,13 +60,13 @@ func defenderSide(defender *state.Unit) formula.Side {
 // The terrain correction is NoTerrainCorrection for every weapon. The
 // correction is the effect of a weapon ability that reads the terrain of the
 // cell of the target, and the engine models no ability yet.
-func strikeDamage(attacker, defender *state.Unit, weapon *def.Weapon, defense float64) int {
+func strikeDamage(attacker, defender state.Unit, weapon *def.Weapon, defense float64) int {
 	return formula.StrikeDamage(weapon.Power, attackerSide(attacker, *weapon),
 		defenderSide(defender), formula.NoTerrainCorrection, debuffBonus(defender), 0,
 		defense)
 }
 
-func debuffBonus(defender *state.Unit) float64 {
+func debuffBonus(defender state.Unit) float64 {
 	var sum float64
 	for _, debuff := range defender.Value.Debuffs {
 		sum += debuff.Magnitude
@@ -74,20 +74,20 @@ func debuffBonus(defender *state.Unit) float64 {
 	return sum
 }
 
-func strikeHitProbability(attacker, defender *state.Unit, weapon *def.Weapon, dodging bool) float64 {
+func strikeHitProbability(attacker, defender state.Unit, weapon *def.Weapon, dodging bool) float64 {
 	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(attacker, *weapon),
 		defenderSide(defender), dodging)
 }
 
 // The response attack menu offers no shield stance, so a defender that
 // carries a shield defends with the shield here, in the damage (issue #63).
-func defenseMultiplier(stance battle.Stance, defender *state.Unit) float64 {
+func defenseMultiplier(stance battle.Stance, defender state.Unit) float64 {
 	return formula.DefenseMultiplier(stance == battle.StanceDefend, defender.HasShield)
 }
 
 // A nil weaponID takes the first weapon that fires, as the game does when the
 // defender counters with no choice of its own.
-func counterWeapon(defender *state.Unit, weaponID *int, attacker battle.Footprint) (int, bool) {
+func counterWeapon(defender state.Unit, weaponID *int, attacker battle.Footprint) (int, bool) {
 	distance := geometry.Distance(defender.Footprint(), attacker)
 	for index := range defender.Mech.Weapons {
 		if weaponID != nil && index != *weaponID {
