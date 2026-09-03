@@ -9,8 +9,8 @@ Issue: #92. Branch: issue-92-game-data-db. Status: in-progress.
 Session start 2026-09-03. Worktree added off 'dev' at 4eb94b0. The
 user approved the plan on 2026-09-03 with three rulings (ledger
 0903). Step 1 is eab33c9, step 2 is f9e5357, step 3 is 99c0332, step 4 is
-4de5c2f, step 5 is the next commit. Next: step 6, holding.py,
-load_holding.py, the goldens; the spec is written.
+4de5c2f, step 5 is 6f11e74, step 6 is the next commit. Next: step 7,
+the two Go tests; the spec is written.
 
 The fixture slices moved to the stamp 202609010310 in step 2. The
 site published that stamp between the plan and the step, and one
@@ -204,7 +204,10 @@ decode them without change.
   checked on the device.
 - The weapon level 5 is the full level, and the floored percent is
   the game's rounding (from the #72 branch, unmeasured).
-- 'attack_attr' 5 = ranged and awaken.
+- 'attack_attr' 5 = ranged and awaken; 6 = melee and awaken (the
+  counts at the full table: 5 has 74 rows, 6 has 17).
+- The pilot level cap follows the rarity table (the pilot row carries
+  'rarity'; the site uses one cap table).
 - The star rate applies to EN, ATK, DEF and MOB as to HP (the site
   does this; the device panel of 0829 confirmed HP only).
 
@@ -239,3 +242,15 @@ decode them without change.
   the Zeong 1001003000 HP groups are plain 8032 to 57831 and sp 8936
   to 64337 (growth-model.md example fixed; the earlier 53254 was
   wrong).
+- 2026-09-03: step 6 done. 'holding.py' assembles a holding into the
+  engine payload per growth-model.md; 'Catalog' in 'records.py' reads
+  the same records from the rows without a database (a store test
+  asserts equality with 'Store'); 'scripts/load_holding.py' with
+  '--from-dump'; three goldens in 'tests/fixtures/gamedata/'; 22
+  offline tests. Pinned: Zeong sp+ssp LV100 three stars HP 96479,
+  Zeong (EX) 100478, '5-Barrel' power 4190, 'All-Range Attack SSP'
+  power 5880 EN 54 range 2 to 5 awaken. Decisions: EX attacks (type
+  2) and map weapons (type 3) are stored, not emitted (no engine
+  field; issue #72); 'attack_attr' 5 and 6 map to ranged+awaken and
+  melee+awaken, and the pilot level cap follows the rarity table
+  (hypotheses above).

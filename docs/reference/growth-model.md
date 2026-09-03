@@ -112,15 +112,23 @@ in `sort_order`:
 - `weapon_change`: `before_weapon_id` 0 adds the weapon
   `after_weapon_id` (at the stamp above every row adds; none
   replaces).
-- `weapon_enhance`: `weapon_enhance_type_index` 1 adds `value` to
-  the power, 3 adds `value` to the ammo, 4 adds `value` to
-  `range_max`. Type 2 does not occur at the stamp above.
+- `weapon_enhance`: `weapon_enhance_type_index` 1 adds
+  `effect_value` to the power, 2 takes it off the EN cost, 3 adds it
+  to the ammo, 4 adds it to `range_max`. Only type 1 occurs at the
+  stamp above.
 - `weapon_effect` and `ability_change`: stored, not applied. The
   engine has no field for them (issue #72).
+
+An enhancement applies after the growth rate: the rate scales the
+level-1 value, then the enhancement adds to the result.
 
 The weapons with `is_ssp` true in the weapon table are the SSP
 weapons that a `weapon_change` release adds. The loader takes the
 non-SSP weapons of the unit first, then applies the releases.
+
+The weapon `type` is 1 for a direct weapon, 2 for an EX attack and 3
+for a map weapon. The loader emits the direct weapons alone. The
+other two stay in the store (issue #72).
 
 ## Pilot stats
 

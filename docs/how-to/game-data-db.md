@@ -94,6 +94,55 @@ Remove one stamp:
 
 The constant tables carry no stamp. A delete of a stamp keeps them.
 
+## Load a holding
+
+The loader turns one holding into the payload that the engine loads.
+Name the mech, the level and the pilot:
+
+    uv run python scripts/load_holding.py \
+        --stamp 202609010310 \
+        --unit 1001003000 --level 100 --limit-break 3 \
+        --mech-sp --mech-ssp --weapon-level 5 \
+        --pilot 1001000100 --pilot-level 100 \
+        --supporter 1001000150 --supporter-level 100 \
+        --supporter-limit-break 3
+
+The flags:
+
+| Flag | Meaning |
+|---|---|
+| `--stamp` | the data version stamp to read |
+| `--unit`, `--level` | the mech and its level |
+| `--limit-break` | the star count, 0 to 3, default 0 |
+| `--mech-sp`, `--mech-ssp` | the two upgrades; `--mech-ssp` needs `--mech-sp` |
+| `--weapon-level` | 1 to 5, default 5 |
+| `--pilot`, `--pilot-level` | the pilot and its level |
+| `--supporter` | the support crew, with `--supporter-level` and `--supporter-limit-break` |
+| `--from-dump` | read a datamine dump instead of the database |
+| `--database-url` | override `GGGE_DATABASE_URL` |
+
+`--from-dump DIR` reads the five table files of a dump directly:
+
+    uv run python scripts/load_holding.py --stamp 202609010310 \
+        --from-dump tests/fixtures/datamine \
+        --unit 1001000100 --level 50 --weapon-level 3 \
+        --pilot 1001000200 --pilot-level 30
+
+The script prints one JSON object with three keys:
+
+- `mech`: the wire form of `battle.Mech`;
+- `pilot`: the wire form of `battle.Pilot`;
+- `crew`: `{"hp": n, "attack": n}`, or `null` with no support crew.
+  The wire has no field for the crew bonus, so the loader writes it
+  beside the payload (issue #72).
+
+The `mech.weapons` list holds the direct weapons alone. The datamine
+type 2 (EX attack) and type 3 (map weapon) stay in the store; this
+issue emits neither, and `map_weapons` is always empty.
+
+The golden payloads in `tests/fixtures/gamedata/` come from this
+script against `tests/fixtures/datamine`.
+
 ## Run the store tests
 
 The tests in `tests/test_gamedata_store.py` need a database. Pytest

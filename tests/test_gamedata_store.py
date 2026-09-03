@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from ggge_ai.gamedata.normalize import Dump, normalize, raw_rows
+from ggge_ai.gamedata.records import Catalog
 from ggge_ai.gamedata.store import Store
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "datamine"
@@ -108,3 +109,12 @@ def test_the_support_crew_record_and_its_growth_rate(store):
     assert crew.max_hp_addition == 2000
     assert crew.max_attack_addition == 300
     assert store.supporter_rate(100, 3) == 14000
+
+
+def test_the_catalog_of_the_rows_reads_the_same_records_as_the_store(store, rows):
+    catalog = Catalog.from_rows(rows)
+
+    assert catalog.unit(ZEONG) == store.read_unit(STAMP, ZEONG)
+    assert catalog.pilot(AMURO) == store.read_pilot(STAMP, AMURO)
+    assert catalog.supporter(BRIGHT) == store.read_supporter(STAMP, BRIGHT)
+    assert catalog.supporter_rate(100, 3) == store.supporter_rate(100, 3)

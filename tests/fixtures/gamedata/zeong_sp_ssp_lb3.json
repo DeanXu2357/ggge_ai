@@ -1,0 +1,81 @@
+{
+  "crew": {
+    "attack": 420,
+    "hp": 2800
+  },
+  "mech": {
+    "attack": 10094.0,
+    "defense": 8635.0,
+    "en": 420,
+    "hp": 96479,
+    "map_weapons": [],
+    "mobility": 9627.0,
+    "move_range": 5,
+    "weapons": [
+      {
+        "accuracy": 100.0,
+        "categories": [
+          "ranged"
+        ],
+        "debuff_kind": null,
+        "debuff_magnitude": 0.0,
+        "en_cost": 18,
+        "name": "Head Mega Particle Cannon",
+        "power": 3600.0,
+        "range_max": 3,
+        "range_min": 2,
+        "usable_after_move": true
+      },
+      {
+        "accuracy": 100.0,
+        "categories": [
+          "ranged"
+        ],
+        "debuff_kind": null,
+        "debuff_magnitude": 0.0,
+        "en_cost": 22,
+        "name": "5-Barrel Arm Mega Particle Cannon",
+        "power": 4190.0,
+        "range_max": 4,
+        "range_min": 2,
+        "usable_after_move": true
+      },
+      {
+        "accuracy": 100.0,
+        "categories": [
+          "awaken"
+        ],
+        "debuff_kind": null,
+        "debuff_magnitude": 0.0,
+        "en_cost": 28,
+        "name": "All-Range Attack",
+        "power": 4560.0,
+        "range_max": 5,
+        "range_min": 2,
+        "usable_after_move": true
+      },
+      {
+        "accuracy": 105.0,
+        "categories": [
+          "awaken"
+        ],
+        "debuff_kind": null,
+        "debuff_magnitude": 0.0,
+        "en_cost": 54,
+        "name": "All-Range Attack SSP",
+        "power": 5880.0,
+        "range_max": 5,
+        "range_min": 2,
+        "usable_after_move": true
+      }
+    ]
+  },
+  "pilot": {
+    "awaken": 549.0,
+    "defense": 670.0,
+    "melee": 532.0,
+    "ranged": 571.0,
+    "reaction": 669.0,
+    "sp": 0
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "crew": null,
+  "mech": {
+    "attack": 3002.0,
+    "defense": 2584.0,
+    "en": 144,
+    "hp": 28709,
+    "map_weapons": [],
+    "mobility": 2882.0,
+    "move_range": 4,
+    "weapons": [
+      {
+        "accuracy": 100.0,
+        "categories": [
+          "melee"
+        ],
+        "debuff_kind": null,
+        "debuff_magnitude": 0.0,
+        "en_cost": 23,
+        "name": "Beam Saber",
+        "power": 3630.0,
+        "range_max": 1,
+        "range_min": 1,
+        "usable_after_move": true
+      },
+      {
+        "accuracy": 100.0,
+        "categories": [
+          "ranged"
+        ],
+        "debuff_kind": null,
+        "debuff_magnitude": 0.0,
+        "en_cost": 16,
+        "name": "60mm Vulcan Gun",
+        "power": 2750.0,
+        "range_max": 2,
+        "range_min": 1,
+        "usable_after_move": true
+      },
+      {
+        "accuracy": 100.0,
+        "categories": [
+          "ranged"
+        ],
+        "debuff_kind": null,
+        "debuff_magnitude": 0.0,
+        "en_cost": 25,
+        "name": "Beam Rifle",
+        "power": 3520.0,
+        "range_max": 4,
+        "range_min": 2,
+        "usable_after_move": true
+      }
+    ]
+  },
+  "pilot": {
+    "awaken": 98.0,
+    "defense": 163.0,
+    "melee": 124.0,
+    "ranged": 145.0,
+    "reaction": 162.0,
+    "sp": 0
+  }
+}
