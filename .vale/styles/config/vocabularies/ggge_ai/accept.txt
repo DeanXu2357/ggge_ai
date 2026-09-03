@@ -17,7 +17,9 @@ mechs
 mech_id
 nullable
 pilot_id
+soshage
 unit_id
 untracked
 worktree
 worktrees
+Zeong
