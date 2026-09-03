@@ -8,7 +8,18 @@ Issue: #92. Branch: issue-92-game-data-db. Status: in-progress.
 
 Session start 2026-09-03. Worktree added off 'dev' at 4eb94b0. The
 user approved the plan on 2026-09-03 with three rulings (ledger
-0903). Next: step 2, the crawler.
+0903). Step 1 is eab33c9. Next: step 3, compose and the migrations.
+
+The fixture slices moved to the stamp 202609010310 in step 2. The
+site published that stamp between the plan and the step, and one
+slice must come from one stamp. The Zeong 1001003000 core releases
+at that stamp: core 1 = weapon_change (adds 100100300090 "All-Range
+Attack SSP", is_ssp true in the weapon table) and weapon_enhance
+(+175 power on 100100300002); core 5 = terrain; core 10 =
+weapon_effect and a second +175 on 100100300002; cores 15 and 20
+hold no release. The release rows nest their payload under the key
+of the kind ('weapon_change', 'weapon_enhance', 'status_up',
+'terrain', 'weapon_effect', 'ability_change').
 
 ## Recon facts (2026-09-03)
 
@@ -191,3 +202,8 @@ decode them without change.
 - 2026-09-03: worktree, this file, the state block on the issue,
   recon, the plan, the user's three rulings. Step 1 done: the ledger
   entries 0902 and 0903, six terminology rows.
+- 2026-09-03: step 2 done. 'supporter' and 'supporter_growth' in
+  'TABLE_PATHS'; the fixture slices re-recorded at 202609010310 with
+  the two Zeong rows, their 16 weapons, one support crew and the 400
+  growth rows; datamine-source.md counts nine requests, 95 MB, eight
+  files, seven sources.

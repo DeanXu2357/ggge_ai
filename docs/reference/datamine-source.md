@@ -22,7 +22,9 @@ the source itself.
   the publisher of the game.
 - The licence is not stated on the site. Not verified.
 - The rate limit is not stated on the site. Not verified. One run of
-  the crawler makes six requests and downloads about 71 MB.
+  the crawler makes nine requests and downloads about 95 MB. The
+  formula page alone is 21 MB. Measured on 2026-09-03 at the stamp
+  `202609010310`.
 
 ## The data version stamp
 
@@ -33,24 +35,28 @@ the source itself.
 ```
 
 The same value is in the payload of every rendered page, in the
-field `remoteVersion`. The four data addresses carry no stamp of
+field `remoteVersion`. The six data addresses carry no stamp of
 their own.
 
 The crawler names the dump directory with the stamp. A game patch
 changes the stamp, so a new dump lands beside the old one.
 
-## The five sources
+## The seven sources
 
 The row counts come from a crawl on 2026-08-22, at the stamp
-`202608161248`.
+`202608161248`, and from a read on 2026-09-03, at the stamp
+`202609010310`. The two support crew addresses joined the crawler
+on 2026-09-03 (issue #92), so their first column holds no count.
 
-| Name | Address | Form | Rows |
-|---|---|---|---|
-| unit | `/ggetapi/en/unit` | JSON array | 1226 |
-| weapon | `/ggetapi/en/weapon` | JSON object | 4785 weapons, 1342 units |
-| stage | `/ggetapi/en/stage` | JSON array | 2104 |
-| character | `/ggetapi/en/character` | JSON array | 583 |
-| formula | `/gget/formula` | HTML page | 17 formula lines, 3 notes |
+| Name | Address | Form | Rows at 202608161248 | Rows at 202609010310 |
+|---|---|---|---|---|
+| unit | `/ggetapi/en/unit` | JSON array | 1226 | 1237 |
+| weapon | `/ggetapi/en/weapon` | JSON object | 4785 weapons, 1342 units | 4835 weapons, 1354 units |
+| stage | `/ggetapi/en/stage` | JSON array | 2104 | 2137 |
+| character | `/ggetapi/en/character` | JSON array | 583 | 593 |
+| supporter | `/ggetapi/en/supporter` | JSON array | — | 87 |
+| supporter_growth | `/ggetapi/en/supporter/growth` | JSON array | — | 400 |
+| formula | `/gget/formula` | HTML page | 17 formula lines, 3 notes | 17 formula lines, 3 notes |
 
 The formula address is a rendered page, not an API. The page also
 embeds prefetched API payloads, and the server writes those in the
@@ -58,9 +64,18 @@ order in which they complete. Two fetches of the page therefore give
 different bytes. The formula tab of the page is static markup, and
 the crawler stores that tab alone.
 
-The four API addresses give the same bytes for two fetches at the
-same stamp. This was measured on 2026-08-22 for `unit` and `stage`,
-and on 2026-08-28 for `character`.
+The API addresses give the same bytes for two fetches at the same
+stamp. This was measured on 2026-08-22 for `unit` and `stage`, and
+on 2026-08-28 for `character`. The two support crew addresses were
+not measured.
+
+The support crew growth address gives one row for each pair of a
+level, 1 to 100, and a limit-break step, 0 to 3: `level`,
+`limit_break` and `correction_rate`. The rate is in units of one
+ten-thousandth: 2000 at level 1 step 0, and 14000 at level 100
+step 3. The site's code reads the flat bonus of a support crew as
+`floor(max_addition_value × correction_rate / 10000)`. The growth
+model is in `docs/reference/growth-model.md`.
 
 The unit table and the weapon table do not hold the same set of
 units. The weapon table names 1342 owners. The unit table holds
@@ -78,7 +93,6 @@ same stamp, read these addresses. The crawler does not fetch them.
 |---|---|---|
 | `/ggetapi/en/unit/{id}` | JSON object | One unit, with its weapons in full |
 | `/ggetapi/en/character/{id}` | JSON object | One pilot |
-| `/ggetapi/en/supporter` | JSON array | 86 support crews |
 | `/ggetapi/en/supporter/{id}` | JSON object | One support crew |
 
 The datamine names a pilot "character" and a support crew
@@ -420,8 +434,9 @@ rides, and it can require a tag of the enemy (`target`
 
 ## The support crew row
 
-The address `/ggetapi/en/supporter` gives 86 rows: 47 UR, 31 SSR
-and 8 SR.
+The address `/ggetapi/en/supporter` gave 86 rows at the stamp
+`202608161248`: 47 UR, 31 SSR and 8 SR. It gives 87 rows at the
+stamp `202609010310`.
 
 | Group | Fields |
 |---|---|
@@ -578,7 +593,7 @@ Two statements differ from that document:
 
 ## What the crawler stores
 
-One run writes six files into `data/datamine/<stamp>/`:
+One run writes eight files into `data/datamine/<stamp>/`:
 
 | File | Content |
 |---|---|
@@ -586,6 +601,8 @@ One run writes six files into `data/datamine/<stamp>/`:
 | `weapon.json` | The weapon payload, written again |
 | `stage.json` | The stage payload, written again |
 | `character.json` | The pilot payload, written again |
+| `supporter.json` | The support crew payload, written again |
+| `supporter_growth.json` | The support crew growth payload, written again |
 | `formula.json` | The formula lines and the notes, read from the page |
 | `manifest.json` | The stamp, the crawled address, the address of each file, the row counts, the byte count and the SHA-256 |
 
@@ -600,11 +617,11 @@ stamp therefore give the same bytes, and a byte compare answers the
 drift question. The crawler prints the start time to stdout
 instead.
 
-The crawler reads the stamp a second time, after the five payloads.
-A new stamp at that moment stops the run, because the five payloads
+The crawler reads the stamp a second time, after the seven payloads.
+A new stamp at that moment stops the run, because the seven payloads
 can then hold two versions.
 
-A run at a stamp that already has a directory overwrites the six
+A run at a stamp that already has a directory overwrites the eight
 files. It removes no other file of that directory. Give `--out` a
 second root to keep both dumps for a comparison.
 
@@ -807,7 +824,7 @@ Weapon, from the unit detail form:
 | Ability text | Full, as English text in `abilities` and `mechanism` |
 | Charge counts | None as a number. The text of an ability row states them |
 | Board state | None, and it must stay none. Position, current HP and the acted flag come from the screen |
-| Support crew | None. The crew is at `/ggetapi/en/supporter` |
+| Support crew | Full. The crew row holds the two addition values, and the growth table holds the rate |
 
 The intel spec records a sampling result of 2026-07-30: the mech
 panel of the game has no reaction column. The datamine agrees. The
