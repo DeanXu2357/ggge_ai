@@ -9,8 +9,9 @@ Issue: #92. Branch: issue-92-game-data-db. Status: in-progress.
 Session start 2026-09-03. Worktree added off 'dev' at 4eb94b0. The
 user approved the plan on 2026-09-03 with three rulings (ledger
 0903). Step 1 is eab33c9, step 2 is f9e5357, step 3 is 99c0332, step 4 is
-4de5c2f, step 5 is 6f11e74, step 6 is the next commit. Next: step 7,
-the two Go tests; the spec is written.
+4de5c2f, step 5 is 6f11e74, step 6 is a856b53, step 7 is the next
+commit. Next: step 8, the document pass; then step 9, the review
+artifact and '/finish-task'.
 
 The fixture slices moved to the stamp 202609010310 in step 2. The
 site published that stamp between the plan and the step, and one
@@ -254,3 +255,10 @@ decode them without change.
   field; issue #72); 'attack_attr' 5 and 6 map to ranged+awaken and
   melee+awaken, and the pilot level cap follows the rarity table
   (hypotheses above).
+- 2026-09-03: step 7 done. 'engine/battle/state/payload_test.go'
+  decodes every golden with 'DisallowUnknownFields' on the mech and
+  the pilot (the crew key is dropped by design), runs the contract
+  conversion, and pins the Zeong SSP weapon and the Zeong (EX) HP;
+  'engine/boundary_test.go' parses the 73 Go files of the engine and
+  rejects every import outside the standard library and the module.
+  'go vet ./...' and 'go test ./...' pass.
