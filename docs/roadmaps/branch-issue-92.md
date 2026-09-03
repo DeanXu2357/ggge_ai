@@ -8,7 +8,9 @@ Issue: #92. Branch: issue-92-game-data-db. Status: in-progress.
 
 Session start 2026-09-03. Worktree added off 'dev' at 4eb94b0. The
 user approved the plan on 2026-09-03 with three rulings (ledger
-0903). Step 1 is eab33c9, step 2 is f9e5357. Next: step 4, growth.py.
+0903). Step 1 is eab33c9, step 2 is f9e5357, step 3 is 99c0332, step 4 is
+the next commit. Next: step 5, normalize.py, store.py and the ingest
+script; the spec is written.
 
 The fixture slices moved to the stamp 202609010310 in step 2. The
 site published that stamp between the plan and the step, and one
@@ -222,3 +224,8 @@ decode them without change.
   additions over the plan: 'tag', 'pilot_series', 'weapon_trait';
   the SSP core key is (unit_id, level); 'holding' carries the
   support crew columns.
+- 2026-09-03: step 4 done. 'gamedata/growth.py' holds the 100-entry
+  level curve (equal to the site table), the caps, the limit break
+  rates and the integer formulas; nine tests; 'gamedata' joined
+  'NEW_MODULES'. 'docs/reference/growth-model.md' written early, from
+  the site chunks, so that the module docstring points at a real file.

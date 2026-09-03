@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "src" / "ggge_ai"
-NEW_MODULES = ("contracts.py", "stage", "runtime", "engine")
+NEW_MODULES = ("contracts.py", "stage", "runtime", "engine", "gamedata")
 FROZEN = {
     "domain",
     "vision",
