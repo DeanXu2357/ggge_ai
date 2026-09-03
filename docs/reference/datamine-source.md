@@ -210,7 +210,8 @@ The unit row holds no pilot. It holds no reaction value.
 2026-08-28, every map weapon has `type` 3, and no other weapon has
 it. The Ex weapon of Gundam (EX), "Beam Saber EX", has `type` 2.
 `type` 1 is the rest. The map 1 normal, 2 Ex, 3 map weapon is a
-hypothesis from that sample.
+hypothesis from that sample; the full table at the stamp
+202609010310 supports it (see the counts below).
 
 `weapon_attr` is the damage attribute that the site writes in angle
 brackets after the weapon name. Verified on 2026-08-28 on the
@@ -253,11 +254,13 @@ issue #92 maps 5 to 射擊、覺醒 and 6 to 格鬥、覺醒 as hypotheses
 field is `categories` of the weapon payload. `work_type`
 (five values) is not verified.
 
-`type` has three values at the stamp 202609010310. Value 1 is the
-direct weapon (4519 rows). Value 2 is the Ex weapon (82 rows; every
-name ends with "EX"; none has `is_ssp`). Value 3 is the map weapon
-(234 rows). The loader of issue #92 emits value 1 alone
-(docs/reference/growth-model.md).
+`type` has three values at the stamp 202609010310: 1 on 4519 rows,
+2 on 82 rows, 3 on 234 rows. Every name of value 2 ends with "EX"
+and none has `is_ssp`; the site names the Ex weapons so. This is
+the second source of the hypothesis above; no rendered page was
+checked for value 2. The loader of issue #92 emits value 1 alone
+(docs/reference/growth-model.md), so a direct weapon that carried
+value 2 would leave the payload with no error.
 
 `ammo` is the ammunition count. The user ruled on 2026-08-28 that a
 map weapon needs both the energy and one round: "必須有足夠的 en 並且
@@ -707,8 +710,8 @@ Divergences:
   `docs/spec/intel-data-spec.md` already marks the panel column
   "爆擊%" as outside the specification.
 - The engine field `map_weapon` has no boolean here. The list
-  endpoint gives `type` and `work_type`, and their meaning is not
-  verified. The unit detail form gives three `map_weapon_` fields.
+  endpoint gives `type` (the hypothesis above) and `work_type` (not
+  verified). The unit detail form gives three `map_weapon_` fields.
 - The engine field `usable_after_move` matches
   `map_weapon_can_use_after_move` of the unit detail form. The
   datamine therefore carries the permission for each weapon, and
@@ -842,7 +845,9 @@ unit row holds no reaction value.
 
 - The licence of the site and its rate limit.
 - The meaning of the weapon enum `work_type`, the value 5 of
-  `weapon_attr`, and the values 5 and 6 of `attack_attr`.
+  `weapon_attr`, the values 5 and 6 of `attack_attr`, and the
+  values 1 and 2 of `type` (a hypothesis with two sources, not a
+  page check).
 - The cell the offsets of `map_weapon_effect_range` and of
   `map_weapon_shooting_range` are relative to, and the meaning of
   `map_weapon_range` and `map_weapon_trait`.

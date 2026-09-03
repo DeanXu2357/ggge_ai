@@ -46,7 +46,7 @@ CREATE TABLE pilot_ability (
     sort integer NOT NULL,
     ability_id bigint NOT NULL,
     level integer NOT NULL,
-    payload jsonb NOT NULL,
+    payload jsonb,
     PRIMARY KEY (stamp, pilot_id, sort),
     FOREIGN KEY (stamp, pilot_id) REFERENCES pilot (stamp, id) ON DELETE CASCADE
 );

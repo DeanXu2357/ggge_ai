@@ -93,6 +93,10 @@ Remove one stamp:
         "from ggge_ai.gamedata.store import Store; Store().delete_stamp('202609010310')"
 
 The constant tables carry no stamp. A delete of a stamp keeps them.
+These are the three tables of `growth.py`: `level_curve`,
+`limit_break_rate` and `rarity_level_cap`. The support crew growth
+table `supporter_growth` comes from the dump, so it carries the stamp
+like the rest. A delete of a stamp removes its rows.
 
 ## Load a holding
 
@@ -117,7 +121,7 @@ The flags:
 | `--mech-sp`, `--mech-ssp` | the two upgrades; `--mech-ssp` needs `--mech-sp` |
 | `--weapon-level` | 1 to 5, default 5 |
 | `--pilot`, `--pilot-level` | the pilot and its level |
-| `--supporter` | the support crew, with `--supporter-level` and `--supporter-limit-break` |
+| `--supporter` | the support crew, with the two flags that it needs: `--supporter-level` and `--supporter-limit-break`. Give the three flags together, or give none of them |
 | `--from-dump` | read a datamine dump instead of the database |
 | `--database-url` | override `GGGE_DATABASE_URL` |
 
@@ -152,5 +156,6 @@ set. Set the variable to run them:
     GGGE_DATABASE_URL=postgresql://ggge:ggge@localhost:5432/ggge \
         uv run pytest -q tests/test_gamedata_store.py
 
-The tests write the stamp `test-202609010310` and delete it at the
-end. They touch no other stamp.
+The tests write the stamps `test-202609010310` and
+`test-holding-202609010310` and delete them at the end. They touch no
+other stamp.

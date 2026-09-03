@@ -81,7 +81,7 @@ COLUMNS: dict[str, tuple[str, ...]] = {
     "pilot_skill": ("stamp", "pilot_id", "sort", "skill_id", "level", "payload"),
     "supporter": ("stamp", "id", "name", "rarity", "max_hp_addition", "max_attack_addition"),
     "supporter_limit_break": ("stamp", "supporter_id", "step", "leader_skill", "active_skill"),
-    "supporter_growth": ("level", "limit_break", "correction_rate"),
+    "supporter_growth": ("stamp", "level", "limit_break", "correction_rate"),
 }
 
 RAW_COLUMNS: tuple[str, ...] = ("stamp", "source_table", "row_key", "payload")
@@ -141,7 +141,8 @@ def normalize(stamp: str, dump: Dump) -> Rows:
     for supporter in dump.supporter:
         _add_supporter(stamp, supporter, tables)
     tables["supporter_growth"] = [
-        (row["level"], row["limit_break"], row["correction_rate"]) for row in dump.supporter_growth
+        (stamp, row["level"], row["limit_break"], row["correction_rate"])
+        for row in dump.supporter_growth
     ]
     tables["tag"] = [(stamp, tag_id, tags[tag_id]) for tag_id in sorted(tags)]
     return Rows(stamp=stamp, tables=tables)
@@ -151,12 +152,22 @@ def raw_rows(stamp: str, name: str, payload: Any) -> list[tuple]:
     if name == "weapon":
         rows = [(stamp, "weapon", str(row["id"]), row) for row in payload["weapons"]]
         rows.extend((stamp, "weapon_unit", key, value) for key, value in payload["units"].items())
-        return rows
-    if not isinstance(payload, list):
-        return [(stamp, name, name, payload)]
-    if name == "supporter_growth":
-        return [(stamp, name, f"{row['level']}-{row['limit_break']}", row) for row in payload]
-    return [(stamp, name, str(row.get("id", index)), row) for index, row in enumerate(payload)]
+    elif not isinstance(payload, list):
+        rows = [(stamp, name, name, payload)]
+    elif name == "supporter_growth":
+        rows = [(stamp, name, f"{row['level']}-{row['limit_break']}", row) for row in payload]
+    else:
+        rows = [(stamp, name, str(row.get("id", index)), row) for index, row in enumerate(payload)]
+    return _one_row_for_each_key(rows)
+
+
+def _one_row_for_each_key(rows: list[tuple]) -> list[tuple]:
+    seen: set[tuple[str, str]] = set()
+    for _, source, key, _payload in rows:
+        if (source, key) in seen:
+            raise ValueError(f"source {source}: two rows share the key {key}")
+        seen.add((source, key))
+    return rows
 
 
 def _stat_rows(stamp: str, owner_id: int, stats: dict, names: tuple[str, ...]) -> list[tuple]:

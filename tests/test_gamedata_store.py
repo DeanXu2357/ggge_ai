@@ -9,18 +9,18 @@ import json
 import os
 from pathlib import Path
 
+import psycopg
 import pytest
 
 from ggge_ai.gamedata.normalize import Dump, normalize, raw_rows
 from ggge_ai.gamedata.records import Catalog
-from ggge_ai.gamedata.store import Store
+from ggge_ai.gamedata.store import Store, database_url
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "datamine"
 STAMP = "test-202609010310"
+HOLDING_STAMP = "test-holding-202609010310"
 ZEONG = 1001003000
-ZEONG_SSP_WEAPON = 100100300090
 AMURO = 1001000100
-BRIGHT = 1001000150
 RAW_SOURCES = ("unit", "weapon", "character", "supporter", "supporter_growth", "stage")
 
 pytestmark = pytest.mark.skipif(
@@ -51,6 +51,12 @@ def store(rows, raw):
         opened.delete_stamp(STAMP)
 
 
+@pytest.fixture
+def connection():
+    with psycopg.connect(database_url(), autocommit=True) as opened:
+        yield opened
+
+
 def test_the_written_stamp_holds_every_normalized_row(store, rows, raw):
     counts = store.counts(STAMP)
 
@@ -69,52 +75,64 @@ def test_a_second_write_of_the_same_stamp_keeps_the_same_counts(store, rows, raw
     assert store.counts(STAMP) == before
 
 
-def test_the_unit_record_carries_its_stats_its_cores_and_its_weapons(store):
-    unit = store.read_unit(STAMP, ZEONG)
-
-    assert unit.name == "Zeong"
-    assert len(unit.stats) == 6
-    assert unit.stats["hp"].base == 8032
-    assert unit.ssp_stats["hp"].max == 4577
-    assert [(item.core_level, item.sort_order, item.kind) for item in unit.releases] == [
-        (0, 1, "ability_change"),
-        (1, 1, "weapon_change"),
-        (1, 2, "weapon_enhance"),
-        (5, 1, "terrain"),
-        (10, 1, "weapon_effect"),
-        (10, 2, "weapon_enhance"),
-    ]
-    assert len(unit.weapons) == 4
-    ssp = next(weapon for weapon in unit.weapons if weapon.id == ZEONG_SSP_WEAPON)
-    assert ssp.is_ssp is True
-    assert ssp.growth[5].power_rate == 120
+def test_the_catalog_of_the_read_rows_equals_the_catalog_of_the_written_rows(store, rows):
+    assert Catalog.from_rows(store.read_rows(STAMP)) == Catalog.from_rows(rows)
 
 
-def test_a_unit_that_the_stamp_does_not_hold_is_no_record(store):
+def test_the_read_rows_carry_the_records_of_the_fixture(store):
+    catalog = Catalog.from_rows(store.read_rows(STAMP))
+
+    assert catalog.unit(ZEONG).name == "Zeong"
+    assert catalog.pilot(AMURO).stats["ranged"].base == 126
+    assert catalog.supporter_rate(100, 3) == 14000
+
+
+def test_a_stamp_that_the_store_does_not_hold_is_no_rows(store):
     with pytest.raises(LookupError):
-        store.read_unit(STAMP, 1)
+        store.read_rows("no-such-stamp")
 
 
-def test_the_pilot_record_carries_its_five_stats(store):
-    pilot = store.read_pilot(STAMP, AMURO)
+def test_the_constant_tables_hold_the_growth_model(store, connection):
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT count(*) FROM level_curve")
+        levels = cursor.fetchone()[0]
+        cursor.execute("SELECT cap FROM rarity_level_cap WHERE rarity = 4")
+        cap = cursor.fetchone()[0]
 
-    assert pilot.name == "Amuro Ray"
-    assert len(pilot.stats) == 5
-    assert pilot.stats["ranged"].base == 126
-
-
-def test_the_support_crew_record_and_its_growth_rate(store):
-    crew = store.read_supporter(STAMP, BRIGHT)
-
-    assert crew.max_hp_addition == 2000
-    assert crew.max_attack_addition == 300
-    assert store.supporter_rate(100, 3) == 14000
+    assert levels > 0
+    assert cap > 0
 
 
-def test_the_catalog_of_the_rows_reads_the_same_records_as_the_store(store, rows):
-    catalog = Catalog.from_rows(rows)
+def test_a_delete_of_the_stamp_clears_the_holding_rows(connection):
+    other = normalize(HOLDING_STAMP, Dump.read(FIXTURES))
+    with Store() as store:
+        store.write_stamp(other, [])
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO holding (stamp, unit_id, level, pilot_id, pilot_level)"
+                " VALUES (%s, %s, %s, %s, %s)",
+                (HOLDING_STAMP, ZEONG, 100, AMURO, 100),
+            )
 
-    assert catalog.unit(ZEONG) == store.read_unit(STAMP, ZEONG)
-    assert catalog.pilot(AMURO) == store.read_pilot(STAMP, AMURO)
-    assert catalog.supporter(BRIGHT) == store.read_supporter(STAMP, BRIGHT)
-    assert catalog.supporter_rate(100, 3) == store.supporter_rate(100, 3)
+        store.write_stamp(other, [])
+        store.delete_stamp(HOLDING_STAMP)
+
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT count(*) FROM holding WHERE stamp = %s", (HOLDING_STAMP,))
+            assert cursor.fetchone()[0] == 0
+        assert HOLDING_STAMP not in store.stamps()
+
+
+def test_a_null_skill_and_a_null_ability_reach_the_database_as_null(store, connection):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*) FROM pilot_skill WHERE stamp = %s AND payload IS NULL", (STAMP,)
+        )
+        skills = cursor.fetchone()[0]
+        cursor.execute(
+            "SELECT count(*) FROM pilot_ability WHERE stamp = %s AND payload IS NULL", (STAMP,)
+        )
+        abilities = cursor.fetchone()[0]
+
+    assert skills == 2
+    assert abilities == 3

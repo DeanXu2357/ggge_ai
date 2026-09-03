@@ -106,7 +106,7 @@ class Catalog:
             units=_unit_records(tables, _weapon_records(tables)),
             pilots=_pilot_records(tables),
             supporters=_supporter_records(tables),
-            supporter_rates={(row[0], row[1]): row[2] for row in tables["supporter_growth"]},
+            supporter_rates=_supporter_rates(tables),
         )
 
     def unit(self, unit_id: int) -> UnitRecord:
@@ -238,6 +238,14 @@ def _pilot_records(tables: dict[str, list[tuple]]) -> dict[int, PilotRecord]:
             stats=stats.get(row[index["id"]], {}),
         )
         for row in tables["pilot"]
+    }
+
+
+def _supporter_rates(tables: dict[str, list[tuple]]) -> dict[tuple[int, int], int]:
+    index = _fields("supporter_growth")
+    return {
+        (row[index["level"]], row[index["limit_break"]]): row[index["correction_rate"]]
+        for row in tables["supporter_growth"]
     }
 
 

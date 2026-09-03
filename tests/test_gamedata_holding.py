@@ -32,7 +32,7 @@ AMURO_R = 1001000101
 KAI = 1001000200
 BRIGHT = 1001000150
 
-ZEONG_ARGV = [
+ZEONG_BASE = [
     "--stamp", STAMP,
     "--from-dump", str(DATAMINE),
     "--unit", str(ZEONG),
@@ -43,6 +43,10 @@ ZEONG_ARGV = [
     "--weapon-level", "5",
     "--pilot", str(AMURO),
     "--pilot-level", "100",
+]
+
+ZEONG_ARGV = [
+    *ZEONG_BASE,
     "--supporter", str(BRIGHT),
     "--supporter-level", "100",
     "--supporter-limit-break", "3",
@@ -244,6 +248,20 @@ def test_an_unknown_attack_attribute_is_no_weapon(catalog):
         assemble(zeong_holding(supporter_id=None), changed, catalog.pilot(AMURO), None, None)
 
 
+def test_the_attack_attributes_five_and_six_pair_awaken_by_hypothesis(catalog):
+    unit = catalog.unit(ZEONG)
+    holding = zeong_holding(supporter_id=None, mech_ssp=False)
+
+    def categories(attack_attr: int) -> list[str]:
+        weapon = dataclasses.replace(unit.weapons[0], attack_attr=attack_attr)
+        changed = dataclasses.replace(unit, weapons=(weapon, *unit.weapons[1:]))
+        built = assemble(holding, changed, catalog.pilot(AMURO), None, None)
+        return built.mech.weapons[0].categories
+
+    assert categories(5) == ["ranged", "awaken"]
+    assert categories(6) == ["melee", "awaken"]
+
+
 def test_the_pilot_follows_the_level_curve_of_its_rarity(catalog):
     record = catalog.pilot(AMURO)
     cap = growth.level_cap(record.rarity)
@@ -272,3 +290,19 @@ def test_the_payload_decodes_back_into_the_engine_state(catalog):
 
 def test_the_script_reads_a_dump_and_prints_the_golden(catalog):
     assert run(ZEONG_ARGV) == golden("zeong_sp_ssp_lb3")
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--supporter", str(BRIGHT)],
+        ["--supporter", str(BRIGHT), "--supporter-level", "100"],
+        ["--supporter", str(BRIGHT), "--supporter-limit-break", "3"],
+        ["--supporter-level", "100"],
+        ["--supporter-limit-break", "3"],
+        ["--supporter-level", "100", "--supporter-limit-break", "3"],
+    ],
+)
+def test_the_support_crew_flags_travel_together(flags):
+    with pytest.raises(SystemExit):
+        run([*ZEONG_BASE, *flags])

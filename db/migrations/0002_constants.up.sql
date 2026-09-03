@@ -12,10 +12,3 @@ CREATE TABLE rarity_level_cap (
     rarity integer PRIMARY KEY,
     cap integer NOT NULL
 );
-
-CREATE TABLE supporter_growth (
-    level integer NOT NULL,
-    limit_break integer NOT NULL,
-    correction_rate integer NOT NULL,
-    PRIMARY KEY (level, limit_break)
-);

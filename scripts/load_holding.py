@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass
 from pathlib import Path
 
 from ggge_ai.gamedata.holding import Holding, assemble, payload
@@ -22,38 +21,18 @@ from ggge_ai.gamedata.records import Catalog
 from ggge_ai.gamedata.store import Store
 
 
-@dataclass(frozen=True)
-class StampedStore:
-    """The store bound to one stamp, in the read shape that 'load' wants."""
-
-    store: Store
-    stamp: str
-
-    def unit(self, unit_id: int):
-        return self.store.read_unit(self.stamp, unit_id)
-
-    def pilot(self, pilot_id: int):
-        return self.store.read_pilot(self.stamp, pilot_id)
-
-    def supporter(self, supporter_id: int):
-        return self.store.read_supporter(self.stamp, supporter_id)
-
-    def supporter_rate(self, level: int, limit_break: int) -> int:
-        return self.store.supporter_rate(level, limit_break)
-
-
-def load(holding: Holding, source) -> dict:
+def load(holding: Holding, catalog: Catalog) -> dict:
     supporter = None
     supporter_rate = None
     if holding.supporter_id is not None:
-        supporter = source.supporter(holding.supporter_id)
-        supporter_rate = source.supporter_rate(
+        supporter = catalog.supporter(holding.supporter_id)
+        supporter_rate = catalog.supporter_rate(
             holding.supporter_level, holding.supporter_limit_break
         )
     assembled = assemble(
         holding,
-        source.unit(holding.unit_id),
-        source.pilot(holding.pilot_id),
+        catalog.unit(holding.unit_id),
+        catalog.pilot(holding.pilot_id),
         supporter,
         supporter_rate,
     )
@@ -72,15 +51,31 @@ def parser() -> argparse.ArgumentParser:
     built.add_argument("--mech-ssp", action="store_true")
     built.add_argument("--weapon-level", type=int, default=5)
     built.add_argument("--supporter", type=int)
-    built.add_argument("--supporter-level", type=int, default=1)
-    built.add_argument("--supporter-limit-break", type=int, default=0)
+    built.add_argument("--supporter-level", type=int)
+    built.add_argument("--supporter-limit-break", type=int)
     built.add_argument("--from-dump", type=Path)
     built.add_argument("--database-url")
     return built
 
 
+def _crew_flags(built: argparse.ArgumentParser, args: argparse.Namespace) -> dict:
+    named = args.supporter_level is not None or args.supporter_limit_break is not None
+    if args.supporter is None:
+        if named:
+            built.error("--supporter-level and --supporter-limit-break need --supporter")
+        return {}
+    if args.supporter_level is None or args.supporter_limit_break is None:
+        built.error("--supporter needs --supporter-level and --supporter-limit-break")
+    return {
+        "supporter_id": args.supporter,
+        "supporter_level": args.supporter_level,
+        "supporter_limit_break": args.supporter_limit_break,
+    }
+
+
 def run(argv: list[str] | None = None) -> dict:
-    args = parser().parse_args(argv)
+    built = parser()
+    args = built.parse_args(argv)
     holding = Holding(
         stamp=args.stamp,
         unit_id=args.unit,
@@ -91,15 +86,12 @@ def run(argv: list[str] | None = None) -> dict:
         mech_sp=args.mech_sp,
         mech_ssp=args.mech_ssp,
         weapon_level=args.weapon_level,
-        supporter_id=args.supporter,
-        supporter_level=args.supporter_level,
-        supporter_limit_break=args.supporter_limit_break,
+        **_crew_flags(built, args),
     )
     if args.from_dump is not None:
-        catalog = Catalog.from_rows(normalize(holding.stamp, Dump.read(args.from_dump)))
-        return load(holding, catalog)
+        return load(holding, Catalog.from_rows(normalize(holding.stamp, Dump.read(args.from_dump))))
     with Store(args.database_url) as store:
-        return load(holding, StampedStore(store, holding.stamp))
+        return load(holding, Catalog.from_rows(store.read_rows(holding.stamp)))
 
 
 def main() -> None:

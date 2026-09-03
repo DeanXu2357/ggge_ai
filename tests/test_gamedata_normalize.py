@@ -165,8 +165,8 @@ def test_the_support_crew_tables_hold_the_additions_and_the_growth_table(rows):
     assert [row[2] for row in _table(rows, "supporter_limit_break")] == [0, 1, 2, 3]
     growth = _table(rows, "supporter_growth")
     assert len(growth) == 400
-    assert growth[0] == (1, 0, 2000)
-    assert growth[-1] == (100, 3, 14000)
+    assert growth[0] == (STAMP, 1, 0, 2000)
+    assert growth[-1] == (STAMP, 100, 3, 14000)
 
 
 def test_the_raw_rows_key_every_source_row(rows):
@@ -179,3 +179,10 @@ def test_the_raw_rows_key_every_source_row(rows):
     assert len([row for row in weapons if row[1] == "weapon"]) == 16
     assert len([row for row in weapons if row[1] == "weapon_unit"]) == 4
     assert [row[1:3] for row in formula] == [("formula", "formula")]
+
+
+def test_two_source_rows_that_share_a_key_stop_the_raw_rows():
+    twice = [{"id": 7, "name": "first"}, {"id": 7, "name": "second"}]
+
+    with pytest.raises(ValueError, match="character.*7"):
+        raw_rows(STAMP, "character", twice)

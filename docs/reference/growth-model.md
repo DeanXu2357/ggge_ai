@@ -44,8 +44,10 @@ values.
 | 4 | 90 |
 | 5 | 100 |
 
-The cap becomes 100 when the mech has `mech_sp` or `mech_ssp`. The
-table `rarity_level_cap` holds the five rows.
+The cap becomes 100 when the mech has `mech_sp` or `mech_ssp`, or
+when the unit row carries `ult` true (plan approved 2026-09-03,
+source `C5zmT3sP2.js`). The table `rarity_level_cap` holds the five
+rows.
 
 ## Mech stats
 
@@ -68,7 +70,9 @@ The assembly, in order:
    others are 1 hp, 2 en, 3 attack, 4 defense, 5 mobility. At stamp
    202609010310 every `status_up` release is type 6.
 4. Limit break. Multiply hp, en, attack, defense and mobility by the
-   rate of the star count and floor. Movement is not scaled.
+   rate of the star count and floor. Movement is not scaled. When
+   the unit row carries `ult` true, the star count is 0 whatever
+   the holding says (plan approved 2026-09-03).
 
 | Stars | Rate |
 |---|---|
@@ -90,9 +94,11 @@ shows (issue #92).
 Hypothesis (source: `C5zmT3sP2.js` sets the star select to '3'
 when `mech_sp` and rarity below 5, and to '0' when `ult`): the game
 gives a below-UR mech its three stars as part of `mech_sp`, and an
-ult mech has no limit break. The loader takes the star count from
-the holding row and does not force it. Verify on the device before
-you depend on it.
+ult mech has no limit break. The loader forces the `ult` rule (0
+stars, cap 100) and does not force the three stars: it takes the
+star count of a below-UR mech from the holding row. No unit of the
+fixture slice carries `ult`; verify on the device before you depend
+on it.
 
 ## Weapons
 
@@ -127,9 +133,9 @@ weapons that a `weapon_change` release adds. The loader takes the
 non-SSP weapons of the unit first, then applies the releases.
 
 The weapon `type` is 1 for a direct weapon, 2 for an Ex weapon and 3
-for a map weapon (docs/reference/datamine-source.md). The loader
-emits the direct weapons alone. The other two stay in the store
-(issue #72).
+for a map weapon (a hypothesis with two sources, see
+docs/reference/datamine-source.md). The loader emits the direct
+weapons alone. The other two stay in the store (issue #72).
 
 ## Pilot stats
 

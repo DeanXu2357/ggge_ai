@@ -17,3 +17,11 @@ CREATE TABLE supporter_limit_break (
     PRIMARY KEY (stamp, supporter_id, step),
     FOREIGN KEY (stamp, supporter_id) REFERENCES supporter (stamp, id) ON DELETE CASCADE
 );
+
+CREATE TABLE supporter_growth (
+    stamp text NOT NULL,
+    level integer NOT NULL,
+    limit_break integer NOT NULL,
+    correction_rate integer NOT NULL,
+    PRIMARY KEY (stamp, level, limit_break)
+);
