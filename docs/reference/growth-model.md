@@ -80,9 +80,12 @@ The assembly, in order:
 The table `limit_break_rate` holds the four rows as percents.
 
 Example, Zeong 1001003000 (rarity 4, `mech_sp`, `mech_ssp`, level
-100, three stars): sp_base HP 8032 and sp_max HP 53254 give 53254
-at level 100; plus ssp_max_hp 4577 gives 57831; times 1.4 gives
-80963.
+100, three stars): the sp group HP 8936 to 64337 gives 64337 at
+level 100; plus ssp_max_hp 4577 gives 68914; times 1.4 gives
+96479. Without `mech_sp` the plain group 8032 to 57831 stops at
+the cap 90. Zeong (EX) 1001003050 (rarity 5, level 100, three
+stars): 71770 times 1.4 gives 100478, the value that the site
+shows (issue #92).
 
 Hypothesis (source: `C5zmT3sP2.js` sets the star select to '3'
 when `mech_sp` and rarity below 5, and to '0' when `ult`): the game

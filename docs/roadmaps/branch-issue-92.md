@@ -9,8 +9,8 @@ Issue: #92. Branch: issue-92-game-data-db. Status: in-progress.
 Session start 2026-09-03. Worktree added off 'dev' at 4eb94b0. The
 user approved the plan on 2026-09-03 with three rulings (ledger
 0903). Step 1 is eab33c9, step 2 is f9e5357, step 3 is 99c0332, step 4 is
-the next commit. Next: step 5, normalize.py, store.py and the ingest
-script; the spec is written.
+4de5c2f, step 5 is the next commit. Next: step 6, holding.py,
+load_holding.py, the goldens; the spec is written.
 
 The fixture slices moved to the stamp 202609010310 in step 2. The
 site published that stamp between the plan and the step, and one
@@ -229,3 +229,13 @@ decode them without change.
   rates and the integer formulas; nine tests; 'gamedata' joined
   'NEW_MODULES'. 'docs/reference/growth-model.md' written early, from
   the site chunks, so that the module docstring points at a real file.
+- 2026-09-03: step 5 done. 'normalize.py' (pure rows in the column
+  order of the migrations), 'records.py', 'store.py' (psycopg 3,
+  delete-then-insert per stamp, constants upserted),
+  'scripts/ingest_datamine.py'; 15 offline tests, 6 store tests gated
+  on 'GGGE_DATABASE_URL' (run: 6 passed); an ingest of the fixture
+  slice against the container wrote 432 raw rows and the normalized
+  tables, read back the Zeong, then the stamp was deleted. Correction:
+  the Zeong 1001003000 HP groups are plain 8032 to 57831 and sp 8936
+  to 64337 (growth-model.md example fixed; the earlier 53254 was
+  wrong).

@@ -57,3 +57,51 @@ reverts one step. `migrate ... down -all` empties the schema.
 Every normalized table carries the column `stamp`, the data version
 stamp of the datamine. A crawl at a new stamp adds rows beside the
 old ones; it changes no existing row.
+
+## Crawl and ingest
+
+Crawl the datamine one time for each data version:
+
+    uv run python scripts/crawl_datamine.py
+
+The crawl writes the dump `data/datamine/<stamp>/`. The directory
+holds one JSON file for each source and the file `manifest.json`.
+The stamp is the data version of the source.
+
+Ingest the newest dump:
+
+    uv run python scripts/ingest_datamine.py
+
+Name a directory to ingest a different dump:
+
+    uv run python scripts/ingest_datamine.py data/datamine/202609010310
+
+The ingest writes three groups of rows:
+
+1. the payload of each source row, in `datamine_raw`;
+2. the normalized rows of the unit, the weapon, the pilot and the
+   support crew tables;
+3. the constant tables of the growth model.
+
+The ingest deletes the rows of the stamp first, then it inserts the
+new rows. A second ingest of the same dump gives the same rows. The
+rows of the other stamps do not change.
+
+Remove one stamp:
+
+    uv run python -c \
+        "from ggge_ai.gamedata.store import Store; Store().delete_stamp('202609010310')"
+
+The constant tables carry no stamp. A delete of a stamp keeps them.
+
+## Run the store tests
+
+The tests in `tests/test_gamedata_store.py` need a database. Pytest
+skips them when the environment variable `GGGE_DATABASE_URL` is not
+set. Set the variable to run them:
+
+    GGGE_DATABASE_URL=postgresql://ggge:ggge@localhost:5432/ggge \
+        uv run pytest -q tests/test_gamedata_store.py
+
+The tests write the stamp `test-202609010310` and delete it at the
+end. They touch no other stamp.
