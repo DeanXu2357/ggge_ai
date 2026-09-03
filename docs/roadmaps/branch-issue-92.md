@@ -8,7 +8,7 @@ Issue: #92. Branch: issue-92-game-data-db. Status: in-progress.
 
 Session start 2026-09-03. Worktree added off 'dev' at 4eb94b0. The
 user approved the plan on 2026-09-03 with three rulings (ledger
-0903). Step 1 is eab33c9. Next: step 3, compose and the migrations.
+0903). Step 1 is eab33c9, step 2 is f9e5357. Next: step 4, growth.py.
 
 The fixture slices moved to the stamp 202609010310 in step 2. The
 site published that stamp between the plan and the step, and one
@@ -90,17 +90,20 @@ key, so two crawls coexist and a holding names the stamp it reads.
 - Constants: level_curve(level, rate), limit_break_rate(step,
   rate_percent), rarity_level_cap(rarity, cap),
   supporter_growth(level, limit_break, correction_rate).
+- tag(stamp, id, name): the tag names of the unit and pilot rows.
 - unit(stamp, id, name, short_name, rarity, role, area, body_type,
   series, ult, acquisition, main_unit, defend, evade);
   unit_tag(stamp, unit_id, tag_id); unit_series(stamp, unit_id,
-  series_id); unit_stat(stamp, unit_id, stat, base, max, sp_base,
-  sp_max) with stat in hp, en, attack, defense, mobility, movement;
-  unit_terrain(stamp, unit_id, terrain, grade);
+  series_id, sort); unit_stat(stamp, unit_id, stat, base, max,
+  sp_base, sp_max) with stat in hp, en, attack, defense, mobility,
+  movement; unit_terrain(stamp, unit_id, terrain, grade);
   unit_ability(stamp, unit_id, sort, ability_id, payload jsonb).
 - unit_ssp_stat(stamp, unit_id, stat, base, max);
-  unit_ssp_core(stamp, unit_id, core_id, level, release_point); the
-  'initial_release' is core level 0.
-  unit_ssp_release(stamp, core_id, sort_order, kind, payload jsonb)
+  unit_ssp_core(stamp, unit_id, level, core_id, release_point) keyed
+  by the level, because the 'initial_release' is core level 0 and
+  carries no core id of the same id space.
+  unit_ssp_release(stamp, unit_id, core_level, sort_order, kind,
+  target_id, payload jsonb)
   with kind from 'release_function_type_index': 1 weapon_enhance,
   3 status_up, 4 terrain, 5 weapon_change, 6 ability_change,
   7 weapon_effect (counted over the 1107 units of the scratch list:
@@ -108,18 +111,24 @@ key, so two crawls coexist and a holding names the stamp it reads.
 - weapon(stamp, id, unit_id, name, type, work_type, attack_attr,
   weapon_attr, power, en, hit_rate, critical_rate, range_min,
   range_max, ammo, is_ssp); weapon_growth(stamp, weapon_id, level,
-  power_rate, en_rate, hit_rate_rate, crit_rate).
-- pilot(stamp, id, name, rarity, role); pilot_stat(stamp, pilot_id,
-  stat, base, max, sp_base, sp_max); pilot_tag; pilot_ability(stamp,
-  pilot_id, sort, ability_id, payload jsonb); pilot_skill(stamp,
-  pilot_id, sort, payload jsonb).
+  power_rate, en_rate, hit_rate_rate, crit_rate_rate);
+  weapon_trait(stamp, weapon_id, sort, level, trait_id, payload
+  jsonb) from 'growth.wtc', the trait rows by weapon level (#72
+  reads them; this issue stores them).
+- pilot(stamp, id, name, rarity, role, main_pilot, is_playable);
+  pilot_stat(stamp, pilot_id, stat, base, max, sp_base, sp_max);
+  pilot_tag; pilot_series; pilot_ability(stamp, pilot_id, sort,
+  ability_id, level, payload jsonb); pilot_skill(stamp, pilot_id,
+  sort, skill_id, level, payload jsonb, null when the row's 'skill'
+  is null).
 - supporter(stamp, id, name, rarity, max_hp_addition,
   max_attack_addition); supporter_limit_break(stamp, supporter_id,
   step, leader_skill jsonb, active_skill jsonb).
 - stage: raw only. Scope item 3 names no stage table.
 - holding(id, stamp, unit_id, level, limit_break, mech_sp,
-  mech_ssp, pilot_id, pilot_level, weapon_level). A stub: the
-  loader reads its inputs from the command line, not from this table.
+  mech_ssp, weapon_level, pilot_id, pilot_level, supporter_id,
+  supporter_level, supporter_limit_break). A stub: the loader reads
+  its inputs from the command line, not from this table.
 
 The constant tables have one source, growth.py. The ingest script
 writes them; the migration creates them empty. A test compares the
@@ -207,3 +216,9 @@ decode them without change.
   the two Zeong rows, their 16 weapons, one support crew and the 400
   growth rows; datamine-source.md counts nine requests, 95 MB, eight
   files, seven sources.
+- 2026-09-03: step 3 done. compose.yaml (project name 'ggge_ai'),
+  seven migration pairs, applied up, down -all, up against the local
+  container with the golang-migrate CLI 4.19.1; the how-to. Schema
+  additions over the plan: 'tag', 'pilot_series', 'weapon_trait';
+  the SSP core key is (unit_id, level); 'holding' carries the
+  support crew columns.
