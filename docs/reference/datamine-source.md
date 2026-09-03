@@ -247,9 +247,17 @@ purple on "All-Range Attack EX" (value 7). With Beam Saber at value
 
 Value 4 was seen on the Blue Destiny Unit-1 (EX) page: yellow and
 red badges on "EXAM System". Value 5 ("Wired Claw Arm") is a pair
-with 覺醒 by this reading; which pair is not verified. The engine
+with 覺醒 by this reading; which pair is not verified. The loader of
+issue #92 maps 5 to 射擊、覺醒 and 6 to 格鬥、覺醒 as hypotheses
+(74 and 17 rows of the 4835 at the stamp 202609010310). The engine
 field is `categories` of the weapon payload. `work_type`
 (five values) is not verified.
+
+`type` has three values at the stamp 202609010310. Value 1 is the
+direct weapon (4519 rows). Value 2 is the Ex weapon (82 rows; every
+name ends with "EX"; none has `is_ssp`). Value 3 is the map weapon
+(234 rows). The loader of issue #92 emits value 1 alone
+(docs/reference/growth-model.md).
 
 `ammo` is the ammunition count. The user ruled on 2026-08-28 that a
 map weapon needs both the energy and one round: "必須有足夠的 en 並且
@@ -833,8 +841,8 @@ unit row holds no reaction value.
 ## Not verified
 
 - The licence of the site and its rate limit.
-- The meaning of the weapon enums `work_type`, `attack_attr` and
-  `weapon_attr`, and the values 1 and 2 of `type`.
+- The meaning of the weapon enum `work_type`, the value 5 of
+  `weapon_attr`, and the values 5 and 6 of `attack_attr`.
 - The cell the offsets of `map_weapon_effect_range` and of
   `map_weapon_shooting_range` are relative to, and the meaning of
   `map_weapon_range` and `map_weapon_trait`.

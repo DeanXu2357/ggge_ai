@@ -250,7 +250,7 @@ decode them without change.
   '--from-dump'; three goldens in 'tests/fixtures/gamedata/'; 22
   offline tests. Pinned: Zeong sp+ssp LV100 three stars HP 96479,
   Zeong (EX) 100478, '5-Barrel' power 4190, 'All-Range Attack SSP'
-  power 5880 EN 54 range 2 to 5 awaken. Decisions: EX attacks (type
+  power 5880 EN 54 range 2 to 5 awaken. Decisions: Ex weapons (type
   2) and map weapons (type 3) are stored, not emitted (no engine
   field; issue #72); 'attack_attr' 5 and 6 map to ranged+awaken and
   melee+awaken, and the pilot level cap follows the rarity table

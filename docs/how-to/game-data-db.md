@@ -137,7 +137,7 @@ The script prints one JSON object with three keys:
   beside the payload (issue #72).
 
 The `mech.weapons` list holds the direct weapons alone. The datamine
-type 2 (EX attack) and type 3 (map weapon) stay in the store; this
+type 2 (Ex weapon) and type 3 (map weapon) stay in the store; this
 issue emits neither, and `map_weapons` is always empty.
 
 The golden payloads in `tests/fixtures/gamedata/` come from this

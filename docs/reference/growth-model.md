@@ -126,9 +126,10 @@ The weapons with `is_ssp` true in the weapon table are the SSP
 weapons that a `weapon_change` release adds. The loader takes the
 non-SSP weapons of the unit first, then applies the releases.
 
-The weapon `type` is 1 for a direct weapon, 2 for an EX attack and 3
-for a map weapon. The loader emits the direct weapons alone. The
-other two stay in the store (issue #72).
+The weapon `type` is 1 for a direct weapon, 2 for an Ex weapon and 3
+for a map weapon (docs/reference/datamine-source.md). The loader
+emits the direct weapons alone. The other two stay in the store
+(issue #72).
 
 ## Pilot stats
 
