@@ -1,7 +1,7 @@
 """commit-msg 閘門：機械可判定的 commit message 規則。
 
 判斷型規則（祈使句、what/why、參照是否齊全、敘述夠不夠詳細）不在這裡，
-歸 CLAUDE.md 的 Writing discipline 節，由作者負責。
+歸 CLAUDE.md 的 Commit message 節與 commit-message skill，由作者負責。
 
 坑：
 - **引號內一律豁免拼字與非英文檢查**。程式識別字用英式拼法（'relocalise'、
@@ -121,7 +121,7 @@ def main(argv: list[str]) -> int:
     problems = check(Path(argv[1]).read_text(encoding="utf-8"))
     if not problems:
         return 0
-    print("commit message 不合規則（見 CLAUDE.md 的 Writing discipline 節）：", file=sys.stderr)
+    print("commit message 不合規則（見 CLAUDE.md 的 Commit message 節）：", file=sys.stderr)
     for problem in problems:
         print(f"  - {problem}", file=sys.stderr)
     return 1

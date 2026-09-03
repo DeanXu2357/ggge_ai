@@ -62,35 +62,21 @@ term.
 
 ### Commit message
 
-Write commit messages in American English. Do not use a
-conventional-commit prefix.
+Write commit messages with the `/commit-message` skill. Its rules apply
+to every commit, also to a commit made without the skill.
 
-The hook `scripts/check_commit_msg.py` checks the mechanical rules:
+Project facts the skill does not carry:
 
-- Title: maximum 50 characters, capital first letter, no period at the
-  end, no parentheses.
-- Body lines: maximum 72 characters.
-- Full message: no backticks; non-English words and British spellings
-  are permitted only in quotes.
-
-Install the hook one time: `git config core.hooksPath .githooks`.
-
-The hook cannot check the rules below. The writer is responsible for
-them:
-
-- Write the title as an imperative sentence (Fix, Reject, Repair — not
-  Fixed, Fixes).
-- The title states the high-level "what": the effect of the change, not
-  the file you touched. Do not write an empty title such as
-  "Update queue.c".
-- The body states only the "why". Do not repeat the "what" in the body.
-- Write the "how" only when the mechanism had more than one option and
-  the selected option is not obvious.
-- Add references: commit hash, issue number, run directory, paper, or
-  community source.
+- Write in American English. Do not use a conventional-commit prefix.
 - Write code identifiers and game UI words in their original form, in
   quotes ('SCREEN_CENTRE', 'relocalise', '顯示方格'). Quotes are the
   only exemption from the spelling check and the non-English check.
+- Cite project sources: commit hash, issue number, run directory.
+
+The hook `scripts/check_commit_msg.py` checks length, capitalization,
+punctuation, backticks, and spelling. A rejected message prints the
+reason. Install the hook one time:
+`git config core.hooksPath .githooks`.
 
 ### Code comments
 
