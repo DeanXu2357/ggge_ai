@@ -156,7 +156,6 @@ branch or closes the issue only when the user says so.
 | Issue creation and triage | issue-writer |
 | Recon before planning | Explore |
 | Implementation plan | Plan |
-| Non-trivial code edits | code-editor |
 | Live verification | Main session with Monitor (0808 ruling: no live-tester) |
 | Notification | discord-notify skill |
 
