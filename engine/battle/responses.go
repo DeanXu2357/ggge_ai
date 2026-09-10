@@ -96,30 +96,6 @@ type AttackerOptions struct {
 	SupportAttackers []SupportAttackOption `json:"support_attackers"`
 }
 
-// The wire carries the result of an act as one list 'events'; the field
-// 'event' tells the two kinds apart there.
-type ActResult struct {
-	Strikes   []StrikeEvent
-	Rotations []PhaseEvent
-}
-
-type StrikeEvent struct {
-	Event     string `json:"event"`
-	Strike    string `json:"strike"`
-	ShooterID int    `json:"shooter_id"`
-	StruckID  int    `json:"struck_id"`
-	WeaponID  int    `json:"weapon_id"`
-	Landed    bool   `json:"landed"`
-	Damage    int    `json:"damage"`
-	Killed    bool   `json:"killed"`
-}
-
-type PhaseEvent struct {
-	Event string  `json:"event"`
-	Turn  int     `json:"turn"`
-	Phase Faction `json:"phase"`
-}
-
 type BoardSummary struct {
 	Turn       int       `json:"turn"`
 	Phase      Faction   `json:"phase"`

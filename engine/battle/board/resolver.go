@@ -3,12 +3,13 @@ package board
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand/v2"
+	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
 )
 
 func (b *Board) Load(bounds battle.Bounds, terrain battle.Terrain,
@@ -107,26 +108,42 @@ func (b *Board) Act(action *battle.Action) (battle.ActResult, error) {
 	if err != nil {
 		return battle.ActResult{}, err
 	}
-
-	engaged, trace, err := engagement.Commit(b.view(), *action, rand.New(b.source))
+	engaged, events, err := engagement.Commit(b.view(), *action, rand.New(b.source))
 	if err != nil {
 		return battle.ActResult{}, errors.Join(err, b.source.UnmarshalBinary(before))
 	}
+	b.values = engaged
+	return battle.ActResult{
+		Events: events,
+		Units:  b.affected(events),
+	}, nil
+}
 
-	rotated, rotations := turn.Advance(state.Battle{Content: &b.content, Values: &engaged})
-	b.values = rotated
+// The terminal values name every unit an effect landed on, in the order of
+// the unit ids.
+func (b *Board) affected(events []battle.Event) []battle.UnitValues {
+	touched := map[int]bool{}
+	for _, event := range events {
+		for _, effect := range effectsOf(event) {
+			touched[effect.UnitID] = true
+		}
+	}
+	ids := slices.Sorted(maps.Keys(touched))
+	out := make([]battle.UnitValues, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, b.view().UnitValues(id))
+	}
+	return out
+}
 
-	var result battle.ActResult
-	for _, strike := range trace {
-		result.Strikes = append(result.Strikes, battle.StrikeEvent{
-			Event: "strike", Strike: string(strike.Kind),
-			ShooterID: strike.ShooterID, StruckID: strike.StruckID, WeaponID: strike.WeaponID,
-			Landed: strike.Landed, Damage: strike.Damage, Killed: strike.Killed,
-		})
+func effectsOf(event battle.Event) []battle.Effect {
+	switch e := event.(type) {
+	case battle.StrikeEvent:
+		return e.Effects
+	case battle.ActivationEndEvent:
+		return e.Effects
+	case battle.PhaseEvent:
+		return e.Effects
 	}
-	for _, rotation := range rotations {
-		result.Rotations = append(result.Rotations,
-			battle.PhaseEvent{Event: "phase", Turn: rotation.Turn, Phase: rotation.Phase})
-	}
-	return result, nil
+	return nil
 }

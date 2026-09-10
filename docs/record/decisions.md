@@ -2008,3 +2008,58 @@
   because it states what the data is; a settlement is a system,
   because it states what the game does. docs/roadmaps/
   branch-act-node-settlement.md section 2 carries the ruling.
+
+- **(0910) The effect of an act is one typed struct per unit — user
+  ruling**｜Section 5 of the branch roadmap left the shape of an effect
+  open: a struct with optional typed fields, or a list of field names
+  with untyped values. The user asked for the two finished results side
+  by side with examples (「給我兩種方案的最終成果，我直接比較成果。除了
+  型別 schema 我希望有範例」), then for the one difference in one
+  effect, and ruled 「那應該是 A 比較好」: the typed struct. In the typed
+  form the field name is the JSON key and the value is '{from, to}'; in
+  the list form the field name is a string inside each entry. The typed
+  form lets the Go struct and its Python mirror be checked field by
+  field; the list form leaves the field set to string constants that
+  nothing checks. The types are in 'engine/battle/result.go'. Two
+  choices of the session ride along, not yet ruled: 'Event' as an
+  interface with 'EventKind()', and 'UnitValues' (the value column with
+  'unit_id') for the terminal values instead of the whole 'battle.Unit'.
+  The user also declined, for now, a mock seam for 'Commit' (an
+  'engagement.Engagement' struct) after the session's assessment that
+  every fact of the orchestration is observable through the public
+  'Board' and that the 0908 ruling wants scenarios with no injection
+  seam: 「現在先不做」.
+
+- **(0910) The rotation belongs to the settlement, not to the board —
+  user ruling**｜The 0909 orchestration had 'board.Act' call
+  'turn.Advance' after 'engagement.Commit', without condition. The user
+  corrected it: 「board.Act 的運行邏輯裏面不應該決定 turn.Advance 這個
+  應該是在看 Commit 的內容由 Commit 決定才對」;「Act 要根據 payload 決定
+  接下來 engagement 的結果要不要更新 values 而不是無條件主動 advance」.
+  Whether the phase rotates follows from how the activation ended,
+  which the last segment of the settlement writes, so 'Commit' calls
+  'turn.Advance' there and folds the phase events into its event list;
+  'board.Act' checks the payload, installs the answered column on
+  success, and shapes the output. Section 2 and the segment table of
+  the branch roadmap carry the change.
+
+- **(0910) The act result carries no echo of the request — user
+  ruling**｜The 0909 ruling gave the result four parts: the error, the
+  request parameter, the event history, the terminal values. The user
+  removed the second: 「ActResult 裡面不需要包含 request 內容」. The
+  caller already holds the action it sent, so a copy in the result adds
+  no fact; a reader that must tell a stated behavior from a drawn one
+  matches an event against the action it still holds. 'ActResult' now
+  holds 'Events' and 'Units' alone. Section 5 of the branch roadmap
+  carries the change.
+
+- **(0910) The strike event names its result 'landed' and 'critical',
+  not 'hit' and 'crit' — user ruling**｜The input 'Stated' and the
+  output 'StrikeEvent' both carried 'Hit' and 'Crit', one the target of
+  the manual probability and the other the realized result, with the
+  same names. The user asked which the event fields were, and on the
+  answer that they are the result, ruled a rename: 「改名稱吧」.
+  'StrikeEvent' now carries 'Landed' and 'Critical' (wire 'landed',
+  'critical'); 'Stated' keeps 'Hit' and 'Crit' for the stated input.
+  The event marks no stated against drawn; the caller matches against
+  the action it holds. Section 5 of the branch roadmap carries it.

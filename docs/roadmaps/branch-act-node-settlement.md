@@ -41,15 +41,18 @@ repaired the same way afterwards, not on this pass.
 
 1. Check the input: every id names a thing of the board, the kind
    matches the fields it carries.
-2. Hand the two columns to the systems in order. Each system is a
+2. Hand the two columns to 'engagement.Commit'. A system is a
    function from a values column to a new values column: it clones
    the column it receives, writes the clone, and answers the clone.
-   'engagement.Commit' answers the column after the exchange;
-   'turn.Advance' answers the column after the rotation. The board
-   clones nothing and never hands a system a column it may write.
+   'Commit' answers the column after the exchange and after the
+   rotation that the end of the activation causes, if any. The board
+   clones nothing, never hands a system a column it may write, and
+   does not know the turn package (user ruling 2026-09-10: whether
+   the phase rotates is a fact of the settlement, so 'Commit' calls
+   'turn.Advance' from its last segment; the board does not).
 3. On success install the answered column as the values column. On
    any error install nothing: an error carries no column.
-4. Shape the result of the systems into the output type.
+4. Shape the result of the engagement into the output type.
 
 Ruling of 2026-09-10, which reverses step 2 of 2026-09-09 (board
 makes a scratch, systems write it in place): the signature of a
@@ -175,7 +178,7 @@ consumption when its weapon applies.
 | 2 main strike | always | as segment 1 |
 | 3 defender salvo | the target lives | the actor itself (open: whether the support defender of the actor takes a support strike is unmeasured; the current code says no) |
 | 4 counter | the target lives and its stance is counter | the support defender of the actor if named and it holds a charge, in the defend stance; else the actor with no multiplier |
-| 5 end | always | a kill in segment 1 or 2 (the support defender or the target), the actor alive, chance steps left: one chance step less and 'acted' stays false; else 'acted' |
+| 5 end | always | a kill in segment 1 or 2 (the support defender or the target), the actor alive, chance steps left: one chance step less and 'acted' stays false; else 'acted'. Then, when no unit of the side is pending, the phase rotates ('turn.Advance'); each rotation is a phase event with the resets as effects |
 
 One reason exists for a strike that does not fire: the target is
 destroyed, and then segments 3 and 4 do not run. Every other strike
@@ -212,26 +215,28 @@ This branch places no ability moment and shapes nothing for one
 
 ## 5. The output of 'Board.Act'
 
-Four parts. The first excludes the other three.
+Three parts. The first excludes the other two.
 
 1. The business error, as the Go 'error' of 'Board.Act': the actor
    does not exist, cannot act, the weapon does not reach, and every
    refusal of section 4. The handler maps it to a protocol code.
-2. The echo of the request. A reader matches an event against the
-   echo to learn whether a behavior was stated or drawn; the events
-   carry no such mark.
-3. The events, in settlement order. One event is one thing the game
+2. The events, in settlement order. One event is one thing the game
    shows: a move, a strike, the end of the activation, a phase
    rotation. Each carries its cause and its effects.
-4. The terminal values of the units this act affected: every unit an
+3. The terminal values of the units this act affected: every unit an
    effect landed on, with its whole value column after the act.
+
+The result carries no echo of the request (user ruling 2026-09-10:
+'ActResult' holds no 'request'). The caller holds the action it sent,
+so a reader that must tell a stated behavior from a drawn one matches
+an event against that action, not against a copy in the result.
 
 The events (ruled 2026-09-10, not yet in the code):
 
     move            actor_id, from, to
     strike          segment (attacker_support | main | defender_support | counter),
                     shooter_id, weapon_id, aimed_id, struck_id,
-                    fired, hit, crit, damage, effects
+                    fired, landed, critical, damage, effects
     activation_end  actor_id, effects (acted, or chance_steps)
     phase           turn, phase, effects (the resets of the side)
 
@@ -249,16 +254,37 @@ A strike that does not fire is an event with 'fired' false, a reason,
 and no effects. A kill is an effect whose 'hp' reaches 0, not a field
 of the strike.
 
-Open, proposal: the effect is one struct per unit with optional
-fields (typed), not a list of field names (untyped). A skill or a
-map attack adds an event value and reuses the effect.
+'landed' and 'critical' are the result of the strike, not the stated
+input: 'landed' true is a strike that hit, 'critical' true is a
+critical, from a stated behavior or from a draw alike (user ruling
+2026-09-10, to keep them apart from 'Stated{hit, crit}' on the
+action). The event carries no mark of stated against drawn; a reader
+tells them apart by matching the event against the action it holds.
+
+The effect is one struct per unit with optional typed fields, not a
+list of field names (user ruling 2026-09-10, after a side-by-side of
+the two shapes on one example: the field name is the JSON key in the
+typed form and a string value in the list form, and only the typed
+form lets the Go and Python codecs check the field set). A skill or
+a map attack adds an event value and reuses the effect.
+
+Go shape ('engine/battle/result.go', step 3): 'ActResult{Events,
+Units}'; 'Event' is an interface with one method
+'EventKind()', and 'MoveEvent', 'StrikeEvent', 'ActivationEndEvent'
+and 'PhaseEvent' carry their kind in the field 'event' of the wire;
+'Effect' holds '*Change[T]' per field, nil when the field did not
+change; 'UnitValues' is the value column of one unit with its
+'unit_id' and no content field. Two choices of the session, open to
+the user: the interface instead of one struct with a pointer per
+kind, and 'UnitValues' instead of the whole 'battle.Unit' (which
+would resend the mech and the pilot).
 
 ## 6. Acceptance
 
 The user and the session define the scenarios together. Each
 scenario is one Go test in 'engine/battle/', package 'battle_test',
 that builds the units, calls 'Load', calls 'Act', and asserts on the
-four parts of the output and on 'State()'. No test reaches an
+parts of the output and on 'State()'. No test reaches an
 internal name of 'engagement', 'state' or 'board'.
 
 The tests of 'commit_test.go', 'resolver_test.go' and
@@ -365,6 +391,20 @@ next starts.
     'Board.Act' is deleted, and section 6 replaces them. The dice
     tests and the 'counterWeapon' test are deleted; 'action_test.go'
     is added; 'strike_test.go' keeps its own board.
+
+- 2026-09-10, step 3 (in the tree): the output types of section 5
+  in 'engine/battle/result.go', with a wire-shape test. 'Commit'
+  answers '[]battle.Event' (still a stub); 'board.Act' shapes the
+  the events of the engagement and the terminal values of every
+  unit an effect names, by unit id (the request echo was dropped on
+  2026-09-10). The
+  board no longer calls 'turn.Advance' (user ruling 2026-09-10,
+  section 2): the rotation belongs to segment 5 of the settlement,
+  and 'turn.Advance' must then answer the resets it writes as the
+  effects of a 'PhaseEvent'. The old
+  'ActResult', 'StrikeEvent', 'PhaseEvent' of 'responses.go' and
+  'Trace', 'Strike', 'StrikeKind' of 'engagement/results.go' are
+  deleted.
 
 Out of the verification of this change (user ruling 2026-09-10):
 the wire, the handler and the Python side. Once the shape of

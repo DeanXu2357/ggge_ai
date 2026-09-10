@@ -7,6 +7,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-func Commit(board state.Battle, action battle.Action, draw *rand.Rand) (state.Values, Trace, error) {
+func Commit(board state.Battle, action battle.Action, draw *rand.Rand) (state.Values, []battle.Event, error) {
 	panic("the settlement of the act is not written")
 }
