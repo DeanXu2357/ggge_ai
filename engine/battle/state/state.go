@@ -5,7 +5,6 @@ package state
 
 import (
 	"fmt"
-	"iter"
 	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
@@ -54,40 +53,11 @@ type UnitValue struct {
 	Debuffs              []battle.Debuff
 }
 
-// Battle borrows the two columns of a battle and owns neither.
-type Battle struct {
-	Content *Content
-	Values  *Values
-}
-
 // Unit is the handle of one unit: the static side and the dynamic side, no
 // copy.
 type Unit struct {
 	*UnitContent
 	Value *UnitValue
-}
-
-// Units walks every unit of the battle with its id.
-func (b Battle) Units() iter.Seq2[int, Unit] {
-	return func(yield func(int, Unit) bool) {
-		for index := range b.Content.Units {
-			if !yield(index, b.unit(index)) {
-				return
-			}
-		}
-	}
-}
-
-func (b Battle) unit(index int) Unit {
-	return Unit{UnitContent: &b.Content.Units[index], Value: &b.Values.Units[index]}
-}
-
-// UnitAt is the one door from a unit id to the data behind it.
-func (b Battle) UnitAt(id int) (Unit, error) {
-	if id < 0 || id >= len(b.Content.Units) {
-		return Unit{}, fmt.Errorf("%w: %d", battle.ErrNoUnit, id)
-	}
-	return b.unit(id), nil
 }
 
 // Clone answers the working column of a system. It deep-copies the slices of

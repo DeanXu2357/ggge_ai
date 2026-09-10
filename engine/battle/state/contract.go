@@ -27,42 +27,6 @@ func FromContract(s battle.BattleState) (Content, Values) {
 	return content, values
 }
 
-func (b Battle) ToContract() battle.BattleState {
-	bounds := b.Content.Bounds
-	out := battle.BattleState{
-		Units:        make([]battle.Unit, len(b.Content.Units)),
-		Phase:        b.Values.Phase,
-		Turn:         b.Values.Turn,
-		Bounds:       &bounds,
-		Terrain:      b.Content.Terrain,
-		TerrainCells: slices.Clone(b.Content.TerrainCells),
-	}
-	for index, unit := range b.Units() {
-		out.Units[index] = toContractUnit(unit)
-	}
-	return out
-}
-
-// UnitValues answers the wire form of the value column of one unit, for the
-// terminal values of an act.
-func (b Battle) UnitValues(id int) battle.UnitValues {
-	u := b.unit(id)
-	return battle.UnitValues{
-		UnitID:               id,
-		Pos:                  u.Value.Pos,
-		HP:                   u.Value.HP,
-		EN:                   u.Value.EN,
-		SP:                   u.Value.SP,
-		Acted:                u.Value.Acted,
-		ChanceSteps:          u.Value.ChanceSteps,
-		SupportAttackCharges: u.Value.SupportAttackCharges,
-		SupportDefendCharges: u.Value.SupportDefendCharges,
-		Skills:               mapSlice(u.Value.Skills, toContractSkill),
-		MapWeaponAmmo:        slices.Clone(u.Value.MapWeaponAmmo),
-		Debuffs:              slices.Clone(u.Value.Debuffs),
-	}
-}
-
 func fromContractUnit(u battle.Unit) (UnitContent, UnitValue) {
 	mech, pilot := fromContractMech(u.Mech), fromContractPilot(u.Pilot)
 	content := UnitContent{
