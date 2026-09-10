@@ -68,6 +68,19 @@ func mapShells() battle.MapWeapon {
 	}
 }
 
+const (
+	actorID  = 0
+	targetID = 1
+)
+
+func shootout() state.Battle {
+	attacker := fighter(battle.FactionAlly, battle.Cell{0, 0})
+	attacker.Mech.Weapons = []battle.Weapon{beam()}
+	target := fighter(battle.FactionEnemy, battle.Cell{3, 0})
+	target.Mech.Weapons = []battle.Weapon{beam()}
+	return board(attacker, target)
+}
+
 func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 	b := shootout()
 	attacker, defender := unitOf(b, actorID), unitOf(b, targetID)
@@ -131,38 +144,5 @@ func TestTheDefenseMultiplierOfEveryStance(t *testing.T) {
 	}
 	if got := defenseMultiplier(battle.StanceDodge, shielded); got != formula.NoDefenseMultiplier {
 		t.Errorf("a shield answers no dodge: %v", got)
-	}
-}
-
-func TestTheCounterWeaponNeedsTheReachAndTheEnergy(t *testing.T) {
-	defender := fighter(battle.FactionAlly, battle.Cell{0, 0})
-	costly := beam()
-	costly.Name, costly.ENCost = "costly", 200
-	near := rifle("saber", 1, 1)
-	defender.Mech.Weapons = []battle.Weapon{costly, beam(), near}
-	b := board(defender, fighter(battle.FactionEnemy, battle.Cell{2, 0}))
-
-	attacker := unitOf(b, 1).Footprint()
-	first, firstFires := counterWeapon(unitOf(b, 0), nil, attacker)
-	_, saberFires := counterWeapon(unitOf(b, 0), idOf(2), attacker)
-	_, costlyFires := counterWeapon(unitOf(b, 0), idOf(0), attacker)
-
-	if !firstFires || first != 1 {
-		t.Fatalf("no choice takes the first weapon that fits: %d %v", first, firstFires)
-	}
-	if saberFires {
-		t.Fatal("the saber reaches one cell, and the attacker stands two away")
-	}
-	if costlyFires {
-		t.Fatal("a weapon that the unit cannot pay for counters nothing")
-	}
-}
-
-func TestForcedDiceAnswerByNode(t *testing.T) {
-	dice := battle.Forced{AttackerSupport: true, Strike: false, Counter: true}
-
-	if !dice.Lands(battle.NodeAttackerSupport, 0) || dice.Lands(battle.NodeStrike, 1) ||
-		!dice.Lands(battle.NodeCounter, 0.5) {
-		t.Fatal("each node reads its own outcome, and no node reads the probability")
 	}
 }

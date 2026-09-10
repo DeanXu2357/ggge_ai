@@ -1,7 +1,9 @@
 package board
 
 import (
+	"errors"
 	"fmt"
+	"math/rand/v2"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
@@ -100,13 +102,20 @@ func validate(state *battle.BattleState) error {
 	return nil
 }
 
-func (b *Board) Act(action *battle.Decision, dice battle.Dice) (battle.ActResult, error) {
-	engaged, trace, err := engagement.Commit(b.view(), *action, dice)
+func (b *Board) Act(action *battle.Action) (battle.ActResult, error) {
+	before, err := b.source.MarshalBinary()
 	if err != nil {
 		return battle.ActResult{}, err
 	}
+
+	engaged, trace, err := engagement.Commit(b.view(), *action, rand.New(b.source))
+	if err != nil {
+		return battle.ActResult{}, errors.Join(err, b.source.UnmarshalBinary(before))
+	}
+
 	rotated, rotations := turn.Advance(state.Battle{Content: &b.content, Values: &engaged})
 	b.values = rotated
+
 	var result battle.ActResult
 	for _, strike := range trace {
 		result.Strikes = append(result.Strikes, battle.StrikeEvent{

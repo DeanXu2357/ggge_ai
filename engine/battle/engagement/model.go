@@ -6,13 +6,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-var knownStances = map[battle.Stance]bool{
-	battle.StanceDodge:   true,
-	battle.StanceDefend:  true,
-	battle.StanceCounter: true,
-	battle.StanceNone:    true,
-}
-
 // Prepare bounds-checks every id of a plan before Commit reads it, so a
 // refusal here is a broken invariant of the engine and not a bad request.
 func unitOf(board state.Battle, id int) state.Unit {

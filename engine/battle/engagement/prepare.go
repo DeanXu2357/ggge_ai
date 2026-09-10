@@ -2,44 +2,23 @@ package engagement
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-const maxSupportAttackers = 3
-
-// A plan carries every choice of one activation with every participant already
-// judged. Commit writes it and cannot fail.
+// A plan carries the strike that the question 'response_attacks' asks about:
+// the actor, its anchor after the move, its weapon and its target. The act
+// reads 'parse' and not this.
 type plan struct {
 	kind     battle.ActionKind
 	actorID  int
 	anchor   battle.Cell
 	targetID *int
 	weaponID *int
-	joining  []supportAttacker
-	bearerID *int
-	answer   answer
 }
 
-// A nil response attack stays legal in the domain: it says that the caller
-// settles the response attack somewhere else, as a node of a search tree
-// does.
-type answer struct {
-	response          *battle.ResponseAttack
-	counterWeaponID   *int
-	supportDefenderID *int
-	joining           []supportAttacker
-}
-
-func (a answer) dodging() bool {
-	return a.response != nil && a.response.Stance == battle.StanceDodge
-}
-
-// Every rule is judged before the first change of the board, so a refused
-// action leaves the board as it was.
 func prepare(board state.Battle, decision battle.Decision) (plan, error) {
 	actor, err := Activatable(board, decision.UnitID)
 	if err != nil {
@@ -72,8 +51,8 @@ func checkIDs(board state.Battle, decision battle.Decision) error {
 	if err != nil {
 		return err
 	}
-	for _, id := range unitIDsOf(decision) {
-		if _, err := board.UnitAt(id); err != nil {
+	if decision.TargetID != nil {
+		if _, err := board.UnitAt(*decision.TargetID); err != nil {
 			return err
 		}
 	}
@@ -87,45 +66,7 @@ func checkIDs(board state.Battle, decision battle.Decision) error {
 			return err
 		}
 	}
-	if err := checkCounterWeaponID(board, decision); err != nil {
-		return err
-	}
 	return checkArmament(decision)
-}
-
-func unitIDsOf(decision battle.Decision) []int {
-	out := slices.Clone(decision.SupportAttackerIDs)
-	if decision.TargetID != nil {
-		out = append(out, *decision.TargetID)
-	}
-	if decision.SupportDefenderID != nil {
-		out = append(out, *decision.SupportDefenderID)
-	}
-	if response := decision.ResponseAttack; response != nil {
-		out = append(out, response.SupportAttackerIDs...)
-		if response.SupportDefenderID != nil {
-			out = append(out, *response.SupportDefenderID)
-		}
-	}
-	return out
-}
-
-// The weapon of a response attack belongs to the unit that the action strikes.
-func checkCounterWeaponID(board state.Battle, decision battle.Decision) error {
-	response := decision.ResponseAttack
-	if response == nil || response.WeaponID == nil {
-		return nil
-	}
-	if decision.TargetID == nil {
-		return fmt.Errorf("%w: the response attack fires a weapon and the action names no target",
-			battle.ErrIllegalAction)
-	}
-	defender, err := board.UnitAt(*decision.TargetID)
-	if err != nil {
-		return err
-	}
-	_, err = defender.WeaponAt(*response.WeaponID)
-	return err
 }
 
 func checkArmament(decision battle.Decision) error {
@@ -152,7 +93,11 @@ func prepareAttack(board state.Battle, decision battle.Decision, actor state.Uni
 		return plan{}, fmt.Errorf("%w: the engine fires no map weapon, because the area of a map weapon is not in the contract",
 			battle.ErrIllegalAction)
 	}
-	targetID, err := foe(board, decision.UnitID, decision.TargetID)
+	if decision.TargetID == nil {
+		return plan{}, fmt.Errorf("%w: the attack of unit %d names no target",
+			battle.ErrIllegalAction, decision.UnitID)
+	}
+	targetID, err := foe(board, decision.UnitID, *decision.TargetID)
 	if err != nil {
 		return plan{}, err
 	}
@@ -172,29 +117,12 @@ func prepareAttack(board state.Battle, decision battle.Decision, actor state.Uni
 		return plan{}, fmt.Errorf("%w: the weapon %q of unit %d does not reach unit %d",
 			battle.ErrIllegalAction, weapon.Name, decision.UnitID, targetID)
 	}
-	joining, err := chosenSupportAttackers(board, decision.UnitID, firing, target.Footprint(),
-		decision.SupportAttackerIDs)
-	if err != nil {
-		return plan{}, err
-	}
-	bearerID, err := chosenSupportDefendWhenAttack(board, decision.UnitID, firing,
-		decision.SupportDefenderID)
-	if err != nil {
-		return plan{}, err
-	}
-	reply, err := answerOf(board, targetID, firing, decision.ResponseAttack)
-	if err != nil {
-		return plan{}, err
-	}
 	return plan{
 		kind:     battle.ActionAttack,
 		actorID:  decision.UnitID,
 		anchor:   anchor,
 		targetID: &targetID,
 		weaponID: &weaponID,
-		joining:  joining,
-		bearerID: bearerID,
-		answer:   reply,
 	}, nil
 }
 
@@ -233,20 +161,16 @@ func onPhase(board state.Battle, unit state.Unit) error {
 	return nil
 }
 
-func foe(board state.Battle, actorID int, targetID *int) (int, error) {
-	if targetID == nil {
-		return 0, fmt.Errorf("%w: the attack of unit %d names no target",
-			battle.ErrIllegalAction, actorID)
-	}
-	target, err := LivingUnit(board, *targetID)
+func foe(board state.Battle, actorID int, targetID int) (int, error) {
+	target, err := LivingUnit(board, targetID)
 	if err != nil {
 		return 0, err
 	}
 	if target.Faction != unitOf(board, actorID).Faction.Opposing() {
 		return 0, fmt.Errorf("%w: unit %d of the side %q is no foe of unit %d",
-			battle.ErrIllegalAction, *targetID, target.Faction, actorID)
+			battle.ErrIllegalAction, targetID, target.Faction, actorID)
 	}
-	return *targetID, nil
+	return targetID, nil
 }
 
 func destination(board state.Battle, actorID int, to *battle.Cell, permitted bool) (battle.Cell, error) {
@@ -263,94 +187,4 @@ func destination(board state.Battle, actorID int, to *battle.Cell, permitted boo
 			battle.ErrIllegalMove, actorID, *to)
 	}
 	return *to, nil
-}
-
-func answerOf(board state.Battle, defenderID int, firing battle.Footprint,
-	response *battle.ResponseAttack) (answer, error) {
-	if response == nil {
-		return answer{}, nil
-	}
-	out := answer{response: response}
-	defender := unitOf(board, defenderID)
-	if !knownStances[response.Stance] {
-		return answer{}, fmt.Errorf("%w: unit %d takes the stance %q, which is not in the contract",
-			battle.ErrIllegalAction, defenderID, response.Stance)
-	}
-	if response.Stance == battle.StanceCounter {
-		counterID, fires := counterWeapon(defender, response.WeaponID, firing)
-		if !fires {
-			return answer{}, fmt.Errorf("%w: unit %d counters the strike with no weapon that reaches the attacker",
-				battle.ErrIllegalAction, defenderID)
-		}
-		out.counterWeaponID = &counterID
-	} else if response.WeaponID != nil {
-		return answer{}, fmt.Errorf("%w: the stance %q of unit %d fires no weapon",
-			battle.ErrIllegalAction, response.Stance, defenderID)
-	}
-	supportDefenderID, err := chosenSupportDefender(board, defenderID, defender.Footprint(),
-		response.SupportDefenderID, func(state.Unit) bool { return true })
-	if err != nil {
-		return answer{}, err
-	}
-	// A defender that defends blocks the strike for itself and leaves the
-	// supportDefender nothing to take (docs/reference/battle-prep-ui.md:279, issue
-	// #44). Whether the game pairs a support defender with the stand is not
-	// measured; the engine permits it until a measurement lands.
-	if supportDefenderID != nil && response.Stance == battle.StanceDefend {
-		return answer{}, fmt.Errorf("%w: unit %d defends the strike itself and takes no support defender",
-			battle.ErrIllegalAction, defenderID)
-	}
-	out.supportDefenderID = supportDefenderID
-	if out.joining, err = chosenSupportAttackers(board, defenderID, defender.Footprint(), firing,
-		response.SupportAttackerIDs); err != nil {
-		return answer{}, err
-	}
-	return out, nil
-}
-
-func chosenSupportAttackers(board state.Battle, supportedID int, firing, foe battle.Footprint,
-	ids []int) ([]supportAttacker, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	if len(ids) > maxSupportAttackers {
-		return nil, fmt.Errorf("%w: unit %d names %d support attackers, and the rules permit %d",
-			battle.ErrIllegalAction, supportedID, len(ids), maxSupportAttackers)
-	}
-	eligible := map[int]int{}
-	for _, one := range supportAttackers(board, supportedID, firing, foe) {
-		eligible[one.UnitID] = one.WeaponID
-	}
-	out := make([]supportAttacker, 0, len(ids))
-	for _, id := range ids {
-		if slices.ContainsFunc(out, func(one supportAttacker) bool { return one.UnitID == id }) {
-			return nil, fmt.Errorf("%w: unit %d joins the strike of unit %d two times",
-				battle.ErrIllegalAction, id, supportedID)
-		}
-		weaponID, joins := eligible[id]
-		if !joins {
-			return nil, fmt.Errorf("%w: unit %d cannot join the strike of unit %d",
-				battle.ErrIllegalAction, id, supportedID)
-		}
-		out = append(out, supportAttacker{UnitID: id, WeaponID: weaponID})
-	}
-	return out, nil
-}
-
-func chosenSupportDefender(board state.Battle, coveredID int, at battle.Footprint, id *int,
-	fits func(state.Unit) bool) (*int, error) {
-	if id == nil {
-		return nil, nil
-	}
-	if slices.Contains(supportDefenders(board, coveredID, at), *id) && fits(unitOf(board, *id)) {
-		return id, nil
-	}
-	return nil, fmt.Errorf("%w: unit %d takes no strike for unit %d",
-		battle.ErrIllegalAction, *id, coveredID)
-}
-
-func chosenSupportDefendWhenAttack(board state.Battle, actorID int, firing battle.Footprint,
-	id *int) (*int, error) {
-	return chosenSupportDefender(board, actorID, firing, id,
-		func(other state.Unit) bool { return other.SupportDefendWhenAttack })
 }

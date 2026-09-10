@@ -1891,3 +1891,120 @@
   The commands 'place', 'roster' and 'deploy_cells' stay declared and
   unhandled; only the types move. Protocol 2.0, issue #89. The
   roadmap docs/roadmaps/branch-issue-89.md records both rulings.
+
+- **(0908) The act settles as an ordered node list, and the order of
+  a salvo is a stated heuristic — user rulings**｜The act of a battle
+  walked a plan with branches in the middle of the write, so one
+  liveness read decided whether a whole side of an exchange resolved
+  and that side reached none of its moments. The user ruled the shape:
+  「先解析雙方行動，在最後依據傷害結算順序決定行動是否被應用」. Both
+  decisions now lay out as one ordered list of nodes; each node judges
+  at its own turn whether it settles, from the state of that turn, and
+  the list does not change shape. 'plan.draws()' and 'Dice.Covers' are
+  deleted: they answered an upper bound, which is forecast logic, and
+  the atomicity they served already comes from the values clone that
+  'Commit' answers only on success. Dice: a strike settles two
+  behaviors, the critical of the shooter and the evasion of the unit
+  struck, and each weapon settles its own pair, so a salvo of three
+  supporters settles three (issue #47 closes with it). The request
+  decides for both units: 「這是模擬，所以根本沒有必要公平到給敵方
+  決定權」. A stated behavior that the rates give no chance of is
+  refused, in both directions. 'battle.Forced' and 'battle.Node' are
+  deleted.
+
+  **The heuristic this entry exists to record.** The behavior lists
+  carry a defined layout — the attacker, its supporters, the defender,
+  then its supporters — and the exchange settles the supporters of a
+  side before the unit they support, so a place in the list is not a
+  turn in the settlement. Which leaves the question the game has not
+  answered: among several supporters of one salvo, who fires first.
+  docs/reference/combat-formulas.md fixes 「齊射先、主攻後」 from the
+  measurements of 2026-07-13 and fixes nothing below it. The user
+  ruled a placeholder on 2026-09-08: 「暫時使用外面傳進來的支援攻擊
+  順序當作實際結算順序」. So the relative order of the supporters of
+  one side is the order of the ids in the decision that names them,
+  and 'chosenSupportAttackers' keeps that order and never sorts. This
+  is defined, not measured. A measurement replaces it.
+
+- **(0909) The act is redesigned from the board down — user rulings**｜
+  The implementation of the 0908 node list (540fda6 plus its working
+  tree) passed its tests and the user rejected it: 「整體實作為部分正確，
+  能通過測試，但是測試完全是從錯誤實作長出來的，最明顯的一點就是
+  package 之間職責劃分紊亂」. The rulings of the review of 2026-09-09,
+  implemented on 2026-09-10 (docs/roadmaps/branch-act-node-settlement.md
+  holds the design):
+  - 'board.Act' orchestrates: 「1. 檢查輸入內容格式正確 2. 使用備份
+    value 填入系統 3. 獲取系統的成果決定是否覆蓋當前的 value 4. 修改格式，
+    讓結果能符合輸出想要看到的」. The clone of the values column moves
+    out of 'engagement' and out of 'turn'; both write the scratch they
+    receive.
+  - The engagement is two stages: the parse answers the facts of the
+    two sides, the settlement walks the four segments (attacker salvo,
+    main strike, defender salvo, counter) as its own logic. The old
+    parse that handed over 'alive' lists and flags for a generic
+    interpreter is the failure: 「把 taker 方的 decision 弄成半成品等待
+    結算階段」.
+  - The action states both sides. 「不要用 support_attacker_ids 這樣的
+    結構，這個邏輯需要 support_attacker_id 和對應的 weapon_id，反擊方
+    亦然」. The caller names every weapon; the engine picks none. Every
+    id is a session unit id: 「重開一場新的遊戲（新的 session）相同的
+    機體和駕駛員的組合會有不同的 unit id」.
+  - The stated behaviors ride on the strike: 「指定行為跟著打擊走」.
+    The positional behavior lists of 0908 are gone with them.
+  - The board holds the random source: 「board 這個物件為 engine/battle
+    package 的實作，所以他是整場對戰的引擎那自然應該持有隨機源」;
+    「外面是指定是否為人工機率，以及人工機率表現的事件」.
+  - The result has four parts: 「1. error response 本次的業務錯誤訊息
+    2. request parameter 3. event history 4. 本次 act 影響單位的終值」.
+    The dice source is not in the events: 「就像是 API response 有時候
+    會帶上 request body 的內容讓人和 response 對照一樣」.
+  - Settlement rules. Charges and energy never enter the settlement:
+    「次數用盡和 En 不足的狀況不應該進入結算，而是一開始進入 Act 就該
+    錯誤處理」. The main strike fires on a target the salvo destroyed:
+    「主目標就算在過程中被擊破，還是會持續進行到主攻擊者對主目標發動
+    攻擊消耗 En」. A strike on a unit at 0 HP fires like any other:
+    「照常發動攻擊，所以應該照常看骰子看命中看爆擊的還是要算，沒有效果
+    的是沒有對 0 hp 的目標造成扣 hp 和附加 debuf 的效果」; the counter
+    too: 「如果支援反擊已經先擊破行動者，那輪到主目標反擊時也要照常
+    發動攻擊在 0 hp 的行動者身上」. No strike lands on a support attacker
+    inside the exchange. The one reason a strike does not fire is the
+    destroyed target, and then the defender segments do not run.
+  - Consumption settles at the strike: 「每個行動分段都要結算當下的資源
+    消耗」; the activation end writes 'acted' or the chance step alone.
+  - This branch places no ability moment: 「本分支不先做 hook 的埋點」.
+  - 'Load' is right as it is: 「Load 的確是沒有問題，可以直接用」.
+  - Acceptance: 「你和我定義測試情境，然後在 engine/battle/ 目錄下寫
+    實際的 Act 整合測試案例和期望效果」; the scenarios are
+    engine/battle/act_scenarios_test.go, package 'battle_test'.
+  - On the 0908 ruling that removed 'StrikeKind': 「當時的時空背景是
+    使用 strikekind 變數實作錯誤，希望移除 strike kind 的那種實作方式，
+    並且種類也沒有明確指出是什麼種類」. The output label of a strike is
+    'segment', a value of the output type only.
+  - The wire and the handler wait for the engine shape: 「換路線的事情
+    之後再修正，現在先改的是整個 engine/battle/ 的形狀」. On 2026-09-10,
+    with 'engine/battle/' green, the user cut the outer verification
+    from this change: 「丟掉外部 wire 相關驗證，我這個改動只有要改
+    engine/battle 那我就只要看裏面的驗證，外部怎麼 wire 和 python 會
+    怎樣就不是我現在要關心的」.
+
+- **(0910) A system answers a new values column; the board clones
+  nothing — user ruling**｜The 0909 entry above faulted the clone
+  inside 'engagement.Commit' and inside 'turn.Advance' and moved it
+  into 'board.Act' as a scratch the systems write in place. The
+  session asked how a caller learns that 'Commit' writes the column
+  it receives, and weighed a comment, a marker type 'state.Scratch',
+  and a method on a wrapper type. The user ruled the shape instead:
+  「Commit 的形狀應該是 func Commit(contents, values, decision, dice)
+  values, trace, error」;「外部不用自己複製 values，因為 Commit 本來
+  就該產出經過業務邏輯調整後的新 values」. A system is a function from
+  a column to a new column: the signature is the contract, the
+  atomicity sits in it, and the caller knows nothing of what to copy.
+  Two clones for one act is the cost; the user judged it no reason.
+  This reverses the first item of the 0909 entry and step 2 of its
+  orchestration; the other items stand. The code of db4042a already
+  has this shape, so the step-1 change of 2026-09-10 (clone moved to
+  the board) was reverted before any commit. The data/system model of
+  0901 (issue #91) stands with it: 'Clone' is a method of the data,
+  because it states what the data is; a settlement is a system,
+  because it states what the game does. docs/roadmaps/
+  branch-act-node-settlement.md section 2 carries the ruling.

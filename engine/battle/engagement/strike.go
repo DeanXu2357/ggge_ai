@@ -4,7 +4,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
@@ -83,19 +82,4 @@ func strikeHitProbability(attacker, defender state.Unit, weapon *def.Weapon, dod
 // carries a shield defends with the shield here, in the damage (issue #63).
 func defenseMultiplier(stance battle.Stance, defender state.Unit) float64 {
 	return formula.DefenseMultiplier(stance == battle.StanceDefend, defender.HasShield)
-}
-
-// A nil weaponID takes the first weapon that fires, as the game does when the
-// defender counters with no choice of its own.
-func counterWeapon(defender state.Unit, weaponID *int, attacker battle.Footprint) (int, bool) {
-	distance := geometry.Distance(defender.Footprint(), attacker)
-	for index := range defender.Mech.Weapons {
-		if weaponID != nil && index != *weaponID {
-			continue
-		}
-		if fires(defender, &defender.Mech.Weapons[index], distance) {
-			return index, true
-		}
-	}
-	return 0, false
 }

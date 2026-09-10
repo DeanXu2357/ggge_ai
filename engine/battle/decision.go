@@ -46,18 +46,8 @@ func (s *Stance) UnmarshalJSON(data []byte) error {
 	return decodeEnum(data, s, stances, "stance")
 }
 
-// Every id of this file is a position: a unit id is the position of the unit in
-// 'BattleState.Units', a weapon id is the position of the weapon in
-// 'Mech.Weapons', and a map weapon id is the position in 'Mech.MapWeapons'.
-type ResponseAttack struct {
-	Stance             Stance `json:"stance"`
-	WeaponID           *int   `json:"weapon_id"`
-	SupportDefenderID  *int   `json:"support_defender_id"`
-	SupportAttackerIDs []int  `json:"support_attacker_ids"`
-}
-
-// Decision carries three dice fields, and each holds three values: the node
-// landed, the node missed, and the caller settles the node somewhere else.
+// Decision is the payload of the question 'response_attacks'. The act reads
+// 'Action'; every id of this type is a position, as in 'Action'.
 type Decision struct {
 	UnitID             int             `json:"unit_id"`
 	Kind               ActionKind      `json:"kind"`
