@@ -31,10 +31,10 @@ func TestAnAbsentStatedBehaviorDecodesToNil(t *testing.T) {
 func TestAnActionWithNoSideDecodesToNilSides(t *testing.T) {
 	var action Action
 
-	if err := json.Unmarshal([]byte(`{"actor_id":2,"kind":"standby"}`), &action); err != nil {
+	if err := json.Unmarshal([]byte(`{"actor_id":2}`), &action); err != nil {
 		t.Fatalf("error: %v", err)
 	}
-	if action.ActorID != 2 || action.Kind != ActionStandby || action.Attack != nil ||
+	if action.ActorID != 2 || action.Attack != nil ||
 		action.ResponseAttack != nil || action.MoveTo != nil {
 		t.Fatalf("action: %+v", action)
 	}

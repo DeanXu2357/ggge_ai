@@ -2,7 +2,6 @@ package battle
 
 type Action struct {
 	ActorID        int             `json:"actor_id"` // unit id
-	Kind           ActionKind      `json:"kind"`
 	MoveTo         *Cell           `json:"move_to"`
 	Attack         *Attack         `json:"attack"`
 	ResponseAttack *ResponseAttack `json:"response_attack"`

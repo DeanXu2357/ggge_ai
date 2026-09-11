@@ -2063,3 +2063,17 @@
   'critical'); 'Stated' keeps 'Hit' and 'Crit' for the stated input.
   The event marks no stated against drawn; the caller matches against
   the action it holds. Section 5 of the branch roadmap carries it.
+
+- **(0911) 'Action' drops 'Kind'; the act reads it by presence — user
+  ruling**｜'Action' and 'Decision' both carried 'Kind ActionKind'. The
+  user ruled that 'ActionKind' belongs to 'Decision', and 'Action' can
+  express what it is without it: 「目前看來 ActionKind 型別是 Decision
+  在用的，Action 不應該重複使用這個，而 Action 所要表現的內容即使不
+  使用 ActionKind 看來也是能表現的」. The act reads the action by the
+  fields it carries: a 'move_to' alone is a reposition, no field is a
+  standby, an 'attack' with its 'response_attack' is an attack, a map
+  attack (its fields land next) is a map attack. 'ActionKind' and its
+  constants stay for 'Decision'. This step removes the field alone; the
+  move-first rule, the map attack fields and the presence-based parse
+  and flow follow in later steps. Section 3 of the branch roadmap
+  carries the shape.

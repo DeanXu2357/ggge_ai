@@ -82,10 +82,9 @@ keeps its owner in the name, ruling of 2026-08-28):
 
     Action
       actor_id
-      kind                 attack | reposition | standby | map_attack
-      move_to              optional
-      attack               present for kind attack, absent otherwise
-      response_attack      present for kind attack, absent otherwise
+      move_to              optional: the anchor to move to first
+      attack               optional: the attacker side
+      response_attack      optional: the defender side, with attack
 
     Attack (the attacker side)
       weapon_id
@@ -115,6 +114,8 @@ shooter's side). A stated behavior that the rates of that moment give
 no chance of is refused (a critical at rate 0, a hit at hit rate 0, a
 miss at hit rate 1), in both directions. The stated pair of a strike on a unit
 at 0 HP is read like any other.
+
+The action carries no 'kind'. What the act does follows from the fields it carries: a 'move_to' alone is a reposition, no field at all is a standby, an 'attack' with its 'response_attack' is an attack (user ruling 2026-09-11: 'ActionKind' belongs to 'Decision'; 'Action' expresses itself by presence). The map attack fields and the flow that reads them are the next step.
 
 The caller names every weapon. The engine picks no support weapon and
 no counter weapon. The parse verifies that the named weapon reaches
