@@ -5,6 +5,7 @@ type Action struct {
 	MoveTo         *Cell           `json:"move_to"`
 	Attack         *Attack         `json:"attack"`
 	ResponseAttack *ResponseAttack `json:"response_attack"`
+	MapAttack      *MapAttack      `json:"map_attack"`
 }
 
 type Attack struct {
@@ -21,6 +22,12 @@ type ResponseAttack struct {
 	Stated            *Stated           `json:"stated"`
 	SupportAttackers  []SupportAttacker `json:"support_attackers"`
 	SupportDefenderID *int              `json:"support_defender_id"`
+}
+
+type MapAttack struct {
+	MapWeaponID int       `json:"map_weapon_id"`
+	FireCell    Cell      `json:"anchor"`
+	Direction   Direction `json:"direction"`
 }
 
 type SupportAttacker struct {

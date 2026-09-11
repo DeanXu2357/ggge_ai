@@ -101,6 +101,13 @@ keeps its owner in the name, ruling of 2026-08-28):
       support_defender_id  optional: the unit that takes the main
                            strike and the salvo
 
+    MapAttack (the map-attacker side)
+      map_weapon_id
+      anchor               the target cell
+      direction            the facing; the area reads the anchor or the
+                           direction, and the map weapon decides which,
+                           so the struct carries both
+
     Stated
       crit                 bool: the critical of the shooter
       hit                  bool: the strike lands on the unit struck
