@@ -44,11 +44,11 @@ what changed and to fill gaps the conversation leaves open.
 6. Verify line lengths before you present the message. Count the
    characters of the subject line and of every body line yourself, and
    fix every line that exceeds the limit.
-7. Present the message. Then commit only in one of these two cases:
-   the user's request already included committing, or the user
-   confirms after seeing the message. Commit with
-   "git commit -F -" and a heredoc so the message reaches git exactly
-   as written.
+7. Show the message to the user. Do not commit before the user reads it.
+8. If the user confirms the message, commit. If the user does not
+   confirm the message, stop.
+9. Commit with "git commit -F -" and a heredoc. The heredoc keeps the
+   message exactly as you wrote it.
 </workflow>
 
 <rules>
