@@ -5,46 +5,49 @@ import (
 	"math/rand/v2"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 func Commit(board state.Battle, action battle.Action, draw *rand.Rand) (state.Values, []battle.Event, error) {
-	actor, err := Activatable(board, action.ActorID)
+	if outcome := Outcome(board); outcome != battle.OutcomeOngoing {
+		return state.Values{}, nil, fmt.Errorf("%w: %s", battle.ErrBattleOver, outcome)
+	}
+
+	schedule, err := scheduleAct(board, action)
 	if err != nil {
 		return state.Values{}, nil, err
 	}
-	if action.MapAttack != nil {
-		return state.Values{}, nil, fmt.Errorf("%w: the engine fires no map weapon, because the area of a map weapon is not in the contract",
-			battle.ErrIllegalAction)
+
+	working := board.Values.Clone()
+	view := state.Battle{Content: board.Content, Values: &working}
+
+	var events []battle.Event
+	if schedule.from != schedule.to {
+		unitOf(view, schedule.actorID).Value.Pos = schedule.to
+		events = append(events, battle.MoveEvent{Kind: battle.EventMove,
+			ActorID: schedule.actorID, From: schedule.from, To: schedule.to})
 	}
-	if (action.Attack == nil) != (action.ResponseAttack == nil) {
-		return state.Values{}, nil, fmt.Errorf("%w: an attack and its response attack travel together",
-			battle.ErrIllegalAction)
+	x := exchange{board: view, draw: draw, actorID: schedule.actorID, paid: map[int]bool{}}
+	for _, s := range schedule.strikes {
+		events = append(events, x.fire(s))
 	}
-	if action.Attack == nil {
-		if _, err := destination(board, action.ActorID, action.MoveTo, true); err != nil {
-			return state.Values{}, nil, err
+
+	events = append(events, endActivation(view, schedule.actorID, x.killed))
+	if Outcome(view) == battle.OutcomeOngoing {
+		for _, rotation := range rotate(view) {
+			events = append(events, rotation)
 		}
-		return board.Values.Clone(), nil, nil
 	}
-	anchor, err := checkAttack(board, action, actor)
-	if err != nil {
-		return state.Values{}, nil, err
+	return working, events, nil
+}
+
+func endActivation(board state.Battle, actorID int, killed bool) battle.ActivationEndEvent {
+	actor := unitOf(board, actorID)
+	var led ledger
+	if killed && actor.Alive() && actor.Value.ChanceSteps > 0 {
+		led.unit(actorID).ChanceSteps = change(&actor.Value.ChanceSteps, actor.Value.ChanceSteps-1)
+	} else {
+		led.unit(actorID).Acted = change(&actor.Value.Acted, true)
 	}
-	firing := geometry.FootprintAt(actor, anchor)
-	target := unitOf(board, action.Attack.TargetID)
-	dodging := action.ResponseAttack.Stance == battle.StanceDodge
-	if err := checkSide(board, action.ActorID, firing, target, target.Footprint(), dodging,
-		action.Attack.SupportAttackers, action.Attack.SupportDefenderID); err != nil {
-		return state.Values{}, nil, err
-	}
-	if err := checkResponse(board, action, actor, firing); err != nil {
-		return state.Values{}, nil, err
-	}
-	if err := checkSide(board, action.Attack.TargetID, target.Footprint(), actor, firing, false,
-		action.ResponseAttack.SupportAttackers, action.ResponseAttack.SupportDefenderID); err != nil {
-		return state.Values{}, nil, err
-	}
-	return board.Values.Clone(), nil, nil
+	return battle.ActivationEndEvent{Kind: battle.EventActivationEnd, ActorID: actorID, Effects: led.effects}
 }

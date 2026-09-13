@@ -203,7 +203,7 @@ func TestAResponseAttackOfADestroyedUnitIsAnError(t *testing.T) {
 
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
-			b := duel()
+			b := duelBoard(append(duelUnits(), unitAt(battle.FactionEnemy, battle.Cell{4, 4}))...)
 			b.Values.Units[one.unitID].HP = 0
 
 			_, err := Menu(b, strikeAction(battle.Cell{1, 0}, 0), duelDefenderID)

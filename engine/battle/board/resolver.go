@@ -114,8 +114,9 @@ func (b *Board) Act(action *battle.Action) (battle.ActResult, error) {
 	}
 	b.values = engaged
 	return battle.ActResult{
-		Events: events,
-		Units:  b.affected(events),
+		Events:  events,
+		Units:   b.affected(events),
+		Outcome: system.Outcome(b.view()),
 	}, nil
 }
 

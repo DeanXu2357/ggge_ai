@@ -72,7 +72,7 @@ func refusalCode(err error) string {
 	switch {
 	case errors.Is(err, battle.ErrOutsideContract):
 		return protocol.CodeBadRequest
-	case errors.Is(err, battle.ErrOffPhase), errors.Is(err, battle.ErrActed):
+	case errors.Is(err, battle.ErrOffPhase), errors.Is(err, battle.ErrActed), errors.Is(err, battle.ErrBattleOver):
 		return protocol.CodeIllegalState
 	}
 	return protocol.CodeIllegalAction

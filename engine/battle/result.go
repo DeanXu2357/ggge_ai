@@ -1,9 +1,18 @@
 package battle
 
 type ActResult struct {
-	Events []Event      `json:"events"`
-	Units  []UnitValues `json:"units"`
+	Events  []Event      `json:"events"`
+	Units   []UnitValues `json:"units"`
+	Outcome Outcome      `json:"outcome"`
 }
+
+type Outcome string
+
+const (
+	OutcomeOngoing Outcome = "ongoing"
+	OutcomeVictory Outcome = "victory"
+	OutcomeDefeat  Outcome = "defeat"
+)
 
 type Event interface {
 	EventKind() EventKind

@@ -233,6 +233,11 @@ Three parts. The first excludes the other two.
    rotation. Each carries its cause and its effects.
 3. The terminal values of the units this act affected: every unit an
    effect landed on, with its whole value column after the act.
+4. The outcome: 'ongoing', 'victory' or 'defeat' (user ruling
+   2026-09-14; the three values are the whole set). Today the one
+   condition is annihilation; the stage conditions join when the
+   contract carries them. A settled battle rotates no phase, and
+   'Activatable' refuses every later act.
 
 The result carries no echo of the request (user ruling 2026-09-10:
 'ActResult' holds no 'request'). The caller holds the action it sent,

@@ -505,10 +505,18 @@ the section 'Turn cycle' holds the rule.
 
 'board' is the summary: 'turn', 'phase', 'pending_ids' (the
 units of the phase that can still act), and 'gone' (the sides
-'ally' and 'enemy' with no living unit, in that order). The engine
-judges no end of the battle: a board with one side gone answers
-like any other, and the client stops on 'gone' (user ruling
-2026-08-27).
+'ally' and 'enemy' with no living unit, in that order).
+
+'outcome' is the judgment of the engine after the act: 'ongoing',
+'victory' or 'defeat'. The stage conditions are not in the
+contract, so the one condition of each side is that every unit of
+the other side is destroyed; the ally side is judged first. The
+engine judges it at the end of every act, before the rotation: a
+settled battle rotates no phase, and every later 'act' and
+'response_attacks' is an 'illegal_state' (user ruling 2026-09-14).
+This replaces the rule of 2026-08-27 that left the end of the
+battle to the client, which held only while the engine had no
+condition to read.
 
 The command runs on a copy of the board and installs the copy when
 the whole run succeeds. A refusal changes no board and moves the
@@ -543,8 +551,9 @@ with the message of an unknown kind. The state still carries the
 skill list of a unit: what a unit holds is not the same question as
 what a skill does.
 
-Refusals: no_session; illegal_state when the phase of the unit is
-not the current phase, or when the unit acted in this turn;
+Refusals: no_session; illegal_state when the battle is settled,
+when the phase of the unit is not the current phase, or when the
+unit acted in this turn;
 illegal_action for a target that is no foe, an attack that fills
 both 'weapon_id' and 'map_weapon_id' or neither, a weapon the unit
 does not carry, a weapon the unit cannot pay for, a weapon that does not

@@ -15,6 +15,10 @@ import (
 // same error. The response attack of the decision is the question, so the plan
 // is built without one.
 func Menu(board state.Battle, decision battle.Decision, defenderID int) (Options, error) {
+	if outcome := Outcome(board); outcome != battle.OutcomeOngoing {
+		return Options{}, fmt.Errorf("%w: %s", battle.ErrBattleOver, outcome)
+	}
+
 	decision.ResponseAttack = nil
 	made, err := prepare(board, decision)
 	if err != nil {

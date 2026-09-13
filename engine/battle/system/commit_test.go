@@ -93,6 +93,7 @@ func TestCommitChecksTheTargetAndTheWeaponOfTheAttacker(t *testing.T) {
 	drained := actor
 	drained.EN = 5
 	friend := fighter(battle.FactionAlly, battle.Cell{3, 0})
+	bystander := fighter(battle.FactionEnemy, battle.Cell{4, 4})
 
 	for name, tc := range map[string]struct {
 		board    state.Battle
@@ -101,8 +102,8 @@ func TestCommitChecksTheTargetAndTheWeaponOfTheAttacker(t *testing.T) {
 		sentinel error
 	}{
 		"a target that names nothing":      {board(actor, target), 0, 9, battle.ErrNoUnit},
-		"a target that is no foe":          {board(actor, friend), 0, targetID, battle.ErrIllegalAction},
-		"a target that is destroyed":       {board(actor, dead), 0, targetID, battle.ErrDestroyed},
+		"a target that is no foe":          {board(actor, friend, bystander), 0, targetID, battle.ErrIllegalAction},
+		"a target that is destroyed":       {board(actor, dead, bystander), 0, targetID, battle.ErrDestroyed},
 		"a weapon that does not reach":     {board(actor, far), 0, targetID, battle.ErrIllegalAction},
 		"a weapon the unit cannot pay":     {board(drained, target), 0, targetID, battle.ErrIllegalAction},
 		"a weapon the unit does not carry": {board(actor, target), 3, targetID, battle.ErrIllegalAction},

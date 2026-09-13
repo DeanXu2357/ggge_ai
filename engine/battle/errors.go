@@ -3,10 +3,11 @@ package battle
 import "errors"
 
 var (
-	ErrNoUnit    = errors.New("the board holds no such unit")
-	ErrDestroyed = errors.New("the unit is destroyed")
-	ErrOffPhase  = errors.New("the unit is not of the current phase")
-	ErrActed     = errors.New("the unit acted in this turn")
+	ErrNoUnit     = errors.New("the board holds no such unit")
+	ErrDestroyed  = errors.New("the unit is destroyed")
+	ErrOffPhase   = errors.New("the unit is not of the current phase")
+	ErrActed      = errors.New("the unit acted in this turn")
+	ErrBattleOver = errors.New("the battle is settled")
 
 	ErrIllegalAction = errors.New("the action is not legal")
 	ErrIllegalMove   = errors.New("the move is not legal")
