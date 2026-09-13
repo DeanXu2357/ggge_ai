@@ -12,8 +12,9 @@ func Activatable(board state.Battle, unitID int) (state.Unit, error) {
 	if err != nil {
 		return state.Unit{}, err
 	}
-	if err := onPhase(board, unit); err != nil {
-		return state.Unit{}, err
+	if !onPhase(board, unit) {
+		return state.Unit{}, fmt.Errorf("%w: the side %q does not hold the phase %q",
+			battle.ErrOffPhase, unit.Faction, board.Values.Phase)
 	}
 	if unit.Value.Acted {
 		return state.Unit{}, fmt.Errorf("%w: %d", battle.ErrActed, unitID)
@@ -21,10 +22,6 @@ func Activatable(board state.Battle, unitID int) (state.Unit, error) {
 	return unit, nil
 }
 
-func onPhase(board state.Battle, unit state.Unit) error {
-	if unit.Faction != board.Values.Phase {
-		return fmt.Errorf("%w: the side %q does not hold the phase %q",
-			battle.ErrOffPhase, unit.Faction, board.Values.Phase)
-	}
-	return nil
+func onPhase(board state.Battle, unit state.Unit) bool {
+	return unit.Faction == board.Values.Phase
 }

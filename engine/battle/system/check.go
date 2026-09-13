@@ -11,43 +11,6 @@ import (
 
 const maxSupportAttackers = 3
 
-// check refuses an action the board cannot settle, and answers nothing else:
-// the segments read the action for themselves.
-func check(board state.Battle, action battle.Action) error {
-	actor, err := Activatable(board, action.ActorID)
-	if err != nil {
-		return err
-	}
-	if action.MapAttack != nil {
-		return fmt.Errorf("%w: the engine fires no map weapon, because the area of a map weapon is not in the contract",
-			battle.ErrIllegalAction)
-	}
-	if (action.Attack == nil) != (action.ResponseAttack == nil) {
-		return fmt.Errorf("%w: an attack and its response attack travel together",
-			battle.ErrIllegalAction)
-	}
-	if action.Attack == nil {
-		_, err := destination(board, action.ActorID, action.MoveTo, true)
-		return err
-	}
-	anchor, err := checkAttack(board, action, actor)
-	if err != nil {
-		return err
-	}
-	firing := geometry.FootprintAt(actor, anchor)
-	target := unitOf(board, action.Attack.TargetID)
-	dodging := action.ResponseAttack.Stance == battle.StanceDodge
-	if err := checkSide(board, action.ActorID, firing, target, target.Footprint(), dodging,
-		action.Attack.SupportAttackers, action.Attack.SupportDefenderID); err != nil {
-		return err
-	}
-	if err := checkResponse(board, action, actor, firing); err != nil {
-		return err
-	}
-	return checkSide(board, action.Attack.TargetID, target.Footprint(), actor, firing, false,
-		action.ResponseAttack.SupportAttackers, action.ResponseAttack.SupportDefenderID)
-}
-
 // checkAttack answers the anchor of the actor after its move, which the
 // defender side reads as the cell its strikes must reach.
 func checkAttack(board state.Battle, action battle.Action, actor state.Unit) (battle.Cell, error) {
