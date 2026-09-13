@@ -12,9 +12,9 @@ Every ruling below is the user's unless marked 'open' or 'proposal'.
 ## 1. What is wrong today (confirmed 2026-09-09)
 
 1. 'board.Act' checks nothing and shapes nothing. It hands the
-   decision to 'engagement.Commit' and installs what comes back.
+   decision to 'system.Commit' and installs what comes back.
    (The ruling of 2026-09-09 also faulted the clone inside 'Commit'
-   and inside 'turn.Advance'; the user reversed that part on
+   and inside 'system.Advance'; the user reversed that part on
    2026-09-10, see section 2.)
 2. The parse hands over questions as data. A node carries 'alive'
    ids, 'charged', 'spendsEN' and 'takes'; 'settleNode' interprets
@@ -41,7 +41,7 @@ repaired the same way afterwards, not on this pass.
 
 1. Check the input: every id names a thing of the board, the kind
    matches the fields it carries.
-2. Hand the two columns to 'engagement.Commit'. A system is a
+2. Hand the two columns to 'system.Commit'. A system is a
    function from a values column to a new values column: it clones
    the column it receives, writes the clone, and answers the clone.
    'Commit' answers the column after the exchange and after the
@@ -49,7 +49,7 @@ repaired the same way afterwards, not on this pass.
    clones nothing, never hands a system a column it may write, and
    does not know the turn package (user ruling 2026-09-10: whether
    the phase rotates is a fact of the settlement, so 'Commit' calls
-   'turn.Advance' from its last segment; the board does not).
+   'system.Advance' from its last segment; the board does not).
 3. On success install the answered column as the values column. On
    any error install nothing: an error carries no column.
 4. Shape the result of the engagement into the output type.
@@ -67,7 +67,7 @@ The board is the engine of the whole battle, so the board holds the
 random source: 'board.New(seed)'. 'Load' does not change. The
 handler passes no dice.
 
-'engagement' is pure logic over the columns it receives. It holds no
+'system' is pure logic over the columns it receives. It holds no
 state of its own between calls and writes only the clone it answers.
 
 ## 3. The input of 'Board.Act'
@@ -186,7 +186,7 @@ consumption when its weapon applies.
 | 2 main strike | always | as segment 1 |
 | 3 defender salvo | the target lives | the actor itself (open: whether the support defender of the actor takes a support strike is unmeasured; the current code says no) |
 | 4 counter | the target lives and its stance is counter | the support defender of the actor if named and it holds a charge, in the defend stance; else the actor with no multiplier |
-| 5 end | always | a kill in segment 1 or 2 (the support defender or the target), the actor alive, chance steps left: one chance step less and 'acted' stays false; else 'acted'. Then, when no unit of the side is pending, the phase rotates ('turn.Advance'); each rotation is a phase event with the resets as effects |
+| 5 end | always | a kill in segment 1 or 2 (the support defender or the target), the actor alive, chance steps left: one chance step less and 'acted' stays false; else 'acted'. Then, when no unit of the side is pending, the phase rotates ('system.Advance'); each rotation is a phase event with the resets as effects |
 
 One reason exists for a strike that does not fire: the target is
 destroyed, and then segments 3 and 4 do not run. Every other strike
@@ -293,12 +293,12 @@ The user and the session define the scenarios together. Each
 scenario is one Go test in 'engine/battle/', package 'battle_test',
 that builds the units, calls 'Load', calls 'Act', and asserts on the
 parts of the output and on 'State()'. No test reaches an
-internal name of 'engagement', 'state' or 'board'.
+internal name of 'system', 'state' or 'board'.
 
 The tests of 'commit_test.go', 'resolver_test.go' and
 'strike_test.go' that reach internal structure are deleted, not
-rewritten. The tests of 'formula', 'geometry', 'state' and 'turn'
-stay.
+rewritten. The tests of 'formula', 'geometry' and 'state' stay; the turn
+tests moved into 'system' with their package.
 
 A green run is the floor. Acceptance is the user reading each
 scenario against the rules of section 4 and the output of section 5.
@@ -342,7 +342,7 @@ and 5):
   handler, 'play.py', the protocol spec and the goldens follow in a
   later step of this branch or a later branch, as the user rules
   then.
-- 'engagement.Menu' and 'prepare.go'.
+- 'system.Menu' and 'prepare.go'.
 - The critical rate. No rule computes one; a stated critical is
   refused until one lands.
 - The ability moments of issue #72.
@@ -384,7 +384,7 @@ next starts.
     'DecodeOutcomes' and 'Node' are deleted. The board holds the
     random source: 'board.New(seed)'. A refused act puts the source
     back where it stood.
-  - 'engagement.Commit(board, action, draw)' answers a new column;
+  - 'system.Commit(board, action, draw)' answers a new column;
     'prepare.go' shrinks to what 'Menu' reads (actor, anchor,
     weapon, target).
   - The settlement is cleared (user, 2026-09-10: 「先清空 Commit 裡面
@@ -406,9 +406,9 @@ next starts.
   the events of the engagement and the terminal values of every
   unit an effect names, by unit id (the request echo was dropped on
   2026-09-10). The
-  board no longer calls 'turn.Advance' (user ruling 2026-09-10,
+  board no longer calls 'system.Advance' (user ruling 2026-09-10,
   section 2): the rotation belongs to segment 5 of the settlement,
-  and 'turn.Advance' must then answer the resets it writes as the
+  and 'system.Advance' must then answer the resets it writes as the
   effects of a 'PhaseEvent'. The old
   'ActResult', 'StrikeEvent', 'PhaseEvent' of 'responses.go' and
   'Trace', 'Strike', 'StrikeKind' of 'engagement/results.go' are
@@ -419,3 +419,29 @@ the wire, the handler and the Python side. Once the shape of
 'Board.Act' changes, 'engine/protocol' and 'engine/server' stop
 compiling against the new contract, and the gates of section 8
 apply to 'engine/battle/...' alone on this branch.
+
+- 2026-09-13, step 4 (2e55c12): the refusal step of section 4, as
+  'check' inside 'commit.go'. The user ruled three things on the way:
+  the parse answers no data (no intermediate type; the segments read
+  'Action' by presence and 'check' answers an error alone); a private
+  function with one caller earns no file of its own; and the tests of
+  this branch target 'Commit' in its own package ('commit_test.go'),
+  because a black-box suite over 'Board.Act' is an integration test
+  and not the unit test of the step. The scenario suite of section 6
+  was written, reviewed, and removed; section 6 is superseded on the
+  test surface (the scenario list stays the acceptance checklist).
+  An accepted action answers a copy of the column and no event until
+  the settlement lands.
+
+- 2026-09-13, step 5: 'engagement' and 'turn' merge into one package
+  'engine/battle/system' (user ruling: the two behavior systems
+  differ in scenario alone). A move with no behavior change: the
+  entries the board calls each stand in their own file ('commit.go',
+  'menu.go', 'advance.go', 'pending.go', 'gone.go', 'activatable.go',
+  'living_unit.go'); the checks of step 4 sit in 'check.go' until the
+  settlement step sorts the functions of the act by responsibility.
+  The older helpers ('prepare.go', 'support.go', 'strike.go',
+  'model.go') are not touched: the user ruled that their necessity is
+  judged one by one while the settlement is written. The spec
+  'battle-engine-protocol.md' received the path renames alone; its
+  text on the mechanism waits for the wire step of section 7.

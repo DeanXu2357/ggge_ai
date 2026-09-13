@@ -1,4 +1,4 @@
-package turn
+package system
 
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
@@ -25,26 +25,6 @@ func Advance(board state.Battle) (state.Values, []Rotation) {
 		out = append(out, nextPhase(scratch))
 	}
 	return working, out
-}
-
-func Pending(board state.Battle, faction battle.Faction) []int {
-	var out []int
-	for index, unit := range board.Units() {
-		if unit.Faction == faction && unit.Alive() && !unit.Value.Acted {
-			out = append(out, index)
-		}
-	}
-	return out
-}
-
-func Gone(board state.Battle) []battle.Faction {
-	var out []battle.Faction
-	for _, faction := range []battle.Faction{battle.FactionAlly, battle.FactionEnemy} {
-		if !holds(board, faction) {
-			out = append(out, faction)
-		}
-	}
-	return out
 }
 
 func nextPhase(board state.Battle) Rotation {
@@ -86,15 +66,6 @@ func expired(debuffs []battle.Debuff, now int) []battle.Debuff {
 func anyAlive(board state.Battle) bool {
 	for _, unit := range board.Units() {
 		if unit.Alive() {
-			return true
-		}
-	}
-	return false
-}
-
-func holds(board state.Battle, faction battle.Faction) bool {
-	for _, unit := range board.Units() {
-		if unit.Faction == faction && unit.Alive() {
 			return true
 		}
 	}

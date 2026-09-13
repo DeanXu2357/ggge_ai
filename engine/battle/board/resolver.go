@@ -8,8 +8,8 @@ import (
 	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/system"
 )
 
 func (b *Board) Load(bounds battle.Bounds, terrain battle.Terrain,
@@ -108,7 +108,7 @@ func (b *Board) Act(action *battle.Action) (battle.ActResult, error) {
 	if err != nil {
 		return battle.ActResult{}, err
 	}
-	engaged, events, err := engagement.Commit(b.view(), *action, rand.New(b.source))
+	engaged, events, err := system.Commit(b.view(), *action, rand.New(b.source))
 	if err != nil {
 		return battle.ActResult{}, errors.Join(err, b.source.UnmarshalBinary(before))
 	}

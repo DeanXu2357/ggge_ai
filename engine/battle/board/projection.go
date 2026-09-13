@@ -3,8 +3,8 @@ package board
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/system"
 )
 
 func unitStatusOf(unitID int, unit state.Unit) battle.UnitStatus {
@@ -71,7 +71,7 @@ func skillEntriesOf(skills []def.Skill) []battle.SkillEntry {
 	return out
 }
 
-func responseAttacksOf(options engagement.Options) battle.ResponseAttacksResponse {
+func responseAttacksOf(options system.Options) battle.ResponseAttacksResponse {
 	return battle.ResponseAttacksResponse{
 		Defender: battle.DefenderOptions{
 			UnitID:           options.Defender.UnitID,
@@ -87,7 +87,7 @@ func responseAttacksOf(options engagement.Options) battle.ResponseAttacksRespons
 	}
 }
 
-func responseAttackOptionsOf(options []engagement.ResponseAttackOption) []battle.ResponseAttackOption {
+func responseAttackOptionsOf(options []system.ResponseAttackOption) []battle.ResponseAttackOption {
 	out := make([]battle.ResponseAttackOption, 0, len(options))
 	for _, option := range options {
 		entry := battle.ResponseAttackOption{
@@ -105,7 +105,7 @@ func responseAttackOptionsOf(options []engagement.ResponseAttackOption) []battle
 }
 
 // The wire carries no integer type, so the damage goes out as a number.
-func forecastOf(forecast engagement.Forecast) battle.Forecast {
+func forecastOf(forecast system.Forecast) battle.Forecast {
 	out := battle.Forecast{HitRate: forecast.HitRate, Kill: forecast.Kill}
 	if forecast.HitRate != nil {
 		rate := *forecast.HitRate
@@ -122,7 +122,7 @@ func forecastOf(forecast engagement.Forecast) battle.Forecast {
 	return out
 }
 
-func supportDefendersOf(options []engagement.SupportDefendOption) []battle.SupportDefendOption {
+func supportDefendersOf(options []system.SupportDefendOption) []battle.SupportDefendOption {
 	out := make([]battle.SupportDefendOption, 0, len(options))
 	for _, option := range options {
 		out = append(out, battle.SupportDefendOption{
@@ -133,7 +133,7 @@ func supportDefendersOf(options []engagement.SupportDefendOption) []battle.Suppo
 	return out
 }
 
-func supportAttackersOf(options []engagement.SupportAttackOption) []battle.SupportAttackOption {
+func supportAttackersOf(options []system.SupportAttackOption) []battle.SupportAttackOption {
 	out := make([]battle.SupportAttackOption, 0, len(options))
 	for _, option := range options {
 		out = append(out, battle.SupportAttackOption{

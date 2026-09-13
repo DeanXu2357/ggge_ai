@@ -2,15 +2,14 @@ package board
 
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/turn"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/system"
 )
 
 func (b *Board) Actions(unitID int) (battle.ActionsResponse, error) {
 	view := b.view()
-	unit, err := engagement.Activatable(view, unitID)
+	unit, err := system.Activatable(view, unitID)
 	if err != nil {
 		return battle.ActionsResponse{}, err
 	}
@@ -30,14 +29,14 @@ func actionsOf(unitID int, unit state.Unit, moveCells []battle.Cell) battle.Acti
 
 func (b *Board) ReachableCells(unitID int) ([]battle.Cell, error) {
 	view := b.view()
-	if _, err := engagement.LivingUnit(view, unitID); err != nil {
+	if _, err := system.LivingUnit(view, unitID); err != nil {
 		return nil, err
 	}
 	return geometry.SortedCells(geometry.ReachableAnchors(view, unitID)), nil
 }
 
 func (b *Board) ResponseAttacks(action *battle.Decision, defenderID int) (battle.ResponseAttacksResponse, error) {
-	options, err := engagement.Menu(b.view(), *action, defenderID)
+	options, err := system.Menu(b.view(), *action, defenderID)
 	if err != nil {
 		return battle.ResponseAttacksResponse{}, err
 	}
@@ -54,7 +53,7 @@ func (b *Board) Summary() battle.BoardSummary {
 		Turn: view.Values.Turn, Phase: view.Values.Phase,
 		PendingIDs: []int{}, Gone: []battle.Faction{},
 	}
-	out.PendingIDs = append(out.PendingIDs, turn.Pending(view, view.Values.Phase)...)
-	out.Gone = append(out.Gone, turn.Gone(view)...)
+	out.PendingIDs = append(out.PendingIDs, system.Pending(view, view.Values.Phase)...)
+	out.Gone = append(out.Gone, system.Gone(view)...)
 	return out
 }

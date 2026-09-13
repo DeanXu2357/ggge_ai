@@ -1,4 +1,4 @@
-package engagement
+package system
 
 import (
 	"fmt"
@@ -124,41 +124,6 @@ func prepareAttack(board state.Battle, decision battle.Decision, actor state.Uni
 		targetID: &targetID,
 		weaponID: &weaponID,
 	}, nil
-}
-
-func Activatable(board state.Battle, unitID int) (state.Unit, error) {
-	unit, err := LivingUnit(board, unitID)
-	if err != nil {
-		return state.Unit{}, err
-	}
-	if err := onPhase(board, unit); err != nil {
-		return state.Unit{}, err
-	}
-	if unit.Value.Acted {
-		return state.Unit{}, fmt.Errorf("%w: %d", battle.ErrActed, unitID)
-	}
-	return unit, nil
-}
-
-// LivingUnit and onPhase are the two gates that every command reads, so the
-// shell asks them here and no package writes the refusal twice.
-func LivingUnit(board state.Battle, unitID int) (state.Unit, error) {
-	unit, err := board.UnitAt(unitID)
-	if err != nil {
-		return state.Unit{}, err
-	}
-	if !unit.Alive() {
-		return state.Unit{}, fmt.Errorf("%w: %d", battle.ErrDestroyed, unitID)
-	}
-	return unit, nil
-}
-
-func onPhase(board state.Battle, unit state.Unit) error {
-	if unit.Faction != board.Values.Phase {
-		return fmt.Errorf("%w: the side %q does not hold the phase %q",
-			battle.ErrOffPhase, unit.Faction, board.Values.Phase)
-	}
-	return nil
 }
 
 func foe(board state.Battle, actorID int, targetID int) (int, error) {

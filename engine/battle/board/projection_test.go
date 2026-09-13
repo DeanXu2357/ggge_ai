@@ -6,7 +6,7 @@ import (
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/engagement"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/system"
 )
 
 func TestAWeaponCategoryOutsideTheContractStopsTheDecode(t *testing.T) {
@@ -74,13 +74,13 @@ func TestTheEncodedSkillSharesNoMemoryWithTheModel(t *testing.T) {
 }
 
 func TestTheEngagementPayloadCarriesTheOptionsOfTheTwoSides(t *testing.T) {
-	counter := engagement.Forecast{}
-	encoded := responseAttacksOf(engagement.Options{
-		Defender: engagement.SideOptions{UnitID: 0,
-			SupportDefenders: []engagement.SupportDefendOption{{UnitID: 2}},
-			SupportAttackers: []engagement.SupportAttackOption{{UnitID: 2, WeaponID: 1}}},
-		Attacker: engagement.SideOptions{UnitID: 1},
-		ResponseAttacks: []engagement.ResponseAttackOption{
+	counter := system.Forecast{}
+	encoded := responseAttacksOf(system.Options{
+		Defender: system.SideOptions{UnitID: 0,
+			SupportDefenders: []system.SupportDefendOption{{UnitID: 2}},
+			SupportAttackers: []system.SupportAttackOption{{UnitID: 2, WeaponID: 1}}},
+		Attacker: system.SideOptions{UnitID: 1},
+		ResponseAttacks: []system.ResponseAttackOption{
 			{Stance: battle.StanceDodge},
 			{Stance: battle.StanceCounter, WeaponID: idOf(3), Counter: &counter},
 			{Stance: battle.StanceNone},
@@ -117,8 +117,8 @@ func TestTheEncodedForecastCarriesEveryNumberItHolds(t *testing.T) {
 	damage := 2400
 	kill := true
 
-	full := forecastOf(engagement.Forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
-	lean := forecastOf(engagement.Forecast{Damage: &damage})
+	full := forecastOf(system.Forecast{HitRate: &rate, Damage: &damage, Kill: &kill})
+	lean := forecastOf(system.Forecast{Damage: &damage})
 
 	if *full.HitRate != 0.75 || *full.Damage != 2400 || !*full.Kill {
 		t.Fatalf("forecast: %+v", full)

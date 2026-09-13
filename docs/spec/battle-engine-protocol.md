@@ -106,12 +106,12 @@ issues of the port (#60 to #68).
   never written: the test 'TestAnActLeavesTheContentColumnAsItWas'
   and every golden 'apply' check compare the content before and
   after an act. Neither system depends on the other. The writers of
-  a value are 'engagement/commit.go' and 'turn/turn.go'. Before the battle,
+  a value are 'system/commit.go' and 'system/advance.go'. Before the battle,
   'board.Load' works on the wire form: 'assemble' fills a maximum
   that the payload leaves at zero, and 'validate' fills the two
   values that a payload can leave out, a size of zero and an empty
-  terrain. 'engine/battle/engagement' resolves one activation, and
-  it exports one entry for the write: 'engagement.Commit(board,
+  terrain. 'engine/battle/system' resolves one activation, and
+  it exports one entry for the write: 'system.Commit(board,
   decision, dice)' answers the values column that the
   activation leaves, or an error. Three steps run inside the
   package. The prepare phase reads the board, judges every
@@ -119,10 +119,10 @@ issues of the port (#60 to #68).
   the supporters, the bearer, the response) and returns every error
   of 'act' before the first write, or a plan. The dice coverage
   check reads the draws of that plan. The write phase writes the
-  plan in order and cannot fail. 'engagement.Menu(board, decision,
+  plan in order and cannot fail. 'system.Menu(board, decision,
   defenderID)' answers 'response_attacks' through the same prepare
   phase with no response, so it refuses exactly what 'act' refuses.
-  'engine/battle/turn' holds 'turn.Advance(board)': it rotates the
+  'engine/battle/system' holds 'system.Advance(board)': it rotates the
   phase, regenerates the EN, expires the debuffs and resets the
   acted flags, and it answers the new values column with its
   rotations. 'Advance' runs for any view, and it needs no prior
@@ -137,7 +137,7 @@ issues of the port (#60 to #68).
   implements the contract, projects the answers of the read
   commands, and calls the systems. A read command hands the systems
   the view over the columns of the board. 'Act' is four steps:
-  'engagement.Commit' on that view; 'turn.Advance' on a view over
+  'system.Commit' on that view; 'system.Advance' on a view over
   the content and the column that step one answered; one assignment
   of the final column to the board; the typed 'battle.ActResult'
   with the strikes and the rotations. A refused 'act' returns before
@@ -149,7 +149,7 @@ issues of the port (#60 to #68).
   docs/reference/combat-formulas.md and every constant of the
   mechanism. It imports no package of the engine: a formula reads
   the input type 'formula.Side' and the values of the weapon, and
-  no unit. 'engine/battle/engagement' is its only caller, and it
+  no unit. 'engine/battle/system' is its only caller, and it
   adapts a unit and the weapon it fires into a 'Side' at each
   call.
 - The package 'engine/server' holds the transport: the stdio loop,
@@ -989,7 +989,7 @@ The wire carries no ability today, and no ability kind is modelled.
 Issue #80 builds the model and adds the field of the weapon entry
 that holds the list. Until then the board passes 1 for the terrain
 correction of every weapon
-('strikeDamage' in 'engine/battle/engagement/strike.go').
+('strikeDamage' in 'engine/battle/system/strike.go').
 
 ### Differential cases
 

@@ -1,4 +1,4 @@
-package engagement
+package system
 
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
