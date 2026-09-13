@@ -73,10 +73,6 @@ contracts:
   format.
 - explanation: intent and boundaries. The document must carry a
   status note when reality diverges from the intent.
-- how-to: steps and rules for a task. The document must match the
-  current workflow.
-- record: frozen and dated, or append-only. Do not retro-edit a
-  record.
 - working: a branch-scoped working document in `docs/roadmaps/`. It
   dies with the branch: deleted after user approval, before the merge.
 
