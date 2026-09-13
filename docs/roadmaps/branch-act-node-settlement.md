@@ -99,7 +99,7 @@ keeps its owner in the name, ruling of 2026-08-28):
       stated               optional: the stated behaviors of the counter
       support_attackers    [{unit_id, weapon_id, stated}], in order
       support_defender_id  optional: the unit that takes the main
-                           strike and the salvo
+                           strike and the support attacks
 
     MapAttack (the map-attacker side)
       map_weapon_id
@@ -128,7 +128,7 @@ The caller names every weapon. The engine picks no support weapon and
 no counter weapon. The parse verifies that the named weapon reaches
 and that the unit can pay for it.
 
-The order of 'support_attackers' is the order the salvo settles. The
+The order of 'support_attackers' is the order the support attacks settle. The
 game has not answered which supporter fires first; the order of the
 request is the placeholder the user set on 2026-09-08. A measurement
 replaces it.
@@ -182,9 +182,9 @@ consumption when its weapon applies.
 | Segment | Fires when | The unit struck |
 |---|---|---|
 | 0 begin | always | the actor moves to its anchor |
-| 1 attacker salvo | always, in order | the support defender of the defender if named (the whole salvo and the main strike land on it, in the defend stance); else the target, by its stance |
+| 1 attacker support attacks | always, in order | the support defender of the defender if named (every support attack and the main strike land on it, in the defend stance); else the target, by its stance |
 | 2 main strike | always | as segment 1 |
-| 3 defender salvo | the target lives | the actor itself (open: whether the support defender of the actor takes a support strike is unmeasured; the current code says no) |
+| 3 defender support attacks | the target lives | the actor itself (open: whether the support defender of the actor takes a support strike is unmeasured; the current code says no) |
 | 4 counter | the target lives and its stance is counter | the support defender of the actor if named and it holds a charge, in the defend stance; else the actor with no multiplier |
 | 5 end | always | a kill in segment 1 or 2 (the support defender or the target), the actor alive, chance steps left: one chance step less and 'acted' stays false; else 'acted'. Then, when no unit of the side is pending, the phase rotates ('system.Advance'); each rotation is a phase event with the resets as effects |
 
@@ -192,8 +192,8 @@ One reason exists for a strike that does not fire: the target is
 destroyed, and then segments 3 and 4 do not run. Every other strike
 fires. In particular:
 
-- The main strike fires on a target the salvo destroyed.
-- The counter fires on an actor the defender salvo destroyed.
+- The main strike fires on a target the support attacks of the attacker destroyed.
+- The counter fires on an actor the support attacks of the defender destroyed.
 - No strike ever lands on a support attacker inside the exchange.
 
 Every strike runs the same steps:
@@ -310,18 +310,18 @@ and 5):
 1. A plain attack, no response: one main strike, the target takes
    the damage, the actor pays the energy and 'acted'.
 2. Attack with a counter: both strikes fire, both pay, nobody dies.
-3. The salvo destroys the target: the main strike still fires on the
+3. The support attacks of the attacker destroy the target: the main strike still fires on the
    target at 0 HP and pays; segments 3 and 4 do not run; the actor
    gains a chance step.
-4. The defender salvo destroys the actor: the counter still fires on
+4. The support attacks of the defender destroy the actor: the counter still fires on
    the actor at 0 HP; no chance step.
-5. A support defender for the defender: the whole salvo and the main
+5. A support defender for the defender: every support attack and the main
    strike land on it; the first hit spends its charge; a later hit
    spends none; the target is untouched; if the support defender falls the
    later strikes still land on it.
 6. All strikes on the support defender miss: its charge stays.
 7. A support defender for the actor: the counter lands on it in the defend
-   stance; the defender salvo lands on the actor.
+   stance; the support attacks of the defender land on the actor.
 8. Stated behaviors: a stated miss and a stated critical settle as
    stated; a stated critical at rate 0 is refused before any write.
 9. Two supporters on each side, in the named order: the events keep

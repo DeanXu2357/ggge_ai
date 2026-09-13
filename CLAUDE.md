@@ -17,9 +17,23 @@ template vision.
 Use one term for one concept. Do not switch to a synonym after the
 first use. The term bindings, in English and in Traditional Chinese,
 are in `docs/reference/terminology-map.md`. When you need the term for a
-concept in the other language, look it up there. When a concept has
-no entry, add the binding in the same change that introduces the
-term.
+concept in the other language, look it up there.
+
+The map is a record of settled ambiguity, not a dictionary. Add a row
+only when all three tests pass:
+
+- The word is ambiguous inside this project: two readings, two
+  translations, or a game UI word that differs from the common word.
+- The ambiguity was settled by the user, and the row records the
+  settlement so that a later session uses the same reading.
+- The code and the spec cannot settle it: a Go identifier, a package,
+  a file, a wire field, or a step inside one function is never a
+  term.
+
+A row holds the two names and one sentence that states the settled
+reading. Do not add a Go pointer, a date, or a history to the row.
+The commit message and `docs/record/decisions.md` hold those. When
+you are not sure, do not add the row.
 
 ### Commit message
 
@@ -81,8 +95,9 @@ Rules for reference documents:
 - Write new reference text in the ASD-STE100 style.
 - Accuracy comes first. State only verified facts. Mark an unverified
   statement as a hypothesis and give its source.
-- When you introduce a proper noun or a technical name, add the entry
-  to `docs/reference/terminology-map.md` in the same change.
+- When a document settles an ambiguous word, add the row to
+  `docs/reference/terminology-map.md` in the same change. The tests
+  are in the Terminology section.
 
 ### Requirements documents
 
