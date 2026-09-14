@@ -103,30 +103,27 @@ issues of the port (#60 to #68).
   the values column at its entry, writes the clone through a view
   over the same content, and answers the clone as the new values
   column (user ruling 2026-09-01, issue #91). The content column is
-  never written: the test 'TestAnActLeavesTheContentColumnAsItWas'
-  and every golden 'apply' check compare the content before and
-  after an act. Neither system depends on the other. The writers of
-  a value are 'system/commit.go' and 'system/advance.go'. Before the battle,
+  never written: the board tests compare the content before and
+  after an act. The writers of a value are 'system/commit.go',
+  'system/engagement.go' and 'system/turn.go'. Before the battle,
   'board.Load' works on the wire form: 'assemble' fills a maximum
   that the payload leaves at zero, and 'validate' fills the two
   values that a payload can leave out, a size of zero and an empty
-  terrain. 'engine/battle/system' resolves one activation, and
-  it exports one entry for the write: 'system.Commit(board,
-  decision, dice)' answers the values column that the
-  activation leaves, or an error. Three steps run inside the
-  package. The prepare phase reads the board, judges every
-  participant (the actor, the target, the weapon, the reach, the EN,
-  the supporters, the bearer, the response) and returns every error
-  of 'act' before the first write, or a plan. The dice coverage
-  check reads the draws of that plan. The write phase writes the
-  plan in order and cannot fail. 'system.Menu(board, decision,
-  defenderID)' answers 'response_attacks' through the same prepare
-  phase with no response, so it refuses exactly what 'act' refuses.
-  'engine/battle/system' holds 'system.Advance(board)': it rotates the
-  phase, regenerates the EN, expires the debuffs and resets the
-  acted flags, and it answers the new values column with its
-  rotations. 'Advance' runs for any view, and it needs no prior
-  engagement. The pure system
+  terrain. 'engine/battle/system' settles one activation through
+  'system.Commit(board, action, draw)', which answers the values
+  column that the activation leaves and the events, or an error.
+  'scheduleAct' reads the action and the board, refuses everything
+  that cannot settle, and answers the schedule: the move and every
+  strike in game order, each with its shooter, weapon, aimed unit,
+  struck unit and stance. No value of the working column enters a
+  strike. 'Commit' then writes the move, fires each strike whose
+  side still lives, ends the activation, judges the outcome and,
+  while the battle is ongoing, rotates the phase; nothing past the
+  schedule can fail. 'system.Menu(board, decision, defenderID)'
+  answers 'response_attacks' and refuses what 'act' refuses. The
+  rotation, the EN regeneration, the debuff expiry and the reset of
+  the acted flags are 'rotate' in 'system/turn.go', and every reset
+  is an effect of the phase event. The pure system
   'engine/battle/geometry' answers the distance, the reachable
   anchors and the occupied cells and writes nothing.
 - The package 'engine/battle/board' is the shell. It stores the
@@ -433,75 +430,74 @@ defender from that cell.
 
 ### act
 
-Purpose: run one action and write the result to the board.
+Purpose: run one activation and write the result to the board.
 
-Request:
+Request: the action, with no wrapper.
 
 | Field | Content |
 |---|---|
-| unit_id | The unit that acts |
-| action | The action of the unit |
-| response_attack | The response attack of the defender |
-| dice | The dice input |
+| actor_id | The unit that acts |
+| move_to | Optional: the anchor the unit moves to first |
+| attack | Optional: the attacker side |
+| response_attack | Optional: the defender side; travels with 'attack' |
+| map_attack | Optional: the map-attacker side; refused today |
 
-The field 'action' holds the move of the unit. The engine resolves
-the move first and the action second; the section 'Unit payload,
-action, and response attack' holds the rule.
+The action carries no 'kind'. What the act does follows from the
+fields it carries: 'move_to' alone is a reposition, no field at all
+is a standby, 'attack' with its 'response_attack' is an attack. An
+'attack' without a 'response_attack', or the reverse, is an
+illegal_action.
 
-The 'unit_id' of the request and the 'unit_id' of the action name
-one unit. A request where the two differ is a bad_request.
+'attack' holds 'weapon_id', 'target_id', the optional 'stated'
+behaviors of the main strike, 'support_attackers' (a list of
+'unit_id', 'weapon_id' and optional 'stated', in the order they
+fire) and the optional 'support_defender_id', the unit that takes
+the counter for the actor.
 
-The field 'response_attack' is necessary for an action of the kind
-'attack', because such an action always gives a list. The field is
-not permitted for every other kind. A response attack inside
-'action' is a bad_request: the response attack travels in the field
-'response_attack' of the request.
+'response_attack' holds 'stance' (dodge, defend, counter or none),
+'weapon_id' (present if and only if the stance is counter), the
+optional 'stated' behaviors of the counter, 'support_attackers' in
+the same shape, and the optional 'support_defender_id', the unit
+that takes the main strike and the support attacks for the target.
+A defender that defends names no support defender.
 
-The client names every support unit of the engagement, and the
-engine names none. The action holds 'support_attacker_ids', the units
-of the side of the actor that join the strike, and
-'support_defender_id', the unit that takes a counter strike for the
-actor. The response attack holds the same two fields for the
-defending side: 'support_attacker_ids' join the answer of the
-defender, and 'support_defender_id' is the unit that takes the strike
-in place of the defender. Each list holds the unit ids that
-'response_attacks' reports, and no unit two times.
+The client names every support unit and every weapon; the engine
+picks none. Each list holds no unit two times, and the rules cap
+the number of support attackers of one side.
 
-A defender that defends takes the strike itself and names no
-support defender. A defender that carries a shield defends with the
-shield: the response attack menu offers no shield stance, so the
-shield multiplier applies to the defend stance of that unit.
-Whether the game pairs a support defender with the stand is not
-measured; the engine permits it.
+'stated' holds 'crit' and 'hit', two bools. A strike with no
+'stated' draws both from the session random source; a strike with
+one states both. A stated behavior that the rates of that moment
+give no chance of is refused: a critical at rate 0, a hit at hit
+rate 0, a miss at hit rate 1. No rule computes a critical rate, so
+every stated critical is refused today. The request carries no
+dice input: the seed of 'init' or 'load' is the one source.
 
-The rules cap the number of support attackers of one strike. A unit
-that the engagement destroys or drains before its own shot fires
-nothing.
+Response: 'events', 'units', 'outcome' and 'board'.
 
-The field 'dice' holds 'mode'. The value 'forced' is the manual
-roll: it also holds 'outcomes', a list of the labels 'hit' and
-'miss', and the engine reads one label for each chance event, in
-the resolution order. The list must hold one label for each chance
-event that the action can reach: one for the support attack of the
-attacker when the request names one, one for the strike, one for
-the support attack of the defender when the response attack names
-one, and one for the counter when the response attack names one.
-The engine counts them before the first write, with every unit
-alive, so a list that a kill would have made long enough is refused
-as well. A label past the last chance event is not
-read. The value 'sampled' is the server draw: the
-engine draws from the session random source, one draw for each
-chance event. One volley of support attackers is one chance event
-until issue #47 gives each supporter a draw.
+'events' is the settlement in order; every entry carries 'event'
+and its 'effects', the fields it changed on each unit as 'from' and
+'to'. The value 'move' carries 'actor_id', 'from' and 'to'. The
+value 'strike' carries 'segment' (attacker_support, main,
+defender_support or counter), 'shooter_id', 'weapon_id',
+'aimed_id', 'struck_id', 'fired', 'reason' when it did not fire,
+'landed', 'critical' and 'damage'. A strike fires while the unit
+whose side it belongs to lives, the actor or the target; the main
+strike fires on a target the support attacks destroyed, and the
+counter fires on an actor the support attacks of the defender
+destroyed. A unit at 0 HP takes no damage and no debuff, and the
+strike still counts as landed. The shooter pays the energy of its
+weapon, and a support attacker one charge, hit or miss; a support
+defender pays one charge on the first strike that lands on it in
+the exchange. The value 'activation_end' carries 'actor_id': the
+effect is 'acted', or one 'chance_steps' less when a strike of the
+attacker side destroyed a unit and the actor lives. The value
+'phase' carries 'turn' and 'phase', with the resets of the phase
+start as effects; the section 'Turn cycle' holds the rule.
 
-Response: 'events' and 'board'.
-
-'events' is the resolution in order. An entry carries 'event'. The
-value 'strike' carries 'strike' (support, strike, defender_support,
-or counter), 'shooter_id', 'struck_id', 'weapon_id', 'landed',
-'damage', and 'killed'. The value 'phase' carries 'turn' and
-'phase': the engine rotated the phase after the activation, and
-the section 'Turn cycle' holds the rule.
+'units' is the terminal values: every unit an effect landed on,
+with its whole value column after the act, in the order of the
+unit ids.
 
 'board' is the summary: 'turn', 'phase', 'pending_ids' (the
 units of the phase that can still act), and 'gone' (the sides
@@ -553,18 +549,17 @@ what a skill does.
 
 Refusals: no_session; illegal_state when the battle is settled,
 when the phase of the unit is not the current phase, or when the
-unit acted in this turn;
-illegal_action for a target that is no foe, an attack that fills
-both 'weapon_id' and 'map_weapon_id' or neither, a weapon the unit
-does not carry, a weapon the unit cannot pay for, a weapon that does not
-reach the target, a support unit that cannot join or intercept, a
-support attacker list above the cap of the rules, a response
-attack that breaks a rule of the stance, an absent necessary
-response attack, an action that carries 'move_to' when its weapon
-or its skill holds 'usable_after_move' false, and an anchor that
-the unit does not reach; bad_request when an 'outcomes' label
-stands outside 'hit' and 'miss', and when the 'outcomes' list holds
-fewer labels than the chance events the action can reach.
+unit acted in this turn; illegal_action for a target that is no
+foe, an attack without its response attack or the reverse, a map
+attack, a weapon the unit does not carry, a weapon the unit cannot
+pay for, a weapon that does not reach, a support unit of the other
+side, out of support reach, without a charge or named two times, a
+support attacker list above the cap, a stance that fires a weapon it
+should not or names none when it should, a defender that defends
+and names a support defender, a stated behavior the rates give no
+chance of, an action that carries 'move_to' when its weapon holds
+'usable_after_move' false, and an anchor that the unit does not
+reach; bad_request for a stance outside the contract.
 
 ### export and load
 
@@ -705,13 +700,12 @@ session.
 The authority for these three schemas is the Go package
 'engine/battle'. 'src/ggge_ai/engine/state.py' holds the same
 structs in Python and 'src/ggge_ai/engine/codec.py' writes the
-wire form from them. The contract names the payload of one
-activation 'action'; the struct names the same thing 'Decision'.
-The Go type keeps the struct name, and the wire field keeps the
-contract name.
-The enum of the kinds of one action is 'ActionKind' on both sides.
-The enum holds no kind of movement. Its wire field is 'kind', and
-its value set is frozen.
+wire form from them. The payload of 'act' is 'battle.Action': the
+actor, the move, the attacker side and the defender side, with no
+'kind', as the section 'act' states. The question
+'response_attacks' still reads 'battle.Decision', the shape with
+'unit_id', 'kind' and 'ActionKind'; the enum holds no kind of
+movement, and its value set is frozen.
 
 The resolution order of one activation: the move first, then the
 action. The move is the field 'move_to' of the action. Every effect

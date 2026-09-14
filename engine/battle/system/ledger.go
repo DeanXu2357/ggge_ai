@@ -10,6 +10,14 @@ type ledger struct {
 	effects []battle.Effect
 }
 
+// list answers an empty list and not a nil, so the wire carries '[]'.
+func (l *ledger) list() []battle.Effect {
+	if l.effects == nil {
+		return []battle.Effect{}
+	}
+	return l.effects
+}
+
 func (l *ledger) unit(id int) *battle.Effect {
 	for index := range l.effects {
 		if l.effects[index].UnitID == id {

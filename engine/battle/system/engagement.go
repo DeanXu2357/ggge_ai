@@ -23,6 +23,7 @@ func (x *exchange) fire(s strike) battle.StrikeEvent {
 		ShooterID: s.shooterID, WeaponID: s.weaponID, AimedID: s.aimedID, StruckID: s.struckID}
 	if !unitOf(x.board, s.ownerID).Alive() {
 		event.Reason = fmt.Sprintf("unit %d is destroyed", s.ownerID)
+		event.Effects = []battle.Effect{}
 		return event
 	}
 	event.Fired = true
@@ -53,7 +54,7 @@ func (x *exchange) fire(s strike) battle.StrikeEvent {
 	if s.shooterID != s.ownerID {
 		led.unit(s.shooterID).SupportAttackCharges = change(&shooter.Value.SupportAttackCharges, shooter.Value.SupportAttackCharges-1)
 	}
-	event.Effects = led.effects
+	event.Effects = led.list()
 	return event
 }
 

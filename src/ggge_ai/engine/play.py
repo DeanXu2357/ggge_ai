@@ -6,10 +6,13 @@ the struck unit from 'response_attacks', and lets 'act' settle the
 engagement.
 The loop holds no rule of the battle: the engine refuses an illegal
 candidate, and the loop takes the refusal as the answer and tries the
-next candidate. A standby closes the list, and the loop stops on the
-field 'gone' of the answer of 'act'. The order of the candidates is a
-preference, not a rule; '_steps' gives that order and is not the
-distance of the board, which the engine alone holds.
+next candidate. A standby closes the list, and the loop stops when the
+field 'outcome' of the answer of 'act' leaves 'ongoing'. The order of
+the candidates is a preference, not a rule; '_steps' gives that order
+and is not the distance of the board, which the engine alone holds.
+The loop plays both sides, and for the defender it prefers the stance
+'none': the unit stands, so a stated hit stays a behavior the rates
+give a chance of.
 """
 
 from __future__ import annotations
@@ -18,10 +21,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import codec
 from .client import EngineError
-from .contract import DiceMode
 
-FORCED_HITS = {"mode": str(DiceMode.FORCED), "outcomes": ["hit", "hit", "hit", "hit"]}
+FORCED_HITS = {"crit": False, "hit": True}
 
 
 def decision(
@@ -55,13 +58,20 @@ def response_attack_of(option: dict[str, Any]) -> dict[str, Any]:
         "stance": option.get("stance"),
         "weapon_id": option.get("weapon_id"),
         "support_defender_id": None,
-        "support_attacker_ids": [],
+        "support_attackers": [],
     }
 
 
+def standing(replies: list[dict[str, Any]]) -> dict[str, Any]:
+    for option in replies:
+        if option.get("stance") == "none":
+            return option
+    return replies[0]
+
+
 @dataclass
-class Outcome:
-    gone: list[str]
+class Played:
+    outcome: str
     turn: int
     log: list[dict[str, Any]] = field(default_factory=list)
 
@@ -79,18 +89,18 @@ class Player:
         self,
         engine: Any,
         *,
-        dice: dict[str, Any] | None = None,
+        stated: dict[str, Any] | None = None,
         move_tries: int = 8,
     ) -> None:
         self._engine = engine
-        self._dice = dice or {"mode": str(DiceMode.SAMPLED)}
+        self._stated = stated
         self._move_tries = move_tries
 
-    def play(self, max_turns: int) -> Outcome:
+    def play(self, max_turns: int) -> Played:
         log: list[dict[str, Any]] = []
-        gone: list[str] = []
+        outcome = "ongoing"
         turn = 0
-        while not gone:
+        while outcome == "ongoing":
             state = self._engine.call("export")["state"]
             turn = state["turn"]
             if turn > max_turns:
@@ -109,7 +119,7 @@ class Player:
             actor = pending[0]
             foes = [one for one in living if one.unit["faction"] != phase]
             request, answer = self._settle(actor, foes)
-            gone = answer["board"]["gone"]
+            outcome = answer["outcome"]
             log.append(
                 {
                     "turn": turn,
@@ -119,7 +129,7 @@ class Player:
                     "answer": answer,
                 }
             )
-        return Outcome(gone=gone, turn=turn, log=log)
+        return Played(outcome=outcome, turn=turn, log=log)
 
     def _settle(
         self, actor: Standing, foes: list[Standing]
@@ -162,25 +172,14 @@ class Player:
                     replies = options.get("defender", {}).get("response_attacks", [])
                     if not replies:
                         continue
-                    yield {
-                        "unit_id": actor.unit_id,
-                        "action": action,
-                        "response_attack": response_attack_of(replies[0]),
-                        "dice": dict(self._dice),
-                    }
+                    yield codec.encode_action(
+                        action, response_attack_of(standing(replies)), self._stated
+                    )
         if len(cells) > 1 and cells[1] != actor.unit["pos"]:
-            yield {
-                "unit_id": actor.unit_id,
-                "action": decision(actor.unit_id, "reposition", move_to=cells[1]),
-                "dice": dict(self._dice),
-            }
+            yield codec.encode_action(decision(actor.unit_id, "reposition", move_to=cells[1]))
 
     def _standby(self, unit_id: int) -> dict[str, Any]:
-        return {
-            "unit_id": unit_id,
-            "action": decision(unit_id, "standby"),
-            "dice": dict(self._dice),
-        }
+        return codec.encode_action(decision(unit_id, "standby"))
 
 
 def _steps(a: list[int], b: list[int]) -> int:

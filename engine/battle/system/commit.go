@@ -49,5 +49,5 @@ func endActivation(board state.Battle, actorID int, killed bool) battle.Activati
 	} else {
 		led.unit(actorID).Acted = change(&actor.Value.Acted, true)
 	}
-	return battle.ActivationEndEvent{Kind: battle.EventActivationEnd, ActorID: actorID, Effects: led.effects}
+	return battle.ActivationEndEvent{Kind: battle.EventActivationEnd, ActorID: actorID, Effects: led.list()}
 }

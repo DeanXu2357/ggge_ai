@@ -39,7 +39,12 @@ from ggge_ai.engine.state import (
 )
 
 CONTRACT = Path(__file__).resolve().parents[1] / "engine" / "battle"
-STATE_GO = (CONTRACT / "snapshot.go", CONTRACT / "decision.go", CONTRACT.parent / "protocol" / "state.go")
+STATE_GO = (
+    CONTRACT / "snapshot.go",
+    CONTRACT / "decision.go",
+    CONTRACT / "action.go",
+    CONTRACT.parent / "protocol" / "state.go",
+)
 
 STRUCTS = {
     "ShapeRange": ShapeRange,
@@ -66,9 +71,7 @@ ENCODERS = {
     "Pilot": lambda: codec.encode_pilot(Pilot()),
     "Mech": lambda: codec.encode_mech(Mech()),
     "Unit": lambda: codec.encode_unit(Unit(faction=Faction.ALLY)),
-    "ResponseAttack": lambda: codec.encode_response_attack(
-        ResponseAttack(stance=Stance.DEFEND)
-    ),
+    "ResponseAttack": lambda: codec.encode_response_attack(ResponseAttack(stance=Stance.DEFEND)),
     "Decision": lambda: codec.encode_decision(Decision(unit_id=0, kind=ActionKind.STANDBY)),
     "StageEvent": lambda: codec.encode_event(StageEvent("e", {}, {})),
     "TerrainCell": lambda: codec.encode_terrain_cell(TerrainCell((0, 0), Terrain.SPACE)),
@@ -214,8 +217,13 @@ def _board() -> tuple[BattleState, EventTable]:
     )
     foe = Unit(faction=Faction.ENEMY, pos=(5, 2), hp=7000, max_hp=7000)
     state = BattleState(units=[unit, foe], phase=Faction.ALLY, turn=2, bounds=((0, 0), (7, 7)))
-    events = {"e1": StageEvent(event_id="e1", trigger={"type": "turn_start", "turn": 3},
-                               effect={"type": "weaken", "uids": ["enemy_1"]})}
+    events = {
+        "e1": StageEvent(
+            event_id="e1",
+            trigger={"type": "turn_start", "turn": 3},
+            effect={"type": "weaken", "uids": ["enemy_1"]},
+        )
+    }
     return state, events
 
 

@@ -14,22 +14,10 @@ const (
 	VictoryReachCell     VictoryKind = "reach_cell"
 )
 
-type DiceMode string
-
-const (
-	DiceForced  DiceMode = "forced"
-	DiceSampled DiceMode = "sampled"
-)
-
 type Victory struct {
 	Kind     VictoryKind  `json:"kind"`
 	TargetID *int         `json:"target_id,omitempty"`
 	Cell     *battle.Cell `json:"cell,omitempty"`
-}
-
-type Dice struct {
-	Mode     DiceMode `json:"mode"`
-	Outcomes []string `json:"outcomes,omitempty"`
 }
 
 type Board struct {
@@ -96,16 +84,13 @@ type ResponseAttacksRequest struct {
 	DefenderID int             `json:"defender_id"` // target of the attacker
 }
 
-type ActRequest struct {
-	UnitID         int                    `json:"unit_id"`
-	Action         battle.Decision        `json:"action"`
-	ResponseAttack *battle.ResponseAttack `json:"response_attack,omitempty"`
-	Dice           Dice                   `json:"dice"`
-}
+type ActRequest = battle.Action
 
 type ActResponse struct {
-	Events []any               `json:"events"`
-	Board  battle.BoardSummary `json:"board"`
+	Events  []battle.Event      `json:"events"`
+	Units   []battle.UnitValues `json:"units"`
+	Outcome battle.Outcome      `json:"outcome"`
+	Board   battle.BoardSummary `json:"board"`
 }
 
 type HistoryEntry struct {

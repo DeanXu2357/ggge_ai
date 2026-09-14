@@ -6,8 +6,9 @@ engine every question. It speaks the commands of
 battle: a question that needs one goes on the wire, and an engine that answers
 'not_implemented' leaves the answer empty.
 
-The engine answers 'act' with the events and a board summary, not with the new
-state, so the session reads the state back with 'export'.
+The engine answers 'act' with the events, the terminal values, the outcome
+and a board summary, not with the new state, so the session reads the state
+back with 'export'.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from typing import Any
 from ..stage import scenario as scenario_mod
 from . import codec
 from .client import EngineDead, EngineError, EngineTimeout
-from .contract import DiceMode, Faction
+from .contract import Faction
 from .state import BattleState, EventTable
 
 GONE = (EngineError, EngineDead, EngineTimeout)
@@ -79,20 +80,18 @@ class EngineSession:
 
     def act(
         self,
-        action: Mapping[str, Any],
+        candidate: Mapping[str, Any],
         response_attack: Mapping[str, Any] | None,
-        dice: Mapping[str, Any] | None = None,
+        stated: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        request: dict[str, Any] = {
-            "unit_id": action.get("unit_id"),
-            "action": dict(action),
-            "dice": dict(dice) if dice else {"mode": str(DiceMode.SAMPLED)},
-        }
-        if response_attack is not None:
-            request["response_attack"] = dict(response_attack)
-        answer = self._ask("act", request)
+        answer = self._ask("act", codec.encode_action(candidate, response_attack, stated))
         self._read_back()
-        return {"events": answer.get("events", []), "board": answer.get("board", {})}
+        return {
+            "events": answer.get("events", []),
+            "units": answer.get("units", []),
+            "outcome": answer.get("outcome", ""),
+            "board": answer.get("board", {}),
+        }
 
     def _strike(self, action: Mapping[str, Any]) -> dict[str, Any] | None:
         """The response attack request that one attack of the action list asks about.

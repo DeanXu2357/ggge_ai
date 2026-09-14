@@ -256,8 +256,27 @@ class ResponseAttack:
 
     stance: Stance | None = None
     weapon_id: int | None = None
+    stated: Stated | None = None
+    support_attackers: tuple[SupportAttacker, ...] = ()
     support_defender_id: int | None = None
-    support_attacker_ids: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
+class Stated:
+    """The behaviors of one strike that the caller fixes: the critical of the
+    shooter and the hit of the strike."""
+
+    crit: bool = False
+    hit: bool = False
+
+
+@dataclass(frozen=True)
+class SupportAttacker:
+    """One support attacker of one side, with the weapon it fires."""
+
+    unit_id: int
+    weapon_id: int
+    stated: Stated | None = None
 
 
 @dataclass(frozen=True)

@@ -36,7 +36,6 @@ from ggge_ai.engine.client import (  # noqa: E402
     EngineError,
     EngineTimeout,
 )
-from ggge_ai.engine.contract import DiceMode  # noqa: E402
 from ggge_ai.engine.fake import FakeEngine  # noqa: E402
 from ggge_ai.engine.session import EngineSession  # noqa: E402
 
@@ -130,24 +129,15 @@ class SandboxHandler(BaseHTTPRequestHandler):
         response_attack = body.get("response_attack")
         if response_attack is not None and not isinstance(response_attack, dict):
             raise ValueError("response_attack 要寫成物件或 null")
-        answer = self.sandbox.act(candidate, response_attack, self._dice(body))
+        answer = self.sandbox.act(candidate, response_attack)
         return {
             "events": answer["events"],
+            "units": answer["units"],
+            "outcome": answer["outcome"],
             "board": answer["board"],
             "state": self.sandbox.snapshot(),
             "pending": self.sandbox.pending_decision(),
         }
-
-    def _dice(self, body: Mapping[str, Any]) -> dict[str, Any]:
-        """The dice of one action. The engine draws them, or the client forces
-        each outcome. The page holds no hit rate, so it draws nothing itself.
-        """
-        outcomes = body.get("outcomes")
-        if outcomes is None:
-            return {"mode": str(DiceMode.SAMPLED)}
-        if not isinstance(outcomes, list):
-            raise ValueError("outcomes 要寫成陣列")
-        return {"mode": str(DiceMode.FORCED), "outcomes": outcomes}
 
     def _body(self) -> dict[str, Any]:
         try:
@@ -558,7 +548,7 @@ function optionLabel(entry) {
 function renderDice(box) {
   const wrap = node("div", "dice");
   wrap.appendChild(node("div", "dim",
-    "擲骰由引擎抽（dice.mode=sampled）。頁面沒有命中率，指定不了每個機率節點。"));
+    "命中與暴擊由引擎抽。頁面沒有命中率，指定不了每一擊的行為。"));
   box.appendChild(wrap);
 }
 
@@ -644,7 +634,7 @@ function act() {
     stance: option.stance,
     weapon_id: option.weapon_id === undefined ? null : option.weapon_id,
     support_defender_id: null,
-    support_attacker_ids: [],
+    support_attackers: [],
   };
   post("/api/act", { candidate: candidate, response_attack: responseAttack })
     .then((payload) => {

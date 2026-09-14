@@ -53,7 +53,7 @@ func beginPhase(board state.Battle) []battle.Effect {
 			led.unit(id).EN = change(&unit.Value.EN, regen)
 		}
 	}
-	return led.effects
+	return led.list()
 }
 
 func expired(debuffs []battle.Debuff, now int) []battle.Debuff {

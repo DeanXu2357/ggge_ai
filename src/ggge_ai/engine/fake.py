@@ -7,7 +7,7 @@ a rule of the battle is empty.
 
 Do not read an answer of the fake as a fact of the game. A caller that wants a
 rule asks the engine: the fake rotates no phase and judges no side, so its
-board summary carries an empty 'gone'.
+outcome stays 'ongoing' and its board summary carries an empty 'gone'.
 """
 
 from __future__ import annotations
@@ -96,9 +96,9 @@ class FakeEngine:
 
     def _act(self, payload: dict[str, Any]) -> dict[str, Any]:
         # The fake runs no action: it marks the unit and leaves the board.
-        unit = self._unit(payload.get("unit_id"))
+        unit = self._unit(payload.get("actor_id"))
         unit["acted"] = True
-        return {"events": [], "board": self._summary()}
+        return {"events": [], "units": [], "outcome": "ongoing", "board": self._summary()}
 
     def _export(self, _: dict[str, Any]) -> dict[str, Any]:
         return {"state": self._loaded(), "history": [], "seed": self.loaded_seed}

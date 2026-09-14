@@ -13,59 +13,24 @@ func (c *Commands) Act(id string, payload json.RawMessage) protocol.Response {
 	if fail != nil {
 		return *fail
 	}
-	if (request.Action.Kind == battle.ActionAttack) != (request.ResponseAttack != nil) {
-		return protocol.Fail(id, protocol.CodeIllegalAction,
-			"the response attack is necessary for an attack and not permitted for every other kind")
-	}
-	action, err := activationOf(request)
-	if err != nil {
-		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
-	}
-	dice, err := c.openDice(&request.Dice)
-	if err != nil {
-		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
-	}
-	result, err := b.Act(action, dice)
+	result, err := b.Act(request)
 	if err != nil {
 		return protocol.Fail(id, refusalCode(err), err.Error())
 	}
 	c.session.history = append(c.session.history, protocol.HistoryEntry{Cmd: "act", Payload: payload})
-	events := make([]any, 0, len(result.Strikes)+len(result.Rotations))
-	for _, strike := range result.Strikes {
-		events = append(events, strike)
+	answer := protocol.ActResponse{
+		Events:  result.Events,
+		Units:   result.Units,
+		Outcome: result.Outcome,
+		Board:   b.Summary(),
 	}
-	for _, rotation := range result.Rotations {
-		events = append(events, rotation)
+	if answer.Events == nil {
+		answer.Events = []battle.Event{}
 	}
-	return protocol.Ok(id, protocol.ActResponse{
-		Events: events,
-		Board:  b.Summary(),
-	})
-}
-
-func activationOf(request *protocol.ActRequest) (*battle.Decision, error) {
-	if request.Action.UnitID != request.UnitID {
-		return nil, errors.New("'unit_id' and 'action.unit_id' name two units")
+	if answer.Units == nil {
+		answer.Units = []battle.UnitValues{}
 	}
-	if request.Action.ResponseAttack != nil {
-		return nil, errors.New("the response attack travels in the field 'response_attack' of the request")
-	}
-	request.Action.ResponseAttack = request.ResponseAttack
-	return &request.Action, nil
-}
-
-func (c *Commands) openDice(dice *protocol.Dice) (battle.Dice, error) {
-	switch dice.Mode {
-	case protocol.DiceForced:
-		outcomes, err := battle.DecodeOutcomes(dice.Outcomes)
-		if err != nil {
-			return nil, err
-		}
-		return battle.NewManualRoll(outcomes), nil
-	case protocol.DiceSampled:
-		return c.session.draw, nil
-	}
-	return nil, errors.New("'dice.mode' is not 'forced' or 'sampled'")
+	return protocol.Ok(id, answer)
 }
 
 func refusalCode(err error) string {

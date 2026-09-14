@@ -112,19 +112,8 @@ class VictoryKind(StrEnum):
     REACH_CELL = "reach_cell"
 
 
-class DiceMode(StrEnum):
-    FORCED = "forced"
-    SAMPLED = "sampled"
-
-
 @dataclass(frozen=True)
 class Victory:
     kind: VictoryKind
     target_id: int | None = None
     cell: Cell | None = None
-
-
-@dataclass(frozen=True)
-class Dice:
-    mode: DiceMode
-    outcomes: tuple[str, ...] = ()

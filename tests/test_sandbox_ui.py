@@ -32,7 +32,6 @@ REACHED = [
     "ggge_ai.engine.client.EngineDead",
     "ggge_ai.engine.client.EngineError",
     "ggge_ai.engine.client.EngineTimeout",
-    "ggge_ai.engine.contract.DiceMode",
     "ggge_ai.engine.fake.FakeEngine",
     "ggge_ai.engine.session.EngineSession",
 ]
@@ -153,9 +152,7 @@ def test_the_step_reads_the_board_back_from_the_engine(client):
     pending = client.get("/api/decision")
     unit = pending["units"][0]["unit_id"]
 
-    status, payload = client.post(
-        "/api/act", {"candidate": {"unit_id": unit, "kind": "standby"}}
-    )
+    status, payload = client.post("/api/act", {"candidate": {"unit_id": unit, "kind": "standby"}})
 
     assert status == 200
     assert payload["events"] == []

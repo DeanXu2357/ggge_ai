@@ -12,7 +12,6 @@ type session struct {
 	events        json.RawMessage
 	deployCells   []battle.Cell
 	seed          int64
-	draw          *battle.ServerDraw
 	history       []protocol.HistoryEntry
 	pendingEvents []string
 	firedEvents   []string
@@ -21,7 +20,6 @@ type session struct {
 func newSession(seed int64) *session {
 	return &session{
 		seed:          seed,
-		draw:          battle.NewServerDraw(seed),
 		history:       []protocol.HistoryEntry{},
 		pendingEvents: []string{},
 		firedEvents:   []string{},
@@ -50,11 +48,13 @@ func (c *Commands) Load(id string, payload json.RawMessage) protocol.Response {
 	if request.State.Bounds == nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, "the state carries no bounds")
 	}
-	if err := c.board.Load(*request.State.Bounds, request.State.Terrain,
+	opened := c.open(request.Seed)
+	if err := opened.Load(*request.State.Bounds, request.State.Terrain,
 		request.State.TerrainCells, request.State.Units,
 		request.State.Phase, request.State.Turn); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
+	c.board = opened
 	loaded := newSession(request.Seed)
 	if request.History != nil {
 		loaded.history = request.History

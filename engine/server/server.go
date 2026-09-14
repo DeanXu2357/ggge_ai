@@ -21,10 +21,10 @@ type Server struct {
 	commands *handler.Commands
 }
 
-func New(b battle.Board) *Server {
+func New(open func(seed int64) battle.Board) *Server {
 	server := &Server{
 		handlers: make(map[string]command, len(registry)),
-		commands: handler.NewCommands(b),
+		commands: handler.NewCommands(open),
 	}
 	for name, bind := range registry {
 		server.handle(name, bind(server))

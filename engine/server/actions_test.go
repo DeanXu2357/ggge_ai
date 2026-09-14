@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/board"
 	"github.com/DeanXu2357/ggge_ai/engine/protocol"
 )
 
@@ -48,7 +47,7 @@ func actionsOf(t *testing.T, reply reply) battle.ActionsResponse {
 }
 
 func TestActionsWithNoBoardIsRefused(t *testing.T) {
-	replies := serve(t, New(board.New()), `{"id":"c1","cmd":"actions","payload":{"unit_id":0}}`)
+	replies := serve(t, New(openBoard), `{"id":"c1","cmd":"actions","payload":{"unit_id":0}}`)
 
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeNoSession {
 		t.Fatalf("reply: %+v", replies[0])
@@ -56,7 +55,7 @@ func TestActionsWithNoBoardIsRefused(t *testing.T) {
 }
 
 func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
-	replies := serve(t, New(board.New()), candidateLine,
+	replies := serve(t, New(openBoard), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":0}}`)
 
 	payload := actionsOf(t, replies[1])
@@ -82,7 +81,7 @@ func TestActionsAnswersThePanelAndTheCellsOfTheLoadedBoard(t *testing.T) {
 // The band and the energy stay out of the answer: unit 'a1' reaches the foe
 // with the rifle alone, and both weapons are in their lists.
 func TestActionsJudgesNoTargetAndNoResource(t *testing.T) {
-	replies := serve(t, New(board.New()), candidateLine,
+	replies := serve(t, New(openBoard), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":0}}`)
 
 	payload := actionsOf(t, replies[1])
@@ -96,7 +95,7 @@ func TestActionsJudgesNoTargetAndNoResource(t *testing.T) {
 }
 
 func TestActionsOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
-	replies := serve(t, New(board.New()), candidateLine,
+	replies := serve(t, New(openBoard), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":9}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalAction {
@@ -105,7 +104,7 @@ func TestActionsOfAnUnknownUnitIsAnIllegalAction(t *testing.T) {
 }
 
 func TestActionsOutsideThePhaseIsAnIllegalState(t *testing.T) {
-	replies := serve(t, New(board.New()), candidateLine,
+	replies := serve(t, New(openBoard), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":2}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalState {
@@ -114,7 +113,7 @@ func TestActionsOutsideThePhaseIsAnIllegalState(t *testing.T) {
 }
 
 func TestActionsOfAnActedUnitIsAnIllegalState(t *testing.T) {
-	replies := serve(t, New(board.New()), candidateLine,
+	replies := serve(t, New(openBoard), candidateLine,
 		`{"id":"c1","cmd":"actions","payload":{"unit_id":1}}`)
 
 	if replies[1].OK || replies[1].Error.Code != protocol.CodeIllegalState {
@@ -123,7 +122,7 @@ func TestActionsOfAnActedUnitIsAnIllegalState(t *testing.T) {
 }
 
 func TestResponseAttacksWithNoBoardIsRefused(t *testing.T) {
-	replies := serve(t, New(board.New()),
+	replies := serve(t, New(openBoard),
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
 			`"action":{"unit_id":0,"kind":"attack","target_id":2,"weapon_id":0}}}`)
 
@@ -145,7 +144,7 @@ func engagementOf(t *testing.T, reply reply) battle.ResponseAttacksResponse {
 }
 
 func TestResponseAttacksAnswersTheOptionsOfTheDefender(t *testing.T) {
-	replies := serve(t, New(board.New()), candidateLine,
+	replies := serve(t, New(openBoard), candidateLine,
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
 			`"action":{"unit_id":0,"kind":"attack","target_id":2,`+
 			`"weapon_id":0,"move_to":[1,1]}}}`)
@@ -178,7 +177,7 @@ func TestResponseAttacksAnswersTheOptionsOfTheDefender(t *testing.T) {
 }
 
 func TestResponseAttacksAgainstAnActionThatMakesNoStrikeIsAnIllegalAction(t *testing.T) {
-	replies := serve(t, New(board.New()), candidateLine,
+	replies := serve(t, New(openBoard), candidateLine,
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
 			`"action":{"unit_id":0,"kind":"map_attack"}}}`,
 		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":2,`+
@@ -193,7 +192,7 @@ func TestResponseAttacksAgainstAnActionThatMakesNoStrikeIsAnIllegalAction(t *tes
 }
 
 func TestAResponseAttackRequestThatTheWeaponDoesNotReachIsAnIllegalAction(t *testing.T) {
-	replies := serve(t, New(board.New()), candidateLine,
+	replies := serve(t, New(openBoard), candidateLine,
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
 			`"action":{"unit_id":0,"kind":"attack","target_id":2,"weapon_id":0,"move_to":[4,4]}}}`,
 		`{"id":"r2","cmd":"response_attacks","payload":{"defender_id":2,`+
@@ -208,7 +207,7 @@ func TestAResponseAttackRequestThatTheWeaponDoesNotReachIsAnIllegalAction(t *tes
 }
 
 func TestAnActionOutsideTheContractIsABadRequest(t *testing.T) {
-	replies := serve(t, New(board.New()), candidateLine,
+	replies := serve(t, New(openBoard), candidateLine,
 		`{"id":"r1","cmd":"response_attacks","payload":{"defender_id":2,`+
 			`"action":{"unit_id":0,"kind":"charge","weapon_id":0}}}`)
 

@@ -16,6 +16,7 @@ Rules of the wire form:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from .contract import (
@@ -38,6 +39,8 @@ from .state import (
     Mech,
     Pilot,
     ResponseAttack,
+    Stated,
+    SupportAttacker,
     ShapeRange,
     Skill,
     StageEvent,
@@ -289,9 +292,38 @@ def encode_response_attack(response_attack: ResponseAttack) -> dict[str, Any]:
     return {
         "stance": str(response_attack.stance),
         "weapon_id": response_attack.weapon_id,
+        "stated": None if response_attack.stated is None else encode_stated(response_attack.stated),
+        "support_attackers": [
+            encode_support_attacker(one) for one in response_attack.support_attackers
+        ],
         "support_defender_id": response_attack.support_defender_id,
-        "support_attacker_ids": list(response_attack.support_attacker_ids),
     }
+
+
+def encode_stated(stated: Stated) -> dict[str, Any]:
+    return {"crit": stated.crit, "hit": stated.hit}
+
+
+def decode_stated(payload: dict[str, Any] | None) -> Stated | None:
+    if payload is None:
+        return None
+    return Stated(crit=_bool(payload, "crit"), hit=_bool(payload, "hit"))
+
+
+def encode_support_attacker(one: SupportAttacker) -> dict[str, Any]:
+    return {
+        "unit_id": one.unit_id,
+        "weapon_id": one.weapon_id,
+        "stated": None if one.stated is None else encode_stated(one.stated),
+    }
+
+
+def decode_support_attacker(payload: dict[str, Any]) -> SupportAttacker:
+    return SupportAttacker(
+        unit_id=_int(payload, "unit_id"),
+        weapon_id=_int(payload, "weapon_id"),
+        stated=decode_stated(payload.get("stated")),
+    )
 
 
 def decode_response_attack(payload: dict[str, Any]) -> ResponseAttack:
@@ -304,8 +336,11 @@ def decode_response_attack(payload: dict[str, Any]) -> ResponseAttack:
     return ResponseAttack(
         stance=stance,
         weapon_id=_optional_int(payload, "weapon_id"),
+        stated=decode_stated(payload.get("stated")),
+        support_attackers=tuple(
+            decode_support_attacker(one) for one in payload.get("support_attackers") or ()
+        ),
         support_defender_id=_optional_int(payload, "support_defender_id"),
-        support_attacker_ids=_ids(payload, "support_attacker_ids"),
     )
 
 
@@ -397,7 +432,9 @@ def encode_state(state: BattleState) -> dict[str, Any]:
         "units": [encode_unit(unit) for unit in state.units],
         "phase": str(state.phase),
         "turn": state.turn,
-        "bounds": None if state.bounds is None else [_cell(state.bounds[0]), _cell(state.bounds[1])],
+        "bounds": None
+        if state.bounds is None
+        else [_cell(state.bounds[0]), _cell(state.bounds[1])],
         "pending_events": list(state.pending_events),
         "fired_events": list(state.fired_events),
         "terrain": None if state.terrain is None else str(state.terrain),
@@ -561,3 +598,61 @@ def _bool(payload: dict[str, Any], name: str) -> bool:
 def _optional_bool(payload: dict[str, Any], name: str) -> bool | None:
     raw = payload.get(name)
     return None if raw is None else bool(raw)
+
+
+def encode_action(
+    candidate: Mapping[str, Any],
+    response_attack: Mapping[str, Any] | None = None,
+    stated: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """The payload of 'act': the candidate of the menu, read by presence.
+
+    A candidate is the decision shape that 'actions' and 'response_attacks'
+    speak. The act carries no kind: a move alone is a reposition, nothing is
+    a standby, an attack travels with its response attack. A stated behavior
+    rides on the main strike.
+    """
+    action: dict[str, Any] = {"actor_id": candidate["unit_id"]}
+    if candidate.get("move_to") is not None:
+        action["move_to"] = list(candidate["move_to"])
+    kind = candidate.get("kind")
+    if kind == "attack":
+        attack: dict[str, Any] = {
+            "weapon_id": candidate["weapon_id"],
+            "target_id": candidate["target_id"],
+            "support_attackers": _support_attackers(candidate),
+            "support_defender_id": candidate.get("support_defender_id"),
+        }
+        if stated is not None:
+            attack["stated"] = dict(stated)
+        action["attack"] = attack
+        if response_attack is not None:
+            action["response_attack"] = encode_response(response_attack)
+    elif kind == "map_attack":
+        action["map_attack"] = {
+            "map_weapon_id": candidate["map_weapon_id"],
+            "anchor": list(candidate["aim"]),
+            "direction": candidate.get("direction", "none"),
+        }
+    return action
+
+
+def encode_response(response_attack: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "stance": response_attack["stance"],
+        "weapon_id": response_attack.get("weapon_id"),
+        "support_attackers": _support_attackers(response_attack),
+        "support_defender_id": response_attack.get("support_defender_id"),
+    }
+    if response_attack.get("stated") is not None:
+        out["stated"] = dict(response_attack["stated"])
+    return out
+
+
+def _support_attackers(side: Mapping[str, Any]) -> list[dict[str, Any]]:
+    named = side.get("support_attackers")
+    if named:
+        return [dict(one) for one in named]
+    if side.get("support_attacker_ids"):
+        raise ValueError("a support attacker names its weapon: use 'support_attackers'")
+    return []
