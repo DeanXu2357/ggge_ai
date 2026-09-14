@@ -218,14 +218,18 @@ func TestCommitSettlesTheSupportDefenderOfTheActor(t *testing.T) {
 			SupportAttackers: []battle.SupportAttacker{{UnitID: squadFoeSupporterID, WeaponID: 0, Stated: hit()}}}})
 
 	got := strikes(events)
-	foeSupport, counter := got[1], got[2]
-	if foeSupport.StruckID != actorID || effectOn(t, foeSupport.Effects, actorID).HP == nil {
-		t.Fatalf("the support attack of the defender lands on the actor: %+v", foeSupport)
+	for _, s := range got[1:] {
+		if s.StruckID != squadGuardID || s.AimedID != actorID || effectOn(t, s.Effects, squadGuardID).HP == nil {
+			t.Fatalf("the strike of the defender side lands on the support defender of the actor: %+v", s)
+		}
+		noEffectOn(t, s.Effects, actorID)
 	}
-	if counter.StruckID != squadGuardID || effectOn(t, counter.Effects, squadGuardID).HP == nil {
-		t.Fatalf("the counter lands on the support defender of the actor: %+v", counter)
+	if got := *effectOn(t, got[1].Effects, squadGuardID).SupportDefendCharges; got != (battle.Change[int]{From: 1, To: 0}) {
+		t.Fatalf("charge on the support attack: %+v", got)
 	}
-	noEffectOn(t, counter.Effects, actorID)
+	if effectOn(t, got[2].Effects, squadGuardID).SupportDefendCharges != nil {
+		t.Fatalf("charge on the counter: %+v", got[2])
+	}
 }
 
 func TestCommitSettlesADebuffAndKeepsTheLargerMagnitude(t *testing.T) {

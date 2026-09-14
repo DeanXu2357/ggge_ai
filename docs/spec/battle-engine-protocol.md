@@ -452,7 +452,7 @@ illegal_action.
 behaviors of the main strike, 'support_attackers' (a list of
 'unit_id', 'weapon_id' and optional 'stated', in the order they
 fire) and the optional 'support_defender_id', the unit that takes
-the counter for the actor.
+the support attacks and the counter for the actor.
 
 'response_attack' holds 'stance' (dodge, defend, counter or none),
 'weapon_id' (present if and only if the stance is counter), the

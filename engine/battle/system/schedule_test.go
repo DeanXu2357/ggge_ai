@@ -42,8 +42,7 @@ func TestScheduleAnswersAMoveAlone(t *testing.T) {
 }
 
 // Both sides name a supporter and a support defender. The support defender
-// of the defender takes every strike of the attacker side in the defend
-// stance; the support defender of the actor takes the counter.
+// of each side takes every strike of the other side in the defend stance.
 func TestScheduleAnswersEveryStrikeInTheGameOrder(t *testing.T) {
 	b := squad(nil)
 	got := scheduled(t, b, battle.Action{ActorID: actorID,
@@ -61,7 +60,7 @@ func TestScheduleAnswersEveryStrikeInTheGameOrder(t *testing.T) {
 				struckID: squadFoeGuardID, stance: battle.StanceDefend},
 			{segment: battle.SegmentDefenderSupport, ownerID: targetID, shooterID: squadFoeSupporterID,
 				weaponID: 0, weapon: armed(b, squadFoeSupporterID, 0), aimedID: actorID,
-				struckID: actorID, stance: battle.StanceNone},
+				struckID: squadGuardID, stance: battle.StanceDefend},
 			{segment: battle.SegmentCounter, ownerID: targetID, shooterID: targetID,
 				weaponID: 0, weapon: armed(b, targetID, 0), aimedID: actorID,
 				struckID: squadGuardID, stance: battle.StanceDefend},

@@ -96,8 +96,8 @@ func scheduleAct(board state.Battle, action battle.Action) (actSchedule, error) 
 	if err != nil {
 		return actSchedule{}, err
 	}
-	reply := strike{segment: battle.SegmentDefenderSupport, ownerID: targetID,
-		aimedID: action.ActorID, struckID: action.ActorID, stance: battle.StanceNone}
+	reply := strike{segment: battle.SegmentDefenderSupport, ownerID: targetID, aimedID: action.ActorID}
+	reply.struckID, reply.stance = struckBy(attack.SupportDefenderID, action.ActorID, battle.StanceNone)
 	defenderSupport, err := supportStrikes(board, reply,
 		standing, firing, response.SupportAttackers, response.SupportDefenderID)
 	if err != nil {
