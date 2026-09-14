@@ -70,6 +70,8 @@ type Mech struct {
 	MoveRange  int
 	Weapons    []Weapon
 	MapWeapons []MapWeapon
+	Tags       []int
+	Abilities  battle.Abilities
 }
 
 func (w Weapon) Reaches(distance int) bool {
