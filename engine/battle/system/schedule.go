@@ -84,9 +84,6 @@ func scheduleAct(board state.Battle, action battle.Action) (actSchedule, error) 
 	if err := canFire(actor, action.ActorID, weapon, firing, standing); err != nil {
 		return actSchedule{}, err
 	}
-	if err := checkStated(actor, target, weapon, main.dodging, attack.Stated); err != nil {
-		return actSchedule{}, err
-	}
 	attackerSupport, err := supportStrikes(board, main.as(battle.SegmentAttackerSupport),
 		firing, standing, attack.SupportAttackers, attack.SupportDefenderID)
 	if err != nil {
@@ -143,9 +140,6 @@ func counterOf(board state.Battle, action battle.Action, actor, target state.Uni
 		if err := canFire(target, targetID, weapon, target.Footprint(), firing); err != nil {
 			return nil, err
 		}
-		if err := checkStated(target, actor, weapon, false, response.Stated); err != nil {
-			return nil, err
-		}
 		counter := strike{segment: battle.SegmentCounter, ownerID: targetID,
 			shooterID: targetID, weaponID: *response.WeaponID, weapon: weapon,
 			aimedID: action.ActorID, stated: response.Stated}
@@ -172,7 +166,6 @@ func supportStrikes(board state.Battle, base strike, at, foeAt battle.Footprint,
 		return nil, fmt.Errorf("%w: %d support attackers exceed the cap of %d",
 			battle.ErrIllegalAction, len(supporters), maxSupportAttackers)
 	}
-	aimed := unitOf(board, base.aimedID)
 	named := map[int]bool{}
 	out := make([]strike, 0, len(supporters))
 	for _, supporter := range supporters {
@@ -194,9 +187,6 @@ func supportStrikes(board state.Battle, base strike, at, foeAt battle.Footprint,
 			return nil, err
 		}
 		if err := canFire(unit, supporter.UnitID, weapon, unit.Footprint(), foeAt); err != nil {
-			return nil, err
-		}
-		if err := checkStated(unit, aimed, weapon, base.dodging, supporter.Stated); err != nil {
 			return nil, err
 		}
 		support := base
@@ -246,28 +236,6 @@ func canFire(shooter state.Unit, shooterID int, weapon *def.Weapon, from, at bat
 	if !weapon.Reaches(geometry.Distance(from, at)) {
 		return fmt.Errorf("%w: the weapon %q of unit %d does not reach",
 			battle.ErrIllegalAction, weapon.Name, shooterID)
-	}
-	return nil
-}
-
-// No rule computes a critical rate, so every stated critical is a behavior
-// the rates give no chance of.
-func checkStated(shooter, aimed state.Unit, weapon *def.Weapon, dodging bool, stated *battle.Stated) error {
-	if stated == nil {
-		return nil
-	}
-	if stated.Crit {
-		return fmt.Errorf("%w: the weapon %q states a critical at a critical rate of 0",
-			battle.ErrIllegalAction, weapon.Name)
-	}
-	rate := strikeHitProbability(shooter, aimed, weapon, dodging)
-	if stated.Hit && rate <= 0 {
-		return fmt.Errorf("%w: the weapon %q states a hit at a hit rate of 0",
-			battle.ErrIllegalAction, weapon.Name)
-	}
-	if !stated.Hit && rate >= 1 {
-		return fmt.Errorf("%w: the weapon %q states a miss at a hit rate of 1",
-			battle.ErrIllegalAction, weapon.Name)
 	}
 	return nil
 }
