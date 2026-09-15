@@ -1,7 +1,10 @@
 package system
 
 import (
+	"math"
+
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
@@ -33,12 +36,18 @@ func attackOf(pilot *def.Pilot, category battle.WeaponCategory) float64 {
 	return 0
 }
 
-func attackerSide(attacker state.Unit, weapon def.Weapon) formula.Side {
+func view(unit state.Unit) ability.Unit {
+	return ability.Unit{Mech: unit.Mech, Pilot: unit.Pilot, HP: unit.Value.HP, MaxHP: unit.MaxHP}
+}
+
+func attackerSide(attacker, defender state.Unit, weapon *def.Weapon) formula.Side {
+	a := ability.AttackContext{Attacker: view(attacker), Defender: view(defender), Weapon: weapon}
+	attacker.Value.Hooks.Attack(&a)
 	return formula.Side{
-		PilotAttack:   attackFor(attacker.Pilot, weapon),
+		PilotAttack:   attackFor(attacker.Pilot, *weapon),
 		PilotDefense:  attacker.Pilot.Defense,
 		PilotReaction: attacker.Pilot.Reaction,
-		MechAttack:    attacker.Mech.Attack,
+		MechAttack:    scaled(attacker.Mech.Attack, a.MechAttackPercent),
 		MechDefense:   attacker.Mech.Defense,
 		Mobility:      attacker.Mech.Mobility,
 	}
@@ -46,23 +55,33 @@ func attackerSide(attacker state.Unit, weapon def.Weapon) formula.Side {
 
 // No formula reads the pilot attack of the defender, and the weapon of the
 // strike belongs to the attacker, so the defender side carries no attack value.
-func defenderSide(defender state.Unit) formula.Side {
+func defenderSide(defender, attacker state.Unit, weapon *def.Weapon) formula.Side {
+	d := ability.DefendContext{Attacker: view(attacker), Defender: view(defender), Weapon: weapon}
+	defender.Value.Hooks.Defend(&d)
 	return formula.Side{
 		PilotDefense:  defender.Pilot.Defense,
 		PilotReaction: defender.Pilot.Reaction,
 		MechAttack:    defender.Mech.Attack,
-		MechDefense:   defender.Mech.Defense,
+		MechDefense:   scaled(defender.Mech.Defense, d.MechDefensePercent),
 		Mobility:      defender.Mech.Mobility,
 	}
+}
+
+// The percents of every source on one stat add, the sum multiplies the base
+// one time, and the result is floored. Measured on 2026-08-29 for the
+// permanent lines of the panel; that a line which holds only in a strike
+// joins the same sum is a hypothesis of the roadmap of issue #72.
+func scaled(base, percent float64) float64 {
+	return math.Floor(base * (100 + percent) / 100)
 }
 
 // The terrain correction is NoTerrainCorrection for every weapon. The
 // correction is the effect of a weapon ability that reads the terrain of the
 // cell of the target, and the engine models no ability yet.
 func strikeDamage(attacker, defender state.Unit, weapon *def.Weapon, defense float64) int {
-	return formula.StrikeDamage(weapon.Power, attackerSide(attacker, *weapon),
-		defenderSide(defender), formula.NoTerrainCorrection, debuffBonus(defender), 0,
-		defense)
+	return formula.StrikeDamage(weapon.Power, attackerSide(attacker, defender, weapon),
+		defenderSide(defender, attacker, weapon), formula.NoTerrainCorrection,
+		debuffBonus(defender), 0, defense)
 }
 
 func debuffBonus(defender state.Unit) float64 {
@@ -74,8 +93,8 @@ func debuffBonus(defender state.Unit) float64 {
 }
 
 func strikeHitProbability(attacker, defender state.Unit, weapon *def.Weapon, dodging bool) float64 {
-	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(attacker, *weapon),
-		defenderSide(defender), dodging)
+	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(attacker, defender, weapon),
+		defenderSide(defender, attacker, weapon), dodging)
 }
 
 // The response attack menu offers no shield stance, so a defender that

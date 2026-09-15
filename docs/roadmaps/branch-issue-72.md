@@ -14,9 +14,10 @@ not a base. 'issue-72-ability-model' (46ef3e0), 'issue-72-abilities'
 'engine/catalog/data') and 'issue-72-mech-pilot-unit' (9cad225) stay
 as sources of parts and are not merged.
 
-The branch covers the engine model, the wire form, the Python mirror,
-the goldens and the spec. The catalog and the converter (issue points
-4 and 5) are not on this branch.
+The branch covers the engine model. The wire form, the Python mirror,
+the goldens and the spec wait for the shape of the communication
+(ruling 2026-09-14); the catalog and the converter (issue points 4
+and 5) are not on this branch.
 
 ## Method: scenario first, in small steps
 
@@ -66,72 +67,58 @@ it implements (ruling 0907).
 
 ## Section 1. The model shape
 
-One ability line is one kind with its own flat fields. The wire form
-is the struct itself:
+A line is a value that holds its numbers and its own state, and a
+unit carries its lines in the value column (ruling 2026-09-14). One
+line of the game is one type in 'engine/battle/ability/lines'; it
+implements 'ability.Line' ('Clone') and the hook method of each
+moment it acts in ('OnAttack', 'OnDefend'). When a unit takes its
+lines ('UnitValue.SetAbilities'), 'ability.HooksOf' puts each hook
+method on the chain of its moment ('UnitValue.Hooks'); the chains
+are derived from the lines, and 'Values.Clone' clones the lines and
+binds the copies again, so a copy of the value column owns its
+lines and their state. This is the shape of 'UnitValue.Skills': the definition
+and the uses of a skill travel together in the value column.
 
-    {"kind": "mech_attack_percent",  "enemy_tags": [1101], "percent": 20}
-    {"kind": "mech_defense_percent", "enemy_tags": [1101], "percent": 20}
+    lines.MechAttackPercentAgainstTag{EnemyTag: 1015, Percent: 15}
+    lines.MechDefensePercentAgainstTag{EnemyTag: 1015, Percent: 15}
 
-No 'trigger' key, no 'condition' sub-object (rulings 0907 and 0908):
-「每個 ability 的實作裏面怎麼判斷 condition 是各自的事情，所以扁平的把
-MechAttackPercent 和 MechDefensePercent 需要的變數帶進去就好」. Which
-fields a kind carries is decided by the scenario that introduces the
-kind, not ahead of it.
+One type is one specific line of the game, condition included: "ATK
++15% against enemies with a tag" and "ATK +15%" are two types. A
+condition is judged inside the hook, a cap ("up to 15%") is clamped
+inside the hook, and a once-per-battle line keeps its own flag as a
+field: the responsibility of a line is in its type, and no field of
+a line reaches 'UnitValue'.
 
-The per-kind wire struct lives in 'engine/battle/ability.go' with its
-JSON tags; the value of 'kind' picks the struct when a list of lines
-is decoded. The engine kind adds the hooks to the same fields (a
-defined type over the wire struct, or the wire struct itself; the
-implementation step decides).
+No kind enum, no registry, no data struct apart from the line
+itself. 'def' holds 'Mech.Tags' and nothing of the lines.
 
-### The kinds
+The wire form is not decided (ruling 2026-09-14: the shape of the
+communication is not known yet), so no line reaches 'battle', the
+Python mirror or a golden on this branch until it is. When it is,
+the lines travel in the unit the way 'skills' do, and 'Load' builds
+them with 'SetAbilities'.
 
-The vocabulary 'battle.AbilityKind' names 26 kinds, from the catalog
-of the old branch. A kind gets its struct when a scenario needs it.
+The rows of Section 4 are the candidates, one type for each row
+that a scenario covers.
 
-Read by a rule at the end of the branch (21): 'mech_attack_percent',
-'mech_defense_percent', 'mech_mobility_percent',
-'pilot_ranged_percent', 'pilot_melee_percent',
-'pilot_awaken_percent', 'pilot_defense_percent',
-'pilot_reaction_percent', 'max_hp_percent', 'max_en_percent',
-'accuracy_percent', 'evasion_percent', 'damage_dealt_percent',
-'damage_taken_percent', 'weapon_en_cost_percent',
-'support_attack_plus', 'support_defend_plus', 'chance_step_plus',
-'mp_plus', 'move_range_plus', 'special_weapon_range_plus'.
+### The condition facts a line reads
 
-Present and not read (5): 'squad_grant',
-'squad_attack_percent_per_member' (needs a squad model),
-'revive_once' (needs a once flag in the unit value),
-'hp_supply_percent' (issue #79), 'debuff_effect_percent' (issue #80).
+The facts of the datamine that a line may read, bound to datamine
+ids and never to display text (ruling 0829):
 
-A 'percent' field is the signed change: 'damage_taken_percent' -15
-is 15% less damage taken. A 'count' field is a whole number.
-
-### The condition vocabulary
-
-The field names a line may carry, bound to datamine ids and never to
-display text (ruling 0829). The catalog of 88b5e8c shows at most two
-of them on one line, in 13 combinations.
-
-| Field | Holds when |
+| Fact | Where it sits |
 |---|---|
-| hp_rate_lte, hp_rate_gte | the HP of the holder, in percent of its maximum, is at or below / at or above the value |
-| vigor_min | the MP of the holder reaches the tier |
-| pilot_tags | the pilot carries one of the tags |
-| mech_type, mech_tags, mech_ids, mech_series | the mech carries the type / one of the tags / its id is listed / one of the series |
-| enemy_tags | the mech of the other unit of the strike carries one of the tags |
-| enemy_weapon_attributes, enemy_weapon_categories | the weapon fired at the holder carries one of the values |
-| strike_roles | the role of the holder in this strike is listed |
-| squad_tags | never; the engine holds no squad |
+| the HP of the holder, in percent of its maximum | the unit value |
+| the MP tier of the holder | the unit value (issue #54) |
+| the tags of the pilot; the tags, the type, the id, the series of the mech | the content ('mech_type' is the datamine 'unit_role': 1 攻擊型, 2 耐久型, 3 支援型) |
+| the tags of the mech on the other end of the strike | 'Strike.Other' |
+| the attributes and the categories of the weapon of the strike | 'Strike.Weapon' |
+| the role of the holder in the strike | read from the strike fields (Method) |
 
-'mech_type' is the datamine 'unit_role' (1 攻擊型, 2 耐久型, 3
-支援型); the name follows the term 類型 of the terminology map.
-
-A condition is read before each strike, not once before the
-exchange. Evidence: docs/reference/combat-formulas.md, case 11: the
-debuff a support attack lands is read by the counter of the same
-exchange, so the game reads each strike from the state of that
-moment.
+A fact is read before each strike, not once before the exchange.
+Evidence: docs/reference/combat-formulas.md, case 11: the debuff a
+support attack lands is read by the counter of the same exchange, so
+the game reads each strike from the state of that moment.
 
 ### The unknown line
 
@@ -166,65 +153,92 @@ system.
 
 ## Section 2. The hooks
 
-The moments come from the exchange the game resolves
-(docs/reference/combat-formulas.md, 交戰結算順序): the support salvo
-of the attacker, the main strike on the receiver (the target, or the
-support defender that covers it), the death check, then the support
-attacks of the defender and its counter. Each strike reads the state
-of its moment, so the hooks of a strike run once for each strike.
+The contract is 'engine/battle/ability', which imports 'def' alone.
+One moment of the game is one context type: the facts a hook reads
+and the values a hook may change, in one struct. A hook reads and
+writes the context freely; the chain of a moment runs the hooks in
+the order of the lines.
 
-Two patterns carry the design: the additive percent bucket (every
-source adds, the system multiplies once; the stacking rule measured
-0829) and combat hooks named from the point of view of the holder
-(Pokémon Showdown 'onModifyAtk' against 'onSourceModifyAtk', Slay the
-Spire 'atDamageGive' against 'atDamageReceive'). The name of the
-hook is the subject: the holder is always 'self'.
+    type Line interface { Clone() Line }
+    type AttackUnitHook interface { OnAttack(a *AttackContext) }
+    type DefendUnitHook interface { OnDefend(d *DefendContext) }
 
-    AtAssembly   ApplyAtAssembly(self Unit, sum *AssemblySum)
-    AtPhaseStart ApplyAtPhaseStart(self Unit)
-    BeforeAttack ApplyBeforeAttack(self, target Unit, weapon *def.Weapon, selfRole, targetRole battle.StrikeRole, sum *AttackSum)
-    BeforeDefend ApplyBeforeDefend(self, attacker Unit, weapon *def.Weapon, selfRole, attackerRole battle.StrikeRole, sum *DefendSum)
-    AfterAttack  ApplyAfterAttack(self, target Unit, weapon *def.Weapon, landed bool, damage int)
-    AfterDefend  ApplyAfterDefend(self, attacker Unit, weapon *def.Weapon, landed bool, damage int)
+    type Unit struct { Mech *def.Mech; Pilot *def.Pilot; HP, MaxHP int }
 
-| Hook | Runs for | Call point | Adds to |
+    type AttackContext struct {                  // the strike the attacker fires
+        Attacker, Defender Unit
+        Weapon             *def.Weapon
+
+        MechAttackPercent float64
+    }
+    type DefendContext struct {                  // the strike the defender takes
+        Attacker, Defender Unit
+        Weapon             *def.Weapon
+
+        MechDefensePercent float64
+    }
+    type AttackHook func(a *AttackContext)
+    type DefendHook func(d *DefendContext)
+    type Hooks struct { OnAttack []AttackHook; OnDefend []DefendHook }
+
+The chains bind the methods of the lines of one value column. A
+bound method points at one copy of a line, so a chain built before
+'Clone' would write the state of the original; that is why the
+clone binds its copies again, and why a chain never sits in the
+content. 'engine/battle/state/ability_test.go' pins this.
+
+Order. Every value of a strike context is a percent sum: each hook
+adds its own share, and the engine multiplies the base one time and
+floors ('scaled' in 'system/strike.go'). Addition commutes, so the
+order of a chain does not change a strike. The moment a line has to
+read the total of the others (none in the sample), the contract
+gains a second stage after the sums, and the chain stays as it is.
+
+'Unit' is a copy of the facts, not 'state.Unit': the contract does
+not depend on 'state', and a hook cannot reach the value column.
+
+Which unit is 'Defender'. 'system' builds the context for each
+computation: for the hit rate the defender is the aimed unit, for
+the damage it is the struck unit. The two differ when a support
+defender covers the target, so a line that reads the enemy reads
+the guard in the damage and the target in the hit rate. That this
+is what the game does is a hypothesis; the reference document does
+not say which unit an "Advantage" line reads when a guard covers.
+
+Stacking hypothesis. The rule "percents add, the base multiplies
+one time, floored" was measured on 2026-08-29 on the permanent
+lines of the panel. That a line which holds only in a strike
+(Advantage, the HP conditions) joins the same sum is not measured.
+It is a hypothesis of this branch and a candidate for a device
+measurement: one mech with a permanent ATK line and an Advantage
+line, against a tagged enemy, and the forecast damage against the
+formula.
+
+| Moment | Call point | Values today | Values the checklist will need |
 |---|---|---|---|
-| ApplyAtAssembly | the unit that enters | deploy.Assemble, once | AssemblySum: max HP %, max EN %, support attack, support defend, chance step, move, MP |
-| ApplyAtPhaseStart | each unit of the opening faction | turn.beginPhase | writes the value directly |
-| ApplyBeforeAttack | the unit that fires the strike | every time a strike is judged or computed | AttackSum: mech attack, pilot ranged, melee, awaken, mobility, damage dealt, accuracy, EN cost, range |
-| ApplyBeforeDefend | the unit that takes the strike (the support defender when one covers) | same | DefendSum: mech defense, pilot defense, pilot reaction, mobility, damage taken, evasion |
-| ApplyAfterAttack | the unit that fired | after the wound of its strike | writes the value directly |
-| ApplyAfterDefend | the unit that took the strike | after the wound writes HP, before the kill is judged | writes the value directly |
+| Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack % | pilot ranged, melee, awaken; mobility; damage dealt; accuracy; EN cost; range |
+| Defend | 'defenderSide', same | mech defense % | pilot defense, reaction; mobility; damage taken; evasion |
+| assembly (not built) | 'board.assemble' at Load | — | max HP, max EN, support attack, support defend, chance step, move, MP; the MP hook clamps to 'MPMax' itself |
+| phase start (not built) | 'beginPhase' in 'system/turn.go' | — | none in the sample |
 
-The walk is a method of 'state.Unit', one for each hook; each walks
-'unit.Abilities' and calls the lines that implement the hook. The
-order of a strike is the order of the game: the attack sum of the
-attacker, the defend sum of the defender, then the formula. The
-formula reads the attack sum of the attacker and the defend sum of
-the defender only. A hook adds its share; the system multiplies once
-and floors, in integer arithmetic. The order of the lines does not
-change the result.
-
-The exact signatures are a proposal until the scenarios pin them:
-「先別收斂」(user, 2026-09-08).
-
-The skill seam, stated and not built: a buff a skill lands is a
-modifier with a lifetime on the unit value, the way 'Debuffs' is
-today; it implements the same hooks and the walk reads it next to
-'Abilities'. The MP changes of the game are a system rule of issue
-#54, not a line.
+Legality (EN cost, reach) is read at the schedule by the same
+function that the settlement reads it with; the strike struct holds
+identities only and no number (ruling 2026-09-14).
 
 ## Section 3. The scenarios
 
 Each scenario drives 'battle.Board' only. The order, each one adding
 the kinds it needs:
 
-1. Killer tags both ways: B carries 'mech_attack_percent' and
-   'mech_defense_percent' 20 with 'enemy_tags' [1101], A carries tag
-   1101. In one exchange the main strike A→B does the damage of a
-   defender whose defense is already scaled, and the counter B→A the
-   damage of an attacker whose attack is already scaled. A without
-   the tag: both strikes equal the board without the lines.
+1. The "Advantage" pair both ways (green): B carries the two lines
+   'MechAttackPercentAgainstTag{1015, 15}' and
+   'MechDefensePercentAgainstTag{1015, 15}', A carries tag 1015. In one exchange the main strike A→B does the
+   damage of a defender whose defense is already scaled, and the
+   counter B→A the damage of an attacker whose attack is already
+   scaled. A without the tag: both strikes equal the board without
+   the lines. The negative scenario: B carries the tag itself and the
+   hooks against it, A carries no tag; the exchange equals the board
+   without the hooks, so the hook reads the enemy and not itself.
 2. Cover: A→B, C covers with a defense line on 'strike_roles'
    ['support_defense']; C's line counts, B's does not, the damage
    reads C.
@@ -282,11 +296,11 @@ docs/reference/datamine-source.md on 88b5e8c.
 | mech | 'max_en_percent' | — | 2 | Increased Max EN LV 3 | |
 | mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | |
 | mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | |
-| mech | 'mech_attack_percent' | 'enemy_tags' | 2 | Advantage: Principality of Zeon LV 1 | |
+| mech | 'mech_attack_percent' | 'enemy_tags' | 2 | Advantage: Principality of Zeon LV 1 | 'lines.MechAttackPercentAgainstTag', scenario 1 |
 | mech | 'mech_attack_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased ATK LV 3 | |
 | mech | 'mech_attack_percent' | 'vigor_min' | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | |
 | mech | 'mech_defense_percent' | — | 1 | Increased DEF LV 3 | |
-| mech | 'mech_defense_percent' | 'enemy_tags' | 2 | Advantage: EFSF (U.C.) LV 1 | |
+| mech | 'mech_defense_percent' | 'enemy_tags' | 2 | Advantage: EFSF (U.C.) LV 1 | 'lines.MechDefensePercentAgainstTag', scenario 1 |
 | mech | 'mech_defense_percent' | 'hp_rate_gte' | 1 | (HP conditions) Increased DEF LV 2 | |
 | mech | 'mech_defense_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased DEF LV 2 | |
 | mech | 'mech_mobility_percent' | — | 2 | Increased MOB LV 1 | |
@@ -319,7 +333,9 @@ docs/reference/datamine-source.md on 88b5e8c.
 Facts the table shows:
 
 - A line carries at most two condition fields.
-- 'enemy_tags' is the field of the "Advantage" pair: the attack half
+- Every line of the sample carries one tag id at most, so a line
+  type holds one tag and not a list (ruling 2026-09-14).
+- 'enemy_tags' is the datamine field of the "Advantage" pair: the attack half
   has the datamine target 'AttackTarget' with the tags, the defense
   half has 'ActiveAttacker' with no tags and takes the tags of the
   attack half. Both halves read the tag of the other unit of the
@@ -357,6 +373,20 @@ when a wire key lands, and then in the same commit.
   'TestAnEnemyTagLineScalesTheDefenseInTheMainStrikeAndTheAttackInTheCounter'
   fails because no hook reads a line yet. The other two tests of the
   file pass, and every other test of the repository stays green.
+- 2026-09-14 (c956639): the first scenario, the "Advantage" pair, in
+  'engine/battle/system/ability_test.go' with testify; the line
+  structs and the carriers on 'def.Mech'. The wire types that came
+  with it left again: the wire form is not decided.
+- 2026-09-14: the hook points, after three rejected shapes (a shared
+  sum type; a registry that binds a data struct to its
+  implementation at each strike; a kind enum in 'def'). The contract
+  'engine/battle/ability' ('Unit', 'Attack', 'Defend', 'AttackHook',
+  'DefendHook', 'Hooks', 'Line'), the line types in
+  'engine/battle/ability/lines', the lines and their chains in
+  'state.UnitValue' ('SetAbilities', rebuilt by 'Clone'); 'system'
+  builds the context and runs the chain. The scenario is
+  green, with a negative scenario that fails on a hook that reads
+  its own tags.
 - 2026-09-14: the branch reopened as 'issue-72-ability-lines' off dev
   b2132c3 with this roadmap alone. Two preparations landed on the
   branch first: the support defender of the actor takes the support

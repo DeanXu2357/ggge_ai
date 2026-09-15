@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
 
@@ -51,6 +52,8 @@ type UnitValue struct {
 	Skills               []def.Skill
 	MapWeaponAmmo        []int
 	Debuffs              []battle.Debuff
+	Abilities            []ability.Line
+	Hooks                ability.Hooks // derived from Abilities; rebuilt by Clone and by SetAbilities
 }
 
 // Unit is the handle of one unit: the static side and the dynamic side, no
@@ -76,7 +79,13 @@ func copyValue(value UnitValue) UnitValue {
 	value.Skills = mapSlice(value.Skills, copySkill)
 	value.MapWeaponAmmo = slices.Clone(value.MapWeaponAmmo)
 	value.Debuffs = slices.Clone(value.Debuffs)
+	value.SetAbilities(ability.CloneLines(value.Abilities))
 	return value
+}
+
+func (v *UnitValue) SetAbilities(lines []ability.Line) {
+	v.Abilities = lines
+	v.Hooks = ability.HooksOf(lines)
 }
 
 func copySkill(skill def.Skill) def.Skill {

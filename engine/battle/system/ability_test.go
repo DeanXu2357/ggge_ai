@@ -7,10 +7,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability/lines"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-const enemyTagID = 1015
+const zeonTagID = 1015
 
 type exchangeDamage struct {
 	main, counter int
@@ -53,44 +55,50 @@ func resolveDuel(t *testing.T, b state.Battle) exchangeDamage {
 	return exchangeDamage{main: got[0].Damage, counter: got[1].Damage}
 }
 
-func advantageLines(percent float64) battle.Abilities {
-	return battle.Abilities{
-		battle.MechAttackPercent{EnemyTags: []int{enemyTagID}, Percent: percent},
-		battle.MechDefensePercent{EnemyTags: []int{enemyTagID}, Percent: percent},
+// The "Advantage: Principality of Zeon" ability of the sample store: ATK and
+// DEF +15% against enemies that carry the tag 1015.
+func advantageAgainstZeon() []ability.Line {
+	return []ability.Line{
+		lines.MechAttackPercentAgainstTag{EnemyTag: zeonTagID, Percent: 15},
+		lines.MechDefensePercentAgainstTag{EnemyTag: zeonTagID, Percent: 15},
 	}
 }
 
-// The target carries the "Advantage" pair against the tag of the actor. The
-// main strike does the damage of a defender whose defense is already scaled,
-// and the counter the damage of an attacker whose attack is already scaled.
-func TestAnEnemyTagLineScalesTheDefenseInTheMainStrikeAndTheAttackInTheCounter(t *testing.T) {
+// The target holds the ability and the actor carries the tag. The main
+// strike does the damage of a defender whose defense is already scaled, and
+// the counter the damage of an attacker whose attack is already scaled.
+func TestAdvantageScalesTheDefenseInTheMainStrikeAndTheAttackInTheCounter(t *testing.T) {
 	plainBoard := scenarioDuel()
-	plainBoard.Content.Units[actorID].Mech.Tags = []int{enemyTagID}
+	plainBoard.Content.Units[actorID].Mech.Tags = []int{zeonTagID}
 	plain := resolveDuel(t, plainBoard)
 
-	lined := scenarioDuel()
-	lined.Content.Units[actorID].Mech.Tags = []int{enemyTagID}
-	lined.Content.Units[targetID].Mech.Abilities = advantageLines(15)
-	withLines := resolveDuel(t, lined)
+	hooked := scenarioDuel()
+	hooked.Content.Units[actorID].Mech.Tags = []int{zeonTagID}
+	hooked.Values.Units[targetID].SetAbilities(advantageAgainstZeon())
+	withHooks := resolveDuel(t, hooked)
 
 	stated := scenarioDuel()
-	stated.Content.Units[actorID].Mech.Tags = []int{enemyTagID}
+	stated.Content.Units[actorID].Mech.Tags = []int{zeonTagID}
 	stated.Content.Units[targetID].Mech.Attack = 4830  // 4200 + 15%
 	stated.Content.Units[targetID].Mech.Defense = 4485 // 3900 + 15%
 	withStats := resolveDuel(t, stated)
 
-	assert.Equal(t, withStats, withLines, "the lines give the exchange of the stated stats")
-	assert.Less(t, withLines.main, plain.main, "the scaled defense lowers the main strike")
-	assert.Greater(t, withLines.counter, plain.counter, "the scaled attack raises the counter")
+	assert.Equal(t, withStats, withHooks, "the hooks give the exchange of the stated stats")
+	assert.Less(t, withHooks.main, plain.main, "the scaled defense lowers the main strike")
+	assert.Greater(t, withHooks.counter, plain.counter, "the scaled attack raises the counter")
 }
 
-// The line reads the tag of the other unit of the strike: an actor without
-// the tag meets no condition, and the exchange equals the one without lines.
-func TestAnEnemyTagLineReadsTheTagOfTheOtherUnitOfTheStrike(t *testing.T) {
-	plain := resolveDuel(t, scenarioDuel())
+// The ability reads the tag of the enemy, not the tag of its own mech: a
+// holder that carries the tag itself, against an enemy without it, meets no
+// condition.
+func TestAdvantageReadsTheTagOfTheEnemyAndNotItsOwn(t *testing.T) {
+	plainBoard := scenarioDuel()
+	plainBoard.Content.Units[targetID].Mech.Tags = []int{zeonTagID}
+	plain := resolveDuel(t, plainBoard)
 
-	lined := scenarioDuel()
-	lined.Content.Units[targetID].Mech.Abilities = advantageLines(15)
+	hooked := scenarioDuel()
+	hooked.Content.Units[targetID].Mech.Tags = []int{zeonTagID}
+	hooked.Values.Units[targetID].SetAbilities(advantageAgainstZeon())
 
-	assert.Equal(t, plain, resolveDuel(t, lined), "an actor without the tag meets no line")
+	assert.Equal(t, plain, resolveDuel(t, hooked), "an enemy without the tag meets no hook")
 }
