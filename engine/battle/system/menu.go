@@ -28,13 +28,13 @@ func Menu(board state.Battle, decision battle.Decision, defenderID int) (Options
 		return Options{}, fmt.Errorf("%w: an action of the kind %q asks unit %d nothing",
 			battle.ErrIllegalAction, made.kind, defenderID)
 	}
-	defender, err := LivingUnit(board, defenderID)
+	defender, err := livingUnit(board, defenderID)
 	if err != nil {
 		return Options{}, err
 	}
 	attacker := unitOf(board, made.actorID)
 	weapon := weaponOf(attacker, *made.weaponID)
-	origin := geometry.FootprintAt(attacker, made.anchor)
+	origin := attacker.footprintAt(made.anchor)
 	distance := geometry.Distance(defender.Footprint(), origin)
 	if !weapon.Reaches(distance) {
 		return Options{}, fmt.Errorf("%w: the weapon %q of unit %d does not reach unit %d from %v",
@@ -76,7 +76,7 @@ func Menu(board state.Battle, decision battle.Decision, defenderID int) (Options
 	return out, nil
 }
 
-func stanceOption(attacker, defender state.Unit, weapon *def.Weapon, stance battle.Stance,
+func stanceOption(attacker, defender unit, weapon *def.Weapon, stance battle.Stance,
 	counterID *int) ResponseAttackOption {
 	return ResponseAttackOption{
 		Stance:   stance,
@@ -86,7 +86,7 @@ func stanceOption(attacker, defender state.Unit, weapon *def.Weapon, stance batt
 	}
 }
 
-func defendOptions(board state.Battle, shooter state.Unit, weapon *def.Weapon,
+func defendOptions(board state.Battle, shooter unit, weapon *def.Weapon,
 	ids []int) []SupportDefendOption {
 	out := make([]SupportDefendOption, 0, len(ids))
 	for _, id := range ids {
@@ -101,7 +101,7 @@ func defendOptions(board state.Battle, shooter state.Unit, weapon *def.Weapon,
 
 // The foe settles its stance after this answer, so the forecast of a support
 // attack reads no defense.
-func attackOptions(board state.Battle, foe state.Unit,
+func attackOptions(board state.Battle, foe unit,
 	joining []supportAttacker) []SupportAttackOption {
 	out := make([]SupportAttackOption, 0, len(joining))
 	for _, one := range joining {

@@ -74,7 +74,7 @@ func checkStatements(board state.Battle, strikes []strike) error {
 	return nil
 }
 
-func checkStated(shooter, aimed state.Unit, weapon *def.Weapon, dodging bool, stated *battle.Stated) error {
+func checkStated(shooter, aimed unit, weapon *def.Weapon, dodging bool, stated *battle.Stated) error {
 	if stated.Crit {
 		return fmt.Errorf("%w: the weapon %q states a critical at a critical rate of 0",
 			battle.ErrIllegalAction, weapon.Name)

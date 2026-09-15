@@ -7,7 +7,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/formula"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 func attackFor(pilot *def.Pilot, weapon def.Weapon) float64 {
@@ -36,12 +35,8 @@ func attackOf(pilot *def.Pilot, category battle.WeaponCategory) float64 {
 	return 0
 }
 
-func view(unit state.Unit) ability.Unit {
-	return ability.Unit{Mech: unit.Mech, Pilot: unit.Pilot, HP: unit.Value.HP, MaxHP: unit.MaxHP}
-}
-
-func attackerSide(attacker, defender state.Unit, weapon *def.Weapon) formula.Side {
-	a := ability.AttackContext{Attacker: view(attacker), Defender: view(defender), Weapon: weapon}
+func attackerSide(attacker, defender unit, weapon *def.Weapon) formula.Side {
+	a := ability.AttackContext{Attacker: attacker.hookView(), Defender: defender.hookView(), Weapon: weapon}
 	attacker.Value.Hooks.Attack(&a)
 	return formula.Side{
 		PilotAttack:   attackFor(attacker.Pilot, *weapon),
@@ -55,8 +50,8 @@ func attackerSide(attacker, defender state.Unit, weapon *def.Weapon) formula.Sid
 
 // No formula reads the pilot attack of the defender, and the weapon of the
 // strike belongs to the attacker, so the defender side carries no attack value.
-func defenderSide(defender, attacker state.Unit, weapon *def.Weapon) formula.Side {
-	d := ability.DefendContext{Attacker: view(attacker), Defender: view(defender), Weapon: weapon}
+func defenderSide(defender, attacker unit, weapon *def.Weapon) formula.Side {
+	d := ability.DefendContext{Attacker: attacker.hookView(), Defender: defender.hookView(), Weapon: weapon}
 	defender.Value.Hooks.Defend(&d)
 	return formula.Side{
 		PilotDefense:  defender.Pilot.Defense,
@@ -78,13 +73,13 @@ func scaled(base, percent float64) float64 {
 // The terrain correction is NoTerrainCorrection for every weapon. The
 // correction is the effect of a weapon ability that reads the terrain of the
 // cell of the target, and the engine models no ability yet.
-func strikeDamage(attacker, defender state.Unit, weapon *def.Weapon, defense float64) int {
+func strikeDamage(attacker, defender unit, weapon *def.Weapon, defense float64) int {
 	return formula.StrikeDamage(weapon.Power, attackerSide(attacker, defender, weapon),
 		defenderSide(defender, attacker, weapon), formula.NoTerrainCorrection,
 		debuffBonus(defender), 0, defense)
 }
 
-func debuffBonus(defender state.Unit) float64 {
+func debuffBonus(defender unit) float64 {
 	var sum float64
 	for _, debuff := range defender.Value.Debuffs {
 		sum += debuff.Magnitude
@@ -92,13 +87,13 @@ func debuffBonus(defender state.Unit) float64 {
 	return sum
 }
 
-func strikeHitProbability(attacker, defender state.Unit, weapon *def.Weapon, dodging bool) float64 {
+func strikeHitProbability(attacker, defender unit, weapon *def.Weapon, dodging bool) float64 {
 	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(attacker, defender, weapon),
 		defenderSide(defender, attacker, weapon), dodging)
 }
 
 // The response attack menu offers no shield stance, so a defender that
 // carries a shield defends with the shield here, in the damage (issue #63).
-func defenseMultiplier(stance battle.Stance, defender state.Unit) float64 {
+func defenseMultiplier(stance battle.Stance, defender unit) float64 {
 	return formula.DefenseMultiplier(stance == battle.StanceDefend, defender.HasShield)
 }

@@ -59,7 +59,7 @@ func (x *exchange) fire(s strike) battle.StrikeEvent {
 }
 
 // No rule computes a critical rate, so a drawn critical is false.
-func (x *exchange) behaviors(s strike, shooter, aimed state.Unit) (landed, critical bool) {
+func (x *exchange) behaviors(s strike, shooter, aimed unit) (landed, critical bool) {
 	if s.stated != nil {
 		return s.stated.Hit, s.stated.Crit
 	}

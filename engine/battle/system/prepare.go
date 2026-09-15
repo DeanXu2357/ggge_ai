@@ -20,7 +20,7 @@ type plan struct {
 }
 
 func prepare(board state.Battle, decision battle.Decision) (plan, error) {
-	actor, err := Activatable(board, decision.UnitID)
+	actor, err := activatable(board, decision.UnitID)
 	if err != nil {
 		return plan{}, err
 	}
@@ -47,12 +47,12 @@ func prepare(board state.Battle, decision battle.Decision) (plan, error) {
 // checkIDs bounds-checks every id that the wire carries, one time, before the
 // first write. Past this gate an id names a thing of the board.
 func checkIDs(board state.Battle, decision battle.Decision) error {
-	actor, err := board.UnitAt(decision.UnitID)
+	actor, err := findUnit(board, decision.UnitID)
 	if err != nil {
 		return err
 	}
 	if decision.TargetID != nil {
-		if _, err := board.UnitAt(*decision.TargetID); err != nil {
+		if _, err := findUnit(board, *decision.TargetID); err != nil {
 			return err
 		}
 	}
@@ -88,7 +88,7 @@ func checkArmament(decision battle.Decision) error {
 	return nil
 }
 
-func prepareAttack(board state.Battle, decision battle.Decision, actor state.Unit) (plan, error) {
+func prepareAttack(board state.Battle, decision battle.Decision, actor unit) (plan, error) {
 	if decision.MapWeaponID != nil {
 		return plan{}, fmt.Errorf("%w: the engine fires no map weapon, because the area of a map weapon is not in the contract",
 			battle.ErrIllegalAction)
@@ -112,7 +112,7 @@ func prepareAttack(board state.Battle, decision battle.Decision, actor state.Uni
 	if err != nil {
 		return plan{}, err
 	}
-	firing := geometry.FootprintAt(actor, anchor)
+	firing := actor.footprintAt(anchor)
 	if !weapon.Reaches(geometry.Distance(firing, target.Footprint())) {
 		return plan{}, fmt.Errorf("%w: the weapon %q of unit %d does not reach unit %d",
 			battle.ErrIllegalAction, weapon.Name, decision.UnitID, targetID)
@@ -127,7 +127,7 @@ func prepareAttack(board state.Battle, decision battle.Decision, actor state.Uni
 }
 
 func foe(board state.Battle, actorID int, targetID int) (int, error) {
-	target, err := LivingUnit(board, targetID)
+	target, err := livingUnit(board, targetID)
 	if err != nil {
 		return 0, err
 	}

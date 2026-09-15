@@ -36,7 +36,7 @@ func nextPhase(board state.Battle) battle.PhaseEvent {
 func beginPhase(board state.Battle) []battle.Effect {
 	now := board.Values.PhaseIndex()
 	var led ledger
-	for id, unit := range board.Units() {
+	for id, unit := range units(board) {
 		if !unit.Alive() {
 			continue
 		}
@@ -63,7 +63,7 @@ func expired(debuffs []battle.Debuff, now int) []battle.Debuff {
 }
 
 func anyAlive(board state.Battle) bool {
-	for _, unit := range board.Units() {
+	for _, unit := range units(board) {
 		if unit.Alive() {
 			return true
 		}

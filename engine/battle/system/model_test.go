@@ -24,11 +24,11 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 
 	for _, one := range cases {
 		t.Run(one.name, func(t *testing.T) {
-			unit := state.Unit{UnitContent: &state.UnitContent{Faction: battle.FactionAlly},
+			u := unit{UnitContent: &state.UnitContent{Faction: battle.FactionAlly},
 				Value: &state.UnitValue{HP: 100, EN: one.en}}
 			weapon := def.Weapon{Name: "beam rifle", ENCost: one.cost}
 
-			if got := hasENFor(unit, weapon); got != one.want {
+			if got := hasENFor(u, weapon); got != one.want {
 				t.Fatalf("EN %d against the cost %d: %v, want %v",
 					one.en, one.cost, got, one.want)
 			}
@@ -37,17 +37,17 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 }
 
 func TestTheENOfAShotComesFromThePanelAndNotFromTheMech(t *testing.T) {
-	unit := state.Unit{
+	u := unit{
 		UnitContent: &state.UnitContent{Faction: battle.FactionAlly, Mech: &def.Mech{EN: 200}},
 		Value:       &state.UnitValue{HP: 100, EN: 10}}
 	weapon := def.Weapon{Name: "beam rifle", ENCost: 20}
 
-	if hasENFor(unit, weapon) {
+	if hasENFor(u, weapon) {
 		t.Fatal("the predicate read the base data of the mech")
 	}
 
-	unit.Value.EN = 20
-	if !hasENFor(unit, weapon) {
+	u.Value.EN = 20
+	if !hasENFor(u, weapon) {
 		t.Fatal("the predicate did not read the final panel")
 	}
 }

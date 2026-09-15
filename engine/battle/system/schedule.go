@@ -34,7 +34,7 @@ type actSchedule struct {
 }
 
 func scheduleAct(board state.Battle, action battle.Action) (actSchedule, error) {
-	actor, err := Activatable(board, action.ActorID)
+	actor, err := activatable(board, action.ActorID)
 	if err != nil {
 		return actSchedule{}, err
 	}
@@ -74,7 +74,7 @@ func scheduleAct(board state.Battle, action battle.Action) (actSchedule, error) 
 	}
 
 	target := unitOf(board, targetID)
-	firing := geometry.FootprintAt(actor, to)
+	firing := actor.footprintAt(to)
 	standing := target.Footprint()
 
 	main := strike{segment: battle.SegmentMain, ownerID: action.ActorID,
@@ -123,7 +123,7 @@ func struckBy(guardID *int, aimedID int, stance battle.Stance) (int, battle.Stan
 	return aimedID, stance
 }
 
-func counterOf(board state.Battle, action battle.Action, actor, target state.Unit,
+func counterOf(board state.Battle, action battle.Action, actor, target unit,
 	firing battle.Footprint) (*strike, error) {
 	response := action.ResponseAttack
 	targetID := action.Attack.TargetID
@@ -212,23 +212,23 @@ func supportStrikes(board state.Battle, base strike, at, foeAt battle.Footprint,
 	return out, nil
 }
 
-func supportUnit(board state.Battle, supportedID, unitID int, at battle.Footprint) (state.Unit, error) {
-	unit, err := LivingUnit(board, unitID)
+func supportUnit(board state.Battle, supportedID, unitID int, at battle.Footprint) (unit, error) {
+	u, err := livingUnit(board, unitID)
 	if err != nil {
-		return state.Unit{}, err
+		return unit{}, err
 	}
-	if unit.Faction != unitOf(board, supportedID).Faction {
-		return state.Unit{}, fmt.Errorf("%w: unit %d is not of the side of unit %d",
+	if u.Faction != unitOf(board, supportedID).Faction {
+		return unit{}, fmt.Errorf("%w: unit %d is not of the side of unit %d",
 			battle.ErrIllegalAction, unitID, supportedID)
 	}
-	if unitID == supportedID || geometry.Distance(unit.Footprint(), at) > unit.Mech.MoveRange {
-		return state.Unit{}, fmt.Errorf("%w: unit %d is out of support reach of unit %d",
+	if unitID == supportedID || geometry.Distance(u.Footprint(), at) > u.Mech.MoveRange {
+		return unit{}, fmt.Errorf("%w: unit %d is out of support reach of unit %d",
 			battle.ErrIllegalAction, unitID, supportedID)
 	}
-	return unit, nil
+	return u, nil
 }
 
-func canFire(shooter state.Unit, shooterID int, weapon *def.Weapon, from, at battle.Footprint) error {
+func canFire(shooter unit, shooterID int, weapon *def.Weapon, from, at battle.Footprint) error {
 	if !hasENFor(shooter, *weapon) {
 		return fmt.Errorf("%w: unit %d cannot pay for the weapon %q",
 			battle.ErrIllegalAction, shooterID, weapon.Name)

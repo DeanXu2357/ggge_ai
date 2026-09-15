@@ -15,7 +15,7 @@ type supportAttacker struct {
 // support unit reads that cell and not the cell of today.
 func supportDefenders(board state.Battle, supportedID int, at battle.Footprint) []int {
 	out := []int{}
-	supported, err := board.UnitAt(supportedID)
+	supported, err := findUnit(board, supportedID)
 	if err != nil {
 		return out
 	}
@@ -31,7 +31,7 @@ func supportDefenders(board state.Battle, supportedID int, at battle.Footprint) 
 func supportAttackers(board state.Battle, supportedID int,
 	firing, foe battle.Footprint) []supportAttacker {
 	out := []supportAttacker{}
-	supported, err := board.UnitAt(supportedID)
+	supported, err := findUnit(board, supportedID)
 	if err != nil {
 		return out
 	}
@@ -45,7 +45,7 @@ func supportAttackers(board state.Battle, supportedID int,
 
 func supportWeapon(board state.Battle, otherID, supportedID int,
 	firing, foe battle.Footprint) (int, bool) {
-	other, err := board.UnitAt(otherID)
+	other, err := findUnit(board, otherID)
 	if err != nil {
 		return 0, false
 	}
@@ -66,7 +66,7 @@ func inSupportReach(board state.Battle, otherID, supportedID int,
 	if otherID == supportedID || charges <= 0 {
 		return false
 	}
-	other, err := board.UnitAt(otherID)
+	other, err := findUnit(board, otherID)
 	if err != nil {
 		return false
 	}
