@@ -38,13 +38,17 @@ func attackOf(pilot *def.Pilot, category battle.WeaponCategory) float64 {
 func attackerSide(attacker, defender unit, weapon *def.Weapon) formula.Side {
 	a := ability.AttackContext{Attacker: attacker.hookView(), Defender: defender.hookView(), Weapon: weapon}
 	attacker.Value.Hooks.Attack(&a)
+	pilot := *attacker.Pilot
+	pilot.Ranged = scaled(pilot.Ranged, a.PilotRangedPercent)
+	pilot.Melee = scaled(pilot.Melee, a.PilotMeleePercent)
+	pilot.Awaken = scaled(pilot.Awaken, a.PilotAwakenPercent)
 	return formula.Side{
-		PilotAttack:   attackFor(attacker.Pilot, *weapon),
+		PilotAttack:   attackFor(&pilot, *weapon),
 		PilotDefense:  attacker.Pilot.Defense,
 		PilotReaction: attacker.Pilot.Reaction,
 		MechAttack:    scaled(attacker.Mech.Attack, a.MechAttackPercent),
 		MechDefense:   attacker.Mech.Defense,
-		Mobility:      attacker.Mech.Mobility,
+		Mobility:      scaled(attacker.Mech.Mobility, a.MechMobilityPercent),
 	}
 }
 
@@ -54,19 +58,21 @@ func defenderSide(defender, attacker unit, weapon *def.Weapon) formula.Side {
 	d := ability.DefendContext{Attacker: attacker.hookView(), Defender: defender.hookView(), Weapon: weapon}
 	defender.Value.Hooks.Defend(&d)
 	return formula.Side{
-		PilotDefense:  defender.Pilot.Defense,
-		PilotReaction: defender.Pilot.Reaction,
+		PilotDefense:  scaled(defender.Pilot.Defense, d.PilotDefensePercent),
+		PilotReaction: scaled(defender.Pilot.Reaction, d.PilotReactionPercent),
 		MechAttack:    defender.Mech.Attack,
 		MechDefense:   scaled(defender.Mech.Defense, d.MechDefensePercent),
-		Mobility:      defender.Mech.Mobility,
+		Mobility:      scaled(defender.Mech.Mobility, d.MechMobilityPercent),
 	}
 }
 
 // The percents of every source on one stat add, the sum multiplies the base
-// one time, and the result is floored. Measured on 2026-08-29 for the
-// permanent lines of the panel; that a line which holds only in a strike
-// joins the same sum is a hypothesis of the roadmap of issue #72.
+// one time, and the result is floored (measured on 2026-08-29). A stat that
+// no line touches keeps its base as it came, fraction included.
 func scaled(base, percent float64) float64 {
+	if percent == 0 {
+		return base
+	}
 	return math.Floor(base * (100 + percent) / 100)
 }
 

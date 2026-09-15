@@ -34,7 +34,11 @@ type AttackContext struct {
 	Defender Unit
 	Weapon   *def.Weapon
 
-	MechAttackPercent float64
+	MechAttackPercent   float64
+	MechMobilityPercent float64
+	PilotRangedPercent  float64
+	PilotMeleePercent   float64
+	PilotAwakenPercent  float64
 }
 
 // DefendContext is the input of a defend hook: the strike the defender takes.
@@ -44,7 +48,10 @@ type DefendContext struct {
 	Defender Unit
 	Weapon   *def.Weapon
 
-	MechDefensePercent float64
+	MechDefensePercent   float64
+	MechMobilityPercent  float64
+	PilotDefensePercent  float64
+	PilotReactionPercent float64
 }
 
 type AttackHook func(a *AttackContext)
