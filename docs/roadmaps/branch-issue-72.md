@@ -252,8 +252,13 @@ the kinds it needs:
 2. Cover: A→B, C covers with a defense line on 'strike_roles'
    ['support_defense']; C's line counts, B's does not, the damage
    reads C.
-3. The "HP full" defense bonus is gone for the main strike after a
-   support attack lands ('hp_rate_gte' 100, read before each strike).
+3. The HP conditions (green): the "HP full" defense bonus is read
+   at each strike, so a support attack that lands takes it off the
+   main strike and a support attack that misses leaves it; the
+   "HP 25% or below" attack bonus holds at the threshold and not
+   one HP above; the "HP 50% or below" defense bonus scales the
+   strike taken. The comparison is in integers, HP × 100 against
+   the threshold × MaxHP.
 4. I-Field: 'damage_taken_percent' on 'enemy_weapon_attributes'
    ['beam'] and 'enemy_weapon_categories' ['ranged']; a physical
    weapon is not reduced; the line of the attacker reads no weapon of
@@ -314,12 +319,12 @@ docs/reference/datamine-source.md on 88b5e8c.
 | mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | |
 | mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | 'lines.MechAttackPercent', scenario 11 |
 | mech | 'mech_attack_percent' | 'enemy_tags' | 2 | Advantage: Principality of Zeon LV 1 | 'lines.MechAttackPercentAgainstTag', scenario 1 |
-| mech | 'mech_attack_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased ATK LV 3 | |
+| mech | 'mech_attack_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased ATK LV 3 | 'lines.MechAttackPercentAtHPRateAtMost', scenario 3 |
 | mech | 'mech_attack_percent' | 'vigor_min' | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | |
 | mech | 'mech_defense_percent' | — | 1 | Increased DEF LV 3 | 'lines.MechDefensePercent', scenario 11 |
 | mech | 'mech_defense_percent' | 'enemy_tags' | 2 | Advantage: EFSF (U.C.) LV 1 | 'lines.MechDefensePercentAgainstTag', scenario 1 |
-| mech | 'mech_defense_percent' | 'hp_rate_gte' | 1 | (HP conditions) Increased DEF LV 2 | |
-| mech | 'mech_defense_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased DEF LV 2 | |
+| mech | 'mech_defense_percent' | 'hp_rate_gte' | 1 | (HP conditions) Increased DEF LV 2 | 'lines.MechDefensePercentAtHPRateAtLeast', scenario 3 |
+| mech | 'mech_defense_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased DEF LV 2 | 'lines.MechDefensePercentAtHPRateAtMost', scenario 3 |
 | mech | 'mech_mobility_percent' | — | 2 | Increased MOB LV 1 | 'lines.MechMobilityPercent', scenario 11 |
 | mech | 'mech_mobility_percent' | 'vigor_min' | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | |
 | mech | 'move_range_plus' | 'pilot_tags' | 1 | (Cnd: Tag) Increased MOV LV 1 | |
@@ -364,6 +369,28 @@ Facts the table shows:
   the datamine ('unit_tags' and 'character_tags_id').
 - "One-Shot Killer" is a tag of the mech list (id 1082 on Gouf Custom
   (EX)), not an ability.
+
+## Section 5. The plan of the lines
+
+The rows of Section 4, grouped by the mechanism each group needs,
+in the order of the work (set 2026-09-15). A group is done when
+every row of it is ticked in Section 4.
+
+| Group | Lines | Rows | Mechanism | Status |
+|---|---|---|---|---|
+| A0 Advantage | ATK and DEF % against an enemy tag | 4 | the strike hooks | done, scenario 1 |
+| A1 Unconditional stat % | mech ATK/DEF/MOB, pilot ranged/melee/awaken/defense/reaction | 45 | the strike hooks, every stat slot | done, scenario 11 |
+| A2 HP conditions | ATK % at HP ≤ 25, DEF % at HP full, DEF % at HP ≤ 50 | 3 | none new: 'ability.Unit' carries HP and MaxHP; the scenario pins that each strike reads the HP of its moment | done, scenario 3 |
+| A3 Facts of the holder | pilot lines on 'mech_tags' (damage dealt and taken, MP), mech line on 'pilot_tags' (move), 'mech_type', 'mech_ids', 'mech_series' | 22 | carriers: 'def.Pilot.Tags', 'def.Mech.Type', 'def.Mech.ID', 'def.Mech.Series'; the damage slots of ⑨ | |
+| A4 Unconditional strike % | damage dealt, accuracy, evasion | 10 | slots: damage dealt and taken into ⑨ with the debuffs; accuracy and evasion as points of the hit rate ('雙方能力補正'); the reading of each slot is a hypothesis until a device forecast confirms it | |
+| A5 Weapon conditions | I-Field, physical damage reduced | 4 | 'def.Weapon.Attributes' (physical, beam, special); the context carries the weapon already | |
+| A6 Role conditions | DEF % on support defense, ATK % on support attack | 5 | 'Role' on the contexts, read from the strike fields (shooter ≠ owner, struck ≠ aimed, the segment) | |
+| B Legality | EN cost % on support, special weapon range +1 | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement | |
+| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1, MP +n | 21 | an assembly hook in 'system.Assemble', for what happens one time when a unit enters; the lines must reach the unit before it enters, so the wire or a Go door for 'place' comes first | |
+| F MP | ATK and MOB % at vigor, special weapon range at vigor, MP +n | 4 | 'UnitValue.MP' and the wire 'mp'; issue #54 | |
+| D Wound | revive once | 2 | a wound hook after the HP write and before the kill; the line keeps its own flag | not read |
+| E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
+| — | HP supply %, debuff effect % | 2 | issues #79 and #80 | not read |
 
 ## Gates
 
@@ -427,3 +454,6 @@ when a wire key lands, and then in the same commit.
   formula has two zones (the stats, and ⑨), and the datamine gives
   the conditional and the unconditional lines of one stat the same
   trait type, so they are one sum.
+- 2026-09-15: the three HP-condition lines and scenario 3, which
+  pins the reading of each strike from the state of its moment;
+  Section 5 records the plan of the groups.
