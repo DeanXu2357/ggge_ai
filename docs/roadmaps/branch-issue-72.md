@@ -169,13 +169,15 @@ the order of the lines.
         Attacker, Defender Unit
         Weapon             *def.Weapon
 
-        MechAttackPercent float64
+        MechAttackPercent, MechMobilityPercent                   float64
+        PilotRangedPercent, PilotMeleePercent, PilotAwakenPercent float64
     }
     type DefendContext struct {                  // the strike the defender takes
         Attacker, Defender Unit
         Weapon             *def.Weapon
 
-        MechDefensePercent float64
+        MechDefensePercent, MechMobilityPercent   float64
+        PilotDefensePercent, PilotReactionPercent float64
     }
     type AttackHook func(a *AttackContext)
     type DefendHook func(d *DefendContext)
@@ -205,20 +207,28 @@ the guard in the damage and the target in the hit rate. That this
 is what the game does is a hypothesis; the reference document does
 not say which unit an "Advantage" line reads when a guard covers.
 
-Stacking hypothesis. The rule "percents add, the base multiplies
-one time, floored" was measured on 2026-08-29 on the permanent
-lines of the panel. That a line which holds only in a strike
-(Advantage, the HP conditions) joins the same sum is not measured.
-It is a hypothesis of this branch and a candidate for a device
-measurement: one mech with a permanent ATK line and an Advantage
-line, against a tagged enemy, and the forecast damage against the
-formula.
+The two zones of the damage formula. The stats ('MechAttack',
+'PilotAttack', 'MechDefense', 'PilotDefense') enter the ratio and
+sigmoid terms, which are not linear, so a percent on a stat changes
+the input of those terms; the damage percents enter ⑨ '1 + Σ增傷 −
+Σ減傷', linear on the result. The two are different zones by the
+shape of the formula, not by a ruling. Inside the stat zone the
+unconditional lines ("Increased ATK LV 3", trait type 7) and the
+conditional lines ("Advantage", trait type 7 with a condition) are
+the same trait type of the datamine, and Atlas Gundam (EX) carries
+both in one ability; so they are one sum, evaluated in each strike:
+floor(base × (100 + Σpermanent + Σconditional) / 100). A unit stores
+no scaled stat; the base of 'def' is the input of every strike (the
+0829 ruling, confirmed 2026-09-15 from the formula). 4200 with ATK
++15% and Advantage +15% gives 5460, and not 4830 × 1.15 = 5554; the
+difference is a forecast reading on the device, which is the
+measurement that would refute this.
 
 | Moment | Call point | Values today | Values the checklist will need |
 |---|---|---|---|
-| Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack % | pilot ranged, melee, awaken; mobility; damage dealt; accuracy; EN cost; range |
-| Defend | 'defenderSide', same | mech defense % | pilot defense, reaction; mobility; damage taken; evasion |
-| assembly (not built) | 'system.Assemble' | — | max HP, max EN, support attack, support defend, chance step, move, MP; the MP hook clamps to 'MPMax' itself |
+| Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack, mobility, pilot ranged, melee, awaken % | damage dealt; accuracy; EN cost; range |
+| Defend | 'defenderSide', same | mech defense, mobility, pilot defense, reaction % | damage taken; evasion |
+| assembly (not built) | 'system.Assemble' | — | max HP, max EN, support attack, support defend, chance step, move, MP; the MP hook clamps to 'MPMax' itself. Only for what happens one time when the unit enters; a stat percent is never an assembly line |
 | phase start (not built) | 'beginPhase' in 'system/turn.go' | — | none in the sample |
 
 Legality (EN cost, reach) is read at the schedule by the same
@@ -261,8 +271,14 @@ the kinds it needs:
    hit rate, on the attacker raises it.
 9. An unknown kind changes no number and comes back from 'State' as
    it went in.
-10. Stacking: two lines on one stat add before the one
-    multiplication (12121 with +15% and +12% gives +3272).
+10. Stacking (green): two lines on one stat add before the one
+    multiplication (4200 with +15% and +12% gives 5334), and a
+    conditional line joins the same sum (ATK +15% with Advantage
+    +15% against a tagged enemy gives 5460).
+11. The unconditional percent lines (green): each of the eight
+    stat lines gives the exchange, or the hit rate, of the unit
+    whose stat is already scaled; the mobility line acts on both
+    sides.
 
 Behaviors of the rejected branch that the scenarios must carry: the
 eligibility of a supporter reads the target (the menu cannot know
@@ -296,15 +312,15 @@ docs/reference/datamine-source.md on 88b5e8c.
 | mech | 'evasion_percent' | — | 4 | Increased EVA LV 1 | |
 | mech | 'max_en_percent' | — | 2 | Increased Max EN LV 3 | |
 | mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | |
-| mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | |
+| mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | 'lines.MechAttackPercent', scenario 11 |
 | mech | 'mech_attack_percent' | 'enemy_tags' | 2 | Advantage: Principality of Zeon LV 1 | 'lines.MechAttackPercentAgainstTag', scenario 1 |
 | mech | 'mech_attack_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased ATK LV 3 | |
 | mech | 'mech_attack_percent' | 'vigor_min' | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | |
-| mech | 'mech_defense_percent' | — | 1 | Increased DEF LV 3 | |
+| mech | 'mech_defense_percent' | — | 1 | Increased DEF LV 3 | 'lines.MechDefensePercent', scenario 11 |
 | mech | 'mech_defense_percent' | 'enemy_tags' | 2 | Advantage: EFSF (U.C.) LV 1 | 'lines.MechDefensePercentAgainstTag', scenario 1 |
 | mech | 'mech_defense_percent' | 'hp_rate_gte' | 1 | (HP conditions) Increased DEF LV 2 | |
 | mech | 'mech_defense_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased DEF LV 2 | |
-| mech | 'mech_mobility_percent' | — | 2 | Increased MOB LV 1 | |
+| mech | 'mech_mobility_percent' | — | 2 | Increased MOB LV 1 | 'lines.MechMobilityPercent', scenario 11 |
 | mech | 'mech_mobility_percent' | 'vigor_min' | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | |
 | mech | 'move_range_plus' | 'pilot_tags' | 1 | (Cnd: Tag) Increased MOV LV 1 | |
 | mech | 'special_weapon_range_plus' | 'vigor_min' | 1 | (Cnd: Vigor) Special Weapon Max Range Up LV 1 | |
@@ -319,11 +335,11 @@ docs/reference/datamine-source.md on 88b5e8c.
 | pilot | 'mech_defense_percent' | 'mech_type', 'strike_roles' | 3 | Support Defense LV 4 | |
 | pilot | 'mech_defense_percent' | 'strike_roles' | 1 | EX Character Ability (Amuro Ray) | |
 | pilot | 'mp_plus' | 'mech_tags' | 2 | EX Character Ability | |
-| pilot | 'pilot_awaken_percent' | — | 5 | Newtype LV 4 | |
-| pilot | 'pilot_defense_percent' | — | 5 | Increased Defense LV 1 | |
-| pilot | 'pilot_melee_percent' | — | 3 | Increased Melee LV 1 | |
-| pilot | 'pilot_ranged_percent' | — | 7 | Increased Ranged LV 1 | |
-| pilot | 'pilot_reaction_percent' | — | 4 | Newtype LV 4 | |
+| pilot | 'pilot_awaken_percent' | — | 5 | Newtype LV 4 | 'lines.PilotAwakenPercent', scenario 11 |
+| pilot | 'pilot_defense_percent' | — | 5 | Increased Defense LV 1 | 'lines.PilotDefensePercent', scenario 11 |
+| pilot | 'pilot_melee_percent' | — | 3 | Increased Melee LV 1 | 'lines.PilotMeleePercent', scenario 11 |
+| pilot | 'pilot_ranged_percent' | — | 7 | Increased Ranged LV 1 | 'lines.PilotRangedPercent', scenario 11 |
+| pilot | 'pilot_reaction_percent' | — | 4 | Newtype LV 4 | 'lines.PilotReactionPercent', scenario 11 |
 | pilot | 'revive_once' | 'mech_ids' | 2 | EX Character Ability (Char Aznable); one row is the companion row 84 | not read |
 | pilot | 'squad_attack_percent_per_member' | 'mech_ids' | 2 | EX Character Ability (Io Fleming) | not read |
 | pilot | 'squad_grant' | 'mech_ids' | 4 | EX Character Ability (Oliver May) | not read |
@@ -405,3 +421,9 @@ when a wire key lands, and then in the same commit.
   ('load' through 'board.Load') takes every value as given and
   judges it against its maximum. Four goldens carried an ammunition
   count above an 'ammo_max' of zero; their 'ammo_max' is 3 now.
+- 2026-09-15: the eight unconditional stat percent lines, as strike
+  hooks in the same sums as the conditional lines, after a first
+  version as assembly lines that wrote the unit was withdrawn: the
+  formula has two zones (the stats, and ⑨), and the datamine gives
+  the conditional and the unconditional lines of one stat the same
+  trait type, so they are one sum.
