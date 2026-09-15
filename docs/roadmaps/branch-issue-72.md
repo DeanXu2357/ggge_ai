@@ -60,7 +60,7 @@ main strike from the counter (ruling 2026-09-14).
 | hook | One method a kind implements for one moment of the game, named from the point of view of the holder. 時機介面 |
 | exchange | Every strike of one engagement: the support attacks of the attacker, the main strike, the reply of the defender. 攻防 |
 | strike | One weapon fired once at one receiver: a support strike, the main strike, the counter. 打擊 |
-| assembly | The step that fills the maxima and the counts when a unit enters the board. Go: 'deploy.Assemble'. 組裝 |
+| assembly | The step that builds the two columns of a battle from the wire state and judges it. Go: 'system.Assemble'. 組裝 |
 
 'trigger' (觸發時機) is retired: the moment a line fires is the hook
 it implements (ruling 0907).
@@ -218,7 +218,7 @@ formula.
 |---|---|---|---|
 | Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack % | pilot ranged, melee, awaken; mobility; damage dealt; accuracy; EN cost; range |
 | Defend | 'defenderSide', same | mech defense % | pilot defense, reaction; mobility; damage taken; evasion |
-| assembly (not built) | 'board.assemble' at Load | — | max HP, max EN, support attack, support defend, chance step, move, MP; the MP hook clamps to 'MPMax' itself |
+| assembly (not built) | 'system.Assemble' | — | max HP, max EN, support attack, support defend, chance step, move, MP; the MP hook clamps to 'MPMax' itself |
 | phase start (not built) | 'beginPhase' in 'system/turn.go' | — | none in the sample |
 
 Legality (EN cost, reach) is read at the schedule by the same
@@ -269,7 +269,8 @@ eligibility of a supporter reads the target (the menu cannot know
 the cover) while the effect reads the struck unit; 'able' drops a
 supporter silently at the write; the counter re-judges EN and reach
 at the write; the support salvo rolls against the role of the struck
-unit; assembly fills a zero maximum only (ruling 0831) and recomputes
+unit; a zero maximum is refused (ruling 2026-09-15, which retires the
+fill of 0831) and assembly recomputes
 'MoveRange' and 'MP' on every call; geometry and support read
 'MoveRange' from the content.
 
@@ -394,3 +395,7 @@ when a wire key lands, and then in the same commit.
   are checked after the schedule in 'Commit' (0325d76). The method
   changed to tests in 'system' in small steps; Section 4 lists the
   112 lines of the sample as the checklist.
+- 2026-09-15: 'system.Assemble' builds the two columns from the wire
+  state ('validate' moved from 'board') and refuses a zero maximum
+  instead of filling it; 'board.Load' hands the candidate over and
+  keeps the columns.

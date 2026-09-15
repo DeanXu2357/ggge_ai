@@ -244,7 +244,7 @@ var oneCell = battle.Cell{1, 1}
 
 func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
 	return battle.Unit{Faction: faction,
-		Pos: anchor, Size: oneCell, HP: 100,
+		Pos: anchor, Size: oneCell, HP: 100, MaxHP: 100, EN: 100, ENMax: 100,
 		Mech: battle.Mech{}, Pilot: battle.Pilot{}}
 }
 

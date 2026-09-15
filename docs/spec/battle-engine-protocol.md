@@ -106,10 +106,11 @@ issues of the port (#60 to #68).
   never written: the board tests compare the content before and
   after an act. The writers of a value are 'system/commit.go',
   'system/engagement.go' and 'system/turn.go'. Before the battle,
-  'board.Load' works on the wire form: 'assemble' fills a maximum
-  that the payload leaves at zero, and 'validate' fills the two
-  values that a payload can leave out, a size of zero and an empty
-  terrain. 'engine/battle/system' settles one activation through
+  'board.Load' hands the wire form to 'system.Assemble', which judges
+  every fact of the state that the decode cannot, fills the two
+  values that a payload can leave out (a size of zero and an empty
+  terrain), refuses a unit whose 'max_hp' or 'en_max' is zero, and
+  answers the two columns. 'engine/battle/system' settles one activation through
   'system.Commit(board, action, draw)', which answers the values
   column that the activation leaves and the events, or an error.
   'scheduleAct' reads the action and the board, refuses everything
@@ -924,12 +925,13 @@ of the weapon; a weapon with no category reads the highest of the
 three (user ruling 2026-08-28). Go: 'WeaponCategory',
 'Pilot.AttackFor'.
 
-At 'init', a unit whose 'max_hp' or 'en_max' is 0 takes the value
-of its mech, and a unit whose 'sp_max' is 0 takes the 'sp' of its
-pilot. An explicit value stays. The abilities of the pilot and of
-the mech do not enter the maxima yet; issue #77 owns that
-derivation. The datamine holds no SP pool for a pilot; the device
-is its source.
+A unit whose 'max_hp' or 'en_max' is 0 is refused at 'init' and at
+'load': a maximum of zero is a broken payload, not a value to fill
+(user ruling 2026-09-15; it retires the fill from the mech of
+2026-08-28). 'sp_max' is not judged, because no rule reads SP. The
+abilities of the pilot and of the mech do not enter the maxima yet;
+issue #77 owns that derivation. The datamine holds no SP pool for a
+pilot; the device is its source.
 
 This section replaces the reading of 2026-08-21 that the unit
 carries a stored final panel that every rule reads. That reading

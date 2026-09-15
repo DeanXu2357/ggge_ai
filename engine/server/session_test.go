@@ -11,8 +11,8 @@ import (
 
 const boardLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`"units":[` +
-	`{"faction":"ally","pos":[2,2],"hp":100,"mech":{"move_range":2}},` +
-	`{"faction":"enemy","pos":[2,3],"hp":100}` +
+	`{"faction":"ally","pos":[2,2],"hp":100,"max_hp":100,"en_max":100,"mech":{"move_range":2}},` +
+	`{"faction":"enemy","pos":[2,3],"hp":100,"max_hp":100,"en_max":100}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
@@ -52,8 +52,8 @@ func TestReachAnswersTheCellsOfTheLoadedBoard(t *testing.T) {
 func TestReachAnswersTheAnchorsThatHoldTheWholeFootprint(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
 		`"units":[` +
-		`{"faction":"ally","pos":[0,0],"size":[2,2],"hp":100,"mech":{"move_range":1}},` +
-		`{"faction":"enemy","pos":[2,1],"hp":100}` +
+		`{"faction":"ally","pos":[0,0],"size":[2,2],"hp":100,"max_hp":100,"en_max":100,"mech":{"move_range":1}},` +
+		`{"faction":"enemy","pos":[2,1],"hp":100,"max_hp":100,"en_max":100}` +
 		`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
 
@@ -95,7 +95,7 @@ func TestLoadRefusesAPayloadOutsideTheContract(t *testing.T) {
 
 func TestLoadRefusesAUnitOutsideTheBounds(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
-		`"units":[{"faction":"ally","pos":[5,5],"hp":100}],` +
+		`"units":[{"faction":"ally","pos":[5,5],"hp":100,"max_hp":100,"en_max":100}],` +
 		`"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
 

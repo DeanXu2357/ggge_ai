@@ -92,6 +92,8 @@ func wireBoard() *battle.BattleState {
 				Pos:     battle.Cell{7, 7},
 				Size:    battle.Cell{1, 1},
 				HP:      5000,
+				MaxHP:   5000,
+				ENMax:   100,
 			},
 		},
 		Phase:         battle.FactionAlly,
@@ -122,29 +124,14 @@ func decodeFixtureState(t *testing.T) *Board {
 	return board
 }
 
-func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
+func TestInitRefusesAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 	enemies := []battle.Unit{
-		{Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, HP: 10,
-			Pilot: battle.Pilot{SP: 60},
-			Mech:  battle.Mech{HP: 9000, EN: 180}},
-		{Faction: battle.FactionEnemy, Pos: battle.Cell{2, 1}, HP: 10,
-			MaxHP: 7000, ENMax: 20, SPMax: 5,
-			Pilot: battle.Pilot{SP: 60},
-			Mech:  battle.Mech{HP: 9000, EN: 180}},
+		{Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, HP: 10, ENMax: 180,
+			Mech: battle.Mech{HP: 9000, EN: 180}},
 	}
 
-	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "", nil, enemies)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	filled := &board.content.Units[0]
-	if filled.MaxHP != 9000 || filled.ENMax != 180 || filled.SPMax != 60 {
-		t.Fatalf("the pairing fills a maximum of zero: %+v", *filled)
-	}
-	stated := &board.content.Units[1]
-	if stated.MaxHP != 7000 || stated.ENMax != 20 || stated.SPMax != 5 {
-		t.Fatalf("an explicit maximum stands: %+v", *stated)
+	if _, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "", nil, enemies); err == nil {
+		t.Fatal("a maximum of zero opened the board")
 	}
 }
 
@@ -152,7 +139,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 	wire := &battle.BattleState{
 		Bounds: &battle.Bounds{{0, 0}, {4, 4}},
 		Phase:  battle.FactionAlly,
-		Units:  []battle.Unit{{Faction: battle.FactionAlly, HP: 1}},
+		Units:  []battle.Unit{{Faction: battle.FactionAlly, HP: 1, MaxHP: 1, ENMax: 1}},
 	}
 
 	board, err := restore(wire)
@@ -168,7 +155,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "ground",
 		[]battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "space"}},
-		[]battle.Unit{{Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, HP: 10}})
+		[]battle.Unit{{Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, HP: 10, MaxHP: 10, ENMax: 10}})
 	if err != nil {
 		t.Fatal(err)
 	}
