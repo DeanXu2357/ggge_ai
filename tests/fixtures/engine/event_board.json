@@ -43,7 +43,7 @@
               "en": 140,
               "en_max": 140,
               "sp": 0,
-              "sp_max": 0,
+              "sp_max": 15,
               "pilot": {
                 "ranged": 220.0,
                 "melee": 220.0,
@@ -109,7 +109,7 @@
           "en": 140,
           "en_max": 140,
           "sp": 0,
-          "sp_max": 0,
+          "sp_max": 15,
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -181,7 +181,7 @@
           "en": 140,
           "en_max": 140,
           "sp": 0,
-          "sp_max": 0,
+          "sp_max": 15,
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -271,7 +271,7 @@
             "en": 140,
             "en_max": 140,
             "sp": 0,
-            "sp_max": 0,
+            "sp_max": 15,
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -343,7 +343,7 @@
             "en": 140,
             "en_max": 140,
             "sp": 0,
-            "sp_max": 0,
+            "sp_max": 15,
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -456,7 +456,7 @@
                 "en": 140,
                 "en_max": 140,
                 "sp": 0,
-                "sp_max": 0,
+                "sp_max": 15,
                 "pilot": {
                   "ranged": 220.0,
                   "melee": 220.0,

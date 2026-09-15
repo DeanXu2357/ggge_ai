@@ -13,7 +13,7 @@ import (
 func openingBoard(bounds battle.Bounds, terrain battle.Terrain,
 	terrainCells []battle.TerrainCell, enemies []battle.Unit) (*Board, error) {
 	out := New(1)
-	if err := out.Load(bounds, terrain, terrainCells, enemies, battle.FactionAlly, 1); err != nil {
+	if err := out.Open(bounds, terrain, terrainCells, enemies); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -66,7 +66,7 @@ func wireBoard() *battle.BattleState {
 				},
 				Mech: battle.Mech{
 					HP: 9000, EN: 180, Attack: 4100, Defense: 3900, Mobility: 310, MoveRange: 4,
-					MapWeapons: []battle.MapWeapon{{Name: "missile"}},
+					MapWeapons: []battle.MapWeapon{{Name: "missile", AmmoMax: 3}},
 					Weapons: []battle.Weapon{{
 						Name:            "rifle",
 						Power:           2400,
@@ -83,6 +83,7 @@ func wireBoard() *battle.BattleState {
 				SupportDefendCharges:    1,
 				SupportDefendChargesMax: 1,
 				SupportAttackCharges:    2,
+				SupportAttackChargesMax: 2,
 				SupportDefendWhenAttack: true,
 				MapWeaponAmmo:           []int{3},
 				Debuffs:                 []battle.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
@@ -94,6 +95,7 @@ func wireBoard() *battle.BattleState {
 				HP:      5000,
 				MaxHP:   5000,
 				ENMax:   100,
+				SPMax:   100,
 			},
 		},
 		Phase:         battle.FactionAlly,
@@ -126,7 +128,7 @@ func decodeFixtureState(t *testing.T) *Board {
 
 func TestInitRefusesAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
 	enemies := []battle.Unit{
-		{Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, HP: 10, ENMax: 180,
+		{Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, ENMax: 180, SPMax: 15,
 			Mech: battle.Mech{HP: 9000, EN: 180}},
 	}
 
@@ -139,7 +141,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 	wire := &battle.BattleState{
 		Bounds: &battle.Bounds{{0, 0}, {4, 4}},
 		Phase:  battle.FactionAlly,
-		Units:  []battle.Unit{{Faction: battle.FactionAlly, HP: 1, MaxHP: 1, ENMax: 1}},
+		Units:  []battle.Unit{{Faction: battle.FactionAlly, HP: 1, MaxHP: 1, EN: 1, ENMax: 1, SPMax: 15}},
 	}
 
 	board, err := restore(wire)
@@ -155,7 +157,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "ground",
 		[]battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "space"}},
-		[]battle.Unit{{Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, HP: 10, MaxHP: 10, ENMax: 10}})
+		[]battle.Unit{{Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, MaxHP: 10, ENMax: 10, SPMax: 15}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -106,11 +106,14 @@ issues of the port (#60 to #68).
   never written: the board tests compare the content before and
   after an act. The writers of a value are 'system/commit.go',
   'system/engagement.go' and 'system/turn.go'. Before the battle,
-  'board.Load' hands the wire form to 'system.Assemble', which judges
-  every fact of the state that the decode cannot, fills the two
-  values that a payload can leave out (a size of zero and an empty
-  terrain), refuses a unit whose 'max_hp' or 'en_max' is zero, and
-  answers the two columns. 'engine/battle/system' settles one activation through
+  'board.Open' and 'board.Load' hand the wire form to
+  'system.Assemble', which judges every fact of the state that the
+  decode cannot, fills the two values that a payload can leave out
+  (a size of zero and an empty terrain), refuses a unit whose
+  'max_hp' or 'en_max' is zero, and answers the two columns. The
+  origin decides the values of a unit: a fresh battle ('init') sets
+  every value to its default, a resumed battle ('load') takes every
+  value as given and judges it against its maximum. 'engine/battle/system' settles one activation through
   'system.Commit(board, action, draw)', which answers the values
   column that the activation leaves and the events, or an error.
   'scheduleAct' reads the action and the board, refuses everything
@@ -129,9 +132,10 @@ issues of the port (#60 to #68).
   anchors and the occupied cells and writes nothing.
 - The package 'engine/battle/board' is the shell. It stores the
   pair: the content and the values. 'board.New' gives an empty
-  board. 'Load' takes the wire form, assembles each unit, judges the
-  result and converts it into the pair. It does this for 'init' and
-  for 'load' alike. A refused 'Load' leaves the board unchanged. It
+  board. 'Open' takes the enemies of a stage and 'Load' takes a
+  snapshot; both hand the wire form to 'system.Assemble' with the
+  origin of the state, 'Fresh' or 'Resumed', and keep the pair it
+  answers. A refused 'Open' or 'Load' leaves the board unchanged. It
   implements the contract, projects the answers of the read
   commands, and calls the systems. A read command hands the systems
   the view over the columns of the board. 'Act' is four steps:
@@ -243,8 +247,14 @@ from a constant. The field 'seed' builds the session random source;
 every server draw of the session reads that source.
 
 The board opens at turn 1 in the ally phase with the enemies on it.
-'place' is not implemented, so a battle with ally units starts
-through 'load' today.
+An enemy of 'init' is content and a cell: its pools open full
+('hp' = 'max_hp', 'en' = 'en_max', 'sp' = 'sp_max'), its counts at
+their maxima ('chance_steps', 'support_attack_charges',
+'support_defend_charges'), the ammunition of each map weapon at
+'ammo_max', no debuff, not acted. A payload of 'init' that states
+one of those values is a bad_request: the stage gives no state
+(user ruling 2026-09-15). 'place' is not implemented, so a battle
+with ally units starts through 'load' today.
 
 Refusals: bad_request.
 
@@ -586,7 +596,12 @@ them unread so that a snapshot survives a load and an export.
 
 The state carries 'phase'. A state without that field is a
 bad_request. 'load' judges the units against the bounds, and a
-unit that stands outside the board is a bad_request.
+unit that stands outside the board is a bad_request. 'load' takes
+every value of a unit as the value of the moment and judges it
+against its maximum: 'hp', 'en', 'sp', 'chance_steps', the two
+support charges within 0 and their maxima, each 'map_weapon_ammo'
+within 0 and the 'ammo_max' of its weapon, and no debuff applied at
+a phase after the phase of the state (user ruling 2026-09-15).
 
 ## Turn cycle
 
@@ -928,10 +943,11 @@ three (user ruling 2026-08-28). Go: 'WeaponCategory',
 A unit whose 'max_hp' or 'en_max' is 0 is refused at 'init' and at
 'load': a maximum of zero is a broken payload, not a value to fill
 (user ruling 2026-09-15; it retires the fill from the mech of
-2026-08-28). 'sp_max' is not judged, because no rule reads SP. The
-abilities of the pilot and of the mech do not enter the maxima yet;
-issue #77 owns that derivation. The datamine holds no SP pool for a
-pilot; the device is its source.
+2026-08-28). 'sp_max' is judged the same way. The SP pool of every
+pilot is 15, and a skill costs the SP its pilot skill states (user,
+first hand, 2026-09-15); no rule of this version spends SP, and the
+wire skill carries no cost yet. The abilities of the pilot and of the
+mech do not enter the maxima yet; issue #77 owns that derivation.
 
 This section replaces the reading of 2026-08-21 that the unit
 carries a stored final panel that every rule reads. That reading

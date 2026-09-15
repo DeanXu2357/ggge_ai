@@ -20,7 +20,7 @@
           "en": 60,
           "en_max": 140,
           "sp": 0,
-          "sp_max": 0,
+          "sp_max": 15,
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -86,7 +86,7 @@
                   "cells": [],
                   "direction": "none"
                 },
-                "ammo_max": 0,
+                "ammo_max": 3,
                 "en_cost": 20,
                 "accuracy": 0.0,
                 "affects": "enemy",
@@ -106,7 +106,7 @@
                   "cells": [],
                   "direction": "none"
                 },
-                "ammo_max": 0,
+                "ammo_max": 3,
                 "en_cost": 5,
                 "accuracy": 0.0,
                 "affects": "enemy",
@@ -200,7 +200,7 @@
           "en": 140,
           "en_max": 140,
           "sp": 0,
-          "sp_max": 0,
+          "sp_max": 15,
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -295,7 +295,7 @@
           "en": 140,
           "en_max": 140,
           "sp": 0,
-          "sp_max": 0,
+          "sp_max": 15,
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -355,7 +355,7 @@
           "en": 140,
           "en_max": 140,
           "sp": 0,
-          "sp_max": 0,
+          "sp_max": 15,
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -415,7 +415,7 @@
           "en": 140,
           "en_max": 140,
           "sp": 0,
-          "sp_max": 0,
+          "sp_max": 15,
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -498,7 +498,7 @@
             "en": 60,
             "en_max": 140,
             "sp": 0,
-            "sp_max": 0,
+            "sp_max": 15,
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -564,7 +564,7 @@
                     "cells": [],
                     "direction": "none"
                   },
-                  "ammo_max": 0,
+                  "ammo_max": 3,
                   "en_cost": 20,
                   "accuracy": 0.0,
                   "affects": "enemy",
@@ -584,7 +584,7 @@
                     "cells": [],
                     "direction": "none"
                   },
-                  "ammo_max": 0,
+                  "ammo_max": 3,
                   "en_cost": 5,
                   "accuracy": 0.0,
                   "affects": "enemy",
@@ -678,7 +678,7 @@
             "en": 140,
             "en_max": 140,
             "sp": 0,
-            "sp_max": 0,
+            "sp_max": 15,
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -773,7 +773,7 @@
             "en": 140,
             "en_max": 140,
             "sp": 0,
-            "sp_max": 0,
+            "sp_max": 15,
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -833,7 +833,7 @@
             "en": 140,
             "en_max": 140,
             "sp": 0,
-            "sp_max": 0,
+            "sp_max": 15,
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -893,7 +893,7 @@
             "en": 140,
             "en_max": 140,
             "sp": 0,
-            "sp_max": 0,
+            "sp_max": 15,
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,

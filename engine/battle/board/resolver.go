@@ -10,17 +10,33 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/system"
 )
 
+func (b *Board) Open(bounds battle.Bounds, terrain battle.Terrain,
+	terrainCells []battle.TerrainCell, enemies []battle.Unit) error {
+	return b.assemble(battle.BattleState{
+		Units:        enemies,
+		Phase:        battle.FactionAlly,
+		Turn:         1,
+		Bounds:       &bounds,
+		Terrain:      terrain,
+		TerrainCells: terrainCells,
+	}, system.Fresh)
+}
+
 func (b *Board) Load(bounds battle.Bounds, terrain battle.Terrain,
 	terrainCells []battle.TerrainCell, units []battle.Unit,
 	phase battle.Faction, turn int) error {
-	content, values, err := system.Assemble(battle.BattleState{
+	return b.assemble(battle.BattleState{
 		Units:        units,
 		Phase:        phase,
 		Turn:         turn,
 		Bounds:       &bounds,
 		Terrain:      terrain,
 		TerrainCells: terrainCells,
-	})
+	}, system.Resumed)
+}
+
+func (b *Board) assemble(candidate battle.BattleState, origin system.Origin) error {
+	content, values, err := system.Assemble(candidate, origin)
 	if err != nil {
 		return err
 	}

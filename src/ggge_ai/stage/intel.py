@@ -21,6 +21,10 @@ from ..engine.contract import Cell, Faction
 from ..engine.state import MapWeapon, Mech, Pilot, Skill, Unit, Weapon
 from .state import StageState
 
+# The SP pool of every pilot is 15 (user, first hand, 2026-09-15). The device
+# panel has no SP reading, so the current SP is not observed yet.
+SP_MAX = 15
+
 FORMAT_VERSION = 1
 
 MELEE = "melee"
@@ -170,6 +174,7 @@ class UnitIntel:
             max_hp=self.max_hp,
             en=self.en_max if en is None else en,
             en_max=self.en_max,
+            sp_max=SP_MAX,
             pilot=Pilot(
                 ranged=attack,
                 melee=attack,

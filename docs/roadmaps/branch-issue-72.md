@@ -399,3 +399,9 @@ when a wire key lands, and then in the same commit.
   state ('validate' moved from 'board') and refuses a zero maximum
   instead of filling it; 'board.Load' hands the candidate over and
   keeps the columns.
+- 2026-09-15 (f30b1f7 and after): one assembly, two origins. 'Fresh'
+  ('init' through 'board.Open') sets every value of a unit to its
+  default from the content and refuses a stated value; 'Resumed'
+  ('load' through 'board.Load') takes every value as given and
+  judges it against its maximum. Four goldens carried an ammunition
+  count above an 'ammo_max' of zero; their 'ammo_max' is 3 now.
