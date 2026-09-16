@@ -14,6 +14,12 @@ import (
 
 const zeonTagID = 1015
 
+// duelExchange is the exchange of the duel on the board, for a forecast: the
+// actor against the target, no draw.
+func duelExchange(b state.Battle) *exchange {
+	return &exchange{board: b, cast: cast{actorID: actorID, targetID: targetID}}
+}
+
 type exchangeDamage struct {
 	main, counter int
 }

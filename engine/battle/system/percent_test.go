@@ -19,11 +19,11 @@ func TestAnUnconditionalPercentLineGivesTheExchangeOfTheScaledStat(t *testing.T)
 	counterDamage := func(t *testing.T, b state.Battle) float64 { return float64(resolveDuel(t, b).counter) }
 	mainHitRate := func(t *testing.T, b state.Battle) float64 {
 		actor, target := unitOf(b, actorID), unitOf(b, targetID)
-		return strikeHitProbability(actor, target, &actor.Mech.Weapons[0], false)
+		return duelExchange(b).strikeHitProbability(actor, target, &actor.Mech.Weapons[0], false)
 	}
 	counterHitRate := func(t *testing.T, b state.Battle) float64 {
 		actor, target := unitOf(b, actorID), unitOf(b, targetID)
-		return strikeHitProbability(target, actor, &target.Mech.Weapons[0], false)
+		return duelExchange(b).strikeHitProbability(target, actor, &target.Mech.Weapons[0], false)
 	}
 	for name, tc := range map[string]struct {
 		line    ability.Line
@@ -61,7 +61,7 @@ func TestAnUnconditionalPercentLineGivesTheExchangeOfTheScaledStat(t *testing.T)
 func TestAMobilityLineOfTheDefenderLowersTheHitRateOfTheStrikeItTakes(t *testing.T) {
 	hitRate := func(b state.Battle) float64 {
 		actor, target := unitOf(b, actorID), unitOf(b, targetID)
-		return strikeHitProbability(actor, target, &actor.Mech.Weapons[0], false)
+		return duelExchange(b).strikeHitProbability(actor, target, &actor.Mech.Weapons[0], false)
 	}
 	lined := scenarioDuel()
 	lined.Values.Units[targetID].SetAbilities([]ability.Line{lines.MechMobilityPercent{Percent: 15}})

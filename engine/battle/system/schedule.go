@@ -30,6 +30,7 @@ type actSchedule struct {
 	actorID int
 	from    battle.Cell
 	to      battle.Cell
+	cast    cast
 	strikes []strike
 }
 
@@ -101,7 +102,8 @@ func scheduleAct(board state.Battle, action battle.Action) (actSchedule, error) 
 		return actSchedule{}, err
 	}
 
-	schedule := actSchedule{actorID: action.ActorID, from: actor.Value.Pos, to: to}
+	schedule := actSchedule{actorID: action.ActorID, from: actor.Value.Pos, to: to,
+		cast: cast{actorID: action.ActorID, targetID: targetID}}
 	schedule.strikes = append(schedule.strikes, attackerSupport...)
 	schedule.strikes = append(schedule.strikes, main)
 	schedule.strikes = append(schedule.strikes, defenderSupport...)

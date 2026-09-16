@@ -34,6 +34,8 @@ func Menu(board state.Battle, decision battle.Decision, defenderID int) (Options
 	}
 	attacker := unitOf(board, made.actorID)
 	weapon := weaponOf(attacker, *made.weaponID)
+	// The forecasts are the exchange under a statement: no draw, no write.
+	x := &exchange{board: board, cast: cast{actorID: made.actorID, targetID: defenderID}}
 	origin := attacker.footprintAt(made.anchor)
 	distance := geometry.Distance(defender.Footprint(), origin)
 	if !weapon.Reaches(distance) {
@@ -47,52 +49,51 @@ func Menu(board state.Battle, decision battle.Decision, defenderID int) (Options
 	}
 
 	out.ResponseAttacks = append(out.ResponseAttacks,
-		stanceOption(attacker, defender, weapon, battle.StanceDodge, nil),
-		stanceOption(attacker, defender, weapon, battle.StanceDefend, nil))
+		x.stanceOption(attacker, defender, weapon, battle.StanceDodge, nil),
+		x.stanceOption(attacker, defender, weapon, battle.StanceDefend, nil))
 	for index := range defender.Mech.Weapons {
 		counter := &defender.Mech.Weapons[index]
 		if !fires(defender, counter, distance) {
 			continue
 		}
 		counterID := index
-		option := stanceOption(attacker, defender, weapon, battle.StanceCounter, &counterID)
-		reply := forecastOf(defender, attacker, counter, formula.NoDefenseMultiplier, false)
+		option := x.stanceOption(attacker, defender, weapon, battle.StanceCounter, &counterID)
+		reply := x.forecastOf(defender, attacker, counter, formula.NoDefenseMultiplier, false)
 		option.Counter = &reply
 		out.ResponseAttacks = append(out.ResponseAttacks, option)
 	}
 	out.ResponseAttacks = append(out.ResponseAttacks,
-		stanceOption(attacker, defender, weapon, battle.StanceNone, nil))
+		x.stanceOption(attacker, defender, weapon, battle.StanceNone, nil))
 
-	out.Defender.SupportDefenders = defendOptions(board, attacker, weapon,
+	out.Defender.SupportDefenders = x.defendOptions(attacker, weapon,
 		supportDefenders(board, defenderID, defender.Footprint()))
-	out.Defender.SupportAttackers = attackOptions(board, attacker,
+	out.Defender.SupportAttackers = x.attackOptions(attacker,
 		supportAttackers(board, defenderID, defender.Footprint(), origin))
 	// Which weapon counters is the choice of the defender, so the entry of a
 	// unit that covers the attacker carries no forecast.
-	out.Attacker.SupportDefenders = defendOptions(board, defender, nil,
+	out.Attacker.SupportDefenders = x.defendOptions(defender, nil,
 		supportDefenders(board, made.actorID, origin))
-	out.Attacker.SupportAttackers = attackOptions(board, defender,
+	out.Attacker.SupportAttackers = x.attackOptions(defender,
 		supportAttackers(board, made.actorID, origin, defender.Footprint()))
 	return out, nil
 }
 
-func stanceOption(attacker, defender unit, weapon *def.Weapon, stance battle.Stance,
+func (x *exchange) stanceOption(attacker, defender unit, weapon *def.Weapon, stance battle.Stance,
 	counterID *int) ResponseAttackOption {
 	return ResponseAttackOption{
 		Stance:   stance,
 		WeaponID: counterID,
-		Incoming: forecastOf(attacker, defender, weapon,
+		Incoming: x.forecastOf(attacker, defender, weapon,
 			defenseMultiplier(stance, defender), stance == battle.StanceDodge),
 	}
 }
 
-func defendOptions(board state.Battle, shooter unit, weapon *def.Weapon,
-	ids []int) []SupportDefendOption {
+func (x *exchange) defendOptions(shooter unit, weapon *def.Weapon, ids []int) []SupportDefendOption {
 	out := make([]SupportDefendOption, 0, len(ids))
 	for _, id := range ids {
 		option := SupportDefendOption{UnitID: id}
 		if weapon != nil {
-			option.Incoming = supportDefenderForecast(shooter, unitOf(board, id), weapon)
+			option.Incoming = x.supportDefenderForecast(shooter, unitOf(x.board, id), weapon)
 		}
 		out = append(out, option)
 	}
@@ -101,15 +102,14 @@ func defendOptions(board state.Battle, shooter unit, weapon *def.Weapon,
 
 // The foe settles its stance after this answer, so the forecast of a support
 // attack reads no defense.
-func attackOptions(board state.Battle, foe unit,
-	joining []supportAttacker) []SupportAttackOption {
+func (x *exchange) attackOptions(foe unit, joining []supportAttacker) []SupportAttackOption {
 	out := make([]SupportAttackOption, 0, len(joining))
 	for _, one := range joining {
-		shooter := unitOf(board, one.UnitID)
+		shooter := unitOf(x.board, one.UnitID)
 		out = append(out, SupportAttackOption{
 			UnitID:   one.UnitID,
 			WeaponID: one.WeaponID,
-			Strike: forecastOf(shooter, foe, weaponOf(shooter, one.WeaponID),
+			Strike: x.forecastOf(shooter, foe, weaponOf(shooter, one.WeaponID),
 				formula.NoDefenseMultiplier, false),
 		})
 	}

@@ -86,10 +86,10 @@ func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 	attacker, defender := unitOf(b, actorID), unitOf(b, targetID)
 	weapon := &attacker.Mech.Weapons[0]
 
-	plain := strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
-	defended := strikeDamage(attacker, defender, weapon, formula.DefendMultiplier)
+	plain := duelExchange(b).strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
+	defended := duelExchange(b).strikeDamage(attacker, defender, weapon, formula.DefendMultiplier)
 	defender.Value.Debuffs = []battle.Debuff{{Kind: "armor_break", Magnitude: 0.2}}
-	broken := strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
+	broken := duelExchange(b).strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
 
 	if plain <= 0 || defended <= 0 {
 		t.Fatalf("damage: %d %d", plain, defended)
@@ -107,10 +107,11 @@ func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
 	attacker, defender := unitOf(b, actorID), unitOf(b, targetID)
 	weapon := &attacker.Mech.Weapons[0]
 
-	plain := strikeHitProbability(attacker, defender, weapon, false)
-	dodged := strikeHitProbability(attacker, defender, weapon, true)
+	plain := duelExchange(b).strikeHitProbability(attacker, defender, weapon, false)
+	dodged := duelExchange(b).strikeHitProbability(attacker, defender, weapon, true)
 
-	a, d := strikeContexts(attacker, defender, weapon)
+	x := duelExchange(b)
+	a, d := x.attackContext(attacker, defender, weapon), x.defendContext(attacker, defender, weapon)
 	attackSide, defendSide := attackerSide(a), defenderSide(d)
 	if plain != formula.HitProbability(weapon.Accuracy, attackSide, defendSide, 0) {
 		t.Fatalf("a shot that meets no dodge carries no correction: %v", plain)

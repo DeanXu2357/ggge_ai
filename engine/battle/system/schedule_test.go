@@ -51,6 +51,7 @@ func TestScheduleAnswersEveryStrikeInTheGameOrder(t *testing.T) {
 		ResponseAttack: &battle.ResponseAttack{Stance: battle.StanceCounter, WeaponID: idOf(0),
 			SupportAttackers: supporters(squadFoeSupporterID), SupportDefenderID: idOf(squadFoeGuardID)}})
 	expectSchedule(t, got, actSchedule{actorID: actorID, from: battle.Cell{0, 0}, to: battle.Cell{0, 0},
+		cast: cast{actorID: actorID, targetID: targetID},
 		strikes: []strike{
 			{segment: battle.SegmentAttackerSupport, ownerID: actorID, shooterID: squadSupporterID,
 				weaponID: 0, weapon: armed(b, squadSupporterID, 0), aimedID: targetID,
@@ -79,6 +80,7 @@ func TestScheduleReadsTheStanceOfTheTargetAndTheStatedBehavior(t *testing.T) {
 			SupportAttackers: supporters(squadSupporterID)},
 		ResponseAttack: &battle.ResponseAttack{Stance: battle.StanceDodge}})
 	expectSchedule(t, got, actSchedule{actorID: actorID, from: battle.Cell{0, 0}, to: step,
+		cast: cast{actorID: actorID, targetID: targetID},
 		strikes: []strike{
 			{segment: battle.SegmentAttackerSupport, ownerID: actorID, shooterID: squadSupporterID,
 				weaponID: 0, weapon: armed(b, squadSupporterID, 0), aimedID: targetID, dodging: true,

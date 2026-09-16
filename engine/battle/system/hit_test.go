@@ -15,7 +15,7 @@ import (
 func mainHitRate(b state.Battle, accuracyOffset float64) float64 {
 	b.Content.Units[actorID].Mech.Weapons[0].Accuracy += accuracyOffset
 	actor, target := unitOf(b, actorID), unitOf(b, targetID)
-	return strikeHitProbability(actor, target, &actor.Mech.Weapons[0], false)
+	return duelExchange(b).strikeHitProbability(actor, target, &actor.Mech.Weapons[0], false)
 }
 
 // A hit line adds points to the hit rate, the way the accuracy of the

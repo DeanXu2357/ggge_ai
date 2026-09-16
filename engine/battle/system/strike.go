@@ -35,15 +35,20 @@ func attackOf(pilot *def.Pilot, category battle.WeaponCategory) float64 {
 	return 0
 }
 
-// strikeContexts runs the hooks of both units for one computation: the
-// attacker's lines see the defender and the defender's lines see the
-// attacker, each with the weapon of the strike.
-func strikeContexts(attacker, defender unit, weapon *def.Weapon) (ability.AttackContext, ability.DefendContext) {
-	a := ability.AttackContext{Attacker: attacker.hookView(), Defender: defender.hookView(), Weapon: weapon}
-	attacker.Value.Hooks.Attack(&a)
-	d := ability.DefendContext{Attacker: attacker.hookView(), Defender: defender.hookView(), Weapon: weapon}
-	defender.Value.Hooks.Defend(&d)
-	return a, d
+// cast is who is who in one exchange, settled one time when the exchange
+// is scheduled: the actor, its target, and every other unit supports.
+type cast struct {
+	actorID, targetID int
+}
+
+func (c cast) part(unitID int) ability.Part {
+	switch unitID {
+	case c.actorID:
+		return ability.PartAttacker
+	case c.targetID:
+		return ability.PartTarget
+	}
+	return ability.PartSupport
 }
 
 func attackerSide(a ability.AttackContext) formula.Side {
@@ -86,27 +91,35 @@ func scaled(base, percent float64) float64 {
 // The terrain correction is NoTerrainCorrection for every weapon. The
 // correction is the effect of a weapon ability that reads the terrain of the
 // cell of the target, and the engine models no ability yet.
-func strikeDamage(attacker, defender unit, weapon *def.Weapon, defense float64) int {
-	a, d := strikeContexts(attacker, defender, weapon)
-	return formula.StrikeDamage(weapon.Power, attackerSide(a), defenderSide(d),
-		formula.NoTerrainCorrection, damageScaleSum(defender, a, d), 0, defense)
+func damageOf(a ability.AttackContext, d ability.DefendContext, defense float64) int {
+	return formula.StrikeDamage(a.Weapon.Power, attackerSide(a), defenderSide(d),
+		formula.NoTerrainCorrection, damageScaleSum(a, d), 0, defense)
 }
 
 // The sum of ⑨: the damage dealt of the attacker, the damage taken of the
 // defender and the debuffs of the defender add, and the formula multiplies
 // one time (docs/reference/combat-formulas.md, 增減傷合算後才乘).
-func damageScaleSum(defender unit, a ability.AttackContext, d ability.DefendContext) float64 {
+func damageScaleSum(a ability.AttackContext, d ability.DefendContext) float64 {
 	sum := a.DamageDealtPercent/100 + d.DamageTakenPercent/100
-	for _, debuff := range defender.Value.Debuffs {
+	for _, debuff := range d.Defender.Debuffs {
 		sum += debuff.Magnitude
 	}
 	return sum
 }
 
-func strikeHitProbability(attacker, defender unit, weapon *def.Weapon, dodging bool) float64 {
-	a, d := strikeContexts(attacker, defender, weapon)
-	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(a), defenderSide(d),
+func hitRateOf(a ability.AttackContext, d ability.DefendContext, dodging bool) float64 {
+	return formula.StrikeHitProbability(a.Weapon.Accuracy, attackerSide(a), defenderSide(d),
 		a.AccuracyPercent-d.EvasionPercent, dodging)
+}
+
+// strikeDamage and strikeHitProbability are the two computations from the
+// units, for a reader that holds no context of its own.
+func (x *exchange) strikeDamage(attacker, defender unit, weapon *def.Weapon, defense float64) int {
+	return damageOf(x.attackContext(attacker, defender, weapon), x.defendContext(attacker, defender, weapon), defense)
+}
+
+func (x *exchange) strikeHitProbability(attacker, defender unit, weapon *def.Weapon, dodging bool) float64 {
+	return hitRateOf(x.attackContext(attacker, defender, weapon), x.defendContext(attacker, defender, weapon), dodging)
 }
 
 // The response attack menu offers no shield stance, so a defender that

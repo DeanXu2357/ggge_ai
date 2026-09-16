@@ -5,7 +5,10 @@
 // chain of a moment with the context of that moment.
 package ability
 
-import "github.com/DeanXu2357/ggge_ai/engine/battle/def"
+import (
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
+)
 
 // Line is one effect line of a unit. Clone answers a copy with the same
 // state, so that a copy of the value column owns its lines.
@@ -13,13 +16,29 @@ type Line interface {
 	Clone() Line
 }
 
-// Unit is what a hook sees of one unit: its data and the values of the
-// moment.
+// Part is what a unit is in the exchange, the same for every strike of it:
+// the unit that started the exchange, the unit it was started against, or
+// a unit that supports either side. Whether a supporter fires or takes a
+// strike is the slot it holds in the strike; which strike fires first is
+// the flow of the exchange (a weapon may strike first on the counter); a
+// line reads the part and neither of those.
+type Part string
+
+const (
+	PartAttacker Part = "attacker" // started the exchange
+	PartTarget   Part = "target"   // the exchange was started against it
+	PartSupport  Part = "support"  // fires or takes a strike for another unit
+)
+
+// Unit is what a hook sees of one unit: its data, the values of the moment,
+// and what it does in this strike.
 type Unit struct {
-	Mech  *def.Mech
-	Pilot *def.Pilot
-	HP    int
-	MaxHP int
+	Mech    *def.Mech
+	Pilot   *def.Pilot
+	HP      int
+	MaxHP   int
+	Debuffs []battle.Debuff
+	Part    Part
 }
 
 // AttackContext is the input of an attack hook: the strike the attacker fires. Every hook of the
@@ -50,7 +69,8 @@ type AttackContext struct {
 }
 
 // DefendContext is the input of a defend hook: the strike the defender takes.
-// Defender is the holder of the hooks; see AttackContext for which unit it is.
+// The aimed unit defends the hit roll, the struck unit the damage; they are
+// one unit unless a support defender covers.
 type DefendContext struct {
 	Attacker Unit
 	Defender Unit

@@ -14,6 +14,7 @@ import (
 // 'state.Unit' is the form of the boundary alone: 'toStateUnit' makes it for the
 // callers of the package.
 type unit struct {
+	id int
 	*state.UnitContent
 	Value *state.UnitValue
 }
@@ -26,7 +27,7 @@ func findUnit(board state.Battle, id int) (unit, error) {
 }
 
 func unitOf(board state.Battle, id int) unit {
-	return unit{UnitContent: &board.Content.Units[id], Value: &board.Values.Units[id]}
+	return unit{id: id, UnitContent: &board.Content.Units[id], Value: &board.Values.Units[id]}
 }
 
 func units(board state.Battle) iter.Seq2[int, unit] {
@@ -73,6 +74,7 @@ func (u unit) MapWeaponAt(id int) (*def.MapWeapon, error) {
 	return &u.Mech.MapWeapons[id], nil
 }
 
-func (u unit) hookView() ability.Unit {
-	return ability.Unit{Mech: u.Mech, Pilot: u.Pilot, HP: u.Value.HP, MaxHP: u.MaxHP}
+func (u unit) toAbilityUnit(part ability.Part) ability.Unit {
+	return ability.Unit{Mech: u.Mech, Pilot: u.Pilot, HP: u.Value.HP, MaxHP: u.MaxHP,
+		Debuffs: u.Value.Debuffs, Part: part}
 }
