@@ -226,8 +226,8 @@ measurement that would refute this.
 
 | Moment | Call point | Values today | Values the checklist will need |
 |---|---|---|---|
-| Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack, mobility, pilot ranged, melee, awaken %; damage dealt % into ⑨ | accuracy; EN cost; range |
-| Defend | 'defenderSide', same | mech defense, mobility, pilot defense, reaction %; damage taken % into ⑨ with the debuffs | evasion |
+| Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack, mobility, pilot ranged, melee, awaken %; damage dealt % into ⑨; accuracy in points of the hit rate | EN cost; range |
+| Defend | 'defenderSide', same | mech defense, mobility, pilot defense, reaction %; damage taken % into ⑨ with the debuffs; evasion in points of the hit rate | — |
 | assembly (not built) | 'system.Assemble' | — | max HP, max EN, support attack, support defend, chance step, move, MP; the MP hook clamps to 'MPMax' itself. Only for what happens one time when the unit enters; a stat percent is never an assembly line |
 | phase start (not built) | 'beginPhase' in 'system/turn.go' | — | none in the sample |
 
@@ -296,6 +296,14 @@ the kinds it needs:
     stat lines gives the exchange, or the hit rate, of the unit
     whose stat is already scaled; the mobility line acts on both
     sides.
+13. The hit lines (green): accuracy +5 of the attacker gives the hit
+    rate of a weapon 5 more accurate, evasion +5 of the defender that
+    of a weapon 5 less accurate, and the two cancel. Every term of
+    the hit formula is in points, and evasion has no base to
+    multiply (Sway "Increase Evasion by 100%" is a sure miss only as
+    points), so a percent of these lines is a point. That the game
+    reads it so is a hypothesis: the forecast of one pair with and
+    without Psycho-Frame should differ by 5.
 
 Behaviors of the rejected branch that the scenarios must carry: the
 eligibility of a supporter reads the target (the menu cannot know
@@ -323,10 +331,10 @@ docs/reference/datamine-source.md on 88b5e8c.
 
 | Side | Kind | Condition fields | Lines | Example | Status |
 |---|---|---|---|---|---|
-| mech | 'accuracy_percent' | — | 2 | Psycho-Frame LV 1 | |
+| mech | 'accuracy_percent' | — | 2 | Psycho-Frame LV 1 | 'lines.AccuracyPercent', scenario 13 |
 | mech | 'damage_taken_percent' | 'enemy_weapon_attributes' | 1 | Physical Damage Reduced LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttribute', scenario 4 |
 | mech | 'damage_taken_percent' | 'enemy_weapon_attributes', 'enemy_weapon_categories' | 3 | I-Field LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttributeAndCategory', scenario 4 |
-| mech | 'evasion_percent' | — | 4 | Increased EVA LV 1 | |
+| mech | 'evasion_percent' | — | 4 | Increased EVA LV 1 | 'lines.EvasionPercent', scenario 13 |
 | mech | 'max_en_percent' | — | 2 | Increased Max EN LV 3 | |
 | mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | |
 | mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | 'lines.MechAttackPercent', scenario 12 |
@@ -395,7 +403,7 @@ every row of it is ticked in Section 4.
 | A2 HP conditions | ATK % at HP ≤ 25, DEF % at HP full, DEF % at HP ≤ 50 | 3 | none new; scenario 3 pins that each strike reads the HP of its moment | done, scenario 3 |
 | A5 Weapon conditions | I-Field, physical damage reduced | 4 | 'def.Weapon.Attributes'; the slot 'DamageTakenPercent' of ⑨ | done, scenario 4 |
 | A3 Damage lines | damage dealt +%, dealt and taken on the mech tag of the holder, dealt and taken against an enemy tag | 22 | the slot 'DamageDealtPercent' of ⑨; ⑨ is one sum of both sides and the debuffs (reference, line 29) | done, scenario 5 |
-| A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | next |
+| A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | done, scenario 13 |
 | A6 Role conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Role' on the contexts, read from the strike fields (struck ≠ aimed, shooter ≠ owner, the segment); 'def.Mech.Type' | |
 | B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | |
 | C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | an assembly hook in 'system.Assemble'; 'def.Pilot.Tags'; the lines must reach the unit before it enters, so the wire or a Go door for 'place' comes first; the relation to an explicit maximum of the payload (issue #77) | |
@@ -404,7 +412,7 @@ every row of it is ticked in Section 4.
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
 | — | HP supply %, debuff effect % | 2 | issues #79 and #80 | not read |
 
-Rows done: 78 of 112; to do: 24; not read: 10.
+Rows done: 84 of 112; to do: 18; not read: 10.
 
 ## Gates
 
@@ -480,3 +488,6 @@ when a wire key lands, and then in the same commit.
   'DamageDealtPercent'; Section 5 regrouped from the rows (no
   'mech_series' in the sample, 'mech_ids' only on the not-read
   kinds, 'pilot_tags' only on the move line).
+- 2026-09-16: the two hit lines and scenario 13; the slots
+  'AccuracyPercent' and 'EvasionPercent' in points, through the
+  'correction' of 'formula.StrikeHitProbability'.

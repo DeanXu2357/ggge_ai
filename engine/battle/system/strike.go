@@ -105,7 +105,8 @@ func damageScaleSum(defender unit, a ability.AttackContext, d ability.DefendCont
 
 func strikeHitProbability(attacker, defender unit, weapon *def.Weapon, dodging bool) float64 {
 	a, d := strikeContexts(attacker, defender, weapon)
-	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(a), defenderSide(d), dodging)
+	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(a), defenderSide(d),
+		a.AccuracyPercent-d.EvasionPercent, dodging)
 }
 
 // The response attack menu offers no shield stance, so a defender that

@@ -13,10 +13,11 @@ func StrikeDamage(power float64, attacker, defender Side,
 	return int(math.RoundToEven(raw))
 }
 
-func StrikeHitProbability(accuracy float64, attacker, defender Side, dodging bool) float64 {
-	ability := 0.0
+// correction is the sum of the ability lines of both sides in points of the
+// hit rate: the accuracy of the attacker less the evasion of the defender.
+func StrikeHitProbability(accuracy float64, attacker, defender Side, correction float64, dodging bool) float64 {
 	if dodging {
-		ability -= DodgeHitPenalty
+		correction -= DodgeHitPenalty
 	}
-	return HitProbability(accuracy, attacker, defender, ability)
+	return HitProbability(accuracy, attacker, defender, correction)
 }

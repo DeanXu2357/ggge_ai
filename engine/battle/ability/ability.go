@@ -43,6 +43,10 @@ type AttackContext struct {
 	// 15 percent more. It joins the sum of ⑨ with the damage taken of the
 	// defender and its debuffs.
 	DamageDealtPercent float64
+	// AccuracyPercent is added to the hit rate in points ("Increase own
+	// ACC by 5%" is 5 points; that the game reads it so is a hypothesis of
+	// the roadmap).
+	AccuracyPercent float64
 }
 
 // DefendContext is the input of a defend hook: the strike the defender takes.
@@ -59,6 +63,8 @@ type DefendContext struct {
 	// DamageTakenPercent is the signed change of the damage taken: -50 is
 	// half the damage. It joins the sum of ⑨ with the debuffs of the unit.
 	DamageTakenPercent float64
+	// EvasionPercent is taken off the hit rate of the strike in points.
+	EvasionPercent float64
 }
 
 type AttackHook func(a *AttackContext)
