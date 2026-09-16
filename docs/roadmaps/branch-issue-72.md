@@ -163,7 +163,14 @@ the order of the lines.
     type AttackUnitHook interface { OnAttack(a *AttackContext) }
     type DefendUnitHook interface { OnDefend(d *DefendContext) }
 
-    type Unit struct { Mech *def.Mech; Pilot *def.Pilot; HP, MaxHP int }
+    type Part string  // attacker, target, support: what the unit is in the exchange
+
+    type Unit struct {                           // one unit as a hook sees it
+        Mech *def.Mech; Pilot *def.Pilot
+        HP, MaxHP int
+        Debuffs []battle.Debuff
+        Part    Part
+    }
 
     type AttackContext struct {                  // the strike the attacker fires
         Attacker, Defender Unit
@@ -182,6 +189,21 @@ the order of the lines.
     type AttackHook func(a *AttackContext)
     type DefendHook func(d *DefendContext)
     type Hooks struct { OnAttack []AttackHook; OnDefend []DefendHook }
+
+The cast of an exchange. 'system.cast' holds the actor and its
+target, settled one time when the exchange is scheduled; every other
+unit supports. The exchange builds the contexts: 'attackContext'
+runs the lines of the attacker against the unit that takes the
+strike, 'defendContext' the lines of a defender against the
+attacker, and every reader is an exchange. 'fire' runs the attacker
+one time, the aimed unit for the hit roll and the struck unit for
+the damage (one unit unless a support defender covers); the stated
+check and the four forecasts of the menu run on an exchange with no
+draw. A line reads 'Attacker.Part' or
+'Defender.Part', and the subject of the fact is the unit the field
+sits on. Whether a supporter fires or takes a strike is the slot it
+holds; which strike fires first is the flow of the exchange (a
+weapon may strike first on the counter); a line reads neither.
 
 The chains bind the methods of the lines of one value column. A
 bound method points at one copy of a line, so a chain built before
@@ -249,9 +271,16 @@ the kinds it needs:
    the lines. The negative scenario: B carries the tag itself and the
    hooks against it, A carries no tag; the exchange equals the board
    without the hooks, so the hook reads the enemy and not itself.
-2. Cover: A→B, C covers with a defense line on 'strike_roles'
-   ['support_defense']; C's line counts, B's does not, the damage
-   reads C.
+2. Cover (green): A→B, C covers with a support-defense line; C's
+   line counts and B's does not, the damage reads C, and the
+   forecast of C as a support defender reads the line. What each
+   unit is comes from the cast of the exchange: the actor, its
+   target, and every other unit a supporter; the fact sits on the
+   unit view, so a line reads 'Defender.Part' or 'Attacker.Part'
+   and the subject is the unit the field is on (ruling 2026-09-16).
+   A support-attack line counts for a supporter of either side and
+   not for the actor or the target; a typed line reads the type of
+   the mech of its holder ('def.MechType').
 3. The HP conditions (green): the "HP full" defense bonus is read
    at each strike, so a support attack that lands takes it off the
    main strike and a support attack that misses leaves it; the
@@ -356,9 +385,9 @@ docs/reference/datamine-source.md on 88b5e8c.
 | pilot | 'damage_taken_percent' | 'mech_tags' | 8 | EX Character Ability | 'lines.DamageTakenPercentOnMechTag', scenario 5 |
 | pilot | 'debuff_effect_percent' | 'mech_ids' | 1 | EX Character Ability (Kou Uraki) | not read, issue #80 |
 | pilot | 'hp_supply_percent' | 'mech_ids' | 1 | EX Character Ability (Oliver May) | not read, issue #79 |
-| pilot | 'mech_attack_percent' | 'mech_type', 'strike_roles' | 1 | (When supporting) Increased ATK LV 5 | |
-| pilot | 'mech_defense_percent' | 'mech_type', 'strike_roles' | 3 | Support Defense LV 4 | |
-| pilot | 'mech_defense_percent' | 'strike_roles' | 1 | EX Character Ability (Amuro Ray) | |
+| pilot | 'mech_attack_percent' | 'mech_type', 'strike_roles' | 1 | (When supporting) Increased ATK LV 5 | 'lines.MechAttackPercentOnSupportWithMechType', scenario 2 |
+| pilot | 'mech_defense_percent' | 'mech_type', 'strike_roles' | 3 | Support Defense LV 4 | 'lines.MechDefensePercentOnSupportDefenseWithMechType', scenario 2 |
+| pilot | 'mech_defense_percent' | 'strike_roles' | 1 | EX Character Ability (Amuro Ray) | 'lines.MechDefensePercentOnSupportDefense', scenario 2 |
 | pilot | 'mp_plus' | 'mech_tags' | 2 | EX Character Ability | |
 | pilot | 'pilot_awaken_percent' | — | 5 | Newtype LV 4 | 'lines.PilotAwakenPercent', scenario 12 |
 | pilot | 'pilot_defense_percent' | — | 5 | Increased Defense LV 1 | 'lines.PilotDefensePercent', scenario 12 |
@@ -404,7 +433,7 @@ every row of it is ticked in Section 4.
 | A5 Weapon conditions | I-Field, physical damage reduced | 4 | 'def.Weapon.Attributes'; the slot 'DamageTakenPercent' of ⑨ | done, scenario 4 |
 | A3 Damage lines | damage dealt +%, dealt and taken on the mech tag of the holder, dealt and taken against an enemy tag | 22 | the slot 'DamageDealtPercent' of ⑨; ⑨ is one sum of both sides and the debuffs (reference, line 29) | done, scenario 5 |
 | A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | done, scenario 13 |
-| A6 Role conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Role' on the contexts, read from the strike fields (struck ≠ aimed, shooter ≠ owner, the segment); 'def.Mech.Type' | |
+| A6 Part conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Part' on the unit view from the cast of the exchange; 'def.MechType' | done, scenario 2 |
 | B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | |
 | C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | an assembly hook in 'system.Assemble'; 'def.Pilot.Tags'; the lines must reach the unit before it enters, so the wire or a Go door for 'place' comes first; the relation to an explicit maximum of the payload (issue #77) | |
 | F Vigor | ATK and MOB % at vigor | 2 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54 | |
@@ -412,7 +441,7 @@ every row of it is ticked in Section 4.
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
 | — | HP supply %, debuff effect % | 2 | issues #79 and #80 | not read |
 
-Rows done: 84 of 112; to do: 18; not read: 10.
+Rows done: 89 of 112; to do: 13; not read: 10.
 
 ## Gates
 
@@ -491,3 +520,10 @@ when a wire key lands, and then in the same commit.
 - 2026-09-16: the two hit lines and scenario 13; the slots
   'AccuracyPercent' and 'EvasionPercent' in points, through the
   'correction' of 'formula.StrikeHitProbability'.
+- 2026-09-16: the three part lines and scenario 2; 'Part' on the
+  unit view, three values, from the cast of the exchange. On the
+  way: a 'Role' on each context named the holder by the kind of the
+  context; six parts with a stance read the strike order and a fact
+  no line reads; parts recomputed from ids at every reader gave the
+  menu a second copy of the rule. All three were withdrawn. The
+  debuffs moved onto the unit view, so ⑨ reads the contexts alone.
