@@ -89,13 +89,14 @@ func scaled(base, percent float64) float64 {
 func strikeDamage(attacker, defender unit, weapon *def.Weapon, defense float64) int {
 	a, d := strikeContexts(attacker, defender, weapon)
 	return formula.StrikeDamage(weapon.Power, attackerSide(a), defenderSide(d),
-		formula.NoTerrainCorrection, damageScaleSum(defender, d), 0, defense)
+		formula.NoTerrainCorrection, damageScaleSum(defender, a, d), 0, defense)
 }
 
-// The sum of ⑨: the debuffs of the defender and the lines of the strike
-// add, and the formula multiplies one time (docs/reference/combat-formulas.md).
-func damageScaleSum(defender unit, d ability.DefendContext) float64 {
-	sum := d.DamageTakenPercent / 100
+// The sum of ⑨: the damage dealt of the attacker, the damage taken of the
+// defender and the debuffs of the defender add, and the formula multiplies
+// one time (docs/reference/combat-formulas.md, 增減傷合算後才乘).
+func damageScaleSum(defender unit, a ability.AttackContext, d ability.DefendContext) float64 {
+	sum := a.DamageDealtPercent/100 + d.DamageTakenPercent/100
 	for _, debuff := range defender.Value.Debuffs {
 		sum += debuff.Magnitude
 	}

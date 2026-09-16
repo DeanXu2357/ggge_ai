@@ -226,7 +226,7 @@ measurement that would refute this.
 
 | Moment | Call point | Values today | Values the checklist will need |
 |---|---|---|---|
-| Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack, mobility, pilot ranged, melee, awaken % | damage dealt; accuracy; EN cost; range |
+| Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack, mobility, pilot ranged, melee, awaken %; damage dealt % into ⑨ | accuracy; EN cost; range |
 | Defend | 'defenderSide', same | mech defense, mobility, pilot defense, reaction %; damage taken % into ⑨ with the debuffs | evasion |
 | assembly (not built) | 'system.Assemble' | — | max HP, max EN, support attack, support defend, chance step, move, MP; the MP hook clamps to 'MPMax' itself. Only for what happens one time when the unit enters; a stat percent is never an assembly line |
 | phase start (not built) | 'beginPhase' in 'system/turn.go' | — | none in the sample |
@@ -268,24 +268,31 @@ the kinds it needs:
    beam among two attributes meets it (hypothesis: the datamine
    value 4 is beam and physical, and the game's reading is not
    measured). The line of the attacker reads no weapon of its own.
-5. The support-role EN discount applies to the supporter alone and
+5. The damage lines (green): a line on the damage dealt of the
+   attacker or on the damage taken of the defender gives the strike
+   of a defender with a debuff of the same magnitude, so both sides
+   join the one sum of ⑨; a line on 'mech_tags' reads the mech of
+   its holder and a line on 'enemy_tags' the mech of the other unit;
+   damage dealt +15% with damage taken -15% is the plain strike
+   (1 + 0.15 - 0.15), which two multiplications would not give.
+6. The support-role EN discount applies to the supporter alone and
    the write spends the discounted cost; the counter reads its cost
    and its reach at the moment it fires.
-6. 'special_weapon_range_plus' on 'vigor_min': the menu, the
+7. 'special_weapon_range_plus' on 'vigor_min': the menu, the
    response attack options and the counter pick all reach one cell
    farther; the actions list shows the reach.
-7. Assembly: one pilot on two mechs gives two units with different
+8. Assembly: one pilot on two mechs gives two units with different
    maxima and support counts; 'move_range_plus' on 'pilot_tags'
    widens the reachable cells; 'mp_plus' raises the initial MP.
-8. Mobility both ways: a mobility line on the defender lowers the
+9. Mobility both ways: a mobility line on the defender lowers the
    hit rate, on the attacker raises it.
-9. An unknown kind changes no number and comes back from 'State' as
+10. An unknown kind changes no number and comes back from 'State' as
    it went in.
-10. Stacking (green): two lines on one stat add before the one
+11. Stacking (green): two lines on one stat add before the one
     multiplication (4200 with +15% and +12% gives 5334), and a
     conditional line joins the same sum (ATK +15% with Advantage
     +15% against a tagged enemy gives 5460).
-11. The unconditional percent lines (green): each of the eight
+12. The unconditional percent lines (green): each of the eight
     stat lines gives the exchange, or the hit rate, of the unit
     whose stat is already scaled; the mobility line acts on both
     sides.
@@ -322,34 +329,34 @@ docs/reference/datamine-source.md on 88b5e8c.
 | mech | 'evasion_percent' | — | 4 | Increased EVA LV 1 | |
 | mech | 'max_en_percent' | — | 2 | Increased Max EN LV 3 | |
 | mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | |
-| mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | 'lines.MechAttackPercent', scenario 11 |
+| mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | 'lines.MechAttackPercent', scenario 12 |
 | mech | 'mech_attack_percent' | 'enemy_tags' | 2 | Advantage: Principality of Zeon LV 1 | 'lines.MechAttackPercentAgainstTag', scenario 1 |
 | mech | 'mech_attack_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased ATK LV 3 | 'lines.MechAttackPercentAtHPRateAtMost', scenario 3 |
 | mech | 'mech_attack_percent' | 'vigor_min' | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | |
-| mech | 'mech_defense_percent' | — | 1 | Increased DEF LV 3 | 'lines.MechDefensePercent', scenario 11 |
+| mech | 'mech_defense_percent' | — | 1 | Increased DEF LV 3 | 'lines.MechDefensePercent', scenario 12 |
 | mech | 'mech_defense_percent' | 'enemy_tags' | 2 | Advantage: EFSF (U.C.) LV 1 | 'lines.MechDefensePercentAgainstTag', scenario 1 |
 | mech | 'mech_defense_percent' | 'hp_rate_gte' | 1 | (HP conditions) Increased DEF LV 2 | 'lines.MechDefensePercentAtHPRateAtLeast', scenario 3 |
 | mech | 'mech_defense_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased DEF LV 2 | 'lines.MechDefensePercentAtHPRateAtMost', scenario 3 |
-| mech | 'mech_mobility_percent' | — | 2 | Increased MOB LV 1 | 'lines.MechMobilityPercent', scenario 11 |
+| mech | 'mech_mobility_percent' | — | 2 | Increased MOB LV 1 | 'lines.MechMobilityPercent', scenario 12 |
 | mech | 'mech_mobility_percent' | 'vigor_min' | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | |
 | mech | 'move_range_plus' | 'pilot_tags' | 1 | (Cnd: Tag) Increased MOV LV 1 | |
 | mech | 'special_weapon_range_plus' | 'vigor_min' | 1 | (Cnd: Vigor) Special Weapon Max Range Up LV 1 | |
-| pilot | 'damage_dealt_percent' | — | 4 | Increased Damage Dealt LV 3 | |
-| pilot | 'damage_dealt_percent' | 'enemy_tags' | 1 | EX Character Ability (Amuro Ray) | |
-| pilot | 'damage_dealt_percent' | 'mech_tags' | 8 | EX Character Ability | |
-| pilot | 'damage_taken_percent' | 'enemy_tags' | 1 | EX Character Ability (Amuro Ray) | |
-| pilot | 'damage_taken_percent' | 'mech_tags' | 8 | EX Character Ability | |
+| pilot | 'damage_dealt_percent' | — | 4 | Increased Damage Dealt LV 3 | 'lines.DamageDealtPercent', scenario 5 |
+| pilot | 'damage_dealt_percent' | 'enemy_tags' | 1 | EX Character Ability (Amuro Ray) | 'lines.DamageDealtPercentAgainstTag', scenario 5 |
+| pilot | 'damage_dealt_percent' | 'mech_tags' | 8 | EX Character Ability | 'lines.DamageDealtPercentOnMechTag', scenario 5 |
+| pilot | 'damage_taken_percent' | 'enemy_tags' | 1 | EX Character Ability (Amuro Ray) | 'lines.DamageTakenPercentAgainstTag', scenario 5 |
+| pilot | 'damage_taken_percent' | 'mech_tags' | 8 | EX Character Ability | 'lines.DamageTakenPercentOnMechTag', scenario 5 |
 | pilot | 'debuff_effect_percent' | 'mech_ids' | 1 | EX Character Ability (Kou Uraki) | not read, issue #80 |
 | pilot | 'hp_supply_percent' | 'mech_ids' | 1 | EX Character Ability (Oliver May) | not read, issue #79 |
 | pilot | 'mech_attack_percent' | 'mech_type', 'strike_roles' | 1 | (When supporting) Increased ATK LV 5 | |
 | pilot | 'mech_defense_percent' | 'mech_type', 'strike_roles' | 3 | Support Defense LV 4 | |
 | pilot | 'mech_defense_percent' | 'strike_roles' | 1 | EX Character Ability (Amuro Ray) | |
 | pilot | 'mp_plus' | 'mech_tags' | 2 | EX Character Ability | |
-| pilot | 'pilot_awaken_percent' | — | 5 | Newtype LV 4 | 'lines.PilotAwakenPercent', scenario 11 |
-| pilot | 'pilot_defense_percent' | — | 5 | Increased Defense LV 1 | 'lines.PilotDefensePercent', scenario 11 |
-| pilot | 'pilot_melee_percent' | — | 3 | Increased Melee LV 1 | 'lines.PilotMeleePercent', scenario 11 |
-| pilot | 'pilot_ranged_percent' | — | 7 | Increased Ranged LV 1 | 'lines.PilotRangedPercent', scenario 11 |
-| pilot | 'pilot_reaction_percent' | — | 4 | Newtype LV 4 | 'lines.PilotReactionPercent', scenario 11 |
+| pilot | 'pilot_awaken_percent' | — | 5 | Newtype LV 4 | 'lines.PilotAwakenPercent', scenario 12 |
+| pilot | 'pilot_defense_percent' | — | 5 | Increased Defense LV 1 | 'lines.PilotDefensePercent', scenario 12 |
+| pilot | 'pilot_melee_percent' | — | 3 | Increased Melee LV 1 | 'lines.PilotMeleePercent', scenario 12 |
+| pilot | 'pilot_ranged_percent' | — | 7 | Increased Ranged LV 1 | 'lines.PilotRangedPercent', scenario 12 |
+| pilot | 'pilot_reaction_percent' | — | 4 | Newtype LV 4 | 'lines.PilotReactionPercent', scenario 12 |
 | pilot | 'revive_once' | 'mech_ids' | 2 | EX Character Ability (Char Aznable); one row is the companion row 84 | not read |
 | pilot | 'squad_attack_percent_per_member' | 'mech_ids' | 2 | EX Character Ability (Io Fleming) | not read |
 | pilot | 'squad_grant' | 'mech_ids' | 4 | EX Character Ability (Oliver May) | not read |
@@ -384,18 +391,20 @@ every row of it is ticked in Section 4.
 | Group | Lines | Rows | Mechanism | Status |
 |---|---|---|---|---|
 | A0 Advantage | ATK and DEF % against an enemy tag | 4 | the strike hooks | done, scenario 1 |
-| A1 Unconditional stat % | mech ATK/DEF/MOB, pilot ranged/melee/awaken/defense/reaction | 45 | the strike hooks, every stat slot | done, scenario 11 |
-| A2 HP conditions | ATK % at HP ≤ 25, DEF % at HP full, DEF % at HP ≤ 50 | 3 | none new: 'ability.Unit' carries HP and MaxHP; the scenario pins that each strike reads the HP of its moment | done, scenario 3 |
-| A3 Facts of the holder | pilot lines on 'mech_tags' (damage dealt and taken, MP), mech line on 'pilot_tags' (move), 'mech_type', 'mech_ids', 'mech_series' | 22 | carriers: 'def.Pilot.Tags', 'def.Mech.Type', 'def.Mech.ID', 'def.Mech.Series'; the damage slots of ⑨ | |
-| A4 Unconditional strike % | damage dealt, accuracy, evasion | 10 | slots: damage dealt and taken into ⑨ with the debuffs; accuracy and evasion as points of the hit rate ('雙方能力補正'); the reading of each slot is a hypothesis until a device forecast confirms it | |
-| A5 Weapon conditions | I-Field, physical damage reduced | 4 | 'def.Weapon.Attributes' (physical, beam, special); the context carries the weapon already; the slot 'DamageTakenPercent' of ⑨ | done, scenario 4 |
-| A6 Role conditions | DEF % on support defense, ATK % on support attack | 5 | 'Role' on the contexts, read from the strike fields (shooter ≠ owner, struck ≠ aimed, the segment) | |
-| B Legality | EN cost % on support, special weapon range +1 | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement | |
-| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1, MP +n | 21 | an assembly hook in 'system.Assemble', for what happens one time when a unit enters; the lines must reach the unit before it enters, so the wire or a Go door for 'place' comes first | |
-| F MP | ATK and MOB % at vigor, special weapon range at vigor, MP +n | 4 | 'UnitValue.MP' and the wire 'mp'; issue #54 | |
+| A1 Unconditional stat % | mech ATK/DEF/MOB, pilot ranged/melee/awaken/defense/reaction | 45 | the strike hooks, every stat slot | done, scenario 12 |
+| A2 HP conditions | ATK % at HP ≤ 25, DEF % at HP full, DEF % at HP ≤ 50 | 3 | none new; scenario 3 pins that each strike reads the HP of its moment | done, scenario 3 |
+| A5 Weapon conditions | I-Field, physical damage reduced | 4 | 'def.Weapon.Attributes'; the slot 'DamageTakenPercent' of ⑨ | done, scenario 4 |
+| A3 Damage lines | damage dealt +%, dealt and taken on the mech tag of the holder, dealt and taken against an enemy tag | 22 | the slot 'DamageDealtPercent' of ⑨; ⑨ is one sum of both sides and the debuffs (reference, line 29) | done, scenario 5 |
+| A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | next |
+| A6 Role conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Role' on the contexts, read from the strike fields (struck ≠ aimed, shooter ≠ owner, the segment); 'def.Mech.Type' | |
+| B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | |
+| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | an assembly hook in 'system.Assemble'; 'def.Pilot.Tags'; the lines must reach the unit before it enters, so the wire or a Go door for 'place' comes first; the relation to an explicit maximum of the payload (issue #77) | |
+| F Vigor | ATK and MOB % at vigor | 2 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54 | |
 | D Wound | revive once | 2 | a wound hook after the HP write and before the kill; the line keeps its own flag | not read |
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
 | — | HP supply %, debuff effect % | 2 | issues #79 and #80 | not read |
+
+Rows done: 78 of 112; to do: 24; not read: 10.
 
 ## Gates
 
@@ -467,3 +476,7 @@ when a wire key lands, and then in the same commit.
   'battle.WeaponAttribute'; the slot 'DamageTakenPercent' of ⑨.
   'strikeContexts' builds the two contexts one time for each
   computation, and the sides read the contexts.
+- 2026-09-16: the five damage lines and scenario 5; the slot
+  'DamageDealtPercent'; Section 5 regrouped from the rows (no
+  'mech_series' in the sample, 'mech_ids' only on the not-read
+  kinds, 'pilot_tags' only on the move line).

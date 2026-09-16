@@ -39,6 +39,10 @@ type AttackContext struct {
 	PilotRangedPercent  float64
 	PilotMeleePercent   float64
 	PilotAwakenPercent  float64
+	// DamageDealtPercent is the signed change of the damage dealt: 15 is
+	// 15 percent more. It joins the sum of ⑨ with the damage taken of the
+	// defender and its debuffs.
+	DamageDealtPercent float64
 }
 
 // DefendContext is the input of a defend hook: the strike the defender takes.
