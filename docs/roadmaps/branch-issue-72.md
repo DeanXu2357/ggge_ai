@@ -227,7 +227,7 @@ measurement that would refute this.
 | Moment | Call point | Values today | Values the checklist will need |
 |---|---|---|---|
 | Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack, mobility, pilot ranged, melee, awaken % | damage dealt; accuracy; EN cost; range |
-| Defend | 'defenderSide', same | mech defense, mobility, pilot defense, reaction % | damage taken; evasion |
+| Defend | 'defenderSide', same | mech defense, mobility, pilot defense, reaction %; damage taken % into ⑨ with the debuffs | evasion |
 | assembly (not built) | 'system.Assemble' | — | max HP, max EN, support attack, support defend, chance step, move, MP; the MP hook clamps to 'MPMax' itself. Only for what happens one time when the unit enters; a stat percent is never an assembly line |
 | phase start (not built) | 'beginPhase' in 'system/turn.go' | — | none in the sample |
 
@@ -259,10 +259,15 @@ the kinds it needs:
    one HP above; the "HP 50% or below" defense bonus scales the
    strike taken. The comparison is in integers, HP × 100 against
    the threshold × MaxHP.
-4. I-Field: 'damage_taken_percent' on 'enemy_weapon_attributes'
-   ['beam'] and 'enemy_weapon_categories' ['ranged']; a physical
-   weapon is not reduced; the line of the attacker reads no weapon of
-   its own.
+4. I-Field (green): 'damage_taken_percent' on the attribute beam
+   with the category ranged, and "Physical Damage Reduced" on the
+   attribute physical. The line joins the sum of ⑨ with the
+   debuffs, so a target with the line gives the strike of a target
+   with a debuff of the same magnitude; a beam melee weapon and a
+   physical ranged weapon meet no I-Field. A weapon that carries
+   beam among two attributes meets it (hypothesis: the datamine
+   value 4 is beam and physical, and the game's reading is not
+   measured). The line of the attacker reads no weapon of its own.
 5. The support-role EN discount applies to the supporter alone and
    the write spends the discounted cost; the counter reads its cost
    and its reach at the moment it fires.
@@ -312,8 +317,8 @@ docs/reference/datamine-source.md on 88b5e8c.
 | Side | Kind | Condition fields | Lines | Example | Status |
 |---|---|---|---|---|---|
 | mech | 'accuracy_percent' | — | 2 | Psycho-Frame LV 1 | |
-| mech | 'damage_taken_percent' | 'enemy_weapon_attributes' | 1 | Physical Damage Reduced LV 3 | |
-| mech | 'damage_taken_percent' | 'enemy_weapon_attributes', 'enemy_weapon_categories' | 3 | I-Field LV 3 | |
+| mech | 'damage_taken_percent' | 'enemy_weapon_attributes' | 1 | Physical Damage Reduced LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttribute', scenario 4 |
+| mech | 'damage_taken_percent' | 'enemy_weapon_attributes', 'enemy_weapon_categories' | 3 | I-Field LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttributeAndCategory', scenario 4 |
 | mech | 'evasion_percent' | — | 4 | Increased EVA LV 1 | |
 | mech | 'max_en_percent' | — | 2 | Increased Max EN LV 3 | |
 | mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | |
@@ -383,7 +388,7 @@ every row of it is ticked in Section 4.
 | A2 HP conditions | ATK % at HP ≤ 25, DEF % at HP full, DEF % at HP ≤ 50 | 3 | none new: 'ability.Unit' carries HP and MaxHP; the scenario pins that each strike reads the HP of its moment | done, scenario 3 |
 | A3 Facts of the holder | pilot lines on 'mech_tags' (damage dealt and taken, MP), mech line on 'pilot_tags' (move), 'mech_type', 'mech_ids', 'mech_series' | 22 | carriers: 'def.Pilot.Tags', 'def.Mech.Type', 'def.Mech.ID', 'def.Mech.Series'; the damage slots of ⑨ | |
 | A4 Unconditional strike % | damage dealt, accuracy, evasion | 10 | slots: damage dealt and taken into ⑨ with the debuffs; accuracy and evasion as points of the hit rate ('雙方能力補正'); the reading of each slot is a hypothesis until a device forecast confirms it | |
-| A5 Weapon conditions | I-Field, physical damage reduced | 4 | 'def.Weapon.Attributes' (physical, beam, special); the context carries the weapon already | |
+| A5 Weapon conditions | I-Field, physical damage reduced | 4 | 'def.Weapon.Attributes' (physical, beam, special); the context carries the weapon already; the slot 'DamageTakenPercent' of ⑨ | done, scenario 4 |
 | A6 Role conditions | DEF % on support defense, ATK % on support attack | 5 | 'Role' on the contexts, read from the strike fields (shooter ≠ owner, struck ≠ aimed, the segment) | |
 | B Legality | EN cost % on support, special weapon range +1 | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement | |
 | C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1, MP +n | 21 | an assembly hook in 'system.Assemble', for what happens one time when a unit enters; the lines must reach the unit before it enters, so the wire or a Go door for 'place' comes first | |
@@ -457,3 +462,8 @@ when a wire key lands, and then in the same commit.
 - 2026-09-15: the three HP-condition lines and scenario 3, which
   pins the reading of each strike from the state of its moment;
   Section 5 records the plan of the groups.
+- 2026-09-15: the two weapon-condition lines (I-Field, physical
+  reduced) and scenario 4; 'def.Weapon.Attributes' and the enum
+  'battle.WeaponAttribute'; the slot 'DamageTakenPercent' of ⑨.
+  'strikeContexts' builds the two contexts one time for each
+  computation, and the sides read the contexts.

@@ -52,6 +52,9 @@ type DefendContext struct {
 	MechMobilityPercent  float64
 	PilotDefensePercent  float64
 	PilotReactionPercent float64
+	// DamageTakenPercent is the signed change of the damage taken: -50 is
+	// half the damage. It joins the sum of ⑨ with the debuffs of the unit.
+	DamageTakenPercent float64
 }
 
 type AttackHook func(a *AttackContext)

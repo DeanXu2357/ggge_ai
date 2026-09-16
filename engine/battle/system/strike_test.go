@@ -110,8 +110,8 @@ func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
 	plain := strikeHitProbability(attacker, defender, weapon, false)
 	dodged := strikeHitProbability(attacker, defender, weapon, true)
 
-	attackSide := attackerSide(attacker, defender, weapon)
-	defendSide := defenderSide(defender, attacker, weapon)
+	a, d := strikeContexts(attacker, defender, weapon)
+	attackSide, defendSide := attackerSide(a), defenderSide(d)
 	if plain != formula.HitProbability(weapon.Accuracy, attackSide, defendSide, 0) {
 		t.Fatalf("a shot that meets no dodge carries no correction: %v", plain)
 	}

@@ -35,34 +35,41 @@ func attackOf(pilot *def.Pilot, category battle.WeaponCategory) float64 {
 	return 0
 }
 
-func attackerSide(attacker, defender unit, weapon *def.Weapon) formula.Side {
+// strikeContexts runs the hooks of both units for one computation: the
+// attacker's lines see the defender and the defender's lines see the
+// attacker, each with the weapon of the strike.
+func strikeContexts(attacker, defender unit, weapon *def.Weapon) (ability.AttackContext, ability.DefendContext) {
 	a := ability.AttackContext{Attacker: attacker.hookView(), Defender: defender.hookView(), Weapon: weapon}
 	attacker.Value.Hooks.Attack(&a)
-	pilot := *attacker.Pilot
+	d := ability.DefendContext{Attacker: attacker.hookView(), Defender: defender.hookView(), Weapon: weapon}
+	defender.Value.Hooks.Defend(&d)
+	return a, d
+}
+
+func attackerSide(a ability.AttackContext) formula.Side {
+	pilot := *a.Attacker.Pilot
 	pilot.Ranged = scaled(pilot.Ranged, a.PilotRangedPercent)
 	pilot.Melee = scaled(pilot.Melee, a.PilotMeleePercent)
 	pilot.Awaken = scaled(pilot.Awaken, a.PilotAwakenPercent)
 	return formula.Side{
-		PilotAttack:   attackFor(&pilot, *weapon),
-		PilotDefense:  attacker.Pilot.Defense,
-		PilotReaction: attacker.Pilot.Reaction,
-		MechAttack:    scaled(attacker.Mech.Attack, a.MechAttackPercent),
-		MechDefense:   attacker.Mech.Defense,
-		Mobility:      scaled(attacker.Mech.Mobility, a.MechMobilityPercent),
+		PilotAttack:   attackFor(&pilot, *a.Weapon),
+		PilotDefense:  a.Attacker.Pilot.Defense,
+		PilotReaction: a.Attacker.Pilot.Reaction,
+		MechAttack:    scaled(a.Attacker.Mech.Attack, a.MechAttackPercent),
+		MechDefense:   a.Attacker.Mech.Defense,
+		Mobility:      scaled(a.Attacker.Mech.Mobility, a.MechMobilityPercent),
 	}
 }
 
 // No formula reads the pilot attack of the defender, and the weapon of the
 // strike belongs to the attacker, so the defender side carries no attack value.
-func defenderSide(defender, attacker unit, weapon *def.Weapon) formula.Side {
-	d := ability.DefendContext{Attacker: attacker.hookView(), Defender: defender.hookView(), Weapon: weapon}
-	defender.Value.Hooks.Defend(&d)
+func defenderSide(d ability.DefendContext) formula.Side {
 	return formula.Side{
-		PilotDefense:  scaled(defender.Pilot.Defense, d.PilotDefensePercent),
-		PilotReaction: scaled(defender.Pilot.Reaction, d.PilotReactionPercent),
-		MechAttack:    defender.Mech.Attack,
-		MechDefense:   scaled(defender.Mech.Defense, d.MechDefensePercent),
-		Mobility:      scaled(defender.Mech.Mobility, d.MechMobilityPercent),
+		PilotDefense:  scaled(d.Defender.Pilot.Defense, d.PilotDefensePercent),
+		PilotReaction: scaled(d.Defender.Pilot.Reaction, d.PilotReactionPercent),
+		MechAttack:    d.Defender.Mech.Attack,
+		MechDefense:   scaled(d.Defender.Mech.Defense, d.MechDefensePercent),
+		Mobility:      scaled(d.Defender.Mech.Mobility, d.MechMobilityPercent),
 	}
 }
 
@@ -80,13 +87,15 @@ func scaled(base, percent float64) float64 {
 // correction is the effect of a weapon ability that reads the terrain of the
 // cell of the target, and the engine models no ability yet.
 func strikeDamage(attacker, defender unit, weapon *def.Weapon, defense float64) int {
-	return formula.StrikeDamage(weapon.Power, attackerSide(attacker, defender, weapon),
-		defenderSide(defender, attacker, weapon), formula.NoTerrainCorrection,
-		debuffBonus(defender), 0, defense)
+	a, d := strikeContexts(attacker, defender, weapon)
+	return formula.StrikeDamage(weapon.Power, attackerSide(a), defenderSide(d),
+		formula.NoTerrainCorrection, damageScaleSum(defender, d), 0, defense)
 }
 
-func debuffBonus(defender unit) float64 {
-	var sum float64
+// The sum of ⑨: the debuffs of the defender and the lines of the strike
+// add, and the formula multiplies one time (docs/reference/combat-formulas.md).
+func damageScaleSum(defender unit, d ability.DefendContext) float64 {
+	sum := d.DamageTakenPercent / 100
 	for _, debuff := range defender.Value.Debuffs {
 		sum += debuff.Magnitude
 	}
@@ -94,8 +103,8 @@ func debuffBonus(defender unit) float64 {
 }
 
 func strikeHitProbability(attacker, defender unit, weapon *def.Weapon, dodging bool) float64 {
-	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(attacker, defender, weapon),
-		defenderSide(defender, attacker, weapon), dodging)
+	a, d := strikeContexts(attacker, defender, weapon)
+	return formula.StrikeHitProbability(weapon.Accuracy, attackerSide(a), defenderSide(d), dodging)
 }
 
 // The response attack menu offers no shield stance, so a defender that
