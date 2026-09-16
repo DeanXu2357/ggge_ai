@@ -130,7 +130,7 @@ issue #80).
 
 | Type | New fields |
 |---|---|
-| battle.Mech (wire) | id, type, tags, series, abilities |
+| battle.Mech (wire) | id, type, tags, series, abilities; 'def.Mech.Tags' and 'def.Mech.Type' exist, the wire fields wait |
 | battle.Pilot (wire) | id, tags, abilities |
 | battle.Weapon (wire) | attributes ('physical', 'beam', 'special'); 'def.Weapon.Attributes' and 'battle.WeaponAttribute' exist, the wire field waits |
 | battle.Unit (wire) | mp |
