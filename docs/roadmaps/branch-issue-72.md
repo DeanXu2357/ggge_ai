@@ -132,7 +132,7 @@ issue #80).
 |---|---|
 | battle.Mech (wire) | id, type, tags, series, abilities |
 | battle.Pilot (wire) | id, tags, abilities |
-| battle.Weapon (wire) | attributes ('physical', 'beam', 'special') |
+| battle.Weapon (wire) | attributes ('physical', 'beam', 'special'); 'def.Weapon.Attributes' and 'battle.WeaponAttribute' exist, the wire field waits |
 | battle.Unit (wire) | mp |
 | def.Mech, def.Pilot, def.Weapon | the same facts |
 | state.UnitContent | MoveRange (filled at assembly), Abilities |

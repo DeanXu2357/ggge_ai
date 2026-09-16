@@ -33,6 +33,27 @@ var terrains = map[Terrain]bool{
 	TerrainUnderwater:  true,
 }
 
+// WeaponAttribute is the datamine 'weapon_attribute' of a weapon: physical,
+// beam or special, and a weapon may carry two. A line of the defender reads
+// it ("When the enemy attacks with beam ranged weapons").
+type WeaponAttribute string
+
+const (
+	WeaponAttributePhysical WeaponAttribute = "physical"
+	WeaponAttributeBeam     WeaponAttribute = "beam"
+	WeaponAttributeSpecial  WeaponAttribute = "special"
+)
+
+var weaponAttributes = map[WeaponAttribute]bool{
+	WeaponAttributePhysical: true,
+	WeaponAttributeBeam:     true,
+	WeaponAttributeSpecial:  true,
+}
+
+func (a *WeaponAttribute) UnmarshalJSON(data []byte) error {
+	return decodeEnum(data, a, weaponAttributes, "attribute")
+}
+
 var weaponCategories = map[WeaponCategory]bool{
 	WeaponCategoryRanged: true,
 	WeaponCategoryMelee:  true,

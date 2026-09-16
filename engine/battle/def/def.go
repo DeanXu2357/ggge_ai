@@ -25,6 +25,7 @@ type Weapon struct {
 	DebuffKind      *string
 	DebuffMagnitude float64
 	Categories      []battle.WeaponCategory
+	Attributes      []battle.WeaponAttribute
 }
 
 type MapWeapon struct {
