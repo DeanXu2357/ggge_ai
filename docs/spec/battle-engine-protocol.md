@@ -127,9 +127,12 @@ issues of the port (#60 to #68).
   while the battle is ongoing, rotates the phase; nothing past the
   schedule can fail. 'system.Menu(board, decision, defenderID)'
   answers 'response_attacks' and refuses what 'act' refuses. The
-  rotation, the EN regeneration, the debuff expiry and the reset of
-  the acted flags are 'rotate' in 'system/turn.go', and every reset
-  is an effect of the phase event. The pure system
+  rotation, the EN regeneration, the debuff expiry, the reset of
+  the acted flags and the return of the support charges are
+  'rotate' in 'system/turn.go', and every reset is an effect of the
+  phase event: the effect records that the reset ran, so it is there
+  when the value stays ('from' equal to 'to'; user ruling
+  2026-09-17). The pure system
   'engine/battle/geometry' answers the distance, the reachable
   anchors and the occupied cells and writes nothing.
 - The package 'engine/battle/board' is the shell. It stores the
@@ -625,15 +628,20 @@ Every move opens the phase of one faction. At that phase start:
   hypothesis: the reference leaves the rounding open at line 310,
   and the user ruled on 2026-08-27 to floor until a device
   measurement settles it.
+- Every living unit of the faction gets its support attack charges
+  and its support defend charges back, up to the maxima of the
+  content (user ruling 2026-09-17, which lifts the wait of
+  2026-08-27 for the charges; that the game returns them at the own
+  phase start is the user's reading, not a device measurement).
 - Every living unit of every faction drops the debuffs that one
   full round has passed: a debuff hung in the phase of index p is
   gone when the phase of index p + 3 opens
   (docs/reference/combat-formulas.md line 269). The phase index is
   turn times 3 plus the position of the phase in the order.
 
-The phase start resets no chance step and no support charge, and
-fires no stage event. The three wait for the issue that gives them
-a shape (user ruling 2026-08-27).
+The phase start resets no chance step and fires no stage event.
+The two wait for the issue that gives them a shape (user ruling
+2026-08-27).
 
 ## Board geometry
 

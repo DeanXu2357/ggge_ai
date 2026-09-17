@@ -465,8 +465,8 @@ The order of the work, each step one commit:
    at assembly as the maximum and 'UnitValue.MoveRange' as the
    value a rule reads, like HP and its maximum (done; until step 1
    both origins fill the value from the maximum); 'beginPhase'
-   resets the support charges of the units of the phase to the
-   content maxima (the gap of today: a charge never comes back).
+   returns the support charges of the units of the phase to the
+   content maxima (done; before it a charge never came back).
    What writes the move range value and what restores it is not
    decided: no rule writes it today.
 1. The shape of the contract object, one time, carriers only:
@@ -508,7 +508,7 @@ every row of it is ticked in Section 4.
 | A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | done, scenario 13 |
 | A6 Part conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Part' on the unit view from the cast of the exchange; 'def.MechType' | done, scenario 2 |
 | B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | EN cost done, scenario 6; the range line moves to F |
-| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | step 0 in progress |
+| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | step 0 done |
 | F Vigor | ATK and MOB % at vigor, special weapon range +1 at vigor | 3 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54; the range line needs a reach moment beside the cost | |
 | D Wound | revive once | 2 | a wound hook after the HP write and before the kill; the line keeps its own flag | not read |
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
@@ -617,3 +617,10 @@ when a wire key lands, and then in the same commit.
   value (user, 2026-09-17); the geometry, the schedule, the support
   list and the projection read the value; the test boards of
   'system' go through 'assembled', which derives without judging.
+- 2026-09-17: step 0, second half: the support charges of the
+  units of the phase return to the content maxima in 'beginPhase',
+  as an effect of the phase event. The spec of 2026-08-27 said the
+  charges wait for an issue; the user lifted that wait today. The
+  chance step still waits. On the way the three resets of the phase
+  start lost their guards: an effect records that a reset ran, not
+  that a number changed (user).

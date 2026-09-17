@@ -46,12 +46,10 @@ func beginPhase(board state.Battle) []battle.Effect {
 		if unit.Faction != board.Values.Phase {
 			continue
 		}
-		if unit.Value.Acted {
-			led.unit(id).Acted = change(&unit.Value.Acted, false)
-		}
-		if regen := min(unit.ENMax, unit.Value.EN+unit.ENMax*enRegenPercent/100); regen != unit.Value.EN {
-			led.unit(id).EN = change(&unit.Value.EN, regen)
-		}
+		led.unit(id).Acted = change(&unit.Value.Acted, false)
+		led.unit(id).EN = change(&unit.Value.EN, min(unit.ENMax, unit.Value.EN+unit.ENMax*enRegenPercent/100))
+		led.unit(id).SupportAttackCharges = change(&unit.Value.SupportAttackCharges, unit.SupportAttackChargesMax)
+		led.unit(id).SupportDefendCharges = change(&unit.Value.SupportDefendCharges, unit.SupportDefendChargesMax)
 	}
 	return led.list()
 }

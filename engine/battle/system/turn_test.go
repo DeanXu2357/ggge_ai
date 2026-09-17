@@ -4,6 +4,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
@@ -222,4 +225,34 @@ func TestTheRotationRunsOnAPairThatNoEngagementProduced(t *testing.T) {
 	if after.Phase != battle.FactionEnemy || after.Turn != 1 || after.Units[1].Acted {
 		t.Fatalf("values: %+v", after)
 	}
+}
+
+// The support charges of a unit come back at the start of its own phase, up
+// to the maxima of the content; the other side keeps its spent charges until
+// its own phase starts. The event carries the change.
+func TestThePhaseStartRestoresTheSupportChargesOfItsSide(t *testing.T) {
+	ally := basicUnit(battle.FactionAlly, 1, 1)
+	ally.Acted = true
+	ally.SupportAttackChargesMax, ally.SupportDefendChargesMax = 2, 1
+	ally.SupportAttackCharges, ally.SupportDefendCharges = 0, 0
+	enemy := basicUnit(battle.FactionEnemy, 4, 4)
+	enemy.Acted = true
+	enemy.SupportAttackChargesMax, enemy.SupportAttackCharges = 1, 0
+	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
+
+	rotations := rotate(state.Battle{Content: &content, Values: &values})
+	after := values
+
+	assert.Equal(t, []int{2, 1}, []int{after.Units[0].SupportAttackCharges, after.Units[0].SupportDefendCharges})
+	assert.Equal(t, 0, after.Units[1].SupportAttackCharges, "the enemy keeps its spent charge")
+	require.Len(t, rotations, 1)
+	var restored *battle.Effect
+	for index := range rotations[0].Effects {
+		if rotations[0].Effects[index].UnitID == 0 {
+			restored = &rotations[0].Effects[index]
+		}
+	}
+	require.NotNil(t, restored)
+	assert.Equal(t, &battle.Change[int]{From: 0, To: 2}, restored.SupportAttackCharges)
+	assert.Equal(t, &battle.Change[int]{From: 0, To: 1}, restored.SupportDefendCharges)
 }
