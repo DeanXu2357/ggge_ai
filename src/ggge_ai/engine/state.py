@@ -157,8 +157,10 @@ class Mech:
 class Unit:
     """The current state of one pairing on the board.
 
-    The unit records the state and the maxima of the state. It takes no part in
-    a computation: the pilot and the mech carry the values that a formula reads.
+    The unit records the values of the moment and the maxima of the counts. The
+    pilot and the mech carry the base data, and the engine derives the maximum
+    of each pool from the base data at assembly, so no such maximum travels
+    here.
 
     The unit carries no id: the position of the unit in 'BattleState.units' is
     its id. map_weapon_ammo holds one count for each entry of mech.map_weapons,
@@ -171,11 +173,10 @@ class Unit:
     # cell. The engine holds the footprint rule (issue #61).
     size: Cell = (1, 1)
     hp: int = 1
-    max_hp: int = 1
     en: int = 0
-    en_max: int = 0
     sp: int = 0
-    sp_max: int = 0
+    mp: int = 0
+    move_range: int = 0
     pilot: Pilot = field(default_factory=Pilot)
     mech: Mech = field(default_factory=Mech)
     skills: list[Skill] = field(default_factory=list)

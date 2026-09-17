@@ -98,8 +98,8 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert unit.faction is Faction.ALLY
     assert unit.pos == (4, 7)
     assert unit.acted
-    assert (unit.hp, unit.max_hp) == (2400, 2400)
-    assert (unit.en, unit.en_max) == (180, 180)
+    assert (unit.hp, unit.mech.hp) == (2400, 2400)
+    assert (unit.en, unit.mech.en) == (180, 180)
     assert unit.mech.move_range == 5
     assert [weapon.name for weapon in unit.mech.weapons] == ["ビームライフル"]
     assert [weapon.name for weapon in unit.mech.map_weapons] == ["メガ粒子砲"]
@@ -178,8 +178,8 @@ def test_battlefield_dynamics_are_the_callers_to_supply():
 
     unit = intel.unit("unicorn", Faction.ALLY, hp=310, en=0)
 
-    assert (unit.hp, unit.max_hp) == (310, 2400)
-    assert (unit.en, unit.en_max) == (0, 180)
+    assert (unit.hp, unit.mech.hp) == (310, 2400)
+    assert (unit.en, unit.mech.en) == (0, 180)
 
 
 def test_the_json_round_trip_keeps_every_field_of_both_sections():

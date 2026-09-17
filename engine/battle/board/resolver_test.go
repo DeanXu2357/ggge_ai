@@ -45,9 +45,8 @@ func wireBoard() *battle.BattleState {
 				Pos:       battle.Cell{2, 3},
 				Size:      battle.Cell{2, 3},
 				HP:        8200,
-				MaxHP:     9000,
 				EN:        120,
-				ENMax:     180,
+				MoveRange: 4,
 				HasShield: true,
 				Acted:     true,
 				Skills: []battle.Skill{{
@@ -59,8 +58,7 @@ func wireBoard() *battle.BattleState {
 					UsableAfterMove: true,
 					Affects:         battle.AffectsAlly,
 				}},
-				SP:    30,
-				SPMax: 45,
+				SP: 30,
 				Pilot: battle.Pilot{
 					Ranged: 220, Melee: 180, Awaken: 240, Defense: 190, Reaction: 205, SP: 45,
 				},
@@ -93,9 +91,8 @@ func wireBoard() *battle.BattleState {
 				Pos:     battle.Cell{7, 7},
 				Size:    battle.Cell{1, 1},
 				HP:      5000,
-				MaxHP:   5000,
-				ENMax:   100,
-				SPMax:   100,
+				Mech:    battle.Mech{HP: 5000, EN: 100},
+				Pilot:   battle.Pilot{SP: 100},
 			},
 		},
 		Phase:         battle.FactionAlly,
@@ -126,14 +123,14 @@ func decodeFixtureState(t *testing.T) *Board {
 	return board
 }
 
-func TestInitRefusesAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
+func TestInitRefusesABaseThatThePayloadLeavesAtZero(t *testing.T) {
 	enemies := []battle.Unit{
-		{Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, ENMax: 180, SPMax: 15,
+		{Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1},
 			Mech: battle.Mech{HP: 9000, EN: 180}},
 	}
 
 	if _, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "", nil, enemies); err == nil {
-		t.Fatal("a maximum of zero opened the board")
+		t.Fatal("a base of zero opened the board")
 	}
 }
 
@@ -141,7 +138,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 	wire := &battle.BattleState{
 		Bounds: &battle.Bounds{{0, 0}, {4, 4}},
 		Phase:  battle.FactionAlly,
-		Units:  []battle.Unit{{Faction: battle.FactionAlly, HP: 1, MaxHP: 1, EN: 1, ENMax: 1, SPMax: 15}},
+		Units:  []battle.Unit{{Faction: battle.FactionAlly, HP: 1, EN: 1, Mech: battle.Mech{HP: 1, EN: 1}, Pilot: battle.Pilot{SP: 15}}},
 	}
 
 	board, err := restore(wire)
@@ -157,7 +154,7 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "ground",
 		[]battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "space"}},
-		[]battle.Unit{{Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, MaxHP: 10, ENMax: 10, SPMax: 15}})
+		[]battle.Unit{{Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, Mech: battle.Mech{HP: 10, EN: 10}, Pilot: battle.Pilot{SP: 15}}})
 	if err != nil {
 		t.Fatal(err)
 	}

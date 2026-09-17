@@ -104,6 +104,8 @@ type UnitValues struct {
 	HP                   int      `json:"hp"`
 	EN                   int      `json:"en"`
 	SP                   int      `json:"sp"`
+	MP                   int      `json:"mp"`
+	MoveRange            int      `json:"move_range"`
 	Acted                bool     `json:"acted"`
 	ChanceSteps          int      `json:"chance_steps"`
 	SupportAttackCharges int      `json:"support_attack_charges"`

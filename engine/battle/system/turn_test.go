@@ -40,8 +40,8 @@ func basicUnit(faction battle.Faction, x, y int) battle.Unit {
 	return battle.Unit{
 		Faction: faction,
 		Pos:     battle.Cell{x, y}, Size: battle.Cell{1, 1},
-		HP: 100, MaxHP: 100, EN: 100, ENMax: 140,
-		Mech: battle.Mech{MoveRange: 1}, Pilot: battle.Pilot{},
+		HP: 100, EN: 100,
+		Mech: battle.Mech{HP: 100, EN: 140, MoveRange: 1}, Pilot: battle.Pilot{SP: 15},
 	}
 }
 
@@ -141,7 +141,7 @@ func TestTheLastActivationOfTheEnemySideOpensTheNextTurn(t *testing.T) {
 func TestThePhaseStartRegeneratesTenPercentOfTheMaximumFloored(t *testing.T) {
 	ally := basicUnit(battle.FactionAlly, 1, 1)
 	ally.Acted = true
-	ally.EN, ally.ENMax = 10, 513
+	ally.EN, ally.Mech.EN = 10, 513
 	enemy := basicUnit(battle.FactionEnemy, 4, 4)
 	enemy.Acted = true
 	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)

@@ -26,7 +26,7 @@ func mustActions(t *testing.T, b *Board, id int) battle.ActionsResponse {
 
 func TestTheActionsCarryTheCellsTheUnitReaches(t *testing.T) {
 	mover := unitAt(battle.FactionAlly, battle.Cell{0, 0})
-	mover.Mech.MoveRange = 1
+	mover.Mech.MoveRange, mover.MoveRange = 1, 1
 	b := board(mover, unitAt(battle.FactionEnemy, battle.Cell{1, 0}))
 
 	out := mustActions(t, b, 0)
@@ -47,7 +47,7 @@ func TestTheActionsJudgeNoResourceAndNoBand(t *testing.T) {
 	costly.ENCost = 20
 	ally := unitAt(battle.FactionAlly, battle.Cell{0, 0})
 	ally.EN = 0
-	ally.MaxHP = ally.HP
+	ally.Mech.HP = ally.HP
 	ally.Mech.Weapons = []battle.Weapon{costly}
 	ally.Skills = []battle.Skill{{Kind: "skill_heal", Uses: 1}}
 	b := board(ally, unitAt(battle.FactionEnemy, battle.Cell{4, 4}))
@@ -91,7 +91,7 @@ func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 		Bounds: &bounds,
 		Phase:  battle.FactionAlly,
 		Units: []battle.Unit{{
-			Faction: battle.FactionAlly, HP: 10, MaxHP: 10, EN: 5, ENMax: 5, SPMax: 15,
+			Faction: battle.FactionAlly, HP: 10, EN: 5,
 			MapWeaponAmmo: []int{3},
 			Debuffs:       []battle.Debuff{{Kind: "defense", Magnitude: 0.1, AppliedPhase: 3}},
 			Skills:        []battle.Skill{{Kind: "boost", Amount: &amount, Uses: 1}},
@@ -246,8 +246,8 @@ var oneCell = battle.Cell{1, 1}
 
 func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
 	return battle.Unit{Faction: faction,
-		Pos: anchor, Size: oneCell, HP: 100, MaxHP: 100, EN: 100, ENMax: 100, SPMax: 15,
-		Mech: battle.Mech{}, Pilot: battle.Pilot{}}
+		Pos: anchor, Size: oneCell, HP: 100, EN: 100,
+		Mech: battle.Mech{HP: 100, EN: 100}, Pilot: battle.Pilot{SP: 15}}
 }
 
 func board(units ...battle.Unit) *Board {

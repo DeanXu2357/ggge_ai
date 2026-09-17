@@ -235,9 +235,11 @@ type Ability struct {
 	WeaponCategory  *WeaponCategory  `json:"weapon_category"`
 }
 
-// Unit is the current state of the pairing on the board. It holds the state
-// and the maxima of the state; the pilot and the mech hold the values that a
-// formula reads. ChanceSteps is the re-act grant after a kill
+// Unit is the current state of the pairing on the board. It holds the
+// values of the moment and the maxima of the counts; the pilot and the
+// mech hold the base data, and the engine derives the maximum of each
+// pool from the base data at assembly, so 'max_hp', 'en_max' and 'sp_max'
+// travel nowhere. ChanceSteps is the re-act grant after a kill
 // (docs/reference/combat-formulas.md:134), which counts no dice.
 //
 // The unit carries no id: the position of the unit in 'BattleState.Units' is
@@ -248,11 +250,10 @@ type Unit struct {
 	Pos                     Cell     `json:"pos"`
 	Size                    Cell     `json:"size"`
 	HP                      int      `json:"hp"`
-	MaxHP                   int      `json:"max_hp"`
 	EN                      int      `json:"en"`
-	ENMax                   int      `json:"en_max"`
 	SP                      int      `json:"sp"`
-	SPMax                   int      `json:"sp_max"`
+	MP                      int      `json:"mp"`
+	MoveRange               int      `json:"move_range"`
 	Pilot                   Pilot    `json:"pilot"`
 	Mech                    Mech     `json:"mech"`
 	Skills                  []Skill  `json:"skills"`

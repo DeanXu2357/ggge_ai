@@ -30,15 +30,15 @@ func scenarioDuel() state.Battle {
 	beamRifle := battle.Weapon{Name: "beam rifle", Power: 1800, RangeMin: 1, RangeMax: 3,
 		ENCost: 10, Accuracy: 5, UsableAfterMove: true}
 	pilot := battle.Pilot{Ranged: 220, Melee: 220, Awaken: 220, Defense: 190, Reaction: 205, SP: 15}
-	mech := battle.Mech{Attack: 4200, Defense: 3900, Mobility: 310, Weapons: []battle.Weapon{beamRifle}}
+	mech := battle.Mech{HP: 99000, EN: 140, Attack: 4200, Defense: 3900, Mobility: 310, Weapons: []battle.Weapon{beamRifle}}
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
 	content, values := assembled(battle.BattleState{
 		Bounds: &bounds, Phase: battle.FactionAlly, Turn: 1,
 		Units: []battle.Unit{
 			{Faction: battle.FactionAlly, Pos: battle.Cell{0, 0}, Size: battle.Cell{1, 1},
-				HP: 99000, MaxHP: 99000, EN: 140, ENMax: 140, SPMax: 15, Pilot: pilot, Mech: mech},
+				HP: 99000, EN: 140, Pilot: pilot, Mech: mech},
 			{Faction: battle.FactionEnemy, Pos: battle.Cell{3, 0}, Size: battle.Cell{1, 1},
-				HP: 99000, MaxHP: 99000, EN: 140, ENMax: 140, SPMax: 15, Pilot: pilot, Mech: mech},
+				HP: 99000, EN: 140, Pilot: pilot, Mech: mech},
 		},
 	})
 	return state.Battle{Content: &content, Values: &values}

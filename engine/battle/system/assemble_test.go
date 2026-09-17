@@ -16,8 +16,8 @@ func stage() battle.BattleState {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
 	unit := func(faction battle.Faction, x int) battle.Unit {
 		return battle.Unit{Faction: faction, Pos: battle.Cell{x, 0},
-			MaxHP: 100, ENMax: 50, SPMax: 20, ChanceStepsMax: 1,
-			SupportAttackChargesMax: 2, SupportDefendChargesMax: 3}
+			Mech: battle.Mech{HP: 100, EN: 50, MoveRange: 4}, Pilot: battle.Pilot{SP: 20},
+			ChanceStepsMax: 1, SupportAttackChargesMax: 2, SupportDefendChargesMax: 3}
 	}
 	enemy := unit(battle.FactionEnemy, 3)
 	enemy.Mech.MapWeapons = []battle.MapWeapon{{Name: "shells", AmmoMax: 4}}
@@ -30,7 +30,7 @@ func resumed() battle.BattleState {
 	s := stage()
 	for index := range s.Units {
 		u := &s.Units[index]
-		u.HP, u.EN, u.SP = 60, 25, 10
+		u.HP, u.EN, u.SP, u.MP, u.MoveRange = 60, 25, 10, 5, 3
 		u.ChanceSteps, u.SupportAttackCharges, u.SupportDefendCharges = 1, 1, 2
 		u.MapWeaponAmmo = make([]int, len(u.Mech.MapWeapons))
 	}
@@ -47,7 +47,7 @@ func TestAFreshBattleGivesEveryUnitItsDefaults(t *testing.T) {
 
 	require.NoError(t, err)
 	for id, unit := range values.Units {
-		assert.Equal(t, []int{100, 50, 20}, []int{unit.HP, unit.EN, unit.SP}, "unit %d fills its pools", id)
+		assert.Equal(t, []int{100, 50, 20, 0, 4}, []int{unit.HP, unit.EN, unit.SP, unit.MP, unit.MoveRange}, "unit %d fills its pools", id)
 		assert.Equal(t, []int{1, 2, 3}, []int{unit.ChanceSteps, unit.SupportAttackCharges, unit.SupportDefendCharges}, "unit %d fills its counts", id)
 		assert.False(t, unit.Acted)
 		assert.Empty(t, unit.Debuffs)
@@ -62,6 +62,8 @@ func TestAFreshBattleRefusesAStatedValue(t *testing.T) {
 		"hp":                     func(u *battle.Unit) { u.HP = 1 },
 		"en":                     func(u *battle.Unit) { u.EN = 1 },
 		"sp":                     func(u *battle.Unit) { u.SP = 1 },
+		"mp":                     func(u *battle.Unit) { u.MP = 1 },
+		"move_range":             func(u *battle.Unit) { u.MoveRange = 1 },
 		"acted":                  func(u *battle.Unit) { u.Acted = true },
 		"chance_steps":           func(u *battle.Unit) { u.ChanceSteps = 1 },
 		"support_attack_charges": func(u *battle.Unit) { u.SupportAttackCharges = 1 },
@@ -88,7 +90,7 @@ func TestAResumedBattleKeepsEveryValueAsGiven(t *testing.T) {
 
 	require.NoError(t, err)
 	enemy := values.Units[1]
-	assert.Equal(t, []int{60, 25, 10}, []int{enemy.HP, enemy.EN, enemy.SP})
+	assert.Equal(t, []int{60, 25, 10, 5, 3}, []int{enemy.HP, enemy.EN, enemy.SP, enemy.MP, enemy.MoveRange})
 	assert.Equal(t, []int{1, 1, 2}, []int{enemy.ChanceSteps, enemy.SupportAttackCharges, enemy.SupportDefendCharges})
 	assert.Equal(t, []int{2}, enemy.MapWeaponAmmo)
 	assert.Len(t, enemy.Debuffs, 1)
@@ -101,6 +103,8 @@ func TestAResumedBattleRefusesAValueOutsideItsMaximum(t *testing.T) {
 		"hp below zero":              func(u *battle.Unit) { u.HP = -1 },
 		"en above the maximum":       func(u *battle.Unit) { u.EN = 51 },
 		"sp above the maximum":       func(u *battle.Unit) { u.SP = 21 },
+		"mp above the maximum":       func(u *battle.Unit) { u.MP = 13 },
+		"move range above the max":   func(u *battle.Unit) { u.MoveRange = 5 },
 		"chance steps above the max": func(u *battle.Unit) { u.ChanceSteps = 2 },
 		"support attack above max":   func(u *battle.Unit) { u.SupportAttackCharges = 3 },
 		"support defend above max":   func(u *battle.Unit) { u.SupportDefendCharges = 4 },
@@ -120,16 +124,19 @@ func TestAResumedBattleRefusesAValueOutsideItsMaximum(t *testing.T) {
 	}
 }
 
-// A maximum of zero is a broken payload on both origins.
-func TestAssembleRefusesAUnitWhoseMaximumIsZero(t *testing.T) {
+// A base of zero is a broken payload on both origins: the maximum is
+// derived from it, and a maximum of zero is no pool.
+func TestAssembleRefusesAUnitWhoseBaseIsZero(t *testing.T) {
 	for name, tc := range map[string]struct {
 		origin Origin
 		edit   func(u *battle.Unit)
 	}{
-		"max HP, fresh":   {Fresh, func(u *battle.Unit) { u.MaxHP = 0 }},
-		"max EN, fresh":   {Fresh, func(u *battle.Unit) { u.ENMax = 0 }},
-		"max HP, resumed": {Resumed, func(u *battle.Unit) { u.MaxHP = 0 }},
-		"max EN, resumed": {Resumed, func(u *battle.Unit) { u.ENMax = 0 }},
+		"mech HP, fresh":    {Fresh, func(u *battle.Unit) { u.Mech.HP = 0 }},
+		"mech EN, fresh":    {Fresh, func(u *battle.Unit) { u.Mech.EN = 0 }},
+		"pilot SP, fresh":   {Fresh, func(u *battle.Unit) { u.Pilot.SP = 0 }},
+		"mech HP, resumed":  {Resumed, func(u *battle.Unit) { u.Mech.HP = 0 }},
+		"mech EN, resumed":  {Resumed, func(u *battle.Unit) { u.Mech.EN = 0 }},
+		"pilot SP, resumed": {Resumed, func(u *battle.Unit) { u.Pilot.SP = 0 }},
 	} {
 		t.Run(name, func(t *testing.T) {
 			candidate := stage()
@@ -178,20 +185,25 @@ func TestAssembleFillsWhatTheWireLeavesOut(t *testing.T) {
 	assert.Equal(t, battle.Cell{1, 1}, content.Units[0].Size, "a size of zero becomes one")
 }
 
-// The move range has a maximum and a value like HP: the maximum is content,
-// derived at assembly from the mech, and the value is what a rule reads and
-// may write. The contract object carries no value of it yet, so both origins
-// fill the value from the maximum.
-func TestAssemblyDerivesTheMoveRangeOfEveryUnitFromItsMech(t *testing.T) {
+// Every maximum of the content is derived from the base data at assembly,
+// on both origins; the payload states none.
+func TestAssemblyDerivesTheMaximaFromTheBaseData(t *testing.T) {
 	s := stage()
-	s.Units[0].Mech.MoveRange, s.Units[1].Mech.MoveRange = 5, 7
+	s.Units[1].Mech.HP, s.Units[1].Mech.EN, s.Units[1].Pilot.SP, s.Units[1].Mech.MoveRange = 7000, 90, 30, 7
 
 	for name, origin := range map[string]Origin{"fresh": Fresh, "resumed": Resumed} {
 		t.Run(name, func(t *testing.T) {
-			content, values, err := Assemble(s, origin)
+			candidate := s
+			if origin == Resumed {
+				candidate = resumed()
+				candidate.Units[1].Mech.HP, candidate.Units[1].Mech.EN = 7000, 90
+				candidate.Units[1].Pilot.SP, candidate.Units[1].Mech.MoveRange = 30, 7
+			}
+			content, _, err := Assemble(candidate, origin)
 			require.NoError(t, err)
-			assert.Equal(t, []int{5, 7}, []int{content.Units[0].MoveRange, content.Units[1].MoveRange})
-			assert.Equal(t, []int{5, 7}, []int{values.Units[0].MoveRange, values.Units[1].MoveRange})
+			unit := content.Units[1]
+			assert.Equal(t, []int{7000, 90, 30, 7, 0},
+				[]int{unit.MaxHP, unit.ENMax, unit.SPMax, unit.MoveRange, unit.MPInitial})
 		})
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
 
+// FromContract carries no maximum of a pool: the assembly derives it from
+// the base data.
 func FromContract(s battle.BattleState) (Content, Values, error) {
 	content := Content{
 		Units:        make([]UnitContent, len(s.Units)),
@@ -38,9 +40,6 @@ func fromContractUnit(u battle.Unit) (UnitContent, UnitValue, error) {
 	content := UnitContent{
 		Faction:                 u.Faction,
 		Size:                    u.Size,
-		MaxHP:                   u.MaxHP,
-		ENMax:                   u.ENMax,
-		SPMax:                   u.SPMax,
 		ChanceStepsMax:          u.ChanceStepsMax,
 		SupportDefendChargesMax: u.SupportDefendChargesMax,
 		SupportAttackChargesMax: u.SupportAttackChargesMax,
@@ -54,6 +53,8 @@ func fromContractUnit(u battle.Unit) (UnitContent, UnitValue, error) {
 		HP:                   u.HP,
 		EN:                   u.EN,
 		SP:                   u.SP,
+		MP:                   u.MP,
+		MoveRange:            u.MoveRange,
 		Acted:                u.Acted,
 		ChanceSteps:          u.ChanceSteps,
 		SupportDefendCharges: u.SupportDefendCharges,
@@ -95,11 +96,10 @@ func toContractUnit(u Unit) battle.Unit {
 		Pos:                     u.Value.Pos,
 		Size:                    u.Size,
 		HP:                      u.Value.HP,
-		MaxHP:                   u.MaxHP,
 		EN:                      u.Value.EN,
-		ENMax:                   u.ENMax,
 		SP:                      u.Value.SP,
-		SPMax:                   u.SPMax,
+		MP:                      u.Value.MP,
+		MoveRange:               u.Value.MoveRange,
 		Pilot:                   toContractPilot(u.Pilot, u.Value.PilotAbilities),
 		Mech:                    toContractMech(u.Mech, u.Value.MechAbilities),
 		Skills:                  mapSlice(u.Value.Skills, toContractSkill),

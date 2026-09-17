@@ -27,11 +27,20 @@ func pair(units ...battle.Unit) (state.Content, state.Values) {
 		Phase: battle.FactionAlly, Turn: 1})
 }
 
-// A test board takes the content of its units as they are, with no
-// judgment of the values, and derives the unit the way 'Assemble' does.
+// A test board takes the values of its units as they are, with no judgment,
+// derives the content the way 'Assemble' does, and gives every unit its
+// full move range unless the unit states one.
 func assembled(s battle.BattleState) (state.Content, state.Values) {
-	content, values, _ := state.FromContract(s)
-	assembleContent(&content, &values)
+	content, values, err := state.FromContract(s)
+	if err != nil {
+		panic(err)
+	}
+	assembleContent(&content)
+	for index := range values.Units {
+		if values.Units[index].MoveRange == 0 {
+			values.Units[index].MoveRange = content.Units[index].MoveRange
+		}
+	}
 	return content, values
 }
 
@@ -46,8 +55,8 @@ func rifle(name string, rangeMin, rangeMax int) battle.Weapon {
 
 func fighter(faction battle.Faction, anchor battle.Cell) battle.Unit {
 	out := unitAt(faction, anchor)
-	out.HP, out.MaxHP = 12000, 12000
-	out.EN, out.ENMax = 140, 140
+	out.HP, out.Mech.HP = 12000, 12000
+	out.EN, out.Mech.EN = 140, 140
 	out.Mech.Attack, out.Mech.Defense = 4200, 3900
 	out.Pilot.Ranged, out.Pilot.Melee, out.Pilot.Awaken = 220, 220, 220
 	out.Pilot.Defense = 190

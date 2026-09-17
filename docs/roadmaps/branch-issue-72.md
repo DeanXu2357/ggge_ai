@@ -140,8 +140,8 @@ issue #80).
 | battle.Weapon (wire) | attributes ('physical', 'beam', 'special'); 'def.Weapon.Attributes' and 'battle.WeaponAttribute' exist, the wire field waits |
 | battle.Unit (wire) | mp |
 | def.Mech, def.Pilot, def.Weapon | the same facts |
-| state.UnitContent | MoveRange (filled at assembly), Abilities |
-| state.UnitValue | MP |
+| state.UnitContent | MoveRange, MPInitial (derived at assembly; done) |
+| state.UnitValue | MoveRange, MP (done); the lines (done) |
 
 The Python mirror ('src/ggge_ai/engine/state.py', the codec, the
 mirror test) gains the same fields in the same commit as the wire,
@@ -482,13 +482,13 @@ The order of the work, each step one commit:
        'ToContract' writes them back; nothing removed. Scenario: a
        payload with the Advantage pair assembled on either origin
        strikes as the 'SetAbilities' scenario does.
-   1b. The derived maxima (version 2.2): 'max_hp', 'en_max' and
-       'sp_max' leave 'battle.Unit', 'Assemble' derives them from
-       'mech.hp', 'mech.en' and 'pilot.sp'; 'mp' and 'move_range'
-       join 'battle.Unit' as values (a fresh battle refuses them
-       stated, a resumed one judges them against the maximum); the
-       resumed judgment moves after the derivation; the goldens fill
-       'pilot.sp' with 15.
+   1b. The derived maxima (done, version 2.2): 'max_hp', 'en_max'
+       and 'sp_max' leave 'battle.Unit', 'Assemble' derives them
+       from 'mech.hp', 'mech.en' and 'pilot.sp'; 'mp' and
+       'move_range' join 'battle.Unit' as values (a fresh battle
+       refuses them stated, a resumed one judges them against the
+       maximum); the resumed judgment moves after the derivation;
+       the goldens fill 'pilot.sp' with 15.
    1c. The count lines (version 2.3): 'ability.AssembleContext' and
        'OnAssemble'; 'support_attack_plus', 'support_defend_plus',
        'chance_step_plus'; 'support_attack_charges_max',
@@ -640,3 +640,10 @@ when a wire key lands, and then in the same commit.
   before the commit: the user drew the line between the contract
   shape and an ability implementation, and step 1 became three
   commits. The bases of the counts are 0, 0 and 1 (user).
+- 2026-09-17: step 1b, the derived maxima, version 2.2. 'Assemble'
+  runs 'FromContract', then 'assembleContent', then the judgment of
+  the origin on the two columns; 'openNewBattle' and
+  'resumeBattle' read 'state.Unit' and never the payload. The
+  goldens and the server test payloads carry the base data; the
+  producer 'UnitIntel.to_unit' writes 'pilot.sp' and the
+  'move_range' value.

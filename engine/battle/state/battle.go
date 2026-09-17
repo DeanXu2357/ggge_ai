@@ -63,6 +63,8 @@ func (b Battle) UnitValues(id int) battle.UnitValues {
 		HP:                   u.Value.HP,
 		EN:                   u.Value.EN,
 		SP:                   u.Value.SP,
+		MP:                   u.Value.MP,
+		MoveRange:            u.Value.MoveRange,
 		Acted:                u.Value.Acted,
 		ChanceSteps:          u.Value.ChanceSteps,
 		SupportAttackCharges: u.Value.SupportAttackCharges,

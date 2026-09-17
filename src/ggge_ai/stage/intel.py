@@ -171,16 +171,15 @@ class UnitIntel:
             faction=faction,
             pos=pos,
             hp=self.max_hp if hp is None else hp,
-            max_hp=self.max_hp,
             en=self.en_max if en is None else en,
-            en_max=self.en_max,
-            sp_max=SP_MAX,
+            move_range=self.move_range,
             pilot=Pilot(
                 ranged=attack,
                 melee=attack,
                 awaken=attack,
                 defense=self.pilot_defense,
                 reaction=self.reaction,
+                sp=SP_MAX,
             ),
             mech=Mech(
                 hp=self.max_hp,

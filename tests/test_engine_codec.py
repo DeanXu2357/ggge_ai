@@ -209,16 +209,15 @@ def _board() -> tuple[BattleState, EventTable]:
         faction=Faction.ALLY,
         pos=(1, 2),
         hp=8000,
-        max_hp=9000,
         en=40,
-        en_max=80,
+        move_range=4,
         mech=Mech(hp=9000, en=80, move_range=4, weapons=[weapon], map_weapons=[area]),
         pilot=Pilot(ranged=220.0, melee=180.0, awaken=240.0, defense=190.0, reaction=205.0, sp=45),
         skills=[skill],
         map_weapon_ammo=[2],
         debuffs=[Debuff(kind="attack", magnitude=0.2, applied_phase=3)],
     )
-    foe = Unit(faction=Faction.ENEMY, pos=(5, 2), hp=7000, max_hp=7000)
+    foe = Unit(faction=Faction.ENEMY, pos=(5, 2), hp=7000, mech=Mech(hp=7000))
     state = BattleState(units=[unit, foe], phase=Faction.ALLY, turn=2, bounds=((0, 0), (7, 7)))
     events = {
         "e1": StageEvent(

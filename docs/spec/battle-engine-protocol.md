@@ -253,8 +253,9 @@ every server draw of the session reads that source.
 
 The board opens at turn 1 in the ally phase with the enemies on it.
 An enemy of 'init' is content and a cell: its pools open full
-('hp' = 'max_hp', 'en' = 'en_max', 'sp' = 'sp_max'), its counts at
-their maxima ('chance_steps', 'support_attack_charges',
+('hp' at 'mech.hp', 'en' at 'mech.en', 'sp' at 'pilot.sp',
+'move_range' at 'mech.move_range', 'mp' at 0), its counts at their
+maxima ('chance_steps', 'support_attack_charges',
 'support_defend_charges'), the ammunition of each map weapon at
 'ammo_max', no debuff, not acted. A payload of 'init' that states
 one of those values is a bad_request: the stage gives no state
@@ -898,21 +899,30 @@ rule may read such an 'apply_shape' as the caster rule above.
 A unit is a pilot that rides a mech, on the board of one stage. The
 payload keeps the three apart (user ruling 2026-08-28).
 
-The unit is the current state of the pairing. It records state and
-the maxima of state, and it takes no part in a computation:
+The unit is the current state of the pairing. It records the values
+of the moment and the maxima of the counts, and it takes no part in
+a computation:
 
 | Field | Content |
 |---|---|
-| hp, max_hp | The hit points now, and their maximum |
-| en, en_max | The energy now, and its maximum |
-| sp, sp_max | The skill points of the pilot now, and their maximum |
+| hp, en, sp | The hit points, the energy and the skill points now |
+| mp | The MP now, 0 to 12 (issue #54 owns the system; no rule reads it yet) |
+| move_range | The movement range now (no rule writes it yet) |
 | pos, size, acted, the charge counters, map_weapon_ammo, debuffs, skills | The board state, as before |
 | pilot | The pilot, as data |
 | mech | The mech, as data |
 
-The unit carries no attack, no defense, no mobility, no movement
-range and no weapon list of its own. A rule that needs one of them
-reads the pilot or the mech.
+The maximum of a pool travels nowhere (version 2.2, user ruling
+2026-09-17): the engine derives it at assembly from the base data,
+'max_hp' from 'mech.hp', 'en_max' from 'mech.en', 'sp_max' from
+'pilot.sp' and the maximum of 'move_range' from 'mech.move_range',
+on 'init' and on 'load' alike, and a value of the payload is judged
+against the derived maximum. A second assembly of an exported state
+derives the same content, because the export writes the base data
+and the values and never a derived number. The reader sees the
+derived maxima in the unit status of 'actions'. The unit carries no
+attack, no defense, no mobility and no weapon list of its own. A
+rule that needs one of them reads the pilot or the mech.
 
 The three maxima 'support_attack_charges_max',
 'support_defend_charges_max' and 'chance_steps_max' are state of
@@ -974,13 +984,14 @@ of the weapon; a weapon with no category reads the highest of the
 three (user ruling 2026-08-28). Go: 'WeaponCategory',
 'Pilot.AttackFor'.
 
-A unit whose 'max_hp' or 'en_max' is 0 is refused at 'init' and at
-'load': a maximum of zero is a broken payload, not a value to fill
-(user ruling 2026-09-15; it retires the fill from the mech of
-2026-08-28). 'sp_max' is judged the same way. The SP pool of every
-pilot is 15, and a skill costs the SP its pilot skill states (user,
-first hand, 2026-09-15); no rule of this version spends SP, and the
-wire skill carries no cost yet. The abilities of the pilot and of the
+A unit whose 'mech.hp', 'mech.en' or 'pilot.sp' is 0 is refused at
+'init' and at 'load': a base of zero is a broken payload, not a
+value to fill (user ruling 2026-09-15 on the maxima, restated for
+the base data on 2026-09-17; it retires the fill from the mech of
+2026-08-28). The SP pool of every pilot is 15, and a skill costs
+the SP its pilot skill states (user, first hand, 2026-09-15); no
+rule of this version spends SP, and the wire skill carries no cost
+yet. The abilities of the pilot and of the
 mech do not enter the maxima yet; issue #77 owns that derivation.
 
 This section replaces the reading of 2026-08-21 that the unit
@@ -1198,3 +1209,12 @@ difference between two integers is 1.
   'abilities' on the mech, with the new ability payload. A 2.0
   payload decodes as a 2.1 payload with the lists empty and the
   type 0.
+- A tenth exception on record: version 2.2 (2026-09-17, issue #72)
+  removed 'max_hp', 'en_max' and 'sp_max' from the unit payload and
+  added the values 'mp' and 'move_range', on the user ruling that
+  the content of a unit is derived from the base data and the lines
+  at every assembly and no derived number travels. The section "The
+  unit, the pilot and the mech" holds the derivation. A 2.1 payload
+  whose base data is filled loads as a 2.2 payload once the three
+  keys are dropped; a payload that left 'mech.hp', 'mech.en' or
+  'pilot.sp' at zero was a defect and is refused.

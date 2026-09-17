@@ -75,9 +75,9 @@ func TestTheHandleOfAUnitPointsAtTheTwoColumns(t *testing.T) {
 		t.Fatalf("unit: %v", err)
 	}
 	unit.Value.HP = 404
-	unit.MaxHP = 404
+	unit.Mech.HP = 404
 
-	if values.Units[0].HP != 404 || content.Units[0].MaxHP != 404 {
+	if values.Units[0].HP != 404 || content.Units[0].Mech.HP != 404 {
 		t.Errorf("a write through the handle reached no column: %+v %+v",
 			content.Units[0], values.Units[0])
 	}
