@@ -988,6 +988,66 @@ conditions it does not, is refused at 'init' and at 'load'
 ('outside_contract'): no line is carried and read by nothing. Go:
 'battle.Ability', 'lines.FromContract'.
 
+The lines the engine models, from the 112 trait rows of the ten UR
+mechs and their ten pilots of the sample store
+(docs/reference/datamine-samples/202608161248; the mapping of
+'trait_type' to kind is in docs/reference/datamine-source.md). A
+row is one shape, the kind with the conditions it carries; the
+count is the number of lines of that shape in the sample. A shape
+with no Go type is carried and read by nothing.
+
+| Side | Kind | Conditions | Lines | Example | Go type |
+|---|---|---|---|---|---|
+| mech | 'accuracy_percent' | — | 2 | Psycho-Frame LV 1 | 'lines.AccuracyPercent' |
+| mech | 'damage_taken_percent' | 'weapon_attribute' | 1 | Physical Damage Reduced LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttribute' |
+| mech | 'damage_taken_percent' | 'weapon_attribute', 'weapon_category' | 3 | I-Field LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttributeAndCategory' |
+| mech | 'evasion_percent' | — | 4 | Increased EVA LV 1 | 'lines.EvasionPercent' |
+| mech | 'max_en_percent' | — | 2 | Increased Max EN LV 3 | 'lines.MaxENPercent' |
+| mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | 'lines.MaxHPPercent' |
+| mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | 'lines.MechAttackPercent' |
+| mech | 'mech_attack_percent' | 'enemy_tag' | 2 | Advantage: Principality of Zeon LV 1 | 'lines.MechAttackPercentAgainstTag' |
+| mech | 'mech_attack_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased ATK LV 3 | 'lines.MechAttackPercentAtHPRateAtMost' |
+| mech | 'mech_attack_percent' | vigor (not on the wire) | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | none; issue #54 |
+| mech | 'mech_defense_percent' | — | 1 | Increased DEF LV 3 | 'lines.MechDefensePercent' |
+| mech | 'mech_defense_percent' | 'enemy_tag' | 2 | Advantage: EFSF (U.C.) LV 1 | 'lines.MechDefensePercentAgainstTag' |
+| mech | 'mech_defense_percent' | 'hp_rate_gte' | 1 | (HP conditions) Increased DEF LV 2 | 'lines.MechDefensePercentAtHPRateAtLeast' |
+| mech | 'mech_defense_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased DEF LV 2 | 'lines.MechDefensePercentAtHPRateAtMost' |
+| mech | 'mech_mobility_percent' | — | 2 | Increased MOB LV 1 | 'lines.MechMobilityPercent' |
+| mech | 'mech_mobility_percent' | vigor (not on the wire) | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | none; issue #54 |
+| mech | 'move_range_plus' | 'pilot_tag' | 1 | (Cnd: Tag) Increased MOV LV 1 | 'lines.MoveRangePlusOnPilotTag' |
+| mech | 'special_weapon_range_plus' | vigor (not on the wire) | 1 | (Cnd: Vigor) Special Weapon Max Range Up LV 1 | none; issue #54 |
+| pilot | 'damage_dealt_percent' | — | 4 | Increased Damage Dealt LV 3 | 'lines.DamageDealtPercent' |
+| pilot | 'damage_dealt_percent' | 'enemy_tag' | 1 | EX Character Ability (Amuro Ray) | 'lines.DamageDealtPercentAgainstTag' |
+| pilot | 'damage_dealt_percent' | 'mech_tag' | 8 | EX Character Ability | 'lines.DamageDealtPercentOnMechTag' |
+| pilot | 'damage_taken_percent' | 'enemy_tag' | 1 | EX Character Ability (Amuro Ray) | 'lines.DamageTakenPercentAgainstTag' |
+| pilot | 'damage_taken_percent' | 'mech_tag' | 8 | EX Character Ability | 'lines.DamageTakenPercentOnMechTag' |
+| pilot | 'debuff_effect_percent' | a mech id (not on the wire) | 1 | EX Character Ability (Kou Uraki) | none; issue #80 |
+| pilot | 'hp_supply_percent' | a mech id (not on the wire) | 1 | EX Character Ability (Oliver May) | none; issue #79 |
+| pilot | 'mech_attack_percent' | 'mech_type', 'strike_role' support_attack | 1 | (When supporting) Increased ATK LV 5 | 'lines.MechAttackPercentOnSupportWithMechType' |
+| pilot | 'mech_defense_percent' | 'mech_type', 'strike_role' support_defense | 3 | Support Defense LV 4 | 'lines.MechDefensePercentOnSupportDefenseWithMechType' |
+| pilot | 'mech_defense_percent' | 'strike_role' support_defense | 1 | EX Character Ability (Amuro Ray) | 'lines.MechDefensePercentOnSupportDefense' |
+| pilot | 'mp_plus' | 'mech_tag' | 2 | EX Character Ability | 'lines.MPPlusOnMechTag' |
+| pilot | 'pilot_awaken_percent' | — | 5 | Newtype LV 4 | 'lines.PilotAwakenPercent' |
+| pilot | 'pilot_defense_percent' | — | 5 | Increased Defense LV 1 | 'lines.PilotDefensePercent' |
+| pilot | 'pilot_melee_percent' | — | 3 | Increased Melee LV 1 | 'lines.PilotMeleePercent' |
+| pilot | 'pilot_ranged_percent' | — | 7 | Increased Ranged LV 1 | 'lines.PilotRangedPercent' |
+| pilot | 'pilot_reaction_percent' | — | 4 | Newtype LV 4 | 'lines.PilotReactionPercent' |
+| pilot | 'revive_once' | a mech id (not on the wire) | 2 | EX Character Ability (Char Aznable) | none |
+| pilot | 'squad_attack_percent_per_member' | a mech id (not on the wire) | 2 | EX Character Ability (Io Fleming) | none |
+| pilot | 'squad_grant' | a mech id (not on the wire) | 4 | EX Character Ability (Oliver May) | none |
+| pilot | 'support_attack_plus' | — | 6 | Support Attack / Counter Support LV 4 | 'lines.SupportAttackPlus' |
+| pilot | 'support_defend_plus' | — | 5 | Support Defense LV 4 | 'lines.SupportDefendPlus' |
+| pilot | 'weapon_en_cost_percent' | 'mech_type', 'strike_role' support_attack | 2 | Support Attack / Counter Support LV 4 | 'lines.WeaponENCostPercentOnSupportWithMechType' |
+
+Facts of the sample the table holds: a line carries at most two
+conditions; every line carries one tag id at most, so a line type
+holds one tag and not a list (user ruling 2026-09-14); the two
+halves of an "Advantage" pair both read the tag of the other unit
+of the strike; "One-Shot Killer" is a tag of the mech (id 1082 on
+Gouf Custom (EX)), not a line. The 13 lines with no Go type are the
+three vigor lines (issue #54 owns the tier) and the ten lines that
+need a squad model, a wound moment or a mech id condition.
+
 A weapon carries 'categories', a list over 'ranged', 'melee' and
 'awaken', null when the producer knows no category. The pilot
 attack of a strike is the highest pilot value among the categories
