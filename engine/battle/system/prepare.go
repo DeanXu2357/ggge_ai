@@ -102,9 +102,10 @@ func prepareAttack(board state.Battle, decision battle.Decision, actor unit) (pl
 		return plan{}, err
 	}
 	target := unitOf(board, targetID)
+	who := cast{actorID: decision.UnitID, targetID: targetID}
 	weaponID := *decision.WeaponID
 	weapon := weaponOf(actor, weaponID)
-	if !hasENFor(actor, *weapon) {
+	if !hasENFor(actor, who.part(decision.UnitID), weapon) {
 		return plan{}, fmt.Errorf("%w: unit %d cannot pay for the weapon %q",
 			battle.ErrIllegalAction, decision.UnitID, weapon.Name)
 	}

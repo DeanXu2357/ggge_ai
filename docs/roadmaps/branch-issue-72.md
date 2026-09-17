@@ -186,9 +186,16 @@ the order of the lines.
         MechDefensePercent, MechMobilityPercent   float64
         PilotDefensePercent, PilotReactionPercent float64
     }
+    type WeaponCostContext struct {              // what one weapon costs its shooter
+        Shooter Unit
+        Weapon  *def.Weapon
+
+        ENCostPercent float64
+    }
     type AttackHook func(a *AttackContext)
     type DefendHook func(d *DefendContext)
-    type Hooks struct { OnAttack []AttackHook; OnDefend []DefendHook }
+    type WeaponCostHook func(w *WeaponCostContext)
+    type Hooks struct { OnAttack []AttackHook; OnDefend []DefendHook; OnWeaponCost []WeaponCostHook }
 
 The cast of an exchange. 'system.cast' holds the actor and its
 target, settled one time when the exchange is scheduled; every other
@@ -250,12 +257,20 @@ measurement that would refute this.
 |---|---|---|---|
 | Attack | 'attackerSide' in 'system/strike.go', for every damage, hit rate and forecast | mech attack, mobility, pilot ranged, melee, awaken %; damage dealt % into ⑨; accuracy in points of the hit rate | EN cost; range |
 | Defend | 'defenderSide', same | mech defense, mobility, pilot defense, reaction %; damage taken % into ⑨ with the debuffs; evasion in points of the hit rate | — |
+| Weapon cost | 'enCostOf' in 'system/model.go', for the menu, the schedule and the write of a strike | EN cost % | — (the reach is its own moment when a line needs it) |
 | assembly (not built) | 'system.Assemble' | — | max HP, max EN, support attack, support defend, chance step, move, MP; the MP hook clamps to 'MPMax' itself. Only for what happens one time when the unit enters; a stat percent is never an assembly line |
 | phase start (not built) | 'beginPhase' in 'system/turn.go' | — | none in the sample |
 
 Legality (EN cost, reach) is read at the schedule by the same
 function that the settlement reads it with; the strike struct holds
-identities only and no number (ruling 2026-09-14).
+identities only and no number (ruling 2026-09-14). The cost is
+'enCostOf': the weapon cost context of the shooter, with the part
+the caller reads from the cast, and one 'scaled' of the base cost.
+'canFire' (the cost and the reach, with its reason) and the write of
+a strike read it, so a supporter that a line lets pay is offered by
+the menu, accepted by the schedule and charged the same cost. A
+reader takes a part and not the cast: who is who is settled outside
+the legality check (ruling 2026-09-17).
 
 ## Section 3. The scenarios
 
@@ -304,9 +319,15 @@ the kinds it needs:
    its holder and a line on 'enemy_tags' the mech of the other unit;
    damage dealt +15% with damage taken -15% is the plain strike
    (1 + 0.15 - 0.15), which two multiplications would not give.
-6. The support-role EN discount applies to the supporter alone and
-   the write spends the discounted cost; the counter reads its cost
-   and its reach at the moment it fires.
+6. The EN cost line (green): the support strike of the supporter
+   with the line spends the discounted cost, and the same line on
+   the actor or on a supporter of another mech type spends the full
+   cost; a supporter that can pay the discounted cost and not the
+   full one is offered by the menu and accepted by the schedule with
+   the line, and neither without it. The discounted cost is
+   'scaled' of the base, floored (10 at -20% is 8); that the game
+   floors a fraction is a hypothesis, no weapon of the sample
+   produces one.
 7. 'special_weapon_range_plus' on 'vigor_min': the menu, the
    response attack options and the counter pick all reach one cell
    farther; the actions list shows the reach.
@@ -399,7 +420,7 @@ docs/reference/datamine-source.md on 88b5e8c.
 | pilot | 'squad_grant' | 'mech_ids' | 4 | EX Character Ability (Oliver May) | not read |
 | pilot | 'support_attack_plus' | — | 6 | Support Attack / Counter Support LV 4 | |
 | pilot | 'support_defend_plus' | — | 5 | Support Defense LV 4 | |
-| pilot | 'weapon_en_cost_percent' | 'mech_type', 'strike_roles' | 2 | Support Attack / Counter Support LV 4 | |
+| pilot | 'weapon_en_cost_percent' | 'mech_type', 'strike_roles' | 2 | Support Attack / Counter Support LV 4 | 'lines.WeaponENCostPercentOnSupportWithMechType', scenario 6 |
 
 Facts the table shows:
 
@@ -428,20 +449,20 @@ every row of it is ticked in Section 4.
 | Group | Lines | Rows | Mechanism | Status |
 |---|---|---|---|---|
 | A0 Advantage | ATK and DEF % against an enemy tag | 4 | the strike hooks | done, scenario 1 |
-| A1 Unconditional stat % | mech ATK/DEF/MOB, pilot ranged/melee/awaken/defense/reaction | 45 | the strike hooks, every stat slot | done, scenario 12 |
+| A1 Unconditional stat % | mech ATK/DEF/MOB, pilot ranged/melee/awaken/defense/reaction | 32 | the strike hooks, every stat slot | done, scenario 12 |
 | A2 HP conditions | ATK % at HP ≤ 25, DEF % at HP full, DEF % at HP ≤ 50 | 3 | none new; scenario 3 pins that each strike reads the HP of its moment | done, scenario 3 |
 | A5 Weapon conditions | I-Field, physical damage reduced | 4 | 'def.Weapon.Attributes'; the slot 'DamageTakenPercent' of ⑨ | done, scenario 4 |
 | A3 Damage lines | damage dealt +%, dealt and taken on the mech tag of the holder, dealt and taken against an enemy tag | 22 | the slot 'DamageDealtPercent' of ⑨; ⑨ is one sum of both sides and the debuffs (reference, line 29) | done, scenario 5 |
 | A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | done, scenario 13 |
 | A6 Part conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Part' on the unit view from the cast of the exchange; 'def.MechType' | done, scenario 2 |
-| B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | |
+| B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | EN cost done, scenario 6; the range line moves to F |
 | C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | an assembly hook in 'system.Assemble'; 'def.Pilot.Tags'; the lines must reach the unit before it enters, so the wire or a Go door for 'place' comes first; the relation to an explicit maximum of the payload (issue #77) | |
-| F Vigor | ATK and MOB % at vigor | 2 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54 | |
+| F Vigor | ATK and MOB % at vigor, special weapon range +1 at vigor | 3 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54; the range line needs a reach moment beside the cost | |
 | D Wound | revive once | 2 | a wound hook after the HP write and before the kill; the line keeps its own flag | not read |
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
 | — | HP supply %, debuff effect % | 2 | issues #79 and #80 | not read |
 
-Rows done: 89 of 112; to do: 13; not read: 10.
+Rows done: 78 of 112; to do: 24 (C 21, F 3); not read: 10. The count of A1 read 45 until 2026-09-16; the rows of Section 4 give 32.
 
 ## Gates
 
@@ -527,3 +548,10 @@ when a wire key lands, and then in the same commit.
   no line reads; parts recomputed from ids at every reader gave the
   menu a second copy of the rule. All three were withdrawn. The
   debuffs moved onto the unit view, so ⑨ reads the contexts alone.
+- 2026-09-17: the EN cost line and scenario 6; the weapon cost
+  moment ('WeaponCostContext', 'OnWeaponCost') and the one cost
+  reader 'enCostOf', which the menu, the schedule and the write of a
+  strike read with the part from the cast. 'fires' and the schedule's
+  'canFire' merged into one 'canFire' on a part and a distance. The
+  range line of group B joins group F: it waits for MP like the
+  vigor lines.

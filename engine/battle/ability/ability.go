@@ -87,9 +87,20 @@ type DefendContext struct {
 	EvasionPercent float64
 }
 
+type WeaponCostContext struct {
+	Shooter Unit
+	Weapon  *def.Weapon
+
+	// ENCostPercent is the signed change of the EN cost: -20 is a fifth
+	// less.
+	ENCostPercent float64
+}
+
 type AttackHook func(a *AttackContext)
 
 type DefendHook func(d *DefendContext)
+
+type WeaponCostHook func(w *WeaponCostContext)
 
 type AttackUnitHook interface {
 	OnAttack(a *AttackContext)
@@ -99,10 +110,15 @@ type DefendUnitHook interface {
 	OnDefend(d *DefendContext)
 }
 
+type WeaponCostUnitHook interface {
+	OnWeaponCost(w *WeaponCostContext)
+}
+
 // Hooks is the chains of one unit. A chain runs in the order of the lines.
 type Hooks struct {
-	OnAttack []AttackHook
-	OnDefend []DefendHook
+	OnAttack     []AttackHook
+	OnDefend     []DefendHook
+	OnWeaponCost []WeaponCostHook
 }
 
 // HooksOf binds the hook methods of the lines. The chains point at these
@@ -115,6 +131,9 @@ func HooksOf(lines []Line) Hooks {
 		}
 		if hook, acts := line.(DefendUnitHook); acts {
 			h.OnDefend = append(h.OnDefend, hook.OnDefend)
+		}
+		if hook, acts := line.(WeaponCostUnitHook); acts {
+			h.OnWeaponCost = append(h.OnWeaponCost, hook.OnWeaponCost)
 		}
 	}
 	return h
@@ -140,5 +159,11 @@ func (h Hooks) Attack(a *AttackContext) {
 func (h Hooks) Defend(d *DefendContext) {
 	for _, hook := range h.OnDefend {
 		hook(d)
+	}
+}
+
+func (h Hooks) WeaponCost(w *WeaponCostContext) {
+	for _, hook := range h.OnWeaponCost {
+		hook(w)
 	}
 }

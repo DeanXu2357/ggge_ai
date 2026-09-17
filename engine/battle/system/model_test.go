@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
@@ -28,7 +29,7 @@ func TestAUnitHoldsTheENOfAWeaponWhenItCoversTheCost(t *testing.T) {
 				Value: &state.UnitValue{HP: 100, EN: one.en}}
 			weapon := def.Weapon{Name: "beam rifle", ENCost: one.cost}
 
-			if got := hasENFor(u, weapon); got != one.want {
+			if got := hasENFor(u, ability.PartAttacker, &weapon); got != one.want {
 				t.Fatalf("EN %d against the cost %d: %v, want %v",
 					one.en, one.cost, got, one.want)
 			}
@@ -42,12 +43,12 @@ func TestTheENOfAShotComesFromThePanelAndNotFromTheMech(t *testing.T) {
 		Value:       &state.UnitValue{HP: 100, EN: 10}}
 	weapon := def.Weapon{Name: "beam rifle", ENCost: 20}
 
-	if hasENFor(u, weapon) {
+	if hasENFor(u, ability.PartAttacker, &weapon) {
 		t.Fatal("the predicate read the base data of the mech")
 	}
 
 	u.Value.EN = 20
-	if !hasENFor(u, weapon) {
+	if !hasENFor(u, ability.PartAttacker, &weapon) {
 		t.Fatal("the predicate did not read the final panel")
 	}
 }

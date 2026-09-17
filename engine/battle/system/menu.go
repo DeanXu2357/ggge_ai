@@ -53,7 +53,7 @@ func Menu(board state.Battle, decision battle.Decision, defenderID int) (Options
 		x.stanceOption(attacker, defender, weapon, battle.StanceDefend, nil))
 	for index := range defender.Mech.Weapons {
 		counter := &defender.Mech.Weapons[index]
-		if !fires(defender, counter, distance) {
+		if canFire(defender, x.cast.part(defenderID), counter, distance) != nil {
 			continue
 		}
 		counterID := index
@@ -68,13 +68,13 @@ func Menu(board state.Battle, decision battle.Decision, defenderID int) (Options
 	out.Defender.SupportDefenders = x.defendOptions(attacker, weapon,
 		supportDefenders(board, defenderID, defender.Footprint()))
 	out.Defender.SupportAttackers = x.attackOptions(attacker,
-		supportAttackers(board, defenderID, defender.Footprint(), origin))
+		supportAttackers(board, x.cast, defenderID, defender.Footprint(), origin))
 	// Which weapon counters is the choice of the defender, so the entry of a
 	// unit that covers the attacker carries no forecast.
 	out.Attacker.SupportDefenders = x.defendOptions(defender, nil,
 		supportDefenders(board, made.actorID, origin))
 	out.Attacker.SupportAttackers = x.attackOptions(defender,
-		supportAttackers(board, made.actorID, origin, defender.Footprint()))
+		supportAttackers(board, x.cast, made.actorID, origin, defender.Footprint()))
 	return out, nil
 }
 

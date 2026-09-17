@@ -74,8 +74,8 @@ func (x *exchange) fire(s strike) battle.StrikeEvent {
 			led.unit(s.struckID).SupportDefendCharges = change(&struck.Value.SupportDefendCharges, struck.Value.SupportDefendCharges-1)
 		}
 	}
-	if s.weapon.ENCost > 0 {
-		led.unit(s.shooterID).EN = change(&shooter.Value.EN, shooter.Value.EN-s.weapon.ENCost)
+	if cost := enCostOf(shooter, x.cast.part(s.shooterID), s.weapon); cost > 0 {
+		led.unit(s.shooterID).EN = change(&shooter.Value.EN, shooter.Value.EN-cost)
 	}
 	if s.shooterID != s.ownerID {
 		led.unit(s.shooterID).SupportAttackCharges = change(&shooter.Value.SupportAttackCharges, shooter.Value.SupportAttackCharges-1)

@@ -77,33 +77,33 @@ func scheduleAct(board state.Battle, action battle.Action) (actSchedule, error) 
 	target := unitOf(board, targetID)
 	firing := actor.footprintAt(to)
 	standing := target.Footprint()
+	who := cast{actorID: action.ActorID, targetID: targetID}
 
 	main := strike{segment: battle.SegmentMain, ownerID: action.ActorID,
 		shooterID: action.ActorID, weaponID: attack.WeaponID, weapon: weapon,
 		aimedID: targetID, dodging: response.Stance == battle.StanceDodge, stated: attack.Stated}
 	main.struckID, main.stance = struckBy(response.SupportDefenderID, targetID, response.Stance)
-	if err := canFire(actor, action.ActorID, weapon, firing, standing); err != nil {
+	if err := canFire(actor, who.part(actor.id), weapon, geometry.Distance(firing, standing)); err != nil {
 		return actSchedule{}, err
 	}
-	attackerSupport, err := supportStrikes(board, main.as(battle.SegmentAttackerSupport),
+	attackerSupport, err := supportStrikes(board, who, main.as(battle.SegmentAttackerSupport),
 		firing, standing, attack.SupportAttackers, attack.SupportDefenderID)
 	if err != nil {
 		return actSchedule{}, err
 	}
-	counter, err := counterOf(board, action, actor, target, firing)
+	counter, err := counterOf(board, who, action, actor, target, firing)
 	if err != nil {
 		return actSchedule{}, err
 	}
 	reply := strike{segment: battle.SegmentDefenderSupport, ownerID: targetID, aimedID: action.ActorID}
 	reply.struckID, reply.stance = struckBy(attack.SupportDefenderID, action.ActorID, battle.StanceNone)
-	defenderSupport, err := supportStrikes(board, reply,
+	defenderSupport, err := supportStrikes(board, who, reply,
 		standing, firing, response.SupportAttackers, response.SupportDefenderID)
 	if err != nil {
 		return actSchedule{}, err
 	}
 
-	schedule := actSchedule{actorID: action.ActorID, from: actor.Value.Pos, to: to,
-		cast: cast{actorID: action.ActorID, targetID: targetID}}
+	schedule := actSchedule{actorID: action.ActorID, from: actor.Value.Pos, to: to, cast: who}
 	schedule.strikes = append(schedule.strikes, attackerSupport...)
 	schedule.strikes = append(schedule.strikes, main)
 	schedule.strikes = append(schedule.strikes, defenderSupport...)
@@ -125,7 +125,7 @@ func struckBy(guardID *int, aimedID int, stance battle.Stance) (int, battle.Stan
 	return aimedID, stance
 }
 
-func counterOf(board state.Battle, action battle.Action, actor, target unit,
+func counterOf(board state.Battle, who cast, action battle.Action, actor, target unit,
 	firing battle.Footprint) (*strike, error) {
 	response := action.ResponseAttack
 	targetID := action.Attack.TargetID
@@ -139,7 +139,7 @@ func counterOf(board state.Battle, action battle.Action, actor, target unit,
 		if err != nil {
 			return nil, err
 		}
-		if err := canFire(target, targetID, weapon, target.Footprint(), firing); err != nil {
+		if err := canFire(target, who.part(target.id), weapon, geometry.Distance(target.Footprint(), firing)); err != nil {
 			return nil, err
 		}
 		counter := strike{segment: battle.SegmentCounter, ownerID: targetID,
@@ -162,7 +162,7 @@ func counterOf(board state.Battle, action battle.Action, actor, target unit,
 		battle.ErrIllegalAction, response.Stance)
 }
 
-func supportStrikes(board state.Battle, base strike, at, foeAt battle.Footprint,
+func supportStrikes(board state.Battle, who cast, base strike, at, foeAt battle.Footprint,
 	supporters []battle.SupportAttacker, guardID *int) ([]strike, error) {
 	if len(supporters) > maxSupportAttackers {
 		return nil, fmt.Errorf("%w: %d support attackers exceed the cap of %d",
@@ -188,7 +188,7 @@ func supportStrikes(board state.Battle, base strike, at, foeAt battle.Footprint,
 		if err != nil {
 			return nil, err
 		}
-		if err := canFire(unit, supporter.UnitID, weapon, unit.Footprint(), foeAt); err != nil {
+		if err := canFire(unit, who.part(unit.id), weapon, geometry.Distance(unit.Footprint(), foeAt)); err != nil {
 			return nil, err
 		}
 		support := base
@@ -228,16 +228,4 @@ func supportUnit(board state.Battle, supportedID, unitID int, at battle.Footprin
 			battle.ErrIllegalAction, unitID, supportedID)
 	}
 	return u, nil
-}
-
-func canFire(shooter unit, shooterID int, weapon *def.Weapon, from, at battle.Footprint) error {
-	if !hasENFor(shooter, *weapon) {
-		return fmt.Errorf("%w: unit %d cannot pay for the weapon %q",
-			battle.ErrIllegalAction, shooterID, weapon.Name)
-	}
-	if !weapon.Reaches(geometry.Distance(from, at)) {
-		return fmt.Errorf("%w: the weapon %q of unit %d does not reach",
-			battle.ErrIllegalAction, weapon.Name, shooterID)
-	}
-	return nil
 }
