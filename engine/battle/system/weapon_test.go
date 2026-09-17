@@ -45,7 +45,7 @@ func TestADamageTakenLineOfTheWeaponJoinsTheSumOfTheDamageScale(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			lined := duelWithActorWeapon(tc.attributes, tc.categories)
-			lined.Values.Units[targetID].SetAbilities([]ability.Line{tc.line})
+			lined.Values.Units[targetID].SetAbilities([]ability.Line{tc.line}, nil)
 
 			debuffed := duelWithActorWeapon(tc.attributes, tc.categories)
 			if tc.magnitude != 0 {

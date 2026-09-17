@@ -80,3 +80,25 @@ func TestBoundsCarryTwoCellsOrNothing(t *testing.T) {
 		t.Fatalf("bounds: %v", closed.Bounds)
 	}
 }
+
+// An ability list survives the trip through JSON: a kind the engine models
+// with its condition fields, and a kind it does not model as it came.
+func TestTheAbilitiesOfAMechSurviveTheRoundTrip(t *testing.T) {
+	original := Mech{Abilities: []Ability{
+		{Kind: AbilityMechAttackPercent, Percent: 15, EnemyTag: 1015},
+		{Kind: "squad_grant", Percent: 3},
+	}}
+
+	raw, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back Mech
+	if err := json.Unmarshal(raw, &back); err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(back, original) {
+		t.Fatalf("got %+v, want %+v", back, original)
+	}
+}

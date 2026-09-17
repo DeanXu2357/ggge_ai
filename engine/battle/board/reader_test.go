@@ -87,7 +87,7 @@ func TestTheActionsOfAUnitThatCannotAnswerAreAnError(t *testing.T) {
 func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 	amount := 0.5
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	content, values := state.FromContract(battle.BattleState{
+	content, values, _ := state.FromContract(battle.BattleState{
 		Bounds: &bounds,
 		Phase:  battle.FactionAlly,
 		Units: []battle.Unit{{

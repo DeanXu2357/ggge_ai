@@ -27,7 +27,9 @@
             "awaken": 220.0,
             "defense": 190.0,
             "reaction": 205.0,
-            "sp": 0
+            "sp": 0,
+            "tags": [],
+            "abilities": []
           },
           "mech": {
             "hp": 12000,
@@ -83,7 +85,10 @@
                 "debuff_magnitude": 0.0,
                 "categories": null
               }
-            ]
+            ],
+            "tags": [],
+            "type": 0,
+            "abilities": []
           },
           "skills": [
             {
@@ -157,7 +162,9 @@
             "awaken": 220.0,
             "defense": 190.0,
             "reaction": 205.0,
-            "sp": 0
+            "sp": 0,
+            "tags": [],
+            "abilities": []
           },
           "mech": {
             "hp": 12000,
@@ -180,7 +187,10 @@
                 "categories": null
               }
             ],
-            "map_weapons": []
+            "map_weapons": [],
+            "tags": [],
+            "type": 0,
+            "abilities": []
           },
           "skills": [],
           "acted": false,
@@ -228,7 +238,9 @@
             "awaken": 220.0,
             "defense": 190.0,
             "reaction": 205.0,
-            "sp": 0
+            "sp": 0,
+            "tags": [],
+            "abilities": []
           },
           "mech": {
             "hp": 12000,
@@ -263,7 +275,10 @@
                 "categories": null
               }
             ],
-            "map_weapons": []
+            "map_weapons": [],
+            "tags": [],
+            "type": 0,
+            "abilities": []
           },
           "skills": [],
           "acted": false,
@@ -323,7 +338,9 @@
               "awaken": 220.0,
               "defense": 190.0,
               "reaction": 205.0,
-              "sp": 0
+              "sp": 0,
+              "tags": [],
+              "abilities": []
             },
             "mech": {
               "hp": 12000,
@@ -379,7 +396,10 @@
                   "debuff_magnitude": 0.0,
                   "categories": null
                 }
-              ]
+              ],
+              "tags": [],
+              "type": 0,
+              "abilities": []
             },
             "skills": [
               {
@@ -453,7 +473,9 @@
               "awaken": 220.0,
               "defense": 190.0,
               "reaction": 205.0,
-              "sp": 0
+              "sp": 0,
+              "tags": [],
+              "abilities": []
             },
             "mech": {
               "hp": 12000,
@@ -476,7 +498,10 @@
                   "categories": null
                 }
               ],
-              "map_weapons": []
+              "map_weapons": [],
+              "tags": [],
+              "type": 0,
+              "abilities": []
             },
             "skills": [],
             "acted": false,
@@ -524,7 +549,9 @@
               "awaken": 220.0,
               "defense": 190.0,
               "reaction": 205.0,
-              "sp": 0
+              "sp": 0,
+              "tags": [],
+              "abilities": []
             },
             "mech": {
               "hp": 12000,
@@ -559,7 +586,10 @@
                   "categories": null
                 }
               ],
-              "map_weapons": []
+              "map_weapons": [],
+              "tags": [],
+              "type": 0,
+              "abilities": []
             },
             "skills": [],
             "acted": false,

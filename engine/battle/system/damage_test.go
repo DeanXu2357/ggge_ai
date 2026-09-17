@@ -53,7 +53,7 @@ func TestADamageLineJoinsTheSumOfTheDamageScaleFromEitherSide(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			lined := scenarioDuel()
 			tc.tags(lined)
-			lined.Values.Units[tc.holder].SetAbilities([]ability.Line{tc.line})
+			lined.Values.Units[tc.holder].SetAbilities(nil, []ability.Line{tc.line})
 
 			assert.Equal(t, mainDamageWithDebuff(t, tc.tags, tc.magnitude), resolveDuel(t, lined).main)
 		})
@@ -65,8 +65,8 @@ func TestADamageLineJoinsTheSumOfTheDamageScaleFromEitherSide(t *testing.T) {
 // multiplications would give 1.15 × 0.85 = 0.9775 of it.
 func TestDamageDealtAndDamageTakenAddIntoOneSum(t *testing.T) {
 	lined := scenarioDuel()
-	lined.Values.Units[actorID].SetAbilities([]ability.Line{lines.DamageDealtPercent{Percent: 15}})
-	lined.Values.Units[targetID].SetAbilities([]ability.Line{lines.DamageTakenPercentOnMechTag{MechTag: efsfTagID, Percent: -15}})
+	lined.Values.Units[actorID].SetAbilities(nil, []ability.Line{lines.DamageDealtPercent{Percent: 15}})
+	lined.Values.Units[targetID].SetAbilities(nil, []ability.Line{lines.DamageTakenPercentOnMechTag{MechTag: efsfTagID, Percent: -15}})
 	lined.Content.Units[targetID].Mech.Tags = []int{efsfTagID}
 
 	assert.Equal(t, resolveDuel(t, scenarioDuel()).main, resolveDuel(t, lined).main)

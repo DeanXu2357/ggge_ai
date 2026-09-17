@@ -43,7 +43,7 @@ func TestAnUnconditionalPercentLineGivesTheExchangeOfTheScaledStat(t *testing.T)
 			plain := tc.measure(t, scenarioDuel())
 
 			lined := scenarioDuel()
-			lined.Values.Units[actorID].SetAbilities([]ability.Line{tc.line})
+			lined.Values.Units[actorID].SetAbilities([]ability.Line{tc.line}, nil)
 			withLine := tc.measure(t, lined)
 
 			stated := scenarioDuel()
@@ -64,7 +64,7 @@ func TestAMobilityLineOfTheDefenderLowersTheHitRateOfTheStrikeItTakes(t *testing
 		return duelExchange(b).strikeHitProbability(actor, target, &actor.Mech.Weapons[0], false)
 	}
 	lined := scenarioDuel()
-	lined.Values.Units[targetID].SetAbilities([]ability.Line{lines.MechMobilityPercent{Percent: 15}})
+	lined.Values.Units[targetID].SetAbilities([]ability.Line{lines.MechMobilityPercent{Percent: 15}}, nil)
 	stated := scenarioDuel()
 	stated.Content.Units[targetID].Mech.Mobility = 356
 
@@ -77,7 +77,7 @@ func TestAMobilityLineOfTheDefenderLowersTheHitRateOfTheStrikeItTakes(t *testing
 func TestTwoPercentLinesOnOneStatAddBeforeTheMultiplication(t *testing.T) {
 	lined := scenarioDuel()
 	lined.Values.Units[actorID].SetAbilities([]ability.Line{
-		lines.MechAttackPercent{Percent: 15}, lines.MechAttackPercent{Percent: 12}})
+		lines.MechAttackPercent{Percent: 15}, lines.MechAttackPercent{Percent: 12}}, nil)
 	stated := scenarioDuel()
 	stated.Content.Units[actorID].Mech.Attack = 5334
 
@@ -92,7 +92,7 @@ func TestAConditionalLineJoinsTheSumOfItsStat(t *testing.T) {
 	lined.Content.Units[targetID].Mech.Tags = []int{zeonTagID}
 	lined.Values.Units[actorID].SetAbilities([]ability.Line{
 		lines.MechAttackPercent{Percent: 15},
-		lines.MechAttackPercentAgainstTag{EnemyTag: zeonTagID, Percent: 15}})
+		lines.MechAttackPercentAgainstTag{EnemyTag: zeonTagID, Percent: 15}}, nil)
 	stated := scenarioDuel()
 	stated.Content.Units[targetID].Mech.Tags = []int{zeonTagID}
 	stated.Content.Units[actorID].Mech.Attack = 5460

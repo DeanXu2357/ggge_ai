@@ -92,11 +92,16 @@ a line reaches 'UnitValue'.
 No kind enum, no registry, no data struct apart from the line
 itself. 'def' holds 'Mech.Tags' and nothing of the lines.
 
-The wire form is not decided (ruling 2026-09-14: the shape of the
-communication is not known yet), so no line reaches 'battle', the
-Python mirror or a golden on this branch until it is. When it is,
-the lines travel in the unit the way 'skills' do, and 'Load' builds
-them with 'SetAbilities'.
+The wire form (ruling 2026-09-17, which retires the wait of
+2026-09-14): a line travels as 'battle.Ability', one flat struct of
+the kind, the number and the condition fields, under
+'mech.abilities' or 'pilot.abilities'; the mirror is
+'engine/state.py'. 'lines.FromContract' picks the type by the kind
+and the conditions present, 'lines.ToContract' writes it back, and
+'state.FromContract' binds the lines into 'UnitValue.MechAbilities'
+and 'UnitValue.PilotAbilities'. A known kind with conditions the
+engine does not model is refused; an unknown kind is 'lines.Unknown'
+and passes through.
 
 The rows of Section 4 are the candidates, one type for each row
 that a scenario covers.
@@ -130,8 +135,8 @@ issue #80).
 
 | Type | New fields |
 |---|---|
-| battle.Mech (wire) | id, type, tags, series, abilities; 'def.Mech.Tags' and 'def.Mech.Type' exist, the wire fields wait |
-| battle.Pilot (wire) | id, tags, abilities |
+| battle.Mech (wire) | type, tags, abilities (done, version 2.1); id and series wait for a line that reads them |
+| battle.Pilot (wire) | tags, abilities (done, version 2.1) |
 | battle.Weapon (wire) | attributes ('physical', 'beam', 'special'); 'def.Weapon.Attributes' and 'battle.WeaponAttribute' exist, the wire field waits |
 | battle.Unit (wire) | mp |
 | def.Mech, def.Pilot, def.Weapon | the same facts |
@@ -469,24 +474,30 @@ The order of the work, each step one commit:
    content maxima (done; before it a charge never came back).
    What writes the move range value and what restores it is not
    decided: no rule writes it today.
-1. The shape of the contract object, one time, carriers only:
-   'battle.Unit' drops 'max_hp', 'en_max',
-   'support_attack_charges_max', 'support_defend_charges_max' and
-   gains 'mp' and 'move_range' (the value; a fresh battle refuses
-   it stated, a resumed one judges it against the maximum); 'battle.Mech' gains 'abilities', 'tags', 'type';
-   'battle.Pilot' gains 'abilities', 'tags'; the base of the
-   support charges and of the initial MP goes on the side the
-   datamine puts it. 'FromContract' builds the lines, 'Assemble'
-   derives every maximum (no line yet: the base as it is), the
-   resumed judgment moves after the derivation, 'ToContract' writes
-   base and lines. The mirror, the codec, the goldens and the spec
-   change in the same commit. Scenario: a payload with the
-   Advantage pair opened through 'board.Open' strikes as the
-   'SetAbilities' scenario does; fresh and resumed give one content.
+1. The shape of the contract object, in three commits so that each
+   carries one responsibility (user, 2026-09-17):
+   1a. The carriers (done, version 2.1): 'battle.Mech' gains
+       'abilities', 'tags', 'type'; 'battle.Pilot' gains
+       'abilities', 'tags'; 'FromContract' builds the lines and
+       'ToContract' writes them back; nothing removed. Scenario: a
+       payload with the Advantage pair assembled on either origin
+       strikes as the 'SetAbilities' scenario does.
+   1b. The derived maxima (version 2.2): 'max_hp', 'en_max' and
+       'sp_max' leave 'battle.Unit', 'Assemble' derives them from
+       'mech.hp', 'mech.en' and 'pilot.sp'; 'mp' and 'move_range'
+       join 'battle.Unit' as values (a fresh battle refuses them
+       stated, a resumed one judges them against the maximum); the
+       resumed judgment moves after the derivation; the goldens fill
+       'pilot.sp' with 15.
+   1c. The count lines (version 2.3): 'ability.AssembleContext' and
+       'OnAssemble'; 'support_attack_plus', 'support_defend_plus',
+       'chance_step_plus'; 'support_attack_charges_max',
+       'support_defend_charges_max' and 'chance_steps_max' leave
+       'battle.Unit' (bases 0, 0 and 1: user, 2026-09-17); the
+       goldens carry the lines that give their counts.
 2. 'ability.AssembleContext' and 'OnAssemble'; max HP % and max EN %
    (7 rows).
-3. The base of the support charges and 'support_attack_plus',
-   'support_defend_plus' (11 rows).
+3. Folded into 1c.
 4. 'def.Pilot.Tags' and 'move_range_plus' on the pilot tag (1 row).
 5. 'UnitContent.MPInitial', 'UnitValue.MP', fresh fills, resumed
    judges against 'MPMax'; 'mp_plus' on the mech tag (2 rows). No
@@ -624,3 +635,8 @@ when a wire key lands, and then in the same commit.
   chance step still waits. On the way the three resets of the phase
   start lost their guards: an effect records that a reset ran, not
   that a number changed (user).
+- 2026-09-17: step 1a, the carriers, version 2.1. A first cut that
+  also derived the maxima and added the count lines was withdrawn
+  before the commit: the user drew the line between the contract
+  shape and an ability implementation, and step 1 became three
+  commits. The bases of the counts are 0, 0 and 1 (user).

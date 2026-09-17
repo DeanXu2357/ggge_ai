@@ -1,8 +1,8 @@
 package lines
 
 import (
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
 
 // The lines of the panel that hold on what the holder is in the exchange: a
@@ -23,7 +23,7 @@ func (l MechDefensePercentOnSupportDefense) OnDefend(d *ability.DefendContext) {
 // specified types, and executing Support Defense, increase own DEF by 20%."
 // A pilot line that reads the type of the mech it rides.
 type MechDefensePercentOnSupportDefenseWithMechType struct {
-	MechType def.MechType
+	MechType battle.MechType
 	Percent  float64
 }
 
@@ -38,7 +38,7 @@ func (l MechDefensePercentOnSupportDefenseWithMechType) OnDefend(d *ability.Defe
 // specified types and executing Support Attack/Counter, increase ATK by
 // 25%." The datamine names both support roles on one line.
 type MechAttackPercentOnSupportWithMechType struct {
-	MechType def.MechType
+	MechType battle.MechType
 	Percent  float64
 }
 

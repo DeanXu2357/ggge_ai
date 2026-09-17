@@ -22,6 +22,7 @@ import pytest
 from ggge_ai.engine import codec
 from ggge_ai.engine.contract import ActionKind, Faction, Stance, Terrain
 from ggge_ai.engine.state import (
+    Ability,
     BattleState,
     EventTable,
     Debuff,
@@ -52,6 +53,7 @@ STRUCTS = {
     "MapWeapon": MapWeapon,
     "Skill": Skill,
     "Debuff": Debuff,
+    "Ability": Ability,
     "Pilot": Pilot,
     "Mech": Mech,
     "Unit": Unit,
@@ -68,6 +70,7 @@ ENCODERS = {
     "MapWeapon": lambda: codec.encode_map_weapon(MapWeapon(name="w", power=1.0)),
     "Skill": lambda: codec.encode_skill(Skill(kind="skill_heal")),
     "Debuff": lambda: codec.encode_debuff(Debuff("k", 1.0, 2)),
+    "Ability": lambda: codec.encode_ability(Ability(kind="k")),
     "Pilot": lambda: codec.encode_pilot(Pilot()),
     "Mech": lambda: codec.encode_mech(Mech()),
     "Unit": lambda: codec.encode_unit(Unit(faction=Faction.ALLY)),

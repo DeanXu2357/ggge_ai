@@ -4,10 +4,12 @@ import (
 	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability/lines"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
 
-func FromContract(s battle.BattleState) (Content, Values) {
+func FromContract(s battle.BattleState) (Content, Values, error) {
 	content := Content{
 		Units:        make([]UnitContent, len(s.Units)),
 		Terrain:      s.Terrain,
@@ -22,12 +24,16 @@ func FromContract(s battle.BattleState) (Content, Values) {
 		content.Bounds = *s.Bounds
 	}
 	for index := range s.Units {
-		content.Units[index], values.Units[index] = fromContractUnit(s.Units[index])
+		var err error
+		content.Units[index], values.Units[index], err = fromContractUnit(s.Units[index])
+		if err != nil {
+			return Content{}, Values{}, err
+		}
 	}
-	return content, values
+	return content, values, nil
 }
 
-func fromContractUnit(u battle.Unit) (UnitContent, UnitValue) {
+func fromContractUnit(u battle.Unit) (UnitContent, UnitValue, error) {
 	mech, pilot := fromContractMech(u.Mech), fromContractPilot(u.Pilot)
 	content := UnitContent{
 		Faction:                 u.Faction,
@@ -43,7 +49,7 @@ func fromContractUnit(u battle.Unit) (UnitContent, UnitValue) {
 		Mech:                    &mech,
 		Pilot:                   &pilot,
 	}
-	return content, UnitValue{
+	value := UnitValue{
 		Pos:                  u.Pos,
 		HP:                   u.HP,
 		EN:                   u.EN,
@@ -56,6 +62,31 @@ func fromContractUnit(u battle.Unit) (UnitContent, UnitValue) {
 		MapWeaponAmmo:        slices.Clone(u.MapWeaponAmmo),
 		Debuffs:              slices.Clone(u.Debuffs),
 	}
+	mechLines, err := fromContractAbilities(u.Mech.Abilities)
+	if err != nil {
+		return UnitContent{}, UnitValue{}, err
+	}
+	pilotLines, err := fromContractAbilities(u.Pilot.Abilities)
+	if err != nil {
+		return UnitContent{}, UnitValue{}, err
+	}
+	value.SetAbilities(mechLines, pilotLines)
+	return content, value, nil
+}
+
+func fromContractAbilities(wire []battle.Ability) ([]ability.Line, error) {
+	if wire == nil {
+		return nil, nil
+	}
+	out := make([]ability.Line, len(wire))
+	for index, one := range wire {
+		line, err := lines.FromContract(one)
+		if err != nil {
+			return nil, err
+		}
+		out[index] = line
+	}
+	return out, nil
 }
 
 func toContractUnit(u Unit) battle.Unit {
@@ -69,8 +100,8 @@ func toContractUnit(u Unit) battle.Unit {
 		ENMax:                   u.ENMax,
 		SP:                      u.Value.SP,
 		SPMax:                   u.SPMax,
-		Pilot:                   toContractPilot(u.Pilot),
-		Mech:                    toContractMech(u.Mech),
+		Pilot:                   toContractPilot(u.Pilot, u.Value.PilotAbilities),
+		Mech:                    toContractMech(u.Mech, u.Value.MechAbilities),
 		Skills:                  mapSlice(u.Value.Skills, toContractSkill),
 		Acted:                   u.Value.Acted,
 		ChanceSteps:             u.Value.ChanceSteps,
@@ -96,14 +127,19 @@ func fromContractMech(m battle.Mech) def.Mech {
 		MoveRange:  m.MoveRange,
 		Weapons:    mapSlice(m.Weapons, fromContractWeapon),
 		MapWeapons: mapSlice(m.MapWeapons, fromContractMapWeapon),
+		Tags:       slices.Clone(m.Tags),
+		Type:       m.Type,
 	}
 }
 
-func toContractMech(m *def.Mech) battle.Mech {
+func toContractMech(m *def.Mech, abilities []ability.Line) battle.Mech {
 	if m == nil {
 		return battle.Mech{}
 	}
 	return battle.Mech{
+		Abilities:  mapSlice(abilities, lines.ToContract),
+		Type:       m.Type,
+		Tags:       slices.Clone(m.Tags),
 		MapWeapons: mapSlice(m.MapWeapons, toContractMapWeapon),
 		Weapons:    mapSlice(m.Weapons, toContractWeapon),
 		MoveRange:  m.MoveRange,
@@ -123,20 +159,23 @@ func fromContractPilot(p battle.Pilot) def.Pilot {
 		Defense:  p.Defense,
 		Reaction: p.Reaction,
 		SP:       p.SP,
+		Tags:     slices.Clone(p.Tags),
 	}
 }
 
-func toContractPilot(p *def.Pilot) battle.Pilot {
+func toContractPilot(p *def.Pilot, abilities []ability.Line) battle.Pilot {
 	if p == nil {
 		return battle.Pilot{}
 	}
 	return battle.Pilot{
-		SP:       p.SP,
-		Reaction: p.Reaction,
-		Defense:  p.Defense,
-		Awaken:   p.Awaken,
-		Melee:    p.Melee,
-		Ranged:   p.Ranged,
+		Abilities: mapSlice(abilities, lines.ToContract),
+		Tags:      slices.Clone(p.Tags),
+		SP:        p.SP,
+		Reaction:  p.Reaction,
+		Defense:   p.Defense,
+		Awaken:    p.Awaken,
+		Melee:     p.Melee,
+		Ranged:    p.Ranged,
 	}
 }
 

@@ -9,19 +9,18 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/ability/lines"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 func supportENCostLine() ability.Line {
-	return lines.WeaponENCostPercentOnSupportWithMechType{MechType: def.MechTypeSupport, Percent: -20}
+	return lines.WeaponENCostPercentOnSupportWithMechType{MechType: battle.MechTypeSupport, Percent: -20}
 }
 
 // The squad with the supporter of the mech type 3 (支援型) and the line.
 func scenarioSquadWithENCostLine() state.Battle {
 	b := scenarioSquad()
-	b.Content.Units[supporterID].Mech.Type = def.MechTypeSupport
-	b.Values.Units[supporterID].SetAbilities([]ability.Line{supportENCostLine()})
+	b.Content.Units[supporterID].Mech.Type = battle.MechTypeSupport
+	b.Values.Units[supporterID].SetAbilities(nil, []ability.Line{supportENCostLine()})
 	return b
 }
 
@@ -59,13 +58,13 @@ func TestASupportENCostLineDiscountsTheStrikeOfTheSupporterAlone(t *testing.T) {
 	assert.Equal(t, 10, enSpent(t, events, supporterID), "the supporter without the line")
 
 	wrongType := scenarioSquadWithENCostLine()
-	wrongType.Content.Units[supporterID].Mech.Type = def.MechTypeDurable
+	wrongType.Content.Units[supporterID].Mech.Type = battle.MechTypeDurable
 	_, events = accepted(t, wrongType, supportedAttack())
 	assert.Equal(t, 10, enSpent(t, events, supporterID), "a supporter of another type")
 
 	asActor := scenarioSquad()
-	asActor.Content.Units[actorID].Mech.Type = def.MechTypeSupport
-	asActor.Values.Units[actorID].SetAbilities([]ability.Line{supportENCostLine()})
+	asActor.Content.Units[actorID].Mech.Type = battle.MechTypeSupport
+	asActor.Values.Units[actorID].SetAbilities(nil, []ability.Line{supportENCostLine()})
 	_, events = accepted(t, asActor, supportedAttack())
 	assert.Equal(t, 10, enSpent(t, events, actorID), "the actor with the line")
 }

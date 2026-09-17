@@ -60,6 +60,7 @@ type Pilot struct {
 	Defense  float64
 	Reaction float64
 	SP       int
+	Tags     []int
 }
 
 type Mech struct {
@@ -72,17 +73,8 @@ type Mech struct {
 	Weapons    []Weapon
 	MapWeapons []MapWeapon
 	Tags       []int
-	Type       MechType
+	Type       battle.MechType
 }
-
-// MechType is the datamine 'unit_role' of a mech, the '類型' of the game.
-type MechType int
-
-const (
-	MechTypeAttack  MechType = 1 // 攻擊型
-	MechTypeDurable MechType = 2 // 耐久型
-	MechTypeSupport MechType = 3 // 支援型
-)
 
 func (w Weapon) Reaches(distance int) bool {
 	return w.RangeMin <= distance && distance <= w.RangeMax

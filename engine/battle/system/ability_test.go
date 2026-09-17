@@ -29,16 +29,16 @@ type exchangeDamage struct {
 func scenarioDuel() state.Battle {
 	beamRifle := battle.Weapon{Name: "beam rifle", Power: 1800, RangeMin: 1, RangeMax: 3,
 		ENCost: 10, Accuracy: 5, UsableAfterMove: true}
-	pilot := battle.Pilot{Ranged: 220, Melee: 220, Awaken: 220, Defense: 190, Reaction: 205}
+	pilot := battle.Pilot{Ranged: 220, Melee: 220, Awaken: 220, Defense: 190, Reaction: 205, SP: 15}
 	mech := battle.Mech{Attack: 4200, Defense: 3900, Mobility: 310, Weapons: []battle.Weapon{beamRifle}}
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
 	content, values := assembled(battle.BattleState{
 		Bounds: &bounds, Phase: battle.FactionAlly, Turn: 1,
 		Units: []battle.Unit{
 			{Faction: battle.FactionAlly, Pos: battle.Cell{0, 0}, Size: battle.Cell{1, 1},
-				HP: 99000, MaxHP: 99000, EN: 140, ENMax: 140, Pilot: pilot, Mech: mech},
+				HP: 99000, MaxHP: 99000, EN: 140, ENMax: 140, SPMax: 15, Pilot: pilot, Mech: mech},
 			{Faction: battle.FactionEnemy, Pos: battle.Cell{3, 0}, Size: battle.Cell{1, 1},
-				HP: 99000, MaxHP: 99000, EN: 140, ENMax: 140, Pilot: pilot, Mech: mech},
+				HP: 99000, MaxHP: 99000, EN: 140, ENMax: 140, SPMax: 15, Pilot: pilot, Mech: mech},
 		},
 	})
 	return state.Battle{Content: &content, Values: &values}
@@ -80,7 +80,7 @@ func TestAdvantageScalesTheDefenseInTheMainStrikeAndTheAttackInTheCounter(t *tes
 
 	hooked := scenarioDuel()
 	hooked.Content.Units[actorID].Mech.Tags = []int{zeonTagID}
-	hooked.Values.Units[targetID].SetAbilities(advantageAgainstZeon())
+	hooked.Values.Units[targetID].SetAbilities(advantageAgainstZeon(), nil)
 	withHooks := resolveDuel(t, hooked)
 
 	stated := scenarioDuel()
@@ -104,7 +104,47 @@ func TestAdvantageReadsTheTagOfTheEnemyAndNotItsOwn(t *testing.T) {
 
 	hooked := scenarioDuel()
 	hooked.Content.Units[targetID].Mech.Tags = []int{zeonTagID}
-	hooked.Values.Units[targetID].SetAbilities(advantageAgainstZeon())
+	hooked.Values.Units[targetID].SetAbilities(advantageAgainstZeon(), nil)
 
 	assert.Equal(t, plain, resolveDuel(t, hooked), "an enemy without the tag meets no hook")
+}
+
+// The Advantage pair on the contract object gives the exchange of the pair
+// set on the value column: the lines of a payload reach the hooks through
+// the assembly.
+func TestTheLinesOfAPayloadReachTheHooksThroughTheAssembly(t *testing.T) {
+	hooked := scenarioDuel()
+	hooked.Content.Units[actorID].Mech.Tags = []int{zeonTagID}
+	hooked.Values.Units[targetID].SetAbilities(advantageAgainstZeon(), nil)
+	want := resolveDuel(t, hooked)
+
+	payload := scenarioDuel().ToContract()
+	payload.Units[actorID].Mech.Tags = []int{zeonTagID}
+	payload.Units[targetID].Mech.Abilities = []battle.Ability{
+		{Kind: battle.AbilityMechAttackPercent, Percent: 15, EnemyTag: zeonTagID},
+		{Kind: battle.AbilityMechDefensePercent, Percent: 15, EnemyTag: zeonTagID}}
+	for name, origin := range map[string]Origin{"fresh": Fresh, "resumed": Resumed} {
+		t.Run(name, func(t *testing.T) {
+			candidate := payload
+			if origin == Fresh {
+				candidate = fresh(payload)
+			}
+			content, values, err := Assemble(candidate, origin)
+			require.NoError(t, err)
+			assert.Equal(t, want, resolveDuel(t, state.Battle{Content: &content, Values: &values}))
+		})
+	}
+}
+
+// The payload as a fresh battle states: every value cleared.
+func fresh(s battle.BattleState) battle.BattleState {
+	out := s
+	out.Units = make([]battle.Unit, len(s.Units))
+	for index, unit := range s.Units {
+		unit.HP, unit.EN, unit.SP = 0, 0, 0
+		unit.SupportAttackCharges, unit.SupportDefendCharges, unit.ChanceSteps = 0, 0, 0
+		unit.MapWeaponAmmo, unit.Debuffs = nil, nil
+		out.Units[index] = unit
+	}
+	return out
 }

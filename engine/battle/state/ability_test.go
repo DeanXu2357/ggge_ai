@@ -17,12 +17,12 @@ func (l *countingLine) OnAttack(*ability.AttackContext) { l.fired++ }
 func TestACloneOfTheValuesOwnsItsLinesAndTheirChains(t *testing.T) {
 	original := &countingLine{}
 	values := Values{Units: []UnitValue{{}}}
-	values.Units[0].SetAbilities([]ability.Line{original})
+	values.Units[0].SetAbilities([]ability.Line{original}, nil)
 
 	cloned := values.Clone()
 	cloned.Units[0].Hooks.Attack(&ability.AttackContext{})
 
-	assert.Equal(t, 1, cloned.Units[0].Abilities[0].(*countingLine).fired, "the chain of the clone fires the line of the clone")
+	assert.Equal(t, 1, cloned.Units[0].MechAbilities[0].(*countingLine).fired, "the chain of the clone fires the line of the clone")
 	assert.Equal(t, 0, original.fired, "the line of the original is untouched")
-	assert.NotSame(t, original, cloned.Units[0].Abilities[0], "the clone holds a copy of the line")
+	assert.NotSame(t, original, cloned.Units[0].MechAbilities[0], "the clone holds a copy of the line")
 }

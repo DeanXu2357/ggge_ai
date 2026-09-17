@@ -1,8 +1,8 @@
 package lines
 
 import (
+	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
 
 // The lines of the panel that change what a weapon costs to fire.
@@ -12,7 +12,7 @@ import (
 // EN consumption by 20%." A pilot line that reads the type of the mech it
 // rides; the percent is signed, so the line of the game carries -20.
 type WeaponENCostPercentOnSupportWithMechType struct {
-	MechType def.MechType
+	MechType battle.MechType
 	Percent  float64
 }
 

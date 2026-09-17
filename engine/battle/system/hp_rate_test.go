@@ -58,7 +58,7 @@ func mainDamageAfterSupport(t *testing.T, b state.Battle, supportLands bool) int
 func TestAFullHPDefenseLineIsReadAtEachStrikeOfTheExchange(t *testing.T) {
 	withLine := func() state.Battle {
 		b := scenarioSquad()
-		b.Values.Units[targetID].SetAbilities([]ability.Line{lines.MechDefensePercentAtHPRateAtLeast{Threshold: 100, Percent: 20}})
+		b.Values.Units[targetID].SetAbilities([]ability.Line{lines.MechDefensePercentAtHPRateAtLeast{Threshold: 100, Percent: 20}}, nil)
 		return b
 	}
 	scaledDefense := func() state.Battle {
@@ -82,7 +82,7 @@ func TestALowHPAttackLineHoldsAtTheThresholdAndNotAbove(t *testing.T) {
 		b.Content.Units[actorID].MaxHP = 100000
 		b.Values.Units[actorID].HP = hp
 		if withLine {
-			b.Values.Units[actorID].SetAbilities([]ability.Line{line})
+			b.Values.Units[actorID].SetAbilities([]ability.Line{line}, nil)
 		}
 		return resolveDuel(t, b)
 	}
@@ -105,7 +105,7 @@ func TestALowHPDefenseLineScalesTheDefenseOfTheStrikeTaken(t *testing.T) {
 	lined := scenarioDuel()
 	lined.Content.Units[targetID].MaxHP = 100000
 	lined.Values.Units[targetID].HP = 50000
-	lined.Values.Units[targetID].SetAbilities([]ability.Line{line})
+	lined.Values.Units[targetID].SetAbilities([]ability.Line{line}, nil)
 	stated := scenarioDuel()
 	stated.Content.Units[targetID].MaxHP = 100000
 	stated.Values.Units[targetID].HP = 50000

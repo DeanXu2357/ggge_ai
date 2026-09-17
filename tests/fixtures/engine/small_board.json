@@ -27,7 +27,9 @@
             "awaken": 220.0,
             "defense": 190.0,
             "reaction": 205.0,
-            "sp": 0
+            "sp": 0,
+            "tags": [],
+            "abilities": []
           },
           "mech": {
             "hp": 12000,
@@ -62,7 +64,10 @@
                 "categories": null
               }
             ],
-            "map_weapons": []
+            "map_weapons": [],
+            "tags": [],
+            "type": 0,
+            "abilities": []
           },
           "skills": [],
           "acted": false,
@@ -99,7 +104,9 @@
             "awaken": 220.0,
             "defense": 190.0,
             "reaction": 205.0,
-            "sp": 0
+            "sp": 0,
+            "tags": [],
+            "abilities": []
           },
           "mech": {
             "hp": 12000,
@@ -134,7 +141,10 @@
                 "categories": null
               }
             ],
-            "map_weapons": []
+            "map_weapons": [],
+            "tags": [],
+            "type": 0,
+            "abilities": []
           },
           "skills": [],
           "acted": true,
@@ -194,7 +204,9 @@
               "awaken": 220.0,
               "defense": 190.0,
               "reaction": 205.0,
-              "sp": 0
+              "sp": 0,
+              "tags": [],
+              "abilities": []
             },
             "mech": {
               "hp": 12000,
@@ -229,7 +241,10 @@
                   "categories": null
                 }
               ],
-              "map_weapons": []
+              "map_weapons": [],
+              "tags": [],
+              "type": 0,
+              "abilities": []
             },
             "skills": [],
             "acted": false,
@@ -266,7 +281,9 @@
               "awaken": 220.0,
               "defense": 190.0,
               "reaction": 205.0,
-              "sp": 0
+              "sp": 0,
+              "tags": [],
+              "abilities": []
             },
             "mech": {
               "hp": 12000,
@@ -301,7 +318,10 @@
                   "categories": null
                 }
               ],
-              "map_weapons": []
+              "map_weapons": [],
+              "tags": [],
+              "type": 0,
+              "abilities": []
             },
             "skills": [],
             "acted": true,

@@ -23,12 +23,12 @@ func mainHitRate(b state.Battle, accuracyOffset float64) float64 {
 // evasion +5 of the defender a weapon 5 less accurate, and the two cancel.
 func TestAHitLineAddsPointsToTheHitRate(t *testing.T) {
 	accurate := scenarioDuel()
-	accurate.Values.Units[actorID].SetAbilities([]ability.Line{lines.AccuracyPercent{Percent: 5}})
+	accurate.Values.Units[actorID].SetAbilities([]ability.Line{lines.AccuracyPercent{Percent: 5}}, nil)
 	evasive := scenarioDuel()
-	evasive.Values.Units[targetID].SetAbilities([]ability.Line{lines.EvasionPercent{Percent: 5}})
+	evasive.Values.Units[targetID].SetAbilities([]ability.Line{lines.EvasionPercent{Percent: 5}}, nil)
 	both := scenarioDuel()
-	both.Values.Units[actorID].SetAbilities([]ability.Line{lines.AccuracyPercent{Percent: 5}})
-	both.Values.Units[targetID].SetAbilities([]ability.Line{lines.EvasionPercent{Percent: 5}})
+	both.Values.Units[actorID].SetAbilities([]ability.Line{lines.AccuracyPercent{Percent: 5}}, nil)
+	both.Values.Units[targetID].SetAbilities([]ability.Line{lines.EvasionPercent{Percent: 5}}, nil)
 
 	assert.InDelta(t, mainHitRate(scenarioDuel(), 5), mainHitRate(accurate, 0), 1e-12, "accuracy +5")
 	assert.InDelta(t, mainHitRate(scenarioDuel(), -5), mainHitRate(evasive, 0), 1e-12, "evasion +5")

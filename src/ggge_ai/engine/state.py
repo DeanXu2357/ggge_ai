@@ -102,6 +102,27 @@ class Debuff:
 
 
 @dataclass
+class Ability:
+    """One effect line of a mech or of a pilot.
+
+    The kind names the effect; the other fields hold its number and its
+    conditions. A condition the line does not carry is zero, or None for the
+    enum conditions. A kind the engine does not model travels as it came.
+    """
+
+    kind: str
+    percent: float = 0.0
+    enemy_tag: int = 0
+    mech_tag: int = 0
+    hp_rate_lte: int = 0
+    hp_rate_gte: int = 0
+    mech_type: int = 0
+    strike_role: str | None = None
+    weapon_attribute: str | None = None
+    weapon_category: str | None = None
+
+
+@dataclass
 class Pilot:
     """The pilot of the pairing. A formula reads it at computation time."""
 
@@ -111,6 +132,8 @@ class Pilot:
     defense: float = 0.0
     reaction: float = 0.0
     sp: int = 0
+    tags: list[int] = field(default_factory=list)
+    abilities: list[Ability] = field(default_factory=list)
 
 
 @dataclass
@@ -125,6 +148,9 @@ class Mech:
     move_range: int = 0
     weapons: list[Weapon] = field(default_factory=list)
     map_weapons: list[MapWeapon] = field(default_factory=list)
+    tags: list[int] = field(default_factory=list)
+    type: int = 0
+    abilities: list[Ability] = field(default_factory=list)
 
 
 @dataclass
@@ -172,8 +198,17 @@ class Unit:
     def clone(self) -> Unit:
         return replace(
             self,
-            pilot=replace(self.pilot),
-            mech=replace(self.mech, weapons=list(self.mech.weapons)),
+            pilot=replace(
+                self.pilot,
+                tags=list(self.pilot.tags),
+                abilities=[replace(a) for a in self.pilot.abilities],
+            ),
+            mech=replace(
+                self.mech,
+                weapons=list(self.mech.weapons),
+                tags=list(self.mech.tags),
+                abilities=[replace(a) for a in self.mech.abilities],
+            ),
             skills=[replace(s) for s in self.skills],
             map_weapon_ammo=list(self.map_weapon_ammo),
             debuffs=list(self.debuffs),

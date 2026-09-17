@@ -31,6 +31,7 @@ from .contract import (
     Terrain,
 )
 from .state import (
+    Ability,
     BattleState,
     Debuff,
     Decision,
@@ -179,6 +180,37 @@ def decode_debuff(payload: dict[str, Any]) -> Debuff:
     )
 
 
+def encode_ability(ability: Ability) -> dict[str, Any]:
+    return {
+        "kind": ability.kind,
+        "percent": ability.percent,
+        "enemy_tag": ability.enemy_tag,
+        "mech_tag": ability.mech_tag,
+        "hp_rate_lte": ability.hp_rate_lte,
+        "hp_rate_gte": ability.hp_rate_gte,
+        "mech_type": ability.mech_type,
+        "strike_role": ability.strike_role,
+        "weapon_attribute": ability.weapon_attribute,
+        "weapon_category": ability.weapon_category,
+    }
+
+
+def decode_ability(payload: dict[str, Any]) -> Ability:
+    _known(payload, encode_ability(Ability(kind="k")), "ability")
+    return Ability(
+        kind=_str(payload, "kind"),
+        percent=_float(payload, "percent"),
+        enemy_tag=_int(payload, "enemy_tag"),
+        mech_tag=_int(payload, "mech_tag"),
+        hp_rate_lte=_int(payload, "hp_rate_lte"),
+        hp_rate_gte=_int(payload, "hp_rate_gte"),
+        mech_type=_int(payload, "mech_type"),
+        strike_role=_optional_str(payload, "strike_role"),
+        weapon_attribute=_optional_str(payload, "weapon_attribute"),
+        weapon_category=_optional_str(payload, "weapon_category"),
+    )
+
+
 def encode_pilot(pilot: Pilot) -> dict[str, Any]:
     return {
         "ranged": pilot.ranged,
@@ -187,6 +219,8 @@ def encode_pilot(pilot: Pilot) -> dict[str, Any]:
         "defense": pilot.defense,
         "reaction": pilot.reaction,
         "sp": pilot.sp,
+        "tags": list(pilot.tags),
+        "abilities": [encode_ability(entry) for entry in pilot.abilities],
     }
 
 
@@ -199,6 +233,8 @@ def decode_pilot(payload: dict[str, Any]) -> Pilot:
         defense=_float(payload, "defense"),
         reaction=_float(payload, "reaction"),
         sp=_int(payload, "sp"),
+        tags=list(_ids(payload, "tags")),
+        abilities=[decode_ability(entry) for entry in payload.get("abilities") or ()],
     )
 
 
@@ -212,6 +248,9 @@ def encode_mech(mech: Mech) -> dict[str, Any]:
         "move_range": mech.move_range,
         "weapons": [encode_weapon(weapon) for weapon in mech.weapons],
         "map_weapons": [encode_map_weapon(weapon) for weapon in mech.map_weapons],
+        "tags": list(mech.tags),
+        "type": mech.type,
+        "abilities": [encode_ability(entry) for entry in mech.abilities],
     }
 
 
@@ -226,6 +265,9 @@ def decode_mech(payload: dict[str, Any]) -> Mech:
         move_range=_int(payload, "move_range"),
         weapons=[decode_weapon(entry) for entry in payload.get("weapons") or ()],
         map_weapons=[decode_map_weapon(entry) for entry in payload.get("map_weapons") or ()],
+        tags=list(_ids(payload, "tags")),
+        type=_int(payload, "type"),
+        abilities=[decode_ability(entry) for entry in payload.get("abilities") or ()],
     )
 
 

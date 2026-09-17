@@ -39,7 +39,10 @@ func Assemble(candidate battle.BattleState, origin Origin) (state.Content, state
 		}
 	}
 
-	content, values := state.FromContract(candidate)
+	content, values, err := state.FromContract(candidate)
+	if err != nil {
+		return state.Content{}, state.Values{}, err
+	}
 	assembleContent(&content, &values)
 	return content, values, nil
 }

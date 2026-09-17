@@ -30,7 +30,7 @@ func pair(units ...battle.Unit) (state.Content, state.Values) {
 // A test board takes the content of its units as they are, with no
 // judgment of the values, and derives the unit the way 'Assemble' does.
 func assembled(s battle.BattleState) (state.Content, state.Values) {
-	content, values := state.FromContract(s)
+	content, values, _ := state.FromContract(s)
 	assembleContent(&content, &values)
 	return content, values
 }

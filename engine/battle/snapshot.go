@@ -193,12 +193,14 @@ type Debuff struct {
 // Reaction is the reaction value of the pilot, and not the response attack
 // of a defender.
 type Pilot struct {
-	Ranged   float64 `json:"ranged"`
-	Melee    float64 `json:"melee"`
-	Awaken   float64 `json:"awaken"`
-	Defense  float64 `json:"defense"`
-	Reaction float64 `json:"reaction"`
-	SP       int     `json:"sp"`
+	Ranged    float64   `json:"ranged"`
+	Melee     float64   `json:"melee"`
+	Awaken    float64   `json:"awaken"`
+	Defense   float64   `json:"defense"`
+	Reaction  float64   `json:"reaction"`
+	SP        int       `json:"sp"`
+	Tags      []int     `json:"tags"`
+	Abilities []Ability `json:"abilities"`
 }
 
 type Mech struct {
@@ -210,6 +212,27 @@ type Mech struct {
 	MoveRange  int         `json:"move_range"`
 	Weapons    []Weapon    `json:"weapons"`
 	MapWeapons []MapWeapon `json:"map_weapons"`
+	Tags       []int       `json:"tags"`
+	Type       MechType    `json:"type"`
+	Abilities  []Ability   `json:"abilities"`
+}
+
+// Ability is one effect line of a mech or of a pilot on the wire. The kind
+// names the effect; the other fields hold its number and its conditions. A
+// condition the line does not carry is zero, or null for the enum
+// conditions. A kind the engine does not model travels as it came and
+// changes no number (issue #80).
+type Ability struct {
+	Kind            AbilityKind      `json:"kind"`
+	Percent         float64          `json:"percent"`
+	EnemyTag        int              `json:"enemy_tag"`
+	MechTag         int              `json:"mech_tag"`
+	HPRateLte       int              `json:"hp_rate_lte"`
+	HPRateGte       int              `json:"hp_rate_gte"`
+	MechType        MechType         `json:"mech_type"`
+	StrikeRole      *StrikeRole      `json:"strike_role"`
+	WeaponAttribute *WeaponAttribute `json:"weapon_attribute"`
+	WeaponCategory  *WeaponCategory  `json:"weapon_category"`
 }
 
 // Unit is the current state of the pairing on the board. It holds the state

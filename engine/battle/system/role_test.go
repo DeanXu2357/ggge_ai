@@ -9,7 +9,6 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/ability/lines"
-	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
@@ -27,7 +26,7 @@ func scenarioCover() state.Battle {
 	bounds := b.Content.Bounds
 	content, values := assembled(battle.BattleState{
 		Bounds: &bounds, Phase: battle.FactionAlly, Turn: 1, Units: append(units, guard)})
-	content.Units[guardID].Mech.Type = def.MechTypeDurable
+	content.Units[guardID].Mech.Type = battle.MechTypeDurable
 	return state.Battle{Content: &content, Values: &values}
 }
 
@@ -49,7 +48,7 @@ func mainDamageOnTheGuard(t *testing.T, b state.Battle) int {
 // scaled; the target with the same line, struck as the target, meets no
 // line; a guard of another mech type meets no typed line.
 func TestASupportDefenseLineCountsForTheUnitThatCovers(t *testing.T) {
-	typed := lines.MechDefensePercentOnSupportDefenseWithMechType{MechType: def.MechTypeDurable, Percent: 20}
+	typed := lines.MechDefensePercentOnSupportDefenseWithMechType{MechType: battle.MechTypeDurable, Percent: 20}
 	untyped := lines.MechDefensePercentOnSupportDefense{Percent: 20}
 
 	scaledGuard := scenarioCover()
@@ -60,19 +59,19 @@ func TestASupportDefenseLineCountsForTheUnitThatCovers(t *testing.T) {
 	for name, line := range map[string]ability.Line{"typed": typed, "untyped": untyped} {
 		t.Run(name, func(t *testing.T) {
 			lined := scenarioCover()
-			lined.Values.Units[guardID].SetAbilities([]ability.Line{line})
+			lined.Values.Units[guardID].SetAbilities(nil, []ability.Line{line})
 			assert.Equal(t, want, mainDamageOnTheGuard(t, lined), "the guard with the line")
 		})
 	}
 
 	onTarget := scenarioDuel()
-	onTarget.Values.Units[targetID].SetAbilities([]ability.Line{untyped})
+	onTarget.Values.Units[targetID].SetAbilities(nil, []ability.Line{untyped})
 	assert.Equal(t, resolveDuel(t, scenarioDuel()).main, resolveDuel(t, onTarget).main,
 		"the target struck as the target meets no support-defense line")
 
 	wrongType := scenarioCover()
-	wrongType.Content.Units[guardID].Mech.Type = def.MechTypeSupport
-	wrongType.Values.Units[guardID].SetAbilities([]ability.Line{typed})
+	wrongType.Content.Units[guardID].Mech.Type = battle.MechTypeSupport
+	wrongType.Values.Units[guardID].SetAbilities(nil, []ability.Line{typed})
 	assert.Equal(t, plain, mainDamageOnTheGuard(t, wrongType), "a guard of another type meets no typed line")
 }
 
@@ -80,7 +79,7 @@ func TestASupportDefenseLineCountsForTheUnitThatCovers(t *testing.T) {
 // the damage the unit that covers would take.
 func TestTheForecastOfASupportDefenderReadsItsLine(t *testing.T) {
 	lined := scenarioCover()
-	lined.Values.Units[guardID].SetAbilities([]ability.Line{lines.MechDefensePercentOnSupportDefense{Percent: 20}})
+	lined.Values.Units[guardID].SetAbilities(nil, []ability.Line{lines.MechDefensePercentOnSupportDefense{Percent: 20}})
 	actor, guard := unitOf(lined, actorID), unitOf(lined, guardID)
 
 	forecast := duelExchange(lined).supportDefenderForecast(actor, guard, &actor.Mech.Weapons[0])
@@ -93,12 +92,12 @@ func TestTheForecastOfASupportDefenderReadsItsLine(t *testing.T) {
 // strike of a supporter whose attack is scaled; the same unit as the actor
 // fires a plain main strike.
 func TestASupportAttackLineCountsForTheSupporterAndNotForTheOwner(t *testing.T) {
-	line := lines.MechAttackPercentOnSupportWithMechType{MechType: def.MechTypeSupport, Percent: 25}
+	line := lines.MechAttackPercentOnSupportWithMechType{MechType: battle.MechTypeSupport, Percent: 25}
 	supported := func(withLine bool, scaled bool) int {
 		b := scenarioSquad()
-		b.Content.Units[supporterID].Mech.Type = def.MechTypeSupport
+		b.Content.Units[supporterID].Mech.Type = battle.MechTypeSupport
 		if withLine {
-			b.Values.Units[supporterID].SetAbilities([]ability.Line{line})
+			b.Values.Units[supporterID].SetAbilities(nil, []ability.Line{line})
 		}
 		if scaled {
 			b.Content.Units[supporterID].Mech.Attack = 5250 // 4200 + 25%
@@ -115,22 +114,22 @@ func TestASupportAttackLineCountsForTheSupporterAndNotForTheOwner(t *testing.T) 
 	assert.NotEqual(t, supported(false, false), supported(true, false), "the line changes the support strike")
 
 	asActor := scenarioDuel()
-	asActor.Content.Units[actorID].Mech.Type = def.MechTypeSupport
-	asActor.Values.Units[actorID].SetAbilities([]ability.Line{line})
+	asActor.Content.Units[actorID].Mech.Type = battle.MechTypeSupport
+	asActor.Values.Units[actorID].SetAbilities(nil, []ability.Line{line})
 	assert.Equal(t, resolveDuel(t, scenarioDuel()), resolveDuel(t, asActor), "the owner of a strike meets no support line")
 }
 
 // The supporter of the defender is a support counter, which the line names
 // with the support attack.
 func TestASupportAttackLineCountsForTheSupportCounter(t *testing.T) {
-	line := lines.MechAttackPercentOnSupportWithMechType{MechType: def.MechTypeSupport, Percent: 25}
+	line := lines.MechAttackPercentOnSupportWithMechType{MechType: battle.MechTypeSupport, Percent: 25}
 	counterSupport := func(withLine, scaled bool) int {
 		b := scenarioSquad()
 		b.Content.Units[supporterID].Faction = battle.FactionEnemy
-		b.Content.Units[supporterID].Mech.Type = def.MechTypeSupport
+		b.Content.Units[supporterID].Mech.Type = battle.MechTypeSupport
 		b.Values.Units[supporterID].Pos = battle.Cell{3, 1}
 		if withLine {
-			b.Values.Units[supporterID].SetAbilities([]ability.Line{line})
+			b.Values.Units[supporterID].SetAbilities(nil, []ability.Line{line})
 		}
 		if scaled {
 			b.Content.Units[supporterID].Mech.Attack = 5250

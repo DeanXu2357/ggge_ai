@@ -932,6 +932,8 @@ The pilot holds the values of the game's pilot panel:
 | defense | 守備值 |
 | reaction | 反應值 |
 | sp | The skill point pool |
+| tags | The datamine 'character_tags_id' of the pilot, as ids |
+| abilities | The effect lines of the pilot, in the ability payload |
 
 The mech holds its own values:
 
@@ -942,6 +944,28 @@ The mech holds its own values:
 | move_range | The movement range of the mech |
 | weapons | The direct weapons of the mech, in the weapon payload |
 | map_weapons | The map weapons of the mech, in the map weapon payload |
+| tags | The datamine 'unit_tags' of the mech, as ids |
+| type | The datamine 'unit_role': 1 攻擊型, 2 耐久型, 3 支援型; 0 when the producer knows none |
+| abilities | The effect lines of the mech, in the ability payload |
+
+An ability payload is one effect line (version 2.1, issue #72):
+
+| Field | Content |
+|---|---|
+| kind | The effect, one of the kinds of docs/reference/datamine-source.md ('mech_attack_percent', 'damage_taken_percent', ...) |
+| percent | The number of a percent line, signed: -15 on 'damage_taken_percent' is 15% less |
+| enemy_tag, mech_tag | A tag condition: the tag of the enemy of the strike, or of the mech the holder rides; 0 when absent |
+| hp_rate_lte, hp_rate_gte | An HP condition in percent of the maximum; 0 when absent |
+| mech_type | A mech type condition; 0 when absent |
+| strike_role | 'support_attack' or 'support_defense'; null when absent |
+| weapon_attribute, weapon_category | A condition on the weapon of the enemy; null when absent |
+
+The engine picks the line by the kind and by the conditions present.
+A kind the engine does not model travels as it came and changes no
+number (issue #80). A kind the engine models, with a set of
+conditions it does not, is refused at 'init' and at 'load'
+('outside_contract'): no line is carried and read by nothing. Go:
+'battle.Ability', 'lines.FromContract'.
 
 A weapon carries 'categories', a list over 'ranged', 'melee' and
 'awaken', null when the producer knows no category. The pilot
@@ -1169,3 +1193,8 @@ difference between two integers is 1.
   its 'name' as data for a person. This is the first breaking wire
   change of the engine: a client of a 1.x version does not read a
   2.0 board.
+- Version 2.1 (2026-09-17, issue #72) added fields and broke
+  nothing: 'tags' and 'abilities' on the pilot, 'tags', 'type' and
+  'abilities' on the mech, with the new ability payload. A 2.0
+  payload decodes as a 2.1 payload with the lists empty and the
+  type 0.
