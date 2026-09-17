@@ -1,6 +1,7 @@
 accessor
 adb
 codec
+dataclass
 datamine
 debuff
 deploy_cells
