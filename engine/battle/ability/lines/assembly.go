@@ -23,3 +23,17 @@ type ChanceStepPlus struct{ Plus int }
 
 func (l ChanceStepPlus) Clone() ability.Line                   { return l }
 func (l ChanceStepPlus) OnAssemble(a *ability.AssembleContext) { a.ChanceStepPlus += l.Plus }
+
+// MaxHPPercent: "Increase Max HP by 15%." The percents of every line on
+// the maximum add, and the assembly multiplies the base of the mech one
+// time.
+type MaxHPPercent struct{ Percent float64 }
+
+func (l MaxHPPercent) Clone() ability.Line                   { return l }
+func (l MaxHPPercent) OnAssemble(a *ability.AssembleContext) { a.MaxHPPercent += l.Percent }
+
+// MaxENPercent: "Increase Max EN by 15%."
+type MaxENPercent struct{ Percent float64 }
+
+func (l MaxENPercent) Clone() ability.Line                   { return l }
+func (l MaxENPercent) OnAssemble(a *ability.AssembleContext) { a.MaxENPercent += l.Percent }

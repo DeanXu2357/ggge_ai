@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
 // A stage of two units with every base and the allowance lines of the pilot
@@ -252,4 +253,35 @@ func TestTheReachReadsTheMoveRangeValue(t *testing.T) {
 	b.Values.Units[actorID].MoveRange = 0
 
 	refused(t, b, battle.Action{ActorID: actorID, MoveTo: &battle.Cell{1, 0}}, battle.ErrIllegalMove)
+}
+
+// "Increase Max HP by 15%." and "Increase Max EN by 10%." scale the base of
+// the mech one time, floored, at assembly: one pilot on two mechs gives two
+// units with different maxima, a fresh battle fills the pools to the scaled
+// maxima, a resumed battle judges the pools against them, and the export
+// carries the base and the line, so a second assembly gives the same maxima.
+func TestTheMaximumLinesScaleTheBaseOfTheMechAtAssembly(t *testing.T) {
+	s := stage()
+	s.Units[0].Mech.HP, s.Units[0].Mech.EN = 12000, 140
+	s.Units[1].Mech.HP, s.Units[1].Mech.EN = 9001, 140
+	for index := range s.Units {
+		s.Units[index].Pilot.Abilities = []battle.Ability{
+			{Kind: battle.AbilityMaxHPPercent, Percent: 15}, {Kind: battle.AbilityMaxENPercent, Percent: 10}}
+	}
+
+	content, values, err := Assemble(s, Fresh)
+	require.NoError(t, err)
+	assert.Equal(t, []int{13800, 154}, []int{content.Units[0].MaxHP, content.Units[0].ENMax})
+	assert.Equal(t, []int{10351, 154}, []int{content.Units[1].MaxHP, content.Units[1].ENMax}, "floored")
+	assert.Equal(t, []int{13800, 154}, []int{values.Units[0].HP, values.Units[0].EN}, "the pools open at the scaled maxima")
+
+	exported := state.Battle{Content: &content, Values: &values}.ToContract()
+	again, _, err := Assemble(exported, Resumed)
+	require.NoError(t, err)
+	assert.Equal(t, content.Units[0].MaxHP, again.Units[0].MaxHP, "a second assembly of the export gives the same maximum")
+
+	over := exported
+	over.Units[0].Pilot.Abilities = nil
+	_, _, err = Assemble(over, Resumed)
+	assert.ErrorIs(t, err, battle.ErrOutsideContract, "the pool of the line is above the base without it")
 }

@@ -130,6 +130,14 @@ func pick(a battle.Ability) ability.Line {
 		if conditions == none {
 			return ChanceStepPlus{Plus: a.Plus}
 		}
+	case battle.AbilityMaxHPPercent:
+		if conditions == none {
+			return MaxHPPercent{Percent: a.Percent}
+		}
+	case battle.AbilityMaxENPercent:
+		if conditions == none {
+			return MaxENPercent{Percent: a.Percent}
+		}
 	default:
 		return Unknown{Wire: a}
 	}
@@ -236,6 +244,10 @@ func ToContract(line ability.Line) battle.Ability {
 		return battle.Ability{Kind: battle.AbilitySupportDefendPlus, Plus: l.Plus}
 	case ChanceStepPlus:
 		return battle.Ability{Kind: battle.AbilityChanceStepPlus, Plus: l.Plus}
+	case MaxHPPercent:
+		return battle.Ability{Kind: battle.AbilityMaxHPPercent, Percent: l.Percent}
+	case MaxENPercent:
+		return battle.Ability{Kind: battle.AbilityMaxENPercent, Percent: l.Percent}
 	}
 	panic(fmt.Sprintf("the line %T has no wire form", line))
 }

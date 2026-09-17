@@ -336,9 +336,14 @@ the kinds it needs:
 7. 'special_weapon_range_plus' on 'vigor_min': the menu, the
    response attack options and the counter pick all reach one cell
    farther; the actions list shows the reach.
-8. Assembly: one pilot on two mechs gives two units with different
-   maxima and support counts; 'move_range_plus' on 'pilot_tags'
-   widens the reachable cells; 'mp_plus' raises the initial MP.
+8. Assembly (green for the maxima and the allowances): one pilot on
+   two mechs gives two units with different maxima, the pools of a
+   fresh battle open at the scaled maxima, a resumed battle judges
+   the pools against them, and a second assembly of the export gives
+   the same maxima because the export carries the base and the line;
+   the allowances add from their bases (step 1c). To do:
+   'move_range_plus' on 'pilot_tags' widens the reachable cells;
+   'mp_plus' raises the initial MP.
 9. Mobility both ways: a mobility line on the defender lowers the
    hit rate, on the attacker raises it.
 10. An unknown kind changes no number and comes back from 'State' as
@@ -391,8 +396,8 @@ docs/reference/datamine-source.md on 88b5e8c.
 | mech | 'damage_taken_percent' | 'enemy_weapon_attributes' | 1 | Physical Damage Reduced LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttribute', scenario 4 |
 | mech | 'damage_taken_percent' | 'enemy_weapon_attributes', 'enemy_weapon_categories' | 3 | I-Field LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttributeAndCategory', scenario 4 |
 | mech | 'evasion_percent' | — | 4 | Increased EVA LV 1 | 'lines.EvasionPercent', scenario 13 |
-| mech | 'max_en_percent' | — | 2 | Increased Max EN LV 3 | |
-| mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | |
+| mech | 'max_en_percent' | — | 2 | Increased Max EN LV 3 | 'lines.MaxENPercent', scenario 8 |
+| mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | 'lines.MaxHPPercent', scenario 8 |
 | mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | 'lines.MechAttackPercent', scenario 12 |
 | mech | 'mech_attack_percent' | 'enemy_tags' | 2 | Advantage: Principality of Zeon LV 1 | 'lines.MechAttackPercentAgainstTag', scenario 1 |
 | mech | 'mech_attack_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased ATK LV 3 | 'lines.MechAttackPercentAtHPRateAtMost', scenario 3 |
@@ -520,13 +525,13 @@ every row of it is ticked in Section 4.
 | A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | done, scenario 13 |
 | A6 Part conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Part' on the unit view from the cast of the exchange; 'def.MechType' | done, scenario 2 |
 | B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | EN cost done, scenario 6; the range line moves to F |
-| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | steps 0 and 1 done; the two allowance lines (11 rows) done; max HP %, max EN %, move +1, MP +n (10 rows) to do |
+| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | steps 0, 1 and 2 done (18 rows); move +1 and MP +n (3 rows) to do |
 | F Vigor | ATK and MOB % at vigor, special weapon range +1 at vigor | 3 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54; the range line needs a reach moment beside the cost | |
 | D Wound | revive once | 2 | a wound hook after the HP write and before the kill; the line keeps its own flag | not read |
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
 | — | HP supply %, debuff effect % | 2 | issues #79 and #80 | not read |
 
-Rows done: 89 of 112; to do: 13 (C 10, F 3); not read: 10. The count of A1 read 45 until 2026-09-16; the rows of Section 4 give 32.
+Rows done: 96 of 112; to do: 6 (C 3, F 3); not read: 10. The count of A1 read 45 until 2026-09-16; the rows of Section 4 give 32.
 
 ## Gates
 
@@ -663,3 +668,8 @@ when a wire key lands, and then in the same commit.
   these are allowances of an action, not counts. The test helper 'refused' compares the contract
   objects before and after, because a chain holds functions and
   'reflect.DeepEqual' never equates two functions.
+- 2026-09-17: step 2, the two maximum lines and the first part of
+  scenario 8. 'AssembleContext' gains the two percent sums, and
+  'assembleContent' scales the base of the mech one time with
+  'scaled', the same floor as a strike. No wire key came or went:
+  the two kinds were unknown lines before and pass through no more.

@@ -64,8 +64,8 @@ func assembleContent(content *state.Content, values *state.Values) {
 		unit := &content.Units[index]
 		a := ability.AssembleContext{Unit: ability.Unit{Mech: unit.Mech, Pilot: unit.Pilot}}
 		values.Units[index].Hooks.Assemble(&a)
-		unit.MaxHP = unit.Mech.HP
-		unit.ENMax = unit.Mech.EN
+		unit.MaxHP = int(scaled(float64(unit.Mech.HP), a.MaxHPPercent))
+		unit.ENMax = int(scaled(float64(unit.Mech.EN), a.MaxENPercent))
 		unit.SPMax = unit.Pilot.SP
 		unit.MoveRange = unit.Mech.MoveRange
 		unit.MPInitial = mpInitial

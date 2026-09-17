@@ -918,8 +918,11 @@ No maximum travels (versions 2.2 and 2.3, user ruling 2026-09-17):
 the engine derives every maximum at assembly, on 'init' and on
 'load' alike, and a value of the payload is judged against the
 derived maximum. The maximum of a pool comes from the base data:
-'max_hp' from 'mech.hp', 'en_max' from 'mech.en', 'sp_max' from
-'pilot.sp' and the maximum of 'move_range' from 'mech.move_range'.
+'max_hp' from 'mech.hp' and 'en_max' from 'mech.en', each
+multiplied one time by the sum of the 'max_hp_percent' or
+'max_en_percent' lines of the mech and of the pilot and floored;
+'sp_max' from 'pilot.sp' and the maximum of 'move_range' from
+'mech.move_range'.
 The maximum of an allowance, how many times the unit may support
 attack, support defend or act again after a kill, comes from a base
 and the allowance lines of the mech and of the pilot: the support
