@@ -233,11 +233,13 @@ func TestTheRotationRunsOnAPairThatNoEngagementProduced(t *testing.T) {
 func TestThePhaseStartRestoresTheSupportChargesOfItsSide(t *testing.T) {
 	ally := basicUnit(battle.FactionAlly, 1, 1)
 	ally.Acted = true
-	ally.SupportAttackChargesMax, ally.SupportDefendChargesMax = 2, 1
+	ally.Pilot.Abilities = []battle.Ability{
+		{Kind: battle.AbilitySupportAttackPlus, Plus: 2}, {Kind: battle.AbilitySupportDefendPlus, Plus: 1}}
 	ally.SupportAttackCharges, ally.SupportDefendCharges = 0, 0
 	enemy := basicUnit(battle.FactionEnemy, 4, 4)
 	enemy.Acted = true
-	enemy.SupportAttackChargesMax, enemy.SupportAttackCharges = 1, 0
+	enemy.Pilot.Abilities = []battle.Ability{{Kind: battle.AbilitySupportAttackPlus, Plus: 1}}
+	enemy.SupportAttackCharges = 0
 	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
 
 	rotations := rotate(state.Battle{Content: &content, Values: &values})

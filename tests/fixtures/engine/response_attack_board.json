@@ -99,9 +99,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": true,
           "support_defend_when_attack": false
         },
@@ -135,7 +132,34 @@
             "reaction": 205.0,
             "sp": 15,
             "tags": [],
-            "abilities": []
+            "abilities": [
+              {
+                "kind": "support_attack_plus",
+                "percent": 0.0,
+                "plus": 1,
+                "enemy_tag": 0,
+                "mech_tag": 0,
+                "hp_rate_lte": 0,
+                "hp_rate_gte": 0,
+                "mech_type": 0,
+                "strike_role": null,
+                "weapon_attribute": null,
+                "weapon_category": null
+              },
+              {
+                "kind": "support_defend_plus",
+                "percent": 0.0,
+                "plus": 1,
+                "enemy_tag": 0,
+                "mech_tag": 0,
+                "hp_rate_lte": 0,
+                "hp_rate_gte": 0,
+                "mech_type": 0,
+                "strike_role": null,
+                "weapon_attribute": null,
+                "weapon_category": null
+              }
+            ]
           },
           "mech": {
             "hp": 12000,
@@ -163,9 +187,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 1,
-          "support_attack_charges_max": 1,
           "has_shield": false,
           "support_defend_when_attack": false
         },
@@ -227,9 +248,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         },
@@ -263,7 +281,21 @@
             "reaction": 205.0,
             "sp": 15,
             "tags": [],
-            "abilities": []
+            "abilities": [
+              {
+                "kind": "support_defend_plus",
+                "percent": 0.0,
+                "plus": 1,
+                "enemy_tag": 0,
+                "mech_tag": 0,
+                "hp_rate_lte": 0,
+                "hp_rate_gte": 0,
+                "mech_type": 0,
+                "strike_role": null,
+                "weapon_attribute": null,
+                "weapon_category": null
+              }
+            ]
           },
           "mech": {
             "hp": 12000,
@@ -291,9 +323,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 1,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         },
@@ -367,9 +396,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         },
@@ -454,9 +480,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         },
@@ -518,9 +541,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         }
@@ -641,9 +661,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": true,
             "support_defend_when_attack": false
           },
@@ -677,7 +694,34 @@
               "reaction": 205.0,
               "sp": 15,
               "tags": [],
-              "abilities": []
+              "abilities": [
+                {
+                  "kind": "support_attack_plus",
+                  "percent": 0.0,
+                  "plus": 1,
+                  "enemy_tag": 0,
+                  "mech_tag": 0,
+                  "hp_rate_lte": 0,
+                  "hp_rate_gte": 0,
+                  "mech_type": 0,
+                  "strike_role": null,
+                  "weapon_attribute": null,
+                  "weapon_category": null
+                },
+                {
+                  "kind": "support_defend_plus",
+                  "percent": 0.0,
+                  "plus": 1,
+                  "enemy_tag": 0,
+                  "mech_tag": 0,
+                  "hp_rate_lte": 0,
+                  "hp_rate_gte": 0,
+                  "mech_type": 0,
+                  "strike_role": null,
+                  "weapon_attribute": null,
+                  "weapon_category": null
+                }
+              ]
             },
             "mech": {
               "hp": 12000,
@@ -705,9 +749,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 1,
-            "support_attack_charges_max": 1,
             "has_shield": false,
             "support_defend_when_attack": false
           },
@@ -769,9 +810,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           },
@@ -805,7 +843,21 @@
               "reaction": 205.0,
               "sp": 15,
               "tags": [],
-              "abilities": []
+              "abilities": [
+                {
+                  "kind": "support_defend_plus",
+                  "percent": 0.0,
+                  "plus": 1,
+                  "enemy_tag": 0,
+                  "mech_tag": 0,
+                  "hp_rate_lte": 0,
+                  "hp_rate_gte": 0,
+                  "mech_type": 0,
+                  "strike_role": null,
+                  "weapon_attribute": null,
+                  "weapon_category": null
+                }
+              ]
             },
             "mech": {
               "hp": 12000,
@@ -833,9 +885,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 1,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           },
@@ -909,9 +958,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           },
@@ -996,9 +1042,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           },
@@ -1060,9 +1103,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           }

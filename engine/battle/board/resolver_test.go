@@ -67,6 +67,9 @@ func wireBoard() *battle.BattleState {
 				},
 				Pilot: battle.Pilot{
 					Ranged: 220, Melee: 180, Awaken: 240, Defense: 190, Reaction: 205, SP: 45,
+					Abilities: []battle.Ability{
+						{Kind: battle.AbilitySupportDefendPlus, Plus: 1},
+						{Kind: battle.AbilitySupportAttackPlus, Plus: 2}},
 				},
 				Mech: battle.Mech{
 					HP: 9000, EN: 180, Attack: 4100, Defense: 3900, Mobility: 310, MoveRange: 4,
@@ -84,8 +87,6 @@ func wireBoard() *battle.BattleState {
 						Categories:      []battle.WeaponCategory{battle.WeaponCategoryRanged},
 					}},
 				},
-				SupportDefendChargesMax: 1,
-				SupportAttackChargesMax: 2,
 				SupportDefendWhenAttack: true,
 			},
 			{

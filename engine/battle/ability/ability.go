@@ -96,11 +96,25 @@ type WeaponCostContext struct {
 	ENCostPercent float64
 }
 
+// AssembleContext is the input of an assembly hook: the unit as it enters
+// the battle. The engine derives the allowances of the unit, how many times
+// it may support attack, support defend and act again after a kill, from a
+// base and these sums, one time on every assembly.
+type AssembleContext struct {
+	Unit Unit
+
+	SupportAttackPlus int
+	SupportDefendPlus int
+	ChanceStepPlus    int
+}
+
 type AttackHook func(a *AttackContext)
 
 type DefendHook func(d *DefendContext)
 
 type WeaponCostHook func(w *WeaponCostContext)
+
+type AssembleHook func(a *AssembleContext)
 
 type AttackUnitHook interface {
 	OnAttack(a *AttackContext)
@@ -114,11 +128,16 @@ type WeaponCostUnitHook interface {
 	OnWeaponCost(w *WeaponCostContext)
 }
 
+type AssembleUnitHook interface {
+	OnAssemble(a *AssembleContext)
+}
+
 // Hooks is the chains of one unit. A chain runs in the order of the lines.
 type Hooks struct {
 	OnAttack     []AttackHook
 	OnDefend     []DefendHook
 	OnWeaponCost []WeaponCostHook
+	OnAssemble   []AssembleHook
 }
 
 // HooksOf binds the hook methods of the lines. The chains point at these
@@ -134,6 +153,9 @@ func HooksOf(lines []Line) Hooks {
 		}
 		if hook, acts := line.(WeaponCostUnitHook); acts {
 			h.OnWeaponCost = append(h.OnWeaponCost, hook.OnWeaponCost)
+		}
+		if hook, acts := line.(AssembleUnitHook); acts {
+			h.OnAssemble = append(h.OnAssemble, hook.OnAssemble)
 		}
 	}
 	return h
@@ -165,5 +187,11 @@ func (h Hooks) Defend(d *DefendContext) {
 func (h Hooks) WeaponCost(w *WeaponCostContext) {
 	for _, hook := range h.OnWeaponCost {
 		hook(w)
+	}
+}
+
+func (h Hooks) Assemble(a *AssembleContext) {
+	for _, hook := range h.OnAssemble {
+		hook(a)
 	}
 }

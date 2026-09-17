@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
@@ -21,6 +22,11 @@ const (
 	mpMax     = 12
 )
 
+const (
+	supportChargesBase = 0
+	chanceStepsBase    = 1
+)
+
 var knownFactions = map[battle.Faction]bool{
 	battle.FactionAlly:       true,
 	battle.FactionEnemy:      true,
@@ -35,7 +41,7 @@ func Assemble(candidate battle.BattleState, origin Origin) (state.Content, state
 	if err != nil {
 		return state.Content{}, state.Values{}, err
 	}
-	assembleContent(&content)
+	assembleContent(&content, &values)
 
 	for index := range content.Units {
 		unit := state.Unit{UnitContent: &content.Units[index], Value: &values.Units[index]}
@@ -53,14 +59,19 @@ func Assemble(candidate battle.BattleState, origin Origin) (state.Content, state
 	return content, values, nil
 }
 
-func assembleContent(content *state.Content) {
+func assembleContent(content *state.Content, values *state.Values) {
 	for index := range content.Units {
 		unit := &content.Units[index]
+		a := ability.AssembleContext{Unit: ability.Unit{Mech: unit.Mech, Pilot: unit.Pilot}}
+		values.Units[index].Hooks.Assemble(&a)
 		unit.MaxHP = unit.Mech.HP
 		unit.ENMax = unit.Mech.EN
 		unit.SPMax = unit.Pilot.SP
 		unit.MoveRange = unit.Mech.MoveRange
 		unit.MPInitial = mpInitial
+		unit.SupportAttackChargesMax = supportChargesBase + a.SupportAttackPlus
+		unit.SupportDefendChargesMax = supportChargesBase + a.SupportDefendPlus
+		unit.ChanceStepsMax = chanceStepsBase + a.ChanceStepPlus
 	}
 }
 

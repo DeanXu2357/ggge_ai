@@ -112,6 +112,7 @@ class Ability:
 
     kind: str
     percent: float = 0.0
+    plus: int = 0
     enemy_tag: int = 0
     mech_tag: int = 0
     hp_rate_lte: int = 0
@@ -157,10 +158,9 @@ class Mech:
 class Unit:
     """The current state of one pairing on the board.
 
-    The unit records the values of the moment and the maxima of the counts. The
-    pilot and the mech carry the base data, and the engine derives the maximum
-    of each pool from the base data at assembly, so no such maximum travels
-    here.
+    The unit records the values of the moment. The pilot and the mech carry the
+    base data and the lines, and the engine derives every maximum from them at
+    assembly, so no maximum travels here.
 
     The unit carries no id: the position of the unit in 'BattleState.units' is
     its id. map_weapon_ammo holds one count for each entry of mech.map_weapons,
@@ -188,9 +188,6 @@ class Unit:
     debuffs: list[Debuff] = field(default_factory=list)
     pilot: Pilot = field(default_factory=Pilot)
     mech: Mech = field(default_factory=Mech)
-    chance_steps_max: int = 0
-    support_defend_charges_max: int = 0
-    support_attack_charges_max: int = 0
     has_shield: bool = False
     support_defend_when_attack: bool = False
 

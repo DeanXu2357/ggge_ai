@@ -18,7 +18,7 @@ from typing import Any
 
 from ..runtime.perceive import Observation, Perceiver
 from ..engine.contract import Cell, Faction
-from ..engine.state import MapWeapon, Mech, Pilot, Skill, Unit, Weapon
+from ..engine.state import Ability, MapWeapon, Mech, Pilot, Skill, Unit, Weapon
 from .state import StageState
 
 # The SP pool of every pilot is 15 (user, first hand, 2026-09-15). The device
@@ -105,6 +105,25 @@ class SkillIntel:
         )
 
 
+def allowance_lines(
+    support_attack: int, support_defend: int, chance_steps: int
+) -> list[Ability]:
+    """The allowance lines that give a unit the allowances the panel shows.
+
+    The engine derives the support allowances from 0 and the chance steps
+    from 1 (user, 2026-09-17), so a panel allowance above the base is a line
+    on the pilot.
+    """
+    out: list[Ability] = []
+    if support_attack > 0:
+        out.append(Ability(kind="support_attack_plus", plus=support_attack))
+    if support_defend > 0:
+        out.append(Ability(kind="support_defend_plus", plus=support_defend))
+    if chance_steps > 1:
+        out.append(Ability(kind="chance_step_plus", plus=chance_steps - 1))
+    return out
+
+
 @dataclass(frozen=True)
 class UnitIntel:
     """docs/spec/intel-data-spec.md 的欄位表，扣掉戰場動態那一列。
@@ -180,6 +199,11 @@ class UnitIntel:
                 defense=self.pilot_defense,
                 reaction=self.reaction,
                 sp=SP_MAX,
+                abilities=allowance_lines(
+                    self.support_attack_charges_max,
+                    self.support_defend_charges_max,
+                    self.chance_steps_max,
+                ),
             ),
             mech=Mech(
                 hp=self.max_hp,
@@ -198,11 +222,8 @@ class UnitIntel:
             skills=[skill.to_skill() for skill in self.skills],
             acted=acted,
             chance_steps=self.chance_steps_max,
-            chance_steps_max=self.chance_steps_max,
             support_defend_charges=self.support_defend_charges_max,
-            support_defend_charges_max=self.support_defend_charges_max,
             support_attack_charges=self.support_attack_charges_max,
-            support_attack_charges_max=self.support_attack_charges_max,
             has_shield=self.has_shield,
             support_defend_when_attack=self.support_defend_when_attack,
             map_weapon_ammo=[

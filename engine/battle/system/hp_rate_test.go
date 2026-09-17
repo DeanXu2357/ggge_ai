@@ -19,10 +19,10 @@ func scenarioSquad() state.Battle {
 	rifle := battle.Weapon{Name: "long rifle", Power: 1800, RangeMin: 1, RangeMax: 5,
 		ENCost: 10, Accuracy: 5, UsableAfterMove: true}
 	supporter := battle.Unit{Faction: battle.FactionAlly, Size: battle.Cell{1, 1},
-		UnitValues:              battle.UnitValues{Pos: battle.Cell{0, 1}, HP: 99000, EN: 140, MoveRange: 2, SupportAttackCharges: 1},
-		SupportAttackChargesMax: 1,
-		Pilot:                   battle.Pilot{Ranged: 220, Melee: 220, Awaken: 220, Defense: 190, Reaction: 205, SP: 15},
-		Mech:                    battle.Mech{HP: 99000, EN: 140, Attack: 4200, Defense: 3900, Mobility: 310, MoveRange: 2, Weapons: []battle.Weapon{rifle}}}
+		UnitValues: battle.UnitValues{Pos: battle.Cell{0, 1}, HP: 99000, EN: 140, MoveRange: 2, SupportAttackCharges: 1},
+		Pilot: battle.Pilot{Ranged: 220, Melee: 220, Awaken: 220, Defense: 190, Reaction: 205, SP: 15,
+			Abilities: []battle.Ability{{Kind: battle.AbilitySupportAttackPlus, Plus: 1}}},
+		Mech: battle.Mech{HP: 99000, EN: 140, Attack: 4200, Defense: 3900, Mobility: 310, MoveRange: 2, Weapons: []battle.Weapon{rifle}}}
 	bounds := b.Content.Bounds
 	units := []battle.Unit{}
 	for id := range b.Content.Units {

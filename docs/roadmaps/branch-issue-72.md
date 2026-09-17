@@ -370,9 +370,10 @@ fill of 0831) and assembly recomputes
 'MoveRange' and 'MP' on every call; geometry and support read
 'MoveRange' from the content.
 
-Deferred to a later issue: the base chance step of every pilot
-('ChanceStepsMax' = 1 + Σ), because four goldens hold
-'chance_steps_max' 0 (ruling of the rejected branch, kept).
+The base chance step of every pilot ('ChanceStepsMax' = 1 + Σ) was
+deferred while four goldens held 'chance_steps_max' 0; the ruling of
+2026-09-17 (bases 0, 0 and 1, the allowances derived) lifted the
+deferral, and the goldens carry the lines that give their counts.
 
 ## Section 4. The lines of the sample
 
@@ -423,8 +424,8 @@ docs/reference/datamine-source.md on 88b5e8c.
 | pilot | 'revive_once' | 'mech_ids' | 2 | EX Character Ability (Char Aznable); one row is the companion row 84 | not read |
 | pilot | 'squad_attack_percent_per_member' | 'mech_ids' | 2 | EX Character Ability (Io Fleming) | not read |
 | pilot | 'squad_grant' | 'mech_ids' | 4 | EX Character Ability (Oliver May) | not read |
-| pilot | 'support_attack_plus' | — | 6 | Support Attack / Counter Support LV 4 | |
-| pilot | 'support_defend_plus' | — | 5 | Support Defense LV 4 | |
+| pilot | 'support_attack_plus' | — | 6 | Support Attack / Counter Support LV 4 | 'lines.SupportAttackPlus', step 1c |
+| pilot | 'support_defend_plus' | — | 5 | Support Defense LV 4 | 'lines.SupportDefendPlus', step 1c |
 | pilot | 'weapon_en_cost_percent' | 'mech_type', 'strike_roles' | 2 | Support Attack / Counter Support LV 4 | 'lines.WeaponENCostPercentOnSupportWithMechType', scenario 6 |
 
 Facts the table shows:
@@ -489,8 +490,8 @@ The order of the work, each step one commit:
        refuses them stated, a resumed one judges them against the
        maximum); the resumed judgment moves after the derivation;
        the goldens fill 'pilot.sp' with 15.
-   1c. The count lines (version 2.3): 'ability.AssembleContext' and
-       'OnAssemble'; 'support_attack_plus', 'support_defend_plus',
+   1c. The allowance lines (done, version 2.3): 'ability.AssembleContext'
+       and 'OnAssemble'; 'support_attack_plus', 'support_defend_plus',
        'chance_step_plus'; 'support_attack_charges_max',
        'support_defend_charges_max' and 'chance_steps_max' leave
        'battle.Unit' (bases 0, 0 and 1: user, 2026-09-17); the
@@ -519,13 +520,13 @@ every row of it is ticked in Section 4.
 | A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | done, scenario 13 |
 | A6 Part conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Part' on the unit view from the cast of the exchange; 'def.MechType' | done, scenario 2 |
 | B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | EN cost done, scenario 6; the range line moves to F |
-| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | step 0 done |
+| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | steps 0 and 1 done; the two allowance lines (11 rows) done; max HP %, max EN %, move +1, MP +n (10 rows) to do |
 | F Vigor | ATK and MOB % at vigor, special weapon range +1 at vigor | 3 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54; the range line needs a reach moment beside the cost | |
 | D Wound | revive once | 2 | a wound hook after the HP write and before the kill; the line keeps its own flag | not read |
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
 | — | HP supply %, debuff effect % | 2 | issues #79 and #80 | not read |
 
-Rows done: 78 of 112; to do: 24 (C 21, F 3); not read: 10. The count of A1 read 45 until 2026-09-16; the rows of Section 4 give 32.
+Rows done: 89 of 112; to do: 13 (C 10, F 3); not read: 10. The count of A1 read 45 until 2026-09-16; the rows of Section 4 give 32.
 
 ## Gates
 
@@ -636,10 +637,10 @@ when a wire key lands, and then in the same commit.
   start lost their guards: an effect records that a reset ran, not
   that a number changed (user).
 - 2026-09-17: step 1a, the carriers, version 2.1. A first cut that
-  also derived the maxima and added the count lines was withdrawn
+  also derived the maxima and added the allowance lines was withdrawn
   before the commit: the user drew the line between the contract
   shape and an ability implementation, and step 1 became three
-  commits. The bases of the counts are 0, 0 and 1 (user).
+  commits. The bases of the allowances are 0, 0 and 1 (user).
 - 2026-09-17: step 1b, the derived maxima, version 2.2. 'Assemble'
   runs 'FromContract', then 'assembleContent', then the judgment of
   the origin on the two columns; 'openNewBattle' and
@@ -653,3 +654,12 @@ when a wire key lands, and then in the same commit.
   two conversions of 'state' share it, so a value field is declared
   and converted in one place. The keys of the unit payload moved
   into the order of the embed; no key came or went.
+- 2026-09-17: step 1c, the allowance lines, version 2.3. The
+  assembly moment ('AssembleContext', 'OnAssemble') and the three
+  allowance lines; 'assembleContent' runs the chain of each unit and
+  derives the allowances from the bases. The producer
+  'UnitIntel.to_unit' turns the allowances it read from the panel
+  into the lines ('allowance_lines'). The user settled the word:
+  these are allowances of an action, not counts. The test helper 'refused' compares the contract
+  objects before and after, because a chain holds functions and
+  'reflect.DeepEqual' never equates two functions.

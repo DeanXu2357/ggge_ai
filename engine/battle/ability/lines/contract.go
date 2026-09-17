@@ -118,6 +118,18 @@ func pick(a battle.Ability) ability.Line {
 		if conditions == mechType|strikeRole && *a.StrikeRole == battle.StrikeRoleSupportAttack {
 			return WeaponENCostPercentOnSupportWithMechType{MechType: a.MechType, Percent: a.Percent}
 		}
+	case battle.AbilitySupportAttackPlus:
+		if conditions == none {
+			return SupportAttackPlus{Plus: a.Plus}
+		}
+	case battle.AbilitySupportDefendPlus:
+		if conditions == none {
+			return SupportDefendPlus{Plus: a.Plus}
+		}
+	case battle.AbilityChanceStepPlus:
+		if conditions == none {
+			return ChanceStepPlus{Plus: a.Plus}
+		}
 	default:
 		return Unknown{Wire: a}
 	}
@@ -218,6 +230,12 @@ func ToContract(line ability.Line) battle.Ability {
 	case WeaponENCostPercentOnSupportWithMechType:
 		return battle.Ability{Kind: battle.AbilityWeaponENCostPercent, Percent: l.Percent,
 			MechType: l.MechType, StrikeRole: ptr(battle.StrikeRoleSupportAttack)}
+	case SupportAttackPlus:
+		return battle.Ability{Kind: battle.AbilitySupportAttackPlus, Plus: l.Plus}
+	case SupportDefendPlus:
+		return battle.Ability{Kind: battle.AbilitySupportDefendPlus, Plus: l.Plus}
+	case ChanceStepPlus:
+		return battle.Ability{Kind: battle.AbilityChanceStepPlus, Plus: l.Plus}
 	}
 	panic(fmt.Sprintf("the line %T has no wire form", line))
 }

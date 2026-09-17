@@ -10,14 +10,17 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 )
 
-// A stage of two units with every maximum and count, and one map weapon on
-// the enemy, before any value is set.
+// A stage of two units with every base and the allowance lines of the pilot
+// (support attack 2, support defend 3, chance steps 1), and one map weapon
+// on the enemy, before any value is set.
 func stage() battle.BattleState {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
 	unit := func(faction battle.Faction, x int) battle.Unit {
 		return battle.Unit{Faction: faction, UnitValues: battle.UnitValues{Pos: battle.Cell{x, 0}},
-			Mech: battle.Mech{HP: 100, EN: 50, MoveRange: 4}, Pilot: battle.Pilot{SP: 20},
-			ChanceStepsMax: 1, SupportAttackChargesMax: 2, SupportDefendChargesMax: 3}
+			Mech: battle.Mech{HP: 100, EN: 50, MoveRange: 4},
+			Pilot: battle.Pilot{SP: 20, Abilities: []battle.Ability{
+				{Kind: battle.AbilitySupportAttackPlus, Plus: 2},
+				{Kind: battle.AbilitySupportDefendPlus, Plus: 3}}}}
 	}
 	enemy := unit(battle.FactionEnemy, 3)
 	enemy.Mech.MapWeapons = []battle.MapWeapon{{Name: "shells", AmmoMax: 4}}
@@ -183,6 +186,40 @@ func TestAssembleFillsWhatTheWireLeavesOut(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, battle.TerrainSpace, content.Terrain, "an empty terrain becomes space")
 	assert.Equal(t, battle.Cell{1, 1}, content.Units[0].Size, "a size of zero becomes one")
+}
+
+// The allowances of a unit are derived at assembly from a base and the
+// allowance lines: support attack and support defend from 0, the chance
+// step from 1 (user, 2026-09-17), on both origins.
+func TestAssemblyDerivesTheAllowancesFromTheLines(t *testing.T) {
+	plain := stage()
+	plain.Units[1].Pilot.Abilities = nil
+	lined := stage()
+	lined.Units[1].Pilot.Abilities = []battle.Ability{
+		{Kind: battle.AbilitySupportAttackPlus, Plus: 1}, {Kind: battle.AbilitySupportAttackPlus, Plus: 1},
+		{Kind: battle.AbilityChanceStepPlus, Plus: 1}}
+	lined.Units[1].Mech.Abilities = []battle.Ability{{Kind: battle.AbilitySupportDefendPlus, Plus: 1}}
+
+	for name, candidate := range map[string]battle.BattleState{"plain": plain, "lined": lined} {
+		t.Run(name, func(t *testing.T) {
+			content, values, err := Assemble(candidate, Fresh)
+			require.NoError(t, err)
+			unit := content.Units[1]
+			got := []int{unit.SupportAttackChargesMax, unit.SupportDefendChargesMax, unit.ChanceStepsMax}
+			if name == "plain" {
+				assert.Equal(t, []int{0, 0, 1}, got)
+			} else {
+				assert.Equal(t, []int{2, 1, 2}, got, "the lines of the mech and of the pilot add")
+			}
+			assert.Equal(t, got, []int{values.Units[1].SupportAttackCharges, values.Units[1].SupportDefendCharges,
+				values.Units[1].ChanceSteps}, "a fresh battle fills the allowances")
+		})
+	}
+	resumed := resumed()
+	resumed.Units[1].Pilot.Abilities = nil
+	resumed.Units[1].SupportAttackCharges = 1
+	_, _, err := Assemble(resumed, Resumed)
+	assert.ErrorIs(t, err, battle.ErrOutsideContract, "an allowance above the derived maximum")
 }
 
 // Every maximum of the content is derived from the base data at assembly,

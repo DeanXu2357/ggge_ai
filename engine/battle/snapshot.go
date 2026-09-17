@@ -225,6 +225,7 @@ type Mech struct {
 type Ability struct {
 	Kind            AbilityKind      `json:"kind"`
 	Percent         float64          `json:"percent"`
+	Plus            int              `json:"plus"`
 	EnemyTag        int              `json:"enemy_tag"`
 	MechTag         int              `json:"mech_tag"`
 	HPRateLte       int              `json:"hp_rate_lte"`
@@ -236,10 +237,9 @@ type Ability struct {
 }
 
 // Unit is the current state of the pairing on the board. It holds the
-// values of the moment and the maxima of the counts; the pilot and the
-// mech hold the base data, and the engine derives the maximum of each
-// pool from the base data at assembly, so 'max_hp', 'en_max' and 'sp_max'
-// travel nowhere. ChanceSteps is the re-act grant after a kill
+// values of the moment; the pilot and the mech hold the base data and the
+// lines, and the engine derives every maximum from them at assembly, so
+// no maximum travels. ChanceSteps is the re-act grant after a kill
 // (docs/reference/combat-formulas.md:134), which counts no dice.
 //
 // The unit carries no id: the position of the unit in 'BattleState.Units' is
@@ -251,9 +251,6 @@ type Unit struct {
 	UnitValues
 	Pilot                   Pilot `json:"pilot"`
 	Mech                    Mech  `json:"mech"`
-	ChanceStepsMax          int   `json:"chance_steps_max"`
-	SupportDefendChargesMax int   `json:"support_defend_charges_max"`
-	SupportAttackChargesMax int   `json:"support_attack_charges_max"`
 	HasShield               bool  `json:"has_shield"`
 	SupportDefendWhenAttack bool  `json:"support_defend_when_attack"`
 }

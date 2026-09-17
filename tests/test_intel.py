@@ -105,7 +105,12 @@ def test_the_store_assembles_a_sandbox_unit_at_full_strength():
     assert [weapon.name for weapon in unit.mech.map_weapons] == ["メガ粒子砲"]
     assert unit.map_weapon_ammo == [2]
     assert [skill.kind for skill in unit.skills] == ["skill_en_refill"]
-    assert unit.chance_steps == unit.chance_steps_max == 1
+    assert unit.chance_steps == 1
+    assert (unit.support_attack_charges, unit.support_defend_charges) == (2, 1)
+    assert [(line.kind, line.plus) for line in unit.pilot.abilities] == [
+        ("support_attack_plus", 2),
+        ("support_defend_plus", 1),
+    ]
     assert unit.support_attack_charges == 2
     assert unit.support_defend_charges == 1
     assert (unit.has_shield, unit.support_defend_when_attack) == (True, True)

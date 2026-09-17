@@ -903,8 +903,7 @@ A unit is a pilot that rides a mech, on the board of one stage. The
 payload keeps the three apart (user ruling 2026-08-28).
 
 The unit is the current state of the pairing. It records the values
-of the moment and the maxima of the counts, and it takes no part in
-a computation:
+of the moment, and it takes no part in a computation:
 
 | Field | Content |
 |---|---|
@@ -915,25 +914,29 @@ a computation:
 | pilot | The pilot, as data |
 | mech | The mech, as data |
 
-The maximum of a pool travels nowhere (version 2.2, user ruling
-2026-09-17): the engine derives it at assembly from the base data,
+No maximum travels (versions 2.2 and 2.3, user ruling 2026-09-17):
+the engine derives every maximum at assembly, on 'init' and on
+'load' alike, and a value of the payload is judged against the
+derived maximum. The maximum of a pool comes from the base data:
 'max_hp' from 'mech.hp', 'en_max' from 'mech.en', 'sp_max' from
-'pilot.sp' and the maximum of 'move_range' from 'mech.move_range',
-on 'init' and on 'load' alike, and a value of the payload is judged
-against the derived maximum. A second assembly of an exported state
+'pilot.sp' and the maximum of 'move_range' from 'mech.move_range'.
+The maximum of an allowance, how many times the unit may support
+attack, support defend or act again after a kill, comes from a base
+and the allowance lines of the mech and of the pilot: the support
+attack and support defend allowances from 0 plus the
+'support_attack_plus' and 'support_defend_plus' lines, the chance
+steps from 1 plus the 'chance_step_plus' lines.
+That the game starts every unit from these bases is the user's
+reading (2026-09-17), not a device measurement. A second assembly of an exported state
 derives the same content, because the export writes the base data
 and the values and never a derived number. The reader sees the
 derived maxima in the unit status of 'actions'. The unit carries no
 attack, no defense, no mobility and no weapon list of its own. A
 rule that needs one of them reads the pilot or the mech.
 
-The three maxima 'support_attack_charges_max',
-'support_defend_charges_max' and 'chance_steps_max' are state of
-the unit, and the pilot decides them: an ability of the pilot whose
-condition matches the mech (its role, its tags or its series) raises
-the count (user ruling 2026-08-28). No code derives them yet; a
-payload carries them as given. The pairing conditions belong to
-issue #72 and the derivation to issue #77.
+The three allowances were carried as given until version 2.3; the
+ruling of 2026-08-28 that the pilot decides them through its
+abilities is now the derivation above.
 
 The pilot holds the values of the game's pilot panel:
 
@@ -967,6 +970,7 @@ An ability payload is one effect line (version 2.1, issue #72):
 |---|---|
 | kind | The effect, one of the kinds of docs/reference/datamine-source.md ('mech_attack_percent', 'damage_taken_percent', ...) |
 | percent | The number of a percent line, signed: -15 on 'damage_taken_percent' is 15% less |
+| plus | The number of an allowance line: 'support_attack_plus', 'support_defend_plus', 'chance_step_plus' |
 | enemy_tag, mech_tag | A tag condition: the tag of the enemy of the strike, or of the mech the holder rides; 0 when absent |
 | hp_rate_lte, hp_rate_gte | An HP condition in percent of the maximum; 0 when absent |
 | mech_type | A mech type condition; 0 when absent |
@@ -1212,6 +1216,14 @@ difference between two integers is 1.
   'abilities' on the mech, with the new ability payload. A 2.0
   payload decodes as a 2.1 payload with the lists empty and the
   type 0.
+- An eleventh exception on record: version 2.3 (2026-09-17, issue
+  #72) removed 'chance_steps_max', 'support_attack_charges_max' and
+  'support_defend_charges_max' from the unit payload and added
+  'plus' to the ability payload: the allowances are derived from the
+  allowance lines of the mech and of the pilot. A 2.2 payload whose
+  allowances came from lines loads as a 2.3 payload once the three
+  keys are dropped; a payload that stated an allowance with no line
+  behind it loads with the base allowance.
 - A tenth exception on record: version 2.2 (2026-09-17, issue #72)
   removed 'max_hp', 'en_max' and 'sp_max' from the unit payload and
   added the values 'mp' and 'move_range', on the user ruling that

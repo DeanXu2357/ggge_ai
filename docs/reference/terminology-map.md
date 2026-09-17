@@ -38,6 +38,7 @@ term at its first use in each document, then use the short form.
 | settle | 幀差取樣 | Sample after the frame difference falls, or at the deadline, whichever is first. Not 收斂, because a long animation can release at the deadline without becoming still. Accepted alternate reading: 收斂取樣 |
 | blind sleep | 盲睡 | A fixed-time wait that measures nothing; it keeps the English word settle in old names but is not the settle primitive |
 | projection | 透視投影 | The fixed planar homography of the board. Not the bare word 投影, which board.py uses for the row and column sums |
+| allowance | 額度 | How many times a unit may take an action in a battle: a support attack, a support defense, or a chance step. Not a count: nothing is tallied |
 | sandbox | 沙盤 | The program's own simulation of one stage battle: the board and the page, never a Python rule module |
 | expectiminimax | expectiminimax | Keep the English form in Chinese text: there is no Chinese binding |
 | first strike | 先攻 | The weapon trait marked by the orange '先發攻擊' label above the portrait |

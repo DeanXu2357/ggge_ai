@@ -40,9 +40,6 @@ func fromContractUnit(u battle.Unit) (UnitContent, UnitValue, error) {
 	content := UnitContent{
 		Faction:                 u.Faction,
 		Size:                    u.Size,
-		ChanceStepsMax:          u.ChanceStepsMax,
-		SupportDefendChargesMax: u.SupportDefendChargesMax,
-		SupportAttackChargesMax: u.SupportAttackChargesMax,
 		HasShield:               u.HasShield,
 		SupportDefendWhenAttack: u.SupportDefendWhenAttack,
 		Mech:                    &mech,
@@ -119,9 +116,6 @@ func toContractUnit(u Unit) battle.Unit {
 		UnitValues:              toContractValues(u.Value),
 		Pilot:                   toContractPilot(u.Pilot, u.Value.PilotAbilities),
 		Mech:                    toContractMech(u.Mech, u.Value.MechAbilities),
-		ChanceStepsMax:          u.ChanceStepsMax,
-		SupportDefendChargesMax: u.SupportDefendChargesMax,
-		SupportAttackChargesMax: u.SupportAttackChargesMax,
 		HasShield:               u.HasShield,
 		SupportDefendWhenAttack: u.SupportDefendWhenAttack,
 	}

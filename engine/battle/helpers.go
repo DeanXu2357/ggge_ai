@@ -81,6 +81,9 @@ const (
 	AbilityDamageDealtPercent   AbilityKind = "damage_dealt_percent"
 	AbilityDamageTakenPercent   AbilityKind = "damage_taken_percent"
 	AbilityWeaponENCostPercent  AbilityKind = "weapon_en_cost_percent"
+	AbilitySupportAttackPlus    AbilityKind = "support_attack_plus"
+	AbilitySupportDefendPlus    AbilityKind = "support_defend_plus"
+	AbilityChanceStepPlus       AbilityKind = "chance_step_plus"
 )
 
 // StrikeRole is the condition 'strike_roles' of the datamine: the line holds

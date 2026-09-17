@@ -20,10 +20,10 @@ func scenarioCover() state.Battle {
 	b := scenarioDuel()
 	units := state.Battle{Content: b.Content, Values: b.Values}.ToContract().Units
 	guard := battle.Unit{Faction: battle.FactionEnemy, Size: battle.Cell{1, 1},
-		UnitValues:              battle.UnitValues{Pos: battle.Cell{3, 1}, HP: 99000, EN: 140, MoveRange: 2, SupportDefendCharges: 1},
-		SupportDefendChargesMax: 1,
-		Pilot:                   battle.Pilot{Ranged: 220, Melee: 220, Awaken: 220, Defense: 190, Reaction: 205, SP: 15},
-		Mech:                    battle.Mech{HP: 99000, EN: 140, Attack: 4200, Defense: 3900, Mobility: 310, MoveRange: 2}}
+		UnitValues: battle.UnitValues{Pos: battle.Cell{3, 1}, HP: 99000, EN: 140, MoveRange: 2, SupportDefendCharges: 1},
+		Pilot: battle.Pilot{Ranged: 220, Melee: 220, Awaken: 220, Defense: 190, Reaction: 205, SP: 15,
+			Abilities: []battle.Ability{{Kind: battle.AbilitySupportDefendPlus, Plus: 1}}},
+		Mech: battle.Mech{HP: 99000, EN: 140, Attack: 4200, Defense: 3900, Mobility: 310, MoveRange: 2}}
 	bounds := b.Content.Bounds
 	content, values := assembled(battle.BattleState{
 		Bounds: &bounds, Phase: battle.FactionAlly, Turn: 1, Units: append(units, guard)})

@@ -183,9 +183,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         },
@@ -282,9 +279,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         },
@@ -346,9 +340,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         },
@@ -410,9 +401,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         },
@@ -474,9 +462,6 @@
             "type": 0,
             "abilities": []
           },
-          "chance_steps_max": 0,
-          "support_defend_charges_max": 0,
-          "support_attack_charges_max": 0,
           "has_shield": false,
           "support_defend_when_attack": false
         }
@@ -681,9 +666,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           },
@@ -780,9 +762,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           },
@@ -844,9 +823,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           },
@@ -908,9 +884,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           },
@@ -972,9 +945,6 @@
               "type": 0,
               "abilities": []
             },
-            "chance_steps_max": 0,
-            "support_defend_charges_max": 0,
-            "support_attack_charges_max": 0,
             "has_shield": false,
             "support_defend_when_attack": false
           }

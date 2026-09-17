@@ -30,7 +30,7 @@ func withMoveRange(unit battle.Unit, moveRange int) battle.Unit {
 // refused asserts that Commit answers the sentinel and writes nothing.
 func refused(t *testing.T, b state.Battle, action battle.Action, sentinel error) {
 	t.Helper()
-	before := b.Values.Clone()
+	before := b.ToContract()
 	_, events, err := Commit(b, action, draw())
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("error: %v, want %v", err, sentinel)
@@ -38,8 +38,8 @@ func refused(t *testing.T, b state.Battle, action battle.Action, sentinel error)
 	if events != nil {
 		t.Fatalf("a refusal carries no event: %+v", events)
 	}
-	if !reflect.DeepEqual(before, *b.Values) {
-		t.Fatalf("the refusal wrote the column:\n%+v\n%+v", before, *b.Values)
+	if after := b.ToContract(); !reflect.DeepEqual(before, after) {
+		t.Fatalf("the refusal wrote the column:\n%+v\n%+v", before, after)
 	}
 }
 

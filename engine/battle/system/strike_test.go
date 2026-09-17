@@ -35,7 +35,7 @@ func assembled(s battle.BattleState) (state.Content, state.Values) {
 	if err != nil {
 		panic(err)
 	}
-	assembleContent(&content)
+	assembleContent(&content, &values)
 	for index := range values.Units {
 		if values.Units[index].MoveRange == 0 {
 			values.Units[index].MoveRange = content.Units[index].MoveRange
