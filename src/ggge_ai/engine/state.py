@@ -168,29 +168,31 @@ class Unit:
     """
 
     faction: Faction
-    pos: Cell = (0, 0)
     # The size is data only. The geometry of this module gives every unit one
     # cell. The engine holds the footprint rule (issue #61).
     size: Cell = (1, 1)
+    # The value column, in the order of the Go 'UnitValues' that the unit
+    # payload embeds and the terminal values of 'act' carry.
+    pos: Cell = (0, 0)
     hp: int = 1
     en: int = 0
     sp: int = 0
     mp: int = 0
     move_range: int = 0
-    pilot: Pilot = field(default_factory=Pilot)
-    mech: Mech = field(default_factory=Mech)
-    skills: list[Skill] = field(default_factory=list)
     acted: bool = False
     chance_steps: int = 0
-    chance_steps_max: int = 0
-    support_defend_charges: int = 0
-    support_defend_charges_max: int = 0
     support_attack_charges: int = 0
+    support_defend_charges: int = 0
+    skills: list[Skill] = field(default_factory=list)
+    map_weapon_ammo: list[int] = field(default_factory=list)
+    debuffs: list[Debuff] = field(default_factory=list)
+    pilot: Pilot = field(default_factory=Pilot)
+    mech: Mech = field(default_factory=Mech)
+    chance_steps_max: int = 0
+    support_defend_charges_max: int = 0
     support_attack_charges_max: int = 0
     has_shield: bool = False
     support_defend_when_attack: bool = False
-    map_weapon_ammo: list[int] = field(default_factory=list)
-    debuffs: list[Debuff] = field(default_factory=list)
 
     @property
     def alive(self) -> bool:

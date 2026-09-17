@@ -48,21 +48,7 @@ func fromContractUnit(u battle.Unit) (UnitContent, UnitValue, error) {
 		Mech:                    &mech,
 		Pilot:                   &pilot,
 	}
-	value := UnitValue{
-		Pos:                  u.Pos,
-		HP:                   u.HP,
-		EN:                   u.EN,
-		SP:                   u.SP,
-		MP:                   u.MP,
-		MoveRange:            u.MoveRange,
-		Acted:                u.Acted,
-		ChanceSteps:          u.ChanceSteps,
-		SupportDefendCharges: u.SupportDefendCharges,
-		SupportAttackCharges: u.SupportAttackCharges,
-		Skills:               mapSlice(u.Skills, fromContractSkill),
-		MapWeaponAmmo:        slices.Clone(u.MapWeaponAmmo),
-		Debuffs:              slices.Clone(u.Debuffs),
-	}
+	value := fromContractValues(u.UnitValues)
 	mechLines, err := fromContractAbilities(u.Mech.Abilities)
 	if err != nil {
 		return UnitContent{}, UnitValue{}, err
@@ -90,30 +76,54 @@ func fromContractAbilities(wire []battle.Ability) ([]ability.Line, error) {
 	return out, nil
 }
 
+func fromContractValues(v battle.UnitValues) UnitValue {
+	return UnitValue{
+		Pos:                  v.Pos,
+		HP:                   v.HP,
+		EN:                   v.EN,
+		SP:                   v.SP,
+		MP:                   v.MP,
+		MoveRange:            v.MoveRange,
+		Acted:                v.Acted,
+		ChanceSteps:          v.ChanceSteps,
+		SupportDefendCharges: v.SupportDefendCharges,
+		SupportAttackCharges: v.SupportAttackCharges,
+		Skills:               mapSlice(v.Skills, fromContractSkill),
+		MapWeaponAmmo:        slices.Clone(v.MapWeaponAmmo),
+		Debuffs:              slices.Clone(v.Debuffs),
+	}
+}
+
+func toContractValues(v *UnitValue) battle.UnitValues {
+	return battle.UnitValues{
+		Pos:                  v.Pos,
+		HP:                   v.HP,
+		EN:                   v.EN,
+		SP:                   v.SP,
+		MP:                   v.MP,
+		MoveRange:            v.MoveRange,
+		Acted:                v.Acted,
+		ChanceSteps:          v.ChanceSteps,
+		SupportAttackCharges: v.SupportAttackCharges,
+		SupportDefendCharges: v.SupportDefendCharges,
+		Skills:               mapSlice(v.Skills, toContractSkill),
+		MapWeaponAmmo:        slices.Clone(v.MapWeaponAmmo),
+		Debuffs:              slices.Clone(v.Debuffs),
+	}
+}
+
 func toContractUnit(u Unit) battle.Unit {
 	return battle.Unit{
 		Faction:                 u.Faction,
-		Pos:                     u.Value.Pos,
 		Size:                    u.Size,
-		HP:                      u.Value.HP,
-		EN:                      u.Value.EN,
-		SP:                      u.Value.SP,
-		MP:                      u.Value.MP,
-		MoveRange:               u.Value.MoveRange,
+		UnitValues:              toContractValues(u.Value),
 		Pilot:                   toContractPilot(u.Pilot, u.Value.PilotAbilities),
 		Mech:                    toContractMech(u.Mech, u.Value.MechAbilities),
-		Skills:                  mapSlice(u.Value.Skills, toContractSkill),
-		Acted:                   u.Value.Acted,
-		ChanceSteps:             u.Value.ChanceSteps,
 		ChanceStepsMax:          u.ChanceStepsMax,
-		SupportDefendCharges:    u.Value.SupportDefendCharges,
 		SupportDefendChargesMax: u.SupportDefendChargesMax,
-		SupportAttackCharges:    u.Value.SupportAttackCharges,
 		SupportAttackChargesMax: u.SupportAttackChargesMax,
 		HasShield:               u.HasShield,
 		SupportDefendWhenAttack: u.SupportDefendWhenAttack,
-		MapWeaponAmmo:           slices.Clone(u.Value.MapWeaponAmmo),
-		Debuffs:                 slices.Clone(u.Value.Debuffs),
 	}
 }
 

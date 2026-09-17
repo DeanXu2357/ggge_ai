@@ -37,7 +37,7 @@ func TestDecodeRefusesAPayloadOutsideTheContract(t *testing.T) {
 		"an ammunition count for a map weapon the unit does not carry": {
 			Bounds: &square,
 			Phase:  ally,
-			Units:  []battle.Unit{{Faction: ally, MapWeaponAmmo: []int{3}}},
+			Units:  []battle.Unit{{Faction: ally, UnitValues: battle.UnitValues{MapWeaponAmmo: []int{3}}}},
 		},
 		"a size below zero": {
 			Bounds: &square,

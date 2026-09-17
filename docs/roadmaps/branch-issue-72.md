@@ -647,3 +647,9 @@ when a wire key lands, and then in the same commit.
   goldens and the server test payloads carry the base data; the
   producer 'UnitIntel.to_unit' writes 'pilot.sp' and the
   'move_range' value.
+- 2026-09-17: the value column of the unit payload is one type,
+  'battle.UnitValues', embedded in 'battle.Unit' and carried with
+  an id by 'battle.AffectedUnit' in the answer of 'act' (user). The
+  two conversions of 'state' share it, so a value field is declared
+  and converted in one place. The keys of the unit payload moved
+  into the order of the embed; no key came or went.

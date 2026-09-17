@@ -15,9 +15,9 @@ func idOf(value int) *int {
 }
 
 func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
-	return battle.Unit{Faction: faction,
-		Pos: anchor, Size: oneCell, HP: 100,
-		Mech: battle.Mech{}, Pilot: battle.Pilot{}}
+	return battle.Unit{Faction: faction, Size: oneCell,
+		UnitValues: battle.UnitValues{Pos: anchor, HP: 100},
+		Mech:       battle.Mech{}, Pilot: battle.Pilot{}}
 }
 
 func pair(units ...battle.Unit) (state.Content, state.Values) {

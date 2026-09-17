@@ -91,11 +91,12 @@ func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 		Bounds: &bounds,
 		Phase:  battle.FactionAlly,
 		Units: []battle.Unit{{
-			Faction: battle.FactionAlly, HP: 10, EN: 5,
-			MapWeaponAmmo: []int{3},
-			Debuffs:       []battle.Debuff{{Kind: "defense", Magnitude: 0.1, AppliedPhase: 3}},
-			Skills:        []battle.Skill{{Kind: "boost", Amount: &amount, Uses: 1}},
-			Mech:          battle.Mech{MapWeapons: []battle.MapWeapon{{Name: "w", AmmoMax: 3}}},
+			Faction: battle.FactionAlly,
+			UnitValues: battle.UnitValues{HP: 10, EN: 5,
+				MapWeaponAmmo: []int{3},
+				Debuffs:       []battle.Debuff{{Kind: "defense", Magnitude: 0.1, AppliedPhase: 3}},
+				Skills:        []battle.Skill{{Kind: "boost", Amount: &amount, Uses: 1}}},
+			Mech: battle.Mech{MapWeapons: []battle.MapWeapon{{Name: "w", AmmoMax: 3}}},
 		}},
 		TerrainCells: []battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: battle.TerrainGround}},
 	})
@@ -245,9 +246,9 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 var oneCell = battle.Cell{1, 1}
 
 func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
-	return battle.Unit{Faction: faction,
-		Pos: anchor, Size: oneCell, HP: 100, EN: 100,
-		Mech: battle.Mech{HP: 100, EN: 100}, Pilot: battle.Pilot{SP: 15}}
+	return battle.Unit{Faction: faction, Size: oneCell,
+		UnitValues: battle.UnitValues{Pos: anchor, HP: 100, EN: 100},
+		Mech:       battle.Mech{HP: 100, EN: 100}, Pilot: battle.Pilot{SP: 15}}
 }
 
 func board(units ...battle.Unit) *Board {

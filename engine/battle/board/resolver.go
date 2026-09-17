@@ -63,7 +63,7 @@ func (b *Board) Act(action *battle.Action) (battle.ActResult, error) {
 
 // The terminal values name every unit an effect landed on, in the order of
 // the unit ids.
-func (b *Board) affected(events []battle.Event) []battle.UnitValues {
+func (b *Board) affected(events []battle.Event) []battle.AffectedUnit {
 	touched := map[int]bool{}
 	for _, event := range events {
 		for _, effect := range effectsOf(event) {
@@ -71,9 +71,9 @@ func (b *Board) affected(events []battle.Event) []battle.UnitValues {
 		}
 	}
 	ids := slices.Sorted(maps.Keys(touched))
-	out := make([]battle.UnitValues, 0, len(ids))
+	out := make([]battle.AffectedUnit, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, b.view().UnitValues(id))
+		out = append(out, battle.AffectedUnit{UnitID: id, UnitValues: b.view().UnitValues(id)})
 	}
 	return out
 }

@@ -514,7 +514,10 @@ start as effects; the section 'Turn cycle' holds the rule.
 
 'units' is the terminal values: every unit an effect landed on,
 with its whole value column after the act, in the order of the
-unit ids.
+unit ids. An entry is 'unit_id' and the value fields of the unit
+payload, the same keys with the same meaning: Go declares the
+value column one time as 'battle.UnitValues', which the unit
+payload embeds and 'battle.AffectedUnit' carries with the id.
 
 'board' is the summary: 'turn', 'phase', 'pending_ids' (the
 units of the phase that can still act), and 'gone' (the sides

@@ -56,21 +56,5 @@ func (b Battle) ToContract() battle.BattleState {
 // UnitValues answers the wire form of the value column of one unit, for the
 // terminal values of an act.
 func (b Battle) UnitValues(id int) battle.UnitValues {
-	u := b.unit(id)
-	return battle.UnitValues{
-		UnitID:               id,
-		Pos:                  u.Value.Pos,
-		HP:                   u.Value.HP,
-		EN:                   u.Value.EN,
-		SP:                   u.Value.SP,
-		MP:                   u.Value.MP,
-		MoveRange:            u.Value.MoveRange,
-		Acted:                u.Value.Acted,
-		ChanceSteps:          u.Value.ChanceSteps,
-		SupportAttackCharges: u.Value.SupportAttackCharges,
-		SupportDefendCharges: u.Value.SupportDefendCharges,
-		Skills:               mapSlice(u.Value.Skills, toContractSkill),
-		MapWeaponAmmo:        slices.Clone(u.Value.MapWeaponAmmo),
-		Debuffs:              slices.Clone(u.Value.Debuffs),
-	}
+	return toContractValues(b.unit(id).Value)
 }

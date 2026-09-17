@@ -7,11 +7,11 @@
       "units": [
         {
           "faction": "ally",
-          "pos": [
+          "size": [
             1,
             1
           ],
-          "size": [
+          "pos": [
             1,
             1
           ],
@@ -20,6 +20,13 @@
           "sp": 0,
           "mp": 0,
           "move_range": 4,
+          "acted": false,
+          "chance_steps": 0,
+          "support_attack_charges": 0,
+          "support_defend_charges": 0,
+          "skills": [],
+          "map_weapon_ammo": [],
+          "debuffs": [],
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -68,34 +75,34 @@
             "type": 0,
             "abilities": []
           },
-          "skills": [],
-          "acted": false,
-          "chance_steps": 0,
           "chance_steps_max": 0,
-          "support_defend_charges": 0,
           "support_defend_charges_max": 0,
-          "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": false,
-          "support_defend_when_attack": false,
-          "map_weapon_ammo": [],
-          "debuffs": []
+          "support_defend_when_attack": false
         },
         {
           "faction": "ally",
-          "pos": [
-            1,
-            2
-          ],
           "size": [
             1,
             1
+          ],
+          "pos": [
+            1,
+            2
           ],
           "hp": 12000,
           "en": 135,
           "sp": 0,
           "mp": 0,
           "move_range": 4,
+          "acted": false,
+          "chance_steps": 0,
+          "support_attack_charges": 0,
+          "support_defend_charges": 0,
+          "skills": [],
+          "map_weapon_ammo": [],
+          "debuffs": [],
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -144,34 +151,34 @@
             "type": 0,
             "abilities": []
           },
-          "skills": [],
-          "acted": false,
-          "chance_steps": 0,
           "chance_steps_max": 0,
-          "support_defend_charges": 0,
           "support_defend_charges_max": 0,
-          "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": false,
-          "support_defend_when_attack": false,
-          "map_weapon_ammo": [],
-          "debuffs": []
+          "support_defend_when_attack": false
         },
         {
           "faction": "enemy",
-          "pos": [
-            4,
-            3
-          ],
           "size": [
             1,
             1
+          ],
+          "pos": [
+            4,
+            3
           ],
           "hp": 12000,
           "en": 50,
           "sp": 0,
           "mp": 0,
           "move_range": 4,
+          "acted": false,
+          "chance_steps": 0,
+          "support_attack_charges": 0,
+          "support_defend_charges": 0,
+          "skills": [],
+          "map_weapon_ammo": [],
+          "debuffs": [],
           "pilot": {
             "ranged": 220.0,
             "melee": 220.0,
@@ -220,18 +227,11 @@
             "type": 0,
             "abilities": []
           },
-          "skills": [],
-          "acted": false,
-          "chance_steps": 0,
           "chance_steps_max": 0,
-          "support_defend_charges": 0,
           "support_defend_charges_max": 0,
-          "support_attack_charges": 0,
           "support_attack_charges_max": 0,
           "has_shield": false,
-          "support_defend_when_attack": false,
-          "map_weapon_ammo": [],
-          "debuffs": []
+          "support_defend_when_attack": false
         }
       ],
       "phase": "ally",
@@ -258,11 +258,11 @@
         "units": [
           {
             "faction": "ally",
-            "pos": [
+            "size": [
               1,
               1
             ],
-            "size": [
+            "pos": [
               1,
               1
             ],
@@ -271,6 +271,13 @@
             "sp": 0,
             "mp": 0,
             "move_range": 4,
+            "acted": false,
+            "chance_steps": 0,
+            "support_attack_charges": 0,
+            "support_defend_charges": 0,
+            "skills": [],
+            "map_weapon_ammo": [],
+            "debuffs": [],
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -319,34 +326,34 @@
               "type": 0,
               "abilities": []
             },
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
             "chance_steps_max": 0,
-            "support_defend_charges": 0,
             "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "support_defend_when_attack": false,
-            "map_weapon_ammo": [],
-            "debuffs": []
+            "support_defend_when_attack": false
           },
           {
             "faction": "ally",
-            "pos": [
-              1,
-              2
-            ],
             "size": [
               1,
               1
+            ],
+            "pos": [
+              1,
+              2
             ],
             "hp": 12000,
             "en": 135,
             "sp": 0,
             "mp": 0,
             "move_range": 4,
+            "acted": false,
+            "chance_steps": 0,
+            "support_attack_charges": 0,
+            "support_defend_charges": 0,
+            "skills": [],
+            "map_weapon_ammo": [],
+            "debuffs": [],
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -395,34 +402,34 @@
               "type": 0,
               "abilities": []
             },
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
             "chance_steps_max": 0,
-            "support_defend_charges": 0,
             "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "support_defend_when_attack": false,
-            "map_weapon_ammo": [],
-            "debuffs": []
+            "support_defend_when_attack": false
           },
           {
             "faction": "enemy",
-            "pos": [
-              4,
-              3
-            ],
             "size": [
               1,
               1
+            ],
+            "pos": [
+              4,
+              3
             ],
             "hp": 12000,
             "en": 50,
             "sp": 0,
             "mp": 0,
             "move_range": 4,
+            "acted": false,
+            "chance_steps": 0,
+            "support_attack_charges": 0,
+            "support_defend_charges": 0,
+            "skills": [],
+            "map_weapon_ammo": [],
+            "debuffs": [],
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -471,18 +478,11 @@
               "type": 0,
               "abilities": []
             },
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
             "chance_steps_max": 0,
-            "support_defend_charges": 0,
             "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "support_defend_when_attack": false,
-            "map_weapon_ammo": [],
-            "debuffs": []
+            "support_defend_when_attack": false
           }
         ],
         "phase": "ally",
@@ -536,11 +536,11 @@
         "units": [
           {
             "faction": "ally",
-            "pos": [
+            "size": [
               1,
               1
             ],
-            "size": [
+            "pos": [
               1,
               1
             ],
@@ -549,6 +549,13 @@
             "sp": 0,
             "mp": 0,
             "move_range": 4,
+            "acted": false,
+            "chance_steps": 0,
+            "support_attack_charges": 0,
+            "support_defend_charges": 0,
+            "skills": [],
+            "map_weapon_ammo": [],
+            "debuffs": [],
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -597,34 +604,34 @@
               "type": 0,
               "abilities": []
             },
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
             "chance_steps_max": 0,
-            "support_defend_charges": 0,
             "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "support_defend_when_attack": false,
-            "map_weapon_ammo": [],
-            "debuffs": []
+            "support_defend_when_attack": false
           },
           {
             "faction": "ally",
-            "pos": [
-              1,
-              2
-            ],
             "size": [
               1,
               1
+            ],
+            "pos": [
+              1,
+              2
             ],
             "hp": 12000,
             "en": 135,
             "sp": 0,
             "mp": 0,
             "move_range": 4,
+            "acted": true,
+            "chance_steps": 0,
+            "support_attack_charges": 0,
+            "support_defend_charges": 0,
+            "skills": [],
+            "map_weapon_ammo": [],
+            "debuffs": [],
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -673,34 +680,34 @@
               "type": 0,
               "abilities": []
             },
-            "skills": [],
-            "acted": true,
-            "chance_steps": 0,
             "chance_steps_max": 0,
-            "support_defend_charges": 0,
             "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "support_defend_when_attack": false,
-            "map_weapon_ammo": [],
-            "debuffs": []
+            "support_defend_when_attack": false
           },
           {
             "faction": "enemy",
-            "pos": [
-              4,
-              3
-            ],
             "size": [
               1,
               1
+            ],
+            "pos": [
+              4,
+              3
             ],
             "hp": 12000,
             "en": 50,
             "sp": 0,
             "mp": 0,
             "move_range": 4,
+            "acted": false,
+            "chance_steps": 0,
+            "support_attack_charges": 0,
+            "support_defend_charges": 0,
+            "skills": [],
+            "map_weapon_ammo": [],
+            "debuffs": [],
             "pilot": {
               "ranged": 220.0,
               "melee": 220.0,
@@ -749,18 +756,11 @@
               "type": 0,
               "abilities": []
             },
-            "skills": [],
-            "acted": false,
-            "chance_steps": 0,
             "chance_steps_max": 0,
-            "support_defend_charges": 0,
             "support_defend_charges_max": 0,
-            "support_attack_charges": 0,
             "support_attack_charges_max": 0,
             "has_shield": false,
-            "support_defend_when_attack": false,
-            "map_weapon_ammo": [],
-            "debuffs": []
+            "support_defend_when_attack": false
           }
         ]
       }

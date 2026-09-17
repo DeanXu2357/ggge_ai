@@ -31,10 +31,10 @@ func standby(id string, unit int) string {
 }
 
 type actAnswer struct {
-	Events  []json.RawMessage   `json:"events"`
-	Units   []battle.UnitValues `json:"units"`
-	Outcome battle.Outcome      `json:"outcome"`
-	Board   battle.BoardSummary `json:"board"`
+	Events  []json.RawMessage     `json:"events"`
+	Units   []battle.AffectedUnit `json:"units"`
+	Outcome battle.Outcome        `json:"outcome"`
+	Board   battle.BoardSummary   `json:"board"`
 }
 
 func decodeAct(t *testing.T, reply reply) actAnswer {

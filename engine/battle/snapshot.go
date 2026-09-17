@@ -246,28 +246,35 @@ type Ability struct {
 // its id. MapWeaponAmmo holds one count for each entry of 'Mech.MapWeapons',
 // in the same order.
 type Unit struct {
-	Faction                 Faction  `json:"faction"`
-	Pos                     Cell     `json:"pos"`
-	Size                    Cell     `json:"size"`
-	HP                      int      `json:"hp"`
-	EN                      int      `json:"en"`
-	SP                      int      `json:"sp"`
-	MP                      int      `json:"mp"`
-	MoveRange               int      `json:"move_range"`
-	Pilot                   Pilot    `json:"pilot"`
-	Mech                    Mech     `json:"mech"`
-	Skills                  []Skill  `json:"skills"`
-	Acted                   bool     `json:"acted"`
-	ChanceSteps             int      `json:"chance_steps"`
-	ChanceStepsMax          int      `json:"chance_steps_max"`
-	SupportDefendCharges    int      `json:"support_defend_charges"`
-	SupportDefendChargesMax int      `json:"support_defend_charges_max"`
-	SupportAttackCharges    int      `json:"support_attack_charges"`
-	SupportAttackChargesMax int      `json:"support_attack_charges_max"`
-	HasShield               bool     `json:"has_shield"`
-	SupportDefendWhenAttack bool     `json:"support_defend_when_attack"`
-	MapWeaponAmmo           []int    `json:"map_weapon_ammo"`
-	Debuffs                 []Debuff `json:"debuffs"`
+	Faction Faction `json:"faction"`
+	Size    Cell    `json:"size"`
+	UnitValues
+	Pilot                   Pilot `json:"pilot"`
+	Mech                    Mech  `json:"mech"`
+	ChanceStepsMax          int   `json:"chance_steps_max"`
+	SupportDefendChargesMax int   `json:"support_defend_charges_max"`
+	SupportAttackChargesMax int   `json:"support_attack_charges_max"`
+	HasShield               bool  `json:"has_shield"`
+	SupportDefendWhenAttack bool  `json:"support_defend_when_attack"`
+}
+
+// UnitValues is the value column of one unit on the wire: every field a
+// rule of a battle writes, plus the pools it spends. The unit payload
+// embeds it, and the terminal values of 'act' carry it with an id.
+type UnitValues struct {
+	Pos                  Cell     `json:"pos"`
+	HP                   int      `json:"hp"`
+	EN                   int      `json:"en"`
+	SP                   int      `json:"sp"`
+	MP                   int      `json:"mp"`
+	MoveRange            int      `json:"move_range"`
+	Acted                bool     `json:"acted"`
+	ChanceSteps          int      `json:"chance_steps"`
+	SupportAttackCharges int      `json:"support_attack_charges"`
+	SupportDefendCharges int      `json:"support_defend_charges"`
+	Skills               []Skill  `json:"skills"`
+	MapWeaponAmmo        []int    `json:"map_weapon_ammo"`
+	Debuffs              []Debuff `json:"debuffs"`
 }
 
 // TerrainCell binds one cell of the map to one terrain wire name. A cell is a

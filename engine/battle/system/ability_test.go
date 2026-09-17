@@ -35,10 +35,10 @@ func scenarioDuel() state.Battle {
 	content, values := assembled(battle.BattleState{
 		Bounds: &bounds, Phase: battle.FactionAlly, Turn: 1,
 		Units: []battle.Unit{
-			{Faction: battle.FactionAlly, Pos: battle.Cell{0, 0}, Size: battle.Cell{1, 1},
-				HP: 99000, EN: 140, Pilot: pilot, Mech: mech},
-			{Faction: battle.FactionEnemy, Pos: battle.Cell{3, 0}, Size: battle.Cell{1, 1},
-				HP: 99000, EN: 140, Pilot: pilot, Mech: mech},
+			{Faction: battle.FactionAlly, Size: battle.Cell{1, 1},
+				UnitValues: battle.UnitValues{Pos: battle.Cell{0, 0}, HP: 99000, EN: 140}, Pilot: pilot, Mech: mech},
+			{Faction: battle.FactionEnemy, Size: battle.Cell{1, 1},
+				UnitValues: battle.UnitValues{Pos: battle.Cell{3, 0}, HP: 99000, EN: 140}, Pilot: pilot, Mech: mech},
 		},
 	})
 	return state.Battle{Content: &content, Values: &values}

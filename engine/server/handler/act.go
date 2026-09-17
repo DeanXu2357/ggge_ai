@@ -28,7 +28,7 @@ func (c *Commands) Act(id string, payload json.RawMessage) protocol.Response {
 		answer.Events = []battle.Event{}
 	}
 	if answer.Units == nil {
-		answer.Units = []battle.UnitValues{}
+		answer.Units = []battle.AffectedUnit{}
 	}
 	return protocol.Ok(id, answer)
 }

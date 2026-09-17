@@ -42,23 +42,29 @@ func wireBoard() *battle.BattleState {
 		Units: []battle.Unit{
 			{
 				Faction:   battle.FactionAlly,
-				Pos:       battle.Cell{2, 3},
 				Size:      battle.Cell{2, 3},
-				HP:        8200,
-				EN:        120,
-				MoveRange: 4,
 				HasShield: true,
-				Acted:     true,
-				Skills: []battle.Skill{{
-					Kind:            "skill_heal",
-					Source:          battle.SourceMech,
-					Amount:          &amount,
-					Uses:            2,
-					EndsActivation:  true,
-					UsableAfterMove: true,
-					Affects:         battle.AffectsAlly,
-				}},
-				SP: 30,
+				UnitValues: battle.UnitValues{
+					Pos:       battle.Cell{2, 3},
+					HP:        8200,
+					EN:        120,
+					SP:        30,
+					MoveRange: 4,
+					Acted:     true,
+					Skills: []battle.Skill{{
+						Kind:            "skill_heal",
+						Source:          battle.SourceMech,
+						Amount:          &amount,
+						Uses:            2,
+						EndsActivation:  true,
+						UsableAfterMove: true,
+						Affects:         battle.AffectsAlly,
+					}},
+					SupportDefendCharges: 1,
+					SupportAttackCharges: 2,
+					MapWeaponAmmo:        []int{3},
+					Debuffs:              []battle.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
+				},
 				Pilot: battle.Pilot{
 					Ranged: 220, Melee: 180, Awaken: 240, Defense: 190, Reaction: 205, SP: 45,
 				},
@@ -78,21 +84,16 @@ func wireBoard() *battle.BattleState {
 						Categories:      []battle.WeaponCategory{battle.WeaponCategoryRanged},
 					}},
 				},
-				SupportDefendCharges:    1,
 				SupportDefendChargesMax: 1,
-				SupportAttackCharges:    2,
 				SupportAttackChargesMax: 2,
 				SupportDefendWhenAttack: true,
-				MapWeaponAmmo:           []int{3},
-				Debuffs:                 []battle.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
 			},
 			{
-				Faction: battle.FactionEnemy,
-				Pos:     battle.Cell{7, 7},
-				Size:    battle.Cell{1, 1},
-				HP:      5000,
-				Mech:    battle.Mech{HP: 5000, EN: 100},
-				Pilot:   battle.Pilot{SP: 100},
+				Faction:    battle.FactionEnemy,
+				Size:       battle.Cell{1, 1},
+				UnitValues: battle.UnitValues{Pos: battle.Cell{7, 7}, HP: 5000},
+				Mech:       battle.Mech{HP: 5000, EN: 100},
+				Pilot:      battle.Pilot{SP: 100},
 			},
 		},
 		Phase:         battle.FactionAlly,
@@ -125,7 +126,7 @@ func decodeFixtureState(t *testing.T) *Board {
 
 func TestInitRefusesABaseThatThePayloadLeavesAtZero(t *testing.T) {
 	enemies := []battle.Unit{
-		{Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1},
+		{Faction: battle.FactionEnemy, UnitValues: battle.UnitValues{Pos: battle.Cell{1, 1}},
 			Mech: battle.Mech{HP: 9000, EN: 180}},
 	}
 
@@ -138,7 +139,8 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 	wire := &battle.BattleState{
 		Bounds: &battle.Bounds{{0, 0}, {4, 4}},
 		Phase:  battle.FactionAlly,
-		Units:  []battle.Unit{{Faction: battle.FactionAlly, HP: 1, EN: 1, Mech: battle.Mech{HP: 1, EN: 1}, Pilot: battle.Pilot{SP: 15}}},
+		Units: []battle.Unit{{Faction: battle.FactionAlly, UnitValues: battle.UnitValues{HP: 1, EN: 1},
+			Mech: battle.Mech{HP: 1, EN: 1}, Pilot: battle.Pilot{SP: 15}}},
 	}
 
 	board, err := restore(wire)
@@ -154,7 +156,8 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "ground",
 		[]battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "space"}},
-		[]battle.Unit{{Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, Mech: battle.Mech{HP: 10, EN: 10}, Pilot: battle.Pilot{SP: 15}}})
+		[]battle.Unit{{Faction: battle.FactionEnemy, UnitValues: battle.UnitValues{Pos: battle.Cell{4, 4}},
+			Mech: battle.Mech{HP: 10, EN: 10}, Pilot: battle.Pilot{SP: 15}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,8 +185,8 @@ func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
 		enemies      []battle.Unit
 	}{
 		{name: "a footprint outside the bounds",
-			enemies: []battle.Unit{{Faction: battle.FactionEnemy,
-				Pos: battle.Cell{2, 2}, Size: battle.Cell{2, 2}, HP: 10}}},
+			enemies: []battle.Unit{{Faction: battle.FactionEnemy, Size: battle.Cell{2, 2},
+				UnitValues: battle.UnitValues{Pos: battle.Cell{2, 2}, HP: 10}}}},
 		{name: "a terrain cell outside the bounds",
 			terrainCells: []battle.TerrainCell{{Cell: battle.Cell{9, 9}, Terrain: "space"}}},
 	}

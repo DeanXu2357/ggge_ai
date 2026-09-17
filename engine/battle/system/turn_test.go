@@ -38,10 +38,10 @@ func phasesOf(events []battle.PhaseEvent) []phaseOf {
 
 func basicUnit(faction battle.Faction, x, y int) battle.Unit {
 	return battle.Unit{
-		Faction: faction,
-		Pos:     battle.Cell{x, y}, Size: battle.Cell{1, 1},
-		HP: 100, EN: 100,
-		Mech: battle.Mech{HP: 100, EN: 140, MoveRange: 1}, Pilot: battle.Pilot{SP: 15},
+		Faction:    faction,
+		Size:       battle.Cell{1, 1},
+		UnitValues: battle.UnitValues{Pos: battle.Cell{x, y}, HP: 100, EN: 100},
+		Mech:       battle.Mech{HP: 100, EN: 140, MoveRange: 1}, Pilot: battle.Pilot{SP: 15},
 	}
 }
 

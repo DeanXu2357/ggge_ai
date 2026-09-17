@@ -15,7 +15,7 @@ import (
 func stage() battle.BattleState {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
 	unit := func(faction battle.Faction, x int) battle.Unit {
-		return battle.Unit{Faction: faction, Pos: battle.Cell{x, 0},
+		return battle.Unit{Faction: faction, UnitValues: battle.UnitValues{Pos: battle.Cell{x, 0}},
 			Mech: battle.Mech{HP: 100, EN: 50, MoveRange: 4}, Pilot: battle.Pilot{SP: 20},
 			ChanceStepsMax: 1, SupportAttackChargesMax: 2, SupportDefendChargesMax: 3}
 	}
