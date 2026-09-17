@@ -33,6 +33,72 @@ var terrains = map[Terrain]bool{
 	TerrainUnderwater:  true,
 }
 
+// WeaponAttribute is the datamine 'weapon_attribute' of a weapon: physical,
+// beam or special, and a weapon may carry two. A line of the defender reads
+// it ("When the enemy attacks with beam ranged weapons").
+type WeaponAttribute string
+
+const (
+	WeaponAttributePhysical WeaponAttribute = "physical"
+	WeaponAttributeBeam     WeaponAttribute = "beam"
+	WeaponAttributeSpecial  WeaponAttribute = "special"
+)
+
+var weaponAttributes = map[WeaponAttribute]bool{
+	WeaponAttributePhysical: true,
+	WeaponAttributeBeam:     true,
+	WeaponAttributeSpecial:  true,
+}
+
+func (a *WeaponAttribute) UnmarshalJSON(data []byte) error {
+	return decodeEnum(data, a, weaponAttributes, "attribute")
+}
+
+// MechType is the datamine 'unit_role' of a mech, the '類型' of the game.
+type MechType int
+
+const (
+	MechTypeAttack  MechType = 1 // 攻擊型
+	MechTypeDurable MechType = 2 // 耐久型
+	MechTypeSupport MechType = 3 // 支援型
+)
+
+// AbilityKind is the effect of a line. The names are the kinds of
+// docs/reference/datamine-source.md, from 'trait_type'.
+type AbilityKind string
+
+const (
+	AbilityAccuracyPercent      AbilityKind = "accuracy_percent"
+	AbilityEvasionPercent       AbilityKind = "evasion_percent"
+	AbilityMechAttackPercent    AbilityKind = "mech_attack_percent"
+	AbilityMechDefensePercent   AbilityKind = "mech_defense_percent"
+	AbilityMechMobilityPercent  AbilityKind = "mech_mobility_percent"
+	AbilityPilotRangedPercent   AbilityKind = "pilot_ranged_percent"
+	AbilityPilotMeleePercent    AbilityKind = "pilot_melee_percent"
+	AbilityPilotAwakenPercent   AbilityKind = "pilot_awaken_percent"
+	AbilityPilotDefensePercent  AbilityKind = "pilot_defense_percent"
+	AbilityPilotReactionPercent AbilityKind = "pilot_reaction_percent"
+	AbilityDamageDealtPercent   AbilityKind = "damage_dealt_percent"
+	AbilityDamageTakenPercent   AbilityKind = "damage_taken_percent"
+	AbilityWeaponENCostPercent  AbilityKind = "weapon_en_cost_percent"
+	AbilitySupportAttackPlus    AbilityKind = "support_attack_plus"
+	AbilitySupportDefendPlus    AbilityKind = "support_defend_plus"
+	AbilityChanceStepPlus       AbilityKind = "chance_step_plus"
+	AbilityMaxHPPercent         AbilityKind = "max_hp_percent"
+	AbilityMaxENPercent         AbilityKind = "max_en_percent"
+	AbilityMoveRangePlus        AbilityKind = "move_range_plus"
+	AbilityMPPlus               AbilityKind = "mp_plus"
+)
+
+// StrikeRole is the condition 'strike_roles' of the datamine: the line holds
+// when its holder fires or takes a strike for another unit.
+type StrikeRole string
+
+const (
+	StrikeRoleSupportAttack  StrikeRole = "support_attack" // support attack and support counter
+	StrikeRoleSupportDefense StrikeRole = "support_defense"
+)
+
 var weaponCategories = map[WeaponCategory]bool{
 	WeaponCategoryRanged: true,
 	WeaponCategoryMelee:  true,

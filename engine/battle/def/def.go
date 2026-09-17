@@ -25,6 +25,7 @@ type Weapon struct {
 	DebuffKind      *string
 	DebuffMagnitude float64
 	Categories      []battle.WeaponCategory
+	Attributes      []battle.WeaponAttribute
 }
 
 type MapWeapon struct {
@@ -59,6 +60,7 @@ type Pilot struct {
 	Defense  float64
 	Reaction float64
 	SP       int
+	Tags     []int
 }
 
 type Mech struct {
@@ -70,6 +72,8 @@ type Mech struct {
 	MoveRange  int
 	Weapons    []Weapon
 	MapWeapons []MapWeapon
+	Tags       []int
+	Type       battle.MechType
 }
 
 func (w Weapon) Reaches(distance int) bool {

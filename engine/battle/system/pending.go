@@ -7,7 +7,7 @@ import (
 
 func Pending(board state.Battle, faction battle.Faction) []int {
 	var out []int
-	for index, unit := range board.Units() {
+	for index, unit := range units(board) {
 		if unit.Faction == faction && unit.Alive() && !unit.Value.Acted {
 			out = append(out, index)
 		}

@@ -5,6 +5,7 @@ import (
 	"math/rand/v2"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
@@ -18,6 +19,10 @@ func Commit(board state.Battle, action battle.Action, draw *rand.Rand) (state.Va
 		return state.Values{}, nil, err
 	}
 
+	if err := checkStatements(board, schedule); err != nil {
+		return state.Values{}, nil, err
+	}
+
 	working := board.Values.Clone()
 	view := state.Battle{Content: board.Content, Values: &working}
 
@@ -27,7 +32,7 @@ func Commit(board state.Battle, action battle.Action, draw *rand.Rand) (state.Va
 		events = append(events, battle.MoveEvent{Kind: battle.EventMove,
 			ActorID: schedule.actorID, From: schedule.from, To: schedule.to})
 	}
-	x := exchange{board: view, draw: draw, actorID: schedule.actorID, paid: map[int]bool{}}
+	x := exchange{board: view, draw: draw, actorID: schedule.actorID, cast: schedule.cast, paid: map[int]bool{}}
 	for _, s := range schedule.strikes {
 		events = append(events, x.fire(s))
 	}
@@ -50,4 +55,39 @@ func endActivation(board state.Battle, actorID int, killed bool) battle.Activati
 		led.unit(actorID).Acted = change(&actor.Value.Acted, true)
 	}
 	return battle.ActivationEndEvent{Kind: battle.EventActivationEnd, ActorID: actorID, Effects: led.list()}
+}
+
+// A statement pins one behavior of a strike so that a forecast settles the
+// exchange under that behavior. It is a device of the simulation, not a rule
+// of the game, so the check runs between the schedule and the exchange and
+// reads the state before the first strike.
+func checkStatements(board state.Battle, schedule actSchedule) error {
+	x := &exchange{board: board, cast: schedule.cast}
+	for _, s := range schedule.strikes {
+		if s.stated == nil {
+			continue
+		}
+		if err := x.checkStated(unitOf(board, s.shooterID), unitOf(board, s.aimedID),
+			s.weapon, s.dodging, s.stated); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (x *exchange) checkStated(shooter, aimed unit, weapon *def.Weapon, dodging bool, stated *battle.Stated) error {
+	if stated.Crit {
+		return fmt.Errorf("%w: the weapon %q states a critical at a critical rate of 0",
+			battle.ErrIllegalAction, weapon.Name)
+	}
+	rate := x.strikeHitProbability(shooter, aimed, weapon, dodging)
+	if stated.Hit && rate <= 0 {
+		return fmt.Errorf("%w: the weapon %q states a hit at a hit rate of 0",
+			battle.ErrIllegalAction, weapon.Name)
+	}
+	if !stated.Hit && rate >= 1 {
+		return fmt.Errorf("%w: the weapon %q states a miss at a hit rate of 1",
+			battle.ErrIllegalAction, weapon.Name)
+	}
+	return nil
 }

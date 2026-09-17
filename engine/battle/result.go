@@ -1,9 +1,9 @@
 package battle
 
 type ActResult struct {
-	Events  []Event      `json:"events"`
-	Units   []UnitValues `json:"units"`
-	Outcome Outcome      `json:"outcome"`
+	Events  []Event        `json:"events"`
+	Units   []AffectedUnit `json:"units"`
+	Outcome Outcome        `json:"outcome"`
 }
 
 type Outcome string
@@ -98,17 +98,8 @@ type Effect struct {
 	MapWeaponAmmo        *Change[[]int]    `json:"map_weapon_ammo,omitempty"`
 }
 
-type UnitValues struct {
-	UnitID               int      `json:"unit_id"`
-	Pos                  Cell     `json:"pos"`
-	HP                   int      `json:"hp"`
-	EN                   int      `json:"en"`
-	SP                   int      `json:"sp"`
-	Acted                bool     `json:"acted"`
-	ChanceSteps          int      `json:"chance_steps"`
-	SupportAttackCharges int      `json:"support_attack_charges"`
-	SupportDefendCharges int      `json:"support_defend_charges"`
-	Skills               []Skill  `json:"skills"`
-	MapWeaponAmmo        []int    `json:"map_weapon_ammo"`
-	Debuffs              []Debuff `json:"debuffs"`
+// AffectedUnit is one entry of the terminal values of an act.
+type AffectedUnit struct {
+	UnitID int `json:"unit_id"`
+	UnitValues
 }

@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability/lines"
 )
 
 func TestAContractStateSurvivesTheTripIntoTheStateAndBack(t *testing.T) {
 	original := filledState()
-	content, values := FromContract(original)
+	content, values, _ := FromContract(original)
 	back := Battle{Content: &content, Values: &values}.ToContract()
 	if !reflect.DeepEqual(back, original) {
 		t.Errorf("the trip changed %s", firstDifference("state",
@@ -21,8 +22,8 @@ func TestAContractStateSurvivesTheTripIntoTheStateAndBack(t *testing.T) {
 
 func TestTheExportedContractSharesNothingWithTheState(t *testing.T) {
 	original := filledState()
-	wantContent, wantValues := FromContract(original)
-	content, values := FromContract(original)
+	wantContent, wantValues, _ := FromContract(original)
+	content, values, _ := FromContract(original)
 	answer := Battle{Content: &content, Values: &values}.ToContract()
 
 	*answer.Units[0].Skills[0].Amount = 404
@@ -44,7 +45,7 @@ func TestTheExportedContractSharesNothingWithTheState(t *testing.T) {
 }
 
 func TestACloneOfTheValuesSharesNoWritableMemoryWithItsInput(t *testing.T) {
-	_, values := FromContract(filledState())
+	_, values, _ := FromContract(filledState())
 	wantSkill := *values.Units[0].Skills[0].Amount
 	wantAmmo, wantDebuff := values.Units[0].MapWeaponAmmo[0], values.Units[0].Debuffs[0].Magnitude
 
@@ -66,7 +67,7 @@ func TestACloneOfTheValuesSharesNoWritableMemoryWithItsInput(t *testing.T) {
 }
 
 func TestTheHandleOfAUnitPointsAtTheTwoColumns(t *testing.T) {
-	content, values := FromContract(filledState())
+	content, values, _ := FromContract(filledState())
 	view := Battle{Content: &content, Values: &values}
 
 	unit, err := view.UnitAt(0)
@@ -74,9 +75,9 @@ func TestTheHandleOfAUnitPointsAtTheTwoColumns(t *testing.T) {
 		t.Fatalf("unit: %v", err)
 	}
 	unit.Value.HP = 404
-	unit.MaxHP = 404
+	unit.Mech.HP = 404
 
-	if values.Units[0].HP != 404 || content.Units[0].MaxHP != 404 {
+	if values.Units[0].HP != 404 || content.Units[0].Mech.HP != 404 {
 		t.Errorf("a write through the handle reached no column: %+v %+v",
 			content.Units[0], values.Units[0])
 	}
@@ -91,7 +92,7 @@ func TestTwoUnitsWithEqualMechsPointAtTwoMechs(t *testing.T) {
 	second.HP = 404
 	original.Units = append(original.Units, second)
 
-	got, _ := FromContract(original)
+	got, _, _ := FromContract(original)
 	if got.Units[0].Mech == got.Units[1].Mech {
 		t.Fatal("the two units point at one mech")
 	}
@@ -228,5 +229,55 @@ func firstDifference(path string, want, got reflect.Value) string {
 			return ""
 		}
 		return fmt.Sprintf("%s: %v against %v", path, want.Interface(), got.Interface())
+	}
+}
+
+// The lines of the contract object enter the value column as the line types
+// of the engine, mech and pilot apart, and go back out in the same wire form.
+func TestTheLinesOfTheContractEnterTheValueColumnAndComeBack(t *testing.T) {
+	role := battle.StrikeRoleSupportDefense
+	original := filledState()
+	original.Units[0].Mech.Abilities = []battle.Ability{
+		{Kind: battle.AbilityMechAttackPercent, Percent: 15, EnemyTag: 1015}}
+	original.Units[0].Pilot.Abilities = []battle.Ability{
+		{Kind: battle.AbilityMechDefensePercent, Percent: 20, MechType: battle.MechTypeDurable,
+			StrikeRole: &role},
+		{Kind: "squad_grant", Percent: 3}}
+
+	content, values, err := FromContract(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := values.Units[0].MechAbilities; len(got) != 1 ||
+		got[0] != (lines.MechAttackPercentAgainstTag{EnemyTag: 1015, Percent: 15}) {
+		t.Errorf("the mech lines: %+v", got)
+	}
+	if got := values.Units[0].PilotAbilities; len(got) != 2 ||
+		got[0] != (lines.MechDefensePercentOnSupportDefenseWithMechType{MechType: battle.MechTypeDurable, Percent: 20}) ||
+		got[1] != (lines.Unknown{Wire: original.Units[0].Pilot.Abilities[1]}) {
+		t.Errorf("the pilot lines: %+v", got)
+	}
+	if len(values.Units[0].Hooks.OnAttack) != 1 || len(values.Units[0].Hooks.OnDefend) != 1 {
+		t.Errorf("the chains: %+v", values.Units[0].Hooks)
+	}
+	back := Battle{Content: &content, Values: &values}.ToContract()
+	if !reflect.DeepEqual(back, original) {
+		t.Errorf("the trip changed %s", firstDifference("state",
+			reflect.ValueOf(original), reflect.ValueOf(back)))
+	}
+}
+
+// A kind the engine models, with conditions it does not, is refused: a line
+// that is carried and read by nothing would be a silent zero.
+func TestALineWithConditionsTheEngineDoesNotModelIsRefused(t *testing.T) {
+	original := filledState()
+	original.Units[0].Mech.Abilities = []battle.Ability{
+		{Kind: battle.AbilityMechAttackPercent, Percent: 15, HPRateGte: 100}}
+
+	_, _, err := FromContract(original)
+
+	if !errors.Is(err, battle.ErrOutsideContract) {
+		t.Fatalf("error: %v", err)
 	}
 }

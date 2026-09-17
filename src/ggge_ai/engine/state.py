@@ -102,6 +102,29 @@ class Debuff:
 
 
 @dataclass
+class Ability:
+    """One effect line of a mech or of a pilot.
+
+    The kind names the effect; the other fields hold its number and its
+    conditions. A condition the line does not carry is zero, or None for the
+    enum conditions. A kind the engine does not model travels as it came.
+    """
+
+    kind: str
+    percent: float = 0.0
+    plus: int = 0
+    enemy_tag: int = 0
+    mech_tag: int = 0
+    pilot_tag: int = 0
+    hp_rate_lte: int = 0
+    hp_rate_gte: int = 0
+    mech_type: int = 0
+    strike_role: str | None = None
+    weapon_attribute: str | None = None
+    weapon_category: str | None = None
+
+
+@dataclass
 class Pilot:
     """The pilot of the pairing. A formula reads it at computation time."""
 
@@ -111,6 +134,8 @@ class Pilot:
     defense: float = 0.0
     reaction: float = 0.0
     sp: int = 0
+    tags: list[int] = field(default_factory=list)
+    abilities: list[Ability] = field(default_factory=list)
 
 
 @dataclass
@@ -125,14 +150,18 @@ class Mech:
     move_range: int = 0
     weapons: list[Weapon] = field(default_factory=list)
     map_weapons: list[MapWeapon] = field(default_factory=list)
+    tags: list[int] = field(default_factory=list)
+    type: int = 0
+    abilities: list[Ability] = field(default_factory=list)
 
 
 @dataclass
 class Unit:
     """The current state of one pairing on the board.
 
-    The unit records the state and the maxima of the state. It takes no part in
-    a computation: the pilot and the mech carry the values that a formula reads.
+    The unit records the values of the moment. The pilot and the mech carry the
+    base data and the lines, and the engine derives every maximum from them at
+    assembly, so no maximum travels here.
 
     The unit carries no id: the position of the unit in 'BattleState.units' is
     its id. map_weapon_ammo holds one count for each entry of mech.map_weapons,
@@ -140,30 +169,28 @@ class Unit:
     """
 
     faction: Faction
-    pos: Cell = (0, 0)
     # The size is data only. The geometry of this module gives every unit one
     # cell. The engine holds the footprint rule (issue #61).
     size: Cell = (1, 1)
+    # The value column, in the order of the Go 'UnitValues' that the unit
+    # payload embeds and the terminal values of 'act' carry.
+    pos: Cell = (0, 0)
     hp: int = 1
-    max_hp: int = 1
     en: int = 0
-    en_max: int = 0
     sp: int = 0
-    sp_max: int = 0
-    pilot: Pilot = field(default_factory=Pilot)
-    mech: Mech = field(default_factory=Mech)
-    skills: list[Skill] = field(default_factory=list)
+    mp: int = 0
+    move_range: int = 0
     acted: bool = False
     chance_steps: int = 0
-    chance_steps_max: int = 0
-    support_defend_charges: int = 0
-    support_defend_charges_max: int = 0
     support_attack_charges: int = 0
-    support_attack_charges_max: int = 0
-    has_shield: bool = False
-    support_defend_when_attack: bool = False
+    support_defend_charges: int = 0
+    skills: list[Skill] = field(default_factory=list)
     map_weapon_ammo: list[int] = field(default_factory=list)
     debuffs: list[Debuff] = field(default_factory=list)
+    pilot: Pilot = field(default_factory=Pilot)
+    mech: Mech = field(default_factory=Mech)
+    has_shield: bool = False
+    support_defend_when_attack: bool = False
 
     @property
     def alive(self) -> bool:
@@ -172,8 +199,17 @@ class Unit:
     def clone(self) -> Unit:
         return replace(
             self,
-            pilot=replace(self.pilot),
-            mech=replace(self.mech, weapons=list(self.mech.weapons)),
+            pilot=replace(
+                self.pilot,
+                tags=list(self.pilot.tags),
+                abilities=[replace(a) for a in self.pilot.abilities],
+            ),
+            mech=replace(
+                self.mech,
+                weapons=list(self.mech.weapons),
+                tags=list(self.mech.tags),
+                abilities=[replace(a) for a in self.mech.abilities],
+            ),
             skills=[replace(s) for s in self.skills],
             map_weapon_ammo=list(self.map_weapon_ammo),
             debuffs=list(self.debuffs),

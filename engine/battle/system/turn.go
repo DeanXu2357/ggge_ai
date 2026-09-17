@@ -36,7 +36,7 @@ func nextPhase(board state.Battle) battle.PhaseEvent {
 func beginPhase(board state.Battle) []battle.Effect {
 	now := board.Values.PhaseIndex()
 	var led ledger
-	for id, unit := range board.Units() {
+	for id, unit := range units(board) {
 		if !unit.Alive() {
 			continue
 		}
@@ -46,12 +46,10 @@ func beginPhase(board state.Battle) []battle.Effect {
 		if unit.Faction != board.Values.Phase {
 			continue
 		}
-		if unit.Value.Acted {
-			led.unit(id).Acted = change(&unit.Value.Acted, false)
-		}
-		if regen := min(unit.ENMax, unit.Value.EN+unit.ENMax*enRegenPercent/100); regen != unit.Value.EN {
-			led.unit(id).EN = change(&unit.Value.EN, regen)
-		}
+		led.unit(id).Acted = change(&unit.Value.Acted, false)
+		led.unit(id).EN = change(&unit.Value.EN, min(unit.ENMax, unit.Value.EN+unit.ENMax*enRegenPercent/100))
+		led.unit(id).SupportAttackCharges = change(&unit.Value.SupportAttackCharges, unit.SupportAttackChargesMax)
+		led.unit(id).SupportDefendCharges = change(&unit.Value.SupportDefendCharges, unit.SupportDefendChargesMax)
 	}
 	return led.list()
 }
@@ -63,7 +61,7 @@ func expired(debuffs []battle.Debuff, now int) []battle.Debuff {
 }
 
 func anyAlive(board state.Battle) bool {
-	for _, unit := range board.Units() {
+	for _, unit := range units(board) {
 		if unit.Alive() {
 			return true
 		}

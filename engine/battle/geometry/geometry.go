@@ -46,7 +46,7 @@ func ReachableAnchors(board state.Battle, unitID int) CellSet {
 	if err != nil {
 		return CellSet{}
 	}
-	return reachableAnchors(unit.Footprint(), unit.Mech.MoveRange,
+	return reachableAnchors(unit.Footprint(), unit.Value.MoveRange,
 		Blocking(board, unitID), Occupied(board, unitID), board.Content.Bounds)
 }
 

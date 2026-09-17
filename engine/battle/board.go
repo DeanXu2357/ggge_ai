@@ -10,6 +10,10 @@ type BoardReader interface {
 
 type BoardResolver interface {
 	Act(action *Action) (ActResult, error)
+	// Open builds the board of a stage that opens: the enemies enter with
+	// their defaults, at turn 1 in the ally phase.
+	Open(bounds Bounds, terrain Terrain, terrainCells []TerrainCell, enemies []Unit) error
+	// Load builds the board of a battle in progress from its snapshot.
 	Load(bounds Bounds, terrain Terrain, terrainCells []TerrainCell, units []Unit,
 		phase Faction, turn int) error
 }

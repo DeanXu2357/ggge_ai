@@ -16,7 +16,7 @@ func TestEveryEventCarriesItsKindOnTheWire(t *testing.T) {
 				Effects: []Effect{{UnitID: 0, Acted: &Change[bool]{From: false, To: true}}}},
 			PhaseEvent{Kind: EventPhase, Turn: 1, Phase: FactionEnemy, Effects: []Effect{}},
 		},
-		Units: []UnitValues{},
+		Units: []AffectedUnit{},
 	}
 
 	out, err := json.Marshal(result)

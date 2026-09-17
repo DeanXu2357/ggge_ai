@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 )
 
@@ -22,6 +23,8 @@ type UnitContent struct {
 	SupportAttackChargesMax int
 	HasShield               bool
 	SupportDefendWhenAttack bool
+	MoveRange               int
+	MPInitial               int
 	Mech                    *def.Mech
 	Pilot                   *def.Pilot
 }
@@ -48,9 +51,14 @@ type UnitValue struct {
 	ChanceSteps          int
 	SupportDefendCharges int
 	SupportAttackCharges int
+	MoveRange            int
+	MP                   int
 	Skills               []def.Skill
 	MapWeaponAmmo        []int
 	Debuffs              []battle.Debuff
+	MechAbilities        []ability.Line
+	PilotAbilities       []ability.Line
+	Hooks                ability.Hooks // derived from the lines; rebuilt by Clone and by SetAbilities
 }
 
 // Unit is the handle of one unit: the static side and the dynamic side, no
@@ -76,7 +84,15 @@ func copyValue(value UnitValue) UnitValue {
 	value.Skills = mapSlice(value.Skills, copySkill)
 	value.MapWeaponAmmo = slices.Clone(value.MapWeaponAmmo)
 	value.Debuffs = slices.Clone(value.Debuffs)
+	value.SetAbilities(ability.CloneLines(value.MechAbilities), ability.CloneLines(value.PilotAbilities))
 	return value
+}
+
+// SetAbilities takes the lines of the mech and of the pilot and binds the
+// chains over both, the mech first.
+func (v *UnitValue) SetAbilities(mech, pilot []ability.Line) {
+	v.MechAbilities, v.PilotAbilities = mech, pilot
+	v.Hooks = ability.HooksOf(slices.Concat(mech, pilot))
 }
 
 func copySkill(skill def.Skill) def.Skill {

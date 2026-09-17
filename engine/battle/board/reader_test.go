@@ -8,6 +8,7 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/system"
 )
 
 func rifle(name string, rangeMin, rangeMax int) battle.Weapon {
@@ -24,9 +25,9 @@ func mustActions(t *testing.T, b *Board, id int) battle.ActionsResponse {
 }
 
 func TestTheActionsCarryTheCellsTheUnitReaches(t *testing.T) {
-	b := board(unitAt(battle.FactionAlly, battle.Cell{0, 0}),
-		unitAt(battle.FactionEnemy, battle.Cell{1, 0}))
-	b.content.Units[0].Mech.MoveRange = 1
+	mover := unitAt(battle.FactionAlly, battle.Cell{0, 0})
+	mover.Mech.MoveRange, mover.MoveRange = 1, 1
+	b := board(mover, unitAt(battle.FactionEnemy, battle.Cell{1, 0}))
 
 	out := mustActions(t, b, 0)
 
@@ -46,7 +47,7 @@ func TestTheActionsJudgeNoResourceAndNoBand(t *testing.T) {
 	costly.ENCost = 20
 	ally := unitAt(battle.FactionAlly, battle.Cell{0, 0})
 	ally.EN = 0
-	ally.MaxHP = ally.HP
+	ally.Mech.HP = ally.HP
 	ally.Mech.Weapons = []battle.Weapon{costly}
 	ally.Skills = []battle.Skill{{Kind: "skill_heal", Uses: 1}}
 	b := board(ally, unitAt(battle.FactionEnemy, battle.Cell{4, 4}))
@@ -86,15 +87,16 @@ func TestTheActionsOfAUnitThatCannotAnswerAreAnError(t *testing.T) {
 func TestACloneSharesNothingWithTheBoard(t *testing.T) {
 	amount := 0.5
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	content, values := state.FromContract(battle.BattleState{
+	content, values, _ := state.FromContract(battle.BattleState{
 		Bounds: &bounds,
 		Phase:  battle.FactionAlly,
 		Units: []battle.Unit{{
-			Faction: battle.FactionAlly, HP: 10, MaxHP: 10, EN: 5, ENMax: 5,
-			MapWeaponAmmo: []int{3},
-			Debuffs:       []battle.Debuff{{Kind: "defense", Magnitude: 0.1, AppliedPhase: 3}},
-			Skills:        []battle.Skill{{Kind: "boost", Amount: &amount, Uses: 1}},
-			Mech:          battle.Mech{MapWeapons: []battle.MapWeapon{{Name: "w"}}},
+			Faction: battle.FactionAlly,
+			UnitValues: battle.UnitValues{HP: 10, EN: 5,
+				MapWeaponAmmo: []int{3},
+				Debuffs:       []battle.Debuff{{Kind: "defense", Magnitude: 0.1, AppliedPhase: 3}},
+				Skills:        []battle.Skill{{Kind: "boost", Amount: &amount, Uses: 1}}},
+			Mech: battle.Mech{MapWeapons: []battle.MapWeapon{{Name: "w", AmmoMax: 3}}},
 		}},
 		TerrainCells: []battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: battle.TerrainGround}},
 	})
@@ -131,6 +133,7 @@ func TestTheActionsPayloadCarriesThePanelAndTheCells(t *testing.T) {
 			Size:    battle.Cell{2, 1},
 			MaxHP:   1000,
 			ENMax:   100,
+			SPMax:   100,
 			Mech: &def.Mech{
 				MoveRange: 4,
 				Weapons: []def.Weapon{
@@ -243,16 +246,19 @@ func TestTheBoardAnswersByUnitIdentity(t *testing.T) {
 var oneCell = battle.Cell{1, 1}
 
 func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
-	return battle.Unit{Faction: faction,
-		Pos: anchor, Size: oneCell, HP: 100,
-		Mech: battle.Mech{}, Pilot: battle.Pilot{}}
+	return battle.Unit{Faction: faction, Size: oneCell,
+		UnitValues: battle.UnitValues{Pos: anchor, HP: 100, EN: 100},
+		Mech:       battle.Mech{HP: 100, EN: 100}, Pilot: battle.Pilot{SP: 15}}
 }
 
 func board(units ...battle.Unit) *Board {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	content, values := state.FromContract(battle.BattleState{
+	content, values, err := system.Assemble(battle.BattleState{
 		Bounds: &bounds, Units: units,
-		Phase: battle.FactionAlly, Turn: 1})
+		Phase: battle.FactionAlly, Turn: 1}, system.Resumed)
+	if err != nil {
+		panic(err)
+	}
 	return &Board{content: content, values: values}
 }
 

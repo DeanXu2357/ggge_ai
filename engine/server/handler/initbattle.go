@@ -27,8 +27,8 @@ func (c *Commands) InitBattle(id string, payload json.RawMessage) protocol.Respo
 	}
 	bounds := battle.Bounds{{0, 0}, {request.Board.Width - 1, request.Board.Height - 1}}
 	board := c.open(request.Seed)
-	if err := board.Load(bounds, request.Board.Terrain, request.Board.TerrainCells,
-		request.Enemies, battle.FactionAlly, 1); err != nil {
+	if err := board.Open(bounds, request.Board.Terrain, request.Board.TerrainCells,
+		request.Enemies); err != nil {
 		return protocol.Fail(id, protocol.CodeBadRequest, err.Error())
 	}
 	c.board = board

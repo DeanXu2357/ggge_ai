@@ -4,6 +4,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
@@ -11,7 +14,7 @@ import (
 
 func turnPair(phase battle.Faction, turn int, units ...battle.Unit) (state.Content, state.Values) {
 	bounds := battle.Bounds{{0, 0}, {5, 4}}
-	return state.FromContract(battle.BattleState{Bounds: &bounds, Units: units,
+	return assembled(battle.BattleState{Bounds: &bounds, Units: units,
 		Phase: phase, Turn: turn})
 }
 
@@ -35,10 +38,10 @@ func phasesOf(events []battle.PhaseEvent) []phaseOf {
 
 func basicUnit(faction battle.Faction, x, y int) battle.Unit {
 	return battle.Unit{
-		Faction: faction,
-		Pos:     battle.Cell{x, y}, Size: battle.Cell{1, 1},
-		HP: 100, MaxHP: 100, EN: 100, ENMax: 140,
-		Mech: battle.Mech{MoveRange: 1}, Pilot: battle.Pilot{},
+		Faction:    faction,
+		Size:       battle.Cell{1, 1},
+		UnitValues: battle.UnitValues{Pos: battle.Cell{x, y}, HP: 100, EN: 100},
+		Mech:       battle.Mech{HP: 100, EN: 140, MoveRange: 1}, Pilot: battle.Pilot{SP: 15},
 	}
 }
 
@@ -138,7 +141,7 @@ func TestTheLastActivationOfTheEnemySideOpensTheNextTurn(t *testing.T) {
 func TestThePhaseStartRegeneratesTenPercentOfTheMaximumFloored(t *testing.T) {
 	ally := basicUnit(battle.FactionAlly, 1, 1)
 	ally.Acted = true
-	ally.EN, ally.ENMax = 10, 513
+	ally.EN, ally.Mech.EN = 10, 513
 	enemy := basicUnit(battle.FactionEnemy, 4, 4)
 	enemy.Acted = true
 	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
@@ -222,4 +225,36 @@ func TestTheRotationRunsOnAPairThatNoEngagementProduced(t *testing.T) {
 	if after.Phase != battle.FactionEnemy || after.Turn != 1 || after.Units[1].Acted {
 		t.Fatalf("values: %+v", after)
 	}
+}
+
+// The support charges of a unit come back at the start of its own phase, up
+// to the maxima of the content; the other side keeps its spent charges until
+// its own phase starts. The event carries the change.
+func TestThePhaseStartRestoresTheSupportChargesOfItsSide(t *testing.T) {
+	ally := basicUnit(battle.FactionAlly, 1, 1)
+	ally.Acted = true
+	ally.Pilot.Abilities = []battle.Ability{
+		{Kind: battle.AbilitySupportAttackPlus, Plus: 2}, {Kind: battle.AbilitySupportDefendPlus, Plus: 1}}
+	ally.SupportAttackCharges, ally.SupportDefendCharges = 0, 0
+	enemy := basicUnit(battle.FactionEnemy, 4, 4)
+	enemy.Acted = true
+	enemy.Pilot.Abilities = []battle.Ability{{Kind: battle.AbilitySupportAttackPlus, Plus: 1}}
+	enemy.SupportAttackCharges = 0
+	content, values := turnPair(battle.FactionEnemy, 1, ally, enemy)
+
+	rotations := rotate(state.Battle{Content: &content, Values: &values})
+	after := values
+
+	assert.Equal(t, []int{2, 1}, []int{after.Units[0].SupportAttackCharges, after.Units[0].SupportDefendCharges})
+	assert.Equal(t, 0, after.Units[1].SupportAttackCharges, "the enemy keeps its spent charge")
+	require.Len(t, rotations, 1)
+	var restored *battle.Effect
+	for index := range rotations[0].Effects {
+		if rotations[0].Effects[index].UnitID == 0 {
+			restored = &rotations[0].Effects[index]
+		}
+	}
+	require.NotNil(t, restored)
+	assert.Equal(t, &battle.Change[int]{From: 0, To: 2}, restored.SupportAttackCharges)
+	assert.Equal(t, &battle.Change[int]{From: 0, To: 1}, restored.SupportDefendCharges)
 }

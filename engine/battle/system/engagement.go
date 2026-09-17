@@ -5,6 +5,8 @@ import (
 	"math/rand/v2"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
@@ -12,8 +14,23 @@ type exchange struct {
 	board   state.Battle
 	draw    *rand.Rand
 	actorID int
+	cast    cast
 	paid    map[int]bool // the support defenders that paid their charge in this exchange
 	killed  bool         // a strike of the attacker side destroyed a unit
+}
+
+func (x *exchange) attackContext(attacker, struck unit, weapon *def.Weapon) ability.AttackContext {
+	a := ability.AttackContext{Attacker: attacker.toAbilityUnit(x.cast.part(attacker.id)),
+		Defender: struck.toAbilityUnit(x.cast.part(struck.id)), Weapon: weapon}
+	attacker.Value.Hooks.Attack(&a)
+	return a
+}
+
+func (x *exchange) defendContext(attacker, defender unit, weapon *def.Weapon) ability.DefendContext {
+	d := ability.DefendContext{Attacker: attacker.toAbilityUnit(x.cast.part(attacker.id)),
+		Defender: defender.toAbilityUnit(x.cast.part(defender.id)), Weapon: weapon}
+	defender.Value.Hooks.Defend(&d)
+	return d
 }
 
 // The owner decides whether a strike fires, not the shooter: a support
@@ -27,11 +44,20 @@ func (x *exchange) fire(s strike) battle.StrikeEvent {
 		return event
 	}
 	event.Fired = true
+
 	shooter, aimed, struck := unitOf(x.board, s.shooterID), unitOf(x.board, s.aimedID), unitOf(x.board, s.struckID)
-	event.Landed, event.Critical = x.behaviors(s, shooter, aimed)
+	a := x.attackContext(shooter, struck, s.weapon)
+	aimedDefense := x.defendContext(shooter, aimed, s.weapon)
+	struckDefense := aimedDefense
+	if s.struckID != s.aimedID {
+		struckDefense = x.defendContext(shooter, struck, s.weapon)
+	}
+
+	event.Landed, event.Critical = x.behaviors(s, a, aimedDefense)
+
 	var led ledger
 	if event.Landed {
-		event.Damage = strikeDamage(shooter, struck, s.weapon, defenseMultiplier(s.stance, struck))
+		event.Damage = damageOf(a, struckDefense, defenseMultiplier(s.stance, struck))
 		if struck.Alive() {
 			led.unit(s.struckID).HP = change(&struck.Value.HP, max(0, struck.Value.HP-event.Damage))
 			if s.weapon.DebuffKind != nil {
@@ -48,8 +74,8 @@ func (x *exchange) fire(s strike) battle.StrikeEvent {
 			led.unit(s.struckID).SupportDefendCharges = change(&struck.Value.SupportDefendCharges, struck.Value.SupportDefendCharges-1)
 		}
 	}
-	if s.weapon.ENCost > 0 {
-		led.unit(s.shooterID).EN = change(&shooter.Value.EN, shooter.Value.EN-s.weapon.ENCost)
+	if cost := enCostOf(shooter, x.cast.part(s.shooterID), s.weapon); cost > 0 {
+		led.unit(s.shooterID).EN = change(&shooter.Value.EN, shooter.Value.EN-cost)
 	}
 	if s.shooterID != s.ownerID {
 		led.unit(s.shooterID).SupportAttackCharges = change(&shooter.Value.SupportAttackCharges, shooter.Value.SupportAttackCharges-1)
@@ -59,11 +85,11 @@ func (x *exchange) fire(s strike) battle.StrikeEvent {
 }
 
 // No rule computes a critical rate, so a drawn critical is false.
-func (x *exchange) behaviors(s strike, shooter, aimed state.Unit) (landed, critical bool) {
+func (x *exchange) behaviors(s strike, a ability.AttackContext, d ability.DefendContext) (landed, critical bool) {
 	if s.stated != nil {
 		return s.stated.Hit, s.stated.Crit
 	}
-	return x.draw.Float64() < strikeHitProbability(shooter, aimed, s.weapon, s.dodging), false
+	return x.draw.Float64() < hitRateOf(a, d, s.dodging), false
 }
 
 func applied(debuffs []battle.Debuff, fresh battle.Debuff) []battle.Debuff {

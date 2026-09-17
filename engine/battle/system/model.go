@@ -1,22 +1,15 @@
 package system
 
 import (
+	"fmt"
+
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
-// Prepare bounds-checks every id of a plan before Commit reads it, so a
-// refusal here is a broken invariant of the engine and not a bad request.
-func unitOf(board state.Battle, id int) state.Unit {
-	unit, err := board.UnitAt(id)
-	if err != nil {
-		panic(err)
-	}
-	return unit
-}
-
-func weaponOf(unit state.Unit, id int) *def.Weapon {
+func weaponOf(unit unit, id int) *def.Weapon {
 	weapon, err := unit.WeaponAt(id)
 	if err != nil {
 		panic(err)
@@ -24,17 +17,31 @@ func weaponOf(unit state.Unit, id int) *def.Weapon {
 	return weapon
 }
 
-func hasENFor(unit state.Unit, weapon def.Weapon) bool {
-	return unit.Value.EN >= weapon.ENCost
+func enCostOf(shooter unit, part ability.Part, weapon *def.Weapon) int {
+	w := ability.WeaponCostContext{Shooter: shooter.toAbilityUnit(part), Weapon: weapon}
+	shooter.Value.Hooks.WeaponCost(&w)
+	return int(scaled(float64(weapon.ENCost), w.ENCostPercent))
 }
 
-func fires(unit state.Unit, weapon *def.Weapon, distance int) bool {
-	return weapon != nil && hasENFor(unit, *weapon) && weapon.Reaches(distance)
+func hasENFor(unit unit, part ability.Part, weapon *def.Weapon) bool {
+	return unit.Value.EN >= enCostOf(unit, part, weapon)
+}
+
+func canFire(shooter unit, part ability.Part, weapon *def.Weapon, distance int) error {
+	if !hasENFor(shooter, part, weapon) {
+		return fmt.Errorf("%w: unit %d cannot pay for the weapon %q",
+			battle.ErrIllegalAction, shooter.id, weapon.Name)
+	}
+	if !weapon.Reaches(distance) {
+		return fmt.Errorf("%w: the weapon %q of unit %d does not reach",
+			battle.ErrIllegalAction, weapon.Name, shooter.id)
+	}
+	return nil
 }
 
 func byFaction(board state.Battle, faction battle.Faction) []int {
 	var out []int
-	for index, other := range board.Units() {
+	for index, other := range units(board) {
 		if other.Faction == faction && other.Alive() {
 			out = append(out, index)
 		}

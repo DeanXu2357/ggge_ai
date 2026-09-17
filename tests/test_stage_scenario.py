@@ -38,8 +38,8 @@ def test_placeholder_enemy_matches_the_verified_truth_row():
     unit = state.units[0]
 
     assert unit.pos == (9, 4)
-    assert (unit.hp, unit.max_hp) == (83811, 83811)
-    assert (unit.en, unit.en_max) == (513, 513)
+    assert (unit.hp, unit.mech.hp) == (83811, 83811)
+    assert (unit.en, unit.mech.en) == (513, 513)
     assert unit.faction is Faction.ENEMY
 
 
@@ -107,7 +107,7 @@ def test_spawn_effect_units_are_assembled_from_intel_references(placeholder):
     (template,) = event.effect["units"]
     assert template.faction is Faction.ENEMY
     assert template.pos == (12, 2)
-    assert template.hp == template.max_hp == 29265
+    assert template.hp == template.mech.hp == 29265
 
 
 def test_spawn_reference_shares_the_uid_namespace(placeholder):

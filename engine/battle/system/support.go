@@ -2,6 +2,7 @@ package system
 
 import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
@@ -15,7 +16,7 @@ type supportAttacker struct {
 // support unit reads that cell and not the cell of today.
 func supportDefenders(board state.Battle, supportedID int, at battle.Footprint) []int {
 	out := []int{}
-	supported, err := board.UnitAt(supportedID)
+	supported, err := findUnit(board, supportedID)
 	if err != nil {
 		return out
 	}
@@ -28,24 +29,24 @@ func supportDefenders(board state.Battle, supportedID int, at battle.Footprint) 
 	return out
 }
 
-func supportAttackers(board state.Battle, supportedID int,
+func supportAttackers(board state.Battle, who cast, supportedID int,
 	firing, foe battle.Footprint) []supportAttacker {
 	out := []supportAttacker{}
-	supported, err := board.UnitAt(supportedID)
+	supported, err := findUnit(board, supportedID)
 	if err != nil {
 		return out
 	}
 	for _, otherID := range byFaction(board, supported.Faction) {
-		if weaponID, joins := supportWeapon(board, otherID, supportedID, firing, foe); joins {
+		if weaponID, joins := supportWeapon(board, who.part(otherID), otherID, supportedID, firing, foe); joins {
 			out = append(out, supportAttacker{UnitID: otherID, WeaponID: weaponID})
 		}
 	}
 	return out
 }
 
-func supportWeapon(board state.Battle, otherID, supportedID int,
+func supportWeapon(board state.Battle, part ability.Part, otherID, supportedID int,
 	firing, foe battle.Footprint) (int, bool) {
-	other, err := board.UnitAt(otherID)
+	other, err := findUnit(board, otherID)
 	if err != nil {
 		return 0, false
 	}
@@ -54,7 +55,7 @@ func supportWeapon(board state.Battle, otherID, supportedID int,
 	}
 	distance := geometry.Distance(other.Footprint(), foe)
 	for index := range other.Mech.Weapons {
-		if fires(other, &other.Mech.Weapons[index], distance) {
+		if canFire(other, part, &other.Mech.Weapons[index], distance) == nil {
 			return index, true
 		}
 	}
@@ -66,9 +67,9 @@ func inSupportReach(board state.Battle, otherID, supportedID int,
 	if otherID == supportedID || charges <= 0 {
 		return false
 	}
-	other, err := board.UnitAt(otherID)
+	other, err := findUnit(board, otherID)
 	if err != nil {
 		return false
 	}
-	return geometry.Distance(other.Footprint(), at) <= other.Mech.MoveRange
+	return geometry.Distance(other.Footprint(), at) <= other.Value.MoveRange
 }

@@ -28,7 +28,7 @@ func Gone(board state.Battle) []battle.Faction {
 }
 
 func holds(board state.Battle, faction battle.Faction) bool {
-	for _, unit := range board.Units() {
+	for _, unit := range units(board) {
 		if unit.Faction == faction && unit.Alive() {
 			return true
 		}

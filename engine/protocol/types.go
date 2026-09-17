@@ -87,10 +87,10 @@ type ResponseAttacksRequest struct {
 type ActRequest = battle.Action
 
 type ActResponse struct {
-	Events  []battle.Event      `json:"events"`
-	Units   []battle.UnitValues `json:"units"`
-	Outcome battle.Outcome      `json:"outcome"`
-	Board   battle.BoardSummary `json:"board"`
+	Events  []battle.Event        `json:"events"`
+	Units   []battle.AffectedUnit `json:"units"`
+	Outcome battle.Outcome        `json:"outcome"`
+	Board   battle.BoardSummary   `json:"board"`
 }
 
 type HistoryEntry struct {

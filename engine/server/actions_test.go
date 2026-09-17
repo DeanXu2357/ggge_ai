@@ -21,16 +21,16 @@ const (
 
 const candidateLine = `{"id":"l1","cmd":"load","payload":{"state":{` +
 	`"units":[` +
-	`{"faction":"ally","pos":[1,1],"hp":100,"max_hp":100,` +
-	`"mech":{"weapons":[` +
+	`{"faction":"ally","pos":[1,1],"hp":100,"pilot":{"sp":15},` +
+	`"mech":{"hp":100,"en":100,"weapons":[` +
 	`{"name":"rifle","range_min":1,"range_max":2,"usable_after_move":true}],` +
-	`"map_weapons":[{"name":"shells","affects":"enemy",` +
+	`"map_weapons":[{"name":"shells","affects":"enemy","ammo_max":1,` +
 	`"apply_shape":{"cells":[[0,0]],"direction":"none"},` +
 	`"effect_shape":{"cells":[],"direction":"none"},"usable_after_move":true}]},` +
 	`"map_weapon_ammo":[1]},` +
-	`{"faction":"ally","pos":[4,4],"hp":100,"acted":true},` +
-	`{"faction":"enemy","pos":[2,1],"hp":100,` +
-	`"mech":{"weapons":[{"name":"lance","range_min":1,"range_max":1}]}}` +
+	`{"faction":"ally","pos":[4,4],"hp":100,"acted":true,"mech":{"hp":100,"en":100},"pilot":{"sp":15}},` +
+	`{"faction":"enemy","pos":[2,1],"hp":100,"pilot":{"sp":15},` +
+	`"mech":{"hp":100,"en":100,"weapons":[{"name":"lance","range_min":1,"range_max":1}]}}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[4,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 

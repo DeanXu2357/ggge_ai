@@ -20,9 +20,9 @@ const (
 
 const twoSidesLine = `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
 	`"units":[` +
-	`{"faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
-	`{"faction":"ally","pos":[1,2],"hp":100,"max_hp":100,"en":100,"en_max":140,"mech":{"move_range":1}},` +
-	`{"faction":"enemy","pos":[4,4],"hp":100,"max_hp":100,"en":100,"en_max":140}` +
+	`{"faction":"ally","pos":[1,1],"hp":100,"en":100,"mech":{"hp":100,"en":140,"move_range":1},"pilot":{"sp":15}},` +
+	`{"faction":"ally","pos":[1,2],"hp":100,"en":100,"mech":{"hp":100,"en":140,"move_range":1},"pilot":{"sp":15}},` +
+	`{"faction":"enemy","pos":[4,4],"hp":100,"en":100,"mech":{"hp":100,"en":140},"pilot":{"sp":15}}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 
@@ -31,10 +31,10 @@ func standby(id string, unit int) string {
 }
 
 type actAnswer struct {
-	Events  []json.RawMessage   `json:"events"`
-	Units   []battle.UnitValues `json:"units"`
-	Outcome battle.Outcome      `json:"outcome"`
-	Board   battle.BoardSummary `json:"board"`
+	Events  []json.RawMessage     `json:"events"`
+	Units   []battle.AffectedUnit `json:"units"`
+	Outcome battle.Outcome        `json:"outcome"`
+	Board   battle.BoardSummary   `json:"board"`
 }
 
 func decodeAct(t *testing.T, reply reply) actAnswer {
@@ -178,7 +178,7 @@ func TestExportCarriesTheHistoryOfTheActivations(t *testing.T) {
 
 func TestABoardCommandTakesALineWithNoPayload(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
-		`"units":[{"faction":"ally","pos":[1,1],"hp":100}],` +
+		`"units":[{"faction":"ally","pos":[1,1],"hp":100,"mech":{"hp":100,"en":100},"pilot":{"sp":15}}],` +
 		`"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
 	replies := serve(t, New(openBoard), line, `{"id":"x","cmd":"export"}`)
@@ -197,8 +197,8 @@ func TestABoardCommandTakesALineWithNoPayload(t *testing.T) {
 func TestExportNamesTheSideWithNoLivingUnit(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
 		`"units":[` +
-		`{"faction":"ally","pos":[1,1],"hp":100},` +
-		`{"faction":"enemy","pos":[4,4],"hp":0}` +
+		`{"faction":"ally","pos":[1,1],"hp":100,"mech":{"hp":100,"en":100},"pilot":{"sp":15}},` +
+		`{"faction":"enemy","pos":[4,4],"hp":0,"mech":{"hp":100,"en":100},"pilot":{"sp":15}}` +
 		`],"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
 	replies := serve(t, New(openBoard), line, `{"id":"x","cmd":"export","payload":{}}`)
@@ -213,7 +213,7 @@ func TestExportNamesTheSideWithNoLivingUnit(t *testing.T) {
 
 func TestExportEchoesTheEventsOfTheLoadedState(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
-		`"units":[{"faction":"ally","pos":[1,1],"hp":100}],` +
+		`"units":[{"faction":"ally","pos":[1,1],"hp":100,"mech":{"hp":100,"en":100},"pilot":{"sp":15}}],` +
 		`"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 		`"pending_events":["reinforce_t2"],"fired_events":["opening"]},"history":[]}}`
 	replies := serve(t, New(openBoard), line, `{"id":"x","cmd":"export","payload":{}}`)
@@ -227,29 +227,21 @@ func TestExportEchoesTheEventsOfTheLoadedState(t *testing.T) {
 	}
 }
 
-func TestLoadFillsAMaximumThatTheStateLeavesAtZero(t *testing.T) {
+func TestLoadRefusesABaseThatTheStateLeavesAtZero(t *testing.T) {
 	line := `{"id":"l1","cmd":"load","payload":{"state":{` +
 		`"units":[{"faction":"ally","pos":[1,1],"hp":100,` +
 		`"mech":{"hp":12000,"en":140}}],` +
 		`"phase":"ally","turn":1,"bounds":[[0,0],[5,4]],` +
 		`"pending_events":[],"fired_events":[]},"history":[]}}`
-	replies := serve(t, New(openBoard), line, `{"id":"x","cmd":"export","payload":{}}`)
-	if !replies[0].OK {
-		t.Fatalf("load: %+v", replies[0])
-	}
-	var export protocol.ExportResponse
-	if err := json.Unmarshal(replies[1].Payload, &export); err != nil {
-		t.Fatal(err)
-	}
-	unit := export.State.Units[0]
-	if unit.MaxHP != 12000 || unit.ENMax != 140 || unit.SPMax != 0 {
-		t.Fatalf("maxima: %+v", unit)
+	replies := serve(t, New(openBoard), line)
+	if replies[0].OK {
+		t.Fatalf("a maximum of zero loaded: %+v", replies[0])
 	}
 }
 
 func TestInitOpensTurnOneWithTheEnemies(t *testing.T) {
 	line := `{"id":"i","cmd":"init","payload":{"board":{"width":6,"height":5},` +
-		`"enemies":[{"faction":"enemy","pos":[4,4],"hp":10}],` +
+		`"enemies":[{"faction":"enemy","pos":[4,4],"mech":{"hp":100,"en":60},"pilot":{"sp":15}}],` +
 		`"victory":[{"kind":"destroy_all"}],"events":{},"deploy_cells":[[0,0]],"seed":3}}`
 	replies := serve(t, New(openBoard), line, `{"id":"x","cmd":"export","payload":{}}`)
 	if !replies[0].OK {
@@ -269,6 +261,9 @@ func TestInitOpensTurnOneWithTheEnemies(t *testing.T) {
 	if export.Seed != 3 || len(export.State.Units) != 1 {
 		t.Fatalf("export: %+v", export)
 	}
+	if enemy := export.State.Units[0]; enemy.HP != 100 || enemy.EN != 60 {
+		t.Fatalf("an enemy enters with its pools full: %+v", enemy)
+	}
 }
 
 func TestInitWithABadBoardIsBadRequest(t *testing.T) {
@@ -280,7 +275,7 @@ func TestInitWithABadBoardIsBadRequest(t *testing.T) {
 
 func TestInitWithAUnitOfEnemiesThatIsNoEnemyIsBadRequest(t *testing.T) {
 	line := `{"id":"i","cmd":"init","payload":{"board":{"width":6,"height":5},` +
-		`"enemies":[{"faction":"ally","pos":[1,1],"hp":10}]}}`
+		`"enemies":[{"faction":"ally","pos":[1,1],"mech":{"hp":100,"en":100},"pilot":{"sp":15}}]}}`
 	replies := serve(t, New(openBoard), line)
 	if replies[0].OK || replies[0].Error.Code != protocol.CodeBadRequest {
 		t.Fatalf("reply: %+v", replies[0])
@@ -311,11 +306,11 @@ func TestARefusedActivationMovesTheDrawNowhere(t *testing.T) {
 
 const armedLine = `{"id":"l1","cmd":"load","payload":{"seed":5,"state":{` +
 	`"units":[` +
-	`{"faction":"ally","pos":[1,1],"hp":100,"max_hp":100,"en":10,"en_max":100,"mech":{"move_range":0,` +
+	`{"faction":"ally","pos":[1,1],"hp":100,"en":10,"pilot":{"sp":15},"mech":{"hp":100,"en":100,"move_range":0,` +
 	`"weapons":[{"name":"gun","power":1000,"range_min":1,"range_max":2,"accuracy":100},` +
 	`{"name":"costly","power":9000,"range_min":1,"range_max":2,"en_cost":80,"accuracy":100}]}},` +
-	`{"faction":"enemy","pos":[1,2],"hp":100,"max_hp":100},` +
-	`{"faction":"enemy","pos":[8,8],"hp":100,"max_hp":100}` +
+	`{"faction":"enemy","pos":[1,2],"hp":100,"mech":{"hp":100,"en":100},"pilot":{"sp":15}},` +
+	`{"faction":"enemy","pos":[8,8],"hp":100,"mech":{"hp":100,"en":100},"pilot":{"sp":15}}` +
 	`],"phase":"ally","turn":1,"bounds":[[0,0],[9,9]],` +
 	`"pending_events":[],"fired_events":[]},"history":[]}}`
 

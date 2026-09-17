@@ -15,16 +15,33 @@ func idOf(value int) *int {
 }
 
 func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
-	return battle.Unit{Faction: faction,
-		Pos: anchor, Size: oneCell, HP: 100,
-		Mech: battle.Mech{}, Pilot: battle.Pilot{}}
+	return battle.Unit{Faction: faction, Size: oneCell,
+		UnitValues: battle.UnitValues{Pos: anchor, HP: 100},
+		Mech:       battle.Mech{}, Pilot: battle.Pilot{}}
 }
 
 func pair(units ...battle.Unit) (state.Content, state.Values) {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	return state.FromContract(battle.BattleState{
+	return assembled(battle.BattleState{
 		Bounds: &bounds, Units: units,
 		Phase: battle.FactionAlly, Turn: 1})
+}
+
+// A test board takes the values of its units as they are, with no judgment,
+// derives the content the way 'Assemble' does, and gives every unit its
+// full move range unless the unit states one.
+func assembled(s battle.BattleState) (state.Content, state.Values) {
+	content, values, err := state.FromContract(s)
+	if err != nil {
+		panic(err)
+	}
+	assembleContent(&content, &values)
+	for index := range values.Units {
+		if values.Units[index].MoveRange == 0 {
+			values.Units[index].MoveRange = content.Units[index].MoveRange
+		}
+	}
+	return content, values
 }
 
 func board(units ...battle.Unit) state.Battle {
@@ -38,8 +55,8 @@ func rifle(name string, rangeMin, rangeMax int) battle.Weapon {
 
 func fighter(faction battle.Faction, anchor battle.Cell) battle.Unit {
 	out := unitAt(faction, anchor)
-	out.HP, out.MaxHP = 12000, 12000
-	out.EN, out.ENMax = 140, 140
+	out.HP, out.Mech.HP = 12000, 12000
+	out.EN, out.Mech.EN = 140, 140
 	out.Mech.Attack, out.Mech.Defense = 4200, 3900
 	out.Pilot.Ranged, out.Pilot.Melee, out.Pilot.Awaken = 220, 220, 220
 	out.Pilot.Defense = 190
@@ -86,10 +103,10 @@ func TestTheDamageOfOneShotReadsTheStanceAndTheDebuffs(t *testing.T) {
 	attacker, defender := unitOf(b, actorID), unitOf(b, targetID)
 	weapon := &attacker.Mech.Weapons[0]
 
-	plain := strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
-	defended := strikeDamage(attacker, defender, weapon, formula.DefendMultiplier)
+	plain := duelExchange(b).strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
+	defended := duelExchange(b).strikeDamage(attacker, defender, weapon, formula.DefendMultiplier)
 	defender.Value.Debuffs = []battle.Debuff{{Kind: "armor_break", Magnitude: 0.2}}
-	broken := strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
+	broken := duelExchange(b).strikeDamage(attacker, defender, weapon, formula.NoDefenseMultiplier)
 
 	if plain <= 0 || defended <= 0 {
 		t.Fatalf("damage: %d %d", plain, defended)
@@ -107,11 +124,12 @@ func TestTheDodgeOfTheDefenderCostsTheAttackerItsHitRate(t *testing.T) {
 	attacker, defender := unitOf(b, actorID), unitOf(b, targetID)
 	weapon := &attacker.Mech.Weapons[0]
 
-	plain := strikeHitProbability(attacker, defender, weapon, false)
-	dodged := strikeHitProbability(attacker, defender, weapon, true)
+	plain := duelExchange(b).strikeHitProbability(attacker, defender, weapon, false)
+	dodged := duelExchange(b).strikeHitProbability(attacker, defender, weapon, true)
 
-	attackSide := attackerSide(attacker, *weapon)
-	defendSide := defenderSide(defender)
+	x := duelExchange(b)
+	a, d := x.attackContext(attacker, defender, weapon), x.defendContext(attacker, defender, weapon)
+	attackSide, defendSide := attackerSide(a), defenderSide(d)
 	if plain != formula.HitProbability(weapon.Accuracy, attackSide, defendSide, 0) {
 		t.Fatalf("a shot that meets no dodge carries no correction: %v", plain)
 	}

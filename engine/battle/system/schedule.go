@@ -30,11 +30,12 @@ type actSchedule struct {
 	actorID int
 	from    battle.Cell
 	to      battle.Cell
+	cast    cast
 	strikes []strike
 }
 
 func scheduleAct(board state.Battle, action battle.Action) (actSchedule, error) {
-	actor, err := Activatable(board, action.ActorID)
+	actor, err := activatable(board, action.ActorID)
 	if err != nil {
 		return actSchedule{}, err
 	}
@@ -74,37 +75,35 @@ func scheduleAct(board state.Battle, action battle.Action) (actSchedule, error) 
 	}
 
 	target := unitOf(board, targetID)
-	firing := geometry.FootprintAt(actor, to)
+	firing := actor.footprintAt(to)
 	standing := target.Footprint()
+	who := cast{actorID: action.ActorID, targetID: targetID}
 
 	main := strike{segment: battle.SegmentMain, ownerID: action.ActorID,
 		shooterID: action.ActorID, weaponID: attack.WeaponID, weapon: weapon,
 		aimedID: targetID, dodging: response.Stance == battle.StanceDodge, stated: attack.Stated}
 	main.struckID, main.stance = struckBy(response.SupportDefenderID, targetID, response.Stance)
-	if err := canFire(actor, action.ActorID, weapon, firing, standing); err != nil {
+	if err := canFire(actor, who.part(actor.id), weapon, geometry.Distance(firing, standing)); err != nil {
 		return actSchedule{}, err
 	}
-	if err := checkStated(actor, target, weapon, main.dodging, attack.Stated); err != nil {
-		return actSchedule{}, err
-	}
-	attackerSupport, err := supportStrikes(board, main.as(battle.SegmentAttackerSupport),
+	attackerSupport, err := supportStrikes(board, who, main.as(battle.SegmentAttackerSupport),
 		firing, standing, attack.SupportAttackers, attack.SupportDefenderID)
 	if err != nil {
 		return actSchedule{}, err
 	}
-	counter, err := counterOf(board, action, actor, target, firing)
+	counter, err := counterOf(board, who, action, actor, target, firing)
 	if err != nil {
 		return actSchedule{}, err
 	}
 	reply := strike{segment: battle.SegmentDefenderSupport, ownerID: targetID, aimedID: action.ActorID}
 	reply.struckID, reply.stance = struckBy(attack.SupportDefenderID, action.ActorID, battle.StanceNone)
-	defenderSupport, err := supportStrikes(board, reply,
+	defenderSupport, err := supportStrikes(board, who, reply,
 		standing, firing, response.SupportAttackers, response.SupportDefenderID)
 	if err != nil {
 		return actSchedule{}, err
 	}
 
-	schedule := actSchedule{actorID: action.ActorID, from: actor.Value.Pos, to: to}
+	schedule := actSchedule{actorID: action.ActorID, from: actor.Value.Pos, to: to, cast: who}
 	schedule.strikes = append(schedule.strikes, attackerSupport...)
 	schedule.strikes = append(schedule.strikes, main)
 	schedule.strikes = append(schedule.strikes, defenderSupport...)
@@ -126,7 +125,7 @@ func struckBy(guardID *int, aimedID int, stance battle.Stance) (int, battle.Stan
 	return aimedID, stance
 }
 
-func counterOf(board state.Battle, action battle.Action, actor, target state.Unit,
+func counterOf(board state.Battle, who cast, action battle.Action, actor, target unit,
 	firing battle.Footprint) (*strike, error) {
 	response := action.ResponseAttack
 	targetID := action.Attack.TargetID
@@ -140,10 +139,7 @@ func counterOf(board state.Battle, action battle.Action, actor, target state.Uni
 		if err != nil {
 			return nil, err
 		}
-		if err := canFire(target, targetID, weapon, target.Footprint(), firing); err != nil {
-			return nil, err
-		}
-		if err := checkStated(target, actor, weapon, false, response.Stated); err != nil {
+		if err := canFire(target, who.part(target.id), weapon, geometry.Distance(target.Footprint(), firing)); err != nil {
 			return nil, err
 		}
 		counter := strike{segment: battle.SegmentCounter, ownerID: targetID,
@@ -166,13 +162,12 @@ func counterOf(board state.Battle, action battle.Action, actor, target state.Uni
 		battle.ErrIllegalAction, response.Stance)
 }
 
-func supportStrikes(board state.Battle, base strike, at, foeAt battle.Footprint,
+func supportStrikes(board state.Battle, who cast, base strike, at, foeAt battle.Footprint,
 	supporters []battle.SupportAttacker, guardID *int) ([]strike, error) {
 	if len(supporters) > maxSupportAttackers {
 		return nil, fmt.Errorf("%w: %d support attackers exceed the cap of %d",
 			battle.ErrIllegalAction, len(supporters), maxSupportAttackers)
 	}
-	aimed := unitOf(board, base.aimedID)
 	named := map[int]bool{}
 	out := make([]strike, 0, len(supporters))
 	for _, supporter := range supporters {
@@ -193,10 +188,7 @@ func supportStrikes(board state.Battle, base strike, at, foeAt battle.Footprint,
 		if err != nil {
 			return nil, err
 		}
-		if err := canFire(unit, supporter.UnitID, weapon, unit.Footprint(), foeAt); err != nil {
-			return nil, err
-		}
-		if err := checkStated(unit, aimed, weapon, base.dodging, supporter.Stated); err != nil {
+		if err := canFire(unit, who.part(unit.id), weapon, geometry.Distance(unit.Footprint(), foeAt)); err != nil {
 			return nil, err
 		}
 		support := base
@@ -222,52 +214,18 @@ func supportStrikes(board state.Battle, base strike, at, foeAt battle.Footprint,
 	return out, nil
 }
 
-func supportUnit(board state.Battle, supportedID, unitID int, at battle.Footprint) (state.Unit, error) {
-	unit, err := LivingUnit(board, unitID)
+func supportUnit(board state.Battle, supportedID, unitID int, at battle.Footprint) (unit, error) {
+	u, err := livingUnit(board, unitID)
 	if err != nil {
-		return state.Unit{}, err
+		return unit{}, err
 	}
-	if unit.Faction != unitOf(board, supportedID).Faction {
-		return state.Unit{}, fmt.Errorf("%w: unit %d is not of the side of unit %d",
+	if u.Faction != unitOf(board, supportedID).Faction {
+		return unit{}, fmt.Errorf("%w: unit %d is not of the side of unit %d",
 			battle.ErrIllegalAction, unitID, supportedID)
 	}
-	if unitID == supportedID || geometry.Distance(unit.Footprint(), at) > unit.Mech.MoveRange {
-		return state.Unit{}, fmt.Errorf("%w: unit %d is out of support reach of unit %d",
+	if unitID == supportedID || geometry.Distance(u.Footprint(), at) > u.Value.MoveRange {
+		return unit{}, fmt.Errorf("%w: unit %d is out of support reach of unit %d",
 			battle.ErrIllegalAction, unitID, supportedID)
 	}
-	return unit, nil
-}
-
-func canFire(shooter state.Unit, shooterID int, weapon *def.Weapon, from, at battle.Footprint) error {
-	if !hasENFor(shooter, *weapon) {
-		return fmt.Errorf("%w: unit %d cannot pay for the weapon %q",
-			battle.ErrIllegalAction, shooterID, weapon.Name)
-	}
-	if !weapon.Reaches(geometry.Distance(from, at)) {
-		return fmt.Errorf("%w: the weapon %q of unit %d does not reach",
-			battle.ErrIllegalAction, weapon.Name, shooterID)
-	}
-	return nil
-}
-
-// No rule computes a critical rate, so every stated critical is a behavior
-// the rates give no chance of.
-func checkStated(shooter, aimed state.Unit, weapon *def.Weapon, dodging bool, stated *battle.Stated) error {
-	if stated == nil {
-		return nil
-	}
-	if stated.Crit {
-		return fmt.Errorf("%w: the weapon %q states a critical at a critical rate of 0",
-			battle.ErrIllegalAction, weapon.Name)
-	}
-	rate := strikeHitProbability(shooter, aimed, weapon, dodging)
-	if stated.Hit && rate <= 0 {
-		return fmt.Errorf("%w: the weapon %q states a hit at a hit rate of 0",
-			battle.ErrIllegalAction, weapon.Name)
-	}
-	if !stated.Hit && rate >= 1 {
-		return fmt.Errorf("%w: the weapon %q states a miss at a hit rate of 1",
-			battle.ErrIllegalAction, weapon.Name)
-	}
-	return nil
+	return u, nil
 }

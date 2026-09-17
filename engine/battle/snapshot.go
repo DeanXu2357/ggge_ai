@@ -193,12 +193,14 @@ type Debuff struct {
 // Reaction is the reaction value of the pilot, and not the response attack
 // of a defender.
 type Pilot struct {
-	Ranged   float64 `json:"ranged"`
-	Melee    float64 `json:"melee"`
-	Awaken   float64 `json:"awaken"`
-	Defense  float64 `json:"defense"`
-	Reaction float64 `json:"reaction"`
-	SP       int     `json:"sp"`
+	Ranged    float64   `json:"ranged"`
+	Melee     float64   `json:"melee"`
+	Awaken    float64   `json:"awaken"`
+	Defense   float64   `json:"defense"`
+	Reaction  float64   `json:"reaction"`
+	SP        int       `json:"sp"`
+	Tags      []int     `json:"tags"`
+	Abilities []Ability `json:"abilities"`
 }
 
 type Mech struct {
@@ -210,40 +212,67 @@ type Mech struct {
 	MoveRange  int         `json:"move_range"`
 	Weapons    []Weapon    `json:"weapons"`
 	MapWeapons []MapWeapon `json:"map_weapons"`
+	Tags       []int       `json:"tags"`
+	Type       MechType    `json:"type"`
+	Abilities  []Ability   `json:"abilities"`
 }
 
-// Unit is the current state of the pairing on the board. It holds the state
-// and the maxima of the state; the pilot and the mech hold the values that a
-// formula reads. ChanceSteps is the re-act grant after a kill
+// Ability is one effect line of a mech or of a pilot on the wire. The kind
+// names the effect; the other fields hold its number and its conditions. A
+// condition the line does not carry is zero, or null for the enum
+// conditions. A kind the engine does not model travels as it came and
+// changes no number (issue #80).
+type Ability struct {
+	Kind            AbilityKind      `json:"kind"`
+	Percent         float64          `json:"percent"`
+	Plus            int              `json:"plus"`
+	EnemyTag        int              `json:"enemy_tag"`
+	MechTag         int              `json:"mech_tag"`
+	PilotTag        int              `json:"pilot_tag"`
+	HPRateLte       int              `json:"hp_rate_lte"`
+	HPRateGte       int              `json:"hp_rate_gte"`
+	MechType        MechType         `json:"mech_type"`
+	StrikeRole      *StrikeRole      `json:"strike_role"`
+	WeaponAttribute *WeaponAttribute `json:"weapon_attribute"`
+	WeaponCategory  *WeaponCategory  `json:"weapon_category"`
+}
+
+// Unit is the current state of the pairing on the board. It holds the
+// values of the moment; the pilot and the mech hold the base data and the
+// lines, and the engine derives every maximum from them at assembly, so
+// no maximum travels. ChanceSteps is the re-act grant after a kill
 // (docs/reference/combat-formulas.md:134), which counts no dice.
 //
 // The unit carries no id: the position of the unit in 'BattleState.Units' is
 // its id. MapWeaponAmmo holds one count for each entry of 'Mech.MapWeapons',
 // in the same order.
 type Unit struct {
-	Faction                 Faction  `json:"faction"`
-	Pos                     Cell     `json:"pos"`
-	Size                    Cell     `json:"size"`
-	HP                      int      `json:"hp"`
-	MaxHP                   int      `json:"max_hp"`
-	EN                      int      `json:"en"`
-	ENMax                   int      `json:"en_max"`
-	SP                      int      `json:"sp"`
-	SPMax                   int      `json:"sp_max"`
-	Pilot                   Pilot    `json:"pilot"`
-	Mech                    Mech     `json:"mech"`
-	Skills                  []Skill  `json:"skills"`
-	Acted                   bool     `json:"acted"`
-	ChanceSteps             int      `json:"chance_steps"`
-	ChanceStepsMax          int      `json:"chance_steps_max"`
-	SupportDefendCharges    int      `json:"support_defend_charges"`
-	SupportDefendChargesMax int      `json:"support_defend_charges_max"`
-	SupportAttackCharges    int      `json:"support_attack_charges"`
-	SupportAttackChargesMax int      `json:"support_attack_charges_max"`
-	HasShield               bool     `json:"has_shield"`
-	SupportDefendWhenAttack bool     `json:"support_defend_when_attack"`
-	MapWeaponAmmo           []int    `json:"map_weapon_ammo"`
-	Debuffs                 []Debuff `json:"debuffs"`
+	Faction Faction `json:"faction"`
+	Size    Cell    `json:"size"`
+	UnitValues
+	Pilot                   Pilot `json:"pilot"`
+	Mech                    Mech  `json:"mech"`
+	HasShield               bool  `json:"has_shield"`
+	SupportDefendWhenAttack bool  `json:"support_defend_when_attack"`
+}
+
+// UnitValues is the value column of one unit on the wire: every field a
+// rule of a battle writes, plus the pools it spends. The unit payload
+// embeds it, and the terminal values of 'act' carry it with an id.
+type UnitValues struct {
+	Pos                  Cell     `json:"pos"`
+	HP                   int      `json:"hp"`
+	EN                   int      `json:"en"`
+	SP                   int      `json:"sp"`
+	MP                   int      `json:"mp"`
+	MoveRange            int      `json:"move_range"`
+	Acted                bool     `json:"acted"`
+	ChanceSteps          int      `json:"chance_steps"`
+	SupportAttackCharges int      `json:"support_attack_charges"`
+	SupportDefendCharges int      `json:"support_defend_charges"`
+	Skills               []Skill  `json:"skills"`
+	MapWeaponAmmo        []int    `json:"map_weapon_ammo"`
+	Debuffs              []Debuff `json:"debuffs"`
 }
 
 // TerrainCell binds one cell of the map to one terrain wire name. A cell is a

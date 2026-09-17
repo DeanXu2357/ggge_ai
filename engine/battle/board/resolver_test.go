@@ -13,7 +13,7 @@ import (
 func openingBoard(bounds battle.Bounds, terrain battle.Terrain,
 	terrainCells []battle.TerrainCell, enemies []battle.Unit) (*Board, error) {
 	out := New(1)
-	if err := out.Load(bounds, terrain, terrainCells, enemies, battle.FactionAlly, 1); err != nil {
+	if err := out.Open(bounds, terrain, terrainCells, enemies); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -42,31 +42,38 @@ func wireBoard() *battle.BattleState {
 		Units: []battle.Unit{
 			{
 				Faction:   battle.FactionAlly,
-				Pos:       battle.Cell{2, 3},
 				Size:      battle.Cell{2, 3},
-				HP:        8200,
-				MaxHP:     9000,
-				EN:        120,
-				ENMax:     180,
 				HasShield: true,
-				Acted:     true,
-				Skills: []battle.Skill{{
-					Kind:            "skill_heal",
-					Source:          battle.SourceMech,
-					Amount:          &amount,
-					Uses:            2,
-					EndsActivation:  true,
-					UsableAfterMove: true,
-					Affects:         battle.AffectsAlly,
-				}},
-				SP:    30,
-				SPMax: 45,
+				UnitValues: battle.UnitValues{
+					Pos:       battle.Cell{2, 3},
+					HP:        8200,
+					EN:        120,
+					SP:        30,
+					MoveRange: 4,
+					Acted:     true,
+					Skills: []battle.Skill{{
+						Kind:            "skill_heal",
+						Source:          battle.SourceMech,
+						Amount:          &amount,
+						Uses:            2,
+						EndsActivation:  true,
+						UsableAfterMove: true,
+						Affects:         battle.AffectsAlly,
+					}},
+					SupportDefendCharges: 1,
+					SupportAttackCharges: 2,
+					MapWeaponAmmo:        []int{3},
+					Debuffs:              []battle.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
+				},
 				Pilot: battle.Pilot{
 					Ranged: 220, Melee: 180, Awaken: 240, Defense: 190, Reaction: 205, SP: 45,
+					Abilities: []battle.Ability{
+						{Kind: battle.AbilitySupportDefendPlus, Plus: 1},
+						{Kind: battle.AbilitySupportAttackPlus, Plus: 2}},
 				},
 				Mech: battle.Mech{
 					HP: 9000, EN: 180, Attack: 4100, Defense: 3900, Mobility: 310, MoveRange: 4,
-					MapWeapons: []battle.MapWeapon{{Name: "missile"}},
+					MapWeapons: []battle.MapWeapon{{Name: "missile", AmmoMax: 3}},
 					Weapons: []battle.Weapon{{
 						Name:            "rifle",
 						Power:           2400,
@@ -80,18 +87,14 @@ func wireBoard() *battle.BattleState {
 						Categories:      []battle.WeaponCategory{battle.WeaponCategoryRanged},
 					}},
 				},
-				SupportDefendCharges:    1,
-				SupportDefendChargesMax: 1,
-				SupportAttackCharges:    2,
 				SupportDefendWhenAttack: true,
-				MapWeaponAmmo:           []int{3},
-				Debuffs:                 []battle.Debuff{{Kind: "mobility", Magnitude: 0.2, AppliedPhase: 1}},
 			},
 			{
-				Faction: battle.FactionEnemy,
-				Pos:     battle.Cell{7, 7},
-				Size:    battle.Cell{1, 1},
-				HP:      5000,
+				Faction:    battle.FactionEnemy,
+				Size:       battle.Cell{1, 1},
+				UnitValues: battle.UnitValues{Pos: battle.Cell{7, 7}, HP: 5000},
+				Mech:       battle.Mech{HP: 5000, EN: 100},
+				Pilot:      battle.Pilot{SP: 100},
 			},
 		},
 		Phase:         battle.FactionAlly,
@@ -122,29 +125,14 @@ func decodeFixtureState(t *testing.T) *Board {
 	return board
 }
 
-func TestInitFillsAMaximumThatThePayloadLeavesAtZero(t *testing.T) {
+func TestInitRefusesABaseThatThePayloadLeavesAtZero(t *testing.T) {
 	enemies := []battle.Unit{
-		{Faction: battle.FactionEnemy, Pos: battle.Cell{1, 1}, HP: 10,
-			Pilot: battle.Pilot{SP: 60},
-			Mech:  battle.Mech{HP: 9000, EN: 180}},
-		{Faction: battle.FactionEnemy, Pos: battle.Cell{2, 1}, HP: 10,
-			MaxHP: 7000, ENMax: 20, SPMax: 5,
-			Pilot: battle.Pilot{SP: 60},
-			Mech:  battle.Mech{HP: 9000, EN: 180}},
+		{Faction: battle.FactionEnemy, UnitValues: battle.UnitValues{Pos: battle.Cell{1, 1}},
+			Mech: battle.Mech{HP: 9000, EN: 180}},
 	}
 
-	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "", nil, enemies)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	filled := &board.content.Units[0]
-	if filled.MaxHP != 9000 || filled.ENMax != 180 || filled.SPMax != 60 {
-		t.Fatalf("the pairing fills a maximum of zero: %+v", *filled)
-	}
-	stated := &board.content.Units[1]
-	if stated.MaxHP != 7000 || stated.ENMax != 20 || stated.SPMax != 5 {
-		t.Fatalf("an explicit maximum stands: %+v", *stated)
+	if _, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "", nil, enemies); err == nil {
+		t.Fatal("a base of zero opened the board")
 	}
 }
 
@@ -152,7 +140,8 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 	wire := &battle.BattleState{
 		Bounds: &battle.Bounds{{0, 0}, {4, 4}},
 		Phase:  battle.FactionAlly,
-		Units:  []battle.Unit{{Faction: battle.FactionAlly, HP: 1}},
+		Units: []battle.Unit{{Faction: battle.FactionAlly, UnitValues: battle.UnitValues{HP: 1, EN: 1},
+			Mech: battle.Mech{HP: 1, EN: 1}, Pilot: battle.Pilot{SP: 15}}},
 	}
 
 	board, err := restore(wire)
@@ -168,7 +157,8 @@ func TestAUnitWithNoSizeCoversOneCell(t *testing.T) {
 func TestInitBuildsTheBoardOfTheEnemiesAtTurnOne(t *testing.T) {
 	board, err := openingBoard(battle.Bounds{{0, 0}, {5, 4}}, "ground",
 		[]battle.TerrainCell{{Cell: battle.Cell{1, 1}, Terrain: "space"}},
-		[]battle.Unit{{Faction: battle.FactionEnemy, Pos: battle.Cell{4, 4}, HP: 10}})
+		[]battle.Unit{{Faction: battle.FactionEnemy, UnitValues: battle.UnitValues{Pos: battle.Cell{4, 4}},
+			Mech: battle.Mech{HP: 10, EN: 10}, Pilot: battle.Pilot{SP: 15}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,8 +186,8 @@ func TestInitRefusesAPayloadThatTheBoardCannotHold(t *testing.T) {
 		enemies      []battle.Unit
 	}{
 		{name: "a footprint outside the bounds",
-			enemies: []battle.Unit{{Faction: battle.FactionEnemy,
-				Pos: battle.Cell{2, 2}, Size: battle.Cell{2, 2}, HP: 10}}},
+			enemies: []battle.Unit{{Faction: battle.FactionEnemy, Size: battle.Cell{2, 2},
+				UnitValues: battle.UnitValues{Pos: battle.Cell{2, 2}, HP: 10}}}},
 		{name: "a terrain cell outside the bounds",
 			terrainCells: []battle.TerrainCell{{Cell: battle.Cell{9, 9}, Terrain: "space"}}},
 	}

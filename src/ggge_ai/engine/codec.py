@@ -31,6 +31,7 @@ from .contract import (
     Terrain,
 )
 from .state import (
+    Ability,
     BattleState,
     Debuff,
     Decision,
@@ -179,6 +180,41 @@ def decode_debuff(payload: dict[str, Any]) -> Debuff:
     )
 
 
+def encode_ability(ability: Ability) -> dict[str, Any]:
+    return {
+        "kind": ability.kind,
+        "percent": ability.percent,
+        "plus": ability.plus,
+        "enemy_tag": ability.enemy_tag,
+        "mech_tag": ability.mech_tag,
+        "pilot_tag": ability.pilot_tag,
+        "hp_rate_lte": ability.hp_rate_lte,
+        "hp_rate_gte": ability.hp_rate_gte,
+        "mech_type": ability.mech_type,
+        "strike_role": ability.strike_role,
+        "weapon_attribute": ability.weapon_attribute,
+        "weapon_category": ability.weapon_category,
+    }
+
+
+def decode_ability(payload: dict[str, Any]) -> Ability:
+    _known(payload, encode_ability(Ability(kind="k")), "ability")
+    return Ability(
+        kind=_str(payload, "kind"),
+        percent=_float(payload, "percent"),
+        plus=_int(payload, "plus"),
+        enemy_tag=_int(payload, "enemy_tag"),
+        mech_tag=_int(payload, "mech_tag"),
+        pilot_tag=_int(payload, "pilot_tag"),
+        hp_rate_lte=_int(payload, "hp_rate_lte"),
+        hp_rate_gte=_int(payload, "hp_rate_gte"),
+        mech_type=_int(payload, "mech_type"),
+        strike_role=_optional_str(payload, "strike_role"),
+        weapon_attribute=_optional_str(payload, "weapon_attribute"),
+        weapon_category=_optional_str(payload, "weapon_category"),
+    )
+
+
 def encode_pilot(pilot: Pilot) -> dict[str, Any]:
     return {
         "ranged": pilot.ranged,
@@ -187,6 +223,8 @@ def encode_pilot(pilot: Pilot) -> dict[str, Any]:
         "defense": pilot.defense,
         "reaction": pilot.reaction,
         "sp": pilot.sp,
+        "tags": list(pilot.tags),
+        "abilities": [encode_ability(entry) for entry in pilot.abilities],
     }
 
 
@@ -199,6 +237,8 @@ def decode_pilot(payload: dict[str, Any]) -> Pilot:
         defense=_float(payload, "defense"),
         reaction=_float(payload, "reaction"),
         sp=_int(payload, "sp"),
+        tags=list(_ids(payload, "tags")),
+        abilities=[decode_ability(entry) for entry in payload.get("abilities") or ()],
     )
 
 
@@ -212,6 +252,9 @@ def encode_mech(mech: Mech) -> dict[str, Any]:
         "move_range": mech.move_range,
         "weapons": [encode_weapon(weapon) for weapon in mech.weapons],
         "map_weapons": [encode_map_weapon(weapon) for weapon in mech.map_weapons],
+        "tags": list(mech.tags),
+        "type": mech.type,
+        "abilities": [encode_ability(entry) for entry in mech.abilities],
     }
 
 
@@ -226,34 +269,33 @@ def decode_mech(payload: dict[str, Any]) -> Mech:
         move_range=_int(payload, "move_range"),
         weapons=[decode_weapon(entry) for entry in payload.get("weapons") or ()],
         map_weapons=[decode_map_weapon(entry) for entry in payload.get("map_weapons") or ()],
+        tags=list(_ids(payload, "tags")),
+        type=_int(payload, "type"),
+        abilities=[decode_ability(entry) for entry in payload.get("abilities") or ()],
     )
 
 
 def encode_unit(unit: Unit) -> dict[str, Any]:
     return {
         "faction": str(unit.faction),
-        "pos": _cell(unit.pos),
         "size": _cell(unit.size),
+        "pos": _cell(unit.pos),
         "hp": unit.hp,
-        "max_hp": unit.max_hp,
         "en": unit.en,
-        "en_max": unit.en_max,
         "sp": unit.sp,
-        "sp_max": unit.sp_max,
-        "pilot": encode_pilot(unit.pilot),
-        "mech": encode_mech(unit.mech),
-        "skills": [encode_skill(skill) for skill in unit.skills],
+        "mp": unit.mp,
+        "move_range": unit.move_range,
         "acted": unit.acted,
         "chance_steps": unit.chance_steps,
-        "chance_steps_max": unit.chance_steps_max,
-        "support_defend_charges": unit.support_defend_charges,
-        "support_defend_charges_max": unit.support_defend_charges_max,
         "support_attack_charges": unit.support_attack_charges,
-        "support_attack_charges_max": unit.support_attack_charges_max,
-        "has_shield": unit.has_shield,
-        "support_defend_when_attack": unit.support_defend_when_attack,
+        "support_defend_charges": unit.support_defend_charges,
+        "skills": [encode_skill(skill) for skill in unit.skills],
         "map_weapon_ammo": list(unit.map_weapon_ammo),
         "debuffs": [encode_debuff(debuff) for debuff in unit.debuffs],
+        "pilot": encode_pilot(unit.pilot),
+        "mech": encode_mech(unit.mech),
+        "has_shield": unit.has_shield,
+        "support_defend_when_attack": unit.support_defend_when_attack,
     }
 
 
@@ -261,28 +303,24 @@ def decode_unit(payload: dict[str, Any]) -> Unit:
     _known(payload, encode_unit(Unit(faction=Faction.ALLY)), "unit")
     return Unit(
         faction=_faction(payload.get("faction")),
-        pos=_as_cell(payload.get("pos"), "unit.pos"),
         size=_as_cell(payload.get("size", (1, 1)), "unit.size"),
+        pos=_as_cell(payload.get("pos"), "unit.pos"),
         hp=_int(payload, "hp"),
-        max_hp=_int(payload, "max_hp"),
         en=_int(payload, "en"),
-        en_max=_int(payload, "en_max"),
         sp=_int(payload, "sp"),
-        sp_max=_int(payload, "sp_max"),
-        pilot=decode_pilot(payload.get("pilot") or {}),
-        mech=decode_mech(payload.get("mech") or {}),
-        skills=[decode_skill(entry) for entry in payload.get("skills") or ()],
+        mp=_int(payload, "mp"),
+        move_range=_int(payload, "move_range"),
         acted=_bool(payload, "acted"),
         chance_steps=_int(payload, "chance_steps"),
-        chance_steps_max=_int(payload, "chance_steps_max"),
-        support_defend_charges=_int(payload, "support_defend_charges"),
-        support_defend_charges_max=_int(payload, "support_defend_charges_max"),
         support_attack_charges=_int(payload, "support_attack_charges"),
-        support_attack_charges_max=_int(payload, "support_attack_charges_max"),
-        has_shield=_bool(payload, "has_shield"),
-        support_defend_when_attack=_bool(payload, "support_defend_when_attack"),
+        support_defend_charges=_int(payload, "support_defend_charges"),
+        skills=[decode_skill(entry) for entry in payload.get("skills") or ()],
         map_weapon_ammo=[int(count) for count in payload.get("map_weapon_ammo") or ()],
         debuffs=[decode_debuff(entry) for entry in payload.get("debuffs") or ()],
+        pilot=decode_pilot(payload.get("pilot") or {}),
+        mech=decode_mech(payload.get("mech") or {}),
+        has_shield=_bool(payload, "has_shield"),
+        support_defend_when_attack=_bool(payload, "support_defend_when_attack"),
     )
 
 

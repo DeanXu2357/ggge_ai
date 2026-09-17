@@ -60,12 +60,14 @@ issues of the port (#60 to #68).
   halves and one view. 'state.Content' holds the invariants:
   'Units []UnitContent' and the bounds, the terrain and the terrain
   cells. 'state.UnitContent' holds the faction, the size, the six
-  maxima, the shield flag, the support defense flag and the two
-  pointers into 'def'. 'state.Values' holds the variables: 'Units
+  maxima, the shield flag, the support defense flag, the move range
+  and the two pointers into 'def'. The move range of the content is
+  the maximum, derived at assembly from 'def.Mech.MoveRange'; the
+  move range of the value is what a rule reads. 'state.Values' holds the variables: 'Units
   []UnitValue', index-aligned with the content units, plus the phase
   and the turn. 'state.UnitValue' holds the position, HP, EN, SP,
-  the acted flag, the chance steps, the two charge counts, the
-  skills, the map weapon ammunition and the debuffs. 'state.Battle'
+  the acted flag, the chance steps, the two charge counts, the move
+  range, the skills, the map weapon ammunition and the debuffs. 'state.Battle'
   is the view: two pointers, 'Content *Content' and 'Values
   *Values', and no data of its own. No type joins a content field
   and a value field in one struct (user ruling 2026-09-02).
@@ -106,10 +108,14 @@ issues of the port (#60 to #68).
   never written: the board tests compare the content before and
   after an act. The writers of a value are 'system/commit.go',
   'system/engagement.go' and 'system/turn.go'. Before the battle,
-  'board.Load' works on the wire form: 'assemble' fills a maximum
-  that the payload leaves at zero, and 'validate' fills the two
-  values that a payload can leave out, a size of zero and an empty
-  terrain. 'engine/battle/system' settles one activation through
+  'board.Open' and 'board.Load' hand the wire form to
+  'system.Assemble', which judges every fact of the state that the
+  decode cannot, fills the two values that a payload can leave out
+  (a size of zero and an empty terrain), refuses a unit whose
+  'max_hp' or 'en_max' is zero, and answers the two columns. The
+  origin decides the values of a unit: a fresh battle ('init') sets
+  every value to its default, a resumed battle ('load') takes every
+  value as given and judges it against its maximum. 'engine/battle/system' settles one activation through
   'system.Commit(board, action, draw)', which answers the values
   column that the activation leaves and the events, or an error.
   'scheduleAct' reads the action and the board, refuses everything
@@ -121,16 +127,20 @@ issues of the port (#60 to #68).
   while the battle is ongoing, rotates the phase; nothing past the
   schedule can fail. 'system.Menu(board, decision, defenderID)'
   answers 'response_attacks' and refuses what 'act' refuses. The
-  rotation, the EN regeneration, the debuff expiry and the reset of
-  the acted flags are 'rotate' in 'system/turn.go', and every reset
-  is an effect of the phase event. The pure system
+  rotation, the EN regeneration, the debuff expiry, the reset of
+  the acted flags and the return of the support charges are
+  'rotate' in 'system/turn.go', and every reset is an effect of the
+  phase event: the effect records that the reset ran, so it is there
+  when the value stays ('from' equal to 'to'; user ruling
+  2026-09-17). The pure system
   'engine/battle/geometry' answers the distance, the reachable
   anchors and the occupied cells and writes nothing.
 - The package 'engine/battle/board' is the shell. It stores the
   pair: the content and the values. 'board.New' gives an empty
-  board. 'Load' takes the wire form, assembles each unit, judges the
-  result and converts it into the pair. It does this for 'init' and
-  for 'load' alike. A refused 'Load' leaves the board unchanged. It
+  board. 'Open' takes the enemies of a stage and 'Load' takes a
+  snapshot; both hand the wire form to 'system.Assemble' with the
+  origin of the state, 'Fresh' or 'Resumed', and keep the pair it
+  answers. A refused 'Open' or 'Load' leaves the board unchanged. It
   implements the contract, projects the answers of the read
   commands, and calls the systems. A read command hands the systems
   the view over the columns of the board. 'Act' is four steps:
@@ -242,8 +252,15 @@ from a constant. The field 'seed' builds the session random source;
 every server draw of the session reads that source.
 
 The board opens at turn 1 in the ally phase with the enemies on it.
-'place' is not implemented, so a battle with ally units starts
-through 'load' today.
+An enemy of 'init' is content and a cell: its pools open full
+('hp' at 'mech.hp', 'en' at 'mech.en', 'sp' at 'pilot.sp',
+'move_range' at 'mech.move_range', 'mp' at 0), its counts at their
+maxima ('chance_steps', 'support_attack_charges',
+'support_defend_charges'), the ammunition of each map weapon at
+'ammo_max', no debuff, not acted. A payload of 'init' that states
+one of those values is a bad_request: the stage gives no state
+(user ruling 2026-09-15). 'place' is not implemented, so a battle
+with ally units starts through 'load' today.
 
 Refusals: bad_request.
 
@@ -497,7 +514,10 @@ start as effects; the section 'Turn cycle' holds the rule.
 
 'units' is the terminal values: every unit an effect landed on,
 with its whole value column after the act, in the order of the
-unit ids.
+unit ids. An entry is 'unit_id' and the value fields of the unit
+payload, the same keys with the same meaning: Go declares the
+value column one time as 'battle.UnitValues', which the unit
+payload embeds and 'battle.AffectedUnit' carries with the id.
 
 'board' is the summary: 'turn', 'phase', 'pending_ids' (the
 units of the phase that can still act), and 'gone' (the sides
@@ -585,7 +605,12 @@ them unread so that a snapshot survives a load and an export.
 
 The state carries 'phase'. A state without that field is a
 bad_request. 'load' judges the units against the bounds, and a
-unit that stands outside the board is a bad_request.
+unit that stands outside the board is a bad_request. 'load' takes
+every value of a unit as the value of the moment and judges it
+against its maximum: 'hp', 'en', 'sp', 'chance_steps', the two
+support charges within 0 and their maxima, each 'map_weapon_ammo'
+within 0 and the 'ammo_max' of its weapon, and no debuff applied at
+a phase after the phase of the state (user ruling 2026-09-15).
 
 ## Turn cycle
 
@@ -607,15 +632,20 @@ Every move opens the phase of one faction. At that phase start:
   hypothesis: the reference leaves the rounding open at line 310,
   and the user ruled on 2026-08-27 to floor until a device
   measurement settles it.
+- Every living unit of the faction gets its support attack charges
+  and its support defend charges back, up to the maxima of the
+  content (user ruling 2026-09-17, which lifts the wait of
+  2026-08-27 for the charges; that the game returns them at the own
+  phase start is the user's reading, not a device measurement).
 - Every living unit of every faction drops the debuffs that one
   full round has passed: a debuff hung in the phase of index p is
   gone when the phase of index p + 3 opens
   (docs/reference/combat-formulas.md line 269). The phase index is
   turn times 3 plus the position of the phase in the order.
 
-The phase start resets no chance step and no support charge, and
-fires no stage event. The three wait for the issue that gives them
-a shape (user ruling 2026-08-27).
+The phase start resets no chance step and fires no stage event.
+The two wait for the issue that gives them a shape (user ruling
+2026-08-27).
 
 ## Board geometry
 
@@ -872,29 +902,45 @@ rule may read such an 'apply_shape' as the caster rule above.
 A unit is a pilot that rides a mech, on the board of one stage. The
 payload keeps the three apart (user ruling 2026-08-28).
 
-The unit is the current state of the pairing. It records state and
-the maxima of state, and it takes no part in a computation:
+The unit is the current state of the pairing. It records the values
+of the moment, and it takes no part in a computation:
 
 | Field | Content |
 |---|---|
-| hp, max_hp | The hit points now, and their maximum |
-| en, en_max | The energy now, and its maximum |
-| sp, sp_max | The skill points of the pilot now, and their maximum |
+| hp, en, sp | The hit points, the energy and the skill points now |
+| mp | The MP now, 0 to 12; a fresh battle opens it at the sum of the 'mp_plus' lines whose condition holds, capped at 12 (issue #54 owns the system; no rule reads it yet) |
+| move_range | The movement range now (no rule writes it yet) |
 | pos, size, acted, the charge counters, map_weapon_ammo, debuffs, skills | The board state, as before |
 | pilot | The pilot, as data |
 | mech | The mech, as data |
 
-The unit carries no attack, no defense, no mobility, no movement
-range and no weapon list of its own. A rule that needs one of them
-reads the pilot or the mech.
+No maximum travels (versions 2.2 and 2.3, user ruling 2026-09-17):
+the engine derives every maximum at assembly, on 'init' and on
+'load' alike, and a value of the payload is judged against the
+derived maximum. The maximum of a pool comes from the base data:
+'max_hp' from 'mech.hp' and 'en_max' from 'mech.en', each
+multiplied one time by the sum of the 'max_hp_percent' or
+'max_en_percent' lines of the mech and of the pilot and floored;
+'sp_max' from 'pilot.sp' and the maximum of 'move_range' from
+'mech.move_range' plus the 'move_range_plus' lines whose condition
+holds.
+The maximum of an allowance, how many times the unit may support
+attack, support defend or act again after a kill, comes from a base
+and the allowance lines of the mech and of the pilot: the support
+attack and support defend allowances from 0 plus the
+'support_attack_plus' and 'support_defend_plus' lines, the chance
+steps from 1 plus the 'chance_step_plus' lines.
+That the game starts every unit from these bases is the user's
+reading (2026-09-17), not a device measurement. A second assembly of an exported state
+derives the same content, because the export writes the base data
+and the values and never a derived number. The reader sees the
+derived maxima in the unit status of 'actions'. The unit carries no
+attack, no defense, no mobility and no weapon list of its own. A
+rule that needs one of them reads the pilot or the mech.
 
-The three maxima 'support_attack_charges_max',
-'support_defend_charges_max' and 'chance_steps_max' are state of
-the unit, and the pilot decides them: an ability of the pilot whose
-condition matches the mech (its role, its tags or its series) raises
-the count (user ruling 2026-08-28). No code derives them yet; a
-payload carries them as given. The pairing conditions belong to
-issue #72 and the derivation to issue #77.
+The three allowances were carried as given until version 2.3; the
+ruling of 2026-08-28 that the pilot decides them through its
+abilities is now the derivation above.
 
 The pilot holds the values of the game's pilot panel:
 
@@ -906,6 +952,8 @@ The pilot holds the values of the game's pilot panel:
 | defense | 守備值 |
 | reaction | 反應值 |
 | sp | The skill point pool |
+| tags | The datamine 'character_tags_id' of the pilot, as ids |
+| abilities | The effect lines of the pilot, in the ability payload |
 
 The mech holds its own values:
 
@@ -916,6 +964,89 @@ The mech holds its own values:
 | move_range | The movement range of the mech |
 | weapons | The direct weapons of the mech, in the weapon payload |
 | map_weapons | The map weapons of the mech, in the map weapon payload |
+| tags | The datamine 'unit_tags' of the mech, as ids |
+| type | The datamine 'unit_role': 1 攻擊型, 2 耐久型, 3 支援型; 0 when the producer knows none |
+| abilities | The effect lines of the mech, in the ability payload |
+
+An ability payload is one effect line (version 2.1, issue #72):
+
+| Field | Content |
+|---|---|
+| kind | The effect, one of the kinds of docs/reference/datamine-source.md ('mech_attack_percent', 'damage_taken_percent', ...) |
+| percent | The number of a percent line, signed: -15 on 'damage_taken_percent' is 15% less |
+| plus | The number of an allowance line: 'support_attack_plus', 'support_defend_plus', 'chance_step_plus' |
+| enemy_tag, mech_tag, pilot_tag | A tag condition: the tag of the enemy of the strike, of the mech the pilot rides, or of the pilot who rides the mech; 0 when absent |
+| hp_rate_lte, hp_rate_gte | An HP condition in percent of the maximum; 0 when absent |
+| mech_type | A mech type condition; 0 when absent |
+| strike_role | 'support_attack' or 'support_defense'; null when absent |
+| weapon_attribute, weapon_category | A condition on the weapon of the enemy; null when absent |
+
+The engine picks the line by the kind and by the conditions present.
+A kind the engine does not model travels as it came and changes no
+number (issue #80). A kind the engine models, with a set of
+conditions it does not, is refused at 'init' and at 'load'
+('outside_contract'): no line is carried and read by nothing. Go:
+'battle.Ability', 'lines.FromContract'.
+
+The lines the engine models, from the 112 trait rows of the ten UR
+mechs and their ten pilots of the sample store
+(docs/reference/datamine-samples/202608161248; the mapping of
+'trait_type' to kind is in docs/reference/datamine-source.md). A
+row is one shape, the kind with the conditions it carries; the
+count is the number of lines of that shape in the sample. A shape
+with no Go type is carried and read by nothing.
+
+| Side | Kind | Conditions | Lines | Example | Go type |
+|---|---|---|---|---|---|
+| mech | 'accuracy_percent' | — | 2 | Psycho-Frame LV 1 | 'lines.AccuracyPercent' |
+| mech | 'damage_taken_percent' | 'weapon_attribute' | 1 | Physical Damage Reduced LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttribute' |
+| mech | 'damage_taken_percent' | 'weapon_attribute', 'weapon_category' | 3 | I-Field LV 3 | 'lines.DamageTakenPercentAgainstWeaponAttributeAndCategory' |
+| mech | 'evasion_percent' | — | 4 | Increased EVA LV 1 | 'lines.EvasionPercent' |
+| mech | 'max_en_percent' | — | 2 | Increased Max EN LV 3 | 'lines.MaxENPercent' |
+| mech | 'max_hp_percent' | — | 5 | Increased Max HP LV 3 | 'lines.MaxHPPercent' |
+| mech | 'mech_attack_percent' | — | 5 | Increased ATK LV 3 | 'lines.MechAttackPercent' |
+| mech | 'mech_attack_percent' | 'enemy_tag' | 2 | Advantage: Principality of Zeon LV 1 | 'lines.MechAttackPercentAgainstTag' |
+| mech | 'mech_attack_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased ATK LV 3 | 'lines.MechAttackPercentAtHPRateAtMost' |
+| mech | 'mech_attack_percent' | vigor (not on the wire) | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | none; issue #54 |
+| mech | 'mech_defense_percent' | — | 1 | Increased DEF LV 3 | 'lines.MechDefensePercent' |
+| mech | 'mech_defense_percent' | 'enemy_tag' | 2 | Advantage: EFSF (U.C.) LV 1 | 'lines.MechDefensePercentAgainstTag' |
+| mech | 'mech_defense_percent' | 'hp_rate_gte' | 1 | (HP conditions) Increased DEF LV 2 | 'lines.MechDefensePercentAtHPRateAtLeast' |
+| mech | 'mech_defense_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased DEF LV 2 | 'lines.MechDefensePercentAtHPRateAtMost' |
+| mech | 'mech_mobility_percent' | — | 2 | Increased MOB LV 1 | 'lines.MechMobilityPercent' |
+| mech | 'mech_mobility_percent' | vigor (not on the wire) | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | none; issue #54 |
+| mech | 'move_range_plus' | 'pilot_tag' | 1 | (Cnd: Tag) Increased MOV LV 1 | 'lines.MoveRangePlusOnPilotTag' |
+| mech | 'special_weapon_range_plus' | vigor (not on the wire) | 1 | (Cnd: Vigor) Special Weapon Max Range Up LV 1 | none; issue #54 |
+| pilot | 'damage_dealt_percent' | — | 4 | Increased Damage Dealt LV 3 | 'lines.DamageDealtPercent' |
+| pilot | 'damage_dealt_percent' | 'enemy_tag' | 1 | EX Character Ability (Amuro Ray) | 'lines.DamageDealtPercentAgainstTag' |
+| pilot | 'damage_dealt_percent' | 'mech_tag' | 8 | EX Character Ability | 'lines.DamageDealtPercentOnMechTag' |
+| pilot | 'damage_taken_percent' | 'enemy_tag' | 1 | EX Character Ability (Amuro Ray) | 'lines.DamageTakenPercentAgainstTag' |
+| pilot | 'damage_taken_percent' | 'mech_tag' | 8 | EX Character Ability | 'lines.DamageTakenPercentOnMechTag' |
+| pilot | 'debuff_effect_percent' | a mech id (not on the wire) | 1 | EX Character Ability (Kou Uraki) | none; issue #80 |
+| pilot | 'hp_supply_percent' | a mech id (not on the wire) | 1 | EX Character Ability (Oliver May) | none; issue #79 |
+| pilot | 'mech_attack_percent' | 'mech_type', 'strike_role' support_attack | 1 | (When supporting) Increased ATK LV 5 | 'lines.MechAttackPercentOnSupportWithMechType' |
+| pilot | 'mech_defense_percent' | 'mech_type', 'strike_role' support_defense | 3 | Support Defense LV 4 | 'lines.MechDefensePercentOnSupportDefenseWithMechType' |
+| pilot | 'mech_defense_percent' | 'strike_role' support_defense | 1 | EX Character Ability (Amuro Ray) | 'lines.MechDefensePercentOnSupportDefense' |
+| pilot | 'mp_plus' | 'mech_tag' | 2 | EX Character Ability | 'lines.MPPlusOnMechTag' |
+| pilot | 'pilot_awaken_percent' | — | 5 | Newtype LV 4 | 'lines.PilotAwakenPercent' |
+| pilot | 'pilot_defense_percent' | — | 5 | Increased Defense LV 1 | 'lines.PilotDefensePercent' |
+| pilot | 'pilot_melee_percent' | — | 3 | Increased Melee LV 1 | 'lines.PilotMeleePercent' |
+| pilot | 'pilot_ranged_percent' | — | 7 | Increased Ranged LV 1 | 'lines.PilotRangedPercent' |
+| pilot | 'pilot_reaction_percent' | — | 4 | Newtype LV 4 | 'lines.PilotReactionPercent' |
+| pilot | 'revive_once' | a mech id (not on the wire) | 2 | EX Character Ability (Char Aznable) | none |
+| pilot | 'squad_attack_percent_per_member' | a mech id (not on the wire) | 2 | EX Character Ability (Io Fleming) | none |
+| pilot | 'squad_grant' | a mech id (not on the wire) | 4 | EX Character Ability (Oliver May) | none |
+| pilot | 'support_attack_plus' | — | 6 | Support Attack / Counter Support LV 4 | 'lines.SupportAttackPlus' |
+| pilot | 'support_defend_plus' | — | 5 | Support Defense LV 4 | 'lines.SupportDefendPlus' |
+| pilot | 'weapon_en_cost_percent' | 'mech_type', 'strike_role' support_attack | 2 | Support Attack / Counter Support LV 4 | 'lines.WeaponENCostPercentOnSupportWithMechType' |
+
+Facts of the sample the table holds: a line carries at most two
+conditions; every line carries one tag id at most, so a line type
+holds one tag and not a list (user ruling 2026-09-14); the two
+halves of an "Advantage" pair both read the tag of the other unit
+of the strike; "One-Shot Killer" is a tag of the mech (id 1082 on
+Gouf Custom (EX)), not a line. The 13 lines with no Go type are the
+three vigor lines (issue #54 owns the tier) and the ten lines that
+need a squad model, a wound moment or a mech id condition.
 
 A weapon carries 'categories', a list over 'ranged', 'melee' and
 'awaken', null when the producer knows no category. The pilot
@@ -924,12 +1055,15 @@ of the weapon; a weapon with no category reads the highest of the
 three (user ruling 2026-08-28). Go: 'WeaponCategory',
 'Pilot.AttackFor'.
 
-At 'init', a unit whose 'max_hp' or 'en_max' is 0 takes the value
-of its mech, and a unit whose 'sp_max' is 0 takes the 'sp' of its
-pilot. An explicit value stays. The abilities of the pilot and of
-the mech do not enter the maxima yet; issue #77 owns that
-derivation. The datamine holds no SP pool for a pilot; the device
-is its source.
+A unit whose 'mech.hp', 'mech.en' or 'pilot.sp' is 0 is refused at
+'init' and at 'load': a base of zero is a broken payload, not a
+value to fill (user ruling 2026-09-15 on the maxima, restated for
+the base data on 2026-09-17; it retires the fill from the mech of
+2026-08-28). The SP pool of every pilot is 15, and a skill costs
+the SP its pilot skill states (user, first hand, 2026-09-15); no
+rule of this version spends SP, and the wire skill carries no cost
+yet. The abilities of the pilot and of the
+mech do not enter the maxima yet; issue #77 owns that derivation.
 
 This section replaces the reading of 2026-08-21 that the unit
 carries a stored final panel that every rule reads. That reading
@@ -1141,3 +1275,29 @@ difference between two integers is 1.
   its 'name' as data for a person. This is the first breaking wire
   change of the engine: a client of a 1.x version does not read a
   2.0 board.
+- Version 2.1 (2026-09-17, issue #72) added fields and broke
+  nothing: 'tags' and 'abilities' on the pilot, 'tags', 'type' and
+  'abilities' on the mech, with the new ability payload. A 2.0
+  payload decodes as a 2.1 payload with the lists empty and the
+  type 0.
+- An eleventh exception on record: version 2.3 (2026-09-17, issue
+  #72) removed 'chance_steps_max', 'support_attack_charges_max' and
+  'support_defend_charges_max' from the unit payload and added
+  'plus' to the ability payload: the allowances are derived from the
+  allowance lines of the mech and of the pilot. A 2.2 payload whose
+  allowances came from lines loads as a 2.3 payload once the three
+  keys are dropped; a payload that stated an allowance with no line
+  behind it loads with the base allowance.
+- Version 2.4 (2026-09-17, issue #72) added 'pilot_tag' to the
+  ability payload and broke nothing: the condition of a mech line
+  that reads the pilot ("When the piloting character has a
+  specified tag").
+- A tenth exception on record: version 2.2 (2026-09-17, issue #72)
+  removed 'max_hp', 'en_max' and 'sp_max' from the unit payload and
+  added the values 'mp' and 'move_range', on the user ruling that
+  the content of a unit is derived from the base data and the lines
+  at every assembly and no derived number travels. The section "The
+  unit, the pilot and the mech" holds the derivation. A 2.1 payload
+  whose base data is filled loads as a 2.2 payload once the three
+  keys are dropped; a payload that left 'mech.hp', 'mech.en' or
+  'pilot.sp' at zero was a defect and is refused.

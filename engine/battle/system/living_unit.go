@@ -10,12 +10,17 @@ import (
 // LivingUnit and onPhase are the two gates that every command reads, so the
 // shell asks them here and no package writes the refusal twice.
 func LivingUnit(board state.Battle, unitID int) (state.Unit, error) {
-	unit, err := board.UnitAt(unitID)
+	u, err := livingUnit(board, unitID)
+	return u.toStateUnit(), err
+}
+
+func livingUnit(board state.Battle, unitID int) (unit, error) {
+	u, err := findUnit(board, unitID)
 	if err != nil {
-		return state.Unit{}, err
+		return unit{}, err
 	}
-	if !unit.Alive() {
-		return state.Unit{}, fmt.Errorf("%w: %d", battle.ErrDestroyed, unitID)
+	if !u.Alive() {
+		return unit{}, fmt.Errorf("%w: %d", battle.ErrDestroyed, unitID)
 	}
-	return unit, nil
+	return u, nil
 }
