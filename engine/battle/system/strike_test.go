@@ -22,9 +22,17 @@ func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
 
 func pair(units ...battle.Unit) (state.Content, state.Values) {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	return state.FromContract(battle.BattleState{
+	return assembled(battle.BattleState{
 		Bounds: &bounds, Units: units,
 		Phase: battle.FactionAlly, Turn: 1})
+}
+
+// A test board takes the content of its units as they are, with no
+// judgment of the values, and derives the unit the way 'Assemble' does.
+func assembled(s battle.BattleState) (state.Content, state.Values) {
+	content, values := state.FromContract(s)
+	assembleContent(&content, &values)
+	return content, values
 }
 
 func board(units ...battle.Unit) state.Battle {

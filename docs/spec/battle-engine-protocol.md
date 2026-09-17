@@ -60,12 +60,14 @@ issues of the port (#60 to #68).
   halves and one view. 'state.Content' holds the invariants:
   'Units []UnitContent' and the bounds, the terrain and the terrain
   cells. 'state.UnitContent' holds the faction, the size, the six
-  maxima, the shield flag, the support defense flag and the two
-  pointers into 'def'. 'state.Values' holds the variables: 'Units
+  maxima, the shield flag, the support defense flag, the move range
+  and the two pointers into 'def'. The move range of the content is
+  the maximum, derived at assembly from 'def.Mech.MoveRange'; the
+  move range of the value is what a rule reads. 'state.Values' holds the variables: 'Units
   []UnitValue', index-aligned with the content units, plus the phase
   and the turn. 'state.UnitValue' holds the position, HP, EN, SP,
-  the acted flag, the chance steps, the two charge counts, the
-  skills, the map weapon ammunition and the debuffs. 'state.Battle'
+  the acted flag, the chance steps, the two charge counts, the move
+  range, the skills, the map weapon ammunition and the debuffs. 'state.Battle'
   is the view: two pointers, 'Content *Content' and 'Values
   *Values', and no data of its own. No type joins a content field
   and a value field in one struct (user ruling 2026-09-02).

@@ -27,7 +27,7 @@ func scenarioSquad() state.Battle {
 	for id := range b.Content.Units {
 		units = append(units, state.Battle{Content: b.Content, Values: b.Values}.ToContract().Units[id])
 	}
-	content, values := state.FromContract(battle.BattleState{
+	content, values := assembled(battle.BattleState{
 		Bounds: &bounds, Phase: battle.FactionAlly, Turn: 1, Units: append(units, supporter)})
 	return state.Battle{Content: &content, Values: &values}
 }

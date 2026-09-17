@@ -32,7 +32,7 @@ func scenarioDuel() state.Battle {
 	pilot := battle.Pilot{Ranged: 220, Melee: 220, Awaken: 220, Defense: 190, Reaction: 205}
 	mech := battle.Mech{Attack: 4200, Defense: 3900, Mobility: 310, Weapons: []battle.Weapon{beamRifle}}
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	content, values := state.FromContract(battle.BattleState{
+	content, values := assembled(battle.BattleState{
 		Bounds: &bounds, Phase: battle.FactionAlly, Turn: 1,
 		Units: []battle.Unit{
 			{Faction: battle.FactionAlly, Pos: battle.Cell{0, 0}, Size: battle.Cell{1, 1},

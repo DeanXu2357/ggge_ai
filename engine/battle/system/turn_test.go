@@ -11,7 +11,7 @@ import (
 
 func turnPair(phase battle.Faction, turn int, units ...battle.Unit) (state.Content, state.Values) {
 	bounds := battle.Bounds{{0, 0}, {5, 4}}
-	return state.FromContract(battle.BattleState{Bounds: &bounds, Units: units,
+	return assembled(battle.BattleState{Bounds: &bounds, Units: units,
 		Phase: phase, Turn: turn})
 }
 

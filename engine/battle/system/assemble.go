@@ -40,7 +40,17 @@ func Assemble(candidate battle.BattleState, origin Origin) (state.Content, state
 	}
 
 	content, values := state.FromContract(candidate)
+	assembleContent(&content, &values)
 	return content, values, nil
+}
+
+// The contract object carries no move range value yet, so both origins take
+// the value from the maximum.
+func assembleContent(content *state.Content, values *state.Values) {
+	for index := range content.Units {
+		content.Units[index].MoveRange = content.Units[index].Mech.MoveRange
+		values.Units[index].MoveRange = content.Units[index].MoveRange
+	}
 }
 
 func validateAssemble(s *battle.BattleState) error {

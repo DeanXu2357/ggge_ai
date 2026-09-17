@@ -71,5 +71,5 @@ func inSupportReach(board state.Battle, otherID, supportedID int,
 	if err != nil {
 		return false
 	}
-	return geometry.Distance(other.Footprint(), at) <= other.Mech.MoveRange
+	return geometry.Distance(other.Footprint(), at) <= other.Value.MoveRange
 }

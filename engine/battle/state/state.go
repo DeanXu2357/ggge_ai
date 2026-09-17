@@ -23,6 +23,7 @@ type UnitContent struct {
 	SupportAttackChargesMax int
 	HasShield               bool
 	SupportDefendWhenAttack bool
+	MoveRange               int
 	Mech                    *def.Mech
 	Pilot                   *def.Pilot
 }
@@ -49,6 +50,7 @@ type UnitValue struct {
 	ChanceSteps          int
 	SupportDefendCharges int
 	SupportAttackCharges int
+	MoveRange            int
 	Skills               []def.Skill
 	MapWeaponAmmo        []int
 	Debuffs              []battle.Debuff

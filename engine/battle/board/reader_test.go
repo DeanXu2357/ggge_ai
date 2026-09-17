@@ -8,6 +8,7 @@ import (
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/def"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/system"
 )
 
 func rifle(name string, rangeMin, rangeMax int) battle.Weapon {
@@ -24,9 +25,9 @@ func mustActions(t *testing.T, b *Board, id int) battle.ActionsResponse {
 }
 
 func TestTheActionsCarryTheCellsTheUnitReaches(t *testing.T) {
-	b := board(unitAt(battle.FactionAlly, battle.Cell{0, 0}),
-		unitAt(battle.FactionEnemy, battle.Cell{1, 0}))
-	b.content.Units[0].Mech.MoveRange = 1
+	mover := unitAt(battle.FactionAlly, battle.Cell{0, 0})
+	mover.Mech.MoveRange = 1
+	b := board(mover, unitAt(battle.FactionEnemy, battle.Cell{1, 0}))
 
 	out := mustActions(t, b, 0)
 
@@ -251,9 +252,12 @@ func unitAt(faction battle.Faction, anchor battle.Cell) battle.Unit {
 
 func board(units ...battle.Unit) *Board {
 	bounds := battle.Bounds{{0, 0}, {4, 4}}
-	content, values := state.FromContract(battle.BattleState{
+	content, values, err := system.Assemble(battle.BattleState{
 		Bounds: &bounds, Units: units,
-		Phase: battle.FactionAlly, Turn: 1})
+		Phase: battle.FactionAlly, Turn: 1}, system.Resumed)
+	if err != nil {
+		panic(err)
+	}
 	return &Board{content: content, values: values}
 }
 

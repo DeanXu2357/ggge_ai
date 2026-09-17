@@ -177,3 +177,30 @@ func TestAssembleFillsWhatTheWireLeavesOut(t *testing.T) {
 	assert.Equal(t, battle.TerrainSpace, content.Terrain, "an empty terrain becomes space")
 	assert.Equal(t, battle.Cell{1, 1}, content.Units[0].Size, "a size of zero becomes one")
 }
+
+// The move range has a maximum and a value like HP: the maximum is content,
+// derived at assembly from the mech, and the value is what a rule reads and
+// may write. The contract object carries no value of it yet, so both origins
+// fill the value from the maximum.
+func TestAssemblyDerivesTheMoveRangeOfEveryUnitFromItsMech(t *testing.T) {
+	s := stage()
+	s.Units[0].Mech.MoveRange, s.Units[1].Mech.MoveRange = 5, 7
+
+	for name, origin := range map[string]Origin{"fresh": Fresh, "resumed": Resumed} {
+		t.Run(name, func(t *testing.T) {
+			content, values, err := Assemble(s, origin)
+			require.NoError(t, err)
+			assert.Equal(t, []int{5, 7}, []int{content.Units[0].MoveRange, content.Units[1].MoveRange})
+			assert.Equal(t, []int{5, 7}, []int{values.Units[0].MoveRange, values.Units[1].MoveRange})
+		})
+	}
+}
+
+// The reach of a unit reads the value of its move range and not the maximum.
+func TestTheReachReadsTheMoveRangeValue(t *testing.T) {
+	b := shootout()
+	b.Content.Units[actorID].MoveRange = 2
+	b.Values.Units[actorID].MoveRange = 0
+
+	refused(t, b, battle.Action{ActorID: actorID, MoveTo: &battle.Cell{1, 0}}, battle.ErrIllegalMove)
+}

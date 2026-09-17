@@ -440,6 +440,58 @@ Facts the table shows:
 - "One-Shot Killer" is a tag of the mech list (id 1082 on Gouf Custom
   (EX)), not an ability.
 
+## Section 4a. The assembly (ruling 2026-09-17)
+
+Content is a pure function of def and lines: 'state.UnitContent' is
+derived on every 'Assemble', fresh or resumed, from 'def.Mech',
+'def.Pilot' and the lines of the unit. No derived maximum travels
+on the contract object: 'battle.Unit' carries the current values,
+the base data under 'mech' and 'pilot', and the lines; 'ToContract'
+writes the base and the lines back, so a second assembly of the
+output gives the same content. The reader sees the derived values
+in 'battle.UnitStatus'. A base that a payload leaves at zero is a
+defect of the payload, not a shape the engine bends to.
+
+Determinism: an assembly line adds its percent to a sum, the sum
+multiplies the base one time and floors, and a line reads def and
+no value, so the same def and lines give the same content. When
+the rule of the engine changes between a save and a load, the
+resumed judgment of a value against its derived maximum refuses
+the payload; a derived value is never trusted from outside.
+
+The order of the work, each step one commit:
+
+0. Two preparations with no line: 'UnitContent.MoveRange' derived
+   at assembly as the maximum and 'UnitValue.MoveRange' as the
+   value a rule reads, like HP and its maximum (done; until step 1
+   both origins fill the value from the maximum); 'beginPhase'
+   resets the support charges of the units of the phase to the
+   content maxima (the gap of today: a charge never comes back).
+   What writes the move range value and what restores it is not
+   decided: no rule writes it today.
+1. The shape of the contract object, one time, carriers only:
+   'battle.Unit' drops 'max_hp', 'en_max',
+   'support_attack_charges_max', 'support_defend_charges_max' and
+   gains 'mp' and 'move_range' (the value; a fresh battle refuses
+   it stated, a resumed one judges it against the maximum); 'battle.Mech' gains 'abilities', 'tags', 'type';
+   'battle.Pilot' gains 'abilities', 'tags'; the base of the
+   support charges and of the initial MP goes on the side the
+   datamine puts it. 'FromContract' builds the lines, 'Assemble'
+   derives every maximum (no line yet: the base as it is), the
+   resumed judgment moves after the derivation, 'ToContract' writes
+   base and lines. The mirror, the codec, the goldens and the spec
+   change in the same commit. Scenario: a payload with the
+   Advantage pair opened through 'board.Open' strikes as the
+   'SetAbilities' scenario does; fresh and resumed give one content.
+2. 'ability.AssembleContext' and 'OnAssemble'; max HP % and max EN %
+   (7 rows).
+3. The base of the support charges and 'support_attack_plus',
+   'support_defend_plus' (11 rows).
+4. 'def.Pilot.Tags' and 'move_range_plus' on the pilot tag (1 row).
+5. 'UnitContent.MPInitial', 'UnitValue.MP', fresh fills, resumed
+   judges against 'MPMax'; 'mp_plus' on the mech tag (2 rows). No
+   tier: that is issue #54 and group F.
+
 ## Section 5. The plan of the lines
 
 The rows of Section 4, grouped by the mechanism each group needs,
@@ -456,7 +508,7 @@ every row of it is ticked in Section 4.
 | A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | done, scenario 13 |
 | A6 Part conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Part' on the unit view from the cast of the exchange; 'def.MechType' | done, scenario 2 |
 | B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | EN cost done, scenario 6; the range line moves to F |
-| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | an assembly hook in 'system.Assemble'; 'def.Pilot.Tags'; the lines must reach the unit before it enters, so the wire or a Go door for 'place' comes first; the relation to an explicit maximum of the payload (issue #77) | |
+| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | step 0 in progress |
 | F Vigor | ATK and MOB % at vigor, special weapon range +1 at vigor | 3 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54; the range line needs a reach moment beside the cost | |
 | D Wound | revive once | 2 | a wound hook after the HP write and before the kill; the line keeps its own flag | not read |
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
@@ -555,3 +607,13 @@ when a wire key lands, and then in the same commit.
   'canFire' merged into one 'canFire' on a part and a distance. The
   range line of group B joins group F: it waits for MP like the
   vigor lines.
+- 2026-09-17: the ruling of Section 4a after a divergent pass on
+  what def and content are. Def is what a mech and a pilot bring;
+  content is what the unit is for the whole battle; the step from
+  the one to the other is the assembly, and the assembly lines are
+  its rules. The plan of C went from four contract changes to one.
+  Step 0, first half: 'UnitContent.MoveRange' derived in
+  'assembleContent' as the maximum, 'UnitValue.MoveRange' as the
+  value (user, 2026-09-17); the geometry, the schedule, the support
+  list and the projection read the value; the test boards of
+  'system' go through 'assembled', which derives without judging.

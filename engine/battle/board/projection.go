@@ -17,7 +17,7 @@ func unitStatusOf(unitID int, unit state.Unit) battle.UnitStatus {
 		MaxHP:     unit.MaxHP,
 		EN:        unit.Value.EN,
 		ENMax:     unit.ENMax,
-		MoveRange: unit.Mech.MoveRange,
+		MoveRange: unit.Value.MoveRange,
 		Acted:     unit.Value.Acted,
 	}
 }

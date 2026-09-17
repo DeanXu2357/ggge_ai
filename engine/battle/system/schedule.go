@@ -223,7 +223,7 @@ func supportUnit(board state.Battle, supportedID, unitID int, at battle.Footprin
 		return unit{}, fmt.Errorf("%w: unit %d is not of the side of unit %d",
 			battle.ErrIllegalAction, unitID, supportedID)
 	}
-	if unitID == supportedID || geometry.Distance(u.Footprint(), at) > u.Mech.MoveRange {
+	if unitID == supportedID || geometry.Distance(u.Footprint(), at) > u.Value.MoveRange {
 		return unit{}, fmt.Errorf("%w: unit %d is out of support reach of unit %d",
 			battle.ErrIllegalAction, unitID, supportedID)
 	}

@@ -25,7 +25,7 @@ func scenarioCover() state.Battle {
 		Pilot: battle.Pilot{Ranged: 220, Melee: 220, Awaken: 220, Defense: 190, Reaction: 205},
 		Mech:  battle.Mech{Attack: 4200, Defense: 3900, Mobility: 310, MoveRange: 2}}
 	bounds := b.Content.Bounds
-	content, values := state.FromContract(battle.BattleState{
+	content, values := assembled(battle.BattleState{
 		Bounds: &bounds, Phase: battle.FactionAlly, Turn: 1, Units: append(units, guard)})
 	content.Units[guardID].Mech.Type = def.MechTypeDurable
 	return state.Battle{Content: &content, Values: &values}
