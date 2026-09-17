@@ -310,3 +310,28 @@ func TestTheMoveRangeLineReadsTheTagOfThePilot(t *testing.T) {
 	assert.Equal(t, []int{2, 1}, []int{withTag, without})
 	assert.Greater(t, cellsWithTag, cellsWithout, "the unit with the tag reaches farther")
 }
+
+// "When piloting units with specified tags, increase MP by 6.": a pilot
+// line that reads the tags of the mech. The initial MP of the unit is the
+// base plus the lines whose condition holds, capped at the MP maximum, and
+// a fresh battle opens the unit at it.
+func TestTheMPLineRaisesTheInitialMPOfTheUnit(t *testing.T) {
+	const tag = 1015
+	initial := func(mechTag int, plus int) (int, int) {
+		s := stage()
+		s.Units[0].Pilot.Abilities = []battle.Ability{{Kind: battle.AbilityMPPlus, MechTag: tag, Plus: plus}}
+		if mechTag != 0 {
+			s.Units[0].Mech.Tags = []int{mechTag}
+		}
+		content, values, err := Assemble(s, Fresh)
+		require.NoError(t, err)
+		return content.Units[0].MPInitial, values.Units[0].MP
+	}
+
+	withTag, opened := initial(tag, 6)
+	assert.Equal(t, []int{6, 6}, []int{withTag, opened})
+	without, _ := initial(0, 6)
+	assert.Equal(t, 0, without, "the unit without the tag meets no line")
+	capped, _ := initial(tag, 20)
+	assert.Equal(t, 12, capped, "the initial MP does not pass the maximum")
+}

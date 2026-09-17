@@ -142,6 +142,10 @@ func pick(a battle.Ability) ability.Line {
 		if conditions == pilotTag {
 			return MoveRangePlusOnPilotTag{PilotTag: a.PilotTag, Plus: a.Plus}
 		}
+	case battle.AbilityMPPlus:
+		if conditions == mechTag {
+			return MPPlusOnMechTag{MechTag: a.MechTag, Plus: a.Plus}
+		}
 	default:
 		return Unknown{Wire: a}
 	}
@@ -255,6 +259,8 @@ func ToContract(line ability.Line) battle.Ability {
 		return battle.Ability{Kind: battle.AbilityMaxENPercent, Percent: l.Percent}
 	case MoveRangePlusOnPilotTag:
 		return battle.Ability{Kind: battle.AbilityMoveRangePlus, PilotTag: l.PilotTag, Plus: l.Plus}
+	case MPPlusOnMechTag:
+		return battle.Ability{Kind: battle.AbilityMPPlus, MechTag: l.MechTag, Plus: l.Plus}
 	}
 	panic(fmt.Sprintf("the line %T has no wire form", line))
 }

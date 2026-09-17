@@ -343,7 +343,8 @@ the kinds it needs:
    the same maxima because the export carries the base and the line;
    the allowances add from their bases (step 1c);
    'move_range_plus' on 'pilot_tags' widens the reachable cells
-   (step 4). To do: 'mp_plus' raises the initial MP.
+   (step 4); 'mp_plus' raises the initial MP, capped at the maximum
+   (step 5).
 9. Mobility both ways: a mobility line on the defender lowers the
    hit rate, on the attacker raises it.
 10. An unknown kind changes no number and comes back from 'State' as
@@ -420,7 +421,7 @@ docs/reference/datamine-source.md on 88b5e8c.
 | pilot | 'mech_attack_percent' | 'mech_type', 'strike_roles' | 1 | (When supporting) Increased ATK LV 5 | 'lines.MechAttackPercentOnSupportWithMechType', scenario 2 |
 | pilot | 'mech_defense_percent' | 'mech_type', 'strike_roles' | 3 | Support Defense LV 4 | 'lines.MechDefensePercentOnSupportDefenseWithMechType', scenario 2 |
 | pilot | 'mech_defense_percent' | 'strike_roles' | 1 | EX Character Ability (Amuro Ray) | 'lines.MechDefensePercentOnSupportDefense', scenario 2 |
-| pilot | 'mp_plus' | 'mech_tags' | 2 | EX Character Ability | |
+| pilot | 'mp_plus' | 'mech_tags' | 2 | EX Character Ability | 'lines.MPPlusOnMechTag', scenario 8 |
 | pilot | 'pilot_awaken_percent' | — | 5 | Newtype LV 4 | 'lines.PilotAwakenPercent', scenario 12 |
 | pilot | 'pilot_defense_percent' | — | 5 | Increased Defense LV 1 | 'lines.PilotDefensePercent', scenario 12 |
 | pilot | 'pilot_melee_percent' | — | 3 | Increased Melee LV 1 | 'lines.PilotMeleePercent', scenario 12 |
@@ -506,8 +507,8 @@ The order of the work, each step one commit:
 3. Folded into 1c.
 4. 'def.Pilot.Tags' and 'move_range_plus' on the pilot tag (1 row).
 5. 'UnitContent.MPInitial', 'UnitValue.MP', fresh fills, resumed
-   judges against 'MPMax'; 'mp_plus' on the mech tag (2 rows). No
-   tier: that is issue #54 and group F.
+   judges against 'MPMax' (done in 1b); 'mp_plus' on the mech tag
+   (2 rows, done). No tier: that is issue #54 and group F.
 
 ## Section 5. The plan of the lines
 
@@ -525,13 +526,13 @@ every row of it is ticked in Section 4.
 | A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | done, scenario 13 |
 | A6 Part conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Part' on the unit view from the cast of the exchange; 'def.MechType' | done, scenario 2 |
 | B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | EN cost done, scenario 6; the range line moves to F |
-| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | steps 0 to 4 done (19 rows); MP +n (2 rows) to do |
+| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | done, 21 rows |
 | F Vigor | ATK and MOB % at vigor, special weapon range +1 at vigor | 3 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54; the range line needs a reach moment beside the cost | |
 | D Wound | revive once | 2 | a wound hook after the HP write and before the kill; the line keeps its own flag | not read |
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
 | — | HP supply %, debuff effect % | 2 | issues #79 and #80 | not read |
 
-Rows done: 97 of 112; to do: 5 (C 2, F 3); not read: 10. The count of A1 read 45 until 2026-09-16; the rows of Section 4 give 32.
+Rows done: 99 of 112; to do: 3 (F 3); not read: 10. The count of A1 read 45 until 2026-09-16; the rows of Section 4 give 32.
 
 ## Gates
 
@@ -678,3 +679,12 @@ when a wire key lands, and then in the same commit.
   mech line that reads 'Pilot.Tags' of the unit view at assembly;
   the maximum of the move range is the base of the mech plus the
   sum.
+- 2026-09-17: step 5, the MP line, and group C is done: 21 rows.
+  'MPInitial' is the base plus the 'mp_plus' lines whose mech tag
+  holds, capped at 'mpMax' as Section 2 planned. No wire key came
+  or went. The game says "increase MP" at the start; the engine
+  gives it at the assembly, the moment the unit enters, which is
+  the same instant today. That it is the same moment for a unit
+  placed later, or after an MP reset, is a hypothesis: if the
+  device says otherwise, the moment moves and the line stays
+  (user, 2026-09-17).

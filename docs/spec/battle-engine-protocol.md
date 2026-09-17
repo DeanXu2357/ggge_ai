@@ -908,7 +908,7 @@ of the moment, and it takes no part in a computation:
 | Field | Content |
 |---|---|
 | hp, en, sp | The hit points, the energy and the skill points now |
-| mp | The MP now, 0 to 12 (issue #54 owns the system; no rule reads it yet) |
+| mp | The MP now, 0 to 12; a fresh battle opens it at the sum of the 'mp_plus' lines whose condition holds, capped at 12 (issue #54 owns the system; no rule reads it yet) |
 | move_range | The movement range now (no rule writes it yet) |
 | pos, size, acted, the charge counters, map_weapon_ammo, debuffs, skills | The board state, as before |
 | pilot | The pilot, as data |

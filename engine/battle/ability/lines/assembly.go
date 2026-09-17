@@ -56,3 +56,18 @@ func (l MoveRangePlusOnPilotTag) OnAssemble(a *ability.AssembleContext) {
 		a.MoveRangePlus += l.Plus
 	}
 }
+
+// MPPlusOnMechTag: "When piloting units with specified tags, increase MP
+// by 6." A pilot line that reads the tags of the mech it rides; the MP
+// it raises is the initial MP of the unit.
+type MPPlusOnMechTag struct {
+	MechTag int
+	Plus    int
+}
+
+func (l MPPlusOnMechTag) Clone() ability.Line { return l }
+func (l MPPlusOnMechTag) OnAssemble(a *ability.AssembleContext) {
+	if slices.Contains(a.Unit.Mech.Tags, l.MechTag) {
+		a.MPPlus += l.Plus
+	}
+}

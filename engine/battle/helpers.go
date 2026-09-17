@@ -87,6 +87,7 @@ const (
 	AbilityMaxHPPercent         AbilityKind = "max_hp_percent"
 	AbilityMaxENPercent         AbilityKind = "max_en_percent"
 	AbilityMoveRangePlus        AbilityKind = "move_range_plus"
+	AbilityMPPlus               AbilityKind = "mp_plus"
 )
 
 // StrikeRole is the condition 'strike_roles' of the datamine: the line holds
