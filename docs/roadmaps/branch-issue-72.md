@@ -341,9 +341,9 @@ the kinds it needs:
    fresh battle open at the scaled maxima, a resumed battle judges
    the pools against them, and a second assembly of the export gives
    the same maxima because the export carries the base and the line;
-   the allowances add from their bases (step 1c). To do:
-   'move_range_plus' on 'pilot_tags' widens the reachable cells;
-   'mp_plus' raises the initial MP.
+   the allowances add from their bases (step 1c);
+   'move_range_plus' on 'pilot_tags' widens the reachable cells
+   (step 4). To do: 'mp_plus' raises the initial MP.
 9. Mobility both ways: a mobility line on the defender lowers the
    hit rate, on the attacker raises it.
 10. An unknown kind changes no number and comes back from 'State' as
@@ -408,7 +408,7 @@ docs/reference/datamine-source.md on 88b5e8c.
 | mech | 'mech_defense_percent' | 'hp_rate_lte' | 1 | (HP conditions) Increased DEF LV 2 | 'lines.MechDefensePercentAtHPRateAtMost', scenario 3 |
 | mech | 'mech_mobility_percent' | — | 2 | Increased MOB LV 1 | 'lines.MechMobilityPercent', scenario 12 |
 | mech | 'mech_mobility_percent' | 'vigor_min' | 1 | (Cnd: Vigor) Increased ATK & MOB LV 3 | |
-| mech | 'move_range_plus' | 'pilot_tags' | 1 | (Cnd: Tag) Increased MOV LV 1 | |
+| mech | 'move_range_plus' | 'pilot_tags' | 1 | (Cnd: Tag) Increased MOV LV 1 | 'lines.MoveRangePlusOnPilotTag', scenario 8 |
 | mech | 'special_weapon_range_plus' | 'vigor_min' | 1 | (Cnd: Vigor) Special Weapon Max Range Up LV 1 | |
 | pilot | 'damage_dealt_percent' | — | 4 | Increased Damage Dealt LV 3 | 'lines.DamageDealtPercent', scenario 5 |
 | pilot | 'damage_dealt_percent' | 'enemy_tags' | 1 | EX Character Ability (Amuro Ray) | 'lines.DamageDealtPercentAgainstTag', scenario 5 |
@@ -525,13 +525,13 @@ every row of it is ticked in Section 4.
 | A4 Hit lines | accuracy +%, evasion +% | 6 | slots 'AccuracyPercent' and 'EvasionPercent' as points of the hit rate ('雙方能力補正'); that a percent is a point is a hypothesis for a device forecast | done, scenario 13 |
 | A6 Part conditions | DEF % on support defense (with and without the mech type), ATK % on support attack | 5 | 'Part' on the unit view from the cast of the exchange; 'def.MechType' | done, scenario 2 |
 | B Legality | EN cost % on support, special weapon range +1 at vigor | 3 | the cost and the reach of a weapon read through one hook at the menu, the schedule and the settlement; the range line waits for MP | EN cost done, scenario 6; the range line moves to F |
-| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | steps 0, 1 and 2 done (18 rows); move +1 and MP +n (3 rows) to do |
+| C Assembly | max HP %, max EN %, support attack +1, support defend +1, move +1 on the pilot tag, MP +n on the mech tag | 21 | Section 4a: content derived from def and lines on every assembly; the contract object carries base and lines, no derived maximum | steps 0 to 4 done (19 rows); MP +n (2 rows) to do |
 | F Vigor | ATK and MOB % at vigor, special weapon range +1 at vigor | 3 | 'UnitValue.MP', the wire 'mp' and the tier; issue #54; the range line needs a reach moment beside the cost | |
 | D Wound | revive once | 2 | a wound hook after the HP write and before the kill; the line keeps its own flag | not read |
 | E Squad | squad grant, ATK % per member | 6 | a squad model | not read |
 | — | HP supply %, debuff effect % | 2 | issues #79 and #80 | not read |
 
-Rows done: 96 of 112; to do: 6 (C 3, F 3); not read: 10. The count of A1 read 45 until 2026-09-16; the rows of Section 4 give 32.
+Rows done: 97 of 112; to do: 5 (C 2, F 3); not read: 10. The count of A1 read 45 until 2026-09-16; the rows of Section 4 give 32.
 
 ## Gates
 
@@ -673,3 +673,8 @@ when a wire key lands, and then in the same commit.
   'assembleContent' scales the base of the mech one time with
   'scaled', the same floor as a strike. No wire key came or went:
   the two kinds were unknown lines before and pass through no more.
+- 2026-09-17: step 4, the move range line, version 2.4 (the
+  condition 'pilot_tag' joins the ability payload). The line is a
+  mech line that reads 'Pilot.Tags' of the unit view at assembly;
+  the maximum of the move range is the base of the mech plus the
+  sum.

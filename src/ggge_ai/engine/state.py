@@ -115,6 +115,7 @@ class Ability:
     plus: int = 0
     enemy_tag: int = 0
     mech_tag: int = 0
+    pilot_tag: int = 0
     hp_rate_lte: int = 0
     hp_rate_gte: int = 0
     mech_type: int = 0

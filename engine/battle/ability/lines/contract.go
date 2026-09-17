@@ -138,6 +138,10 @@ func pick(a battle.Ability) ability.Line {
 		if conditions == none {
 			return MaxENPercent{Percent: a.Percent}
 		}
+	case battle.AbilityMoveRangePlus:
+		if conditions == pilotTag {
+			return MoveRangePlusOnPilotTag{PilotTag: a.PilotTag, Plus: a.Plus}
+		}
 	default:
 		return Unknown{Wire: a}
 	}
@@ -150,6 +154,7 @@ const (
 	none     conditionSet = 0
 	enemyTag conditionSet = 1 << iota
 	mechTag
+	pilotTag
 	hpRateLte
 	hpRateGte
 	mechType
@@ -164,7 +169,7 @@ func conditionsOf(a battle.Ability) conditionSet {
 		set  bool
 		flag conditionSet
 	}{
-		{a.EnemyTag != 0, enemyTag}, {a.MechTag != 0, mechTag},
+		{a.EnemyTag != 0, enemyTag}, {a.MechTag != 0, mechTag}, {a.PilotTag != 0, pilotTag},
 		{a.HPRateLte != 0, hpRateLte}, {a.HPRateGte != 0, hpRateGte},
 		{a.MechType != 0, mechType}, {a.StrikeRole != nil, strikeRole},
 		{a.WeaponAttribute != nil, weaponAttribute}, {a.WeaponCategory != nil, weaponCategory},
@@ -248,6 +253,8 @@ func ToContract(line ability.Line) battle.Ability {
 		return battle.Ability{Kind: battle.AbilityMaxHPPercent, Percent: l.Percent}
 	case MaxENPercent:
 		return battle.Ability{Kind: battle.AbilityMaxENPercent, Percent: l.Percent}
+	case MoveRangePlusOnPilotTag:
+		return battle.Ability{Kind: battle.AbilityMoveRangePlus, PilotTag: l.PilotTag, Plus: l.Plus}
 	}
 	panic(fmt.Sprintf("the line %T has no wire form", line))
 }

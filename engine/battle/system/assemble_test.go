@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DeanXu2357/ggge_ai/engine/battle"
+	"github.com/DeanXu2357/ggge_ai/engine/battle/geometry"
 	"github.com/DeanXu2357/ggge_ai/engine/battle/state"
 )
 
@@ -284,4 +285,28 @@ func TestTheMaximumLinesScaleTheBaseOfTheMechAtAssembly(t *testing.T) {
 	over.Units[0].Pilot.Abilities = nil
 	_, _, err = Assemble(over, Resumed)
 	assert.ErrorIs(t, err, battle.ErrOutsideContract, "the pool of the line is above the base without it")
+}
+
+// "When the piloting character has a specified tag, increase own MOV by
+// 1.": a mech line that reads the tags of the pilot. The unit with the tag
+// reaches one cell farther; the unit without meets no line.
+func TestTheMoveRangeLineReadsTheTagOfThePilot(t *testing.T) {
+	const tag = 2001
+	reach := func(pilotTag int) (int, int) {
+		s := stage()
+		s.Units[0].Mech.MoveRange = 1
+		s.Units[0].Mech.Abilities = []battle.Ability{{Kind: battle.AbilityMoveRangePlus, PilotTag: tag, Plus: 1}}
+		if pilotTag != 0 {
+			s.Units[0].Pilot.Tags = []int{pilotTag}
+		}
+		content, values, err := Assemble(s, Fresh)
+		require.NoError(t, err)
+		b := state.Battle{Content: &content, Values: &values}
+		return content.Units[0].MoveRange, len(geometry.ReachableAnchors(b, 0))
+	}
+
+	withTag, cellsWithTag := reach(tag)
+	without, cellsWithout := reach(0)
+	assert.Equal(t, []int{2, 1}, []int{withTag, without})
+	assert.Greater(t, cellsWithTag, cellsWithout, "the unit with the tag reaches farther")
 }

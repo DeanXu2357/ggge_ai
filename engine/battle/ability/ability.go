@@ -108,6 +108,7 @@ type AssembleContext struct {
 	ChanceStepPlus    int
 	MaxHPPercent      float64
 	MaxENPercent      float64
+	MoveRangePlus     int
 }
 
 type AttackHook func(a *AttackContext)

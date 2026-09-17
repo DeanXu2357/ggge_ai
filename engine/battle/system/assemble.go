@@ -67,7 +67,7 @@ func assembleContent(content *state.Content, values *state.Values) {
 		unit.MaxHP = int(scaled(float64(unit.Mech.HP), a.MaxHPPercent))
 		unit.ENMax = int(scaled(float64(unit.Mech.EN), a.MaxENPercent))
 		unit.SPMax = unit.Pilot.SP
-		unit.MoveRange = unit.Mech.MoveRange
+		unit.MoveRange = unit.Mech.MoveRange + a.MoveRangePlus
 		unit.MPInitial = mpInitial
 		unit.SupportAttackChargesMax = supportChargesBase + a.SupportAttackPlus
 		unit.SupportDefendChargesMax = supportChargesBase + a.SupportDefendPlus

@@ -1,6 +1,10 @@
 package lines
 
-import "github.com/DeanXu2357/ggge_ai/engine/battle/ability"
+import (
+	"slices"
+
+	"github.com/DeanXu2357/ggge_ai/engine/battle/ability"
+)
 
 // The lines of the panel that change an allowance of the unit when it
 // enters the battle: how many times it may support attack, support defend
@@ -37,3 +41,18 @@ type MaxENPercent struct{ Percent float64 }
 
 func (l MaxENPercent) Clone() ability.Line                   { return l }
 func (l MaxENPercent) OnAssemble(a *ability.AssembleContext) { a.MaxENPercent += l.Percent }
+
+// MoveRangePlusOnPilotTag: "When the piloting character has a specified
+// tag, increase own MOV by 1." A mech line that reads the tags of the
+// pilot who rides it.
+type MoveRangePlusOnPilotTag struct {
+	PilotTag int
+	Plus     int
+}
+
+func (l MoveRangePlusOnPilotTag) Clone() ability.Line { return l }
+func (l MoveRangePlusOnPilotTag) OnAssemble(a *ability.AssembleContext) {
+	if slices.Contains(a.Unit.Pilot.Tags, l.PilotTag) {
+		a.MoveRangePlus += l.Plus
+	}
+}

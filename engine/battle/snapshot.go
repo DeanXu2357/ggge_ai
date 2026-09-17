@@ -228,6 +228,7 @@ type Ability struct {
 	Plus            int              `json:"plus"`
 	EnemyTag        int              `json:"enemy_tag"`
 	MechTag         int              `json:"mech_tag"`
+	PilotTag        int              `json:"pilot_tag"`
 	HPRateLte       int              `json:"hp_rate_lte"`
 	HPRateGte       int              `json:"hp_rate_gte"`
 	MechType        MechType         `json:"mech_type"`

@@ -922,7 +922,8 @@ derived maximum. The maximum of a pool comes from the base data:
 multiplied one time by the sum of the 'max_hp_percent' or
 'max_en_percent' lines of the mech and of the pilot and floored;
 'sp_max' from 'pilot.sp' and the maximum of 'move_range' from
-'mech.move_range'.
+'mech.move_range' plus the 'move_range_plus' lines whose condition
+holds.
 The maximum of an allowance, how many times the unit may support
 attack, support defend or act again after a kill, comes from a base
 and the allowance lines of the mech and of the pilot: the support
@@ -974,7 +975,7 @@ An ability payload is one effect line (version 2.1, issue #72):
 | kind | The effect, one of the kinds of docs/reference/datamine-source.md ('mech_attack_percent', 'damage_taken_percent', ...) |
 | percent | The number of a percent line, signed: -15 on 'damage_taken_percent' is 15% less |
 | plus | The number of an allowance line: 'support_attack_plus', 'support_defend_plus', 'chance_step_plus' |
-| enemy_tag, mech_tag | A tag condition: the tag of the enemy of the strike, or of the mech the holder rides; 0 when absent |
+| enemy_tag, mech_tag, pilot_tag | A tag condition: the tag of the enemy of the strike, of the mech the pilot rides, or of the pilot who rides the mech; 0 when absent |
 | hp_rate_lte, hp_rate_gte | An HP condition in percent of the maximum; 0 when absent |
 | mech_type | A mech type condition; 0 when absent |
 | strike_role | 'support_attack' or 'support_defense'; null when absent |
@@ -1227,6 +1228,10 @@ difference between two integers is 1.
   allowances came from lines loads as a 2.3 payload once the three
   keys are dropped; a payload that stated an allowance with no line
   behind it loads with the base allowance.
+- Version 2.4 (2026-09-17, issue #72) added 'pilot_tag' to the
+  ability payload and broke nothing: the condition of a mech line
+  that reads the pilot ("When the piloting character has a
+  specified tag").
 - A tenth exception on record: version 2.2 (2026-09-17, issue #72)
   removed 'max_hp', 'en_max' and 'sp_max' from the unit payload and
   added the values 'mp' and 'move_range', on the user ruling that
