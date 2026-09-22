@@ -316,6 +316,23 @@
 - 物件劃分不因階段而改：階段 2、3 加的是新的搜尋與新的資料，不改主迴圈、
   UI sim engine、畫面判讀器。
 
+### 5.8 物件位置與合約 ［確認］
+
+- UI sim engine 放在 Python，封裝邊界明確。battle engine 留在 Go；
+  跨行程介面維持現有的那一條。
+- 所有物件之間的溝通都依定義好的合約；合約明定輸入與輸出的結構。
+- UI sim engine 可以保存狀態（系統從登入開始逐步推進，狀態是累積的），
+  但要開放讓 agent 在呼叫時指定狀態，方便操作搜尋從任意狀態起算（例：
+  「在我的回合、在戰鬥地圖上，怎麼查單位詳情」）。
+- 套件邊界的 import 方向檢查：使用者未決。說明：這不是測試介面的行為，
+  而是對 import 方向的靜態檢查（lint）；Python 沒有編譯器強制的套件可見
+  性，所以有 import-linter 這類工具與現有 `test_package_boundary.py` 的
+  AST 做法。要不要保留，實作時再決定。
+- 既有規則的處置：`tests/test_package_boundary.py`（新包不得 import
+  `domain`／`vision`／`battle`）是舊碼汰換期的措施，其依據
+  `docs/module-map.md` 已不存在。新的套件邊界定案後，這條規則由新邊界
+  取代。
+
 ## 6. 延後項目（已知，不是遺漏）
 
 - 敵方回合後盤面與 battle engine 的預測不符時的局部複查。第一版歸類為
