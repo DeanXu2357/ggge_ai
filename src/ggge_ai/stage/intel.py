@@ -130,7 +130,7 @@ class UnitIntel:
 
     pilot_attack 是「已挑好的那一欄」，三欄原值另存 pilot_shooting／melee／
     awakening——遊戲把駕駛員攻擊拆三欄而沙盤 Unit 只有一欄，挑選發生在組裝
-    時（decisions.md 0730）。
+    時。
     """
 
     unit_id: str

@@ -13,12 +13,12 @@ the user settled the reading, and the code and the spec cannot settle
 it. A Go identifier, a package, a file, a wire field or a step inside
 one function is never a row. A row holds the two names and one
 sentence that states the settled reading; a Go pointer, a date or a
-history goes in the commit message or in docs/record/decisions.md.
+history goes in the commit message.
 The full tests are in the Terminology section of CLAUDE.md.
 
 New project text is English (0811 user ruling): replies to the user,
-docs/, and commit messages. The frozen Chinese corpus (old entries in
-docs/record/decisions.md, plus retired documents in git history)
+docs/, and commit messages. The frozen Chinese corpus (retired
+documents in git history)
 stays in Traditional Chinese.
 
 ## Term bindings

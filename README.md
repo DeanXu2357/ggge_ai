@@ -25,7 +25,7 @@ its type in a label line under the title (see CLAUDE.md, section
 | `docs/spec/` | spec | Authoritative descriptions of implemented mechanisms |
 | `docs/explanation/` | explanation | Intent and boundaries |
 | `docs/how-to/` | how-to | Rules and steps for live-loop work |
-| `docs/record/` | record | Device state file ('device-state.md', not tracked in git) and decision ledger ('decisions.md') |
+| `docs/record/` | record | Device state file ('device-state.md', not tracked in git) |
 | `docs/roadmaps/` | working | The branch roadmap of the current task branch; deleted at merge |
 
 Retired documents live in git history only (former `docs/archive/`

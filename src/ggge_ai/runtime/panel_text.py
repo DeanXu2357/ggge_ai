@@ -33,7 +33,7 @@ Measured 2026-07-30 over the three stage weapons fixtures (8 cards):
 gemma3:27b got 0/3 names on the kshatriya card set and answered in Simplified
 Chinese; gemma4:31b got 8/8 names exactly, aligned, and pushed all three effect
 sentences to `unsupported` verbatim, at 11-38s per card. DEFAULT_MODEL follows
-that measurement (docs/record/decisions.md 0730); GGGE_PANEL_LLM_MODEL overrides it.
+that measurement; GGGE_PANEL_LLM_MODEL overrides it.
 
 abilities() is the weaker half of the same measurement and is not yet trusted:
 handed the whole tab as one crop, gemma4:31b took 66s on one fixture (3 of 4

@@ -10,7 +10,7 @@ means for the record and says so out loud. Two rules run through it:
 
 `pilot_attack` is deliberately left unset. The game splits the pilot's offence
 into 射擊值 and 格鬥值 (plus 覺醒值) while sandbox Unit carries one
-pilot_attack, and docs/record/decisions.md settles that the choice belongs to the
+pilot_attack, and the choice belongs to the
 layer that knows which weapon is being priced. Callers pass pick= when they
 know, or read PanelIntel.pilot_offence and choose per weapon.
 """
