@@ -88,8 +88,10 @@ contracts:
   format.
 - explanation: intent and boundaries. The document must carry a
   status note when reality diverges from the intent.
-- working: a branch-scoped working document in `docs/roadmaps/`. It
-  dies with the branch: deleted after user approval, before the merge.
+- working: an issue-scoped working document in `docs/roadmaps/`. It
+  dies with the issue: deleted after user approval, before the merge
+  that closes the issue. A merge of an issue that closes in parts
+  keeps the document.
 
 Rules for reference documents:
 
