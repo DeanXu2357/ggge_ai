@@ -19,6 +19,9 @@ mech_id
 nullable
 pilot_id
 soshage
+subproject
+subprojects
+unclickable
 unit_id
 untracked
 worktree

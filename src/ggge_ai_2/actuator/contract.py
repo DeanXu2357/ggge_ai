@@ -1,0 +1,76 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Protocol
+
+from ggge_ai_2.clock import Instant
+from ggge_ai_2.screen import ScreenPoint
+
+
+@dataclass(frozen=True)
+class Tap:
+    point: ScreenPoint
+
+
+@dataclass(frozen=True)
+class Swipe:
+    start: ScreenPoint
+    end: ScreenPoint
+    duration: float
+
+
+@dataclass(frozen=True)
+class Key:
+    code: str
+
+
+Gesture = Tap | Swipe | Key
+
+
+@dataclass(frozen=True)
+class Rect:
+    left: int
+    top: int
+    right: int
+    bottom: int
+
+    def contains(self, point: ScreenPoint) -> bool:
+        x, y = point
+        return self.left <= x < self.right and self.top <= y < self.bottom
+
+
+@dataclass(frozen=True)
+class DangerBand:
+    regions: tuple[Rect, ...] = ()
+
+    def contains(self, point: ScreenPoint) -> bool:
+        return any(region.contains(point) for region in self.regions)
+
+
+DangerBands = Mapping[str, DangerBand]
+
+
+@dataclass(frozen=True)
+class Dispatch:
+    t0: Instant
+    t1: Instant
+
+
+class GestureBlocked(Exception):
+    pass
+
+
+class Actuator(Protocol):
+    def dispatch(self, gesture: Gesture, band: DangerBand) -> Dispatch:
+        """Send one gesture and return the host-clock times around the command.
+
+        `t0` is read before the command is sent and `t1` after the command returns.
+        The touch lands between the two, on the assumption that the command waits for
+        the injection. This assumption is not verified on the device. A return does
+        not show that the game took the touch; only a later frame shows that.
+
+        Raise GestureBlocked when the gesture touches the band. Return or raise
+        within a fixed timeout, so that the main loop cannot hang here.
+        """
+        ...

@@ -1067,7 +1067,7 @@ mech do not enter the maxima yet; issue #77 owns that derivation.
 
 This section replaces the reading of 2026-08-21 that the unit
 carries a stored final panel that every rule reads. That reading
-is retired (docs/record/decisions.md, 0828).
+is retired.
 
 ### Terrain
 

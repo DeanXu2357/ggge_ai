@@ -9,9 +9,7 @@ an automated player for SD Gundam G Generation ETERNAL on a USB-attached phone,
 Python 3.12+/uv, OpenCV template vision. Use `gh` for all issue operations.
 
 Write every issue title and body in **American English**, in the **Google
-developer documentation style** (`docs/how-to/development-flow.md`'s
-Communication standards table: "Issue title, body, comments | American
-English, writing discipline"). Keep the project's own vocabulary verbatim and
+developer documentation style**. Keep the project's own vocabulary verbatim and
 quoted — 應戰, 顯示方格, 字模, 名冊, 棄戰, 弧色, 格網, 早收 and the like are
 the identifiers used in `docs/`, commit messages and the game UI; quote them
 exactly, do not translate or paraphrase them into English.
@@ -19,11 +17,9 @@ exactly, do not translate or paraphrase them into English.
 speaks Chinese, write the issue in English regardless — translate their
 observation, keep only the identifiers above in their original form.
 
-The Writing discipline section of the project CLAUDE.md (active voice with a
-named actor, one idea per sentence, one term per concept, nouns instead of
-ambiguous pronouns, no open-ended lists in acceptance criteria, prerequisites
-stated up front) governs every issue you write. It is not restated here — read
-it there, so there is only one authority for it.
+In every issue, use the active voice with a named actor, one idea per
+sentence, one term per concept, and nouns instead of ambiguous pronouns. State
+prerequisites up front. Do not write open-ended lists in acceptance criteria.
 
 Never write an issue from the requester's words alone. Verify the claims
 against the repo first: `git log`, the source tree, `docs/`, and run
@@ -67,9 +63,9 @@ finish it". What evidence gets attached the moment the issue is closed, and can
 **today's** code and device produce it? Ask in order:
 
 1. **Can the acceptance evidence be produced today?** No → this is a
-   `type:requirement`, not a `type:build` or `type:fix`. (0811 case: #3, the
-   應戰 stance decision — its acceptance is "picked 防禦 at low HP in a live
-   battle", which needs a live combat loop, and no combat loop exists.)
+   `type:requirement`, not a `type:build` or `type:fix`. (Example: a 應戰
+   stance decision whose acceptance is "picked 防禦 at low HP in a live
+   battle" needs a live combat loop.)
 2. **To understand the issue, must the reader first be told about a system
    that does not exist yet?** Yes → the boundary is wrong; another component's
    job got written into this ticket. (Counter-example: #26 only states "which
@@ -81,13 +77,10 @@ finish it". What evidence gets attached the moment the issue is closed, and can
    type nor a label** — it is a self-check while writing: if the deliverable is
    wiring, say in the ticket whether its prerequisites exist.
 
-Evidence for Q3: after the 0807 convergence purge `1791aee` deleted 130 files /
-28.8k lines, every knowledge ticket survived or was completed by the *new*
-implementation (#25/#26/#9/#11/#20/#21/#22), while every ticket written against
-an implementation (#5/#6/#14/#24) and every whole-layer architecture ticket
-(#17/#10) became dead weight. The mechanism: knowledge is pinned to game facts
-(UI coordinates, damage formulas, glyph shapes), whereas architecture gets
-replaced wholesale.
+Why Q3 matters: knowledge is pinned to game facts (UI coordinates, damage
+formulas, glyph shapes), so a knowledge ticket survives a rewrite of the
+implementation. A ticket written against an implementation or a whole
+architecture layer dies with that implementation.
 
 ## The three types and their closure conditions
 
@@ -101,8 +94,8 @@ Q1 is the classification entry point: acceptance evidence not producible today
   corresponding `type:build` issues, to be closed. It is a temporary container,
   not a long-term tracker: it closes once the analysis is filed
   (`docs/requirements/base.md` or `docs/explanation/architecture.md`) **and the derived tickets
-  are opened** — not when those tickets are finished. Waiting for the children
-  is how #17 and #10 rotted into permanent umbrella tickets.
+  are opened** — not when those tickets are finished. A requirement that waits
+  for its children becomes a permanent umbrella ticket.
 - **`type:build`** — closes when the acceptance criteria written in the ticket
   pass.
 - **`type:fix`** — needs an **explicit, reproducible trigger condition**, and
@@ -121,17 +114,16 @@ out to be does not affect closing (measuring "no damage reduction at all" is
 just as complete as measuring 0.6), and pre-writing the expected result is
 presupposing the answer. If samples cannot be obtained, close by recording the
 conclusion and the blocker in the calibration backlog of whichever doc owns the
-value — `docs/reference/combat-formulas.md:180` for damage and mechanic constants,
-`docs/reference/battle-prep-ui.md:250` for UI coordinates and templates — and name that
+value — the '待實機標定清單' section of `docs/reference/combat-formulas.md` for
+damage and mechanic constants, the '待標定 / 待接程式' section of
+`docs/reference/battle-prep-ui.md` for UI coordinates and templates — and name that
 file in the ticket.
 
 ### Writing the trigger condition for `type:fix`
 
-Pin the **observation**, never a code location. All four bug tickets killed in
-the 0811 triage were fixes, and they died because their host code was deleted,
-not because they were fixed: #24 spent most of its body describing how the
-serpentine edge-detection criterion should be written (a description of code),
-so swapping the implementation voided the whole ticket. The correct form pins a
+Pin the **observation**, never a code location. A trigger condition that
+describes code dies when that code is replaced, before anyone fixes the
+behavior. The correct form pins a
 re-runnable observation, e.g. "run 20260719-175108 has 4 enemies clustered at
 world x≈0, while 8+ enemies are visible on the right side of the screen."
 Usable evidence: run directories
@@ -142,7 +134,7 @@ commit hashes, live screenshots.
 
 1. **Written-agreement test** — is there a written statement of how it should
    behave? Sources: specs in `docs/`, the pitfall notes in module docstrings,
-   test assertions, settled rulings in `docs/record/decisions.md`. Yes → **fix**
+   test assertions, settled rulings in commit messages. Yes → **fix**
    (an agreement was violated).
 2. **Once-worked test** — no written agreement, but is there run evidence that
    it used to be correct? (Run directories and journals make this checkable
@@ -175,12 +167,12 @@ Every issue carries all three label families:
   blackboard, attribution) / `area:strategic`.
 - `priority:` — `priority:high` (blocks clearing a stage AND is actionable
   today) / `priority:medium` (roadmap mainline) / `priority:low` (later).
-  **Never mark a ticket high when its acceptance cannot be produced today**
-  (0811 case: #3 dropped high → medium because no combat layer exists).
+  Do not mark a ticket high when its acceptance evidence cannot be produced
+  today: `priority:high` needs both conditions.
 
 Add `exec:opus` / `exec:sonnet` only when the executing model is already
-decided. Never use `in-flight` — the 0811 triage showed it lingers on work that
-has since been deleted.
+decided. Do not use `in-flight`: nothing removes it when the work is deleted,
+so the label goes stale.
 
 ## Issue format
 
@@ -203,9 +195,8 @@ Cite code as `path/to/file.py:123`. Cite live results with a run directory or
 frame path. Never phrase an unverified claim as a conclusion: state what you
 could not verify and what evidence would settle it. When an item needs the
 user's ruling rather than more evidence, mark it `pending ruling` — the
-term bound in `docs/reference/terminology-map.md`. Its Chinese form 待裁
-stays in the frozen corpus of `docs/record/decisions.md`; do not use it in
-a new issue. Do not mint new marker words.
+term bound in `docs/reference/terminology-map.md`. Do not use its Chinese form
+待裁 in a new issue. Do not mint new marker words.
 
 ## Boundaries
 

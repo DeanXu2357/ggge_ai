@@ -5,7 +5,9 @@ clears stages. Device: USB phone R5CRC37JBYJ, landscape 2340x1080.
 Architecture: two-layer GOAP. Stack: Python 3.12+ with uv, OpenCV
 template vision.
 
-## Delegation & model routing (applies to every session)
+## Session rules
+
+### Device
 
 - adb: `ADB_LIBUSB=1` is enforced via the `env` block in
   `.claude/settings.json`. If an adb server may already be running without
@@ -32,8 +34,7 @@ only when all three tests pass:
 
 A row holds the two names and one sentence that states the settled
 reading. Do not add a Go pointer, a date, or a history to the row.
-The commit message and `docs/record/decisions.md` hold those. When
-you are not sure, do not add the row.
+The commit message holds those. When you are not sure, do not add the row.
 
 ### Commit message
 

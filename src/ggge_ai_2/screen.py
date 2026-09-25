@@ -1,0 +1,1 @@
+ScreenPoint = tuple[int, int]
