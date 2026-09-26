@@ -6,12 +6,12 @@ from threading import Event
 import numpy as np
 import pytest
 
-from ggge_ai_2.actuator.contract import DangerBand, Dispatch, Rect, Tap
+from ggge_ai_2.actuator.contract import DangerBand, Dispatch, Rect, Tap, TouchPoint
 from ggge_ai_2.agent import Agent, Belief, Halt, RunResult, Step
 from ggge_ai_2.interpreter.contract import ALL_SCREENS
 from ggge_ai_2.mapgeom.contract import CellAt, CellContent, CellHolds, KnownMap, LocalBoard
 from ggge_ai_2.mapparser.contract import MapReading
-from ggge_ai_2.stream.contract import Frame, Observation, StillWindow
+from ggge_ai_2.stream.contract import Frame, FramePoint, FrameVector, Observation, StillWindow
 from ggge_ai_2.uisim.contract import (
     MapMode,
     Operation,
@@ -30,7 +30,7 @@ ON_MAP = UiState(Screen.BATTLE_MAP, map_mode=MapMode.HUB)
 OPEN_MENU = Operation(
     name="open_menu",
     precondition=(ScreenIs(Screen.STAGE_LIST),),
-    gesture=Tap((100, 100)),
+    gesture=Tap(TouchPoint(100, 100)),
     outcomes=(Outcome("menu_open", ScreenIs(Screen.STAGE_INFO), MENU),),
     deadline=3.0,
     cost=1.0,
@@ -43,11 +43,11 @@ def frame(seq: int, at: float) -> Frame:
 
 
 def still(seq: int, at: float) -> Observation:
-    return Observation(frame(seq, at), StillWindow(at - 0.5, at, seq), 0.5, (0.0, 0.0))
+    return Observation(frame(seq, at), StillWindow(at - 0.5, at, seq), 0.5, FrameVector(0.0, 0.0))
 
 
 def moving(seq: int, at: float) -> Observation:
-    return Observation(frame(seq, at), None, 0.5, (0.0, 0.0))
+    return Observation(frame(seq, at), None, 0.5, FrameVector(0.0, 0.0))
 
 
 @dataclass
@@ -199,7 +199,7 @@ def test_verified_outcome_advances_the_prediction_and_reaches_the_domain():
     interpreter = FakeInterpreter(screens(f1=HUB, f2=MENU, f3=MENU))
 
     assert make_agent(stream, interpreter, planner, actuator).run() is RunResult.DONE
-    assert actuator.sent == [(Tap((100, 100)), BANDS[Screen.STAGE_LIST])]
+    assert actuator.sent == [(Tap(TouchPoint(100, 100)), BANDS[Screen.STAGE_LIST])]
     assert stream.calls[1] == (10.0, 10.1 + OPEN_MENU.deadline)
     assert stream.calls[2][0] == 11.0
     assert planner.seen[1].ui.state == MENU
@@ -239,10 +239,12 @@ class GridProjection:
     shift: tuple[int, int]
 
     def to_view(self, point):
-        return (point[0] // 100, point[1] // 100)
+        return (int(point.x // 100), int(point.y // 100))
 
-    def to_screen(self, cell):
-        return ((cell[0] - self.shift[0]) * 100 + 50, (cell[1] - self.shift[1]) * 100 + 50)
+    def to_frame(self, cell):
+        return FramePoint(
+            (cell[0] - self.shift[0]) * 100 + 50, (cell[1] - self.shift[1]) * 100 + 50
+        )
 
     def to_world(self, cell):
         return (cell[0] + self.shift[0], cell[1] + self.shift[1])
@@ -266,7 +268,7 @@ class EchoParser:
 
 
 MAP_SCREEN = ScreenIs(Screen.BATTLE_MAP)
-TAP_CELL = Operation("tap_cell", (MAP_SCREEN,), Tap((250, 250)), (), 1.0, 1.0)
+TAP_CELL = Operation("tap_cell", (MAP_SCREEN,), Tap(TouchPoint(250, 250)), (), 1.0, 1.0)
 
 
 def run_map_tap(guard_shift, premise) -> FakeActuator:
@@ -289,21 +291,21 @@ def run_map_tap(guard_shift, premise) -> FakeActuator:
 
 
 def test_guard_sends_the_gesture_when_the_board_premise_holds():
-    premise = (CellAt((250, 250), (12, 7)), CellHolds((12, 7), CellContent.EMPTY))
+    premise = (CellAt(FramePoint(250, 250), (12, 7)), CellHolds((12, 7), CellContent.EMPTY))
 
-    assert run_map_tap((10, 5), premise).sent == [(Tap((250, 250)), DangerBand())]
+    assert run_map_tap((10, 5), premise).sent == [(Tap(TouchPoint(250, 250)), DangerBand())]
 
 
 def test_guard_sends_no_gesture_when_the_camera_moved():
-    assert run_map_tap((11, 5), (CellAt((250, 250), (12, 7)),)).sent == []
+    assert run_map_tap((11, 5), (CellAt(FramePoint(250, 250), (12, 7)),)).sent == []
 
 
 def test_guard_sends_no_gesture_when_the_grid_is_unreadable():
-    assert run_map_tap(None, (CellAt((250, 250), (12, 7)),)).sent == []
+    assert run_map_tap(None, (CellAt(FramePoint(250, 250), (12, 7)),)).sent == []
 
 
 def test_step_keeps_the_ui_and_the_domain_premise_apart():
-    board_fact = CellAt((250, 250), (12, 7))
+    board_fact = CellAt(FramePoint(250, 250), (12, 7))
     premise = Step("probe", TAP_CELL, (board_fact,), 0.0).premise
 
     assert premise.ui == (MAP_SCREEN,)

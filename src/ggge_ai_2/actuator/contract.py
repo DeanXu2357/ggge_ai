@@ -4,18 +4,23 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from ggge_ai_2.clock import Instant
-from ggge_ai_2.screen import ScreenPoint
+
+
+@dataclass(frozen=True)
+class TouchPoint:
+    x: int
+    y: int
 
 
 @dataclass(frozen=True)
 class Tap:
-    point: ScreenPoint
+    point: TouchPoint
 
 
 @dataclass(frozen=True)
 class Swipe:
-    start: ScreenPoint
-    end: ScreenPoint
+    start: TouchPoint
+    end: TouchPoint
     duration: float
 
 
@@ -34,16 +39,15 @@ class Rect:
     right: int
     bottom: int
 
-    def contains(self, point: ScreenPoint) -> bool:
-        x, y = point
-        return self.left <= x < self.right and self.top <= y < self.bottom
+    def contains(self, point: TouchPoint) -> bool:
+        return self.left <= point.x < self.right and self.top <= point.y < self.bottom
 
 
 @dataclass(frozen=True)
 class DangerBand:
     regions: tuple[Rect, ...] = ()
 
-    def contains(self, point: ScreenPoint) -> bool:
+    def contains(self, point: TouchPoint) -> bool:
         return any(region.contains(point) for region in self.regions)
 
 

@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from ggge_ai_2.verdict import Verdict
 from ggge_ai_2.mapparser.contract import MapReading
-from ggge_ai_2.screen import ScreenPoint
+from ggge_ai_2.stream.contract import FramePoint, FrameVector
+from ggge_ai_2.verdict import Verdict
 
 WorldCell = tuple[int, int]
 ViewCell = tuple[int, int]
@@ -31,9 +31,9 @@ class Projection(Protocol):
     @property
     def shift(self) -> WorldCell: ...
 
-    def to_view(self, point: ScreenPoint) -> ViewCell | None: ...
+    def to_view(self, point: FramePoint) -> ViewCell | None: ...
 
-    def to_screen(self, cell: WorldCell) -> ScreenPoint | None:
+    def to_frame(self, cell: WorldCell) -> FramePoint | None:
         """Return None when the cell is not in the tappable part of this frame."""
         ...
 
@@ -48,7 +48,7 @@ class LocalBoard:
 
 @dataclass(frozen=True)
 class CellAt:
-    point: ScreenPoint
+    point: FramePoint
     cell: WorldCell
 
     def holds_on(self, board: LocalBoard) -> Verdict:
@@ -80,7 +80,7 @@ class MapGeometry(Protocol):
         reading: MapReading,
         known: KnownMap,
         prior: Projection | None,
-        displacement: tuple[float, float],
+        displacement: FrameVector,
     ) -> LocalBoard | None:
         """Return None when the frame has no readable grid."""
         ...

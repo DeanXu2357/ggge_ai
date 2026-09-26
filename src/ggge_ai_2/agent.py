@@ -12,7 +12,7 @@ from ggge_ai_2.clock import Instant, now
 from ggge_ai_2.interpreter.contract import Interpreter
 from ggge_ai_2.mapgeom.contract import BoardFact, KnownMap, LocalBoard, MapGeometry
 from ggge_ai_2.mapparser.contract import MapParser
-from ggge_ai_2.stream.contract import Frame, Observation, StillWindow, Stream
+from ggge_ai_2.stream.contract import Frame, FrameVector, Observation, StillWindow, Stream
 from ggge_ai_2.uisim.contract import Operation, Outcome, Screen, UiFact, UiSim
 from ggge_ai_2.verdict import Verdict
 
@@ -198,7 +198,7 @@ class Agent:
         prior = belief.board.projection if belief.board else None
         # The guard has one frame, so it has no pan displacement. The fit then depends on
         # the prior alone, and it can read a pan of exactly one cell as no pan.
-        board = self.mapgeom.fit(reading, belief.domain.known_map(), prior, (0.0, 0.0))
+        board = self.mapgeom.fit(reading, belief.domain.known_map(), prior, FrameVector(0.0, 0.0))
         if board is None:
             return facts[0], Verdict.UNREADABLE
         for fact in facts:
