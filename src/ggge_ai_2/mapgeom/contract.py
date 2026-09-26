@@ -13,6 +13,12 @@ WorldCell = tuple[int, int]
 ViewCell = tuple[int, int]
 
 
+@dataclass(frozen=True)
+class CellVector:
+    dx: float
+    dy: float
+
+
 class CellContent(StrEnum):
     OCCUPIED = "occupied"
     EMPTY = "empty"
@@ -38,6 +44,18 @@ class Projection(Protocol):
         ...
 
     def to_world(self, cell: ViewCell) -> WorldCell: ...
+
+    def camera_move(self, displacement: FrameVector, at: FramePoint) -> CellVector:
+        """Convert a content move measured near `at` into the camera move in cells.
+
+        The camera moves against the content. The cell size changes with the
+        position on the frame, so the result depends on `at`.
+        """
+        ...
+
+    def pan_for(self, cell: WorldCell, to: FramePoint) -> FrameVector:
+        """Return the content move that brings `cell` to the frame point `to`."""
+        ...
 
 
 @dataclass(frozen=True)
