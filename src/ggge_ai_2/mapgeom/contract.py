@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from ggge_ai_2.interpreter.contract import Verdict
+from ggge_ai_2.verdict import Verdict
 from ggge_ai_2.mapparser.contract import MapReading
 from ggge_ai_2.screen import ScreenPoint
 

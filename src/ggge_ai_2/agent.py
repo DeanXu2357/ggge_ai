@@ -1,20 +1,24 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from threading import Event
 from typing import Protocol, Self
 
-from ggge_ai_2.actuator.contract import Actuator, DangerBands
+from ggge_ai_2.actuator.contract import Actuator, DangerBand
 from ggge_ai_2.clock import Instant, now
-from ggge_ai_2.interpreter.contract import Fact, Interpreter, Verdict
+from ggge_ai_2.interpreter.contract import Interpreter
 from ggge_ai_2.mapgeom.contract import BoardFact, KnownMap, LocalBoard, MapGeometry
 from ggge_ai_2.mapparser.contract import MapParser
 from ggge_ai_2.stream.contract import Frame, Observation, StillWindow, Stream
-from ggge_ai_2.uisim.contract import Operation, Outcome, UiSim
+from ggge_ai_2.uisim.contract import Operation, Outcome, Screen, UiFact, UiSim
+from ggge_ai_2.verdict import Verdict
 
 log = logging.getLogger(__name__)
+
+DangerBands = Mapping[Screen, DangerBand]
 
 
 class DomainState(Protocol):
@@ -35,7 +39,7 @@ class Belief:
 
 @dataclass(frozen=True)
 class Premise:
-    ui: tuple[Fact, ...]
+    ui: tuple[UiFact, ...]
     domain: tuple[BoardFact, ...]
 
 
@@ -102,11 +106,11 @@ class Agent:
         prior = self.belief
         ui = prior.ui if prior else self.initial_ui
         domain = prior.domain if prior else self.initial_domain
-        if prior is None or self.interpreter.verify(obs.frame, ui.fact()) is not Verdict.HOLDS:
-            situation = self.interpreter.interpret(obs.frame)
-            if situation is None:
+        if prior is None or self._failed_ui(obs.frame, ui.state.facts()) is not None:
+            observed = self.interpreter.interpret(obs.frame)
+            if observed is None:
                 raise Halt(obs)
-            ui = ui.sync(situation)
+            ui = ui.sync(observed)
 
         board = None
         if ui.state.map_mode is not None:
@@ -178,7 +182,7 @@ class Agent:
         self._after = obs.frame.captured_at
         return obs
 
-    def _failed_ui(self, frame: Frame, facts: tuple[Fact, ...]) -> tuple[Fact, Verdict] | None:
+    def _failed_ui(self, frame: Frame, facts: tuple[UiFact, ...]) -> tuple[UiFact, Verdict] | None:
         for fact in facts:
             verdict = self.interpreter.verify(frame, fact)
             if verdict is not Verdict.HOLDS:

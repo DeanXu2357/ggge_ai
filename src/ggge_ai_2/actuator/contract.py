@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -46,9 +45,6 @@ class DangerBand:
 
     def contains(self, point: ScreenPoint) -> bool:
         return any(region.contains(point) for region in self.regions)
-
-
-DangerBands = Mapping[str, DangerBand]
 
 
 @dataclass(frozen=True)
