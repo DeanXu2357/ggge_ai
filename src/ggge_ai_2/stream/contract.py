@@ -44,6 +44,10 @@ class Observation:
     displacement: FrameVector
 
 
+class NoFrame(Exception):
+    pass
+
+
 class Stream(Protocol):
     def latest(self) -> Frame: ...
 
@@ -53,6 +57,7 @@ class Stream(Protocol):
         The screen is still when it does not change for a fixed time length. The
         length is in seconds, not in frames, so the result does not change with the
         sampling interval. At `deadline` the method returns the last frame with
-        `still` set to None. The method does not send a gesture.
+        `still` set to None. It raises NoFrame when no frame arrives after `after`
+        before the deadline. The method does not send a gesture.
         """
         ...

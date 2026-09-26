@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from threading import Event
@@ -83,6 +83,7 @@ class Agent:
     initial_domain: DomainState
     idle_deadline: float
     stop: Event = field(default_factory=Event)
+    clock: Callable[[], Instant] = now
     belief: Belief | None = field(default=None, init=False)
     _after: Instant = field(default=0.0, init=False)
 
@@ -97,11 +98,11 @@ class Agent:
         return RunResult.STOPPED
 
     def observe(self) -> bool:
-        obs = self._settle(self._after, now() + self.idle_deadline)
+        obs = self._settle(self._after, self.clock() + self.idle_deadline)
         while obs.still is None:
             if self.stop.is_set():
                 return False
-            obs = self._settle(obs.frame.captured_at, now() + self.idle_deadline)
+            obs = self._settle(obs.frame.captured_at, self.clock() + self.idle_deadline)
 
         prior = self.belief
         ui = prior.ui if prior else self.initial_ui
