@@ -8,6 +8,7 @@ import pytest
 
 from ggge_ai_2.actuator.contract import DangerBand, Dispatch, Rect, Tap
 from ggge_ai_2.agent import Agent, Belief, Halt, RunResult, Step
+from ggge_ai_2.interpreter.contract import ALL_SCREENS
 from ggge_ai_2.mapgeom.contract import CellAt, CellContent, CellHolds, KnownMap, LocalBoard
 from ggge_ai_2.mapparser.contract import MapReading
 from ggge_ai_2.stream.contract import Frame, Observation, StillWindow
@@ -68,9 +69,10 @@ class FakeInterpreter:
     shows: dict[int, UiState]
     interpreted: list[int] = field(default_factory=list)
 
-    def interpret(self, f: Frame) -> UiState | None:
+    def interpret(self, f: Frame, candidates: frozenset[Screen] = ALL_SCREENS) -> UiState | None:
         self.interpreted.append(f.seq)
-        return self.shows.get(f.seq)
+        shown = self.shows.get(f.seq)
+        return shown if shown is not None and shown.screen in candidates else None
 
     def verify(self, f: Frame, fact) -> Verdict:
         shown = self.shows.get(f.seq)
