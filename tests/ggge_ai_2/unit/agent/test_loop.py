@@ -259,7 +259,7 @@ class ScriptedGeometry:
         if shift is None:
             return None
         cells = {(12, 7): CellContent.EMPTY}
-        return LocalBoard(GridProjection(reading.frame_seq, shift), cells)
+        return LocalBoard(GridProjection(reading.frame_seq, shift), frozenset(cells), cells)
 
 
 class EchoParser:
@@ -349,7 +349,8 @@ def test_observation_does_not_interpret_when_the_prediction_holds():
 
 
 def test_map_screen_builds_the_local_board_into_the_belief():
-    board = LocalBoard(projection=object(), cells={(3, 4): CellContent.EMPTY})
+    cells = {(3, 4): CellContent.EMPTY}
+    board = LocalBoard(projection=object(), extent=frozenset(cells), cells=cells)
     fits = []
 
     class Parser:
@@ -382,7 +383,7 @@ def test_next_map_fit_takes_the_last_projection_as_its_prior():
     class Geometry:
         def fit(self, reading, known, prior, displacement):
             fits.append(prior)
-            return LocalBoard(projection=projection, cells={})
+            return LocalBoard(projection=projection, extent=frozenset(), cells={})
 
     interpreter = FakeInterpreter({1: ON_MAP, 2: ON_MAP, 3: ON_MAP})
     stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0)])
