@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
 
@@ -58,10 +58,24 @@ class Projection(Protocol):
         ...
 
 
+class Edge(StrEnum):
+    TOP = "top"
+    BOTTOM = "bottom"
+    LEFT = "left"
+    RIGHT = "right"
+
+
 @dataclass(frozen=True)
 class LocalBoard:
     projection: Projection
+    extent: frozenset[WorldCell]
     cells: Mapping[WorldCell, CellContent]
+    borders: Mapping[Edge, int] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        outside = set(self.cells) - self.extent
+        if outside:
+            raise ValueError(f"cells outside the extent: {sorted(outside)}")
 
 
 @dataclass(frozen=True)
@@ -84,7 +98,7 @@ class CellHolds:
 
     def holds_on(self, board: LocalBoard) -> Verdict:
         seen = board.cells.get(self.cell, CellContent.UNREADABLE)
-        if seen is CellContent.UNREADABLE:
+        if self.cell not in board.extent or seen is CellContent.UNREADABLE:
             return Verdict.UNREADABLE
         return Verdict.HOLDS if seen is self.content else Verdict.DOES_NOT_HOLD
 
