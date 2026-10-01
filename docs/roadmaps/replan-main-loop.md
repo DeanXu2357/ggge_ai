@@ -527,11 +527,11 @@ S1 第一部分完成後，列出子項目之間仍會飄移的接縫。衝突�
 | # | 缺口 | 狀態 |
 |---|---|---|
 | 1 | UI 詞彙與事實型別用字串表示 | ［確認］見下 |
-| 2 | 領域搜尋接進 plan 的介面 | ［確認］交給 S3，見下 |
+| 2 | 領域搜尋接進 plan 的介面 | ［確認］職責見 §5.12.9；計畫管理與搜尋是否拆成兩個協定由 S3 決定 |
 | 3 | mapparser 的歸屬；推鏡位移的單位與方向 | ［確認］見 §5.12.3、§5.12.5 |
 | 4 | 格子內容缺陣營或單位 | 由 S4 決定 |
 | 5 | 流水帳欄位名稱 | 由 S2 決定 |
-| 6 | 畫面對危險帶的對照表由誰持有 | 由 S3 決定 |
+| 6 | 畫面對危險帶的對照表由誰持有 | ［確認］另立物件，見 §5.12.10 |
 | 7 | 座標空間與裝置尺寸 | ［確認］見下 |
 | 8 | 關卡資料的存取介面（§5.5 的「是否已建檔」查詢） | 由 S6 決定；［確認］要與 #92、#94 協調 |
 | 9 | 合約測試 | ［確認］見 §5.12.8 |
@@ -650,6 +650,188 @@ mapparser 歸 S4 的理由：讀數的形狀由 mapgeom 的擬合需求決定，
     自己寫假物件，而且必須通過對應的合約測試。理由：mock 只回傳事先
     設定的值，不會自己遵守時間語意這類行為承諾。
   - 性質測試套件 `hypothesis` 未採用；需要時再決定。
+
+#### 5.12.9 主迴圈的分層 ［確認，2026-09-30 至 10-01］
+
+本節修訂 §5.3.1 第 4 項、§5.3.3、§5.4 (c)、§5.11 中與下列各項衝突的
+部分。
+
+- ［確認］分成三層。分層的判準不是頻率：一個週期只送一個手勢
+  （§5.2），控制在週期內沒有可以反覆修正的量。判準是用不用轉移模型，
+  以及拿轉移模型做什麼。
+
+| 層 | 物件 | 職責 | 副作用 |
+|---|---|---|---|
+| 控制 | 迴圈、observe、execute | 等靜止、讀幀、守衛、送出手勢、分類結果；產出證據 | 有：串流、裝置、時間 |
+| 估計 | revise | 信念＋證據 → 新的信念 | 無，純函式 |
+| 決策 | 計畫管理、領域搜尋、操作搜尋 | 信念＋agenda → step＋新的 agenda | 無，純函式 |
+
+- ［確認］用語：agent 指控制層，planner 指決策層。§5.3.1 第 4 項與
+  §5.3.3 的規則表歸決策層的計畫管理。§5.12 其他小節中由 agent 做決策
+  或更新信念的句子，改讀如下：§5.12.3「把探索意圖交給 agent」的接收
+  者是計畫管理；§5.12.5「出」的換算由操作搜尋呼叫，「入」的換算由
+  revise 呼叫；§5.12.2「轉接程式寫在 agent 這一側」指轉接程式不放進
+  各領域的套件，轉接程式由 revise 與決策層呼叫，不屬於控制層。
+- ［確認］頻率：
+
+| 部分 | 頻率 |
+|---|---|
+| stream（取幀、靜止判斷、位移） | 每幀 |
+| 控制、估計、計畫管理、操作搜尋 | 每週期一次 |
+| 領域搜尋 | 意圖失效或達成時 |
+
+- ［確認］一個週期的形狀：
+
+```python
+while not stop.is_set():
+    sensed = self.observe(belief)                # 控制
+    belief = revise(belief, sensed)              # 估計
+    step, agenda = planner.plan(belief, agenda)  # 決策
+    if step is None:
+        return RunResult.DONE
+    acted = self.execute(step, belief)           # 控制
+    belief = revise(belief, acted)               # 估計：寫入預測
+```
+
+  第二次 revise 寫入預測的狀態，下一次 observe 核對這個預測；§5.1
+  「先預測狀態，再驗證預測」落在這兩次 revise 之間。
+
+決策層：
+
+- ［確認］計畫管理每週期執行：檢查插斷與目標達成條件；意圖仍有效就
+  接續，失效或達成才呼叫領域搜尋；再呼叫操作搜尋取得下一個操作。
+  「接續或重新計畫」的判斷屬於計畫管理，不屬於控制。
+- ［確認］意圖存在 agenda。迴圈保管 agenda 並原樣傳回，不解讀內容。
+  修訂 §5.3.3「agent 不保留計畫狀態」為：控制不保留計畫狀態，意圖
+  狀態的內容由計畫管理決定，並顯式傳遞。修訂 §5.11「plan 是 `Belief`
+  的純函式」為：plan 是（`Belief`、agenda）的純函式。理由：planner
+  內部的狀態不進流水帳，重播與測試都看不到。
+- ［確認］不保存操作序列。每週期由操作搜尋從目前的 UI 狀態與意圖推出
+  下一個操作，所以不存在「誰有權改動作編排」的問題。
+- ［確認］每週期都經過決策的理由：
+  1. 操作的結果有分支（§5.2），下一個操作取決於落在哪一支。
+  2. 遊戲狀態會自行改變（敵方回合、彈窗、應戰窗、手勢被吞、鎖定
+     畫面），反應延遲最多一個週期。
+  3. 判斷規則只放在決策一處。若只在控制回報完成或失敗時才呼叫決策，
+     控制就要自己判斷失敗，意義判斷會漏進控制。
+
+控制層：
+
+- ［確認］控制不改操作，不用轉移模型。決策把前提與預測寫進 `Step`：
+  前提是 UI 前置條件與領域前提；預測是結果集合、每個結果之後的 UI
+  狀態、期限。控制只用感知模型與幾何模型核對前提與結果集合；每個結果
+  之後的 UI 狀態由 revise 寫進信念。傳給控制的是資料，不是模型。
+- ［確認］領域的預測不放進 `Step`。revise 用領域模型推進信念，下一次
+  觀測與預測的衝突也由 revise 記錄。
+- ［確認］控制只回報事實，不設「要重新計畫」之類的旗標。
+- ［確認］讀不出畫面、守衛失敗、手勢被危險帶擋下，都是證據。控制層
+  不丟 `Halt`；停手、等待或返回由計畫管理決定。§5.4 (c) 的停手因此
+  由計畫管理執行。
+
+證據與信念：
+
+- ［確認］observe 與 execute 只產出證據，不寫信念。只有 revise 寫
+  信念。
+- ［確認］證據是結構，不是幀；每份證據帶幀識別。判準：只看這一幀
+  （加上固定的感知模型）就算得出的值是證據；需要先前信念的值是信念，
+  或是 revise 的中間產物。observe 用信念決定先問什麼（預測的 UI
+  事實），答案只取決於這一幀。
+- ［確認］`LocalBoard` 的擬合需要先驗，所以 `LocalBoard` 是 revise
+  的中間產物，不是證據。擬合從 observe 移到 revise。守衛也做擬合，但
+  結果只用來核對前提，不寫回信念。
+- ［確認］信念只放資料：UI 狀態與它的依據、鏡位（最後一次擬合成功
+  的投影）、還沒被擬合吸收的累積位移、領域狀態、靜止區間。模型與
+  證據不放進信念。讀不出格線時鏡位不變、位移繼續累加（推算定位）。
+- ［確認］uisim 改為無狀態的模型，UI 狀態以參數傳入（回到 §5.9 的
+  `successors(state)` 形狀）。修訂 §5.11「uisim 是不可變的實例」。
+  理由：信念與模型分開；所有 UI 狀態都要寫進 `UiState`，不能藏在
+  uisim 實例裡（例：選關清單的捲動位置）。
+- ［確認］§5.1 第 5 步（領域狀態是否符合建模引擎的預期）：revise 併入
+  觀測時記錄衝突，由計畫管理決定處置。
+- ［確認］結構的形狀如下；欄位名稱在寫 `agent/contract.py` 時定。
+
+```python
+@dataclass(frozen=True)
+class Sensed:                    # observe 的輸出
+    frame_seq: int
+    still: StillWindow | None
+    ui: UiReading                # PredictionHolds | Read(UiState) | Unreadable
+    map: MapReading | None
+    displacement: FrameVector    # 自上一個游標起累加
+
+@dataclass(frozen=True)
+class Acted:                     # execute 的輸出
+    intent: object
+    guard_failed: tuple[Fact, Verdict] | None
+    dispatch: Dispatch | None
+    outcome: Outcome | None
+    still: StillWindow | None
+    displacement: FrameVector
+
+@dataclass(frozen=True)
+class Belief:
+    ui: UiState
+    ui_basis: UiBasis            # 確認於第 N 幀／由結果推算／從第 N 幀起讀不出
+    camera: Projection | None    # 最後一次擬合成功的投影
+    drift: FrameVector           # 擬合之後累積、還沒被擬合吸收的位移
+    domain: DomainState
+    as_of: StillWindow
+```
+
+#### 5.12.10 物件的依賴 ［確認，2026-10-01］
+
+- ［確認］模型分三類：感知模型（幀上看到什麼：interpreter、
+  mapparser）、幾何模型（觀測空間與狀態空間的換算：mapgeom）、轉移
+  模型（做了之後會怎樣：uisim、領域模型）。mapgeom 不讀幀，所以不歸
+  感知模型。
+- ［確認］缺口 6：另立一個危險帶物件，持有「畫面 → 危險帶」的對照表。
+  execute 依畫面向它取帶。`agent.py` 的 `DangerBands` 移到這個物件。
+- ［確認］共用型別（`Belief`、`Sensed`、`Acted`、`Step` 與前提、
+  agenda）放在 `agent/contract.py`。這個模組在最上層，可以 import
+  下層所有型別；下層不得 import 它。
+
+各層對模型的依賴（✔＝可以依賴，括號內是用途；✘＝禁止）：
+
+| | stream | actuator | 危險帶物件 | 感知模型 | 幾何模型 | uisim | 領域模型 | clock | 信念 |
+|---|---|---|---|---|---|---|---|---|---|
+| observe | ✔ 等靜止、取幀 | ✘ | ✘ | ✔ 讀幀 | ✘ | ✘ | ✘ | ✔ 算期限 | 只讀：預測的 UI 事實 |
+| execute | ✔ 守衛幀、等結果 | ✔ 送出手勢 | ✔ 依畫面取帶 | ✔ 核對前提、分類結果 | ✔ 核對盤面前提 | ✘ | ✘ | ✘ 期限從 t1 起算 | 只讀：畫面、鏡位、已知地圖 |
+| revise | ✘ | ✘ | ✘ | ✘ | ✔ 擬合 | ✔ advance、sync | ✔ absorb、併入盤面 | ✘ | 唯一的寫入者 |
+| 計畫管理 | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ | ✔ 查詢目標條件 | ✘ | 只讀；讀寫 agenda |
+| 領域搜尋 | ✘ | ✘ | ✘ | ✘ | ✘ | ✘ | ✔ 搜尋、評分 | ✘ | 只讀 |
+| 操作搜尋 | ✘ | ✘ | ✘ | ✘ | ✔ 世界格 → 幀點、推鏡量 | ✔ successors 等 | ✘ | ✘ | 只讀 |
+
+- 領域搜尋與操作搜尋之間只交接意圖，意圖以世界格表示。這是 §5.3
+  「UI sim engine 不需要知道格上是誰」的落點。
+- revise 與決策層不依賴 clock；時間只經由證據的時間戳進入。
+
+模型之間的依賴：
+
+| 物件 | 依賴（呼叫行為） | 只依賴型別 | 禁止依賴 |
+|---|---|---|---|
+| clock | 無 | 無 | 無 |
+| stream | clock | 無 | interpreter、uisim、mapgeom |
+| actuator | clock | 無 | stream |
+| 危險帶物件 | display（UI 座標 → 觸控座標） | uisim 的 `Screen`；actuator 的 `DangerBand`、`TouchPoint` | stream、interpreter、領域模型 |
+| interpreter | 無 | `Frame`；uisim 的詞彙 | uisim 的狀態與邏輯、領域模型、mapgeom |
+| mapparser | 無 | `Frame`、`FramePoint` | mapgeom |
+| mapgeom | display（幀座標 → 觸控座標） | `MapReading`、`FramePoint`、`FrameVector`、`TouchPoint`、`Verdict` | `Frame`、uisim、領域模型 |
+| uisim | display（UI 座標 → 觸控座標） | `Gesture`、`TouchPoint` | interpreter、領域模型、mapgeom |
+| 領域模型 | 無 | `WorldCell`、`CellContent` | uisim、`Frame`、actuator |
+
+- `WorldCell` 是領域與幾何之間的邊界型別，目前定義在
+  `mapgeom/contract.py`。S5 開工時可以移到共用的型別模組。
+
+全域規則：
+
+1. 依賴方向一律往下：迴圈 → 各層 → 模型 → 型別。模型不依賴任何一層。
+2. 各層之間不互相呼叫，只靠資料交接：證據、信念、`Step`、agenda。
+   傳遞這些資料的只有迴圈。
+3. 只有控制層呼叫 stream 與 actuator。
+4. 只有 observe 與 execute 經由感知模型讀幀。
+5. 只有 revise 寫信念。
+6. revise 用轉移模型做預測，決策層用轉移模型做選擇；控制層兩者都
+   不做。
 
 ## 6. 延後項目（已知，不是遺漏）
 
