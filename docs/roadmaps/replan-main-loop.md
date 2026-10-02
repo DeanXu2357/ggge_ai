@@ -570,6 +570,24 @@ S1 第一部分完成後，列出子項目之間仍會飄移的接縫。衝突�
     放在 `agent/loop.py`；`Sensed` 帶的是 `Observed`。
 - ［確認，2026-10-02］`agent/loop.py` 的轉換函式只轉換型別，不含
   邏輯。函式以「來源_to_目標」命名來表明這一點，不另加註解。
+- ［確認，2026-10-02］interpreter 不定義 `Fact` 型別；fact 只是變數名。
+- ［確認，2026-10-03］interpreter 不提供 `verify`。用 `interpret` 判別
+  畫面之後比對結果，就涵蓋 `verify` 的功能，合約也少一個介面。本項與
+  上一項修訂 §5.3.4「提供兩種詢問」與「核對的回答是三值」，以及本節
+  「interpreter 保留 `Situation` 與 `Fact`」。
+- ［確認，2026-10-03］`Verdict` 拿掉，interpreter 與 agent 都不定義。
+- ［確認，2026-10-03］上三項的落點。本項修訂 §5.12.9「observe 用信念
+  決定先問什麼」：
+  - 比對由 agent 做：agent 把 `Situation` 轉成 uisim 的 `Observed`，
+    再與預期的 `UiState` 比較。
+  - observe 每次都呼叫 `interpret`，`Sensed.prediction_holds` 拿掉。
+    `Belief.revise_when_sensed` 在讀得出畫面時一律呼叫 `uisim.sync`。
+  - 列舉：interpreter 定義 `Screen`、`Overlay`、`MapMode`；uisim 定義
+    `UiScreen`、`UiOverlay`、`UiMapMode`。`_situation_to_observed` 以
+    列舉的值對應，測試逐一檢查每個成員。
+  - 起始成員：21 個畫面，取自舊版 `runtime/screens.py` 的名稱，扣掉
+    `battle_unit_move` 與 `battle_weapon_select`；§5.2 的三個覆蓋層與
+    三個地圖模式。最終清單由 S2 與 S3 各自維護。
 
 #### 5.12.2 各領域的合約各自維護 ［確認］
 
@@ -706,29 +724,35 @@ mapparser 歸 S4 的理由：讀數的形狀由 mapgeom 的擬合需求決定，
 
 ```python
 while not stop.is_set():
-    sensed = self.observe(belief)                                  # 控制
-    belief = belief.sensed(sensed, uisim, mapgeom)                 # 估計
-    step, agenda = planner.plan(belief, agenda)                    # 決策
+    sensed = self.observe()                                        # 控制
+    belief = belief.revise_when_sensed(                            # 估計
+        sensed.still, sensed.observed, sensed.map, uisim, mapgeom
+    )
+    step, agenda = planner.plan(_belief_to_state(belief), agenda)  # 決策
     ...                                                            # Finish 時結束；Wait 時回到 observe
     failed = self.guard(step, belief)                              # 控制
     if failed is not None:
-        belief = belief.guard_failed(failed)                       # 估計
+        belief = belief.revise_when_guard_failed(step, failed)     # 估計
         continue
-    dispatch = self.dispatch(step, belief)                         # 控制
+    dispatch = self.dispatch(step, band)                           # 控制
     if dispatch is None:
-        belief = belief.band_blocked(step)                         # 估計
+        belief = belief.revise_when_band_blocked(step)             # 估計
         continue
-    belief = belief.dispatched(self.verify(step, dispatch), uisim)  # 控制→估計：寫入預測
+    outcome = self.verify(step, dispatch)                          # 控制
+    belief = belief.revise_when_dispatched(step, outcome, uisim)   # 估計：寫入預測
 ```
 
-  `belief.dispatched` 寫入預測的狀態，下一次 observe 核對這個預測；
-  §5.1「先預測狀態，再驗證預測」落在 `belief.dispatched` 與下一次
-  `belief.sensed` 之間。
+  `belief.revise_when_dispatched` 寫入預測的狀態，下一次 observe 核對
+  這個預測；§5.1「先預測狀態，再驗證預測」落在
+  `belief.revise_when_dispatched` 與下一次 `belief.revise_when_sensed`
+  之間。
 - ［確認，2026-10-02］修訂 2026-10-01 的「revise 是 `revise.py` 的
   `Revise` 物件」：信念的修訂是 `Belief` 自己的方法，每種證據一個：
-  `sensed`、`dispatched`、`guard_failed`、`band_blocked`。信念只放
-  資料，所以模型不存在 `Belief` 裡，由迴圈在呼叫時傳入（`sensed` 要
-  uisim 與 mapgeom，`dispatched` 要 uisim）。本節與 §5.12.10 的
+  `revise_when_sensed`、`revise_when_dispatched`、
+  `revise_when_guard_failed`、`revise_when_band_blocked`（2026-10-03
+  依使用者的裁定加上 `revise_when_` 前綴）。信念只放資料，所以模型
+  不存在 `Belief` 裡，由迴圈在呼叫時傳入（`revise_when_sensed` 要
+  uisim 與 mapgeom，`revise_when_dispatched` 要 uisim）。本節與 §5.12.10 的
   「revise」從此指這四個方法。execute 仍拆成 guard、dispatch、verify
   三步，各自產出自己的證據，由迴圈依結果呼叫對應的方法。
 
@@ -813,6 +837,22 @@ while not stop.is_set():
 - ［確認，2026-10-02］延後：推鏡相關的邏輯（位移併入 drift 的規則、
   推鏡結果的核對）。主迴圈與合約定案之後再談。`Belief.drift` 與證據上
   的 `displacement` 保留欄位；修訂方法目前不寫 drift。
+- ［確認，2026-10-03］`Sensed` 是 observe 的輸出，不需要獨立放在
+  `evidence.py`。落點：`Sensed` 定義在 `agent/loop.py`，`evidence.py`
+  刪除；`Belief.revise_when_sensed` 直接收三個值，不依賴 `Sensed`。
+- ［確認，2026-10-03］`Belief` 不需要獨立的檔案，`agent/loop.py` 之外
+  沒有程式依賴 `Belief`。落點：`agent/belief.py` 的內容併入
+  `agent/loop.py`。
+- ［確認，2026-10-03］證據只留 `Sensed`，欄位只留
+  `Belief.revise_when_sensed` 會讀的三個：靜止區間、讀到的畫面、地圖
+  讀數。`GuardFailed` 與 `Dispatched` 拿掉：guard 回傳不成立的前提，
+  verify 回傳落在的結果，迴圈把 `Step` 與這個值直接傳給
+  `Belief.revise_when_guard_failed`、`Belief.revise_when_dispatched`。
+  - 理由：拿掉的欄位沒有任何程式讀取。幀識別、靜止區間、等待時間、
+    t0、t1 已由各步驟的 `logging` 記錄；`after` 與位移沒有記錄。
+  - 本項修訂本節「每份證據帶幀識別」、「`GuardFailed` 是 guard 的
+    輸出；`Dispatched` 是 verify 的輸出」、「`Sensed.after`」、「證據上
+    的 `displacement` 保留欄位」。
 
 #### 5.12.10 物件的依賴 ［確認，2026-10-01］
 
@@ -854,9 +894,7 @@ while not stop.is_set():
 
 | 模組 | 內容 |
 |---|---|
-| `agent/loop.py` | `Agent`、`RunResult`；與其他物件的結構之間的轉換 |
-| `agent/belief.py` | `Belief` 與修訂方法、`UiBasis`、`UiSource`、`DomainState` |
-| `agent/evidence.py` | `Sensed`、`GuardFailed`、`Dispatched` |
+| `agent/loop.py` | `Agent`、`RunResult`、`Sensed`；`Belief` 與修訂方法、`UiBasis`、`UiSource`、`DomainState`；與其他物件的結構之間的轉換 |
 | `planner/contract.py` | `Planner`、`State`、`ActionResult`、`ActionStatus`、`Step`、`Premise`、`Wait`、`Finish` |
 | `agent/clock.py` | `Instant`、`now` |
 | `stream/contract.py` | `Displacement`（位移由 stream 量出） |
@@ -967,14 +1005,12 @@ while not stop.is_set():
 |---|---|
 | §4.2.1、§5.3.7 時鐘與時間戳 | `src/ggge_ai_2/agent/clock.py` |
 | §5.3.5、§5.11 串流、靜止區間 | `src/ggge_ai_2/stream/contract.py` |
-| §5.3.4 辨識、核對、三值 | `src/ggge_ai_2/interpreter/contract.py` |
+| §5.3.4、§5.12.1 辨識、畫面的詞彙 | `src/ggge_ai_2/interpreter/contract.py` |
 | §5.10.2、§5.11 地圖讀數 | `src/ggge_ai_2/mapparser/contract.py` |
 | §5.10.1、§5.10.2 投影、格號換算、局部盤面 | `src/ggge_ai_2/mapgeom/contract.py` |
 | §5.3.6、§5.3.7 手勢、注入的帶、t0／t1 | `src/ggge_ai_2/actuator/contract.py` |
 | §5.2、§5.9、§5.11 UI 狀態、操作、預期集合、危險帶 | `src/ggge_ai_2/uisim/contract.py` |
-| §5.1、§5.4、§5.11、§5.12.9 主迴圈（控制層） | `src/ggge_ai_2/agent/loop.py` |
-| §5.12.9 `Belief` 與修訂（估計） | `src/ggge_ai_2/agent/belief.py` |
-| §5.12.9 證據 | `src/ggge_ai_2/agent/evidence.py` |
+| §5.1、§5.4、§5.11、§5.12.9 主迴圈（控制層）、`Belief` 與修訂（估計） | `src/ggge_ai_2/agent/loop.py` |
 | §5.12.9、§5.12.10 決策層的介面、`Step`、`Wait`、`Finish` | `src/ggge_ai_2/planner/contract.py` |
 
 ## 8. 未決問題
