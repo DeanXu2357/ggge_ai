@@ -9,6 +9,18 @@ from ggge_ai_2.clock import Instant
 
 
 @dataclass(frozen=True)
+class FramePoint:
+    x: float
+    y: float
+
+
+@dataclass(frozen=True)
+class FrameVector:
+    dx: float
+    dy: float
+
+
+@dataclass(frozen=True)
 class Frame:
     image: np.ndarray
     captured_at: Instant
@@ -27,7 +39,9 @@ class Observation:
     frame: Frame
     still: StillWindow | None
     waited: float
-    displacement: tuple[float, float]
+    # The displacement is the move of the frame content, not of the camera: a
+    # positive dx means the content moved right. The camera moves the other way.
+    displacement: FrameVector
 
 
 class Stream(Protocol):

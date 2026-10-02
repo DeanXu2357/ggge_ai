@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from ggge_ai_2.screen import ScreenPoint
-from ggge_ai_2.stream.contract import Frame
+from ggge_ai_2.stream.contract import Frame, FramePoint
 
 
 class SightingKind(StrEnum):
@@ -17,7 +16,7 @@ class SightingKind(StrEnum):
 @dataclass(frozen=True)
 class Sighting:
     kind: SightingKind
-    point: ScreenPoint
+    point: FramePoint
 
 
 @dataclass(frozen=True)

@@ -5,12 +5,18 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from ggge_ai_2.interpreter.contract import Verdict
 from ggge_ai_2.mapparser.contract import MapReading
-from ggge_ai_2.screen import ScreenPoint
+from ggge_ai_2.stream.contract import FramePoint, FrameVector
+from ggge_ai_2.verdict import Verdict
 
 WorldCell = tuple[int, int]
 ViewCell = tuple[int, int]
+
+
+@dataclass(frozen=True)
+class CellVector:
+    dx: float
+    dy: float
 
 
 class CellContent(StrEnum):
@@ -31,13 +37,25 @@ class Projection(Protocol):
     @property
     def shift(self) -> WorldCell: ...
 
-    def to_view(self, point: ScreenPoint) -> ViewCell | None: ...
+    def to_view(self, point: FramePoint) -> ViewCell | None: ...
 
-    def to_screen(self, cell: WorldCell) -> ScreenPoint | None:
+    def to_frame(self, cell: WorldCell) -> FramePoint | None:
         """Return None when the cell is not in the tappable part of this frame."""
         ...
 
     def to_world(self, cell: ViewCell) -> WorldCell: ...
+
+    def camera_move(self, displacement: FrameVector, at: FramePoint) -> CellVector:
+        """Convert a content move measured near `at` into the camera move in cells.
+
+        The camera moves against the content. The cell size changes with the
+        position on the frame, so the result depends on `at`.
+        """
+        ...
+
+    def pan_for(self, cell: WorldCell, to: FramePoint) -> FrameVector:
+        """Return the content move that brings `cell` to the frame point `to`."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -48,7 +66,7 @@ class LocalBoard:
 
 @dataclass(frozen=True)
 class CellAt:
-    point: ScreenPoint
+    point: FramePoint
     cell: WorldCell
 
     def holds_on(self, board: LocalBoard) -> Verdict:
@@ -80,7 +98,7 @@ class MapGeometry(Protocol):
         reading: MapReading,
         known: KnownMap,
         prior: Projection | None,
-        displacement: tuple[float, float],
+        displacement: FrameVector,
     ) -> LocalBoard | None:
         """Return None when the frame has no readable grid."""
         ...

@@ -1,37 +1,26 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
-from enum import StrEnum
 from typing import Protocol
 
 from ggge_ai_2.stream.contract import Frame
+from ggge_ai_2.uisim.contract import Screen, UiFact, UiState
+from ggge_ai_2.verdict import Verdict
 
-
-@dataclass(frozen=True)
-class Situation:
-    frame_seq: int
-    screen: str
-    overlays: frozenset[str] = frozenset()
-    map_mode: str | None = None
-
-
-@dataclass(frozen=True)
-class Fact:
-    kind: str
-    params: Mapping[str, object] = field(default_factory=dict)
-
-
-class Verdict(StrEnum):
-    HOLDS = "holds"
-    DOES_NOT_HOLD = "does_not_hold"
-    UNREADABLE = "unreadable"
+ALL_SCREENS: frozenset[Screen] = frozenset(Screen)
 
 
 class Interpreter(Protocol):
-    def interpret(self, frame: Frame) -> Situation | None: ...
+    def interpret(
+        self, frame: Frame, candidates: frozenset[Screen] = ALL_SCREENS
+    ) -> UiState | None:
+        """Return the state whose screen is the closest candidate to this frame.
 
-    def verify(self, frame: Frame, fact: Fact) -> Verdict:
+        Return None when no candidate is close enough. Without this threshold, an
+        unmodeled popup reads as a known screen and the agent never halts on it.
+        """
+        ...
+
+    def verify(self, frame: Frame, fact: UiFact) -> Verdict:
         """Check one fact on this frame only.
 
         Do not ask for a fact that the frame cannot show. A fact that needs more than
