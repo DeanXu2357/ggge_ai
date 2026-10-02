@@ -6,12 +6,12 @@ from threading import Event
 import numpy as np
 
 from ggge_ai_2.actuator.contract import Dispatch, GestureBlocked, Rect, Tap
-from ggge_ai_2.agent.belief import ActionStatus, Belief, UiBasis, UiSource
+from ggge_ai_2.agent.belief import Belief, UiBasis, UiSource
 from ggge_ai_2.agent.loop import Agent, RunResult, ScreenSize
-from ggge_ai_2.agent.step import Finish, Step, Wait
 from ggge_ai_2.interpreter.contract import Fact, Situation, Verdict
 from ggge_ai_2.mapgeom.contract import CellAt, CellContent, CellHolds, LocalBoard
 from ggge_ai_2.mapparser.contract import MapReading
+from ggge_ai_2.planner.contract import ActionStatus, Finish, State, Step, Wait
 from ggge_ai_2.stream.contract import NO_DISPLACEMENT, Frame, Observation, StillWindow
 from ggge_ai_2.uisim.contract import (
     DangerBand,
@@ -106,15 +106,15 @@ class FakeActuator:
 @dataclass
 class ScriptedPlanner:
     steps: list[Step | Wait | Finish]
-    seen: list[Belief] = field(default_factory=list)
+    seen: list[State] = field(default_factory=list)
     agendas: list[int] = field(default_factory=list)
 
-    def plan(self, belief: Belief, agenda: int) -> tuple[Step | Wait | Finish, int]:
-        self.seen.append(belief)
+    def plan(self, state: State, agenda: int) -> tuple[Step | Wait | Finish, int]:
+        self.seen.append(state)
         self.agendas.append(agenda)
         step = self.steps.pop(0)
         if isinstance(step, Step):
-            step = replace(step, based_on=belief.as_of.until)
+            step = replace(step, based_on=state.as_of)
         return step, agenda + 1
 
 
@@ -163,8 +163,10 @@ def test_first_observation_interprets_the_frame_and_syncs_the_prediction():
 
     assert agent.run() is RunResult.DONE
     assert planner.seen[0].ui == HUB
-    assert planner.seen[0].ui_basis == UiBasis(UiSource.SEEN, frame_seq=1)
-    assert planner.seen[0].as_of == StillWindow(0.5, 1.0, 1)
+    assert not planner.seen[0].ui_lost
+    assert planner.seen[0].as_of == 1.0
+    assert agent.belief.ui_basis == UiBasis(UiSource.SEEN, frame_seq=1)
+    assert agent.belief.as_of == StillWindow(0.5, 1.0, 1)
 
 
 def test_observation_waits_until_the_screen_is_still():
@@ -173,7 +175,7 @@ def test_observation_waits_until_the_screen_is_still():
     make_agent(stream, FakeInterpreter(screens(f2="hub")), planner).run()
 
     assert [after for after, _ in stream.calls] == [0.0, 1.0]
-    assert planner.seen[0].as_of.frame_seq == 2
+    assert planner.seen[0].as_of == 1.5
 
 
 def test_sensed_carries_the_cutoff_that_the_observation_started_from():
@@ -381,7 +383,8 @@ def test_unreadable_screen_is_left_to_the_planner():
     agent = make_agent(FakeStream([still(1, 1.0)]), FakeInterpreter({}), planner)
 
     assert agent.run() is RunResult.HALTED
-    assert planner.seen[0].ui_basis == UiBasis(UiSource.LOST, frame_seq=1)
+    assert planner.seen[0].ui_lost
+    assert agent.belief.ui_basis == UiBasis(UiSource.LOST, frame_seq=1)
 
 
 def test_observation_does_not_interpret_when_the_prediction_holds():

@@ -4,7 +4,6 @@ import logging
 from dataclasses import dataclass, field
 from enum import StrEnum
 from threading import Event
-from typing import Protocol
 
 from ggge_ai_2.actuator.contract import (
     Actuator,
@@ -20,10 +19,10 @@ from ggge_ai_2.actuator.contract import (
 from ggge_ai_2.agent.belief import Belief, UiSource
 from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.agent.evidence import Dispatched, GuardFailed, Sensed
-from ggge_ai_2.agent.step import Finish, Step, Wait
 from ggge_ai_2.interpreter.contract import Fact, Interpreter, Situation, Verdict
 from ggge_ai_2.mapgeom.contract import BoardFact, BoardVerdict, MapGeometry
 from ggge_ai_2.mapparser.contract import MapParser
+from ggge_ai_2.planner.contract import Finish, Planner, State, Step, Wait
 from ggge_ai_2.stream.contract import Frame, Observation, Stream, add_displacement
 from ggge_ai_2.uisim.contract import (
     DangerBand,
@@ -39,10 +38,6 @@ from ggge_ai_2.uisim.contract import (
 )
 
 log = logging.getLogger(__name__)
-
-
-class Planner[A](Protocol):
-    def plan(self, belief: Belief, agenda: A) -> tuple[Step | Wait | Finish, A]: ...
 
 
 class RunResult(StrEnum):
@@ -79,7 +74,7 @@ class Agent[A]:
             if sensed is None:
                 break
             self.belief = self.belief.sensed(sensed, self.uisim, self.mapgeom)
-            decision, self.agenda = self.planner.plan(self.belief, self.agenda)
+            decision, self.agenda = self.planner.plan(_belief_to_state(self.belief), self.agenda)
             if isinstance(decision, Finish):
                 return RunResult.DONE if decision is Finish.DONE else RunResult.HALTED
             if isinstance(decision, Wait):
@@ -221,6 +216,17 @@ def _map_mode(holds: bool, observed: Observed | None, belief: Belief) -> str | N
     if observed is None:
         return None
     return observed.map_mode
+
+
+def _belief_to_state(belief: Belief) -> State:
+    return State(
+        ui=belief.ui,
+        ui_lost=belief.ui_basis.source is UiSource.LOST,
+        camera=belief.camera,
+        domain=belief.domain,
+        as_of=belief.as_of.until if belief.as_of else None,
+        last_action=belief.last_action,
+    )
 
 
 def _ui_state_to_fact(state: UiState) -> Fact:

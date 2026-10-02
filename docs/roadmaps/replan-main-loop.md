@@ -837,17 +837,27 @@ while not stop.is_set():
   暫存狀態、維持自己編排邏輯的結構，放在 agent 套件裡，不放到外面
   當公開的合約。agent 的結構與其他物件的結構之間的轉換由 agent
   自己寫，不寫在其他物件的合約裡。
-- ［提案，2026-10-02］agent 向決策層要的介面（`Planner`）也由 agent
-  定義，`planner/contract.py` 併入 agent。理由：`Planner` 的輸入是
-  `Belief`、輸出是 `Step`，介面放在 agent 之外就要把這兩個結構公開
-  出去。
+- ［撤回，2026-10-02］原提案「agent 向決策層要的介面（`Planner`）由
+  agent 定義，`planner/contract.py` 併入 agent」不採用。
+- ［確認，2026-10-02］planner 自己定義自己的輸出結構 `Step`。agent 把
+  planner 的 `Step` 轉成自己的結構，或直接依賴 planner 的 `Step`。
+  物件之間不互相依賴，邊界的轉換寫在編排邏輯裡。本項修訂上面「`Step`
+  放在 agent 套件裡」。
+- ［提案，2026-10-02］上一項的落點：
+  - `planner/contract.py` 定義 `Planner`、輸出（`Step`、`Wait`、
+    `Finish`）與輸入（`State`、`ActionResult`）。
+  - agent 直接依賴 planner 的 `Step` 與 `ActionResult`，不另外定義
+    自己的版本。
+  - `agent/loop.py` 的 `_belief_to_state` 把 `Belief` 轉成 planner 的
+    `State`。`State` 帶 UI 狀態、UI 狀態是否讀不出、鏡位、領域狀態、
+    靜止區間的結束時間、上一個動作的結果。
 
 | 模組 | 內容 |
 |---|---|
-| `agent/loop.py` | `Agent`、`Planner`、`RunResult`；與其他物件的結構之間的轉換 |
-| `agent/belief.py` | `Belief` 與修訂方法、`UiBasis`、`UiSource`、`ActionResult`、`ActionStatus`、`DomainState` |
+| `agent/loop.py` | `Agent`、`RunResult`；與其他物件的結構之間的轉換 |
+| `agent/belief.py` | `Belief` 與修訂方法、`UiBasis`、`UiSource`、`DomainState` |
 | `agent/evidence.py` | `Sensed`、`GuardFailed`、`Dispatched` |
-| `agent/step.py` | `Step`、`Premise`、`Wait`、`Finish` |
+| `planner/contract.py` | `Planner`、`State`、`ActionResult`、`ActionStatus`、`Step`、`Premise`、`Wait`、`Finish` |
 | `agent/clock.py` | `Instant`、`now` |
 | `stream/contract.py` | `Displacement`（位移由 stream 量出） |
 
@@ -962,10 +972,10 @@ while not stop.is_set():
 | §5.10.1、§5.10.2 投影、格號換算、局部盤面 | `src/ggge_ai_2/mapgeom/contract.py` |
 | §5.3.6、§5.3.7 手勢、注入的帶、t0／t1 | `src/ggge_ai_2/actuator/contract.py` |
 | §5.2、§5.9、§5.11 UI 狀態、操作、預期集合、危險帶 | `src/ggge_ai_2/uisim/contract.py` |
-| §5.1、§5.4、§5.11、§5.12.9 主迴圈（控制層）、決策層的介面 | `src/ggge_ai_2/agent/loop.py` |
+| §5.1、§5.4、§5.11、§5.12.9 主迴圈（控制層） | `src/ggge_ai_2/agent/loop.py` |
 | §5.12.9 `Belief` 與修訂（估計） | `src/ggge_ai_2/agent/belief.py` |
 | §5.12.9 證據 | `src/ggge_ai_2/agent/evidence.py` |
-| §5.12.9 `Step`、`Wait`、`Finish` | `src/ggge_ai_2/agent/step.py` |
+| §5.12.9、§5.12.10 決策層的介面、`Step`、`Wait`、`Finish` | `src/ggge_ai_2/planner/contract.py` |
 
 ## 8. 未決問題
 

@@ -5,8 +5,8 @@ from enum import StrEnum
 from typing import Protocol, Self
 
 from ggge_ai_2.agent.evidence import Dispatched, GuardFailed, Sensed
-from ggge_ai_2.agent.step import Step
-from ggge_ai_2.mapgeom.contract import BoardFact, KnownMap, LocalBoard, MapGeometry, Projection
+from ggge_ai_2.mapgeom.contract import KnownMap, LocalBoard, MapGeometry, Projection
+from ggge_ai_2.planner.contract import ActionResult, ActionStatus, Step
 from ggge_ai_2.stream.contract import Displacement, StillWindow
 from ggge_ai_2.uisim.contract import Outcome, UiSim, UiState
 
@@ -31,22 +31,6 @@ class UiBasis:
     source: UiSource
     frame_seq: int | None = None
     outcome: str | None = None
-
-
-class ActionStatus(StrEnum):
-    VERIFIED = "verified"
-    UNVERIFIED = "unverified"
-    GUARD_FAILED = "guard_failed"
-    BLOCKED = "blocked"
-
-
-@dataclass(frozen=True)
-class ActionResult:
-    intent: object
-    operation: str
-    status: ActionStatus
-    outcome: str | None = None
-    failed_premise: UiState | BoardFact | None = None
 
 
 @dataclass(frozen=True)

@@ -4,10 +4,10 @@ from dataclasses import dataclass
 
 from ggge_ai_2.actuator.contract import Dispatch
 from ggge_ai_2.agent.clock import Instant
-from ggge_ai_2.agent.step import Step
 from ggge_ai_2.interpreter.contract import Verdict
 from ggge_ai_2.mapgeom.contract import BoardFact, BoardVerdict
 from ggge_ai_2.mapparser.contract import MapReading
+from ggge_ai_2.planner.contract import Step
 from ggge_ai_2.stream.contract import Displacement, StillWindow
 from ggge_ai_2.uisim.contract import Observed, Outcome, UiState
 
