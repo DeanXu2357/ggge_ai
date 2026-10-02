@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from ggge_ai_2.screen import ScreenPoint
 from ggge_ai_2.stream.contract import Frame
+
+ScreenPoint = tuple[int, int]
 
 
 class SightingKind(StrEnum):
