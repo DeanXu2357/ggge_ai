@@ -963,6 +963,35 @@ while not stop.is_set():
 6. revise 用轉移模型做預測，決策層用轉移模型做選擇；控制層兩者都
    不做。
 
+#### 5.12.11 地圖這一側的分工 ［確認，2026-10-03］
+
+本節修訂 §5.10.2、§5.12.3、§5.12.7，以及 §5.12.9「鏡位是最後一次擬合
+成功的投影」；衝突時以本節為準。
+
+- ［確認］mapgeom 就是觀察引擎，不是另一個物件。
+- ［確認］mapparser 讀幀，雙向換算。正向把一幀轉成局部網格地圖；反向
+  把畫面內的格號轉回螢幕點，需要時再傳入原圖。格線、形變、投影是
+  mapparser 內部的事，不帶出來。
+- ［確認］mapgeom 只處理網格：把局部地圖對照記憶中的全局地圖，並判斷
+  怎麼探明、或已經探明。
+- ［提案］落點：
+  - mapparser：`parse(frame)` 回傳 `MapReading`（畫面內格號對內容、
+    哪幾邊是地圖邊界），讀不出格線時回傳 None；`locate(frame, cell)`
+    回傳螢幕點。邊界以畫面內的方向表示。
+  - mapgeom：`align(board, known, prior)` 回傳 `Alignment`（這一幀的
+    (0, 0) 是全局的哪一格）；`merge(known, board, alignment)` 回傳合併
+    後的全局地圖。mapgeom 定義自己的 `LocalBoard`，由 `agent/loop.py`
+    的 `_map_reading_to_local_board` 轉換。
+  - 全局地圖是資料，存在 `Belief.known_map`；mapgeom 不保存狀態。
+    `Belief.camera` 是 `Alignment`。`DomainState` 只剩 `absorb`。
+  - 「怎麼探明」由 planner 呼叫，合約由觀察這個領域自己維護
+    （§5.12.2），#95 不定。
+  - 盤面前提：`CellHolds` 由 mapgeom 核對；`CellAt` 由守衛用
+    `mapparser.locate` 在守衛幀上核對。
+  - `Belief.drift` 與位移參數拿掉，因為 mapgeom 不碰像素。
+- 未定：planner 沒有幀，算不出地圖格的點擊點。誰在什麼時候把世界格
+  換成螢幕點，尚未決定。
+
 ## 6. 延後項目（已知，不是遺漏）
 
 - 敵方回合後盤面與 battle engine 的預測不符時的局部複查。第一版歸類為
@@ -975,8 +1004,8 @@ while not stop.is_set():
 | S1 | 合約定義：所有物件的輸入輸出結構（畫面判讀器、操作物件、危險帶、UI sim engine 查詢合約、地圖判讀轉換物件、搜尋輸出、agent 規則列） | 無 |
 | S2 | 畫面判讀器＋操作物件：幀的唯一消費者、阻塞到靜止、兩個時間戳、按畫面注入的危險帶。現有 `screens`／`vision`／`settle`／`device`／`stream` 搬入 | S1 |
 | S3 | UI sim engine 離散部分＋agent 主迴圈：五步驟、三分類、規則表；先涵蓋登入 → 選關 → 出擊準備 → 地圖 → 棄戰，取代 `entry.py` | S2 |
-| S4 | mapparser（一張幀 → 格線與看到的東西，§5.12.3）＋地圖判讀轉換物件：投影模型、畫面內格號、求位移、局部盤面；驗證 §4.3 兩條假說（逐幀累加位移、按住—移動—放開）。現有 `projection`／`board`／`sweep` 的幾何部分搬入 | S2 |
-| S5 | 觀察：地圖知識、地圖完整度評分、探索搜尋，從 `SweepRun` 與 `runtime/sweep.py` 抽出；隊伍暫存與「順位 → 格位」 | S3、S4、S6 |
+| S4 | mapparser（§5.12.11）：一幀 → 局部網格地圖，以及畫面內格號 → 螢幕點；格線、形變、投影在內部處理；驗證 §4.3 兩條假說（逐幀累加位移、按住—移動—放開）。現有 `projection`／`board`／`sweep` 的幾何部分搬入 | S2 |
+| S5 | 觀察（mapgeom，§5.12.11）：局部對照全局、合併、地圖完整度評分、探索搜尋，從 `SweepRun` 與 `runtime/sweep.py` 抽出；隊伍暫存與「順位 → 格位」 | S3、S4、S6 |
 | S6 | 關卡資料格式與完整度判準 | #92／#94 |
 | S7 | 戰鬥：battle engine 接實機的 UI 建模（移動、武裝、攻擊、應戰） | S3、S4、#78 |
 
@@ -1006,8 +1035,8 @@ while not stop.is_set():
 | §4.2.1、§5.3.7 時鐘與時間戳 | `src/ggge_ai_2/agent/clock.py` |
 | §5.3.5、§5.11 串流、靜止區間 | `src/ggge_ai_2/stream/contract.py` |
 | §5.3.4、§5.12.1 辨識、畫面的詞彙 | `src/ggge_ai_2/interpreter/contract.py` |
-| §5.10.2、§5.11 地圖讀數 | `src/ggge_ai_2/mapparser/contract.py` |
-| §5.10.1、§5.10.2 投影、格號換算、局部盤面 | `src/ggge_ai_2/mapgeom/contract.py` |
+| §5.12.11 局部網格地圖、格號轉回螢幕點 | `src/ggge_ai_2/mapparser/contract.py` |
+| §5.12.11 局部對照全局、合併、盤面前提 | `src/ggge_ai_2/mapgeom/contract.py` |
 | §5.3.6、§5.3.7 手勢、注入的帶、t0／t1 | `src/ggge_ai_2/actuator/contract.py` |
 | §5.2、§5.9、§5.11 UI 狀態、操作、預期集合、危險帶 | `src/ggge_ai_2/uisim/contract.py` |
 | §5.1、§5.4、§5.11、§5.12.9 主迴圈（控制層）、`Belief` 與修訂（估計） | `src/ggge_ai_2/agent/loop.py` |

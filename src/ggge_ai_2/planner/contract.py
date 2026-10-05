@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from ggge_ai_2.mapgeom.contract import BoardFact, Projection
+from ggge_ai_2.mapgeom.contract import Alignment, BoardFact, KnownMap
 from ggge_ai_2.uisim.contract import Operation, UiState
 
 Instant = float
@@ -30,7 +30,8 @@ class ActionResult:
 class State:
     ui: UiState
     ui_lost: bool
-    camera: Projection | None
+    camera: Alignment | None
+    known_map: KnownMap
     domain: object
     as_of: Instant | None
     last_action: ActionResult | None

@@ -8,8 +8,8 @@ import numpy as np
 from ggge_ai_2.actuator.contract import Dispatch, GestureBlocked, Rect, Tap
 from ggge_ai_2.agent.loop import Agent, Belief, RunResult, ScreenSize, UiBasis, UiSource
 from ggge_ai_2.interpreter.contract import MapMode, Overlay, Screen, Situation
-from ggge_ai_2.mapgeom.contract import CellAt, CellContent, CellHolds, LocalBoard
-from ggge_ai_2.mapparser.contract import MapReading
+from ggge_ai_2.mapgeom.contract import Alignment, CellAt, CellContent, CellHolds, KnownMap
+from ggge_ai_2.mapparser.contract import CellReading, MapReading
 from ggge_ai_2.planner.contract import ActionStatus, Finish, State, Step, Wait
 from ggge_ai_2.stream.contract import NO_DISPLACEMENT, Frame, Observation, StillWindow
 from ggge_ai_2.uisim.contract import (
@@ -114,7 +114,10 @@ class ScriptedPlanner:
 
 
 class NoMapParser:
-    def parse(self, f: Frame) -> MapReading:
+    def parse(self, f: Frame) -> MapReading | None:
+        raise AssertionError("no map on these screens")
+
+    def locate(self, f: Frame, cell):
         raise AssertionError("no map on these screens")
 
 
@@ -123,7 +126,7 @@ def initial_belief() -> Belief:
         ui=UiState(UiScreen.LOGIN_BONUS),
         ui_basis=UiBasis(UiSource.ASSUMED),
         camera=None,
-        drift=NO_DISPLACEMENT,
+        known_map=KnownMap({}),
         domain=FakeDomain(),
         as_of=None,
     )
@@ -252,45 +255,40 @@ def test_wait_goes_back_to_observation_without_a_gesture():
     assert [after for after, _ in stream.calls] == [0.0, 1.0]
 
 
-@dataclass(frozen=True)
-class GridProjection:
-    frame_seq: int
-    shift: tuple[int, int]
+@dataclass
+class GridParser:
+    unreadable: frozenset[int] = frozenset()
 
-    def to_view(self, point):
-        return (point[0] // 100, point[1] // 100)
+    def parse(self, f: Frame) -> MapReading | None:
+        if f.seq in self.unreadable:
+            return None
+        return MapReading({(2, 2): CellReading.EMPTY}, frozenset())
 
-    def to_screen(self, cell):
-        return ((cell[0] - self.shift[0]) * 100 + 50, (cell[1] - self.shift[1]) * 100 + 50)
-
-    def to_world(self, cell):
-        return (cell[0] + self.shift[0], cell[1] + self.shift[1])
+    def locate(self, f: Frame, cell):
+        return (cell[0] * 100 + 50, cell[1] * 100 + 50)
 
 
 @dataclass
 class ScriptedGeometry:
-    shifts: dict[int, tuple[int, int] | None]
-    fits: list[tuple[int, object, tuple[float, float]]] = field(default_factory=list)
+    shifts: list[tuple[int, int] | None]
+    priors: list[Alignment | None] = field(default_factory=list)
 
-    def fit(self, reading, known, prior, displacement):
-        self.fits.append((reading.frame_seq, prior, displacement))
-        shift = self.shifts[reading.frame_seq]
-        if shift is None:
-            return None
-        cells = {(12, 7): CellContent.EMPTY}
-        return LocalBoard(GridProjection(reading.frame_seq, shift), cells)
+    def align(self, board, known, prior):
+        self.priors.append(prior)
+        shift = self.shifts.pop(0) if len(self.shifts) > 1 else self.shifts[0]
+        return None if shift is None else Alignment(shift)
 
-
-class EchoParser:
-    def parse(self, f: Frame) -> MapReading:
-        return MapReading(f.seq, (), (), ())
+    def merge(self, known, board, alignment):
+        dx, dy = alignment.shift
+        seen = {(x + dx, y + dy): content for (x, y), content in board.cells.items()}
+        return KnownMap({**known.cells, **seen})
 
 
 ON_MAP = UiState(UiScreen.BATTLE_MAP, map_mode=UiMapMode.HUB)
 TAP_CELL = Operation("tap_cell", ON_MAP, UiTap((0.25, 0.5)), (), 1.0, 1.0)
 
 
-def run_on_map(settles, geometry, steps, latest=frame(2, 1.2)):
+def run_on_map(settles, geometry, steps, latest=frame(2, 1.2), parser=None):
     stream = FakeStream(settles)
     stream.latest_frame = latest
     seqs = {shown.seq for shown, _ in settles} | {latest.seq}
@@ -302,34 +300,37 @@ def run_on_map(settles, geometry, steps, latest=frame(2, 1.2)):
         FakeInterpreter(on_map),
         planner,
         actuator,
-        mapparser=EchoParser(),
+        mapparser=parser or GridParser(),
         mapgeom=geometry,
         uisim=FakeUiSim({UiScreen.BATTLE_MAP: DangerBand()}),
     ).run()
     return actuator, planner
 
 
-def run_map_tap(guard_shift, premise) -> FakeActuator:
-    geometry = ScriptedGeometry({1: (10, 5), 2: guard_shift, 3: (10, 5), 4: (10, 5)})
+def run_map_tap(premise, guard_shift=(10, 5), unreadable=frozenset()) -> FakeActuator:
+    geometry = ScriptedGeometry([(10, 5)] if unreadable else [(10, 5), guard_shift, (10, 5)])
     settles = [still(1, 1.0), still(3, 12.0), still(4, 13.0)]
-    actuator, _ = run_on_map(
-        settles, geometry, [Step("probe", TAP_CELL, premise, 0.0), Finish.DONE]
-    )
+    steps = [Step("probe", TAP_CELL, premise, 0.0), Finish.DONE]
+    actuator, _ = run_on_map(settles, geometry, steps, parser=GridParser(unreadable))
     return actuator
 
 
 def test_guard_sends_the_gesture_when_the_board_premise_holds():
     premise = (CellAt((250, 250), (12, 7)), CellHolds((12, 7), CellContent.EMPTY))
 
-    assert run_map_tap((10, 5), premise).sent == [(Tap((250, 250)), ())]
+    assert run_map_tap(premise).sent == [(Tap((250, 250)), ())]
 
 
 def test_guard_sends_no_gesture_when_the_camera_moved():
-    assert run_map_tap((11, 5), (CellAt((250, 250), (12, 7)),)).sent == []
+    assert run_map_tap((CellAt((250, 250), (12, 7)),), guard_shift=(11, 5)).sent == []
 
 
 def test_guard_sends_no_gesture_when_the_grid_is_unreadable():
-    assert run_map_tap(None, (CellAt((250, 250), (12, 7)),)).sent == []
+    assert run_map_tap((CellAt((250, 250), (12, 7)),), unreadable=frozenset({2})).sent == []
+
+
+def test_guard_sends_no_gesture_when_the_board_has_no_place_on_the_known_map():
+    assert run_map_tap((CellAt((250, 250), (12, 7)),), guard_shift=None).sent == []
 
 
 def test_step_keeps_the_ui_and_the_domain_premise_apart():
@@ -372,23 +373,27 @@ def test_unreadable_screen_is_left_to_the_planner():
     assert agent.belief.ui_basis == UiBasis(UiSource.LOST, frame_seq=1)
 
 
-def test_map_screen_puts_the_fitted_camera_into_the_belief():
-    geometry = ScriptedGeometry({1: (10, 5)})
+def test_map_screen_puts_the_alignment_and_the_merged_map_into_the_belief():
+    geometry = ScriptedGeometry([(10, 5)])
     _, planner = run_on_map([still(1, 1.0)], geometry, [Finish.DONE])
 
-    assert geometry.fits == [(1, None, NO_DISPLACEMENT)]
-    assert planner.seen[0].camera == GridProjection(1, (10, 5))
-    assert planner.seen[0].domain.boards == 1
+    assert geometry.priors == [None]
+    assert planner.seen[0].camera == Alignment((10, 5))
+    assert planner.seen[0].known_map == KnownMap({(12, 7): CellContent.EMPTY})
 
 
 def test_unreadable_grid_keeps_the_camera():
-    geometry = ScriptedGeometry({1: (10, 5), 3: None})
     settles = [still(1, 1.0), still(2, 11.0), still(3, 12.0)]
+    steps = [Step("probe", TAP_CELL, (), 0.0), Finish.DONE]
     _, planner = run_on_map(
-        settles, geometry, [Step("probe", TAP_CELL, (), 0.0), Finish.DONE], latest=frame(1, 1.0)
+        settles,
+        ScriptedGeometry([(10, 5)]),
+        steps,
+        latest=frame(1, 1.0),
+        parser=GridParser(frozenset({3})),
     )
 
-    assert planner.seen[1].camera == GridProjection(1, (10, 5))
+    assert planner.seen[1].camera == Alignment((10, 5))
 
 
 def test_stop_request_ends_the_loop_between_cycles():

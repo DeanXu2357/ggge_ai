@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from ggge_ai_2.agent.loop import Belief, UiBasis, UiSource
-from ggge_ai_2.stream.contract import NO_DISPLACEMENT, StillWindow
+from ggge_ai_2.mapgeom.contract import KnownMap
+from ggge_ai_2.stream.contract import StillWindow
 from ggge_ai_2.uisim.contract import UiMapMode, UiScreen, UiState
 from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
@@ -12,7 +13,7 @@ ON_MAP = UiState(UiScreen.BATTLE_MAP, map_mode=UiMapMode.HUB)
 
 def belief(ui: UiState) -> Belief:
     seen = UiBasis(UiSource.SEEN, frame_seq=1)
-    return Belief(ui, seen, None, NO_DISPLACEMENT, FakeDomain(), StillWindow(0.5, 1.0, 1))
+    return Belief(ui, seen, None, KnownMap({}), FakeDomain(), StillWindow(0.5, 1.0, 1))
 
 
 def after_an_unreadable_frame(before: Belief, still: StillWindow) -> Belief:

@@ -12,10 +12,6 @@ Displacement = tuple[float, float]
 NO_DISPLACEMENT: Displacement = (0.0, 0.0)
 
 
-def add_displacement(a: Displacement, b: Displacement) -> Displacement:
-    return (a[0] + b[0], a[1] + b[1])
-
-
 @dataclass(frozen=True)
 class Frame:
     image: np.ndarray

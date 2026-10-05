@@ -20,12 +20,15 @@ from ggge_ai_2.actuator.contract import (
 from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.interpreter.contract import Interpreter, Situation
 from ggge_ai_2.mapgeom.contract import (
+    Alignment,
+    BoardEdge,
     BoardFact,
-    BoardVerdict,
+    CellAt,
+    CellContent,
+    CellHolds,
     KnownMap,
     LocalBoard,
     MapGeometry,
-    Projection,
 )
 from ggge_ai_2.mapparser.contract import MapParser, MapReading
 from ggge_ai_2.planner.contract import (
@@ -37,7 +40,7 @@ from ggge_ai_2.planner.contract import (
     Step,
     Wait,
 )
-from ggge_ai_2.stream.contract import Displacement, Frame, Observation, StillWindow, Stream
+from ggge_ai_2.stream.contract import Frame, Observation, StillWindow, Stream
 from ggge_ai_2.uisim.contract import (
     DangerBand,
     Observed,
@@ -60,10 +63,6 @@ log = logging.getLogger(__name__)
 class DomainState(Protocol):
     def absorb(self, intent: object, outcome: Outcome | None) -> Self: ...
 
-    def observe(self, board: LocalBoard) -> Self: ...
-
-    def known_map(self) -> KnownMap: ...
-
 
 class UiSource(StrEnum):
     ASSUMED = "assumed"
@@ -83,8 +82,8 @@ class UiBasis:
 class Belief:
     ui: UiState
     ui_basis: UiBasis
-    camera: Projection | None
-    drift: Displacement
+    camera: Alignment | None
+    known_map: KnownMap
     domain: DomainState
     as_of: StillWindow | None
     last_action: ActionResult | None = None
@@ -93,17 +92,17 @@ class Belief:
         self,
         still: StillWindow,
         observed: Observed | None,
-        reading: MapReading | None,
+        board: LocalBoard | None,
         uisim: UiSim,
         mapgeom: MapGeometry,
     ) -> Belief:
         ui, basis = self._read_ui(still.frame_seq, observed, uisim)
-        camera, domain = self.camera, self.domain
-        if reading is not None:
-            board = mapgeom.fit(reading, domain.known_map(), camera, self.drift)
-            if board is not None:
-                camera, domain = board.projection, domain.observe(board)
-        return replace(self, ui=ui, ui_basis=basis, camera=camera, domain=domain, as_of=still)
+        camera, known_map = self.camera, self.known_map
+        if board is not None:
+            alignment = mapgeom.align(board, known_map, camera)
+            if alignment is not None:
+                camera, known_map = alignment, mapgeom.merge(known_map, board, alignment)
+        return replace(self, ui=ui, ui_basis=basis, camera=camera, known_map=known_map, as_of=still)
 
     def revise_when_dispatched(self, step: Step, outcome: Outcome | None, uisim: UiSim) -> Belief:
         domain = self.domain.absorb(step.intent, outcome)
@@ -182,7 +181,11 @@ class Agent[A]:
             if sensed is None:
                 break
             self.belief = self.belief.revise_when_sensed(
-                sensed.still, sensed.observed, sensed.map, self.uisim, self.mapgeom
+                sensed.still,
+                sensed.observed,
+                _map_reading_to_local_board(sensed.map),
+                self.uisim,
+                self.mapgeom,
             )
             decision, self.agenda = self.planner.plan(_belief_to_state(self.belief), self.agenda)
             if isinstance(decision, Finish):
@@ -288,16 +291,25 @@ class Agent[A]:
     ) -> BoardFact | None:
         if not facts:
             return None
-        reading = self.mapparser.parse(frame)
-        # The guard has one frame, so it has no displacement after the observed frame. The
-        # fit then depends on the prior, and it can read a pan of exactly one cell as no pan.
-        board = self.mapgeom.fit(reading, belief.domain.known_map(), belief.camera, belief.drift)
+        board = _map_reading_to_local_board(self.mapparser.parse(frame))
         if board is None:
             return facts[0]
+        alignment = self.mapgeom.align(board, belief.known_map, belief.camera)
+        if alignment is None:
+            return facts[0]
         for fact in facts:
-            if fact.holds_on(board) is not BoardVerdict.HOLDS:
+            if not self._holds(frame, fact, board, alignment):
                 return fact
         return None
+
+    def _holds(
+        self, frame: Frame, fact: BoardFact, board: LocalBoard, alignment: Alignment
+    ) -> bool:
+        match fact:
+            case CellAt(point, cell):
+                return self.mapparser.locate(frame, alignment.to_view(cell)) == point
+            case CellHolds():
+                return fact.holds_on(board, alignment)
 
     def _classify(self, frame: Frame, outcomes: tuple[Outcome, ...]) -> Outcome | None:
         observed = _situation_to_observed(self.interpreter.interpret(frame))
@@ -312,6 +324,7 @@ def _belief_to_state(belief: Belief) -> State:
         ui=belief.ui,
         ui_lost=belief.ui_basis.source is UiSource.LOST,
         camera=belief.camera,
+        known_map=belief.known_map,
         domain=belief.domain,
         as_of=belief.as_of.until if belief.as_of else None,
         last_action=belief.last_action,
@@ -329,6 +342,15 @@ def _situation_to_observed(situation: Situation | None) -> Observed | None:
         UiScreen(situation.screen.value),
         frozenset(UiOverlay(overlay.value) for overlay in situation.overlays),
         None if situation.map_mode is None else UiMapMode(situation.map_mode.value),
+    )
+
+
+def _map_reading_to_local_board(reading: MapReading | None) -> LocalBoard | None:
+    if reading is None:
+        return None
+    return LocalBoard(
+        {cell: CellContent(seen.value) for cell, seen in reading.cells.items()},
+        frozenset(BoardEdge(edge.value) for edge in reading.borders),
     )
 
 
