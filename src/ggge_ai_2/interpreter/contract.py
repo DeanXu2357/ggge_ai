@@ -8,6 +8,7 @@ from ggge_ai_2.stream.contract import Frame
 
 
 class Screen(StrEnum):
+    LOCKED = "locked"
     LOGIN_BONUS = "login_bonus"
     NOTICE = "notice"
     DATE_CHANGED = "date_changed"
@@ -43,12 +44,20 @@ class MapMode(StrEnum):
     WEAPON_SELECT = "weapon_select"
 
 
+class Auto(StrEnum):
+    OFF = "off"
+    ON = "on"
+    ACTIVE = "active"
+
+
 @dataclass(frozen=True)
 class Situation:
     frame_seq: int
     screen: Screen
     overlays: frozenset[Overlay] = frozenset()
     map_mode: MapMode | None = None
+    auto: Auto | None = None
+    grid_shown: bool | None = None
 
 
 class Interpreter(Protocol):

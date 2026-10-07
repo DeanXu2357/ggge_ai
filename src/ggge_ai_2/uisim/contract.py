@@ -22,6 +22,7 @@ class DangerBand:
 
 
 class UiScreen(StrEnum):
+    LOCKED = "locked"
     LOGIN_BONUS = "login_bonus"
     NOTICE = "notice"
     DATE_CHANGED = "date_changed"
@@ -57,11 +58,19 @@ class UiMapMode(StrEnum):
     WEAPON_SELECT = "weapon_select"
 
 
+class UiAuto(StrEnum):
+    OFF = "off"
+    ON = "on"
+    ACTIVE = "active"
+
+
 @dataclass(frozen=True)
 class UiState:
     screen: UiScreen
     overlays: frozenset[UiOverlay] = frozenset()
     map_mode: UiMapMode | None = None
+    auto: UiAuto | None = None
+    grid_shown: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +78,8 @@ class Observed:
     screen: UiScreen
     overlays: frozenset[UiOverlay] = frozenset()
     map_mode: UiMapMode | None = None
+    auto: UiAuto | None = None
+    grid_shown: bool | None = None
 
 
 @dataclass(frozen=True)

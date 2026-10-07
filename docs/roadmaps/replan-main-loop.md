@@ -894,8 +894,11 @@ while not stop.is_set():
 
 | 模組 | 內容 |
 |---|---|
-| `agent/loop.py` | `Agent`、`RunResult`、`Sensed`；`Belief` 與修訂方法、`UiBasis`、`UiSource`、`DomainState`；與其他物件的結構之間的轉換 |
-| `planner/contract.py` | `Planner`、`State`、`ActionResult`、`ActionStatus`、`Step`、`Premise`、`Wait`、`Finish` |
+| `agent/contract.py` | `AgentPlanner`、`Sensed`、`Step`、`CellReads`、`Wait`、`Finish`、`ActionResult`、`ActionStatus` |
+| `agent/loop.py` | `Agent`（穩定的主迴圈）、`RunResult`、`ScreenSize`；與其他物件的結構之間的轉換 |
+| `agent/planner.py` | 第一個 agent planner：`RulePlanner`、`Memory`、`Belief` 與修訂方法、`UiBasis`、`UiSource` |
+| `planner/uishift/contract.py` | `UiShiftPlan` |
+| `planner/mapsync/contract.py` | `MapSyncPlan`、`Probe`、`Explored` |
 | `agent/clock.py` | `Instant`、`now` |
 | `stream/contract.py` | `Displacement`（位移由 stream 量出） |
 
@@ -989,8 +992,55 @@ while not stop.is_set():
   - 盤面前提：`CellHolds` 由 mapgeom 核對；`CellAt` 由守衛用
     `mapparser.locate` 在守衛幀上核對。
   - `Belief.drift` 與位移參數拿掉，因為 mapgeom 不碰像素。
-- 未定：planner 沒有幀，算不出地圖格的點擊點。誰在什麼時候把世界格
-  換成螢幕點，尚未決定。
+- ［確認，2026-10-05］地圖格的點擊點：決定探索策略與意圖之後，用
+  mapparser 的反向換算給出動作執行時的點擊座標。動作帶著要點的世界格；
+  執行動作時才在當下的幀上換算，換算是執行動作的一部分。
+
+#### 5.12.12 agent planner 的職責 ［確認，2026-10-05］
+
+- ［確認］抽換 agent planner 的理由：意圖管理與目標的優先順序是啟發式，
+  目前沒有確定的最好做法。所以先區分變動較少的部分（主迴圈）與需要
+  視情況調整的啟發式，在主架構不變的情況下，用最少的改動抽換啟發式
+  的實作。
+- ［確認］四個概念：
+  - 信念：我相信的外部真實狀況。
+  - 證據：外部真實的樣貌。
+  - 意圖：為了達成目標的子目標。
+  - 動作：為了達成意圖，在可選的動作範圍內決定採取的實際行動。
+- ［確認］處理這四者是 agent planner 的工作。由證據修訂信念也放進
+  agent planner。本項修訂 §5.12.9 的分層（估計層獨立於決策層）。程式碼
+  等這一輪討論確定之後一併修改；目前 `Belief` 的修訂方法仍在
+  `agent/loop.py`。
+- ［確認］主迴圈要支援哪些情境，目前沒有定義。情境的整理清單見
+  `docs/roadmaps/main-loop-scenarios.md`，每個情境的歸屬（穩定的主
+  迴圈或可抽換的 agent planner）在後續討論決定。
+- ［確認］目前的工作是實作 agent planner，處理情境清單上的問題。牽涉
+  個別 package 實作細節的部分，只做到合約定義完成。agent planner 實作
+  完成之後，它依賴的合約形狀隨之確定，#95 才結束。本項修訂 §7：
+  agent planner（含規則表）從 S3 移到 S1（#95）。
+- ［確認］agent planner 放在 agent 套件裡，以合約抽換。各領域的 plan
+  （UI shift plan、map sync plan、battle plan）放在 `planner/`。
+- ［確認］地圖格的點擊點：見 §5.12.11（2026-10-05）。守衛只用
+  `Step` 自帶的核對標準（§5.11、§5.12.9），不讀信念。
+- ［提案，2026-10-05］第一版的落點：
+  - 合約（`agent/contract.py`）：`AgentPlanner.plan(狀態, Sensed,
+    ActionResult | None)` 回傳 `Step`、`Wait` 或 `Finish`，以及新的狀態。
+    狀態由迴圈原樣傳回，信念與意圖都在狀態裡。
+  - `Step` 帶 uisim 的操作、地圖前提、危險帶、要點的畫面內格、守衛幀的
+    時間要求。地圖前提以畫面內格表示（`CellReads`），守衛只用
+    mapparser 核對，不需要 mapgeom 與全局地圖。本項修訂 §5.11「守衛幀
+    先經 mapparser 與 mapgeom」與 §5.12.11 中 `CellAt`、`CellHolds` 的
+    核對方式；mapgeom 的 `CellAt`、`CellHolds`、`BoardFact` 已移除。
+  - 主迴圈（`agent/loop.py`）只依賴 stream、interpreter、mapparser、
+    actuator，不再依賴 uisim 與 mapgeom。
+  - 第一個 agent planner（`agent/planner.py` 的 `RulePlanner`）是有序
+    規則表（§5.3.3），使用 uisim、mapgeom、UI shift plan、map sync plan
+    的合約。battle plan 的合約由 S7 定，目前沒有。
+  - 詞彙：interpreter 與 uisim 加上自動的狀態（`off`、`on`、`active`，
+    取自舊版 `runtime/screens.py`）、隔線是否顯示、鎖定畫面。
+  - 連續三次沒有驗證成功的動作就停手；達成一個目標或地圖多了新的格時
+    重新計算。
+  - 各情境的涵蓋情況見 `docs/roadmaps/main-loop-scenarios.md` 第 6 節。
 
 ## 6. 延後項目（已知，不是遺漏）
 
@@ -1001,9 +1051,9 @@ while not stop.is_set():
 
 | 編號 | 內容 | 依賴 |
 |---|---|---|
-| S1 | 合約定義：所有物件的輸入輸出結構（畫面判讀器、操作物件、危險帶、UI sim engine 查詢合約、地圖判讀轉換物件、搜尋輸出、agent 規則列） | 無 |
+| S1 | 合約定義：所有物件的輸入輸出結構（畫面判讀器、操作物件、危險帶、UI sim engine 查詢合約、地圖判讀轉換物件、搜尋輸出、agent 規則列）；agent planner 的實作（§5.12.12） | 無 |
 | S2 | 畫面判讀器＋操作物件：幀的唯一消費者、阻塞到靜止、兩個時間戳、按畫面注入的危險帶。現有 `screens`／`vision`／`settle`／`device`／`stream` 搬入 | S1 |
-| S3 | UI sim engine 離散部分＋agent 主迴圈：五步驟、三分類、規則表；先涵蓋登入 → 選關 → 出擊準備 → 地圖 → 棄戰，取代 `entry.py` | S2 |
+| S3 | UI sim engine 離散部分；先涵蓋登入 → 選關 → 出擊準備 → 地圖 → 棄戰，取代 `entry.py`。agent 主迴圈與規則表已移到 S1（§5.12.12） | S2 |
 | S4 | mapparser（§5.12.11）：一幀 → 局部網格地圖，以及畫面內格號 → 螢幕點；格線、形變、投影在內部處理；驗證 §4.3 兩條假說（逐幀累加位移、按住—移動—放開）。現有 `projection`／`board`／`sweep` 的幾何部分搬入 | S2 |
 | S5 | 觀察（mapgeom，§5.12.11）：局部對照全局、合併、地圖完整度評分、探索搜尋，從 `SweepRun` 與 `runtime/sweep.py` 抽出；隊伍暫存與「順位 → 格位」 | S3、S4、S6 |
 | S6 | 關卡資料格式與完整度判準 | #92／#94 |
@@ -1039,8 +1089,10 @@ while not stop.is_set():
 | §5.12.11 局部對照全局、合併、盤面前提 | `src/ggge_ai_2/mapgeom/contract.py` |
 | §5.3.6、§5.3.7 手勢、注入的帶、t0／t1 | `src/ggge_ai_2/actuator/contract.py` |
 | §5.2、§5.9、§5.11 UI 狀態、操作、預期集合、危險帶 | `src/ggge_ai_2/uisim/contract.py` |
-| §5.1、§5.4、§5.11、§5.12.9 主迴圈（控制層）、`Belief` 與修訂（估計） | `src/ggge_ai_2/agent/loop.py` |
-| §5.12.9、§5.12.10 決策層的介面、`Step`、`Wait`、`Finish` | `src/ggge_ai_2/planner/contract.py` |
+| §5.12.12 主迴圈與 agent planner 之間的合約 | `src/ggge_ai_2/agent/contract.py` |
+| §5.1、§5.4、§5.11、§5.12.9 主迴圈（控制層） | `src/ggge_ai_2/agent/loop.py` |
+| §5.12.12 第一個 agent planner | `src/ggge_ai_2/agent/planner.py` |
+| §5.12.12 UI shift plan、map sync plan | `src/ggge_ai_2/planner/uishift/contract.py`、`src/ggge_ai_2/planner/mapsync/contract.py` |
 
 ## 8. 未決問題
 

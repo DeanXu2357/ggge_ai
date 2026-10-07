@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-ScreenPoint = tuple[int, int]
 WorldCell = tuple[int, int]
 ViewCell = tuple[int, int]
 
@@ -40,24 +39,6 @@ class Alignment:
 
     def to_view(self, cell: WorldCell) -> ViewCell:
         return (cell[0] - self.shift[0], cell[1] - self.shift[1])
-
-
-@dataclass(frozen=True)
-class CellAt:
-    point: ScreenPoint
-    cell: WorldCell
-
-
-@dataclass(frozen=True)
-class CellHolds:
-    cell: WorldCell
-    content: CellContent
-
-    def holds_on(self, board: LocalBoard, alignment: Alignment) -> bool:
-        return board.cells.get(alignment.to_view(self.cell)) is self.content
-
-
-BoardFact = CellAt | CellHolds
 
 
 class MapGeometry(Protocol):

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from enum import StrEnum
 from threading import Event
-from typing import Protocol, Self
 
 from ggge_ai_2.actuator.contract import (
     Actuator,
@@ -18,126 +17,36 @@ from ggge_ai_2.actuator.contract import (
     Tap,
 )
 from ggge_ai_2.agent.clock import Instant, now
-from ggge_ai_2.interpreter.contract import Interpreter, Situation
-from ggge_ai_2.mapgeom.contract import (
-    Alignment,
-    BoardEdge,
-    BoardFact,
-    CellAt,
-    CellContent,
-    CellHolds,
-    KnownMap,
-    LocalBoard,
-    MapGeometry,
-)
-from ggge_ai_2.mapparser.contract import MapParser, MapReading
-from ggge_ai_2.planner.contract import (
+from ggge_ai_2.agent.contract import (
     ActionResult,
     ActionStatus,
+    AgentPlanner,
+    CellReads,
     Finish,
-    Planner,
-    State,
+    Sensed,
     Step,
     Wait,
 )
-from ggge_ai_2.stream.contract import Frame, Observation, StillWindow, Stream
+from ggge_ai_2.interpreter.contract import Interpreter, Situation
+from ggge_ai_2.mapparser.contract import MapParser
+from ggge_ai_2.stream.contract import Frame, Observation, Stream
 from ggge_ai_2.uisim.contract import (
     DangerBand,
     Observed,
     Outcome,
     RatioPoint,
+    UiAuto,
     UiGesture,
     UiKey,
     UiMapMode,
     UiOverlay,
     UiScreen,
-    UiSim,
     UiState,
     UiSwipe,
     UiTap,
 )
 
 log = logging.getLogger(__name__)
-
-
-class DomainState(Protocol):
-    def absorb(self, intent: object, outcome: Outcome | None) -> Self: ...
-
-
-class UiSource(StrEnum):
-    ASSUMED = "assumed"
-    SEEN = "seen"
-    PREDICTED = "predicted"
-    LOST = "lost"
-
-
-@dataclass(frozen=True)
-class UiBasis:
-    source: UiSource
-    frame_seq: int | None = None
-    outcome: str | None = None
-
-
-@dataclass(frozen=True)
-class Belief:
-    ui: UiState
-    ui_basis: UiBasis
-    camera: Alignment | None
-    known_map: KnownMap
-    domain: DomainState
-    as_of: StillWindow | None
-    last_action: ActionResult | None = None
-
-    def revise_when_sensed(
-        self,
-        still: StillWindow,
-        observed: Observed | None,
-        board: LocalBoard | None,
-        uisim: UiSim,
-        mapgeom: MapGeometry,
-    ) -> Belief:
-        ui, basis = self._read_ui(still.frame_seq, observed, uisim)
-        camera, known_map = self.camera, self.known_map
-        if board is not None:
-            alignment = mapgeom.align(board, known_map, camera)
-            if alignment is not None:
-                camera, known_map = alignment, mapgeom.merge(known_map, board, alignment)
-        return replace(self, ui=ui, ui_basis=basis, camera=camera, known_map=known_map, as_of=still)
-
-    def revise_when_dispatched(self, step: Step, outcome: Outcome | None, uisim: UiSim) -> Belief:
-        domain = self.domain.absorb(step.intent, outcome)
-        if outcome is None:
-            result = ActionResult(step.intent, step.operation.name, ActionStatus.UNVERIFIED)
-            return replace(self, domain=domain, last_action=result)
-        result = ActionResult(
-            step.intent, step.operation.name, ActionStatus.VERIFIED, outcome=outcome.name
-        )
-        return replace(
-            self,
-            ui=uisim.advance(self.ui, outcome),
-            ui_basis=UiBasis(UiSource.PREDICTED, outcome=outcome.name),
-            domain=domain,
-            last_action=result,
-        )
-
-    def revise_when_guard_failed(self, step: Step, premise: UiState | BoardFact) -> Belief:
-        result = ActionResult(
-            step.intent, step.operation.name, ActionStatus.GUARD_FAILED, failed_premise=premise
-        )
-        return replace(self, last_action=result)
-
-    def revise_when_band_blocked(self, step: Step) -> Belief:
-        result = ActionResult(step.intent, step.operation.name, ActionStatus.BLOCKED)
-        return replace(self, last_action=result)
-
-    def _read_ui(
-        self, frame_seq: int, observed: Observed | None, uisim: UiSim
-    ) -> tuple[UiState, UiBasis]:
-        if observed is not None:
-            return uisim.sync(self.ui, observed), UiBasis(UiSource.SEEN, frame_seq=frame_seq)
-        if self.ui_basis.source is UiSource.LOST:
-            return self.ui, self.ui_basis
-        return self.ui, UiBasis(UiSource.LOST, frame_seq=frame_seq)
 
 
 class RunResult(StrEnum):
@@ -152,60 +61,30 @@ class ScreenSize:
     height: int
 
 
-@dataclass(frozen=True)
-class Sensed:
-    still: StillWindow
-    observed: Observed | None
-    map: MapReading | None
-
-
 @dataclass
-class Agent[A]:
+class Agent[S]:
     stream: Stream
     interpreter: Interpreter
     mapparser: MapParser
-    mapgeom: MapGeometry
-    uisim: UiSim
     actuator: Actuator
     screen: ScreenSize
-    planner: Planner[A]
-    belief: Belief
-    agenda: A
+    planner: AgentPlanner[S]
+    state: S
     idle_deadline: float
     stop: Event = field(default_factory=Event)
     _after: Instant = field(default=0.0, init=False)
 
     def run(self) -> RunResult:
+        acted: ActionResult | None = None
         while not self.stop.is_set():
             sensed = self.observe()
             if sensed is None:
                 break
-            self.belief = self.belief.revise_when_sensed(
-                sensed.still,
-                sensed.observed,
-                _map_reading_to_local_board(sensed.map),
-                self.uisim,
-                self.mapgeom,
-            )
-            decision, self.agenda = self.planner.plan(_belief_to_state(self.belief), self.agenda)
+            decision, self.state = self.planner.plan(self.state, sensed, acted)
             if isinstance(decision, Finish):
                 return RunResult.DONE if decision is Finish.DONE else RunResult.HALTED
-            if isinstance(decision, Wait):
-                continue
-            self.belief = self._execute(decision, self.belief)
+            acted = None if isinstance(decision, Wait) else self.execute(decision)
         return RunResult.STOPPED
-
-    def _execute(self, step: Step, belief: Belief) -> Belief:
-        failed = self.guard(step, belief)
-        if failed is not None:
-            return belief.revise_when_guard_failed(step, failed)
-
-        band = _danger_band_to_rects(self.uisim.danger_band(belief.ui), self.screen)
-        dispatch = self.dispatch(step, band)
-        if dispatch is None:
-            return belief.revise_when_band_blocked(step)
-
-        return belief.revise_when_dispatched(step, self.verify(step, dispatch), self.uisim)
 
     def observe(self) -> Sensed | None:
         obs = self._settle(self._after, now() + self.idle_deadline)
@@ -231,33 +110,49 @@ class Agent[A]:
         )
         return Sensed(obs.still, observed, reading)
 
-    def guard(self, step: Step, belief: Belief) -> UiState | BoardFact | None:
+    def execute(self, step: Step) -> ActionResult:
+        guarded = self.guard(step)
+        if isinstance(guarded, ActionResult):
+            return guarded
+        dispatch = self.dispatch(step, guarded)
+        if dispatch is None:
+            return ActionResult(step, ActionStatus.BLOCKED)
+        outcome = self.verify(step, dispatch)
+        status = ActionStatus.UNVERIFIED if outcome is None else ActionStatus.VERIFIED
+        return ActionResult(step, status, outcome=outcome)
+
+    def guard(self, step: Step) -> Gesture | ActionResult:
         frame = self.stream.latest()
-        assert frame.captured_at >= step.based_on, "guard frame is older than the plan"
         self._after = frame.captured_at
-        failed = self._failed_ui(frame, step.premise.ui) or self._failed_domain(
-            frame, step.premise.domain, belief
+        fresh = step.frame_after is None or frame.captured_at > step.frame_after
+        failed = self._failed_ui(frame, step.operation.precondition) or self._failed_map(
+            frame, step.map_premise
         )
+        gesture = self._gesture(frame, step) if fresh and failed is None else None
         log.info(
             "guard",
             extra={
                 "frame_seq": frame.seq,
                 "captured_at": frame.captured_at,
                 "operation": step.operation.name,
+                "fresh": fresh,
                 "failed_premise": failed,
+                "located": gesture is not None,
             },
         )
-        return failed
+        if gesture is None:
+            return ActionResult(step, ActionStatus.GUARD_FAILED, failed_premise=failed)
+        return gesture
 
-    def dispatch(self, step: Step, band: tuple[Rect, ...]) -> Dispatch | None:
-        op = step.operation
-        gesture = _ui_gesture_to_gesture(op.gesture, self.screen)
+    def dispatch(self, step: Step, gesture: Gesture) -> Dispatch | None:
+        name = step.operation.name
+        band = _danger_band_to_rects(step.band, self.screen)
         try:
             dispatch = self.actuator.dispatch(gesture, band)
         except GestureBlocked:
-            log.info("blocked", extra={"operation": op.name})
+            log.info("blocked", extra={"operation": name})
             return None
-        log.info("dispatch", extra={"operation": op.name, "t0": dispatch.t0, "t1": dispatch.t1})
+        log.info("dispatch", extra={"operation": name, "t0": dispatch.t0, "t1": dispatch.t1})
         return dispatch
 
     def verify(self, step: Step, dispatch: Dispatch) -> Outcome | None:
@@ -286,30 +181,20 @@ class Agent[A]:
         observed = _situation_to_observed(self.interpreter.interpret(frame))
         return None if observed == _ui_state_to_observed(state) else state
 
-    def _failed_domain(
-        self, frame: Frame, facts: tuple[BoardFact, ...], belief: Belief
-    ) -> BoardFact | None:
-        if not facts:
+    def _failed_map(self, frame: Frame, premise: tuple[CellReads, ...]) -> CellReads | None:
+        if not premise:
             return None
-        board = _map_reading_to_local_board(self.mapparser.parse(frame))
-        if board is None:
-            return facts[0]
-        alignment = self.mapgeom.align(board, belief.known_map, belief.camera)
-        if alignment is None:
-            return facts[0]
-        for fact in facts:
-            if not self._holds(frame, fact, board, alignment):
+        reading = self.mapparser.parse(frame)
+        for fact in premise:
+            if reading is None or reading.cells.get(fact.cell) is not fact.reading:
                 return fact
         return None
 
-    def _holds(
-        self, frame: Frame, fact: BoardFact, board: LocalBoard, alignment: Alignment
-    ) -> bool:
-        match fact:
-            case CellAt(point, cell):
-                return self.mapparser.locate(frame, alignment.to_view(cell)) == point
-            case CellHolds():
-                return fact.holds_on(board, alignment)
+    def _gesture(self, frame: Frame, step: Step) -> Gesture | None:
+        if step.target is None:
+            return _ui_gesture_to_gesture(step.operation.gesture, self.screen)
+        point = self.mapparser.locate(frame, step.target)
+        return None if point is None else Tap(point)
 
     def _classify(self, frame: Frame, outcomes: tuple[Outcome, ...]) -> Outcome | None:
         observed = _situation_to_observed(self.interpreter.interpret(frame))
@@ -319,20 +204,8 @@ class Agent[A]:
         return None
 
 
-def _belief_to_state(belief: Belief) -> State:
-    return State(
-        ui=belief.ui,
-        ui_lost=belief.ui_basis.source is UiSource.LOST,
-        camera=belief.camera,
-        known_map=belief.known_map,
-        domain=belief.domain,
-        as_of=belief.as_of.until if belief.as_of else None,
-        last_action=belief.last_action,
-    )
-
-
 def _ui_state_to_observed(state: UiState) -> Observed:
-    return Observed(state.screen, state.overlays, state.map_mode)
+    return Observed(state.screen, state.overlays, state.map_mode, state.auto, state.grid_shown)
 
 
 def _situation_to_observed(situation: Situation | None) -> Observed | None:
@@ -342,15 +215,8 @@ def _situation_to_observed(situation: Situation | None) -> Observed | None:
         UiScreen(situation.screen.value),
         frozenset(UiOverlay(overlay.value) for overlay in situation.overlays),
         None if situation.map_mode is None else UiMapMode(situation.map_mode.value),
-    )
-
-
-def _map_reading_to_local_board(reading: MapReading | None) -> LocalBoard | None:
-    if reading is None:
-        return None
-    return LocalBoard(
-        {cell: CellContent(seen.value) for cell, seen in reading.cells.items()},
-        frozenset(BoardEdge(edge.value) for edge in reading.borders),
+        None if situation.auto is None else UiAuto(situation.auto.value),
+        situation.grid_shown,
     )
 
 

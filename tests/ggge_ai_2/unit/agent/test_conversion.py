@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from ggge_ai_2.agent.loop import _map_reading_to_local_board, _situation_to_observed
-from ggge_ai_2.interpreter.contract import MapMode, Overlay, Screen, Situation
+from ggge_ai_2.agent.loop import _situation_to_observed
+from ggge_ai_2.agent.planner import _map_reading_to_local_board
+from ggge_ai_2.interpreter.contract import Auto, MapMode, Overlay, Screen, Situation
 from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent
 from ggge_ai_2.mapparser.contract import CellReading, Edge, MapReading
-from ggge_ai_2.uisim.contract import Observed, UiMapMode, UiOverlay, UiScreen
+from ggge_ai_2.uisim.contract import Observed, UiAuto, UiMapMode, UiOverlay, UiScreen
 
 
 def observed(situation: Situation) -> Observed:
@@ -58,3 +59,13 @@ def test_every_edge_of_the_parser_converts_to_one_board_edge_of_mapgeom():
 
 def test_unreadable_grid_converts_to_nothing():
     assert _map_reading_to_local_board(None) is None
+
+
+def test_every_auto_state_of_the_interpreter_converts_to_one_auto_state_of_uisim():
+    on_map = [Situation(1, Screen.BATTLE_MAP, auto=auto) for auto in Auto]
+
+    assert {observed(situation).auto for situation in on_map} == set(UiAuto)
+
+
+def test_grid_display_passes_through():
+    assert observed(Situation(1, Screen.BATTLE_MAP, grid_shown=True)).grid_shown is True
