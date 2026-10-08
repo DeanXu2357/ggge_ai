@@ -1046,6 +1046,8 @@ while not stop.is_set():
 - ［確認］#95 的收尾：本檔已定案的內容寫成 `ggge_ai_2` 自己的新文件；
   經使用者同意後刪除本檔與情境清單；然後合併。新文件的路徑與文件類型
   還沒有決定。
+- ［確認］情境的歸屬已逐條裁定，見 `docs/roadmaps/main-loop-scenarios.md`
+  第 5 節。本項回答 §5.12.12「每個情境的歸屬在後續討論決定」。
 - 待討論的項目記在 §8 第 5 至 9 項。
 
 #### 5.12.14 Step 自帶的閉包 ［確認，2026-10-07］
@@ -1087,6 +1089,21 @@ while not stop.is_set():
   閉包帶著的值就是 dataclass 的欄位。這樣 log 印得出閉包核對的內容，
   測試可以直接比較兩個 `Step`，`frozen` 保證上面的第 3 條規則。合約只寫
   `Callable[[Frame], ...]`。
+
+#### 5.12.15 observe 傳入幀 ［確認，2026-10-07］
+
+- ［確認］observe 只等畫面靜止，把靜止的幀傳入 plan controller；observe
+  不再呼叫 interpreter 與 mapparser。
+- ［確認］plan controller 在內部用 interpreter、mapparser 把幀辨識成
+  證據。證據仍然是結構（§5.12.9）；改變的是證據不再由 plan controller
+  之外產生、再傳入 plan controller。
+- 本項修訂下列各處中與本項衝突的部分：§5.12.9 控制層的職責「讀幀……
+  產出證據」；§5.12.9（2026-10-03）「`Sensed` 是 observe 的輸出」，證據
+  改由 plan controller 在內部產生；§5.12.10 全域規則 4「只有 observe 與
+  execute 經由感知模型讀幀」，改為 plan controller 讀幀成證據，execute
+  經由閉包讀幀（§5.12.14）。
+- 本項的代價：重播 plan controller 需要幀的影像。§5.11 延後的「依幀
+  識別取回幀影像」因此成為重播的前提。
 
 ## 6. 延後項目（已知，不是遺漏）
 
