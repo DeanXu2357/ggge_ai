@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from ggge_ai_2.mapgeom.contract import Alignment, BoardFact, KnownMap
-from ggge_ai_2.uisim.contract import Operation, UiState
+from ggge_ai_2.actuator.contract import Gesture
+from ggge_ai_2.mapgeom.contract import Alignment, KnownMap
+from ggge_ai_2.stream.contract import Frame
+from ggge_ai_2.uisim.contract import Operation, Outcome, UiState
 
 Instant = float
 
@@ -18,12 +21,17 @@ class ActionStatus(StrEnum):
 
 
 @dataclass(frozen=True)
+class Refused:
+    reason: str
+
+
+@dataclass(frozen=True)
 class ActionResult:
     intent: object
     operation: str
     status: ActionStatus
     outcome: str | None = None
-    failed_premise: UiState | BoardFact | None = None
+    refused: Refused | None = None
 
 
 @dataclass(frozen=True)
@@ -38,21 +46,13 @@ class State:
 
 
 @dataclass(frozen=True)
-class Premise:
-    ui: UiState
-    domain: tuple[BoardFact, ...]
-
-
-@dataclass(frozen=True)
 class Step:
     intent: object
     operation: Operation
-    domain_premise: tuple[BoardFact, ...]
-    based_on: Instant
-
-    @property
-    def premise(self) -> Premise:
-        return Premise(ui=self.operation.precondition, domain=self.domain_premise)
+    guard: Callable[[Frame], Gesture | Refused]
+    verify: Callable[[Frame], Outcome | None]
+    interrupt: Callable[[Frame], bool]
+    frame_after: Instant | None = None
 
 
 @dataclass(frozen=True)

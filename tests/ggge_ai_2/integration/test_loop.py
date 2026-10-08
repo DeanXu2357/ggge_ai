@@ -1,16 +1,26 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+import logging
+from dataclasses import dataclass, field
 from threading import Event
 
 import numpy as np
+import pytest
 
-from ggge_ai_2.actuator.contract import Dispatch, GestureBlocked, Rect, Tap
+from ggge_ai_2.actuator.contract import Dispatch, Gesture, GestureBlocked, Key, Rect, Tap
 from ggge_ai_2.agent.loop import Agent, Belief, RunResult, ScreenSize, UiBasis, UiSource
-from ggge_ai_2.interpreter.contract import MapMode, Overlay, Screen, Situation
-from ggge_ai_2.mapgeom.contract import Alignment, CellAt, CellContent, CellHolds, KnownMap
-from ggge_ai_2.mapparser.contract import CellReading, MapReading
-from ggge_ai_2.planner.contract import ActionStatus, Finish, State, Step, Wait
+from ggge_ai_2.interpreter.contract import MapMode, Screen, Situation
+from ggge_ai_2.mapgeom.contract import Alignment, CellContent, KnownMap
+from ggge_ai_2.mapparser.contract import CellReading, MapReading, ViewCell
+from ggge_ai_2.planner.contract import (
+    ActionResult,
+    ActionStatus,
+    Finish,
+    Refused,
+    State,
+    Step,
+    Wait,
+)
 from ggge_ai_2.stream.contract import NO_DISPLACEMENT, Frame, Observation, StillWindow
 from ggge_ai_2.uisim.contract import (
     DangerBand,
@@ -18,7 +28,6 @@ from ggge_ai_2.uisim.contract import (
     Outcome,
     RatioRect,
     UiMapMode,
-    UiOverlay,
     UiScreen,
     UiState,
     UiTap,
@@ -37,10 +46,12 @@ OPEN_INFO = Operation(
     deadline=3.0,
     cost=1.0,
 )
+INFO_OPEN = OPEN_INFO.outcomes[0]
 BANDS = {
     UiScreen.STAGE_LIST: DangerBand((RatioRect(0.0, 0.0, 0.05, 0.1),)),
     UiScreen.STAGE_INFO: DangerBand(),
 }
+LIST_BAND = (Rect(0, 0, 50, 50),)
 SCREEN = ScreenSize(1000, 500)
 
 
@@ -78,8 +89,8 @@ class FakeStream:
 class FakeInterpreter:
     shows: dict[int, Situation]
 
-    def interpret(self, f: Frame) -> Situation | None:
-        return self.shows.get(f.seq)
+    def interpret(self, frame: Frame) -> Situation | None:
+        return self.shows.get(frame.seq)
 
 
 def screens(**by_seq: str) -> dict[int, Situation]:
@@ -88,14 +99,39 @@ def screens(**by_seq: str) -> dict[int, Situation]:
 
 @dataclass
 class FakeActuator:
-    sent: list[tuple[object, tuple[Rect, ...]]] = field(default_factory=list)
+    sent: list[tuple[Gesture, tuple[Rect, ...]]] = field(default_factory=list)
     blocks: bool = False
 
-    def dispatch(self, gesture, band: tuple[Rect, ...]) -> Dispatch:
+    def dispatch(self, gesture: Gesture, band: tuple[Rect, ...]) -> Dispatch:
         if self.blocks:
             raise GestureBlocked
         self.sent.append((gesture, band))
         return Dispatch(10.0, 10.1)
+
+
+@dataclass
+class Closures:
+    gesture: Gesture | Refused = Tap((100, 100))
+    outcome: Outcome | None = None
+    stop: bool = False
+    guarded: list[int] = field(default_factory=list)
+    verified: list[int] = field(default_factory=list)
+    judged: list[int] = field(default_factory=list)
+
+    def guard(self, shown: Frame) -> Gesture | Refused:
+        self.guarded.append(shown.seq)
+        return self.gesture
+
+    def verify(self, shown: Frame) -> Outcome | None:
+        self.verified.append(shown.seq)
+        return self.outcome
+
+    def interrupt(self, shown: Frame) -> bool:
+        self.judged.append(shown.seq)
+        return self.stop
+
+    def step(self, operation: Operation = OPEN_INFO, frame_after: float | None = None) -> Step:
+        return Step("look", operation, self.guard, self.verify, self.interrupt, frame_after)
 
 
 @dataclass
@@ -107,17 +143,24 @@ class ScriptedPlanner:
     def plan(self, state: State, agenda: int) -> tuple[Step | Wait | Finish, int]:
         self.seen.append(state)
         self.agendas.append(agenda)
-        step = self.steps.pop(0)
-        if isinstance(step, Step):
-            step = replace(step, based_on=state.as_of)
-        return step, agenda + 1
+        return self.steps.pop(0), agenda + 1
+
+    def acted(self, cycle: int) -> ActionResult:
+        last = self.seen[cycle].last_action
+        assert last is not None
+        return last
+
+    def absorbed(self, cycle: int) -> tuple[tuple[object, str | None], ...]:
+        domain = self.seen[cycle].domain
+        assert isinstance(domain, FakeDomain)
+        return domain.absorbed
 
 
 class NoMapParser:
-    def parse(self, f: Frame) -> MapReading | None:
+    def parse(self, frame: Frame) -> MapReading | None:
         raise AssertionError("no map on these screens")
 
-    def locate(self, f: Frame, cell):
+    def locate(self, frame: Frame, cell: ViewCell) -> tuple[int, int] | None:
         raise AssertionError("no map on these screens")
 
 
@@ -132,27 +175,51 @@ def initial_belief() -> Belief:
     )
 
 
-def make_agent(stream, interpreter, planner, actuator=None, **overrides) -> Agent:
-    mapgeom = overrides.pop("mapgeom", NoMapGeometry())
-    kwargs = dict(
+def make_agent(
+    stream,
+    interpreter,
+    planner,
+    actuator=None,
+    *,
+    mapparser=None,
+    mapgeom=None,
+    uisim=None,
+    stop=None,
+) -> Agent[int]:
+    return Agent(
         stream=stream,
         interpreter=interpreter,
-        mapparser=NoMapParser(),
-        mapgeom=mapgeom,
+        mapparser=mapparser or NoMapParser(),
+        mapgeom=mapgeom or NoMapGeometry(),
+        uisim=uisim or FakeUiSim(BANDS),
         actuator=actuator or FakeActuator(),
-        uisim=FakeUiSim(BANDS),
         screen=SCREEN,
         planner=planner,
         belief=initial_belief(),
         agenda=0,
         idle_deadline=2.0,
+        stop=stop or Event(),
     )
-    kwargs.update(overrides)
-    return Agent(**kwargs)
 
 
-def open_info_step() -> Step:
-    return Step(intent="look", operation=OPEN_INFO, domain_premise=(), based_on=0.0)
+def run_one_step(
+    closures: Closures,
+    *,
+    result: Settle = still(2, 11.0),
+    latest: Frame = frame(1, 1.0),
+    shows: dict[int, Situation] | None = None,
+    frame_after: float | None = None,
+    actuator: FakeActuator | None = None,
+    then: Finish = Finish.DONE,
+) -> tuple[RunResult, FakeStream, ScriptedPlanner]:
+    stream = FakeStream([still(1, 1.0), result, still(3, result[0].captured_at + 1.0)])
+    stream.latest_frame = latest
+    planner = ScriptedPlanner([closures.step(frame_after=frame_after), then])
+    interpreter = FakeInterpreter(
+        shows or screens(f1="stage_list", f2="stage_info", f3="stage_info")
+    )
+    ran = make_agent(stream, interpreter, planner, actuator).run()
+    return ran, stream, planner
 
 
 def test_first_observation_interprets_the_frame_and_syncs_the_prediction():
@@ -178,70 +245,141 @@ def test_observation_waits_until_the_screen_is_still():
     assert planner.seen[0].as_of == 1.5
 
 
-def test_verified_outcome_advances_the_prediction_and_reaches_the_domain():
-    stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0)])
-    stream.latest_frame = frame(1, 1.0)
+def test_guard_closure_receives_the_latest_frame():
+    closures = Closures(outcome=INFO_OPEN)
+    run_one_step(closures, latest=frame(7, 1.2))
+
+    assert closures.guarded == [7]
+
+
+def test_refused_guard_sends_no_gesture_and_reports_the_refusal():
+    refusal = Refused("a dialog covers the stage list")
+    closures = Closures(gesture=refusal)
     actuator = FakeActuator()
-    planner = ScriptedPlanner([open_info_step(), Finish.DONE])
-    interpreter = FakeInterpreter(screens(f1="stage_list", f2="stage_info", f3="stage_info"))
-
-    assert make_agent(stream, interpreter, planner, actuator).run() is RunResult.DONE
-    assert actuator.sent == [(Tap((100, 100)), (Rect(0, 0, 50, 50),))]
-    assert stream.calls[1] == (10.0, 10.1 + OPEN_INFO.deadline)
-    assert stream.calls[2][0] == 11.0
-    assert planner.seen[1].ui == INFO
-    assert planner.seen[1].domain.absorbed == (("look", "info_open"),)
-    assert planner.seen[1].last_action.status is ActionStatus.VERIFIED
-
-
-def test_planner_gets_back_the_agenda_it_returned():
-    stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0)])
-    stream.latest_frame = frame(1, 1.0)
-    planner = ScriptedPlanner([open_info_step(), Finish.DONE])
-    interpreter = FakeInterpreter(screens(f1="stage_list", f2="stage_info", f3="stage_info"))
-    make_agent(stream, interpreter, planner).run()
-
-    assert planner.agendas == [0, 1]
-
-
-def test_failed_guard_sends_no_gesture():
     stream = FakeStream([still(1, 1.0), still(3, 2.0)])
     stream.latest_frame = frame(2, 1.2)
-    actuator = FakeActuator()
-    planner = ScriptedPlanner([open_info_step(), Finish.DONE])
-    interpreter = FakeInterpreter(screens(f1="stage_list", f2="stage_info", f3="stage_info"))
-    make_agent(stream, interpreter, planner, actuator).run()
+    planner = ScriptedPlanner([closures.step(), Finish.DONE])
+    make_agent(stream, FakeInterpreter(screens(f1="stage_list")), planner, actuator).run()
 
     assert actuator.sent == []
+    assert closures.verified == []
+    assert planner.acted(1).status is ActionStatus.GUARD_FAILED
+    assert planner.acted(1).refused == refusal
     assert stream.calls[1][0] == 1.2
-    assert planner.seen[1].ui == INFO
-    assert planner.seen[1].domain.absorbed == ()
-    assert planner.seen[1].last_action.status is ActionStatus.GUARD_FAILED
 
 
-def test_guard_sends_no_gesture_when_a_dialog_covers_the_screen():
-    stream = FakeStream([still(1, 1.0), still(3, 2.0)])
-    stream.latest_frame = frame(2, 1.2)
+def test_guard_gesture_reaches_the_actuator_unchanged():
     actuator = FakeActuator()
-    planner = ScriptedPlanner([open_info_step(), Finish.DONE])
-    covered = Situation(2, Screen.STAGE_LIST, frozenset({Overlay.DIALOG}))
-    interpreter = FakeInterpreter({1: Situation(1, Screen.STAGE_LIST), 2: covered, 3: covered})
-    make_agent(stream, interpreter, planner, actuator).run()
+    run_one_step(Closures(gesture=Key("back"), outcome=INFO_OPEN), actuator=actuator)
 
+    assert actuator.sent == [(Key("back"), LIST_BAND)]
+
+
+def test_guard_frame_not_newer_than_the_step_requires_is_refused_unseen():
+    closures = Closures(outcome=INFO_OPEN)
+    actuator = FakeActuator()
+    stream = FakeStream([still(1, 1.0), still(3, 2.0)])
+    stream.latest_frame = frame(1, 1.0)
+    planner = ScriptedPlanner([closures.step(frame_after=1.0), Finish.DONE])
+    make_agent(stream, FakeInterpreter(screens(f1="stage_list")), planner, actuator).run()
+
+    assert closures.guarded == []
     assert actuator.sent == []
-    assert planner.seen[1].ui == UiState(UiScreen.STAGE_LIST, frozenset({UiOverlay.DIALOG}))
+    assert planner.acted(1).status is ActionStatus.GUARD_FAILED
+    assert planner.acted(1).refused is not None
+
+
+def test_guard_frame_newer_than_the_step_requires_reaches_the_guard_closure():
+    closures = Closures(outcome=INFO_OPEN)
+    run_one_step(closures, latest=frame(1, 1.0), frame_after=0.9)
+
+    assert closures.guarded == [1]
+
+
+def test_verification_closure_receives_the_still_result_frame():
+    closures = Closures(outcome=INFO_OPEN)
+    _, stream, _ = run_one_step(closures)
+
+    assert closures.verified == [2]
+    assert stream.calls[1] == (10.0, 10.1 + OPEN_INFO.deadline)
+
+
+def test_verified_outcome_advances_the_prediction_and_reaches_the_domain():
+    closures = Closures(outcome=INFO_OPEN)
+    _, _, planner = run_one_step(closures, shows=screens(f1="stage_list"))
+
+    assert planner.seen[1].ui == INFO
+    assert planner.absorbed(1) == (("look", "info_open"),)
+    assert planner.acted(1).status is ActionStatus.VERIFIED
+    assert closures.judged == []
+
+
+def test_failed_verification_asks_the_interrupt_closure_about_the_same_frame():
+    closures = Closures(outcome=None)
+    run_one_step(closures)
+
+    assert closures.verified == [2]
+    assert closures.judged == [2]
+
+
+def test_interrupt_that_does_not_stop_lets_the_cycle_finish():
+    closures = Closures(outcome=None, stop=False)
+    ran, stream, planner = run_one_step(
+        closures, shows=screens(f1="stage_list", f2="notice", f3="notice")
+    )
+
+    assert ran is RunResult.DONE
+    assert planner.seen[1].ui == UiState(UiScreen.NOTICE)
+    assert planner.absorbed(1) == (("look", None),)
+    assert planner.acted(1).status is ActionStatus.UNVERIFIED
+    assert stream.calls[2][0] == 11.0
+
+
+def test_interrupt_that_stops_ends_the_run_as_halted():
+    closures = Closures(outcome=None, stop=True)
+    stream = FakeStream([still(1, 1.0), still(2, 11.0)])
+    stream.latest_frame = frame(1, 1.0)
+    planner = ScriptedPlanner([closures.step()])
+    interpreter = FakeInterpreter(screens(f1="stage_list", f2="notice"))
+
+    assert make_agent(stream, interpreter, planner).run() is RunResult.HALTED
+    assert len(planner.seen) == 1
+    assert len(stream.calls) == 2
+
+
+def test_result_that_is_not_still_at_the_deadline_logs_an_error_and_calls_no_closure(
+    caplog: pytest.LogCaptureFixture,
+):
+    caplog.set_level(logging.ERROR, logger="ggge_ai_2.agent.loop")
+    closures = Closures(outcome=INFO_OPEN)
+    _, stream, planner = run_one_step(closures, result=moving(2, 13.0))
+
+    assert closures.verified == []
+    assert closures.judged == []
+    assert planner.absorbed(1) == (("look", None),)
+    assert planner.acted(1).status is ActionStatus.UNVERIFIED
+    assert [r.levelno for r in caplog.records] == [logging.ERROR]
+    assert stream.calls[2][0] == 13.0
 
 
 def test_blocked_gesture_is_reported_to_the_planner():
+    closures = Closures(outcome=INFO_OPEN)
     stream = FakeStream([still(1, 1.0), still(2, 2.0)])
     stream.latest_frame = frame(1, 1.0)
-    planner = ScriptedPlanner([open_info_step(), Finish.HALTED])
+    planner = ScriptedPlanner([closures.step(), Finish.HALTED])
     interpreter = FakeInterpreter(screens(f1="stage_list", f2="stage_list"))
     agent = make_agent(stream, interpreter, planner, FakeActuator(blocks=True))
 
     assert agent.run() is RunResult.HALTED
-    assert planner.seen[1].last_action.status is ActionStatus.BLOCKED
+    assert planner.acted(1).status is ActionStatus.BLOCKED
+    assert closures.verified == []
     assert stream.calls[1][0] == 1.0
+
+
+def test_planner_gets_back_the_agenda_it_returned():
+    _, _, planner = run_one_step(Closures(outcome=INFO_OPEN))
+
+    assert planner.agendas == [0, 1]
 
 
 def test_wait_goes_back_to_observation_without_a_gesture():
@@ -255,16 +393,25 @@ def test_wait_goes_back_to_observation_without_a_gesture():
     assert [after for after, _ in stream.calls] == [0.0, 1.0]
 
 
+def test_unreadable_screen_is_left_to_the_planner():
+    planner = ScriptedPlanner([Finish.HALTED])
+    agent = make_agent(FakeStream([still(1, 1.0)]), FakeInterpreter({}), planner)
+
+    assert agent.run() is RunResult.HALTED
+    assert planner.seen[0].ui_lost
+    assert agent.belief.ui_basis == UiBasis(UiSource.LOST, frame_seq=1)
+
+
 @dataclass
 class GridParser:
     unreadable: frozenset[int] = frozenset()
 
-    def parse(self, f: Frame) -> MapReading | None:
-        if f.seq in self.unreadable:
+    def parse(self, frame: Frame) -> MapReading | None:
+        if frame.seq in self.unreadable:
             return None
         return MapReading({(2, 2): CellReading.EMPTY}, frozenset())
 
-    def locate(self, f: Frame, cell):
+    def locate(self, frame: Frame, cell: ViewCell) -> tuple[int, int] | None:
         return (cell[0] * 100 + 50, cell[1] * 100 + 50)
 
 
@@ -307,72 +454,6 @@ def run_on_map(settles, geometry, steps, latest=frame(2, 1.2), parser=None):
     return actuator, planner
 
 
-def run_map_tap(premise, guard_shift=(10, 5), unreadable=frozenset()) -> FakeActuator:
-    geometry = ScriptedGeometry([(10, 5)] if unreadable else [(10, 5), guard_shift, (10, 5)])
-    settles = [still(1, 1.0), still(3, 12.0), still(4, 13.0)]
-    steps = [Step("probe", TAP_CELL, premise, 0.0), Finish.DONE]
-    actuator, _ = run_on_map(settles, geometry, steps, parser=GridParser(unreadable))
-    return actuator
-
-
-def test_guard_sends_the_gesture_when_the_board_premise_holds():
-    premise = (CellAt((250, 250), (12, 7)), CellHolds((12, 7), CellContent.EMPTY))
-
-    assert run_map_tap(premise).sent == [(Tap((250, 250)), ())]
-
-
-def test_guard_sends_no_gesture_when_the_camera_moved():
-    assert run_map_tap((CellAt((250, 250), (12, 7)),), guard_shift=(11, 5)).sent == []
-
-
-def test_guard_sends_no_gesture_when_the_grid_is_unreadable():
-    assert run_map_tap((CellAt((250, 250), (12, 7)),), unreadable=frozenset({2})).sent == []
-
-
-def test_guard_sends_no_gesture_when_the_board_has_no_place_on_the_known_map():
-    assert run_map_tap((CellAt((250, 250), (12, 7)),), guard_shift=None).sent == []
-
-
-def test_step_keeps_the_ui_and_the_domain_premise_apart():
-    board_fact = CellAt((250, 250), (12, 7))
-    premise = Step("probe", TAP_CELL, (board_fact,), 0.0).premise
-
-    assert premise.ui == ON_MAP
-    assert premise.domain == (board_fact,)
-
-
-def test_unexpected_result_is_absorbed_as_none_and_corrected_by_the_next_observation():
-    stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0)])
-    stream.latest_frame = frame(1, 1.0)
-    planner = ScriptedPlanner([open_info_step(), Finish.DONE])
-    interpreter = FakeInterpreter(screens(f1="stage_list", f2="notice", f3="notice"))
-    make_agent(stream, interpreter, planner).run()
-
-    assert planner.seen[1].ui == UiState(UiScreen.NOTICE)
-    assert planner.seen[1].domain.absorbed == (("look", None),)
-    assert planner.seen[1].last_action.status is ActionStatus.UNVERIFIED
-
-
-def test_result_that_is_not_still_at_the_deadline_is_not_verified():
-    stream = FakeStream([still(1, 1.0), moving(2, 13.0), still(3, 14.0)])
-    stream.latest_frame = frame(1, 1.0)
-    planner = ScriptedPlanner([open_info_step(), Finish.DONE])
-    interpreter = FakeInterpreter(screens(f1="stage_list", f2="stage_info", f3="stage_info"))
-    make_agent(stream, interpreter, planner).run()
-
-    assert planner.seen[1].domain.absorbed == (("look", None),)
-    assert stream.calls[2][0] == 13.0
-
-
-def test_unreadable_screen_is_left_to_the_planner():
-    planner = ScriptedPlanner([Finish.HALTED])
-    agent = make_agent(FakeStream([still(1, 1.0)]), FakeInterpreter({}), planner)
-
-    assert agent.run() is RunResult.HALTED
-    assert planner.seen[0].ui_lost
-    assert agent.belief.ui_basis == UiBasis(UiSource.LOST, frame_seq=1)
-
-
 def test_map_screen_puts_the_alignment_and_the_merged_map_into_the_belief():
     geometry = ScriptedGeometry([(10, 5)])
     _, planner = run_on_map([still(1, 1.0)], geometry, [Finish.DONE])
@@ -384,7 +465,10 @@ def test_map_screen_puts_the_alignment_and_the_merged_map_into_the_belief():
 
 def test_unreadable_grid_keeps_the_camera():
     settles = [still(1, 1.0), still(2, 11.0), still(3, 12.0)]
-    steps = [Step("probe", TAP_CELL, (), 0.0), Finish.DONE]
+    steps: list[Step | Wait | Finish] = [
+        Closures(gesture=Tap((250, 250))).step(TAP_CELL),
+        Finish.DONE,
+    ]
     _, planner = run_on_map(
         settles,
         ScriptedGeometry([(10, 5)]),

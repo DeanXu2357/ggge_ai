@@ -6,26 +6,13 @@ from enum import StrEnum
 from threading import Event
 from typing import Protocol, Self
 
-from ggge_ai_2.actuator.contract import (
-    Actuator,
-    Dispatch,
-    Gesture,
-    GestureBlocked,
-    Key,
-    Rect,
-    ScreenPoint,
-    Swipe,
-    Tap,
-)
+from ggge_ai_2.actuator.contract import Actuator, Dispatch, Gesture, GestureBlocked, Rect
 from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.interpreter.contract import Interpreter, Situation
 from ggge_ai_2.mapgeom.contract import (
     Alignment,
     BoardEdge,
-    BoardFact,
-    CellAt,
     CellContent,
-    CellHolds,
     KnownMap,
     LocalBoard,
     MapGeometry,
@@ -36,6 +23,7 @@ from ggge_ai_2.planner.contract import (
     ActionStatus,
     Finish,
     Planner,
+    Refused,
     State,
     Step,
     Wait,
@@ -45,16 +33,11 @@ from ggge_ai_2.uisim.contract import (
     DangerBand,
     Observed,
     Outcome,
-    RatioPoint,
-    UiGesture,
-    UiKey,
     UiMapMode,
     UiOverlay,
     UiScreen,
     UiSim,
     UiState,
-    UiSwipe,
-    UiTap,
 )
 
 log = logging.getLogger(__name__)
@@ -120,9 +103,9 @@ class Belief:
             last_action=result,
         )
 
-    def revise_when_guard_failed(self, step: Step, premise: UiState | BoardFact) -> Belief:
+    def revise_when_guard_failed(self, step: Step, refused: Refused) -> Belief:
         result = ActionResult(
-            step.intent, step.operation.name, ActionStatus.GUARD_FAILED, failed_premise=premise
+            step.intent, step.operation.name, ActionStatus.GUARD_FAILED, refused=refused
         )
         return replace(self, last_action=result)
 
@@ -192,20 +175,40 @@ class Agent[A]:
                 return RunResult.DONE if decision is Finish.DONE else RunResult.HALTED
             if isinstance(decision, Wait):
                 continue
-            self.belief = self._execute(decision, self.belief)
+            stopped = self._execute(decision)
+            if stopped:
+                return RunResult.HALTED
         return RunResult.STOPPED
 
-    def _execute(self, step: Step, belief: Belief) -> Belief:
-        failed = self.guard(step, belief)
-        if failed is not None:
-            return belief.revise_when_guard_failed(step, failed)
+    def _execute(self, step: Step) -> bool:
+        gesture = self.guard(step)
+        if isinstance(gesture, Refused):
+            self.belief = self.belief.revise_when_guard_failed(step, gesture)
+            return False
 
-        band = _danger_band_to_rects(self.uisim.danger_band(belief.ui), self.screen)
-        dispatch = self.dispatch(step, band)
+        band = _danger_band_to_rects(self.uisim.danger_band(self.belief.ui), self.screen)
+        dispatch = self.dispatch(step, gesture, band)
         if dispatch is None:
-            return belief.revise_when_band_blocked(step)
+            self.belief = self.belief.revise_when_band_blocked(step)
+            return False
 
-        return belief.revise_when_dispatched(step, self.verify(step, dispatch), self.uisim)
+        result = self._settle(dispatch.t0, dispatch.t1 + step.operation.deadline)
+        if result.still is None:
+            log.error(
+                "result not still at the deadline",
+                extra={
+                    "frame_seq": result.frame.seq,
+                    "waited": result.waited,
+                    "operation": step.operation.name,
+                },
+            )
+            outcome = None
+        else:
+            outcome = self.verify(step, result)
+            if outcome is None and self.judge_interrupt(step, result.frame):
+                return True
+        self.belief = self.belief.revise_when_dispatched(step, outcome, self.uisim)
+        return False
 
     def observe(self) -> Sensed | None:
         obs = self._settle(self._after, now() + self.idle_deadline)
@@ -231,92 +234,60 @@ class Agent[A]:
         )
         return Sensed(obs.still, observed, reading)
 
-    def guard(self, step: Step, belief: Belief) -> UiState | BoardFact | None:
+    def guard(self, step: Step) -> Gesture | Refused:
         frame = self.stream.latest()
-        assert frame.captured_at >= step.based_on, "guard frame is older than the plan"
         self._after = frame.captured_at
-        failed = self._failed_ui(frame, step.premise.ui) or self._failed_domain(
-            frame, step.premise.domain, belief
-        )
+        if step.frame_after is not None and frame.captured_at <= step.frame_after:
+            answer: Gesture | Refused = Refused("guard frame is not newer than the step requires")
+        else:
+            answer = step.guard(frame)
         log.info(
             "guard",
             extra={
                 "frame_seq": frame.seq,
                 "captured_at": frame.captured_at,
                 "operation": step.operation.name,
-                "failed_premise": failed,
+                "refused": answer.reason if isinstance(answer, Refused) else None,
             },
         )
-        return failed
+        return answer
 
-    def dispatch(self, step: Step, band: tuple[Rect, ...]) -> Dispatch | None:
-        op = step.operation
-        gesture = _ui_gesture_to_gesture(op.gesture, self.screen)
+    def dispatch(self, step: Step, gesture: Gesture, band: tuple[Rect, ...]) -> Dispatch | None:
+        name = step.operation.name
         try:
             dispatch = self.actuator.dispatch(gesture, band)
         except GestureBlocked:
-            log.info("blocked", extra={"operation": op.name})
+            log.info("blocked", extra={"operation": name})
             return None
-        log.info("dispatch", extra={"operation": op.name, "t0": dispatch.t0, "t1": dispatch.t1})
+        log.info("dispatch", extra={"operation": name, "t0": dispatch.t0, "t1": dispatch.t1})
         return dispatch
 
-    def verify(self, step: Step, dispatch: Dispatch) -> Outcome | None:
-        op = step.operation
-        obs = self._settle(dispatch.t0, dispatch.t1 + op.deadline)
-        outcome = self._classify(obs.frame, op.outcomes) if obs.still else None
+    def verify(self, step: Step, result: Observation) -> Outcome | None:
+        outcome = step.verify(result.frame)
         log.info(
             "verify",
             extra={
-                "frame_seq": obs.frame.seq,
-                "captured_at": obs.frame.captured_at,
-                "still": obs.still is not None,
-                "waited": obs.waited,
+                "frame_seq": result.frame.seq,
+                "captured_at": result.frame.captured_at,
+                "waited": result.waited,
                 "outcome": outcome.name if outcome else None,
             },
         )
         return outcome
+
+    def judge_interrupt(self, step: Step, frame: Frame) -> bool:
+        stop = step.interrupt(frame)
+        log.info(
+            "interrupt",
+            extra={"frame_seq": frame.seq, "operation": step.operation.name, "stop": stop},
+        )
+        return stop
 
     def _settle(self, after: Instant, deadline: Instant) -> Observation:
         obs = self.stream.settled(after, deadline)
         assert obs.frame.captured_at > after, "stream returned a frame older than the cutoff"
         self._after = obs.frame.captured_at
         return obs
-
-    def _failed_ui(self, frame: Frame, state: UiState) -> UiState | None:
-        observed = _situation_to_observed(self.interpreter.interpret(frame))
-        return None if observed == _ui_state_to_observed(state) else state
-
-    def _failed_domain(
-        self, frame: Frame, facts: tuple[BoardFact, ...], belief: Belief
-    ) -> BoardFact | None:
-        if not facts:
-            return None
-        board = _map_reading_to_local_board(self.mapparser.parse(frame))
-        if board is None:
-            return facts[0]
-        alignment = self.mapgeom.align(board, belief.known_map, belief.camera)
-        if alignment is None:
-            return facts[0]
-        for fact in facts:
-            if not self._holds(frame, fact, board, alignment):
-                return fact
-        return None
-
-    def _holds(
-        self, frame: Frame, fact: BoardFact, board: LocalBoard, alignment: Alignment
-    ) -> bool:
-        match fact:
-            case CellAt(point, cell):
-                return self.mapparser.locate(frame, alignment.to_view(cell)) == point
-            case CellHolds():
-                return fact.holds_on(board, alignment)
-
-    def _classify(self, frame: Frame, outcomes: tuple[Outcome, ...]) -> Outcome | None:
-        observed = _situation_to_observed(self.interpreter.interpret(frame))
-        for outcome in outcomes:
-            if observed == _ui_state_to_observed(outcome.then):
-                return outcome
-        return None
 
 
 def _belief_to_state(belief: Belief) -> State:
@@ -329,10 +300,6 @@ def _belief_to_state(belief: Belief) -> State:
         as_of=belief.as_of.until if belief.as_of else None,
         last_action=belief.last_action,
     )
-
-
-def _ui_state_to_observed(state: UiState) -> Observed:
-    return Observed(state.screen, state.overlays, state.map_mode)
 
 
 def _situation_to_observed(situation: Situation | None) -> Observed | None:
@@ -352,25 +319,6 @@ def _map_reading_to_local_board(reading: MapReading | None) -> LocalBoard | None
         {cell: CellContent(seen.value) for cell, seen in reading.cells.items()},
         frozenset(BoardEdge(edge.value) for edge in reading.borders),
     )
-
-
-def _ratio_point_to_screen_point(point: RatioPoint, screen: ScreenSize) -> ScreenPoint:
-    x, y = point
-    return (round(x * screen.width), round(y * screen.height))
-
-
-def _ui_gesture_to_gesture(gesture: UiGesture, screen: ScreenSize) -> Gesture:
-    match gesture:
-        case UiTap(point):
-            return Tap(_ratio_point_to_screen_point(point, screen))
-        case UiSwipe(start, end, duration):
-            return Swipe(
-                _ratio_point_to_screen_point(start, screen),
-                _ratio_point_to_screen_point(end, screen),
-                duration,
-            )
-        case UiKey(code):
-            return Key(code)
 
 
 def _danger_band_to_rects(band: DangerBand, screen: ScreenSize) -> tuple[Rect, ...]:
