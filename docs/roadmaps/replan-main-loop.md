@@ -27,6 +27,8 @@
 | 局部盤面 | 一幀裡看得到的盤面：畫面內格號、每格有無東西、可見界線。由地圖判讀轉換物件產出 |
 | 地圖判讀轉換物件 | 地圖幾何：投影模型與形變、螢幕點 ↔ 畫面內格號、畫面內格號 ↔ 世界格號（求位移）。取代先前的「定位」，見 §5.10.2 |
 | 畫面判讀器 | 幀的唯一消費者：辨識當前畫面、核對當前幀上的事實、判斷靜止與位移。不叫「量測」，那個詞與 metric 相近，會讓職責偏移 |
+| plan controller | 負責意圖管理，並在重新決策時決定調用哪個領域 planner；以合約抽換。§5.12.12 原稱 agent planner，見 §5.12.13 |
+| 領域 planner | 各領域的決策：UI shift planner、map sync planner、battle planner；放在 `planner/` |
 
 ## 3. 遊戲事實（使用者確認）
 
@@ -349,6 +351,10 @@
   而是對 import 方向的靜態檢查（lint）；Python 沒有編譯器強制的套件可見
   性，所以有 import-linter 這類工具與現有 `test_package_boundary.py` 的
   AST 做法。要不要保留，實作時再決定。
+- ［確認，2026-10-02］上一項定案：不做 import 方向的檢查，不加檢查
+  import 的測試。
+- ［確認，2026-10-02］`tests/ggge_ai_2/test_package_boundary.py`
+  （`ggge_ai_2` 不得 import 舊套件 `ggge_ai`）先保留。
 - 既有規則的處置：`tests/test_package_boundary.py`（新包不得 import
   `domain`／`vision`／`battle`）是舊碼汰換期的措施，其依據
   `docs/module-map.md` 已不存在。新的套件邊界定案後，這條規則由新邊界
@@ -520,6 +526,585 @@
 - ［確認］延後：流水帳（先用 `logging`）、遲滯、看門狗、搜尋輸出與
   規則列的型別（S3）、讀取詳情頁、依幀識別取回幀影像。
 
+### 5.12 S2 至 S7 平行開發前的缺口 ［2026-09-26］
+
+S1 第一部分完成後，列出子項目之間仍會飄移的接縫。衝突時以本節為準。
+
+| # | 缺口 | 狀態 |
+|---|---|---|
+| 1 | UI 詞彙與事實型別用字串表示 | ［確認］見下 |
+| 2 | 領域搜尋接進 plan 的介面 | ［確認］職責見 §5.12.9；2026-10-07 起由 §5.12.12、§5.12.13 取代：plan controller 加上 `planner/` 下的領域 planner |
+| 3 | mapparser 的歸屬；推鏡位移的單位與方向 | ［確認］見 §5.12.3、§5.12.5 |
+| 4 | 格子內容缺陣營或單位 | 由 S4 決定 |
+| 5 | 流水帳欄位名稱 | 由 S2 決定 |
+| 6 | 畫面對危險帶的對照表由誰持有 | ［確認，2026-10-02］由 uisim 定義，見 §5.12.10 |
+| 7 | 座標空間與裝置尺寸 | ［確認］見下 |
+| 8 | 關卡資料的存取介面（§5.5 的「是否已建檔」查詢） | 由 S6 決定；［確認］要與 #92、#94 協調 |
+| 9 | 合約測試 | ［確認］見 §5.12.8 |
+
+由子項目決定的缺口，規則是：先改 `ggge_ai_2` 的合約並提交，再寫實作。
+
+#### 5.12.1 UI 詞彙歸 uisim ［確認］
+
+- 畫面名、覆蓋層、地圖模式的列舉，以及 UI 事實的型別，放在
+  `uisim/contract.py`。uisim 定義 UI 狀態空間；interpreter 把像素
+  對應進這個狀態空間。
+- interpreter 依賴 uisim 的詞彙型別；uisim 不 import interpreter。
+  `Situation` 刪除，interpreter 的辨識結果直接是 `UiState`。
+- 修訂 §5.3.4「畫面判讀器不依賴任何建模」為：畫面判讀器只依賴
+  uisim 的詞彙型別，不依賴 uisim 的狀態與邏輯。§5.3.4 的其餘規則
+  不變：不持有領域狀態，不回答當前幀上看不到的事實。
+- 盤面事實（`CellAt`、`CellHolds`）留在 mapgeom，因為盤面的狀態
+  空間由 mapgeom 定義。
+- ［確認，2026-10-02］修訂本節前三項中與下列衝突的部分：interpreter
+  與 uisim 各自定義自己的結構，互不 import。interpreter 保留
+  `Situation`（辨識結果）與 `Fact`（核對的輸入）；uisim 只用自己的
+  結構。兩邊結構的轉換寫在使用它們的編排邏輯（agent），不寫在任何
+  一邊的合約裡。uisim 的 `sync` 定義自己的輸入結構，不接收
+  interpreter 的 `Situation`。§5.3.4「畫面判讀器不依賴任何建模」因此
+  恢復原文。
+- ［提案，2026-10-02］由上一項得出的形狀：
+  - `Operation.precondition` 是 `UiState`；`Outcome` 只有名稱與之後的
+    `UiState`，不再帶核對用的事實。理由：uisim 的詞彙是 UI 狀態；
+    「幀上是否顯示這個狀態」由 agent 轉成 interpreter 的 `Fact` 去問。
+  - `sync` 的輸入是 uisim 的 `Observed`（畫面、覆蓋層、地圖模式）。
+  - agent 的兩個轉換（`UiState` → `Fact`、`Situation` → `Observed`）
+    放在 `agent/loop.py`；`Sensed` 帶的是 `Observed`。
+- ［確認，2026-10-02］`agent/loop.py` 的轉換函式只轉換型別，不含
+  邏輯。函式以「來源_to_目標」命名來表明這一點，不另加註解。
+- ［確認，2026-10-02］interpreter 不定義 `Fact` 型別；fact 只是變數名。
+- ［確認，2026-10-03］interpreter 不提供 `verify`。用 `interpret` 判別
+  畫面之後比對結果，就涵蓋 `verify` 的功能，合約也少一個介面。本項與
+  上一項修訂 §5.3.4「提供兩種詢問」與「核對的回答是三值」，以及本節
+  「interpreter 保留 `Situation` 與 `Fact`」。
+- ［確認，2026-10-03］`Verdict` 拿掉，interpreter 與 agent 都不定義。
+- ［確認，2026-10-03］上三項的落點。本項修訂 §5.12.9「observe 用信念
+  決定先問什麼」：
+  - 比對由 agent 做：agent 把 `Situation` 轉成 uisim 的 `Observed`，
+    再與預期的 `UiState` 比較。
+  - observe 每次都呼叫 `interpret`，`Sensed.prediction_holds` 拿掉。
+    `Belief.revise_when_sensed` 在讀得出畫面時一律呼叫 `uisim.sync`。
+  - 列舉：interpreter 定義 `Screen`、`Overlay`、`MapMode`；uisim 定義
+    `UiScreen`、`UiOverlay`、`UiMapMode`。`_situation_to_observed` 以
+    列舉的值對應，測試逐一檢查每個成員。
+  - 起始成員：21 個畫面，取自舊版 `runtime/screens.py` 的名稱，扣掉
+    `battle_unit_move` 與 `battle_weapon_select`；§5.2 的三個覆蓋層與
+    三個地圖模式。最終清單由 S2 與 S3 各自維護。
+
+#### 5.12.2 各領域的合約各自維護 ［確認］
+
+- 觀察與戰鬥各自維護自己的合約，不訂共用的領域搜尋介面。領域之間
+  的轉換與整合寫在 agent。
+- 必須共用的只有 execute 消費的 `Step`（操作＋前提）與前提所用的
+  事實型別。
+- `agent.py` 的 `DomainState` 改為 agent 自己需要的介面；各領域的
+  轉接程式寫在 agent 這一側。S5、S7 因此不必等共用介面即可開發。
+
+#### 5.12.3 地圖的三層與 mapparser 的歸屬 ［確認］
+
+| 物件 | 職責 | 子項目 |
+|---|---|---|
+| mapparser | 一張幀 → 格線位置與看到的東西；只量測，不含模型 | S4 |
+| mapgeom | 讀數 → 投影模型、格號換算、局部盤面（含形變） | S4 |
+| 觀察引擎 | 地圖知識、完整度評分、探索搜尋，把探索意圖交給 agent | S5 |
+
+mapparser 歸 S4 的理由：讀數的形狀由 mapgeom 的擬合需求決定，兩者
+一起開發才不會飄移。
+
+#### 5.12.4 座標空間 ［確認］
+
+- actuator 的合約定義觸控座標（裝置的觸控座標），這是所有手勢座標
+  的終點。
+- 兩套換算，各由座標空間的擁有者負責：
+  - UI 座標 → 觸控座標：uisim 這一側。按鈕位置與危險帶區域是 UI
+    座標；interpreter 也用 UI 這一側的座標。
+  - 地圖座標 → 觸控座標：mapparser 與 mapgeom 這一側。幀上的格線與
+    點擊點是地圖座標。
+- 危險帶與地圖點擊點都換成觸控座標後，由 actuator 比對。
+- 每種座標用不同的型別，`screen.py` 的 `ScreenPoint` 拆開：`Tap`、
+  `Swipe` 只接受觸控點；`CellAt`、`MapReading`、`Projection` 用幀上
+  的點；UI 座標是 uisim 內部的慣例，uisim 對外只輸出觸控點。
+- 裝置尺寸與幀的尺寸在程式初始化時決定一次，以依賴注入的方式交給
+  兩套換算。兩套換算不得各自寫死這兩個數值。
+- 不為其他長寬比的裝置設計：版面配置會變，不是座標換算能解決的。
+- ［假說］串流的幀是全解析度（舊程式的 scrcpy 沒有縮放參數），
+  所以兩套換算目前都是恆等換算；未驗證。
+
+#### 5.12.5 推鏡位移 ［確認］
+
+- stream 不碰地圖換算。stream 輸出的位移是幀上的像素向量。
+- 方向的約定：以畫面內容的移動方向為準。x 為正＝內容往右移，y 為正
+  ＝內容往下移。鏡頭的移動方向與內容相反，由 mapgeom 換算。使用者
+  對具體方向沒有意見，只要求約定好。
+- 格數與像素的換算都在 mapgeom，兩個方向：
+  - 出：觀察引擎的策略給出格子，agent 呼叫 mapgeom 換算成像素距離，
+    再經地圖這一側的換算變成觸控座標的手勢。
+  - 入：stream 量到的像素位移，由 agent 交給 mapgeom 換算成格數，
+    作為下一次擬合的先驗。
+- 地圖有形變，「N 格＝多少像素」隨螢幕位置改變，所以這兩個換算放在
+  `Projection` 上，依賴這一幀擬合出的投影模型，不是固定比例。
+- ［暫定］幀上座標（幀影像的像素座標，x 為欄、y 為列、原點左上）的
+  型別由 stream 的合約定義。使用者在這個階段沒有其他想法，暫時給
+  stream。
+- ［假說］畫面上固定不動的 UI 元素（例如頂部資訊列）會讓整張幀的
+  平移量偏小。量測時是否遮掉這些區域，由 S2、S4 實作時決定。
+- ［確認，2026-10-02］推鏡屬於實作細節，不是合約定義這個階段要考慮
+  的事。
+
+#### 5.12.6 interpreter 的辨識 ［確認］
+
+- 辨識方法接收候選畫面列表當參數，從候選中挑最接近的值當答案。
+  預設的候選是 uisim 定義的全部畫面；agent 可以只傳入預期集合裡的
+  畫面。
+- 最接近的值要超過門檻才回答，否則回傳 None。理由：只挑最接近的值
+  時，沒有建模的彈窗會被當成已知畫面，§5.4 的 (c) 永遠不會觸發。
+- 這個形狀是為了日後接上通用分類器而留的介面。
+- 靜止判斷維持在 stream（§5.11）。呼叫者用 `stream.settled` 或
+  `stream.latest` 決定要不要等靜止；interpreter 不判斷靜止。
+
+#### 5.12.7 局部盤面的範圍 ［確認］
+
+- 畫面只涵蓋盤面的一部分，所以 `LocalBoard`（`mapgeom.fit` 的產出）
+  要明確帶出：這一幀涵蓋的世界格範圍、看得到的地圖邊界、範圍內每格
+  的內容。
+- 理由：沒有範圍時，「不在畫面內」與「在畫面內但讀不出」無法區分。
+- `Projection` 只負責幾何換算，不帶盤面內容。
+
+#### 5.12.8 測試的分類與位置 ［確認］
+
+| 種類 | 測什麼 | 位置 |
+|---|---|---|
+| 單元測試 | 某一個實作自己的細節 | `tests/ggge_ai_2/unit/<套件>/` |
+| 合約測試 | 一個協定的行為承諾；所有實作與假物件共用同一套 | `tests/ggge_ai_2/contracts/` |
+| 整合測試 | 多個元件接起來之後的行為 | `tests/ggge_ai_2/integration/` |
+| 共用的測試替身 | 假物件 | `tests/ggge_ai_2/fakes/` |
+
+- 依 Python 的 src 目錄慣例，測試放在 `src/` 之外；`src/ggge_ai_2`
+  會被打包，測試不放進去。新套件的測試放在 `tests/ggge_ai_2/` 底下，
+  與舊套件的測試分開，舊套件刪除時一併整理。
+- 合約測試的形式：每個協定一個測試類別；各實作寫一個子類別，提供
+  建立實作的方法，跑同一套測試。
+- 測試替身的決策：
+  - 只需要記錄呼叫、回傳固定值的替身（例如 actuator、planner），
+    用標準函式庫的 `unittest.mock.create_autospec`，依協定的方法
+    簽名產生，參數對不上時直接報錯。
+  - 需要行為的替身（例如 stream 的時間語意、不可變的 uisim 實例），
+    自己寫假物件，而且必須通過對應的合約測試。理由：mock 只回傳事先
+    設定的值，不會自己遵守時間語意這類行為承諾。
+  - 性質測試套件 `hypothesis` 未採用；需要時再決定。
+
+#### 5.12.9 主迴圈的分層 ［確認，2026-09-30 至 10-01］
+
+本節修訂 §5.3.1 第 4 項、§5.3.3、§5.4 (c)、§5.11 中與下列各項衝突的
+部分。
+
+- ［確認］分成三層。分層的判準不是頻率：一個週期只送一個手勢
+  （§5.2），控制在週期內沒有可以反覆修正的量。判準是用不用轉移模型，
+  以及拿轉移模型做什麼。
+
+| 層 | 物件 | 職責 | 副作用 |
+|---|---|---|---|
+| 控制 | 迴圈、observe、execute | 等靜止、讀幀、守衛、送出手勢、分類結果；產出證據 | 有：串流、裝置、時間 |
+| 估計 | revise | 信念＋證據 → 新的信念 | 無，純函式 |
+| 決策 | 計畫管理、領域搜尋、操作搜尋 | 信念＋agenda → step＋新的 agenda | 無，純函式 |
+
+- ［確認］用語：agent 指控制層，planner 指決策層。§5.3.1 第 4 項與
+  §5.3.3 的規則表歸決策層的計畫管理。§5.12 其他小節中由 agent 做決策
+  或更新信念的句子，改讀如下：§5.12.3「把探索意圖交給 agent」的接收
+  者是計畫管理；§5.12.5「出」的換算由操作搜尋呼叫，「入」的換算由
+  revise 呼叫；§5.12.2「轉接程式寫在 agent 這一側」指轉接程式不放進
+  各領域的套件，轉接程式由 revise 與決策層呼叫，不屬於控制層。
+- ［確認］頻率：
+
+| 部分 | 頻率 |
+|---|---|
+| stream（取幀、靜止判斷、位移） | 每幀 |
+| 控制、估計、計畫管理、操作搜尋 | 每週期一次 |
+| 領域搜尋 | 意圖失效或達成時 |
+
+- ［確認］一個週期的形狀（2026-10-02 改為 `Belief` 的方法）：
+
+```python
+while not stop.is_set():
+    sensed = self.observe()                                        # 控制
+    belief = belief.revise_when_sensed(                            # 估計
+        sensed.still, sensed.observed, sensed.map, uisim, mapgeom
+    )
+    step, agenda = planner.plan(_belief_to_state(belief), agenda)  # 決策
+    ...                                                            # Finish 時結束；Wait 時回到 observe
+    failed = self.guard(step, belief)                              # 控制
+    if failed is not None:
+        belief = belief.revise_when_guard_failed(step, failed)     # 估計
+        continue
+    dispatch = self.dispatch(step, band)                           # 控制
+    if dispatch is None:
+        belief = belief.revise_when_band_blocked(step)             # 估計
+        continue
+    outcome = self.verify(step, dispatch)                          # 控制
+    belief = belief.revise_when_dispatched(step, outcome, uisim)   # 估計：寫入預測
+```
+
+  `belief.revise_when_dispatched` 寫入預測的狀態，下一次 observe 核對
+  這個預測；§5.1「先預測狀態，再驗證預測」落在
+  `belief.revise_when_dispatched` 與下一次 `belief.revise_when_sensed`
+  之間。
+- ［確認，2026-10-02］修訂 2026-10-01 的「revise 是 `revise.py` 的
+  `Revise` 物件」：信念的修訂是 `Belief` 自己的方法，每種證據一個：
+  `revise_when_sensed`、`revise_when_dispatched`、
+  `revise_when_guard_failed`、`revise_when_band_blocked`（2026-10-03
+  依使用者的裁定加上 `revise_when_` 前綴）。信念只放資料，所以模型
+  不存在 `Belief` 裡，由迴圈在呼叫時傳入（`revise_when_sensed` 要
+  uisim 與 mapgeom，`revise_when_dispatched` 要 uisim）。本節與 §5.12.10 的
+  「revise」從此指這四個方法。execute 仍拆成 guard、dispatch、verify
+  三步，各自產出自己的證據，由迴圈依結果呼叫對應的方法。
+
+決策層：
+
+- ［確認］計畫管理每週期執行：檢查插斷與目標達成條件；意圖仍有效就
+  接續，失效或達成才呼叫領域搜尋；再呼叫操作搜尋取得下一個操作。
+  「接續或重新計畫」的判斷屬於計畫管理，不屬於控制。
+- ［確認］意圖存在 agenda。迴圈保管 agenda 並原樣傳回，不解讀內容。
+  修訂 §5.3.3「agent 不保留計畫狀態」為：控制不保留計畫狀態，意圖
+  狀態的內容由計畫管理決定，並顯式傳遞。修訂 §5.11「plan 是 `Belief`
+  的純函式」為：plan 是（`Belief`、agenda）的純函式。理由：planner
+  內部的狀態不進流水帳，重播與測試都看不到。
+- ［確認］不保存操作序列。每週期由操作搜尋從目前的 UI 狀態與意圖推出
+  下一個操作，所以不存在「誰有權改動作編排」的問題。
+- ［確認］每週期都經過決策的理由：
+  1. 操作的結果有分支（§5.2），下一個操作取決於落在哪一支。
+  2. 遊戲狀態會自行改變（敵方回合、彈窗、應戰窗、手勢被吞、鎖定
+     畫面），反應延遲最多一個週期。
+  3. 判斷規則只放在決策一處。若只在控制回報完成或失敗時才呼叫決策，
+     控制就要自己判斷失敗，意義判斷會漏進控制。
+
+控制層：
+
+- ［確認］控制不改操作，不用轉移模型。決策把前提與預測寫進 `Step`：
+  前提是 UI 前置條件與領域前提；預測是結果集合、每個結果之後的 UI
+  狀態、期限。控制只用感知模型與幾何模型核對前提與結果集合；每個結果
+  之後的 UI 狀態由 revise 寫進信念。傳給控制的是資料，不是模型。
+- ［確認］領域的預測不放進 `Step`。revise 用領域模型推進信念，下一次
+  觀測與預測的衝突也由 revise 記錄。
+- ［確認］控制只回報事實，不設「要重新計畫」之類的旗標。
+- ［確認，2026-10-02］守衛用的幀要多新，由 `Step` 宣告。`Step` 要求
+  幀晚於某個時間戳時，守衛遵守這個要求；`Step` 沒有這個要求時，守衛
+  不檢查幀的時間。
+- ［確認］讀不出畫面、守衛失敗、手勢被危險帶擋下，都是證據。控制層
+  不丟 `Halt`；停手、等待或返回由計畫管理決定。§5.4 (c) 的停手因此
+  由計畫管理執行。
+
+證據與信念：
+
+- ［確認］observe 與 execute 只產出證據，不寫信念。只有 `Belief` 的
+  修訂方法產生新的信念。
+- ［確認］證據是結構，不是幀；每份證據帶幀識別。判準：只看這一幀
+  （加上固定的感知模型）就算得出的值是證據；需要先前信念的值是信念，
+  或是 revise 的中間產物。observe 用信念決定先問什麼（預測的 UI
+  事實），答案只取決於這一幀。
+- ［確認］`LocalBoard` 的擬合需要先驗，所以 `LocalBoard` 是 revise
+  的中間產物，不是證據。擬合從 observe 移到 revise。守衛也做擬合，但
+  結果只用來核對前提，不寫回信念。
+- ［確認］信念只放資料：UI 狀態與它的依據、鏡位（最後一次擬合成功
+  的投影）、還沒被擬合吸收的累積位移、領域狀態、靜止區間。模型與
+  證據不放進信念。讀不出格線時鏡位不變、位移繼續累加（推算定位）。
+- ［確認］uisim 改為無狀態的模型，UI 狀態以參數傳入（回到 §5.9 的
+  `successors(state)` 形狀）。修訂 §5.11「uisim 是不可變的實例」。
+  理由：信念與模型分開；所有 UI 狀態都要寫進 `UiState`，不能藏在
+  uisim 實例裡（例：選關清單的捲動位置）。
+- ［確認］§5.1 第 5 步（領域狀態是否符合建模引擎的預期）：revise 併入
+  觀測時記錄衝突，由計畫管理決定處置。
+- ［確認］`Sensed` 是 observe 的輸出；`GuardFailed` 是 guard 的輸出；
+  `Dispatched` 是 verify 的輸出；被危險帶擋下時 dispatch 回傳 None，
+  沒有另外的結構；`Belief` 是信念。各結構所在的模組見 §5.12.10。
+- ［提案，2026-10-01，寫合約時補上］兩項原本的草圖沒有的形狀：
+  - `Belief.last_action`：上一個動作的結果摘要（已驗證、未驗證、守衛
+    失敗、被危險帶擋下）。理由：計畫管理只讀信念與 agenda，要決定接續、
+    重新計畫或停手，就要知道上一個動作的結果。摘要不帶幀識別與時間戳，
+    所以不是證據。
+  - `Finish`：plan 回傳 `Step`，或 `Finish.DONE`、`Finish.HALTED`。
+    理由：控制層不再丟 `Halt`，計畫管理要有一個方式表達停手，並與目標
+    達成分開。
+- ［確認，2026-10-02］plan 的回傳值加上 `Wait`：`Step`、`Wait` 或
+  `Finish`。回傳 `Wait` 的週期不送手勢，迴圈直接進下一次 observe。
+  理由：等待由計畫管理決定（見上面的控制層），而 `Step` 一定帶手勢，
+  沒有 `Wait` 就寫不出等待。
+- ［確認，2026-10-02］`Observation`、`Sensed`、`Step` 各自帶著所依據的
+  時間點，方便每個階段的判斷：
+  - `Observation.after`：呼叫 `settled` 時傳入的時間點。回傳的幀晚於
+    `after`；`displacement` 是從 `after` 到回傳幀的內容位移。
+  - `Sensed.after`：這次 observe 第一次呼叫 `settled` 時的 `after`。
+    `displacement` 自 `after` 起累加。
+  - `Step.based_on`：plan 所依據的信念的 `as_of.until`（§5.11 的
+    版本號）。
+- ［確認，2026-10-02］延後：推鏡相關的邏輯（位移併入 drift 的規則、
+  推鏡結果的核對）。主迴圈與合約定案之後再談。`Belief.drift` 與證據上
+  的 `displacement` 保留欄位；修訂方法目前不寫 drift。
+- ［確認，2026-10-03］`Sensed` 是 observe 的輸出，不需要獨立放在
+  `evidence.py`。落點：`Sensed` 定義在 `agent/loop.py`，`evidence.py`
+  刪除；`Belief.revise_when_sensed` 直接收三個值，不依賴 `Sensed`。
+- ［確認，2026-10-03］`Belief` 不需要獨立的檔案，`agent/loop.py` 之外
+  沒有程式依賴 `Belief`。落點：`agent/belief.py` 的內容併入
+  `agent/loop.py`。
+- ［確認，2026-10-03］證據只留 `Sensed`，欄位只留
+  `Belief.revise_when_sensed` 會讀的三個：靜止區間、讀到的畫面、地圖
+  讀數。`GuardFailed` 與 `Dispatched` 拿掉：guard 回傳不成立的前提，
+  verify 回傳落在的結果，迴圈把 `Step` 與這個值直接傳給
+  `Belief.revise_when_guard_failed`、`Belief.revise_when_dispatched`。
+  - 理由：拿掉的欄位沒有任何程式讀取。幀識別、靜止區間、等待時間、
+    t0、t1 已由各步驟的 `logging` 記錄；`after` 與位移沒有記錄。
+  - 本項修訂本節「每份證據帶幀識別」、「`GuardFailed` 是 guard 的
+    輸出；`Dispatched` 是 verify 的輸出」、「`Sensed.after`」、「證據上
+    的 `displacement` 保留欄位」。
+
+#### 5.12.10 物件的依賴 ［確認，2026-10-01］
+
+- ［確認］模型分三類：感知模型（幀上看到什麼：interpreter、
+  mapparser）、幾何模型（觀測空間與狀態空間的換算：mapgeom）、轉移
+  模型（做了之後會怎樣：uisim、領域模型）。mapgeom 不讀幀，所以不歸
+  感知模型。
+- ［確認］缺口 6：另立一個危險帶物件，持有「畫面 → 危險帶」的對照表。
+  execute 依畫面向它取帶。`agent.py` 的 `DangerBands` 移到這個物件。
+- ［確認，2026-10-02］修訂上一項：危險帶由 uisim 定義，用比例（佔
+  螢幕寬高的比例）表示螢幕上哪些區塊不可點。actuator 收的是螢幕上的
+  實際座標。比例換成螢幕座標寫在 agent。
+- ［提案，2026-10-02］由上一項推出的三點：
+  - 不另立危險帶物件。`UiSim.danger_band(state)` 回傳該狀態的危險帶。
+    迴圈向 uisim 取帶，換成 actuator 的 `Rect` 之後當成資料交給
+    dispatch，所以 execute 仍不呼叫 uisim。
+  - uisim 的手勢（`UiTap`、`UiSwipe`）的點也用比例。
+  - 螢幕尺寸在初始化時注入 agent（`ScreenSize`）。
+- ［撤回，2026-10-02］原提案「共用型別放在不屬於任何一層的中立模組」
+  與「import 的方向」表不採用。
+- ［確認，2026-10-02］`Belief`、證據、`Step` 是 agent 實作時用來記錄
+  暫存狀態、維持自己編排邏輯的結構，放在 agent 套件裡，不放到外面
+  當公開的合約。agent 的結構與其他物件的結構之間的轉換由 agent
+  自己寫，不寫在其他物件的合約裡。
+- ［撤回，2026-10-02］原提案「agent 向決策層要的介面（`Planner`）由
+  agent 定義，`planner/contract.py` 併入 agent」不採用。
+- ［確認，2026-10-02］planner 自己定義自己的輸出結構 `Step`。agent 把
+  planner 的 `Step` 轉成自己的結構，或直接依賴 planner 的 `Step`。
+  物件之間不互相依賴，邊界的轉換寫在編排邏輯裡。本項修訂上面「`Step`
+  放在 agent 套件裡」。
+- ［提案，2026-10-02］上一項的落點：
+  - `planner/contract.py` 定義 `Planner`、輸出（`Step`、`Wait`、
+    `Finish`）與輸入（`State`、`ActionResult`）。
+  - agent 直接依賴 planner 的 `Step` 與 `ActionResult`，不另外定義
+    自己的版本。
+  - `agent/loop.py` 的 `_belief_to_state` 把 `Belief` 轉成 planner 的
+    `State`。`State` 帶 UI 狀態、UI 狀態是否讀不出、鏡位、領域狀態、
+    靜止區間的結束時間、上一個動作的結果。
+
+| 模組 | 內容 |
+|---|---|
+| `agent/loop.py` | `Agent`、`RunResult`、`Sensed`；`Belief` 與修訂方法、`UiBasis`、`UiSource`、`DomainState`；與其他物件的結構之間的轉換 |
+| `planner/contract.py` | `Planner`、`State`、`ActionResult`、`ActionStatus`、`Step`、`Premise`、`Wait`、`Finish` |
+| `agent/clock.py` | `Instant`、`now` |
+| `stream/contract.py` | `Displacement`（位移由 stream 量出） |
+
+- ［確認，2026-10-02］頂層不留共用模組：`clock.py`、`screen.py`、
+  `verdict.py` 都搬進套件裡。
+- ［提案，2026-10-02］上一項的落點：
+  - 時鐘由 agent 持有：`clock.py` 搬到 `agent/clock.py`。stream 與
+    actuator 的合約各自定義 `Instant`，並以註解寫明時間要讀自 agent
+    使用的那個時鐘。
+  - `ScreenPoint` 由 actuator、mapparser、mapgeom 的合約各自定義，
+    `screen.py` 刪除。
+  - 三值由 interpreter（`Verdict`）與 mapgeom（`BoardVerdict`）各自
+    定義，`verdict.py` 刪除。agent 的證據兩種都能帶。
+- ［確認，2026-10-01］控制步驟（observe、guard、dispatch、verify）留在
+  `Agent`，不拆成另一個模組。理由：拆開只多一層轉呼叫，是過度設計。
+
+各層對模型的依賴（✔＝可以依賴，括號內是用途；✘＝禁止）：
+
+| | stream | actuator | 感知模型 | 幾何模型 | uisim | 領域模型 | clock | 信念 |
+|---|---|---|---|---|---|---|---|---|
+| observe | ✔ 等靜止、取幀 | ✘ | ✔ 讀幀 | ✘ | ✘ | ✘ | ✔ 算期限 | 只讀：預測的 UI 事實 |
+| execute | ✔ 守衛幀、等結果 | ✔ 送出手勢 | ✔ 核對前提、分類結果 | ✔ 核對盤面前提 | ✘ | ✘ | ✘ 期限從 t1 起算 | 只讀：畫面、鏡位、已知地圖 |
+| revise | ✘ | ✘ | ✘ | ✔ 擬合 | ✔ advance、sync | ✔ absorb、併入盤面 | ✘ | 唯一的寫入者 |
+| 計畫管理 | ✘ | ✘ | ✘ | ✘ | ✘ | ✔ 查詢目標條件 | ✘ | 只讀；讀寫 agenda |
+| 領域搜尋 | ✘ | ✘ | ✘ | ✘ | ✘ | ✔ 搜尋、評分 | ✘ | 只讀 |
+| 操作搜尋 | ✘ | ✘ | ✘ | ✔ 世界格 → 幀點、推鏡量 | ✔ successors 等 | ✘ | ✘ | 只讀 |
+
+- 領域搜尋與操作搜尋之間只交接意圖，意圖以世界格表示。這是 §5.3
+  「UI sim engine 不需要知道格上是誰」的落點。
+- revise 與決策層不依賴 clock；時間只經由證據的時間戳進入。
+
+模型之間的依賴 ［確認，2026-10-02］：
+
+- 模型之間不互相依賴。每個模型只定義自己的合約結構；兩個模型的結構
+  之間的轉換，由 agent 在用到的時候自己做。職責不相干的物件不耦合。
+- 本項修訂下列各處中與上一項衝突的部分，衝突時以本項為準：
+  - §5.12.4「兩套換算，各由座標空間的擁有者負責」與「uisim 對外只
+    輸出觸控點」。
+  - §5.12.6「預設的候選是 uisim 定義的全部畫面」。
+  - 本節原本的「模型之間的依賴」表（已刪除）。
+- ［提案，2026-10-02］依上面的規則改掉的兩處耦合：
+  - uisim 與 actuator：uisim 定義自己的手勢（`UiTap`、`UiSwipe`、
+    `UiKey`），actuator 定義自己的（`Tap`、`Swipe`、`Key`）。agent 在
+    送出手勢之前把 uisim 的手勢轉成 actuator 的手勢。
+  - 危險帶：uisim 定義自己的 `DangerBand`（比例的矩形）；actuator
+    只收自己的 `Rect`（螢幕座標），不認識危險帶。
+- ［提案，2026-10-02］幀座標 → 螢幕座標的換算（地圖上的點擊點）也由
+  agent 做，目前沒有實作。
+- ［提案，2026-10-02］目前保留兩處型別引用，因為兩邊的職責相連：
+  interpreter 與 mapparser 的輸入就是 stream 的 `Frame`；mapgeom 的
+  輸入就是 mapparser 的 `MapReading`（§5.12.3：兩者一起開發）。
+- ［提案，2026-10-02］領域模型也只定義自己的結構。領域的結構與
+  mapgeom 的 `WorldCell`、`KnownMap`、`LocalBoard` 之間的轉換，由
+  agent 這一側的轉接程式做（§5.12.2）。原本「`WorldCell` 可以移到
+  共用的型別模組」不採用。
+
+全域規則：
+
+1. 依賴方向一律往下：迴圈 → 各層 → 模型 → 型別。模型不依賴任何一層。
+2. 各層之間不互相呼叫，只靠資料交接：證據、信念、`Step`、agenda。
+   傳遞這些資料的只有迴圈。
+3. 只有控制層呼叫 stream 與 actuator。
+4. 只有 observe 與 execute 經由感知模型讀幀。
+5. 只有 revise 寫信念。
+6. revise 用轉移模型做預測，決策層用轉移模型做選擇；控制層兩者都
+   不做。
+
+#### 5.12.11 地圖這一側的分工 ［確認，2026-10-03］
+
+本節修訂 §5.10.2、§5.12.3、§5.12.7，以及 §5.12.9「鏡位是最後一次擬合
+成功的投影」；衝突時以本節為準。
+
+- ［確認］mapgeom 就是觀察引擎，不是另一個物件。
+- ［確認］mapparser 讀幀，雙向換算。正向把一幀轉成局部網格地圖；反向
+  把畫面內的格號轉回螢幕點，需要時再傳入原圖。格線、形變、投影是
+  mapparser 內部的事，不帶出來。
+- ［確認］mapgeom 只處理網格：把局部地圖對照記憶中的全局地圖，並判斷
+  怎麼探明、或已經探明。
+- ［提案］落點：
+  - mapparser：`parse(frame)` 回傳 `MapReading`（畫面內格號對內容、
+    哪幾邊是地圖邊界），讀不出格線時回傳 None；`locate(frame, cell)`
+    回傳螢幕點。邊界以畫面內的方向表示。
+  - mapgeom：`align(board, known, prior)` 回傳 `Alignment`（這一幀的
+    (0, 0) 是全局的哪一格）；`merge(known, board, alignment)` 回傳合併
+    後的全局地圖。mapgeom 定義自己的 `LocalBoard`，由 `agent/loop.py`
+    的 `_map_reading_to_local_board` 轉換。
+  - 全局地圖是資料，存在 `Belief.known_map`；mapgeom 不保存狀態。
+    `Belief.camera` 是 `Alignment`。`DomainState` 只剩 `absorb`。
+  - 「怎麼探明」由 planner 呼叫，合約由觀察這個領域自己維護
+    （§5.12.2），#95 不定。
+  - 盤面前提：`CellHolds` 由 mapgeom 核對；`CellAt` 由守衛用
+    `mapparser.locate` 在守衛幀上核對。
+  - `Belief.drift` 與位移參數拿掉，因為 mapgeom 不碰像素。
+- ［確認，2026-10-05］地圖格的點擊點：決定探索策略與意圖之後，用
+  mapparser 的反向換算給出動作執行時的點擊座標。動作帶著要點的世界格；
+  執行動作時才在當下的幀上換算，換算是執行動作的一部分。
+
+#### 5.12.12 plan controller 的職責 ［確認，2026-10-05］
+
+- ［確認］抽換 plan controller 的理由：意圖管理與目標的優先順序是啟發式，
+  目前沒有確定的最好做法。所以先區分變動較少的部分（主迴圈）與需要
+  視情況調整的啟發式，在主架構不變的情況下，用最少的改動抽換啟發式
+  的實作。
+- ［確認］四個概念：
+  - 信念：我相信的外部真實狀況。
+  - 證據：外部真實的樣貌。
+  - 意圖：為了達成目標的子目標。
+  - 動作：為了達成意圖，在可選的動作範圍內決定採取的實際行動。
+- ［確認］處理這四者是 plan controller 的工作。由證據修訂信念也放進
+  plan controller。本項修訂 §5.12.9 的分層（估計層獨立於決策層）。程式碼
+  等這一輪討論確定之後一併修改；目前 `Belief` 的修訂方法仍在
+  `agent/loop.py`。
+- ［確認］主迴圈要支援哪些情境，目前沒有定義。情境的整理清單見
+  `docs/roadmaps/main-loop-scenarios.md`，每個情境的歸屬（穩定的主
+  迴圈或可抽換的 plan controller）在後續討論決定。
+- ［確認］目前的工作是實作 plan controller，處理情境清單上的問題。牽涉
+  個別 package 實作細節的部分，只做到合約定義完成。plan controller 實作
+  完成之後，它依賴的合約形狀隨之確定，#95 才結束。本項修訂 §7：
+  plan controller（含規則表）從 S3 移到 S1（#95）。
+- ［確認］plan controller 放在 agent 套件裡，以合約抽換。各領域的 planner
+  （UI shift planner、map sync planner、battle planner）放在 `planner/`。
+- ［確認］地圖格的點擊點：見 §5.12.11（2026-10-05）。守衛只用
+  `Step` 自帶的核對標準（§5.11、§5.12.9），不讀信念。
+
+#### 5.12.13 改名、#95 的驗收與範圍 ［確認，2026-10-07］
+
+- ［確認］agent planner（§5.12.12 在 2026-10-05 的稱呼）改稱 plan
+  controller，各領域的 plan 改稱領域 planner。理由：plan controller 負責
+  意圖管理，並在重新決策時決定調用哪個領域 planner；新名稱符合這個定義。
+- ［確認］#95 的驗收條件需要修改。#95 的票面敘述依本檔同步。
+- ［確認］plan controller 需要一條規則，防止執行沒有進度。這條規則保留；
+  規則的實作待研究，見 §8 第 8 項。封存分支 `issue-95-agent-planner-draft`
+  的做法：自上一次進展起，沒有驗證成功的動作累計三次就停手；進展指達成
+  一個目標，或已知地圖多了新的格；中間驗證成功的動作不讓計數歸零。
+- ［確認］情境清單（`docs/roadmaps/main-loop-scenarios.md`）的 1.5（地圖
+  鏡位沒有絕對讀數、推鏡被邊界夾停）、3.4（依關卡資料是否已建檔，決定
+  觀察或戰鬥）、3.5（地圖上某一格是哪一台單位）屬於 map sync planner
+  的實作細節。#95 對 map sync planner 只決定兩件事：注入 map sync
+  planner 的物件與流程，以及 map sync planner 回傳的資料格式，見 §8
+  第 9 項。
+- ［確認］改名只改名稱；§5.12.12 列出的職責（四個概念、由證據修訂信念）
+  不變。使用者口語的「探索地圖 planner」一律寫作 map sync planner。
+- ［確認］#95 的完成標準：plan controller 在 #95 處理的每個情境，至少有
+  一個用假物件寫的測試；`src/ggge_ai_2` 的 pyright strict 零錯誤；不在
+  實機上驗證。
+- ［確認］#95 的收尾：本檔已定案的內容寫成 `ggge_ai_2` 自己的新文件；
+  經使用者同意後刪除本檔與情境清單；然後合併。新文件的路徑與文件類型
+  還沒有決定。
+- ［確認］情境的歸屬已逐條裁定，見 `docs/roadmaps/main-loop-scenarios.md`
+  第 5 節。本項回答 §5.12.12「每個情境的歸屬在後續討論決定」。
+- 待討論的項目記在 §8 第 5 至 9 項。
+
+#### 5.12.14 Step 自帶的閉包 ［確認，2026-10-07］
+
+本節決定 §8 第 5 項，並修訂 §5.12.9、§5.12.10 中與下列各項衝突的部分。
+
+- ［確認］`Step` 自帶三個閉包：守衛閉包、驗證閉包、中斷判斷閉包。三個
+  閉包都由 plan controller 在決策時建立。
+- ［確認］閉包的輸入是幀。plan controller 因此持有 interpreter 與
+  mapparser，用來建立閉包。本項修訂 §5.12.10 依賴表中「計畫管理不依賴
+  感知模型」的部分。
+- ［確認］本節修訂 §5.12.9「傳給控制的是資料，不是模型」：控制收到的
+  是閉包。理由：合約仍然定義了閉包的形狀，只要依照合約的形狀就能運作。
+- ［確認］閉包可以自己寫 log，並留存稽核資料。
+- ［確認］主迴圈依固定的順序呼叫閉包：守衛 → 送出手勢 → 等靜止 →
+  驗證 → 驗證失敗時中斷判斷。
+- ［確認］守衛閉包：execute 把當下的幀傳入守衛閉包。守衛閉包回答「不能
+  執行，原因是某個前提不成立」，或「執行，送出這個手勢」。前提的核對與
+  地圖格點擊點的換算都在守衛閉包裡完成，用的是同一張幀；目標格在這張幀
+  上點不到，也算前提不成立。§8 第 5 項的「輸出給 actuator」，使用者已
+  更正為「幀傳入 execute」。
+- ［確認］驗證閉包的參數是執行後的結果幀。驗證不使用守衛幀。
+- ［暫定，2026-10-07］中斷判斷閉包只在驗證閉包失敗時呼叫。
+- ［確認］中斷判斷閉包判斷要不要中止主迴圈。回答「中止」時，主迴圈結束
+  這次執行，回報停手，並留下證據。回答「不中止」時，當前週期照常執行完，
+  下一個週期從 observe 開始。本項修訂 §5.12.9「控制層不丟 Halt；停手、
+  等待或返回由計畫管理決定」：中斷判斷閉包是 plan controller 寫的邏輯，
+  所以停手仍由 plan controller 決定；改變的是停手的時機，主迴圈可以在
+  驗證失敗之後直接停手。
+- ［確認］閉包要遵守四條規則：
+  1. 閉包只回答問題、回傳資料，步驟的順序固定在主迴圈。閉包不能決定
+     下一個步驟：不能跳過驗證、不能多送手勢、不能跳回守衛。
+  2. 閉包只讀傳入的幀，以及閉包自己帶著的值。閉包不讀 stream、不送
+     手勢、不呼叫其他閉包。閉包可以寫 log、留存稽核資料。
+  3. 閉包帶著的值不可變。同一張幀呼叫兩次，閉包給出相同的答案。
+  4. 每個呼叫點只呼叫一個閉包：守衛呼叫守衛閉包，驗證呼叫驗證閉包，
+     驗證失敗時呼叫中斷判斷閉包。
+- ［確認］實作的做法：每個閉包寫成帶 `__call__` 的 frozen dataclass，
+  閉包帶著的值就是 dataclass 的欄位。這樣 log 印得出閉包核對的內容，
+  測試可以直接比較兩個 `Step`，`frozen` 保證上面的第 3 條規則。合約只寫
+  `Callable[[Frame], ...]`。
+
+#### 5.12.15 observe 傳入幀 ［確認，2026-10-07］
+
+- ［確認］observe 只等畫面靜止，把靜止的幀傳入 plan controller；observe
+  不再呼叫 interpreter 與 mapparser。
+- ［確認］plan controller 在內部用 interpreter、mapparser 把幀辨識成
+  證據。證據仍然是結構（§5.12.9）；改變的是證據不再由 plan controller
+  之外產生、再傳入 plan controller。
+- 本項修訂下列各處中與本項衝突的部分：§5.12.9 控制層的職責「讀幀……
+  產出證據」；§5.12.9（2026-10-03）「`Sensed` 是 observe 的輸出」，證據
+  改由 plan controller 在內部產生；§5.12.10 全域規則 4「只有 observe 與
+  execute 經由感知模型讀幀」，改為 plan controller 讀幀成證據，execute
+  經由閉包讀幀（§5.12.14）。
+- 本項的代價：重播 plan controller 需要幀的影像。§5.11 延後的「依幀
+  識別取回幀影像」因此成為重播的前提。
+
 ## 6. 延後項目（已知，不是遺漏）
 
 - 敵方回合後盤面與 battle engine 的預測不符時的局部複查。第一版歸類為
@@ -529,11 +1114,11 @@
 
 | 編號 | 內容 | 依賴 |
 |---|---|---|
-| S1 | 合約定義：所有物件的輸入輸出結構（畫面判讀器、操作物件、危險帶、UI sim engine 查詢合約、地圖判讀轉換物件、搜尋輸出、agent 規則列） | 無 |
+| S1 | 合約定義：所有物件的輸入輸出結構（畫面判讀器、操作物件、危險帶、UI sim engine 查詢合約、地圖判讀轉換物件、搜尋輸出、agent 規則列）；plan controller 的實作（§5.12.12） | 無 |
 | S2 | 畫面判讀器＋操作物件：幀的唯一消費者、阻塞到靜止、兩個時間戳、按畫面注入的危險帶。現有 `screens`／`vision`／`settle`／`device`／`stream` 搬入 | S1 |
-| S3 | UI sim engine 離散部分＋agent 主迴圈：五步驟、三分類、規則表；先涵蓋登入 → 選關 → 出擊準備 → 地圖 → 棄戰，取代 `entry.py` | S2 |
-| S4 | 地圖判讀轉換物件：投影模型、畫面內格號、求位移、局部盤面；驗證 §4.3 兩條假說（逐幀累加位移、按住—移動—放開）。現有 `projection`／`board`／`sweep` 的幾何部分搬入 | S2 |
-| S5 | 觀察：地圖知識、地圖完整度評分、探索搜尋，從 `SweepRun` 與 `runtime/sweep.py` 抽出；隊伍暫存與「順位 → 格位」 | S3、S4、S6 |
+| S3 | UI sim engine 離散部分；先涵蓋登入 → 選關 → 出擊準備 → 地圖 → 棄戰，取代 `entry.py`。agent 主迴圈與規則表已移到 S1（§5.12.12） | S2 |
+| S4 | mapparser（§5.12.11）：一幀 → 局部網格地圖，以及畫面內格號 → 螢幕點；格線、形變、投影在內部處理；驗證 §4.3 兩條假說（逐幀累加位移、按住—移動—放開）。現有 `projection`／`board`／`sweep` 的幾何部分搬入 | S2 |
+| S5 | 觀察（mapgeom，§5.12.11）：局部對照全局、合併、地圖完整度評分、探索搜尋，從 `SweepRun` 與 `runtime/sweep.py` 抽出；隊伍暫存與「順位 → 格位」 | S3、S4、S6 |
 | S6 | 關卡資料格式與完整度判準 | #92／#94 |
 | S7 | 戰鬥：battle engine 接實機的 UI 建模（移動、武裝、攻擊、應戰） | S3、S4、#78 |
 
@@ -550,6 +1135,9 @@
   `docs/explanation/architecture.md` 的新版（該檔的現況註記已寫明「屆時
   本檔修訂為新設計的基準」）。
 - 改寫的時機：S1 的合約形狀確定之後，不在此之前。
+- ［確認，2026-10-02］修訂本節第一項：`ggge_ai_2` 的文件與舊版的文件
+  分開保存、分開撰寫，不修改也不覆蓋舊版的文件。本檔的內容不改寫進
+  `docs/explanation/architecture.md`。
 
 ## 7.2 S1 合約的落點 ［確認，2026-09-25］
 
@@ -557,14 +1145,15 @@
 
 | 本檔章節 | 合約檔 |
 |---|---|
-| §4.2.1、§5.3.7 時鐘與時間戳 | `src/ggge_ai_2/clock.py` |
+| §4.2.1、§5.3.7 時鐘與時間戳 | `src/ggge_ai_2/agent/clock.py` |
 | §5.3.5、§5.11 串流、靜止區間 | `src/ggge_ai_2/stream/contract.py` |
-| §5.3.4 辨識、核對、三值 | `src/ggge_ai_2/interpreter/contract.py` |
-| §5.10.2、§5.11 地圖讀數 | `src/ggge_ai_2/mapparser/contract.py` |
-| §5.10.1、§5.10.2 投影、格號換算、局部盤面 | `src/ggge_ai_2/mapgeom/contract.py` |
-| §5.3.6、§5.3.7 手勢、危險帶、t0／t1 | `src/ggge_ai_2/actuator/contract.py` |
-| §5.2、§5.9、§5.11 UI 狀態、操作、預期集合 | `src/ggge_ai_2/uisim/contract.py` |
-| §5.1、§5.4、§5.11 主迴圈、`Belief` | `src/ggge_ai_2/agent.py` |
+| §5.3.4、§5.12.1 辨識、畫面的詞彙 | `src/ggge_ai_2/interpreter/contract.py` |
+| §5.12.11 局部網格地圖、格號轉回螢幕點 | `src/ggge_ai_2/mapparser/contract.py` |
+| §5.12.11 局部對照全局、合併、盤面前提 | `src/ggge_ai_2/mapgeom/contract.py` |
+| §5.3.6、§5.3.7 手勢、注入的帶、t0／t1 | `src/ggge_ai_2/actuator/contract.py` |
+| §5.2、§5.9、§5.11 UI 狀態、操作、預期集合、危險帶 | `src/ggge_ai_2/uisim/contract.py` |
+| §5.1、§5.4、§5.11、§5.12.9 主迴圈（控制層）、`Belief` 與修訂（估計） | `src/ggge_ai_2/agent/loop.py` |
+| §5.12.9、§5.12.10 決策層的介面、`Step`、`Wait`、`Finish` | `src/ggge_ai_2/planner/contract.py` |
 
 ## 8. 未決問題
 
@@ -584,3 +1173,22 @@
 3. UI sim engine 上的探索用什麼演算法：已改為「制定查詢合約，演算法不
    限」，見 §5.9。
 4. §5.6 的比對鍵：地圖上如何讀到足以對應駕駛員或機體的資訊。
+5. （2026-10-07）`Step` 的座標與換算的位置。使用者的方向：`Step` 或許
+   應該帶世界座標；換算的邏輯放在 plan controller 比較好；負責驗證的
+   差分比對也可以藉由閉包，由 plan controller 決定邏輯之後輸出給
+   actuator 單純執行。這是牽涉實作架構的考量，之後再討論。相關：
+   §5.12.11（2026-10-05）的地圖格點擊點、§5.12.12 的守衛。2026-10-07
+   已決定，見 §5.12.14。
+6. （2026-10-07）規則表的做法。規則表的做法與驗證引擎有關，也是封存
+   分支 `issue-95-agent-planner-draft` 被封存的原因之一。「驗證引擎」在
+   本檔還沒有定義；「驗證引擎」與本節第 5 項、第 7 項的差分比對是否指
+   同一件事，討論時確認。相關：§5.3.3、本節第 1 項。
+7. （2026-10-07）戰鬥情境：情境清單（`docs/roadmaps/main-loop-scenarios.md`）
+   的 2.1（應戰窗）、2.3（戰鬥中盤面與預測不符）、2.5（戰鬥搜尋判定
+   撤退）、3.7（敵方回合後盤面與預測不符）。使用者的直覺，尚未仔細
+   思考：這四個情境要結合 uisim 對 UI 的理解與 battle engine 對戰場的
+   理解做決策，會牽涉到校驗的差分比對；還要有一段邏輯，判斷目前的差異
+   能否吸收並接續判斷，或要重新載入戰場資訊再重新評估。
+8. （2026-10-07）防止執行沒有進度的規則（§5.12.13）怎麼實作，待研究。
+9. （2026-10-07）map sync planner 的合約（§5.12.13）：注入哪些物件、
+   呼叫的流程，以及回傳的資料格式。#95 要決定這一項。
