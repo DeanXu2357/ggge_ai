@@ -1120,8 +1120,112 @@ while not stop.is_set():
 - ［確認］plan controller 沒有規則可用時回傳 `Finish.HALTED`。合約定義了
   這個用法，之後的實作照著用。
 
+#### 5.12.17 revise 的職責 ［確認，2026-10-08］
+
+- ［確認］revise 系列只負責更新信念。判斷差異的結果並做出反應，不屬於
+  revise。比對（差分）邏輯得出結果、需要更新信念時，才呼叫 revise 更新
+  信念。
+- 本項修訂 §5.12.9 中與本項衝突的部分，包括「revise 併入觀測時記錄衝突」：
+  偵測衝突屬於比對邏輯，revise 只把比對的結果寫進信念。
+
+#### 5.12.18 主迴圈改用使用者的虛擬碼 ［確認，2026-10-11］
+
+本節修訂 §5.1 第 3 步、§5.4 (b)、§5.11、§5.12.9、§5.12.12、§5.12.14 至
+§5.12.17 中與下列各項衝突的部分；衝突時以本節為準。
+
+- ［確認］主迴圈依使用者提供的虛擬碼執行：
+
+```python
+while not world.ended() and not stop_requested():   # [world] 環境控制，不是感知
+    obs    = sense()                                 # [world → obs] 唯一讀取世界的地方
+    belief = update(belief, obs)                     # [obs → belief] obs 轉成 belief 的唯一地方
+
+    if goal_reached(belief):                         # [belief]
+        if plan is not none:
+            history.append(review(plan, belief))     # [belief]
+        break
+
+    # ①
+    if expected is not none and not matches(obs, expected):   # [obs] 原始觀測 vs 預期觀測
+        mismatches += 1
+    else:
+        mismatches = 0
+    effect_failed = mismatches >= MISMATCH_LIMIT
+
+    # ②
+    plan_invalid = plan is not none and not plan.still_valid(belief)   # [belief]
+
+    if plan is none or effect_failed or plan_invalid:
+        if plan is not none:
+            history.append(review(plan, belief))     # [belief] ④
+        world.pause()                                # [world] 環境控制，如果無法控制 world 則忽略
+        plan = think(belief, history)                # [belief]
+        world.resume()                               # [world] 環境控制，如果無法控制 world 則忽略
+        mismatches = 0
+
+    action   = plan.next(belief)                     # [belief]
+    action   = guard(action, belief)                 # [belief] ③，安全相關可加讀 obs
+    expected = predict(belief, action)               # [belief → 預期 obs]
+    act(action)                                      # [→ world] 唯一改變世界的地方
+```
+
+- ［確認］使用者的理由：plan controller 在內部修訂信念的做法（§5.12.12、
+  §5.12.15）太過複雜，職責也混淆。主迴圈因此認得信念的型別。「狀態對
+  主迴圈不透明，抽換 plan controller 時信念的形狀跟著換」這項考量暫時
+  擱置。
+- ［確認］`sense` 是一個週期內唯一讀取世界的地方：等畫面靜止，再用
+  interpreter、mapparser 把幀辨識成 `Sensed`。
+- ［確認］`Belief.update` 是 obs 轉成信念的唯一地方。§5.12.9 的四個
+  `revise_when_*` 方法改成這一個方法。比對與決策都用 `update` 的結果。
+- ［暫定］守衛在這個階段不讀最新的幀。前提假設：observe 已等到畫面
+  靜止，plan 的過程中世界不會變動。守衛比對 `Step` 的操作前置條件與
+  信念中的 UI；不符時，主迴圈不送手勢，結束這個週期。守衛不替換動作。
+- ［確認］信念中 UI 的依據是 LOST（這個週期的幀讀不出畫面）時，守衛丟出
+  例外。主迴圈接住例外，寫 log 錯誤並留下證據（操作名稱、信念中的 UI、
+  第一張讀不出的幀的 `frame_seq`），然後停手（`HALTED`）。本項對應
+  §5.4 (c)。
+- ［確認］驗證移到下一個週期。`predict` 依操作的每個結果分支，各產出一個
+  預期的信念（predicted belief），並帶期限（`t1` 加上操作的期限）。下一個
+  週期，主迴圈拿 `update` 之後的信念逐一比對各分支：UI 相同、鏡位（地圖
+  表示的範圍）相同、畫面在期限內靜止，三項都成立才算符合。使用者裁定：
+  期限隨預期帶到下一個週期，§5.11「動作有預期後果與驗證期限」仍然成立。
+  本項取代 §5.11「(a) 在 execute 的驗證段」、§5.12.14 的驗證閉包與中斷
+  判斷閉包；§5.12.16 的等靜止逾時改由比對判斷。
+- ［確認］連續 `MISMATCH_LIMIT` 次不符時，視為效果失敗，重新規劃。使用者
+  裁定：這是實作邏輯的差異，比一次就停手的設計更穩定。本項修訂 §5.4 (b)
+  「沒有重試」：不符的次數未達上限時，主迴圈照舊使用目前的計畫，依更新
+  後的信念取下一步。
+- ［確認］plan controller 提供 `goal_reached`、`think`、`review`；`think`
+  產出的計畫提供 `still_valid` 與 `next`。重新規劃只在沒有計畫、效果失敗
+  或計畫失效時發生，對應 §5.12.9 頻率表「領域搜尋：意圖失效或達成時」。
+- ［確認］下列做法是 Claude 寫程式碼時的預設，使用者看過程式碼後同意：
+  - `predict` 排在送出手勢之後，因為期限要用送出命令返回的時刻 `t1`
+    計算。
+  - `think` 沒有計畫可給時，主迴圈停手（`HALTED`）。
+  - 守衛不通過或手勢被危險帶擋下時，主迴圈清掉預期，避免下一個週期拿
+    舊的預期比對。
+  - 送出手勢之後，下一次 `sense` 只取手勢送出（`t0`）之後的幀。
+  - `MISMATCH_LIMIT` 暫定 3，取自封存分支 `issue-95-agent-planner-draft`
+    的計數。
+  - `Step` 只帶操作、螢幕座標的手勢與危險帶。`Wait`、`Finish`、
+    `ActionResult` 刪除。
+  - 虛擬碼的 `world.ended()`、`world.pause()`、`world.resume()` 目前沒有
+    對應的控制，略過。
+- 延後的項目記在 §6（2026-10-11 的三項）。
+- 情境清單（`docs/roadmaps/main-loop-scenarios.md`）第 5 節中，主迴圈
+  一欄提到閉包的列（1.2、1.4、1.6、1.7、2.2、2.7、3.3、3.6），依本節
+  重讀。
+
 ## 6. 延後項目（已知，不是遺漏）
 
+- （2026-10-11）把預期分支中的領域知識寫進信念。例：點格出卡時，「點到
+  的格是敵方」只存在出卡分支的預期裡，感知寫不出來。使用者不確定是否
+  必要，延後實作；目前後續運算都用 `update` 的結果。在這之前，沒有任何
+  地方更新信念中的領域狀態。相關：§5.12.18。
+- （2026-10-11）選擇態置中分支的預期鏡位。點我方單位時鏡頭會移動。在
+  現有架構下，模型可以算出這個分支的預期鏡位，但模型還沒有這段邏輯；
+  在那之前，這個分支比對不上，會被算成不符。相關：§5.12.18。
+- （2026-10-11）`review` 的回傳與 `history` 的形狀。相關：§5.12.18。
 - 敵方回合後盤面與 battle engine 的預測不符時的局部複查。第一版歸類為
   (c) 停手。
 
@@ -1194,6 +1298,7 @@ while not stop.is_set():
    actuator 單純執行。這是牽涉實作架構的考量，之後再討論。相關：
    §5.12.11（2026-10-05）的地圖格點擊點、§5.12.12 的守衛。2026-10-07
    已決定，見 §5.12.14。
+   2026-10-11 再修訂：守衛與驗證不再使用閉包，見 §5.12.18。
 6. （2026-10-07）規則表的做法。規則表的做法與驗證引擎有關，也是封存
    分支 `issue-95-agent-planner-draft` 被封存的原因之一。「驗證引擎」在
    本檔還沒有定義；「驗證引擎」與本節第 5 項、第 7 項的差分比對是否指
