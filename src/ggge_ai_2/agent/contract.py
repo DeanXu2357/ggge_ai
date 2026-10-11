@@ -1,0 +1,30 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import Protocol
+
+from ggge_ai_2.actuator.contract import Gesture, Rect
+from ggge_ai_2.agent.belief import Belief
+from ggge_ai_2.uisim.contract import Operation
+
+
+@dataclass(frozen=True)
+class Step:
+    operation: Operation
+    gesture: Gesture
+    band: tuple[Rect, ...]
+
+
+class Plan(Protocol):
+    def still_valid(self, belief: Belief) -> bool: ...
+
+    def next(self, belief: Belief) -> Step: ...
+
+
+class PlanController(Protocol):
+    def goal_reached(self, belief: Belief) -> bool: ...
+
+    def think(self, belief: Belief, history: Sequence[object]) -> Plan | None: ...
+
+    def review(self, plan: Plan, belief: Belief) -> object: ...
