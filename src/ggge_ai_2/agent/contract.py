@@ -6,14 +6,15 @@ from typing import Protocol
 
 from ggge_ai_2.actuator.contract import Gesture, Rect
 from ggge_ai_2.agent.belief import Belief
-from ggge_ai_2.uisim.contract import Operation
 
 
 @dataclass(frozen=True)
 class Step:
-    operation: Operation
+    name: str
     gesture: Gesture
     band: tuple[Rect, ...]
+    deadline: float
+    expected: Belief
 
 
 class Plan(Protocol):

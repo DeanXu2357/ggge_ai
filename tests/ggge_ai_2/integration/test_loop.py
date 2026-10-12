@@ -16,17 +16,14 @@ from ggge_ai_2.interpreter.contract import Screen, Situation
 from ggge_ai_2.mapgeom.contract import Alignment, KnownMap
 from ggge_ai_2.mapparser.contract import MapReading, ViewCell
 from ggge_ai_2.stream.contract import NO_DISPLACEMENT, Frame, Observation, StillWindow
-from ggge_ai_2.uisim.contract import Operation, Outcome, UiScreen, UiState, UiTap
+from ggge_ai_2.uisim.contract import UiScreen, UiState
 from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
 
 LIST = UiState(UiScreen.STAGE_LIST)
 INFO = UiState(UiScreen.STAGE_INFO)
-OPEN_INFO = Operation("open_info", LIST, UiTap((0.1, 0.2)), (Outcome("info_open", INFO),), 3.0, 1.0)
-CLOSE_INFO = Operation(
-    "close_info", INFO, UiTap((0.9, 0.1)), (Outcome("list_back", LIST),), 3.0, 1.0
-)
+DEADLINE = 3.0
 BAND = (Rect(0, 0, 50, 50),)
 TAP = Tap((100, 100))
 DISPATCHED = Dispatch(10.0, 10.1)
@@ -47,8 +44,12 @@ def moving(seq: int, at: float) -> Settle:
     return frame(seq, at), None
 
 
-def step(operation: Operation = OPEN_INFO) -> Step:
-    return Step(operation, TAP, BAND)
+def expected(ui: UiState, camera: Alignment | None = None) -> Belief:
+    return Belief(ui, UiBasis(UiSource.ASSUMED), camera, KnownMap({}), FakeDomain(), None)
+
+
+def step(then: UiState = INFO, name: str = "open_info") -> Step:
+    return Step(name, TAP, BAND, DEADLINE, expected(then))
 
 
 @dataclass
@@ -189,17 +190,6 @@ def test_step_that_passes_the_guard_sends_its_gesture_and_band():
     assert controller.reviewed == [plan]
 
 
-def test_guard_refuses_a_step_whose_precondition_is_not_the_believed_ui():
-    controller = ScriptedController([ScriptedPlan([step()])], goals=[False, True])
-    stream = FakeStream([still(1, 1.0), still(2, 2.0)])
-    actuator = FakeActuator()
-    shows = {1: Screen.NOTICE, 2: Screen.NOTICE}
-
-    assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
-    assert actuator.sent == []
-    assert stream.calls[1][0] == 1.0
-
-
 def test_guard_on_an_unreadable_screen_halts_and_logs_the_evidence(
     caplog: pytest.LogCaptureFixture,
 ):
@@ -243,7 +233,7 @@ def test_new_plan_restarts_the_count():
 
 def test_match_between_mismatches_restarts_the_count():
     opens = [step()] * MISMATCH_LIMIT
-    plan = ScriptedPlan([*opens, step(CLOSE_INFO), step(CLOSE_INFO)])
+    plan = ScriptedPlan([*opens, step(LIST, "close_info"), step(LIST, "close_info")])
     cycles = MISMATCH_LIMIT + 3
     controller = ScriptedController([plan, None], goals=[False] * (cycles - 1) + [True])
     frames = [still(n, 10.0 + n * 0.5) for n in range(1, cycles + 1)]
@@ -266,21 +256,9 @@ def test_invalid_plan_is_reviewed_and_replaced():
     assert controller.thought[1][1] == (plan,)
 
 
-def test_refused_step_leaves_nothing_to_compare(caplog: pytest.LogCaptureFixture):
-    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
-    controller = ScriptedController([ScriptedPlan([step()] * 3)], goals=[False, False, False, True])
-    stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0), still(4, 13.0)])
-    shows = {1: Screen.STAGE_LIST, 2: Screen.NOTICE, 3: Screen.NOTICE}
-    actuator = FakeActuator()
-
-    assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
-    assert len(actuator.sent) == 1
-    assert len(logged(caplog, "matches")) == 1
-
-
 def test_blocked_gesture_leaves_nothing_to_compare(caplog: pytest.LogCaptureFixture):
     caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
-    plan = ScriptedPlan([step(), step(CLOSE_INFO), step(CLOSE_INFO)])
+    plan = ScriptedPlan([step(), step(LIST, "close_info"), step(LIST, "close_info")])
     controller = ScriptedController([plan], goals=[False, False, False, True])
     stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0), still(4, 13.0)])
     shows = {1: Screen.STAGE_LIST, 2: Screen.STAGE_INFO, 3: Screen.STAGE_INFO}
@@ -305,9 +283,8 @@ def seen(ui: UiState, at: float, camera: Alignment | None = None) -> Belief:
     )
 
 
-def predicted_from(belief: Belief) -> Predicted:
-    agent = make_agent(FakeStream([]), {}, ScriptedController([], goals=[]))
-    return agent.predict(belief, step(), DISPATCHED)
+def predicted(camera: Alignment | None = None) -> Predicted:
+    return Predicted(expected(INFO, camera), DISPATCHED.t1 + DEADLINE)
 
 
 def compare(belief: Belief, predicted: Predicted) -> bool:
@@ -316,28 +293,28 @@ def compare(belief: Belief, predicted: Predicted) -> bool:
     )
 
 
-def test_prediction_has_one_branch_per_outcome_and_a_deadline():
-    predicted = predicted_from(seen(LIST, 1.0))
+def test_prediction_takes_the_expected_belief_and_the_deadline_from_the_step():
+    agent = make_agent(FakeStream([]), {}, ScriptedController([], goals=[]))
+    sent = step()
 
-    assert [(name, branch.ui) for name, branch in predicted.branches] == [("info_open", INFO)]
-    assert predicted.deadline == DISPATCHED.t1 + OPEN_INFO.deadline
+    assert agent.predict(sent, DISPATCHED) == Predicted(sent.expected, DISPATCHED.t1 + DEADLINE)
 
 
-def test_belief_with_the_branch_ui_and_camera_in_time_matches():
-    assert compare(seen(INFO, 11.0), predicted_from(seen(LIST, 1.0)))
+def test_belief_with_the_expected_ui_and_camera_in_time_matches():
+    assert compare(seen(INFO, 11.0), predicted())
 
 
 def test_belief_still_only_after_the_deadline_does_not_match():
-    late = DISPATCHED.t1 + OPEN_INFO.deadline + 1.0
+    late = DISPATCHED.t1 + DEADLINE + 1.0
 
-    assert not compare(seen(INFO, late), predicted_from(seen(LIST, 1.0)))
+    assert not compare(seen(INFO, late), predicted())
 
 
 def test_belief_with_another_ui_does_not_match():
-    assert not compare(seen(LIST, 11.0), predicted_from(seen(LIST, 1.0)))
+    assert not compare(seen(LIST, 11.0), predicted())
 
 
 def test_belief_with_another_camera_does_not_match():
     moved = seen(INFO, 11.0, Alignment((3, 0)))
 
-    assert not compare(moved, predicted_from(seen(LIST, 1.0, Alignment((0, 0)))))
+    assert not compare(moved, predicted(Alignment((0, 0))))

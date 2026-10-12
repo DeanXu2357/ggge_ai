@@ -34,14 +34,14 @@ class RunResult(StrEnum):
 
 class UnreadableScreen(Exception):
     def __init__(self, step: Step, belief: Belief) -> None:
-        super().__init__(step.operation.name)
+        super().__init__(step.name)
         self.step = step
         self.belief = belief
 
 
 @dataclass(frozen=True)
 class Predicted:
-    branches: tuple[tuple[str, Belief], ...]
+    belief: Belief
     deadline: Instant
 
 
@@ -93,22 +93,19 @@ class Agent:
 
             step = plan.next(self.belief)
             try:
-                passed = self.guard(step, self.belief)
+                self.guard(step, self.belief)
             except UnreadableScreen as unreadable:
                 log.error(
                     "guard on an unreadable screen",
                     extra={
-                        "operation": unreadable.step.operation.name,
+                        "step": unreadable.step.name,
                         "believed_ui": unreadable.belief.ui,
                         "unreadable_since_frame_seq": unreadable.belief.ui_basis.frame_seq,
                     },
                 )
                 return RunResult.HALTED
-            if not passed:
-                predicted = None
-                continue
             dispatch = self.act(step)
-            predicted = None if dispatch is None else self.predict(self.belief, step, dispatch)
+            predicted = None if dispatch is None else self.predict(step, dispatch)
         return RunResult.STOPPED
 
     def sense(self) -> Sensed | None:
@@ -138,48 +135,34 @@ class Agent:
     def matches(self, belief: Belief, predicted: Predicted) -> bool:
         still = belief.as_of
         in_time = still is not None and still.since <= predicted.deadline
-        branch = next(
-            (
-                name
-                for name, expected in predicted.branches
-                if expected.ui == belief.ui and expected.camera == belief.camera
-            ),
-            None,
-        )
+        same = replace(predicted.belief, as_of=belief.as_of, ui_basis=belief.ui_basis) == belief
         log.info(
             "matches",
             extra={
                 "frame_seq": None if still is None else still.frame_seq,
                 "in_time": in_time,
-                "branch": branch,
+                "same": same,
             },
         )
-        return in_time and branch is not None
+        return in_time and same
 
-    def guard(self, step: Step, belief: Belief) -> bool:
+    def guard(self, step: Step, belief: Belief) -> None:
         if belief.ui_basis.source is UiSource.LOST:
             raise UnreadableScreen(step, belief)
-        passed = step.operation.precondition == belief.ui
-        log.info("guard", extra={"operation": step.operation.name, "passed": passed})
-        return passed
 
     def act(self, step: Step) -> Dispatch | None:
-        name = step.operation.name
+        name = step.name
         try:
             dispatch = self.actuator.dispatch(step.gesture, step.band)
         except GestureBlocked:
-            log.info("blocked", extra={"operation": name})
+            log.info("blocked", extra={"step": name})
             return None
         self._after = dispatch.t0
-        log.info("act", extra={"operation": name, "t0": dispatch.t0, "t1": dispatch.t1})
+        log.info("act", extra={"step": name, "t0": dispatch.t0, "t1": dispatch.t1})
         return dispatch
 
-    def predict(self, belief: Belief, step: Step, dispatch: Dispatch) -> Predicted:
-        branches = tuple(
-            (outcome.name, replace(belief, ui=self.uisim.advance(belief.ui, outcome)))
-            for outcome in step.operation.outcomes
-        )
-        return Predicted(branches, dispatch.t1 + step.operation.deadline)
+    def predict(self, step: Step, dispatch: Dispatch) -> Predicted:
+        return Predicted(step.expected, dispatch.t1 + step.deadline)
 
     def _settle(self, after: Instant, deadline: Instant) -> Observation:
         obs = self.stream.settled(after, deadline)
