@@ -29,6 +29,8 @@ class Screen(StrEnum):
     END_TURN_DIALOG = "end_turn_dialog"
     BATTLE_RESULT = "battle_result"
     BATTLE_DEFEAT = "battle_defeat"
+    POWER_SAVE_LOCK = "power_save_lock"
+    POWER_SAVE_DIM = "power_save_dim"
 
 
 class Overlay(StrEnum):

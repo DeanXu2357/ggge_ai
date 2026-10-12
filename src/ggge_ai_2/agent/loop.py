@@ -6,10 +6,10 @@ from enum import StrEnum
 from threading import Event
 
 from ggge_ai_2.actuator.contract import Actuator, Dispatch, GestureBlocked
-from ggge_ai_2.agent.belief import Belief, Sensed, UiSource
+from ggge_ai_2.agent.belief import Belief, ScreenLock, Sensed, UiSource
 from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.agent.contract import Plan, PlanController, Step
-from ggge_ai_2.interpreter.contract import Interpreter, Situation
+from ggge_ai_2.interpreter.contract import Interpreter, Screen, Situation
 from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent, LocalBoard, MapGeometry
 from ggge_ai_2.mapparser.contract import MapParser, MapReading
 from ggge_ai_2.stream.contract import Observation, Stream
@@ -117,7 +117,10 @@ class Agent:
             obs = self._settle(obs.frame.captured_at, now() + self.idle_deadline)
             waited += obs.waited
 
-        observed = _situation_to_observed(self.interpreter.interpret(obs.frame))
+        situation = self.interpreter.interpret(obs.frame)
+        locks = {Screen.POWER_SAVE_LOCK: ScreenLock.ICON, Screen.POWER_SAVE_DIM: ScreenLock.DIM}
+        screen_lock = None if situation is None else locks.get(situation.screen)
+        observed = None if screen_lock is not None else _situation_to_observed(situation)
         on_map = observed is not None and observed.map_mode is not None
         reading = self.mapparser.parse(obs.frame) if on_map else None
         log.info(
@@ -127,10 +130,11 @@ class Agent:
                 "still_since": obs.still.since,
                 "still_until": obs.still.until,
                 "waited": waited,
-                "recognized": observed is not None,
+                "recognized": situation is not None,
             },
         )
-        return Sensed(obs.still, observed, _map_reading_to_local_board(reading))
+        board = _map_reading_to_local_board(reading)
+        return Sensed(obs.still, observed, board, screen_lock)
 
     def matches(self, belief: Belief, predicted: Predicted) -> bool:
         still = belief.as_of

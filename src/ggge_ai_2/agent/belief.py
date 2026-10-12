@@ -13,6 +13,11 @@ class DomainState(Protocol):
     def absorb(self, intent: object, outcome: Outcome | None) -> Self: ...
 
 
+class ScreenLock(StrEnum):
+    ICON = "icon"
+    DIM = "dim"
+
+
 class UiSource(StrEnum):
     ASSUMED = "assumed"
     SEEN = "seen"
@@ -30,6 +35,7 @@ class Sensed:
     still: StillWindow
     observed: Observed | None
     board: LocalBoard | None
+    screen_lock: ScreenLock | None = None
 
 
 @dataclass(frozen=True)
@@ -40,8 +46,12 @@ class Belief:
     known_map: KnownMap
     domain: DomainState
     as_of: StillWindow | None
+    screen_lock: ScreenLock | None = None
 
     def update(self, sensed: Sensed, uisim: UiSim, mapgeom: MapGeometry) -> Belief:
+        if sensed.screen_lock is not None:
+            return replace(self, screen_lock=sensed.screen_lock, as_of=sensed.still)
+
         ui, ui_basis = self.ui, self.ui_basis
         if sensed.observed is not None:
             ui = uisim.sync(self.ui, sensed.observed)
@@ -57,5 +67,11 @@ class Belief:
                 known_map = mapgeom.merge(self.known_map, sensed.board, alignment)
 
         return replace(
-            self, ui=ui, ui_basis=ui_basis, camera=camera, known_map=known_map, as_of=sensed.still
+            self,
+            ui=ui,
+            ui_basis=ui_basis,
+            camera=camera,
+            known_map=known_map,
+            as_of=sensed.still,
+            screen_lock=None,
         )

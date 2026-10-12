@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from threading import Event
 
 import numpy as np
 import pytest
 
 from ggge_ai_2.actuator.contract import Dispatch, Gesture, GestureBlocked, Rect, Tap
-from ggge_ai_2.agent.belief import Belief, UiBasis, UiSource
+from ggge_ai_2.agent.belief import Belief, ScreenLock, UiBasis, UiSource
 from ggge_ai_2.agent.contract import Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
 from ggge_ai_2.interpreter.contract import Screen, Situation
@@ -167,6 +167,16 @@ def test_sense_hands_only_the_still_frame_to_the_belief():
     assert controller.checked[0].as_of == StillWindow(1.0, 1.5, 2)
 
 
+def test_lock_screen_reaches_the_belief_as_a_screen_lock():
+    controller = ScriptedController([], goals=[True])
+    agent = make_agent(FakeStream([still(1, 1.0)]), {1: Screen.POWER_SAVE_LOCK}, controller)
+
+    assert agent.run() is RunResult.DONE
+    assert controller.checked[0] == replace(
+        start(), screen_lock=ScreenLock.ICON, as_of=still(1, 1.0)[1]
+    )
+
+
 def test_controller_without_a_plan_halts_the_loop():
     controller = ScriptedController([None], goals=[False])
     actuator = FakeActuator()
@@ -318,3 +328,9 @@ def test_belief_with_another_camera_does_not_match():
     moved = seen(INFO, 11.0, Alignment((3, 0)))
 
     assert not compare(moved, predicted(Alignment((0, 0))))
+
+
+def test_belief_still_locked_after_an_unlock_does_not_match():
+    still_locked = replace(seen(INFO, 11.0), screen_lock=ScreenLock.ICON)
+
+    assert not compare(still_locked, predicted())

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
-from ggge_ai_2.agent.belief import Belief, Sensed, UiBasis, UiSource
+from ggge_ai_2.agent.belief import Belief, ScreenLock, Sensed, UiBasis, UiSource
 from ggge_ai_2.mapgeom.contract import Alignment, CellContent, KnownMap, LocalBoard
 from ggge_ai_2.stream.contract import StillWindow
 from ggge_ai_2.uisim.contract import Observed, UiMapMode, UiScreen, UiState
@@ -90,3 +90,18 @@ def test_board_with_no_place_on_the_known_map_keeps_the_camera_and_the_map():
 
     assert after.camera == Alignment((10, 5))
     assert after.known_map == seen.known_map
+
+
+def test_locked_frame_records_the_lock_and_keeps_the_rest_of_the_belief():
+    seen = start().update(sensed(1, board=BOARD), FakeUiSim(), FixedGeometry((10, 5)))
+    lock = Sensed(window(2), None, None, ScreenLock.ICON)
+    locked = seen.update(lock, FakeUiSim(), NoMapGeometry())
+
+    assert locked == replace(seen, screen_lock=ScreenLock.ICON, as_of=window(2))
+
+
+def test_readable_frame_after_a_lock_clears_the_lock():
+    locked = replace(start(), screen_lock=ScreenLock.DIM)
+    after = locked.update(sensed(3, Observed(UiScreen.STAGE_LIST)), FakeUiSim(), NoMapGeometry())
+
+    assert after.screen_lock is None

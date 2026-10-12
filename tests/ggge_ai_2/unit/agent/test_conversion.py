@@ -13,8 +13,11 @@ def observed(situation: Situation) -> Observed:
     return converted
 
 
-def test_every_screen_of_the_interpreter_converts_to_one_screen_of_uisim():
-    converted = {observed(Situation(1, screen)).screen for screen in Screen}
+LOCKS = {Screen.POWER_SAVE_LOCK, Screen.POWER_SAVE_DIM}
+
+
+def test_every_game_screen_of_the_interpreter_converts_to_one_screen_of_uisim():
+    converted = {observed(Situation(1, screen)).screen for screen in Screen if screen not in LOCKS}
 
     assert converted == set(UiScreen)
 
