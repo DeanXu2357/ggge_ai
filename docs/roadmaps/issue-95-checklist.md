@@ -53,8 +53,8 @@
 
 ## 5. 進行中
 
-- [ ] #95 票面同步：`3d92679` 之後的 `Step`、reflex、省電鎖、3.2、2.6，
-  2026-10-13 的範圍與 #104。發布前給使用者確認。
+- [x] #95 同步到 `837cebe`：［確認，2026-10-13］標題與內文不改，以留言記錄
+  （issuecomment-6140642049）。
 
 ## 6. 待討論
 
@@ -73,20 +73,20 @@
 
 ### C2. UI shift planner 的合約
 
-- 職責：在 `src/ggge_ai_2/planner/` 定義 UI shift planner 的合約：從目前
+- 職責：在 `agent/plan_controller.py` 定義 UI shift planner 的合約：從目前
   的 UI 狀態走向目標 UI 狀態的下一個 step。實作屬於 replan §7 的 S3。
 - 情境清單：2.6、3.8 的進場與離場、4.3。
 
 ### C3. map sync planner 的合約
 
-- 職責：在 `src/ggge_ai_2/planner/` 定義 map sync planner 的合約。實作屬於
+- 職責：在 `agent/plan_controller.py` 定義 map sync planner 的合約。實作屬於
   replan §7 的 S5。
 - 擋住：T6。
 - 情境清單：1.6、2.4、3.6、4.1、4.4；1.5、3.4、3.5 是實作細節。
 
 ### C11. battle planner 的合約
 
-- 職責：在 `src/ggge_ai_2/planner/` 定義 battle planner 的合約。實作屬於
+- 職責：在 `agent/plan_controller.py` 定義 battle planner 的合約。實作屬於
   replan §7 的 S7。
 - 擋住：T4。
 - 情境清單：2.1、2.3、2.5、3.7、3.8 的戰鬥部分。
