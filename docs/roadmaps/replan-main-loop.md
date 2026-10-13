@@ -28,7 +28,7 @@
 | 地圖判讀轉換物件 | 地圖幾何：投影模型與形變、螢幕點 ↔ 畫面內格號、畫面內格號 ↔ 世界格號（求位移）。取代先前的「定位」，見 §5.10.2 |
 | 畫面判讀器 | 幀的唯一消費者：辨識當前畫面、核對當前幀上的事實、判斷靜止與位移。不叫「量測」，那個詞與 metric 相近，會讓職責偏移 |
 | plan controller | 負責意圖管理，並在重新決策時決定調用哪個領域 planner；以合約抽換。§5.12.12 原稱 agent planner，見 §5.12.13 |
-| 領域 planner | 各領域的決策：UI shift planner、map sync planner、battle planner；放在 `planner/` |
+| 領域 planner | 各領域的決策：UI shift planner、map sync planner、battle planner；實作放在 `planner/`，合約在 plan controller 的實作裡（§5.12.12） |
 
 ## 3. 遊戲事實（使用者確認）
 
@@ -786,7 +786,14 @@ mapparser 歸 S4 的理由：讀數的形狀由 mapgeom 的擬合需求決定，
   2.6 怎麼補體力）與領域 planner 的邏輯，不在 #95 定案。本項修訂 §7：
   plan controller（含規則表）從 S3 移到 S1（#95）。
 - ［確認］plan controller 放在 agent 套件裡，以合約抽換。各領域的 planner
-  （UI shift planner、map sync planner、battle planner）放在 `planner/`。
+  （UI shift planner、map sync planner、battle planner）的實作放在 `planner/`。
+- ［確認，2026-10-13］領域 planner 的合約放在 plan controller 的實作裡
+  （`agent/plan_controller.py`），不放在 `planner/` 或 `agent/contract.py`。
+  理由：uisim、mapgeom 是事實模型，合約寫定後很少變動；領域 planner 的合約
+  跟著 plan controller 的啟發式一起改，換一個 plan controller 也可能換掉。
+- ［確認，2026-10-13］流程：`think` 決定意圖，回傳負責這個意圖的計畫；計畫
+  每個週期向領域 planner 要一個動作（領域自己的結構），再轉成 `Step`；意圖
+  達成時計畫失效，`think` 決定下一個意圖。
 - ［確認］地圖格的點擊點：見 §5.12.11。
 
 #### 5.12.13 改名、#95 的驗收與範圍 ［確認，2026-10-07］
