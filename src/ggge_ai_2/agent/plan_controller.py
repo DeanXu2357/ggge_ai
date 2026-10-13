@@ -1,12 +1,25 @@
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from typing import ClassVar
 
-from ggge_ai_2.actuator.contract import Swipe, Tap
+from ggge_ai_2.actuator.contract import Gesture, Key, Rect, ScreenPoint, Swipe, Tap
 from ggge_ai_2.agent.belief import Belief, ScreenLock
 from ggge_ai_2.agent.contract import Plan, Reflex, Step
+from ggge_ai_2.uisim.contract import (
+    Operation,
+    Outcome,
+    RatioPoint,
+    UiKey,
+    UiMapMode,
+    UiScreen,
+    UiSim,
+    UiState,
+    UiSwipe,
+    UiTap,
+)
 
 
 @dataclass(frozen=True)
@@ -39,21 +52,78 @@ class PowerSaveUnlock:
 
 @dataclass(frozen=True)
 class DefaultPlanController:
+    BATTLE_MAP: ClassVar[UiState] = UiState(UiScreen.BATTLE_MAP, map_mode=UiMapMode.HUB)
+
     reflexes: tuple[Reflex, ...]
+    uisim: UiSim
+    screen: tuple[int, int]
 
     def goal_reached(self, belief: Belief) -> bool:
-        # TODO: the stage goal of scenario 3.8 (groups B and C).
+        # TODO: the stage goal of scenario 3.8.
         return False
 
     def think(self, belief: Belief, history: Sequence[object]) -> Plan | None:
-        # TODO: choose the domain planner for the belief (groups B and C):
-        #     plan = planner.plan(belief)
-        #     return None if plan is None else ReflexPlan(self.reflexes, plan)
-        return None
+        # TODO: before the map, check the preconditions of scenarios 4.2 and 4.3 (C5).
+        # TODO: on the map, give an unrecorded map to the map sync plan (C3) and a
+        #     recorded map to the battle plan (C11). After the map is explored, leave
+        #     the stage (scenario 2.4).
+        if belief.ui == self.BATTLE_MAP:
+            return None
+        to_map = UiShiftPlan(self.BATTLE_MAP, self.uisim, self.screen)
+        return ReflexPlan(self.reflexes, to_map)
 
     def review(self, plan: Plan, belief: Belief) -> object:
         # TODO: the shape of a review is deferred (roadmap section 6).
         return plan
+
+
+@dataclass(frozen=True)
+class UiShiftPlan:
+    goal: UiState
+    uisim: UiSim
+    screen: tuple[int, int]
+
+    def still_valid(self, belief: Belief) -> bool:
+        return belief.ui != self.goal and self.first_move(belief.ui) is not None
+
+    def next(self, belief: Belief) -> Step:
+        move = self.first_move(belief.ui)
+        assert move is not None, "the main loop takes a step only from a valid plan"
+        operation, outcome = move
+        width, height = self.screen
+
+        def touch(point: RatioPoint) -> ScreenPoint:
+            return (round(point[0] * width), round(point[1] * height))
+
+        gesture: Gesture
+        match operation.gesture:
+            case UiTap(point):
+                gesture = Tap(touch(point))
+            case UiSwipe(start, end, duration):
+                gesture = Swipe(touch(start), touch(end), duration)
+            case UiKey(code):
+                gesture = Key(code)
+        band = tuple(
+            Rect(*touch((region.left, region.top)), *touch((region.right, region.bottom)))
+            for region in self.uisim.danger_band(belief.ui).regions
+        )
+        expected = replace(belief, ui=self.uisim.advance(belief.ui, outcome))
+        return Step(operation.name, gesture, band, operation.deadline, expected)
+
+    def first_move(self, state: UiState) -> tuple[Operation, Outcome] | None:
+        firsts: dict[UiState, tuple[Operation, Outcome] | None] = {state: None}
+        frontier = deque([state])
+        while frontier:
+            current = frontier.popleft()
+            if current == self.goal:
+                return firsts[current]
+            for operation in self.uisim.successors(current):
+                for outcome in operation.outcomes:
+                    then = self.uisim.advance(current, outcome)
+                    if then not in firsts:
+                        firsts[then] = firsts[current] or (operation, outcome)
+                        frontier.append(then)
+        return None
 
 
 @dataclass(frozen=True)
