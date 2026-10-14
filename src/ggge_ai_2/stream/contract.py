@@ -5,7 +5,11 @@ from typing import Protocol
 
 import numpy as np
 
-from ggge_ai_2.clock import Instant
+# Read every time from the clock that the agent uses. The agent compares frame times
+# with gesture times directly.
+Instant = float
+Displacement = tuple[float, float]
+NO_DISPLACEMENT: Displacement = (0.0, 0.0)
 
 
 @dataclass(frozen=True)
@@ -25,9 +29,10 @@ class StillWindow:
 @dataclass(frozen=True)
 class Observation:
     frame: Frame
+    after: Instant
     still: StillWindow | None
     waited: float
-    displacement: tuple[float, float]
+    displacement: Displacement
 
 
 class Stream(Protocol):
@@ -39,6 +44,8 @@ class Stream(Protocol):
         The screen is still when it does not change for a fixed time length. The
         length is in seconds, not in frames, so the result does not change with the
         sampling interval. At `deadline` the method returns the last frame with
-        `still` set to None. The method does not send a gesture.
+        `still` set to None. The result repeats `after`, and `displacement` is the
+        move of the frame content from `after` to the returned frame. The method does
+        not send a gesture.
         """
         ...

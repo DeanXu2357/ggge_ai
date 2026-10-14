@@ -12,6 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.414",
     "pytest>=8.0",
     "ruff>=0.8",
 ]
@@ -29,3 +30,10 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+
+[tool.pyright]
+include = ["src/ggge_ai_2", "tests/ggge_ai_2"]
+strict = ["src/ggge_ai_2"]
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"

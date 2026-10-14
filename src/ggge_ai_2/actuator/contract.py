@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
-from ggge_ai_2.clock import Instant
-from ggge_ai_2.screen import ScreenPoint
+# Read every time from the clock that the agent uses. The agent compares gesture times
+# with frame times directly.
+Instant = float
+ScreenPoint = tuple[int, int]
 
 
 @dataclass(frozen=True)
@@ -41,17 +42,6 @@ class Rect:
 
 
 @dataclass(frozen=True)
-class DangerBand:
-    regions: tuple[Rect, ...] = ()
-
-    def contains(self, point: ScreenPoint) -> bool:
-        return any(region.contains(point) for region in self.regions)
-
-
-DangerBands = Mapping[str, DangerBand]
-
-
-@dataclass(frozen=True)
 class Dispatch:
     t0: Instant
     t1: Instant
@@ -62,7 +52,7 @@ class GestureBlocked(Exception):
 
 
 class Actuator(Protocol):
-    def dispatch(self, gesture: Gesture, band: DangerBand) -> Dispatch:
+    def dispatch(self, gesture: Gesture, band: tuple[Rect, ...]) -> Dispatch:
         """Send one gesture and return the host-clock times around the command.
 
         `t0` is read before the command is sent and `t1` after the command returns.
