@@ -59,21 +59,20 @@ class DefaultPlanController:
     screen: tuple[int, int]
 
     def goal_reached(self, belief: Belief) -> bool:
-        # TODO: the stage goal of scenario 3.8.
+        # TODO(#105): the stage goal.
         return False
 
     def think(self, belief: Belief, history: Sequence[object]) -> Plan | None:
-        # TODO: before the map, check the preconditions of scenarios 4.2 and 4.3 (C5).
-        # TODO: on the map, give an unrecorded map to the map sync plan (C3) and a
-        #     recorded map to the battle plan (C11). After the map is explored, leave
-        #     the stage (scenario 2.4).
+        # TODO(#105): before the map, check AUTO and '顯示方格'. On the map, give an
+        #     unrecorded map to the map sync plan and a recorded map to the battle
+        #     plan. After the map is explored, leave the stage.
         if belief.ui == self.BATTLE_MAP:
             return None
         to_map = UiShiftPlan(self.BATTLE_MAP, self.uisim, self.screen)
         return ReflexPlan(self.reflexes, to_map)
 
     def review(self, plan: Plan, belief: Belief) -> object:
-        # TODO: the shape of a review is deferred (roadmap section 6).
+        # TODO: the shape of a review is deferred.
         return plan
 
 
