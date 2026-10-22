@@ -1,0 +1,5212 @@
+{
+  "transition_description": "畫面的轉場狀態：整張模糊、淡入淡出、藍色暗角蓋住半透明的介面；兩個畫面半透明重疊（例如還沒關閉的視窗留下重影）；畫面元素還沒載入完成，只剩背景或導覽列（例如清單頁只出現標題、分頁與篩選列，卡片還沒出現）；地圖上的攻擊動畫展演（例如格線地圖上單位旁浮出武裝名稱「光束加農」）。玩家不能操作、但有自己介面的狀態（例如敵軍回合）不是轉場。建圖時跳過轉場狀態的幀。",
+  "auto_mode_description": "戰鬥中右上的「AUTO」按鈕亮起（藍底）表示目前是自動模式；暗色（深灰底）表示手動。點擊後按鈕上會短暫出現藍色圓形準星和散開的小方塊，這是遊戲的點擊反饋，不是亮起（例如 #504）；判斷只看按鈕本身：藍底藍字是自動，深灰底白框白字是手動。auto_mode 和 transition 一樣是畫面的狀態，不是畫面階段名稱：自動模式下 screen 照樣填看到的畫面階段（例如自動模式中跳出的 challenge_battle_check），只有認不出畫面階段時才填 undefined。不在戰鬥中（沒有 AUTO 按鈕）時一律不是自動模式。",
+  "gesture_description": "按鈕的操作手勢：沒有 gesture 欄位的按鈕是點擊；long_press 是長按；swipe_x、swipe_y 是在該按鈕描述的範圍內左右或上下滑動，用來捲動清單，滑動後畫面階段不變，變的是露出的項目。dynamic 為 true 的按鈕位置不固定，要讀畫面內容才能找到。",
+  "forbidden_description": "forbidden 為 true 的按鈕是禁止點擊區域：agent 不可以點擊、滑動或長按這個範圍，例如會消耗鑽石的按鈕。",
+  "reserved": [
+    {
+      "name": "undefined",
+      "zh": "未定義",
+      "description": "畫面不屬於任何已定義的畫面階段。"
+    }
+  ],
+  "screens": [
+    {
+      "name": "mech_enhance",
+      "zh": "機體強化頁面",
+      "kind": "page",
+      "control": "player",
+      "description": "單一機體的強化頁，左上標題「單位資料」。左側是機體立繪，右側有「突破界限」「LV」「武裝」「能力／技能」「選擇性零件」各列與其強化或替換按鈕，下方是能力值，底部是主導覽列且「強化」為選中。",
+      "buttons": [
+        {
+          "name": "mech_enhance__pilot_slot",
+          "zh": "優先駕駛欄",
+          "description": "機體強化頁標示「優先」的加號欄",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__limit_break_enhance",
+          "zh": "突破界限強化",
+          "description": "「突破界限」列的「強化」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__lv_enhance",
+          "zh": "LV強化",
+          "description": "「LV」列的「LV強化」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__weapon_enhance",
+          "zh": "武裝強化",
+          "description": "「武裝」列的「強化」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__part_replace",
+          "zh": "零件替換",
+          "description": "「選擇性零件」列的「替換」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__memo",
+          "zh": "筆記",
+          "description": "文件圖示",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__favorite",
+          "zh": "最愛",
+          "description": "愛心圖示",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__detail",
+          "zh": "詳情",
+          "description": "「詳情」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__next_mech",
+          "zh": "下一台機體",
+          "description": "畫面右緣的「>」箭頭",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_enhance_list",
+      "zh": "強化機體清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「強化」，左側「單位」分頁為選中，中間是機體卡片格子清單，右上有「搜尋」「保存編制一覽」，下方有「解體」與排序篩選，底部是主導覽列且「強化」為選中。",
+      "buttons": [
+        {
+          "name": "mech_enhance_list__info",
+          "zh": "說明",
+          "description": "標題旁的「i」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__search",
+          "zh": "搜尋",
+          "description": "「搜尋」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__saved_rosters",
+          "zh": "保存編制一覽",
+          "description": "「保存編制一覽」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__tab_unit",
+          "zh": "單位分頁",
+          "description": "「單位」分頁",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__tab_character",
+          "zh": "角色分頁",
+          "description": "「角色」分頁",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__tab_support",
+          "zh": "支援人員分頁",
+          "description": "「支援人員」分頁",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__mech_card",
+          "zh": "機體卡片",
+          "description": "清單中的一張機體或駕駛卡片",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__favorite_filter",
+          "zh": "最愛篩選",
+          "description": "愛心圖示加 ON／OFF",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__dismantle",
+          "zh": "解體",
+          "description": "「解體」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__expand_capacity",
+          "zh": "擴充持有上限",
+          "description": "持有數旁的「+」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__sort_filter",
+          "zh": "排序篩選",
+          "description": "「稀有度順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__view_toggle",
+          "zh": "顯示切換",
+          "description": "排序篩選右邊的方框圖示",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__sort_order",
+          "zh": "排序方向",
+          "description": "最右邊的橫線圖示",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "mech_enhance_list__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "check_build_mech",
+      "zh": "確認執行開發",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「確認執行開發」的視窗，內文「將執行開發，確定要繼續嗎？」，列出開發前後的能力值對比，底部有「取消」「執行」。",
+      "buttons": [
+        {
+          "name": "check_build_mech__cancel",
+          "zh": "取消",
+          "description": "視窗底部的「取消」",
+          "to": []
+        },
+        {
+          "name": "check_build_mech__execute",
+          "zh": "執行",
+          "description": "視窗底部的「執行」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "roster_all_edit",
+      "zh": "全部編制編輯",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「全部編制」的視窗。左側是「前方配置」「後方配置」的格子，右側有「單位」「角色」分頁與卡片清單，卡片可標示「編制中」，底部有「取消」「替換」。",
+      "buttons": [
+        {
+          "name": "roster_all_edit__roster_slot",
+          "zh": "配置格",
+          "description": "「前方配置」「後方配置」的一格",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__tab_unit",
+          "zh": "單位分頁",
+          "description": "「單位」分頁",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__tab_character",
+          "zh": "角色分頁",
+          "description": "「角色」分頁",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__mech_card",
+          "zh": "機體卡片",
+          "description": "清單中的一張機體或駕駛卡片",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__reset",
+          "zh": "重置",
+          "description": "「重置」",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__role_filter",
+          "zh": "類型篩選",
+          "description": "清單下方的類型圖示",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__sort_filter",
+          "zh": "排序篩選",
+          "description": "「稀有度順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__view_toggle",
+          "zh": "顯示切換",
+          "description": "排序篩選右邊的方框圖示",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__sort_order",
+          "zh": "排序方向",
+          "description": "最右邊的橫線圖示",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__cancel",
+          "zh": "取消",
+          "description": "視窗底部的「取消」",
+          "to": []
+        },
+        {
+          "name": "roster_all_edit__replace",
+          "zh": "替換",
+          "description": "視窗底部的「替換」",
+          "to": [
+            "sortie_prep"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "roster_list",
+      "zh": "部隊清單",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「部隊資訊」的視窗。左側有「我軍」「敵軍」分頁，右側按「部隊1」「部隊2」分列機體與駕駛卡片，卡片下有 GET SCORE，底部有「關閉」。",
+      "buttons": [
+        {
+          "name": "roster_list__tab_ally",
+          "zh": "我軍分頁",
+          "description": "「我軍」分頁",
+          "to": []
+        },
+        {
+          "name": "roster_list__tab_enemy",
+          "zh": "敵軍分頁",
+          "description": "「敵軍」分頁",
+          "to": []
+        },
+        {
+          "name": "roster_list__mech_card",
+          "zh": "機體卡片",
+          "description": "清單中的一張機體或駕駛卡片",
+          "to": []
+        },
+        {
+          "name": "roster_list__close",
+          "zh": "關閉",
+          "description": "視窗底部的「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "select_weapon_in_battle",
+      "zh": "戰鬥中選擇武裝",
+      "kind": "map_mode.weapon_select",
+      "control": "player",
+      "description": "戰鬥地圖上，左上標題「選擇武裝」。底部中央是一排武裝圖示（EN 數字加 SHORT／MIDDLE／LONG），右側有 POWER 武裝說明，右下有「攻擊」大按鈕與「技能」「待機」「切換目標」「返回」。另一種情形：左上標題是「戰鬥準備 -攻擊-」，但下方是武裝欄與「不參加」，右下是藍色「行動選擇」（不是橘色「開始戰鬥」），也屬於選擇武裝。",
+      "buttons": [
+        {
+          "name": "select_weapon_in_battle__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": []
+        },
+        {
+          "name": "select_weapon_in_battle__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "select_weapon_in_battle__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": [
+            "battle_main_setting"
+          ]
+        },
+        {
+          "name": "select_weapon_in_battle__enemy_unit_icon",
+          "zh": "敵方單位圖示",
+          "description": "上方左側的敵方駕駛與機體方形簡圖；只有指定了目標才會出現",
+          "to": [
+            "unit_detail@select_weapon_in_battle"
+          ]
+        },
+        {
+          "name": "select_weapon_in_battle__ally_unit_icon",
+          "zh": "我方單位圖示",
+          "description": "上方右側的我方駕駛與機體方形簡圖",
+          "to": [
+            "unit_detail@select_weapon_in_battle"
+          ]
+        },
+        {
+          "name": "select_weapon_in_battle__weapon_slot",
+          "zh": "武裝欄",
+          "description": "選擇武裝底部的一個武裝圖示",
+          "to": []
+        },
+        {
+          "name": "select_weapon_in_battle__skill",
+          "zh": "技能",
+          "description": "「技能」",
+          "to": [
+            "select_skill_in_battle"
+          ]
+        },
+        {
+          "name": "select_weapon_in_battle__wait",
+          "zh": "待機",
+          "description": "「待機」",
+          "to": [
+            "non_player_phase_battle_view",
+            "player_phase_overview"
+          ]
+        },
+        {
+          "name": "select_weapon_in_battle__switch_target",
+          "zh": "切換目標",
+          "description": "「切換目標」",
+          "to": []
+        },
+        {
+          "name": "select_weapon_in_battle__back",
+          "zh": "返回",
+          "description": "「返回」",
+          "to": [
+            "select_action_in_battle"
+          ]
+        },
+        {
+          "name": "select_weapon_in_battle__attack",
+          "zh": "攻擊",
+          "description": "右下的「攻擊」大按鈕",
+          "to": [
+            "battle_prep_attack"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "simplify_weapon_anime",
+      "zh": "簡化版武裝展演",
+      "kind": "animation",
+      "control": "player",
+      "description": "戰鬥地圖上的攻擊或擊毀特效動畫（爆炸、光束），畫面上沒有選單與按鈕。",
+      "buttons": []
+    },
+    {
+      "name": "non_player_phase_battle_view",
+      "zh": "非我方回合戰鬥畫面",
+      "kind": "map_mode.non_player_phase",
+      "control": "game",
+      "description": "戰鬥地圖，左上標題是非我方的回合名稱（例如「敵軍回合」「隱藏軍回合」「第三軍回合」），玩家不能控制的階段一律歸到這裡。判斷只看左上的回合標題：敵方單位行動時遊戲會隱藏右上的 AUTO、快轉、選單，所以不能用這些按鈕判斷。沒有指令選單；地圖上可能正在播放攻擊或擊破的特效。",
+      "buttons": [
+        {
+          "name": "non_player_phase_battle_view__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": []
+        },
+        {
+          "name": "non_player_phase_battle_view__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "non_player_phase_battle_view__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "battle_prep_attack",
+      "zh": "戰鬥準備（攻擊）",
+      "kind": "page",
+      "control": "player",
+      "description": "戰鬥地圖，左上標題「戰鬥準備 -攻擊-」（標題後半是「攻擊」，不是「應戰」），我方回合在選擇武裝畫面按下「攻擊」後出現，格線與背景偏藍。上方是攻守雙方的 HP 與預估傷害，中央顯示「攻擊」數值，底部中央是參與攻擊的駕駛頭像與標籤（攻擊、支援攻擊等），右下有「返回」與橘色「開始戰鬥」；如果右下是藍色「行動選擇」、下方是武裝欄，就是選擇武裝，不是這個畫面。",
+      "buttons": [
+        {
+          "name": "battle_prep_attack__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": []
+        },
+        {
+          "name": "battle_prep_attack__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "battle_prep_attack__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": [
+            "battle_main_setting"
+          ]
+        },
+        {
+          "name": "battle_prep_attack__enemy_unit_icon",
+          "zh": "敵方單位圖示",
+          "description": "上方左側的敵方駕駛與機體方形簡圖",
+          "to": [
+            "unit_detail@battle_prep_attack"
+          ]
+        },
+        {
+          "name": "battle_prep_attack__ally_unit_icon",
+          "zh": "我方單位圖示",
+          "description": "上方右側的我方駕駛與機體方形簡圖",
+          "to": [
+            "unit_detail@battle_prep_attack"
+          ]
+        },
+        {
+          "name": "battle_prep_attack__pilot_slot",
+          "zh": "駕駛欄",
+          "description": "底部中央的駕駛頭像與標籤",
+          "to": [
+            "select_skill_in_battle"
+          ]
+        },
+        {
+          "name": "battle_prep_attack__pilot_list",
+          "zh": "駕駛清單",
+          "description": "頭像左邊的「≡」小圓鈕",
+          "to": [
+            "battle_prep_detail@battle_prep_attack"
+          ]
+        },
+        {
+          "name": "battle_prep_attack__back",
+          "zh": "返回",
+          "description": "右下的「返回」",
+          "to": [
+            "select_weapon_in_battle"
+          ]
+        },
+        {
+          "name": "battle_prep_attack__start_battle",
+          "zh": "開始戰鬥",
+          "description": "右下橘色「開始戰鬥」。之後播放攻擊展演，展演結束到哪個畫面由遊戲決定（指令選單、我軍回合總覽、非我方回合、隱藏戰鬥確認選單），按下後要重新辨識畫面",
+          "to": [
+            "challenge_battle_check",
+            "non_player_phase_battle_view",
+            "player_phase_overview",
+            "select_action_in_battle",
+            "battle_clear_view"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "battle_prep_response_attack",
+      "zh": "戰鬥準備（應戰）",
+      "kind": "page",
+      "control": "player",
+      "description": "戰鬥地圖，左上標題「戰鬥準備 -應戰-」（標題後半是「應戰」，不是「攻擊」），敵方回合由敵方發動攻擊、我方應戰時出現，格線與背景偏紅。上方是攻守雙方的 HP 與預估傷害，中央顯示「攻擊」與「反擊」等數值，底部中央是攻擊方與應戰方駕駛頭像和姿態標籤（攻擊、反擊、閃避、防禦等），右下有橘色「開始戰鬥」，沒有「返回」；如果右下是藍色「行動選擇」、下方是應戰選項欄，就是應戰選擇武裝，不是這個畫面。",
+      "buttons": [
+        {
+          "name": "battle_prep_response_attack__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": []
+        },
+        {
+          "name": "battle_prep_response_attack__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "battle_prep_response_attack__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": []
+        },
+        {
+          "name": "battle_prep_response_attack__enemy_unit_icon",
+          "zh": "敵方單位圖示",
+          "description": "上方左側的敵方駕駛與機體方形簡圖",
+          "to": [
+            "unit_detail@battle_prep_response_attack"
+          ]
+        },
+        {
+          "name": "battle_prep_response_attack__ally_unit_icon",
+          "zh": "我方單位圖示",
+          "description": "上方右側的我方駕駛與機體方形簡圖",
+          "to": [
+            "unit_detail@battle_prep_response_attack"
+          ]
+        },
+        {
+          "name": "battle_prep_response_attack__stance_slot",
+          "zh": "應戰姿態欄",
+          "description": "應戰方駕駛頭像與其姿態標籤",
+          "to": [
+            "select_weapon_in_battle_response"
+          ]
+        },
+        {
+          "name": "battle_prep_response_attack__stance_list",
+          "zh": "姿態清單",
+          "description": "頭像左邊的「≡」小圓鈕",
+          "to": [
+            "battle_prep_detail@battle_prep_response_attack"
+          ]
+        },
+        {
+          "name": "battle_prep_response_attack__start_battle",
+          "zh": "開始戰鬥",
+          "description": "右下的「開始戰鬥」",
+          "to": [
+            "non_player_phase_battle_view",
+            "battle_clear_view"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "select_weapon_in_battle_response",
+      "zh": "戰鬥中應戰選擇武裝",
+      "kind": "page",
+      "control": "player",
+      "description": "戰鬥地圖，左上標題「戰鬥準備 -應戰-」，在戰鬥準備（應戰）畫面按下駕駛頭像後出現。下方是應戰選項欄與 SELECT 標記：被攻擊的機體是武裝圖示加「防禦」「閃避」，支援機是「支援防禦」與「不參加」。右側是選中項目的說明框（例如「防禦（盾牌）」「支援防禦（盾牌）」或武裝的 POWER 說明），右下是「返回」與藍色「行動選擇」，沒有橘色「開始戰鬥」。",
+      "buttons": [
+        {
+          "name": "select_weapon_in_battle_response__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": []
+        },
+        {
+          "name": "select_weapon_in_battle_response__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "select_weapon_in_battle_response__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": []
+        },
+        {
+          "name": "select_weapon_in_battle_response__option_slot",
+          "zh": "應戰選項",
+          "description": "下方應戰選項欄中的一格（武裝、防禦、閃避、支援防禦、不參加）",
+          "to": []
+        },
+        {
+          "name": "select_weapon_in_battle_response__back",
+          "zh": "返回",
+          "description": "右下的「返回」",
+          "to": []
+        },
+        {
+          "name": "select_weapon_in_battle_response__confirm",
+          "zh": "行動選擇",
+          "description": "右下藍色「行動選擇」",
+          "to": [
+            "non_player_phase_battle_view",
+            "battle_prep_response_attack",
+            "battle_clear_view"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "battle_settings_in_battle",
+      "zh": "戰鬥中設定",
+      "kind": "overlay",
+      "control": "player",
+      "description": "戰鬥中開啟的「設定」視窗，有「聲音」「戰鬥」分頁與 ON／OFF 開關（AUTO時螢幕休眠、AUTO中播放戰鬥動畫、手動操作中播放戰鬥動畫），底部有「關閉」。",
+      "buttons": [
+        {
+          "name": "battle_settings_in_battle__tab_sound",
+          "zh": "聲音分頁",
+          "description": "「聲音」分頁",
+          "to": []
+        },
+        {
+          "name": "battle_settings_in_battle__tab_battle",
+          "zh": "戰鬥分頁",
+          "description": "「戰鬥」分頁",
+          "to": []
+        },
+        {
+          "name": "battle_settings_in_battle__setting_toggle",
+          "zh": "設定開關",
+          "description": "一個 ON／OFF 開關",
+          "to": []
+        },
+        {
+          "name": "battle_settings_in_battle__close",
+          "zh": "關閉",
+          "description": "視窗底部的「關閉」",
+          "to": [
+            "battle_main_setting"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "skip_stage_overlay",
+      "zh": "略過關卡選擇浮窗",
+      "kind": "overlay",
+      "control": "player",
+      "description": "關卡清單上方的「略過」浮窗，內文「消耗AP即可完成戰鬥。」，有次數與增減箭頭、每日剩餘次數、AP 消耗，底部有「取消」「執行」。",
+      "buttons": [
+        {
+          "name": "skip_stage_overlay__count_min",
+          "zh": "次數最小",
+          "description": "「«」",
+          "to": []
+        },
+        {
+          "name": "skip_stage_overlay__count_dec",
+          "zh": "次數減一",
+          "description": "「<」",
+          "to": []
+        },
+        {
+          "name": "skip_stage_overlay__count_inc",
+          "zh": "次數加一",
+          "description": "「>」",
+          "to": []
+        },
+        {
+          "name": "skip_stage_overlay__count_max",
+          "zh": "次數最大",
+          "description": "「»」",
+          "to": []
+        },
+        {
+          "name": "skip_stage_overlay__cancel",
+          "zh": "取消",
+          "description": "視窗底部的「取消」",
+          "to": []
+        },
+        {
+          "name": "skip_stage_overlay__execute",
+          "zh": "執行",
+          "description": "視窗底部的「執行」",
+          "to": [
+            "story_stage_list"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pilot_enhance_list",
+      "zh": "角色強化清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「強化」，左側「角色」分頁為選中，中間是駕駛（角色頭像）卡片格子清單，右上有「搜尋」「保存編制一覽」，底部是主導覽列且「強化」為選中。",
+      "buttons": [
+        {
+          "name": "pilot_enhance_list__info",
+          "zh": "說明",
+          "description": "標題旁的「i」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__search",
+          "zh": "搜尋",
+          "description": "「搜尋」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__saved_rosters",
+          "zh": "保存編制一覽",
+          "description": "「保存編制一覽」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__tab_unit",
+          "zh": "單位分頁",
+          "description": "「單位」分頁",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__tab_character",
+          "zh": "角色分頁",
+          "description": "「角色」分頁",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__tab_support",
+          "zh": "支援人員分頁",
+          "description": "「支援人員」分頁",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__pilot_card",
+          "zh": "角色卡片",
+          "description": "清單中的一張角色卡片",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__favorite_filter",
+          "zh": "最愛篩選",
+          "description": "愛心圖示加 ON／OFF",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__sort_filter",
+          "zh": "排序篩選",
+          "description": "「稀有度順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__view_toggle",
+          "zh": "顯示切換",
+          "description": "排序篩選右邊的方框圖示",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__sort_order",
+          "zh": "排序方向",
+          "description": "最右邊的橫線圖示",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance_list__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "event_stage_list",
+      "zh": "活動關卡清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「事件」，左側是一列活動橫幅（各標示剩餘天數），右側是選中活動的大圖與「前往事件」，底部是主導覽列且「關卡」為選中。",
+      "buttons": [
+        {
+          "name": "event_stage_list__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": []
+        },
+        {
+          "name": "event_stage_list__event_banner",
+          "zh": "活動橫幅",
+          "description": "左側清單中的一個活動",
+          "to": []
+        },
+        {
+          "name": "event_stage_list__go_event",
+          "zh": "前往事件",
+          "description": "右下的「前往事件」",
+          "to": []
+        },
+        {
+          "name": "event_stage_list__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "event_stage_list__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "event_stage_list__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "event_stage_list__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "event_stage_list__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "event_stage_list__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "event_stage_list__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "battle_info_preview",
+      "zh": "關卡說明頁",
+      "kind": "page",
+      "control": "player",
+      "description": "戰鬥開始前的關卡說明。左上有「CHALLENGE」與關卡名稱（例如「機動戰士鋼彈 HARD STAGE 1」），左側列出「勝利條件」「隱藏條件」「敗北條件」，右側是機體立繪，下方有「- TAP TO NEXT -」。進入關卡後出現。點任意空白處進入戰鬥；在自動模式下放著不動，時間到也會自動進入戰鬥。和 win_condition_overlay 的分別：本畫面右上有 AUTO、快轉、戰鬥選單，下方是「- TAP TO NEXT -」。",
+      "buttons": [
+        {
+          "name": "battle_info_preview__auto",
+          "zh": "AUTO",
+          "description": "右上「AUTO」；點擊切換自動模式，可以在這裡取消自動",
+          "to": []
+        },
+        {
+          "name": "battle_info_preview__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "battle_info_preview__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": [
+            "battle_main_setting"
+          ]
+        },
+        {
+          "name": "battle_info_preview__tap_next",
+          "zh": "點擊繼續",
+          "description": "畫面任意空白處",
+          "to": [
+            "player_phase_overview"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "challenge_battle_check",
+      "zh": "隱藏戰鬥確認選單",
+      "kind": "overlay",
+      "control": "player",
+      "description": "紅色「WARNING - 不明機體出現 -」畫面，顯示「建議戰鬥力」「我軍戰鬥力」與報酬，內文「不明機體出現。確定要挑戰隱藏戰鬥嗎？」，底部有「不挑戰」「挑戰」。戰鬥中達成隱藏戰鬥的條件時才會出現。",
+      "buttons": [
+        {
+          "name": "challenge_battle_check__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": []
+        },
+        {
+          "name": "challenge_battle_check__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "challenge_battle_check__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": []
+        },
+        {
+          "name": "challenge_battle_check__anime_settings",
+          "zh": "動畫設定",
+          "description": "右上的「動畫設定」",
+          "to": []
+        },
+        {
+          "name": "challenge_battle_check__decline",
+          "zh": "不挑戰",
+          "description": "左下的「不挑戰」",
+          "to": []
+        },
+        {
+          "name": "challenge_battle_check__challenge",
+          "zh": "挑戰",
+          "description": "右下的「挑戰」",
+          "to": [
+            "player_phase_overview"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "player_phase_overview",
+      "zh": "我軍回合總覽",
+      "kind": "map_mode.overview",
+      "control": "player",
+      "description": "戰鬥地圖，我方回合還沒有選中單位時的畫面。左上標題「我軍回合」，下方有「請選擇欲行動的單位。」與一整排我方單位卡片，右側有「單位列表」，左上有「回合結束」。沒有指令選單，也沒有移動範圍。右下沒有確定用的大圓鈕（有的話是指令選單或選擇武裝）；下方的單位列表可以收合。",
+      "buttons": [
+        {
+          "name": "player_phase_overview__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": []
+        },
+        {
+          "name": "player_phase_overview__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "player_phase_overview__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": [
+            "battle_main_setting"
+          ]
+        },
+        {
+          "name": "player_phase_overview__unit_card",
+          "zh": "單位卡片",
+          "description": "下方單位卡片列中的一張",
+          "to": [
+            "select_action_in_battle"
+          ]
+        },
+        {
+          "name": "player_phase_overview__map_ally_unit",
+          "zh": "地圖上的我方單位",
+          "description": "鏡頭範圍內看得到的我方單位，點下去進入那台單位的指令選單",
+          "to": [
+            "select_action_in_battle"
+          ],
+          "dynamic": true
+        },
+        {
+          "name": "player_phase_overview__unit_list",
+          "zh": "單位列表",
+          "description": "右側「單位列表」",
+          "to": []
+        },
+        {
+          "name": "player_phase_overview__end_turn",
+          "zh": "回合結束",
+          "description": "左上「回合結束」",
+          "to": [
+            "non_player_phase_battle_view"
+          ]
+        },
+        {
+          "name": "player_phase_overview__change_initial_position",
+          "zh": "變更初期配置",
+          "description": "左上「變更初期配置」，只在第一回合開始時出現",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "select_action_in_battle",
+      "zh": "戰鬥中選擇行動",
+      "kind": "map_mode.selected",
+      "control": "player",
+      "description": "戰鬥地圖，左上標題「單位移動」，地圖上顯示選中單位的移動範圍。左下有切換單位箭頭，底部中央有 SKILL 技能欄與 SUPPORT，右下有「選擇武裝」大按鈕與「待機」「返回」。這個階段可以移動、進選擇武裝、進技能，也可以不移動直接攻擊；單位的行動在發動攻擊（進戰鬥準備）或「待機」時結束。按「返回」回到我軍回合總覽，或用左下箭頭、點地圖上鏡頭範圍內的其他我方單位，進入那台單位的指令選單。我軍回合總覽和指令選單都是一次單位迴圈的起點：有再動機制的單位攻擊完會直接回到指令選單。",
+      "buttons": [
+        {
+          "name": "select_action_in_battle__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": []
+        },
+        {
+          "name": "select_action_in_battle__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "select_action_in_battle__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": [
+            "battle_main_setting"
+          ]
+        },
+        {
+          "name": "select_action_in_battle__enemy_unit_icon",
+          "zh": "敵方單位圖示",
+          "description": "上方左側的敵方駕駛與機體方形簡圖；只有指定了目標才會出現",
+          "to": [
+            "unit_detail@select_action_in_battle"
+          ]
+        },
+        {
+          "name": "select_action_in_battle__ally_unit_icon",
+          "zh": "我方單位圖示",
+          "description": "上方右側的我方駕駛與機體方形簡圖",
+          "to": [
+            "unit_detail@select_action_in_battle"
+          ]
+        },
+        {
+          "name": "select_action_in_battle__prev_unit",
+          "zh": "上一個單位",
+          "description": "左下「SWITCHING UNIT」的「<」",
+          "to": [
+            "select_action_in_battle"
+          ]
+        },
+        {
+          "name": "select_action_in_battle__next_unit",
+          "zh": "下一個單位",
+          "description": "左下「SWITCHING UNIT」的「>」",
+          "to": [
+            "select_action_in_battle"
+          ]
+        },
+        {
+          "name": "select_action_in_battle__map_ally_unit",
+          "zh": "地圖上的我方單位",
+          "description": "鏡頭範圍內看得到的其他我方單位，點下去進入那台單位的指令選單",
+          "to": [
+            "select_action_in_battle"
+          ],
+          "dynamic": true
+        },
+        {
+          "name": "select_action_in_battle__skill_slot",
+          "zh": "技能欄",
+          "description": "底部 SKILL 的一個技能圖示（SP 數字）",
+          "to": [
+            "select_skill_in_battle"
+          ]
+        },
+        {
+          "name": "select_action_in_battle__support",
+          "zh": "支援",
+          "description": "底部的「SUPPORT」",
+          "to": []
+        },
+        {
+          "name": "select_action_in_battle__wait",
+          "zh": "待機",
+          "description": "「待機」",
+          "to": [
+            "player_phase_overview",
+            "non_player_phase_battle_view"
+          ]
+        },
+        {
+          "name": "select_action_in_battle__back",
+          "zh": "返回",
+          "description": "「返回」",
+          "to": [
+            "player_phase_overview"
+          ]
+        },
+        {
+          "name": "select_action_in_battle__select_weapon",
+          "zh": "選擇武裝",
+          "description": "右下的「選擇武裝」大按鈕",
+          "to": [
+            "select_weapon_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "select_skill_in_battle",
+      "zh": "戰鬥中選擇技能",
+      "kind": "map_mode.skill_select",
+      "control": "player",
+      "description": "戰鬥地圖，左上標題「技能」，底部 SKILL 技能欄有一個技能被選中（上方顯示「SELECT」），右側有技能名稱與效果說明的面板，右下是綠色「發動」大按鈕與「返回」。和 select_action_in_battle 的分別：右下大按鈕是「發動」不是「選擇武裝」，也沒有「待機」與切換單位箭頭。",
+      "buttons": [
+        {
+          "name": "select_skill_in_battle__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": []
+        },
+        {
+          "name": "select_skill_in_battle__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": []
+        },
+        {
+          "name": "select_skill_in_battle__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": []
+        },
+        {
+          "name": "select_skill_in_battle__skill_slot",
+          "zh": "技能欄",
+          "description": "底部 SKILL 的一個技能圖示（SP 數字），選中的技能上方有「SELECT」",
+          "to": []
+        },
+        {
+          "name": "select_skill_in_battle__back",
+          "zh": "返回",
+          "description": "右下「返回」",
+          "to": [
+            "select_action_in_battle",
+            "select_weapon_in_battle"
+          ]
+        },
+        {
+          "name": "select_skill_in_battle__activate",
+          "zh": "發動",
+          "description": "右下綠色的「發動」大按鈕",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "day_change_notify",
+      "zh": "跨日系統通知",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「更新資料」的視窗，內文「日期已改變。將返回主畫面。」，底部有「前往主畫面」。",
+      "buttons": [
+        {
+          "name": "day_change_notify__go_home",
+          "zh": "前往主畫面",
+          "description": "視窗底部的「前往主畫面」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "skip_result_list",
+      "zh": "略過關卡的獎勵確認頁",
+      "kind": "page",
+      "control": "player",
+      "description": "標題「SKIP RESULT」，「獲得」下方列出獲得的機體與道具，下方有 PLAYER RANK EXP 與「略過次數」，右下有「OK」。",
+      "buttons": [
+        {
+          "name": "skip_result_list__ok",
+          "zh": "OK",
+          "description": "右下的「OK」",
+          "to": [
+            "skip_stage_overlay",
+            "story_stage_list",
+            "training_stage_list"
+          ]
+        },
+        {
+          "name": "skip_result_list__reward_item",
+          "zh": "獲得道具",
+          "description": "「獲得」清單裡的一個道具圖示",
+          "dynamic": true,
+          "to": [
+            "reward_detail"
+          ]
+        },
+        {
+          "name": "skip_result_list__reward_scroll",
+          "zh": "獲得清單捲動",
+          "description": "「獲得」下方的機體與道具清單，上下滑動露出其他項目",
+          "gesture": "swipe_y",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "game_title",
+      "zh": "標題畫面",
+      "kind": "page",
+      "control": "player",
+      "description": "遊戲標題畫面：滿版機體群插圖，中下方「G GENERATION ETERNAL」標誌，底部「TAP TO START」，左上「選單」「資料同步」，右上 BANDAI NAMCO 標誌，右下版本號。",
+      "buttons": [
+        {
+          "name": "game_title__start",
+          "zh": "開始",
+          "description": "畫面任意處（TAP TO START）",
+          "to": []
+        },
+        {
+          "name": "game_title__menu",
+          "zh": "選單",
+          "description": "左上「選單」",
+          "to": []
+        },
+        {
+          "name": "game_title__data_sync",
+          "zh": "資料同步",
+          "description": "左上「資料同步」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "game_news_all",
+      "zh": "遊戲公告",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「公告」的視窗，左側分頁「全部」「更新資訊」「活動舉辦資訊」「錯誤報告」，右側公告卡片清單（NEW、更新、異常標籤與日期），底部「關閉」。",
+      "buttons": [
+        {
+          "name": "game_news_all__tab_all",
+          "zh": "全部分頁",
+          "description": "「全部」",
+          "to": []
+        },
+        {
+          "name": "game_news_all__tab_update",
+          "zh": "更新資訊分頁",
+          "description": "「更新資訊」",
+          "to": []
+        },
+        {
+          "name": "game_news_all__tab_event",
+          "zh": "活動舉辦資訊分頁",
+          "description": "「活動舉辦資訊」",
+          "to": []
+        },
+        {
+          "name": "game_news_all__tab_bug_report",
+          "zh": "錯誤報告分頁",
+          "description": "「錯誤報告」",
+          "to": []
+        },
+        {
+          "name": "game_news_all__news_card",
+          "zh": "公告卡片",
+          "description": "清單中的一張公告",
+          "to": []
+        },
+        {
+          "name": "game_news_all__close",
+          "zh": "關閉",
+          "description": "「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "capital_product_list",
+      "zh": "CAPITAL 商品清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「商店」，左側貨幣分頁且「CAPITAL」為選中，中間是商品卡片格子（每日標籤、價格、「購買」、剩餘次數），下方「以500更新」、下次更新時間、「重置」「全部購買」，右上 CAPITAL 持有數與「鑽石商店」，底部主導覽列。",
+      "buttons": [
+        {
+          "name": "capital_product_list__back",
+          "zh": "返回",
+          "description": "左上返回箭頭",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__info",
+          "zh": "說明",
+          "description": "標題旁的「i」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__diamond_shop",
+          "zh": "鑽石商店",
+          "description": "右上「鑽石商店」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__tab_capital",
+          "zh": "CAPITAL 分頁",
+          "description": "「CAPITAL」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__tab_g_shop",
+          "zh": "G商店分頁",
+          "description": "「G商店」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__tab_premium",
+          "zh": "高級分頁",
+          "description": "「高級」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__tab_master_league",
+          "zh": "大師聯盟獎章分頁",
+          "description": "「大師聯盟獎章」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__tab_rare_medal",
+          "zh": "稀有獎章分頁",
+          "description": "「稀有獎章」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__buy",
+          "zh": "購買",
+          "description": "商品卡片上的「購買」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__refresh",
+          "zh": "以500更新",
+          "description": "「以500更新」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__reset",
+          "zh": "重置",
+          "description": "「重置」",
+          "to": []
+        },
+        {
+          "name": "capital_product_list__buy_all",
+          "zh": "全部購買",
+          "description": "「全部購買」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "purchase_check",
+      "zh": "購買確認頁",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「確認購買」的視窗，說明將使用多少貨幣購買，中間是商品圖示與持有數量變化、所需與持有貨幣變化，底部「取消」與「購買」。",
+      "buttons": [
+        {
+          "name": "purchase_check__cancel",
+          "zh": "取消",
+          "description": "「取消」",
+          "to": []
+        },
+        {
+          "name": "purchase_check__buy",
+          "zh": "購買",
+          "description": "「購買」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "enhance_mech_anime",
+      "zh": "強化特效展演",
+      "kind": "animation",
+      "control": "player",
+      "description": "強化完成時的展演：機庫背景前一台機體擺姿勢，四周有放射狀的藍色速度線，沒有介面元素。",
+      "buttons": [
+        {
+          "name": "enhance_mech_anime__skip",
+          "zh": "略過",
+          "description": "畫面任意處",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_promote_result",
+      "zh": "機體突破界限結果",
+      "kind": "overlay",
+      "control": "player",
+      "description": "深藍色橫幅視窗，標題「突破界限」，列出階段星數與 HP、EN、攻擊力、防禦力、機動力的強化前後數值（新數值為黃色），底部「TAP TO NEXT」。",
+      "buttons": [
+        {
+          "name": "mech_promote_result__next",
+          "zh": "繼續",
+          "description": "畫面任意處（TAP TO NEXT）",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_sp_consume_check",
+      "zh": "機體SP化材料確認",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「SP化」，左側機體立繪、機體名稱與「LV上限 90 > 100」，右側「所需材料」清單，每列是 SP化晶片與數量增減按鈕，下方總計材料數與「重置」，底部「取消」與「SP化」。",
+      "buttons": [
+        {
+          "name": "mech_sp_consume_check__info",
+          "zh": "說明",
+          "description": "標題旁的「i」",
+          "to": []
+        },
+        {
+          "name": "mech_sp_consume_check__enhance_detail",
+          "zh": "強化詳情",
+          "description": "「強化詳情」",
+          "to": []
+        },
+        {
+          "name": "mech_sp_consume_check__mech_search",
+          "zh": "機體詳細",
+          "description": "機體名稱旁的放大鏡",
+          "to": []
+        },
+        {
+          "name": "mech_sp_consume_check__material_decrease_max",
+          "zh": "材料減到最少",
+          "description": "材料列的「«」",
+          "to": []
+        },
+        {
+          "name": "mech_sp_consume_check__material_decrease",
+          "zh": "材料減一",
+          "description": "材料列的「‹」",
+          "to": []
+        },
+        {
+          "name": "mech_sp_consume_check__material_increase",
+          "zh": "材料加一",
+          "description": "材料列的「›」",
+          "to": []
+        },
+        {
+          "name": "mech_sp_consume_check__material_increase_max",
+          "zh": "材料加到最多",
+          "description": "材料列的「»」",
+          "to": []
+        },
+        {
+          "name": "mech_sp_consume_check__reset",
+          "zh": "重置",
+          "description": "「重置」",
+          "to": []
+        },
+        {
+          "name": "mech_sp_consume_check__cancel",
+          "zh": "取消",
+          "description": "「取消」",
+          "to": []
+        },
+        {
+          "name": "mech_sp_consume_check__confirm",
+          "zh": "SP化",
+          "description": "「SP化」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_upgrade_check",
+      "zh": "機體提升LV",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「提升LV」的視窗，說明「將使用提升LV材料強化單位」，上方是提升LV材料區（可能顯示「無法繼續提升LV」），中間是 LV 數值與 EXP 條及增減按鈕，下方「強化詳情」「SP化」「SSP化」，底部「取消」與「提升LV」。",
+      "buttons": [
+        {
+          "name": "mech_upgrade_check__level_decrease_max",
+          "zh": "LV 減到最少",
+          "description": "「«」",
+          "to": []
+        },
+        {
+          "name": "mech_upgrade_check__level_decrease",
+          "zh": "LV 減一",
+          "description": "「‹」",
+          "to": []
+        },
+        {
+          "name": "mech_upgrade_check__level_increase",
+          "zh": "LV 加一",
+          "description": "「›」",
+          "to": []
+        },
+        {
+          "name": "mech_upgrade_check__level_increase_max",
+          "zh": "LV 加到最多",
+          "description": "「»」",
+          "to": []
+        },
+        {
+          "name": "mech_upgrade_check__enhance_detail",
+          "zh": "強化詳情",
+          "description": "「強化詳情」",
+          "to": []
+        },
+        {
+          "name": "mech_upgrade_check__sp_enhance",
+          "zh": "SP化",
+          "description": "「SP化」",
+          "to": []
+        },
+        {
+          "name": "mech_upgrade_check__ssp_enhance",
+          "zh": "SSP化",
+          "description": "「SSP化」",
+          "to": []
+        },
+        {
+          "name": "mech_upgrade_check__cancel",
+          "zh": "取消",
+          "description": "「取消」",
+          "to": []
+        },
+        {
+          "name": "mech_upgrade_check__confirm",
+          "zh": "提升LV",
+          "description": "「提升LV」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "weapon_info",
+      "zh": "武裝詳情",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「武裝詳情」的視窗，左側武裝名稱、武裝類型與 RANGE/POWER/EN/命中/爆擊數值表、武裝效果、改裝核心、使用限制，右側是射程格子圖與圖例，底部「關閉」。",
+      "buttons": [
+        {
+          "name": "weapon_info__close",
+          "zh": "關閉",
+          "description": "「關閉」",
+          "to": [
+            "battle_prep_attack",
+            "battle_prep_response_attack",
+            "select_action_in_battle",
+            "select_weapon_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "optional_part_list",
+      "zh": "替換選擇性零件",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「替換選擇性零件」的視窗，左側目前零件與「指定裝備」，右側零件圖示格子（裝備中的有藍色標籤）、排序篩選，底部「取消」與「替換」，左右兩側有切換機體的箭頭。",
+      "buttons": [
+        {
+          "name": "optional_part_list__assign",
+          "zh": "指定裝備",
+          "description": "「指定裝備」",
+          "to": []
+        },
+        {
+          "name": "optional_part_list__part_icon",
+          "zh": "零件圖示",
+          "description": "格子中的一個零件",
+          "to": []
+        },
+        {
+          "name": "optional_part_list__sort_filter",
+          "zh": "排序篩選",
+          "description": "「稀有度順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "optional_part_list__prev_mech",
+          "zh": "上一台機體",
+          "description": "左側「‹」",
+          "to": []
+        },
+        {
+          "name": "optional_part_list__next_mech",
+          "zh": "下一台機體",
+          "description": "右側「›」",
+          "to": []
+        },
+        {
+          "name": "optional_part_list__cancel",
+          "zh": "取消",
+          "description": "「取消」",
+          "to": []
+        },
+        {
+          "name": "optional_part_list__replace",
+          "zh": "替換",
+          "description": "「替換」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_abilities_list",
+      "zh": "單位能力／技能一覽",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「單位能力／技能一覽」的視窗，可捲動的能力清單（圖示、名稱與效果描述），下方「技能」區，底部「關閉」，背景是模糊的「單位資料」頁面。",
+      "buttons": [
+        {
+          "name": "mech_abilities_list__close",
+          "zh": "關閉",
+          "description": "「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_weapons_list",
+      "zh": "武裝列表",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「武裝列表」的視窗，武裝卡片清單（圖示、名稱、RANGE/POWER/EN/命中/爆擊），卡片右側有藍色箭頭，底部「關閉」，背景是模糊的「單位資料」頁面。",
+      "buttons": [
+        {
+          "name": "mech_weapons_list__weapon_card",
+          "zh": "武裝卡片",
+          "description": "清單中的一張武裝卡片",
+          "to": []
+        },
+        {
+          "name": "mech_weapons_list__close",
+          "zh": "關閉",
+          "description": "「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "hall_page",
+      "zh": "遊戲大廳",
+      "kind": "page",
+      "control": "player",
+      "description": "左上 RANK 徽章，中央一架大尺寸機體，左側直列「公告／獎勵／使命／商店」，右側 EVENT 橫幅與「出擊 MAIN STAGE」大按鈕，底部是主導覽列且「主畫面」為選中。",
+      "buttons": [
+        {
+          "name": "hall_page__notice",
+          "zh": "公告",
+          "description": "左側「公告」",
+          "to": []
+        },
+        {
+          "name": "hall_page__reward",
+          "zh": "獎勵",
+          "description": "左側禮物圖示",
+          "to": []
+        },
+        {
+          "name": "hall_page__mission",
+          "zh": "使命",
+          "description": "左側「使命」",
+          "to": []
+        },
+        {
+          "name": "hall_page__shop",
+          "zh": "商店",
+          "description": "左側「商店」",
+          "to": []
+        },
+        {
+          "name": "hall_page__special_event",
+          "zh": "特別活動",
+          "description": "右上「特別活動」",
+          "to": []
+        },
+        {
+          "name": "hall_page__unit_catalog",
+          "zh": "單位圖鑑",
+          "description": "右上「單位圖鑑」",
+          "to": []
+        },
+        {
+          "name": "hall_page__event_banner",
+          "zh": "EVENT 橫幅",
+          "description": "右側 EVENT 活動橫幅",
+          "to": []
+        },
+        {
+          "name": "hall_page__sortie",
+          "zh": "出擊",
+          "description": "右下「出擊 MAIN STAGE」",
+          "to": []
+        },
+        {
+          "name": "hall_page__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "hall_page__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "hall_page__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "hall_page__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "hall_page__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "hall_page__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "hall_page__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "development_hall",
+      "zh": "開發主選單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「開發」，中間是「開發路線圖」的作品格子（每格有作品標誌與進度數字，例如 41/41），左上第一格「單位圖鑑」，右上「從持有單位開發」，底部是主導覽列且「開發」為選中。",
+      "buttons": [
+        {
+          "name": "development_hall__series_tile",
+          "zh": "作品格子",
+          "description": "開發路線圖中的一個作品",
+          "to": []
+        },
+        {
+          "name": "development_hall__unit_catalog",
+          "zh": "單位圖鑑",
+          "description": "左上「單位圖鑑」格",
+          "to": []
+        },
+        {
+          "name": "development_hall__develop_from_owned",
+          "zh": "從持有單位開發",
+          "description": "右上「從持有單位開發」",
+          "to": []
+        },
+        {
+          "name": "development_hall__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "development_hall__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "development_hall__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "development_hall__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "development_hall__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "development_hall__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "development_hall__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "stage_chosen",
+      "zh": "關卡選擇主清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「關卡」，左側大機體頭像與「MAIN STAGE 主要關卡」，右側「EVENT 事件」「MASTER LEAGUE 大師聯盟」「UPGRADE STAGES 強化培育關卡」「ETERNAL ROAD 永恆之路」四張卡片，底部是主導覽列且「關卡」為選中。",
+      "buttons": [
+        {
+          "name": "stage_chosen__ap_bar",
+          "zh": "體力條",
+          "description": "右上 AP 數值與「+」",
+          "to": [
+            "ap_recovery_overlay"
+          ]
+        },
+        {
+          "name": "stage_chosen__main_stage",
+          "zh": "主要關卡",
+          "description": "「MAIN STAGE」",
+          "to": [
+            "series_list"
+          ]
+        },
+        {
+          "name": "stage_chosen__event",
+          "zh": "事件",
+          "description": "「EVENT」",
+          "to": [
+            "event_stage_list"
+          ]
+        },
+        {
+          "name": "stage_chosen__master_league",
+          "zh": "大師聯盟",
+          "description": "「MASTER LEAGUE」",
+          "to": []
+        },
+        {
+          "name": "stage_chosen__upgrade_stages",
+          "zh": "強化培育關卡",
+          "description": "「UPGRADE STAGES」",
+          "to": [
+            "training_stage_list"
+          ]
+        },
+        {
+          "name": "stage_chosen__eternal_road",
+          "zh": "永恆之路",
+          "description": "「ETERNAL ROAD」",
+          "to": []
+        },
+        {
+          "name": "stage_chosen__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "stage_chosen__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "stage_chosen__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "stage_chosen__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "stage_chosen__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "stage_chosen__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "stage_chosen__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "series_list",
+      "zh": "系列關卡列表",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「主要關卡」，橫向排列的作品機體與作品標誌（多數標示 COMPLETE），左下「CHALLENGE 挑戰」與「HISTORY STAGE 歷史關卡」，底部是主導覽列且「關卡」為選中。",
+      "buttons": [
+        {
+          "name": "series_list__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": []
+        },
+        {
+          "name": "series_list__series",
+          "zh": "作品",
+          "description": "畫面中的一個作品機體或標誌。看過的作品按下後經過短的特效轉場進入系列關卡資訊；沒看過的作品先播 series_intro_anime 演示動畫",
+          "to": [
+            "series_stage_info",
+            "series_intro_anime"
+          ],
+          "dynamic": true
+        },
+        {
+          "name": "series_list__series_strip",
+          "zh": "作品列捲動",
+          "description": "中間橫向排列的作品區，左右滑動露出其他作品",
+          "gesture": "swipe_x",
+          "to": []
+        },
+        {
+          "name": "series_list__challenge",
+          "zh": "挑戰",
+          "description": "左下「CHALLENGE」",
+          "to": []
+        },
+        {
+          "name": "series_list__history_stage",
+          "zh": "歷史關卡",
+          "description": "左下「HISTORY STAGE」",
+          "to": []
+        },
+        {
+          "name": "series_list__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "series_list__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "series_list__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "series_list__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "series_list__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "series_list__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "series_list__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "series_stage_info",
+      "zh": "系列關卡資訊",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「主要關卡」，左側作品標誌與「系列完成報酬」「系列完美達成報酬」，中央作品插圖，左下作品名稱與建議戰鬥力，右下「開發路線圖」與「選擇」，底部是主導覽列且「關卡」為選中。和 series_list 的分別：本頁只顯示一個作品的資訊與「選擇」按鈕。",
+      "buttons": [
+        {
+          "name": "series_stage_info__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": [
+            "series_list"
+          ]
+        },
+        {
+          "name": "series_stage_info__roadmap",
+          "zh": "開發路線圖",
+          "description": "右下「開發路線圖」",
+          "to": []
+        },
+        {
+          "name": "series_stage_info__select",
+          "zh": "選擇",
+          "description": "右下藍色方形「選擇」",
+          "to": [
+            "story_stage_list"
+          ]
+        },
+        {
+          "name": "series_stage_info__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "series_stage_info__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "series_stage_info__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "series_stage_info__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "series_stage_info__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "series_stage_info__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "series_stage_info__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "series_intro_anime",
+      "zh": "系列演示動畫",
+      "kind": "animation",
+      "control": "game",
+      "description": "在系列關卡列表選了沒看過的作品後播放的演示動畫，播完進入系列關卡資訊。錄影中還沒有確認過的幀。",
+      "buttons": [
+        {
+          "name": "series_intro_anime__skip",
+          "zh": "略過",
+          "description": "畫面任意處。暫定不能點擊跳過，所以標為禁止點擊；確認可以跳過後拿掉 forbidden",
+          "to": [
+            "series_stage_info"
+          ],
+          "forbidden": true
+        }
+      ]
+    },
+    {
+      "name": "story_stage_list",
+      "zh": "故事關卡列表",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「選擇關卡」，左側作品機體與一排關卡台座（編號、星數、COMPLETE、HARD/BOSS 標示），右側選中關卡的名稱（例如「HARD STAGE 1」）、地形、建議戰鬥力、報酬、「次數上限」與「出擊準備」，底部是主導覽列且「關卡」為選中。",
+      "buttons": [
+        {
+          "name": "story_stage_list__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": [
+            "series_list"
+          ]
+        },
+        {
+          "name": "story_stage_list__stage_node",
+          "zh": "關卡台座",
+          "description": "左側的一個關卡",
+          "to": [],
+          "dynamic": true
+        },
+        {
+          "name": "story_stage_list__stage_strip",
+          "zh": "關卡列捲動",
+          "description": "左下的關卡台座列，左右滑動露出其他關卡",
+          "gesture": "swipe_x",
+          "to": []
+        },
+        {
+          "name": "story_stage_list__roadmap",
+          "zh": "開發路線圖",
+          "description": "右上「開發路線圖」",
+          "to": []
+        },
+        {
+          "name": "story_stage_list__stage_detail",
+          "zh": "關卡詳情",
+          "description": "建議戰鬥力右邊的放大鏡",
+          "to": []
+        },
+        {
+          "name": "story_stage_list__skip",
+          "zh": "略過",
+          "description": "右側兩個藍色方形裡小的那個，在「出擊準備」上方，標「略過」與剩餘次數",
+          "to": [
+            "skip_stage_overlay"
+          ]
+        },
+        {
+          "name": "story_stage_list__sortie_prepare",
+          "zh": "出擊準備",
+          "description": "右下「出擊準備」；右側兩個藍色方形裡大的那個",
+          "to": [
+            "sortie_prep"
+          ]
+        },
+        {
+          "name": "story_stage_list__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "story_stage_list__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "story_stage_list__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "story_stage_list__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "story_stage_list__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": [
+            "headquarter"
+          ]
+        },
+        {
+          "name": "story_stage_list__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "story_stage_list__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "eternal_stage_list",
+      "zh": "永恆之路關卡清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「永恆之路」，左側「難度 NORMAL」的 No.1–No.15 機體格子（部分標示 COMPLETE），右側選中關卡的編號、作品、單位／角色出擊限制、建議戰鬥力、首次報酬、「出擊對象」與「出擊準備」，右上「使命」，底部是主導覽列且「關卡」為選中。",
+      "buttons": [
+        {
+          "name": "eternal_stage_list__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": [
+            "stage_chosen"
+          ]
+        },
+        {
+          "name": "eternal_stage_list__stage_tile",
+          "zh": "關卡格子",
+          "description": "左側的一個 No. 格子",
+          "to": [],
+          "dynamic": true
+        },
+        {
+          "name": "eternal_stage_list__stage_grid",
+          "zh": "關卡格子捲動",
+          "description": "左側的 No. 機體格子區，上下滑動露出其他關卡",
+          "gesture": "swipe_y",
+          "to": []
+        },
+        {
+          "name": "eternal_stage_list__mission",
+          "zh": "使命",
+          "description": "右上「使命」",
+          "to": []
+        },
+        {
+          "name": "eternal_stage_list__stage_detail",
+          "zh": "關卡詳情",
+          "description": "建議戰鬥力右邊的放大鏡",
+          "to": []
+        },
+        {
+          "name": "eternal_stage_list__sortie_target",
+          "zh": "出擊對象",
+          "description": "右側「出擊對象」",
+          "to": [
+            "stage_allow_list"
+          ]
+        },
+        {
+          "name": "eternal_stage_list__sortie_prepare",
+          "zh": "出擊準備",
+          "description": "右下「出擊準備」",
+          "to": [
+            "sortie_prep"
+          ]
+        },
+        {
+          "name": "eternal_stage_list__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "eternal_stage_list__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "eternal_stage_list__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "eternal_stage_list__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "eternal_stage_list__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "eternal_stage_list__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "eternal_stage_list__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "sortie_prep",
+      "zh": "出擊準備",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「出擊準備」，五張機體與駕駛員卡片（前方配置、後方配置），左側「部隊1」，下方「支援人員」，右下戰鬥力與建議戰鬥力、橘色「出擊」，沒有主導覽列。",
+      "buttons": [
+        {
+          "name": "sortie_prep__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": [
+            "eternal_stage_list"
+          ]
+        },
+        {
+          "name": "sortie_prep__saved_formations",
+          "zh": "保存編制一覽",
+          "description": "右上「保存編制一覽」",
+          "to": []
+        },
+        {
+          "name": "sortie_prep__formation_detail",
+          "zh": "編制詳情",
+          "description": "右上「編制詳情」",
+          "to": []
+        },
+        {
+          "name": "sortie_prep__stage_detail",
+          "zh": "關卡詳情",
+          "description": "右上「關卡詳情」",
+          "to": []
+        },
+        {
+          "name": "sortie_prep__mission",
+          "zh": "使命",
+          "description": "右上「使命」",
+          "to": []
+        },
+        {
+          "name": "sortie_prep__unit_card",
+          "zh": "機體卡片",
+          "description": "五張機體卡片中的一張",
+          "to": []
+        },
+        {
+          "name": "sortie_prep__squad",
+          "zh": "部隊",
+          "description": "左側「部隊1」",
+          "to": []
+        },
+        {
+          "name": "sortie_prep__support",
+          "zh": "支援人員",
+          "description": "下方支援人員欄",
+          "to": []
+        },
+        {
+          "name": "sortie_prep__swap_position",
+          "zh": "變更配屬",
+          "description": "左下「變更配屬」",
+          "to": []
+        },
+        {
+          "name": "sortie_prep__equip_op",
+          "zh": "裝備OP",
+          "description": "下方「裝備OP」",
+          "to": [
+            "optional_part_list"
+          ]
+        },
+        {
+          "name": "sortie_prep__edit_all",
+          "zh": "全部編制",
+          "description": "下方「全部編制」",
+          "to": [
+            "roster_all_edit"
+          ]
+        },
+        {
+          "name": "sortie_prep__auto_edit",
+          "zh": "自動編制",
+          "description": "下方「自動編制」",
+          "to": []
+        },
+        {
+          "name": "sortie_prep__sortie",
+          "zh": "出擊",
+          "description": "右下橘色「出擊」，經過 loading 進入關卡說明",
+          "to": [
+            "battle_info_preview"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "headquarter",
+      "zh": "個人基地",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「個人基地」，俯視的基地建築地圖，建築上有藍框與標籤（「戰艦巡航」「角色要求」「戰術訓練」），底部是主導覽列且「個人基地」為選中。",
+      "buttons": [
+        {
+          "name": "headquarter__cruise",
+          "zh": "戰艦巡航",
+          "description": "「戰艦巡航」建築",
+          "to": []
+        },
+        {
+          "name": "headquarter__character_quest",
+          "zh": "角色要求",
+          "description": "「角色要求」建築",
+          "to": []
+        },
+        {
+          "name": "headquarter__tactical_training",
+          "zh": "戰術訓練",
+          "description": "「戰術訓練」建築",
+          "to": []
+        },
+        {
+          "name": "headquarter__fullscreen",
+          "zh": "全螢幕",
+          "description": "右上全螢幕圖示",
+          "to": []
+        },
+        {
+          "name": "headquarter__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "headquarter__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "headquarter__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "headquarter__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "headquarter__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "headquarter__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "headquarter__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "character_quest",
+      "zh": "角色要求任務",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「角色要求」，左側要求卡片（「要求RANK 1」與角色名），右側「要求RANK1」委託內容（達成條件、進度、報酬）與「承接」，左右兩側箭頭，底部是主導覽列且「個人基地」為選中。",
+      "buttons": [
+        {
+          "name": "character_quest__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": []
+        },
+        {
+          "name": "character_quest__quest_info",
+          "zh": "要求資訊",
+          "description": "右上「要求資訊」",
+          "to": []
+        },
+        {
+          "name": "character_quest__prev",
+          "zh": "上一個",
+          "description": "左側箭頭",
+          "to": []
+        },
+        {
+          "name": "character_quest__next",
+          "zh": "下一個",
+          "description": "右側箭頭",
+          "to": []
+        },
+        {
+          "name": "character_quest__discard",
+          "zh": "刪除",
+          "description": "委託內容右上垃圾桶",
+          "to": []
+        },
+        {
+          "name": "character_quest__accept",
+          "zh": "承接",
+          "description": "右下「承接」",
+          "to": []
+        },
+        {
+          "name": "character_quest__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "character_quest__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "character_quest__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "character_quest__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "character_quest__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "character_quest__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "character_quest__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "ex_weapon_anime",
+      "zh": "EX武裝動畫展演",
+      "kind": "animation",
+      "control": "player",
+      "description": "戰鬥中的武裝動畫特寫，畫面下方顯示「（EX）」的機體名稱與「EX」武裝名稱，左上 TARGET 與 HP，右上 AUTO 與快轉，右側「SKIP」。和 simplify_weapon_anime 的分別：本畫面是 EX 武裝的全螢幕動畫。設定決定 EX 技能要不要播動畫；第一次使用的技能播放不能跳過的動畫，其餘可以按「SKIP」。一般武裝在設定播放動畫時也是同樣的全螢幕動畫，右側同樣有「SKIP」；之前沒看過的動畫「SKIP」是灰色，不能按。",
+      "buttons": [
+        {
+          "name": "ex_weapon_anime__skip",
+          "zh": "SKIP",
+          "description": "右側「SKIP」",
+          "to": []
+        },
+        {
+          "name": "ex_weapon_anime__auto",
+          "zh": "AUTO",
+          "description": "右上「AUTO」",
+          "to": []
+        },
+        {
+          "name": "ex_weapon_anime__fast_forward",
+          "zh": "快轉",
+          "description": "右上快轉",
+          "to": []
+        },
+        {
+          "name": "ex_weapon_anime__menu",
+          "zh": "選單",
+          "description": "右上選單圖示",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "event_login_page",
+      "zh": "活動登入獎勵頁",
+      "kind": "page",
+      "control": "player",
+      "description": "全螢幕的活動登入獎勵（例如「1.5th Anniversary 登入獎勵第2波」），下方一排 DAY 1–DAY 5 獎勵格（已領取的打勾），右上「略過」，沒有主導覽列。",
+      "buttons": [
+        {
+          "name": "event_login_page__skip",
+          "zh": "略過",
+          "description": "右上「略過」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_promote_check",
+      "zh": "機體突破界限確認頁",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「突破界限」的視窗，文字「請選擇欲使用的材料。」，「所需材料」下有「使用單位」「使用道具」兩格，底部「取消」「選擇材料」，背景是模糊的頁面。",
+      "buttons": [
+        {
+          "name": "mech_promote_check__use_unit",
+          "zh": "使用單位",
+          "description": "「使用單位」格",
+          "to": []
+        },
+        {
+          "name": "mech_promote_check__use_item",
+          "zh": "使用道具",
+          "description": "「使用道具」格",
+          "to": []
+        },
+        {
+          "name": "mech_promote_check__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "mech_promote_check__select_material",
+          "zh": "選擇材料",
+          "description": "底部「選擇材料」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "pilot_enhance",
+      "zh": "角色強化頁面",
+      "kind": "page",
+      "control": "player",
+      "description": "單一角色的強化頁，左上標題「角色資料」，中央是角色立繪，右側有「LV」「角色技能」「能力」各列與「LV強化」，右下「詳情」，左右兩側箭頭，下方是能力值，底部是主導覽列且「強化」為選中。和 mech_enhance 的分別：本頁標題是「角色資料」，立繪是角色而不是機體。",
+      "buttons": [
+        {
+          "name": "pilot_enhance__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__lv_enhance",
+          "zh": "LV強化",
+          "description": "「LV強化」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__skill_detail",
+          "zh": "角色技能詳情",
+          "description": "角色技能列右邊的放大鏡",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__ability_detail",
+          "zh": "能力詳情",
+          "description": "能力列右邊的放大鏡",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__detail",
+          "zh": "詳情",
+          "description": "右下「詳情」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__prev",
+          "zh": "上一個",
+          "description": "左側箭頭",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__next",
+          "zh": "下一個",
+          "description": "右側箭頭",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "pilot_enhance__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "unit_detail_ability",
+      "zh": "單位能力詳情",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「單位設置詳情」的視窗，左側是機體與駕駛員卡片和能力值，右側上方有「組合資訊」「武裝、技能」「能力、OP」三個分頁，底部只有「關閉」一顆按鈕。本畫面是「能力、OP」分頁為選中：能力清單（圖示、名稱、效果描述）與「選擇性零件」。底部有「關閉」和「選擇」兩顆按鈕的是 unit_detail_ability_roster。",
+      "buttons": [
+        {
+          "name": "unit_detail_ability__tab_combo",
+          "zh": "組合資訊",
+          "description": "分頁「組合資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_ability__tab_weapon_skill",
+          "zh": "武裝、技能",
+          "description": "分頁「武裝、技能」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_ability__tab_ability_op",
+          "zh": "能力、OP",
+          "description": "分頁「能力、OP」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_ability__basic_info",
+          "zh": "基本資訊",
+          "description": "右上「基本資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_ability__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "battle_prep_attack",
+            "battle_prep_response_attack",
+            "select_action_in_battle",
+            "select_weapon_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unit_detail_ability_roster",
+      "zh": "單位能力詳情（部隊名單）",
+      "kind": "overlay",
+      "control": "player",
+      "description": "從戰鬥中部隊名單打開的 unit_detail_ability，畫面與 unit_detail_ability 相同，差別只在底部：偏左的「關閉」加上右邊藍色的「選擇」兩顆按鈕。",
+      "buttons": [
+        {
+          "name": "unit_detail_ability_roster__tab_combo",
+          "zh": "組合資訊",
+          "description": "分頁「組合資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_ability_roster__tab_weapon_skill",
+          "zh": "武裝、技能",
+          "description": "分頁「武裝、技能」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_ability_roster__tab_ability_op",
+          "zh": "能力、OP",
+          "description": "分頁「能力、OP」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_ability_roster__basic_info",
+          "zh": "基本資訊",
+          "description": "右上「基本資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_ability_roster__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_ability_roster__select",
+          "zh": "選擇",
+          "description": "底部「關閉」右邊的藍色按鈕；按下後回到戰場並選取該單位，進入該單位的行動選擇",
+          "to": [
+            "select_action_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unit_detail_action",
+      "zh": "單位行動詳情",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「單位設置詳情」的視窗，左側是機體與駕駛員卡片和能力值，右側上方有「組合資訊」「武裝、技能」「能力、OP」三個分頁，底部只有「關閉」一顆按鈕。本畫面是「武裝、技能」分頁為選中：武裝卡片（LV、RANGE、POWER、EN、命中、爆擊）與技能清單。底部有「關閉」和「選擇」兩顆按鈕的是 unit_detail_action_roster。",
+      "buttons": [
+        {
+          "name": "unit_detail_action__tab_combo",
+          "zh": "組合資訊",
+          "description": "分頁「組合資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_action__tab_weapon_skill",
+          "zh": "武裝、技能",
+          "description": "分頁「武裝、技能」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_action__tab_ability_op",
+          "zh": "能力、OP",
+          "description": "分頁「能力、OP」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_action__basic_info",
+          "zh": "基本資訊",
+          "description": "右上「基本資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_action__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "battle_prep_attack",
+            "battle_prep_response_attack",
+            "select_action_in_battle",
+            "select_weapon_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unit_detail_action_roster",
+      "zh": "單位行動詳情（部隊名單）",
+      "kind": "overlay",
+      "control": "player",
+      "description": "從戰鬥中部隊名單打開的 unit_detail_action，畫面與 unit_detail_action 相同，差別只在底部：偏左的「關閉」加上右邊藍色的「選擇」兩顆按鈕。",
+      "buttons": [
+        {
+          "name": "unit_detail_action_roster__tab_combo",
+          "zh": "組合資訊",
+          "description": "分頁「組合資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_action_roster__tab_weapon_skill",
+          "zh": "武裝、技能",
+          "description": "分頁「武裝、技能」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_action_roster__tab_ability_op",
+          "zh": "能力、OP",
+          "description": "分頁「能力、OP」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_action_roster__basic_info",
+          "zh": "基本資訊",
+          "description": "右上「基本資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_action_roster__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_action_roster__select",
+          "zh": "選擇",
+          "description": "底部「關閉」右邊的藍色按鈕；按下後回到戰場並選取該單位，進入該單位的行動選擇",
+          "to": [
+            "select_action_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unit_detail_state",
+      "zh": "單位綜合資訊詳情",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「單位設置詳情」的視窗，左側是機體與駕駛員卡片和能力值，右側上方有「組合資訊」「武裝、技能」「能力、OP」三個分頁，底部只有「關閉」一顆按鈕。本畫面是「組合資訊」分頁為選中：「修正效果」「標籤」（TAG）與「系列」。從強化畫面打開的同一個視窗標題是「單位詳情」，分頁名稱是「單位情報」「武裝・技能」「能力・OP」；「單位情報」分頁也歸到本畫面。底部有「關閉」和「選擇」兩顆按鈕的是 unit_detail_state_roster。",
+      "buttons": [
+        {
+          "name": "unit_detail_state__tab_combo",
+          "zh": "組合資訊",
+          "description": "分頁「組合資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_state__tab_weapon_skill",
+          "zh": "武裝、技能",
+          "description": "分頁「武裝、技能」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_state__tab_ability_op",
+          "zh": "能力、OP",
+          "description": "分頁「能力、OP」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_state__basic_info",
+          "zh": "基本資訊",
+          "description": "右上「基本資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_state__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "battle_prep_attack",
+            "battle_prep_response_attack",
+            "select_action_in_battle",
+            "select_weapon_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unit_detail_state_roster",
+      "zh": "單位綜合資訊詳情（部隊名單）",
+      "kind": "overlay",
+      "control": "player",
+      "description": "從戰鬥中部隊名單打開的 unit_detail_state，畫面與 unit_detail_state 相同，差別只在底部：偏左的「關閉」加上右邊藍色的「選擇」兩顆按鈕。",
+      "buttons": [
+        {
+          "name": "unit_detail_state_roster__tab_combo",
+          "zh": "組合資訊",
+          "description": "分頁「組合資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_state_roster__tab_weapon_skill",
+          "zh": "武裝、技能",
+          "description": "分頁「武裝、技能」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_state_roster__tab_ability_op",
+          "zh": "能力、OP",
+          "description": "分頁「能力、OP」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_state_roster__basic_info",
+          "zh": "基本資訊",
+          "description": "右上「基本資訊」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_state_roster__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_state_roster__select",
+          "zh": "選擇",
+          "description": "底部「關閉」右邊的藍色按鈕；按下後回到戰場並選取該單位，進入該單位的行動選擇",
+          "to": [
+            "select_action_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unit_detail_summary",
+      "zh": "單位設置總覽",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「單位設置詳情」的視窗，沒有分頁：左半是機體卡（大立繪、LV、HP／EN、移動力、戰鬥力、武裝、能力），右半是駕駛員卡（大立繪、LV、SP、CHANCE STEP LIMIT、戰鬥力、技能、能力），兩張卡各有放大鏡。右上「詳情」，底部只有「關閉」一顆按鈕。右上是「基本資訊」且有三個分頁的是 unit_detail_state／unit_detail_action／unit_detail_ability。底部有「關閉」和「選擇」兩顆按鈕的是 unit_detail_summary_roster。",
+      "buttons": [
+        {
+          "name": "unit_detail_summary__detail",
+          "zh": "詳情",
+          "description": "右上「詳情」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_summary__mech_card",
+          "zh": "機體卡",
+          "description": "左半機體卡的放大鏡",
+          "to": []
+        },
+        {
+          "name": "unit_detail_summary__pilot_card",
+          "zh": "駕駛員卡",
+          "description": "右半駕駛員卡的放大鏡",
+          "to": []
+        },
+        {
+          "name": "unit_detail_summary__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "battle_prep_attack",
+            "battle_prep_response_attack",
+            "select_action_in_battle",
+            "select_weapon_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unit_detail_summary_roster",
+      "zh": "單位設置總覽（部隊名單）",
+      "kind": "overlay",
+      "control": "player",
+      "description": "從戰鬥中部隊名單打開的 unit_detail_summary，畫面與 unit_detail_summary 相同，差別只在底部：偏左的「關閉」加上右邊藍色的「選擇」兩顆按鈕。",
+      "buttons": [
+        {
+          "name": "unit_detail_summary_roster__detail",
+          "zh": "詳情",
+          "description": "右上「詳情」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_summary_roster__mech_card",
+          "zh": "機體卡",
+          "description": "左半機體卡的放大鏡",
+          "to": []
+        },
+        {
+          "name": "unit_detail_summary_roster__pilot_card",
+          "zh": "駕駛員卡",
+          "description": "右半駕駛員卡的放大鏡",
+          "to": []
+        },
+        {
+          "name": "unit_detail_summary_roster__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        },
+        {
+          "name": "unit_detail_summary_roster__select",
+          "zh": "選擇",
+          "description": "底部「關閉」右邊的藍色按鈕；按下後回到戰場並選取該單位，進入該單位的行動選擇",
+          "to": [
+            "select_action_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mech_normal_info",
+      "zh": "機體一般資訊",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「單位詳情」的視窗，左側大尺寸機體立繪，右側「突破界限」星數、LV、武裝、能力／技能、選擇性零件，下方戰鬥力與 HP／EN／攻擊力等能力值、地形適性、裝置，右上「詳情」，底部「關閉」。",
+      "buttons": [
+        {
+          "name": "mech_normal_info__detail",
+          "zh": "詳情",
+          "description": "右上「詳情」",
+          "to": []
+        },
+        {
+          "name": "mech_normal_info__weapon_detail",
+          "zh": "武裝詳情",
+          "description": "武裝列右邊的放大鏡",
+          "to": []
+        },
+        {
+          "name": "mech_normal_info__ability_detail",
+          "zh": "能力／技能詳情",
+          "description": "能力／技能列右邊的放大鏡",
+          "to": []
+        },
+        {
+          "name": "mech_normal_info__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "battle_prep_attack",
+            "battle_prep_response_attack",
+            "select_action_in_battle",
+            "select_weapon_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "pilot_normal_info",
+      "zh": "角色一般資訊",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「角色詳情」的視窗，左側大尺寸角色立繪，右側 LV、角色技能、能力，下方戰鬥力與射擊值／格鬥值等能力值、額外行動、支援，右上「詳情」，底部「關閉」。",
+      "buttons": [
+        {
+          "name": "pilot_normal_info__detail",
+          "zh": "詳情",
+          "description": "右上「詳情」",
+          "to": []
+        },
+        {
+          "name": "pilot_normal_info__skill_detail",
+          "zh": "角色技能詳情",
+          "description": "角色技能列右邊的放大鏡",
+          "to": []
+        },
+        {
+          "name": "pilot_normal_info__ability_detail",
+          "zh": "能力詳情",
+          "description": "能力列右邊的放大鏡",
+          "to": []
+        },
+        {
+          "name": "pilot_normal_info__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "battle_prep_attack",
+            "battle_prep_response_attack",
+            "select_action_in_battle",
+            "select_weapon_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "battle_main_setting",
+      "zh": "戰鬥中設定主頁",
+      "kind": "overlay",
+      "control": "player",
+      "description": "戰鬥中開啟的標題「戰鬥選單」視窗，上方是 CHALLENGE 與關卡名稱（例如「機動戰士鋼彈 HARD STAGE 1」），TURN 與破壞數、TOTAL SCORE，下方「放棄」「重試」「幫助」「設定」「使命」，底部「關閉」。和 battle_settings_in_battle 的分別：本畫面是戰鬥選單，按「設定」才進入有 ON／OFF 開關的設定視窗。",
+      "buttons": [
+        {
+          "name": "battle_main_setting__win_condition",
+          "zh": "勝利條件",
+          "description": "「勝利條件」",
+          "to": [
+            "win_condition_overlay"
+          ]
+        },
+        {
+          "name": "battle_main_setting__squad_info",
+          "zh": "部隊資訊",
+          "description": "「部隊資訊」",
+          "to": [
+            "roster_list"
+          ]
+        },
+        {
+          "name": "battle_main_setting__give_up",
+          "zh": "放棄",
+          "description": "紅色「放棄」",
+          "to": []
+        },
+        {
+          "name": "battle_main_setting__retry",
+          "zh": "重試",
+          "description": "「重試」",
+          "to": []
+        },
+        {
+          "name": "battle_main_setting__help",
+          "zh": "幫助",
+          "description": "「幫助」",
+          "to": []
+        },
+        {
+          "name": "battle_main_setting__settings",
+          "zh": "設定",
+          "description": "「設定」",
+          "to": [
+            "battle_settings_in_battle"
+          ]
+        },
+        {
+          "name": "battle_main_setting__mission",
+          "zh": "使命",
+          "description": "「使命」",
+          "to": []
+        },
+        {
+          "name": "battle_main_setting__close",
+          "zh": "關閉",
+          "description": "底部「關閉」，回到打開戰鬥選單之前的畫面",
+          "to": [
+            "player_phase_overview",
+            "select_weapon_in_battle"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "win_condition_overlay",
+      "zh": "勝利條件",
+      "kind": "overlay",
+      "control": "player",
+      "description": "在戰鬥選單按「勝利條件」打開的畫面，內容和關卡說明頁相同：CHALLENGE 與關卡名稱、「勝利條件」「隱藏條件」「敗北條件」、機體立繪，背景是模糊的戰鬥畫面，底部「關閉」。和 battle_info_preview 的分別：本畫面沒有 AUTO、快轉、戰鬥選單，也沒有「- TAP TO NEXT -」。",
+      "buttons": [
+        {
+          "name": "win_condition_overlay__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "battle_main_setting"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "battle_prep_detail",
+      "zh": "戰鬥準備詳情",
+      "kind": "overlay",
+      "control": "player",
+      "description": "戰鬥地圖上方的「戰鬥準備詳情」條，顯示攻擊方武裝（POWER、名稱、效果）、目標機體 HP／EN 與預測傷害、駕駛員，右上「TOTAL DAMAGE 預測」，背景是模糊的格線地圖，底部「取消」「選擇」。",
+      "buttons": [
+        {
+          "name": "battle_prep_detail__cancel",
+          "zh": "取消",
+          "description": "底部「取消」，回到進入戰鬥準備詳情的戰鬥準備畫面（攻擊或應戰）",
+          "to": [
+            "battle_prep_attack",
+            "battle_prep_response_attack"
+          ]
+        },
+        {
+          "name": "battle_prep_detail__select",
+          "zh": "選擇",
+          "description": "底部「選擇」，回到進入戰鬥準備詳情的戰鬥準備畫面（攻擊或應戰）",
+          "to": [
+            "battle_prep_attack",
+            "battle_prep_response_attack"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "battle_clear_view",
+      "zh": "戰鬥勝利展演",
+      "kind": "animation",
+      "control": "player",
+      "description": "橘色格線背景中央顯示「BATTLE CLEAR」與「- 達成勝利條件 -」的展演畫面，沒有按鈕。最後一擊之後出現，點任意處進入戰鬥分數結果。",
+      "buttons": [
+        {
+          "name": "battle_clear_view__tap_next",
+          "zh": "點擊繼續",
+          "description": "畫面任意處",
+          "to": [
+            "battle_score_result"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "exp_reward_result",
+      "zh": "經驗值獎勵結果",
+      "kind": "page",
+      "control": "player",
+      "description": "標題「REWARD」，上排機體卡片、下排駕駛員卡片（各有 LV），分成「系列部隊1」「系列部隊2」，下方支援人員卡片，底部 PLAYER RANK EXP 與 UNIT EXP／CHARACTER EXP／SUPPORTER EXP，右下按鈕。",
+      "buttons": [
+        {
+          "name": "exp_reward_result__next",
+          "zh": "下一步",
+          "description": "右下的按鈕",
+          "to": [
+            "drop_reward_result"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "battle_score_result",
+      "zh": "戰鬥分數結果",
+      "kind": "page",
+      "control": "player",
+      "description": "左上作品與關卡名稱（例如「機動戰士V鋼彈 HARD STAGE 1」），中央「TOTAL SCORE」大數字與 HIGH SCORE、三個分數門檻，下方列出「完成關卡」「破壞敵方數」「過量擊殺」「剩餘單位數」「受到的損傷比例」加分，右側機體立繪，左下「損傷報告」，右下按鈕。戰鬥結束到這個畫面之間多半是轉場動畫，大多點任意處就進入下一個畫面，少數要按確認或選擇離開、再次出擊。",
+      "buttons": [
+        {
+          "name": "battle_score_result__damage_report",
+          "zh": "損傷報告",
+          "description": "左下「損傷報告」",
+          "to": []
+        },
+        {
+          "name": "battle_score_result__next",
+          "zh": "下一步",
+          "description": "右下的按鈕",
+          "to": [
+            "exp_reward_result"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "build_roadmap",
+      "zh": "開發路線圖",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「開發路線圖」，中央是用線連接的機體節點圖，左側作品清單（各有「登錄狀況」百分比）與縮小地圖，上方 25%／50%／75%／100% 進度獎勵，右下全螢幕圖示。和 development_hall 的分別：本頁是單一作品的節點圖，不是作品格子清單。",
+      "buttons": [
+        {
+          "name": "build_roadmap__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": []
+        },
+        {
+          "name": "build_roadmap__series_item",
+          "zh": "作品",
+          "description": "左側清單中的一個作品",
+          "to": []
+        },
+        {
+          "name": "build_roadmap__unit_node",
+          "zh": "機體節點",
+          "description": "節點圖中的一架機體",
+          "to": []
+        },
+        {
+          "name": "build_roadmap__progress_reward",
+          "zh": "進度獎勵",
+          "description": "上方的進度獎勵",
+          "to": []
+        },
+        {
+          "name": "build_roadmap__fullscreen",
+          "zh": "全螢幕",
+          "description": "右下全螢幕圖示",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_batch_building_check",
+      "zh": "全部開發確認頁",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「全部開發」的視窗，左側「開發單位」與戰鬥力、「開發單位用路線」，右側「所需材料」、持有 CAPITAL、「開發單位數」與增減箭頭，底部「取消」「執行開發」。",
+      "buttons": [
+        {
+          "name": "mech_batch_building_check__count_min",
+          "zh": "最少",
+          "description": "開發單位數左邊的「«」",
+          "to": []
+        },
+        {
+          "name": "mech_batch_building_check__count_down",
+          "zh": "減少",
+          "description": "開發單位數左邊的「‹」",
+          "to": []
+        },
+        {
+          "name": "mech_batch_building_check__count_up",
+          "zh": "增加",
+          "description": "開發單位數右邊的「›」",
+          "to": []
+        },
+        {
+          "name": "mech_batch_building_check__count_max",
+          "zh": "最多",
+          "description": "開發單位數右邊的「»」",
+          "to": []
+        },
+        {
+          "name": "mech_batch_building_check__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "mech_batch_building_check__execute",
+          "zh": "執行開發",
+          "description": "底部橘色「執行開發」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "character_quest_result_anime",
+      "zh": "角色要求回報展演",
+      "kind": "animation",
+      "control": "player",
+      "description": "畫面中央橫跨的藍色橫幅顯示「回報完成」與「要求RANK」數字和進度條，背景是模糊的「角色要求」頁面，底部是主導覽列且「個人基地」為選中。",
+      "buttons": []
+    },
+    {
+      "name": "g_product_list",
+      "zh": "G商店商品清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「商店」，左側貨幣分頁且「G商店」為選中，中間是商品卡片格子（每日標籤、價格、「購買」、剩餘次數），下方「以50更新」、下次更新時間、「重置」「全部購買」，右上該貨幣持有數與「鑽石商店」，底部主導覽列。",
+      "buttons": [
+        {
+          "name": "g_product_list__back",
+          "zh": "返回",
+          "description": "左上返回箭頭",
+          "to": []
+        },
+        {
+          "name": "g_product_list__info",
+          "zh": "說明",
+          "description": "標題旁的「i」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__diamond_shop",
+          "zh": "鑽石商店",
+          "description": "右上「鑽石商店」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__tab_capital",
+          "zh": "CAPITAL 分頁",
+          "description": "「CAPITAL」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__tab_g_shop",
+          "zh": "G商店分頁",
+          "description": "「G商店」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__tab_premium",
+          "zh": "高級分頁",
+          "description": "「高級」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__tab_master_league",
+          "zh": "大師聯盟獎章分頁",
+          "description": "「大師聯盟獎章」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__tab_rare_medal",
+          "zh": "稀有獎章分頁",
+          "description": "「稀有獎章」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__buy",
+          "zh": "購買",
+          "description": "商品卡片上的「購買」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__refresh",
+          "zh": "以50更新",
+          "description": "「以50更新」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__reset",
+          "zh": "重置",
+          "description": "「重置」",
+          "to": []
+        },
+        {
+          "name": "g_product_list__buy_all",
+          "zh": "全部購買",
+          "description": "「全部購買」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "d_product_list",
+      "zh": "高級商品清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「商店」，左側貨幣分頁且「高級」為選中，中間是商品卡片格子（每日標籤、價格、「購買」、剩餘次數），下方「以50更新」、下次更新時間、「重置」「全部購買」，右上該貨幣持有數與「鑽石商店」，底部主導覽列。",
+      "buttons": [
+        {
+          "name": "d_product_list__back",
+          "zh": "返回",
+          "description": "左上返回箭頭",
+          "to": []
+        },
+        {
+          "name": "d_product_list__info",
+          "zh": "說明",
+          "description": "標題旁的「i」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__diamond_shop",
+          "zh": "鑽石商店",
+          "description": "右上「鑽石商店」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__tab_capital",
+          "zh": "CAPITAL 分頁",
+          "description": "「CAPITAL」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__tab_g_shop",
+          "zh": "G商店分頁",
+          "description": "「G商店」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__tab_premium",
+          "zh": "高級分頁",
+          "description": "「高級」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__tab_master_league",
+          "zh": "大師聯盟獎章分頁",
+          "description": "「大師聯盟獎章」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__tab_rare_medal",
+          "zh": "稀有獎章分頁",
+          "description": "「稀有獎章」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__buy",
+          "zh": "購買",
+          "description": "商品卡片上的「購買」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__refresh",
+          "zh": "以50更新",
+          "description": "「以50更新」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__reset",
+          "zh": "重置",
+          "description": "「重置」",
+          "to": []
+        },
+        {
+          "name": "d_product_list__buy_all",
+          "zh": "全部購買",
+          "description": "「全部購買」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "gift_list",
+      "zh": "禮物清單",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「禮物」的視窗，列出禮物（圖示、名稱、說明、獲得日期）與每列的「領取」，左下「領取記錄」，右下排序與篩選，紅字說明超過期限的禮物會刪除，底部「關閉」「全部領取」。",
+      "buttons": [
+        {
+          "name": "gift_list__claim",
+          "zh": "領取",
+          "description": "禮物列右邊的「領取」",
+          "to": []
+        },
+        {
+          "name": "gift_list__history",
+          "zh": "領取記錄",
+          "description": "左下「領取記錄」",
+          "to": []
+        },
+        {
+          "name": "gift_list__sort",
+          "zh": "排序",
+          "description": "右下排序",
+          "to": []
+        },
+        {
+          "name": "gift_list__filter",
+          "zh": "篩選",
+          "description": "右下篩選",
+          "to": []
+        },
+        {
+          "name": "gift_list__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        },
+        {
+          "name": "gift_list__claim_all",
+          "zh": "全部領取",
+          "description": "底部「全部領取」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "claim_result",
+      "zh": "禮物領取結果",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「領取結果」的視窗，說明「已領取以下禮物」，列出領到的道具與數量，底部「OK」。",
+      "buttons": [
+        {
+          "name": "claim_result__ok",
+          "zh": "OK",
+          "description": "底部「OK」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mission_list",
+      "zh": "使命清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左側是角色立繪與「特別使命」「單位培育使命」「角色要求」等分類，右側上方「每日」「累積」「事件」分頁，下方使命列（圖示、名稱、進度、剩餘時間）與每列的「領取」或「挑戰」，右下「全部領取」，底部主導覽列。",
+      "buttons": [
+        {
+          "name": "mission_list__back",
+          "zh": "返回",
+          "description": "左上返回箭頭",
+          "to": []
+        },
+        {
+          "name": "mission_list__tab_daily",
+          "zh": "每日分頁",
+          "description": "「每日」",
+          "to": []
+        },
+        {
+          "name": "mission_list__tab_total",
+          "zh": "累積分頁",
+          "description": "「累積」",
+          "to": []
+        },
+        {
+          "name": "mission_list__tab_event",
+          "zh": "事件分頁",
+          "description": "「事件」",
+          "to": []
+        },
+        {
+          "name": "mission_list__claim",
+          "zh": "領取",
+          "description": "使命列的「領取」",
+          "to": []
+        },
+        {
+          "name": "mission_list__challenge",
+          "zh": "挑戰",
+          "description": "使命列的「挑戰」",
+          "to": []
+        },
+        {
+          "name": "mission_list__claim_all",
+          "zh": "全部領取",
+          "description": "右下「全部領取」",
+          "to": []
+        },
+        {
+          "name": "mission_list__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "mission_list__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "mission_list__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "mission_list__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "mission_list__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "mission_list__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "mission_list__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "claim_result_2",
+      "zh": "使命領取結果",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「領取結果」的視窗，說明「已領取以下報酬」，列出領到的道具與數量，底部「OK」；背景是使命清單。",
+      "buttons": [
+        {
+          "name": "claim_result_2__ok",
+          "zh": "OK",
+          "description": "底部「OK」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "purchase_result",
+      "zh": "購買完成",
+      "kind": "overlay",
+      "control": "player",
+      "description": "上方通知「於任一商店購物」，中央視窗列出買到的道具、持有數量的變化（舊值 > 新值），底部「關閉」；背景是商品清單。",
+      "buttons": [
+        {
+          "name": "purchase_result__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "product_detail",
+      "zh": "道具詳情",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「道具詳情」的視窗，道具圖示、名稱、持有數量與說明，底部「關閉」。",
+      "buttons": [
+        {
+          "name": "product_detail__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "build_mech_info",
+      "zh": "開發單位資訊",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「單位資訊」，左側機體圖、名稱、戰鬥力、地形適性，下方「強化」「獲得管道」，左右兩側箭頭，右側「所需材料」（CAPITAL 持有數），底部「取消」、橘色「執行開發」、右下「全部開發」。",
+      "buttons": [
+        {
+          "name": "build_mech_info__prev",
+          "zh": "上一個",
+          "description": "左側箭頭",
+          "to": []
+        },
+        {
+          "name": "build_mech_info__next",
+          "zh": "下一個",
+          "description": "右側箭頭",
+          "to": []
+        },
+        {
+          "name": "build_mech_info__enhance",
+          "zh": "強化",
+          "description": "機體下方「強化」",
+          "to": []
+        },
+        {
+          "name": "build_mech_info__acquire_route",
+          "zh": "獲得管道",
+          "description": "機體下方「獲得管道」",
+          "to": []
+        },
+        {
+          "name": "build_mech_info__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "build_mech_info__execute",
+          "zh": "執行開發",
+          "description": "底部橘色「執行開發」",
+          "to": []
+        },
+        {
+          "name": "build_mech_info__build_all",
+          "zh": "全部開發",
+          "description": "右下「全部開發」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "ship_cruise_check",
+      "zh": "戰艦巡航",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「戰艦巡航」，中央是基地的俯視圖與戰艦，右上「戰艦資訊」與全螢幕按鈕，下方「可回收道具」、道具圖示列、經過時間與「全部回收」，底部主導覽列且「個人基地」為選中。",
+      "buttons": [
+        {
+          "name": "ship_cruise_check__back",
+          "zh": "返回",
+          "description": "左上返回箭頭",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__ship_info",
+          "zh": "戰艦資訊",
+          "description": "右上「戰艦資訊」",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__fullscreen",
+          "zh": "全螢幕",
+          "description": "右上全螢幕按鈕",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__collect_all",
+          "zh": "全部回收",
+          "description": "右下「全部回收」",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "ship_cruise_check__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "character_quest_response",
+      "zh": "角色要求對話",
+      "kind": "page",
+      "control": "player",
+      "description": "背景是基地房間，中央是通訊畫面框，框內是角色立繪，框下方是角色名與台詞，右上「略過」，底部主導覽列且「個人基地」為選中。",
+      "buttons": [
+        {
+          "name": "character_quest_response__skip",
+          "zh": "略過",
+          "description": "右上「略過」",
+          "to": []
+        },
+        {
+          "name": "character_quest_response__next",
+          "zh": "下一句",
+          "description": "點擊畫面",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "acquire_route_list",
+      "zh": "主要獲得方式",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「主要獲得方式」的視窗，左側機體圖與持有數量，右側關卡列（系列、關卡名、建議戰鬥力、COMPLETE 標記）與每列的「移動」，底部「關閉」。",
+      "buttons": [
+        {
+          "name": "acquire_route_list__move",
+          "zh": "移動",
+          "description": "關卡列的「移動」",
+          "to": []
+        },
+        {
+          "name": "acquire_route_list__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "deliver_check",
+      "zh": "確認交付",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「確認交付」的視窗，說明「請選擇欲交付的單位」，上方「交付單位」（名稱、交付數、「獲得方法」），下方「可交付單位」格子，選擇數量，紅字說明交付後單位會消失，底部「取消」「交付」。",
+      "buttons": [
+        {
+          "name": "deliver_check__acquire_method",
+          "zh": "獲得方法",
+          "description": "交付單位的「獲得方法」",
+          "to": []
+        },
+        {
+          "name": "deliver_check__unit",
+          "zh": "可交付單位",
+          "description": "可交付單位格子",
+          "to": []
+        },
+        {
+          "name": "deliver_check__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "deliver_check__deliver",
+          "zh": "交付",
+          "description": "底部「交付」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "damage_report",
+      "zh": "損傷報告",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「損傷報告」的視窗，左側分類（攻擊與反擊造成的損傷、支援攻擊與支援反擊造成的損傷、支援防禦受到的損傷），右側各單位的紅色長條圖與數值，按部隊分組，底部「關閉」。",
+      "buttons": [
+        {
+          "name": "damage_report__category",
+          "zh": "分類",
+          "description": "左側分類",
+          "to": []
+        },
+        {
+          "name": "damage_report__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "loading",
+      "zh": "載入畫面",
+      "kind": "loading",
+      "control": "game",
+      "description": "載入畫面，右下「Loading...」，有時左下「Connecting..」。背景有兩種：黑色格線配中央「Tips」與提示文字、左下遊戲標誌；或進關卡前的作品插圖（例如宇宙與小行星）配左下作品標誌。沒有可按的按鈕，不能操作，建圖時跟轉場一樣跳過。",
+      "buttons": []
+    },
+    {
+      "name": "pilot_upgrade_check",
+      "zh": "角色提升LV",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「提升LV」的視窗，說明「將使用提升LV材料強化角色」，上方是三種提升LV材料與勾選框，中間是 LV 數值與 EXP 條及增減按鈕，下方「強化詳情」「SP化」，底部「取消」與「提升LV」。",
+      "buttons": [
+        {
+          "name": "pilot_upgrade_check__level_decrease_max",
+          "zh": "LV 減到最少",
+          "description": "「«」",
+          "to": []
+        },
+        {
+          "name": "pilot_upgrade_check__level_decrease",
+          "zh": "LV 減一",
+          "description": "「‹」",
+          "to": []
+        },
+        {
+          "name": "pilot_upgrade_check__level_increase",
+          "zh": "LV 加一",
+          "description": "「›」",
+          "to": []
+        },
+        {
+          "name": "pilot_upgrade_check__level_increase_max",
+          "zh": "LV 加到最多",
+          "description": "「»」",
+          "to": []
+        },
+        {
+          "name": "pilot_upgrade_check__enhance_detail",
+          "zh": "強化詳情",
+          "description": "「強化詳情」",
+          "to": []
+        },
+        {
+          "name": "pilot_upgrade_check__sp_enhance",
+          "zh": "SP化",
+          "description": "「SP化」",
+          "to": []
+        },
+        {
+          "name": "pilot_upgrade_check__cancel",
+          "zh": "取消",
+          "description": "「取消」",
+          "to": []
+        },
+        {
+          "name": "pilot_upgrade_check__confirm",
+          "zh": "提升LV",
+          "description": "「提升LV」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "supporter_upgrade_check",
+      "zh": "支援人員提升LV",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「提升LV」的視窗，說明「將使用提升LV材料強化支援人員」，上方是三種提升LV材料與勾選框，中間是 LV 數值與 EXP 條及增減按鈕，下方「強化詳情」，底部「取消」與「提升LV」。",
+      "buttons": [
+        {
+          "name": "supporter_upgrade_check__level_decrease_max",
+          "zh": "LV 減到最少",
+          "description": "「«」",
+          "to": []
+        },
+        {
+          "name": "supporter_upgrade_check__level_decrease",
+          "zh": "LV 減一",
+          "description": "「‹」",
+          "to": []
+        },
+        {
+          "name": "supporter_upgrade_check__level_increase",
+          "zh": "LV 加一",
+          "description": "「›」",
+          "to": []
+        },
+        {
+          "name": "supporter_upgrade_check__level_increase_max",
+          "zh": "LV 加到最多",
+          "description": "「»」",
+          "to": []
+        },
+        {
+          "name": "supporter_upgrade_check__enhance_detail",
+          "zh": "強化詳情",
+          "description": "「強化詳情」",
+          "to": []
+        },
+        {
+          "name": "supporter_upgrade_check__cancel",
+          "zh": "取消",
+          "description": "「取消」",
+          "to": []
+        },
+        {
+          "name": "supporter_upgrade_check__confirm",
+          "zh": "提升LV",
+          "description": "「提升LV」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "pilot_sp_consume_check",
+      "zh": "角色SP化材料確認",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「SP化」，左側角色立繪、角色名稱與「LV上限 90 > 100」，右側「所需材料」清單，每列是 SP化徽章與數量增減按鈕，下方總計材料數與「重置」，底部「取消」與「SP化」。",
+      "buttons": [
+        {
+          "name": "pilot_sp_consume_check__info",
+          "zh": "說明",
+          "description": "標題旁的「i」",
+          "to": []
+        },
+        {
+          "name": "pilot_sp_consume_check__enhance_detail",
+          "zh": "強化詳情",
+          "description": "「強化詳情」",
+          "to": []
+        },
+        {
+          "name": "pilot_sp_consume_check__mech_search",
+          "zh": "機體詳細",
+          "description": "機體名稱旁的放大鏡",
+          "to": []
+        },
+        {
+          "name": "pilot_sp_consume_check__material_decrease_max",
+          "zh": "材料減到最少",
+          "description": "材料列的「«」",
+          "to": []
+        },
+        {
+          "name": "pilot_sp_consume_check__material_decrease",
+          "zh": "材料減一",
+          "description": "材料列的「‹」",
+          "to": []
+        },
+        {
+          "name": "pilot_sp_consume_check__material_increase",
+          "zh": "材料加一",
+          "description": "材料列的「›」",
+          "to": []
+        },
+        {
+          "name": "pilot_sp_consume_check__material_increase_max",
+          "zh": "材料加到最多",
+          "description": "材料列的「»」",
+          "to": []
+        },
+        {
+          "name": "pilot_sp_consume_check__reset",
+          "zh": "重置",
+          "description": "「重置」",
+          "to": []
+        },
+        {
+          "name": "pilot_sp_consume_check__cancel",
+          "zh": "取消",
+          "description": "「取消」",
+          "to": []
+        },
+        {
+          "name": "pilot_sp_consume_check__confirm",
+          "zh": "SP化",
+          "description": "「SP化」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_lv_result",
+      "zh": "機體 LV UP 完成",
+      "kind": "overlay",
+      "control": "player",
+      "description": "深藍色橫幅視窗，標題「LV UP 完成」，列出 LV、HP、EN、攻擊力、防禦力 的強化前後數值（新數值為黃色），底部「TAP TO NEXT」。",
+      "buttons": [
+        {
+          "name": "mech_lv_result__next",
+          "zh": "繼續",
+          "description": "畫面任意處（TAP TO NEXT）",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "pilot_lv_result",
+      "zh": "角色 LV UP 完成",
+      "kind": "overlay",
+      "control": "player",
+      "description": "深藍色橫幅視窗，標題「LV UP 完成」，列出 LV、射擊值、格鬥值、覺醒值、守備值、反應值 的強化前後數值（新數值為黃色），底部「TAP TO NEXT」。",
+      "buttons": [
+        {
+          "name": "pilot_lv_result__next",
+          "zh": "繼續",
+          "description": "畫面任意處（TAP TO NEXT）",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "supporter_lv_result",
+      "zh": "支援人員 LV UP 完成",
+      "kind": "overlay",
+      "control": "player",
+      "description": "深藍色橫幅視窗，標題「LV UP 完成」，列出 LV、HP支援、攻擊力支援 的強化前後數值（新數值為黃色），底部「TAP TO NEXT」。",
+      "buttons": [
+        {
+          "name": "supporter_lv_result__next",
+          "zh": "繼續",
+          "description": "畫面任意處（TAP TO NEXT）",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "weapon_upgrade_select",
+      "zh": "提升武裝LV",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「提升武裝LV」的視窗，說明「將使用武裝強化零件強化武裝」，左側武裝圖示列，中間武裝名、能力值（POWER、EN）與武裝效果，右側提升LV材料、武裝LV 數值與增減按鈕，底部「取消」「提升武裝LV」。",
+      "buttons": [
+        {
+          "name": "weapon_upgrade_select__weapon",
+          "zh": "武裝",
+          "description": "左側武裝圖示",
+          "to": []
+        },
+        {
+          "name": "weapon_upgrade_select__level_decrease_max",
+          "zh": "LV 減到最少",
+          "description": "「«」",
+          "to": []
+        },
+        {
+          "name": "weapon_upgrade_select__level_decrease",
+          "zh": "LV 減一",
+          "description": "「‹」",
+          "to": []
+        },
+        {
+          "name": "weapon_upgrade_select__level_increase",
+          "zh": "LV 加一",
+          "description": "「›」",
+          "to": []
+        },
+        {
+          "name": "weapon_upgrade_select__level_increase_max",
+          "zh": "LV 加到最多",
+          "description": "「»」",
+          "to": []
+        },
+        {
+          "name": "weapon_upgrade_select__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "weapon_upgrade_select__confirm",
+          "zh": "提升武裝LV",
+          "description": "底部「提升武裝LV」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "weapon_upgrade_result",
+      "zh": "提升武裝LV結果",
+      "kind": "overlay",
+      "control": "player",
+      "description": "深藍色橫幅視窗，標題「提升武裝LV」，列出 LV、POWER、EN 的強化前後數值（新數值為黃色）與強化後的武裝效果，底部「TAP TO NEXT」。",
+      "buttons": [
+        {
+          "name": "weapon_upgrade_result__next",
+          "zh": "繼續",
+          "description": "畫面任意處（TAP TO NEXT）",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_promote_select",
+      "zh": "機體選擇突破界限材料（單位）",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「選擇突破界限材料」的視窗，說明「請選擇欲當作材料的單位。每1架可以提升1階段。」，左上星數，左下能力值（HP、EN、攻擊力、防禦力、機動力）的變化，右側可選的機體卡片，右下最愛篩選與排序篩選，底部「取消」「決定材料」。",
+      "buttons": [
+        {
+          "name": "mech_promote_select__material",
+          "zh": "材料卡片",
+          "description": "右側機體卡片",
+          "to": []
+        },
+        {
+          "name": "mech_promote_select__favorite_filter",
+          "zh": "最愛篩選",
+          "description": "愛心圖示加 ON／OFF",
+          "to": []
+        },
+        {
+          "name": "mech_promote_select__sort_filter",
+          "zh": "排序篩選",
+          "description": "「名稱順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "mech_promote_select__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "mech_promote_select__confirm",
+          "zh": "決定材料",
+          "description": "底部「決定材料」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_promote_item_select",
+      "zh": "機體選擇突破界限材料（道具）",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「選擇突破界限材料」的視窗，說明「請選擇欲當作材料的道具。每1個可以提升1階段。」，左上星數，左下能力值的變化，右側道具圖示，底部「取消」「決定材料」。",
+      "buttons": [
+        {
+          "name": "mech_promote_item_select__material",
+          "zh": "材料道具",
+          "description": "右側道具圖示",
+          "to": []
+        },
+        {
+          "name": "mech_promote_item_select__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "mech_promote_item_select__confirm",
+          "zh": "決定材料",
+          "description": "底部「決定材料」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_promote_preview",
+      "zh": "機體確認突破界限",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「確認突破界限」的視窗，說明「將使用單位突破界限。確定要繼續嗎？」，「使用材料」列出材料單位與突破界限星數，底部「取消」「突破界限」。",
+      "buttons": [
+        {
+          "name": "mech_promote_preview__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "mech_promote_preview__confirm",
+          "zh": "突破界限",
+          "description": "底部「突破界限」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "tag_filter_quick_list",
+      "zh": "指定標籤",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「指定標籤」的視窗，可捲動的機體圖示格子，右下排序篩選，底部「關閉」。",
+      "buttons": [
+        {
+          "name": "tag_filter_quick_list__unit",
+          "zh": "單位圖示",
+          "description": "格子裡的機體圖示",
+          "to": []
+        },
+        {
+          "name": "tag_filter_quick_list__sort_filter",
+          "zh": "排序篩選",
+          "description": "「稀有度順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "tag_filter_quick_list__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "supporter_enhance_list",
+      "zh": "強化支援人員清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「強化」，左側「支援人員」分頁為選中，中間是支援人員卡片格子清單（戰艦與角色），右上有「搜尋」「保存編制一覽」，下方有「解體」與排序篩選，底部是主導覽列且「強化」為選中。",
+      "buttons": [
+        {
+          "name": "supporter_enhance_list__info",
+          "zh": "說明",
+          "description": "標題旁的「i」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__search",
+          "zh": "搜尋",
+          "description": "「搜尋」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__saved_rosters",
+          "zh": "保存編制一覽",
+          "description": "「保存編制一覽」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__tab_unit",
+          "zh": "單位分頁",
+          "description": "「單位」分頁",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__tab_character",
+          "zh": "角色分頁",
+          "description": "「角色」分頁",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__tab_support",
+          "zh": "支援人員分頁",
+          "description": "「支援人員」分頁",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__mech_card",
+          "zh": "機體卡片",
+          "description": "清單中的一張機體或駕駛卡片",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__favorite_filter",
+          "zh": "最愛篩選",
+          "description": "愛心圖示加 ON／OFF",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__dismantle",
+          "zh": "解體",
+          "description": "「解體」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__expand_capacity",
+          "zh": "擴充持有上限",
+          "description": "持有數旁的「+」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__sort_filter",
+          "zh": "排序篩選",
+          "description": "「稀有度順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__view_toggle",
+          "zh": "顯示切換",
+          "description": "排序篩選右邊的方框圖示",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__sort_order",
+          "zh": "排序方向",
+          "description": "最右邊的橫線圖示",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance_list__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "supporter_enhance",
+      "zh": "支援人員強化頁面",
+      "kind": "page",
+      "control": "player",
+      "description": "單一支援人員的強化頁，左上標題「支援人員資料」，中央是戰艦與角色的立繪，右側「突破界限」星數與「強化」、「LV」與「LV強化」、「支援技能」，下方 HP支援、攻擊力支援、隊長技能與「強化詳情」，右下「詳情」，左右兩側箭頭，底部是主導覽列且「強化」為選中。",
+      "buttons": [
+        {
+          "name": "supporter_enhance__back",
+          "zh": "返回",
+          "description": "標題左邊的返回箭頭",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance__promote",
+          "zh": "強化",
+          "description": "突破界限列的「強化」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance__lv_enhance",
+          "zh": "LV強化",
+          "description": "「LV強化」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance__skill_detail",
+          "zh": "支援技能詳情",
+          "description": "支援技能列的放大鏡",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance__leader_skill_detail",
+          "zh": "隊長技能詳情",
+          "description": "隊長技能列的放大鏡",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance__enhance_detail",
+          "zh": "強化詳情",
+          "description": "「強化詳情」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance__detail",
+          "zh": "詳情",
+          "description": "右下「詳情」",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance__prev",
+          "zh": "上一個",
+          "description": "左側箭頭",
+          "to": []
+        },
+        {
+          "name": "supporter_enhance__next",
+          "zh": "下一個",
+          "description": "右側箭頭",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "supporter_promote_check",
+      "zh": "支援人員突破界限確認頁",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「突破界限」的視窗，文字「請選擇欲使用的材料。」，「所需材料」下有「使用支援人員」「使用道具」兩格，底部「取消」「選擇材料」。",
+      "buttons": [
+        {
+          "name": "supporter_promote_check__use_supporter",
+          "zh": "使用支援人員",
+          "description": "「使用支援人員」格",
+          "to": []
+        },
+        {
+          "name": "supporter_promote_check__use_item",
+          "zh": "使用道具",
+          "description": "「使用道具」格",
+          "to": []
+        },
+        {
+          "name": "supporter_promote_check__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "supporter_promote_check__select_material",
+          "zh": "選擇材料",
+          "description": "底部「選擇材料」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "supporter_promote_select",
+      "zh": "支援人員選擇突破界限材料",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「選擇突破界限材料」的視窗，說明「請選擇欲當作材料的支援人員。每1架可以提升1階段。」，左上星數，左下能力值（HP支援、攻擊力支援）與隊長技能的變化，右側可選的支援人員卡片，右下最愛篩選與排序篩選，底部「取消」「決定材料」。",
+      "buttons": [
+        {
+          "name": "supporter_promote_select__material",
+          "zh": "材料卡片",
+          "description": "右側支援人員卡片",
+          "to": []
+        },
+        {
+          "name": "supporter_promote_select__favorite_filter",
+          "zh": "最愛篩選",
+          "description": "愛心圖示加 ON／OFF",
+          "to": []
+        },
+        {
+          "name": "supporter_promote_select__sort_filter",
+          "zh": "排序篩選",
+          "description": "「名稱順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "supporter_promote_select__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "supporter_promote_select__confirm",
+          "zh": "決定材料",
+          "description": "底部「決定材料」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "supporter_promote_preview",
+      "zh": "支援人員確認突破界限",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「確認突破界限」的視窗，說明「將使用支援人員突破界限。確定要繼續嗎？」，「使用材料」列出材料支援人員與突破界限星數，底部「取消」「突破界限」。",
+      "buttons": [
+        {
+          "name": "supporter_promote_preview__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "supporter_promote_preview__confirm",
+          "zh": "突破界限",
+          "description": "底部「突破界限」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "supporter_promote_anime",
+      "zh": "支援人員突破界限展演",
+      "kind": "animation",
+      "control": "player",
+      "description": "突破界限的展演：藍色放射光背景前是戰艦與角色，中央大字「突破界限」與星數。",
+      "buttons": [
+        {
+          "name": "supporter_promote_anime__skip",
+          "zh": "略過",
+          "description": "畫面任意處",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "supporter_promote_result",
+      "zh": "支援人員突破界限結果",
+      "kind": "overlay",
+      "control": "player",
+      "description": "深藍色橫幅視窗，標題「突破界限」，列出階段星數與 HP支援、攻擊力支援的強化前後數值（新數值為黃色）與強化後的隊長技能，底部「TAP TO NEXT」。",
+      "buttons": [
+        {
+          "name": "supporter_promote_result__next",
+          "zh": "繼續",
+          "description": "畫面任意處（TAP TO NEXT）",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "pilot_abilities_list",
+      "zh": "角色能力一覽",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「角色能力一覽」的視窗，可捲動的角色被動能力清單（圖示、名稱、條件與效果描述），底部「關閉」，背景是模糊的「角色資料」頁面。",
+      "buttons": [
+        {
+          "name": "pilot_abilities_list__close",
+          "zh": "關閉",
+          "description": "「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "pilot_skill_list",
+      "zh": "技能一覽",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「技能一覽」的視窗，角色主動技能清單（圖示、名稱與效果描述），底部「關閉」，背景是模糊的「角色資料」頁面。",
+      "buttons": [
+        {
+          "name": "pilot_skill_list__close",
+          "zh": "關閉",
+          "description": "「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "mech_property_list",
+      "zh": "機體特性一覽",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「裝置一覽」的視窗，列出機體特性（圖示、名稱與效果描述，例如「盾牌防禦」），底部「關閉」，背景是模糊的「單位資料」頁面。",
+      "buttons": [
+        {
+          "name": "mech_property_list__close",
+          "zh": "關閉",
+          "description": "「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "effect_mech_list",
+      "zh": "效果對象",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「效果對象」的視窗，可捲動的機體圖示格子，右下排序篩選，底部「關閉」，背景是模糊的「角色資料」頁面。",
+      "buttons": [
+        {
+          "name": "effect_mech_list__unit",
+          "zh": "機體圖示",
+          "description": "格子裡的機體圖示",
+          "to": []
+        },
+        {
+          "name": "effect_mech_list__sort_filter",
+          "zh": "排序篩選",
+          "description": "「稀有度順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "effect_mech_list__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "training_stage_list",
+      "zh": "培育關卡清單",
+      "kind": "page",
+      "control": "player",
+      "description": "左上標題「培育關卡」，中間四張關卡卡片（CAPITAL、單位培育、角色培育、支援人員培育），每張有 CLEAR／COMPLETE 標記與「可出擊次數 3/3」，右下「一次略過」，右上 AP 數與「+」，底部是主導覽列且「關卡」為選中。",
+      "buttons": [
+        {
+          "name": "training_stage_list__back",
+          "zh": "返回",
+          "description": "左上返回箭頭",
+          "to": [
+            "stage_chosen"
+          ]
+        },
+        {
+          "name": "training_stage_list__info",
+          "zh": "說明",
+          "description": "標題旁的「i」",
+          "to": []
+        },
+        {
+          "name": "training_stage_list__ap_add",
+          "zh": "回復AP",
+          "description": "右上 AP 數旁的「+」",
+          "to": []
+        },
+        {
+          "name": "training_stage_list__stage_card",
+          "zh": "關卡卡片",
+          "description": "四張培育關卡卡片之一",
+          "to": []
+        },
+        {
+          "name": "training_stage_list__batch_skip",
+          "zh": "一次略過",
+          "description": "右下「一次略過」",
+          "to": [
+            "batch_skip_overlay"
+          ]
+        },
+        {
+          "name": "training_stage_list__nav_home",
+          "zh": "主畫面",
+          "description": "主導覽列的「主畫面」",
+          "to": []
+        },
+        {
+          "name": "training_stage_list__nav_enhance",
+          "zh": "強化",
+          "description": "主導覽列的「強化」",
+          "to": []
+        },
+        {
+          "name": "training_stage_list__nav_develop",
+          "zh": "開發",
+          "description": "主導覽列的「開發」",
+          "to": []
+        },
+        {
+          "name": "training_stage_list__nav_stage",
+          "zh": "關卡",
+          "description": "主導覽列的「關卡」",
+          "to": []
+        },
+        {
+          "name": "training_stage_list__nav_base",
+          "zh": "個人基地",
+          "description": "主導覽列的「個人基地」",
+          "to": []
+        },
+        {
+          "name": "training_stage_list__nav_supply",
+          "zh": "機體補給",
+          "description": "主導覽列的「機體補給」",
+          "to": []
+        },
+        {
+          "name": "training_stage_list__nav_menu",
+          "zh": "選單",
+          "description": "主導覽列的「選單」",
+          "to": []
+        }
+      ]
+    },
+    {
+      "name": "batch_skip_overlay",
+      "zh": "一次略過",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「一次略過」的視窗，說明「將一次略過以下強化培育關卡。」與「※將自動選擇可略過的最高LV關卡。」，列出四個培育關卡（CAPITAL、單位強化培育、角色強化培育、支援人員強化培育）與次數，底部「取消」「執行」。",
+      "buttons": [
+        {
+          "name": "batch_skip_overlay__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": []
+        },
+        {
+          "name": "batch_skip_overlay__execute",
+          "zh": "執行",
+          "description": "底部「執行」",
+          "to": [
+            "skip_result_list"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ap_recovery_overlay",
+      "zh": "回復AP",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「回復AP」的視窗，說明「請選擇回復方式。」，目前 AP 數，下方兩列回復方式（AP包、鑽石），每列有回復量、所需與持有數，底部「關閉」。",
+      "buttons": [
+        {
+          "name": "ap_recovery_overlay__ap_pack",
+          "zh": "AP包",
+          "description": "「AP包」列",
+          "to": [
+            "ap_recovery_item_check"
+          ]
+        },
+        {
+          "name": "ap_recovery_overlay__diamond",
+          "zh": "鑽石",
+          "description": "「鑽石」列",
+          "to": [],
+          "forbidden": true
+        },
+        {
+          "name": "ap_recovery_overlay__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "stage_chosen"
+          ]
+        },
+        {
+          "name": "ap_recovery_overlay__outside",
+          "zh": "浮窗外",
+          "description": "「回復AP」視窗外的任何位置；點擊等同取消，回到打開回復AP之前的畫面",
+          "to": [
+            "stage_chosen"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ap_recovery_item_check",
+      "zh": "確認使用回復道具",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「回復AP」的視窗，說明「確定要使用AP包回復AP嗎？」，道具圖示、使用數量與增減按鈕，AP 的回復前後數值，底部「取消」「執行」。",
+      "buttons": [
+        {
+          "name": "ap_recovery_item_check__count_min",
+          "zh": "最少",
+          "description": "「«」",
+          "to": []
+        },
+        {
+          "name": "ap_recovery_item_check__count_down",
+          "zh": "減少",
+          "description": "「‹」",
+          "to": []
+        },
+        {
+          "name": "ap_recovery_item_check__count_up",
+          "zh": "增加",
+          "description": "「›」",
+          "to": []
+        },
+        {
+          "name": "ap_recovery_item_check__count_max",
+          "zh": "最多",
+          "description": "「»」",
+          "to": []
+        },
+        {
+          "name": "ap_recovery_item_check__cancel",
+          "zh": "取消",
+          "description": "底部「取消」",
+          "to": [
+            "stage_chosen"
+          ]
+        },
+        {
+          "name": "ap_recovery_item_check__execute",
+          "zh": "執行",
+          "description": "底部「執行」",
+          "to": []
+        },
+        {
+          "name": "ap_recovery_item_check__outside",
+          "zh": "浮窗外",
+          "description": "「回復AP」視窗外的任何位置；點擊等同取消，回到打開回復AP之前的畫面",
+          "to": [
+            "stage_chosen"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "stage_allow_list",
+      "zh": "出擊對象",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「出擊對象」的視窗，「單位」「角色」分頁，可出擊的機體或角色格子（沒有的顯示「未持有」），右下排序篩選，底部「關閉」；從永恆之路的「出擊對象」打開。",
+      "buttons": [
+        {
+          "name": "stage_allow_list__tab_unit",
+          "zh": "單位分頁",
+          "description": "「單位」",
+          "to": []
+        },
+        {
+          "name": "stage_allow_list__tab_character",
+          "zh": "角色分頁",
+          "description": "「角色」",
+          "to": []
+        },
+        {
+          "name": "stage_allow_list__unit",
+          "zh": "單位圖示",
+          "description": "格子裡的圖示",
+          "to": []
+        },
+        {
+          "name": "stage_allow_list__sort_filter",
+          "zh": "排序篩選",
+          "description": "「稀有度順序 篩選」",
+          "to": []
+        },
+        {
+          "name": "stage_allow_list__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "eternal_stage_list"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "drop_reward_result",
+      "zh": "掉落獎勵",
+      "kind": "page",
+      "control": "player",
+      "description": "上方「REWARD」，獲得道具圖示列（數量、首次標記），背景是模糊的戰場或關卡畫面，下方說明「超出持有上限的道具將移至禮物」，AP 所需與持有數，左下「損傷報告」，右下「再次出擊」「選擇關卡」。",
+      "buttons": [
+        {
+          "name": "drop_reward_result__reward_item",
+          "zh": "獎勵道具",
+          "description": "道具圖示",
+          "to": []
+        },
+        {
+          "name": "drop_reward_result__damage_report",
+          "zh": "損傷報告",
+          "description": "左下「損傷報告」",
+          "to": [
+            "damage_report"
+          ]
+        },
+        {
+          "name": "drop_reward_result__sortie_again",
+          "zh": "再次出擊",
+          "description": "右下「再次出擊」，經過 loading 回到同一關的關卡說明",
+          "to": [
+            "battle_info_preview"
+          ]
+        },
+        {
+          "name": "drop_reward_result__select_stage",
+          "zh": "選擇關卡",
+          "description": "右下「選擇關卡」",
+          "to": [
+            "story_stage_list"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "reward_detail",
+      "zh": "獎勵說明",
+      "kind": "overlay",
+      "control": "player",
+      "description": "標題「道具詳情」的視窗，點開獎勵道具後出現，道具圖示、名稱、持有數量與說明，底部「關閉」；背景是獎勵清單。",
+      "buttons": [
+        {
+          "name": "reward_detail__close",
+          "zh": "關閉",
+          "description": "底部「關閉」",
+          "to": [
+            "skip_result_list"
+          ]
+        }
+      ]
+    }
+  ]
+}
