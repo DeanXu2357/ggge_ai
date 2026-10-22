@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from threading import Event
 
 import numpy as np
@@ -12,6 +14,7 @@ from ggge_ai_2.actuator.contract import Dispatch, Gesture, GestureBlocked, Rect,
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSource
 from ggge_ai_2.agent.contract import Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
+from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.contract import Screen, Situation
 from ggge_ai_2.mapgeom.contract import Alignment, KnownMap
 from ggge_ai_2.mapparser.contract import MapReading, ViewCell
@@ -138,6 +141,7 @@ def make_agent(
     controller: ScriptedController,
     actuator: FakeActuator | None = None,
     stop: Event | None = None,
+    runlog: RunLog | None = None,
 ) -> Agent:
     return Agent(
         stream=stream,
@@ -150,6 +154,7 @@ def make_agent(
         belief=start(),
         idle_deadline=2.0,
         stop=stop or Event(),
+        runlog=runlog,
     )
 
 
@@ -398,6 +403,36 @@ def test_stop_request_ends_the_loop_between_cycles():
     agent = make_agent(FakeStream([]), {}, ScriptedController([], goals=[]), stop=stop)
 
     assert agent.run() is RunResult.STOPPED
+
+
+def test_run_log_records_one_line_per_cycle_and_saves_only_the_mismatching_frame(
+    tmp_path: Path,
+):
+    plan = ScriptedPlan([step(), step(LIST, "close_info"), step()])
+    controller = ScriptedController([plan], goals=[False, False, False, True])
+    stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0), still(4, 13.0)])
+    shows = {
+        1: Screen.STORY_STAGE_LIST,
+        2: Screen.SORTIE_PREP,
+        3: Screen.SORTIE_PREP,
+        4: Screen.SORTIE_PREP,
+    }
+    run_dir = tmp_path / "run"
+
+    agent = make_agent(stream, shows, controller, runlog=RunLog(run_dir))
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in lines]
+    assert [
+        (r["frame_seq"], r["interpreted"], r["expected"], r["matched"], r["step"]) for r in records
+    ] == [
+        (1, "story_stage_list", [], None, "open_info"),
+        (2, "sortie_prep", ["sortie_prep"], True, "close_info"),
+        (3, "sortie_prep", ["story_stage_list"], False, "open_info"),
+        (4, "sortie_prep", ["sortie_prep"], None, None),
+    ]
+    assert sorted(path.name for path in (run_dir / "frames").iterdir()) == ["000003.png"]
 
 
 def seen(ui: UiState, at: float, camera: Alignment | None = None) -> Belief:

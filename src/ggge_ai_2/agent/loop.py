@@ -9,10 +9,11 @@ from ggge_ai_2.actuator.contract import Actuator, Dispatch, GestureBlocked
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, Sensed, UiSource
 from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.agent.contract import Plan, PlanController, Step
+from ggge_ai_2.agent.runlog import RunLog, StepRecord
 from ggge_ai_2.interpreter.contract import Interpreter, Screen, Situation
 from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent, LocalBoard, MapGeometry
 from ggge_ai_2.mapparser.contract import MapParser, MapReading
-from ggge_ai_2.stream.contract import Observation, Stream
+from ggge_ai_2.stream.contract import Frame, Observation, Stream
 from ggge_ai_2.uisim.contract import (
     Observed,
     UiScreen,
@@ -74,7 +75,11 @@ class Agent:
     belief: Belief
     idle_deadline: float
     stop: Event = field(default_factory=Event)
+    runlog: RunLog | None = None
     _after: Instant = field(default=0.0, init=False)
+    _frame: Frame | None = field(default=None, init=False)
+    _situation: Situation | None = field(default=None, init=False)
+    _outside_candidates: bool = field(default=False, init=False)
 
     def run(self) -> RunResult:
         plan: Plan | None = None
@@ -90,14 +95,14 @@ class Agent:
             if self.plan_controller.goal_reached(self.belief):
                 if plan is not None:
                     history.append(self.plan_controller.review(plan, self.belief))
+                self._record(predicted, None, None)
                 return RunResult.DONE
 
             passing = self.belief.passing is not None
+            matched: bool | None = None
             if not passing:
-                if predicted is not None and not self.matches(self.belief, predicted):
-                    mismatches += 1
-                else:
-                    mismatches = 0
+                matched = None if predicted is None else self.matches(self.belief, predicted)
+                mismatches = mismatches + 1 if matched is False else 0
             effect_failed = mismatches >= MISMATCH_LIMIT
 
             plan_invalid = plan is not None and not plan.still_valid(self.belief)
@@ -108,6 +113,7 @@ class Agent:
                 plan = self.plan_controller.think(self.belief, history)
                 mismatches = 0
                 if plan is None:
+                    self._record(predicted, matched, None)
                     return RunResult.HALTED
 
             step = plan.next(self.belief)
@@ -122,8 +128,10 @@ class Agent:
                         "unreadable_since_frame_seq": unreadable.belief.ui_basis.frame_seq,
                     },
                 )
+                self._record(predicted, matched, None)
                 return RunResult.HALTED
             dispatch = self.act(step)
+            self._record(predicted, matched, step.name)
             if not passing:
                 predicted = None if dispatch is None else self.predict(step, dispatch)
         return RunResult.STOPPED
@@ -139,7 +147,9 @@ class Agent:
 
         candidates = self.candidates(self.belief)
         situation = self.interpreter.interpret(obs.frame, candidates)
-        if situation is not None and situation.screen not in candidates:
+        self._frame, self._situation = obs.frame, situation
+        self._outside_candidates = situation is not None and situation.screen not in candidates
+        if situation is not None and self._outside_candidates:
             log.warning(
                 "outside candidates",
                 extra={
@@ -216,6 +226,30 @@ class Agent:
 
     def predict(self, step: Step, dispatch: Dispatch) -> Predicted:
         return Predicted(step.expected, dispatch.t1 + step.deadline)
+
+    def _record(self, predicted: Predicted | None, matched: bool | None, step: str | None) -> None:
+        if self.runlog is None:
+            return
+        assert self._frame is not None, "a cycle records only after sense returns a frame"
+        ui, passing = self.belief.ui, self.belief.passing
+        self.runlog.record(
+            StepRecord(
+                frame_seq=self._frame.seq,
+                interpreted=None if self._situation is None else self._situation.screen.value,
+                believed=ui.screen.value,
+                caller=None if ui.caller is None else ui.caller.value,
+                auto=ui.auto,
+                passing=None if passing is None else passing.value,
+                expected=()
+                if predicted is None
+                else tuple(belief.ui.screen.value for belief in predicted.beliefs),
+                matched=matched,
+                outside_candidates=self._outside_candidates,
+                step=step,
+            )
+        )
+        if matched is False:
+            self.runlog.save_frame(self._frame)
 
     def _settle(self, after: Instant, deadline: Instant) -> Observation:
         obs = self.stream.settled(after, deadline)
