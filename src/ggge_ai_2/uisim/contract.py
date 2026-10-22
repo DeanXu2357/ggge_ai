@@ -100,7 +100,7 @@ class Outcome:
 class Operation:
     name: str
     precondition: UiState
-    gesture: UiGesture
+    gesture: UiGesture | None
     outcomes: tuple[Outcome, ...]
     deadline: float
     cost: float

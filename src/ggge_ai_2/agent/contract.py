@@ -11,10 +11,10 @@ from ggge_ai_2.agent.belief import Belief
 @dataclass(frozen=True)
 class Step:
     name: str
-    gesture: Gesture
+    gesture: Gesture | None
     band: tuple[Rect, ...]
     deadline: float
-    expected: Belief
+    expected: tuple[Belief, ...]
 
 
 class Plan(Protocol):

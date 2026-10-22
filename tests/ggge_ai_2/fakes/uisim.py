@@ -3,15 +3,16 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from ggge_ai_2.uisim.contract import DangerBand, Observed, Outcome, UiScreen, UiState
+from ggge_ai_2.uisim.contract import DangerBand, Observed, Operation, Outcome, UiScreen, UiState
 
 
 @dataclass(frozen=True)
 class FakeUiSim:
     bands: Mapping[UiScreen, DangerBand] = field(default_factory=dict)
+    operations: Mapping[UiScreen, tuple[Operation, ...]] = field(default_factory=dict)
 
     def successors(self, state: UiState):
-        return ()
+        return self.operations.get(state.screen, ())
 
     def predecessors(self, state: UiState):
         return ()

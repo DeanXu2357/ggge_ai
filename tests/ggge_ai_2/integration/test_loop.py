@@ -49,7 +49,7 @@ def expected(ui: UiState, camera: Alignment | None = None) -> Belief:
 
 
 def step(then: UiState = INFO, name: str = "open_info") -> Step:
-    return Step(name, TAP, BAND, DEADLINE, expected(then))
+    return Step(name, TAP, BAND, DEADLINE, (expected(then),))
 
 
 @dataclass
@@ -257,6 +257,39 @@ def test_match_between_mismatches_restarts_the_count():
     assert len(controller.thought) == 1
 
 
+def test_belief_equal_to_the_second_expected_belief_is_no_mismatch():
+    either = Step("start_battle", TAP, BAND, DEADLINE, (expected(INFO), expected(LIST)))
+    plan = ScriptedPlan([either] * MISMATCH_LIMIT)
+    cycles = MISMATCH_LIMIT + 1
+    controller = ScriptedController([plan, None], goals=[False] * (cycles - 1) + [True])
+    frames = [still(n, 10.0 + n * 0.5) for n in range(1, cycles + 1)]
+    shows = dict.fromkeys(range(1, cycles + 1), Screen.STORY_STAGE_LIST)
+
+    assert make_agent(FakeStream(frames), shows, controller).run() is RunResult.DONE
+    assert len(controller.thought) == 1
+
+
+def test_wait_step_sends_no_gesture_and_is_compared_on_the_next_cycle(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    monkeypatch.setattr("ggge_ai_2.agent.loop.now", lambda: 5.0)
+    wait = Step("enemy_turn", None, (), DEADLINE, (expected(INFO),))
+    plan = ScriptedPlan([wait, wait])
+    controller = ScriptedController([plan], goals=[False, False, True])
+    stream = FakeStream([still(1, 1.0), still(2, 6.0), still(3, 7.0)])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP, 3: Screen.SORTIE_PREP}
+    actuator = FakeActuator()
+
+    assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
+    assert actuator.sent == []
+    assert stream.calls[1][0] == 5.0
+    [first] = logged(caplog, "matches")
+    assert first.__dict__["same"]
+    assert first.__dict__["in_time"]
+    assert len(logged(caplog, "wait")) == 2
+
+
 def test_invalid_plan_is_reviewed_and_replaced():
     plan = ScriptedPlan([step()], valid=[False])
     controller = ScriptedController([plan, None], goals=[False, False])
@@ -296,7 +329,7 @@ def seen(ui: UiState, at: float, camera: Alignment | None = None) -> Belief:
 
 
 def predicted(camera: Alignment | None = None) -> Predicted:
-    return Predicted(expected(INFO, camera), DISPATCHED.t1 + DEADLINE)
+    return Predicted((expected(INFO, camera),), DISPATCHED.t1 + DEADLINE)
 
 
 def compare(belief: Belief, predicted: Predicted) -> bool:

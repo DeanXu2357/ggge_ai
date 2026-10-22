@@ -38,14 +38,14 @@ class PowerSaveUnlock:
             return None
         if belief.screen_lock is ScreenLock.DIM:
             shown = replace(belief, screen_lock=ScreenLock.ICON)
-            return Step("power_save_poke", self.POKE_TOP_CENTRE, (), self.POKE_DEADLINE, shown)
+            return Step("power_save_poke", self.POKE_TOP_CENTRE, (), self.POKE_DEADLINE, (shown,))
         unlocked = replace(belief, screen_lock=None)
         return Step(
             "power_save_unlock",
             self.DRAG_UP_FROM_LOCK_ICON,
             (),
             self.DRAG_DEADLINE,
-            unlocked,
+            (unlocked,),
         )
 
 
@@ -87,13 +87,13 @@ class UiShiftPlan:
     def next(self, belief: Belief) -> Step:
         move = self.first_move(belief.ui)
         assert move is not None, "the main loop takes a step only from a valid plan"
-        operation, outcome = move
+        operation, _ = move
         width, height = self.screen
 
         def touch(point: RatioPoint) -> ScreenPoint:
             return (round(point[0] * width), round(point[1] * height))
 
-        gesture: Gesture
+        gesture: Gesture | None
         match operation.gesture:
             case UiTap(point):
                 gesture = Tap(touch(point))
@@ -101,11 +101,15 @@ class UiShiftPlan:
                 gesture = Swipe(touch(start), touch(end), duration)
             case UiKey(code):
                 gesture = Key(code)
+            case None:
+                gesture = None
         band = tuple(
             Rect(*touch((region.left, region.top)), *touch((region.right, region.bottom)))
             for region in self.uisim.danger_band(belief.ui).regions
         )
-        expected = replace(belief, ui=self.uisim.advance(belief.ui, outcome))
+        expected = tuple(
+            replace(belief, ui=self.uisim.advance(belief.ui, o)) for o in operation.outcomes
+        )
         return Step(operation.name, gesture, band, operation.deadline, expected)
 
     def first_move(self, state: UiState) -> tuple[Operation, Outcome] | None:

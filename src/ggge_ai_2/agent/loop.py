@@ -48,7 +48,7 @@ class UnreadableScreen(Exception):
 
 @dataclass(frozen=True)
 class Predicted:
-    belief: Belief
+    beliefs: tuple[Belief, ...]
     deadline: Instant
 
 
@@ -146,7 +146,10 @@ class Agent:
     def matches(self, belief: Belief, predicted: Predicted) -> bool:
         still = belief.as_of
         in_time = still is not None and still.since <= predicted.deadline
-        same = replace(predicted.belief, as_of=belief.as_of, ui_basis=belief.ui_basis) == belief
+        same = any(
+            replace(expected, as_of=belief.as_of, ui_basis=belief.ui_basis) == belief
+            for expected in predicted.beliefs
+        )
         log.info(
             "matches",
             extra={
@@ -163,6 +166,11 @@ class Agent:
 
     def act(self, step: Step) -> Dispatch | None:
         name = step.name
+        if step.gesture is None:
+            at = now()
+            self._after = at
+            log.info("wait", extra={"step": name})
+            return Dispatch(at, at)
         try:
             dispatch = self.actuator.dispatch(step.gesture, step.band)
         except GestureBlocked:
