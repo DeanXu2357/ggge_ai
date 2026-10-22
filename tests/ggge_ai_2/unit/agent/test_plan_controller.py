@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from pathlib import Path
+
+import pytest
 
 from ggge_ai_2.actuator.contract import Tap
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSource
 from ggge_ai_2.agent.contract import Step
 from ggge_ai_2.agent.plan_controller import (
+    GREEDY_BUTTONS,
+    GreedyBattlePlan,
     PassingWait,
     PowerSaveUnlock,
     ReflexPlan,
     TapToContinue,
     UiShiftPlan,
+    operation_step,
 )
 from ggge_ai_2.mapgeom.contract import KnownMap
 from ggge_ai_2.uisim.contract import (
@@ -22,6 +28,8 @@ from ggge_ai_2.uisim.contract import (
     UiState,
     UiTap,
 )
+from ggge_ai_2.uisim.stage_sim import StageUiSim
+from ggge_ai_2.uisim.stages import load_stages
 from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
 
@@ -155,3 +163,62 @@ def test_tap_reflex_taps_the_centre_only_on_a_tap_to_continue_frame():
     step = tap.react(passing(Passing.TAP_TO_CONTINUE))
     assert step is not None
     assert step.gesture == Tap((1170, 540))
+
+
+def test_shift_plan_step_is_the_step_of_its_first_operation():
+    plan = shift_to_prep(UiTap((0.5, 0.5)), (Outcome("prep", PREP),))
+    move = plan.first_move(LIST)
+    assert move is not None
+
+    assert plan.next(belief()) == operation_step(move[0], belief(), plan.uisim, plan.screen)
+
+
+REAL_STAGES = Path(__file__).resolve().parents[4] / "assets" / "ui_stages" / "stages.json"
+BATTLE_SIM = StageUiSim(load_stages(REAL_STAGES))
+
+
+def on(screen: UiScreen, auto: bool | None = False) -> Belief:
+    return replace(belief(), ui=UiState(screen, None, auto))
+
+
+@pytest.mark.parametrize(("screen", "name"), GREEDY_BUTTONS.items())
+def test_greedy_plan_takes_the_table_operation(screen: UiScreen, name: str):
+    plan = GreedyBattlePlan(BATTLE_SIM, (2340, 1080))
+
+    assert plan.still_valid(on(screen))
+    assert plan.next(on(screen)).name == name
+
+
+def test_greedy_plan_turns_auto_off_first():
+    plan = GreedyBattlePlan(BATTLE_SIM, (2340, 1080))
+    step = plan.next(on(UiScreen.PLAYER_PHASE_OVERVIEW, auto=True))
+
+    assert step.name == "player_phase_overview__auto"
+    assert step.expected == (on(UiScreen.PLAYER_PHASE_OVERVIEW, auto=False),)
+
+
+def test_greedy_plan_follows_the_table_where_the_screen_has_no_auto_toggle():
+    plan = GreedyBattlePlan(BATTLE_SIM, (2340, 1080))
+
+    assert plan.next(on(UiScreen.BATTLE_MAIN_SETTING, auto=True)).name == (
+        "battle_main_setting__close"
+    )
+
+
+def test_fallback_waits_on_the_weapon_screen():
+    plan = GreedyBattlePlan(BATTLE_SIM, (2340, 1080), fallback=True)
+
+    assert plan.still_valid(on(UiScreen.SELECT_WEAPON_IN_BATTLE))
+    assert plan.next(on(UiScreen.SELECT_WEAPON_IN_BATTLE)).name == ("select_weapon_in_battle__wait")
+
+
+def test_fallback_is_invalid_off_the_weapon_screen():
+    plan = GreedyBattlePlan(BATTLE_SIM, (2340, 1080), fallback=True)
+
+    assert not plan.still_valid(on(UiScreen.PLAYER_PHASE_OVERVIEW))
+
+
+def test_greedy_plan_is_invalid_outside_the_table():
+    plan = GreedyBattlePlan(BATTLE_SIM, (2340, 1080))
+
+    assert not plan.still_valid(on(UiScreen.STORY_STAGE_LIST))

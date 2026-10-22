@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import ClassVar
 
@@ -117,29 +117,7 @@ class UiShiftPlan:
         move = self.first_move(belief.ui)
         assert move is not None, "the main loop takes a step only from a valid plan"
         operation, _ = move
-        width, height = self.screen
-
-        def touch(point: RatioPoint) -> ScreenPoint:
-            return (round(point[0] * width), round(point[1] * height))
-
-        gesture: Gesture | None
-        match operation.gesture:
-            case UiTap(point):
-                gesture = Tap(touch(point))
-            case UiSwipe(start, end, duration):
-                gesture = Swipe(touch(start), touch(end), duration)
-            case UiKey(code):
-                gesture = Key(code)
-            case None:
-                gesture = None
-        band = tuple(
-            Rect(*touch((region.left, region.top)), *touch((region.right, region.bottom)))
-            for region in self.uisim.danger_band(belief.ui).regions
-        )
-        expected = tuple(
-            replace(belief, ui=self.uisim.advance(belief.ui, o)) for o in operation.outcomes
-        )
-        return Step(operation.name, gesture, band, operation.deadline, expected)
+        return operation_step(operation, belief, self.uisim, self.screen)
 
     def first_move(self, state: UiState) -> tuple[Operation, Outcome] | None:
         firsts: dict[UiState, tuple[Operation, Outcome] | None] = {state: None}
@@ -155,6 +133,75 @@ class UiShiftPlan:
                         firsts[then] = firsts[current] or (operation, outcome)
                         frontier.append(then)
         return None
+
+
+def operation_step(
+    operation: Operation, belief: Belief, uisim: UiSim, screen: tuple[int, int]
+) -> Step:
+    width, height = screen
+
+    def touch(point: RatioPoint) -> ScreenPoint:
+        return (round(point[0] * width), round(point[1] * height))
+
+    gesture: Gesture | None
+    match operation.gesture:
+        case UiTap(point):
+            gesture = Tap(touch(point))
+        case UiSwipe(start, end, duration):
+            gesture = Swipe(touch(start), touch(end), duration)
+        case UiKey(code):
+            gesture = Key(code)
+        case None:
+            gesture = None
+    band = tuple(
+        Rect(*touch((region.left, region.top)), *touch((region.right, region.bottom)))
+        for region in uisim.danger_band(belief.ui).regions
+    )
+    expected = tuple(replace(belief, ui=uisim.advance(belief.ui, o)) for o in operation.outcomes)
+    return Step(operation.name, gesture, band, operation.deadline, expected)
+
+
+GREEDY_BUTTONS: Mapping[UiScreen, str] = {
+    UiScreen.BATTLE_INFO_PREVIEW: "battle_info_preview__tap_next",
+    UiScreen.PLAYER_PHASE_OVERVIEW: "player_phase_overview__unit_card",
+    UiScreen.SELECT_ACTION_IN_BATTLE: "select_action_in_battle__select_weapon",
+    UiScreen.SELECT_WEAPON_IN_BATTLE: "select_weapon_in_battle__attack",
+    UiScreen.BATTLE_PREP_ATTACK: "battle_prep_attack__start_battle",
+    UiScreen.BATTLE_PREP_RESPONSE_ATTACK: "battle_prep_response_attack__start_battle",
+    UiScreen.NON_PLAYER_PHASE_BATTLE_VIEW: "non_player_phase_battle_view__wait",
+    UiScreen.CHALLENGE_BATTLE_CHECK: "challenge_battle_check__challenge",
+    UiScreen.BATTLE_MAIN_SETTING: "battle_main_setting__close",
+}
+FALLBACK_WEAPON_BUTTON = "select_weapon_in_battle__wait"
+
+
+@dataclass(frozen=True)
+class GreedyBattlePlan:
+    uisim: UiSim
+    screen: tuple[int, int]
+    fallback: bool = False
+
+    def still_valid(self, belief: Belief) -> bool:
+        if self.fallback and belief.ui.screen is not UiScreen.SELECT_WEAPON_IN_BATTLE:
+            return False
+        return self._operation(belief) is not None
+
+    def next(self, belief: Belief) -> Step:
+        operation = self._operation(belief)
+        assert operation is not None, "the main loop takes a step only from a valid plan"
+        return operation_step(operation, belief, self.uisim, self.screen)
+
+    def _operation(self, belief: Belief) -> Operation | None:
+        screen = belief.ui.screen
+        if screen not in GREEDY_BUTTONS:
+            return None
+        operations = {operation.name: operation for operation in self.uisim.successors(belief.ui)}
+        auto = operations.get(f"{screen.value}__auto")
+        if belief.ui.auto is True and auto is not None:
+            return auto
+        if self.fallback and screen is UiScreen.SELECT_WEAPON_IN_BATTLE:
+            return operations.get(FALLBACK_WEAPON_BUTTON)
+        return operations.get(GREEDY_BUTTONS[screen])
 
 
 @dataclass(frozen=True)
