@@ -38,6 +38,9 @@ PASSING_SCREENS = {
     Screen.MAP_PASSING: Passing.WAIT,
     Screen.BATTLE_CLEAR_VIEW: Passing.TAP_TO_CONTINUE,
 }
+ANYTIME_SCREENS = frozenset(
+    screen for screen in Screen if screen.value not in {ui.value for ui in UiScreen}
+)
 
 
 class RunResult(StrEnum):
@@ -134,7 +137,17 @@ class Agent:
             obs = self._settle(obs.frame.captured_at, now() + self.idle_deadline)
             waited += obs.waited
 
-        situation = self.interpreter.interpret(obs.frame)
+        candidates = self.candidates(self.belief)
+        situation = self.interpreter.interpret(obs.frame, candidates)
+        if situation is not None and situation.screen not in candidates:
+            log.warning(
+                "outside candidates",
+                extra={
+                    "frame_seq": obs.frame.seq,
+                    "screen": situation.screen,
+                    "candidates": sorted(screen.value for screen in candidates),
+                },
+            )
         locks = {Screen.POWER_SAVE_LOCK: ScreenLock.ICON, Screen.POWER_SAVE_DIM: ScreenLock.DIM}
         screen_lock = None if situation is None else locks.get(situation.screen)
         passing = None if situation is None else PASSING_SCREENS.get(situation.screen)
@@ -154,6 +167,15 @@ class Agent:
         )
         board = _map_reading_to_local_board(reading)
         return Sensed(obs.still, observed, board, screen_lock, passing)
+
+    def candidates(self, belief: Belief) -> frozenset[Screen]:
+        if belief.ui_basis.source is not UiSource.SEEN:
+            return frozenset(Screen)
+        nexts = {belief.ui.screen.value}
+        for operation in self.uisim.successors(belief.ui):
+            nexts.update(outcome.then.screen.value for outcome in operation.outcomes)
+        known = frozenset(screen for screen in Screen if screen.value in nexts)
+        return known | ANYTIME_SCREENS
 
     def matches(self, belief: Belief, predicted: Predicted) -> bool:
         still = belief.as_of

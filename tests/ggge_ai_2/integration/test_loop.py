@@ -16,7 +16,7 @@ from ggge_ai_2.interpreter.contract import Screen, Situation
 from ggge_ai_2.mapgeom.contract import Alignment, KnownMap
 from ggge_ai_2.mapparser.contract import MapReading, ViewCell
 from ggge_ai_2.stream.contract import NO_DISPLACEMENT, Frame, Observation, StillWindow
-from ggge_ai_2.uisim.contract import UiScreen, UiState
+from ggge_ai_2.uisim.contract import Operation, Outcome, UiScreen, UiState
 from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
@@ -82,7 +82,7 @@ class FakeActuator:
 class FakeInterpreter:
     shows: dict[int, Screen]
 
-    def interpret(self, frame: Frame) -> Situation | None:
+    def interpret(self, frame: Frame, candidates: frozenset[Screen]) -> Situation | None:
         screen = self.shows.get(frame.seq)
         return None if screen is None else Situation(frame.seq, screen)
 
@@ -205,6 +205,54 @@ def test_passing_cycle_keeps_the_earlier_prediction_for_the_next_screen(
     assert compared.__dict__["frame_seq"] == 3
     assert compared.__dict__["same"]
     assert compared.__dict__["in_time"]
+
+
+def open_sortie_prep() -> Operation:
+    outcomes = (
+        Outcome("opened", INFO),
+        Outcome("refused", UiState(UiScreen.AP_RECOVERY_OVERLAY)),
+    )
+    return Operation("open", LIST, None, outcomes, DEADLINE, 1.0)
+
+
+def test_seen_belief_offers_the_successor_screens_and_the_anytime_screens():
+    agent = make_agent(FakeStream([]), {}, ScriptedController([], goals=[]))
+    agent.uisim = FakeUiSim(operations={UiScreen.STORY_STAGE_LIST: (open_sortie_prep(),)})
+
+    assert agent.candidates(seen(LIST, 1.0)) == {
+        Screen.STORY_STAGE_LIST,
+        Screen.SORTIE_PREP,
+        Screen.POWER_SAVE_LOCK,
+        Screen.POWER_SAVE_DIM,
+        Screen.LOADING,
+        Screen.SIMPLIFY_WEAPON_ANIME,
+        Screen.EX_WEAPON_ANIME,
+        Screen.BATTLE_CLEAR_VIEW,
+        Screen.MAP_PASSING,
+    }
+
+
+def test_lost_belief_offers_every_screen():
+    agent = make_agent(FakeStream([]), {}, ScriptedController([], goals=[]))
+    lost = replace(seen(LIST, 1.0), ui_basis=UiBasis(UiSource.LOST, 1))
+
+    assert agent.candidates(lost) == frozenset(Screen)
+
+
+def test_sense_logs_a_screen_outside_the_candidates(caplog: pytest.LogCaptureFixture):
+    caplog.set_level(logging.WARNING, logger="ggge_ai_2.agent.loop")
+    shows = {1: Screen.BATTLE_SCORE_RESULT}
+    agent = make_agent(FakeStream([still(1, 1.0)]), shows, ScriptedController([], goals=[]))
+    agent.belief = seen(LIST, 1.0)
+
+    agent.sense()
+
+    [record] = logged(caplog, "outside candidates")
+    assert record.__dict__["frame_seq"] == 1
+    assert record.__dict__["screen"] is Screen.BATTLE_SCORE_RESULT
+    assert record.__dict__["candidates"] == sorted(
+        screen.value for screen in agent.candidates(agent.belief)
+    )
 
 
 def test_controller_without_a_plan_halts_the_loop():

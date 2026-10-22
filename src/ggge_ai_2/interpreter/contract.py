@@ -42,8 +42,12 @@ class Situation:
 
 
 class Interpreter(Protocol):
-    def interpret(self, frame: Frame) -> Situation | None:
+    def interpret(self, frame: Frame, candidates: frozenset[Screen]) -> Situation | None:
         """Return None when no screen is close enough to the frame.
+
+        The candidates are the screens that the agent expects next. The interpreter can
+        still return a screen outside the candidates, and the agent records it as a model
+        mismatch.
 
         Do not return the closest screen when it is below the threshold. A popup that
         has no model then reads as a known screen, and the planner cannot stop on it.
