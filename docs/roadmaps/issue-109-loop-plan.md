@@ -318,8 +318,8 @@
 | B 合約 | 完成 | `5ecf120`..`7ce5470` |
 | C UiSim | 完成 | `ff8bb1b`..`ed4a940` |
 | D 裝置與記錄 | 完成 | `504d1bf`..`ddb7b3d` |
-| E LLM interpreter | E1 完成；E2 等使用者同意安裝 `anthropic` | `a92c309` |
-| F 計畫控制與實機 | F1、F2 完成；F3 等 E2 | `851ca1a`、`e447eff` |
+| E LLM interpreter | E1、E2 完成；E3、E4 等使用者的 key | `a92c309`、`f601144`、`f9e8922` |
+| F 計畫控制與實機 | F1–F4 完成（F3 的 AUTO 檢查併在 F2 的貪婪策略裡）；F5 等使用者的 key | `851ca1a`、`e447eff`、`265a4e0` |
 | G OpenCV interpreter | 未開始（F5 驗證 UiSim 之後） | |
 
 ### 8.1 實作時的裁定（Claude 決定，使用者審查時可以改）
@@ -333,3 +333,6 @@
 - 計畫控制不記進度：執行腳本分兩段，先以 `drop_reward_result` 為目標，再以
   `story_stage_list` 為目標。
 - 「攻擊」連續 3 次沒有讓畫面改變，就改按「待機」。
+- LLM interpreter 拒答、回答讀不出來、回答不是畫面名稱，都當成沒認出畫面（`None`），
+  不讓實機跑中斷。回答的 JSON 先寫 `reason` 再寫 `screen`。
+- `anthropic` 只裝在專案的 `.venv`（`f601144`）。
