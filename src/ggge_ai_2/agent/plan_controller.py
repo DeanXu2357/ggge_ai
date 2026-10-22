@@ -52,7 +52,7 @@ class PowerSaveUnlock:
 
 @dataclass(frozen=True)
 class DefaultPlanController:
-    BATTLE_MAP: ClassVar[UiState] = UiState(UiScreen.BATTLE_MAP, map_mode=UiMapMode.HUB)
+    BATTLE_MAP: ClassVar[UiState] = UiState(UiScreen.PLAYER_PHASE_OVERVIEW, map_mode=UiMapMode.HUB)
 
     reflexes: tuple[Reflex, ...]
     uisim: UiSim

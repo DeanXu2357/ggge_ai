@@ -17,25 +17,27 @@ LOCKS = {Screen.POWER_SAVE_LOCK, Screen.POWER_SAVE_DIM}
 
 
 def test_every_game_screen_of_the_interpreter_converts_to_one_screen_of_uisim():
-    converted = {observed(Situation(1, screen)).screen for screen in Screen if screen not in LOCKS}
+    game_screens = [screen for screen in Screen if screen not in LOCKS]
 
-    assert converted == set(UiScreen)
+    assert [observed(Situation(1, screen)).screen for screen in game_screens] == [
+        UiScreen(screen.value) for screen in game_screens
+    ]
 
 
 def test_every_overlay_of_the_interpreter_converts_to_one_overlay_of_uisim():
-    seen = observed(Situation(1, Screen.BATTLE_MAP, frozenset(Overlay)))
+    seen = observed(Situation(1, Screen.PLAYER_PHASE_OVERVIEW, frozenset(Overlay)))
 
     assert seen.overlays == frozenset(UiOverlay)
 
 
 def test_every_map_mode_of_the_interpreter_converts_to_one_map_mode_of_uisim():
-    on_map = [Situation(1, Screen.BATTLE_MAP, map_mode=mode) for mode in MapMode]
+    on_map = [Situation(1, Screen.PLAYER_PHASE_OVERVIEW, map_mode=mode) for mode in MapMode]
 
     assert {observed(situation).map_mode for situation in on_map} == set(UiMapMode)
 
 
 def test_situation_off_the_map_has_no_map_mode():
-    assert observed(Situation(1, Screen.STAGE_LIST)).map_mode is None
+    assert observed(Situation(1, Screen.STORY_STAGE_LIST)).map_mode is None
 
 
 def test_unread_frame_converts_to_nothing():

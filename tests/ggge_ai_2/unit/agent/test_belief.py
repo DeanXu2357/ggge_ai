@@ -10,8 +10,8 @@ from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
 
-LIST = UiState(UiScreen.STAGE_LIST)
-ON_MAP = UiState(UiScreen.BATTLE_MAP, map_mode=UiMapMode.HUB)
+LIST = UiState(UiScreen.STORY_STAGE_LIST)
+ON_MAP = UiState(UiScreen.PLAYER_PHASE_OVERVIEW, map_mode=UiMapMode.HUB)
 BOARD = LocalBoard({(2, 2): CellContent.EMPTY}, frozenset())
 
 
@@ -23,7 +23,7 @@ def sensed(seq: int, observed: Observed | None = None, board: LocalBoard | None 
     return Sensed(window(seq), observed, board)
 
 
-def start(ui: UiState = UiState(UiScreen.LOGIN_BONUS)) -> Belief:
+def start(ui: UiState = UiState(UiScreen.STAGE_CHOSEN)) -> Belief:
     return Belief(ui, UiBasis(UiSource.ASSUMED), None, KnownMap({}), FakeDomain(), None)
 
 
@@ -51,7 +51,9 @@ class NoPlaceGeometry:
 
 
 def test_recognized_frame_syncs_the_ui_and_marks_it_seen():
-    belief = start().update(sensed(1, Observed(UiScreen.STAGE_LIST)), FakeUiSim(), NoMapGeometry())
+    belief = start().update(
+        sensed(1, Observed(UiScreen.STORY_STAGE_LIST)), FakeUiSim(), NoMapGeometry()
+    )
 
     assert belief.ui == LIST
     assert belief.ui_basis == UiBasis(UiSource.SEEN, 1)
@@ -102,6 +104,8 @@ def test_locked_frame_records_the_lock_and_keeps_the_rest_of_the_belief():
 
 def test_readable_frame_after_a_lock_clears_the_lock():
     locked = replace(start(), screen_lock=ScreenLock.DIM)
-    after = locked.update(sensed(3, Observed(UiScreen.STAGE_LIST)), FakeUiSim(), NoMapGeometry())
+    after = locked.update(
+        sensed(3, Observed(UiScreen.STORY_STAGE_LIST)), FakeUiSim(), NoMapGeometry()
+    )
 
     assert after.screen_lock is None

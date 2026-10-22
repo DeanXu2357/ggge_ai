@@ -12,7 +12,7 @@ from tests.ggge_ai_2.fakes.domain import FakeDomain
 
 
 def belief(screen_lock: ScreenLock | None = None) -> Belief:
-    ui = UiState(UiScreen.STAGE_LIST)
+    ui = UiState(UiScreen.STORY_STAGE_LIST)
     return Belief(
         ui, UiBasis(UiSource.SEEN, 1), None, KnownMap({}), FakeDomain(), None, screen_lock
     )

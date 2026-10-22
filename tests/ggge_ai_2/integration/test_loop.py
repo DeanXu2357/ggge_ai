@@ -21,8 +21,8 @@ from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
 
-LIST = UiState(UiScreen.STAGE_LIST)
-INFO = UiState(UiScreen.STAGE_INFO)
+LIST = UiState(UiScreen.STORY_STAGE_LIST)
+INFO = UiState(UiScreen.SORTIE_PREP)
 DEADLINE = 3.0
 BAND = (Rect(0, 0, 50, 50),)
 TAP = Tap((100, 100))
@@ -161,7 +161,7 @@ def test_sense_hands_only_the_still_frame_to_the_belief():
     stream = FakeStream([moving(1, 1.0), still(2, 1.5)])
     controller = ScriptedController([], goals=[True])
 
-    assert make_agent(stream, {2: Screen.STAGE_LIST}, controller).run() is RunResult.DONE
+    assert make_agent(stream, {2: Screen.STORY_STAGE_LIST}, controller).run() is RunResult.DONE
     assert [after for after, _ in stream.calls] == [0.0, 1.0]
     assert controller.checked[0].ui == LIST
     assert controller.checked[0].as_of == StillWindow(1.0, 1.5, 2)
@@ -180,7 +180,9 @@ def test_lock_screen_reaches_the_belief_as_a_screen_lock():
 def test_controller_without_a_plan_halts_the_loop():
     controller = ScriptedController([None], goals=[False])
     actuator = FakeActuator()
-    agent = make_agent(FakeStream([still(1, 1.0)]), {1: Screen.STAGE_LIST}, controller, actuator)
+    agent = make_agent(
+        FakeStream([still(1, 1.0)]), {1: Screen.STORY_STAGE_LIST}, controller, actuator
+    )
 
     assert agent.run() is RunResult.HALTED
     assert controller.thought == [(controller.checked[0], ())]
@@ -192,7 +194,7 @@ def test_step_that_passes_the_guard_sends_its_gesture_and_band():
     controller = ScriptedController([plan], goals=[False, True])
     stream = FakeStream([still(1, 1.0), still(2, 11.0)])
     actuator = FakeActuator()
-    shows = {1: Screen.STAGE_LIST, 2: Screen.STAGE_INFO}
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP}
 
     assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
     assert actuator.sent == [(TAP, BAND)]
@@ -219,7 +221,7 @@ def test_mismatches_up_to_the_limit_end_the_plan():
     controller = ScriptedController([plan, None], goals=[False] * (MISMATCH_LIMIT + 1))
     unchanged = [still(n, 10.0 + n) for n in range(1, MISMATCH_LIMIT + 2)]
     actuator = FakeActuator()
-    shows = dict.fromkeys(range(1, MISMATCH_LIMIT + 2), Screen.STAGE_LIST)
+    shows = dict.fromkeys(range(1, MISMATCH_LIMIT + 2), Screen.STORY_STAGE_LIST)
 
     agent = make_agent(FakeStream(unchanged), shows, controller, actuator)
 
@@ -235,7 +237,7 @@ def test_new_plan_restarts_the_count():
     cycles = MISMATCH_LIMIT + 3
     controller = ScriptedController([first, second, None], goals=[False] * (cycles - 1) + [True])
     frames = [still(n, 10.0 + n * 0.5) for n in range(1, cycles + 1)]
-    shows = dict.fromkeys(range(1, cycles + 1), Screen.STAGE_LIST)
+    shows = dict.fromkeys(range(1, cycles + 1), Screen.STORY_STAGE_LIST)
 
     assert make_agent(FakeStream(frames), shows, controller).run() is RunResult.DONE
     assert len(controller.thought) == 2
@@ -247,9 +249,9 @@ def test_match_between_mismatches_restarts_the_count():
     cycles = MISMATCH_LIMIT + 3
     controller = ScriptedController([plan, None], goals=[False] * (cycles - 1) + [True])
     frames = [still(n, 10.0 + n * 0.5) for n in range(1, cycles + 1)]
-    shows = dict.fromkeys(range(1, MISMATCH_LIMIT + 1), Screen.STAGE_LIST)
-    shows[MISMATCH_LIMIT + 1] = Screen.STAGE_INFO
-    shows[MISMATCH_LIMIT + 2] = Screen.STAGE_INFO
+    shows = dict.fromkeys(range(1, MISMATCH_LIMIT + 1), Screen.STORY_STAGE_LIST)
+    shows[MISMATCH_LIMIT + 1] = Screen.SORTIE_PREP
+    shows[MISMATCH_LIMIT + 2] = Screen.SORTIE_PREP
 
     assert make_agent(FakeStream(frames), shows, controller).run() is RunResult.DONE
     assert len(controller.thought) == 1
@@ -259,7 +261,7 @@ def test_invalid_plan_is_reviewed_and_replaced():
     plan = ScriptedPlan([step()], valid=[False])
     controller = ScriptedController([plan, None], goals=[False, False])
     stream = FakeStream([still(1, 1.0), still(2, 11.0)])
-    shows = {1: Screen.STAGE_LIST, 2: Screen.STAGE_INFO}
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP}
 
     assert make_agent(stream, shows, controller).run() is RunResult.HALTED
     assert controller.reviewed == [plan]
@@ -271,7 +273,7 @@ def test_blocked_gesture_leaves_nothing_to_compare(caplog: pytest.LogCaptureFixt
     plan = ScriptedPlan([step(), step(LIST, "close_info"), step(LIST, "close_info")])
     controller = ScriptedController([plan], goals=[False, False, False, True])
     stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0), still(4, 13.0)])
-    shows = {1: Screen.STAGE_LIST, 2: Screen.STAGE_INFO, 3: Screen.STAGE_INFO}
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP, 3: Screen.SORTIE_PREP}
     actuator = FakeActuator(blocks=[False, True, True])
 
     assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
