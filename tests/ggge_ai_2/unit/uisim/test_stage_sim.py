@@ -247,3 +247,78 @@ def test_real_start_battle_outcomes() -> None:
         "select_action_in_battle",
         "battle_score_result",
     ]
+
+
+def _menu_sim() -> StageUiSim:
+    return _sim(
+        _screen("battle_prep_attack", (_button("menu", ("battle_menu@battle_prep_attack",)),)),
+        _screen(
+            "battle_main_setting",
+            (
+                _button("settings", ("battle_settings_in_battle",)),
+                _button("close", ("select_weapon_in_battle", "battle_prep_attack")),
+                _button("overview", ("player_phase_overview",)),
+            ),
+        ),
+        groups=(
+            CallerGroup("battle_menu", ("battle_main_setting",), ("battle_settings_in_battle",)),
+        ),
+    )
+
+
+def test_opening_a_group_sets_the_caller() -> None:
+    operation = _operation(_menu_sim(), UiState(UiScreen.BATTLE_PREP_ATTACK), "menu")
+
+    assert [outcome.then for outcome in operation.outcomes] == [
+        UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
+    ]
+
+
+def test_moving_inside_a_group_keeps_the_caller() -> None:
+    state = UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
+
+    operation = _operation(_menu_sim(), state, "settings")
+
+    assert [outcome.then for outcome in operation.outcomes] == [
+        UiState(UiScreen.BATTLE_SETTINGS_IN_BATTLE, UiScreen.BATTLE_PREP_ATTACK)
+    ]
+
+
+def test_closing_a_group_returns_only_to_the_caller() -> None:
+    state = UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
+
+    operation = _operation(_menu_sim(), state, "close")
+
+    assert operation.outcomes == (
+        Outcome("battle_prep_attack", UiState(UiScreen.BATTLE_PREP_ATTACK)),
+    )
+
+
+def test_closing_a_group_with_an_unknown_caller_gives_every_target() -> None:
+    operation = _operation(_menu_sim(), UiState(UiScreen.BATTLE_MAIN_SETTING), "close")
+
+    assert [outcome.then for outcome in operation.outcomes] == [
+        UiState(UiScreen.SELECT_WEAPON_IN_BATTLE),
+        UiState(UiScreen.BATTLE_PREP_ATTACK),
+    ]
+
+
+def test_leaving_a_group_to_another_target_clears_the_caller() -> None:
+    state = UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
+
+    operation = _operation(_menu_sim(), state, "overview")
+
+    assert [outcome.then for outcome in operation.outcomes] == [
+        UiState(UiScreen.PLAYER_PHASE_OVERVIEW)
+    ]
+
+
+def test_real_battle_menu_close_returns_to_the_caller() -> None:
+    sim = StageUiSim(load_stages(REAL_STAGES))
+    state = UiState(UiScreen.BATTLE_MAIN_SETTING, caller=UiScreen.SELECT_WEAPON_IN_BATTLE)
+
+    operation = _operation(sim, state, "battle_main_setting__close")
+
+    assert operation.outcomes == (
+        Outcome("select_weapon_in_battle", UiState(UiScreen.SELECT_WEAPON_IN_BATTLE)),
+    )

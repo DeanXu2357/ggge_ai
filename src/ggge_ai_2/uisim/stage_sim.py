@@ -62,9 +62,16 @@ class StageUiSim:
     def _button_operation(self, state: UiState, button: ButtonDef) -> Operation | None:
         if button.forbidden or button.rect is None or not button.to:
             return None
-        outcomes = self._outcomes(state, self._resolve_all(button.to))
-        if not outcomes:
+        targets = self._resolve_all(button.to)
+        if not targets:
             return None
+        caller = state.caller
+        if caller is not None and caller in targets and self._groups_of(state.screen):
+            outcomes = (self._outcome(state, caller, None),)
+        else:
+            outcomes = tuple(
+                self._outcome(state, target, self._caller(state, target)) for target in targets
+            )
         return Operation(
             name=button.name,
             precondition=state,
@@ -77,7 +84,7 @@ class StageUiSim:
     def _auto_toggle(self, state: UiState, button: ButtonDef, rect: RatioRect) -> Operation:
         outcome = Outcome(
             "auto_off" if state.auto else "auto_on",
-            UiState(state.screen, None, not state.auto),
+            UiState(state.screen, state.caller, not state.auto),
         )
         return Operation(button.name, state, UiTap(_centre(rect)), (outcome,), button.deadline, 1.0)
 
@@ -86,13 +93,29 @@ class StageUiSim:
         if not targets:
             return None
         stay = (state.screen,) if state.screen not in targets else ()
-        outcomes = self._outcomes(state, targets + stay)
+        outcomes = tuple(self._outcome(state, target, state.caller) for target in targets + stay)
         return Operation(f"{state.screen.value}__wait", state, None, outcomes, WAIT_SECONDS, 1.0)
 
-    def _outcomes(self, state: UiState, targets: Sequence[UiScreen]) -> tuple[Outcome, ...]:
-        return tuple(
-            Outcome(target.value, UiState(target, None, self._carried_auto(state, target)))
-            for target in targets
+    def _outcome(self, state: UiState, target: UiScreen, caller: UiScreen | None) -> Outcome:
+        return Outcome(target.value, UiState(target, caller, self._carried_auto(state, target)))
+
+    def _caller(self, state: UiState, target: UiScreen) -> UiScreen | None:
+        source_groups = self._groups_of(state.screen)
+        if source_groups & self._groups_of(target):
+            return state.caller
+        if any(
+            target.value in group.entry
+            for name, group in self.stages.groups.items()
+            if name not in source_groups
+        ):
+            return state.screen
+        return None
+
+    def _groups_of(self, screen: UiScreen) -> frozenset[str]:
+        return frozenset(
+            name
+            for name, group in self.stages.groups.items()
+            if screen.value in group.entry or screen.value in group.inside
         )
 
     def _carried_auto(self, state: UiState, target: UiScreen) -> bool | None:
