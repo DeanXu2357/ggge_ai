@@ -14,6 +14,7 @@ from ggge_ai_2.agent.plan_controller import (
     PassingWait,
     PowerSaveUnlock,
     ReflexPlan,
+    StagePlanController,
     TapToContinue,
     UiShiftPlan,
     operation_step,
@@ -222,3 +223,77 @@ def test_greedy_plan_is_invalid_outside_the_table():
     plan = GreedyBattlePlan(BATTLE_SIM, (2340, 1080))
 
     assert not plan.still_valid(on(UiScreen.STORY_STAGE_LIST))
+
+
+def stage(goal: UiScreen = UiScreen.DROP_REWARD_RESULT) -> StagePlanController:
+    return StagePlanController(goal, (PassingWait(),), BATTLE_SIM, (2340, 1080))
+
+
+def test_stage_goal_is_reached_on_a_seen_goal_screen():
+    assert stage().goal_reached(on(UiScreen.DROP_REWARD_RESULT))
+
+
+def test_stage_goal_is_not_reached_on_an_assumed_goal_screen():
+    assumed = replace(on(UiScreen.DROP_REWARD_RESULT), ui_basis=UiBasis(UiSource.ASSUMED))
+
+    assert not stage().goal_reached(assumed)
+
+
+def test_stage_goal_is_not_reached_on_a_passing_frame():
+    frame = replace(on(UiScreen.DROP_REWARD_RESULT), passing=Passing.WAIT)
+
+    assert not stage().goal_reached(frame)
+
+
+def test_stage_goal_is_not_reached_on_another_screen():
+    assert not stage().goal_reached(on(UiScreen.STORY_STAGE_LIST))
+
+
+def test_stage_battle_screen_gets_the_greedy_plan():
+    plan = stage().think(on(UiScreen.SELECT_WEAPON_IN_BATTLE), [])
+
+    assert plan == ReflexPlan((PassingWait(),), GreedyBattlePlan(BATTLE_SIM, (2340, 1080)))
+
+
+def test_stage_weapon_screen_after_the_greedy_plan_gets_the_fallback():
+    greedy = GreedyBattlePlan(BATTLE_SIM, (2340, 1080))
+    plan = stage().think(on(UiScreen.SELECT_WEAPON_IN_BATTLE), [greedy])
+
+    assert plan == ReflexPlan(
+        (PassingWait(),), GreedyBattlePlan(BATTLE_SIM, (2340, 1080), fallback=True)
+    )
+
+
+def test_stage_weapon_screen_after_the_fallback_gets_the_greedy_plan():
+    fallback = GreedyBattlePlan(BATTLE_SIM, (2340, 1080), fallback=True)
+    plan = stage().think(on(UiScreen.SELECT_WEAPON_IN_BATTLE), [fallback])
+
+    assert plan == ReflexPlan((PassingWait(),), GreedyBattlePlan(BATTLE_SIM, (2340, 1080)))
+
+
+def test_stage_other_screen_gets_the_shift_to_the_goal():
+    plan = stage().think(on(UiScreen.STORY_STAGE_LIST), [])
+
+    goal = UiState(UiScreen.DROP_REWARD_RESULT)
+    assert plan == ReflexPlan((PassingWait(),), UiShiftPlan(goal, BATTLE_SIM, (2340, 1080)))
+
+
+def test_stage_think_gives_none_when_no_plan_and_no_reflex_is_valid():
+    goal = UiScreen.STORY_STAGE_LIST
+
+    assert stage(goal).think(on(goal, auto=None), []) is None
+
+
+def test_stage_think_keeps_a_valid_reflex_on_the_goal_screen():
+    goal = UiScreen.STORY_STAGE_LIST
+    frame = replace(on(goal, auto=None), passing=Passing.WAIT)
+
+    assert stage(goal).think(frame, []) is not None
+
+
+def test_stage_review_unwraps_the_reflex_plan():
+    inner = GreedyBattlePlan(BATTLE_SIM, (2340, 1080))
+    controller = stage()
+
+    assert controller.review(ReflexPlan((), inner), belief()) == inner
+    assert controller.review(inner, belief()) == inner

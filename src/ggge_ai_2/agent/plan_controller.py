@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 from typing import ClassVar
 
 from ggge_ai_2.actuator.contract import Gesture, Key, Rect, ScreenPoint, Swipe, Tap
-from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock
+from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiSource
 from ggge_ai_2.agent.contract import Plan, Reflex, Step
 from ggge_ai_2.uisim.contract import (
     Operation,
@@ -102,6 +102,44 @@ class DefaultPlanController:
     def review(self, plan: Plan, belief: Belief) -> object:
         # TODO: the shape of a review is deferred.
         return plan
+
+
+@dataclass(frozen=True)
+class StagePlanController:
+    goal: UiScreen
+    reflexes: tuple[Reflex, ...]
+    uisim: UiSim
+    screen: tuple[int, int]
+
+    def goal_reached(self, belief: Belief) -> bool:
+        return (
+            belief.ui_basis.source is UiSource.SEEN
+            and belief.ui.screen is self.goal
+            and belief.passing is None
+        )
+
+    def think(self, belief: Belief, history: Sequence[object]) -> Plan | None:
+        plan = ReflexPlan(self.reflexes, self._inner(belief, history))
+        return plan if plan.still_valid(belief) else None
+
+    def review(self, plan: Plan, belief: Belief) -> object:
+        return plan.inner if isinstance(plan, ReflexPlan) else plan
+
+    def _inner(self, belief: Belief, history: Sequence[object]) -> Plan:
+        screen = belief.ui.screen
+        # The loop thinks again on a valid plan only after MISMATCH_LIMIT mismatches.
+        # So a greedy plan in the last review on this screen means that '攻擊' did not
+        # change the screen: no target is in range.
+        if (
+            screen is UiScreen.SELECT_WEAPON_IN_BATTLE
+            and history
+            and isinstance(history[-1], GreedyBattlePlan)
+            and not history[-1].fallback
+        ):
+            return GreedyBattlePlan(self.uisim, self.screen, fallback=True)
+        if screen in GREEDY_BUTTONS:
+            return GreedyBattlePlan(self.uisim, self.screen)
+        return UiShiftPlan(UiState(self.goal), self.uisim, self.screen)
 
 
 @dataclass(frozen=True)
