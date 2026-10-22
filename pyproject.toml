@@ -8,6 +8,7 @@ dependencies = [
     "opencv-python>=4.10",
     "numpy>=2.0",
     "pyyaml>=6.0",
+    "anthropic>=2.1.0",
 ]
 
 [dependency-groups]
