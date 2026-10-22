@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from ggge_ai_2.agent.loop import _map_reading_to_local_board, _situation_to_observed
-from ggge_ai_2.interpreter.contract import MapMode, Overlay, Screen, Situation
+from ggge_ai_2.interpreter.contract import Screen, Situation
 from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent
 from ggge_ai_2.mapparser.contract import CellReading, Edge, MapReading
-from ggge_ai_2.uisim.contract import Observed, UiMapMode, UiOverlay, UiScreen
+from ggge_ai_2.uisim.contract import Observed, UiScreen
 
 
 def observed(situation: Situation) -> Observed:
@@ -24,20 +24,15 @@ def test_every_game_screen_of_the_interpreter_converts_to_one_screen_of_uisim():
     ]
 
 
-def test_every_overlay_of_the_interpreter_converts_to_one_overlay_of_uisim():
-    seen = observed(Situation(1, Screen.PLAYER_PHASE_OVERVIEW, frozenset(Overlay)))
+def test_every_auto_state_of_the_interpreter_converts_to_the_same_auto_state_of_uisim():
+    states = [True, False, None]
+    on_map = [Situation(1, Screen.PLAYER_PHASE_OVERVIEW, auto) for auto in states]
 
-    assert seen.overlays == frozenset(UiOverlay)
-
-
-def test_every_map_mode_of_the_interpreter_converts_to_one_map_mode_of_uisim():
-    on_map = [Situation(1, Screen.PLAYER_PHASE_OVERVIEW, map_mode=mode) for mode in MapMode]
-
-    assert {observed(situation).map_mode for situation in on_map} == set(UiMapMode)
+    assert [observed(situation).auto for situation in on_map] == states
 
 
-def test_situation_off_the_map_has_no_map_mode():
-    assert observed(Situation(1, Screen.STORY_STAGE_LIST)).map_mode is None
+def test_situation_without_an_auto_button_has_no_auto_state():
+    assert observed(Situation(1, Screen.STORY_STAGE_LIST)).auto is None
 
 
 def test_unread_frame_converts_to_nothing():

@@ -5,13 +5,13 @@ from dataclasses import dataclass, field, replace
 from ggge_ai_2.agent.belief import Belief, ScreenLock, Sensed, UiBasis, UiSource
 from ggge_ai_2.mapgeom.contract import Alignment, CellContent, KnownMap, LocalBoard
 from ggge_ai_2.stream.contract import StillWindow
-from ggge_ai_2.uisim.contract import Observed, UiMapMode, UiScreen, UiState
+from ggge_ai_2.uisim.contract import Observed, UiScreen, UiState
 from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
 
 LIST = UiState(UiScreen.STORY_STAGE_LIST)
-ON_MAP = UiState(UiScreen.PLAYER_PHASE_OVERVIEW, map_mode=UiMapMode.HUB)
+ON_MAP = UiState(UiScreen.PLAYER_PHASE_OVERVIEW)
 BOARD = LocalBoard({(2, 2): CellContent.EMPTY}, frozenset())
 
 

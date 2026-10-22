@@ -57,30 +57,17 @@ class UiScreen(StrEnum):
     WIN_CONDITION_OVERLAY = "win_condition_overlay"
 
 
-class UiOverlay(StrEnum):
-    CARD_STRIP = "card_strip"
-    CARD = "card"
-    DIALOG = "dialog"
-
-
-class UiMapMode(StrEnum):
-    HUB = "hub"
-    SELECTED = "selected"
-    WEAPON_SELECT = "weapon_select"
-
-
 @dataclass(frozen=True)
 class UiState:
     screen: UiScreen
-    overlays: frozenset[UiOverlay] = frozenset()
-    map_mode: UiMapMode | None = None
+    caller: UiScreen | None = None
+    auto: bool | None = None
 
 
 @dataclass(frozen=True)
 class Observed:
     screen: UiScreen
-    overlays: frozenset[UiOverlay] = frozenset()
-    map_mode: UiMapMode | None = None
+    auto: bool | None = None
 
 
 @dataclass(frozen=True)

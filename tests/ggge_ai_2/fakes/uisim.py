@@ -20,7 +20,7 @@ class FakeUiSim:
         return outcome.then
 
     def sync(self, state: UiState, observed: Observed) -> UiState:
-        return UiState(observed.screen, observed.overlays, observed.map_mode)
+        return UiState(observed.screen, auto=observed.auto)
 
     def danger_band(self, state: UiState) -> DangerBand:
         return self.bands[state.screen]

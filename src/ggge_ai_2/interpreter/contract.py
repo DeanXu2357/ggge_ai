@@ -29,24 +29,11 @@ class Screen(StrEnum):
     POWER_SAVE_DIM = "power_save_dim"
 
 
-class Overlay(StrEnum):
-    CARD_STRIP = "card_strip"
-    CARD = "card"
-    DIALOG = "dialog"
-
-
-class MapMode(StrEnum):
-    HUB = "hub"
-    SELECTED = "selected"
-    WEAPON_SELECT = "weapon_select"
-
-
 @dataclass(frozen=True)
 class Situation:
     frame_seq: int
     screen: Screen
-    overlays: frozenset[Overlay] = frozenset()
-    map_mode: MapMode | None = None
+    auto: bool | None = None
 
 
 class Interpreter(Protocol):

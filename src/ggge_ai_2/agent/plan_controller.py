@@ -13,7 +13,6 @@ from ggge_ai_2.uisim.contract import (
     Outcome,
     RatioPoint,
     UiKey,
-    UiMapMode,
     UiScreen,
     UiSim,
     UiState,
@@ -52,7 +51,7 @@ class PowerSaveUnlock:
 
 @dataclass(frozen=True)
 class DefaultPlanController:
-    BATTLE_MAP: ClassVar[UiState] = UiState(UiScreen.PLAYER_PHASE_OVERVIEW, map_mode=UiMapMode.HUB)
+    BATTLE_MAP: ClassVar[UiState] = UiState(UiScreen.PLAYER_PHASE_OVERVIEW)
 
     reflexes: tuple[Reflex, ...]
     uisim: UiSim

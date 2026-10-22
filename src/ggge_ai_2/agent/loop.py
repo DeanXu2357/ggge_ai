@@ -15,8 +15,6 @@ from ggge_ai_2.mapparser.contract import MapParser, MapReading
 from ggge_ai_2.stream.contract import Observation, Stream
 from ggge_ai_2.uisim.contract import (
     Observed,
-    UiMapMode,
-    UiOverlay,
     UiScreen,
     UiSim,
 )
@@ -24,6 +22,15 @@ from ggge_ai_2.uisim.contract import (
 log = logging.getLogger(__name__)
 
 MISMATCH_LIMIT = 3
+MAP_SCREENS = frozenset(
+    {
+        UiScreen.PLAYER_PHASE_OVERVIEW,
+        UiScreen.SELECT_ACTION_IN_BATTLE,
+        UiScreen.SELECT_SKILL_IN_BATTLE,
+        UiScreen.SELECT_WEAPON_IN_BATTLE,
+        UiScreen.NON_PLAYER_PHASE_BATTLE_VIEW,
+    }
+)
 
 
 class RunResult(StrEnum):
@@ -121,7 +128,7 @@ class Agent:
         locks = {Screen.POWER_SAVE_LOCK: ScreenLock.ICON, Screen.POWER_SAVE_DIM: ScreenLock.DIM}
         screen_lock = None if situation is None else locks.get(situation.screen)
         observed = None if screen_lock is not None else _situation_to_observed(situation)
-        on_map = observed is not None and observed.map_mode is not None
+        on_map = observed is not None and observed.screen in MAP_SCREENS
         reading = self.mapparser.parse(obs.frame) if on_map else None
         log.info(
             "sense",
@@ -178,11 +185,7 @@ class Agent:
 def _situation_to_observed(situation: Situation | None) -> Observed | None:
     if situation is None:
         return None
-    return Observed(
-        UiScreen(situation.screen.value),
-        frozenset(UiOverlay(overlay.value) for overlay in situation.overlays),
-        None if situation.map_mode is None else UiMapMode(situation.map_mode.value),
-    )
+    return Observed(UiScreen(situation.screen.value), situation.auto)
 
 
 def _map_reading_to_local_board(reading: MapReading | None) -> LocalBoard | None:
