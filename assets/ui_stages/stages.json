@@ -388,7 +388,8 @@
           "to": [
             "sortie_prep"
           ],
-          "deadline": 6.1
+          "deadline": 6.1,
+          "rect": [0.508, 0.865, 0.66, 0.965]
         }
       ]
     },
@@ -586,7 +587,8 @@
       "game_to": [
         "battle_prep_response_attack",
         "exp_reward_result",
-        "player_phase_overview"
+        "player_phase_overview",
+        "battle_clear_view"
       ]
     },
     {
@@ -1565,7 +1567,8 @@
           "to": [
             "reward_detail"
           ],
-          "deadline": 3.0
+          "deadline": 3.0,
+          "rect": [0.13, 0.185, 0.195, 0.33]
         },
         {
           "name": "skip_result_list__reward_scroll",
@@ -2287,7 +2290,8 @@
           "to": [
             "ap_recovery_overlay"
           ],
-          "deadline": 3.0
+          "deadline": 3.0,
+          "rect": [0.645, 0.015, 0.73, 0.085]
         },
         {
           "name": "stage_chosen__main_stage",
@@ -2674,7 +2678,8 @@
           "to": [
             "skip_stage_overlay"
           ],
-          "deadline": 9.2
+          "deadline": 9.2,
+          "rect": [0.795, 0.6, 0.905, 0.71]
         },
         {
           "name": "story_stage_list__sortie_prepare",
@@ -3983,7 +3988,8 @@
           "to": [
             "battle_main_setting"
           ],
-          "deadline": 15.0
+          "deadline": 15.0,
+          "rect": [0.428, 0.867, 0.58, 0.972]
         }
       ]
     },
