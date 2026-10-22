@@ -18,6 +18,11 @@ class ScreenLock(StrEnum):
     DIM = "dim"
 
 
+class Passing(StrEnum):
+    WAIT = "wait"
+    TAP_TO_CONTINUE = "tap_to_continue"
+
+
 class UiSource(StrEnum):
     ASSUMED = "assumed"
     SEEN = "seen"
@@ -36,6 +41,7 @@ class Sensed:
     observed: Observed | None
     board: LocalBoard | None
     screen_lock: ScreenLock | None = None
+    passing: Passing | None = None
 
 
 @dataclass(frozen=True)
@@ -47,10 +53,13 @@ class Belief:
     domain: DomainState
     as_of: StillWindow | None
     screen_lock: ScreenLock | None = None
+    passing: Passing | None = None
 
     def update(self, sensed: Sensed, uisim: UiSim, mapgeom: MapGeometry) -> Belief:
         if sensed.screen_lock is not None:
-            return replace(self, screen_lock=sensed.screen_lock, as_of=sensed.still)
+            return replace(self, screen_lock=sensed.screen_lock, passing=None, as_of=sensed.still)
+        if sensed.passing is not None:
+            return replace(self, passing=sensed.passing, as_of=sensed.still)
 
         ui, ui_basis = self.ui, self.ui_basis
         if sensed.observed is not None:
@@ -74,4 +83,5 @@ class Belief:
             known_map=known_map,
             as_of=sensed.still,
             screen_lock=None,
+            passing=None,
         )

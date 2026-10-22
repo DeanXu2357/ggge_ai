@@ -6,7 +6,7 @@ from enum import StrEnum
 from threading import Event
 
 from ggge_ai_2.actuator.contract import Actuator, Dispatch, GestureBlocked
-from ggge_ai_2.agent.belief import Belief, ScreenLock, Sensed, UiSource
+from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, Sensed, UiSource
 from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.agent.contract import Plan, PlanController, Step
 from ggge_ai_2.interpreter.contract import Interpreter, Screen, Situation
@@ -31,6 +31,13 @@ MAP_SCREENS = frozenset(
         UiScreen.NON_PLAYER_PHASE_BATTLE_VIEW,
     }
 )
+PASSING_SCREENS = {
+    Screen.LOADING: Passing.WAIT,
+    Screen.SIMPLIFY_WEAPON_ANIME: Passing.WAIT,
+    Screen.EX_WEAPON_ANIME: Passing.WAIT,
+    Screen.MAP_PASSING: Passing.WAIT,
+    Screen.BATTLE_CLEAR_VIEW: Passing.TAP_TO_CONTINUE,
+}
 
 
 class RunResult(StrEnum):
@@ -82,10 +89,12 @@ class Agent:
                     history.append(self.plan_controller.review(plan, self.belief))
                 return RunResult.DONE
 
-            if predicted is not None and not self.matches(self.belief, predicted):
-                mismatches += 1
-            else:
-                mismatches = 0
+            passing = self.belief.passing is not None
+            if not passing:
+                if predicted is not None and not self.matches(self.belief, predicted):
+                    mismatches += 1
+                else:
+                    mismatches = 0
             effect_failed = mismatches >= MISMATCH_LIMIT
 
             plan_invalid = plan is not None and not plan.still_valid(self.belief)
@@ -112,7 +121,8 @@ class Agent:
                 )
                 return RunResult.HALTED
             dispatch = self.act(step)
-            predicted = None if dispatch is None else self.predict(step, dispatch)
+            if not passing:
+                predicted = None if dispatch is None else self.predict(step, dispatch)
         return RunResult.STOPPED
 
     def sense(self) -> Sensed | None:
@@ -127,7 +137,9 @@ class Agent:
         situation = self.interpreter.interpret(obs.frame)
         locks = {Screen.POWER_SAVE_LOCK: ScreenLock.ICON, Screen.POWER_SAVE_DIM: ScreenLock.DIM}
         screen_lock = None if situation is None else locks.get(situation.screen)
-        observed = None if screen_lock is not None else _situation_to_observed(situation)
+        passing = None if situation is None else PASSING_SCREENS.get(situation.screen)
+        readable = screen_lock is None and passing is None
+        observed = _situation_to_observed(situation) if readable else None
         on_map = observed is not None and observed.screen in MAP_SCREENS
         reading = self.mapparser.parse(obs.frame) if on_map else None
         log.info(
@@ -141,7 +153,7 @@ class Agent:
             },
         )
         board = _map_reading_to_local_board(reading)
-        return Sensed(obs.still, observed, board, screen_lock)
+        return Sensed(obs.still, observed, board, screen_lock, passing)
 
     def matches(self, belief: Belief, predicted: Predicted) -> bool:
         still = belief.as_of

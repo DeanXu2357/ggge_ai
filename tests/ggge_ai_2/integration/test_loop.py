@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from ggge_ai_2.actuator.contract import Dispatch, Gesture, GestureBlocked, Rect, Tap
-from ggge_ai_2.agent.belief import Belief, ScreenLock, UiBasis, UiSource
+from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSource
 from ggge_ai_2.agent.contract import Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
 from ggge_ai_2.interpreter.contract import Screen, Situation
@@ -175,6 +175,36 @@ def test_lock_screen_reaches_the_belief_as_a_screen_lock():
     assert controller.checked[0] == replace(
         start(), screen_lock=ScreenLock.ICON, as_of=still(1, 1.0)[1]
     )
+
+
+def test_sense_reports_a_pass_through_frame_as_passing_and_not_as_a_screen():
+    stream = FakeStream([still(1, 1.0), still(2, 2.0)])
+    shows = {1: Screen.BATTLE_CLEAR_VIEW, 2: Screen.LOADING}
+    agent = make_agent(stream, shows, ScriptedController([], goals=[]))
+
+    clear, loading = agent.sense(), agent.sense()
+
+    assert clear is not None and loading is not None
+    assert (clear.passing, clear.observed) == (Passing.TAP_TO_CONTINUE, None)
+    assert (loading.passing, loading.observed) == (Passing.WAIT, None)
+
+
+def test_passing_cycle_keeps_the_earlier_prediction_for_the_next_screen(
+    caplog: pytest.LogCaptureFixture,
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    plan = ScriptedPlan([step(), step(LIST, "tap_to_continue"), step()])
+    controller = ScriptedController([plan], goals=[False, False, False, True])
+    stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0), still(4, 13.0)])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.BATTLE_CLEAR_VIEW, 3: Screen.SORTIE_PREP}
+    actuator = FakeActuator()
+
+    assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
+    assert len(actuator.sent) == 3
+    [compared] = logged(caplog, "matches")
+    assert compared.__dict__["frame_seq"] == 3
+    assert compared.__dict__["same"]
+    assert compared.__dict__["in_time"]
 
 
 def test_controller_without_a_plan_halts_the_loop():

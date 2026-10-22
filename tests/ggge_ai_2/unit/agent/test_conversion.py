@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from ggge_ai_2.agent.loop import _map_reading_to_local_board, _situation_to_observed
+from ggge_ai_2.agent.loop import (
+    PASSING_SCREENS,
+    _map_reading_to_local_board,
+    _situation_to_observed,
+)
 from ggge_ai_2.interpreter.contract import Screen, Situation
 from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent
 from ggge_ai_2.mapparser.contract import CellReading, Edge, MapReading
@@ -17,7 +21,9 @@ LOCKS = {Screen.POWER_SAVE_LOCK, Screen.POWER_SAVE_DIM}
 
 
 def test_every_game_screen_of_the_interpreter_converts_to_one_screen_of_uisim():
-    game_screens = [screen for screen in Screen if screen not in LOCKS]
+    game_screens = [
+        screen for screen in Screen if screen not in LOCKS and screen not in PASSING_SCREENS
+    ]
 
     assert [observed(Situation(1, screen)).screen for screen in game_screens] == [
         UiScreen(screen.value) for screen in game_screens

@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 from typing import ClassVar
 
 from ggge_ai_2.actuator.contract import Gesture, Key, Rect, ScreenPoint, Swipe, Tap
-from ggge_ai_2.agent.belief import Belief, ScreenLock
+from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock
 from ggge_ai_2.agent.contract import Plan, Reflex, Step
 from ggge_ai_2.uisim.contract import (
     Operation,
@@ -47,6 +47,35 @@ class PowerSaveUnlock:
             self.DRAG_DEADLINE,
             (unlocked,),
         )
+
+
+@dataclass(frozen=True)
+class PassingWait:
+    def still_valid(self, belief: Belief) -> bool:
+        return belief.passing is Passing.WAIT
+
+    def react(self, belief: Belief) -> Step | None:
+        if not self.still_valid(belief):
+            return None
+        # The loop ignores the deadline and the expected belief: it does not predict
+        # from a step on a pass-through frame.
+        return Step("passing_wait", None, (), 0.0, (belief,))
+
+
+@dataclass(frozen=True)
+class TapToContinue:
+    screen: tuple[int, int]
+
+    def still_valid(self, belief: Belief) -> bool:
+        return belief.passing is Passing.TAP_TO_CONTINUE
+
+    def react(self, belief: Belief) -> Step | None:
+        if not self.still_valid(belief):
+            return None
+        width, height = self.screen
+        # The loop ignores the deadline and the expected belief: it does not predict
+        # from a step on a pass-through frame.
+        return Step("tap_to_continue", Tap((width // 2, height // 2)), (), 0.0, (belief,))
 
 
 @dataclass(frozen=True)

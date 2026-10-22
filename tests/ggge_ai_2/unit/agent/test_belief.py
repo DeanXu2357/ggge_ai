@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from ggge_ai_2.agent.belief import Belief, ScreenLock, Sensed, UiBasis, UiSource
+from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, Sensed, UiBasis, UiSource
 from ggge_ai_2.mapgeom.contract import Alignment, CellContent, KnownMap, LocalBoard
 from ggge_ai_2.stream.contract import StillWindow
 from ggge_ai_2.uisim.contract import Observed, UiScreen, UiState
@@ -109,3 +109,23 @@ def test_readable_frame_after_a_lock_clears_the_lock():
     )
 
     assert after.screen_lock is None
+
+
+def test_passing_frame_records_the_passing_and_keeps_the_rest_of_the_belief():
+    seen = start().update(
+        sensed(1, Observed(UiScreen.STORY_STAGE_LIST), BOARD), FakeUiSim(), FixedGeometry((1, 0))
+    )
+    loading = Sensed(window(2), None, None, passing=Passing.WAIT)
+    passing = seen.update(loading, FakeUiSim(), NoMapGeometry())
+
+    assert passing == replace(seen, passing=Passing.WAIT, as_of=window(2))
+
+
+def test_readable_frame_after_a_passing_frame_clears_the_passing():
+    passing = replace(start(), passing=Passing.TAP_TO_CONTINUE)
+    after = passing.update(
+        sensed(3, Observed(UiScreen.STORY_STAGE_LIST)), FakeUiSim(), NoMapGeometry()
+    )
+
+    assert after.passing is None
+    assert after.ui == LIST

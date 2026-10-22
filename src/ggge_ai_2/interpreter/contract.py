@@ -27,6 +27,11 @@ class Screen(StrEnum):
     DROP_REWARD_RESULT = "drop_reward_result"
     POWER_SAVE_LOCK = "power_save_lock"
     POWER_SAVE_DIM = "power_save_dim"
+    LOADING = "loading"
+    SIMPLIFY_WEAPON_ANIME = "simplify_weapon_anime"
+    EX_WEAPON_ANIME = "ex_weapon_anime"
+    BATTLE_CLEAR_VIEW = "battle_clear_view"
+    MAP_PASSING = "map_passing"
 
 
 @dataclass(frozen=True)

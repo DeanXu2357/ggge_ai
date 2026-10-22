@@ -3,9 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from ggge_ai_2.actuator.contract import Tap
-from ggge_ai_2.agent.belief import Belief, ScreenLock, UiBasis, UiSource
+from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSource
 from ggge_ai_2.agent.contract import Step
-from ggge_ai_2.agent.plan_controller import PowerSaveUnlock, ReflexPlan, UiShiftPlan
+from ggge_ai_2.agent.plan_controller import (
+    PassingWait,
+    PowerSaveUnlock,
+    ReflexPlan,
+    TapToContinue,
+    UiShiftPlan,
+)
 from ggge_ai_2.mapgeom.contract import KnownMap
 from ggge_ai_2.uisim.contract import (
     DangerBand,
@@ -115,3 +121,37 @@ def test_operation_with_two_outcomes_expects_both_in_outcome_order():
     step = shift_to_prep(UiTap((0.5, 0.5)), outcomes).next(belief())
 
     assert step.expected == (replace(belief(), ui=SKIP), replace(belief(), ui=PREP))
+
+
+def passing(state: Passing | None) -> Belief:
+    return replace(belief(), passing=state)
+
+
+def test_wait_reflex_waits_only_on_a_wait_frame():
+    wait = PassingWait()
+
+    assert [wait.still_valid(passing(state)) for state in (None, *Passing)] == [
+        False,
+        True,
+        False,
+    ]
+    assert wait.react(passing(None)) is None
+    assert wait.react(passing(Passing.TAP_TO_CONTINUE)) is None
+    step = wait.react(passing(Passing.WAIT))
+    assert step is not None
+    assert step.gesture is None
+
+
+def test_tap_reflex_taps_the_centre_only_on_a_tap_to_continue_frame():
+    tap = TapToContinue((2340, 1080))
+
+    assert [tap.still_valid(passing(state)) for state in (None, *Passing)] == [
+        False,
+        False,
+        True,
+    ]
+    assert tap.react(passing(None)) is None
+    assert tap.react(passing(Passing.WAIT)) is None
+    step = tap.react(passing(Passing.TAP_TO_CONTINUE))
+    assert step is not None
+    assert step.gesture == Tap((1170, 540))
