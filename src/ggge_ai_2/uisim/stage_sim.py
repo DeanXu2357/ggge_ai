@@ -48,16 +48,40 @@ class StageUiSim:
         return tuple(operations)
 
     def predecessors(self, state: UiState) -> Sequence[tuple[UiState, Operation]]:
-        raise NotImplementedError
+        found: list[tuple[UiState, Operation]] = []
+        for screen in UiScreen:
+            if screen.value not in self.stages.screens:
+                continue
+            source = UiState(screen)
+            for operation in self.successors(source):
+                if any(outcome.then.screen == state.screen for outcome in operation.outcomes):
+                    found.append((source, operation))
+        return found
 
     def advance(self, state: UiState, outcome: Outcome) -> UiState:
         return outcome.then
 
     def sync(self, state: UiState, observed: Observed) -> UiState:
-        raise NotImplementedError
+        observed_groups = self._groups_of(observed.screen)
+        if not observed_groups:
+            caller = None
+        elif observed_groups & self._groups_of(state.screen):
+            caller = state.caller
+        else:
+            caller = state.screen
+        return UiState(observed.screen, caller, observed.auto)
 
     def danger_band(self, state: UiState) -> DangerBand:
-        raise NotImplementedError
+        screen = self.stages.screens.get(state.screen.value)
+        if screen is None:
+            return DangerBand()
+        return DangerBand(
+            tuple(
+                button.rect
+                for button in screen.buttons
+                if button.forbidden and button.rect is not None
+            )
+        )
 
     def _button_operation(self, state: UiState, button: ButtonDef) -> Operation | None:
         if button.forbidden or button.rect is None or not button.to:

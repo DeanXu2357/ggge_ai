@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from ggge_ai_2.uisim.contract import (
+    DangerBand,
+    Observed,
     Operation,
     Outcome,
     RatioRect,
@@ -322,3 +324,71 @@ def test_real_battle_menu_close_returns_to_the_caller() -> None:
     assert operation.outcomes == (
         Outcome("select_weapon_in_battle", UiState(UiScreen.SELECT_WEAPON_IN_BATTLE)),
     )
+
+
+def test_sync_entering_a_group_sets_the_caller_to_the_previous_screen() -> None:
+    state = UiState(UiScreen.BATTLE_PREP_ATTACK, auto=False)
+
+    synced = _menu_sim().sync(state, Observed(UiScreen.BATTLE_MAIN_SETTING, auto=True))
+
+    assert synced == UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK, True)
+
+
+def test_sync_moving_inside_a_group_keeps_the_caller() -> None:
+    state = UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
+
+    synced = _menu_sim().sync(state, Observed(UiScreen.BATTLE_SETTINGS_IN_BATTLE))
+
+    assert synced == UiState(UiScreen.BATTLE_SETTINGS_IN_BATTLE, UiScreen.BATTLE_PREP_ATTACK)
+
+
+def test_sync_leaving_a_group_clears_the_caller() -> None:
+    state = UiState(UiScreen.BATTLE_SETTINGS_IN_BATTLE, UiScreen.BATTLE_PREP_ATTACK)
+
+    synced = _menu_sim().sync(state, Observed(UiScreen.PLAYER_PHASE_OVERVIEW, auto=False))
+
+    assert synced == UiState(UiScreen.PLAYER_PHASE_OVERVIEW, None, False)
+
+
+def test_danger_band_holds_the_forbidden_button_rect() -> None:
+    forbidden_rect = RatioRect(0.0, 0.0, 0.1, 0.1)
+    sim = _sim(
+        _screen(
+            "battle_prep_attack",
+            (
+                _button("kept", ("select_skill_in_battle",)),
+                _button("retreat", ("player_phase_overview",), forbidden_rect, forbidden=True),
+            ),
+        ),
+    )
+
+    band = sim.danger_band(UiState(UiScreen.BATTLE_PREP_ATTACK))
+
+    assert band == DangerBand((forbidden_rect,))
+
+
+def test_danger_band_is_empty_without_forbidden_buttons() -> None:
+    sim = _sim(_screen("battle_prep_attack", (_button("kept", ("select_skill_in_battle",)),)))
+
+    assert sim.danger_band(UiState(UiScreen.BATTLE_PREP_ATTACK)) == DangerBand()
+
+
+def test_predecessors_list_the_operations_that_reach_the_screen() -> None:
+    sim = _sim(
+        _screen("select_action_in_battle", (_button("skill", ("select_skill_in_battle",)),)),
+        _screen(
+            "battle_prep_attack",
+            (
+                _button("back", ("select_skill_in_battle",)),
+                _button("other", ("player_phase_overview",)),
+            ),
+        ),
+        _screen("player_phase_overview", (_button("act", ("select_action_in_battle",)),)),
+    )
+
+    found = sim.predecessors(UiState(UiScreen.SELECT_SKILL_IN_BATTLE))
+
+    assert [(source.screen, operation.name) for source, operation in found] == [
+        (UiScreen.SELECT_ACTION_IN_BATTLE, "skill"),
+        (UiScreen.BATTLE_PREP_ATTACK, "back"),
+    ]
