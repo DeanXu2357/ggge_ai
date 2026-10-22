@@ -22,97 +22,113 @@
           "name": "mech_enhance__pilot_slot",
           "zh": "優先駕駛欄",
           "description": "機體強化頁標示「優先」的加號欄",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__limit_break_enhance",
           "zh": "突破界限強化",
           "description": "「突破界限」列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__lv_enhance",
           "zh": "LV強化",
           "description": "「LV」列的「LV強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__weapon_enhance",
           "zh": "武裝強化",
           "description": "「武裝」列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__part_replace",
           "zh": "零件替換",
           "description": "「選擇性零件」列的「替換」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__memo",
           "zh": "筆記",
           "description": "文件圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__favorite",
           "zh": "最愛",
           "description": "愛心圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__detail",
           "zh": "詳情",
           "description": "「詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__next_mech",
           "zh": "下一台機體",
           "description": "畫面右緣的「>」箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -127,121 +143,141 @@
           "name": "mech_enhance_list__info",
           "zh": "說明",
           "description": "標題旁的「i」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__search",
           "zh": "搜尋",
           "description": "「搜尋」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__saved_rosters",
           "zh": "保存編制一覽",
           "description": "「保存編制一覽」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__tab_unit",
           "zh": "單位分頁",
           "description": "「單位」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__tab_character",
           "zh": "角色分頁",
           "description": "「角色」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__tab_support",
           "zh": "支援人員分頁",
           "description": "「支援人員」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__mech_card",
           "zh": "機體卡片",
           "description": "清單中的一張機體或駕駛卡片",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__favorite_filter",
           "zh": "最愛篩選",
           "description": "愛心圖示加 ON／OFF",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__dismantle",
           "zh": "解體",
           "description": "「解體」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__expand_capacity",
           "zh": "擴充持有上限",
           "description": "持有數旁的「+」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__sort_filter",
           "zh": "排序篩選",
           "description": "「稀有度順序 篩選」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__view_toggle",
           "zh": "顯示切換",
           "description": "排序篩選右邊的方框圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__sort_order",
           "zh": "排序方向",
           "description": "最右邊的橫線圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_enhance_list__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -256,13 +292,15 @@
           "name": "check_build_mech__cancel",
           "zh": "取消",
           "description": "視窗底部的「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "check_build_mech__execute",
           "zh": "執行",
           "description": "視窗底部的「執行」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -277,61 +315,71 @@
           "name": "roster_all_edit__roster_slot",
           "zh": "配置格",
           "description": "「前方配置」「後方配置」的一格",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__tab_unit",
           "zh": "單位分頁",
           "description": "「單位」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__tab_character",
           "zh": "角色分頁",
           "description": "「角色」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__mech_card",
           "zh": "機體卡片",
           "description": "清單中的一張機體或駕駛卡片",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__reset",
           "zh": "重置",
           "description": "「重置」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__role_filter",
           "zh": "類型篩選",
           "description": "清單下方的類型圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__sort_filter",
           "zh": "排序篩選",
           "description": "「稀有度順序 篩選」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__view_toggle",
           "zh": "顯示切換",
           "description": "排序篩選右邊的方框圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__sort_order",
           "zh": "排序方向",
           "description": "最右邊的橫線圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__cancel",
           "zh": "取消",
           "description": "視窗底部的「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "roster_all_edit__replace",
@@ -339,7 +387,8 @@
           "description": "視窗底部的「替換」",
           "to": [
             "sortie_prep"
-          ]
+          ],
+          "deadline": 6.1
         }
       ]
     },
@@ -354,25 +403,33 @@
           "name": "roster_list__tab_ally",
           "zh": "我軍分頁",
           "description": "「我軍」分頁",
-          "to": []
+          "to": [],
+          "rect": [0.148, 0.363, 0.265, 0.471],
+          "deadline": 15.0
         },
         {
           "name": "roster_list__tab_enemy",
           "zh": "敵軍分頁",
           "description": "「敵軍」分頁",
-          "to": []
+          "to": [],
+          "rect": [0.16, 0.53, 0.235, 0.59],
+          "deadline": 15.0
         },
         {
           "name": "roster_list__mech_card",
           "zh": "機體卡片",
           "description": "清單中的一張機體或駕駛卡片",
-          "to": []
+          "to": [],
+          "rect": [0.288, 0.191, 0.339, 0.301],
+          "deadline": 15.0
         },
         {
           "name": "roster_list__close",
           "zh": "關閉",
           "description": "視窗底部的「關閉」",
-          "to": []
+          "to": [],
+          "rect": [0.429, 0.867, 0.58, 0.972],
+          "deadline": 15.0
         }
       ]
     },
@@ -387,13 +444,17 @@
           "name": "select_weapon_in_battle__auto",
           "zh": "AUTO",
           "description": "戰鬥右上的「AUTO」",
-          "to": []
+          "to": [],
+          "rect": [0.743, 0.016, 0.811, 0.079],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle__battle_menu",
@@ -401,7 +462,9 @@
           "description": "戰鬥右上的「≡」",
           "to": [
             "battle_main_setting"
-          ]
+          ],
+          "rect": [0.913, 0.016, 0.941, 0.081],
+          "deadline": 3.1
         },
         {
           "name": "select_weapon_in_battle__enemy_unit_icon",
@@ -409,7 +472,8 @@
           "description": "上方左側的敵方駕駛與機體方形簡圖；只有指定了目標才會出現",
           "to": [
             "unit_detail@select_weapon_in_battle"
-          ]
+          ],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle__ally_unit_icon",
@@ -417,13 +481,16 @@
           "description": "上方右側的我方駕駛與機體方形簡圖",
           "to": [
             "unit_detail@select_weapon_in_battle"
-          ]
+          ],
+          "deadline": 3.1
         },
         {
           "name": "select_weapon_in_battle__weapon_slot",
           "zh": "武裝欄",
           "description": "選擇武裝底部的一個武裝圖示",
-          "to": []
+          "to": [],
+          "rect": [0.469, 0.796, 0.613, 0.964],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle__skill",
@@ -431,7 +498,9 @@
           "description": "「技能」",
           "to": [
             "select_skill_in_battle"
-          ]
+          ],
+          "rect": [0.814, 0.574, 0.85, 0.68],
+          "deadline": 3.1
         },
         {
           "name": "select_weapon_in_battle__wait",
@@ -440,13 +509,17 @@
           "to": [
             "non_player_phase_battle_view",
             "player_phase_overview"
-          ]
+          ],
+          "rect": [0.878, 0.558, 0.915, 0.666],
+          "deadline": 13.7
         },
         {
           "name": "select_weapon_in_battle__switch_target",
           "zh": "切換目標",
           "description": "「切換目標」",
-          "to": []
+          "to": [],
+          "rect": [0.756, 0.666, 0.81, 0.775],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle__back",
@@ -454,7 +527,9 @@
           "description": "「返回」",
           "to": [
             "select_action_in_battle"
-          ]
+          ],
+          "rect": [0.735, 0.823, 0.809, 0.975],
+          "deadline": 13.6
         },
         {
           "name": "select_weapon_in_battle__attack",
@@ -462,7 +537,9 @@
           "description": "右下的「攻擊」大按鈕",
           "to": [
             "battle_prep_attack"
-          ]
+          ],
+          "rect": [0.82, 0.726, 0.935, 0.975],
+          "deadline": 6.1
         }
       ]
     },
@@ -485,20 +562,31 @@
           "name": "non_player_phase_battle_view__auto",
           "zh": "AUTO",
           "description": "戰鬥右上的「AUTO」",
-          "to": []
+          "to": [],
+          "rect": [0.743, 0.016, 0.811, 0.079],
+          "deadline": 15.0
         },
         {
           "name": "non_player_phase_battle_view__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "non_player_phase_battle_view__battle_menu",
           "zh": "戰鬥選單",
           "description": "戰鬥右上的「≡」",
-          "to": []
+          "to": [],
+          "rect": [0.913, 0.018, 0.941, 0.081],
+          "deadline": 15.0
         }
+      ],
+      "game_to": [
+        "battle_prep_response_attack",
+        "exp_reward_result",
+        "player_phase_overview"
       ]
     },
     {
@@ -512,13 +600,17 @@
           "name": "battle_prep_attack__auto",
           "zh": "AUTO",
           "description": "戰鬥右上的「AUTO」",
-          "to": []
+          "to": [],
+          "rect": [0.743, 0.016, 0.811, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "battle_prep_attack__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "battle_prep_attack__battle_menu",
@@ -526,7 +618,9 @@
           "description": "戰鬥右上的「≡」",
           "to": [
             "battle_main_setting"
-          ]
+          ],
+          "rect": [0.913, 0.016, 0.942, 0.081],
+          "deadline": 38.2
         },
         {
           "name": "battle_prep_attack__enemy_unit_icon",
@@ -534,7 +628,8 @@
           "description": "上方左側的敵方駕駛與機體方形簡圖",
           "to": [
             "unit_detail@battle_prep_attack"
-          ]
+          ],
+          "deadline": 15.0
         },
         {
           "name": "battle_prep_attack__ally_unit_icon",
@@ -542,7 +637,8 @@
           "description": "上方右側的我方駕駛與機體方形簡圖",
           "to": [
             "unit_detail@battle_prep_attack"
-          ]
+          ],
+          "deadline": 3.0
         },
         {
           "name": "battle_prep_attack__pilot_slot",
@@ -550,7 +646,9 @@
           "description": "底部中央的駕駛頭像與標籤",
           "to": [
             "select_skill_in_battle"
-          ]
+          ],
+          "rect": [0.335, 0.748, 0.488, 0.969],
+          "deadline": 3.0
         },
         {
           "name": "battle_prep_attack__pilot_list",
@@ -558,7 +656,9 @@
           "description": "頭像左邊的「≡」小圓鈕",
           "to": [
             "battle_prep_detail@battle_prep_attack"
-          ]
+          ],
+          "rect": [0.289, 0.82, 0.319, 0.886],
+          "deadline": 4.5
         },
         {
           "name": "battle_prep_attack__back",
@@ -566,7 +666,9 @@
           "description": "右下的「返回」",
           "to": [
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.736, 0.821, 0.809, 0.975],
+          "deadline": 7.6
         },
         {
           "name": "battle_prep_attack__start_battle",
@@ -578,7 +680,9 @@
             "player_phase_overview",
             "select_action_in_battle",
             "battle_clear_view"
-          ]
+          ],
+          "rect": [0.82, 0.724, 0.935, 0.975],
+          "deadline": 16.7
         }
       ]
     },
@@ -593,19 +697,25 @@
           "name": "battle_prep_response_attack__auto",
           "zh": "AUTO",
           "description": "戰鬥右上的「AUTO」",
-          "to": []
+          "to": [],
+          "rect": [0.743, 0.016, 0.811, 0.079],
+          "deadline": 15.0
         },
         {
           "name": "battle_prep_response_attack__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "battle_prep_response_attack__battle_menu",
           "zh": "戰鬥選單",
           "description": "戰鬥右上的「≡」",
-          "to": []
+          "to": [],
+          "rect": [0.913, 0.018, 0.941, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "battle_prep_response_attack__enemy_unit_icon",
@@ -613,7 +723,8 @@
           "description": "上方左側的敵方駕駛與機體方形簡圖",
           "to": [
             "unit_detail@battle_prep_response_attack"
-          ]
+          ],
+          "deadline": 15.0
         },
         {
           "name": "battle_prep_response_attack__ally_unit_icon",
@@ -621,7 +732,8 @@
           "description": "上方右側的我方駕駛與機體方形簡圖",
           "to": [
             "unit_detail@battle_prep_response_attack"
-          ]
+          ],
+          "deadline": 3.0
         },
         {
           "name": "battle_prep_response_attack__stance_slot",
@@ -629,7 +741,9 @@
           "description": "應戰方駕駛頭像與其姿態標籤",
           "to": [
             "select_weapon_in_battle_response"
-          ]
+          ],
+          "rect": [0.334, 0.764, 0.488, 0.954],
+          "deadline": 3.1
         },
         {
           "name": "battle_prep_response_attack__stance_list",
@@ -637,7 +751,9 @@
           "description": "頭像左邊的「≡」小圓鈕",
           "to": [
             "battle_prep_detail@battle_prep_response_attack"
-          ]
+          ],
+          "rect": [0.289, 0.821, 0.319, 0.885],
+          "deadline": 3.0
         },
         {
           "name": "battle_prep_response_attack__start_battle",
@@ -646,7 +762,9 @@
           "to": [
             "non_player_phase_battle_view",
             "battle_clear_view"
-          ]
+          ],
+          "rect": [0.82, 0.726, 0.935, 0.972],
+          "deadline": 3.1
         }
       ]
     },
@@ -661,31 +779,41 @@
           "name": "select_weapon_in_battle_response__auto",
           "zh": "AUTO",
           "description": "戰鬥右上的「AUTO」",
-          "to": []
+          "to": [],
+          "rect": [0.743, 0.016, 0.811, 0.08],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle_response__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle_response__battle_menu",
           "zh": "戰鬥選單",
           "description": "戰鬥右上的「≡」",
-          "to": []
+          "to": [],
+          "rect": [0.913, 0.018, 0.942, 0.08],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle_response__option_slot",
           "zh": "應戰選項",
           "description": "下方應戰選項欄中的一格（武裝、防禦、閃避、支援防禦、不參加）",
-          "to": []
+          "to": [],
+          "rect": [0.547, 0.796, 0.613, 0.942],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle_response__back",
           "zh": "返回",
           "description": "右下的「返回」",
-          "to": []
+          "to": [],
+          "rect": [0.736, 0.823, 0.809, 0.975],
+          "deadline": 15.0
         },
         {
           "name": "select_weapon_in_battle_response__confirm",
@@ -695,7 +823,9 @@
             "non_player_phase_battle_view",
             "battle_prep_response_attack",
             "battle_clear_view"
-          ]
+          ],
+          "rect": [0.82, 0.723, 0.935, 0.969],
+          "deadline": 4.6
         }
       ]
     },
@@ -710,19 +840,25 @@
           "name": "battle_settings_in_battle__tab_sound",
           "zh": "聲音分頁",
           "description": "「聲音」分頁",
-          "to": []
+          "to": [],
+          "rect": [0.135, 0.13, 0.504, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "battle_settings_in_battle__tab_battle",
           "zh": "戰鬥分頁",
           "description": "「戰鬥」分頁",
-          "to": []
+          "to": [],
+          "rect": [0.505, 0.13, 0.874, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "battle_settings_in_battle__setting_toggle",
           "zh": "設定開關",
           "description": "一個 ON／OFF 開關",
-          "to": []
+          "to": [],
+          "rect": [0.764, 0.373, 0.857, 0.433],
+          "deadline": 15.0
         },
         {
           "name": "battle_settings_in_battle__close",
@@ -730,7 +866,9 @@
           "description": "視窗底部的「關閉」",
           "to": [
             "battle_main_setting"
-          ]
+          ],
+          "rect": [0.429, 0.867, 0.58, 0.971],
+          "deadline": 15.0
         }
       ]
     },
@@ -745,31 +883,41 @@
           "name": "skip_stage_overlay__count_min",
           "zh": "次數最小",
           "description": "「«」",
-          "to": []
+          "to": [],
+          "rect": [0.34, 0.412, 0.388, 0.471],
+          "deadline": 15.0
         },
         {
           "name": "skip_stage_overlay__count_dec",
           "zh": "次數減一",
           "description": "「<」",
-          "to": []
+          "to": [],
+          "rect": [0.398, 0.412, 0.443, 0.471],
+          "deadline": 15.0
         },
         {
           "name": "skip_stage_overlay__count_inc",
           "zh": "次數加一",
           "description": "「>」",
-          "to": []
+          "to": [],
+          "rect": [0.564, 0.412, 0.613, 0.471],
+          "deadline": 15.0
         },
         {
           "name": "skip_stage_overlay__count_max",
           "zh": "次數最大",
           "description": "「»」",
-          "to": []
+          "to": [],
+          "rect": [0.619, 0.412, 0.668, 0.471],
+          "deadline": 15.0
         },
         {
           "name": "skip_stage_overlay__cancel",
           "zh": "取消",
           "description": "視窗底部的「取消」",
-          "to": []
+          "to": [],
+          "rect": [0.349, 0.735, 0.5, 0.84],
+          "deadline": 15.0
         },
         {
           "name": "skip_stage_overlay__execute",
@@ -777,7 +925,9 @@
           "description": "視窗底部的「執行」",
           "to": [
             "story_stage_list"
-          ]
+          ],
+          "rect": [0.509, 0.735, 0.661, 0.84],
+          "deadline": 7.6
         }
       ]
     },
@@ -792,109 +942,127 @@
           "name": "pilot_enhance_list__info",
           "zh": "說明",
           "description": "標題旁的「i」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__search",
           "zh": "搜尋",
           "description": "「搜尋」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__saved_rosters",
           "zh": "保存編制一覽",
           "description": "「保存編制一覽」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__tab_unit",
           "zh": "單位分頁",
           "description": "「單位」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__tab_character",
           "zh": "角色分頁",
           "description": "「角色」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__tab_support",
           "zh": "支援人員分頁",
           "description": "「支援人員」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__pilot_card",
           "zh": "角色卡片",
           "description": "清單中的一張角色卡片",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__favorite_filter",
           "zh": "最愛篩選",
           "description": "愛心圖示加 ON／OFF",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__sort_filter",
           "zh": "排序篩選",
           "description": "「稀有度順序 篩選」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__view_toggle",
           "zh": "顯示切換",
           "description": "排序篩選右邊的方框圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__sort_order",
           "zh": "排序方向",
           "description": "最右邊的橫線圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance_list__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -909,61 +1077,71 @@
           "name": "event_stage_list__back",
           "zh": "返回",
           "description": "標題左邊的返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "event_stage_list__event_banner",
           "zh": "活動橫幅",
           "description": "左側清單中的一個活動",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "event_stage_list__go_event",
           "zh": "前往事件",
           "description": "右下的「前往事件」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "event_stage_list__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "event_stage_list__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "event_stage_list__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "event_stage_list__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "event_stage_list__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "event_stage_list__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "event_stage_list__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -978,13 +1156,17 @@
           "name": "battle_info_preview__auto",
           "zh": "AUTO",
           "description": "右上「AUTO」；點擊切換自動模式，可以在這裡取消自動",
-          "to": []
+          "to": [],
+          "rect": [0.742, 0.016, 0.812, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "battle_info_preview__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "battle_info_preview__battle_menu",
@@ -992,7 +1174,9 @@
           "description": "戰鬥右上的「≡」",
           "to": [
             "battle_main_setting"
-          ]
+          ],
+          "rect": [0.912, 0.016, 0.942, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "battle_info_preview__tap_next",
@@ -1000,7 +1184,9 @@
           "description": "畫面任意空白處",
           "to": [
             "player_phase_overview"
-          ]
+          ],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 9.1
         }
       ]
     },
@@ -1015,31 +1201,41 @@
           "name": "challenge_battle_check__auto",
           "zh": "AUTO",
           "description": "戰鬥右上的「AUTO」",
-          "to": []
+          "to": [],
+          "rect": [0.743, 0.016, 0.812, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "challenge_battle_check__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "challenge_battle_check__battle_menu",
           "zh": "戰鬥選單",
           "description": "戰鬥右上的「≡」",
-          "to": []
+          "to": [],
+          "rect": [0.913, 0.016, 0.942, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "challenge_battle_check__anime_settings",
           "zh": "動畫設定",
           "description": "右上的「動畫設定」",
-          "to": []
+          "to": [],
+          "rect": [0.818, 0.112, 0.939, 0.173],
+          "deadline": 15.0
         },
         {
           "name": "challenge_battle_check__decline",
           "zh": "不挑戰",
           "description": "左下的「不挑戰」",
-          "to": []
+          "to": [],
+          "rect": [0.348, 0.854, 0.499, 0.96],
+          "deadline": 15.0
         },
         {
           "name": "challenge_battle_check__challenge",
@@ -1047,7 +1243,9 @@
           "description": "右下的「挑戰」",
           "to": [
             "player_phase_overview"
-          ]
+          ],
+          "rect": [0.508, 0.854, 0.661, 0.96],
+          "deadline": 9.2
         }
       ]
     },
@@ -1062,13 +1260,17 @@
           "name": "player_phase_overview__auto",
           "zh": "AUTO",
           "description": "戰鬥右上的「AUTO」",
-          "to": []
+          "to": [],
+          "rect": [0.743, 0.016, 0.812, 0.079],
+          "deadline": 15.0
         },
         {
           "name": "player_phase_overview__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "player_phase_overview__battle_menu",
@@ -1076,7 +1278,9 @@
           "description": "戰鬥右上的「≡」",
           "to": [
             "battle_main_setting"
-          ]
+          ],
+          "rect": [0.913, 0.016, 0.941, 0.081],
+          "deadline": 3.0
         },
         {
           "name": "player_phase_overview__unit_card",
@@ -1084,7 +1288,9 @@
           "description": "下方單位卡片列中的一張",
           "to": [
             "select_action_in_battle"
-          ]
+          ],
+          "rect": [0.244, 0.758, 0.385, 0.943],
+          "deadline": 4.6
         },
         {
           "name": "player_phase_overview__map_ally_unit",
@@ -1093,13 +1299,16 @@
           "to": [
             "select_action_in_battle"
           ],
-          "dynamic": true
+          "dynamic": true,
+          "deadline": 4.6
         },
         {
           "name": "player_phase_overview__unit_list",
           "zh": "單位列表",
           "description": "右側「單位列表」",
-          "to": []
+          "to": [],
+          "rect": [0.769, 0.677, 0.925, 0.739],
+          "deadline": 15.0
         },
         {
           "name": "player_phase_overview__end_turn",
@@ -1107,13 +1316,17 @@
           "description": "左上「回合結束」",
           "to": [
             "non_player_phase_battle_view"
-          ]
+          ],
+          "rect": [0.066, 0.139, 0.188, 0.2],
+          "deadline": 4.6
         },
         {
           "name": "player_phase_overview__change_initial_position",
           "zh": "變更初期配置",
           "description": "左上「變更初期配置」，只在第一回合開始時出現",
-          "to": []
+          "to": [],
+          "rect": [0.066, 0.233, 0.186, 0.293],
+          "deadline": 15.0
         }
       ]
     },
@@ -1128,13 +1341,17 @@
           "name": "select_action_in_battle__auto",
           "zh": "AUTO",
           "description": "戰鬥右上的「AUTO」",
-          "to": []
+          "to": [],
+          "rect": [0.743, 0.016, 0.811, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "select_action_in_battle__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "select_action_in_battle__battle_menu",
@@ -1142,7 +1359,9 @@
           "description": "戰鬥右上的「≡」",
           "to": [
             "battle_main_setting"
-          ]
+          ],
+          "rect": [0.913, 0.016, 0.941, 0.081],
+          "deadline": 3.0
         },
         {
           "name": "select_action_in_battle__enemy_unit_icon",
@@ -1150,7 +1369,8 @@
           "description": "上方左側的敵方駕駛與機體方形簡圖；只有指定了目標才會出現",
           "to": [
             "unit_detail@select_action_in_battle"
-          ]
+          ],
+          "deadline": 15.0
         },
         {
           "name": "select_action_in_battle__ally_unit_icon",
@@ -1158,7 +1378,8 @@
           "description": "上方右側的我方駕駛與機體方形簡圖",
           "to": [
             "unit_detail@select_action_in_battle"
-          ]
+          ],
+          "deadline": 4.5
         },
         {
           "name": "select_action_in_battle__prev_unit",
@@ -1166,7 +1387,9 @@
           "description": "左下「SWITCHING UNIT」的「<」",
           "to": [
             "select_action_in_battle"
-          ]
+          ],
+          "rect": [0.077, 0.812, 0.122, 0.91],
+          "deadline": 15.0
         },
         {
           "name": "select_action_in_battle__next_unit",
@@ -1174,7 +1397,9 @@
           "description": "左下「SWITCHING UNIT」的「>」",
           "to": [
             "select_action_in_battle"
-          ]
+          ],
+          "rect": [0.129, 0.812, 0.174, 0.91],
+          "deadline": 15.0
         },
         {
           "name": "select_action_in_battle__map_ally_unit",
@@ -1183,7 +1408,8 @@
           "to": [
             "select_action_in_battle"
           ],
-          "dynamic": true
+          "dynamic": true,
+          "deadline": 15.0
         },
         {
           "name": "select_action_in_battle__skill_slot",
@@ -1191,13 +1417,17 @@
           "description": "底部 SKILL 的一個技能圖示（SP 數字）",
           "to": [
             "select_skill_in_battle"
-          ]
+          ],
+          "rect": [0.386, 0.791, 0.568, 0.932],
+          "deadline": 3.1
         },
         {
           "name": "select_action_in_battle__support",
           "zh": "支援",
           "description": "底部的「SUPPORT」",
-          "to": []
+          "to": [],
+          "rect": [0.634, 0.791, 0.7, 0.937],
+          "deadline": 15.0
         },
         {
           "name": "select_action_in_battle__wait",
@@ -1206,7 +1436,9 @@
           "to": [
             "player_phase_overview",
             "non_player_phase_battle_view"
-          ]
+          ],
+          "rect": [0.878, 0.558, 0.915, 0.666],
+          "deadline": 15.0
         },
         {
           "name": "select_action_in_battle__back",
@@ -1214,7 +1446,9 @@
           "description": "「返回」",
           "to": [
             "player_phase_overview"
-          ]
+          ],
+          "rect": [0.735, 0.823, 0.808, 0.975],
+          "deadline": 6.1
         },
         {
           "name": "select_action_in_battle__select_weapon",
@@ -1222,7 +1456,9 @@
           "description": "右下的「選擇武裝」大按鈕",
           "to": [
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.82, 0.726, 0.935, 0.975],
+          "deadline": 6.0
         }
       ]
     },
@@ -1237,25 +1473,33 @@
           "name": "select_skill_in_battle__auto",
           "zh": "AUTO",
           "description": "戰鬥右上的「AUTO」",
-          "to": []
+          "to": [],
+          "rect": [0.743, 0.016, 0.811, 0.079],
+          "deadline": 15.0
         },
         {
           "name": "select_skill_in_battle__fast_forward",
           "zh": "快轉",
           "description": "戰鬥右上的「▶▶」",
-          "to": []
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "select_skill_in_battle__battle_menu",
           "zh": "戰鬥選單",
           "description": "戰鬥右上的「≡」",
-          "to": []
+          "to": [],
+          "rect": [0.913, 0.018, 0.941, 0.081],
+          "deadline": 15.0
         },
         {
           "name": "select_skill_in_battle__skill_slot",
           "zh": "技能欄",
           "description": "底部 SKILL 的一個技能圖示（SP 數字），選中的技能上方有「SELECT」",
-          "to": []
+          "to": [],
+          "rect": [0.388, 0.791, 0.53, 0.932],
+          "deadline": 15.0
         },
         {
           "name": "select_skill_in_battle__back",
@@ -1264,13 +1508,17 @@
           "to": [
             "select_action_in_battle",
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.735, 0.823, 0.808, 0.975],
+          "deadline": 9.2
         },
         {
           "name": "select_skill_in_battle__activate",
           "zh": "發動",
           "description": "右下綠色的「發動」大按鈕",
-          "to": []
+          "to": [],
+          "rect": [0.82, 0.726, 0.935, 0.975],
+          "deadline": 15.0
         }
       ]
     },
@@ -1285,7 +1533,8 @@
           "name": "day_change_notify__go_home",
           "zh": "前往主畫面",
           "description": "視窗底部的「前往主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1304,7 +1553,9 @@
             "skip_stage_overlay",
             "story_stage_list",
             "training_stage_list"
-          ]
+          ],
+          "rect": [0.735, 0.861, 0.885, 0.964],
+          "deadline": 3.0
         },
         {
           "name": "skip_result_list__reward_item",
@@ -1313,14 +1564,17 @@
           "dynamic": true,
           "to": [
             "reward_detail"
-          ]
+          ],
+          "deadline": 3.0
         },
         {
           "name": "skip_result_list__reward_scroll",
           "zh": "獲得清單捲動",
           "description": "「獲得」下方的機體與道具清單，上下滑動露出其他項目",
           "gesture": "swipe_y",
-          "to": []
+          "to": [],
+          "rect": [0.12, 0.18, 0.888, 0.592],
+          "deadline": 15.0
         }
       ]
     },
@@ -1335,19 +1589,23 @@
           "name": "game_title__start",
           "zh": "開始",
           "description": "畫面任意處（TAP TO START）",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "game_title__menu",
           "zh": "選單",
           "description": "左上「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "game_title__data_sync",
           "zh": "資料同步",
           "description": "左上「資料同步」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1362,37 +1620,43 @@
           "name": "game_news_all__tab_all",
           "zh": "全部分頁",
           "description": "「全部」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "game_news_all__tab_update",
           "zh": "更新資訊分頁",
           "description": "「更新資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "game_news_all__tab_event",
           "zh": "活動舉辦資訊分頁",
           "description": "「活動舉辦資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "game_news_all__tab_bug_report",
           "zh": "錯誤報告分頁",
           "description": "「錯誤報告」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "game_news_all__news_card",
           "zh": "公告卡片",
           "description": "清單中的一張公告",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "game_news_all__close",
           "zh": "關閉",
           "description": "「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1407,73 +1671,85 @@
           "name": "capital_product_list__back",
           "zh": "返回",
           "description": "左上返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__info",
           "zh": "說明",
           "description": "標題旁的「i」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__diamond_shop",
           "zh": "鑽石商店",
           "description": "右上「鑽石商店」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__tab_capital",
           "zh": "CAPITAL 分頁",
           "description": "「CAPITAL」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__tab_g_shop",
           "zh": "G商店分頁",
           "description": "「G商店」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__tab_premium",
           "zh": "高級分頁",
           "description": "「高級」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__tab_master_league",
           "zh": "大師聯盟獎章分頁",
           "description": "「大師聯盟獎章」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__tab_rare_medal",
           "zh": "稀有獎章分頁",
           "description": "「稀有獎章」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__buy",
           "zh": "購買",
           "description": "商品卡片上的「購買」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__refresh",
           "zh": "以500更新",
           "description": "「以500更新」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__reset",
           "zh": "重置",
           "description": "「重置」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "capital_product_list__buy_all",
           "zh": "全部購買",
           "description": "「全部購買」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1488,13 +1764,15 @@
           "name": "purchase_check__cancel",
           "zh": "取消",
           "description": "「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "purchase_check__buy",
           "zh": "購買",
           "description": "「購買」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1509,7 +1787,9 @@
           "name": "enhance_mech_anime__skip",
           "zh": "略過",
           "description": "畫面任意處",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -1524,7 +1804,9 @@
           "name": "mech_promote_result__next",
           "zh": "繼續",
           "description": "畫面任意處（TAP TO NEXT）",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -1539,61 +1821,71 @@
           "name": "mech_sp_consume_check__info",
           "zh": "說明",
           "description": "標題旁的「i」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_sp_consume_check__enhance_detail",
           "zh": "強化詳情",
           "description": "「強化詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_sp_consume_check__mech_search",
           "zh": "機體詳細",
           "description": "機體名稱旁的放大鏡",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_sp_consume_check__material_decrease_max",
           "zh": "材料減到最少",
           "description": "材料列的「«」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_sp_consume_check__material_decrease",
           "zh": "材料減一",
           "description": "材料列的「‹」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_sp_consume_check__material_increase",
           "zh": "材料加一",
           "description": "材料列的「›」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_sp_consume_check__material_increase_max",
           "zh": "材料加到最多",
           "description": "材料列的「»」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_sp_consume_check__reset",
           "zh": "重置",
           "description": "「重置」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_sp_consume_check__cancel",
           "zh": "取消",
           "description": "「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_sp_consume_check__confirm",
           "zh": "SP化",
           "description": "「SP化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1608,55 +1900,64 @@
           "name": "mech_upgrade_check__level_decrease_max",
           "zh": "LV 減到最少",
           "description": "「«」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_upgrade_check__level_decrease",
           "zh": "LV 減一",
           "description": "「‹」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_upgrade_check__level_increase",
           "zh": "LV 加一",
           "description": "「›」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_upgrade_check__level_increase_max",
           "zh": "LV 加到最多",
           "description": "「»」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_upgrade_check__enhance_detail",
           "zh": "強化詳情",
           "description": "「強化詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_upgrade_check__sp_enhance",
           "zh": "SP化",
           "description": "「SP化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_upgrade_check__ssp_enhance",
           "zh": "SSP化",
           "description": "「SSP化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_upgrade_check__cancel",
           "zh": "取消",
           "description": "「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_upgrade_check__confirm",
           "zh": "提升LV",
           "description": "「提升LV」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1676,7 +1977,9 @@
             "battle_prep_response_attack",
             "select_action_in_battle",
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.429, 0.867, 0.58, 0.972],
+          "deadline": 15.0
         }
       ]
     },
@@ -1691,43 +1994,50 @@
           "name": "optional_part_list__assign",
           "zh": "指定裝備",
           "description": "「指定裝備」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "optional_part_list__part_icon",
           "zh": "零件圖示",
           "description": "格子中的一個零件",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "optional_part_list__sort_filter",
           "zh": "排序篩選",
           "description": "「稀有度順序 篩選」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "optional_part_list__prev_mech",
           "zh": "上一台機體",
           "description": "左側「‹」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "optional_part_list__next_mech",
           "zh": "下一台機體",
           "description": "右側「›」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "optional_part_list__cancel",
           "zh": "取消",
           "description": "「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "optional_part_list__replace",
           "zh": "替換",
           "description": "「替換」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1742,7 +2052,8 @@
           "name": "mech_abilities_list__close",
           "zh": "關閉",
           "description": "「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1757,13 +2068,15 @@
           "name": "mech_weapons_list__weapon_card",
           "zh": "武裝卡片",
           "description": "清單中的一張武裝卡片",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_weapons_list__close",
           "zh": "關閉",
           "description": "「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1778,91 +2091,106 @@
           "name": "hall_page__notice",
           "zh": "公告",
           "description": "左側「公告」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__reward",
           "zh": "獎勵",
           "description": "左側禮物圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__mission",
           "zh": "使命",
           "description": "左側「使命」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__shop",
           "zh": "商店",
           "description": "左側「商店」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__special_event",
           "zh": "特別活動",
           "description": "右上「特別活動」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__unit_catalog",
           "zh": "單位圖鑑",
           "description": "右上「單位圖鑑」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__event_banner",
           "zh": "EVENT 橫幅",
           "description": "右側 EVENT 活動橫幅",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__sortie",
           "zh": "出擊",
           "description": "右下「出擊 MAIN STAGE」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "hall_page__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1877,61 +2205,71 @@
           "name": "development_hall__series_tile",
           "zh": "作品格子",
           "description": "開發路線圖中的一個作品",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "development_hall__unit_catalog",
           "zh": "單位圖鑑",
           "description": "左上「單位圖鑑」格",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "development_hall__develop_from_owned",
           "zh": "從持有單位開發",
           "description": "右上「從持有單位開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "development_hall__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "development_hall__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "development_hall__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "development_hall__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "development_hall__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "development_hall__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "development_hall__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -1948,7 +2286,8 @@
           "description": "右上 AP 數值與「+」",
           "to": [
             "ap_recovery_overlay"
-          ]
+          ],
+          "deadline": 3.0
         },
         {
           "name": "stage_chosen__main_stage",
@@ -1956,7 +2295,9 @@
           "description": "「MAIN STAGE」",
           "to": [
             "series_list"
-          ]
+          ],
+          "rect": [0.153, 0.618, 0.471, 0.824],
+          "deadline": 6.1
         },
         {
           "name": "stage_chosen__event",
@@ -1964,13 +2305,17 @@
           "description": "「EVENT」",
           "to": [
             "event_stage_list"
-          ]
+          ],
+          "rect": [0.494, 0.163, 0.691, 0.655],
+          "deadline": 4.6
         },
         {
           "name": "stage_chosen__master_league",
           "zh": "大師聯盟",
           "description": "「MASTER LEAGUE」",
-          "to": []
+          "to": [],
+          "rect": [0.702, 0.163, 0.9, 0.655],
+          "deadline": 15.0
         },
         {
           "name": "stage_chosen__upgrade_stages",
@@ -1978,55 +2323,73 @@
           "description": "「UPGRADE STAGES」",
           "to": [
             "training_stage_list"
-          ]
+          ],
+          "rect": [0.511, 0.693, 0.699, 0.88],
+          "deadline": 3.0
         },
         {
           "name": "stage_chosen__eternal_road",
           "zh": "永恆之路",
           "description": "「ETERNAL ROAD」",
-          "to": []
+          "to": [],
+          "rect": [0.71, 0.677, 0.898, 0.88],
+          "deadline": 15.0
         },
         {
           "name": "stage_chosen__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "rect": [0.07, 0.913, 0.188, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "stage_chosen__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "rect": [0.188, 0.913, 0.31, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "stage_chosen__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "rect": [0.31, 0.913, 0.43, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "stage_chosen__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "rect": [0.43, 0.913, 0.578, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "stage_chosen__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "rect": [0.578, 0.913, 0.7, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "stage_chosen__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "rect": [0.7, 0.913, 0.82, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "stage_chosen__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "rect": [0.82, 0.913, 0.94, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -2041,7 +2404,9 @@
           "name": "series_list__back",
           "zh": "返回",
           "description": "標題左邊的返回箭頭",
-          "to": []
+          "to": [],
+          "rect": [0.075, 0.016, 0.143, 0.076],
+          "deadline": 15.0
         },
         {
           "name": "series_list__series",
@@ -2051,68 +2416,90 @@
             "series_stage_info",
             "series_intro_anime"
           ],
-          "dynamic": true
+          "dynamic": true,
+          "rect": [0.338, 0.357, 0.525, 0.65],
+          "deadline": 12.2
         },
         {
           "name": "series_list__series_strip",
           "zh": "作品列捲動",
           "description": "中間橫向排列的作品區，左右滑動露出其他作品",
           "gesture": "swipe_x",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.065, 1.0, 0.65],
+          "deadline": 15.0
         },
         {
           "name": "series_list__challenge",
           "zh": "挑戰",
           "description": "左下「CHALLENGE」",
-          "to": []
+          "to": [],
+          "rect": [0.07, 0.769, 0.21, 0.867],
+          "deadline": 15.0
         },
         {
           "name": "series_list__history_stage",
           "zh": "歷史關卡",
           "description": "左下「HISTORY STAGE」",
-          "to": []
+          "to": [],
+          "rect": [0.223, 0.769, 0.363, 0.867],
+          "deadline": 15.0
         },
         {
           "name": "series_list__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "rect": [0.07, 0.915, 0.186, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "series_list__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "rect": [0.19, 0.915, 0.308, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "series_list__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "rect": [0.31, 0.915, 0.428, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "series_list__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "rect": [0.43, 0.915, 0.575, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "series_list__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "rect": [0.58, 0.915, 0.698, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "series_list__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "rect": [0.703, 0.915, 0.82, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "series_list__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "rect": [0.825, 0.915, 0.94, 0.997],
+          "deadline": 15.0
         }
       ]
     },
@@ -2129,13 +2516,17 @@
           "description": "標題左邊的返回箭頭",
           "to": [
             "series_list"
-          ]
+          ],
+          "rect": [0.075, 0.016, 0.143, 0.081],
+          "deadline": 3.0
         },
         {
           "name": "series_stage_info__roadmap",
           "zh": "開發路線圖",
           "description": "右下「開發路線圖」",
-          "to": []
+          "to": [],
+          "rect": [0.643, 0.812, 0.758, 0.883],
+          "deadline": 15.0
         },
         {
           "name": "series_stage_info__select",
@@ -2143,49 +2534,65 @@
           "description": "右下藍色方形「選擇」",
           "to": [
             "story_stage_list"
-          ]
+          ],
+          "rect": [0.77, 0.769, 0.925, 0.878],
+          "deadline": 4.7
         },
         {
           "name": "series_stage_info__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "rect": [0.075, 0.913, 0.188, 0.998],
+          "deadline": 15.0
         },
         {
           "name": "series_stage_info__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "rect": [0.192, 0.913, 0.308, 0.998],
+          "deadline": 15.0
         },
         {
           "name": "series_stage_info__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "rect": [0.311, 0.913, 0.428, 0.998],
+          "deadline": 15.0
         },
         {
           "name": "series_stage_info__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "rect": [0.43, 0.913, 0.575, 0.998],
+          "deadline": 15.0
         },
         {
           "name": "series_stage_info__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "rect": [0.58, 0.913, 0.698, 0.998],
+          "deadline": 15.0
         },
         {
           "name": "series_stage_info__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "rect": [0.7, 0.913, 0.82, 0.998],
+          "deadline": 15.0
         },
         {
           "name": "series_stage_info__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "rect": [0.825, 0.913, 0.94, 0.998],
+          "deadline": 15.0
         }
       ]
     },
@@ -2203,7 +2610,9 @@
           "to": [
             "series_stage_info"
           ],
-          "forbidden": true
+          "forbidden": true,
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -2220,33 +2629,43 @@
           "description": "標題左邊的返回箭頭",
           "to": [
             "series_list"
-          ]
+          ],
+          "rect": [0.075, 0.016, 0.143, 0.076],
+          "deadline": 3.0
         },
         {
           "name": "story_stage_list__stage_node",
           "zh": "關卡台座",
           "description": "左側的一個關卡",
           "to": [],
-          "dynamic": true
+          "dynamic": true,
+          "rect": [0.188, 0.574, 0.263, 0.878],
+          "deadline": 15.0
         },
         {
           "name": "story_stage_list__stage_strip",
           "zh": "關卡列捲動",
           "description": "左下的關卡台座列，左右滑動露出其他關卡",
           "gesture": "swipe_x",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.57, 0.525, 0.885],
+          "deadline": 15.0
         },
         {
           "name": "story_stage_list__roadmap",
           "zh": "開發路線圖",
           "description": "右上「開發路線圖」",
-          "to": []
+          "to": [],
+          "rect": [0.725, 0.032, 0.84, 0.097],
+          "deadline": 15.0
         },
         {
           "name": "story_stage_list__stage_detail",
           "zh": "關卡詳情",
           "description": "建議戰鬥力右邊的放大鏡",
-          "to": []
+          "to": [],
+          "rect": [0.895, 0.504, 0.919, 0.553],
+          "deadline": 15.0
         },
         {
           "name": "story_stage_list__skip",
@@ -2254,7 +2673,8 @@
           "description": "右側兩個藍色方形裡小的那個，在「出擊準備」上方，標「略過」與剩餘次數",
           "to": [
             "skip_stage_overlay"
-          ]
+          ],
+          "deadline": 9.2
         },
         {
           "name": "story_stage_list__sortie_prepare",
@@ -2262,31 +2682,41 @@
           "description": "右下「出擊準備」；右側兩個藍色方形裡大的那個",
           "to": [
             "sortie_prep"
-          ]
+          ],
+          "rect": [0.773, 0.775, 0.925, 0.878],
+          "deadline": 6.1
         },
         {
           "name": "story_stage_list__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "rect": [0.069, 0.915, 0.188, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "story_stage_list__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "rect": [0.188, 0.915, 0.309, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "story_stage_list__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "rect": [0.31, 0.915, 0.429, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "story_stage_list__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "rect": [0.43, 0.915, 0.577, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "story_stage_list__nav_base",
@@ -2294,19 +2724,25 @@
           "description": "主導覽列的「個人基地」",
           "to": [
             "headquarter"
-          ]
+          ],
+          "rect": [0.578, 0.915, 0.698, 0.997],
+          "deadline": 3.0
         },
         {
           "name": "story_stage_list__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "rect": [0.698, 0.915, 0.82, 0.997],
+          "deadline": 15.0
         },
         {
           "name": "story_stage_list__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "rect": [0.82, 0.915, 0.94, 0.997],
+          "deadline": 15.0
         }
       ]
     },
@@ -2323,33 +2759,43 @@
           "description": "標題左邊的返回箭頭",
           "to": [
             "stage_chosen"
-          ]
+          ],
+          "rect": [0.075, 0.016, 0.143, 0.081],
+          "deadline": 3.0
         },
         {
           "name": "eternal_stage_list__stage_tile",
           "zh": "關卡格子",
           "description": "左側的一個 No. 格子",
           "to": [],
-          "dynamic": true
+          "dynamic": true,
+          "rect": [0.279, 0.433, 0.348, 0.65],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__stage_grid",
           "zh": "關卡格子捲動",
           "description": "左側的 No. 機體格子區，上下滑動露出其他關卡",
           "gesture": "swipe_y",
-          "to": []
+          "to": [],
+          "rect": [0.128, 0.108, 0.498, 0.878],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__mission",
           "zh": "使命",
           "description": "右上「使命」",
-          "to": []
+          "to": [],
+          "rect": [0.836, 0.03, 0.944, 0.095],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__stage_detail",
           "zh": "關卡詳情",
           "description": "建議戰鬥力右邊的放大鏡",
-          "to": []
+          "to": [],
+          "rect": [0.85, 0.58, 0.884, 0.641],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__sortie_target",
@@ -2357,7 +2803,9 @@
           "description": "右側「出擊對象」",
           "to": [
             "stage_allow_list"
-          ]
+          ],
+          "rect": [0.756, 0.674, 0.865, 0.74],
+          "deadline": 3.1
         },
         {
           "name": "eternal_stage_list__sortie_prepare",
@@ -2365,49 +2813,65 @@
           "description": "右下「出擊準備」",
           "to": [
             "sortie_prep"
-          ]
+          ],
+          "rect": [0.733, 0.772, 0.886, 0.88],
+          "deadline": 6.0
         },
         {
           "name": "eternal_stage_list__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "rect": [0.07, 0.913, 0.188, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "rect": [0.188, 0.913, 0.31, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "rect": [0.31, 0.913, 0.43, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "rect": [0.43, 0.913, 0.578, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "rect": [0.578, 0.913, 0.7, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "rect": [0.7, 0.913, 0.82, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "eternal_stage_list__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "rect": [0.82, 0.913, 0.94, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -2424,55 +2888,73 @@
           "description": "標題左邊的返回箭頭",
           "to": [
             "eternal_stage_list"
-          ]
+          ],
+          "rect": [0.075, 0.016, 0.143, 0.081],
+          "deadline": 3.1
         },
         {
           "name": "sortie_prep__saved_formations",
           "zh": "保存編制一覽",
           "description": "右上「保存編制一覽」",
-          "to": []
+          "to": [],
+          "rect": [0.493, 0.03, 0.6, 0.095],
+          "deadline": 15.0
         },
         {
           "name": "sortie_prep__formation_detail",
           "zh": "編制詳情",
           "description": "右上「編制詳情」",
-          "to": []
+          "to": [],
+          "rect": [0.609, 0.03, 0.705, 0.095],
+          "deadline": 15.0
         },
         {
           "name": "sortie_prep__stage_detail",
           "zh": "關卡詳情",
           "description": "右上「關卡詳情」",
-          "to": []
+          "to": [],
+          "rect": [0.714, 0.03, 0.835, 0.095],
+          "deadline": 15.0
         },
         {
           "name": "sortie_prep__mission",
           "zh": "使命",
           "description": "右上「使命」",
-          "to": []
+          "to": [],
+          "rect": [0.836, 0.03, 0.944, 0.095],
+          "deadline": 15.0
         },
         {
           "name": "sortie_prep__unit_card",
           "zh": "機體卡片",
           "description": "五張機體卡片中的一張",
-          "to": []
+          "to": [],
+          "rect": [0.37, 0.2, 0.765, 0.683],
+          "deadline": 15.0
         },
         {
           "name": "sortie_prep__squad",
           "zh": "部隊",
           "description": "左側「部隊1」",
-          "to": []
+          "to": [],
+          "rect": [0.108, 0.363, 0.203, 0.574],
+          "deadline": 15.0
         },
         {
           "name": "sortie_prep__support",
           "zh": "支援人員",
           "description": "下方支援人員欄",
-          "to": []
+          "to": [],
+          "rect": [0.233, 0.71, 0.693, 0.872],
+          "deadline": 15.0
         },
         {
           "name": "sortie_prep__swap_position",
           "zh": "變更配屬",
           "description": "左下「變更配屬」",
-          "to": []
+          "to": [],
+          "rect": [0.235, 0.905, 0.343, 0.97],
+          "deadline": 15.0
         },
         {
           "name": "sortie_prep__equip_op",
@@ -2480,7 +2962,9 @@
           "description": "下方「裝備OP」",
           "to": [
             "optional_part_list"
-          ]
+          ],
+          "rect": [0.353, 0.905, 0.46, 0.97],
+          "deadline": 4.6
         },
         {
           "name": "sortie_prep__edit_all",
@@ -2488,13 +2972,17 @@
           "description": "下方「全部編制」",
           "to": [
             "roster_all_edit"
-          ]
+          ],
+          "rect": [0.469, 0.905, 0.578, 0.97],
+          "deadline": 4.6
         },
         {
           "name": "sortie_prep__auto_edit",
           "zh": "自動編制",
           "description": "下方「自動編制」",
-          "to": []
+          "to": [],
+          "rect": [0.585, 0.905, 0.693, 0.97],
+          "deadline": 15.0
         },
         {
           "name": "sortie_prep__sortie",
@@ -2502,7 +2990,9 @@
           "description": "右下橘色「出擊」，經過 loading 進入關卡說明",
           "to": [
             "battle_info_preview"
-          ]
+          ],
+          "rect": [0.733, 0.861, 0.888, 0.97],
+          "deadline": 15.0
         }
       ]
     },
@@ -2517,67 +3007,78 @@
           "name": "headquarter__cruise",
           "zh": "戰艦巡航",
           "description": "「戰艦巡航」建築",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__character_quest",
           "zh": "角色要求",
           "description": "「角色要求」建築",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__tactical_training",
           "zh": "戰術訓練",
           "description": "「戰術訓練」建築",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__fullscreen",
           "zh": "全螢幕",
           "description": "右上全螢幕圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "headquarter__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -2592,79 +3093,92 @@
           "name": "character_quest__back",
           "zh": "返回",
           "description": "標題左邊的返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__quest_info",
           "zh": "要求資訊",
           "description": "右上「要求資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__prev",
           "zh": "上一個",
           "description": "左側箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__next",
           "zh": "下一個",
           "description": "右側箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__discard",
           "zh": "刪除",
           "description": "委託內容右上垃圾桶",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__accept",
           "zh": "承接",
           "description": "右下「承接」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -2679,25 +3193,29 @@
           "name": "ex_weapon_anime__skip",
           "zh": "SKIP",
           "description": "右側「SKIP」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ex_weapon_anime__auto",
           "zh": "AUTO",
           "description": "右上「AUTO」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ex_weapon_anime__fast_forward",
           "zh": "快轉",
           "description": "右上快轉",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ex_weapon_anime__menu",
           "zh": "選單",
           "description": "右上選單圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -2712,7 +3230,8 @@
           "name": "event_login_page__skip",
           "zh": "略過",
           "description": "右上「略過」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -2727,25 +3246,29 @@
           "name": "mech_promote_check__use_unit",
           "zh": "使用單位",
           "description": "「使用單位」格",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_check__use_item",
           "zh": "使用道具",
           "description": "「使用道具」格",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_check__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_check__select_material",
           "zh": "選擇材料",
           "description": "底部「選擇材料」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -2760,85 +3283,99 @@
           "name": "pilot_enhance__back",
           "zh": "返回",
           "description": "標題左邊的返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__lv_enhance",
           "zh": "LV強化",
           "description": "「LV強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__skill_detail",
           "zh": "角色技能詳情",
           "description": "角色技能列右邊的放大鏡",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__ability_detail",
           "zh": "能力詳情",
           "description": "能力列右邊的放大鏡",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__detail",
           "zh": "詳情",
           "description": "右下「詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__prev",
           "zh": "上一個",
           "description": "左側箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__next",
           "zh": "下一個",
           "description": "右側箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_enhance__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -2853,25 +3390,33 @@
           "name": "unit_detail_ability__tab_combo",
           "zh": "組合資訊",
           "description": "分頁「組合資訊」",
-          "to": []
+          "to": [],
+          "rect": [0.329, 0.13, 0.51, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_ability__tab_weapon_skill",
           "zh": "武裝、技能",
           "description": "分頁「武裝、技能」",
-          "to": []
+          "to": [],
+          "rect": [0.51, 0.13, 0.693, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_ability__tab_ability_op",
           "zh": "能力、OP",
           "description": "分頁「能力、OP」",
-          "to": []
+          "to": [],
+          "rect": [0.694, 0.13, 0.874, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_ability__basic_info",
           "zh": "基本資訊",
           "description": "右上「基本資訊」",
-          "to": []
+          "to": [],
+          "rect": [0.774, 0.067, 0.883, 0.108],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_ability__close",
@@ -2882,7 +3427,9 @@
             "battle_prep_response_attack",
             "select_action_in_battle",
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.429, 0.867, 0.58, 0.97],
+          "deadline": 15.0
         }
       ]
     },
@@ -2897,31 +3444,36 @@
           "name": "unit_detail_ability_roster__tab_combo",
           "zh": "組合資訊",
           "description": "分頁「組合資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_ability_roster__tab_weapon_skill",
           "zh": "武裝、技能",
           "description": "分頁「武裝、技能」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_ability_roster__tab_ability_op",
           "zh": "能力、OP",
           "description": "分頁「能力、OP」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_ability_roster__basic_info",
           "zh": "基本資訊",
           "description": "右上「基本資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_ability_roster__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_ability_roster__select",
@@ -2929,7 +3481,8 @@
           "description": "底部「關閉」右邊的藍色按鈕；按下後回到戰場並選取該單位，進入該單位的行動選擇",
           "to": [
             "select_action_in_battle"
-          ]
+          ],
+          "deadline": 15.0
         }
       ]
     },
@@ -2944,25 +3497,33 @@
           "name": "unit_detail_action__tab_combo",
           "zh": "組合資訊",
           "description": "分頁「組合資訊」",
-          "to": []
+          "to": [],
+          "rect": [0.329, 0.13, 0.51, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_action__tab_weapon_skill",
           "zh": "武裝、技能",
           "description": "分頁「武裝、技能」",
-          "to": []
+          "to": [],
+          "rect": [0.511, 0.13, 0.692, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_action__tab_ability_op",
           "zh": "能力、OP",
           "description": "分頁「能力、OP」",
-          "to": []
+          "to": [],
+          "rect": [0.692, 0.13, 0.874, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_action__basic_info",
           "zh": "基本資訊",
           "description": "右上「基本資訊」",
-          "to": []
+          "to": [],
+          "rect": [0.774, 0.067, 0.883, 0.108],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_action__close",
@@ -2973,7 +3534,9 @@
             "battle_prep_response_attack",
             "select_action_in_battle",
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.429, 0.867, 0.58, 0.972],
+          "deadline": 15.0
         }
       ]
     },
@@ -2988,31 +3551,36 @@
           "name": "unit_detail_action_roster__tab_combo",
           "zh": "組合資訊",
           "description": "分頁「組合資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_action_roster__tab_weapon_skill",
           "zh": "武裝、技能",
           "description": "分頁「武裝、技能」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_action_roster__tab_ability_op",
           "zh": "能力、OP",
           "description": "分頁「能力、OP」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_action_roster__basic_info",
           "zh": "基本資訊",
           "description": "右上「基本資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_action_roster__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_action_roster__select",
@@ -3020,7 +3588,8 @@
           "description": "底部「關閉」右邊的藍色按鈕；按下後回到戰場並選取該單位，進入該單位的行動選擇",
           "to": [
             "select_action_in_battle"
-          ]
+          ],
+          "deadline": 15.0
         }
       ]
     },
@@ -3035,25 +3604,33 @@
           "name": "unit_detail_state__tab_combo",
           "zh": "組合資訊",
           "description": "分頁「組合資訊」",
-          "to": []
+          "to": [],
+          "rect": [0.329, 0.13, 0.51, 0.192],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_state__tab_weapon_skill",
           "zh": "武裝、技能",
           "description": "分頁「武裝、技能」",
-          "to": []
+          "to": [],
+          "rect": [0.51, 0.13, 0.693, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_state__tab_ability_op",
           "zh": "能力、OP",
           "description": "分頁「能力、OP」",
-          "to": []
+          "to": [],
+          "rect": [0.693, 0.13, 0.874, 0.193],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_state__basic_info",
           "zh": "基本資訊",
           "description": "右上「基本資訊」",
-          "to": []
+          "to": [],
+          "rect": [0.774, 0.067, 0.883, 0.108],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_state__close",
@@ -3064,7 +3641,9 @@
             "battle_prep_response_attack",
             "select_action_in_battle",
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.429, 0.867, 0.58, 0.97],
+          "deadline": 15.0
         }
       ]
     },
@@ -3079,31 +3658,36 @@
           "name": "unit_detail_state_roster__tab_combo",
           "zh": "組合資訊",
           "description": "分頁「組合資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_state_roster__tab_weapon_skill",
           "zh": "武裝、技能",
           "description": "分頁「武裝、技能」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_state_roster__tab_ability_op",
           "zh": "能力、OP",
           "description": "分頁「能力、OP」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_state_roster__basic_info",
           "zh": "基本資訊",
           "description": "右上「基本資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_state_roster__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_state_roster__select",
@@ -3111,7 +3695,8 @@
           "description": "底部「關閉」右邊的藍色按鈕；按下後回到戰場並選取該單位，進入該單位的行動選擇",
           "to": [
             "select_action_in_battle"
-          ]
+          ],
+          "deadline": 15.0
         }
       ]
     },
@@ -3126,19 +3711,25 @@
           "name": "unit_detail_summary__detail",
           "zh": "詳情",
           "description": "右上「詳情」",
-          "to": []
+          "to": [],
+          "rect": [0.774, 0.067, 0.883, 0.108],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_summary__mech_card",
           "zh": "機體卡",
           "description": "左半機體卡的放大鏡",
-          "to": []
+          "to": [],
+          "rect": [0.532, 0.484, 0.565, 0.549],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_summary__pilot_card",
           "zh": "駕駛員卡",
           "description": "右半駕駛員卡的放大鏡",
-          "to": []
+          "to": [],
+          "rect": [0.839, 0.484, 0.87, 0.547],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_summary__close",
@@ -3149,7 +3740,9 @@
             "battle_prep_response_attack",
             "select_action_in_battle",
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.429, 0.867, 0.58, 0.97],
+          "deadline": 15.0
         }
       ]
     },
@@ -3164,25 +3757,29 @@
           "name": "unit_detail_summary_roster__detail",
           "zh": "詳情",
           "description": "右上「詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_summary_roster__mech_card",
           "zh": "機體卡",
           "description": "左半機體卡的放大鏡",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_summary_roster__pilot_card",
           "zh": "駕駛員卡",
           "description": "右半駕駛員卡的放大鏡",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_summary_roster__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "unit_detail_summary_roster__select",
@@ -3190,7 +3787,8 @@
           "description": "底部「關閉」右邊的藍色按鈕；按下後回到戰場並選取該單位，進入該單位的行動選擇",
           "to": [
             "select_action_in_battle"
-          ]
+          ],
+          "deadline": 15.0
         }
       ]
     },
@@ -3205,19 +3803,25 @@
           "name": "mech_normal_info__detail",
           "zh": "詳情",
           "description": "右上「詳情」",
-          "to": []
+          "to": [],
+          "rect": [0.774, 0.067, 0.883, 0.108],
+          "deadline": 15.0
         },
         {
           "name": "mech_normal_info__weapon_detail",
           "zh": "武裝詳情",
           "description": "武裝列右邊的放大鏡",
-          "to": []
+          "to": [],
+          "rect": [0.836, 0.352, 0.868, 0.399],
+          "deadline": 15.0
         },
         {
           "name": "mech_normal_info__ability_detail",
           "zh": "能力／技能詳情",
           "description": "能力／技能列右邊的放大鏡",
-          "to": []
+          "to": [],
+          "rect": [0.693, 0.488, 0.719, 0.531],
+          "deadline": 15.0
         },
         {
           "name": "mech_normal_info__close",
@@ -3228,7 +3832,9 @@
             "battle_prep_response_attack",
             "select_action_in_battle",
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.429, 0.867, 0.58, 0.97],
+          "deadline": 15.0
         }
       ]
     },
@@ -3243,19 +3849,25 @@
           "name": "pilot_normal_info__detail",
           "zh": "詳情",
           "description": "右上「詳情」",
-          "to": []
+          "to": [],
+          "rect": [0.774, 0.067, 0.883, 0.108],
+          "deadline": 15.0
         },
         {
           "name": "pilot_normal_info__skill_detail",
           "zh": "角色技能詳情",
           "description": "角色技能列右邊的放大鏡",
-          "to": []
+          "to": [],
+          "rect": [0.845, 0.413, 0.864, 0.454],
+          "deadline": 15.0
         },
         {
           "name": "pilot_normal_info__ability_detail",
           "zh": "能力詳情",
           "description": "能力列右邊的放大鏡",
-          "to": []
+          "to": [],
+          "rect": [0.845, 0.545, 0.864, 0.586],
+          "deadline": 15.0
         },
         {
           "name": "pilot_normal_info__close",
@@ -3266,7 +3878,9 @@
             "battle_prep_response_attack",
             "select_action_in_battle",
             "select_weapon_in_battle"
-          ]
+          ],
+          "rect": [0.428, 0.867, 0.58, 0.972],
+          "deadline": 15.0
         }
       ]
     },
@@ -3283,7 +3897,9 @@
           "description": "「勝利條件」",
           "to": [
             "win_condition_overlay"
-          ]
+          ],
+          "rect": [0.149, 0.439, 0.257, 0.504],
+          "deadline": 15.0
         },
         {
           "name": "battle_main_setting__squad_info",
@@ -3291,25 +3907,33 @@
           "description": "「部隊資訊」",
           "to": [
             "roster_list"
-          ]
+          ],
+          "rect": [0.269, 0.439, 0.376, 0.504],
+          "deadline": 15.0
         },
         {
           "name": "battle_main_setting__give_up",
           "zh": "放棄",
           "description": "紅色「放棄」",
-          "to": []
+          "to": [],
+          "rect": [0.149, 0.753, 0.259, 0.818],
+          "deadline": 15.0
         },
         {
           "name": "battle_main_setting__retry",
           "zh": "重試",
           "description": "「重試」",
-          "to": []
+          "to": [],
+          "rect": [0.268, 0.753, 0.375, 0.818],
+          "deadline": 15.0
         },
         {
           "name": "battle_main_setting__help",
           "zh": "幫助",
           "description": "「幫助」",
-          "to": []
+          "to": [],
+          "rect": [0.524, 0.755, 0.632, 0.818],
+          "deadline": 15.0
         },
         {
           "name": "battle_main_setting__settings",
@@ -3317,22 +3941,31 @@
           "description": "「設定」",
           "to": [
             "battle_settings_in_battle"
-          ]
+          ],
+          "rect": [0.644, 0.755, 0.751, 0.818],
+          "deadline": 15.0
         },
         {
           "name": "battle_main_setting__mission",
           "zh": "使命",
           "description": "「使命」",
-          "to": []
+          "to": [],
+          "rect": [0.764, 0.755, 0.871, 0.818],
+          "deadline": 15.0
         },
         {
           "name": "battle_main_setting__close",
           "zh": "關閉",
           "description": "底部「關閉」，回到打開戰鬥選單之前的畫面",
           "to": [
+            "select_weapon_in_battle",
+            "battle_prep_attack",
+            "battle_info_preview",
             "player_phase_overview",
-            "select_weapon_in_battle"
-          ]
+            "select_action_in_battle"
+          ],
+          "rect": [0.428, 0.867, 0.58, 0.972],
+          "deadline": 15.0
         }
       ]
     },
@@ -3349,7 +3982,8 @@
           "description": "底部「關閉」",
           "to": [
             "battle_main_setting"
-          ]
+          ],
+          "deadline": 15.0
         }
       ]
     },
@@ -3367,7 +4001,9 @@
           "to": [
             "battle_prep_attack",
             "battle_prep_response_attack"
-          ]
+          ],
+          "rect": [0.349, 0.87, 0.5, 0.975],
+          "deadline": 3.0
         },
         {
           "name": "battle_prep_detail__select",
@@ -3376,7 +4012,9 @@
           "to": [
             "battle_prep_attack",
             "battle_prep_response_attack"
-          ]
+          ],
+          "rect": [0.509, 0.87, 0.661, 0.975],
+          "deadline": 3.0
         }
       ]
     },
@@ -3393,7 +4031,9 @@
           "description": "畫面任意處",
           "to": [
             "battle_score_result"
-          ]
+          ],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -3410,7 +4050,9 @@
           "description": "右下的按鈕",
           "to": [
             "drop_reward_result"
-          ]
+          ],
+          "rect": [0.773, 0.861, 0.925, 0.964],
+          "deadline": 4.7
         }
       ]
     },
@@ -3425,7 +4067,9 @@
           "name": "battle_score_result__damage_report",
           "zh": "損傷報告",
           "description": "左下「損傷報告」",
-          "to": []
+          "to": [],
+          "rect": [0.085, 0.905, 0.22, 0.97],
+          "deadline": 15.0
         },
         {
           "name": "battle_score_result__next",
@@ -3433,7 +4077,9 @@
           "description": "右下的按鈕",
           "to": [
             "exp_reward_result"
-          ]
+          ],
+          "rect": [0.773, 0.863, 0.925, 0.964],
+          "deadline": 3.0
         }
       ]
     },
@@ -3448,31 +4094,36 @@
           "name": "build_roadmap__back",
           "zh": "返回",
           "description": "標題左邊的返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_roadmap__series_item",
           "zh": "作品",
           "description": "左側清單中的一個作品",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_roadmap__unit_node",
           "zh": "機體節點",
           "description": "節點圖中的一架機體",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_roadmap__progress_reward",
           "zh": "進度獎勵",
           "description": "上方的進度獎勵",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_roadmap__fullscreen",
           "zh": "全螢幕",
           "description": "右下全螢幕圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3487,37 +4138,43 @@
           "name": "mech_batch_building_check__count_min",
           "zh": "最少",
           "description": "開發單位數左邊的「«」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_batch_building_check__count_down",
           "zh": "減少",
           "description": "開發單位數左邊的「‹」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_batch_building_check__count_up",
           "zh": "增加",
           "description": "開發單位數右邊的「›」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_batch_building_check__count_max",
           "zh": "最多",
           "description": "開發單位數右邊的「»」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_batch_building_check__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_batch_building_check__execute",
           "zh": "執行開發",
           "description": "底部橘色「執行開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3540,73 +4197,85 @@
           "name": "g_product_list__back",
           "zh": "返回",
           "description": "左上返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__info",
           "zh": "說明",
           "description": "標題旁的「i」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__diamond_shop",
           "zh": "鑽石商店",
           "description": "右上「鑽石商店」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__tab_capital",
           "zh": "CAPITAL 分頁",
           "description": "「CAPITAL」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__tab_g_shop",
           "zh": "G商店分頁",
           "description": "「G商店」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__tab_premium",
           "zh": "高級分頁",
           "description": "「高級」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__tab_master_league",
           "zh": "大師聯盟獎章分頁",
           "description": "「大師聯盟獎章」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__tab_rare_medal",
           "zh": "稀有獎章分頁",
           "description": "「稀有獎章」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__buy",
           "zh": "購買",
           "description": "商品卡片上的「購買」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__refresh",
           "zh": "以50更新",
           "description": "「以50更新」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__reset",
           "zh": "重置",
           "description": "「重置」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "g_product_list__buy_all",
           "zh": "全部購買",
           "description": "「全部購買」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3621,73 +4290,85 @@
           "name": "d_product_list__back",
           "zh": "返回",
           "description": "左上返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__info",
           "zh": "說明",
           "description": "標題旁的「i」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__diamond_shop",
           "zh": "鑽石商店",
           "description": "右上「鑽石商店」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__tab_capital",
           "zh": "CAPITAL 分頁",
           "description": "「CAPITAL」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__tab_g_shop",
           "zh": "G商店分頁",
           "description": "「G商店」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__tab_premium",
           "zh": "高級分頁",
           "description": "「高級」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__tab_master_league",
           "zh": "大師聯盟獎章分頁",
           "description": "「大師聯盟獎章」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__tab_rare_medal",
           "zh": "稀有獎章分頁",
           "description": "「稀有獎章」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__buy",
           "zh": "購買",
           "description": "商品卡片上的「購買」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__refresh",
           "zh": "以50更新",
           "description": "「以50更新」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__reset",
           "zh": "重置",
           "description": "「重置」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "d_product_list__buy_all",
           "zh": "全部購買",
           "description": "「全部購買」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3702,37 +4383,43 @@
           "name": "gift_list__claim",
           "zh": "領取",
           "description": "禮物列右邊的「領取」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "gift_list__history",
           "zh": "領取記錄",
           "description": "左下「領取記錄」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "gift_list__sort",
           "zh": "排序",
           "description": "右下排序",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "gift_list__filter",
           "zh": "篩選",
           "description": "右下篩選",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "gift_list__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "gift_list__claim_all",
           "zh": "全部領取",
           "description": "底部「全部領取」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3747,7 +4434,8 @@
           "name": "claim_result__ok",
           "zh": "OK",
           "description": "底部「OK」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3762,85 +4450,99 @@
           "name": "mission_list__back",
           "zh": "返回",
           "description": "左上返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__tab_daily",
           "zh": "每日分頁",
           "description": "「每日」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__tab_total",
           "zh": "累積分頁",
           "description": "「累積」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__tab_event",
           "zh": "事件分頁",
           "description": "「事件」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__claim",
           "zh": "領取",
           "description": "使命列的「領取」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__challenge",
           "zh": "挑戰",
           "description": "使命列的「挑戰」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__claim_all",
           "zh": "全部領取",
           "description": "右下「全部領取」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mission_list__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3855,7 +4557,8 @@
           "name": "claim_result_2__ok",
           "zh": "OK",
           "description": "底部「OK」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3870,7 +4573,8 @@
           "name": "purchase_result__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3885,7 +4589,8 @@
           "name": "product_detail__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3900,43 +4605,50 @@
           "name": "build_mech_info__prev",
           "zh": "上一個",
           "description": "左側箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_mech_info__next",
           "zh": "下一個",
           "description": "右側箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_mech_info__enhance",
           "zh": "強化",
           "description": "機體下方「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_mech_info__acquire_route",
           "zh": "獲得管道",
           "description": "機體下方「獲得管道」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_mech_info__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_mech_info__execute",
           "zh": "執行開發",
           "description": "底部橘色「執行開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "build_mech_info__build_all",
           "zh": "全部開發",
           "description": "右下「全部開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -3951,67 +4663,78 @@
           "name": "ship_cruise_check__back",
           "zh": "返回",
           "description": "左上返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__ship_info",
           "zh": "戰艦資訊",
           "description": "右上「戰艦資訊」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__fullscreen",
           "zh": "全螢幕",
           "description": "右上全螢幕按鈕",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__collect_all",
           "zh": "全部回收",
           "description": "右下「全部回收」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "ship_cruise_check__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4026,13 +4749,15 @@
           "name": "character_quest_response__skip",
           "zh": "略過",
           "description": "右上「略過」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "character_quest_response__next",
           "zh": "下一句",
           "description": "點擊畫面",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4047,13 +4772,15 @@
           "name": "acquire_route_list__move",
           "zh": "移動",
           "description": "關卡列的「移動」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "acquire_route_list__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4068,25 +4795,29 @@
           "name": "deliver_check__acquire_method",
           "zh": "獲得方法",
           "description": "交付單位的「獲得方法」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "deliver_check__unit",
           "zh": "可交付單位",
           "description": "可交付單位格子",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "deliver_check__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "deliver_check__deliver",
           "zh": "交付",
           "description": "底部「交付」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4101,13 +4832,15 @@
           "name": "damage_report__category",
           "zh": "分類",
           "description": "左側分類",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "damage_report__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4130,49 +4863,57 @@
           "name": "pilot_upgrade_check__level_decrease_max",
           "zh": "LV 減到最少",
           "description": "「«」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_upgrade_check__level_decrease",
           "zh": "LV 減一",
           "description": "「‹」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_upgrade_check__level_increase",
           "zh": "LV 加一",
           "description": "「›」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_upgrade_check__level_increase_max",
           "zh": "LV 加到最多",
           "description": "「»」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_upgrade_check__enhance_detail",
           "zh": "強化詳情",
           "description": "「強化詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_upgrade_check__sp_enhance",
           "zh": "SP化",
           "description": "「SP化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_upgrade_check__cancel",
           "zh": "取消",
           "description": "「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_upgrade_check__confirm",
           "zh": "提升LV",
           "description": "「提升LV」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4187,43 +4928,50 @@
           "name": "supporter_upgrade_check__level_decrease_max",
           "zh": "LV 減到最少",
           "description": "「«」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_upgrade_check__level_decrease",
           "zh": "LV 減一",
           "description": "「‹」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_upgrade_check__level_increase",
           "zh": "LV 加一",
           "description": "「›」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_upgrade_check__level_increase_max",
           "zh": "LV 加到最多",
           "description": "「»」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_upgrade_check__enhance_detail",
           "zh": "強化詳情",
           "description": "「強化詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_upgrade_check__cancel",
           "zh": "取消",
           "description": "「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_upgrade_check__confirm",
           "zh": "提升LV",
           "description": "「提升LV」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4238,61 +4986,71 @@
           "name": "pilot_sp_consume_check__info",
           "zh": "說明",
           "description": "標題旁的「i」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_sp_consume_check__enhance_detail",
           "zh": "強化詳情",
           "description": "「強化詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_sp_consume_check__mech_search",
           "zh": "機體詳細",
           "description": "機體名稱旁的放大鏡",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_sp_consume_check__material_decrease_max",
           "zh": "材料減到最少",
           "description": "材料列的「«」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_sp_consume_check__material_decrease",
           "zh": "材料減一",
           "description": "材料列的「‹」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_sp_consume_check__material_increase",
           "zh": "材料加一",
           "description": "材料列的「›」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_sp_consume_check__material_increase_max",
           "zh": "材料加到最多",
           "description": "材料列的「»」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_sp_consume_check__reset",
           "zh": "重置",
           "description": "「重置」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_sp_consume_check__cancel",
           "zh": "取消",
           "description": "「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "pilot_sp_consume_check__confirm",
           "zh": "SP化",
           "description": "「SP化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4307,7 +5065,9 @@
           "name": "mech_lv_result__next",
           "zh": "繼續",
           "description": "畫面任意處（TAP TO NEXT）",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -4322,7 +5082,9 @@
           "name": "pilot_lv_result__next",
           "zh": "繼續",
           "description": "畫面任意處（TAP TO NEXT）",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -4337,7 +5099,9 @@
           "name": "supporter_lv_result__next",
           "zh": "繼續",
           "description": "畫面任意處（TAP TO NEXT）",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -4352,43 +5116,50 @@
           "name": "weapon_upgrade_select__weapon",
           "zh": "武裝",
           "description": "左側武裝圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "weapon_upgrade_select__level_decrease_max",
           "zh": "LV 減到最少",
           "description": "「«」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "weapon_upgrade_select__level_decrease",
           "zh": "LV 減一",
           "description": "「‹」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "weapon_upgrade_select__level_increase",
           "zh": "LV 加一",
           "description": "「›」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "weapon_upgrade_select__level_increase_max",
           "zh": "LV 加到最多",
           "description": "「»」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "weapon_upgrade_select__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "weapon_upgrade_select__confirm",
           "zh": "提升武裝LV",
           "description": "底部「提升武裝LV」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4403,7 +5174,9 @@
           "name": "weapon_upgrade_result__next",
           "zh": "繼續",
           "description": "畫面任意處（TAP TO NEXT）",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -4418,31 +5191,36 @@
           "name": "mech_promote_select__material",
           "zh": "材料卡片",
           "description": "右側機體卡片",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_select__favorite_filter",
           "zh": "最愛篩選",
           "description": "愛心圖示加 ON／OFF",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_select__sort_filter",
           "zh": "排序篩選",
           "description": "「名稱順序 篩選」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_select__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_select__confirm",
           "zh": "決定材料",
           "description": "底部「決定材料」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4457,19 +5235,22 @@
           "name": "mech_promote_item_select__material",
           "zh": "材料道具",
           "description": "右側道具圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_item_select__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_item_select__confirm",
           "zh": "決定材料",
           "description": "底部「決定材料」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4484,13 +5265,15 @@
           "name": "mech_promote_preview__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "mech_promote_preview__confirm",
           "zh": "突破界限",
           "description": "底部「突破界限」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4505,19 +5288,22 @@
           "name": "tag_filter_quick_list__unit",
           "zh": "單位圖示",
           "description": "格子裡的機體圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "tag_filter_quick_list__sort_filter",
           "zh": "排序篩選",
           "description": "「稀有度順序 篩選」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "tag_filter_quick_list__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4532,121 +5318,141 @@
           "name": "supporter_enhance_list__info",
           "zh": "說明",
           "description": "標題旁的「i」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__search",
           "zh": "搜尋",
           "description": "「搜尋」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__saved_rosters",
           "zh": "保存編制一覽",
           "description": "「保存編制一覽」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__tab_unit",
           "zh": "單位分頁",
           "description": "「單位」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__tab_character",
           "zh": "角色分頁",
           "description": "「角色」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__tab_support",
           "zh": "支援人員分頁",
           "description": "「支援人員」分頁",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__mech_card",
           "zh": "機體卡片",
           "description": "清單中的一張機體或駕駛卡片",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__favorite_filter",
           "zh": "最愛篩選",
           "description": "愛心圖示加 ON／OFF",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__dismantle",
           "zh": "解體",
           "description": "「解體」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__expand_capacity",
           "zh": "擴充持有上限",
           "description": "持有數旁的「+」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__sort_filter",
           "zh": "排序篩選",
           "description": "「稀有度順序 篩選」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__view_toggle",
           "zh": "顯示切換",
           "description": "排序篩選右邊的方框圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__sort_order",
           "zh": "排序方向",
           "description": "最右邊的橫線圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance_list__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4661,55 +5467,64 @@
           "name": "supporter_enhance__back",
           "zh": "返回",
           "description": "標題左邊的返回箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance__promote",
           "zh": "強化",
           "description": "突破界限列的「強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance__lv_enhance",
           "zh": "LV強化",
           "description": "「LV強化」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance__skill_detail",
           "zh": "支援技能詳情",
           "description": "支援技能列的放大鏡",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance__leader_skill_detail",
           "zh": "隊長技能詳情",
           "description": "隊長技能列的放大鏡",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance__enhance_detail",
           "zh": "強化詳情",
           "description": "「強化詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance__detail",
           "zh": "詳情",
           "description": "右下「詳情」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance__prev",
           "zh": "上一個",
           "description": "左側箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_enhance__next",
           "zh": "下一個",
           "description": "右側箭頭",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4724,25 +5539,29 @@
           "name": "supporter_promote_check__use_supporter",
           "zh": "使用支援人員",
           "description": "「使用支援人員」格",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_promote_check__use_item",
           "zh": "使用道具",
           "description": "「使用道具」格",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_promote_check__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_promote_check__select_material",
           "zh": "選擇材料",
           "description": "底部「選擇材料」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4757,31 +5576,36 @@
           "name": "supporter_promote_select__material",
           "zh": "材料卡片",
           "description": "右側支援人員卡片",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_promote_select__favorite_filter",
           "zh": "最愛篩選",
           "description": "愛心圖示加 ON／OFF",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_promote_select__sort_filter",
           "zh": "排序篩選",
           "description": "「名稱順序 篩選」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_promote_select__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_promote_select__confirm",
           "zh": "決定材料",
           "description": "底部「決定材料」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4796,13 +5620,15 @@
           "name": "supporter_promote_preview__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "supporter_promote_preview__confirm",
           "zh": "突破界限",
           "description": "底部「突破界限」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4817,7 +5643,9 @@
           "name": "supporter_promote_anime__skip",
           "zh": "略過",
           "description": "畫面任意處",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -4832,7 +5660,9 @@
           "name": "supporter_promote_result__next",
           "zh": "繼續",
           "description": "畫面任意處（TAP TO NEXT）",
-          "to": []
+          "to": [],
+          "rect": [0.0, 0.0, 1.0, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -4847,7 +5677,8 @@
           "name": "pilot_abilities_list__close",
           "zh": "關閉",
           "description": "「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4862,7 +5693,8 @@
           "name": "pilot_skill_list__close",
           "zh": "關閉",
           "description": "「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4877,7 +5709,8 @@
           "name": "mech_property_list__close",
           "zh": "關閉",
           "description": "「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4892,19 +5725,22 @@
           "name": "effect_mech_list__unit",
           "zh": "機體圖示",
           "description": "格子裡的機體圖示",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "effect_mech_list__sort_filter",
           "zh": "排序篩選",
           "description": "「稀有度順序 篩選」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         },
         {
           "name": "effect_mech_list__close",
           "zh": "關閉",
           "description": "底部「關閉」",
-          "to": []
+          "to": [],
+          "deadline": 15.0
         }
       ]
     },
@@ -4921,25 +5757,33 @@
           "description": "左上返回箭頭",
           "to": [
             "stage_chosen"
-          ]
+          ],
+          "rect": [0.075, 0.016, 0.143, 0.081],
+          "deadline": 3.1
         },
         {
           "name": "training_stage_list__info",
           "zh": "說明",
           "description": "標題旁的「i」",
-          "to": []
+          "to": [],
+          "rect": [0.375, 0.03, 0.396, 0.074],
+          "deadline": 15.0
         },
         {
           "name": "training_stage_list__ap_add",
           "zh": "回復AP",
           "description": "右上 AP 數旁的「+」",
-          "to": []
+          "to": [],
+          "rect": [0.919, 0.03, 0.941, 0.074],
+          "deadline": 15.0
         },
         {
           "name": "training_stage_list__stage_card",
           "zh": "關卡卡片",
           "description": "四張培育關卡卡片之一",
-          "to": []
+          "to": [],
+          "rect": [0.427, 0.168, 0.581, 0.793],
+          "deadline": 15.0
         },
         {
           "name": "training_stage_list__batch_skip",
@@ -4947,49 +5791,65 @@
           "description": "右下「一次略過」",
           "to": [
             "batch_skip_overlay"
-          ]
+          ],
+          "rect": [0.668, 0.807, 0.822, 0.875],
+          "deadline": 3.1
         },
         {
           "name": "training_stage_list__nav_home",
           "zh": "主畫面",
           "description": "主導覽列的「主畫面」",
-          "to": []
+          "to": [],
+          "rect": [0.07, 0.913, 0.188, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "training_stage_list__nav_enhance",
           "zh": "強化",
           "description": "主導覽列的「強化」",
-          "to": []
+          "to": [],
+          "rect": [0.188, 0.913, 0.31, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "training_stage_list__nav_develop",
           "zh": "開發",
           "description": "主導覽列的「開發」",
-          "to": []
+          "to": [],
+          "rect": [0.31, 0.913, 0.43, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "training_stage_list__nav_stage",
           "zh": "關卡",
           "description": "主導覽列的「關卡」",
-          "to": []
+          "to": [],
+          "rect": [0.43, 0.913, 0.578, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "training_stage_list__nav_base",
           "zh": "個人基地",
           "description": "主導覽列的「個人基地」",
-          "to": []
+          "to": [],
+          "rect": [0.578, 0.913, 0.7, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "training_stage_list__nav_supply",
           "zh": "機體補給",
           "description": "主導覽列的「機體補給」",
-          "to": []
+          "to": [],
+          "rect": [0.7, 0.913, 0.82, 1.0],
+          "deadline": 15.0
         },
         {
           "name": "training_stage_list__nav_menu",
           "zh": "選單",
           "description": "主導覽列的「選單」",
-          "to": []
+          "to": [],
+          "rect": [0.82, 0.913, 0.94, 1.0],
+          "deadline": 15.0
         }
       ]
     },
@@ -5004,7 +5864,9 @@
           "name": "batch_skip_overlay__cancel",
           "zh": "取消",
           "description": "底部「取消」",
-          "to": []
+          "to": [],
+          "rect": [0.348, 0.867, 0.5, 0.972],
+          "deadline": 15.0
         },
         {
           "name": "batch_skip_overlay__execute",
@@ -5012,7 +5874,9 @@
           "description": "底部「執行」",
           "to": [
             "skip_result_list"
-          ]
+          ],
+          "rect": [0.508, 0.867, 0.663, 0.972],
+          "deadline": 7.7
         }
       ]
     },
@@ -5029,14 +5893,18 @@
           "description": "「AP包」列",
           "to": [
             "ap_recovery_item_check"
-          ]
+          ],
+          "rect": [0.309, 0.303, 0.703, 0.504],
+          "deadline": 15.0
         },
         {
           "name": "ap_recovery_overlay__diamond",
           "zh": "鑽石",
           "description": "「鑽石」列",
           "to": [],
-          "forbidden": true
+          "forbidden": true,
+          "rect": [0.309, 0.529, 0.703, 0.802],
+          "deadline": 15.0
         },
         {
           "name": "ap_recovery_overlay__close",
@@ -5044,7 +5912,9 @@
           "description": "底部「關閉」",
           "to": [
             "stage_chosen"
-          ]
+          ],
+          "rect": [0.428, 0.867, 0.581, 0.972],
+          "deadline": 15.0
         },
         {
           "name": "ap_recovery_overlay__outside",
@@ -5052,7 +5922,8 @@
           "description": "「回復AP」視窗外的任何位置；點擊等同取消，回到打開回復AP之前的畫面",
           "to": [
             "stage_chosen"
-          ]
+          ],
+          "deadline": 15.0
         }
       ]
     },
@@ -5067,25 +5938,33 @@
           "name": "ap_recovery_item_check__count_min",
           "zh": "最少",
           "description": "「«」",
-          "to": []
+          "to": [],
+          "rect": [0.313, 0.542, 0.36, 0.607],
+          "deadline": 15.0
         },
         {
           "name": "ap_recovery_item_check__count_down",
           "zh": "減少",
           "description": "「‹」",
-          "to": []
+          "to": [],
+          "rect": [0.368, 0.542, 0.414, 0.607],
+          "deadline": 15.0
         },
         {
           "name": "ap_recovery_item_check__count_up",
           "zh": "增加",
           "description": "「›」",
-          "to": []
+          "to": [],
+          "rect": [0.595, 0.542, 0.644, 0.607],
+          "deadline": 15.0
         },
         {
           "name": "ap_recovery_item_check__count_max",
           "zh": "最多",
           "description": "「»」",
-          "to": []
+          "to": [],
+          "rect": [0.65, 0.542, 0.699, 0.607],
+          "deadline": 15.0
         },
         {
           "name": "ap_recovery_item_check__cancel",
@@ -5093,13 +5972,17 @@
           "description": "底部「取消」",
           "to": [
             "stage_chosen"
-          ]
+          ],
+          "rect": [0.349, 0.733, 0.5, 0.84],
+          "deadline": 15.0
         },
         {
           "name": "ap_recovery_item_check__execute",
           "zh": "執行",
           "description": "底部「執行」",
-          "to": []
+          "to": [],
+          "rect": [0.509, 0.733, 0.661, 0.84],
+          "deadline": 15.0
         },
         {
           "name": "ap_recovery_item_check__outside",
@@ -5107,7 +5990,8 @@
           "description": "「回復AP」視窗外的任何位置；點擊等同取消，回到打開回復AP之前的畫面",
           "to": [
             "stage_chosen"
-          ]
+          ],
+          "deadline": 15.0
         }
       ]
     },
@@ -5122,25 +6006,33 @@
           "name": "stage_allow_list__tab_unit",
           "zh": "單位分頁",
           "description": "「單位」",
-          "to": []
+          "to": [],
+          "rect": [0.302, 0.13, 0.504, 0.19],
+          "deadline": 15.0
         },
         {
           "name": "stage_allow_list__tab_character",
           "zh": "角色分頁",
           "description": "「角色」",
-          "to": []
+          "to": [],
+          "rect": [0.505, 0.13, 0.708, 0.19],
+          "deadline": 15.0
         },
         {
           "name": "stage_allow_list__unit",
           "zh": "單位圖示",
           "description": "格子裡的圖示",
-          "to": []
+          "to": [],
+          "rect": [0.308, 0.217, 0.702, 0.843],
+          "deadline": 15.0
         },
         {
           "name": "stage_allow_list__sort_filter",
           "zh": "排序篩選",
           "description": "「稀有度順序 篩選」",
-          "to": []
+          "to": [],
+          "rect": [0.62, 0.764, 0.7, 0.834],
+          "deadline": 15.0
         },
         {
           "name": "stage_allow_list__close",
@@ -5148,7 +6040,9 @@
           "description": "底部「關閉」",
           "to": [
             "eternal_stage_list"
-          ]
+          ],
+          "rect": [0.429, 0.867, 0.58, 0.97],
+          "deadline": 3.0
         }
       ]
     },
@@ -5163,7 +6057,9 @@
           "name": "drop_reward_result__reward_item",
           "zh": "獎勵道具",
           "description": "道具圖示",
-          "to": []
+          "to": [],
+          "rect": [0.358, 0.215, 0.425, 0.403],
+          "deadline": 15.0
         },
         {
           "name": "drop_reward_result__damage_report",
@@ -5171,7 +6067,9 @@
           "description": "左下「損傷報告」",
           "to": [
             "damage_report"
-          ]
+          ],
+          "rect": [0.095, 0.905, 0.228, 0.964],
+          "deadline": 3.1
         },
         {
           "name": "drop_reward_result__sortie_again",
@@ -5179,7 +6077,9 @@
           "description": "右下「再次出擊」，經過 loading 回到同一關的關卡說明",
           "to": [
             "battle_info_preview"
-          ]
+          ],
+          "rect": [0.608, 0.861, 0.759, 0.964],
+          "deadline": 15.0
         },
         {
           "name": "drop_reward_result__select_stage",
@@ -5187,8 +6087,13 @@
           "description": "右下「選擇關卡」",
           "to": [
             "story_stage_list"
-          ]
+          ],
+          "rect": [0.768, 0.861, 0.92, 0.964],
+          "deadline": 14.0
         }
+      ],
+      "game_to": [
+        "event_login_page"
       ]
     },
     {
@@ -5204,9 +6109,80 @@
           "description": "底部「關閉」",
           "to": [
             "skip_result_list"
-          ]
+          ],
+          "rect": [0.428, 0.737, 0.58, 0.835],
+          "deadline": 3.0
         }
       ]
     }
-  ]
+  ],
+  "caller_groups": {
+    "unit_detail": {
+      "zh": "單位設置詳情",
+      "entry": [
+        "unit_detail_state",
+        "unit_detail_action",
+        "unit_detail_ability",
+        "unit_detail_summary",
+        "unit_detail_state_roster",
+        "unit_detail_action_roster",
+        "unit_detail_ability_roster",
+        "unit_detail_summary_roster"
+      ],
+      "inside": [
+        "mech_normal_info",
+        "pilot_normal_info",
+        "weapon_info"
+      ],
+      "note": "總覽與三個分頁可以互相切換，三個分頁之間也可以互相切換。打開時停在上次離開的那一頁，所有來源共用這份記憶。關閉後回到打開它的畫面；從部隊清單打開時，按「選擇」會跳到該單位的行動選擇。"
+    },
+    "unit_info": {
+      "zh": "單位詳情",
+      "entry": [
+        "unit_detail_state",
+        "unit_detail_action",
+        "unit_detail_ability",
+        "unit_detail_summary",
+        "mech_normal_info"
+      ],
+      "inside": [
+        "pilot_normal_info",
+        "weapon_info"
+      ],
+      "note": "強化等戰鬥外畫面打開的視窗，跟戰鬥中的單位設置詳情分開記錄。長按和點擊進入的頁面不同，細節還沒整理。關閉後回到打開它的畫面。"
+    },
+    "ap_recovery": {
+      "zh": "回復AP",
+      "entry": [
+        "ap_recovery_overlay"
+      ],
+      "inside": [
+        "ap_recovery_item_check"
+      ],
+      "note": "主畫面和部分關卡選擇畫面點體力條打開。第一層選回復方式，選了之後進第二層選數量；第一層按「關閉」或第二層按「取消」，或點視窗外的任何位置，都回到打開回復AP之前的畫面。"
+    },
+    "battle_menu": {
+      "zh": "戰鬥選單",
+      "entry": [
+        "battle_main_setting"
+      ],
+      "inside": [
+        "battle_settings_in_battle",
+        "win_condition_overlay"
+      ],
+      "note": "戰鬥中按右上三條橫線打開。裡面的「設定」和「勝利條件」關閉後回到戰鬥選單；戰鬥選單按「關閉」回到打開戰鬥選單之前的畫面。"
+    },
+    "battle_prep_detail": {
+      "zh": "戰鬥準備詳情",
+      "entry": [
+        "battle_prep_detail"
+      ],
+      "inside": [],
+      "note": "從戰鬥準備（攻擊）或戰鬥準備（應戰）進入，離開時回到進入它的畫面。"
+    }
+  },
+  "rect_description": "rect 是按鈕的範圍，[左, 上, 右, 下]，以畫面寬高的比例表示；取自錄影 20261014-234132 的按鈕框中位數。dynamic 的按鈕位置不固定，rect 只是錄影中常見的位置。沒有 rect 的按鈕還沒有量到位置。",
+  "deadline_description": "deadline 是按下按鈕後，等下一個可操作畫面出現的秒數上限；取錄影中這顆按鈕最長的轉移時間乘以 1.5，最少 3 秒；沒有證據的按鈕是 15 秒。",
+  "game_to_description": "game_to 是不需要點擊、由遊戲決定的轉移目標，例如敵軍回合結束後回到我軍回合總覽。",
+  "caller_groups_description": "caller_groups 是會記住呼叫者的畫面群組：從 entry 的畫面進入，inside 的畫面在群組內，按鈕的 to 包含呼叫者時，離開群組回到打開群組的畫面；to 不包含呼叫者時照 to 走。"
 }
