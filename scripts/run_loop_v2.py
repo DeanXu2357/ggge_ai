@@ -1,7 +1,7 @@
 """Run one stage on the phone with the ggge_ai_2 agent.
 
 usage:
-  uv run python scripts/run_loop_v2.py [--serial R5CRC37JBYJ] [--idle-deadline 30]
+  uv run python scripts/run_loop_v2.py [--serial R5CRC37JBYJ]
 
 Start on the story stage list. The anthropic client reads ANTHROPIC_API_KEY from the
 environment. Evidence: data/runs/<timestamp>/run.log, steps.jsonl and frames/.
@@ -91,7 +91,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--serial", default="R5CRC37JBYJ")
     parser.add_argument("--interpreter", choices=["llm"], default="llm")
     parser.add_argument("--stages", type=Path, default=Path("assets/ui_stages/stages.json"))
-    parser.add_argument("--idle-deadline", type=float, default=30.0, help="seconds")
     return parser.parse_args()
 
 
@@ -159,7 +158,6 @@ def main() -> int:
             domain=NullDomain(),
             as_of=None,
         ),
-        idle_deadline=args.idle_deadline,
         stop=stop,
         runlog=RunLog(run_dir),
     )

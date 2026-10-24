@@ -13,7 +13,7 @@ from ggge_ai_2.agent.runlog import RunLog, StepRecord
 from ggge_ai_2.interpreter.contract import Interpreter, Screen, Situation
 from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent, LocalBoard, MapGeometry
 from ggge_ai_2.mapparser.contract import MapParser, MapReading
-from ggge_ai_2.stream.contract import Frame, Observation, Stream
+from ggge_ai_2.stream.contract import Frame, StillWindow, Stream
 from ggge_ai_2.uisim.contract import (
     Observed,
     UiScreen,
@@ -73,7 +73,6 @@ class Agent:
     uisim: UiSim
     plan_controller: PlanController
     belief: Belief
-    idle_deadline: float
     stop: Event = field(default_factory=Event)
     runlog: RunLog | None = None
     _after: Instant = field(default=0.0, init=False)
@@ -137,23 +136,35 @@ class Agent:
         return RunResult.STOPPED
 
     def sense(self) -> Sensed | None:
-        obs = self._settle(self._after, now() + self.idle_deadline)
-        waited = obs.waited
-        while obs.still is None:
+        started = now()
+        candidates = self.candidates(self.belief)
+        first = self._capture()
+        first_situation = self.interpreter.interpret(first, candidates)
+        while True:
             if self.stop.is_set():
                 return None
-            obs = self._settle(obs.frame.captured_at, now() + self.idle_deadline)
-            waited += obs.waited
+            second = self._capture()
+            situation = self.interpreter.interpret(second, candidates)
+            if _reading(situation) == _reading(first_situation):
+                break
+            log.info(
+                "sense unsettled",
+                extra={
+                    "frame_seq": second.seq,
+                    "first": _reading(first_situation),
+                    "second": _reading(situation),
+                },
+            )
+            first, first_situation = second, situation
+        still = StillWindow(first.captured_at, second.captured_at, second.seq)
 
-        candidates = self.candidates(self.belief)
-        situation = self.interpreter.interpret(obs.frame, candidates)
-        self._frame, self._situation = obs.frame, situation
+        self._frame, self._situation = second, situation
         self._outside_candidates = situation is not None and situation.screen not in candidates
         if situation is not None and self._outside_candidates:
             log.warning(
                 "outside candidates",
                 extra={
-                    "frame_seq": obs.frame.seq,
+                    "frame_seq": second.seq,
                     "screen": situation.screen,
                     "candidates": sorted(screen.value for screen in candidates),
                 },
@@ -164,19 +175,19 @@ class Agent:
         readable = screen_lock is None and passing is None
         observed = _situation_to_observed(situation) if readable else None
         on_map = observed is not None and observed.screen in MAP_SCREENS
-        reading = self.mapparser.parse(obs.frame) if on_map else None
+        reading = self.mapparser.parse(second) if on_map else None
         log.info(
             "sense",
             extra={
-                "frame_seq": obs.frame.seq,
-                "still_since": obs.still.since,
-                "still_until": obs.still.until,
-                "waited": waited,
+                "frame_seq": second.seq,
+                "still_since": still.since,
+                "still_until": still.until,
+                "waited": now() - started,
                 "recognized": situation is not None,
             },
         )
         board = _map_reading_to_local_board(reading)
-        return Sensed(obs.still, observed, board, screen_lock, passing)
+        return Sensed(still, observed, board, screen_lock, passing)
 
     def candidates(self, belief: Belief) -> frozenset[Screen]:
         if belief.ui_basis.source is not UiSource.SEEN:
@@ -251,11 +262,15 @@ class Agent:
         if matched is False:
             self.runlog.save_frame(self._frame)
 
-    def _settle(self, after: Instant, deadline: Instant) -> Observation:
-        obs = self.stream.settled(after, deadline)
-        assert obs.frame.captured_at > after, "stream returned a frame older than the cutoff"
-        self._after = obs.frame.captured_at
-        return obs
+    def _capture(self) -> Frame:
+        frame = self.stream.latest()
+        assert frame.captured_at > self._after, "stream returned a frame older than the cutoff"
+        self._after = frame.captured_at
+        return frame
+
+
+def _reading(situation: Situation | None) -> tuple[Screen, bool | None] | None:
+    return None if situation is None else (situation.screen, situation.auto)
 
 
 def _situation_to_observed(situation: Situation | None) -> Observed | None:
