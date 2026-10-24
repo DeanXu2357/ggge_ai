@@ -484,7 +484,44 @@ def test_run_log_records_one_line_per_cycle_and_saves_only_the_mismatching_frame
         (3, "sortie_prep", ["story_stage_list"], False, "open_info"),
         (4, "sortie_prep", ["sortie_prep"], None, None),
     ]
-    assert sorted(path.name for path in (run_dir / "frames").iterdir()) == ["000003.png"]
+    assert [r["frame"] for r in records] == ["000001.jpg", "000002.jpg", "000003.jpg", "000004.jpg"]
+    assert [r["time"] for r in records] == [1.0, 11.0, 12.0, 13.0]
+    assert sorted(path.name for path in (run_dir / "frames").glob("*.png")) == ["000003.png"]
+
+
+def screen_sized(seq: int, at: float) -> list[Frame]:
+    image = np.zeros((1080, 2340, 3), np.uint8)
+    return [Frame(image, at - 0.5, seq), Frame(image, at, seq)]
+
+
+def test_run_log_records_the_gesture_of_a_tap_step_and_none_for_a_wait_step(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    monkeypatch.setattr("ggge_ai_2.agent.loop.now", lambda: 11.2)
+    tap = Step("open_info", Tap((1011, 544)), BAND, DEADLINE, (expected(INFO),))
+    wait = Step("enemy_turn", None, (), DEADLINE, (expected(INFO),))
+    controller = ScriptedController([ScriptedPlan([tap, wait])], goals=[False, False, True])
+    stream = FakeStream([*screen_sized(1, 1.0), *screen_sized(2, 11.0), *screen_sized(3, 12.0)])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP, 3: Screen.SORTIE_PREP}
+    run_dir = tmp_path / "run"
+
+    agent = make_agent(stream, shows, controller, runlog=RunLog(run_dir))
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in lines]
+    assert [(r["step"], r["gesture"]) for r in records] == [
+        ("open_info", "tap 0.432,0.504"),
+        ("enemy_turn", None),
+        (None, None),
+    ]
+    assert [record.getMessage() for record in caplog.records if record.name.endswith(".cycle")] == [
+        "#1 seen=story_stage_list believed=story_stage_list exp=[] ok=None"
+        " step=open_info tap 0.432,0.504",
+        "#2 seen=sortie_prep believed=sortie_prep exp=[sortie_prep] ok=True step=enemy_turn",
+        "#3 seen=sortie_prep believed=sortie_prep exp=[sortie_prep] ok=None step=None",
+    ]
 
 
 def seen(ui: UiState, at: float, camera: Alignment | None = None) -> Belief:

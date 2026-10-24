@@ -25,7 +25,7 @@ import anthropic
 
 from ggge_ai_2.actuator.adb import AdbActuator
 from ggge_ai_2.agent.belief import Belief, UiBasis, UiSource
-from ggge_ai_2.agent.loop import Agent, RunResult
+from ggge_ai_2.agent.loop import Agent, RunResult, cycle_log
 from ggge_ai_2.agent.plan_controller import (
     PassingWait,
     PowerSaveUnlock,
@@ -94,14 +94,21 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def on_terminal(record: logging.LogRecord) -> bool:
+    if record.name == cycle_log.name:
+        return True
+    return record.levelno >= logging.WARNING and record.name.startswith("ggge_ai_2")
+
+
 def configure_logging(run_dir: Path) -> None:
     to_file = logging.FileHandler(run_dir / "run.log", encoding="utf-8")
     to_file.setFormatter(JsonLineFormatter())
     to_stderr = logging.StreamHandler(sys.stderr)
     to_stderr.setLevel(logging.INFO)
+    to_stderr.addFilter(on_terminal)
     to_stderr.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     logging.basicConfig(level=logging.INFO, handlers=[to_file, to_stderr])
-    for noisy in ("httpx", "httpcore"):
+    for noisy in ("httpx", "httpx2", "httpcore"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 

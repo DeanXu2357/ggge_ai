@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from threading import Event
 
-from ggge_ai_2.actuator.contract import Actuator, Dispatch, GestureBlocked
+from ggge_ai_2.actuator.contract import Actuator, Dispatch, Gesture, GestureBlocked, Key, Tap
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, Sensed, UiSource
 from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.agent.contract import Plan, PlanController, Step
-from ggge_ai_2.agent.runlog import RunLog, StepRecord
+from ggge_ai_2.agent.runlog import RunLog, StepRecord, thumbnail_name
 from ggge_ai_2.interpreter.contract import Interpreter, Screen, Situation
 from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent, LocalBoard, MapGeometry
 from ggge_ai_2.mapparser.contract import MapParser, MapReading
@@ -21,6 +21,7 @@ from ggge_ai_2.uisim.contract import (
 )
 
 log = logging.getLogger(__name__)
+cycle_log = logging.getLogger(f"{__name__}.cycle")
 
 MISMATCH_LIMIT = 3
 MAP_SCREENS = frozenset(
@@ -130,7 +131,7 @@ class Agent:
                 self._record(predicted, matched, None)
                 return RunResult.HALTED
             dispatch = self.act(step)
-            self._record(predicted, matched, step.name)
+            self._record(predicted, matched, step)
             if not passing:
                 predicted = None if dispatch is None else self.predict(step, dispatch)
         return RunResult.STOPPED
@@ -238,35 +239,62 @@ class Agent:
     def predict(self, step: Step, dispatch: Dispatch) -> Predicted:
         return Predicted(step.expected, dispatch.t1 + step.deadline)
 
-    def _record(self, predicted: Predicted | None, matched: bool | None, step: str | None) -> None:
+    def _record(self, predicted: Predicted | None, matched: bool | None, step: Step | None) -> None:
+        assert self._frame is not None, "a cycle records only after sense returns a frame"
+        frame = self._frame
+        ui, passing = self.belief.ui, self.belief.passing
+        height, width = frame.image.shape[:2]
+        gesture = None if step is None else step.gesture
+        entry = StepRecord(
+            frame_seq=frame.seq,
+            time=frame.captured_at,
+            interpreted=None if self._situation is None else self._situation.screen.value,
+            believed=ui.screen.value,
+            caller=None if ui.caller is None else ui.caller.value,
+            auto=ui.auto,
+            passing=None if passing is None else passing.value,
+            expected=()
+            if predicted is None
+            else tuple(belief.ui.screen.value for belief in predicted.beliefs),
+            matched=matched,
+            outside_candidates=self._outside_candidates,
+            step=None if step is None else step.name,
+            gesture=None if gesture is None else _gesture_text(gesture, width, height),
+            frame=thumbnail_name(frame.seq),
+        )
+        cycle_log.info(_cycle_summary(entry), extra=asdict(entry))
         if self.runlog is None:
             return
-        assert self._frame is not None, "a cycle records only after sense returns a frame"
-        ui, passing = self.belief.ui, self.belief.passing
-        self.runlog.record(
-            StepRecord(
-                frame_seq=self._frame.seq,
-                interpreted=None if self._situation is None else self._situation.screen.value,
-                believed=ui.screen.value,
-                caller=None if ui.caller is None else ui.caller.value,
-                auto=ui.auto,
-                passing=None if passing is None else passing.value,
-                expected=()
-                if predicted is None
-                else tuple(belief.ui.screen.value for belief in predicted.beliefs),
-                matched=matched,
-                outside_candidates=self._outside_candidates,
-                step=step,
-            )
-        )
+        self.runlog.record(entry, frame)
         if matched is False:
-            self.runlog.save_frame(self._frame)
+            self.runlog.save_frame(frame)
 
     def _capture(self) -> Frame:
         frame = self.stream.latest()
         assert frame.captured_at > self._after, "stream returned a frame older than the cutoff"
         self._after = frame.captured_at
         return frame
+
+
+def _gesture_text(gesture: Gesture, width: int, height: int) -> str:
+    def ratio(point: tuple[int, int]) -> str:
+        return f"{point[0] / width:.3f},{point[1] / height:.3f}"
+
+    if isinstance(gesture, Tap):
+        return f"tap {ratio(gesture.point)}"
+    if isinstance(gesture, Key):
+        return f"key {gesture.code}"
+    return f"swipe {ratio(gesture.start)}->{ratio(gesture.end)} {gesture.duration:.2f}s"
+
+
+def _cycle_summary(entry: StepRecord) -> str:
+    action = "None" if entry.step is None else entry.step
+    if entry.gesture is not None:
+        action = f"{action} {entry.gesture}"
+    return (
+        f"#{entry.frame_seq} seen={entry.interpreted} believed={entry.believed}"
+        f" exp=[{','.join(entry.expected)}] ok={entry.matched} step={action}"
+    )
 
 
 def _reading(situation: Situation | None) -> tuple[Screen, bool | None] | None:
