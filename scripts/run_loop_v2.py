@@ -36,6 +36,7 @@ from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.auto_cue import AutoCueInterpreter
 from ggge_ai_2.interpreter.llm import LlmInterpreter
 from ggge_ai_2.interpreter.llm_prompt import system_prompt
+from ggge_ai_2.interpreter.power_save_cue import PowerSaveCueInterpreter
 from ggge_ai_2.mapgeom.contract import Alignment, KnownMap, LocalBoard
 from ggge_ai_2.mapparser.contract import MapReading, ScreenPoint, ViewCell
 from ggge_ai_2.stream.adb import AdbScreencapStream
@@ -140,7 +141,9 @@ def main() -> int:
     if client.api_key is None:
         print("ANTHROPIC_API_KEY is not set.", file=sys.stderr)
         return 2
-    interpreter = AutoCueInterpreter(LlmInterpreter(client, system_prompt(raw_stages)))
+    interpreter = PowerSaveCueInterpreter(
+        AutoCueInterpreter(LlmInterpreter(client, system_prompt(raw_stages)))
+    )
     reflexes = (PowerSaveUnlock(), PassingWait(), TapToContinue(SCREEN))
 
     run_dir = Path("data/runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
