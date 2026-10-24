@@ -2992,7 +2992,7 @@
         {
           "name": "sortie_prep__sortie",
           "zh": "出擊",
-          "description": "右下橘色「出擊」，經過 loading 進入關卡說明",
+          "description": "右下橘色「出擊」，經過 loading 進入關卡說明。編隊有不符合關卡標籤的單位時不會出擊：畫面中央跳出全寬提示「編制內含有不符合標籤的角色。」約 0.5 秒，畫面留在出擊準備（裝置運行 20261024-182741）",
           "to": [
             "battle_info_preview"
           ],
