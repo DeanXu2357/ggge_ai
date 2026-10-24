@@ -33,6 +33,7 @@ from ggge_ai_2.agent.plan_controller import (
     TapToContinue,
 )
 from ggge_ai_2.agent.runlog import RunLog
+from ggge_ai_2.interpreter.auto_cue import AutoCueInterpreter
 from ggge_ai_2.interpreter.llm import LlmInterpreter
 from ggge_ai_2.interpreter.llm_prompt import system_prompt
 from ggge_ai_2.mapgeom.contract import Alignment, KnownMap, LocalBoard
@@ -133,7 +134,7 @@ def main() -> int:
     if client.api_key is None:
         print("ANTHROPIC_API_KEY is not set.", file=sys.stderr)
         return 2
-    interpreter = LlmInterpreter(client, system_prompt(raw_stages))
+    interpreter = AutoCueInterpreter(LlmInterpreter(client, system_prompt(raw_stages)))
     reflexes = (PowerSaveUnlock(), PassingWait(), TapToContinue(SCREEN))
 
     run_dir = Path("data/runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
