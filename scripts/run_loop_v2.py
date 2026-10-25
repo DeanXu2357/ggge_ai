@@ -26,12 +26,7 @@ import anthropic
 from ggge_ai_2.actuator.adb import AdbActuator
 from ggge_ai_2.agent.belief import Belief, UiBasis, UiSource
 from ggge_ai_2.agent.loop import Agent, RunResult, cycle_log
-from ggge_ai_2.agent.plan_controller import (
-    PassingWait,
-    PowerSaveUnlock,
-    StagePlanController,
-    TapToContinue,
-)
+from ggge_ai_2.agent.stage_plan_controller import StagePlanController
 from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.auto_cue import AutoCueInterpreter
 from ggge_ai_2.interpreter.llm import LlmInterpreter
@@ -144,7 +139,6 @@ def main() -> int:
     interpreter = PowerSaveCueInterpreter(
         AutoCueInterpreter(LlmInterpreter(client, system_prompt(raw_stages)))
     )
-    reflexes = (PowerSaveUnlock(), PassingWait(), TapToContinue(SCREEN))
 
     run_dir = Path("data/runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir.mkdir(parents=True)
@@ -159,7 +153,7 @@ def main() -> int:
         mapparser=NullMapParser(),
         mapgeom=NullMapGeometry(),
         uisim=uisim,
-        plan_controller=StagePlanController(UiScreen.DROP_REWARD_RESULT, reflexes, uisim, SCREEN),
+        plan_controller=StagePlanController(UiScreen.DROP_REWARD_RESULT, uisim, SCREEN),
         belief=Belief(
             ui=UiState(UiScreen.STORY_STAGE_LIST),
             ui_basis=UiBasis(UiSource.ASSUMED),
@@ -177,7 +171,7 @@ def main() -> int:
     if clear is RunResult.DONE:
         agent = replace(
             agent,
-            plan_controller=StagePlanController(UiScreen.STORY_STAGE_LIST, reflexes, uisim, SCREEN),
+            plan_controller=StagePlanController(UiScreen.STORY_STAGE_LIST, uisim, SCREEN),
             belief=agent.belief,
             stop=agent.stop,
         )

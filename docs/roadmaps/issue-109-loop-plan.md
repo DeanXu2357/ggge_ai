@@ -353,3 +353,41 @@
   「出擊」沒有效果。提示幀從錄影擷取，有壓縮，存在
   `data/datasets/sortie_rejected_20261024/`（含 `labels.jsonl`，不進版控）；重現
   後直接截圖的難度高，暫不補原始截圖。
+
+### 8.2 計畫與 plan controller 成套（2026-10-25）
+
+起因：實機第四輪（`data/runs/20261024-183527`）讀到 AUTO 開著，但 AUTO 沒有被關掉。
+`StagePlanController` 借用 `DefaultPlanController` 那一套的 `UiShiftPlan` 和
+`ReflexPlan`；`UiShiftPlan` 進戰鬥後仍然有效，放著「先關 AUTO」的貪婪策略一直沒被選到。
+
+- ［確認］`Plan` 和 `PlanController` 的約定太寬鬆，零件可以隨意混用。每個 plan
+  controller 配一套自己的計畫，不拆開混用。`PlanController` 改成泛型
+  `PlanController[P: Plan]`，由 pyright 擋住混用。
+- ［確認］`contract.py` 只放迴圈依賴的介面（`Plan`、`PlanController`、`Step`），
+  各套實作都要符合。`Plan` 的約定寫在 `contract.py`：`still_valid` 是前置條件，
+  沒有副作用；`next` 每週期最多呼叫一次，只在 `still_valid` 為真之後呼叫；
+  `expected=()` 代表這一步不建立預測。
+- ［確認］`Reflex` 和 `ReflexPlan` 只是 `DefaultPlanController` 那一套的內部介面，
+  移出 `contract.py`。舊 `replan-main-loop.md` §5.12.18「plan controller 把 reflex
+  固定注入計畫」只適用於這一套（`7781192` 刪除該文件）。
+- ［確認］通用計畫只實作 `Plan`：`PowerSaveLockPlan`、`PassingWaitPlan`、
+  `TapToContinuePlan`、`AutoOffPlan`。哪一套要用，哪一套自己轉接。各套可能忘記
+  整合通用計畫，這個代價接受，靠各套的測試覆蓋。
+- ［確認］`StagePlanController` 產生自己的 `StagePlan`，順序寫在 `StagePlan` 裡：
+  省電鎖定 → 過場 → AUTO 關閉 → 戰鬥畫面走貪婪策略，其他畫面走 UI 路徑。
+  共用的是純函式（最短路徑、操作轉成 step），不是別套的計畫物件。
+- ［確認］`AutoOffPlan` 的三個狀態記在 `AutoOffPlan` 自己的欄位，不寫進信念：
+  `UNTOUCHED`（當前關卡的戰鬥中沒有開過 AUTO，通常整場維持）、
+  `PENDING(at)`（在 `at` 按了關閉，等確認）、`CONFIRMED`（曾經關閉並確認）。
+  狀態轉換的邏輯都在 `AutoOffPlan` 自己的實作裡。確認後由 think 決定接下來的策略；
+  目前沿用貪婪策略。之後戰鬥計畫判斷 lost sync 時讀這個狀態。
+- ［確認］history 裡的 `AutoOffPlan` 是複製的物件。
+
+待處理（不在這次的範圍）：
+
+- `review` 是命名失誤：它的實際用途是把計畫和信念記進 history。迴圈也沒有把
+  計畫結束的原因（達成目標、連續對不上、計畫失效）傳給 plan controller。
+- 過場跳過比對、對不上的次數上限、讀不到畫面時停手，這些規則留在迴圈裡；
+  過場屬於信念的合約，之後再整理。
+- history 是 plan controller 的狀態，卻放在迴圈裡；一次執行跨越多個關卡時，
+  誰在新戰鬥開始時重設 `UNTOUCHED`，還沒有定。

@@ -18,20 +18,23 @@ class Step:
 
 
 class Plan(Protocol):
+    """`still_valid` is the precondition: the plan can give a step for this belief.
+    `still_valid` has no side effects.
+
+    The loop calls `next` at most once per cycle. The loop calls `next` only after
+    `still_valid` returned True. `next` can change the state of the plan.
+
+    A step with `expected=()` makes no prediction.
+    """
+
     def still_valid(self, belief: Belief) -> bool: ...
 
     def next(self, belief: Belief) -> Step: ...
 
 
-class Reflex(Protocol):
-    def still_valid(self, belief: Belief) -> bool: ...
-
-    def react(self, belief: Belief) -> Step | None: ...
-
-
-class PlanController(Protocol):
+class PlanController[P: Plan](Protocol):
     def goal_reached(self, belief: Belief) -> bool: ...
 
-    def think(self, belief: Belief, history: Sequence[object]) -> Plan | None: ...
+    def think(self, belief: Belief, history: Sequence[object]) -> P | None: ...
 
-    def review(self, plan: Plan, belief: Belief) -> object: ...
+    def review(self, plan: P, belief: Belief) -> object: ...

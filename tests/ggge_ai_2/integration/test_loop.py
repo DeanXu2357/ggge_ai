@@ -406,6 +406,22 @@ def test_belief_equal_to_the_second_expected_belief_is_no_mismatch():
     assert len(controller.thought) == 1
 
 
+def test_step_without_expected_beliefs_builds_no_prediction(caplog: pytest.LogCaptureFixture):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    blind = Step("auto_toggle", TAP, BAND, DEADLINE, ())
+    plan = ScriptedPlan([blind] * (MISMATCH_LIMIT + 1))
+    cycles = MISMATCH_LIMIT + 2
+    controller = ScriptedController([plan, None], goals=[False] * (cycles - 1) + [True])
+    frames = [shot for n in range(1, cycles + 1) for shot in still(n, 10.0 + n * 0.5)]
+    shows = dict.fromkeys(range(1, cycles + 1), Screen.STORY_STAGE_LIST)
+    actuator = FakeActuator()
+
+    assert make_agent(FakeStream(frames), shows, controller, actuator).run() is RunResult.DONE
+    assert len(actuator.sent) == MISMATCH_LIMIT + 1
+    assert logged(caplog, "matches") == []
+    assert len(controller.thought) == 1
+
+
 def test_wait_step_sends_no_gesture_and_is_compared_on_the_next_cycle(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ):

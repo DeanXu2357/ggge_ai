@@ -65,14 +65,14 @@ class Predicted:
 
 
 @dataclass
-class Agent:
+class Agent[P: Plan]:
     stream: Stream
     actuator: Actuator
     interpreter: Interpreter
     mapparser: MapParser
     mapgeom: MapGeometry
     uisim: UiSim
-    plan_controller: PlanController
+    plan_controller: PlanController[P]
     belief: Belief
     stop: Event = field(default_factory=Event)
     runlog: RunLog | None = None
@@ -82,7 +82,7 @@ class Agent:
     _outside_candidates: bool = field(default=False, init=False)
 
     def run(self) -> RunResult:
-        plan: Plan | None = None
+        plan: P | None = None
         predicted: Predicted | None = None
         mismatches = 0
         history: list[object] = []
@@ -133,7 +133,10 @@ class Agent:
             dispatch = self.act(step)
             self._record(predicted, matched, step)
             if not passing:
-                predicted = None if dispatch is None else self.predict(step, dispatch)
+                if dispatch is None or not step.expected:
+                    predicted = None
+                else:
+                    predicted = self.predict(step, dispatch)
         return RunResult.STOPPED
 
     def sense(self) -> Sensed | None:
