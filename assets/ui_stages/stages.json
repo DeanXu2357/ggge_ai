@@ -3241,6 +3241,22 @@
       ]
     },
     {
+      "name": "login_page",
+      "zh": "每日登入獎勵頁",
+      "kind": "page",
+      "control": "player",
+      "description": "每日登入獎勵：左邊是角色立繪，右邊「LOGIN BONUS」面板，面板裡是一排 DAY 獎勵格（已領取的打勾），底部「- TAP TO NEXT -」，右上「略過」，沒有主導覽列。",
+      "buttons": [
+        {
+          "name": "login_page__skip",
+          "zh": "略過",
+          "description": "右上「略過」",
+          "to": [],
+          "deadline": 15.0
+        }
+      ]
+    },
+    {
       "name": "mech_promote_check",
       "zh": "機體突破界限確認頁",
       "kind": "overlay",
