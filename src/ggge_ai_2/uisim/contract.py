@@ -57,17 +57,23 @@ class UiScreen(StrEnum):
     WIN_CONDITION_OVERLAY = "win_condition_overlay"
 
 
+class UiAutoMode(StrEnum):
+    FULL = "full"
+    SEMI = "semi"
+    MANUAL = "manual"
+
+
 @dataclass(frozen=True)
 class UiState:
     screen: UiScreen
     caller: UiScreen | None = None
-    auto: bool | None = None
+    auto: UiAutoMode | None = None
 
 
 @dataclass(frozen=True)
 class Observed:
     screen: UiScreen
-    auto: bool | None = None
+    auto: UiAutoMode | None = None
 
 
 @dataclass(frozen=True)

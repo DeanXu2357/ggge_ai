@@ -14,7 +14,7 @@ from ggge_ai_2.agent.generic_plans import (
 )
 from ggge_ai_2.mapgeom.contract import KnownMap
 from ggge_ai_2.stream.contract import StillWindow
-from ggge_ai_2.uisim.contract import UiScreen, UiState
+from ggge_ai_2.uisim.contract import UiAutoMode, UiScreen, UiState
 from ggge_ai_2.uisim.stage_sim import StageUiSim
 from ggge_ai_2.uisim.stages import load_stages
 from tests.ggge_ai_2.fakes.domain import FakeDomain
@@ -83,7 +83,7 @@ def test_tap_plan_taps_the_centre_only_on_a_tap_to_continue_frame():
     assert step.expected == (passing(Passing.TAP_TO_CONTINUE),)
 
 
-def on(screen: UiScreen, auto: bool | None, until: float = 10.0) -> Belief:
+def on(screen: UiScreen, auto: UiAutoMode | None, until: float = 10.0) -> Belief:
     return replace(
         belief(), ui=UiState(screen, None, auto), as_of=StillWindow(until - 0.5, until, 1)
     )
@@ -91,31 +91,44 @@ def on(screen: UiScreen, auto: bool | None, until: float = 10.0) -> Belief:
 
 OVERVIEW = UiScreen.PLAYER_PHASE_OVERVIEW
 TOGGLE = "player_phase_overview__auto"
+FULL, SEMI, MANUAL = UiAutoMode.FULL, UiAutoMode.SEMI, UiAutoMode.MANUAL
 
 
 def pending(at: float = 10.0) -> AutoOffPlan:
     plan = AutoOffPlan(BATTLE_SIM, SCREEN)
-    plan.next(on(OVERVIEW, auto=True, until=at))
+    plan.next(on(OVERVIEW, auto=FULL, until=at))
     return plan
 
 
-def test_auto_on_taps_the_toggle_without_a_prediction_and_becomes_pending():
+def test_full_taps_the_toggle_without_a_prediction_and_becomes_pending():
     plan = AutoOffPlan(BATTLE_SIM, SCREEN)
 
     assert plan.phase() is AutoOffPhase.UNTOUCHED
-    assert plan.still_valid(on(OVERVIEW, auto=True))
-    step = plan.next(on(OVERVIEW, auto=True, until=10.0))
+    assert plan.still_valid(on(OVERVIEW, auto=FULL))
+    step = plan.next(on(OVERVIEW, auto=FULL, until=10.0))
     assert step.name == TOGGLE
     assert step.gesture is not None
     assert step.expected == ()
     assert plan.phase() is AutoOffPhase.PENDING
 
 
-def test_pending_with_auto_on_inside_the_deadline_waits():
+def test_semi_with_untouched_is_valid_and_taps():
+    plan = AutoOffPlan(BATTLE_SIM, SCREEN)
+
+    assert plan.still_valid(on(OVERVIEW, auto=SEMI))
+    assert plan.next(on(OVERVIEW, auto=SEMI)).name == TOGGLE
+    assert plan.phase() is AutoOffPhase.PENDING
+
+
+def test_manual_with_untouched_is_invalid():
+    assert not AutoOffPlan(BATTLE_SIM, SCREEN).still_valid(on(OVERVIEW, auto=MANUAL))
+
+
+def test_pending_with_the_tapped_mode_inside_the_deadline_waits():
     plan = pending(at=10.0)
     inside = 10.0 + AutoOffPlan.CONFIRM_DEADLINE - 0.1
 
-    step = plan.next(on(OVERVIEW, auto=True, until=inside))
+    step = plan.next(on(OVERVIEW, auto=FULL, until=inside))
 
     assert (step.name, step.gesture, step.band, step.deadline, step.expected) == (
         "auto_off_wait",
@@ -125,49 +138,67 @@ def test_pending_with_auto_on_inside_the_deadline_waits():
         (),
     )
     assert plan.phase() is AutoOffPhase.PENDING
-    assert plan.next(on(OVERVIEW, auto=True, until=inside)).name == "auto_off_wait"
+    assert plan.next(on(OVERVIEW, auto=FULL, until=inside)).name == "auto_off_wait"
 
 
-def test_pending_with_auto_on_past_the_deadline_taps_again_and_restarts_the_deadline():
+def test_pending_with_the_tapped_mode_past_the_deadline_taps_again_and_restarts_the_deadline():
     plan = pending(at=10.0)
     past = 10.0 + AutoOffPlan.CONFIRM_DEADLINE
 
-    assert plan.next(on(OVERVIEW, auto=True, until=past)).name == TOGGLE
+    assert plan.next(on(OVERVIEW, auto=FULL, until=past)).name == TOGGLE
     assert plan.phase() is AutoOffPhase.PENDING
     inside_new = past + AutoOffPlan.CONFIRM_DEADLINE - 0.1
-    assert plan.next(on(OVERVIEW, auto=True, until=inside_new)).name == "auto_off_wait"
+    assert plan.next(on(OVERVIEW, auto=FULL, until=inside_new)).name == "auto_off_wait"
 
 
-def test_only_pending_with_auto_off_awaits_confirmation():
+def test_pending_with_semi_after_a_tap_on_full_inside_the_deadline_taps_again():
+    plan = pending(at=10.0)
+    inside = 10.0 + AutoOffPlan.CONFIRM_DEADLINE - 0.1
+
+    assert plan.next(on(OVERVIEW, auto=SEMI, until=inside)).name == TOGGLE
+    assert plan.phase() is AutoOffPhase.PENDING
+    assert plan.next(on(OVERVIEW, auto=SEMI, until=inside + 0.1)).name == "auto_off_wait"
+
+
+def test_pending_with_semi_past_the_deadline_taps_again():
+    plan = pending(at=10.0)
+    past = 10.0 + AutoOffPlan.CONFIRM_DEADLINE
+
+    assert plan.next(on(OVERVIEW, auto=SEMI, until=past)).name == TOGGLE
+    assert plan.phase() is AutoOffPhase.PENDING
+
+
+def test_only_pending_with_manual_awaits_confirmation():
     untouched = AutoOffPlan(BATTLE_SIM, SCREEN)
-    confirmed = pending().confirmed(on(OVERVIEW, auto=False))
+    confirmed = pending().confirmed(on(OVERVIEW, auto=MANUAL))
 
-    assert pending().awaiting_confirmation(on(OVERVIEW, auto=False))
-    assert not pending().awaiting_confirmation(on(OVERVIEW, auto=True))
-    assert not untouched.awaiting_confirmation(on(OVERVIEW, auto=False))
-    assert not confirmed.awaiting_confirmation(on(OVERVIEW, auto=False))
+    assert pending().awaiting_confirmation(on(OVERVIEW, auto=MANUAL))
+    assert not pending().awaiting_confirmation(on(OVERVIEW, auto=FULL))
+    assert not pending().awaiting_confirmation(on(OVERVIEW, auto=SEMI))
+    assert not untouched.awaiting_confirmation(on(OVERVIEW, auto=MANUAL))
+    assert not confirmed.awaiting_confirmation(on(OVERVIEW, auto=MANUAL))
 
 
 def test_confirmed_returns_a_confirmed_copy_and_keeps_the_original():
     plan = pending(at=10.0)
 
-    copy = plan.confirmed(on(OVERVIEW, auto=False))
+    copy = plan.confirmed(on(OVERVIEW, auto=MANUAL))
 
     assert copy.phase() is AutoOffPhase.CONFIRMED
     assert plan.phase() is AutoOffPhase.PENDING
 
 
 def test_confirmed_copy_keeps_the_tap_time():
-    copy = pending(at=10.0).confirmed(on(OVERVIEW, auto=False))
+    copy = pending(at=10.0).confirmed(on(OVERVIEW, auto=MANUAL))
 
-    assert copy == pending(at=10.0).confirmed(on(OVERVIEW, auto=False))
-    assert copy != pending(at=20.0).confirmed(on(OVERVIEW, auto=False))
+    assert copy == pending(at=10.0).confirmed(on(OVERVIEW, auto=MANUAL))
+    assert copy != pending(at=20.0).confirmed(on(OVERVIEW, auto=MANUAL))
 
 
 def test_confirmed_without_the_confirmation_returns_an_equal_copy():
     plan = pending(at=10.0)
 
-    copy = plan.confirmed(on(OVERVIEW, auto=True))
+    copy = plan.confirmed(on(OVERVIEW, auto=SEMI))
 
     assert copy == plan
     assert copy is not plan
@@ -186,4 +217,4 @@ def test_pending_on_a_screen_without_auto_stays_pending():
 def test_auto_plan_is_invalid_without_the_toggle_operation():
     plan = AutoOffPlan(BATTLE_SIM, SCREEN)
 
-    assert not plan.still_valid(on(UiScreen.BATTLE_MAIN_SETTING, auto=True))
+    assert not plan.still_valid(on(UiScreen.BATTLE_MAIN_SETTING, auto=FULL))

@@ -15,11 +15,11 @@ from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSourc
 from ggge_ai_2.agent.contract import Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
 from ggge_ai_2.agent.runlog import RunLog
-from ggge_ai_2.interpreter.contract import Screen, Situation
+from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation
 from ggge_ai_2.mapgeom.contract import Alignment, KnownMap
 from ggge_ai_2.mapparser.contract import MapReading, ViewCell
 from ggge_ai_2.stream.contract import Frame, Observation, StillWindow
-from ggge_ai_2.uisim.contract import Operation, Outcome, UiScreen, UiState
+from ggge_ai_2.uisim.contract import Operation, Outcome, UiAutoMode, UiScreen, UiState
 from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
@@ -89,7 +89,7 @@ class StoppingStream(FakeStream):
 @dataclass
 class FakeInterpreter:
     shows: dict[int, Screen]
-    autos: dict[int, bool] = field(default_factory=dict[int, bool])
+    autos: dict[int, AutoMode] = field(default_factory=dict[int, AutoMode])
 
     def interpret(self, frame: Frame, candidates: frozenset[Screen]) -> Situation | None:
         screen = self.shows.get(frame.seq)
@@ -199,13 +199,15 @@ def test_different_auto_values_do_not_settle():
     stream = FakeStream([frame(1, 1.0), frame(2, 1.4), frame(3, 1.8)])
     shows = dict.fromkeys(range(1, 4), Screen.SORTIE_PREP)
     agent = make_agent(stream, shows, ScriptedController([], goals=[]))
-    agent.interpreter = FakeInterpreter(shows, {1: False, 2: True, 3: True})
+    agent.interpreter = FakeInterpreter(
+        shows, {1: AutoMode.MANUAL, 2: AutoMode.SEMI, 3: AutoMode.SEMI}
+    )
 
     sensed = agent.sense()
 
     assert sensed is not None
     assert sensed.still == StillWindow(1.4, 1.8, 3)
-    assert sensed.observed is not None and sensed.observed.auto is True
+    assert sensed.observed is not None and sensed.observed.auto is UiAutoMode.SEMI
 
 
 def test_stop_request_during_unsettled_frames_ends_the_loop():
@@ -503,6 +505,18 @@ def test_run_log_records_one_line_per_cycle_and_saves_only_the_mismatching_frame
     assert [r["frame"] for r in records] == ["000001.jpg", "000002.jpg", "000003.jpg", "000004.jpg"]
     assert [r["time"] for r in records] == [1.0, 11.0, 12.0, 13.0]
     assert sorted(path.name for path in (run_dir / "frames").glob("*.png")) == ["000003.png"]
+
+
+def test_run_log_records_the_auto_mode_value(tmp_path: Path):
+    stream = FakeStream(still(1, 1.0))
+    shows = {1: Screen.BATTLE_INFO_PREVIEW}
+    run_dir = tmp_path / "run"
+    agent = make_agent(stream, shows, ScriptedController([], goals=[True]), runlog=RunLog(run_dir))
+    agent.interpreter = FakeInterpreter(shows, {1: AutoMode.SEMI})
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["auto"] for line in lines] == ["semi"]
 
 
 def screen_sized(seq: int, at: float) -> list[Frame]:

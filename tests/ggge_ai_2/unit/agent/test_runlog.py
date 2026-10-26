@@ -18,7 +18,7 @@ def entry(frame_seq: int) -> StepRecord:
         interpreted="sortie_prep",
         believed="story_stage_list",
         caller=None,
-        auto=True,
+        auto="semi",
         passing=None,
         expected=("sortie_prep", "ap_recovery_overlay"),
         matched=False,

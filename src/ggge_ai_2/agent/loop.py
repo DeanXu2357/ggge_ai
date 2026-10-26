@@ -10,12 +10,13 @@ from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, Sensed, UiSource
 from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.agent.contract import Plan, PlanController, Step
 from ggge_ai_2.agent.runlog import RunLog, StepRecord, thumbnail_name
-from ggge_ai_2.interpreter.contract import Interpreter, Screen, Situation
+from ggge_ai_2.interpreter.contract import AutoMode, Interpreter, Screen, Situation
 from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent, LocalBoard, MapGeometry
 from ggge_ai_2.mapparser.contract import MapParser, MapReading
 from ggge_ai_2.stream.contract import Frame, StillWindow, Stream
 from ggge_ai_2.uisim.contract import (
     Observed,
+    UiAutoMode,
     UiScreen,
     UiSim,
 )
@@ -254,7 +255,7 @@ class Agent[P: Plan]:
             interpreted=None if self._situation is None else self._situation.screen.value,
             believed=ui.screen.value,
             caller=None if ui.caller is None else ui.caller.value,
-            auto=ui.auto,
+            auto=None if ui.auto is None else ui.auto.value,
             passing=None if passing is None else passing.value,
             expected=()
             if predicted is None
@@ -300,14 +301,15 @@ def _cycle_summary(entry: StepRecord) -> str:
     )
 
 
-def _reading(situation: Situation | None) -> tuple[Screen, bool | None] | None:
+def _reading(situation: Situation | None) -> tuple[Screen, AutoMode | None] | None:
     return None if situation is None else (situation.screen, situation.auto)
 
 
 def _situation_to_observed(situation: Situation | None) -> Observed | None:
     if situation is None:
         return None
-    return Observed(UiScreen(situation.screen.value), situation.auto)
+    auto = None if situation.auto is None else UiAutoMode(situation.auto.value)
+    return Observed(UiScreen(situation.screen.value), auto)
 
 
 def _map_reading_to_local_board(reading: MapReading | None) -> LocalBoard | None:

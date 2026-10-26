@@ -9,7 +9,7 @@ from ggge_ai_2.actuator.contract import Swipe, Tap
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock
 from ggge_ai_2.agent.contract import Step
 from ggge_ai_2.agent.ui_steps import operation_step
-from ggge_ai_2.uisim.contract import Operation, UiSim
+from ggge_ai_2.uisim.contract import Operation, UiAutoMode, UiSim
 
 
 @dataclass(frozen=True)
@@ -85,29 +85,35 @@ class AutoOffPlan:
     screen: tuple[int, int]
     _phase: AutoOffPhase = field(default=AutoOffPhase.UNTOUCHED, init=False)
     _at: float | None = field(default=None, init=False)
+    _from: UiAutoMode | None = field(default=None, init=False)
 
     def still_valid(self, belief: Belief) -> bool:
-        return belief.ui.auto is True and self._toggle(belief) is not None
+        return belief.ui.auto in (UiAutoMode.FULL, UiAutoMode.SEMI) and (
+            self._toggle(belief) is not None
+        )
 
     def next(self, belief: Belief) -> Step:
         assert belief.as_of is not None, "the main loop plans only on a sensed belief"
         if (
             self._phase is AutoOffPhase.PENDING
+            and belief.ui.auto == self._from
             and self._at is not None
             and belief.as_of.until < self._at + self.CONFIRM_DEADLINE
         ):
-            # The frame can predate the reaction of the game. A second tap turns AUTO on again.
+            # The frame can predate the reaction of the game. Each tap moves AUTO one mode
+            # along the cycle, so a second tap can skip past the manual mode.
             return Step("auto_off_wait", None, (), 0.0, ())
         toggle = self._toggle(belief)
         assert toggle is not None, "the main loop takes a step only from a valid plan"
         self._phase, self._at = AutoOffPhase.PENDING, belief.as_of.until
+        self._from = belief.ui.auto
         return replace(operation_step(toggle, belief, self.uisim, self.screen), expected=())
 
     def phase(self) -> AutoOffPhase:
         return self._phase
 
     def awaiting_confirmation(self, belief: Belief) -> bool:
-        return self._phase is AutoOffPhase.PENDING and belief.ui.auto is False
+        return self._phase is AutoOffPhase.PENDING and belief.ui.auto is UiAutoMode.MANUAL
 
     def confirmed(self, belief: Belief) -> AutoOffPlan:
         twin = copy.copy(self)

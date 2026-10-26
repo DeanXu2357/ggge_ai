@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from ggge_ai_2.uisim.contract import (
     DangerBand,
     Observed,
     Operation,
     Outcome,
     RatioRect,
+    UiAutoMode,
     UiScreen,
     UiState,
     UiSwipe,
@@ -165,26 +168,35 @@ def test_auto_is_carried_only_into_screens_with_an_auto_button() -> None:
         _screen("battle_score_result"),
     )
 
-    operation = _operation(sim, UiState(UiScreen.BATTLE_PREP_ATTACK, auto=True), "go")
+    state = UiState(UiScreen.BATTLE_PREP_ATTACK, auto=UiAutoMode.SEMI)
+    operation = _operation(sim, state, "go")
 
     assert [outcome.then for outcome in operation.outcomes] == [
-        UiState(UiScreen.PLAYER_PHASE_OVERVIEW, None, True),
+        UiState(UiScreen.PLAYER_PHASE_OVERVIEW, None, UiAutoMode.SEMI),
         UiState(UiScreen.BATTLE_SCORE_RESULT, None, None),
     ]
 
 
-def test_auto_toggle_flips_the_known_auto_state() -> None:
+@pytest.mark.parametrize(
+    ("mode", "then", "label"),
+    [
+        (UiAutoMode.FULL, UiAutoMode.SEMI, "auto_semi"),
+        (UiAutoMode.SEMI, UiAutoMode.MANUAL, "auto_manual"),
+        (UiAutoMode.MANUAL, UiAutoMode.FULL, "auto_full"),
+    ],
+)
+def test_auto_toggle_moves_to_the_next_mode_in_the_cycle(
+    mode: UiAutoMode, then: UiAutoMode, label: str
+) -> None:
     sim = _sim(_screen("battle_prep_attack", (_button("battle_prep_attack__auto"),)))
-    state = UiState(UiScreen.BATTLE_PREP_ATTACK, auto=False)
+    state = UiState(UiScreen.BATTLE_PREP_ATTACK, auto=mode)
 
     operation = _operation(sim, state, "battle_prep_attack__auto")
 
     assert operation.gesture == UiTap((0.5, 0.5))
-    assert operation.outcomes == (
-        Outcome("auto_on", UiState(UiScreen.BATTLE_PREP_ATTACK, None, True)),
-    )
+    assert operation.outcomes == (Outcome(label, UiState(UiScreen.BATTLE_PREP_ATTACK, None, then)),)
     assert sim.advance(state, operation.outcomes[0]) == UiState(
-        UiScreen.BATTLE_PREP_ATTACK, None, True
+        UiScreen.BATTLE_PREP_ATTACK, None, then
     )
 
 
@@ -327,11 +339,14 @@ def test_real_battle_menu_close_returns_to_the_caller() -> None:
 
 
 def test_sync_entering_a_group_sets_the_caller_to_the_previous_screen() -> None:
-    state = UiState(UiScreen.BATTLE_PREP_ATTACK, auto=False)
+    state = UiState(UiScreen.BATTLE_PREP_ATTACK, auto=UiAutoMode.MANUAL)
+    observed = Observed(UiScreen.BATTLE_MAIN_SETTING, auto=UiAutoMode.FULL)
 
-    synced = _menu_sim().sync(state, Observed(UiScreen.BATTLE_MAIN_SETTING, auto=True))
+    synced = _menu_sim().sync(state, observed)
 
-    assert synced == UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK, True)
+    assert synced == UiState(
+        UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK, UiAutoMode.FULL
+    )
 
 
 def test_sync_moving_inside_a_group_keeps_the_caller() -> None:
@@ -345,9 +360,11 @@ def test_sync_moving_inside_a_group_keeps_the_caller() -> None:
 def test_sync_leaving_a_group_clears_the_caller() -> None:
     state = UiState(UiScreen.BATTLE_SETTINGS_IN_BATTLE, UiScreen.BATTLE_PREP_ATTACK)
 
-    synced = _menu_sim().sync(state, Observed(UiScreen.PLAYER_PHASE_OVERVIEW, auto=False))
+    observed = Observed(UiScreen.PLAYER_PHASE_OVERVIEW, auto=UiAutoMode.MANUAL)
 
-    assert synced == UiState(UiScreen.PLAYER_PHASE_OVERVIEW, None, False)
+    synced = _menu_sim().sync(state, observed)
+
+    assert synced == UiState(UiScreen.PLAYER_PHASE_OVERVIEW, None, UiAutoMode.MANUAL)
 
 
 def test_danger_band_holds_the_forbidden_button_rect() -> None:

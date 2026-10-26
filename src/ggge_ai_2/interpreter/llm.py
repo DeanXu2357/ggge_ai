@@ -18,9 +18,8 @@ ANSWER_SCHEMA: dict[str, object] = {
     "properties": {
         "reason": {"type": "string"},
         "screen": {"type": "string"},
-        "auto": {"type": ["boolean", "null"]},
     },
-    "required": ["reason", "screen", "auto"],
+    "required": ["reason", "screen"],
     "additionalProperties": False,
 }
 
@@ -28,7 +27,6 @@ ANSWER_SCHEMA: dict[str, object] = {
 class Answer(BaseModel):
     reason: str
     screen: str
-    auto: bool | None
 
 
 @dataclass(frozen=True)
@@ -87,7 +85,6 @@ class LlmInterpreter:
             extra={
                 "frame_seq": frame.seq,
                 "screen": answer.screen,
-                "auto": answer.auto,
                 "reason": answer.reason,
                 "cache_read_input_tokens": response.usage.cache_read_input_tokens,
                 "input_tokens": response.usage.input_tokens,
@@ -95,7 +92,7 @@ class LlmInterpreter:
         )
         if answer.screen not in Screen:
             return None
-        return Situation(frame.seq, Screen(answer.screen), answer.auto)
+        return Situation(frame.seq, Screen(answer.screen))
 
     def _encode(self, frame: Frame) -> str:
         h, w = frame.image.shape[:2]

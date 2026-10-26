@@ -34,11 +34,17 @@ class Screen(StrEnum):
     MAP_PASSING = "map_passing"
 
 
+class AutoMode(StrEnum):
+    FULL = "full"
+    SEMI = "semi"
+    MANUAL = "manual"
+
+
 @dataclass(frozen=True)
 class Situation:
     frame_seq: int
     screen: Screen
-    auto: bool | None = None
+    auto: AutoMode | None = None
 
 
 class Interpreter(Protocol):

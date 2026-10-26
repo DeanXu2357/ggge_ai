@@ -10,6 +10,7 @@ from ggge_ai_2.uisim.contract import (
     Outcome,
     RatioPoint,
     RatioRect,
+    UiAutoMode,
     UiGesture,
     UiScreen,
     UiState,
@@ -24,6 +25,11 @@ WAIT_SECONDS = 60.0
 AUTO_SUFFIX = "__auto"
 PASS_THROUGH_KINDS = frozenset({"animation", "loading"})
 _SCREEN_VALUES = frozenset(screen.value for screen in UiScreen)
+NEXT_AUTO_MODE = {
+    UiAutoMode.FULL: UiAutoMode.SEMI,
+    UiAutoMode.SEMI: UiAutoMode.MANUAL,
+    UiAutoMode.MANUAL: UiAutoMode.FULL,
+}
 
 
 @dataclass(frozen=True)
@@ -41,7 +47,7 @@ class StageUiSim:
                 operations.append(operation)
         for button in screen.buttons:
             if _is_auto(button) and button.rect is not None and state.auto is not None:
-                operations.append(self._auto_toggle(state, button, button.rect))
+                operations.append(self._auto_toggle(state, state.auto, button, button.rect))
         wait = self._wait_operation(state, screen)
         if wait is not None:
             operations.append(wait)
@@ -105,11 +111,11 @@ class StageUiSim:
             cost=1.0,
         )
 
-    def _auto_toggle(self, state: UiState, button: ButtonDef, rect: RatioRect) -> Operation:
-        outcome = Outcome(
-            "auto_off" if state.auto else "auto_on",
-            UiState(state.screen, state.caller, not state.auto),
-        )
+    def _auto_toggle(
+        self, state: UiState, mode: UiAutoMode, button: ButtonDef, rect: RatioRect
+    ) -> Operation:
+        then = NEXT_AUTO_MODE[mode]
+        outcome = Outcome(f"auto_{then.value}", UiState(state.screen, state.caller, then))
         return Operation(button.name, state, UiTap(_centre(rect)), (outcome,), button.deadline, 1.0)
 
     def _wait_operation(self, state: UiState, screen: ScreenDef) -> Operation | None:
@@ -142,7 +148,7 @@ class StageUiSim:
             if screen.value in group.entry or screen.value in group.inside
         )
 
-    def _carried_auto(self, state: UiState, target: UiScreen) -> bool | None:
+    def _carried_auto(self, state: UiState, target: UiScreen) -> UiAutoMode | None:
         screen = self.stages.screens.get(target.value)
         if screen is None or not any(_is_auto(button) for button in screen.buttons):
             return None

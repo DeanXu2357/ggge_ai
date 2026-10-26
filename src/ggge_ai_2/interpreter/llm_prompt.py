@@ -36,12 +36,6 @@ _BATTLE_TITLE_RULES = (
     "'戰鬥準備 -應戰-' with an orange '開始戰鬥' button means battle_prep_response_attack.",
 )
 
-_AUTO_RULE = (
-    "Report auto as true or false only when the screen has the AUTO button at the top right;"
-    " otherwise report null. During the enemy turn the AUTO button can look lit;"
-    " that is not auto mode."
-)
-
 _ANSWER_RULES = (
     "screen is one of the screen values above, one of the pass-through values, or 'unknown'"
     " when no entry fits. Do not pick the closest screen when none fits; answer 'unknown'."
@@ -58,7 +52,6 @@ def system_prompt(stages: Mapping[str, object]) -> str:
     lines += [f"- {Screen.MAP_PASSING.value}: {_MAP_PASSING_LINE}"]
     lines += ["", "# Battle title rules"]
     lines += [f"- {rule}" for rule in _BATTLE_TITLE_RULES]
-    lines += ["", "# AUTO", str(stages["auto_mode_description"]), _AUTO_RULE]
     lines += ["", "# Answer rules", _ANSWER_RULES]
     return "\n".join(lines) + "\n"
 

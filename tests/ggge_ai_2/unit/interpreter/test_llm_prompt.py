@@ -34,3 +34,12 @@ def test_missing_screen_raises_key_error() -> None:
 
     with pytest.raises(KeyError):
         system_prompt(stages)
+
+
+def test_prompt_does_not_ask_for_auto() -> None:
+    stages = _real_stages()
+    prompt = system_prompt(stages)
+
+    assert "# AUTO" not in prompt
+    assert str(stages["auto_mode_description"]) not in prompt
+    assert "report null" not in prompt

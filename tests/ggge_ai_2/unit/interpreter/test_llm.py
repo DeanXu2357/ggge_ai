@@ -48,8 +48,8 @@ class _Client:
     messages: _Messages
 
 
-def _answer(screen: str, auto: bool | None = None) -> _Response:
-    text = json.dumps({"screen": screen, "auto": auto, "reason": "test"})
+def _answer(screen: str) -> _Response:
+    text = json.dumps({"screen": screen, "reason": "test"})
     return _Response([_Block(text)])
 
 
@@ -66,18 +66,12 @@ def _frame() -> Frame:
 CANDIDATES = frozenset({Screen.SORTIE_PREP, Screen.BATTLE_MAIN_SETTING})
 
 
-def test_known_screen_returns_situation_with_auto() -> None:
-    interpreter, _ = _interpreter(_answer("player_phase_overview", auto=True))
+def test_known_screen_returns_situation_without_auto() -> None:
+    interpreter, _ = _interpreter(_answer("player_phase_overview"))
 
     situation = interpreter.interpret(_frame(), CANDIDATES)
 
-    assert situation == Situation(7, Screen.PLAYER_PHASE_OVERVIEW, True)
-
-
-def test_null_auto_passes_through() -> None:
-    interpreter, _ = _interpreter(_answer("sortie_prep"))
-
-    assert interpreter.interpret(_frame(), CANDIDATES) == Situation(7, Screen.SORTIE_PREP, None)
+    assert situation == Situation(7, Screen.PLAYER_PHASE_OVERVIEW, auto=None)
 
 
 def test_unknown_returns_none() -> None:
@@ -126,13 +120,12 @@ def test_schema_lists_reason_first() -> None:
     assert list(cast(dict[str, object], ANSWER_SCHEMA["properties"])) == [
         "reason",
         "screen",
-        "auto",
     ]
-    assert ANSWER_SCHEMA["required"] == ["reason", "screen", "auto"]
+    assert ANSWER_SCHEMA["required"] == ["reason", "screen"]
 
 
 def test_answer_is_logged_with_usage(caplog: pytest.LogCaptureFixture) -> None:
-    interpreter, _ = _interpreter(_answer("sortie_prep", auto=False))
+    interpreter, _ = _interpreter(_answer("sortie_prep"))
 
     with caplog.at_level(logging.INFO):
         interpreter.interpret(_frame(), CANDIDATES)
@@ -140,7 +133,7 @@ def test_answer_is_logged_with_usage(caplog: pytest.LogCaptureFixture) -> None:
     record = next(r for r in caplog.records if r.getMessage() == "llm answer")
     assert record.__dict__["frame_seq"] == 7
     assert record.__dict__["screen"] == "sortie_prep"
-    assert record.__dict__["auto"] is False
+    assert "auto" not in record.__dict__
     assert record.__dict__["cache_read_input_tokens"] == 2000
     assert record.__dict__["input_tokens"] == 100
 

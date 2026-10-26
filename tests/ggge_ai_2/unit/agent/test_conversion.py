@@ -5,10 +5,10 @@ from ggge_ai_2.agent.loop import (
     _map_reading_to_local_board,
     _situation_to_observed,
 )
-from ggge_ai_2.interpreter.contract import Screen, Situation
+from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation
 from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent
 from ggge_ai_2.mapparser.contract import CellReading, Edge, MapReading
-from ggge_ai_2.uisim.contract import Observed, UiScreen
+from ggge_ai_2.uisim.contract import Observed, UiAutoMode, UiScreen
 
 
 def observed(situation: Situation) -> Observed:
@@ -30,11 +30,13 @@ def test_every_game_screen_of_the_interpreter_converts_to_one_screen_of_uisim():
     ]
 
 
-def test_every_auto_state_of_the_interpreter_converts_to_the_same_auto_state_of_uisim():
-    states = [True, False, None]
-    on_map = [Situation(1, Screen.PLAYER_PHASE_OVERVIEW, auto) for auto in states]
+def test_every_auto_mode_of_the_interpreter_converts_to_the_same_auto_mode_of_uisim():
+    on_map = [Situation(1, Screen.PLAYER_PHASE_OVERVIEW, mode) for mode in AutoMode]
 
-    assert [observed(situation).auto for situation in on_map] == states
+    assert [observed(situation).auto for situation in on_map] == [
+        UiAutoMode(mode.value) for mode in AutoMode
+    ]
+    assert observed(Situation(1, Screen.PLAYER_PHASE_OVERVIEW, None)).auto is None
 
 
 def test_situation_without_an_auto_button_has_no_auto_state():

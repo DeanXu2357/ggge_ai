@@ -19,7 +19,7 @@ class StepRecord:
     interpreted: str | None
     believed: str
     caller: str | None
-    auto: bool | None
+    auto: str | None
     passing: str | None
     expected: tuple[str, ...]
     matched: bool | None
