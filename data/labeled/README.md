@@ -18,27 +18,33 @@ change the dataset, edit the files here: add or remove a frame in
 ## Source
 
 The first version (2026-10-26) comes from the frames of the recording
-`data/ui_recordings/20261014-234132` that the user reviewed. The recording
-is not in git. `source`, `index` and `sha256` in each row point back to the
-recording frame.
+`data/ui_recordings/20261014-234132` that the user reviewed. Later cases
+come from device runs in `data/runs/`. The sources are not in git.
+`source`, `index` and `sha256` in each row point back to the source frame.
 
 ## Files
 
-- `frames/`: the full frames, 2340x1080 JPG.
-- `cases.jsonl`: one row for each frame, sorted by `index`.
+- `frames/`: the full frames, 2340x1080. Recording frames are JPG with the
+  recording file name. Run frames are PNG, named `run<run>_<index>.png`.
+- `cases.jsonl`: one row for each frame, sorted by `source`, then `index`.
 
 ## Fields of `cases.jsonl`
 
-- `id`: the case ID, `rec20261014-<index>`.
-- `source`: the recording directory.
-- `index`: the frame index in the recording.
+- `id`: the case ID, `rec20261014-<index>` or `run<run>-<index>`.
+- `source`: the recording directory or the run directory.
+- `index`: the frame index in the recording, or the frame sequence number
+  of the run.
 - `file`: the frame file name.
-- `t`: the frame time in seconds from the start of the recording.
+- `t`: the frame time in seconds from the start of the recording. `null`
+  for a run frame.
 - `sha256`: the SHA-256 of the frame file.
 - `screen`: the screen name, as in `assets/ui_stages/stages.json`.
 - `transition`: `true` when the frame shows a transition.
-
-The dataset does not hold the AUTO mode.
+- `auto`: the AUTO mode: `full` (blue), `semi` (red) or `manual` (white).
+  `null` when the screen has no AUTO button.
+- `power_save`: `lock` (the power-save lock icon) or `dim` (the dimmed
+  screen). `null` when the frame is not in power save. `screen` is the
+  screen under the power-save overlay.
 
 ## Later work
 

@@ -1,22 +1,18 @@
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import cv2
-import numpy as np
 import pytest
 
 from ggge_ai_2.interpreter.contract import Screen, Situation
 from ggge_ai_2.interpreter.power_save_cue import (
-    LOCK_ICON_REGION,
-    LOCK_ICON_TEMPLATE,
     PowerSaveCueInterpreter,
+    lock_icon_score,
     power_save_screen,
 )
 from ggge_ai_2.stream.contract import Frame
+from tests.ggge_ai_2.dataset import Case, cases, load_image
 
-RUNS = Path(__file__).resolve().parents[4] / "data" / "runs"
-LOCK_FRAME = RUNS / "20261024-180258" / "frames" / "000130.png"
-DIM_FRAME = RUNS / "20261024-181550" / "frames" / "000006.png"
+POWER_SAVE_SCREENS = {"lock": Screen.POWER_SAVE_LOCK, "dim": Screen.POWER_SAVE_DIM, None: None}
 
 
 @dataclass
@@ -29,58 +25,34 @@ class _FakeInner:
         return self.situation
 
 
-def _uniform(gray: int) -> np.ndarray:
-    return np.full((1080, 2340, 3), gray, dtype=np.uint8)
+def _frame(case: Case) -> Frame:
+    return Frame(load_image(case), captured_at=1.0, seq=case.index)
 
 
-def _load(path: Path) -> np.ndarray:
-    if not path.exists():
-        pytest.skip(f"run frame is missing: {path}")
-    image = cv2.imread(str(path))
-    assert image is not None
-    return np.asarray(image)
+@pytest.mark.parametrize("case", cases(), ids=[case.id for case in cases()])
+def test_power_save_screen_reads_the_labeled_power_save(case: Case) -> None:
+    image = load_image(case)
+
+    assert power_save_screen(image) is POWER_SAVE_SCREENS[case.power_save], (
+        f"gray_mean={cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).mean():.1f} lock_icon_score={lock_icon_score(image):.3f}"
+    )
 
 
-def test_run_1_lock_frame_reads_lock() -> None:
-    assert power_save_screen(_load(LOCK_FRAME)) is Screen.POWER_SAVE_LOCK
+def test_power_save_frame_reads_without_the_inner() -> None:
+    case = next(case for case in cases() if case.power_save == "lock")
+    inner = _FakeInner(Situation(case.index, Screen.SERIES_LIST))
 
+    situation = PowerSaveCueInterpreter(inner).interpret(_frame(case), frozenset())
 
-def test_run_2_dim_frame_reads_dim() -> None:
-    assert power_save_screen(_load(DIM_FRAME)) is Screen.POWER_SAVE_DIM
-
-
-def test_bright_frame_goes_to_the_inner() -> None:
-    inner = _FakeInner(Situation(7, Screen.SERIES_LIST))
-    frame = Frame(_uniform(100), captured_at=1.0, seq=7)
-
-    situation = PowerSaveCueInterpreter(inner).interpret(frame, frozenset())
-
-    assert power_save_screen(frame.image) is None
-    assert situation == Situation(7, Screen.SERIES_LIST)
-    assert inner.calls == [7]
-
-
-def test_dark_frame_reads_dim_without_the_inner() -> None:
-    inner = _FakeInner(Situation(7, Screen.SERIES_LIST))
-    frame = Frame(_uniform(10), captured_at=1.0, seq=7)
-
-    situation = PowerSaveCueInterpreter(inner).interpret(frame, frozenset())
-
-    assert situation == Situation(7, Screen.POWER_SAVE_DIM, None)
+    assert situation == Situation(case.index, Screen.POWER_SAVE_LOCK, None)
     assert inner.calls == []
 
 
-def test_lock_icon_in_a_dark_frame_reads_lock() -> None:
-    template = cv2.imread(str(LOCK_ICON_TEMPLATE))
-    assert template is not None
-    image = _uniform(10)
-    x, y, _, _ = LOCK_ICON_REGION
-    h, w = template.shape[:2]
-    image[y + 10 : y + 10 + h, x + 10 : x + 10 + w] = template
-    inner = _FakeInner(None)
-    frame = Frame(image, captured_at=1.0, seq=3)
+def test_other_frame_goes_to_the_inner() -> None:
+    case = next(case for case in cases() if case.power_save is None)
+    inner = _FakeInner(Situation(case.index, Screen.SERIES_LIST))
 
-    situation = PowerSaveCueInterpreter(inner).interpret(frame, frozenset())
+    situation = PowerSaveCueInterpreter(inner).interpret(_frame(case), frozenset())
 
-    assert situation == Situation(3, Screen.POWER_SAVE_LOCK, None)
-    assert inner.calls == []
+    assert situation == Situation(case.index, Screen.SERIES_LIST)
+    assert inner.calls == [case.index]
