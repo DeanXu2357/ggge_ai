@@ -56,10 +56,17 @@ come from device runs in `data/runs/` and from device screenshots in
     `left`, `right`).
   - `units`: one entry for each unit: `pos`, the cell of its footprint with the
     least column and the least row, and `size`, its width and height in cells.
-    A large object can block more cells than the player can select it from.
-    `extra` lists those cells; `pos` and `size` give the cells that select it.
+    `pos` and `size` give the cells that the unit covers in the frame. A unit
+    whose cells are not a rectangle lists the cells outside the rectangle in
+    `extra`. The cells that select a unit are not in the dataset: one frame
+    does not show them.
   - `controllable`: the `pos` of the units that show the chevron (the
     units the player can still move).
+  - `selected`: the `pos` of the unit with the blue selection circle, or
+    `null`.
+  - `markers`: the cells of each marker: `move_range` (the double-line
+    cells of the move range), `threat` (the exclamation mark) and
+    `weapon_range` (the red cells of the weapon range).
 
 ## Later work
 

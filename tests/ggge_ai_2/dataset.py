@@ -23,6 +23,8 @@ class MapLabel:
     units: frozenset[tuple[tuple[int, int], tuple[int, int]]]
     controllable: frozenset[tuple[int, int]]
     occupied: frozenset[tuple[int, int]]
+    selected: tuple[int, int] | None
+    markers: dict[str, frozenset[tuple[int, int]]]
 
 
 @dataclass(frozen=True)
@@ -81,6 +83,13 @@ def _map_label(label: dict[str, Any]) -> MapLabel:
         occupied=frozenset(
             cell for unit in label["units"] for cell in _footprint(unit) + _extra(unit)
         ),
+        selected=None
+        if label["selected"] is None
+        else (int(label["selected"][0]), int(label["selected"][1])),
+        markers={
+            name: frozenset((int(x), int(y)) for x, y in marked)
+            for name, marked in label["markers"].items()
+        },
     )
 
 

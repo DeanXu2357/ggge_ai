@@ -42,6 +42,7 @@ class UnitReading:
     size: tuple[int, int]
     # None when the frame does not show the place of the chevron above the unit.
     controllable: bool | None
+    selected: bool
 
 
 @dataclass(frozen=True)

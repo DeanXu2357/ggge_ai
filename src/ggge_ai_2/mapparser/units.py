@@ -129,6 +129,7 @@ def read_units(
             controllable=None
             if chevrons is None
             else _controllable(lattice, visible, chevrons, footprint),
+            selected=False,
         )
         for footprint in sorted(footprints, key=lambda footprint: footprint.pos[::-1])
     )
