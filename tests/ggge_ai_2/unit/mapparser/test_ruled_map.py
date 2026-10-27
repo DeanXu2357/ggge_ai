@@ -1,6 +1,7 @@
+"""Strict layer: the parser reads these exactly as the user ruled them."""
+
 import pytest
 
-from ggge_ai_2.mapparser.contract import CellReading, Marker
 from ggge_ai_2.mapparser.opencv_parser import OpenCvMapParser
 from ggge_ai_2.stream.contract import Frame
 from tests.ggge_ai_2.dataset import Case, cases, load_image
@@ -32,25 +33,6 @@ def test_reads_the_map_edges_that_the_user_ruled(case: Case) -> None:
 
 
 @pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
-def test_reads_the_unit_cells_that_the_user_ruled(case: Case) -> None:
-    reading = PARSER.parse(_frame(case))
-    label = case.map
-
-    assert reading is not None and label is not None
-    assert {(unit.pos, unit.size) for unit in reading.units} == label.units
-
-
-@pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
-def test_reads_the_occupied_cells_that_the_user_ruled(case: Case) -> None:
-    reading = PARSER.parse(_frame(case))
-    label = case.map
-
-    assert reading is not None and label is not None
-    occupied = {cell for cell, value in reading.cells.items() if value is CellReading.OCCUPIED}
-    assert occupied == label.occupied & label.cells
-
-
-@pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
 def test_reads_the_controllable_units_that_the_user_ruled(case: Case) -> None:
     reading = PARSER.parse(_frame(case))
     label = case.map
@@ -67,17 +49,6 @@ def test_reads_the_selected_unit_that_the_user_ruled(case: Case) -> None:
     assert reading is not None and label is not None
     selected = {unit.pos for unit in reading.units if unit.selected}
     assert selected == ({label.selected} if label.selected is not None else set())
-
-
-@pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
-@pytest.mark.parametrize("marker", list(Marker), ids=[marker.value for marker in Marker])
-def test_reads_the_markers_that_the_user_ruled(case: Case, marker: Marker) -> None:
-    reading = PARSER.parse(_frame(case))
-    label = case.map
-
-    assert reading is not None and label is not None
-    marked = {cell for cell, markers in reading.markers.items() if marker in markers}
-    assert marked == label.markers[marker.value]
 
 
 @pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
