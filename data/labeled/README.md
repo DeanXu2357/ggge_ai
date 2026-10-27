@@ -19,13 +19,15 @@ change the dataset, edit the files here: add or remove a frame in
 
 The first version (2026-10-26) comes from the frames of the recording
 `data/ui_recordings/20261014-234132` that the user reviewed. Later cases
-come from device runs in `data/runs/`. The sources are not in git.
+come from device runs in `data/runs/` and from device screenshots in
+`data/map_samples/`. The sources are not in git.
 `source`, `index` and `sha256` in each row point back to the source frame.
 
 ## Files
 
 - `frames/`: the full frames, 2340x1080. Recording frames are JPG with the
-  recording file name. Run frames are PNG, named `run<run>_<index>.png`.
+  recording file name. Run frames are PNG, named `run<run>_<index>.png`. Screenshots are PNG,
+  named `map<day>_<index>.png`.
 - `cases.jsonl`: one row for each frame, sorted by `source`, then `index`.
 
 ## Fields of `cases.jsonl`
@@ -54,6 +56,8 @@ come from device runs in `data/runs/`. The sources are not in git.
     `left`, `right`).
   - `units`: one entry for each unit: `pos`, the cell of its footprint with the
     least column and the least row, and `size`, its width and height in cells.
+    A large object can block more cells than the player can select it from.
+    `extra` lists those cells; `pos` and `size` give the cells that select it.
   - `controllable`: the `pos` of the units that show the chevron (the
     units the player can still move).
 

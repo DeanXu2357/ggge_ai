@@ -22,6 +22,7 @@ class MapLabel:
     borders: frozenset[str]
     units: frozenset[tuple[tuple[int, int], tuple[int, int]]]
     controllable: frozenset[tuple[int, int]]
+    occupied: frozenset[tuple[int, int]]
 
 
 @dataclass(frozen=True)
@@ -77,7 +78,19 @@ def _map_label(label: dict[str, Any]) -> MapLabel:
             for unit in label["units"]
         ),
         controllable=cells("controllable"),
+        occupied=frozenset(
+            cell for unit in label["units"] for cell in _footprint(unit) + _extra(unit)
+        ),
     )
+
+
+def _footprint(unit: dict[str, Any]) -> list[tuple[int, int]]:
+    (column, row), (width, height) = unit["pos"], unit["size"]
+    return [(int(column) + dx, int(row) + dy) for dx in range(width) for dy in range(height)]
+
+
+def _extra(unit: dict[str, Any]) -> list[tuple[int, int]]:
+    return [(int(column), int(row)) for column, row in unit.get("extra", [])]
 
 
 def load_image(case: Case) -> np.ndarray:
