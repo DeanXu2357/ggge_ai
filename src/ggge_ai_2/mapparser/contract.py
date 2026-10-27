@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+
 from ggge_ai_2.stream.contract import Frame
 
 ScreenPoint = tuple[int, int]
-# A cell is (column, row). Column 0 is the leftmost column in the frame. Row 0 is the top row.
+# A cell is (column, row) of a map cell that the frame shows whole and the HUD does not
+# cover. (0, 0) is the top-left corner of the box around these cells.
 ViewCell = tuple[int, int]
 
 
@@ -25,10 +27,29 @@ class Edge(StrEnum):
     RIGHT = "right"
 
 
+class Marker(StrEnum):
+    MOVE_RANGE = "move_range"
+    THREAT = "threat"
+    WEAPON_RANGE = "weapon_range"
+
+
+@dataclass(frozen=True)
+class UnitReading:
+    # The anchor is the cell of the footprint with the least column and the least row,
+    # as 'pos' in the battle engine. A unit cut by the frame edge can have its anchor
+    # outside the frame.
+    pos: ViewCell
+    size: tuple[int, int]
+    # None when the frame does not show the place of the chevron above the unit.
+    controllable: bool | None
+
+
 @dataclass(frozen=True)
 class MapReading:
     cells: Mapping[ViewCell, CellReading]
     borders: frozenset[Edge]
+    units: tuple[UnitReading, ...]
+    markers: Mapping[ViewCell, frozenset[Marker]]
 
 
 class MapParser(Protocol):

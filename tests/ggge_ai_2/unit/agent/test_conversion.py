@@ -49,7 +49,7 @@ def test_unread_frame_converts_to_nothing():
 
 def test_every_cell_reading_of_the_parser_converts_to_one_cell_content_of_mapgeom():
     reading = MapReading(
-        {(column, 0): seen for column, seen in enumerate(CellReading)}, frozenset()
+        {(column, 0): seen for column, seen in enumerate(CellReading)}, frozenset(), (), {}
     )
     board = _map_reading_to_local_board(reading)
 
@@ -58,7 +58,7 @@ def test_every_cell_reading_of_the_parser_converts_to_one_cell_content_of_mapgeo
 
 
 def test_every_edge_of_the_parser_converts_to_one_board_edge_of_mapgeom():
-    board = _map_reading_to_local_board(MapReading({}, frozenset(Edge)))
+    board = _map_reading_to_local_board(MapReading({}, frozenset(Edge), (), {}))
 
     assert board is not None
     assert board.borders == frozenset(BoardEdge)

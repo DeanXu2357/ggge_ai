@@ -45,6 +45,17 @@ come from device runs in `data/runs/`. The sources are not in git.
 - `power_save`: `lock` (the power-save lock icon) or `dim` (the dimmed
   screen). `null` when the frame is not in power save. `screen` is the
   screen under the power-save overlay.
+- `map`: what the frame shows of the battle map. `null` when the user has
+  not ruled the frame. A map cell counts when the frame shows the whole
+  cell and the HUD does not cover it. A cell is (column, row); (0, 0) is
+  the top-left corner of the box around the counted cells. Fields:
+  - `cells`: the counted cells.
+  - `borders`: the map edges that show in the frame (`top`, `bottom`,
+    `left`, `right`).
+  - `units`: one entry for each unit: `pos`, the cell of its footprint with the
+    least column and the least row, and `size`, its width and height in cells.
+  - `controllable`: the `pos` of the units that show the chevron (the
+    units the player can still move).
 
 ## Later work
 

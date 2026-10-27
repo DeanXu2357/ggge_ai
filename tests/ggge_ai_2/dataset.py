@@ -4,6 +4,7 @@ import functools
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 import cv2
 import numpy as np
@@ -13,6 +14,14 @@ from ggge_ai_2.interpreter.contract import AutoMode
 LABELED = Path(__file__).resolve().parents[2] / "data" / "labeled"
 CASES = LABELED / "cases.jsonl"
 FRAMES = LABELED / "frames"
+
+
+@dataclass(frozen=True)
+class MapLabel:
+    cells: frozenset[tuple[int, int]]
+    borders: frozenset[str]
+    units: frozenset[tuple[tuple[int, int], tuple[int, int]]]
+    controllable: frozenset[tuple[int, int]]
 
 
 @dataclass(frozen=True)
@@ -27,6 +36,7 @@ class Case:
     transition: bool
     auto: AutoMode | None
     power_save: str | None
+    map: MapLabel | None
 
 
 @functools.cache
@@ -48,6 +58,25 @@ def _case(row: dict[str, object]) -> Case:
         transition=row["transition"] is True,
         auto=None if auto is None else AutoMode(str(auto)),
         power_save=None if row["power_save"] is None else str(row["power_save"]),
+        map=None if row["map"] is None else _map_label(cast(dict[str, Any], row["map"])),
+    )
+
+
+def _map_label(label: dict[str, Any]) -> MapLabel:
+    def cells(key: str) -> frozenset[tuple[int, int]]:
+        return frozenset((int(x), int(y)) for x, y in label[key])
+
+    return MapLabel(
+        cells=cells("cells"),
+        borders=frozenset(str(edge) for edge in label["borders"]),
+        units=frozenset(
+            (
+                (int(unit["pos"][0]), int(unit["pos"][1])),
+                (int(unit["size"][0]), int(unit["size"][1])),
+            )
+            for unit in label["units"]
+        ),
+        controllable=cells("controllable"),
     )
 
 
