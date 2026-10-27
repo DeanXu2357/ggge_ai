@@ -118,6 +118,16 @@ def covered(point: ScreenPoint, rects: tuple[Rect, ...]) -> bool:
     return any(left <= x < right and top <= y < bottom for left, top, right, bottom in rects)
 
 
+def outside(image: np.ndarray, rects: tuple[Rect, ...], margin: int) -> np.ndarray:
+    """Return the mask of the pixels outside the HUD rectangles grown by the margin."""
+    outside = np.ones(image.shape[:2], bool)
+    for left, top, right, bottom in rects:
+        outside[max(top - margin, 0) : bottom + margin, max(left - margin, 0) : right + margin] = (
+            False
+        )
+    return outside
+
+
 @functools.cache
 def _template(name: str) -> np.ndarray:
     path = TEMPLATES / f"{name}.png"

@@ -22,7 +22,7 @@ class OpenCvMapParser:
         if read is None:
             return None
         lattice, rects, view, border, region = read
-        units, cells = read_units(frame.image, lattice, rects)
+        units, cells = read_units(frame.image, lattice, rects, view)
         markers = read_markers(frame.image, view, sorted(region.lattice_cells))
         return MapReading(
             cells={region.to_view(cell): cells[cell] for cell in region.lattice_cells},

@@ -6,9 +6,8 @@ import cv2
 import numpy as np
 
 from ggge_ai_2.mapparser.contract import ViewCell
-from ggge_ai_2.mapparser.hud import Rect
+from ggge_ai_2.mapparser.hud import Rect, outside
 from ggge_ai_2.mapparser.lattice import Lattice
-from ggge_ai_2.mapparser.units import outside
 
 # The top view has CELL x CELL pixels in each cell at every zoom level.
 CELL = 96
