@@ -34,6 +34,11 @@ class Screen(StrEnum):
     MAP_PASSING = "map_passing"
 
 
+class Phase(StrEnum):
+    PLAYER = "player"
+    NON_PLAYER = "non_player"
+
+
 class AutoMode(StrEnum):
     FULL = "full"
     SEMI = "semi"
@@ -45,6 +50,7 @@ class Situation:
     frame_seq: int
     screen: Screen
     auto: AutoMode | None = None
+    phase: Phase | None = None
 
 
 class Interpreter(Protocol):

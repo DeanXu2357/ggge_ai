@@ -39,6 +39,7 @@ class Case:
     transition: bool
     auto: AutoMode | None
     power_save: str | None
+    phase: str | None
     map: MapLabel | None
 
 
@@ -61,6 +62,7 @@ def _case(row: dict[str, object]) -> Case:
         transition=row["transition"] is True,
         auto=None if auto is None else AutoMode(str(auto)),
         power_save=None if row["power_save"] is None else str(row["power_save"]),
+        phase=None if row["phase"] is None else str(row["phase"]),
         map=None if row["map"] is None else _map_label(cast(dict[str, Any], row["map"])),
     )
 

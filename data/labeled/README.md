@@ -47,6 +47,9 @@ come from device runs in `data/runs/` and from device screenshots in
 - `power_save`: `lock` (the power-save lock icon) or `dim` (the dimmed
   screen). `null` when the frame is not in power save. `screen` is the
   screen under the power-save overlay.
+- `phase`: the faction of the phase, from the color of the title band at the
+  top left: `player` (blue) or `non_player` (red or purple). `null` on a
+  screen without that band.
 - `map`: what the frame shows of the battle map. `null` when the user has
   not ruled the frame. A map cell counts when the frame shows the whole
   cell and the HUD does not cover it. A cell is (column, row); (0, 0) is
