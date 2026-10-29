@@ -26,7 +26,7 @@ RED = ((0, 8), (170, 179))
 # separate colors, so that the glow next to the ring does not count against the ring.
 RING_COLORS = (
     RingColor(((107, 118),), (110, 255), 70),
-    RingColor(((12, 35),), (150, 255), 40),
+    RingColor(((12, 35),), (120, 255), 40),
     RingColor(RED, (171, 255), 40),
     RingColor(RED, (90, 170), 40),
 )
