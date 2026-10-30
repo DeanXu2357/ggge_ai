@@ -1,17 +1,17 @@
 {
   "move_range": {
-    "correct": 70,
-    "extra": 1,
-    "false_read": 0.014084507042253521,
+    "correct": 93,
+    "extra": 2,
+    "false_read": 0.021052631578947368,
     "missed": 0,
     "recognition": 1.0
   },
   "occupied": {
-    "correct": 110,
-    "extra": 11,
-    "false_read": 0.09090909090909091,
+    "correct": 130,
+    "extra": 12,
+    "false_read": 0.08450704225352113,
     "missed": 7,
-    "recognition": 0.9401709401709402
+    "recognition": 0.948905109489051
   },
   "threat": {
     "correct": 3,
@@ -21,11 +21,11 @@
     "recognition": 1.0
   },
   "units": {
-    "correct": 69,
-    "extra": 1,
-    "false_read": 0.014285714285714285,
+    "correct": 81,
+    "extra": 2,
+    "false_read": 0.024096385542168676,
     "missed": 2,
-    "recognition": 0.971830985915493
+    "recognition": 0.9759036144578314
   },
   "weapon_range": {
     "correct": 15,
