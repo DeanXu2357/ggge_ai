@@ -1,10 +1,10 @@
 {
   "move_range": {
-    "correct": 67,
+    "correct": 70,
     "extra": 1,
-    "false_read": 0.014705882352941176,
-    "missed": 2,
-    "recognition": 0.9710144927536232
+    "false_read": 0.014084507042253521,
+    "missed": 0,
+    "recognition": 1.0
   },
   "occupied": {
     "correct": 110,

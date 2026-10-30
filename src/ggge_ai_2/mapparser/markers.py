@@ -22,6 +22,11 @@ SIDE_REACH = 8
 STRONG_LINE = (70.0, 180.0)
 FAINT_LINE = (15.0, 0.0)
 FAINT_GAP_DIFFERENCE = 8
+# In top-view pixels: each search box is (left, top, right, bottom) in the cell.
+FLAG_LEG = 6
+FLAG_MARGIN = 3
+FLAG_BOXES = {"top_right": (74, 0, 94, 20), "bottom_left": (9, 64, 29, 86)}
+FLAG_SCORE = 0.65
 
 # In top-view pixels: the bar is (width, height), the dot is (left, top, width, height)
 # from the top left of the bar.
@@ -78,7 +83,7 @@ def read_markers(
     for cell in cells:
         tile, white, visible = view.cell(cell)
         markers: set[Marker] = set()
-        if _framed(white, visible):
+        if _flagged(white, visible) or _framed(white, visible):
             markers.add(Marker.MOVE_RANGE)
             if _glyph(white, visible):
                 markers.add(Marker.THREAT)
@@ -86,6 +91,35 @@ def read_markers(
             markers.add(Marker.WEAPON_RANGE)
         found[cell] = frozenset(markers)
     return found
+
+
+@functools.cache
+def _flag_template(corner: str) -> np.ndarray:
+    """Return the white right triangle of the corner, in a dark margin."""
+    leg, margin = FLAG_LEG, FLAG_MARGIN
+    template = np.zeros((leg + 2 * margin, leg + 2 * margin), np.float32)
+    for dy in range(leg):
+        for dx in range(leg):
+            if (dx <= dy) if corner == "top_right" else (dx >= dy):
+                template[margin + dy, margin + dx] = 255.0
+    return template
+
+
+def _flagged(white: np.ndarray, visible: np.ndarray) -> bool:
+    """Return True when a corner of the cell shows the white triangle of the move range.
+
+    The frame of the move range has a small white triangle at its top-right corner and
+    at its bottom-left corner. A sprite or a preview panel can hide one or both.
+    """
+    for corner, (left, top, right, bottom) in FLAG_BOXES.items():
+        if not visible[top:bottom, left:right].all():
+            continue
+        scores = cv2.matchTemplate(
+            white[top:bottom, left:right], _flag_template(corner), cv2.TM_CCOEFF_NORMED
+        )
+        if scores.max() >= FLAG_SCORE:
+            return True
+    return False
 
 
 def _framed(white: np.ndarray, visible: np.ndarray) -> bool:
