@@ -97,8 +97,8 @@ class FakeInterpreter:
 
 
 class NoMapParser:
-    def parse(self, frame: Frame) -> MapReading | None:
-        raise AssertionError("no map on these screens")
+    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
+        return None
 
     def locate(self, frame: Frame, cell: ViewCell) -> tuple[int, int] | None:
         raise AssertionError("no map on these screens")

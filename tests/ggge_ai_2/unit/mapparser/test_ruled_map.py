@@ -2,6 +2,7 @@
 
 import pytest
 
+from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.mapparser.opencv_parser import OpenCvMapParser
 from ggge_ai_2.stream.contract import Frame
 from tests.ggge_ai_2.dataset import Case, cases, load_image
@@ -16,7 +17,7 @@ def _frame(case: Case) -> Frame:
 
 @pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
 def test_reads_the_cells_that_the_user_ruled(case: Case) -> None:
-    reading = PARSER.parse(_frame(case))
+    reading = PARSER.parse(_frame(case), Screen(case.screen))
     label = case.map
 
     assert reading is not None and label is not None
@@ -25,7 +26,7 @@ def test_reads_the_cells_that_the_user_ruled(case: Case) -> None:
 
 @pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
 def test_reads_the_map_edges_that_the_user_ruled(case: Case) -> None:
-    reading = PARSER.parse(_frame(case))
+    reading = PARSER.parse(_frame(case), Screen(case.screen))
     label = case.map
 
     assert reading is not None and label is not None
@@ -34,7 +35,7 @@ def test_reads_the_map_edges_that_the_user_ruled(case: Case) -> None:
 
 @pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
 def test_reads_the_controllable_units_that_the_user_ruled(case: Case) -> None:
-    reading = PARSER.parse(_frame(case))
+    reading = PARSER.parse(_frame(case), Screen(case.screen))
     label = case.map
 
     assert reading is not None and label is not None
@@ -43,7 +44,7 @@ def test_reads_the_controllable_units_that_the_user_ruled(case: Case) -> None:
 
 @pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
 def test_reads_the_selected_unit_that_the_user_ruled(case: Case) -> None:
-    reading = PARSER.parse(_frame(case))
+    reading = PARSER.parse(_frame(case), Screen(case.screen))
     label = case.map
 
     assert reading is not None and label is not None

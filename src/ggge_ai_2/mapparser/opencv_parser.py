@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 
+from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.mapparser.border import Border, read_border
 from ggge_ai_2.mapparser.contract import MapReading, ScreenPoint, ViewCell
 from ggge_ai_2.mapparser.hud import Rect, hud_rects
@@ -15,9 +16,22 @@ from ggge_ai_2.mapparser.units import read_units
 from ggge_ai_2.stream.contract import Frame
 
 
+# The map screens of the player phase. The battle prep screens show a damage preview,
+# and the parser does not read the phases of the other factions.
+MAP_SCREENS = frozenset(
+    {
+        Screen.PLAYER_PHASE_OVERVIEW,
+        Screen.SELECT_ACTION_IN_BATTLE,
+        Screen.SELECT_WEAPON_IN_BATTLE,
+    }
+)
+
+
 @dataclass(frozen=True)
 class OpenCvMapParser:
-    def parse(self, frame: Frame) -> MapReading | None:
+    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
+        if screen not in MAP_SCREENS:
+            return None
         read = _read(frame.image)
         if read is None:
             return None

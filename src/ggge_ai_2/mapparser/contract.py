@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Protocol
 
 
+from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.stream.contract import Frame
 
 ScreenPoint = tuple[int, int]
@@ -54,8 +55,12 @@ class MapReading:
 
 
 class MapParser(Protocol):
-    def parse(self, frame: Frame) -> MapReading | None:
-        """Return None when the frame has no readable grid."""
+    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
+        """Return None when the parser reads no map on the screen, or the frame has no
+        readable grid.
+
+        'screen' is the screen that the interpreter recognized, or None.
+        """
         ...
 
     def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:

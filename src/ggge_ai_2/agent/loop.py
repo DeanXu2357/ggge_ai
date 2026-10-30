@@ -25,15 +25,6 @@ log = logging.getLogger(__name__)
 cycle_log = logging.getLogger(f"{__name__}.cycle")
 
 MISMATCH_LIMIT = 3
-MAP_SCREENS = frozenset(
-    {
-        UiScreen.PLAYER_PHASE_OVERVIEW,
-        UiScreen.SELECT_ACTION_IN_BATTLE,
-        UiScreen.SELECT_SKILL_IN_BATTLE,
-        UiScreen.SELECT_WEAPON_IN_BATTLE,
-        UiScreen.NON_PLAYER_PHASE_BATTLE_VIEW,
-    }
-)
 PASSING_SCREENS = {
     Screen.LOADING: Passing.WAIT,
     Screen.SIMPLIFY_WEAPON_ANIME: Passing.WAIT,
@@ -179,8 +170,7 @@ class Agent[P: Plan]:
         passing = None if situation is None else PASSING_SCREENS.get(situation.screen)
         readable = screen_lock is None and passing is None
         observed = _situation_to_observed(situation) if readable else None
-        on_map = observed is not None and observed.screen in MAP_SCREENS
-        reading = self.mapparser.parse(second) if on_map else None
+        reading = self.mapparser.parse(second, None if situation is None else situation.screen)
         log.info(
             "sense",
             extra={

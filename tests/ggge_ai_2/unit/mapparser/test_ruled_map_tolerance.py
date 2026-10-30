@@ -12,6 +12,7 @@ import functools
 import pytest
 
 from ggge_ai_2.mapparser.contract import CellReading, MapReading, Marker
+from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.mapparser.opencv_parser import OpenCvMapParser
 from ggge_ai_2.stream.contract import Frame
 from tests.ggge_ai_2.dataset import cases, load_image
@@ -25,7 +26,7 @@ MAP_CASES = [case for case in cases() if case.map is not None]
 @functools.cache
 def _reading(case_id: str) -> MapReading:
     case = next(case for case in MAP_CASES if case.id == case_id)
-    reading = PARSER.parse(Frame(load_image(case), 0.0, 0))
+    reading = PARSER.parse(Frame(load_image(case), 0.0, 0), Screen(case.screen))
     assert reading is not None
     return reading
 

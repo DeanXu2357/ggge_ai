@@ -29,6 +29,7 @@ from ggge_ai_2.agent.loop import Agent, RunResult, cycle_log
 from ggge_ai_2.agent.stage_plan_controller import StagePlanController
 from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.auto_cue import AutoCueInterpreter
+from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.interpreter.llm import LlmInterpreter
 from ggge_ai_2.interpreter.llm_prompt import system_prompt
 from ggge_ai_2.interpreter.power_save_cue import PowerSaveCueInterpreter
@@ -59,7 +60,7 @@ class JsonLineFormatter(logging.Formatter):
 
 
 class NullMapParser:
-    def parse(self, frame: Frame) -> MapReading | None:
+    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
         return None
 
     def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:
