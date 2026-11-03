@@ -19,7 +19,18 @@ from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation
 from ggge_ai_2.mapgeom.contract import Alignment, KnownMap
 from ggge_ai_2.mapparser.contract import MapReading, ViewCell
 from ggge_ai_2.stream.contract import Frame, Observation, StillWindow
-from ggge_ai_2.uisim.contract import Operation, Outcome, UiAutoMode, UiScreen, UiState
+from ggge_ai_2.agent.ui_steps import operation_step
+from ggge_ai_2.uisim.contract import (
+    OpenGroup,
+    Operation,
+    Outcome,
+    RatioRect,
+    UiAutoMode,
+    UiScreen,
+    UiState,
+)
+from ggge_ai_2.uisim.stage_sim import StageUiSim
+from ggge_ai_2.uisim.stages import ButtonDef, CallerGroup, ScreenDef, Stages
 from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
@@ -517,6 +528,69 @@ def test_run_log_records_the_auto_mode_value(tmp_path: Path):
     assert agent.run() is RunResult.DONE
     lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
     assert [json.loads(line)["auto"] for line in lines] == ["semi"]
+
+
+def test_run_log_records_the_stack_with_and_without_a_caller(tmp_path: Path):
+    stack = (
+        OpenGroup("battle_menu", UiScreen.PLAYER_PHASE_OVERVIEW),
+        OpenGroup("unit_detail", None),
+    )
+    run_dir = tmp_path / "run"
+    agent = make_agent(
+        FakeStream(still(1, 1.0)),
+        {1: Screen.STORY_STAGE_LIST},
+        ScriptedController([], goals=[True]),
+        runlog=RunLog(run_dir),
+    )
+    agent.belief = replace(agent.belief, ui=UiState(UiScreen.STORY_STAGE_LIST, stack))
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["stack"] for line in lines] == [
+        ["battle_menu@player_phase_overview", "unit_detail"]
+    ]
+
+
+def _menu_stages() -> Stages:
+    def screen(name: str, *buttons: ButtonDef) -> ScreenDef:
+        return ScreenDef(name, "page", "player", buttons, ())
+
+    def button(name: str, to: str) -> ButtonDef:
+        return ButtonDef(name, (to,), RatioRect(0.4, 0.4, 0.6, 0.6), None, False, False, DEADLINE)
+
+    return Stages(
+        screens={
+            "player_phase_overview": screen(
+                "player_phase_overview", button("menu", "battle_main_setting")
+            ),
+            "battle_main_setting": screen("battle_main_setting"),
+        },
+        groups={"battle_menu": CallerGroup("battle_menu", ("battle_main_setting",), ())},
+    )
+
+
+def test_opening_a_group_matches_the_expected_stack(tmp_path: Path):
+    uisim = StageUiSim(_menu_stages())
+    overview = replace(start(), ui=UiState(UiScreen.PLAYER_PHASE_OVERVIEW))
+    (menu,) = uisim.successors(overview.ui)
+    plan = ScriptedPlan([operation_step(menu, overview, uisim, (1, 1)), step()])
+    run_dir = tmp_path / "run"
+    agent = make_agent(
+        FakeStream([*still(1, 1.0), *still(2, 11.0), *still(3, 12.0)]),
+        {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.BATTLE_MAIN_SETTING},
+        ScriptedController([plan], goals=[False, False, True]),
+        runlog=RunLog(run_dir),
+    )
+    agent.uisim = uisim
+    agent.belief = overview
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in lines]
+    assert [(r["stack"], r["matched"]) for r in records[:2]] == [
+        ([], None),
+        (["battle_menu@player_phase_overview"], True),
+    ]
 
 
 def screen_sized(seq: int, at: float) -> list[Frame]:

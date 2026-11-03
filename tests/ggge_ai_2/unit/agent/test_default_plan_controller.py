@@ -78,8 +78,8 @@ def test_shift_plan_step_is_the_step_of_its_first_operation():
         bands={UiScreen.STORY_STAGE_LIST: DangerBand()},
         operations={UiScreen.STORY_STAGE_LIST: (operation,)},
     )
-    plan = UiShiftPlan(PREP, uisim, (2340, 1080))
-    move = first_move(uisim, LIST, PREP)
+    plan = UiShiftPlan(PREP.screen, uisim, (2340, 1080))
+    move = first_move(uisim, LIST, PREP.screen)
     assert move is not None
 
     assert plan.still_valid(belief())

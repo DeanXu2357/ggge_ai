@@ -64,9 +64,15 @@ class UiAutoMode(StrEnum):
 
 
 @dataclass(frozen=True)
+class OpenGroup:
+    group: str
+    caller: UiScreen | None
+
+
+@dataclass(frozen=True)
 class UiState:
     screen: UiScreen
-    caller: UiScreen | None = None
+    stack: tuple[OpenGroup, ...] = ()
     auto: UiAutoMode | None = None
 
 
@@ -114,8 +120,6 @@ class Operation:
 
 class UiSim(Protocol):
     def successors(self, state: UiState) -> Sequence[Operation]: ...
-
-    def predecessors(self, state: UiState) -> Sequence[tuple[UiState, Operation]]: ...
 
     def advance(self, state: UiState, outcome: Outcome) -> UiState: ...
 

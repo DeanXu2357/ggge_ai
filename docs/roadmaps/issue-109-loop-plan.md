@@ -483,3 +483,61 @@
   - ［提案］兩者都沒有時，拿丙的單位分布對照 battle engine 的盤面。
   - ［確認］mapparser 只能做畫面格號與點擊點互換（`locate`），它沒有地圖模型，
     單靠它不足以對位。
+
+### 8.5 查看單位詳細與 statechart 版 uisim（2026-11-02）
+
+- ［確認］順序：查看單位詳細的流程 → history 的形狀 → 填色標記與地形。OpenCV
+  interpreter（G 組）提高優先級：要有確定性的畫面判斷，往下實作的成本才低。
+- ［確認］查看單位詳細走戰鬥選單 →「部隊資訊」→ 卡片 →「單位設置詳情」。轉移
+  草圖（`discovery/graph/graph.json` 的「閱讀單位」）已有每一段的幀證據：
+  #544→#545→#547、#549→#550，不需要補錄。`stages.json` 缺的位置與 `to` 是轉錄
+  時漏掉的。「敵軍」分頁沒有幀；辨識簡單、入口和我軍清單相同，之後補案例。
+- ［確認］interpreter 只回報畫面名，畫面名是 uisim 的葉節點。`roster_list` 拆成
+  我軍、敵軍兩個畫面名。
+- ［確認］uisim 只保存關係，不保存狀態。堆疊放在 `UiState`，由外部傳入，
+  `advance` 與 `sync` 回傳新的值；結果和從 history 重算相同。
+- ［確認］不另做分頁組：分頁是普通畫面之間的轉移。
+- ［確認］子狀態記憶（statechart 的 history 狀態，例如單位詳情上次停留的分頁）延後：
+  - 分頁本身是畫面名，進入後 interpreter 讀得到（T5、E4）。
+  - 記憶由所有入口共用，但 `_roster` 版本和戰鬥中版本是不同畫面名，要另定對應。
+  - 沒有記憶時，進入群組給多個結果，由觀察收斂。
+- ［確認］`UiState`：
+
+  ```python
+  @dataclass(frozen=True)
+  class OpenGroup:
+      group: str
+      caller: UiScreen | None
+
+  @dataclass(frozen=True)
+  class UiState:
+      screen: UiScreen
+      stack: tuple[OpenGroup, ...] = ()
+      auto: UiAutoMode | None = None
+  ```
+
+  - `stack` 取代 `caller`：目前打開的 `caller_groups` 群組，外層在前。每一層記
+    群組名與打開它的畫面；`caller` 為 None 表示不知道從哪裡打開。同一個畫面可以
+    屬於兩個群組（`unit_detail_state` 在 `unit_detail` 與 `unit_info`），所以記群組名。
+  - 用 tuple：`UiState` 是 `first_move` 的 dict key，欄位要不可變、可雜湊；堆疊
+    深度是群組巢狀層數，目前最多 2 層。
+- ［確認］堆疊規則，`advance` 與 `sync` 用同一套，依序檢查：
+  1. 不變：目標是目前畫面，或最上層的群組包含目標。
+  2. push：目標指明的群組不在堆疊上時，push 一層，`caller` 是轉移前的畫面。
+     群組取自按鈕的 `to`：`unit_detail@X` 是 `unit_detail`；普通畫面名取以它為
+     入口、不在堆疊上的唯一群組，不只一個就不 push。
+     ［提案］轉移前的畫面本身是這個群組的成員時，`caller` 為 None：堆疊漏了這個
+     群組，例如啟動時停在戰鬥選單的「設定」。
+  3. pop：其他情況，pop 到最上層包含目標，或堆疊清空。
+  - 回到呼叫者：按鈕的目標包含最上層的 `caller` 時，只產生回到 `caller` 的結果；
+    `caller` 為 None 時產生全部結果。
+  - 先判斷不變與 push，最後才 pop：先 pop 的話，在部隊資訊點卡片會先 pop 掉外層
+    的 `battle_menu`。
+  - ［提案］`sync`：畫面相同時堆疊不變。觀察到的畫面是 `state` 某個操作的結果時，
+    採用那個結果的 `stack`，這樣 loop 比對預期時 `stack` 一致。都不是時推斷：以
+    觀察畫面為入口、不在堆疊上的群組只有一個才 push，否則照規則 3 pop。
+- ［確認］跟著改：
+  - 目標比對只比 `screen`：`StagePlan`、`DefaultPlanController.BATTLE_MAP`、
+    `first_move`。
+  - `loop.py` 的紀錄把 `caller` 換成 `stack`。
+  - `predecessors` 在 uisim 外沒有呼叫者，移除。

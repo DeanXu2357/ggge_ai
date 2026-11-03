@@ -7,7 +7,7 @@ from typing import ClassVar, Protocol
 from ggge_ai_2.agent.belief import Belief
 from ggge_ai_2.agent.contract import Plan, Step
 from ggge_ai_2.agent.ui_steps import first_move, operation_step
-from ggge_ai_2.uisim.contract import UiScreen, UiSim, UiState
+from ggge_ai_2.uisim.contract import UiScreen, UiSim
 
 
 class Reflex(Protocol):
@@ -29,7 +29,7 @@ class PlanReflex:
 
 @dataclass(frozen=True)
 class DefaultPlanController:
-    BATTLE_MAP: ClassVar[UiState] = UiState(UiScreen.PLAYER_PHASE_OVERVIEW)
+    BATTLE_MAP: ClassVar[UiScreen] = UiScreen.PLAYER_PHASE_OVERVIEW
 
     reflexes: tuple[Reflex, ...]
     uisim: UiSim
@@ -43,7 +43,7 @@ class DefaultPlanController:
         # TODO(#105): before the map, check AUTO and '顯示方格'. On the map, give an
         #     unrecorded map to the map sync plan and a recorded map to the battle
         #     plan. After the map is explored, leave the stage.
-        if belief.ui == self.BATTLE_MAP:
+        if belief.ui.screen is self.BATTLE_MAP:
             return None
         to_map = UiShiftPlan(self.BATTLE_MAP, self.uisim, self.screen)
         return ReflexPlan(self.reflexes, to_map)
@@ -55,12 +55,15 @@ class DefaultPlanController:
 
 @dataclass(frozen=True)
 class UiShiftPlan:
-    goal: UiState
+    goal: UiScreen
     uisim: UiSim
     screen: tuple[int, int]
 
     def still_valid(self, belief: Belief) -> bool:
-        return belief.ui != self.goal and first_move(self.uisim, belief.ui, self.goal) is not None
+        return (
+            belief.ui.screen is not self.goal
+            and first_move(self.uisim, belief.ui, self.goal) is not None
+        )
 
     def next(self, belief: Belief) -> Step:
         move = first_move(self.uisim, belief.ui, self.goal)

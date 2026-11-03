@@ -7,6 +7,7 @@ import pytest
 from ggge_ai_2.uisim.contract import (
     DangerBand,
     Observed,
+    OpenGroup,
     Operation,
     Outcome,
     RatioRect,
@@ -172,8 +173,8 @@ def test_auto_is_carried_only_into_screens_with_an_auto_button() -> None:
     operation = _operation(sim, state, "go")
 
     assert [outcome.then for outcome in operation.outcomes] == [
-        UiState(UiScreen.PLAYER_PHASE_OVERVIEW, None, UiAutoMode.SEMI),
-        UiState(UiScreen.BATTLE_SCORE_RESULT, None, None),
+        UiState(UiScreen.PLAYER_PHASE_OVERVIEW, auto=UiAutoMode.SEMI),
+        UiState(UiScreen.BATTLE_SCORE_RESULT),
     ]
 
 
@@ -194,9 +195,9 @@ def test_auto_toggle_moves_to_the_next_mode_in_the_cycle(
     operation = _operation(sim, state, "battle_prep_attack__auto")
 
     assert operation.gesture == UiTap((0.5, 0.5))
-    assert operation.outcomes == (Outcome(label, UiState(UiScreen.BATTLE_PREP_ATTACK, None, then)),)
+    assert operation.outcomes == (Outcome(label, UiState(UiScreen.BATTLE_PREP_ATTACK, auto=then)),)
     assert sim.advance(state, operation.outcomes[0]) == UiState(
-        UiScreen.BATTLE_PREP_ATTACK, None, then
+        UiScreen.BATTLE_PREP_ATTACK, auto=then
     )
 
 
@@ -263,73 +264,23 @@ def test_real_start_battle_outcomes() -> None:
     ]
 
 
-def _menu_sim() -> StageUiSim:
-    return _sim(
-        _screen("battle_prep_attack", (_button("menu", ("battle_menu@battle_prep_attack",)),)),
-        _screen(
-            "battle_main_setting",
-            (
-                _button("settings", ("battle_settings_in_battle",)),
-                _button("close", ("select_weapon_in_battle", "battle_prep_attack")),
-                _button("overview", ("player_phase_overview",)),
-            ),
-        ),
-        groups=(
-            CallerGroup("battle_menu", ("battle_main_setting",), ("battle_settings_in_battle",)),
-        ),
-    )
+def test_real_battle_menu_opens_with_the_caller() -> None:
+    sim = StageUiSim(load_stages(REAL_STAGES))
+    state = UiState(UiScreen.SELECT_WEAPON_IN_BATTLE)
 
+    operation = _operation(sim, state, "select_weapon_in_battle__battle_menu")
 
-def test_opening_a_group_sets_the_caller() -> None:
-    operation = _operation(_menu_sim(), UiState(UiScreen.BATTLE_PREP_ATTACK), "menu")
-
-    assert [outcome.then for outcome in operation.outcomes] == [
-        UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
-    ]
-
-
-def test_moving_inside_a_group_keeps_the_caller() -> None:
-    state = UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
-
-    operation = _operation(_menu_sim(), state, "settings")
-
-    assert [outcome.then for outcome in operation.outcomes] == [
-        UiState(UiScreen.BATTLE_SETTINGS_IN_BATTLE, UiScreen.BATTLE_PREP_ATTACK)
-    ]
-
-
-def test_closing_a_group_returns_only_to_the_caller() -> None:
-    state = UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
-
-    operation = _operation(_menu_sim(), state, "close")
-
-    assert operation.outcomes == (
-        Outcome("battle_prep_attack", UiState(UiScreen.BATTLE_PREP_ATTACK)),
-    )
-
-
-def test_closing_a_group_with_an_unknown_caller_gives_every_target() -> None:
-    operation = _operation(_menu_sim(), UiState(UiScreen.BATTLE_MAIN_SETTING), "close")
-
-    assert [outcome.then for outcome in operation.outcomes] == [
-        UiState(UiScreen.SELECT_WEAPON_IN_BATTLE),
-        UiState(UiScreen.BATTLE_PREP_ATTACK),
-    ]
-
-
-def test_leaving_a_group_to_another_target_clears_the_caller() -> None:
-    state = UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
-
-    operation = _operation(_menu_sim(), state, "overview")
-
-    assert [outcome.then for outcome in operation.outcomes] == [
-        UiState(UiScreen.PLAYER_PHASE_OVERVIEW)
+    assert [outcome.then.stack for outcome in operation.outcomes] == [
+        (OpenGroup("battle_menu", UiScreen.SELECT_WEAPON_IN_BATTLE),)
     ]
 
 
 def test_real_battle_menu_close_returns_to_the_caller() -> None:
     sim = StageUiSim(load_stages(REAL_STAGES))
-    state = UiState(UiScreen.BATTLE_MAIN_SETTING, caller=UiScreen.SELECT_WEAPON_IN_BATTLE)
+    state = UiState(
+        UiScreen.BATTLE_MAIN_SETTING,
+        (OpenGroup("battle_menu", UiScreen.SELECT_WEAPON_IN_BATTLE),),
+    )
 
     operation = _operation(sim, state, "battle_main_setting__close")
 
@@ -338,33 +289,207 @@ def test_real_battle_menu_close_returns_to_the_caller() -> None:
     )
 
 
-def test_sync_entering_a_group_sets_the_caller_to_the_previous_screen() -> None:
-    state = UiState(UiScreen.BATTLE_PREP_ATTACK, auto=UiAutoMode.MANUAL)
-    observed = Observed(UiScreen.BATTLE_MAIN_SETTING, auto=UiAutoMode.FULL)
+# UiScreen has no unit detail screens and no roster screen yet, so these
+# tests use other screens in their place.
+ROSTER = UiScreen.WIN_CONDITION_OVERLAY
+DETAIL_STATE = UiScreen.REWARD_DETAIL
+DETAIL_ACTION = UiScreen.DROP_REWARD_RESULT
+OVERVIEW = UiScreen.PLAYER_PHASE_OVERVIEW
+MENU = UiScreen.BATTLE_MAIN_SETTING
+SETTINGS = UiScreen.BATTLE_SETTINGS_IN_BATTLE
+MENU_FROM_OVERVIEW = OpenGroup("battle_menu", OVERVIEW)
+DETAIL_FROM_ROSTER = OpenGroup("unit_detail", ROSTER)
 
-    synced = _menu_sim().sync(state, observed)
 
-    assert synced == UiState(
-        UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK, UiAutoMode.FULL
+def _detail_screen(name: UiScreen, tab: UiScreen) -> ScreenDef:
+    return _screen(
+        name.value,
+        (
+            _button("tab", (tab.value,)),
+            _button("close", (ROSTER.value, "select_action_in_battle")),
+        ),
     )
 
 
-def test_sync_moving_inside_a_group_keeps_the_caller() -> None:
-    state = UiState(UiScreen.BATTLE_MAIN_SETTING, UiScreen.BATTLE_PREP_ATTACK)
+def _nested_sim() -> StageUiSim:
+    return _sim(
+        _screen("player_phase_overview", (_button("menu", ("battle_main_setting",)),)),
+        _screen(
+            "battle_prep_attack",
+            (
+                _button("menu", ("battle_main_setting",)),
+                _button("plain_detail", (DETAIL_STATE.value,)),
+            ),
+        ),
+        _screen("select_weapon_in_battle"),
+        _screen(
+            "battle_main_setting",
+            (
+                _button("settings", ("battle_settings_in_battle",)),
+                _button("squad", (ROSTER.value,)),
+                _button(
+                    "close",
+                    ("select_weapon_in_battle", "player_phase_overview", "battle_prep_attack"),
+                ),
+                _button("give_up", ("battle_score_result",)),
+            ),
+        ),
+        _screen("battle_settings_in_battle", (_button("close", ("battle_main_setting",)),)),
+        _screen(
+            ROSTER.value,
+            (
+                _button("card", (f"unit_detail@{ROSTER.value}",)),
+                _button("back", ("battle_main_setting",)),
+            ),
+        ),
+        _detail_screen(DETAIL_STATE, DETAIL_ACTION),
+        _detail_screen(DETAIL_ACTION, DETAIL_STATE),
+        groups=(
+            CallerGroup("battle_menu", ("battle_main_setting",), (SETTINGS.value, ROSTER.value)),
+            CallerGroup("unit_detail", (DETAIL_STATE.value, DETAIL_ACTION.value), ()),
+            CallerGroup("unit_info", (DETAIL_STATE.value, DETAIL_ACTION.value), ()),
+        ),
+    )
 
-    synced = _menu_sim().sync(state, Observed(UiScreen.BATTLE_SETTINGS_IN_BATTLE))
 
-    assert synced == UiState(UiScreen.BATTLE_SETTINGS_IN_BATTLE, UiScreen.BATTLE_PREP_ATTACK)
+def _thens(sim: StageUiSim, state: UiState, name: str) -> list[UiState]:
+    return [outcome.then for outcome in _operation(sim, state, name).outcomes]
 
 
-def test_sync_leaving_a_group_clears_the_caller() -> None:
-    state = UiState(UiScreen.BATTLE_SETTINGS_IN_BATTLE, UiScreen.BATTLE_PREP_ATTACK)
+def test_push_opens_the_group_of_a_plain_entry_with_the_screen_before() -> None:
+    assert _thens(_nested_sim(), UiState(OVERVIEW), "menu") == [
+        UiState(MENU, (MENU_FROM_OVERVIEW,))
+    ]
 
-    observed = Observed(UiScreen.PLAYER_PHASE_OVERVIEW, auto=UiAutoMode.MANUAL)
 
-    synced = _menu_sim().sync(state, observed)
+def test_push_takes_the_group_named_by_the_target_on_top_of_an_open_group() -> None:
+    state = UiState(ROSTER, (MENU_FROM_OVERVIEW,))
 
-    assert synced == UiState(UiScreen.PLAYER_PHASE_OVERVIEW, None, UiAutoMode.MANUAL)
+    assert _thens(_nested_sim(), state, "card") == [
+        UiState(DETAIL_STATE, (MENU_FROM_OVERVIEW, DETAIL_FROM_ROSTER)),
+        UiState(DETAIL_ACTION, (MENU_FROM_OVERVIEW, DETAIL_FROM_ROSTER)),
+    ]
+
+
+def test_push_skips_a_plain_entry_of_two_groups() -> None:
+    assert _thens(_nested_sim(), UiState(UiScreen.BATTLE_PREP_ATTACK), "plain_detail") == [
+        UiState(DETAIL_STATE)
+    ]
+
+
+def test_push_from_a_screen_of_the_group_has_an_unknown_caller() -> None:
+    assert _thens(_nested_sim(), UiState(SETTINGS), "close") == [
+        UiState(MENU, (OpenGroup("battle_menu", None),))
+    ]
+
+
+def test_moving_inside_the_top_group_keeps_the_stack() -> None:
+    sim = _nested_sim()
+    nested = (MENU_FROM_OVERVIEW, DETAIL_FROM_ROSTER)
+
+    assert _thens(sim, UiState(MENU, (MENU_FROM_OVERVIEW,)), "settings") == [
+        UiState(SETTINGS, (MENU_FROM_OVERVIEW,))
+    ]
+    assert _thens(sim, UiState(DETAIL_STATE, nested), "tab") == [UiState(DETAIL_ACTION, nested)]
+
+
+def test_return_to_caller_gives_only_the_caller_and_pops_its_group() -> None:
+    state = UiState(DETAIL_ACTION, (MENU_FROM_OVERVIEW, DETAIL_FROM_ROSTER))
+
+    operation = _operation(_nested_sim(), state, "close")
+
+    assert operation.outcomes == (Outcome(ROSTER.value, UiState(ROSTER, (MENU_FROM_OVERVIEW,))),)
+
+
+def test_return_to_an_unknown_caller_gives_every_target() -> None:
+    state = UiState(MENU, (OpenGroup("battle_menu", None),))
+
+    assert _thens(_nested_sim(), state, "close") == [
+        UiState(UiScreen.SELECT_WEAPON_IN_BATTLE),
+        UiState(OVERVIEW),
+        UiState(UiScreen.BATTLE_PREP_ATTACK),
+    ]
+
+
+def test_pop_clears_the_groups_that_do_not_hold_the_target() -> None:
+    state = UiState(MENU, (MENU_FROM_OVERVIEW,))
+
+    assert _thens(_nested_sim(), state, "give_up") == [UiState(UiScreen.BATTLE_SCORE_RESULT)]
+
+
+def test_nested_path_through_two_groups_returns_to_the_first_caller() -> None:
+    sim = _nested_sim()
+    state = UiState(OVERVIEW)
+    visited: list[UiState] = []
+
+    for name in ("menu", "squad", "card", "tab", "close", "back", "close"):
+        outcome = _operation(sim, state, name).outcomes[0]
+        state = sim.advance(state, outcome)
+        visited.append(state)
+
+    nested = (MENU_FROM_OVERVIEW, DETAIL_FROM_ROSTER)
+    assert visited == [
+        UiState(MENU, (MENU_FROM_OVERVIEW,)),
+        UiState(ROSTER, (MENU_FROM_OVERVIEW,)),
+        UiState(DETAIL_STATE, nested),
+        UiState(DETAIL_ACTION, nested),
+        UiState(ROSTER, (MENU_FROM_OVERVIEW,)),
+        UiState(MENU, (MENU_FROM_OVERVIEW,)),
+        UiState(OVERVIEW),
+    ]
+
+
+def test_sync_takes_the_stack_of_the_outcome_with_the_observed_screen() -> None:
+    state = UiState(ROSTER, (MENU_FROM_OVERVIEW,))
+
+    synced = _nested_sim().sync(state, Observed(DETAIL_STATE, auto=UiAutoMode.FULL))
+
+    assert synced == UiState(
+        DETAIL_STATE, (MENU_FROM_OVERVIEW, DETAIL_FROM_ROSTER), UiAutoMode.FULL
+    )
+
+
+def test_sync_equals_the_outcome_that_advance_gives() -> None:
+    sim = _nested_sim()
+    state = UiState(ROSTER, (MENU_FROM_OVERVIEW,))
+
+    for operation in sim.successors(state):
+        for outcome in operation.outcomes:
+            then = sim.advance(state, outcome)
+            assert sim.sync(state, Observed(then.screen, then.auto)) == then
+
+
+def test_sync_on_the_same_screen_keeps_the_stack() -> None:
+    state = UiState(DETAIL_STATE, (MENU_FROM_OVERVIEW, DETAIL_FROM_ROSTER))
+
+    assert _nested_sim().sync(state, Observed(DETAIL_STATE)) == state
+
+
+def test_sync_outside_the_outcomes_pushes_the_only_group_of_an_entry() -> None:
+    state = UiState(UiScreen.SELECT_WEAPON_IN_BATTLE, auto=UiAutoMode.MANUAL)
+
+    synced = _nested_sim().sync(state, Observed(MENU, auto=UiAutoMode.SEMI))
+
+    assert synced == UiState(
+        MENU, (OpenGroup("battle_menu", UiScreen.SELECT_WEAPON_IN_BATTLE),), UiAutoMode.SEMI
+    )
+
+
+def test_sync_outside_the_outcomes_does_not_push_an_entry_of_two_groups() -> None:
+    state = UiState(UiScreen.SELECT_WEAPON_IN_BATTLE)
+
+    assert _nested_sim().sync(state, Observed(DETAIL_STATE)) == UiState(DETAIL_STATE)
+
+
+def test_sync_outside_the_outcomes_pops_to_the_group_that_holds_the_screen() -> None:
+    sim = _nested_sim()
+    nested = UiState(DETAIL_ACTION, (MENU_FROM_OVERVIEW, DETAIL_FROM_ROSTER))
+    menu = UiState(SETTINGS, (MENU_FROM_OVERVIEW,))
+
+    assert sim.sync(nested, Observed(MENU)) == UiState(MENU, (MENU_FROM_OVERVIEW,))
+    assert sim.sync(menu, Observed(UiScreen.BATTLE_SCORE_RESULT)) == UiState(
+        UiScreen.BATTLE_SCORE_RESULT
+    )
 
 
 def test_danger_band_holds_the_forbidden_button_rect() -> None:
@@ -388,24 +513,3 @@ def test_danger_band_is_empty_without_forbidden_buttons() -> None:
     sim = _sim(_screen("battle_prep_attack", (_button("kept", ("select_skill_in_battle",)),)))
 
     assert sim.danger_band(UiState(UiScreen.BATTLE_PREP_ATTACK)) == DangerBand()
-
-
-def test_predecessors_list_the_operations_that_reach_the_screen() -> None:
-    sim = _sim(
-        _screen("select_action_in_battle", (_button("skill", ("select_skill_in_battle",)),)),
-        _screen(
-            "battle_prep_attack",
-            (
-                _button("back", ("select_skill_in_battle",)),
-                _button("other", ("player_phase_overview",)),
-            ),
-        ),
-        _screen("player_phase_overview", (_button("act", ("select_action_in_battle",)),)),
-    )
-
-    found = sim.predecessors(UiState(UiScreen.SELECT_SKILL_IN_BATTLE))
-
-    assert [(source.screen, operation.name) for source, operation in found] == [
-        (UiScreen.SELECT_ACTION_IN_BATTLE, "skill"),
-        (UiScreen.BATTLE_PREP_ATTACK, "back"),
-    ]

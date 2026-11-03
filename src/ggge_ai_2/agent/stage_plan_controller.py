@@ -13,7 +13,7 @@ from ggge_ai_2.agent.generic_plans import (
     TapToContinuePlan,
 )
 from ggge_ai_2.agent.ui_steps import first_move, operation_step
-from ggge_ai_2.uisim.contract import Operation, UiScreen, UiSim, UiState
+from ggge_ai_2.uisim.contract import Operation, UiScreen, UiSim
 
 GREEDY_BUTTONS: Mapping[UiScreen, str] = {
     UiScreen.BATTLE_INFO_PREVIEW: "battle_info_preview__tap_next",
@@ -73,10 +73,9 @@ class StagePlan:
             if self.fallback:
                 return operations.get(FALLBACK_WEAPON_BUTTON)
             return operations.get(GREEDY_BUTTONS[screen])
-        goal = UiState(self.goal)
-        if belief.ui == goal:
+        if screen is self.goal:
             return None
-        move = first_move(self.uisim, belief.ui, goal)
+        move = first_move(self.uisim, belief.ui, self.goal)
         return None if move is None else move[0]
 
 

@@ -27,7 +27,7 @@ FULL, SEMI, MANUAL = UiAutoMode.FULL, UiAutoMode.SEMI, UiAutoMode.MANUAL
 
 def on(screen: UiScreen, auto: UiAutoMode | None = MANUAL, until: float = 10.0) -> Belief:
     return Belief(
-        UiState(screen, None, auto),
+        UiState(screen, auto=auto),
         UiBasis(UiSource.SEEN, 1),
         None,
         KnownMap({}),
@@ -107,7 +107,7 @@ def test_passing_frames_come_before_the_auto_toggle():
 
 def test_other_screen_gives_the_first_move_to_the_goal():
     belief = on(UiScreen.STORY_STAGE_LIST, auto=None)
-    move = first_move(BATTLE_SIM, belief.ui, UiState(GOAL))
+    move = first_move(BATTLE_SIM, belief.ui, GOAL)
     assert move is not None
 
     assert plan().still_valid(belief)

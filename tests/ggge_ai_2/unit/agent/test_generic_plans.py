@@ -85,7 +85,7 @@ def test_tap_plan_taps_the_centre_only_on_a_tap_to_continue_frame():
 
 def on(screen: UiScreen, auto: UiAutoMode | None, until: float = 10.0) -> Belief:
     return replace(
-        belief(), ui=UiState(screen, None, auto), as_of=StillWindow(until - 0.5, until, 1)
+        belief(), ui=UiState(screen, auto=auto), as_of=StillWindow(until - 0.5, until, 1)
     )
 
 

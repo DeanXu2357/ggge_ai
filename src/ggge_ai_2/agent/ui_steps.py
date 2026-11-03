@@ -11,6 +11,7 @@ from ggge_ai_2.uisim.contract import (
     Outcome,
     RatioPoint,
     UiKey,
+    UiScreen,
     UiSim,
     UiState,
     UiSwipe,
@@ -44,12 +45,12 @@ def operation_step(
     return Step(operation.name, gesture, band, operation.deadline, expected)
 
 
-def first_move(uisim: UiSim, state: UiState, goal: UiState) -> tuple[Operation, Outcome] | None:
+def first_move(uisim: UiSim, state: UiState, goal: UiScreen) -> tuple[Operation, Outcome] | None:
     firsts: dict[UiState, tuple[Operation, Outcome] | None] = {state: None}
     frontier = deque([state])
     while frontier:
         current = frontier.popleft()
-        if current == goal:
+        if current.screen is goal:
             return firsts[current]
         for operation in uisim.successors(current):
             for outcome in operation.outcomes:

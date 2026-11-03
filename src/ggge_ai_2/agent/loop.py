@@ -16,6 +16,7 @@ from ggge_ai_2.mapparser.contract import MapParser, MapReading
 from ggge_ai_2.stream.contract import Frame, StillWindow, Stream
 from ggge_ai_2.uisim.contract import (
     Observed,
+    OpenGroup,
     UiAutoMode,
     UiScreen,
     UiSim,
@@ -244,7 +245,7 @@ class Agent[P: Plan]:
             time=frame.captured_at,
             interpreted=None if self._situation is None else self._situation.screen.value,
             believed=ui.screen.value,
-            caller=None if ui.caller is None else ui.caller.value,
+            stack=tuple(_open_group_text(open_group) for open_group in ui.stack),
             auto=None if ui.auto is None else ui.auto.value,
             passing=None if passing is None else passing.value,
             expected=()
@@ -279,6 +280,12 @@ def _gesture_text(gesture: Gesture, width: int, height: int) -> str:
     if isinstance(gesture, Key):
         return f"key {gesture.code}"
     return f"swipe {ratio(gesture.start)}->{ratio(gesture.end)} {gesture.duration:.2f}s"
+
+
+def _open_group_text(open_group: OpenGroup) -> str:
+    if open_group.caller is None:
+        return open_group.group
+    return f"{open_group.group}@{open_group.caller.value}"
 
 
 def _cycle_summary(entry: StepRecord) -> str:

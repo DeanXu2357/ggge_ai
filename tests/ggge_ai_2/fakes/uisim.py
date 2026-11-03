@@ -14,14 +14,11 @@ class FakeUiSim:
     def successors(self, state: UiState):
         return self.operations.get(state.screen, ())
 
-    def predecessors(self, state: UiState):
-        return ()
-
     def advance(self, state: UiState, outcome: Outcome) -> UiState:
         return outcome.then
 
     def sync(self, state: UiState, observed: Observed) -> UiState:
-        return UiState(observed.screen, auto=observed.auto)
+        return UiState(observed.screen, state.stack, observed.auto)
 
     def danger_band(self, state: UiState) -> DangerBand:
         return self.bands[state.screen]

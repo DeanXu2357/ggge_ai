@@ -17,7 +17,7 @@ def entry(frame_seq: int) -> StepRecord:
         time=12.5,
         interpreted="sortie_prep",
         believed="story_stage_list",
-        caller=None,
+        stack=("battle_menu@player_phase_overview",),
         auto="semi",
         passing=None,
         expected=("sortie_prep", "ap_recovery_overlay"),
@@ -41,7 +41,12 @@ def test_record_appends_one_json_line_per_entry(tmp_path: Path):
 
     lines = (tmp_path / "run" / "steps.jsonl").read_text(encoding="utf-8").splitlines()
     assert [json.loads(line) for line in lines] == [
-        {**asdict(entry(seq)), "expected": ["sortie_prep", "ap_recovery_overlay"]} for seq in (1, 2)
+        {
+            **asdict(entry(seq)),
+            "stack": ["battle_menu@player_phase_overview"],
+            "expected": ["sortie_prep", "ap_recovery_overlay"],
+        }
+        for seq in (1, 2)
     ]
     assert json.loads(lines[0])["time"] == 12.5
     assert json.loads(lines[0])["gesture"] == "tap 0.432,0.504"

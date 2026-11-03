@@ -18,7 +18,7 @@ class StepRecord:
     time: float
     interpreted: str | None
     believed: str
-    caller: str | None
+    stack: tuple[str, ...]
     auto: str | None
     passing: str | None
     expected: tuple[str, ...]

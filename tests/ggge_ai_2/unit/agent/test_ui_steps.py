@@ -7,6 +7,7 @@ from ggge_ai_2.agent.ui_steps import first_move, operation_step
 from ggge_ai_2.mapgeom.contract import KnownMap
 from ggge_ai_2.uisim.contract import (
     DangerBand,
+    OpenGroup,
     Operation,
     Outcome,
     UiGesture,
@@ -55,10 +56,20 @@ def test_operation_with_two_outcomes_expects_both_in_outcome_order():
 def test_first_move_is_the_first_operation_on_the_path_to_the_goal():
     operation = open_prep(UiTap((0.5, 0.5)), (Outcome("prep", PREP),))
 
-    assert first_move(sim(operation), LIST, PREP) == (operation, Outcome("prep", PREP))
+    assert first_move(sim(operation), LIST, PREP.screen) == (operation, Outcome("prep", PREP))
 
 
 def test_first_move_without_a_path_is_none():
     operation = open_prep(UiTap((0.5, 0.5)), (Outcome("prep", PREP),))
 
-    assert first_move(sim(operation), LIST, SKIP) is None
+    assert first_move(sim(operation), LIST, SKIP.screen) is None
+
+
+def test_first_move_reaches_the_goal_screen_with_any_stack():
+    opened = UiState(UiScreen.SORTIE_PREP, (OpenGroup("ap_recovery", UiScreen.STORY_STAGE_LIST),))
+    operation = open_prep(UiTap((0.5, 0.5)), (Outcome("prep", opened),))
+
+    assert first_move(sim(operation), LIST, UiScreen.SORTIE_PREP) == (
+        operation,
+        Outcome("prep", opened),
+    )
