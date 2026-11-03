@@ -127,7 +127,7 @@ def test_out_of_scope_targets_are_dropped() -> None:
         _screen(
             "battle_prep_attack",
             (
-                _button("mixed", ("unit_detail_state", "select_skill_in_battle")),
+                _button("mixed", ("mech_enhance", "select_skill_in_battle")),
                 _button("outside", ("home_screen",)),
             ),
         ),

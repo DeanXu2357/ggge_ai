@@ -108,5 +108,6 @@ def test_small_file_is_parsed_into_definitions(tmp_path: Path):
 
 def test_real_file_defines_every_ui_screen():
     stages = load_stages(REAL_STAGES)
+    roster_split = {UiScreen.ROSTER_LIST_ALLY.value, UiScreen.ROSTER_LIST_ENEMY.value}
 
-    assert {screen.value for screen in UiScreen} <= stages.screens.keys()
+    assert {screen.value for screen in UiScreen} - roster_split <= stages.screens.keys()

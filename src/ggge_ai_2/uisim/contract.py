@@ -55,6 +55,19 @@ class UiScreen(StrEnum):
     EXP_REWARD_RESULT = "exp_reward_result"
     BATTLE_SCORE_RESULT = "battle_score_result"
     WIN_CONDITION_OVERLAY = "win_condition_overlay"
+    ROSTER_LIST_ALLY = "roster_list_ally"
+    ROSTER_LIST_ENEMY = "roster_list_enemy"
+    UNIT_DETAIL_STATE = "unit_detail_state"
+    UNIT_DETAIL_ACTION = "unit_detail_action"
+    UNIT_DETAIL_ABILITY = "unit_detail_ability"
+    UNIT_DETAIL_SUMMARY = "unit_detail_summary"
+    UNIT_DETAIL_STATE_ROSTER = "unit_detail_state_roster"
+    UNIT_DETAIL_ACTION_ROSTER = "unit_detail_action_roster"
+    UNIT_DETAIL_ABILITY_ROSTER = "unit_detail_ability_roster"
+    UNIT_DETAIL_SUMMARY_ROSTER = "unit_detail_summary_roster"
+    MECH_NORMAL_INFO = "mech_normal_info"
+    PILOT_NORMAL_INFO = "pilot_normal_info"
+    WEAPON_INFO = "weapon_info"
 
 
 class UiAutoMode(StrEnum):

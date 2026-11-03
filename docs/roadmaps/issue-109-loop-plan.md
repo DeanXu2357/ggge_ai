@@ -496,6 +496,16 @@
   我軍、敵軍兩個畫面名。
 - ［確認］uisim 只保存關係，不保存狀態。堆疊放在 `UiState`，由外部傳入，
   `advance` 與 `sync` 回傳新的值；結果和從 history 重算相同。
+- ［確認，2026-11-03］uisim 用自己的模型：`ChartUiSim`（`uisim/chart_sim.py`），
+  型別在 `uisim/chart.py`，定義是 `uisim/chart_data.py` 的 `CHART`。節點是
+  `UiScreen`，不夠時新增 `UiScreen` 的值。實作不讀 `stages.json`。
+  - `chart_data.py` 是轉移規則的資料依據。`stages.json` 只給測試參考：
+    `test_chart_data.py` 逐條比對兩者，刻意的差異列在測試裡。
+  - 進入群組的轉移在目標寫明群組（`Target.group`），`advance` 不從入口清單
+    推斷；只有 `sync` 遇到預期外的畫面時才推斷。
+  - `unit_info` 沒有節點會打開，不在定義裡。
+- ［確認，2026-11-03］刪除 `tests/ggge_ai_2/integration/test_uisim_recording.py`
+  （C5）。#111 驗收 4 指的是這個檢查，驗收條件要另外處理（未定）。
 - ［確認］不另做分頁組：分頁是普通畫面之間的轉移。
 - ［確認］子狀態記憶（statechart 的 history 狀態，例如單位詳情上次停留的分頁）延後：
   - 分頁本身是畫面名，進入後 interpreter 讀得到（T5、E4）。
@@ -523,9 +533,7 @@
     深度是群組巢狀層數，目前最多 2 層。
 - ［確認］堆疊規則，`advance` 與 `sync` 用同一套，依序檢查：
   1. 不變：目標是目前畫面，或最上層的群組包含目標。
-  2. push：目標指明的群組不在堆疊上時，push 一層，`caller` 是轉移前的畫面。
-     群組取自按鈕的 `to`：`unit_detail@X` 是 `unit_detail`；普通畫面名取以它為
-     入口、不在堆疊上的唯一群組，不只一個就不 push。
+  2. push：目標寫明的群組不在堆疊上時，push 一層，`caller` 是轉移前的畫面。
      ［提案］轉移前的畫面本身是這個群組的成員時，`caller` 為 None：堆疊漏了這個
      群組，例如啟動時停在戰鬥選單的「設定」。
   3. pop：其他情況，pop 到最上層包含目標，或堆疊清空。
@@ -541,3 +549,17 @@
     `first_move`。
   - `loop.py` 的紀錄把 `caller` 換成 `stack`。
   - `predecessors` 在 uisim 外沒有呼叫者，移除。
+  - `roster_list` 拆成 `roster_list_ally`、`roster_list_enemy`，互相轉移，都是
+    `battle_menu` 的成員。拆分寫在 `chart_data.py`，`stages.json` 不改。
+- 待做（2026-11-03 記錄）：
+  - `mech_normal_info`、`pilot_normal_info`、`weapon_info` 的「關閉」：`stages.json`
+    寫回到戰鬥畫面，幀 #523→#524、#531→#532、#534→#535 是回到單位詳情頁。
+    `chart_data.py` 照 `stages.json` 抄。［假設，使用者］這是狀態記憶的問題，類似
+    「從戰場進入單位詳情，按返回會回到戰場」。等實際運行再修。
+  - 單位詳情內的分頁切換與三個內頁的進出不在 `chart_data.py`：標記資料集還沒補
+    這些幀的圖片。有幀的轉移：#519→#520、#525→#526、#585→#586、#587→#588、
+    #588→#589、#592→#593、#593→#594、#521→#523、#529→#531、#532→#534。
+    補圖片與案例後再加轉移。
+  - 量按鈕位置（標記工作）：`unit_detail_*_roster` 的「關閉」（比戰鬥版偏左）與
+    「選擇」（#547、#549）；`roster_list_enemy` 的全部按鈕；四個戰鬥畫面的單位
+    圖示。量到之前，模型能操作進入 `_roster` 頁，但沒有操作能離開，只能靠 `sync`。
