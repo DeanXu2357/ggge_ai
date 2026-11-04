@@ -9,6 +9,7 @@ from ggge_ai_2.uisim.contract import RatioRect, UiScreen
 
 class UiElement(StrEnum):
     TURN_BOX = "turn_box"
+    MENU_KEY = "menu_key"
 
 
 class Gesture(StrEnum):

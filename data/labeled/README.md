@@ -76,6 +76,8 @@ come from device runs in `data/runs/` and from device screenshots in
   cannot rule it, for example because an effect covers the element.
   - `turn_box`: `present` or `absent`: the white TURN box at the top
     left.
+  - `menu_key`: the ≡ menu key at the top right: `lit` (the player can
+    tap it), `dark` (the key shows but it is dimmed) or `absent`.
 
 ## Later work
 

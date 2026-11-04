@@ -208,7 +208,7 @@ def test_chart_elements_match_the_ruled_frames(element: UiElement) -> None:
         if case.screen in NODE_NAMES
         and case.elements.get(element.value) is not None
         and (element in CHART.screens[UiScreen(case.screen)].elements)
-        != (case.elements[element.value] == "present")
+        != (case.elements[element.value] != "absent")
     ]
 
     assert wrong == []

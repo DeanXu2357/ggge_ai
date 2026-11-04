@@ -1,4 +1,4 @@
-<title>TURN 框逐幀判例</title>
+<title>__TITLE__</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&display=swap">
@@ -7,18 +7,18 @@
 :root {
   --bg: #f3f4f1; --surface: #ffffff; --fg: #1d2421; --muted: #5f6b66; --line: #d5dad6;
   --accent: #0f6f78; --yes: #1f7a3a; --yes-bg: #e2f2e6; --no: #a3352b; --no-bg: #f7e3e0;
-  --unclear: #8a6410; --unclear-bg: #f6edd5; --box: #ffd400;
+  --unclear: #8a6410; --unclear-bg: #f6edd5; --mid: #3d5a80; --mid-bg: #e1e8f2; --box: #ffd400;
   --ui: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #141917; --surface: #1d2422; --fg: #e4ebe7; --muted: #95a39d; --line: #33403b;
   --accent: #5cc2cb; --yes: #7fd394; --yes-bg: #1d3a26; --no: #f0938a; --no-bg: #43231f;
-  --unclear: #e6c36a; --unclear-bg: #3d321a; color-scheme: dark } }
+  --unclear: #e6c36a; --unclear-bg: #3d321a; --mid: #9fb8dc; --mid-bg: #23304a; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #141917; --surface: #1d2422; --fg: #e4ebe7; --muted: #95a39d; --line: #33403b;
   --accent: #5cc2cb; --yes: #7fd394; --yes-bg: #1d3a26; --no: #f0938a; --no-bg: #43231f;
-  --unclear: #e6c36a; --unclear-bg: #3d321a; color-scheme: dark }
+  --unclear: #e6c36a; --unclear-bg: #3d321a; --mid: #9fb8dc; --mid-bg: #23304a; color-scheme: dark }
 body { background: var(--bg); color: var(--fg); font-family: var(--ui); }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
 .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
@@ -29,9 +29,10 @@ h1 { margin: 0; font-size: 1.45rem; text-wrap: balance; }
 .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
 .counts { display: flex; flex-wrap: wrap; gap: 6px; font-variant-numeric: tabular-nums; }
 .chip { padding: 3px 9px; border-radius: 999px; font-size: 0.82rem; border: 1px solid var(--line); }
-.chip.present { color: var(--yes); background: var(--yes-bg); border-color: transparent; }
-.chip.absent { color: var(--no); background: var(--no-bg); border-color: transparent; }
+.chip.yes { color: var(--yes); background: var(--yes-bg); border-color: transparent; }
+.chip.no { color: var(--no); background: var(--no-bg); border-color: transparent; }
 .chip.unclear { color: var(--unclear); background: var(--unclear-bg); border-color: transparent; }
+.chip.mid { color: var(--mid); background: var(--mid-bg); border-color: transparent; }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 select { font: inherit; font-size: 0.88rem; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); max-width: 100%; }
 .status { font-size: 0.82rem; color: var(--muted); }
@@ -39,20 +40,22 @@ select { font: inherit; font-size: 0.88rem; padding: 4px 6px; border-radius: 6px
 main.grid { padding-block: 16px 48px; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: grid; gap: 6px; min-width: 0; }
 .card:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.card[data-value="present"] { border-color: var(--yes); }
-.card[data-value="absent"] { border-color: var(--no); }
-.card[data-value="unclear"] { border-color: var(--unclear); }
+.card[data-tone="yes"] { border-color: var(--yes); }
+.card[data-tone="no"] { border-color: var(--no); }
+.card[data-tone="unclear"] { border-color: var(--unclear); }
+.card[data-tone="mid"] { border-color: var(--mid); }
 .card img { width: 100%; display: block; border-radius: 4px; cursor: zoom-in; background: #000; }
 .meta { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 0.78rem; color: var(--muted); min-width: 0; }
 .meta .id { font-family: var(--mono); color: var(--fg); font-weight: 600; }
 .meta .screen { font-family: var(--mono); overflow-wrap: anywhere; }
 .tag { font-size: 0.72rem; letter-spacing: 0.03em; padding: 0 5px; border: 1px solid var(--line); border-radius: 4px; }
-.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.seg { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 4px; }
 .seg button { font: inherit; font-size: 0.88rem; padding: 6px 4px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--fg); cursor: pointer; }
 .seg button:hover { border-color: var(--accent); }
-.seg button[aria-pressed="true"].present { background: var(--yes-bg); color: var(--yes); border-color: var(--yes); font-weight: 700; }
-.seg button[aria-pressed="true"].absent { background: var(--no-bg); color: var(--no); border-color: var(--no); font-weight: 700; }
+.seg button[aria-pressed="true"].yes { background: var(--yes-bg); color: var(--yes); border-color: var(--yes); font-weight: 700; }
+.seg button[aria-pressed="true"].no { background: var(--no-bg); color: var(--no); border-color: var(--no); font-weight: 700; }
 .seg button[aria-pressed="true"].unclear { background: var(--unclear-bg); color: var(--unclear); border-color: var(--unclear); font-weight: 700; }
+.seg button[aria-pressed="true"].mid { background: var(--mid-bg); color: var(--mid); border-color: var(--mid); font-weight: 700; }
 .seg button:disabled { opacity: 0.5; cursor: default; }
 .empty { color: var(--muted); padding-block: 24px; }
 dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); padding: 12px; width: min(1200px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
@@ -67,9 +70,9 @@ kbd { font-family: var(--mono); font-size: 0.8em; border: 1px solid var(--line);
 </style>
 
 <header class="intro wrap">
-  <h1>TURN 框逐幀判例</h1>
-  <p>每張小圖是幀的左上角，<b>黃框</b>是 <code>turn_box</code> 量測區。請判斷這一幀有沒有 TURN 框：<b>有</b>、<b>無</b>，或被特效、轉場蓋住而<b>判不了</b>。再按一次已選的按鈕會清掉判例。</p>
-  <p>點小圖看整張幀。鍵盤：先點卡片，按 <kbd>1</kbd> 有、<kbd>2</kbd> 無、<kbd>3</kbd> 判不了，焦點會自動跳到下一張。按住 Shift 點按鈕，會把上一次點的卡片到這張之間「還沒判」的卡片都設成同一個值。卡片順序依偵測分數由高到低，但頁面不顯示分數。</p>
+  <h1>__TITLE__</h1>
+  <p>每張小圖是幀的一角，<b>黃框</b>是元件的量測區。__QUESTION__被特效或轉場蓋住而看不出來時，選<b>判不了</b>。再按一次已選的按鈕會清掉判例。</p>
+  <p>點小圖看整張幀。鍵盤：先點卡片，按數字鍵 <kbd>1</kbd>、<kbd>2</kbd>… 選第幾個按鈕，焦點會自動跳到下一張。按住 Shift 點按鈕，會把上一次點的卡片到這張之間「還沒判」的卡片都設成同一個值。卡片順序依偵測分數由高到低，但頁面不顯示分數。</p>
 </header>
 
 <div class="bar wrap" role="toolbar" aria-label="篩選與進度">
@@ -78,9 +81,6 @@ kbd { font-family: var(--mono); font-size: 0.8em; border: 1px solid var(--line);
     <select id="filter-state" aria-label="判例篩選">
       <option value="all">全部幀</option>
       <option value="todo">還沒判</option>
-      <option value="present">有</option>
-      <option value="absent">無</option>
-      <option value="unclear">判不了</option>
     </select>
     <select id="filter-screen" aria-label="畫面篩選"></select>
   </div>
@@ -104,8 +104,11 @@ kbd { font-family: var(--mono); font-size: 0.8em; border: 1px solid var(--line);
 
 <script>
 const CASES = /*CASES*/[];
-const COLLECTION = "turn_box";
-const VALUES = [["present", "有"], ["absent", "無"], ["unclear", "判不了"]];
+const CONFIG = /*CONFIG*/{};
+const COLLECTION = CONFIG.collection;
+const VALUES = CONFIG.values;
+const TONE = Object.fromEntries(VALUES.map(([value, , tone]) => [value, tone]));
+const keyIndex = (key) => { const i = Number(key) - 1; return Number.isInteger(i) && i >= 0 && i < VALUES.length ? i : -1; };
 const labels = new Map();
 let db = null;
 let anchor = null;
@@ -129,9 +132,10 @@ function visible() {
 
 function segButtons(container, id) {
   container.replaceChildren();
+  container.style.setProperty("--n", VALUES.length);
   for (const [value, text] of VALUES) {
     const b = document.createElement("button");
-    b.type = "button"; b.className = value; b.textContent = text; b.dataset.value = value;
+    b.type = "button"; b.className = TONE[value]; b.textContent = text; b.dataset.value = value;
     b.setAttribute("aria-pressed", String(labels.get(id) === value));
     b.disabled = !db;
     b.addEventListener("click", (e) => choose(id, value, e.shiftKey));
@@ -151,7 +155,7 @@ function metaInto(el, c) {
 function card(c) {
   const el = document.createElement("article");
   el.className = "card"; el.tabIndex = 0; el.dataset.id = c.id;
-  const v = labels.get(c.id); if (v) el.dataset.value = v;
+  const v = labels.get(c.id); if (v) el.dataset.tone = TONE[v];
   const img = document.createElement("img");
   img.src = "data:image/jpeg;base64," + c.crop; img.alt = c.id + " 左上角"; img.loading = "lazy";
   img.addEventListener("click", () => openDialog(c.id));
@@ -159,7 +163,7 @@ function card(c) {
   const seg = document.createElement("div"); seg.className = "seg"; segButtons(seg, c.id);
   el.append(img, meta, seg);
   el.addEventListener("keydown", (e) => {
-    const i = ["1", "2", "3"].indexOf(e.key);
+    const i = keyIndex(e.key);
     if (i < 0 || !db) return;
     e.preventDefault();
     choose(c.id, VALUES[i][0], false);
@@ -169,12 +173,13 @@ function card(c) {
 }
 
 function renderCounts() {
-  const n = { present: 0, absent: 0, unclear: 0 };
+  const n = Object.fromEntries(VALUES.map(([value]) => [value, 0]));
   for (const v of labels.values()) if (v in n) n[v]++;
-  const done = n.present + n.absent + n.unclear;
+  const done = Object.values(n).reduce((a, b) => a + b, 0);
   const box = $("counts"); box.replaceChildren();
   const chip = (text, cls) => { const s = document.createElement("span"); s.className = "chip " + (cls || ""); s.textContent = text; box.append(s); };
-  chip(`已判 ${done} / ${CASES.length}`); chip(`有 ${n.present}`, "present"); chip(`無 ${n.absent}`, "absent"); chip(`判不了 ${n.unclear}`, "unclear");
+  chip(`已判 ${done} / ${CASES.length}`);
+  for (const [value, text, tone] of VALUES) chip(`${text} ${n[value]}`, tone);
 }
 
 function render() {
@@ -190,7 +195,7 @@ function refreshCard(id) {
   const el = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
   if (el) {
     const v = labels.get(id);
-    if (v) el.dataset.value = v; else delete el.dataset.value;
+    if (v) el.dataset.tone = TONE[v]; else delete el.dataset.tone;
     segButtons(el.querySelector(".seg"), id);
   }
   renderCounts();
@@ -243,7 +248,7 @@ $("dlg").addEventListener("close", () => { dialogId = null; });
 $("dlg").addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft") step(-1);
   else if (e.key === "ArrowRight") step(1);
-  else { const i = ["1", "2", "3"].indexOf(e.key); if (i >= 0 && db) { choose(dialogId, VALUES[i][0], false); step(1); } }
+  else { const i = keyIndex(e.key); if (i >= 0 && db) { choose(dialogId, VALUES[i][0], false); step(1); } }
 });
 
 (function screens() {
@@ -255,6 +260,7 @@ $("dlg").addEventListener("keydown", (e) => {
     const o = document.createElement("option"); o.value = s; o.textContent = `${s}（${n}）`; sel.append(o);
   }
 })();
+for (const [value, text] of VALUES) { const o = document.createElement("option"); o.value = value; o.textContent = text; $("filter-state").append(o); }
 $("filter-state").addEventListener("change", render);
 $("filter-screen").addEventListener("change", render);
 render();
