@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Sequence
 from pathlib import Path
 
-from ggge_ai_2.uisim.chart import AutoButton, Gesture, ScreenChart, Target, Transition
+import pytest
+
+from ggge_ai_2.uisim.chart import AutoButton, Gesture, ScreenChart, Target, Transition, UiElement
 from ggge_ai_2.uisim.chart_data import CHART
 from ggge_ai_2.uisim.contract import RatioRect, UiScreen
 from ggge_ai_2.uisim.stages import ScreenDef, load_stages
+from tests.ggge_ai_2.dataset import cases
 
 REAL_STAGES = Path(__file__).resolve().parents[4] / "assets" / "ui_stages" / "stages.json"
 STAGES = load_stages(REAL_STAGES)
@@ -144,8 +148,9 @@ def test_chart_screens_match_stages_json_with_the_listed_differences() -> None:
         else:
             expected, names = _expected_chart(node, source)
             seen |= names
-        if CHART.screens[node] != expected:
-            drift.append(f"{node}: chart {CHART.screens[node]} != expected {expected}")
+        actual = dataclasses.replace(CHART.screens[node], elements=frozenset())
+        if actual != expected:
+            drift.append(f"{node}: chart {actual} != expected {expected}")
 
     assert drift == []
     assert REPLACED_TARGETS.keys() <= seen
@@ -193,3 +198,17 @@ def test_every_named_group_of_a_target_is_a_chart_group() -> None:
     }
 
     assert named <= names
+
+
+@pytest.mark.parametrize("element", list(UiElement))
+def test_chart_elements_match_the_ruled_frames(element: UiElement) -> None:
+    wrong = [
+        (case.id, case.screen, case.elements[element.value])
+        for case in cases()
+        if case.screen in NODE_NAMES
+        and case.elements.get(element.value) is not None
+        and (element in CHART.screens[UiScreen(case.screen)].elements)
+        != (case.elements[element.value] == "present")
+    ]
+
+    assert wrong == []

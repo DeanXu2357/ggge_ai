@@ -41,6 +41,7 @@ class Case:
     power_save: str | None
     phase: str | None
     map: MapLabel | None
+    elements: dict[str, str | None]
 
 
 @functools.cache
@@ -64,6 +65,10 @@ def _case(row: dict[str, object]) -> Case:
         power_save=None if row["power_save"] is None else str(row["power_save"]),
         phase=None if row["phase"] is None else str(row["phase"]),
         map=None if row["map"] is None else _map_label(cast(dict[str, Any], row["map"])),
+        elements={
+            str(name): None if value is None else str(value)
+            for name, value in cast(dict[str, object], row["elements"]).items()
+        },
     )
 
 

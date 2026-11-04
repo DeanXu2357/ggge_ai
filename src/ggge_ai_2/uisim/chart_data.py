@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from ggge_ai_2.uisim.chart import AutoButton, Chart, Group, ScreenChart, Target, Transition
+from ggge_ai_2.uisim.chart import (
+    AutoButton,
+    Chart,
+    Group,
+    ScreenChart,
+    Target,
+    Transition,
+    UiElement,
+)
 from ggge_ai_2.uisim.contract import RatioRect, UiScreen
 
 CHART = Chart(
@@ -262,6 +270,7 @@ CHART = Chart(
             )
         ),
         UiScreen.PLAYER_PHASE_OVERVIEW: ScreenChart(
+            elements=frozenset({UiElement.TURN_BOX}),
             transitions=(
                 Transition(
                     "player_phase_overview__battle_menu",
@@ -293,6 +302,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.SELECT_ACTION_IN_BATTLE: ScreenChart(
+            elements=frozenset({UiElement.TURN_BOX}),
             transitions=(
                 Transition(
                     "select_action_in_battle__battle_menu",
@@ -373,6 +383,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.SELECT_SKILL_IN_BATTLE: ScreenChart(
+            elements=frozenset({UiElement.TURN_BOX}),
             transitions=(
                 Transition(
                     "select_skill_in_battle__back",
@@ -389,6 +400,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.SELECT_WEAPON_IN_BATTLE: ScreenChart(
+            elements=frozenset({UiElement.TURN_BOX}),
             transitions=(
                 Transition(
                     "select_weapon_in_battle__battle_menu",
@@ -451,6 +463,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.BATTLE_PREP_ATTACK: ScreenChart(
+            elements=frozenset({UiElement.TURN_BOX}),
             transitions=(
                 Transition(
                     "battle_prep_attack__battle_menu",
@@ -516,6 +529,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.NON_PLAYER_PHASE_BATTLE_VIEW: ScreenChart(
+            elements=frozenset({UiElement.TURN_BOX}),
             auto=AutoButton(
                 "non_player_phase_battle_view__auto", RatioRect(0.743, 0.016, 0.811, 0.079), 15.0
             ),
@@ -527,6 +541,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.BATTLE_PREP_RESPONSE_ATTACK: ScreenChart(
+            elements=frozenset({UiElement.TURN_BOX}),
             transitions=(
                 Transition(
                     "battle_prep_response_attack__enemy_unit_icon",
@@ -577,6 +592,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.SELECT_WEAPON_IN_BATTLE_RESPONSE: ScreenChart(
+            elements=frozenset({UiElement.TURN_BOX}),
             transitions=(
                 Transition(
                     "select_weapon_in_battle_response__confirm",

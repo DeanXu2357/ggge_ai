@@ -7,6 +7,10 @@ from enum import StrEnum
 from ggge_ai_2.uisim.contract import RatioRect, UiScreen
 
 
+class UiElement(StrEnum):
+    TURN_BOX = "turn_box"
+
+
 class Gesture(StrEnum):
     TAP = "tap"
     LONG_PRESS = "long_press"
@@ -42,6 +46,7 @@ class ScreenChart:
     auto: AutoButton | None = None
     waits: tuple[Target, ...] = ()
     danger: tuple[RatioRect, ...] = ()
+    elements: frozenset[UiElement] = frozenset()
 
 
 @dataclass(frozen=True)

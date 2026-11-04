@@ -70,6 +70,12 @@ come from device runs in `data/runs/` and from device screenshots in
   - `markers`: the cells of each marker: `move_range` (the double-line
     cells of the move range), `threat` (the exclamation mark) and
     `weapon_range` (the red cells of the weapon range).
+- `elements`: the interpreter elements that the user ruled on the frame,
+  one key for each element. A missing key means that the user has not
+  ruled that element on the frame. A `null` value means that the user
+  cannot rule it, for example because an effect covers the element.
+  - `turn_box`: `present` or `absent`: the white TURN box at the top
+    left.
 
 ## Later work
 
