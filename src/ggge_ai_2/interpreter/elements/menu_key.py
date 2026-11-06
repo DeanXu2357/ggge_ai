@@ -6,6 +6,7 @@ import numpy as np
 from ggge_ai_2.interpreter.elements.region import Region, crop, match
 
 MENU_LINES_REGION: Region = (0.918, 0.032, 0.937, 0.067)
+MENU_GLYPH_REGION: Region = (0.918, 0.031, 0.936, 0.067)
 MENU_LIT_WHITE_SHARE = 0.1
 MENU_GLYPH_MARGIN = 12
 MENU_GLYPH_MIN_SCORE = 0.7
