@@ -302,7 +302,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.SELECT_ACTION_IN_BATTLE: ScreenChart(
-            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY}),
+            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY, UiElement.ROUND_BUTTON}),
             transitions=(
                 Transition(
                     "select_action_in_battle__battle_menu",
@@ -383,7 +383,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.SELECT_SKILL_IN_BATTLE: ScreenChart(
-            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY}),
+            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY, UiElement.ROUND_BUTTON}),
             transitions=(
                 Transition(
                     "select_skill_in_battle__back",
@@ -400,7 +400,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.SELECT_WEAPON_IN_BATTLE: ScreenChart(
-            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY}),
+            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY, UiElement.ROUND_BUTTON}),
             transitions=(
                 Transition(
                     "select_weapon_in_battle__battle_menu",
@@ -463,7 +463,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.BATTLE_PREP_ATTACK: ScreenChart(
-            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY}),
+            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY, UiElement.ROUND_BUTTON}),
             transitions=(
                 Transition(
                     "battle_prep_attack__battle_menu",
@@ -541,7 +541,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.BATTLE_PREP_RESPONSE_ATTACK: ScreenChart(
-            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY}),
+            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY, UiElement.ROUND_BUTTON}),
             transitions=(
                 Transition(
                     "battle_prep_response_attack__enemy_unit_icon",
@@ -592,7 +592,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.SELECT_WEAPON_IN_BATTLE_RESPONSE: ScreenChart(
-            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY}),
+            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY, UiElement.ROUND_BUTTON}),
             transitions=(
                 Transition(
                     "select_weapon_in_battle_response__confirm",
@@ -610,7 +610,7 @@ CHART = Chart(
             ),
         ),
         UiScreen.SELECT_WEAPON_IN_ATTACK_PREPARE: ScreenChart(
-            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY}),
+            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY, UiElement.ROUND_BUTTON}),
             transitions=(
                 Transition(
                     "select_weapon_in_attack_prepare__skill",

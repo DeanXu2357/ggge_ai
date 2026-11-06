@@ -78,6 +78,16 @@ come from device runs in `data/runs/` and from device screenshots in
     left.
   - `menu_key`: the ≡ menu key at the top right: `lit` (the player can
     tap it), `dark` (the key shows but it is dimmed) or `absent`.
+  - `round_button`: the large round button at the bottom right, named by
+    its text: `select_weapon` (選擇武裝), `attack` (攻擊),
+    `attack_out_of_range` (攻擊 grayed under the 射程外 message),
+    `select_action` (行動選擇), `activate` (發動), `start_battle`
+    (開始戰鬥), or `absent`.
+
+  An element counts only when the player can use it on the current
+  screen. An element under an overlay or a blur is `absent`, also when
+  its shape and color still show (rec20261014-776). `null` is only for a
+  frame where the user cannot tell whether the element is there.
 
 ## Later work
 

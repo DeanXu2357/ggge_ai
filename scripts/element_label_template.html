@@ -132,7 +132,7 @@ function visible() {
 
 function segButtons(container, id) {
   container.replaceChildren();
-  container.style.setProperty("--n", VALUES.length);
+  container.style.setProperty("--n", Math.min(VALUES.length, 4));
   for (const [value, text] of VALUES) {
     const b = document.createElement("button");
     b.type = "button"; b.className = TONE[value]; b.textContent = text; b.dataset.value = value;
