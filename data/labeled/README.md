@@ -90,6 +90,8 @@ come from device runs in `data/runs/` and from device screenshots in
     `enemy_phase` (敵軍回合), `skill` (技能), `other` (a readable title
     in the same font that is not a battle title, for example on the
     enhance lists), or `absent`.
+  - `fast_forward`: the ▶▶ fast-forward key at the top right: `x2`, `x1`,
+    `off`, or `absent`. The labeled frames show only `x2`.
 
   An element counts only when the player can use it on the current
   screen. An element under an overlay or a blur is `absent`, also when

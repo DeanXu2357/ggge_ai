@@ -16,6 +16,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from ggge_ai_2.interpreter.elements.fast_forward import (
+    FAST_FORWARD_BOX,
+    fast_forward_outline_coverage,
+)
 from ggge_ai_2.interpreter.elements.menu_key import MENU_LINES_REGION, menu_key_white_share
 from ggge_ai_2.interpreter.elements.region import Region
 from ggge_ai_2.interpreter.elements.round_button import round_ring_coverage
@@ -54,6 +58,21 @@ ELEMENTS = {
         "≡ 選單鍵逐幀判例",
         "請判斷這一幀右上角的 ≡ 選單鍵：<b>亮</b>（可以點）、<b>暗</b>（在但變暗），或<b>無</b>（畫面上沒有這個鍵）。",
         (("lit", "亮", "yes"), ("dark", "暗", "mid"), ("absent", "無", "no"), UNCLEAR),
+    ),
+    "fast_forward": Element(
+        FAST_FORWARD_BOX,
+        fast_forward_outline_coverage,
+        (0.70, 0.0, 1.0, 0.15),
+        "▶▶ 快轉鈕逐幀判例",
+        "請判斷這一幀右上角的 ▶▶ 快轉鈕：狀態是 <b>2x</b>、<b>1x</b> 還是<b>關</b>，"
+        "畫面上沒有這個鈕時選<b>無</b>。",
+        (
+            ("x2", "2x", "yes"),
+            ("x1", "1x", "yes"),
+            ("off", "關", "mid"),
+            ("absent", "無", "no"),
+            UNCLEAR,
+        ),
     ),
     "top_left_title": Element(
         TITLE_REGION,
