@@ -108,7 +108,7 @@ const CONFIG = /*CONFIG*/{};
 const COLLECTION = CONFIG.collection;
 const VALUES = CONFIG.values;
 const TONE = Object.fromEntries(VALUES.map(([value, , tone]) => [value, tone]));
-const keyIndex = (key) => { const i = Number(key) - 1; return Number.isInteger(i) && i >= 0 && i < VALUES.length ? i : -1; };
+const keyIndex = (key) => { const i = key === "0" ? 9 : Number(key) - 1; return Number.isInteger(i) && i >= 0 && i < VALUES.length ? i : -1; };
 const labels = new Map();
 let db = null;
 let anchor = null;

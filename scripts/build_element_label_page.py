@@ -19,6 +19,7 @@ import numpy as np
 from ggge_ai_2.interpreter.elements.menu_key import MENU_LINES_REGION, menu_key_white_share
 from ggge_ai_2.interpreter.elements.region import Region
 from ggge_ai_2.interpreter.elements.round_button import round_ring_coverage
+from ggge_ai_2.interpreter.elements.top_left_title import TITLE_REGION, title_ious
 from ggge_ai_2.interpreter.elements.turn_box import TURN_BOX_REGION, turn_box_white_share
 
 ROUND_BUTTON_BOX: Region = (0.825, 0.741, 0.936, 0.981)
@@ -53,6 +54,26 @@ ELEMENTS = {
         "≡ 選單鍵逐幀判例",
         "請判斷這一幀右上角的 ≡ 選單鍵：<b>亮</b>（可以點）、<b>暗</b>（在但變暗），或<b>無</b>（畫面上沒有這個鍵）。",
         (("lit", "亮", "yes"), ("dark", "暗", "mid"), ("absent", "無", "no"), UNCLEAR),
+    ),
+    "top_left_title": Element(
+        TITLE_REGION,
+        lambda image: max(title_ious(image).values()),
+        (0.0, 0.0, 0.30, 0.16),
+        "左上戰鬥標題逐幀判例",
+        "請判斷這一幀左上角的戰鬥標題（TURN 框上方那一行白字）寫什麼。"
+        "標題不在選項裡時選<b>其他標題</b>，畫面上沒有這種標題時選<b>無</b>。",
+        (
+            ("player_phase", "我軍回合", "yes"),
+            ("unit_move", "單位移動", "yes"),
+            ("select_weapon", "選擇武裝", "yes"),
+            ("battle_prep_attack", "戰鬥準備 -攻擊-", "yes"),
+            ("battle_prep_response", "戰鬥準備 -應戰-", "yes"),
+            ("enemy_phase", "敵軍回合", "yes"),
+            ("skill", "技能", "yes"),
+            ("other", "其他標題", "mid"),
+            ("absent", "無", "no"),
+            UNCLEAR,
+        ),
     ),
     "round_button": Element(
         ROUND_BUTTON_BOX,

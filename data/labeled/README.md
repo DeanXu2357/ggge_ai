@@ -83,6 +83,13 @@ come from device runs in `data/runs/` and from device screenshots in
     `attack_out_of_range` (攻擊 grayed under the 射程外 message),
     `select_action` (行動選擇), `activate` (發動), `start_battle`
     (開始戰鬥), or `absent`.
+  - `top_left_title`: the battle title at the top left, the white text
+    line above the TURN box: `player_phase` (我軍回合), `unit_move`
+    (單位移動), `select_weapon` (選擇武裝), `battle_prep_attack`
+    (戰鬥準備 -攻擊-), `battle_prep_response` (戰鬥準備 -應戰-),
+    `enemy_phase` (敵軍回合), `skill` (技能), `other` (a readable title
+    in the same font that is not a battle title, for example on the
+    enhance lists), or `absent`.
 
   An element counts only when the player can use it on the current
   screen. An element under an overlay or a blur is `absent`, also when
