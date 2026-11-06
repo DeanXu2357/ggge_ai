@@ -16,8 +16,15 @@ UNIT_SCREENS = MOVE_SCREENS | {
     "select_skill_in_battle",
     "select_weapon_in_battle",
     "select_weapon_in_battle_response",
+    "select_weapon_in_attack_prepare",
 }
-WEAPON_SCREENS = frozenset({"select_weapon_in_battle", "select_weapon_in_battle_response"})
+WEAPON_SCREENS = frozenset(
+    {
+        "select_weapon_in_battle",
+        "select_weapon_in_battle_response",
+        "select_weapon_in_attack_prepare",
+    }
+)
 
 MOVE_CASES = [case for case in GRID_CASES if case.screen in MOVE_SCREENS]
 NO_UNIT_CASES = [case for case in GRID_CASES if case.screen not in UNIT_SCREENS]

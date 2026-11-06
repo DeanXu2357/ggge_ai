@@ -51,6 +51,10 @@ REPLACED_TARGETS: dict[str, tuple[Target, ...]] = {
     # 'unit_detail' group note.
     "roster_list_ally__tab_enemy": (Target(ENEMY),),
     "roster_list_ally__close": TO_MENU,
+    # The user ruled that the action panel and its skill screen form one group.
+    "battle_prep_attack__pilot_slot": (
+        Target(UiScreen.SELECT_WEAPON_IN_ATTACK_PREPARE, "battle_prep_action"),
+    ),
     **{f"{target.screen}__close": (Target(ALLY), Target(ENEMY)) for target in ROSTER_DETAIL},
     # Frames #515, #585, #769, #773 and #893 show the battle pages after a battle screen. The
     # '_roster' pages open from the roster list.
@@ -71,6 +75,13 @@ ADDED_SCREENS = {
     )
 }
 ADDED_MEMBERS = {"battle_menu": frozenset({ALLY, ENEMY})}
+PREP_WEAPON = UiScreen.SELECT_WEAPON_IN_ATTACK_PREPARE
+ADDED_GROUPS = {
+    "battle_prep_action": (
+        frozenset({PREP_WEAPON}),
+        frozenset({PREP_WEAPON, UiScreen.SELECT_SKILL_IN_ATTACK_PREPARE}),
+    )
+}
 LEFT_OUT_GROUPS = frozenset({"unit_info"})
 
 
@@ -166,7 +177,7 @@ def test_chart_groups_match_stages_json_with_the_listed_differences() -> None:
         )
         for name, group in STAGES.groups.items()
         if name not in LEFT_OUT_GROUPS
-    }
+    } | ADDED_GROUPS
 
     assert {group.name: (group.entry, group.members) for group in CHART.groups} == expected
 

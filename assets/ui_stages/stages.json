@@ -439,7 +439,7 @@
       "zh": "戰鬥中選擇武裝",
       "kind": "map_mode.weapon_select",
       "control": "player",
-      "description": "戰鬥地圖上，左上標題「選擇武裝」。底部中央是一排武裝圖示（EN 數字加 SHORT／MIDDLE／LONG），右側有 POWER 武裝說明，右下有「攻擊」大按鈕與「技能」「待機」「切換目標」「返回」。另一種情形：左上標題是「戰鬥準備 -攻擊-」，但下方是武裝欄與「不參加」，右下是藍色「行動選擇」（不是橘色「開始戰鬥」），也屬於選擇武裝。",
+      "description": "戰鬥地圖上，左上標題「選擇武裝」。底部中央是一排武裝圖示（EN 數字加 SHORT／MIDDLE／LONG），右側有 POWER 武裝說明，右下有「攻擊」大按鈕與「技能」「待機」「切換目標」「返回」。",
       "buttons": [
         {
           "name": "select_weapon_in_battle__auto",
@@ -596,7 +596,7 @@
       "zh": "戰鬥準備（攻擊）",
       "kind": "page",
       "control": "player",
-      "description": "戰鬥地圖，左上標題「戰鬥準備 -攻擊-」（標題後半是「攻擊」，不是「應戰」），我方回合在選擇武裝畫面按下「攻擊」後出現，格線與背景偏藍。上方是攻守雙方的 HP 與預估傷害，中央顯示「攻擊」數值，底部中央是參與攻擊的駕駛頭像與標籤（攻擊、支援攻擊等），右下有「返回」與橘色「開始戰鬥」；如果右下是藍色「行動選擇」、下方是武裝欄，就是選擇武裝，不是這個畫面。",
+      "description": "戰鬥地圖，左上標題「戰鬥準備 -攻擊-」（標題後半是「攻擊」，不是「應戰」），我方回合在選擇武裝畫面按下「攻擊」後出現，格線與背景偏藍。上方是攻守雙方的 HP 與預估傷害，中央顯示「攻擊」數值，底部中央是參與攻擊的駕駛頭像與標籤（攻擊、支援攻擊等），右下有「返回」與橘色「開始戰鬥」；如果右下是藍色「行動選擇」、下方是武裝欄，就是戰鬥準備（攻擊）選擇行動，不是這個畫面。",
       "buttons": [
         {
           "name": "battle_prep_attack__auto",
@@ -647,7 +647,7 @@
           "zh": "駕駛欄",
           "description": "底部中央的駕駛頭像與標籤",
           "to": [
-            "select_skill_in_battle"
+            "select_weapon_in_attack_prepare"
           ],
           "rect": [0.335, 0.748, 0.488, 0.969],
           "deadline": 3.0
@@ -827,6 +827,122 @@
             "battle_clear_view"
           ],
           "rect": [0.82, 0.723, 0.935, 0.969],
+          "deadline": 4.6
+        }
+      ]
+    },
+    {
+      "name": "select_weapon_in_attack_prepare",
+      "zh": "戰鬥準備（攻擊）選擇行動",
+      "kind": "page",
+      "control": "player",
+      "description": "戰鬥地圖，左上標題「戰鬥準備 -攻擊-」，在戰鬥準備（攻擊）畫面按下駕駛頭像後出現，選的是那位駕駛的行動。下方是武裝欄（EN 數字加 SHORT／MIDDLE／LONG）與「不參加」，上方有 SELECT 標記；右側是選中項目的說明框，右下有「技能」、「返回」與藍色「行動選擇」，沒有橘色「開始戰鬥」。",
+      "buttons": [
+        {
+          "name": "select_weapon_in_attack_prepare__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": [],
+          "rect": [0.743, 0.016, 0.811, 0.081],
+          "deadline": 15.0
+        },
+        {
+          "name": "select_weapon_in_attack_prepare__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
+        },
+        {
+          "name": "select_weapon_in_attack_prepare__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": [],
+          "rect": [0.913, 0.018, 0.942, 0.08],
+          "deadline": 15.0
+        },
+        {
+          "name": "select_weapon_in_attack_prepare__skill",
+          "zh": "技能",
+          "description": "右側的「技能」",
+          "to": [
+            "select_skill_in_attack_prepare"
+          ],
+          "rect": [0.814, 0.574, 0.85, 0.68],
+          "deadline": 3.1
+        },
+        {
+          "name": "select_weapon_in_attack_prepare__back",
+          "zh": "返回",
+          "description": "右下的「返回」",
+          "to": [
+            "battle_prep_attack"
+          ],
+          "rect": [0.736, 0.821, 0.809, 0.975],
+          "deadline": 4.6
+        },
+        {
+          "name": "select_weapon_in_attack_prepare__confirm",
+          "zh": "行動選擇",
+          "description": "右下藍色「行動選擇」",
+          "to": [
+            "battle_prep_attack"
+          ],
+          "rect": [0.82, 0.724, 0.935, 0.975],
+          "deadline": 4.6
+        }
+      ]
+    },
+    {
+      "name": "select_skill_in_attack_prepare",
+      "zh": "戰鬥準備（攻擊）選擇技能",
+      "kind": "page",
+      "control": "player",
+      "description": "戰鬥地圖，左上標題「技能」，在戰鬥準備（攻擊）選擇行動畫面按下「技能」後出現。外觀和 select_skill_in_battle 相同：底部 SKILL 技能欄有一個技能被選中（上方顯示「SELECT」），右側是技能說明，右下是綠色「發動」與「返回」。兩者只能從前一個畫面分辨。",
+      "buttons": [
+        {
+          "name": "select_skill_in_attack_prepare__auto",
+          "zh": "AUTO",
+          "description": "戰鬥右上的「AUTO」",
+          "to": [],
+          "rect": [0.743, 0.016, 0.811, 0.079],
+          "deadline": 15.0
+        },
+        {
+          "name": "select_skill_in_attack_prepare__fast_forward",
+          "zh": "快轉",
+          "description": "戰鬥右上的「▶▶」",
+          "to": [],
+          "rect": [0.828, 0.016, 0.898, 0.081],
+          "deadline": 15.0
+        },
+        {
+          "name": "select_skill_in_attack_prepare__battle_menu",
+          "zh": "戰鬥選單",
+          "description": "戰鬥右上的「≡」",
+          "to": [],
+          "rect": [0.913, 0.018, 0.942, 0.08],
+          "deadline": 15.0
+        },
+        {
+          "name": "select_skill_in_attack_prepare__back",
+          "zh": "返回",
+          "description": "右下的「返回」",
+          "to": [
+            "select_weapon_in_attack_prepare"
+          ],
+          "rect": [0.735, 0.823, 0.808, 0.975],
+          "deadline": 4.6
+        },
+        {
+          "name": "select_skill_in_attack_prepare__activate",
+          "zh": "發動",
+          "description": "右下綠色「發動」",
+          "to": [
+            "battle_prep_attack"
+          ],
+          "rect": [0.82, 0.726, 0.935, 0.975],
           "deadline": 4.6
         }
       ]

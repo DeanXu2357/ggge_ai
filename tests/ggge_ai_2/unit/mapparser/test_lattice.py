@@ -10,6 +10,7 @@ GRID_SCREENS = frozenset(
         "select_skill_in_battle",
         "select_weapon_in_battle",
         "select_weapon_in_battle_response",
+        "select_weapon_in_attack_prepare",
         "battle_prep_attack",
         "battle_prep_response_attack",
         "non_player_phase_battle_view",

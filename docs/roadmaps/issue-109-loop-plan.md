@@ -563,3 +563,27 @@
   - 量按鈕位置（標記工作）：`unit_detail_*_roster` 的「關閉」（比戰鬥版偏左）與
     「選擇」（#547、#549）；`roster_list_enemy` 的全部按鈕；四個戰鬥畫面的單位
     圖示。量到之前，模型能操作進入 `_roster` 頁，但沒有操作能離開，只能靠 `sync`。
+
+### 8.7 元件判例與戰鬥準備的行動選擇（2026-11-04）
+
+- ［確認］元件測試改用逐幀人工判例，不再用畫面名推斷。`data/labeled/cases.jsonl`
+  每列的 `elements` 記判例：沒有 key 是還沒判，`null` 是判不了。已判
+  `turn_box`（0c4bdfd）與 `menu_key`（76a252c），標記頁由
+  `scripts/build_element_label_page.py` 產生。
+- ［確認］chart 的 `ScreenChart.elements` 列出畫面有的 UI 元件；在集合裡就是有。
+  沒有判例幀的畫面不列元件，代表沒查過，不是沒有。
+- ［確認］右下大圓鈕的字不只表示按下後的動作，也提示錯誤與防呆（例如「射程外
+  攻擊」）。圓鈕判例照字分：選擇武裝、攻擊、射程外攻擊、行動選擇、發動、開始戰鬥、無。
+- ［確認］戰鬥準備裡有使用者沒規劃到的畫面：
+  - 「戰鬥準備 -攻擊-」按駕駛頭像，進入那位駕駛的行動選擇面板
+    `select_weapon_in_attack_prepare`；面板按「技能」進入
+    `select_skill_in_attack_prepare`。兩者組成群組 `battle_prep_action`。
+  - 攻擊側與應戰側分開。應戰側的面板就是 `select_weapon_in_battle_response`。
+  - 戰鬥準備的技能畫面和大地圖的 `select_skill_in_battle` 是不同畫面，外觀相同，
+    只能從前一個畫面分辨。
+  - rec20261014-927、-928、-933、-950 原標 `select_weapon_in_battle`，改標
+    `select_weapon_in_attack_prepare`。錄影的 B02（`pilot_slot`）原記到
+    `select_skill_in_battle`，依裁定改到面板。
+- ［假設］面板的「返回」「行動選擇」回到 `battle_prep_attack`；技能畫面的「返回」
+  回到面板、「發動」回到 `battle_prep_attack`。使用者看過轉移圖沒有提出異議，
+  但沒有逐條確認。應戰側的面板沒有「技能」鈕（6 幀都沒有），所以沒有應戰側的技能畫面。

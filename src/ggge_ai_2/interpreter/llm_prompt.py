@@ -32,8 +32,9 @@ _BATTLE_TITLE_RULES = (
     " '我軍回合' means player_phase_overview. '單位移動' means select_action_in_battle."
     " '選擇武裝' means select_weapon_in_battle.",
     "'戰鬥準備 -攻擊-' with an orange '開始戰鬥' button at the bottom right means"
-    " battle_prep_attack; with a blue '行動選擇' button it means select_weapon_in_battle.",
-    "'戰鬥準備 -應戰-' with an orange '開始戰鬥' button means battle_prep_response_attack.",
+    " battle_prep_attack; with a blue '行動選擇' button it means select_weapon_in_attack_prepare.",
+    "'戰鬥準備 -應戰-' with an orange '開始戰鬥' button means battle_prep_response_attack;"
+    " with a blue '行動選擇' button it means select_weapon_in_battle_response.",
 )
 
 _ANSWER_RULES = (

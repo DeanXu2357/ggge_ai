@@ -496,7 +496,7 @@ CHART = Chart(
                 Transition(
                     "battle_prep_attack__pilot_slot",
                     RatioRect(0.335, 0.748, 0.488, 0.969),
-                    (Target(UiScreen.SELECT_SKILL_IN_BATTLE),),
+                    (Target(UiScreen.SELECT_WEAPON_IN_ATTACK_PREPARE, "battle_prep_action"),),
                     3.0,
                 ),
                 Transition(
@@ -607,6 +607,51 @@ CHART = Chart(
             ),
             auto=AutoButton(
                 "select_weapon_in_battle_response__auto", RatioRect(0.743, 0.016, 0.811, 0.08), 15.0
+            ),
+        ),
+        UiScreen.SELECT_WEAPON_IN_ATTACK_PREPARE: ScreenChart(
+            elements=frozenset({UiElement.TURN_BOX, UiElement.MENU_KEY}),
+            transitions=(
+                Transition(
+                    "select_weapon_in_attack_prepare__skill",
+                    RatioRect(0.814, 0.574, 0.85, 0.68),
+                    (Target(UiScreen.SELECT_SKILL_IN_ATTACK_PREPARE),),
+                    3.1,
+                ),
+                Transition(
+                    "select_weapon_in_attack_prepare__back",
+                    RatioRect(0.736, 0.821, 0.809, 0.975),
+                    (Target(UiScreen.BATTLE_PREP_ATTACK),),
+                    4.6,
+                ),
+                Transition(
+                    "select_weapon_in_attack_prepare__confirm",
+                    RatioRect(0.82, 0.724, 0.935, 0.975),
+                    (Target(UiScreen.BATTLE_PREP_ATTACK),),
+                    4.6,
+                ),
+            ),
+            auto=AutoButton(
+                "select_weapon_in_attack_prepare__auto", RatioRect(0.743, 0.016, 0.811, 0.081), 15.0
+            ),
+        ),
+        UiScreen.SELECT_SKILL_IN_ATTACK_PREPARE: ScreenChart(
+            transitions=(
+                Transition(
+                    "select_skill_in_attack_prepare__back",
+                    RatioRect(0.735, 0.823, 0.808, 0.975),
+                    (Target(UiScreen.SELECT_WEAPON_IN_ATTACK_PREPARE),),
+                    4.6,
+                ),
+                Transition(
+                    "select_skill_in_attack_prepare__activate",
+                    RatioRect(0.82, 0.726, 0.935, 0.975),
+                    (Target(UiScreen.BATTLE_PREP_ATTACK),),
+                    4.6,
+                ),
+            ),
+            auto=AutoButton(
+                "select_skill_in_attack_prepare__auto", RatioRect(0.743, 0.016, 0.811, 0.079), 15.0
             ),
         ),
         UiScreen.BATTLE_MAIN_SETTING: ScreenChart(
@@ -1025,6 +1070,13 @@ CHART = Chart(
             "battle_prep_detail",
             frozenset({UiScreen.BATTLE_PREP_DETAIL}),
             frozenset({UiScreen.BATTLE_PREP_DETAIL}),
+        ),
+        Group(
+            "battle_prep_action",
+            frozenset({UiScreen.SELECT_WEAPON_IN_ATTACK_PREPARE}),
+            frozenset(
+                {UiScreen.SELECT_WEAPON_IN_ATTACK_PREPARE, UiScreen.SELECT_SKILL_IN_ATTACK_PREPARE}
+            ),
         ),
     ),
 )

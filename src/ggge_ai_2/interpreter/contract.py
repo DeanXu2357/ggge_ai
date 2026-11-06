@@ -17,6 +17,8 @@ class Screen(StrEnum):
     PLAYER_PHASE_OVERVIEW = "player_phase_overview"
     SELECT_ACTION_IN_BATTLE = "select_action_in_battle"
     SELECT_WEAPON_IN_BATTLE = "select_weapon_in_battle"
+    SELECT_WEAPON_IN_BATTLE_RESPONSE = "select_weapon_in_battle_response"
+    SELECT_WEAPON_IN_ATTACK_PREPARE = "select_weapon_in_attack_prepare"
     BATTLE_PREP_ATTACK = "battle_prep_attack"
     BATTLE_PREP_RESPONSE_ATTACK = "battle_prep_response_attack"
     NON_PLAYER_PHASE_BATTLE_VIEW = "non_player_phase_battle_view"

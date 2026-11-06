@@ -47,6 +47,8 @@ class UiScreen(StrEnum):
     NON_PLAYER_PHASE_BATTLE_VIEW = "non_player_phase_battle_view"
     BATTLE_PREP_RESPONSE_ATTACK = "battle_prep_response_attack"
     SELECT_WEAPON_IN_BATTLE_RESPONSE = "select_weapon_in_battle_response"
+    SELECT_WEAPON_IN_ATTACK_PREPARE = "select_weapon_in_attack_prepare"
+    SELECT_SKILL_IN_ATTACK_PREPARE = "select_skill_in_attack_prepare"
     BATTLE_MAIN_SETTING = "battle_main_setting"
     BATTLE_SETTINGS_IN_BATTLE = "battle_settings_in_battle"
     BATTLE_PREP_DETAIL = "battle_prep_detail"
