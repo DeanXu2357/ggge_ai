@@ -23,6 +23,7 @@ from ggge_ai_2.interpreter.elements.fast_forward import (
 from ggge_ai_2.interpreter.elements.menu_key import MENU_LINES_REGION, menu_key_white_share
 from ggge_ai_2.interpreter.elements.region import Region
 from ggge_ai_2.interpreter.elements.round_button import round_ring_coverage
+from ggge_ai_2.interpreter.elements.tap_to_next import TAP_TO_NEXT_REGION, tap_to_next_score
 from ggge_ai_2.interpreter.elements.top_left_title import TITLE_REGION, title_ious
 from ggge_ai_2.interpreter.elements.turn_box import TURN_BOX_REGION, turn_box_white_share
 
@@ -73,6 +74,15 @@ ELEMENTS = {
             ("absent", "無", "no"),
             UNCLEAR,
         ),
+    ),
+    "tap_to_next": Element(
+        TAP_TO_NEXT_REGION,
+        tap_to_next_score,
+        (0.30, 0.78, 0.70, 1.0),
+        "TAP TO NEXT 提示逐幀判例",
+        "請判斷這一幀下方中央有沒有「- TAP TO NEXT -」提示。這是提示不是按鈕："
+        "出現時點畫面任何地方都會跳過。",
+        (("present", "有", "yes"), ("absent", "無", "no"), UNCLEAR),
     ),
     "top_left_title": Element(
         TITLE_REGION,

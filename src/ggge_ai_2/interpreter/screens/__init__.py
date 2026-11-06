@@ -6,6 +6,7 @@ import numpy as np
 
 from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.interpreter.screens import (
+    battle_info_preview,
     battle_prep_attack,
     battle_prep_response_attack,
     player_phase_overview,
@@ -27,5 +28,6 @@ QUICK_CHECKS: Mapping[Screen, QuickCheck] = {
         select_weapon_in_attack_prepare,
         battle_prep_attack,
         battle_prep_response_attack,
+        battle_info_preview,
     )
 }

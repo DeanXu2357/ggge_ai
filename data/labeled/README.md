@@ -92,6 +92,9 @@ come from device runs in `data/runs/` and from device screenshots in
     enhance lists), or `absent`.
   - `fast_forward`: the ▶▶ fast-forward key at the top right: `x2`, `x1`,
     `off`, or `absent`. The labeled frames show only `x2`.
+  - `tap_to_next`: the "- TAP TO NEXT -" indicator at the bottom center:
+    `present` or `absent`. It is not a button: while it shows, a tap
+    anywhere on the screen skips ahead.
 
   An element counts only when the player can use it on the current
   screen. An element under an overlay or a blur is `absent`, also when
