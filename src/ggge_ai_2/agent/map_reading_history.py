@@ -1,0 +1,25 @@
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+
+from ggge_ai_2.mapparser.contract import MapReading
+from ggge_ai_2.stream.contract import StillWindow
+
+
+@dataclass(frozen=True)
+class MapReadingRecord:
+    still: StillWindow
+    reading: MapReading
+
+
+@dataclass
+class MapReadingHistory:
+    _records: list[MapReadingRecord] = field(default_factory=list[MapReadingRecord])
+
+    def insert(self, still: StillWindow, reading: MapReading) -> None:
+        self._records.append(MapReadingRecord(still, reading))
+
+    @property
+    def records(self) -> Sequence[MapReadingRecord]:
+        return tuple(self._records)

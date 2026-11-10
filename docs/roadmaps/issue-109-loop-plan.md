@@ -488,6 +488,8 @@
     當次的 `MapJudgment` 中有效。
   - 先移除舊合約（`align`、`merge`、`KnownMap`）的引用，維持目前實作的功能，再定義
     新合約。
+- ［確認，2026-11-10］`MapReading` 另外存在 `MapReadingHistory` 物件，放在 agent 的屬性中。
+  每次 `Sensed` 拿到 `MapReading` 就 insert 一筆。大量紀錄要 aggregate 還是怎麼處理，之後再做。
 - ［確認］甲乙丙只存在 mapgeom 內部。判準：只隨證據改變的內容屬於 mapgeom；
   會隨策略改變的內容屬於 map sync planner（先後、手勢、點哪裡）。
 - ［確認］出擊隊伍在進入關卡前設定，agent 自己把隊伍記在 belief。設定隊伍的操作流程

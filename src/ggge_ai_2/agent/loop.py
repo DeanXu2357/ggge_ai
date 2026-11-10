@@ -9,6 +9,7 @@ from ggge_ai_2.actuator.contract import Actuator, Dispatch, Gesture, GestureBloc
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, Sensed, UiSource
 from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.agent.contract import Plan, PlanController, Step
+from ggge_ai_2.agent.map_reading_history import MapReadingHistory
 from ggge_ai_2.agent.runlog import RunLog, StepRecord, thumbnail_name
 from ggge_ai_2.interpreter.contract import AutoMode, Interpreter, Screen, Situation
 from ggge_ai_2.mapparser.contract import MapParser
@@ -67,6 +68,7 @@ class Agent[P: Plan]:
     belief: Belief
     stop: Event = field(default_factory=Event)
     runlog: RunLog | None = None
+    map_readings: MapReadingHistory = field(default_factory=MapReadingHistory)
     _after: Instant = field(default=0.0, init=False)
     _frame: Frame | None = field(default=None, init=False)
     _situation: Situation | None = field(default=None, init=False)
@@ -81,6 +83,8 @@ class Agent[P: Plan]:
             sensed = self.sense()
             if sensed is None:
                 break
+            if sensed.reading is not None:
+                self.map_readings.insert(sensed.still, sensed.reading)
             self.belief = self.belief.update(sensed, self.uisim)
 
             if self.plan_controller.goal_reached(self.belief):
@@ -304,4 +308,3 @@ def _situation_to_observed(situation: Situation | None) -> Observed | None:
         return None
     auto = None if situation.auto is None else UiAutoMode(situation.auto.value)
     return Observed(UiScreen(situation.screen.value), auto)
-

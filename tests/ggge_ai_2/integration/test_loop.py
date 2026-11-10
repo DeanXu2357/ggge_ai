@@ -16,7 +16,7 @@ from ggge_ai_2.agent.contract import Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
 from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation
-from ggge_ai_2.mapparser.contract import MapReading, ViewCell
+from ggge_ai_2.mapparser.contract import CellReading, MapReading, ViewCell
 from ggge_ai_2.stream.contract import Frame, Observation, StillWindow
 from ggge_ai_2.agent.ui_steps import operation_step
 from ggge_ai_2.uisim.contract import (
@@ -105,12 +105,23 @@ class FakeInterpreter:
         return None if screen is None else Situation(frame.seq, screen, self.autos.get(frame.seq))
 
 
-class NoMapParser:
+class FakeMapParser:
     def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
         return None
 
     def locate(self, frame: Frame, cell: ViewCell) -> tuple[int, int] | None:
         raise AssertionError("no map on these screens")
+
+
+@dataclass
+class MockMapParser:
+    readings: dict[int, MapReading]
+
+    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
+        return self.readings.get(frame.seq)
+
+    def locate(self, frame: Frame, cell: ViewCell) -> tuple[int, int] | None:
+        raise AssertionError("the loop does not tap cells")
 
 
 @dataclass
@@ -157,12 +168,13 @@ def make_agent(
     actuator: FakeActuator | None = None,
     stop: Event | None = None,
     runlog: RunLog | None = None,
+    mapparser: FakeMapParser | MockMapParser | None = None,
 ) -> Agent:
     return Agent(
         stream=stream,
         actuator=actuator or FakeActuator(),
         interpreter=FakeInterpreter(shows),
-        mapparser=NoMapParser(),
+        mapparser=mapparser or FakeMapParser(),
         uisim=FakeUiSim(),
         plan_controller=controller,
         belief=start(),
@@ -183,6 +195,19 @@ def test_animated_screen_settles_on_two_frames_with_the_same_interpretation():
     assert make_agent(stream, shows, controller).run() is RunResult.DONE
     assert controller.checked[0].ui == LIST
     assert controller.checked[0].as_of == StillWindow(1.0, 1.4, 2)
+
+
+def test_every_sensed_map_reading_goes_into_the_map_reading_history():
+    reading = MapReading({(0, 0): CellReading.EMPTY}, frozenset(), (), {})
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
+    shows = {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.PLAYER_PHASE_OVERVIEW}
+    controller = ScriptedController([ScriptedPlan([step()])], goals=[False, True])
+    agent = make_agent(stream, shows, controller, mapparser=MockMapParser({2: reading}))
+
+    assert agent.run() is RunResult.DONE
+    assert [(record.still, record.reading) for record in agent.map_readings.records] == [
+        (window(2, 11.0), reading)
+    ]
 
 
 def test_sense_settles_on_the_second_of_two_equal_interpretations(
