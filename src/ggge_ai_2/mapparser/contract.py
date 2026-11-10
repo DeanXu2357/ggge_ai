@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+import numpy as np
 
 from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.stream.contract import Frame
@@ -67,11 +68,18 @@ class PilotState(StrEnum):
     SUPER_STRIKE = "超一擊"
 
 
+# The white mask of a name, cut to the box around its white pixels. Two crops of one name
+# differ in some pixels, so compare two templates by their similarity. Equality is identity.
+@dataclass(frozen=True, eq=False)
+class NameTemplate:
+    mask: np.ndarray
+
+
 @dataclass(frozen=True)
 class MechPanel:
     icon: PanelIcon | None
     # The name as the panel shows it, cut with '…' when it is long.
-    name: str | None
+    name: NameTemplate | None
     hp: int | None
     en: int | None
     hp_change: int | None
@@ -82,7 +90,7 @@ class MechPanel:
 @dataclass(frozen=True)
 class PilotPanel:
     icon: PanelIcon | None
-    name: str | None
+    name: NameTemplate | None
     mp: int | None
     mp_max: int | None
     state: PilotState | None

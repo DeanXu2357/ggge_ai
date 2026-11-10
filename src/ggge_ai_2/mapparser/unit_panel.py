@@ -8,7 +8,14 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from ggge_ai_2.mapparser.contract import MechPanel, PanelIcon, PilotPanel, PilotState, UnitPanel
+from ggge_ai_2.mapparser.contract import (
+    MechPanel,
+    NameTemplate,
+    PanelIcon,
+    PilotPanel,
+    PilotState,
+    UnitPanel,
+)
 from ggge_ai_2.mapparser.hud import TEMPLATES
 
 PANEL_TEMPLATES = TEMPLATES / "unit_panel"
@@ -65,10 +72,11 @@ def _shift(box: Box, dx: int) -> Box:
     return (left + dx, top, right + dx, bottom)
 
 
-# Warning: one frame (map20261026-44) gives the enemy layout. That frame shows no DAMAGE,
-# no HP or EN preview and no overlay. These boxes are not verified on the enemy panel.
+# The enemy panel uses the right edge of the pilot block and the right edge of the mech
+# block. The left edges are weak on a dark map, because the panel is dark too. A panel
+# with mech art in the left block has no edge at the right of the art.
 ENEMY = PanelLayout(
-    lines=(146, 563, 971),
+    lines=(554, 971),
     mech_icon=_shift(SELECTED.mech_icon, ENEMY_MECH_SHIFT),
     mech_name=_shift(SELECTED.mech_name, ENEMY_MECH_SHIFT),
     hp=_shift(SELECTED.hp, ENEMY_MECH_SHIFT),
@@ -95,6 +103,10 @@ LINE_PEAK_RATIO = 5.0
 # digit.
 BAR_BOTTOM = 249
 CHANGE_WHITE = 215
+# Over the red edge of a bar and over the red 'KILL' badge, the video compression tints the
+# white digits pink. The mask also takes these pale pixels.
+CHANGE_PALE_VALUE = 190
+CHANGE_PALE_SATURATION = 90
 CHANGE_YELLOW_HUES = (22, 35)
 CHANGE_MIN_HEIGHT = 15
 # The minus sign is a flat shape just left of the first digit.
@@ -134,8 +146,6 @@ DAMAGE_SCORE = 0.6
 # The red banner of 'CHANCE STEP'.
 BANNER_HUES = ((0, 10), (165, 179))
 BANNER_SHARE = 0.2
-NAME_SCORE = 0.85
-NAME_SLACK = (4, 3)
 
 
 def panel_line_peaks(image: np.ndarray, layout: PanelLayout) -> tuple[float, ...]:
@@ -170,7 +180,7 @@ def read_panel(image: np.ndarray, layout: PanelLayout) -> UnitPanel | None:
     return UnitPanel(
         MechPanel(
             icon=read_icon(crop(image, layout.mech_icon)),
-            name=read_name(crop(image, layout.mech_name), "mech"),
+            name=read_name(crop(image, layout.mech_name)),
             hp=_number(read_text(crop(image, layout.hp))),
             en=_number(read_text(crop(image, layout.en))),
             hp_change=read_change(
@@ -183,7 +193,7 @@ def read_panel(image: np.ndarray, layout: PanelLayout) -> UnitPanel | None:
         ),
         PilotPanel(
             icon=read_icon(crop(image, layout.pilot_icon)),
-            name=read_name(crop(image, layout.pilot_name), "pilot"),
+            name=read_name(crop(image, layout.pilot_name)),
             mp=_number(mp_now),
             mp_max=_number(mp_max),
             state=read_state(crop(image, layout.state)),
@@ -250,6 +260,15 @@ def glyph_templates() -> dict[str, np.ndarray]:
         name = path.stem.removeprefix("glyph_")
         templates[GLYPH_LABELS.get(name, name)] = _load(path)
     return templates
+
+
+# The preview numbers over the bars use a narrower font than HP, EN and MP.
+@functools.cache
+def change_templates() -> dict[str, np.ndarray]:
+    return {
+        path.stem.removeprefix("change_"): _load(path)
+        for path in sorted(PANEL_TEMPLATES.glob("change_*.png"))
+    }
 
 
 def similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -345,90 +364,82 @@ def text_crop(area: np.ndarray) -> np.ndarray | None:
     return mask[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
 
 
-@functools.cache
-def name_templates(kind: str) -> tuple[tuple[str, np.ndarray], ...]:
-    index_path = PANEL_TEMPLATES / "names.json"
-    if not index_path.exists():
-        return ()
-    index: dict[str, str] = json.loads(index_path.read_text(encoding="utf-8"))
-    return tuple(
-        (name, _load(PANEL_TEMPLATES / file))
-        for file, name in index.items()
-        if Path(file).stem.startswith(f"name_{kind}_")
-    )
-
-
-def read_name(area: np.ndarray, kind: str) -> str | None:
-    """Return the name whose saved crop matches the name on the panel, or None for a name
-    that has no saved crop."""
+def read_name(area: np.ndarray) -> NameTemplate | None:
     found = text_crop(area)
-    if found is None:
-        return None
-    slack_x, slack_y = NAME_SLACK
-    best, score = None, NAME_SCORE
-    for name, template in name_templates(kind):
-        if (
-            abs(template.shape[1] - found.shape[1]) > slack_x
-            or abs(template.shape[0] - found.shape[0]) > slack_y
-        ):
-            continue
-        pad_y = slack_y + max(0, template.shape[0] - found.shape[0])
-        pad_x = slack_x + max(0, template.shape[1] - found.shape[1])
-        padded = cv2.copyMakeBorder(
-            found, slack_y, pad_y, slack_x, pad_x, cv2.BORDER_CONSTANT, value=0
-        )
-        match = similarity(padded, template)
-        if match >= score:
-            best, score = name, match
-    return best
+    return None if found is None else NameTemplate(found)
 
 
 def change_mask(area: np.ndarray, yellow: bool) -> np.ndarray:
-    if not yellow:
-        return ((area.min(axis=2) >= CHANGE_WHITE) * 255).astype(np.uint8)
     hsv = cv2.cvtColor(area, cv2.COLOR_BGR2HSV)
+    if not yellow:
+        pale = (hsv[:, :, 2] >= CHANGE_PALE_VALUE) & (hsv[:, :, 1] <= CHANGE_PALE_SATURATION)
+        return (((area.min(axis=2) >= CHANGE_WHITE) | pale) * 255).astype(np.uint8)
     low, high = CHANGE_YELLOW_HUES
     inside = (hsv[:, :, 0] >= low) & (hsv[:, :, 0] <= high)
     strong = (hsv[:, :, 1] >= STATE_SATURATION) & (hsv[:, :, 2] >= STATE_VALUE)
     return ((inside & strong) * 255).astype(np.uint8)
 
 
-def change_parts(mask: np.ndarray, box: Box) -> tuple[list[Box], bool]:
-    """Return the digit boxes of a preview number and whether a minus sign is before them."""
+def change_glyphs(mask: np.ndarray, box: Box) -> tuple[list[np.ndarray], bool]:
+    """Return the glyph images of a preview number and whether a minus sign is before them.
+
+    The edge of the bar and the red 'KILL' badge cut a digit into parts. A glyph joins the
+    part that crosses the bottom row of the bar with the other parts in the same columns,
+    and it keeps the rows of the full digits, so a missing stroke stays missing and does
+    not stretch the rest.
+    """
     cross = BAR_BOTTOM - box[1]
-    count, _, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=4)
-    shapes = [(int(x), int(y), int(x + w), int(y + h)) for x, y, w, h, _ in stats[1:count]]
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=4)
+    shapes = {
+        index: (int(x), int(y), int(x + w), int(y + h))
+        for index, (x, y, w, h, _) in enumerate(stats[1:count], start=1)
+    }
     digits = sorted(
-        shape
-        for shape in shapes
+        (shape, index)
+        for index, shape in shapes.items()
         if shape[1] < cross < shape[3] and shape[3] - shape[1] >= CHANGE_MIN_HEIGHT
     )
     if not digits:
         return [], False
-    first = digits[0][0]
+    top = min(shape[1] for shape, _ in digits)
+    bottom = max(shape[3] for shape, _ in digits)
+    digit_indexes = {index for _, index in digits}
+    glyphs: list[np.ndarray] = []
+    for (left, _, right, _), index in digits:
+        parts = [index] + [
+            other
+            for other, (o_left, o_top, o_right, o_bottom) in shapes.items()
+            if other not in digit_indexes
+            and left <= (o_left + o_right) / 2 < right
+            and o_top >= top
+            and o_bottom <= bottom
+        ]
+        own = (np.isin(labels, parts) * 255).astype(np.uint8)
+        glyphs.append(glyph_image(own, (left, top, right, bottom)))
+    first = digits[0][0][0]
     minus = any(
         MINUS_WIDTH[0] <= right - left <= MINUS_WIDTH[1]
         and MINUS_HEIGHT[0] <= bottom - top <= MINUS_HEIGHT[1]
         and 0 <= first - right <= MINUS_GAP
-        for left, top, right, bottom in shapes
+        for left, top, right, bottom in shapes.values()
     )
-    return digits, minus
+    return glyphs, minus
 
 
 def read_change(mask: np.ndarray, box: Box) -> int | None:
-    digits, minus = change_parts(mask, box)
-    if not digits:
+    glyphs, minus = change_glyphs(mask, box)
+    if not glyphs:
         return None
     labels: list[str] = []
-    for digit in digits:
+    for glyph in glyphs:
         label, score = max(
             (
-                (label, similarity(glyph_image(mask, digit), template))
-                for label, template in glyph_templates().items()
+                (label, similarity(glyph, template))
+                for label, template in change_templates().items()
             ),
             key=lambda item: item[1],
         )
-        if score < GLYPH_SCORE or not label.isdigit():
+        if score < GLYPH_SCORE:
             return None
         labels.append(label)
     value = int("".join(labels))
