@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+import numpy as np
+
 # A view cell is (column, row) in the coordinates of one view: (0, 0) is the top-left
 # corner of the box around the cells that the view reads.
 ViewCell = tuple[int, int]
@@ -32,12 +34,53 @@ class Side(StrEnum):
     RIGHT = "right"
 
 
+class Faction(StrEnum):
+    ALLY = "ally"
+    ENEMY = "enemy"
+
+
+class UnitRole(StrEnum):
+    ATTACK = "attack"
+    ENDURANCE = "endurance"
+    SUPPORT = "support"
+    # Only the NPC units of the system have this role.
+    NO_ROLE = "no_role"
+
+
+class PilotState(StrEnum):
+    NORMAL = "一般"
+    STRONG = "強勢"
+    SUPER_STRONG = "超強勢"
+    SUPER_STRIKE = "超一擊"
+
+
+# Two crops of one name differ in some pixels, so compare two masks by their
+# similarity. Equality is identity.
+@dataclass(frozen=True, eq=False)
+class NameMask:
+    mask: np.ndarray
+
+
+@dataclass(frozen=True)
+class UnitBrief:
+    mech_role: UnitRole | None
+    mech_name: NameMask | None
+    hp: int | None
+    en: int | None
+    pilot_role: UnitRole | None
+    pilot_name: NameMask | None
+    mp: int | None
+    mp_max: int | None
+    state: PilotState | None
+
+
 @dataclass(frozen=True)
 class ViewUnit:
     pos: ViewCell
     size: tuple[int, int]
     controllable: bool | None
-    selected: bool
+    faction: Faction | None
+    brief: UnitBrief | None
 
 
 @dataclass(frozen=True)
@@ -66,13 +109,16 @@ class Axis:
         return self.length if self.start_closed and self.end_closed else None
 
 
+# Warning: a unit id is valid only in its own judgment. Do not compare ids between
+# two judgments.
+UnitId = int
+
+
 @dataclass(frozen=True)
 class MapUnit:
-    # Warning: the id is valid only in its own judgment. Do not compare ids between
-    # two judgments.
-    id: int
-    pos: MapCell
-    size: tuple[int, int]
+    controllable: bool | None
+    faction: Faction | None
+    brief: UnitBrief | None
 
 
 @dataclass(frozen=True)
@@ -84,7 +130,8 @@ class MapJudgment:
     rows: Axis
     cells: Mapping[MapCell, CellContent]
     uncertain: frozenset[MapCell]
-    units: tuple[MapUnit, ...]
+    unit_cells: Mapping[MapCell, UnitId]
+    units: Mapping[UnitId, MapUnit]
     current: frozenset[MapCell] | None
 
 
@@ -94,7 +141,7 @@ class MapGeometry(Protocol):
 
         'views' is in time order; the last view is the current frame.
         Return None when the views give no consistent result above the threshold.
-        'cells' and 'units' hold only content above the threshold. Every other cell
+        'cells', 'unit_cells' and 'units' hold only content above the threshold. Every other cell
         inside the axes is in 'uncertain'. 'current' is the range of the last view,
         or None when the last view has no place above the threshold.
         """
