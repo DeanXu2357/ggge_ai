@@ -5,8 +5,9 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from ggge_ai_2.interpreter.contract import Screen
+from ggge_ai_2.interpreter.phase_cue import PHASE_SCREENS, phase
 from ggge_ai_2.mapparser.border import Border, read_border
-from ggge_ai_2.mapparser.contract import MapReading, ScreenPoint, ViewCell
+from ggge_ai_2.mapparser.contract import MapPhase, MapReading, ScreenPoint, ViewCell
 from ggge_ai_2.mapparser.hud import Rect, hud_rects
 from ggge_ai_2.mapparser.lattice import Lattice, read_lattice
 from ggge_ai_2.mapparser.markers import read_markers
@@ -39,6 +40,10 @@ class OpenCvMapParser:
         units, cells = read_units(frame.image, lattice, rects, view)
         markers = read_markers(frame.image, view, sorted(region.lattice_cells))
         return MapReading(
+            # Warning: the parser does not read the stage and the turn yet.
+            stage=None,
+            turn=None,
+            phase=_phase(frame.image, screen),
             cells={region.to_view(cell): cells[cell] for cell in region.lattice_cells},
             borders=border.edges(),
             units=tuple(
@@ -68,6 +73,11 @@ def _read(
     view = top_view(image, lattice, rects)
     border = read_border(view)
     return lattice, rects, view, border, read_region(lattice, rects, border)
+
+
+def _phase(image: np.ndarray, screen: Screen | None) -> MapPhase | None:
+    read = phase(image) if screen in PHASE_SCREENS else None
+    return None if read is None else MapPhase(read.value)
 
 
 def _footprint(pos: ViewCell, size: tuple[int, int]) -> list[ViewCell]:

@@ -43,3 +43,14 @@ def test_locate_gives_no_point_on_a_map_screen_without_grid(case: Case) -> None:
 @pytest.mark.parametrize("case", RULED_OUT_CASES, ids=[case.id for case in RULED_OUT_CASES])
 def test_parse_reads_nothing_on_the_screens_that_the_user_ruled_out(case: Case) -> None:
     assert PARSER.parse(_frame(case), Screen(case.screen)) is None
+
+
+MAP_CASES = [case for case in cases() if case.map is not None]
+
+
+@pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
+def test_parse_reads_the_labeled_phase(case: Case) -> None:
+    reading = PARSER.parse(_frame(case), Screen(case.screen))
+
+    assert reading is not None
+    assert (None if reading.phase is None else reading.phase.value) == case.phase

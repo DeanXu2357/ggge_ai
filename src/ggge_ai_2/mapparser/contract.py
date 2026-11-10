@@ -28,6 +28,11 @@ class Edge(StrEnum):
     RIGHT = "right"
 
 
+class MapPhase(StrEnum):
+    PLAYER = "player"
+    NON_PLAYER = "non_player"
+
+
 class Marker(StrEnum):
     MOVE_RANGE = "move_range"
     THREAT = "threat"
@@ -48,6 +53,10 @@ class UnitReading:
 
 @dataclass(frozen=True)
 class MapReading:
+    # Each of 'stage', 'turn' and 'phase' is None when the frame does not show it.
+    stage: str | None
+    turn: int | None
+    phase: MapPhase | None
     cells: Mapping[ViewCell, CellReading]
     borders: frozenset[Edge]
     units: tuple[UnitReading, ...]
