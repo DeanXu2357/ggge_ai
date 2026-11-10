@@ -101,8 +101,11 @@ come from device runs in `data/runs/` and from device screenshots in
   - `tap_to_next`: the "- TAP TO NEXT -" indicator at the bottom center:
     `present` or `absent`. It is not a button: while it shows, a tap
     anywhere on the screen skips ahead.
-  - `enemy_panel`: the panel of the enemy unit with the red selection
-    circle at the top left: `present` or `absent`.
+  - `enemy_panel`: the panel of an enemy unit at the top left, with a
+    pilot block and a mech block: `present` or `absent`. The panel shows
+    the enemy with the red selection circle, and also the target of an
+    attack on the battle screens. A panel whose left block shows mech art
+    instead of the pilot block is `absent`.
   - `unit_panel`: the panel of the selected unit at the top right, with a
     mech block and a pilot block: `present` or `absent`. A panel whose
     right block shows mech art instead of the pilot block is `absent`: it is
@@ -125,8 +128,9 @@ come from device runs in `data/runs/` and from device screenshots in
   - `pilot`: `icon`, `name`, `mp` and `mp_max`, `state` (the word after
     MP, for example 一般 or 超一擊), `damage` (the percent of
     'DAMAGE +x%') and `chance_step` (the count of 'CHANCE STEP ×n').
-- `enemy_panel`: what the panel of the enemy unit with the red selection
-  circle shows, when `elements.enemy_panel` is `present`. The panel is at
+- `enemy_panel`: what the panel of the enemy unit shows, when
+  `elements.enemy_panel` is `present`, or `null` when it is `absent`. The
+  key is missing when the user has not ruled the frame. The panel is at
   the top left, with the pilot block on the left and the mech block on the
   right. It has the fields of `unit_panel`; its icons are `gray` (⊖).
 
