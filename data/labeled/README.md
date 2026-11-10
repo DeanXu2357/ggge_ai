@@ -67,9 +67,15 @@ come from device runs in `data/runs/` and from device screenshots in
     units the player can still move).
   - `selected`: the `pos` of the unit with the blue selection circle, or
     `null`.
+  - `enemy_selected`: the `pos` of the enemy unit with the red selection
+    circle, or `null`. The red circle shows when the player taps an enemy
+    unit while no unit of the player is selected. The key is missing on a
+    frame that the user ruled before the key existed.
   - `markers`: the cells of each marker: `move_range` (the double-line
     cells of the move range), `threat` (the exclamation mark) and
-    `weapon_range` (the red cells of the weapon range).
+    `weapon_range` (the red cells of the weapon range), and
+    `enemy_move_range` (the red cells around the enemy unit with the red
+    selection circle: its move range).
 - `elements`: the interpreter elements that the user ruled on the frame,
   one key for each element. A missing key means that the user has not
   ruled that element on the frame. A `null` value means that the user
@@ -95,6 +101,8 @@ come from device runs in `data/runs/` and from device screenshots in
   - `tap_to_next`: the "- TAP TO NEXT -" indicator at the bottom center:
     `present` or `absent`. It is not a button: while it shows, a tap
     anywhere on the screen skips ahead.
+  - `enemy_panel`: the panel of the enemy unit with the red selection
+    circle at the top left: `present` or `absent`.
   - `unit_panel`: the panel of the selected unit at the top right, with a
     mech block and a pilot block: `present` or `absent`. A panel whose
     right block shows mech art instead of the pilot block is `absent`: it is
@@ -117,6 +125,10 @@ come from device runs in `data/runs/` and from device screenshots in
   - `pilot`: `icon`, `name`, `mp` and `mp_max`, `state` (the word after
     MP, for example 一般 or 超一擊), `damage` (the percent of
     'DAMAGE +x%') and `chance_step` (the count of 'CHANCE STEP ×n').
+- `enemy_panel`: what the panel of the enemy unit with the red selection
+  circle shows, when `elements.enemy_panel` is `present`. The panel is at
+  the top left, with the pilot block on the left and the mech block on the
+  right. It has the fields of `unit_panel`; its icons are `gray` (⊖).
 
 ## Later work
 
