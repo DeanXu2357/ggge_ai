@@ -83,6 +83,15 @@ class ViewUnit:
     brief: UnitBrief | None
 
 
+# The fill mark that a tap on an empty cell leaves on the map.
+@dataclass(frozen=True)
+class TapMark:
+    cell: ViewCell
+    # A new tap moves the mark. Two views show the same mark only when they carry the
+    # same tap.
+    tap: int
+
+
 @dataclass(frozen=True)
 class View:
     stage: str | None
@@ -91,6 +100,7 @@ class View:
     cells: Mapping[ViewCell, CellSeen]
     borders: frozenset[Side]
     units: tuple[ViewUnit, ...]
+    tap_mark: TapMark | None
 
 
 class CellContent(StrEnum):
