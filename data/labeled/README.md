@@ -95,11 +95,28 @@ come from device runs in `data/runs/` and from device screenshots in
   - `tap_to_next`: the "- TAP TO NEXT -" indicator at the bottom center:
     `present` or `absent`. It is not a button: while it shows, a tap
     anywhere on the screen skips ahead.
+  - `unit_panel`: the panel of the selected unit at the top right, with a
+    mech block and a pilot block: `present` or `absent`. A panel whose
+    right block shows mech art instead of the pilot block is `absent`: it is
+    not the same UI element.
 
   An element counts only when the player can use it on the current
   screen. An element under an overlay or a blur is `absent`, also when
   its shape and color still show (rec20261014-776). `null` is only for a
   frame where the user cannot tell whether the element is there.
+
+- `unit_panel`: what the panel of the selected unit shows, when
+  `elements.unit_panel` is `present`, or `null` when it is `absent`.
+  The key is missing when the user has not ruled the frame. A field is `null`
+  when the panel does not show it. Names are as the panel shows them,
+  with the cut mark '…'.
+  - `mech`: `icon` (the color of the icon before the name: `red`, `blue`
+    or `yellow`), `name`, `hp`, `en`, `hp_change` and `en_change` (the
+    preview numbers over the bars, for example -12067), and `overlay`
+    (other text over the block, for example `KILL` or `MP +0`).
+  - `pilot`: `icon`, `name`, `mp` and `mp_max`, `state` (the word after
+    MP, for example 一般 or 超一擊), `damage` (the percent of
+    'DAMAGE +x%') and `chance_step` (the count of 'CHANCE STEP ×n').
 
 ## Later work
 
