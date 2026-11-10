@@ -42,6 +42,7 @@ class Case:
     phase: str | None
     map: MapLabel | None
     elements: dict[str, str | None]
+    unit_panel: dict[str, dict[str, object]] | None
 
 
 @functools.cache
@@ -69,6 +70,7 @@ def _case(row: dict[str, object]) -> Case:
             str(name): None if value is None else str(value)
             for name, value in cast(dict[str, object], row["elements"]).items()
         },
+        unit_panel=cast(dict[str, dict[str, object]] | None, row.get("unit_panel")),
     )
 
 

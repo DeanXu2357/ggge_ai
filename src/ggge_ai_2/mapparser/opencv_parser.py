@@ -13,6 +13,7 @@ from ggge_ai_2.mapparser.lattice import Lattice, read_lattice
 from ggge_ai_2.mapparser.markers import read_markers
 from ggge_ai_2.mapparser.region import Region, read_region
 from ggge_ai_2.mapparser.topview import TopView, top_view
+from ggge_ai_2.mapparser.unit_panel import read_unit_panel
 from ggge_ai_2.mapparser.units import read_units
 from ggge_ai_2.stream.contract import Frame
 
@@ -52,6 +53,7 @@ class OpenCvMapParser:
                 if all(region.holds(cell) for cell in _footprint(unit.pos, unit.size))
             ),
             markers={region.to_view(cell): value for cell, value in markers.items()},
+            panel=read_unit_panel(frame.image),
         )
 
     def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:

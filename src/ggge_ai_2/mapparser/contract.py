@@ -51,6 +51,48 @@ class UnitReading:
     selected: bool
 
 
+class PanelIcon(StrEnum):
+    RED = "red"
+    BLUE = "blue"
+    YELLOW = "yellow"
+
+
+class PilotState(StrEnum):
+    NORMAL = "一般"
+    STRONG = "強勢"
+    SUPER_STRONG = "超強勢"
+    SUPER_STRIKE = "超一擊"
+
+
+@dataclass(frozen=True)
+class MechPanel:
+    icon: PanelIcon | None
+    # The name as the panel shows it, cut with '…' when it is long.
+    name: str | None
+    hp: int | None
+    en: int | None
+    hp_change: int | None
+    en_change: int | None
+    overlay: str | None
+
+
+@dataclass(frozen=True)
+class PilotPanel:
+    icon: PanelIcon | None
+    name: str | None
+    mp: int | None
+    mp_max: int | None
+    state: PilotState | None
+    damage: int | None
+    chance_step: int | None
+
+
+@dataclass(frozen=True)
+class UnitPanel:
+    mech: MechPanel
+    pilot: PilotPanel
+
+
 @dataclass(frozen=True)
 class MapReading:
     # Each of 'stage', 'turn' and 'phase' is None when the frame does not show it.
@@ -61,6 +103,7 @@ class MapReading:
     borders: frozenset[Edge]
     units: tuple[UnitReading, ...]
     markers: Mapping[ViewCell, frozenset[Marker]]
+    panel: UnitPanel | None
 
 
 class MapParser(Protocol):
