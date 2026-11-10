@@ -44,6 +44,7 @@ class Case:
     map: MapLabel | None
     elements: dict[str, str | None]
     unit_panel: dict[str, dict[str, object]] | None
+    enemy_panel: dict[str, dict[str, object]] | None
 
 
 @functools.cache
@@ -72,6 +73,7 @@ def _case(row: dict[str, object]) -> Case:
             for name, value in cast(dict[str, object], row["elements"]).items()
         },
         unit_panel=cast(dict[str, dict[str, object]] | None, row.get("unit_panel")),
+        enemy_panel=cast(dict[str, dict[str, object]] | None, row.get("enemy_panel")),
     )
 
 

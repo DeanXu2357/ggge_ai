@@ -291,6 +291,12 @@ CHART = Chart(
                     4.6,
                 ),
                 Transition(
+                    "player_phase_overview__map_enemy_unit",
+                    None,
+                    (Target(UiScreen.PLAYER_PHASE_OVERVIEW),),
+                    4.6,
+                ),
+                Transition(
                     "player_phase_overview__end_turn",
                     RatioRect(0.066, 0.139, 0.188, 0.2),
                     (Target(UiScreen.NON_PLAYER_PHASE_BATTLE_VIEW),),

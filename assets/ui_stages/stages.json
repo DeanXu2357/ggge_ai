@@ -1421,6 +1421,16 @@
           "deadline": 4.6
         },
         {
+          "name": "player_phase_overview__map_enemy_unit",
+          "zh": "地圖上的敵方單位",
+          "description": "鏡頭範圍內看得到的敵方單位，點下去用紅圈選定那台單位，左上角顯示它的簡略資訊，周圍的紅色格子是它的移動範圍；畫面名不變",
+          "to": [
+            "player_phase_overview"
+          ],
+          "dynamic": true,
+          "deadline": 4.6
+        },
+        {
           "name": "player_phase_overview__unit_list",
           "zh": "單位列表",
           "description": "右側「單位列表」",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -13,31 +14,82 @@ from ggge_ai_2.mapparser.hud import TEMPLATES
 PANEL_TEMPLATES = TEMPLATES / "unit_panel"
 Box = tuple[int, int, int, int]
 
-# The panel of the selected unit at the top right: the left edge of the mech block, the
-# left edge of the pilot block and the left edge of the portrait frame. Each edge is a
-# straight vertical line between these rows.
-PANEL_LINES = (1381, 1798, 2077)
+
+@dataclass(frozen=True)
+class PanelLayout:
+    lines: tuple[int, ...]
+    mech_icon: Box
+    mech_name: Box
+    hp: Box
+    en: Box
+    hp_change: Box
+    en_change: Box
+    pilot_icon: Box
+    pilot_name: Box
+    mp: Box
+    state: Box
+    damage: Box
+    chance_banner: Box
+    chance_count: Box
+    overlay_area: Box
+
+
 PANEL_ROWS = (135, 255)
+# The panel of the selected unit at the top right. The lines are the left edge of the mech
+# block, the left edge of the pilot block and the left edge of the portrait frame.
+SELECTED = PanelLayout(
+    lines=(1381, 1798, 2077),
+    mech_icon=(1395, 135, 1425, 165),
+    mech_name=(1428, 133, 1785, 170),
+    hp=(1500, 183, 1632, 221),
+    en=(1690, 183, 1772, 221),
+    hp_change=(1395, 222, 1640, 278),
+    en_change=(1678, 222, 1780, 278),
+    pilot_icon=(1812, 135, 1842, 165),
+    pilot_name=(1845, 133, 2065, 170),
+    mp=(1870, 183, 1958, 221),
+    state=(1960, 184, 2068, 220),
+    damage=(1846, 226, 2018, 264),
+    chance_banner=(2010, 262, 2150, 286),
+    chance_count=(2168, 258, 2205, 290),
+    overlay_area=(1380, 120, 2210, 300),
+)
+# The enemy panel at the top left shows the two blocks of the selected panel in the other
+# order: the pilot block is left of the mech block. Each block keeps its inner layout.
+ENEMY_PILOT_SHIFT = 146 - 1798
+ENEMY_MECH_SHIFT = 563 - 1381
+
+
+def _shift(box: Box, dx: int) -> Box:
+    left, top, right, bottom = box
+    return (left + dx, top, right + dx, bottom)
+
+
+# Warning: one frame (map20261026-44) gives the enemy layout. That frame shows no DAMAGE,
+# no HP or EN preview and no overlay. These boxes are not verified on the enemy panel.
+ENEMY = PanelLayout(
+    lines=(146, 563, 971),
+    mech_icon=_shift(SELECTED.mech_icon, ENEMY_MECH_SHIFT),
+    mech_name=_shift(SELECTED.mech_name, ENEMY_MECH_SHIFT),
+    hp=_shift(SELECTED.hp, ENEMY_MECH_SHIFT),
+    en=_shift(SELECTED.en, ENEMY_MECH_SHIFT),
+    hp_change=_shift(SELECTED.hp_change, ENEMY_MECH_SHIFT),
+    en_change=_shift(SELECTED.en_change, ENEMY_MECH_SHIFT),
+    pilot_icon=_shift(SELECTED.pilot_icon, ENEMY_PILOT_SHIFT),
+    pilot_name=_shift(SELECTED.pilot_name, ENEMY_PILOT_SHIFT),
+    mp=_shift(SELECTED.mp, ENEMY_PILOT_SHIFT),
+    state=_shift(SELECTED.state, ENEMY_PILOT_SHIFT),
+    damage=_shift(SELECTED.damage, ENEMY_PILOT_SHIFT),
+    chance_banner=_shift(SELECTED.chance_banner, ENEMY_PILOT_SHIFT),
+    chance_count=_shift(SELECTED.chance_count, ENEMY_PILOT_SHIFT),
+    overlay_area=(130, 120, 985, 300),
+)
 # A straight line is a sharp peak of the mean horizontal gradient. Map art, mech art and
 # menus have edges too, but the edges are not straight, so the gradient has no peak.
 LINE_PEAK_HALF = 3
 LINE_AROUND = (5, 20)
 LINE_PEAK_RATIO = 5.0
 
-MECH_ICON: Box = (1395, 135, 1425, 165)
-MECH_NAME: Box = (1428, 133, 1785, 170)
-HP: Box = (1500, 183, 1632, 221)
-EN: Box = (1690, 183, 1772, 221)
-PILOT_ICON: Box = (1812, 135, 1842, 165)
-PILOT_NAME: Box = (1845, 133, 2065, 170)
-MP: Box = (1870, 183, 1958, 221)
-STATE: Box = (1960, 184, 2068, 220)
-DAMAGE: Box = (1846, 226, 2018, 264)
-CHANCE_BANNER: Box = (2010, 262, 2150, 286)
-CHANCE_COUNT: Box = (2168, 258, 2205, 290)
-HP_CHANGE: Box = (1395, 222, 1640, 278)
-EN_CHANGE: Box = (1678, 222, 1780, 278)
-OVERLAY_AREA: Box = (1380, 120, 2210, 300)
 # The preview numbers over the HP and EN bars cross the bottom row of the bars. The white
 # part of the HP bar and the EN bar end above this row, so a shape that crosses it is a
 # digit.
@@ -70,6 +122,11 @@ ICON_HUES = {
     PanelIcon.YELLOW: ((15, 40),),
     PanelIcon.BLUE: ((95, 130),),
 }
+# The gray icon of an enemy has no strong hue. The test for the gray icon comes after the
+# test for the hues, because the dark panel behind a colored icon is gray too.
+GRAY_SATURATION = 40
+GRAY_VALUES = (60, 150)
+GRAY_SHARE = 0.3
 STATE_SATURATION = 90
 STATE_VALUE = 150
 STATE_SCORE = 0.6
@@ -81,7 +138,7 @@ NAME_SCORE = 0.85
 NAME_SLACK = (4, 3)
 
 
-def panel_line_peaks(image: np.ndarray) -> tuple[float, ...]:
+def panel_line_peaks(image: np.ndarray, layout: PanelLayout) -> tuple[float, ...]:
     """Return the peak ratio of each panel line: the gradient at the line over the median
     gradient beside it."""
     top, bottom = PANEL_ROWS
@@ -89,40 +146,48 @@ def panel_line_peaks(image: np.ndarray) -> tuple[float, ...]:
     gradient = np.abs(np.diff(gray, axis=1)).mean(axis=0)
     near, far = LINE_AROUND
     peaks: list[float] = []
-    for x in PANEL_LINES:
+    for x in layout.lines:
         peak = gradient[x - LINE_PEAK_HALF : x + LINE_PEAK_HALF].max()
         around = np.concatenate([gradient[x - far : x - near], gradient[x + near : x + far]])
         peaks.append(float(peak / (np.median(around) + 1.0)))
     return tuple(peaks)
 
 
-def has_unit_panel(image: np.ndarray) -> bool:
-    return min(panel_line_peaks(image)) >= LINE_PEAK_RATIO
+def has_panel(image: np.ndarray, layout: PanelLayout) -> bool:
+    return min(panel_line_peaks(image, layout)) >= LINE_PEAK_RATIO
 
 
-def read_unit_panel(image: np.ndarray) -> UnitPanel | None:
-    if not has_unit_panel(image):
+def read_panel(image: np.ndarray, layout: PanelLayout) -> UnitPanel | None:
+    if not has_panel(image, layout):
         return None
-    mp = read_text(crop(image, MP))
+    mp = read_text(crop(image, layout.mp))
     mp_now, _, mp_max = (mp or "").partition("/")
-    chance = read_text(crop(image, CHANCE_COUNT)) if has_banner(image) else None
+    chance = (
+        read_text(crop(image, layout.chance_count))
+        if has_banner(crop(image, layout.chance_banner))
+        else None
+    )
     return UnitPanel(
         MechPanel(
-            icon=read_icon(crop(image, MECH_ICON)),
-            name=read_name(crop(image, MECH_NAME), "mech"),
-            hp=_number(read_text(crop(image, HP))),
-            en=_number(read_text(crop(image, EN))),
-            hp_change=read_change(change_mask(crop(image, HP_CHANGE), yellow=False), HP_CHANGE),
-            en_change=read_change(change_mask(crop(image, EN_CHANGE), yellow=True), EN_CHANGE),
-            overlay=read_overlay(crop(image, OVERLAY_AREA)),
+            icon=read_icon(crop(image, layout.mech_icon)),
+            name=read_name(crop(image, layout.mech_name), "mech"),
+            hp=_number(read_text(crop(image, layout.hp))),
+            en=_number(read_text(crop(image, layout.en))),
+            hp_change=read_change(
+                change_mask(crop(image, layout.hp_change), yellow=False), layout.hp_change
+            ),
+            en_change=read_change(
+                change_mask(crop(image, layout.en_change), yellow=True), layout.en_change
+            ),
+            overlay=read_overlay(crop(image, layout.overlay_area)),
         ),
         PilotPanel(
-            icon=read_icon(crop(image, PILOT_ICON)),
-            name=read_name(crop(image, PILOT_NAME), "pilot"),
+            icon=read_icon(crop(image, layout.pilot_icon)),
+            name=read_name(crop(image, layout.pilot_name), "pilot"),
             mp=_number(mp_now),
             mp_max=_number(mp_max),
-            state=read_state(crop(image, STATE)),
-            damage=read_damage(crop(image, DAMAGE)),
+            state=read_state(crop(image, layout.state)),
+            damage=read_damage(crop(image, layout.damage)),
             chance_step=None if chance is None else _number(chance.removeprefix("x")),
         ),
     )
@@ -231,7 +296,12 @@ def read_icon(area: np.ndarray) -> PanelIcon | None:
         for icon, hues in ICON_HUES.items()
     }
     icon, share = max(shares.items(), key=lambda item: item[1])
-    return icon if share >= ICON_SHARE else None
+    if share >= ICON_SHARE:
+        return icon
+    hsv = cv2.cvtColor(area, cv2.COLOR_BGR2HSV)
+    low, high = GRAY_VALUES
+    gray = (hsv[:, :, 1] < GRAY_SATURATION) & (hsv[:, :, 2] >= low) & (hsv[:, :, 2] <= high)
+    return PanelIcon.GRAY if gray.mean() >= GRAY_SHARE else None
 
 
 def color_mask(area: np.ndarray) -> np.ndarray:
@@ -262,11 +332,8 @@ def read_damage(area: np.ndarray) -> int | None:
     return best
 
 
-def has_banner(image: np.ndarray) -> bool:
-    return (
-        _hue_share(crop(image, CHANCE_BANNER), BANNER_HUES, ICON_SATURATION, ICON_VALUE)
-        >= BANNER_SHARE
-    )
+def has_banner(area: np.ndarray) -> bool:
+    return _hue_share(area, BANNER_HUES, ICON_SATURATION, ICON_VALUE) >= BANNER_SHARE
 
 
 def text_crop(area: np.ndarray) -> np.ndarray | None:

@@ -198,7 +198,9 @@ def test_animated_screen_settles_on_two_frames_with_the_same_interpretation():
 
 
 def test_every_sensed_map_reading_goes_into_the_map_reading_history():
-    reading = MapReading(None, None, None, {(0, 0): CellReading.EMPTY}, frozenset(), (), {}, None)
+    reading = MapReading(
+        None, None, None, {(0, 0): CellReading.EMPTY}, frozenset(), (), {}, None, None
+    )
     stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
     shows = {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.PLAYER_PHASE_OVERVIEW}
     controller = ScriptedController([ScriptedPlan([step()])], goals=[False, True])

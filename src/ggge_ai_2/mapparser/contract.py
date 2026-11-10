@@ -57,6 +57,7 @@ class PanelIcon(StrEnum):
     RED = "red"
     BLUE = "blue"
     YELLOW = "yellow"
+    GRAY = "gray"
 
 
 class PilotState(StrEnum):
@@ -105,7 +106,10 @@ class MapReading:
     borders: frozenset[Edge]
     units: tuple[UnitReading, ...]
     markers: Mapping[ViewCell, frozenset[Marker]]
+    # The panel of the selected unit at the top right.
     panel: UnitPanel | None
+    # The panel of the selected enemy at the top left.
+    enemy_panel: UnitPanel | None
 
 
 class MapParser(Protocol):
