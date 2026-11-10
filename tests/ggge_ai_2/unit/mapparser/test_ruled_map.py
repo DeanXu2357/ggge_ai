@@ -53,6 +53,16 @@ def test_reads_the_selected_unit_that_the_user_ruled(case: Case) -> None:
 
 
 @pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
+def test_reads_the_selected_enemy_that_the_user_ruled(case: Case) -> None:
+    reading = PARSER.parse(_frame(case), Screen(case.screen))
+    label = case.map
+
+    assert reading is not None and label is not None
+    selected = {unit.pos for unit in reading.units if unit.enemy_selected}
+    assert selected == ({label.enemy_selected} if label.enemy_selected is not None else set())
+
+
+@pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
 def test_locates_exactly_the_cells_that_the_user_ruled(case: Case) -> None:
     frame = _frame(case)
     label = case.map

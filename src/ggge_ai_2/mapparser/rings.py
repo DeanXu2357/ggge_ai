@@ -99,6 +99,15 @@ def _ring_colors(image: np.ndarray) -> tuple[np.ndarray, ...]:
     return tuple(masks)
 
 
+def clear_red(rings: RingImage, region: np.ndarray) -> RingImage:
+    """Return the ring image without the red ring colors inside the region."""
+    masks = tuple(
+        mask & ~region if color.hues == RED else mask
+        for mask, color in zip(rings.masks, RING_COLORS, strict=True)
+    )
+    return RingImage(masks, rings.value, rings.visible)
+
+
 def find_rings(rings: RingImage, lattice: Lattice, frame_cells: frozenset[ViewCell]) -> list[Ring]:
     """Return the rings that do not overlap, best ring first."""
     columns = [column for column, _ in frame_cells]

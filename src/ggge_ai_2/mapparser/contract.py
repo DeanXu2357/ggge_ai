@@ -37,6 +37,7 @@ class Marker(StrEnum):
     MOVE_RANGE = "move_range"
     THREAT = "threat"
     WEAPON_RANGE = "weapon_range"
+    ENEMY_MOVE_RANGE = "enemy_move_range"
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class UnitReading:
     # None when the frame does not show the place of the chevron above the unit.
     controllable: bool | None
     selected: bool
+    enemy_selected: bool
 
 
 class PanelIcon(StrEnum):

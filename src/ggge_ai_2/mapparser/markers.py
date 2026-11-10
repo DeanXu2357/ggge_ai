@@ -216,8 +216,14 @@ def _glyph(white: np.ndarray, visible: np.ndarray) -> bool:
     return best >= GLYPH_SCORE and contrast >= GLYPH_CONTRAST
 
 
+def enemy_move_range(view: TopView, cells: Iterable[ViewCell]) -> frozenset[ViewCell]:
+    """Return the cells with the red tint of the move range of the selected enemy."""
+    return frozenset(cell for cell in cells if _tinted(*view.cell(cell)[::2]))
+
+
 def _tinted(tile: np.ndarray, visible: np.ndarray) -> bool:
-    """Return True when the red tint of the weapon range covers the cell.
+    """Return True when a red range tint covers the cell: the weapon range, or the move
+    range of the selected enemy.
 
     The range of a map weapon has an orange tint with diagonal stripes. It is not
     a weapon range.

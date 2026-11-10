@@ -7,10 +7,10 @@ import numpy as np
 from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.interpreter.phase_cue import PHASE_SCREENS, phase
 from ggge_ai_2.mapparser.border import Border, read_border
-from ggge_ai_2.mapparser.contract import MapPhase, MapReading, ScreenPoint, ViewCell
+from ggge_ai_2.mapparser.contract import MapPhase, MapReading, Marker, ScreenPoint, ViewCell
 from ggge_ai_2.mapparser.hud import Rect, hud_rects
 from ggge_ai_2.mapparser.lattice import Lattice, read_lattice
-from ggge_ai_2.mapparser.markers import read_markers
+from ggge_ai_2.mapparser.markers import enemy_move_range, read_markers
 from ggge_ai_2.mapparser.region import Region, read_region
 from ggge_ai_2.mapparser.topview import TopView, top_view
 from ggge_ai_2.mapparser.unit_panel import read_unit_panel
@@ -40,6 +40,13 @@ class OpenCvMapParser:
         lattice, rects, view, border, region = read
         units, cells = read_units(frame.image, lattice, rects, view)
         markers = read_markers(frame.image, view, sorted(region.lattice_cells))
+        enemy = next((unit for unit in units if unit.enemy_selected), None)
+        if enemy is not None:
+            moves = enemy_move_range(view, region.lattice_cells) | set(
+                _footprint(enemy.pos, enemy.size)
+            )
+            for cell in moves & region.lattice_cells:
+                markers[cell] = markers[cell] | {Marker.ENEMY_MOVE_RANGE}
         return MapReading(
             # Warning: the parser does not read the stage and the turn yet.
             stage=None,

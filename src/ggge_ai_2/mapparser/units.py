@@ -10,9 +10,11 @@ import numpy as np
 from ggge_ai_2.mapparser.contract import CellReading, UnitReading, ViewCell
 from ggge_ai_2.mapparser.hud import PROMPT, TEMPLATES, Rect, covered, outside, template_match
 from ggge_ai_2.mapparser.lattice import Lattice, ridge
+from ggge_ai_2.mapparser.markers import enemy_move_range
 from ggge_ai_2.mapparser.rings import (
     RING_DEPTH,
     Ring,
+    clear_red,
     find_rings,
     ring_image,
     sample,
@@ -64,6 +66,12 @@ GLOW_SATURATION = 25
 GLOW_VALUE = 225
 CIRCLE_SIDE = 0.4
 CIRCLE_ON = 0.5
+# A tap on an enemy unit while no unit of the player is selected draws a red circle around
+# the enemy. The red tint of the enemy's move range is darker than the glow of the circle.
+RED_GLOW_HUES = ((0, 10), (165, 179))
+RED_GLOW_SATURATION = 25
+RED_GLOW_VALUE = 240
+RED_CIRCLE_ON = 0.7
 
 
 @dataclass(frozen=True)
@@ -113,9 +121,18 @@ def read_units(
     hud = frozenset(cell for cell in frame_cells if covered(lattice.center(cell), rects))
     # The panels have soft colored edges a few pixels past their rectangles.
     rings = ring_image(image, outside(image, rects, HUD_MARGIN))
+    enemy = _enemy_selected(view, frame_cells - hud)
+    if enemy is not None:
+        # The move range of the selected enemy has the colors of the red rings, so a red
+        # ring inside it cannot be told from the tint.
+        # Warning: other enemy units inside the range are not found by their rings.
+        tint = _cells_region(image.shape[:2], lattice, enemy_move_range(view, frame_cells))
+        rings = clear_red(rings, tint)
     found = find_rings(rings, lattice, frame_cells)
     taken = {cell for ring in found for cell in ring.cells()}
     footprints = [_body(view, ring, taken) for ring in found]
+    if enemy is not None and all(enemy.pos not in footprint.cells() for footprint in footprints):
+        footprints.append(enemy)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     chevrons = (
         _chevrons(image, lattice, visible)
@@ -138,6 +155,7 @@ def read_units(
             if chevrons is None
             else _controllable(lattice, visible, chevrons, footprint),
             selected=footprint == selected,
+            enemy_selected=footprint == enemy,
         )
         for footprint in sorted(footprints, key=lambda footprint: footprint.pos[::-1])
     )
@@ -223,32 +241,69 @@ def _selected(view: TopView, footprints: list[_Footprint]) -> _Footprint | None:
         & (saturation >= GLOW_SATURATION)
         & (value >= GLOW_VALUE)
     )
-    x0, y0 = view.origin((0, 0))
     best: tuple[float, _Footprint | None] = (CIRCLE_ON, None)
     for footprint in footprints:
-        column, row = footprint.pos
-        width = footprint.width
-        center_x = column + width / 2
-        center_y = row + footprint.height - CIRCLE_RISE * width
-        sides: list[float] = []
-        for sign in (-1.0, 1.0):
-            hits = np.zeros(len(CIRCLE_ANGLES), bool)
-            shown = np.zeros(len(CIRCLE_ANGLES), bool)
-            for radius in CIRCLE_RADII:
-                xs = x0 + (center_x + sign * radius * width * np.cos(CIRCLE_ANGLES)) * CELL
-                ys = y0 + (center_y + radius * width * np.sin(CIRCLE_ANGLES)) * CELL
-                hit, seen = sample(glow, view.visible, xs, ys)
-                hits |= hit
-                shown |= seen
-            if shown.sum() < len(CIRCLE_ANGLES) / 2:
-                break
-            sides.append(float(hits.sum()) / float(shown.sum()))
+        sides = _circle_sides(view, glow, footprint)
         if len(sides) < 2 or min(sides) < CIRCLE_SIDE:
             continue
         score = sum(sides) / 2
         if score >= best[0]:
             best = (score, footprint)
     return best[1]
+
+
+def _enemy_selected(view: TopView, cells: frozenset[ViewCell]) -> _Footprint | None:
+    """Return the one-cell footprint in the red selection circle, or None."""
+    hsv = cv2.cvtColor(view.image, cv2.COLOR_BGR2HSV)
+    hue, saturation, value = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    red = np.zeros(hue.shape, bool)
+    for low, high in RED_GLOW_HUES:
+        red |= (hue >= low) & (hue <= high)
+    glow = red & (saturation >= RED_GLOW_SATURATION) & (value >= RED_GLOW_VALUE)
+    best: tuple[float, _Footprint | None] = (RED_CIRCLE_ON, None)
+    for cell in sorted(cells):
+        footprint = _Footprint.square(cell, 1)
+        sides = _circle_sides(view, glow, footprint)
+        if len(sides) == 2 and min(sides) >= best[0]:
+            best = (min(sides), footprint)
+    return best[1]
+
+
+def _circle_sides(view: TopView, glow: np.ndarray, footprint: _Footprint) -> list[float]:
+    """Return the share of glow on the left and the right side of the selection circle
+    around the footprint. The list is shorter when too little of a side shows."""
+    x0, y0 = view.origin((0, 0))
+    column, row = footprint.pos
+    width = footprint.width
+    center_x = column + width / 2
+    center_y = row + footprint.height - CIRCLE_RISE * width
+    sides: list[float] = []
+    for sign in (-1.0, 1.0):
+        hits = np.zeros(len(CIRCLE_ANGLES), bool)
+        shown = np.zeros(len(CIRCLE_ANGLES), bool)
+        for radius in CIRCLE_RADII:
+            xs = x0 + (center_x + sign * radius * width * np.cos(CIRCLE_ANGLES)) * CELL
+            ys = y0 + (center_y + radius * width * np.sin(CIRCLE_ANGLES)) * CELL
+            hit, seen = sample(glow, view.visible, xs, ys)
+            hits |= hit
+            shown |= seen
+        if shown.sum() < len(CIRCLE_ANGLES) / 2:
+            break
+        sides.append(float(hits.sum()) / float(shown.sum()))
+    return sides
+
+
+def _cells_region(
+    shape: tuple[int, int], lattice: Lattice, cells: frozenset[ViewCell]
+) -> np.ndarray:
+    """Return the screen pixels inside the cells."""
+    region = np.zeros(shape, np.uint8)
+    for column, row in cells:
+        corners = [
+            lattice.project(column + dx, row + dy) for dx, dy in ((0, 0), (1, 0), (1, 1), (0, 1))
+        ]
+        cv2.fillConvexPoly(region, np.round(np.array(corners)).astype(np.int32), 1)
+    return region.astype(bool)
 
 
 def _visible(visible: np.ndarray, x: float, y: float) -> bool:

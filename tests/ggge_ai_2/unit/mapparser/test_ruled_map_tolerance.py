@@ -65,6 +65,6 @@ def test_reads_marker_cells_no_worse_than_the_baseline(
         label = case.map
         assert label is not None
         read = {cell for cell, markers in reading.markers.items() if marker in markers}
-        tally.add(case.id, read=read, ruled=label.markers[marker.value])
+        tally.add(case.id, read=read, ruled=label.markers.get(marker.value, frozenset()))
 
     check_against_baseline(pytestconfig, marker.value, tally)

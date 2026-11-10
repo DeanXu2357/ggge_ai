@@ -1,4 +1,11 @@
 {
+  "enemy_move_range": {
+    "correct": 16,
+    "extra": 0,
+    "false_read": 0.0,
+    "missed": 0,
+    "recognition": 1.0
+  },
   "move_range": {
     "correct": 93,
     "extra": 2,
