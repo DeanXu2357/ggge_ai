@@ -16,7 +16,6 @@ from ggge_ai_2.agent.contract import Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
 from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation
-from ggge_ai_2.mapgeom.contract import Alignment, KnownMap
 from ggge_ai_2.mapparser.contract import MapReading, ViewCell
 from ggge_ai_2.stream.contract import Frame, Observation, StillWindow
 from ggge_ai_2.agent.ui_steps import operation_step
@@ -32,7 +31,6 @@ from ggge_ai_2.uisim.contract import (
 from ggge_ai_2.uisim.stage_sim import StageUiSim
 from ggge_ai_2.uisim.stages import ButtonDef, CallerGroup, ScreenDef, Stages
 from tests.ggge_ai_2.fakes.domain import FakeDomain
-from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
 
 LIST = UiState(UiScreen.STORY_STAGE_LIST)
@@ -55,8 +53,8 @@ def still(seq: int, at: float) -> list[Frame]:
     return [frame(seq, at - 0.5), frame(seq, at)]
 
 
-def expected(ui: UiState, camera: Alignment | None = None) -> Belief:
-    return Belief(ui, UiBasis(UiSource.ASSUMED), camera, KnownMap({}), FakeDomain(), None)
+def expected(ui: UiState) -> Belief:
+    return Belief(ui, UiBasis(UiSource.ASSUMED), FakeDomain(), None)
 
 
 def step(then: UiState = INFO, name: str = "open_info") -> Step:
@@ -149,7 +147,7 @@ class ScriptedController:
 
 
 def start() -> Belief:
-    return Belief(LIST, UiBasis(UiSource.ASSUMED), None, KnownMap({}), FakeDomain(), None)
+    return Belief(LIST, UiBasis(UiSource.ASSUMED), FakeDomain(), None)
 
 
 def make_agent(
@@ -165,7 +163,6 @@ def make_agent(
         actuator=actuator or FakeActuator(),
         interpreter=FakeInterpreter(shows),
         mapparser=NoMapParser(),
-        mapgeom=NoMapGeometry(),
         uisim=FakeUiSim(),
         plan_controller=controller,
         belief=start(),
@@ -628,12 +625,12 @@ def test_run_log_records_the_gesture_of_a_tap_step_and_none_for_a_wait_step(
     ]
 
 
-def seen(ui: UiState, at: float, camera: Alignment | None = None) -> Belief:
-    return Belief(ui, UiBasis(UiSource.SEEN, 1), camera, KnownMap({}), FakeDomain(), window(1, at))
+def seen(ui: UiState, at: float) -> Belief:
+    return Belief(ui, UiBasis(UiSource.SEEN, 1), FakeDomain(), window(1, at))
 
 
-def predicted(camera: Alignment | None = None) -> Predicted:
-    return Predicted((expected(INFO, camera),), DISPATCHED.t1 + DEADLINE)
+def predicted() -> Predicted:
+    return Predicted((expected(INFO),), DISPATCHED.t1 + DEADLINE)
 
 
 def compare(belief: Belief, predicted: Predicted) -> bool:
@@ -649,7 +646,7 @@ def test_prediction_takes_the_expected_belief_and_the_deadline_from_the_step():
     assert agent.predict(sent, DISPATCHED) == Predicted(sent.expected, DISPATCHED.t1 + DEADLINE)
 
 
-def test_belief_with_the_expected_ui_and_camera_in_time_matches():
+def test_belief_with_the_expected_ui_in_time_matches():
     assert compare(seen(INFO, 11.0), predicted())
 
 
@@ -661,12 +658,6 @@ def test_belief_still_only_after_the_deadline_does_not_match():
 
 def test_belief_with_another_ui_does_not_match():
     assert not compare(seen(LIST, 11.0), predicted())
-
-
-def test_belief_with_another_camera_does_not_match():
-    moved = seen(INFO, 11.0, Alignment((3, 0)))
-
-    assert not compare(moved, predicted(Alignment((0, 0))))
 
 
 def test_belief_still_locked_after_an_unlock_does_not_match():

@@ -12,7 +12,6 @@ from ggge_ai_2.agent.generic_plans import (
     PowerSaveLockPlan,
     TapToContinuePlan,
 )
-from ggge_ai_2.mapgeom.contract import KnownMap
 from ggge_ai_2.stream.contract import StillWindow
 from ggge_ai_2.uisim.contract import UiAutoMode, UiScreen, UiState
 from ggge_ai_2.uisim.stage_sim import StageUiSim
@@ -26,9 +25,7 @@ SCREEN = (2340, 1080)
 
 def belief(screen_lock: ScreenLock | None = None) -> Belief:
     ui = UiState(UiScreen.STORY_STAGE_LIST)
-    return Belief(
-        ui, UiBasis(UiSource.SEEN, 1), None, KnownMap({}), FakeDomain(), None, screen_lock
-    )
+    return Belief(ui, UiBasis(UiSource.SEEN, 1), FakeDomain(), None, screen_lock)
 
 
 def passing(state: Passing | None) -> Belief:

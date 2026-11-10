@@ -8,7 +8,6 @@ from ggge_ai_2.agent.contract import Step
 from ggge_ai_2.agent.default_plan_controller import PlanReflex, ReflexPlan, UiShiftPlan
 from ggge_ai_2.agent.generic_plans import PassingWaitPlan
 from ggge_ai_2.agent.ui_steps import first_move, operation_step
-from ggge_ai_2.mapgeom.contract import KnownMap
 from ggge_ai_2.uisim.contract import DangerBand, Operation, Outcome, UiScreen, UiState, UiTap
 from tests.ggge_ai_2.fakes.domain import FakeDomain
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
@@ -18,7 +17,7 @@ PREP = UiState(UiScreen.SORTIE_PREP)
 
 
 def belief() -> Belief:
-    return Belief(LIST, UiBasis(UiSource.SEEN, 1), None, KnownMap({}), FakeDomain(), None)
+    return Belief(LIST, UiBasis(UiSource.SEEN, 1), FakeDomain(), None)
 
 
 PLAN_STEP = Step("plan", Tap((1, 1)), (), 1.0, (belief(),))

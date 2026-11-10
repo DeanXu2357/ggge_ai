@@ -4,7 +4,6 @@ from dataclasses import replace
 
 from ggge_ai_2.agent.belief import Belief, UiBasis, UiSource
 from ggge_ai_2.agent.ui_steps import first_move, operation_step
-from ggge_ai_2.mapgeom.contract import KnownMap
 from ggge_ai_2.uisim.contract import (
     DangerBand,
     OpenGroup,
@@ -25,7 +24,7 @@ SCREEN = (2340, 1080)
 
 
 def belief() -> Belief:
-    return Belief(LIST, UiBasis(UiSource.SEEN, 1), None, KnownMap({}), FakeDomain(), None)
+    return Belief(LIST, UiBasis(UiSource.SEEN, 1), FakeDomain(), None)
 
 
 def open_prep(gesture: UiGesture | None, outcomes: tuple[Outcome, ...]) -> Operation:

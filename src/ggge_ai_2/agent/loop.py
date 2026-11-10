@@ -11,8 +11,7 @@ from ggge_ai_2.agent.clock import Instant, now
 from ggge_ai_2.agent.contract import Plan, PlanController, Step
 from ggge_ai_2.agent.runlog import RunLog, StepRecord, thumbnail_name
 from ggge_ai_2.interpreter.contract import AutoMode, Interpreter, Screen, Situation
-from ggge_ai_2.mapgeom.contract import BoardEdge, CellContent, LocalBoard, MapGeometry
-from ggge_ai_2.mapparser.contract import MapParser, MapReading
+from ggge_ai_2.mapparser.contract import MapParser
 from ggge_ai_2.stream.contract import Frame, StillWindow, Stream
 from ggge_ai_2.uisim.contract import (
     Observed,
@@ -63,7 +62,6 @@ class Agent[P: Plan]:
     actuator: Actuator
     interpreter: Interpreter
     mapparser: MapParser
-    mapgeom: MapGeometry
     uisim: UiSim
     plan_controller: PlanController[P]
     belief: Belief
@@ -83,7 +81,7 @@ class Agent[P: Plan]:
             sensed = self.sense()
             if sensed is None:
                 break
-            self.belief = self.belief.update(sensed, self.uisim, self.mapgeom)
+            self.belief = self.belief.update(sensed, self.uisim)
 
             if self.plan_controller.goal_reached(self.belief):
                 if plan is not None:
@@ -182,8 +180,7 @@ class Agent[P: Plan]:
                 "recognized": situation is not None,
             },
         )
-        board = _map_reading_to_local_board(reading)
-        return Sensed(still, observed, board, screen_lock, passing)
+        return Sensed(still, observed, reading, screen_lock, passing)
 
     def candidates(self, belief: Belief) -> frozenset[Screen]:
         if belief.ui_basis.source is not UiSource.SEEN:
@@ -308,11 +305,3 @@ def _situation_to_observed(situation: Situation | None) -> Observed | None:
     auto = None if situation.auto is None else UiAutoMode(situation.auto.value)
     return Observed(UiScreen(situation.screen.value), auto)
 
-
-def _map_reading_to_local_board(reading: MapReading | None) -> LocalBoard | None:
-    if reading is None:
-        return None
-    return LocalBoard(
-        {cell: CellContent(seen.value) for cell, seen in reading.cells.items()},
-        frozenset(BoardEdge(edge.value) for edge in reading.borders),
-    )

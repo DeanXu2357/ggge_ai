@@ -33,7 +33,6 @@ from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.interpreter.llm import LlmInterpreter
 from ggge_ai_2.interpreter.llm_prompt import system_prompt
 from ggge_ai_2.interpreter.power_save_cue import PowerSaveCueInterpreter
-from ggge_ai_2.mapgeom.contract import Alignment, KnownMap, LocalBoard
 from ggge_ai_2.mapparser.contract import MapReading, ScreenPoint, ViewCell
 from ggge_ai_2.stream.adb import AdbScreencapStream
 from ggge_ai_2.stream.contract import Frame
@@ -65,16 +64,6 @@ class NullMapParser:
 
     def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:
         return None
-
-
-class NullMapGeometry:
-    def align(
-        self, board: LocalBoard, known: KnownMap, prior: Alignment | None
-    ) -> Alignment | None:
-        return None
-
-    def merge(self, known: KnownMap, board: LocalBoard, alignment: Alignment) -> KnownMap:
-        return known
 
 
 @dataclass(frozen=True)
@@ -152,14 +141,11 @@ def main() -> int:
         actuator=AdbActuator(args.serial),
         interpreter=interpreter,
         mapparser=NullMapParser(),
-        mapgeom=NullMapGeometry(),
         uisim=uisim,
         plan_controller=StagePlanController(UiScreen.DROP_REWARD_RESULT, uisim, SCREEN),
         belief=Belief(
             ui=UiState(UiScreen.STORY_STAGE_LIST),
             ui_basis=UiBasis(UiSource.ASSUMED),
-            camera=None,
-            known_map=KnownMap({}),
             domain=NullDomain(),
             as_of=None,
         ),

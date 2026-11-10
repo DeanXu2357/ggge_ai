@@ -9,7 +9,6 @@ from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSourc
 from ggge_ai_2.agent.generic_plans import AutoOffPhase, AutoOffPlan, TapToContinuePlan
 from ggge_ai_2.agent.stage_plan_controller import GREEDY_BUTTONS, StagePlan, StagePlanController
 from ggge_ai_2.agent.ui_steps import first_move
-from ggge_ai_2.mapgeom.contract import KnownMap
 from ggge_ai_2.stream.contract import StillWindow
 from ggge_ai_2.uisim.contract import UiAutoMode, UiScreen, UiState
 from ggge_ai_2.uisim.stage_sim import StageUiSim
@@ -29,8 +28,6 @@ def on(screen: UiScreen, auto: UiAutoMode | None = MANUAL, until: float = 10.0) 
     return Belief(
         UiState(screen, auto=auto),
         UiBasis(UiSource.SEEN, 1),
-        None,
-        KnownMap({}),
         FakeDomain(),
         StillWindow(until - 0.5, until, 1),
     )
