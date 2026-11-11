@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TypeVar
+from typing import Any, TypeVar
 
-from ggge_ai_2.gamedata.normalize import COLUMNS, Rows
+from ggge_ai_2.gamedata.normalize import COLUMNS, Row, Rows
 
 Record = TypeVar("Record")
 
@@ -30,7 +30,7 @@ class SspRelease:
     sort_order: int
     kind: str
     target_id: int
-    payload: dict
+    payload: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -58,7 +58,7 @@ class WeaponRecord:
     range_max: int
     ammo: int
     is_ssp: bool
-    growth: dict[int, WeaponGrowth] = field(default_factory=dict)
+    growth: dict[int, WeaponGrowth] = field(default_factory=dict[int, WeaponGrowth])
 
 
 @dataclass(frozen=True)
@@ -138,7 +138,7 @@ def _fields(table: str) -> dict[str, int]:
     return {name: position for position, name in enumerate(COLUMNS[table])}
 
 
-def _stats(table_rows: list[tuple], table: str, key: str) -> dict[int, dict[str, StatRow]]:
+def _stats(table_rows: list[Row], table: str, key: str) -> dict[int, dict[str, StatRow]]:
     index = _fields(table)
     grouped: dict[int, dict[str, StatRow]] = {}
     for row in table_rows:
@@ -151,7 +151,7 @@ def _stats(table_rows: list[tuple], table: str, key: str) -> dict[int, dict[str,
     return grouped
 
 
-def _ssp_stats(table_rows: list[tuple]) -> dict[int, dict[str, SspStat]]:
+def _ssp_stats(table_rows: list[Row]) -> dict[int, dict[str, SspStat]]:
     index = _fields("unit_ssp_stat")
     grouped: dict[int, dict[str, SspStat]] = {}
     for row in table_rows:
@@ -161,7 +161,7 @@ def _ssp_stats(table_rows: list[tuple]) -> dict[int, dict[str, SspStat]]:
     return grouped
 
 
-def _releases(table_rows: list[tuple]) -> dict[int, tuple[SspRelease, ...]]:
+def _releases(table_rows: list[Row]) -> dict[int, tuple[SspRelease, ...]]:
     index = _fields("unit_ssp_release")
     grouped: dict[int, list[SspRelease]] = {}
     for row in table_rows:
@@ -180,7 +180,7 @@ def _releases(table_rows: list[tuple]) -> dict[int, tuple[SspRelease, ...]]:
     }
 
 
-def _weapon_records(tables: dict[str, list[tuple]]) -> dict[int, WeaponRecord]:
+def _weapon_records(tables: dict[str, list[Row]]) -> dict[int, WeaponRecord]:
     index = _fields("weapon_growth")
     rates: dict[int, dict[int, WeaponGrowth]] = {}
     for row in sorted(tables["weapon_growth"], key=lambda row: row[index["level"]]):
@@ -196,7 +196,7 @@ def _weapon_records(tables: dict[str, list[tuple]]) -> dict[int, WeaponRecord]:
 
 
 def _unit_records(
-    tables: dict[str, list[tuple]], weapons: dict[int, WeaponRecord]
+    tables: dict[str, list[Row]], weapons: dict[int, WeaponRecord]
 ) -> dict[int, UnitRecord]:
     index = _fields("unit")
     stats = _stats(tables["unit_stat"], "unit_stat", "unit_id")
@@ -227,7 +227,7 @@ def _unit_records(
     return records
 
 
-def _pilot_records(tables: dict[str, list[tuple]]) -> dict[int, PilotRecord]:
+def _pilot_records(tables: dict[str, list[Row]]) -> dict[int, PilotRecord]:
     index = _fields("pilot")
     stats = _stats(tables["pilot_stat"], "pilot_stat", "pilot_id")
     return {
@@ -241,7 +241,7 @@ def _pilot_records(tables: dict[str, list[tuple]]) -> dict[int, PilotRecord]:
     }
 
 
-def _supporter_rates(tables: dict[str, list[tuple]]) -> dict[tuple[int, int], int]:
+def _supporter_rates(tables: dict[str, list[Row]]) -> dict[tuple[int, int], int]:
     index = _fields("supporter_growth")
     return {
         (row[index["level"]], row[index["limit_break"]]): row[index["correction_rate"]]
@@ -249,7 +249,7 @@ def _supporter_rates(tables: dict[str, list[tuple]]) -> dict[tuple[int, int], in
     }
 
 
-def _supporter_records(tables: dict[str, list[tuple]]) -> dict[int, SupporterRecord]:
+def _supporter_records(tables: dict[str, list[Row]]) -> dict[int, SupporterRecord]:
     index = _fields("supporter")
     return {
         row[index["id"]]: SupporterRecord(

@@ -7,6 +7,7 @@ dump, so the reader takes it as it is.
 from __future__ import annotations
 
 import json
+from typing import Any
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,7 @@ ZEONG = 1001003000
 ZEONG_SSP_WEAPON = 100100300090
 
 
-def _payload(name: str) -> object:
+def _payload(name: str) -> Any:
     return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
 
 

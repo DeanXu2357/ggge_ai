@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from types import TracebackType
 
 import psycopg
+from psycopg import sql
+from psycopg.abc import QueryNoTemplate
+from psycopg.rows import TupleRow
 from psycopg.types.json import Jsonb
 
 from ggge_ai_2.gamedata import growth
-from ggge_ai_2.gamedata.normalize import COLUMNS, RAW_COLUMNS, Rows
+from ggge_ai_2.gamedata.normalize import COLUMNS, RAW_COLUMNS, Row, Rows
 
 DEFAULT_URL = "postgresql://ggge:ggge@localhost:5432/ggge"
 
@@ -56,24 +60,34 @@ def database_url() -> str:
     return os.environ.get("GGGE_DATABASE_URL", DEFAULT_URL)
 
 
-def _insert(table: str, columns: tuple[str, ...]) -> str:
-    marks = ", ".join(["%s"] * len(columns))
-    return f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({marks})"
+def _names(names: Iterable[str]) -> sql.Composed:
+    return sql.SQL(", ").join(sql.Identifier(name) for name in names)
 
 
-def _upsert(table: str, columns: tuple[str, ...], key: tuple[str, ...]) -> str:
-    updates = ", ".join(f"{name} = EXCLUDED.{name}" for name in columns if name not in key)
-    return f"{_insert(table, columns)} ON CONFLICT ({', '.join(key)}) DO UPDATE SET {updates}"
-
-
-def _select(table: str) -> str:
-    return (
-        f"SELECT {', '.join(COLUMNS[table])} FROM {table}"
-        f" WHERE stamp = %s ORDER BY {', '.join(KEY_COLUMNS[table])}"
+def _insert(table: str, columns: tuple[str, ...]) -> sql.Composed:
+    return sql.SQL("INSERT INTO {} ({}) VALUES ({})").format(
+        sql.Identifier(table), _names(columns), sql.SQL(", ").join(sql.Placeholder() * len(columns))
     )
 
 
-def _wrapped(table: str, row: tuple) -> tuple:
+def _upsert(table: str, columns: tuple[str, ...], key: tuple[str, ...]) -> sql.Composed:
+    updates = sql.SQL(", ").join(
+        sql.SQL("{} = EXCLUDED.{}").format(sql.Identifier(name), sql.Identifier(name))
+        for name in columns
+        if name not in key
+    )
+    return sql.SQL("{} ON CONFLICT ({}) DO UPDATE SET {}").format(
+        _insert(table, columns), _names(key), updates
+    )
+
+
+def _select(table: str) -> sql.Composed:
+    return sql.SQL("SELECT {} FROM {} WHERE stamp = %s ORDER BY {}").format(
+        _names(COLUMNS[table]), sql.Identifier(table), _names(KEY_COLUMNS[table])
+    )
+
+
+def _wrapped(table: str, row: Row) -> Row:
     columns = COLUMNS[table]
     return tuple(
         Jsonb(value) if columns[index] in JSON_COLUMNS and value is not None else value
@@ -114,7 +128,7 @@ class Store:
                 growth.rarity_level_cap_rows(),
             )
 
-    def write_stamp(self, rows: Rows, raw: list[tuple]) -> None:
+    def write_stamp(self, rows: Rows, raw: list[Row]) -> None:
         with self._connection.transaction(), self._connection.cursor() as cursor:
             self._delete(cursor, rows.stamp)
             for table, table_rows in rows.tables.items():
@@ -144,21 +158,23 @@ class Store:
         return [row[0] for row in self._rows("SELECT DISTINCT stamp FROM unit ORDER BY stamp", ())]
 
     def counts(self, stamp: str) -> dict[str, int]:
-        return {
-            table: self._one(f"SELECT count(*) FROM {table} WHERE stamp = %s", (stamp,))[0]
-            for table in STAMPED_TABLES
-        }
+        return {table: self._count(table, stamp) for table in STAMPED_TABLES}
 
-    def _delete(self, cursor: psycopg.Cursor, stamp: str) -> None:
+    def _delete(self, cursor: psycopg.Cursor[TupleRow], stamp: str) -> None:
         for table in DELETE_ORDER:
-            cursor.execute(f"DELETE FROM {table} WHERE stamp = %s", (stamp,))
+            cursor.execute(
+                sql.SQL("DELETE FROM {} WHERE stamp = %s").format(sql.Identifier(table)), (stamp,)
+            )
 
-    def _one(self, query: str, params: tuple) -> tuple | None:
+    def _count(self, table: str, stamp: str) -> int:
+        query = sql.SQL("SELECT count(*) FROM {} WHERE stamp = %s").format(sql.Identifier(table))
         with self._connection.cursor() as cursor:
-            cursor.execute(query, params)
-            return cursor.fetchone()
+            cursor.execute(query, (stamp,))
+            row = cursor.fetchone()
+        assert row is not None, "count(*) returns one row"
+        return row[0]
 
-    def _rows(self, query: str, params: tuple) -> list[tuple]:
+    def _rows(self, query: QueryNoTemplate, params: tuple[object, ...]) -> list[TupleRow]:
         with self._connection.cursor() as cursor:
             cursor.execute(query, params)
             return cursor.fetchall()

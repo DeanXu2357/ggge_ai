@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 COLUMNS: dict[str, tuple[str, ...]] = {
     "tag": ("stamp", "id", "name"),
@@ -102,22 +102,25 @@ PILOT_STATS = ("ranged", "melee", "defense", "reaction", "awaken")
 
 DUMP_FILES = ("unit", "weapon", "character", "supporter", "supporter_growth")
 
+Row = tuple[Any, ...]
+Entry = dict[str, Any]
+
 
 @dataclass(frozen=True)
 class Rows:
     """Normalized rows of one stamp, keyed by table name, in insert order."""
 
     stamp: str
-    tables: dict[str, list[tuple]]
+    tables: dict[str, list[Row]]
 
 
 @dataclass(frozen=True)
 class Dump:
-    unit: list[dict]
-    weapon: dict
-    character: list[dict]
-    supporter: list[dict]
-    supporter_growth: list[dict]
+    unit: list[Entry]
+    weapon: Entry
+    character: list[Entry]
+    supporter: list[Entry]
+    supporter_growth: list[Entry]
 
     @staticmethod
     def read(dump_dir: Path) -> Dump:
@@ -130,7 +133,7 @@ def read_payload(dump_dir: Path, name: str) -> Any:
 
 
 def normalize(stamp: str, dump: Dump) -> Rows:
-    tables: dict[str, list[tuple]] = {name: [] for name in COLUMNS}
+    tables: dict[str, list[Row]] = {name: [] for name in COLUMNS}
     tags: dict[int, str] = {}
     for unit in dump.unit:
         _add_unit(stamp, unit, tables, tags)
@@ -148,20 +151,23 @@ def normalize(stamp: str, dump: Dump) -> Rows:
     return Rows(stamp=stamp, tables=tables)
 
 
-def raw_rows(stamp: str, name: str, payload: Any) -> list[tuple]:
+def raw_rows(stamp: str, name: str, payload: Any) -> list[Row]:
+    rows: list[Row]
     if name == "weapon":
         rows = [(stamp, "weapon", str(row["id"]), row) for row in payload["weapons"]]
         rows.extend((stamp, "weapon_unit", key, value) for key, value in payload["units"].items())
-    elif not isinstance(payload, list):
-        rows = [(stamp, name, name, payload)]
-    elif name == "supporter_growth":
-        rows = [(stamp, name, f"{row['level']}-{row['limit_break']}", row) for row in payload]
+        return _one_row_for_each_key(rows)
+    if not isinstance(payload, list):
+        return _one_row_for_each_key([(stamp, name, name, payload)])
+    entries = cast(list[Entry], payload)
+    if name == "supporter_growth":
+        rows = [(stamp, name, f"{row['level']}-{row['limit_break']}", row) for row in entries]
     else:
-        rows = [(stamp, name, str(row.get("id", index)), row) for index, row in enumerate(payload)]
+        rows = [(stamp, name, str(row.get("id", index)), row) for index, row in enumerate(entries)]
     return _one_row_for_each_key(rows)
 
 
-def _one_row_for_each_key(rows: list[tuple]) -> list[tuple]:
+def _one_row_for_each_key(rows: list[Row]) -> list[Row]:
     seen: set[tuple[str, str]] = set()
     for _, source, key, _payload in rows:
         if (source, key) in seen:
@@ -170,7 +176,7 @@ def _one_row_for_each_key(rows: list[tuple]) -> list[tuple]:
     return rows
 
 
-def _stat_rows(stamp: str, owner_id: int, stats: dict, names: tuple[str, ...]) -> list[tuple]:
+def _stat_rows(stamp: str, owner_id: int, stats: Entry, names: tuple[str, ...]) -> list[Row]:
     return [
         (
             stamp,
@@ -186,19 +192,19 @@ def _stat_rows(stamp: str, owner_id: int, stats: dict, names: tuple[str, ...]) -
 
 
 def _add_tags(
-    stamp: str, owner_id: int, entries: list[dict], rows: list[tuple], tags: dict
+    stamp: str, owner_id: int, entries: list[Entry], rows: list[Row], tags: dict[int, str]
 ) -> None:
     for entry in entries:
         tags[entry["tag"]["id"]] = entry["tag"]["name"]
         rows.append((stamp, owner_id, entry["tag_id"]))
 
 
-def _add_series(stamp: str, owner_id: int, entries: list[dict], rows: list[tuple]) -> None:
+def _add_series(stamp: str, owner_id: int, entries: list[Entry], rows: list[Row]) -> None:
     for entry in entries:
         rows.append((stamp, owner_id, entry["series_id"], entry["sort"]))
 
 
-def _add_unit(stamp: str, unit: dict, tables: dict[str, list[tuple]], tags: dict) -> None:
+def _add_unit(stamp: str, unit: Entry, tables: dict[str, list[Row]], tags: dict[int, str]) -> None:
     unit_id = unit["id"]
     tables["unit"].append(
         (
@@ -230,7 +236,7 @@ def _add_unit(stamp: str, unit: dict, tables: dict[str, list[tuple]], tags: dict
         _add_ssp(stamp, unit_id, config, tables)
 
 
-def _add_ssp(stamp: str, unit_id: int, config: dict, tables: dict[str, list[tuple]]) -> None:
+def _add_ssp(stamp: str, unit_id: int, config: Entry, tables: dict[str, list[Row]]) -> None:
     stats = config["stats"]
     for name in SSP_STATS:
         tables["unit_ssp_stat"].append(
@@ -247,7 +253,7 @@ def _add_ssp(stamp: str, unit_id: int, config: dict, tables: dict[str, list[tupl
             tables["unit_ssp_release"].append(_release_row(stamp, unit_id, level, release))
 
 
-def _release_row(stamp: str, unit_id: int, core_level: int, release: dict) -> tuple:
+def _release_row(stamp: str, unit_id: int, core_level: int, release: Entry) -> Row:
     index = release["release_function_type_index"]
     kind = RELEASE_KIND.get(index)
     if kind is None:
@@ -263,7 +269,7 @@ def _release_row(stamp: str, unit_id: int, core_level: int, release: dict) -> tu
     )
 
 
-def _add_weapon(stamp: str, weapon: dict, tables: dict[str, list[tuple]]) -> None:
+def _add_weapon(stamp: str, weapon: Entry, tables: dict[str, list[Row]]) -> None:
     weapon_id = weapon["id"]
     tables["weapon"].append(
         (
@@ -304,7 +310,9 @@ def _add_weapon(stamp: str, weapon: dict, tables: dict[str, list[tuple]]) -> Non
         )
 
 
-def _add_pilot(stamp: str, pilot: dict, tables: dict[str, list[tuple]], tags: dict) -> None:
+def _add_pilot(
+    stamp: str, pilot: Entry, tables: dict[str, list[Row]], tags: dict[int, str]
+) -> None:
     pilot_id = pilot["id"]
     tables["pilot"].append(
         (
@@ -330,7 +338,7 @@ def _add_pilot(stamp: str, pilot: dict, tables: dict[str, list[tuple]], tags: di
         )
 
 
-def _add_supporter(stamp: str, supporter: dict, tables: dict[str, list[tuple]]) -> None:
+def _add_supporter(stamp: str, supporter: Entry, tables: dict[str, list[Row]]) -> None:
     supporter_id = supporter["id"]
     tables["supporter"].append(
         (
