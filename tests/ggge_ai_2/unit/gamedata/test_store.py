@@ -45,7 +45,6 @@ def raw():
 @pytest.fixture(scope="module")
 def store(rows, raw):
     with Store() as opened:
-        opened.write_constants()
         opened.write_stamp(rows, raw)
         yield opened
         opened.delete_stamp(STAMP)
@@ -136,3 +135,11 @@ def test_a_null_skill_and_a_null_ability_reach_the_database_as_null(store, conne
 
     assert skills == 2
     assert abilities == 3
+
+
+def test_the_growth_tables_come_from_the_seed_migration(store):
+    tables = store.read_growth_tables()
+
+    assert sorted(tables.level_curve) == list(range(1, 101))
+    assert sorted(tables.limit_break_rate_percent) == [0, 1, 2, 3]
+    assert sorted(tables.rarity_level_cap) == [1, 2, 3, 4, 5]

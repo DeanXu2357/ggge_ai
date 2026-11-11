@@ -6,8 +6,9 @@ This document states how the datamine values of a mech, a pilot, a
 weapon and a support crew grow with the level, the limit break and
 the upgrades `mech_sp` and `mech_ssp`. The source is the site code
 of soshage, read on 2026-09-03 at the data version stamp
-202609010310. The module `src/ggge_ai_2/gamedata/growth.py` holds the
-constants and the formulas. This document is the reference for it.
+202609010310. The migration `db/migrations/0009_growth_constants.up.sql`
+holds the constants, and the module `src/ggge_ai_2/gamedata/growth.py`
+holds the formulas. This document is the reference for both.
 
 The site chunks that hold the facts (all under
 `https://soshage.com/_app/immutable/`):

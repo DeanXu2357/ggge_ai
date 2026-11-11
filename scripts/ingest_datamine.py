@@ -38,7 +38,6 @@ def ingest(dump_dir: Path, store: Store) -> dict[str, int]:
     for file_name in sorted(manifest["files"]):
         name = file_name.removesuffix(".json")
         raw.extend(raw_rows(stamp, name, read_payload(dump_dir, name)))
-    store.write_constants()
     store.write_stamp(rows, raw)
     return store.counts(stamp)
 

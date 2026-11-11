@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterable
 from types import TracebackType
+from typing import LiteralString
 
 import psycopg
 from psycopg import sql
@@ -12,7 +13,7 @@ from psycopg.abc import QueryNoTemplate
 from psycopg.rows import TupleRow
 from psycopg.types.json import Jsonb
 
-from ggge_ai_2.gamedata import growth
+from ggge_ai_2.gamedata.growth import GrowthTables
 from ggge_ai_2.gamedata.normalize import COLUMNS, RAW_COLUMNS, Row, Rows
 
 DEFAULT_URL = "postgresql://ggge:ggge@localhost:5432/ggge"
@@ -70,17 +71,6 @@ def _insert(table: str, columns: tuple[str, ...]) -> sql.Composed:
     )
 
 
-def _upsert(table: str, columns: tuple[str, ...], key: tuple[str, ...]) -> sql.Composed:
-    updates = sql.SQL(", ").join(
-        sql.SQL("{} = EXCLUDED.{}").format(sql.Identifier(name), sql.Identifier(name))
-        for name in columns
-        if name not in key
-    )
-    return sql.SQL("{} ON CONFLICT ({}) DO UPDATE SET {}").format(
-        _insert(table, columns), _names(key), updates
-    )
-
-
 def _select(table: str) -> sql.Composed:
     return sql.SQL("SELECT {} FROM {} WHERE stamp = %s ORDER BY {}").format(
         _names(COLUMNS[table]), sql.Identifier(table), _names(KEY_COLUMNS[table])
@@ -113,20 +103,12 @@ class Store:
     ) -> None:
         self.close()
 
-    def write_constants(self) -> None:
-        with self._connection.transaction(), self._connection.cursor() as cursor:
-            cursor.executemany(
-                _upsert("level_curve", ("level", "rate"), ("level",)),
-                growth.level_curve_rows(),
-            )
-            cursor.executemany(
-                _upsert("limit_break_rate", ("step", "rate_percent"), ("step",)),
-                growth.limit_break_rate_rows(),
-            )
-            cursor.executemany(
-                _upsert("rarity_level_cap", ("rarity", "cap"), ("rarity",)),
-                growth.rarity_level_cap_rows(),
-            )
+    def read_growth_tables(self) -> GrowthTables:
+        return GrowthTables(
+            level_curve=self._pairs("SELECT level, rate FROM level_curve"),
+            limit_break_rate_percent=self._pairs("SELECT step, rate_percent FROM limit_break_rate"),
+            rarity_level_cap=self._pairs("SELECT rarity, cap FROM rarity_level_cap"),
+        )
 
     def write_stamp(self, rows: Rows, raw: list[Row]) -> None:
         with self._connection.transaction(), self._connection.cursor() as cursor:
@@ -173,6 +155,9 @@ class Store:
             row = cursor.fetchone()
         assert row is not None, "count(*) returns one row"
         return row[0]
+
+    def _pairs(self, query: LiteralString) -> dict[int, int]:
+        return {row[0]: row[1] for row in self._rows(query, ())}
 
     def _rows(self, query: QueryNoTemplate, params: tuple[object, ...]) -> list[TupleRow]:
         with self._connection.cursor() as cursor:

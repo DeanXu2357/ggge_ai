@@ -76,12 +76,11 @@ Name a directory to ingest a different dump:
 
     uv run python scripts/ingest_datamine.py data/datamine/202609010310
 
-The ingest writes three groups of rows:
+The ingest writes two groups of rows:
 
 1. the payload of each source row, in `datamine_raw`;
 2. the normalized rows of the unit, the weapon, the pilot and the
-   support crew tables;
-3. the constant tables of the growth model.
+   support crew tables.
 
 The ingest deletes the rows of the stamp first, then it inserts the
 new rows. A second ingest of the same dump gives the same rows. The
@@ -92,9 +91,10 @@ Remove one stamp:
     uv run python -c \
         "from ggge_ai_2.gamedata.store import Store; Store().delete_stamp('202609010310')"
 
-The constant tables carry no stamp. A delete of a stamp keeps them.
-These are the three tables of `growth.py`: `level_curve`,
-`limit_break_rate` and `rarity_level_cap`. The support crew growth
+The constant tables of the growth model carry no stamp. A delete of a
+stamp keeps them. These are `level_curve`, `limit_break_rate` and
+`rarity_level_cap`. The migration `0009_growth_constants` fills them,
+and the ingest does not write them. The support crew growth
 table `supporter_growth` comes from the dump, so it carries the stamp
 like the rest. A delete of a stamp removes its rows.
 
