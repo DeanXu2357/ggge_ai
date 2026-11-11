@@ -12,11 +12,11 @@ import pytest
 
 from ggge_ai_2.actuator.contract import Dispatch, Gesture, GestureBlocked, Rect, Tap
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSource
-from ggge_ai_2.agent.contract import Evidence, Plan, Step
+from ggge_ai_2.agent.contract import Evidence, MapTap, Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
 from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation
-from ggge_ai_2.mapparser.contract import CellReading, MapReading, ViewCell
+from ggge_ai_2.mapparser.contract import CellReading, MapReading, ScreenPoint, ViewCell
 from ggge_ai_2.stream.contract import Frame, Observation, StillWindow
 from ggge_ai_2.agent.ui_steps import operation_step
 from ggge_ai_2.uisim.contract import (
@@ -116,12 +116,15 @@ class FakeMapParser:
 @dataclass
 class MockMapParser:
     readings: dict[int, MapReading]
+    points: dict[ViewCell, ScreenPoint] = field(default_factory=dict[ViewCell, ScreenPoint])
+    located: list[tuple[int, ViewCell]] = field(default_factory=list[tuple[int, ViewCell]])
 
     def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
         return self.readings.get(frame.seq)
 
-    def locate(self, frame: Frame, cell: ViewCell) -> tuple[int, int] | None:
-        raise AssertionError("the loop does not tap cells")
+    def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:
+        self.located.append((frame.seq, cell))
+        return self.points.get(cell)
 
 
 @dataclass
@@ -424,6 +427,47 @@ def test_guard_on_an_unreadable_screen_halts_and_logs_the_evidence(
     assert actuator.sent == []
     [record] = logged(caplog, "guard on an unreadable screen")
     assert record.__dict__["unreadable_since_frame_seq"] == 4
+
+
+def test_map_tap_taps_the_point_that_the_mapparser_locates_on_the_frame_of_this_cycle(
+    caplog: pytest.LogCaptureFixture,
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    tap = Step("tap_enemy", MapTap((2, 3)), BAND, DEADLINE, (expected(INFO),))
+    controller = ScriptedController([ScriptedPlan([tap])], goals=[False, True])
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
+    shows = {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.PLAYER_PHASE_OVERVIEW}
+    mapparser = MockMapParser({}, points={(2, 3): (700, 400)})
+    actuator = FakeActuator()
+
+    agent = make_agent(stream, shows, controller, actuator, mapparser=mapparser)
+
+    assert agent.run() is RunResult.DONE
+    assert mapparser.located == [(1, (2, 3))]
+    assert actuator.sent == [(Tap((700, 400)), BAND)]
+    [acted] = logged(caplog, "act")
+    assert acted.__dict__["gesture"] == Tap((700, 400))
+
+
+def test_map_tap_on_a_cell_that_the_frame_cannot_tap_sends_nothing_and_predicts_nothing(
+    caplog: pytest.LogCaptureFixture,
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    tap = Step("tap_enemy", MapTap((9, 9)), BAND, DEADLINE, (expected(INFO),))
+    controller = ScriptedController([ScriptedPlan([tap, step()])], goals=[False, False, True])
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0), *still(3, 21.0)])
+    shows = dict.fromkeys(range(1, 4), Screen.PLAYER_PHASE_OVERVIEW)
+    actuator = FakeActuator()
+
+    agent = make_agent(stream, shows, controller, actuator, mapparser=MockMapParser({}))
+
+    assert agent.run() is RunResult.DONE
+    assert actuator.sent == [(TAP, BAND)]
+    [untappable] = logged(caplog, "cell not tappable")
+    assert untappable.__dict__["cell"] == (9, 9)
+    assert logged(caplog, "matches") == []
+    first_cycle = next(record for record in caplog.records if record.name.endswith(".cycle"))
+    assert first_cycle.getMessage().endswith("step=tap_enemy map_tap 9,9")
 
 
 def test_mismatches_up_to_the_limit_end_the_plan():

@@ -6,7 +6,7 @@ from typing import Protocol
 
 from ggge_ai_2.actuator.contract import Gesture, Rect
 from ggge_ai_2.agent.belief import Belief
-from ggge_ai_2.mapparser.contract import MapReading
+from ggge_ai_2.mapparser.contract import MapReading, ViewCell
 from ggge_ai_2.stream.contract import StillWindow
 
 
@@ -21,10 +21,16 @@ class Evidence:
     map_readings: Sequence[MapReadingRecord]
 
 
+# The loop converts the cell to a screen point on the frame of the cycle that sends it.
+@dataclass(frozen=True)
+class MapTap:
+    cell: ViewCell
+
+
 @dataclass(frozen=True)
 class Step:
     name: str
-    gesture: Gesture | None
+    gesture: Gesture | MapTap | None
     band: tuple[Rect, ...]
     deadline: float
     expected: tuple[Belief, ...]

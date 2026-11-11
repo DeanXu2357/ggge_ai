@@ -8,7 +8,7 @@ from threading import Event
 from ggge_ai_2.actuator.contract import Actuator, Dispatch, Gesture, GestureBlocked, Key, Tap
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, Sensed, UiSource
 from ggge_ai_2.agent.clock import Instant, now
-from ggge_ai_2.agent.contract import Evidence, Plan, PlanController, Step
+from ggge_ai_2.agent.contract import Evidence, MapTap, Plan, PlanController, Step
 from ggge_ai_2.agent.map_reading_history import MapReadingHistory
 from ggge_ai_2.agent.runlog import RunLog, StepRecord, thumbnail_name
 from ggge_ai_2.interpreter.contract import AutoMode, Interpreter, Screen, Situation
@@ -219,18 +219,28 @@ class Agent[P: Plan]:
 
     def act(self, step: Step) -> Dispatch | None:
         name = step.name
-        if step.gesture is None:
+        gesture = step.gesture
+        if gesture is None:
             at = now()
             self._after = at
             log.info("wait", extra={"step": name})
             return Dispatch(at, at)
+        if isinstance(gesture, MapTap):
+            assert self._frame is not None, "a cycle acts only after sense returns a frame"
+            point = self.mapparser.locate(self._frame, gesture.cell)
+            if point is None:
+                log.info("cell not tappable", extra={"step": name, "cell": gesture.cell})
+                return None
+            gesture = Tap(point)
         try:
-            dispatch = self.actuator.dispatch(step.gesture, step.band)
+            dispatch = self.actuator.dispatch(gesture, step.band)
         except GestureBlocked:
             log.info("blocked", extra={"step": name})
             return None
         self._after = dispatch.t0
-        log.info("act", extra={"step": name, "t0": dispatch.t0, "t1": dispatch.t1})
+        log.info(
+            "act", extra={"step": name, "gesture": gesture, "t0": dispatch.t0, "t1": dispatch.t1}
+        )
         return dispatch
 
     def predict(self, step: Step, dispatch: Dispatch) -> Predicted:
@@ -273,7 +283,7 @@ class Agent[P: Plan]:
         return frame
 
 
-def _gesture_text(gesture: Gesture, width: int, height: int) -> str:
+def _gesture_text(gesture: Gesture | MapTap, width: int, height: int) -> str:
     def ratio(point: tuple[int, int]) -> str:
         return f"{point[0] / width:.3f},{point[1] / height:.3f}"
 
@@ -281,6 +291,8 @@ def _gesture_text(gesture: Gesture, width: int, height: int) -> str:
         return f"tap {ratio(gesture.point)}"
     if isinstance(gesture, Key):
         return f"key {gesture.code}"
+    if isinstance(gesture, MapTap):
+        return f"map_tap {gesture.cell[0]},{gesture.cell[1]}"
     return f"swipe {ratio(gesture.start)}->{ratio(gesture.end)} {gesture.duration:.2f}s"
 
 
