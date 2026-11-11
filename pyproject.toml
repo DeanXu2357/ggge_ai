@@ -7,6 +7,7 @@ dependencies = [
     "opencv-python>=4.10",
     "numpy>=2.0",
     "anthropic>=2.1.0",
+    "psycopg[binary]>=3.2",
 ]
 
 [dependency-groups]
