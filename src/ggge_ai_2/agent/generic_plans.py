@@ -7,7 +7,7 @@ from typing import ClassVar, Protocol
 
 from ggge_ai_2.actuator.contract import Swipe, Tap
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock
-from ggge_ai_2.agent.contract import Step
+from ggge_ai_2.agent.contract import Evidence, Step
 from ggge_ai_2.agent.ui_steps import operation_step
 from ggge_ai_2.uisim.contract import Operation, UiAutoMode, UiSim
 
@@ -21,10 +21,10 @@ class PowerSaveLockPlan:
     DRAG_DEADLINE: ClassVar[float] = 1.5
     POKE_DEADLINE: ClassVar[float] = 0.8
 
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return belief.screen_lock is not None
 
-    def next(self, belief: Belief) -> Step:
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
         if belief.screen_lock is ScreenLock.DIM:
             shown = replace(belief, screen_lock=ScreenLock.ICON)
             return Step("power_save_poke", self.POKE_TOP_CENTRE, (), self.POKE_DEADLINE, (shown,))
@@ -40,10 +40,10 @@ class PowerSaveLockPlan:
 
 @dataclass(frozen=True)
 class PassingWaitPlan:
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return belief.passing is Passing.WAIT
 
-    def next(self, belief: Belief) -> Step:
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
         # The loop ignores the deadline and the expected belief: it does not predict
         # from a step on a pass-through frame.
         return Step("passing_wait", None, (), 0.0, (belief,))
@@ -53,10 +53,10 @@ class PassingWaitPlan:
 class TapToContinuePlan:
     screen: tuple[int, int]
 
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return belief.passing is Passing.TAP_TO_CONTINUE
 
-    def next(self, belief: Belief) -> Step:
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
         width, height = self.screen
         # The loop ignores the deadline and the expected belief: it does not predict
         # from a step on a pass-through frame.
@@ -87,12 +87,12 @@ class AutoOffPlan:
     _at: float | None = field(default=None, init=False)
     _from: UiAutoMode | None = field(default=None, init=False)
 
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return belief.ui.auto in (UiAutoMode.FULL, UiAutoMode.SEMI) and (
             self._toggle(belief) is not None
         )
 
-    def next(self, belief: Belief) -> Step:
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
         assert belief.as_of is not None, "the main loop plans only on a sensed belief"
         if (
             self._phase is AutoOffPhase.PENDING

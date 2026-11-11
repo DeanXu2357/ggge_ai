@@ -6,6 +6,19 @@ from typing import Protocol
 
 from ggge_ai_2.actuator.contract import Gesture, Rect
 from ggge_ai_2.agent.belief import Belief
+from ggge_ai_2.mapparser.contract import MapReading
+from ggge_ai_2.stream.contract import StillWindow
+
+
+@dataclass(frozen=True)
+class MapReadingRecord:
+    still: StillWindow
+    reading: MapReading
+
+
+@dataclass(frozen=True)
+class Evidence:
+    map_readings: Sequence[MapReadingRecord]
 
 
 @dataclass(frozen=True)
@@ -18,8 +31,8 @@ class Step:
 
 
 class Plan(Protocol):
-    """`still_valid` is the precondition: the plan can give a step for this belief.
-    `still_valid` has no side effects.
+    """`still_valid` is the precondition: the plan can give a step for this belief and
+    this evidence. `still_valid` has no side effects.
 
     The loop calls `next` at most once per cycle. The loop calls `next` only after
     `still_valid` returned True. `next` can change the state of the plan.
@@ -27,14 +40,14 @@ class Plan(Protocol):
     A step with `expected=()` makes no prediction.
     """
 
-    def still_valid(self, belief: Belief) -> bool: ...
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool: ...
 
-    def next(self, belief: Belief) -> Step: ...
+    def next(self, belief: Belief, evidence: Evidence) -> Step: ...
 
 
 class PlanController[P: Plan](Protocol):
     def goal_reached(self, belief: Belief) -> bool: ...
 
-    def think(self, belief: Belief, history: Sequence[object]) -> P | None: ...
+    def think(self, belief: Belief, evidence: Evidence, history: Sequence[object]) -> P | None: ...
 
     def review(self, plan: P, belief: Belief) -> object: ...

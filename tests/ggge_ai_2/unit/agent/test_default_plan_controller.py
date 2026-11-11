@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 
 from ggge_ai_2.actuator.contract import Tap
 from ggge_ai_2.agent.belief import Belief, Passing, UiBasis, UiSource
-from ggge_ai_2.agent.contract import Step
+from ggge_ai_2.agent.contract import Evidence, Step
 from ggge_ai_2.agent.default_plan_controller import PlanReflex, ReflexPlan, UiShiftPlan
 from ggge_ai_2.agent.generic_plans import PassingWaitPlan
 from ggge_ai_2.agent.ui_steps import first_move, operation_step
@@ -14,6 +14,7 @@ from tests.ggge_ai_2.fakes.uisim import FakeUiSim
 
 LIST = UiState(UiScreen.STORY_STAGE_LIST)
 PREP = UiState(UiScreen.SORTIE_PREP)
+NO_READINGS = Evidence(())
 
 
 def belief() -> Belief:
@@ -28,10 +29,10 @@ REFLEX_STEP = Step("reflex", Tap((2, 2)), (), 1.0, (belief(),))
 class StubPlan:
     valid: bool
 
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return self.valid
 
-    def next(self, belief: Belief) -> Step:
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
         return PLAN_STEP
 
 
@@ -39,36 +40,38 @@ class StubPlan:
 class StubReflex:
     step: Step | None
 
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return self.step is not None
 
-    def react(self, belief: Belief) -> Step | None:
+    def react(self, belief: Belief, evidence: Evidence) -> Step | None:
         return self.step
 
 
 def test_reflex_step_comes_before_the_plan_and_keeps_the_plan_valid():
     plan = ReflexPlan((StubReflex(REFLEX_STEP),), StubPlan(valid=False))
 
-    assert plan.next(belief()) == REFLEX_STEP
-    assert plan.still_valid(belief())
+    assert plan.next(belief(), NO_READINGS) == REFLEX_STEP
+    assert plan.still_valid(belief(), NO_READINGS)
 
 
 def test_without_a_reflex_the_plan_gives_the_step_and_the_validity():
     plan = ReflexPlan((StubReflex(None),), StubPlan(valid=False))
 
-    assert plan.next(belief()) == PLAN_STEP
-    assert not plan.still_valid(belief())
+    assert plan.next(belief(), NO_READINGS) == PLAN_STEP
+    assert not plan.still_valid(belief(), NO_READINGS)
 
 
 def test_plan_reflex_adapts_a_generic_plan():
     reflex = PlanReflex(PassingWaitPlan())
     wait = replace(belief(), passing=Passing.WAIT)
 
-    assert not reflex.still_valid(belief())
-    assert reflex.react(belief()) is None
-    assert reflex.still_valid(wait)
-    assert reflex.react(wait) == PassingWaitPlan().next(wait)
-    assert ReflexPlan((reflex,), StubPlan(valid=True)).next(wait) == PassingWaitPlan().next(wait)
+    assert not reflex.still_valid(belief(), NO_READINGS)
+    assert reflex.react(belief(), NO_READINGS) is None
+    assert reflex.still_valid(wait, NO_READINGS)
+    assert reflex.react(wait, NO_READINGS) == PassingWaitPlan().next(wait, NO_READINGS)
+    assert ReflexPlan((reflex,), StubPlan(valid=True)).next(
+        wait, NO_READINGS
+    ) == PassingWaitPlan().next(wait, NO_READINGS)
 
 
 def test_shift_plan_step_is_the_step_of_its_first_operation():
@@ -81,5 +84,5 @@ def test_shift_plan_step_is_the_step_of_its_first_operation():
     move = first_move(uisim, LIST, PREP.screen)
     assert move is not None
 
-    assert plan.still_valid(belief())
-    assert plan.next(belief()) == operation_step(move[0], belief(), uisim, plan.screen)
+    assert plan.still_valid(belief(), NO_READINGS)
+    assert plan.next(belief(), NO_READINGS) == operation_step(move[0], belief(), uisim, plan.screen)

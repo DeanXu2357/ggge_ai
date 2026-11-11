@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 
 from ggge_ai_2.agent.belief import Belief, UiSource
-from ggge_ai_2.agent.contract import Plan, Step
+from ggge_ai_2.agent.contract import Evidence, Plan, Step
 from ggge_ai_2.agent.generic_plans import (
     AutoOffPlan,
     PassingWaitPlan,
@@ -40,27 +40,27 @@ class StagePlan:
     power_save: PowerSaveLockPlan = PowerSaveLockPlan()
     passing_wait: PassingWaitPlan = PassingWaitPlan()
 
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         if self.auto_off.awaiting_confirmation(belief):
             return False
-        return self._generic(belief) is not None or self._operation(belief) is not None
+        return self._generic(belief, evidence) is not None or self._operation(belief) is not None
 
-    def next(self, belief: Belief) -> Step:
-        generic = self._generic(belief)
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
+        generic = self._generic(belief, evidence)
         if generic is not None:
-            return generic.next(belief)
+            return generic.next(belief, evidence)
         operation = self._operation(belief)
         assert operation is not None, "the main loop takes a step only from a valid plan"
         return operation_step(operation, belief, self.uisim, self.screen)
 
-    def _generic(self, belief: Belief) -> Plan | None:
+    def _generic(self, belief: Belief, evidence: Evidence) -> Plan | None:
         order: tuple[Plan, ...] = (
             self.power_save,
             self.passing_wait,
             self.tap_to_continue,
             self.auto_off,
         )
-        return next((plan for plan in order if plan.still_valid(belief)), None)
+        return next((plan for plan in order if plan.still_valid(belief, evidence)), None)
 
     def _operation(self, belief: Belief) -> Operation | None:
         screen = belief.ui.screen
@@ -92,7 +92,9 @@ class StagePlanController:
             and belief.passing is None
         )
 
-    def think(self, belief: Belief, history: Sequence[object]) -> StagePlan | None:
+    def think(
+        self, belief: Belief, evidence: Evidence, history: Sequence[object]
+    ) -> StagePlan | None:
         previous = history[-1] if history and isinstance(history[-1], StagePlan) else None
         if previous is None:
             auto_off = AutoOffPlan(self.uisim, self.screen)
@@ -105,7 +107,7 @@ class StagePlanController:
             belief.ui.screen is UiScreen.SELECT_WEAPON_IN_BATTLE
             and previous is not None
             and not previous.fallback
-            and previous.still_valid(belief)
+            and previous.still_valid(belief, evidence)
         )
         # TODO: after CONFIRMED, think keeps the greedy plan. The strategy after AUTO is
         #     not decided.
@@ -117,7 +119,7 @@ class StagePlanController:
             TapToContinuePlan(self.screen),
             fallback,
         )
-        return plan if plan.still_valid(belief) else None
+        return plan if plan.still_valid(belief, evidence) else None
 
     def review(self, plan: StagePlan, belief: Belief) -> object:
         return replace(plan, auto_off=copy.copy(plan.auto_off))

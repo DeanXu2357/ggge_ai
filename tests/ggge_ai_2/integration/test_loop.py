@@ -12,7 +12,7 @@ import pytest
 
 from ggge_ai_2.actuator.contract import Dispatch, Gesture, GestureBlocked, Rect, Tap
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSource
-from ggge_ai_2.agent.contract import Plan, Step
+from ggge_ai_2.agent.contract import Evidence, Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
 from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation
@@ -128,11 +128,13 @@ class MockMapParser:
 class ScriptedPlan:
     steps: list[Step]
     valid: list[bool] = field(default_factory=list)
+    given: list[Evidence] = field(default_factory=list[Evidence])
 
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return self.valid.pop(0) if self.valid else True
 
-    def next(self, belief: Belief) -> Step:
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
+        self.given.append(evidence)
         return self.steps.pop(0)
 
 
@@ -142,14 +144,16 @@ class ScriptedController:
     goals: list[bool]
     checked: list[Belief] = field(default_factory=list)
     thought: list[tuple[Belief, tuple[object, ...]]] = field(default_factory=list)
+    given: list[Evidence] = field(default_factory=list[Evidence])
     reviewed: list[Plan] = field(default_factory=list)
 
     def goal_reached(self, belief: Belief) -> bool:
         self.checked.append(belief)
         return self.goals.pop(0)
 
-    def think(self, belief: Belief, history: Sequence[object]) -> Plan | None:
+    def think(self, belief: Belief, evidence: Evidence, history: Sequence[object]) -> Plan | None:
         self.thought.append((belief, tuple(history)))
+        self.given.append(evidence)
         return self.plans.pop(0)
 
     def review(self, plan: Plan, belief: Belief) -> object:
@@ -209,6 +213,38 @@ def test_every_sensed_map_reading_goes_into_the_map_reading_history():
     assert agent.run() is RunResult.DONE
     assert [(record.still, record.reading) for record in agent.map_readings.records] == [
         (window(2, 11.0), reading)
+    ]
+
+
+READING = MapReading(None, None, None, {(0, 0): CellReading.EMPTY}, frozenset(), (), {}, None, None)
+
+
+def readings(evidence: Evidence) -> list[tuple[StillWindow, MapReading]]:
+    return [(record.still, record.reading) for record in evidence.map_readings]
+
+
+def test_the_plan_gets_the_map_readings_up_to_this_cycle_as_evidence():
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0), *still(3, 21.0)])
+    shows = dict.fromkeys(range(1, 4), Screen.PLAYER_PHASE_OVERVIEW)
+    plan = ScriptedPlan([step(), step()])
+    controller = ScriptedController([plan], goals=[False, False, True])
+    agent = make_agent(stream, shows, controller, mapparser=MockMapParser({2: READING}))
+
+    assert agent.run() is RunResult.DONE
+    assert [readings(evidence) for evidence in plan.given] == [[], [(window(2, 11.0), READING)]]
+
+
+def test_think_gets_the_map_readings_up_to_this_cycle_as_evidence():
+    plan = ScriptedPlan([step()], valid=[False])
+    controller = ScriptedController([plan, None], goals=[False, False])
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
+    shows = {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.PLAYER_PHASE_OVERVIEW}
+    agent = make_agent(stream, shows, controller, mapparser=MockMapParser({2: READING}))
+
+    assert agent.run() is RunResult.HALTED
+    assert [readings(evidence) for evidence in controller.given] == [
+        [],
+        [(window(2, 11.0), READING)],
     ]
 
 

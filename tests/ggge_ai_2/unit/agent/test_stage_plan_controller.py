@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSource
+from ggge_ai_2.agent.contract import Evidence
 from ggge_ai_2.agent.generic_plans import AutoOffPhase, AutoOffPlan, TapToContinuePlan
 from ggge_ai_2.agent.stage_plan_controller import GREEDY_BUTTONS, StagePlan, StagePlanController
 from ggge_ai_2.agent.ui_steps import first_move
@@ -18,6 +19,7 @@ from tests.ggge_ai_2.fakes.domain import FakeDomain
 REAL_STAGES = Path(__file__).resolve().parents[4] / "assets" / "ui_stages" / "stages.json"
 BATTLE_SIM = StageUiSim(load_stages(REAL_STAGES))
 SCREEN = (2340, 1080)
+NO_READINGS = Evidence(())
 GOAL = UiScreen.DROP_REWARD_RESULT
 OVERVIEW = UiScreen.PLAYER_PHASE_OVERVIEW
 WEAPON = UiScreen.SELECT_WEAPON_IN_BATTLE
@@ -39,7 +41,7 @@ def untouched() -> AutoOffPlan:
 
 def pending(at: float = 10.0) -> AutoOffPlan:
     plan = untouched()
-    plan.next(on(OVERVIEW, auto=FULL, until=at))
+    plan.next(on(OVERVIEW, auto=FULL, until=at), NO_READINGS)
     return plan
 
 
@@ -59,30 +61,30 @@ def stage(goal: UiScreen = GOAL) -> StagePlanController:
 
 @pytest.mark.parametrize(("screen", "name"), GREEDY_BUTTONS.items())
 def test_greedy_part_takes_the_table_operation(screen: UiScreen, name: str):
-    assert plan().still_valid(on(screen))
-    assert plan().next(on(screen)).name == name
+    assert plan().still_valid(on(screen), NO_READINGS)
+    assert plan().next(on(screen), NO_READINGS).name == name
 
 
 def test_greedy_part_follows_the_table_where_the_screen_has_no_auto_toggle():
-    assert plan().next(on(UiScreen.BATTLE_MAIN_SETTING, auto=FULL)).name == (
+    assert plan().next(on(UiScreen.BATTLE_MAIN_SETTING, auto=FULL), NO_READINGS).name == (
         "battle_main_setting__close"
     )
 
 
 def test_fallback_waits_on_the_weapon_screen():
-    assert plan(fallback=True).still_valid(on(WEAPON))
-    assert plan(fallback=True).next(on(WEAPON)).name == "select_weapon_in_battle__wait"
+    assert plan(fallback=True).still_valid(on(WEAPON), NO_READINGS)
+    assert plan(fallback=True).next(on(WEAPON), NO_READINGS).name == "select_weapon_in_battle__wait"
 
 
 def test_fallback_is_invalid_off_the_weapon_screen():
-    assert not plan(fallback=True).still_valid(on(OVERVIEW))
+    assert not plan(fallback=True).still_valid(on(OVERVIEW), NO_READINGS)
 
 
 @pytest.mark.parametrize("mode", [FULL, SEMI])
 def test_battle_screen_outside_manual_gives_the_toggle_and_not_the_greedy_step(
     mode: UiAutoMode,
 ):
-    step = plan().next(on(OVERVIEW, auto=mode))
+    step = plan().next(on(OVERVIEW, auto=mode), NO_READINGS)
 
     assert step.name == "player_phase_overview__auto"
     assert step.expected == ()
@@ -91,15 +93,15 @@ def test_battle_screen_outside_manual_gives_the_toggle_and_not_the_greedy_step(
 def test_lock_frame_comes_before_the_auto_toggle():
     locked = replace(on(OVERVIEW, auto=FULL), screen_lock=ScreenLock.ICON)
 
-    assert plan().next(locked).name == "power_save_unlock"
+    assert plan().next(locked, NO_READINGS).name == "power_save_unlock"
 
 
 def test_passing_frames_come_before_the_auto_toggle():
     wait = replace(on(OVERVIEW, auto=FULL), passing=Passing.WAIT)
     tap = replace(on(OVERVIEW, auto=FULL), passing=Passing.TAP_TO_CONTINUE)
 
-    assert plan().next(wait).name == "passing_wait"
-    assert plan().next(tap).name == "tap_to_continue"
+    assert plan().next(wait, NO_READINGS).name == "passing_wait"
+    assert plan().next(tap, NO_READINGS).name == "tap_to_continue"
 
 
 def test_other_screen_gives_the_first_move_to_the_goal():
@@ -107,15 +109,15 @@ def test_other_screen_gives_the_first_move_to_the_goal():
     move = first_move(BATTLE_SIM, belief.ui, GOAL)
     assert move is not None
 
-    assert plan().still_valid(belief)
-    assert plan().next(belief).name == move[0].name
+    assert plan().still_valid(belief, NO_READINGS)
+    assert plan().next(belief, NO_READINGS).name == move[0].name
 
 
 def test_plan_is_invalid_on_the_auto_confirmation():
     waiting = plan(auto=pending(10.0))
 
-    assert not waiting.still_valid(on(OVERVIEW, auto=MANUAL))
-    assert waiting.still_valid(on(OVERVIEW, auto=SEMI))
+    assert not waiting.still_valid(on(OVERVIEW, auto=MANUAL), NO_READINGS)
+    assert waiting.still_valid(on(OVERVIEW, auto=SEMI), NO_READINGS)
 
 
 def test_stage_goal_is_reached_on_a_seen_goal_screen():
@@ -137,13 +139,13 @@ def test_stage_goal_is_not_reached_on_another_screen():
 
 
 def test_stage_think_without_history_gives_an_untouched_auto_plan():
-    assert stage().think(on(WEAPON), []) == plan()
+    assert stage().think(on(WEAPON), NO_READINGS, []) == plan()
 
 
 def test_stage_think_carries_the_auto_plan_from_history_and_confirms_it():
     previous = plan(auto=pending(10.0))
 
-    thought = stage().think(on(OVERVIEW, auto=MANUAL, until=11.0), [previous])
+    thought = stage().think(on(OVERVIEW, auto=MANUAL, until=11.0), NO_READINGS, [previous])
 
     assert thought is not None
     assert thought.auto_off.phase() is AutoOffPhase.CONFIRMED
@@ -153,19 +155,22 @@ def test_stage_think_carries_the_auto_plan_from_history_and_confirms_it():
 
 def test_stage_battle_that_starts_full_is_confirmed_only_after_manual():
     controller = stage()
-    live = controller.think(on(OVERVIEW, auto=FULL, until=10.0), [])
+    live = controller.think(on(OVERVIEW, auto=FULL, until=10.0), NO_READINGS, [])
     assert live is not None
 
-    assert live.next(on(OVERVIEW, auto=FULL, until=10.0)).name == "player_phase_overview__auto"
+    assert (
+        live.next(on(OVERVIEW, auto=FULL, until=10.0), NO_READINGS).name
+        == "player_phase_overview__auto"
+    )
     semi = on(OVERVIEW, auto=SEMI, until=11.0)
-    assert live.still_valid(semi)
-    rethought = controller.think(semi, [controller.review(live, semi)])
+    assert live.still_valid(semi, NO_READINGS)
+    rethought = controller.think(semi, NO_READINGS, [controller.review(live, semi)])
     assert rethought is not None and rethought.auto_off.phase() is AutoOffPhase.PENDING
-    assert live.next(semi).name == "player_phase_overview__auto"
+    assert live.next(semi, NO_READINGS).name == "player_phase_overview__auto"
 
     manual = on(OVERVIEW, auto=MANUAL, until=12.0)
-    assert not live.still_valid(manual)
-    thought = controller.think(manual, [controller.review(live, manual)])
+    assert not live.still_valid(manual, NO_READINGS)
+    thought = controller.think(manual, NO_READINGS, [controller.review(live, manual)])
     assert thought is not None and thought.auto_off.phase() is AutoOffPhase.CONFIRMED
 
 
@@ -173,7 +178,7 @@ def test_stage_review_stores_a_copy_of_the_auto_plan():
     live = plan()
     reviewed = stage().review(live, on(OVERVIEW, auto=FULL))
 
-    live.next(on(OVERVIEW, auto=FULL))
+    live.next(on(OVERVIEW, auto=FULL), NO_READINGS)
 
     assert isinstance(reviewed, StagePlan)
     assert live.auto_off.phase() is AutoOffPhase.PENDING
@@ -181,29 +186,29 @@ def test_stage_review_stores_a_copy_of_the_auto_plan():
 
 
 def test_stage_weapon_screen_after_a_valid_greedy_plan_gets_the_fallback():
-    assert stage().think(on(WEAPON), [plan()]) == plan(fallback=True)
+    assert stage().think(on(WEAPON), NO_READINGS, [plan()]) == plan(fallback=True)
 
 
 def test_stage_weapon_screen_after_the_auto_confirmation_gets_no_fallback():
     previous = plan(auto=pending(10.0))
 
-    thought = stage().think(on(WEAPON, auto=MANUAL), [previous])
+    thought = stage().think(on(WEAPON, auto=MANUAL), NO_READINGS, [previous])
 
     assert thought == plan(auto=confirmed(10.0))
 
 
 def test_stage_weapon_screen_after_the_fallback_gets_the_greedy_plan():
-    assert stage().think(on(WEAPON), [plan(fallback=True)]) == plan()
+    assert stage().think(on(WEAPON), NO_READINGS, [plan(fallback=True)]) == plan()
 
 
 def test_stage_think_gives_none_when_no_part_is_valid():
     goal = UiScreen.STORY_STAGE_LIST
 
-    assert stage(goal).think(on(goal, auto=None), []) is None
+    assert stage(goal).think(on(goal, auto=None), NO_READINGS, []) is None
 
 
 def test_stage_think_keeps_a_valid_generic_plan_on_the_goal_screen():
     goal = UiScreen.STORY_STAGE_LIST
     frame = replace(on(goal, auto=None), passing=Passing.WAIT)
 
-    assert stage(goal).think(frame, []) is not None
+    assert stage(goal).think(frame, NO_READINGS, []) is not None

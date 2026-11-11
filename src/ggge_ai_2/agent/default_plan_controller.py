@@ -5,26 +5,26 @@ from dataclasses import dataclass
 from typing import ClassVar, Protocol
 
 from ggge_ai_2.agent.belief import Belief
-from ggge_ai_2.agent.contract import Plan, Step
+from ggge_ai_2.agent.contract import Evidence, Plan, Step
 from ggge_ai_2.agent.ui_steps import first_move, operation_step
 from ggge_ai_2.uisim.contract import UiScreen, UiSim
 
 
 class Reflex(Protocol):
-    def still_valid(self, belief: Belief) -> bool: ...
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool: ...
 
-    def react(self, belief: Belief) -> Step | None: ...
+    def react(self, belief: Belief, evidence: Evidence) -> Step | None: ...
 
 
 @dataclass(frozen=True)
 class PlanReflex:
     plan: Plan
 
-    def still_valid(self, belief: Belief) -> bool:
-        return self.plan.still_valid(belief)
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
+        return self.plan.still_valid(belief, evidence)
 
-    def react(self, belief: Belief) -> Step | None:
-        return self.plan.next(belief) if self.plan.still_valid(belief) else None
+    def react(self, belief: Belief, evidence: Evidence) -> Step | None:
+        return self.plan.next(belief, evidence) if self.plan.still_valid(belief, evidence) else None
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,9 @@ class DefaultPlanController:
         # TODO(#105): the stage goal.
         return False
 
-    def think(self, belief: Belief, history: Sequence[object]) -> ReflexPlan | None:
+    def think(
+        self, belief: Belief, evidence: Evidence, history: Sequence[object]
+    ) -> ReflexPlan | None:
         # TODO(#105): before the map, check AUTO and '顯示方格'. On the map, give an
         #     unrecorded map to the map sync plan and a recorded map to the battle
         #     plan. After the map is explored, leave the stage.
@@ -59,13 +61,13 @@ class UiShiftPlan:
     uisim: UiSim
     screen: tuple[int, int]
 
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return (
             belief.ui.screen is not self.goal
             and first_move(self.uisim, belief.ui, self.goal) is not None
         )
 
-    def next(self, belief: Belief) -> Step:
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
         move = first_move(self.uisim, belief.ui, self.goal)
         assert move is not None, "the main loop takes a step only from a valid plan"
         operation, _ = move
@@ -77,15 +79,17 @@ class ReflexPlan:
     reflexes: tuple[Reflex, ...]
     inner: Plan
 
-    def still_valid(self, belief: Belief) -> bool:
-        return any(r.still_valid(belief) for r in self.reflexes) or self.inner.still_valid(belief)
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
+        return any(r.still_valid(belief, evidence) for r in self.reflexes) or (
+            self.inner.still_valid(belief, evidence)
+        )
 
-    def next(self, belief: Belief) -> Step:
-        return self._react(belief) or self.inner.next(belief)
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
+        return self._react(belief, evidence) or self.inner.next(belief, evidence)
 
-    def _react(self, belief: Belief) -> Step | None:
+    def _react(self, belief: Belief, evidence: Evidence) -> Step | None:
         for reflex in self.reflexes:
-            step = reflex.react(belief)
+            step = reflex.react(belief, evidence)
             if step is not None:
                 return step
         return None

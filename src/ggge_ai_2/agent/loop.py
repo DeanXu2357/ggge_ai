@@ -8,7 +8,7 @@ from threading import Event
 from ggge_ai_2.actuator.contract import Actuator, Dispatch, Gesture, GestureBlocked, Key, Tap
 from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, Sensed, UiSource
 from ggge_ai_2.agent.clock import Instant, now
-from ggge_ai_2.agent.contract import Plan, PlanController, Step
+from ggge_ai_2.agent.contract import Evidence, Plan, PlanController, Step
 from ggge_ai_2.agent.map_reading_history import MapReadingHistory
 from ggge_ai_2.agent.runlog import RunLog, StepRecord, thumbnail_name
 from ggge_ai_2.interpreter.contract import AutoMode, Interpreter, Screen, Situation
@@ -85,6 +85,7 @@ class Agent[P: Plan]:
                 break
             if sensed.reading is not None:
                 self.map_readings.insert(sensed.still, sensed.reading)
+            evidence = Evidence(self.map_readings.records)
             self.belief = self.belief.update(sensed, self.uisim)
 
             if self.plan_controller.goal_reached(self.belief):
@@ -100,18 +101,18 @@ class Agent[P: Plan]:
                 mismatches = mismatches + 1 if matched is False else 0
             effect_failed = mismatches >= MISMATCH_LIMIT
 
-            plan_invalid = plan is not None and not plan.still_valid(self.belief)
+            plan_invalid = plan is not None and not plan.still_valid(self.belief, evidence)
 
             if plan is None or effect_failed or plan_invalid:
                 if plan is not None:
                     history.append(self.plan_controller.review(plan, self.belief))
-                plan = self.plan_controller.think(self.belief, history)
+                plan = self.plan_controller.think(self.belief, evidence, history)
                 mismatches = 0
                 if plan is None:
                     self._record(predicted, matched, None)
                     return RunResult.HALTED
 
-            step = plan.next(self.belief)
+            step = plan.next(self.belief, evidence)
             try:
                 self.guard(step, self.belief)
             except UnreadableScreen as unreadable:
