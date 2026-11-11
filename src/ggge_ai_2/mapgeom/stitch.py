@@ -43,8 +43,8 @@ class _Group:
 
 
 class StitchMapGeometry:
-    """Join views by the map borders, then by a shared tap mark, a shared unit, or the
-    shape of the occupied cells.
+    """Join views by a shared tap mark, a common map border on both axes, a shared unit, or
+    the shape of the occupied cells, in this order.
 
     The lattice of one view is either all right or all wrong, so a view is trusted inside
     itself. Only the shift between two views needs evidence, and the map borders limit
@@ -108,6 +108,14 @@ def _join(
         if fits(pair, JOIN_AGREEMENT):
             return group_shift(pair)
 
+    border_shift = _border_shift(views, old_group, new_group)
+    if border_shift is not None:
+        old_x, old_y = old_group.members[old]
+        new_x, new_y = new_group.members[new]
+        pair = (border_shift[0] - old_x + new_x, border_shift[1] - old_y + new_y)
+        if fits(pair, JOIN_AGREEMENT):
+            return border_shift
+
     unit_pairs = {
         (a.pos[0] - b.pos[0], a.pos[1] - b.pos[1])
         for a in old_view.units
@@ -121,9 +129,54 @@ def _join(
     shape_fits = [
         pair for pair in _shape_candidates(old_view, new_view) if fits(pair, SHAPE_AGREEMENT)
     ]
-    if len(shape_fits) == 1:
-        return group_shift(shape_fits[0])
-    return None
+    strongest = _strongest(old_view, new_view, shape_fits)
+    return None if strongest is None else group_shift(strongest)
+
+
+def _border_shift(views: Sequence[View], old_group: _Group, new_group: _Group) -> Shift | None:
+    """Return the shift of the new group when the two groups show a common border on each
+    axis. Return None when an axis has no common border.
+    """
+    old_edges = _edges(views, old_group)
+    new_edges = _edges(views, new_group)
+
+    def common(sides: tuple[Side, Side]) -> int | None:
+        return next(
+            (
+                old_edges[side] - new_edges[side]
+                for side in sides
+                if side in old_edges and side in new_edges
+            ),
+            None,
+        )
+
+    x, y = common((Side.LEFT, Side.RIGHT)), common((Side.TOP, Side.BOTTOM))
+    return None if x is None or y is None else (x, y)
+
+
+def _edges(views: Sequence[View], group: _Group) -> dict[Side, int]:
+    edges: dict[Side, int] = {}
+    for member, (dx, dy) in group.members.items():
+        x0, y0, x1, y1 = _extent(views[member].cells)
+        sides = {Side.LEFT: x0 + dx, Side.TOP: y0 + dy, Side.RIGHT: x1 + dx, Side.BOTTOM: y1 + dy}
+        for side in views[member].borders:
+            edges[side] = sides[side]
+    return edges
+
+
+def _strongest(old: View, new: View, pairs: Sequence[Shift]) -> Shift | None:
+    # Evenly spaced units let several shifts fit two views of one camera place. A
+    # demand for one fitting shift drops the true shift, and the join then takes an
+    # older view at a wrong shift. So the shift with the most agreeing occupied cells
+    # wins, then the shift with the highest agreement. A tie gives no join.
+    def evidence(pair: Shift) -> tuple[int, float]:
+        overlap, agreed, occupied = _compare(old, new, pair)
+        return occupied, agreed / overlap
+
+    ranked = sorted(((evidence(pair), pair) for pair in pairs), reverse=True)
+    if not ranked or (len(ranked) > 1 and ranked[0][0] == ranked[1][0]):
+        return None
+    return ranked[0][1]
 
 
 def _shape_candidates(old: View, new: View) -> list[Shift]:

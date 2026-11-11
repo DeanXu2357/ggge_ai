@@ -42,6 +42,22 @@ SPARSE = (
     "....................",
 )
 
+DIAGONAL = (
+    "..............",
+    "..#...........",
+    "..............",
+    ".....#........",
+    "..............",
+    "........#.....",
+    "..............",
+    "..............",
+)
+
+EVEN_ROW = (
+    "..#.....#.....#....",
+    "...................",
+)
+
 
 def occupancy(rows: Sequence[str]) -> dict[MapCell, CellContent]:
     return {
@@ -135,6 +151,43 @@ def test_shape_cannot_join_sparse_views():
     assert judgment is not None
     assert judgment.columns.length == 12
     assert judgment.current is None
+
+
+def test_the_shape_with_the_most_matching_units_joins_an_evenly_spaced_pattern():
+    view = cut(DIAGONAL, 1, 1, 12, 6)
+
+    judgment = StitchMapGeometry().judge([view, view])
+
+    assert judgment is not None
+    assert judgment.current == frozenset((x, y) for x in range(12) for y in range(6))
+
+
+def test_two_shapes_with_the_same_evidence_do_not_join():
+    views = [cut(EVEN_ROW, 1, 0, 17, 2), cut(EVEN_ROW, 2, 0, 7, 2)]
+
+    judgment = StitchMapGeometry().judge(views)
+
+    assert judgment is not None
+    assert judgment.current is None
+
+
+def test_borders_on_both_axes_join_sparse_views():
+    views = [cut(SPARSE, 0, 0, 12, 6), cut(SPARSE, 0, 0, 9, 6)]
+
+    judgment = StitchMapGeometry().judge(views)
+
+    assert judgment is not None
+    assert judgment.current == frozenset((x, y) for x in range(9) for y in range(6))
+
+
+def test_a_border_on_one_axis_breaks_a_tie_of_two_shapes():
+    rows = ("." * 19, *EVEN_ROW, "." * 19)
+    views = [cut(rows, 0, 1, 17, 2), cut(rows, 0, 1, 9, 2)]
+
+    judgment = StitchMapGeometry().judge(views)
+
+    assert judgment is not None
+    assert judgment.current == frozenset((x, y) for x in range(9) for y in range(2))
 
 
 def test_a_shared_unit_joins_sparse_views():
