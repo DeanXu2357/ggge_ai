@@ -270,10 +270,10 @@ def _same_brief(a: UnitBrief, b: UnitBrief) -> bool:
         b.mp_max,
     ):
         return False
-    return _same_name(a.mech_name, b.mech_name) and _same_name(a.pilot_name, b.pilot_name)
+    return same_name(a.mech_name, b.mech_name) and same_name(a.pilot_name, b.pilot_name)
 
 
-def _same_name(a: NameMask | None, b: NameMask | None) -> bool:
+def same_name(a: NameMask | None, b: NameMask | None) -> bool:
     if a is None or b is None:
         return False
     slack_x, slack_y = NAME_SLACK
