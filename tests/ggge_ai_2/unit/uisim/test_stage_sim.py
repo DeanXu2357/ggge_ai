@@ -384,6 +384,35 @@ def test_real_battle_menu_close_returns_to_the_caller() -> None:
     )
 
 
+def test_real_unit_detail_close_returns_to_the_overview_that_opened_the_page() -> None:
+    sim = StageUiSim(load_stages(REAL_STAGES))
+    state = UiState(
+        UiScreen.UNIT_DETAIL_SUMMARY,
+        (OpenGroup("unit_detail", UiScreen.PLAYER_PHASE_OVERVIEW),),
+    )
+
+    operation = _operation(sim, state, "unit_detail_summary__close")
+
+    assert operation.outcomes == (
+        Outcome("player_phase_overview", UiState(UiScreen.PLAYER_PHASE_OVERVIEW)),
+    )
+
+
+def test_real_unit_detail_close_with_an_unknown_caller_reaches_every_battle_screen() -> None:
+    sim = StageUiSim(load_stages(REAL_STAGES))
+
+    operation = _operation(sim, UiState(UiScreen.UNIT_DETAIL_SUMMARY), "unit_detail_summary__close")
+
+    assert [outcome.name for outcome in operation.outcomes] == [
+        "battle_prep_attack",
+        "battle_prep_response_attack",
+        "select_action_in_battle",
+        "select_weapon_in_battle",
+        "select_skill_in_battle",
+        "player_phase_overview",
+    ]
+
+
 # UiScreen has no unit detail screens and no roster screen yet, so these
 # tests use other screens in their place.
 ROSTER = UiScreen.WIN_CONDITION_OVERLAY
