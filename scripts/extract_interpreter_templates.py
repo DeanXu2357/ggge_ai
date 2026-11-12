@@ -3,8 +3,8 @@
 Usage: uv run python scripts/extract_interpreter_templates.py data/labeled assets/templates/interpreter
 
 Titles: the white mask of each case, averaged, kept where more than half of the cases
-are white. The menu key, the fast-forward glyph, "- TAP TO NEXT -" and the round button texts: the HSV value channel of
-one case.
+are white. The menu key, the fast-forward glyph, "- TAP TO NEXT -", the round button texts
+and the parts of the unit list button: the HSV value channel of one case.
 """
 
 import json
@@ -20,6 +20,11 @@ from ggge_ai_2.interpreter.elements.region import crop, value
 from ggge_ai_2.interpreter.elements.round_button import ROUND_TEXT_REGION, RoundButton
 from ggge_ai_2.interpreter.elements.tap_to_next import TAP_TO_NEXT_REGION
 from ggge_ai_2.interpreter.elements.top_left_title import TopLeftTitle, title_mask
+from ggge_ai_2.interpreter.elements.unit_list import (
+    UNIT_LIST_ARROW_REGIONS,
+    UNIT_LIST_LABEL_REGIONS,
+    UnitListButton,
+)
 
 TITLE_CASES = {
     TopLeftTitle.PLAYER_PHASE: ["rec20261014-639", "rec20261014-670", "rec20261014-672"],
@@ -40,6 +45,10 @@ ROUND_TEXT_CASES = {
     RoundButton.SELECT_ACTION: "rec20261014-927",
     RoundButton.ACTIVATE: "rec20261014-1237",
     RoundButton.START_BATTLE: "rec20261014-648",
+}
+UNIT_LIST_CASES = {
+    UnitListButton.OPEN: "map20261112-32",
+    UnitListButton.CLOSED: "map20261112-31",
 }
 
 
@@ -71,6 +80,16 @@ def main(labeled: Path, out: Path) -> None:
     for kind, case in ROUND_TEXT_CASES.items():
         cv2.imwrite(
             str(out / f"round_{kind.value}.png"), value(crop(load(case), ROUND_TEXT_REGION))
+        )
+    open_case = load(UNIT_LIST_CASES[UnitListButton.OPEN])
+    cv2.imwrite(
+        str(out / "unit_list_label.png"),
+        value(crop(open_case, UNIT_LIST_LABEL_REGIONS[UnitListButton.OPEN])),
+    )
+    for state, case in UNIT_LIST_CASES.items():
+        cv2.imwrite(
+            str(out / f"unit_list_arrow_{state.value}.png"),
+            value(crop(load(case), UNIT_LIST_ARROW_REGIONS[state])),
         )
     for path in sorted(out.glob("*.png")):
         print(path.name, np.asarray(cv2.imread(str(path))).shape)

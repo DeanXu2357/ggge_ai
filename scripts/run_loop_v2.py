@@ -35,6 +35,7 @@ from ggge_ai_2.interpreter.auto_cue import AutoCueInterpreter
 from ggge_ai_2.interpreter.llm import LlmInterpreter
 from ggge_ai_2.interpreter.llm_prompt import system_prompt
 from ggge_ai_2.interpreter.power_save_cue import PowerSaveCueInterpreter
+from ggge_ai_2.interpreter.unit_list_cue import UnitListCueInterpreter
 from ggge_ai_2.mapgeom.stitch import StitchMapGeometry
 from ggge_ai_2.mapparser.opencv_parser import OpenCvMapParser
 from ggge_ai_2.stagedata.store import PostgresStageStore
@@ -165,7 +166,9 @@ def main() -> int:
         print("ANTHROPIC_API_KEY is not set.", file=sys.stderr)
         return 2
     interpreter = PowerSaveCueInterpreter(
-        AutoCueInterpreter(LlmInterpreter(client, system_prompt(raw_stages)))
+        AutoCueInterpreter(
+            UnitListCueInterpreter(LlmInterpreter(client, system_prompt(raw_stages)))
+        )
     )
 
     versions = app_version(args.serial), code_version()

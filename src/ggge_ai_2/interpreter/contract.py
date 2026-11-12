@@ -47,12 +47,18 @@ class AutoMode(StrEnum):
     MANUAL = "manual"
 
 
+class UnitList(StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+
+
 @dataclass(frozen=True)
 class Situation:
     frame_seq: int
     screen: Screen
     auto: AutoMode | None = None
     phase: Phase | None = None
+    unit_list: UnitList | None = None
 
 
 class Interpreter(Protocol):
