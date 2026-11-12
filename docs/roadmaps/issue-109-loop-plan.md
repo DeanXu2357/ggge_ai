@@ -772,3 +772,9 @@
     040 不加。
   - title、兩個鈕、區塊只用在這個畫面，寫在 `screens/unit_detail_summary.py`，不做成共用元素，
     不逐幀判。測試沿用 `test_quick_checks`。
+- ［確認，2026-11-13］離開：「單位設置詳情」四個戰鬥分頁的「關閉」回到打開它的戰場畫面，目標加上
+  `select_skill_in_battle` 與 `player_phase_overview`。`chart_data.py` 與 `stages.json` 一起改，
+  `ChartUiSim` 與 `StageUiSim` 都有。進入的元件（總覽畫面長按單位）還沒定義，之後再做。
+- 未決：`StageUiSim` 在總覽畫面看到 `unit_detail_summary` 時不 push 群組（`stages.json` 的
+  `unit_info` 也以它為入口），「關閉」列出全部 6 個結果。`ChartUiSim` 沒有 `unit_info`，推斷出
+  呼叫者是總覽畫面。
