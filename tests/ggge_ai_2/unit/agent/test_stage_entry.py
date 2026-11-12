@@ -164,6 +164,15 @@ def test_the_overview_without_the_auto_check_halts():
     assert controller(survey(MockStageStore())).think(on(OVERVIEW), NO_READINGS, []) is None
 
 
+def test_a_run_that_checked_auto_by_hand_starts_the_survey_on_the_overview():
+    setup = replace(survey(MockStageStore()), auto_checked=True)
+
+    plan = controller(setup).think(on(OVERVIEW, at=3.0), readings(1.0, 2.0, 3.0), [])
+
+    assert plan is not None and plan.survey is not None
+    assert plan.survey.start == 3
+
+
 def test_a_plan_before_the_survey_decision_is_invalid_on_the_overview():
     setup = survey(MockStageStore())
 

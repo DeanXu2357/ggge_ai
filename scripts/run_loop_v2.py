@@ -75,6 +75,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stages", type=Path, default=Path("assets/ui_stages/stages.json"))
     parser.add_argument("--stage", required=True, help="the id of the stage that the run plays")
     parser.add_argument(
+        "--auto-checked",
+        action="store_true",
+        help="start on the overview of a stage in progress; AUTO was turned off by hand",
+    )
+    parser.add_argument(
         "--resurvey",
         action="store_true",
         help="survey the stage again and compare the result with the stored data",
@@ -161,13 +166,22 @@ def main() -> int:
     versions = app_version(args.serial), code_version()
     with PostgresStageStore() as store:
         survey = StageSurvey(
-            store, args.stage, *versions, args.resurvey, StitchMapGeometry(), Random()
+            store,
+            args.stage,
+            *versions,
+            args.resurvey,
+            StitchMapGeometry(),
+            Random(),
+            args.auto_checked,
         )
         return play(args.serial, interpreter, uisim, survey)
 
 
 def play(
-    serial: str, interpreter: PowerSaveCueInterpreter, uisim: StageUiSim, survey: StageSurvey
+    serial: str,
+    interpreter: PowerSaveCueInterpreter,
+    uisim: StageUiSim,
+    survey: StageSurvey,
 ) -> int:
     run_dir = Path("data/runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir.mkdir(parents=True)

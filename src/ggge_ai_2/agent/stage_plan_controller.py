@@ -62,6 +62,9 @@ class StageSurvey:
     resurvey: bool
     geometry: MapGeometry
     rng: Random
+    # Warning: only for a run that starts on the overview of a stage in progress. The
+    # caller checked by hand that AUTO is off and that no unit moved.
+    auto_checked: bool = False
 
 
 @dataclass(frozen=True)
@@ -180,7 +183,8 @@ class StagePlanController:
         if setup is None:
             return StageEntry.PASSED, None
         if previous is None:
-            entry, survey = StageEntry.AUTO_CHECK, None
+            first = StageEntry.SURVEY_CHECK if setup.auto_checked else StageEntry.AUTO_CHECK
+            entry, survey = first, None
         else:
             entry, survey = previous.entry, previous.survey
         screen = belief.ui.screen
