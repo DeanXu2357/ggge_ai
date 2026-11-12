@@ -117,6 +117,10 @@ come from device runs in `data/runs/` and from device screenshots in
     mech block and a pilot block: `present` or `absent`. A panel whose
     right block shows mech art instead of the pilot block is `absent`: it is
     not the same UI element.
+  - `unit_list`: the "單位列表" button at the bottom right, which opens and
+    closes the row of unit cards: `open` (the button shows ▽ above the
+    card row), `closed` (the button shows ▲ at the bottom edge, and the
+    card row is gone) or `absent`.
 
   An element counts only when the player can use it on the current
   screen. An element under an overlay or a blur is `absent`, also when
