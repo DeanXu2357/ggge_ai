@@ -87,8 +87,11 @@ class StageEvent:
 @dataclass(frozen=True)
 class StageData:
     stage: str
-    # A game update can change a stage, so two versions of one stage live side by side.
-    version: str
+    # A game update can change a stage, so the data of two app versions of one stage
+    # live side by side.
+    app_version: str
+    # The first 8 characters of the git commit of the code that surveyed the stage.
+    code_version: str
     columns: int
     rows: int
     # Each cell holds the terrains that a unit can take on it.
@@ -103,8 +106,8 @@ class StageData:
 
 
 class StageStore(Protocol):
-    def load(self, stage: str, version: str) -> StageData | None:
-        """Return None when the store has no data of this version of the stage."""
+    def load(self, stage: str, app_version: str) -> StageData | None:
+        """Return None when the store has no data of this app version of the stage."""
         ...
 
     def save(self, data: StageData) -> None: ...
