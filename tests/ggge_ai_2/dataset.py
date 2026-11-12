@@ -31,6 +31,13 @@ class MapLabel:
 
 
 @dataclass(frozen=True)
+class TapMarkLabel:
+    point: tuple[int, int]
+    # None when the terrain box is outside the frame.
+    terrain: tuple[str, ...] | None
+
+
+@dataclass(frozen=True)
 class Case:
     id: str
     source: str
@@ -47,6 +54,9 @@ class Case:
     elements: dict[str, str | None]
     unit_panel: dict[str, dict[str, object]] | None
     enemy_panel: dict[str, dict[str, object]] | None
+    # None also when the user has not ruled the mark; 'tap_mark_ruled' tells the two apart.
+    tap_mark: TapMarkLabel | None
+    tap_mark_ruled: bool
 
 
 @functools.cache
@@ -76,6 +86,18 @@ def _case(row: dict[str, object]) -> Case:
         },
         unit_panel=cast(dict[str, dict[str, object]] | None, row.get("unit_panel")),
         enemy_panel=cast(dict[str, dict[str, object]] | None, row.get("enemy_panel")),
+        tap_mark=_tap_mark(cast(dict[str, Any] | None, row.get("tap_mark"))),
+        tap_mark_ruled="tap_mark" in row,
+    )
+
+
+def _tap_mark(label: dict[str, Any] | None) -> TapMarkLabel | None:
+    if label is None:
+        return None
+    terrain = label["terrain"]
+    return TapMarkLabel(
+        point=(int(label["point"][0]), int(label["point"][1])),
+        terrain=None if terrain is None else tuple(str(name) for name in terrain),
     )
 
 

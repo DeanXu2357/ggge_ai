@@ -140,6 +140,16 @@ come from device runs in `data/runs/` and from device screenshots in
   key is missing when the user has not ruled the frame. The panel is at
   the top left, with the pilot block on the left and the mech block on the
   right. It has the fields of `unit_panel`; its icons are `gray` (⊖).
+- `tap_mark`: the mark that a tap on an empty map cell leaves: the cell
+  fills with blue, and a terrain box with a down-pointing triangle shows
+  above the cell. `null` when the frame shows no mark. The key is missing
+  when the user has not ruled the frame. Fields:
+  - `point`: a screen point (in frame pixels) in the marked cell. The
+    point gives the cell through the grid of the frame, because a frame
+    without a ruled `map` has no ruled cell origin.
+  - `terrain`: the terrain icons in the box, from left to right: `air`
+    (cloud), `ground` (mountain), `space` (planet), `surface` (waves) and
+    `underwater` (water). `null` when the box is outside the frame.
 
 ## Later work
 
