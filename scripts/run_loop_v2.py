@@ -75,6 +75,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--stages", type=Path, default=Path("assets/ui_stages/stages.json"))
     parser.add_argument("--stage", required=True, help="the id of the stage that the run plays")
     parser.add_argument(
+        "--trace-plans",
+        action="store_true",
+        help="write the input and the output of each plan step to run.log",
+    )
+    parser.add_argument(
         "--auto-checked",
         action="store_true",
         help="start on the overview of a stage in progress; AUTO was turned off by hand",
@@ -174,7 +179,7 @@ def main() -> int:
             Random(),
             args.auto_checked,
         )
-        return play(args.serial, interpreter, uisim, survey)
+        return play(args.serial, interpreter, uisim, survey, args.trace_plans)
 
 
 def play(
@@ -182,10 +187,13 @@ def play(
     interpreter: PowerSaveCueInterpreter,
     uisim: StageUiSim,
     survey: StageSurvey,
+    trace_plans: bool,
 ) -> int:
     run_dir = Path("data/runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir.mkdir(parents=True)
     configure_logging(run_dir)
+    if trace_plans:
+        logging.getLogger("ggge_ai_2.agent.trace").setLevel(logging.DEBUG)
     stop = Event()
     stop_on_interrupt(stop)
     logging.getLogger(__name__).info(

@@ -8,6 +8,7 @@ from typing import ClassVar
 from ggge_ai_2.actuator.contract import Rect, ScreenPoint, Swipe
 from ggge_ai_2.agent.belief import Belief
 from ggge_ai_2.agent.contract import Evidence, MapTap, Step
+from ggge_ai_2.agent.trace import traced
 from ggge_ai_2.agent.ui_steps import danger_rects, first_move, operation_step
 from ggge_ai_2.mapgeom.contract import (
     CellSeen,
@@ -88,6 +89,7 @@ class MapSyncPlanner:
             self._judged = (len(records), self.geometry.judge(views))
         return self._judged[1]
 
+    @traced
     def next(self, belief: Belief, evidence: Evidence) -> Step:
         assert belief.as_of is not None, "the main loop plans only on a sensed belief"
         if belief.ui.screen is not OVERVIEW:
