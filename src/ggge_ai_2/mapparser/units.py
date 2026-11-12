@@ -72,6 +72,12 @@ RED_GLOW_HUES = ((0, 10), (165, 179))
 RED_GLOW_SATURATION = 25
 RED_GLOW_VALUE = 240
 RED_CIRCLE_ON = 0.7
+# The sprite of a wide unit can hide most of the red circle (map20261112-1, -4). The move
+# range of the selected enemy lies around its cell, so a weaker circle counts in a cell
+# near the center of the range. The value lies between the best circle share of a
+# frame without a selected enemy (0.09) and of a hidden circle (0.27).
+RANGE_CENTER_REACH = 1.0
+RED_CIRCLE_AT_CENTER = 0.18
 
 
 @dataclass(frozen=True)
@@ -131,7 +137,10 @@ def read_units(
     found = find_rings(rings, lattice, frame_cells)
     taken = {cell for ring in found for cell in ring.cells()}
     footprints = [_body(view, ring, taken) for ring in found]
-    if enemy is not None and all(enemy.pos not in footprint.cells() for footprint in footprints):
+    if enemy is not None:
+        # The sprite of a wide unit can make its ring body wider than its cell
+        # (map20261112-1). The red circle marks the cell of the unit.
+        footprints = [footprint for footprint in footprints if enemy.pos not in footprint.cells()]
         footprints.append(enemy)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     chevrons = (
@@ -260,7 +269,26 @@ def _enemy_selected(view: TopView, cells: frozenset[ViewCell]) -> _Footprint | N
     for low, high in RED_GLOW_HUES:
         red |= (hue >= low) & (hue <= high)
     glow = red & (saturation >= RED_GLOW_SATURATION) & (value >= RED_GLOW_VALUE)
-    best: tuple[float, _Footprint | None] = (RED_CIRCLE_ON, None)
+    circle = _red_circle(view, glow, cells, RED_CIRCLE_ON)
+    if circle is not None:
+        return circle
+    tinted = enemy_move_range(view, cells)
+    if not tinted:
+        return None
+    center_x = sum(column for column, _ in tinted) / len(tinted)
+    center_y = sum(row for _, row in tinted) / len(tinted)
+    near = frozenset(
+        cell
+        for cell in cells - tinted
+        if math.hypot(cell[0] - center_x, cell[1] - center_y) <= RANGE_CENTER_REACH
+    )
+    return _red_circle(view, glow, near, RED_CIRCLE_AT_CENTER)
+
+
+def _red_circle(
+    view: TopView, glow: np.ndarray, cells: frozenset[ViewCell], least: float
+) -> _Footprint | None:
+    best: tuple[float, _Footprint | None] = (least, None)
     for cell in sorted(cells):
         footprint = _Footprint.square(cell, 1)
         sides = _circle_sides(view, glow, footprint)
