@@ -63,6 +63,11 @@ come from device runs in `data/runs/` and from device screenshots in
     whose cells are not a rectangle lists the cells outside the rectangle in
     `extra`. The cells that select a unit are not in the dataset: one frame
     does not show them.
+  - `cropped`: the units that the HUD or the frame edge cuts, with `pos` and
+    `size` as in `units`. `pos` can be outside the counted cells. Only a unit
+    with at least one counted cell is in the list. The counted cells of a cut
+    unit are occupied, but the unit is not in `units`. The key is missing on a
+    frame where the user has not ruled the cut units.
   - `controllable`: the `pos` of the units that show the chevron (the
     units the player can still move).
   - `selected`: the `pos` of the unit with the blue selection circle, or
@@ -75,7 +80,9 @@ come from device runs in `data/runs/` and from device screenshots in
     cells of the move range), `threat` (the exclamation mark) and
     `weapon_range` (the red cells of the weapon range), and
     `enemy_move_range` (the red cells around the enemy unit with the red
-    selection circle: its move range).
+    selection circle: its move range). A cell that a unit occupies is not
+    in the move range, also the cell of the selected enemy and a cell of a
+    unit that is not in `units`.
 - `elements`: the interpreter elements that the user ruled on the frame,
   one key for each element. A missing key means that the user has not
   ruled that element on the frame. A `null` value means that the user

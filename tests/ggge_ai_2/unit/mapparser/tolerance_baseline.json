@@ -1,6 +1,6 @@
 {
   "enemy_move_range": {
-    "correct": 16,
+    "correct": 73,
     "extra": 0,
     "false_read": 0.0,
     "missed": 0,
@@ -14,11 +14,11 @@
     "recognition": 1.0
   },
   "occupied": {
-    "correct": 130,
-    "extra": 12,
-    "false_read": 0.08450704225352113,
+    "correct": 173,
+    "extra": 10,
+    "false_read": 0.0546448087431694,
     "missed": 7,
-    "recognition": 0.948905109489051
+    "recognition": 0.9611111111111111
   },
   "threat": {
     "correct": 3,
@@ -28,11 +28,11 @@
     "recognition": 1.0
   },
   "units": {
-    "correct": 81,
-    "extra": 2,
-    "false_read": 0.024096385542168676,
+    "correct": 116,
+    "extra": 0,
+    "false_read": 0.0,
     "missed": 2,
-    "recognition": 0.9759036144578314
+    "recognition": 0.9830508474576272
   },
   "weapon_range": {
     "correct": 15,

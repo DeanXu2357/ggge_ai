@@ -21,6 +21,8 @@ class MapLabel:
     cells: frozenset[tuple[int, int]]
     borders: frozenset[str]
     units: frozenset[tuple[tuple[int, int], tuple[int, int]]]
+    # None when the user has not ruled the cut units of the frame.
+    cropped: frozenset[tuple[tuple[int, int], tuple[int, int]]] | None
     controllable: frozenset[tuple[int, int]]
     occupied: frozenset[tuple[int, int]]
     selected: tuple[int, int] | None
@@ -84,16 +86,15 @@ def _map_label(label: dict[str, Any]) -> MapLabel:
     return MapLabel(
         cells=cells("cells"),
         borders=frozenset(str(edge) for edge in label["borders"]),
-        units=frozenset(
-            (
-                (int(unit["pos"][0]), int(unit["pos"][1])),
-                (int(unit["size"][0]), int(unit["size"][1])),
-            )
-            for unit in label["units"]
-        ),
+        units=frozenset(_unit(unit) for unit in label["units"]),
+        cropped=None
+        if "cropped" not in label
+        else frozenset(_unit(unit) for unit in label["cropped"]),
         controllable=cells("controllable"),
         occupied=frozenset(
-            cell for unit in label["units"] for cell in _footprint(unit) + _extra(unit)
+            cell
+            for unit in label["units"] + label.get("cropped", [])
+            for cell in _footprint(unit) + _extra(unit)
         ),
         selected=None
         if label["selected"] is None
@@ -105,6 +106,13 @@ def _map_label(label: dict[str, Any]) -> MapLabel:
             name: frozenset((int(x), int(y)) for x, y in marked)
             for name, marked in label["markers"].items()
         },
+    )
+
+
+def _unit(unit: dict[str, Any]) -> tuple[tuple[int, int], tuple[int, int]]:
+    return (
+        (int(unit["pos"][0]), int(unit["pos"][1])),
+        (int(unit["size"][0]), int(unit["size"][1])),
     )
 
 

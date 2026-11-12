@@ -77,3 +77,26 @@ def test_locates_exactly_the_cells_that_the_user_ruled(case: Case) -> None:
 
     assert located == label.cells
 
+
+CROPPED_CASES = [
+    case for case in MAP_CASES if case.map is not None and case.map.cropped is not None
+]
+
+
+@pytest.mark.parametrize("case", CROPPED_CASES, ids=[case.id for case in CROPPED_CASES])
+def test_reads_the_cut_units_that_the_user_ruled(case: Case) -> None:
+    reading = PARSER.parse(_frame(case), Screen(case.screen))
+    label = case.map
+
+    assert reading is not None and label is not None
+    read = {
+        (unit.pos, unit.size)
+        for unit in reading.units
+        if unit.cropped
+        and any(
+            (unit.pos[0] + dx, unit.pos[1] + dy) in reading.cells
+            for dx in range(unit.size[0])
+            for dy in range(unit.size[1])
+        )
+    }
+    assert read == label.cropped
