@@ -19,6 +19,7 @@ from ggge_ai_2.mapparser.hud import Rect, hud_rects
 from ggge_ai_2.mapparser.lattice import Lattice, read_lattice
 from ggge_ai_2.mapparser.markers import enemy_move_range, read_markers
 from ggge_ai_2.mapparser.region import Region, read_region
+from ggge_ai_2.mapparser.tap_mark import read_tap_mark
 from ggge_ai_2.mapparser.topview import TopView, top_view
 from ggge_ai_2.mapparser.unit_panel import ENEMY, SELECTED, read_panel
 from ggge_ai_2.mapparser.units import read_units
@@ -72,6 +73,7 @@ class OpenCvMapParser:
             markers={region.to_view(cell): value for cell, value in markers.items()},
             panel=read_panel(frame.image, SELECTED),
             enemy_panel=read_panel(frame.image, ENEMY),
+            tap_mark=read_tap_mark(frame.image, lattice, region),
         )
 
     def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:

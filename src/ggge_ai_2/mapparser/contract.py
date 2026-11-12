@@ -108,6 +108,22 @@ class UnitPanel:
     pilot: PilotPanel
 
 
+class Terrain(StrEnum):
+    AIR = "air"
+    GROUND = "ground"
+    SPACE = "space"
+    SURFACE = "surface"
+    UNDERWATER = "underwater"
+
+
+# The mark that a tap on an empty cell leaves: a fill on the cell and a terrain box above it.
+@dataclass(frozen=True)
+class TapMarkReading:
+    cell: ViewCell
+    # The icons of the terrain box from left to right. None when the box is outside the frame.
+    terrain: tuple[Terrain, ...] | None
+
+
 @dataclass(frozen=True)
 class MapReading:
     # Each of 'stage', 'turn' and 'phase' is None when the frame does not show it.
@@ -122,6 +138,8 @@ class MapReading:
     panel: UnitPanel | None
     # The panel of the selected enemy at the top left.
     enemy_panel: UnitPanel | None
+    # None also when the marked cell is not a readable cell.
+    tap_mark: TapMarkReading | None = None
 
 
 class MapParser(Protocol):

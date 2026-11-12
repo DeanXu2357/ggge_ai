@@ -60,6 +60,11 @@ term at its first use in each document, then use the short form.
 | mech_sp | 機體 SP 化 | The upgrade of a mech below UR that raises its level cap to 100 and switches its stats to the 'sp_' group of the datamine. Not the bare word "SP", which stays the skill-point pool of the pilot |
 | mech_ssp | 機體 SSP 化 | The upgrade after 'mech_sp', in one stage: it adds the 'ssp_max_' value of each stat and applies the releases. Not a progress value |
 | holding | 持有 | One mech as the account holds it: its level, its limit break, its two upgrade flags, its pilot and its support crew. Not the definition of the mech, which is the data of the game |
+| air | 空中 | The terrain of a cell that air units can use. The terrain box shows it as a cloud icon |
+| ground | 陸地 | The terrain of a cell that ground units can use. The terrain box shows it as a mountain icon |
+| space | 宇宙 | The terrain of a cell in space. The terrain box shows it as a planet icon |
+| surface | 水面 | The terrain of a cell on the water surface. The terrain box shows it as a waves icon |
+| underwater | 海中 | The terrain of a cell under the water. The terrain box shows it as a water icon |
 
 ## Legacy Chinese corpus key
 
