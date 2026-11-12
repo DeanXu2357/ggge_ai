@@ -4,8 +4,8 @@ from ggge_ai_2.agent.loop import (
     PASSING_SCREENS,
     _situation_to_observed,
 )
-from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation
-from ggge_ai_2.uisim.contract import Observed, UiAutoMode, UiScreen
+from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation, UnitList
+from ggge_ai_2.uisim.contract import Observed, UiAutoMode, UiScreen, UiUnitList
 
 
 def observed(situation: Situation) -> Observed:
@@ -38,6 +38,15 @@ def test_every_auto_mode_of_the_interpreter_converts_to_the_same_auto_mode_of_ui
 
 def test_situation_without_an_auto_button_has_no_auto_state():
     assert observed(Situation(1, Screen.STORY_STAGE_LIST)).auto is None
+
+
+def test_every_unit_list_state_of_the_interpreter_converts_to_the_same_state_of_uisim():
+    overview = [Situation(1, Screen.PLAYER_PHASE_OVERVIEW, unit_list=state) for state in UnitList]
+
+    assert [observed(situation).unit_list for situation in overview] == [
+        UiUnitList(state.value) for state in UnitList
+    ]
+    assert observed(Situation(1, Screen.PLAYER_PHASE_OVERVIEW)).unit_list is None
 
 
 def test_unread_frame_converts_to_nothing():

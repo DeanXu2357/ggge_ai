@@ -20,6 +20,7 @@ from ggge_ai_2.uisim.contract import (
     UiAutoMode,
     UiScreen,
     UiSim,
+    UiUnitList,
 )
 
 log = logging.getLogger(__name__)
@@ -320,4 +321,5 @@ def _situation_to_observed(situation: Situation | None) -> Observed | None:
     if situation is None:
         return None
     auto = None if situation.auto is None else UiAutoMode(situation.auto.value)
-    return Observed(UiScreen(situation.screen.value), auto)
+    unit_list = None if situation.unit_list is None else UiUnitList(situation.unit_list.value)
+    return Observed(UiScreen(situation.screen.value), auto, unit_list)

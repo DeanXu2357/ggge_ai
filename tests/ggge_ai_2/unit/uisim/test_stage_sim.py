@@ -16,6 +16,7 @@ from ggge_ai_2.uisim.contract import (
     UiState,
     UiSwipe,
     UiTap,
+    UiUnitList,
 )
 from ggge_ai_2.uisim.stage_sim import LONG_PRESS_SECONDS, WAIT_SECONDS, StageUiSim
 from ggge_ai_2.uisim.stages import ButtonDef, CallerGroup, ScreenDef, Stages, load_stages
@@ -23,6 +24,7 @@ from ggge_ai_2.uisim.stages import ButtonDef, CallerGroup, ScreenDef, Stages, lo
 REAL_STAGES = Path(__file__).resolve().parents[4] / "assets" / "ui_stages" / "stages.json"
 
 RECT = RatioRect(0.25, 0.25, 0.75, 0.75)
+LOW_RECT = RatioRect(0.25, 0.75, 0.75, 0.95)
 
 
 def _button(
@@ -31,6 +33,7 @@ def _button(
     rect: RatioRect | None = RECT,
     gesture: str | None = None,
     forbidden: bool = False,
+    closed_rect: RatioRect | None = None,
 ) -> ButtonDef:
     return ButtonDef(
         name=name,
@@ -40,6 +43,7 @@ def _button(
         dynamic=False,
         forbidden=forbidden,
         deadline=5.0,
+        closed_rect=closed_rect,
     )
 
 
@@ -205,6 +209,97 @@ def test_auto_toggle_needs_a_known_auto_state() -> None:
     sim = _sim(_screen("battle_prep_attack", (_button("battle_prep_attack__auto"),)))
 
     assert sim.successors(UiState(UiScreen.BATTLE_PREP_ATTACK)) == ()
+
+
+def _overview_sim() -> StageUiSim:
+    return _sim(
+        _screen(
+            "player_phase_overview",
+            (
+                _button("player_phase_overview__auto"),
+                _button("player_phase_overview__unit_list", closed_rect=LOW_RECT),
+                _button("enemy", ("player_phase_overview",)),
+                _button("card", ("select_action_in_battle",)),
+            ),
+        ),
+        _screen("select_action_in_battle"),
+    )
+
+
+@pytest.mark.parametrize(
+    ("state", "then", "point"),
+    [
+        (UiUnitList.OPEN, UiUnitList.CLOSED, (0.5, 0.5)),
+        (UiUnitList.CLOSED, UiUnitList.OPEN, (0.5, 0.85)),
+    ],
+)
+def test_unit_list_toggle_taps_the_button_where_the_state_puts_it(
+    state: UiUnitList, then: UiUnitList, point: tuple[float, float]
+) -> None:
+    sim = _overview_sim()
+    before = UiState(UiScreen.PLAYER_PHASE_OVERVIEW, unit_list=state)
+
+    operation = _operation(sim, before, "player_phase_overview__unit_list")
+
+    assert isinstance(operation.gesture, UiTap)
+    assert operation.gesture.point == pytest.approx(point)
+    assert operation.outcomes == (
+        Outcome(f"unit_list_{then.value}", UiState(UiScreen.PLAYER_PHASE_OVERVIEW, unit_list=then)),
+    )
+
+
+def test_unit_list_toggle_needs_a_known_unit_list_state() -> None:
+    sim = _overview_sim()
+
+    names = [op.name for op in sim.successors(UiState(UiScreen.PLAYER_PHASE_OVERVIEW))]
+
+    assert "player_phase_overview__unit_list" not in names
+
+
+def test_auto_toggle_keeps_the_unit_list() -> None:
+    sim = _overview_sim()
+    state = UiState(
+        UiScreen.PLAYER_PHASE_OVERVIEW, auto=UiAutoMode.MANUAL, unit_list=UiUnitList.CLOSED
+    )
+
+    operation = _operation(sim, state, "player_phase_overview__auto")
+
+    assert operation.outcomes[0].then == UiState(
+        UiScreen.PLAYER_PHASE_OVERVIEW, auto=UiAutoMode.FULL, unit_list=UiUnitList.CLOSED
+    )
+
+
+def test_unit_list_stays_on_the_same_screen_and_is_unknown_on_another() -> None:
+    sim = _overview_sim()
+    state = UiState(UiScreen.PLAYER_PHASE_OVERVIEW, unit_list=UiUnitList.CLOSED)
+
+    same = _operation(sim, state, "enemy").outcomes[0].then
+    other = _operation(sim, state, "card").outcomes[0].then
+
+    assert same.unit_list is UiUnitList.CLOSED
+    assert other.unit_list is None
+
+
+def test_sync_takes_the_observed_unit_list() -> None:
+    sim = _overview_sim()
+    state = UiState(UiScreen.PLAYER_PHASE_OVERVIEW, unit_list=UiUnitList.OPEN)
+
+    synced = sim.sync(state, Observed(UiScreen.PLAYER_PHASE_OVERVIEW, unit_list=UiUnitList.CLOSED))
+
+    assert synced == UiState(UiScreen.PLAYER_PHASE_OVERVIEW, unit_list=UiUnitList.CLOSED)
+
+
+def test_real_unit_list_toggle_on_the_overview() -> None:
+    sim = StageUiSim(load_stages(REAL_STAGES))
+    state = UiState(UiScreen.PLAYER_PHASE_OVERVIEW, unit_list=UiUnitList.CLOSED)
+
+    operation = _operation(sim, state, "player_phase_overview__unit_list")
+
+    assert isinstance(operation.gesture, UiTap)
+    assert operation.gesture.point == pytest.approx((0.847, 0.926))
+    assert [outcome.then for outcome in operation.outcomes] == [
+        UiState(UiScreen.PLAYER_PHASE_OVERVIEW, unit_list=UiUnitList.OPEN)
+    ]
 
 
 def test_wait_operation_lists_the_game_moves_then_the_stay() -> None:

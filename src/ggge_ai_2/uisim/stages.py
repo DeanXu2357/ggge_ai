@@ -18,6 +18,9 @@ class ButtonDef:
     dynamic: bool
     forbidden: bool
     deadline: float
+    # The rect of a button that moves when the unit list closes. 'rect' is its rect
+    # while the unit list is open.
+    closed_rect: RatioRect | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,7 @@ def _screen(raw: Any) -> ScreenDef:
 
 def _button(raw: Any) -> ButtonDef:
     rect = raw.get("rect")
+    closed_rect = raw.get("closed_rect")
     return ButtonDef(
         name=raw["name"],
         to=tuple(raw["to"]),
@@ -72,6 +76,7 @@ def _button(raw: Any) -> ButtonDef:
         dynamic=raw.get("dynamic", False),
         forbidden=raw.get("forbidden", False),
         deadline=float(raw["deadline"]),
+        closed_rect=None if closed_rect is None else RatioRect(*closed_rect),
     )
 
 
