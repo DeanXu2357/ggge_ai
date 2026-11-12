@@ -136,6 +136,10 @@ ICON_HUES = {
 }
 # The gray icon of an enemy has no strong hue. The test for the gray icon comes after the
 # test for the hues, because the dark panel behind a colored icon is gray too.
+# The panels are see-through, so the corners of the icon box show the map behind the
+# panel, for example the red move range of an enemy (map20261112-4). Only the round
+# middle of the box, inside the octagon of the icon, counts.
+ICON_RADIUS = 0.42
 GRAY_SATURATION = 40
 GRAY_VALUES = (60, 150)
 GRAY_SHARE = 0.3
@@ -310,16 +314,25 @@ def _hue_share(
 
 
 def read_icon(area: np.ndarray) -> PanelIcon | None:
-    shares = {
-        icon: _hue_share(area, hues, ICON_SATURATION, ICON_VALUE)
-        for icon, hues in ICON_HUES.items()
-    }
+    height, width = area.shape[:2]
+    rows, columns = np.mgrid[:height, :width]
+    middle = (columns - (width - 1) / 2) ** 2 + (rows - (height - 1) / 2) ** 2 <= (
+        ICON_RADIUS * min(height, width)
+    ) ** 2
+    hsv = cv2.cvtColor(area, cv2.COLOR_BGR2HSV)
+    hue, saturation, value = (hsv[:, :, channel][middle] for channel in range(3))
+    strong = (saturation >= ICON_SATURATION) & (value >= ICON_VALUE)
+    shares: dict[PanelIcon, float] = {}
+    for icon, hues in ICON_HUES.items():
+        inside = np.zeros(hue.shape, bool)
+        for low, high in hues:
+            inside |= (hue >= low) & (hue <= high)
+        shares[icon] = float((strong & inside).mean())
     icon, share = max(shares.items(), key=lambda item: item[1])
     if share >= ICON_SHARE:
         return icon
-    hsv = cv2.cvtColor(area, cv2.COLOR_BGR2HSV)
     low, high = GRAY_VALUES
-    gray = (hsv[:, :, 1] < GRAY_SATURATION) & (hsv[:, :, 2] >= low) & (hsv[:, :, 2] <= high)
+    gray = (saturation < GRAY_SATURATION) & (value >= low) & (value <= high)
     return PanelIcon.GRAY if gray.mean() >= GRAY_SHARE else None
 
 
