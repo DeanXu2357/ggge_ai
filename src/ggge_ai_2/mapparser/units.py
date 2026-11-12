@@ -14,6 +14,8 @@ from ggge_ai_2.mapparser.markers import enemy_move_range
 from ggge_ai_2.mapparser.rings import (
     RING_DEPTH,
     Ring,
+    RingImage,
+    band_share,
     clear_red,
     find_rings,
     ring_image,
@@ -44,6 +46,15 @@ TOP_HIDDEN = 0.5
 TOP_ARC = 0.5
 SIDE_SHOWN = 0.4
 SIDE_CLEAR = 0.7
+# A unit that hides the grid lines also shows a part of its ring, for example beside an
+# attack preview (map20261026-40). A building hides the grid lines and shows no ring
+# (map20261112-3).
+HIDDEN_RING_ON = 0.25
+# A body in front hides the middle of a wide ring, and with it the grid line between the
+# columns of the ring. When that line shows, the two ring ends are two other objects, for
+# example grass and the head of a unit (map20261112-1, map20261112-3).
+MIDDLE_SPAN = np.linspace(-0.25, -0.02, 9)
+MIDDLE_LINE_OFF = 0.5
 
 CHEVRON_PITCH = 114.0
 CHEVRON_SCALES = (0.8, 0.9, 1.0, 1.12, 1.25)
@@ -134,7 +145,12 @@ def read_units(
         # Warning: other enemy units inside the range are not found by their rings.
         tint = _cells_region(image.shape[:2], lattice, enemy_move_range(view, frame_cells))
         rings = clear_red(rings, tint)
-    found = find_rings(rings, lattice, frame_cells)
+    lines = grid_lines(image)
+    found = [
+        ring
+        for ring in find_rings(rings, lattice, frame_cells)
+        if not _middle_shown(lattice, lines, visible, ring)
+    ]
     taken = {cell for ring in found for cell in ring.cells()}
     footprints = [_body(view, ring, taken) for ring in found]
     if enemy is not None:
@@ -150,9 +166,7 @@ def read_units(
     )
     if chevrons is not None:
         footprints.extend(_chevron_units(chevrons, footprints))
-    hidden = _hidden(
-        lattice, grid_lines(image), rings.any_color, visible, frame_cells - hud, footprints
-    )
+    hidden = _hidden(lattice, lines, rings, visible, frame_cells - hud, footprints)
     footprints.extend(hidden.units)
     # The overview screen draws the same glow around each unit that can act.
     selected = None if chevrons is not None else _selected(view, footprints)
@@ -347,6 +361,19 @@ def grid_lines(image: np.ndarray) -> GridLines:
     return GridLines(rows, columns)
 
 
+def _middle_shown(lattice: Lattice, lines: GridLines, visible: np.ndarray, ring: Ring) -> bool:
+    """Return True when a wide ring with a hidden middle shows the grid line in the middle."""
+    if not ring.hidden_middle or ring.width < 2:
+        return False
+    rows = ring.pos[1] + ring.width + MIDDLE_SPAN
+    for step in range(1, ring.width):
+        column = np.full(len(MIDDLE_SPAN), float(ring.pos[0] + step))
+        share = _line_share(lines.columns, visible, lattice, column, rows)
+        if share is not None and share >= MIDDLE_LINE_OFF:
+            return True
+    return False
+
+
 def _line_share(
     mask: np.ndarray, visible: np.ndarray, lattice: Lattice, us: np.ndarray, vs: np.ndarray
 ) -> float | None:
@@ -368,7 +395,7 @@ class _Hidden:
 def _hidden(
     lattice: Lattice,
     lines: GridLines,
-    arcs: np.ndarray,
+    rings: RingImage,
     visible: np.ndarray,
     readable: frozenset[ViewCell],
     footprints: list[_Footprint],
@@ -389,10 +416,12 @@ def _hidden(
         # The ring and the glow of a unit cover the edge below it, so that edge is no cue.
         if (column, row) in taken or (column, row - 1) in taken:
             continue
-        if not _top_hidden(lattice, lines, arcs, visible, (column, row)):
+        if not _top_hidden(lattice, lines, rings.any_color, visible, (column, row)):
             continue
         if (column, row) in near:
             unreadable.add((column, row))
+            continue
+        if band_share(rings, lattice, (column, row), 1) < HIDDEN_RING_ON:
             continue
         unit = _Footprint.square((column, row), 1)
         units.append(unit)

@@ -50,6 +50,20 @@ RING_BELOW_OFF = 0.5
 RING_ABOVE_OFF = 0.45
 GAUGE_BELOW_OFF = 0.15
 GAUGE_REST = 0.75
+# The second check compares the ring colors with the drawn shape of the ring band. The
+# band lies between two parabolas, in footprint widths across and back from the bottom
+# edge of the footprint. The values come from 58 clear rings of width 1 in the ruled
+# cases, and they also fit the rings of width 2. A ring of width 3 is not verified: the
+# ruled cases have one.
+BAND_FRONT = (-0.023, -0.782)
+BAND_BACK = (-0.162, -0.557)
+BAND_ENDS = (0.125, 0.91)
+BAND_SAMPLES = 60
+# The two end parts of the band. A sprite seldom hides both, and a speck, a role icon
+# or a tile seldom fills both.
+BAND_END_PART = 0.3
+BAND_ENDS_ON = 0.4
+HIDDEN_BAND_ENDS_ON = 0.25
 
 
 @dataclass(frozen=True)
@@ -74,6 +88,9 @@ class RingImage:
     value: np.ndarray
     # False under the HUD.
     visible: np.ndarray
+    # All ring colors, also inside a region that 'clear_red' clears. The band check uses
+    # them: the ring of a unit inside the move range of the selected enemy has red parts.
+    drawn: np.ndarray
 
     @property
     def any_color(self) -> np.ndarray:
@@ -82,7 +99,8 @@ class RingImage:
 
 def ring_image(image: np.ndarray, visible: np.ndarray) -> RingImage:
     value = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)[..., 2]
-    return RingImage(_ring_colors(image), value, visible)
+    masks = _ring_colors(image)
+    return RingImage(masks, value, visible, np.logical_or.reduce(masks))
 
 
 def _ring_colors(image: np.ndarray) -> tuple[np.ndarray, ...]:
@@ -105,7 +123,7 @@ def clear_red(rings: RingImage, region: np.ndarray) -> RingImage:
         mask & ~region if color.hues == RED else mask
         for mask, color in zip(rings.masks, RING_COLORS, strict=True)
     )
-    return RingImage(masks, rings.value, rings.visible)
+    return RingImage(masks, rings.value, rings.visible, rings.drawn)
 
 
 def find_rings(rings: RingImage, lattice: Lattice, frame_cells: frozenset[ViewCell]) -> list[Ring]:
@@ -126,10 +144,44 @@ def find_rings(rings: RingImage, lattice: Lattice, frame_cells: frozenset[ViewCe
     taken: set[ViewCell] = set()
     found: list[Ring] = []
     for ring in sorted(scored, key=lambda ring: -ring.score):
-        if taken.isdisjoint(ring.cells()):
+        if taken.isdisjoint(ring.cells()) and _arc_shaped(rings, lattice, ring):
             found.append(ring)
             taken.update(ring.cells())
     return found
+
+
+def _arc_shaped(rings: RingImage, lattice: Lattice, ring: Ring) -> bool:
+    """Return True when the ring colors fill the two end parts of the drawn ring band."""
+    least = HIDDEN_BAND_ENDS_ON if ring.hidden_middle else BAND_ENDS_ON
+    return band_share(rings, lattice, ring.pos, ring.width) >= least
+
+
+def band_share(rings: RingImage, lattice: Lattice, pos: ViewCell, width: int) -> float:
+    """Return the share of the end parts of the ring band of the footprint in ring colors."""
+    across, back = _BAND_POINTS
+    xs, ys = lattice.project_many(pos[0] + width * across, pos[1] + width * (1.0 + back))
+    hits, shown = sample(rings.drawn, rings.visible, xs, ys)
+    if not shown.any():
+        return 0.0
+    return float(hits.sum()) / float(shown.sum())
+
+
+def _band_points() -> tuple[np.ndarray, np.ndarray]:
+    """Return the points of the two end parts of the ring band, in footprint widths."""
+    step = 1.0 / BAND_SAMPLES
+    across, back = np.meshgrid(
+        np.arange(BAND_ENDS[0], BAND_ENDS[1], step) + step / 2,
+        np.arange(-0.3, 0.0, step) + step / 2,
+    )
+    middle = across - 0.5
+    inside = (back <= BAND_FRONT[0] + BAND_FRONT[1] * middle**2) & (
+        back >= BAND_BACK[0] + BAND_BACK[1] * middle**2
+    )
+    ends = (across <= BAND_END_PART) | (across >= 1.0 - BAND_END_PART)
+    return across[inside & ends], back[inside & ends]
+
+
+_BAND_POINTS = _band_points()
 
 
 def sample(
