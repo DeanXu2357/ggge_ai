@@ -182,7 +182,7 @@ def _shift(current: frozenset[MapCell], view_cells: Iterable[tuple[int, int]]) -
 
 def _tap_target(judgment: MapJudgment, latest: MapReading, shift: Move) -> tuple[int, int] | None:
     for unit in latest.units:
-        if unit.controllable is not False or unit.enemy_selected:
+        if unit.cropped or unit.controllable is not False or unit.enemy_selected:
             continue
         unit_id = judgment.unit_cells.get((unit.pos[0] + shift[0], unit.pos[1] + shift[1]))
         if unit_id is not None and not _complete(judgment.units[unit_id].brief):
@@ -237,7 +237,8 @@ def _targets(judgment: MapJudgment, centre: MapCell) -> list[MapCell]:
 
 def view_of(reading: MapReading, stage: str) -> View:
     units: list[ViewUnit] = []
-    for unit in reading.units:
+    # mapgeom joins whole units only. A cut unit shows whole in a view from another place.
+    for unit in (unit for unit in reading.units if not unit.cropped):
         faction, panel = None, None
         if unit.enemy_selected:
             faction, panel = Faction.ENEMY, reading.enemy_panel

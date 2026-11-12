@@ -39,7 +39,9 @@ def test_reads_the_controllable_units_that_the_user_ruled(case: Case) -> None:
     label = case.map
 
     assert reading is not None and label is not None
-    assert {unit.pos for unit in reading.units if unit.controllable} == label.controllable
+    assert {
+        unit.pos for unit in reading.units if unit.controllable and not unit.cropped
+    } == label.controllable
 
 
 @pytest.mark.parametrize("case", MAP_CASES, ids=[case.id for case in MAP_CASES])
@@ -48,7 +50,7 @@ def test_reads_the_selected_unit_that_the_user_ruled(case: Case) -> None:
     label = case.map
 
     assert reading is not None and label is not None
-    selected = {unit.pos for unit in reading.units if unit.selected}
+    selected = {unit.pos for unit in reading.units if unit.selected and not unit.cropped}
     assert selected == ({label.selected} if label.selected is not None else set())
 
 
@@ -58,7 +60,7 @@ def test_reads_the_selected_enemy_that_the_user_ruled(case: Case) -> None:
     label = case.map
 
     assert reading is not None and label is not None
-    selected = {unit.pos for unit in reading.units if unit.enemy_selected}
+    selected = {unit.pos for unit in reading.units if unit.enemy_selected and not unit.cropped}
     assert selected == ({label.enemy_selected} if label.enemy_selected is not None else set())
 
 
@@ -74,3 +76,4 @@ def test_locates_exactly_the_cells_that_the_user_ruled(case: Case) -> None:
     located = {cell for cell in box if PARSER.locate(frame, cell) is not None}
 
     assert located == label.cells
+

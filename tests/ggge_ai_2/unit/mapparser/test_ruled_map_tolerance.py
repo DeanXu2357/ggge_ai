@@ -37,7 +37,7 @@ def test_reads_units_no_worse_than_the_baseline(pytestconfig: pytest.Config) -> 
         reading = _reading(case.id)
         label = case.map
         assert label is not None
-        read = {(unit.pos, unit.size) for unit in reading.units}
+        read = {(unit.pos, unit.size) for unit in reading.units if not unit.cropped}
         tally.add(case.id, read=read, ruled=label.units)
 
     check_against_baseline(pytestconfig, "units", tally)

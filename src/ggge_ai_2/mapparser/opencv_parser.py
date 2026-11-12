@@ -7,7 +7,14 @@ import numpy as np
 from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.interpreter.phase_cue import PHASE_SCREENS, phase
 from ggge_ai_2.mapparser.border import Border, read_border
-from ggge_ai_2.mapparser.contract import MapPhase, MapReading, Marker, ScreenPoint, ViewCell
+from ggge_ai_2.mapparser.contract import (
+    CellReading,
+    MapPhase,
+    MapReading,
+    Marker,
+    ScreenPoint,
+    ViewCell,
+)
 from ggge_ai_2.mapparser.hud import Rect, hud_rects
 from ggge_ai_2.mapparser.lattice import Lattice, read_lattice
 from ggge_ai_2.mapparser.markers import enemy_move_range, read_markers
@@ -42,10 +49,10 @@ class OpenCvMapParser:
         markers = read_markers(frame.image, view, sorted(region.lattice_cells))
         enemy = next((unit for unit in units if unit.enemy_selected), None)
         if enemy is not None:
-            moves = enemy_move_range(view, region.lattice_cells) | set(
-                _footprint(enemy.pos, enemy.size)
-            )
-            for cell in moves & region.lattice_cells:
+            # The user ruled that the move range leaves out the cells that units occupy,
+            # also the cell of the selected enemy.
+            occupied = {cell for cell, value in cells.items() if value is CellReading.OCCUPIED}
+            for cell in enemy_move_range(view, region.lattice_cells) - occupied:
                 markers[cell] = markers[cell] | {Marker.ENEMY_MOVE_RANGE}
         return MapReading(
             # Warning: the parser does not read the stage and the turn yet.
@@ -55,9 +62,12 @@ class OpenCvMapParser:
             cells={region.to_view(cell): cells[cell] for cell in region.lattice_cells},
             borders=border.edges(),
             units=tuple(
-                replace(unit, pos=region.to_view(unit.pos))
+                replace(
+                    unit,
+                    pos=region.to_view(unit.pos),
+                    cropped=not all(region.holds(cell) for cell in _footprint(unit.pos, unit.size)),
+                )
                 for unit in units
-                if all(region.holds(cell) for cell in _footprint(unit.pos, unit.size))
             ),
             markers={region.to_view(cell): value for cell, value in markers.items()},
             panel=read_panel(frame.image, SELECTED),

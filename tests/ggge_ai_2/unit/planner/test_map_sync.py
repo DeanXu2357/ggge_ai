@@ -64,8 +64,9 @@ def unit(
     controllable: bool | None = False,
     selected: bool = False,
     enemy_selected: bool = False,
+    cropped: bool = False,
 ) -> UnitReading:
-    return UnitReading(pos, (1, 1), controllable, selected, enemy_selected)
+    return UnitReading(pos, (1, 1), controllable, selected, enemy_selected, cropped)
 
 
 def reading(
@@ -131,6 +132,12 @@ def test_the_right_panel_goes_to_the_selected_unit_without_a_faction():
     [selected] = view.units
     assert selected.faction is None
     assert selected.brief is not None and selected.brief.hp == 5000
+
+
+def test_a_view_leaves_out_a_unit_that_the_frame_cuts():
+    view = view_of(reading((unit((2, 0)), unit((0, 1), cropped=True))), STAGE)
+
+    assert view.units == (ViewUnit((2, 0), (1, 1), False, None, None),)
 
 
 def test_a_panel_without_its_unit_on_the_map_is_dropped():
@@ -218,6 +225,13 @@ def test_the_planner_taps_a_visible_enemy_without_a_brief():
 def test_the_planner_does_not_tap_a_unit_that_it_controls():
     ally = unit((1, 1), controllable=True)
     step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, reading((ally,)))))
+
+    assert not isinstance(step.gesture, MapTap)
+
+
+def test_the_planner_does_not_tap_a_unit_that_the_frame_cuts():
+    cut = unit((1, 1), cropped=True)
+    step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, reading((cut,)))))
 
     assert not isinstance(step.gesture, MapTap)
 

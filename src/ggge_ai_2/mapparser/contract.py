@@ -52,6 +52,10 @@ class UnitReading:
     controllable: bool | None
     selected: bool
     enemy_selected: bool
+    # True when a cell of the footprint is not a readable cell: the HUD or the frame edge
+    # cuts the unit. Its readable cells are occupied, but the frame does not show the
+    # whole unit.
+    cropped: bool = False
 
 
 class PanelIcon(StrEnum):
