@@ -14,6 +14,7 @@ from ggge_ai_2.interpreter.screens import (
     select_weapon_in_attack_prepare,
     select_weapon_in_battle,
     select_weapon_in_battle_response,
+    unit_detail_summary,
 )
 
 type QuickCheck = Callable[[np.ndarray], bool]
@@ -29,5 +30,6 @@ QUICK_CHECKS: Mapping[Screen, QuickCheck] = {
         battle_prep_attack,
         battle_prep_response_attack,
         battle_info_preview,
+        unit_detail_summary,
     )
 }

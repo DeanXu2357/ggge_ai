@@ -5,6 +5,9 @@ Usage: uv run python scripts/extract_interpreter_templates.py data/labeled asset
 Titles: the white mask of each case, averaged, kept where more than half of the cases
 are white. The menu key, the fast-forward glyph, "- TAP TO NEXT -", the round button texts
 and the parts of the unit list button: the HSV value channel of one case.
+
+Unit detail summary: the title is the HSV value channel of one case. Each shape holds the
+direction edges that all cases share, and 0 elsewhere.
 """
 
 import json
@@ -16,14 +19,20 @@ import numpy as np
 
 from ggge_ai_2.interpreter.elements.fast_forward import FAST_FORWARD_GLYPH_REGION
 from ggge_ai_2.interpreter.elements.menu_key import MENU_GLYPH_REGION
-from ggge_ai_2.interpreter.elements.region import crop, value
+from ggge_ai_2.interpreter.elements.region import Region, crop, value
 from ggge_ai_2.interpreter.elements.round_button import ROUND_TEXT_REGION, RoundButton
+from ggge_ai_2.interpreter.elements.shape import SHAPE_DIRECTIONS, direction_edges
 from ggge_ai_2.interpreter.elements.tap_to_next import TAP_TO_NEXT_REGION
 from ggge_ai_2.interpreter.elements.top_left_title import TopLeftTitle, title_mask
 from ggge_ai_2.interpreter.elements.unit_list import (
     UNIT_LIST_ARROW_REGIONS,
     UNIT_LIST_LABEL_REGIONS,
     UnitListButton,
+)
+from ggge_ai_2.interpreter.screens.unit_detail_summary import (
+    BLOCK_REGIONS,
+    BUTTON_REGIONS,
+    TITLE_REGION,
 )
 
 TITLE_CASES = {
@@ -46,6 +55,11 @@ ROUND_TEXT_CASES = {
     RoundButton.ACTIVATE: "rec20261014-1237",
     RoundButton.START_BATTLE: "rec20261014-648",
 }
+UNIT_DETAIL_CASES = [f"map20261112-{index}" for index in range(35, 40)]
+# The shapes keep only the edges near the outline, so the content inside a block cannot change
+# the score. The close button is a hexagon: it keeps the whole button except its label.
+UNIT_DETAIL_OUTLINE_BAND = 16
+UNIT_DETAIL_CLOSE_LABEL: Region = (0.4744, 0.8889, 0.5342, 0.9444)
 UNIT_LIST_CASES = {
     UnitListButton.OPEN: "map20261112-32",
     UnitListButton.CLOSED: "map20261112-31",
@@ -91,8 +105,37 @@ def main(labeled: Path, out: Path) -> None:
             str(out / f"unit_list_arrow_{state.value}.png"),
             value(crop(load(case), UNIT_LIST_ARROW_REGIONS[state])),
         )
+    unit_detail = [load(case) for case in UNIT_DETAIL_CASES]
+    cv2.imwrite(str(out / "unit_detail_title.png"), value(crop(unit_detail[0], TITLE_REGION)))
+    for name, region in {**BUTTON_REGIONS, **BLOCK_REGIONS}.items():
+        shape = _common_edges([direction_edges(crop(image, region)) for image in unit_detail])
+        keep = _outline_mask(unit_detail[0], region, name)
+        cv2.imwrite(str(out / f"unit_detail_{name}.png"), np.where(keep, shape, 0).astype(np.uint8))
     for path in sorted(out.glob("*.png")):
         print(path.name, np.asarray(cv2.imread(str(path))).shape)
+
+
+def _common_edges(labels: list[np.ndarray]) -> np.ndarray:
+    """Keep the edges of the first case that every case has within 1 pixel, in the same direction."""
+    kernel = np.ones((3, 3), np.uint8)
+    common = labels[0].copy()
+    for other in labels[1:]:
+        for direction in range(1, SHAPE_DIRECTIONS + 1):
+            near = cv2.dilate((other == direction).astype(np.uint8), kernel) > 0
+            common[(common == direction) & ~near] = 0
+    return common
+
+
+def _outline_mask(frame: np.ndarray, region: Region, name: str) -> np.ndarray:
+    if name == "close_button":
+        keep = np.ones(frame.shape[:2], bool)
+        crop(keep, UNIT_DETAIL_CLOSE_LABEL)[:] = False
+        return crop(keep, region)
+    keep = np.zeros(crop(frame, region).shape[:2], bool)
+    band = UNIT_DETAIL_OUTLINE_BAND
+    keep[:band, :] = keep[-band:, :] = True
+    keep[:, :band] = keep[:, -band:] = True
+    return keep
 
 
 if __name__ == "__main__":

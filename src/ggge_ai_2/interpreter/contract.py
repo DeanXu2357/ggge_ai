@@ -34,6 +34,7 @@ class Screen(StrEnum):
     EX_WEAPON_ANIME = "ex_weapon_anime"
     BATTLE_CLEAR_VIEW = "battle_clear_view"
     MAP_PASSING = "map_passing"
+    UNIT_DETAIL_SUMMARY = "unit_detail_summary"
 
 
 class Phase(StrEnum):
