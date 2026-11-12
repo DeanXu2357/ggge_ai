@@ -36,7 +36,7 @@ from ggge_ai_2.mapparser.contract import (
 from ggge_ai_2.mapparser.contract import PilotState as PanelPilotState
 from ggge_ai_2.planner.map_sync import MapSyncPlanner, view_of
 from ggge_ai_2.stream.contract import StillWindow
-from ggge_ai_2.uisim.contract import UiScreen, UiState
+from ggge_ai_2.uisim.contract import UiScreen, UiState, UiUnitList
 from ggge_ai_2.uisim.stage_sim import StageUiSim
 from ggge_ai_2.uisim.stages import load_stages
 from tests.ggge_ai_2.fakes.domain import FakeDomain
@@ -205,6 +205,25 @@ def test_on_another_screen_the_planner_goes_back_to_the_overview():
     step = planner().next(on(UiScreen.SELECT_ACTION_IN_BATTLE, 1.0), evidence())
 
     assert step.name == "select_action_in_battle__back"
+
+
+def test_on_the_overview_the_planner_closes_an_open_unit_list_first():
+    belief = on(OVERVIEW, 1.0)
+    belief = replace(belief, ui=replace(belief.ui, unit_list=UiUnitList.OPEN))
+
+    step = planner().next(belief, evidence((1.0, reading((unit((1, 1)),)))))
+
+    assert step.name == "player_phase_overview__unit_list"
+    assert [expected.ui.unit_list for expected in step.expected] == [UiUnitList.CLOSED]
+
+
+def test_with_the_unit_list_closed_the_planner_surveys_the_map():
+    belief = on(OVERVIEW, 1.0)
+    belief = replace(belief, ui=replace(belief.ui, unit_list=UiUnitList.CLOSED))
+
+    step = planner().next(belief, evidence((1.0, reading((unit((1, 1)),)))))
+
+    assert step.gesture == MapTap((1, 1))
 
 
 def test_without_a_reading_of_this_cycle_the_planner_waits():

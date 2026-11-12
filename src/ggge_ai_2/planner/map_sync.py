@@ -34,9 +34,11 @@ from ggge_ai_2.uisim.contract import (
     UiScreen,
     UiSim,
     UiState,
+    UiUnitList,
 )
 
 OVERVIEW = UiScreen.PLAYER_PHASE_OVERVIEW
+UNIT_LIST_TOGGLE = "player_phase_overview__unit_list"
 WAIT = Step("map_sync_wait", None, (), 0.0, ())
 Move = tuple[int, int]
 
@@ -97,6 +99,15 @@ class MapSyncPlanner:
             if move is None:
                 return WAIT
             return operation_step(move[0], belief, self.uisim, self.screen)
+        # The survey reads nothing from the unit cards, and the closed list covers
+        # fewer cells.
+        if belief.ui.unit_list is UiUnitList.OPEN:
+            toggle = next(
+                (op for op in self.uisim.successors(belief.ui) if op.name == UNIT_LIST_TOGGLE),
+                None,
+            )
+            if toggle is not None:
+                return operation_step(toggle, belief, self.uisim, self.screen)
         records = evidence.map_readings[self.start :]
         if not records or records[-1].still != belief.as_of:
             return WAIT
