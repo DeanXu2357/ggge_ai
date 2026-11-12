@@ -1,10 +1,12 @@
 """Run one stage on the phone with the ggge_ai_2 agent.
 
 usage:
-  uv run python scripts/run_loop_v2.py [--serial R5CRC37JBYJ]
+  uv run python scripts/run_loop_v2.py --stage STAGE [--resurvey] [--serial R5CRC37JBYJ]
 
-Start on the story stage list. The anthropic client reads ANTHROPIC_API_KEY from the
-environment. Evidence: data/runs/<timestamp>/run.log, steps.jsonl and frames/.
+Start on the story stage list. --stage gives the id of the stage that the run enters.
+The run does not check the id. The anthropic client reads ANTHROPIC_API_KEY from the
+environment, and the stage store reads GGGE_DATABASE_URL. Evidence:
+data/runs/<timestamp>/run.log, steps.jsonl and frames/.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ import sys
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
+from random import Random
 from threading import Event
 from types import FrameType
 
@@ -26,21 +29,22 @@ import anthropic
 from ggge_ai_2.actuator.adb import AdbActuator
 from ggge_ai_2.agent.belief import Belief, UiBasis, UiSource
 from ggge_ai_2.agent.loop import Agent, RunResult, cycle_log
-from ggge_ai_2.agent.stage_plan_controller import StagePlanController
+from ggge_ai_2.agent.stage_plan_controller import StagePlanController, StageSurvey
 from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.auto_cue import AutoCueInterpreter
-from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.interpreter.llm import LlmInterpreter
 from ggge_ai_2.interpreter.llm_prompt import system_prompt
 from ggge_ai_2.interpreter.power_save_cue import PowerSaveCueInterpreter
-from ggge_ai_2.mapparser.contract import MapReading, ScreenPoint, ViewCell
+from ggge_ai_2.mapgeom.stitch import StitchMapGeometry
+from ggge_ai_2.mapparser.opencv_parser import OpenCvMapParser
+from ggge_ai_2.stagedata.store import PostgresStageStore
 from ggge_ai_2.stream.adb import AdbScreencapStream
-from ggge_ai_2.stream.contract import Frame
 from ggge_ai_2.uisim.contract import Outcome, UiScreen, UiState
 from ggge_ai_2.uisim.stage_sim import StageUiSim
 from ggge_ai_2.uisim.stages import load_stages
 
 SCREEN = (2340, 1080)
+PACKAGE = "com.bandainamcoent.gget_WW"
 _RECORD_FIELDS = frozenset(vars(logging.makeLogRecord({}))) | {"message", "asctime"}
 
 
@@ -58,14 +62,6 @@ class JsonLineFormatter(logging.Formatter):
         return json.dumps(line, ensure_ascii=False, default=str)
 
 
-class NullMapParser:
-    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
-        return None
-
-    def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:
-        return None
-
-
 @dataclass(frozen=True)
 class NullDomain:
     def absorb(self, intent: object, outcome: Outcome | None) -> NullDomain:
@@ -77,7 +73,39 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--serial", default="R5CRC37JBYJ")
     parser.add_argument("--interpreter", choices=["llm"], default="llm")
     parser.add_argument("--stages", type=Path, default=Path("assets/ui_stages/stages.json"))
+    parser.add_argument("--stage", required=True, help="the id of the stage that the run plays")
+    parser.add_argument(
+        "--resurvey",
+        action="store_true",
+        help="survey the stage again and compare the result with the stored data",
+    )
     return parser.parse_args()
+
+
+def app_version(serial: str) -> str:
+    result = subprocess.run(
+        ["adb", "-s", serial, "shell", "dumpsys", "package", PACKAGE],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=10,
+    )
+    for line in result.stdout.splitlines():
+        before, _, value = line.strip().partition("versionName=")
+        if not before and value:
+            return value
+    raise RuntimeError(f"dumpsys shows no versionName of {PACKAGE}")
+
+
+def code_version() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=Path(__file__).resolve().parent,
+    )
+    return result.stdout.strip()[:8]
 
 
 def on_terminal(record: logging.LogRecord) -> bool:
@@ -130,19 +158,38 @@ def main() -> int:
         AutoCueInterpreter(LlmInterpreter(client, system_prompt(raw_stages)))
     )
 
+    versions = app_version(args.serial), code_version()
+    with PostgresStageStore() as store:
+        survey = StageSurvey(
+            store, args.stage, *versions, args.resurvey, StitchMapGeometry(), Random()
+        )
+        return play(args.serial, interpreter, uisim, survey)
+
+
+def play(
+    serial: str, interpreter: PowerSaveCueInterpreter, uisim: StageUiSim, survey: StageSurvey
+) -> int:
     run_dir = Path("data/runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir.mkdir(parents=True)
     configure_logging(run_dir)
     stop = Event()
     stop_on_interrupt(stop)
-
+    logging.getLogger(__name__).info(
+        "stage",
+        extra={
+            "stage": survey.stage,
+            "app_version": survey.app_version,
+            "code_version": survey.code_version,
+            "resurvey": survey.resurvey,
+        },
+    )
     agent = Agent(
-        stream=AdbScreencapStream(args.serial),
-        actuator=AdbActuator(args.serial),
+        stream=AdbScreencapStream(serial),
+        actuator=AdbActuator(serial),
         interpreter=interpreter,
-        mapparser=NullMapParser(),
+        mapparser=OpenCvMapParser(),
         uisim=uisim,
-        plan_controller=StagePlanController(UiScreen.DROP_REWARD_RESULT, uisim, SCREEN),
+        plan_controller=StagePlanController(UiScreen.DROP_REWARD_RESULT, uisim, SCREEN, survey),
         belief=Belief(
             ui=UiState(UiScreen.STORY_STAGE_LIST),
             ui_basis=UiBasis(UiSource.ASSUMED),
