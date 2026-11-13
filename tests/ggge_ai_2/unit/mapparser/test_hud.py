@@ -4,8 +4,7 @@ import pytest
 
 from ggge_ai_2.interpreter.elements.detectors import DETECTORS
 from ggge_ai_2.mapparser.contract import Rect, ScreenPoint
-from ggge_ai_2.mapparser.hud import covered, hud_cells, hud_rects
-from ggge_ai_2.mapparser.lattice import read_lattice
+from ggge_ai_2.mapparser.units import covered
 from ggge_ai_2.screenmodel.contract import ModelElement, SeenElement
 from ggge_ai_2.screenmodel.definition_model import DefinitionScreenModel
 from tests.ggge_ai_2.dataset import Case, cases, load_image
@@ -134,15 +133,3 @@ NO_HUD_CASES = [case for case in cases() if case.screen == "battle_main_setting"
 @pytest.mark.parametrize("case", NO_HUD_CASES, ids=[case.id for case in NO_HUD_CASES])
 def test_finds_no_battle_hud_on_a_menu_without_the_battle_hud(case: Case) -> None:
     assert not {found.element for found in _elements(case.id)} & BATTLE_HUD
-
-
-def test_hud_cells_are_the_cells_with_a_covered_center() -> None:
-    image = load_image(GRID_CASES[0])
-    lattice = read_lattice(image)
-    assert lattice is not None
-    rects = hud_rects(image)
-
-    cells = hud_cells(image, lattice)
-
-    assert cells
-    assert cells == {cell for cell in lattice.cells() if covered(lattice.center(cell), rects)}
