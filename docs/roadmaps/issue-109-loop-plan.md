@@ -820,8 +820,7 @@
 
 ```
 interpreter（編排者）
-  ├─ 已註冊的元件偵測物件 ──→ 元件結果（interpreter 的結構）
-  │        └─ 轉換 ─→ screen model 的輸入
+  ├─ 已註冊的元件偵測物件 ──→ 元件結果（screen model 的 `SeenElement`）
   ├─ screen model.judge ───→ 判斷結果（screen model 的結構）
   │        └─ 轉換 ─→ map parser 的輸入
   ├─ map parser.parse ─────→ MapReading
@@ -833,8 +832,11 @@ agent.sense：cue(確定性 interpreter) → 回傳 None 時 → cue(LLM interpr
 ```
 
 - ［確認］各物件定義自己的結構，由編排者轉換：
-  - interpreter 自己註冊元件偵測物件、自己呼叫，再把元件結果交給 screen model 判斷。偵測物件的
-    Protocol 與結果結構屬於 interpreter。screen model 不依賴元件偵測。
+  - interpreter 自己註冊元件偵測物件、自己呼叫，再把元件結果交給 screen model 判斷。screen model
+    不依賴元件偵測。
+  - ［確認］偵測物件直接用 screen model 的元件名與 `SeenElement`，不另外定義一份。
+    元件結果只在 interpreter 內部流向 screen model，不出 interpreter；偵測物件的 Protocol 放在
+    `interpreter/elements/contract.py`，不放在 interpreter 對 agent 的合約裡。
   - `Situation` 不引用 `MapReading`。interpreter 自己定義讀得出的地圖欄位，agent 再轉成 belief
     接受的格式。
   - map parser 定義自己的輸入結構（下稱 `MapScope`），內容是遮擋範圍與「要不要判斷 chevron」，
@@ -911,7 +913,7 @@ agent.sense：cue(確定性 interpreter) → 回傳 None 時 → cue(LLM interpr
 | 任務 | 內容 | 依賴 |
 |---|---|---|
 | T1 | screen model 合約：自己的畫面名與元件名、輸入（元件名、內容、框）、判斷結果（畫面、符合的畫面、phase、turn、遮擋範圍、讀地圖與判斷 chevron 的要求）、`judge` | 無 |
-| T2 | interpreter 合約：偵測物件 Protocol 與元件結果；`Situation` 加 turn 與 interpreter 自己的地圖結構（含點擊座標表） | 無 |
+| T2 | interpreter 合約：`Situation` 加 turn 與 interpreter 自己的地圖結構（含點擊座標表）；偵測物件 Protocol（回傳 `SeenElement`） | T1 |
 | T3 | map parser 合約：`MapScope`、`parse(frame, scope)`；輸出拿掉 phase、turn，加點擊座標表；`locate` 移出 Protocol | 無 |
 | T4 | 新 interpreter 的編排骨架：呼叫註冊的偵測物件 → 轉換 → `judge` → 轉換 → map parser → 轉換 → `Situation`。用替身測流程 | T1–T3 |
 | T5 | agent 的 sense 編排：確定性 → None 時 LLM；`Situation` 的地圖轉成 `Sensed.reading`；`MapTap` 查點擊座標表。用替身測流程 | T2 |
@@ -926,4 +928,4 @@ agent.sense：cue(確定性 interpreter) → 回傳 None 時 → cue(LLM interpr
 
 T1–T3 完成後，T4、T5、A 線（A1 → A2b）、B 線（B1 → B2）可以同時進行。A2a 只依賴 T1。
 
-進度：T1 `518951d`、A2a `8bb099c`。
+進度：T1 `518951d`、A2a `8bb099c`、T2 `12dc3f9`。
