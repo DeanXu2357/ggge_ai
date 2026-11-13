@@ -20,7 +20,9 @@ class RoundButton(StrEnum):
 ROUND_CENTER = (0.878, 0.847)
 ROUND_RADII = (0.109, 0.135)
 ROUND_RING_TOLERANCE = 3
-ROUND_RING_COVERAGE = 0.8
+# An overview frame without the button reaches 0.856 (map20261112-4). A frame with the
+# button gives at least 0.944 (run20261025-165717-31).
+ROUND_RING_COVERAGE = 0.9
 ROUND_TEXT_REGION: Region = (0.835, 0.86, 0.92, 0.915)
 ROUND_TEXT_MARGIN = 12
 
