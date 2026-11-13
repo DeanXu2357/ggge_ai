@@ -28,6 +28,8 @@ class ModelElement(StrEnum):
     ROUND_BUTTON = "round_button"
     FAST_FORWARD = "fast_forward"
     TAP_TO_NEXT = "tap_to_next"
+    AUTO_KEY = "auto_key"
+    UNIT_LIST_BUTTON = "unit_list_button"
     UNIT_DETAIL_DETAIL_BUTTON = "unit_detail_detail_button"
     UNIT_DETAIL_CLOSE_BUTTON = "unit_detail_close_button"
     UNIT_DETAIL_TITLE = "unit_detail_title"
@@ -43,6 +45,17 @@ class ModelElement(StrEnum):
 class ModelPhase(StrEnum):
     PLAYER = "player"
     NON_PLAYER = "non_player"
+
+
+class ModelAutoMode(StrEnum):
+    FULL = "full"
+    SEMI = "semi"
+    MANUAL = "manual"
+
+
+class ModelUnitList(StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
 
 
 @dataclass(frozen=True)
@@ -64,6 +77,8 @@ class ScreenJudgment:
     matched: frozenset[ModelScreen]
     phase: ModelPhase | None
     turn: int | None
+    auto: ModelAutoMode | None
+    unit_list: ModelUnitList | None
     occlusion: tuple[Rect, ...]
     map: MapRequest | None
 

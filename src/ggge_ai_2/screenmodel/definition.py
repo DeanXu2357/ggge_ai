@@ -25,6 +25,8 @@ class ScreenDefinition:
     # Other screens can show a blue or red area where the title band is, for example the
     # game title. So only the screens with the band give the phase.
     phase: bool = False
+    auto: bool = False
+    unit_list: bool = False
     map: MapRequest | None = None
 
     def matches(self, elements: Sequence[SeenElement]) -> bool:

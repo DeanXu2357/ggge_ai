@@ -40,9 +40,11 @@ from ggge_ai_2.mapparser.contract import (
 )
 from ggge_ai_2.screenmodel.contract import (
     MapRequest,
+    ModelAutoMode,
     ModelElement,
     ModelPhase,
     ModelScreen,
+    ModelUnitList,
     ScreenJudgment,
     SeenElement,
 )
@@ -57,6 +59,8 @@ OVERVIEW = ScreenJudgment(
     frozenset({ModelScreen.PLAYER_PHASE_OVERVIEW}),
     ModelPhase.NON_PLAYER,
     3,
+    ModelAutoMode.SEMI,
+    ModelUnitList.CLOSED,
     ((150, 5, 800, 112), (195, 960, 1240, 1020)),
     MapRequest(chevrons=True),
 )
@@ -128,6 +132,8 @@ def test_gives_no_situation_and_reads_no_map_when_the_screen_model_judges_no_scr
         frozenset({ModelScreen.BATTLE_PREP_ATTACK, ModelScreen.SELECT_WEAPON_IN_ATTACK_PREPARE}),
         None,
         None,
+        None,
+        None,
         (),
         None,
     )
@@ -152,6 +158,8 @@ def test_reads_no_map_when_the_screen_model_asks_for_none() -> None:
         frozenset({ModelScreen.BATTLE_PREP_ATTACK}),
         ModelPhase.PLAYER,
         3,
+        ModelAutoMode.MANUAL,
+        None,
         (),
         None,
     )

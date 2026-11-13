@@ -9,5 +9,7 @@ DEFINITION = ScreenDefinition(
     ModelScreen.PLAYER_PHASE_OVERVIEW,
     (Need(ModelElement.TURN_BOX), Need(ModelElement.TOP_LEFT_TITLE, "player_phase")),
     phase=True,
+    auto=True,
+    unit_list=True,
     map=MapRequest(chevrons=True),
 )

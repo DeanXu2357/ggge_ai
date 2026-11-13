@@ -10,4 +10,5 @@ DEFINITION = ScreenDefinition(
         Need(ModelElement.TOP_LEFT_TITLE, "battle_prep_attack"),
         Need(ModelElement.ROUND_BUTTON, "select_action"),
     ),
+    auto=True,
 )

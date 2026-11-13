@@ -13,4 +13,5 @@ DEFINITION = ScreenDefinition(
         Need(ModelElement.ROUND_BUTTON, "start_battle"),
     ),
     phase=True,
+    auto=True,
 )
