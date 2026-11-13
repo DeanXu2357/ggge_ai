@@ -29,7 +29,7 @@ from ggge_ai_2.interpreter.elements.unit_list import (
     UNIT_LIST_LABEL_REGIONS,
     UnitListButton,
 )
-from ggge_ai_2.interpreter.screens.unit_detail_summary import (
+from ggge_ai_2.interpreter.elements.unit_detail import (
     BLOCK_REGIONS,
     BUTTON_REGIONS,
     TITLE_REGION,
