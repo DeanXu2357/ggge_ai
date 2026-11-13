@@ -3,12 +3,12 @@ from __future__ import annotations
 import functools
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
 
-from ggge_ai_2.mapparser.contract import CellReading, UnitReading, ViewCell
-from ggge_ai_2.mapparser.hud import PROMPT, TEMPLATES, Rect, covered, outside, template_match
+from ggge_ai_2.mapparser.contract import CellReading, Rect, ScreenPoint, UnitReading, ViewCell
 from ggge_ai_2.mapparser.lattice import Lattice, ridge
 from ggge_ai_2.mapparser.markers import enemy_move_range
 from ggge_ai_2.mapparser.rings import (
@@ -21,8 +21,11 @@ from ggge_ai_2.mapparser.rings import (
     ring_image,
     sample,
 )
-from ggge_ai_2.mapparser.topview import CELL, TopView
+from ggge_ai_2.mapparser.topview import CELL, TopView, outside
 
+CHEVRON_TEMPLATE = (
+    Path(__file__).resolve().parents[3] / "assets" / "templates" / "mapparser" / "chevron.png"
+)
 HUD_MARGIN = 8
 
 # In cells of the top view. The walk goes up from the middle of a hidden ring through
@@ -131,8 +134,12 @@ class GridLines:
 
 
 def read_units(
-    image: np.ndarray, lattice: Lattice, rects: tuple[Rect, ...], view: TopView
+    image: np.ndarray, lattice: Lattice, rects: tuple[Rect, ...], view: TopView, chevrons: bool
 ) -> tuple[tuple[UnitReading, ...], dict[ViewCell, CellReading]]:
+    """Return the units and the reading of each frame cell.
+
+    The controllable state of every unit is None when 'chevrons' is False.
+    """
     visible = outside(image, rects, 0)
     frame_cells = lattice.cells()
     hud = frozenset(cell for cell in frame_cells if covered(lattice.center(cell), rects))
@@ -158,25 +165,27 @@ def read_units(
         # (map20261112-1). The red circle marks the cell of the unit.
         footprints = [footprint for footprint in footprints if enemy.pos not in footprint.cells()]
         footprints.append(enemy)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    chevrons = (
-        _chevrons(image, lattice, visible)
-        if template_match(gray, PROMPT)[0] >= PROMPT.threshold
-        else None
-    )
-    if chevrons is not None:
-        footprints.extend(_chevron_units(chevrons, footprints))
+    white = (image.min(axis=2) > CHEVRON_WHITE).astype(np.float32)
+    middle_row = lattice.row_coordinate(image.shape[0] / 2)
+    pitch = lattice.project(1.0, middle_row)[0] - lattice.project(0.0, middle_row)[0]
+    kernels = tuple(_chevron(round(factor * pitch / CHEVRON_PITCH, 2)) for factor in CHEVRON_SCALES)
+    if chevrons:
+        # Warning: this search finds the units that show only their chevron. Roadmap
+        # section 8.14 rules to delete it. Without it, the parser loses 4 ruled units
+        # (map20261112-4, map20261026-51, rec20261014-639). The user decides at the review
+        # of task B2.
+        marks = _chevrons(white, kernels, pitch, lattice, visible)
+        footprints.extend(_chevron_units(marks, footprints))
     hidden = _hidden(lattice, lines, rings, visible, frame_cells - hud, footprints)
     footprints.extend(hidden.units)
-    # The overview screen draws the same glow around each unit that can act.
-    selected = None if chevrons is not None else _selected(view, footprints)
+    selected = _selected(view, footprints)
     units = tuple(
         UnitReading(
             pos=footprint.pos,
             size=(footprint.width, footprint.height),
-            controllable=None
-            if chevrons is None
-            else _controllable(lattice, visible, chevrons, footprint),
+            controllable=_controllable(white, kernels, lattice, visible, footprint)
+            if chevrons
+            else None,
             selected=footprint == selected,
             enemy_selected=footprint == enemy,
         )
@@ -192,6 +201,11 @@ def read_units(
         else:
             cells[cell] = CellReading.EMPTY
     return units, cells
+
+
+def covered(point: ScreenPoint, rects: tuple[Rect, ...]) -> bool:
+    x, y = point
+    return any(left <= x < right and top <= y < bottom for left, top, right, bottom in rects)
 
 
 def _body(view: TopView, ring: Ring, taken: set[ViewCell]) -> _Footprint:
@@ -469,26 +483,25 @@ def _chevron(scale: float) -> np.ndarray:
     The template marks the white arms of the upper chevron (255) and the darker pixels
     next to them (0). The role icon changes, so the template leaves it out (128).
     """
-    path = TEMPLATES / "chevron.png"
-    template = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    template = cv2.imread(str(CHEVRON_TEMPLATE), cv2.IMREAD_GRAYSCALE)
     if template is None:
-        raise FileNotFoundError(path)
+        raise FileNotFoundError(CHEVRON_TEMPLATE)
     resized = cv2.resize(template, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
     arms = (resized == 255).astype(np.float32)
     gaps = (resized == 0).astype(np.float32)
     return arms / arms.sum() - gaps / gaps.sum()
 
 
-def _chevrons(image: np.ndarray, lattice: Lattice, visible: np.ndarray) -> np.ndarray:
+def _chevrons(
+    white: np.ndarray,
+    kernels: tuple[np.ndarray, ...],
+    pitch: float,
+    lattice: Lattice,
+    visible: np.ndarray,
+) -> np.ndarray:
     """Return the (column, row) lattice coordinates of the center of each chevron."""
-    white = (image.min(axis=2) > CHEVRON_WHITE).astype(np.float32)
-    height = white.shape[0]
-    left, _ = lattice.project(0.0, lattice.row_coordinate(height / 2))
-    right, _ = lattice.project(1.0, lattice.row_coordinate(height / 2))
-    pitch = right - left
     response = np.full(white.shape, -1.0, np.float32)
-    for factor in CHEVRON_SCALES:
-        kernel = _chevron(round(factor * pitch / CHEVRON_PITCH, 2))
+    for kernel in kernels:
         np.maximum(
             response, cv2.filter2D(white, -1, kernel, borderType=cv2.BORDER_CONSTANT), out=response
         )
@@ -531,10 +544,14 @@ def _chevron_units(chevrons: np.ndarray, footprints: list[_Footprint]) -> list[_
 
 
 def _controllable(
-    lattice: Lattice, visible: np.ndarray, chevrons: np.ndarray, footprint: _Footprint
+    white: np.ndarray,
+    kernels: tuple[np.ndarray, ...],
+    lattice: Lattice,
+    visible: np.ndarray,
+    footprint: _Footprint,
 ) -> bool | None:
-    if any(_owns(footprint, chevron) for chevron in chevrons):
-        return True
+    """Return True when the chevron of a unit that can act shows above the footprint, False when
+    the frame shows the place of the chevron without it, and None otherwise."""
     column, row = footprint.pos
     middle = column + footprint.width / 2
     low, high = CHEVRON_RISE
@@ -543,6 +560,30 @@ def _controllable(
         for across in (-CHEVRON_ACROSS, CHEVRON_ACROSS)
         for rise in (low, high)
     ]
+    reach = max(max(kernel.shape) for kernel in kernels)
+    height, width = white.shape
+    left = max(0, math.floor(min(x for x, _ in corners)) - reach)
+    right = min(width, math.ceil(max(x for x, _ in corners)) + reach + 1)
+    top = max(0, math.floor(min(y for _, y in corners)) - reach)
+    bottom = min(height, math.ceil(max(y for _, y in corners)) + reach + 1)
+    if left < right and top < bottom:
+        window = white[top:bottom, left:right]
+        response = np.full(window.shape, -1.0, np.float32)
+        for kernel in kernels:
+            np.maximum(
+                response,
+                cv2.filter2D(window, -1, kernel, borderType=cv2.BORDER_CONSTANT),
+                out=response,
+            )
+        response[~visible[top:bottom, left:right]] = -1.0
+        ys, xs = np.nonzero(response >= CHEVRON_SCORE)
+        ys = ys.astype(np.float64) + top
+        columns = (
+            (xs + left - lattice.apex) / (ys - lattice.horizon) - lattice.column_origin
+        ) / lattice.column_step
+        rises = row - (1.0 / (ys - lattice.horizon) - lattice.row_origin) / lattice.row_step
+        if ((np.abs(columns - middle) <= CHEVRON_ACROSS) & (rises >= low) & (rises <= high)).any():
+            return True
     if all(_visible(visible, x, y) for x, y in corners):
         return False
     return None

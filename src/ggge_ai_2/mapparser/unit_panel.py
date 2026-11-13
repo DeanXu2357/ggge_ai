@@ -16,9 +16,10 @@ from ggge_ai_2.mapparser.contract import (
     PilotState,
     UnitPanel,
 )
-from ggge_ai_2.mapparser.hud import TEMPLATES
 
-PANEL_TEMPLATES = TEMPLATES / "unit_panel"
+PANEL_TEMPLATES = (
+    Path(__file__).resolve().parents[3] / "assets" / "templates" / "mapparser" / "unit_panel"
+)
 Box = tuple[int, int, int, int]
 
 

@@ -15,12 +15,13 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from ggge_ai_2.interpreter.elements.detectors import DETECTORS
 from ggge_ai_2.mapparser.border import read_border
-from ggge_ai_2.mapparser.hud import hud_rects
 from ggge_ai_2.mapparser.lattice import read_lattice
 from ggge_ai_2.mapparser.region import read_region
 from ggge_ai_2.mapparser.tap_mark import ICON_CENTER_Y, ICON_PITCH, ICON_SIZE, find_tip
 from ggge_ai_2.mapparser.topview import top_view
+from ggge_ai_2.screenmodel.definition_model import DefinitionScreenModel
 
 
 def main(labeled: Path, out: Path) -> None:
@@ -35,7 +36,8 @@ def main(labeled: Path, out: Path) -> None:
         image = np.asarray(read)
         lattice = read_lattice(image)
         assert lattice is not None, row["id"]
-        rects = hud_rects(image)
+        found = [element for detector in DETECTORS for element in detector.detect(image)]
+        rects = DefinitionScreenModel().judge(found).occlusion
         region = read_region(lattice, rects, read_border(top_view(image, lattice, rects)))
         tip = find_tip(image, lattice, region)
         if tip is None:
