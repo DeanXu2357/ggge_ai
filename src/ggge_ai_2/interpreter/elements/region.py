@@ -6,6 +6,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from ggge_ai_2.screenmodel.contract import Rect
+
 TEMPLATES = Path(__file__).resolve().parents[4] / "assets" / "templates" / "interpreter"
 
 type Region = tuple[float, float, float, float]
@@ -38,3 +40,13 @@ def match(image: np.ndarray, region: Region, name: str, margin: int) -> float:
     patch = value(crop(image, region, margin))
     _, best, _, _ = cv2.minMaxLoc(cv2.matchTemplate(patch, template(name), cv2.TM_CCOEFF_NORMED))
     return float(best)
+
+
+def locate(image: np.ndarray, search: Rect, name: str) -> tuple[float, tuple[int, int]]:
+    """Return the best match score in the search rectangle and the top left pixel of that match."""
+    left, top, right, bottom = search
+    patch = value(image[top:bottom, left:right])
+    _, best, _, (x, y) = cv2.minMaxLoc(
+        cv2.matchTemplate(patch, template(name), cv2.TM_CCOEFF_NORMED)
+    )
+    return float(best), (left + x, top + y)

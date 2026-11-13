@@ -3,8 +3,9 @@
 Usage: uv run python scripts/extract_interpreter_templates.py data/labeled assets/templates/interpreter
 
 Titles: the white mask of each case, averaged, kept where more than half of the cases
-are white. The menu key, the fast-forward glyph, "- TAP TO NEXT -", the round button texts
-and the parts of the unit list button: the HSV value channel of one case.
+are white. The menu key, the fast-forward glyph, "- TAP TO NEXT -", the round button texts,
+the parts of the unit list button and the keys on the arc of the action wheel: the HSV value
+channel of one case.
 
 Unit detail summary: the title is the HSV value channel of one case. Each shape holds the
 direction edges that all cases share, and 0 elsewhere.
@@ -64,6 +65,9 @@ UNIT_LIST_CASES = {
     UnitListButton.OPEN: "map20261112-32",
     UnitListButton.CLOSED: "map20261112-31",
 }
+# The icon and the label of each key, in pixels.
+ARC_CASE = "rec20261014-637"
+ARC_KEYS = {"arc_skill": (1912, 615, 1984, 735), "arc_switch_target": (1772, 718, 1892, 832)}
 
 
 def main(labeled: Path, out: Path) -> None:
@@ -105,6 +109,9 @@ def main(labeled: Path, out: Path) -> None:
             str(out / f"unit_list_arrow_{state.value}.png"),
             value(crop(load(case), UNIT_LIST_ARROW_REGIONS[state])),
         )
+    arc = load(ARC_CASE)
+    for name, (left, top, right, bottom) in ARC_KEYS.items():
+        cv2.imwrite(str(out / f"{name}.png"), value(arc[top:bottom, left:right]))
     unit_detail = [load(case) for case in UNIT_DETAIL_CASES]
     cv2.imwrite(str(out / "unit_detail_title.png"), value(crop(unit_detail[0], TITLE_REGION)))
     for name, region in {**BUTTON_REGIONS, **BLOCK_REGIONS}.items():
