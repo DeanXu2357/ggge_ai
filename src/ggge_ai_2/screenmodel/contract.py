@@ -28,6 +28,16 @@ class ModelElement(StrEnum):
     ROUND_BUTTON = "round_button"
     FAST_FORWARD = "fast_forward"
     TAP_TO_NEXT = "tap_to_next"
+    UNIT_DETAIL_DETAIL_BUTTON = "unit_detail_detail_button"
+    UNIT_DETAIL_CLOSE_BUTTON = "unit_detail_close_button"
+    UNIT_DETAIL_TITLE = "unit_detail_title"
+    UNIT_DETAIL_MECH_PANEL = "unit_detail_mech_panel"
+    UNIT_DETAIL_PILOT_PANEL = "unit_detail_pilot_panel"
+    UNIT_DETAIL_BOX_WEAPONS = "unit_detail_box_weapons"
+    UNIT_DETAIL_BOX_ABILITIES = "unit_detail_box_abilities"
+    UNIT_DETAIL_BOX_PARTS = "unit_detail_box_parts"
+    UNIT_DETAIL_BOX_PILOT_SKILLS = "unit_detail_box_pilot_skills"
+    UNIT_DETAIL_BOX_PILOT_ABILITIES = "unit_detail_box_pilot_abilities"
 
 
 class ModelPhase(StrEnum):
