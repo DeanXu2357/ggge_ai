@@ -849,6 +849,9 @@ agent.sense：cue(確定性 interpreter) → 回傳 None 時 → cue(LLM interpr
 - ［確認］格子的位置給中心點與四個角（左上、右上、右下、左下），不只給點擊用的中心點。
 - ［確認］三層 cue（`PowerSaveCue`、`AutoCue`、`UnitListCue`）不拆，照舊包在 interpreter 外層。
   AUTO、單位列表開闔、省電畫面仍由 cue 讀。
+- ［確認］log 不寫在 interpreter 的實作裡，用包住 interpreter 的 decorator `LoggedInterpreter`，記
+  frame_seq 與認出的畫面（或 None）。screen model 的 `matched` 不記，所以 8.6「相似畫面同時通過
+  時記錄下來」目前沒有落實。
 - ［確認］sense 的編排：確定性 interpreter 能認的畫面直接採用，其餘交給 LLM interpreter 再認。
   確定性可認的畫面是 8 個戰鬥畫面加 `unit_detail_summary`（`QUICK_CHECKS` 的 9 個）。
 - ［確認］候選這次不用。全部完成後最後再接回。`interpret(frame, candidates)` 的簽名不改，新實作
@@ -938,4 +941,4 @@ T1–T3 完成後，T4、T5、A 線（A1 → A2b）、B 線（B1 → B2）可以
     mapgeom 之後沒有使用者。
 - ［確認］「戰鬥準備畫面不讀地圖」的裁定從 parser 的測試移到 screen model 的兩個戰鬥準備定義檔。
 
-進度：T1 `518951d`、A2a `8bb099c`、T2 `12dc3f9`、T3 `f6bd0a4`。
+進度：T1 `518951d`、A2a `8bb099c`、T2 `12dc3f9`、T3 `f6bd0a4`、T4 `a9f7f66`。
