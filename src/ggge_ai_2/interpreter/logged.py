@@ -19,6 +19,7 @@ class LoggedInterpreter:
             "interpreted",
             extra={
                 "frame_seq": frame.seq,
+                "interpreter": type(self.inner).__name__,
                 "screen": None if situation is None else situation.screen.value,
             },
         )
