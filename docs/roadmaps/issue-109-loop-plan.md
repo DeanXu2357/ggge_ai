@@ -933,14 +933,14 @@ agent.sense：PowerSaveCue(確定性 interpreter) → 回傳 None 時 → AutoCu
 | T5 | agent 的 sense 編排：確定性 → None 時 LLM；`Situation` 的地圖轉成 `Sensed.reading`；`MapTap` 查格子位置表。用替身測流程。［確認］和 A1 一起做，`run_loop_v2.py` 註冊 A1 的偵測物件，實機不會有讀不到地圖的空窗 | T2、A1 | 完成：`84b9165`、`90d6446`、`3faaed6` |
 | A1 | 認畫面用的偵測物件：現有元件（TURN 框、標題、圓鈕、▶▶、TAP TO NEXT、標題底色、AUTO 鍵、單位列表鈕）與 `unit_detail_summary` 的部件，改成回傳內容與框。離線比對：263 張標記幀上，畫面、AUTO、單位列表都和舊快速判斷加 cue 的結果完全相同，9 個畫面自己的 93 張幀全對、0 誤判；偵測加判斷每幀約 52 ms（不含讀地圖） | T2 | 完成：`4b3a8ef`、`c731f09`、`1e5508c`、`5d98924`、`010e184` |
 | A2a | screen model 的實作：`screenmodel/screens/` 每個畫面一個定義檔（必要的元件與內容、phase、讀地圖），組合器實作 `judge`。只測合約規則 | T1 | 完成：`8bb099c` |
-| A2b | 真實幀驗收：9 個畫面自己的幀全過，誤判列表交給使用者。刪除 `interpreter/screens/` 的快速判斷與舊 `OpenCvInterpreter` | A1、A2a | 未做 |
-| B1 | 遮擋用的偵測物件：`hud.py` 的面板全部改成帶框的偵測物件（PROMPT 與單位列表鈕不限位置、說明欄用形狀）。驗收：`test_hud` 與已裁定地圖幀的可判讀格，包含列表收起的 `map20261112-31` 到 `-34` | T2 | 未做 |
-| B2 | map parser 的內部：可判讀格改用 `MapScope`；chevron 從單位出發；`_selected` 不設門檻；刪除 `hud.py`、`MAP_SCREENS`、`_phase`、`_chevron_units` | T3、B1 | 未做 |
+| A2b | 真實幀驗收：9 個畫面自己的幀全過，誤判列表交給使用者。刪除 `interpreter/screens/` 的快速判斷與舊 `OpenCvInterpreter` | A1、A2a | 完成：`b00190d`、`7177672`。9 個畫面自己的幀全對、沒有誤配 |
+| B1 | 遮擋用的偵測物件：`hud.py` 的面板全部改成帶框的偵測物件（PROMPT 與單位列表鈕不限位置、說明欄用形狀）。驗收：`test_hud` 與已裁定地圖幀的可判讀格，包含列表收起的 `map20261112-31` 到 `-34` | T2 | 交給 subagent，另一個分支 |
+| B2 | map parser 的內部：可判讀格改用 `MapScope`；chevron 從單位出發；`_selected` 不設門檻；刪除 `hud.py`、`MAP_SCREENS`、`_phase`、`_chevron_units` | T3、B1 | 交給 subagent，另一個分支 |
 | I1 | 接上真的部件：註冊 B1 的偵測物件、B2；`run_loop_v2.py` 的兩條鏈在 T5 已經接上。離線驗收：標記幀的畫面一致率、已裁定地圖幀走完整個 interpreter | T4、T5、A2b、B2 | 未做 |
 | I2 | 實機跑 UC HARD 1 | I1 | 未做 |
 | I3 | 接回候選 | I2 | 未做 |
 
-剩下 A2b、B 線（B1 → B2）、I1 → I2 → I3。A2b 與 B 線可以同時進行。
+剩下 B 線（B1 → B2）、I1 → I2 → I3。［確認］B1、B2 交給 subagent 在另一個分支做；使用者回來後，A2b、B1、B2 一起審，再做實機。
 
 - ［確認］中間的 commit 保持全綠：改合約時一起修呼叫方，需要時用暫時橋接，每個橋接都有 Warning
   註解寫明由哪個任務拿掉。T3 的橋接：
