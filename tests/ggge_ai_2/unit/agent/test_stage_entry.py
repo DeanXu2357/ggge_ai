@@ -71,7 +71,7 @@ def still(at: float) -> StillWindow:
 
 def readings(*times: float) -> Evidence:
     empty = MapReading({}, frozenset(), (), {}, {}, None, None)
-    return Evidence(tuple(MapReadingRecord(still(at), empty) for at in times))
+    return Evidence(tuple(MapReadingRecord(still(at), empty, None, None) for at in times))
 
 
 def brief(seed: int, hp: int = 5000) -> geo.UnitBrief:

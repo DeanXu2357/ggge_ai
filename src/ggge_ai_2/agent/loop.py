@@ -96,7 +96,7 @@ class Agent[P: Plan]:
             if sensed is None:
                 break
             if sensed.reading is not None:
-                self.map_readings.insert(sensed.still, sensed.reading)
+                self.map_readings.insert(sensed.still, sensed.reading, sensed.phase, sensed.turn)
             evidence = Evidence(self.map_readings.records)
             self.belief = self.belief.update(sensed, self.uisim)
 
@@ -204,7 +204,15 @@ class Agent[P: Plan]:
                 "recognized": situation is not None,
             },
         )
-        return Sensed(still, observed, reading, screen_lock, passing)
+        return Sensed(
+            still,
+            observed,
+            reading,
+            screen_lock,
+            passing,
+            None if situation is None else situation.phase,
+            None if situation is None else situation.turn,
+        )
 
     def candidates(self, belief: Belief) -> frozenset[Screen]:
         if belief.ui_basis.source is not UiSource.SEEN:

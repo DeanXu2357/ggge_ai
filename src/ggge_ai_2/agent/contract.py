@@ -6,6 +6,7 @@ from typing import Protocol
 
 from ggge_ai_2.actuator.contract import Gesture, Rect
 from ggge_ai_2.agent.belief import Belief
+from ggge_ai_2.interpreter.contract import Phase
 from ggge_ai_2.mapparser.contract import MapReading, ViewCell
 from ggge_ai_2.stream.contract import StillWindow
 
@@ -14,6 +15,10 @@ from ggge_ai_2.stream.contract import StillWindow
 class MapReadingRecord:
     still: StillWindow
     reading: MapReading
+    # The phase and the turn that the interpreter read on the same frame. Each is None when
+    # the screen does not give it.
+    phase: Phase | None
+    turn: int | None
 
 
 @dataclass(frozen=True)

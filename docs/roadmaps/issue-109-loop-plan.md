@@ -903,12 +903,11 @@ agent.sense：cue(確定性 interpreter) → 回傳 None 時 → cue(LLM interpr
 - map parser 的測試要有 `MapScope`：測試用 interpreter 的偵測物件與 screen model 算出來。
 - sense 記一筆 log，寫明這一幀由哪一個 interpreter 認出。
 
-#### 未決
+#### belief 的讀數格式
 
-- belief 接受的讀數格式目前直接是 mapparser 的 `MapReading`（`Sensed.reading`、
-  `MapReadingHistory`、`Evidence`、`MapSyncPlanner` 都用它），而 `MapSyncPlanner.view_of` 會把
-  `reading.phase`、`reading.turn` 傳給 mapgeom。map parser 的輸出拿掉 phase 與 turn 之後，這個
-  格式要怎麼帶這兩個欄位還沒定。只影響 T5，做到 T5 時再處理。
+- ［確認］belief 繼續用 mapparser 的 `MapReading`。phase 與 turn 由合約保證有欄位：
+  `MapReadingRecord` 與 `Sensed` 加上 `phase`、`turn`，agent 從 `Situation` 取出，和讀數一起存進
+  `MapReadingHistory`；`MapSyncPlanner.view_of` 從紀錄拿。
 
 #### 任務拆分與順序（提案）
 
@@ -920,7 +919,7 @@ agent.sense：cue(確定性 interpreter) → 回傳 None 時 → cue(LLM interpr
 | T2 | interpreter 合約：`Situation` 加 turn 與 interpreter 自己的地圖結構（含格子位置表）；偵測物件 Protocol（回傳 `SeenElement`） | T1 |
 | T3 | map parser 合約：`MapScope`、`parse(frame, scope)`；輸出拿掉 phase、turn，加格子位置表；`locate` 移出 Protocol | 無 |
 | T4 | 新 interpreter 的編排骨架：呼叫註冊的偵測物件 → 轉換 → `judge` → 轉換 → map parser → 轉換 → `Situation`。用替身測流程 | T1–T3 |
-| T5 | agent 的 sense 編排：確定性 → None 時 LLM；`Situation` 的地圖轉成 `Sensed.reading`；`MapTap` 查格子位置表。用替身測流程 | T2 |
+| T5 | agent 的 sense 編排：確定性 → None 時 LLM；`Situation` 的地圖轉成 `Sensed.reading`；`MapTap` 查格子位置表。用替身測流程。［確認］和 A1 一起做，`run_loop_v2.py` 註冊 A1 的偵測物件，實機不會有讀不到地圖的空窗 | T2、A1 |
 | A1 | 認畫面用的偵測物件：現有元件（TURN 框、標題、圓鈕、≡、▶▶、TAP TO NEXT、標題底色）與 `unit_detail_summary` 的部件，改成回傳內容與框 | T2 |
 | A2a | screen model 的實作：`screenmodel/screens/` 每個畫面一個定義檔（必要的元件與內容、phase、讀地圖），組合器實作 `judge`。只測合約規則 | T1 |
 | A2b | 真實幀驗收：9 個畫面自己的幀全過，誤判列表交給使用者。刪除 `interpreter/screens/` 的快速判斷與舊 `OpenCvInterpreter` | A1、A2a |
@@ -937,8 +936,7 @@ T1–T3 完成後，T4、T5、A 線（A1 → A2b）、B 線（B1 → B2）可以
   - agent 只在 3 個地圖畫面呼叫 `parse`，傳入沒有遮擋、只在總覽畫面要求 chevron 的 `MapScope`
     （T5 拿掉）。
   - parser 在 `hud.py` 的遮擋之外再扣掉 `scope.occluded`；測試的 `MapScope` 沒有遮擋（B2 拿掉）。
-  - `MapSyncPlanner.view_of` 的 turn、phase 給 None（T5 拿掉）。turn 本來就永遠是 None；phase 在
-    mapgeom 之後沒有使用者。
+  - `MapSyncPlanner.view_of` 的 turn、phase 給 None。已由 `MapReadingRecord` 的 phase、turn 取代。
 - ［確認］「戰鬥準備畫面不讀地圖」的裁定從 parser 的測試移到 screen model 的兩個戰鬥準備定義檔。
 
 進度：T1 `518951d`、A2a `8bb099c`、T2 `12dc3f9`、T3 `f6bd0a4`、T4 `a9f7f66`。

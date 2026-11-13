@@ -11,12 +11,14 @@ import pytest
 from ggge_ai_2.actuator.contract import Swipe
 from ggge_ai_2.agent.belief import Belief, UiBasis, UiSource
 from ggge_ai_2.agent.contract import Evidence, MapReadingRecord, MapTap, Step
+from ggge_ai_2.interpreter.contract import Phase
 from ggge_ai_2.mapgeom.contract import (
     CellSeen,
     Faction,
     PilotState,
     Side,
     UnitRole,
+    ViewPhase,
     ViewUnit,
 )
 from ggge_ai_2.mapgeom.stitch import StitchMapGeometry
@@ -67,6 +69,10 @@ def unit(
     return UnitReading(pos, (1, 1), controllable, selected, enemy_selected, cropped)
 
 
+def record(item: MapReading) -> MapReadingRecord:
+    return MapReadingRecord(still(1.0), item, None, None)
+
+
 def reading(
     units: tuple[UnitReading, ...] = (),
     panel_right: UnitPanel | None = None,
@@ -82,10 +88,10 @@ def reading(
     )
 
 
-def test_a_view_keeps_the_stage_the_cells_and_the_borders_of_the_reading():
-    view = view_of(reading(), STAGE)
+def test_a_view_keeps_the_cells_the_borders_the_phase_and_the_turn_of_the_record():
+    view = view_of(MapReadingRecord(still(1.0), reading(), Phase.PLAYER, 1), STAGE)
 
-    assert view.stage == STAGE
+    assert (view.stage, view.turn, view.phase) == (STAGE, 1, ViewPhase.PLAYER)
     assert view.borders == frozenset({Side.LEFT, Side.TOP})
     assert view.cells[(0, 0)] is CellSeen.EMPTY
     assert view.cells[(3, 2)] is CellSeen.UNREADABLE
@@ -95,7 +101,9 @@ def test_a_view_keeps_the_stage_the_cells_and_the_borders_of_the_reading():
 
 def test_the_left_panel_goes_to_the_enemy_selected_unit_as_an_enemy_brief():
     enemy = panel(1)
-    view = view_of(reading((unit((1, 1), enemy_selected=True), unit((2, 0))), None, enemy), STAGE)
+    view = view_of(
+        record(reading((unit((1, 1), enemy_selected=True), unit((2, 0))), None, enemy)), STAGE
+    )
 
     selected, other = view.units
     assert (selected.pos, selected.faction) == ((1, 1), Faction.ENEMY)
@@ -117,7 +125,9 @@ def test_the_left_panel_goes_to_the_enemy_selected_unit_as_an_enemy_brief():
 
 
 def test_the_right_panel_goes_to_the_selected_unit_without_a_faction():
-    view = view_of(reading((unit((0, 1), controllable=True, selected=True),), panel(2)), STAGE)
+    view = view_of(
+        record(reading((unit((0, 1), controllable=True, selected=True),), panel(2))), STAGE
+    )
 
     [selected] = view.units
     assert selected.faction is None
@@ -125,13 +135,13 @@ def test_the_right_panel_goes_to_the_selected_unit_without_a_faction():
 
 
 def test_a_view_leaves_out_a_unit_that_the_frame_cuts():
-    view = view_of(reading((unit((2, 0)), unit((0, 1), cropped=True))), STAGE)
+    view = view_of(record(reading((unit((2, 0)), unit((0, 1), cropped=True)))), STAGE)
 
     assert view.units == (ViewUnit((2, 0), (1, 1), False, None, None),)
 
 
 def test_a_panel_without_its_unit_on_the_map_is_dropped():
-    view = view_of(reading((unit((2, 0)),), None, panel(3)), STAGE)
+    view = view_of(record(reading((unit((2, 0)),), None, panel(3))), STAGE)
 
     assert view.units == (ViewUnit((2, 0), (1, 1), False, None, None),)
 
@@ -145,7 +155,7 @@ def on(screen: UiScreen, at: float) -> Belief:
 
 
 def evidence(*readings: tuple[float, MapReading]) -> Evidence:
-    return Evidence(tuple(MapReadingRecord(still(at), item) for at, item in readings))
+    return Evidence(tuple(MapReadingRecord(still(at), item, None, None) for at, item in readings))
 
 
 class MockRandom(Random):
