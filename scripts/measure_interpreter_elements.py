@@ -2,7 +2,8 @@
 
 Usage: uv run python scripts/measure_interpreter_elements.py data/labeled [screen ...]
 Without screens: one min/max row for each screen. With screens: one row for each
-frame of those screens. The last block lists the quick checks that pass on each frame.
+frame of those screens. The last block lists the screens that the screen model matches on
+each frame.
 """
 
 import collections
@@ -21,7 +22,10 @@ from ggge_ai_2.interpreter.elements.round_button import round_button
 from ggge_ai_2.interpreter.elements.tap_to_next import tap_to_next_score
 from ggge_ai_2.interpreter.elements.top_left_title import title_ious
 from ggge_ai_2.interpreter.elements.turn_box import turn_box_white_share
-from ggge_ai_2.interpreter.screens import QUICK_CHECKS
+from ggge_ai_2.interpreter.elements.detectors import DETECTORS
+from ggge_ai_2.screenmodel.definition_model import DefinitionScreenModel
+
+MODEL = DefinitionScreenModel()
 
 
 def scores(image):
@@ -53,8 +57,11 @@ def main(labeled: Path, focus: set[str]) -> None:
         image = cv2.imread(str(labeled / "frames" / row["file"]))
         assert image is not None, row["id"]
         groups[row["screen"]].append((row, scores(image)))
-        passed = [screen.value for screen, check in QUICK_CHECKS.items() if check(image)]
-        own = row["screen"] in {screen.value for screen in QUICK_CHECKS}
+        judgment = MODEL.judge(
+            [found for detector in DETECTORS for found in detector.detect(image)]
+        )
+        passed = sorted(screen.value for screen in judgment.matched)
+        own = row["screen"] in {definition.screen.value for definition in MODEL.definitions}
         if passed != ([row["screen"]] if own else []):
             passes.append((row["id"], row["screen"], passed))
     for screen in sorted(groups):
@@ -77,7 +84,7 @@ def main(labeled: Path, focus: set[str]) -> None:
                     for k in keys
                 ),
             )
-    print("frames whose passed quick checks differ from the own screen (false pass or miss):")
+    print("frames whose matched screens differ from the own screen (false match or miss):")
     for case_id, screen, passed in passes:
         print(" ", case_id, screen, passed)
 
