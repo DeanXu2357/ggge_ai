@@ -20,6 +20,7 @@ from ggge_ai_2.uisim.contract import (
     UiAutoMode,
     UiScreen,
     UiSim,
+    UiState,
     UiUnitList,
 )
 
@@ -194,6 +195,16 @@ class Agent[P: Plan]:
         nexts = {belief.ui.screen.value}
         for operation in self.uisim.successors(belief.ui):
             nexts.update(outcome.then.screen.value for outcome in operation.outcomes)
+        # TODO: This is a temporary solution until the OpenCV work is complete. A swipe on
+        #     the map can become a long press and open the unit detail. No operation leads
+        #     to the unit detail. The screens that its close returns to offer it.
+        unit_detail = UiState(UiScreen.UNIT_DETAIL_SUMMARY)
+        if any(
+            outcome.then.screen is belief.ui.screen
+            for operation in self.uisim.successors(unit_detail)
+            for outcome in operation.outcomes
+        ):
+            nexts.add(unit_detail.screen.value)
         known = frozenset(screen for screen in Screen if screen.value in nexts)
         return known | ANYTIME_SCREENS
 
