@@ -32,12 +32,17 @@ from ggge_ai_2.agent.loop import Agent, RunResult, cycle_log
 from ggge_ai_2.agent.stage_plan_controller import StagePlanController, StageSurvey
 from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.auto_cue import AutoCueInterpreter
+from ggge_ai_2.interpreter.contract import Interpreter
+from ggge_ai_2.interpreter.element_first import ElementFirstInterpreter
+from ggge_ai_2.interpreter.elements.detectors import DETECTORS
 from ggge_ai_2.interpreter.llm import LlmInterpreter
 from ggge_ai_2.interpreter.llm_prompt import system_prompt
+from ggge_ai_2.interpreter.logged import LoggedInterpreter
 from ggge_ai_2.interpreter.power_save_cue import PowerSaveCueInterpreter
 from ggge_ai_2.interpreter.unit_list_cue import UnitListCueInterpreter
 from ggge_ai_2.mapgeom.stitch import StitchMapGeometry
 from ggge_ai_2.mapparser.opencv_parser import OpenCvMapParser
+from ggge_ai_2.screenmodel.definition_model import DefinitionScreenModel
 from ggge_ai_2.stagedata.store import PostgresStageStore
 from ggge_ai_2.stream.adb import AdbScreencapStream
 from ggge_ai_2.uisim.contract import Outcome, UiScreen, UiState
@@ -166,9 +171,14 @@ def main() -> int:
         print("ANTHROPIC_API_KEY is not set.", file=sys.stderr)
         return 2
     interpreter = PowerSaveCueInterpreter(
-        AutoCueInterpreter(
-            UnitListCueInterpreter(LlmInterpreter(client, system_prompt(raw_stages)))
+        LoggedInterpreter(
+            ElementFirstInterpreter(DETECTORS, DefinitionScreenModel(), OpenCvMapParser())
         )
+    )
+    # Warning: the AUTO and unit list cues serve only the LLM interpreter. Remove them
+    # together with it.
+    fallback = AutoCueInterpreter(
+        UnitListCueInterpreter(LoggedInterpreter(LlmInterpreter(client, system_prompt(raw_stages))))
     )
 
     versions = app_version(args.serial), code_version()
@@ -182,12 +192,13 @@ def main() -> int:
             Random(),
             args.auto_checked,
         )
-        return play(args.serial, interpreter, uisim, survey, args.trace_plans)
+        return play(args.serial, interpreter, fallback, uisim, survey, args.trace_plans)
 
 
 def play(
     serial: str,
-    interpreter: PowerSaveCueInterpreter,
+    interpreter: Interpreter,
+    fallback: Interpreter,
     uisim: StageUiSim,
     survey: StageSurvey,
     trace_plans: bool,
@@ -212,7 +223,7 @@ def play(
         stream=AdbScreencapStream(serial),
         actuator=AdbActuator(serial),
         interpreter=interpreter,
-        mapparser=OpenCvMapParser(),
+        fallback=fallback,
         uisim=uisim,
         plan_controller=StagePlanController(UiScreen.DROP_REWARD_RESULT, uisim, SCREEN, survey),
         belief=Belief(

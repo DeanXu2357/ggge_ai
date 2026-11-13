@@ -12,7 +12,8 @@ from ggge_ai_2.agent.contract import Evidence, MapTap, Plan, PlanController, Ste
 from ggge_ai_2.agent.map_reading_history import MapReadingHistory
 from ggge_ai_2.agent.runlog import RunLog, StepRecord, thumbnail_name
 from ggge_ai_2.interpreter.contract import AutoMode, Interpreter, Screen, Situation
-from ggge_ai_2.mapparser.contract import MapParser, MapReading, MapScope
+from ggge_ai_2.agent.map_reading import map_reading
+from ggge_ai_2.mapparser.contract import MapReading
 from ggge_ai_2.stream.contract import Frame, StillWindow, Stream
 from ggge_ai_2.uisim.contract import (
     Observed,
@@ -37,15 +38,6 @@ PASSING_SCREENS = {
 }
 ANYTIME_SCREENS = frozenset(
     screen for screen in Screen if screen.value not in {ui.value for ui in UiScreen}
-)
-# Warning: the agent calls the map parser only until the interpreter calls it (task T5 of
-# roadmap section 8.14). The scope has no occluded rectangles until then.
-MAP_SCREENS = frozenset(
-    {
-        Screen.PLAYER_PHASE_OVERVIEW,
-        Screen.SELECT_ACTION_IN_BATTLE,
-        Screen.SELECT_WEAPON_IN_BATTLE,
-    }
 )
 
 
@@ -73,7 +65,7 @@ class Agent[P: Plan]:
     stream: Stream
     actuator: Actuator
     interpreter: Interpreter
-    mapparser: MapParser
+    fallback: Interpreter
     uisim: UiSim
     plan_controller: PlanController[P]
     belief: Belief
@@ -152,11 +144,15 @@ class Agent[P: Plan]:
         candidates = self.candidates(self.belief)
         first = self._capture()
         first_situation = self.interpreter.interpret(first, candidates)
+        if first_situation is None:
+            first_situation = self.fallback.interpret(first, candidates)
         while True:
             if self.stop.is_set():
                 return None
             second = self._capture()
             situation = self.interpreter.interpret(second, candidates)
+            if situation is None:
+                situation = self.fallback.interpret(second, candidates)
             if _reading(situation) == _reading(first_situation):
                 break
             log.info(
@@ -186,13 +182,7 @@ class Agent[P: Plan]:
         passing = None if situation is None else PASSING_SCREENS.get(situation.screen)
         readable = screen_lock is None and passing is None
         observed = _situation_to_observed(situation) if readable else None
-        reading = (
-            self.mapparser.parse(
-                second, MapScope((), situation.screen is Screen.PLAYER_PHASE_OVERVIEW)
-            )
-            if situation is not None and situation.screen in MAP_SCREENS
-            else None
-        )
+        reading = None if situation is None or situation.map is None else map_reading(situation.map)
         self._reading = reading
         log.info(
             "sense",
