@@ -4,15 +4,13 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 
-from ggge_ai_2.interpreter.contract import Screen
-from ggge_ai_2.interpreter.phase_cue import PHASE_SCREENS, phase
 from ggge_ai_2.mapparser.border import Border, read_border
 from ggge_ai_2.mapparser.contract import (
+    CellPlace,
     CellReading,
-    MapPhase,
     MapReading,
+    MapScope,
     Marker,
-    ScreenPoint,
     ViewCell,
 )
 from ggge_ai_2.mapparser.hud import Rect, hud_rects
@@ -26,23 +24,10 @@ from ggge_ai_2.mapparser.units import read_units
 from ggge_ai_2.stream.contract import Frame
 
 
-# The map screens of the player phase. The battle prep screens show a damage preview,
-# and the parser does not read the phases of the other factions.
-MAP_SCREENS = frozenset(
-    {
-        Screen.PLAYER_PHASE_OVERVIEW,
-        Screen.SELECT_ACTION_IN_BATTLE,
-        Screen.SELECT_WEAPON_IN_BATTLE,
-    }
-)
-
-
 @dataclass(frozen=True)
 class OpenCvMapParser:
-    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
-        if screen not in MAP_SCREENS:
-            return None
-        read = _read(frame.image)
+    def parse(self, frame: Frame, scope: MapScope) -> MapReading | None:
+        read = _read(frame.image, scope)
         if read is None:
             return None
         lattice, rects, view, border, region = read
@@ -55,11 +40,9 @@ class OpenCvMapParser:
             occupied = {cell for cell, value in cells.items() if value is CellReading.OCCUPIED}
             for cell in enemy_move_range(view, region.lattice_cells) - occupied:
                 markers[cell] = markers[cell] | {Marker.ENEMY_MOVE_RANGE}
+        if not scope.chevrons:
+            units = tuple(replace(unit, controllable=None) for unit in units)
         return MapReading(
-            # Warning: the parser does not read the stage and the turn yet.
-            stage=None,
-            turn=None,
-            phase=_phase(frame.image, screen),
             cells={region.to_view(cell): cells[cell] for cell in region.lattice_cells},
             borders=border.edges(),
             units=tuple(
@@ -71,35 +54,34 @@ class OpenCvMapParser:
                 for unit in units
             ),
             markers={region.to_view(cell): value for cell, value in markers.items()},
+            places={region.to_view(cell): _place(lattice, cell) for cell in region.lattice_cells},
             panel=read_panel(frame.image, SELECTED),
             enemy_panel=read_panel(frame.image, ENEMY),
             tap_mark=read_tap_mark(frame.image, lattice, region),
         )
 
-    def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:
-        read = _read(frame.image)
-        if read is None:
-            return None
-        lattice, _, _, _, region = read
-        target = region.to_lattice(cell)
-        return lattice.center(target) if region.holds(target) else None
-
 
 def _read(
-    image: np.ndarray,
+    image: np.ndarray, scope: MapScope
 ) -> tuple[Lattice, tuple[Rect, ...], TopView, Border, Region] | None:
     lattice = read_lattice(image)
     if lattice is None:
         return None
-    rects = hud_rects(image)
+    # Warning: 'hud_rects' is a bridge until the element detectors cover the HUD (task B2
+    # of roadmap section 8.14). Delete it then and use only 'scope.occluded'.
+    rects = hud_rects(image) + scope.occluded
     view = top_view(image, lattice, rects)
     border = read_border(view)
     return lattice, rects, view, border, read_region(lattice, rects, border)
 
 
-def _phase(image: np.ndarray, screen: Screen | None) -> MapPhase | None:
-    read = phase(image) if screen in PHASE_SCREENS else None
-    return None if read is None else MapPhase(read.value)
+def _place(lattice: Lattice, cell: ViewCell) -> CellPlace:
+    column, row = cell
+    corners = [
+        lattice.project(column + dx, row + dy) for dx, dy in ((0, 0), (1, 0), (1, 1), (0, 1))
+    ]
+    top_left, top_right, bottom_right, bottom_left = ((round(x), round(y)) for x, y in corners)
+    return CellPlace(lattice.center(cell), (top_left, top_right, bottom_right, bottom_left))
 
 
 def _footprint(pos: ViewCell, size: tuple[int, int]) -> list[ViewCell]:

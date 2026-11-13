@@ -22,7 +22,6 @@ from ggge_ai_2.mapgeom.contract import (
     UnitBrief,
     UnitRole,
     View,
-    ViewPhase,
     ViewUnit,
 )
 from ggge_ai_2.mapparser.contract import MapReading, NameTemplate, PanelIcon, UnitPanel
@@ -268,8 +267,10 @@ def view_of(reading: MapReading, stage: str) -> View:
         )
     return View(
         stage=stage,
-        turn=reading.turn,
-        phase=None if reading.phase is None else ViewPhase(reading.phase.value),
+        # Warning: the reading has no turn and no phase until the agent gives them from the
+        # interpreter (task T5 of roadmap section 8.14).
+        turn=None,
+        phase=None,
         cells={cell: CellSeen(seen.value) for cell, seen in reading.cells.items()},
         borders=frozenset(Side(edge.value) for edge in reading.borders),
         units=tuple(units),

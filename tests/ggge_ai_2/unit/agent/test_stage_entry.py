@@ -19,7 +19,7 @@ from ggge_ai_2.agent.stage_plan_controller import (
 )
 from ggge_ai_2.agent.stage_survey import stage_data
 from ggge_ai_2.mapgeom import contract as geo
-from ggge_ai_2.mapparser.contract import MapPhase, MapReading
+from ggge_ai_2.mapparser.contract import MapReading
 from ggge_ai_2.planner.map_sync import MapSyncPlanner
 from ggge_ai_2.stagedata.contract import StageData
 from ggge_ai_2.stream.contract import StillWindow
@@ -70,7 +70,7 @@ def still(at: float) -> StillWindow:
 
 
 def readings(*times: float) -> Evidence:
-    empty = MapReading(None, 1, MapPhase.PLAYER, {}, frozenset(), (), {}, None, None)
+    empty = MapReading({}, frozenset(), (), {}, {}, None, None)
     return Evidence(tuple(MapReadingRecord(still(at), empty) for at in times))
 
 

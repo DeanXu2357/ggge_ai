@@ -165,18 +165,26 @@ class SeenTapMark:
 
 
 @dataclass(frozen=True)
+class SeenCellPlace:
+    center: ScreenPoint
+    # Top left, top right, bottom right, bottom left. The camera tilts down, so a cell is a
+    # trapezoid on the screen.
+    corners: tuple[ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint]
+
+
+@dataclass(frozen=True)
 class SeenMap:
     cells: Mapping[ViewCell, SeenCell]
     borders: frozenset[SeenEdge]
     units: tuple[SeenUnit, ...]
     markers: Mapping[ViewCell, frozenset[SeenMarker]]
+    # The place on the screen of each readable cell in this frame.
+    places: Mapping[ViewCell, SeenCellPlace]
     # The panel of the selected unit at the top right.
     panel: SeenUnitPanel | None
     # The panel of the selected enemy at the top left.
     enemy_panel: SeenUnitPanel | None
     tap_mark: SeenTapMark | None
-    # The point to tap in this frame for each readable cell.
-    tap_points: Mapping[ViewCell, ScreenPoint]
 
 
 @dataclass(frozen=True)

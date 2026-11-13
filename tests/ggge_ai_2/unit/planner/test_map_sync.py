@@ -17,14 +17,12 @@ from ggge_ai_2.mapgeom.contract import (
     PilotState,
     Side,
     UnitRole,
-    ViewPhase,
     ViewUnit,
 )
 from ggge_ai_2.mapgeom.stitch import StitchMapGeometry
 from ggge_ai_2.mapparser.contract import (
     CellReading,
     Edge,
-    MapPhase,
     MapReading,
     MechPanel,
     NameTemplate,
@@ -80,22 +78,14 @@ def reading(
         cells[item.pos] = CellReading.OCCUPIED
     cells[(3, 2)] = CellReading.UNREADABLE
     return MapReading(
-        None,
-        1,
-        MapPhase.PLAYER,
-        cells,
-        frozenset({Edge.LEFT, Edge.TOP}),
-        units,
-        {},
-        panel_right,
-        panel_left,
+        cells, frozenset({Edge.LEFT, Edge.TOP}), units, {}, {}, panel_right, panel_left
     )
 
 
-def test_a_view_keeps_the_cells_the_borders_and_the_phase_of_the_reading():
+def test_a_view_keeps_the_stage_the_cells_and_the_borders_of_the_reading():
     view = view_of(reading(), STAGE)
 
-    assert (view.stage, view.turn, view.phase) == (STAGE, 1, ViewPhase.PLAYER)
+    assert view.stage == STAGE
     assert view.borders == frozenset({Side.LEFT, Side.TOP})
     assert view.cells[(0, 0)] is CellSeen.EMPTY
     assert view.cells[(3, 2)] is CellSeen.UNREADABLE
@@ -184,7 +174,7 @@ def board(
         cells[item.pos] = CellReading.OCCUPIED
     for cell in unreadable:
         cells[cell] = CellReading.UNREADABLE
-    return MapReading(None, 1, MapPhase.PLAYER, cells, borders, units, {}, None, enemy_panel)
+    return MapReading(cells, borders, units, {}, {}, None, enemy_panel)
 
 
 def swipe_of(step: Step) -> tuple[int, int]:
@@ -198,7 +188,7 @@ def full_map(units: tuple[UnitReading, ...], enemy_panel: UnitPanel | None) -> M
     for item in units:
         cells[item.pos] = CellReading.OCCUPIED
     borders = frozenset(Edge)
-    return MapReading(None, 1, MapPhase.PLAYER, cells, borders, units, {}, None, enemy_panel)
+    return MapReading(cells, borders, units, {}, {}, None, enemy_panel)
 
 
 def test_on_another_screen_the_planner_goes_back_to_the_overview():

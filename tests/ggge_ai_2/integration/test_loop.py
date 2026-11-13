@@ -16,7 +16,7 @@ from ggge_ai_2.agent.contract import Evidence, MapTap, Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
 from ggge_ai_2.agent.runlog import RunLog
 from ggge_ai_2.interpreter.contract import AutoMode, Screen, Situation
-from ggge_ai_2.mapparser.contract import CellReading, MapReading, ScreenPoint, ViewCell
+from ggge_ai_2.mapparser.contract import CellPlace, CellReading, MapReading, MapScope
 from ggge_ai_2.stream.contract import Frame, Observation, StillWindow
 from ggge_ai_2.agent.ui_steps import operation_step
 from ggge_ai_2.uisim.contract import (
@@ -106,25 +106,16 @@ class FakeInterpreter:
 
 
 class FakeMapParser:
-    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
+    def parse(self, frame: Frame, scope: MapScope) -> MapReading | None:
         return None
-
-    def locate(self, frame: Frame, cell: ViewCell) -> tuple[int, int] | None:
-        raise AssertionError("no map on these screens")
 
 
 @dataclass
 class MockMapParser:
     readings: dict[int, MapReading]
-    points: dict[ViewCell, ScreenPoint] = field(default_factory=dict[ViewCell, ScreenPoint])
-    located: list[tuple[int, ViewCell]] = field(default_factory=list[tuple[int, ViewCell]])
 
-    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
+    def parse(self, frame: Frame, scope: MapScope) -> MapReading | None:
         return self.readings.get(frame.seq)
-
-    def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:
-        self.located.append((frame.seq, cell))
-        return self.points.get(cell)
 
 
 @dataclass
@@ -205,9 +196,7 @@ def test_animated_screen_settles_on_two_frames_with_the_same_interpretation():
 
 
 def test_every_sensed_map_reading_goes_into_the_map_reading_history():
-    reading = MapReading(
-        None, None, None, {(0, 0): CellReading.EMPTY}, frozenset(), (), {}, None, None
-    )
+    reading = MapReading({(0, 0): CellReading.EMPTY}, frozenset(), (), {}, {}, None, None)
     stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
     shows = {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.PLAYER_PHASE_OVERVIEW}
     controller = ScriptedController([ScriptedPlan([step()])], goals=[False, True])
@@ -219,7 +208,7 @@ def test_every_sensed_map_reading_goes_into_the_map_reading_history():
     ]
 
 
-READING = MapReading(None, None, None, {(0, 0): CellReading.EMPTY}, frozenset(), (), {}, None, None)
+READING = MapReading({(0, 0): CellReading.EMPTY}, frozenset(), (), {}, {}, None, None)
 
 
 def readings(evidence: Evidence) -> list[tuple[StillWindow, MapReading]]:
@@ -429,7 +418,7 @@ def test_guard_on_an_unreadable_screen_halts_and_logs_the_evidence(
     assert record.__dict__["unreadable_since_frame_seq"] == 4
 
 
-def test_map_tap_taps_the_point_that_the_mapparser_locates_on_the_frame_of_this_cycle(
+def test_map_tap_taps_the_center_of_the_cell_in_the_map_reading_of_this_cycle(
     caplog: pytest.LogCaptureFixture,
 ):
     caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
@@ -437,13 +426,16 @@ def test_map_tap_taps_the_point_that_the_mapparser_locates_on_the_frame_of_this_
     controller = ScriptedController([ScriptedPlan([tap])], goals=[False, True])
     stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
     shows = {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.PLAYER_PHASE_OVERVIEW}
-    mapparser = MockMapParser({}, points={(2, 3): (700, 400)})
+    place = CellPlace((700, 400), ((660, 370), (742, 370), (746, 432), (655, 432)))
+    reading = MapReading(
+        {(2, 3): CellReading.OCCUPIED}, frozenset(), (), {}, {(2, 3): place}, None, None
+    )
+    mapparser = MockMapParser({1: reading})
     actuator = FakeActuator()
 
     agent = make_agent(stream, shows, controller, actuator, mapparser=mapparser)
 
     assert agent.run() is RunResult.DONE
-    assert mapparser.located == [(1, (2, 3))]
     assert actuator.sent == [(Tap((700, 400)), BAND)]
     [acted] = logged(caplog, "act")
     assert acted.__dict__["gesture"] == Tap((700, 400))
