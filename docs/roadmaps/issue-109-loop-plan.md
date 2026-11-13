@@ -802,7 +802,7 @@
   沒有 AUTO 與單位列表；看到的總覽畫面有 `auto=manual`、`unit_list=closed`，整個 belief 不相等。
 - ［確認］使用者會先從 mapparser 的調用改起。
 
-### 8.14 元件優先的 interpreter 與 screen model（2026-11-13，討論中）
+### 8.14 元件優先的 interpreter 與 screen model（2026-11-13，實作中）
 
 分支 `issue-109-screen-model`，從 `ba9ed0d` 切出。改動範圍大，也不能靠 DI 抽換做到前後相容，
 所以另開分支。
@@ -825,7 +825,7 @@ interpreter（編排者）
   │        └─ 轉換 ─→ map parser 的輸入
   ├─ map parser.parse ─────→ MapReading
   │        └─ 轉換 ─→ interpreter 自己的地圖結構
-  └─ 回傳 Situation（畫面、phase、turn、地圖）
+  └─ 回傳 Situation（畫面、phase、turn、AUTO、單位列表、地圖）
 
 agent.sense：PowerSaveCue(確定性 interpreter) → 回傳 None 時 → AutoCue(UnitListCue(LLM interpreter))
              Situation 的地圖 ─轉換→ Sensed.reading（belief 接受的格式）
@@ -856,10 +856,10 @@ agent.sense：PowerSaveCue(確定性 interpreter) → 回傳 None 時 → AutoCu
     LLM interpreter 時一起拿掉。
   - ［確認］確定性 → LLM 的順序是硬需求。
 - ［確認］log 不寫在 interpreter 的實作裡，用包住 interpreter 的 decorator `LoggedInterpreter`，記
-  frame_seq 與認出的畫面（或 None）。screen model 的 `matched` 不記，所以 8.6「相似畫面同時通過
+  frame_seq、內層 interpreter 的類別名與認出的畫面（或 None）。screen model 的 `matched` 不記，所以 8.6「相似畫面同時通過
   時記錄下來」目前沒有落實。
 - ［確認］sense 的編排：確定性 interpreter 能認的畫面直接採用，其餘交給 LLM interpreter 再認。
-  確定性可認的畫面是 8 個戰鬥畫面加 `unit_detail_summary`（`QUICK_CHECKS` 的 9 個）。
+  確定性可認的畫面是 screen model 定義檔的 9 個：8 個戰鬥畫面加 `unit_detail_summary`。
 - ［確認］候選這次不用。全部完成後最後再接回。`interpret(frame, candidates)` 的簽名不改，新實作
   暫時忽略 `candidates`。
 - ［確認］uisim 保留 `ScreenChart.elements`：它確認轉移需要的元件在畫面上，和 screen model 的
@@ -867,21 +867,22 @@ agent.sense：PowerSaveCue(確定性 interpreter) → 回傳 None 時 → AutoCu
 
 #### screen model
 
-- ［提案］獨立套件 `screenmodel/`，和 uisim 平行。照物件規則，它有自己的畫面名與自己的元件名，
+- ［確認］獨立套件 `screenmodel/`，和 uisim 平行。照物件規則，它有自己的畫面名與自己的元件名，
   interpreter 負責轉換。
 - 輸入：這一幀的元件結果，每一筆是元件名、內容（標題種類、圓鈕文字等；只認形狀的元件沒有內容）、
   框（像素）。同一種元件可以有多筆（卡片、圓鈕）。
 - 輸出（判斷結果）：
-  - 畫面：剛好一個畫面符合才有值；0 個或多個符合時列出符合的畫面，interpreter 記進 log 並回傳
-    None（沿用 contract 的 docstring 與 8.6「相似畫面同時通過時記錄下來」）。
-  - ［確認］畫面提供的資訊：phase、turn、遮擋範圍、要不要讀地圖與要不要判斷 chevron。
+  - 畫面：剛好一個畫面符合才有值；0 個或多個符合時列出符合的畫面（`matched`），interpreter 回傳
+    None（沿用 contract 的 docstring）。`matched` 目前沒有記錄，見 log 那一條。
+  - ［確認］畫面提供的資訊：phase、turn、AUTO、單位列表開闔、遮擋範圍、要不要讀地圖與要不要判斷
+    chevron。
   - ［確認］讀地圖的畫面先照現在的 `MAP_SCREENS`：`player_phase_overview`、
     `select_action_in_battle`、`select_weapon_in_battle`。只有 `player_phase_overview` 要求判斷
     chevron。
-- ［提案］規則的形式：每個畫面是一組「元件名與內容」的必要條件，全部成立才符合。現有 9 個快速
+- ［確認］規則的形式：每個畫面是一組「元件名與內容」的必要條件，全部成立才符合。現有 9 個快速
   判斷都是這種形式。兩個畫面分不開時再加條件，由使用者裁定（8.6）。
-- ［提案］遮擋範圍是這一幀找到的全部元件的框。
-- ［提案］取代 8.12「title、兩個鈕、區塊只用在這個畫面，不做成共用元素」：在元件優先的架構下，
+- ［確認］遮擋範圍是這一幀找到的全部元件的框。
+- ［確認］取代 8.12「title、兩個鈕、區塊只用在這個畫面，不做成共用元素」：在元件優先的架構下，
   它們要變成註冊的偵測物件，只有 `unit_detail_summary` 的規則用到。「不逐幀判」不變。
 - ［確認］定義檔不寫重述定義的測試，也不做 mutation 檢查；定義對不對由 A2b 的真實幀驗收。
   單元測試只留合約裡看起來可能是錯的規則（多個畫面符合時不回傳畫面、列出全部）。
@@ -909,6 +910,9 @@ agent.sense：PowerSaveCue(確定性 interpreter) → 回傳 None 時 → AutoCu
 - map parser 的測試要有 `MapScope`：測試用 interpreter 的偵測物件與 screen model 算出來。
 - 兩條鏈各在最內層包一個 `LoggedInterpreter`，log 帶 `interpreter`（內層類別名），由此看出這一幀由哪一個
   interpreter 認出。
+- 單位列表鈕的框取整顆按鈕；列表收起時按鈕往下 235 px，框跟著移動。
+- AUTO 鍵的偵測物件沿用 `auto_mode`，每一幀都回報 full、semi 或 manual，還沒有形狀判斷；它的框
+  每一幀都算進遮擋範圍。
 
 #### belief 的讀數格式
 
@@ -916,27 +920,27 @@ agent.sense：PowerSaveCue(確定性 interpreter) → 回傳 None 時 → AutoCu
   `MapReadingRecord` 與 `Sensed` 加上 `phase`、`turn`，agent 從 `Situation` 取出，和讀數一起存進
   `MapReadingHistory`；`MapSyncPlanner.view_of` 從紀錄拿。
 
-#### 任務拆分與順序（提案）
+#### 任務拆分與順序
 
 框架先定，細節在後。T1–T3 是合約，互相獨立，可以並行；之後的任務都只依賴合約。
 
-| 任務 | 內容 | 依賴 |
-|---|---|---|
-| T1 | screen model 合約：自己的畫面名與元件名、輸入（元件名、內容、框）、判斷結果（畫面、符合的畫面、phase、turn、遮擋範圍、讀地圖與判斷 chevron 的要求）、`judge` | 無 |
-| T2 | interpreter 合約：`Situation` 加 turn 與 interpreter 自己的地圖結構（含格子位置表）；偵測物件 Protocol（回傳 `SeenElement`） | T1 |
-| T3 | map parser 合約：`MapScope`、`parse(frame, scope)`；輸出拿掉 phase、turn，加格子位置表；`locate` 移出 Protocol | 無 |
-| T4 | 新 interpreter 的編排骨架：呼叫註冊的偵測物件 → 轉換 → `judge` → 轉換 → map parser → 轉換 → `Situation`。用替身測流程 | T1–T3 |
-| T5 | agent 的 sense 編排：確定性 → None 時 LLM；`Situation` 的地圖轉成 `Sensed.reading`；`MapTap` 查格子位置表。用替身測流程。［確認］和 A1 一起做，`run_loop_v2.py` 註冊 A1 的偵測物件，實機不會有讀不到地圖的空窗 | T2、A1 |
-| A1 | 認畫面用的偵測物件：現有元件（TURN 框、標題、圓鈕、▶▶、TAP TO NEXT、標題底色、AUTO 鍵、單位列表鈕）與 `unit_detail_summary` 的部件，改成回傳內容與框。離線比對：263 張標記幀上，畫面、AUTO、單位列表都和舊快速判斷加 cue 的結果完全相同，9 個畫面自己的 93 張幀全對、0 誤判；偵測加判斷每幀約 52 ms（不含讀地圖） | T2 |
-| A2a | screen model 的實作：`screenmodel/screens/` 每個畫面一個定義檔（必要的元件與內容、phase、讀地圖），組合器實作 `judge`。只測合約規則 | T1 |
-| A2b | 真實幀驗收：9 個畫面自己的幀全過，誤判列表交給使用者。刪除 `interpreter/screens/` 的快速判斷與舊 `OpenCvInterpreter` | A1、A2a |
-| B1 | 遮擋用的偵測物件：`hud.py` 的面板全部改成帶框的偵測物件（PROMPT 與單位列表鈕不限位置、說明欄用形狀）。驗收：`test_hud` 與已裁定地圖幀的可判讀格，包含列表收起的 `map20261112-31` 到 `-34` | T2 |
-| B2 | map parser 的內部：可判讀格改用 `MapScope`；chevron 從單位出發；`_selected` 不設門檻；刪除 `hud.py`、`MAP_SCREENS`、`_phase`、`_chevron_units` | T3、B1 |
-| I1 | 接上真的部件：註冊 B1 的偵測物件、B2；`run_loop_v2.py` 的兩條鏈在 T5 已經接上。離線驗收：標記幀的畫面一致率、已裁定地圖幀走完整個 interpreter | T4、T5、A2b、B2 |
-| I2 | 實機跑 UC HARD 1 | I1 |
-| I3 | 接回候選 | I2 |
+| 任務 | 內容 | 依賴 | 狀態 |
+|---|---|---|---|
+| T1 | screen model 合約：自己的畫面名與元件名、輸入（元件名、內容、框）、判斷結果（畫面、符合的畫面、phase、turn、AUTO、單位列表、遮擋範圍、讀地圖與判斷 chevron 的要求）、`judge` | 無 | 完成：`518951d`；AUTO、單位列表在 `1e5508c` 加入 |
+| T2 | interpreter 合約：`Situation` 加 turn 與 interpreter 自己的地圖結構（含格子位置表）；偵測物件 Protocol（回傳 `SeenElement`） | T1 | 完成：`12dc3f9` |
+| T3 | map parser 合約：`MapScope`、`parse(frame, scope)`；輸出拿掉 phase、turn，加格子位置表；`locate` 移出 Protocol | 無 | 完成：`f6bd0a4` |
+| T4 | 新 interpreter 的編排骨架：呼叫註冊的偵測物件 → 轉換 → `judge` → 轉換 → map parser → 轉換 → `Situation`。用替身測流程 | T1–T3 | 完成：`a9f7f66`、`1acc96e` |
+| T5 | agent 的 sense 編排：確定性 → None 時 LLM；`Situation` 的地圖轉成 `Sensed.reading`；`MapTap` 查格子位置表。用替身測流程。［確認］和 A1 一起做，`run_loop_v2.py` 註冊 A1 的偵測物件，實機不會有讀不到地圖的空窗 | T2、A1 | 完成：`84b9165`、`90d6446`、`3faaed6` |
+| A1 | 認畫面用的偵測物件：現有元件（TURN 框、標題、圓鈕、▶▶、TAP TO NEXT、標題底色、AUTO 鍵、單位列表鈕）與 `unit_detail_summary` 的部件，改成回傳內容與框。離線比對：263 張標記幀上，畫面、AUTO、單位列表都和舊快速判斷加 cue 的結果完全相同，9 個畫面自己的 93 張幀全對、0 誤判；偵測加判斷每幀約 52 ms（不含讀地圖） | T2 | 完成：`4b3a8ef`、`c731f09`、`1e5508c`、`5d98924`、`010e184` |
+| A2a | screen model 的實作：`screenmodel/screens/` 每個畫面一個定義檔（必要的元件與內容、phase、讀地圖），組合器實作 `judge`。只測合約規則 | T1 | 完成：`8bb099c` |
+| A2b | 真實幀驗收：9 個畫面自己的幀全過，誤判列表交給使用者。刪除 `interpreter/screens/` 的快速判斷與舊 `OpenCvInterpreter` | A1、A2a | 未做 |
+| B1 | 遮擋用的偵測物件：`hud.py` 的面板全部改成帶框的偵測物件（PROMPT 與單位列表鈕不限位置、說明欄用形狀）。驗收：`test_hud` 與已裁定地圖幀的可判讀格，包含列表收起的 `map20261112-31` 到 `-34` | T2 | 未做 |
+| B2 | map parser 的內部：可判讀格改用 `MapScope`；chevron 從單位出發；`_selected` 不設門檻；刪除 `hud.py`、`MAP_SCREENS`、`_phase`、`_chevron_units` | T3、B1 | 未做 |
+| I1 | 接上真的部件：註冊 B1 的偵測物件、B2；`run_loop_v2.py` 的兩條鏈在 T5 已經接上。離線驗收：標記幀的畫面一致率、已裁定地圖幀走完整個 interpreter | T4、T5、A2b、B2 | 未做 |
+| I2 | 實機跑 UC HARD 1 | I1 | 未做 |
+| I3 | 接回候選 | I2 | 未做 |
 
-T1–T3 完成後，T4、T5、A 線（A1 → A2b）、B 線（B1 → B2）可以同時進行。A2a 只依賴 T1。
+剩下 A2b、B 線（B1 → B2）、I1 → I2 → I3。A2b 與 B 線可以同時進行。
 
 - ［確認］中間的 commit 保持全綠：改合約時一起修呼叫方，需要時用暫時橋接，每個橋接都有 Warning
   註解寫明由哪個任務拿掉。T3 的橋接：
@@ -946,4 +950,13 @@ T1–T3 完成後，T4、T5、A 線（A1 → A2b）、B 線（B1 → B2）可以
   - `MapSyncPlanner.view_of` 的 turn、phase 給 None。已由 `MapReadingRecord` 的 phase、turn 取代。
 - ［確認］「戰鬥準備畫面不讀地圖」的裁定從 parser 的測試移到 screen model 的兩個戰鬥準備定義檔。
 
-進度：T1 `518951d`、A2a `8bb099c`、T2 `12dc3f9`、T3 `f6bd0a4`、T4 `a9f7f66`、A1 `010e184`、T5 `3faaed6`。
+#### 已知缺口
+
+- 8.6「相似畫面同時通過時記錄下來」沒有落實：`LoggedInterpreter` 看不到 `matched`。
+- AUTO 鍵沒有形狀判斷：rec20261014-504 的藍色光暈讓 `auto_mode` 讀成 full（`test_auto_cue` 2 個
+  失敗）。
+- 省電變暗只看平均亮度：rec20261014-1745～1747 的載入畫面讀成 `power_save_dim`（`test_power_save_cue`
+  3 個失敗）。
+- `test_hud` 8 個失敗：map20261112-26～30 有 11 張卡片，第 11 張蓋到測試點 ACTION；31、33、34 列表
+  收起，提示移到 y≈987。由 B1、B2 處理。
+- `test_unit_panel` 3 個失敗：「索格克」與「裘亞克」的名字遮罩整張比對時同時過門檻。
