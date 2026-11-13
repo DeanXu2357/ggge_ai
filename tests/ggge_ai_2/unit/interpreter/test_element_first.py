@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ggge_ai_2.interpreter.contract import (
+    AutoMode,
     Phase,
     Screen,
     SeenCell,
@@ -19,6 +20,7 @@ from ggge_ai_2.interpreter.contract import (
     SeenTerrain,
     SeenUnit,
     SeenUnitPanel,
+    UnitList,
 )
 from ggge_ai_2.interpreter.element_first import ElementFirstInterpreter
 from ggge_ai_2.mapparser.contract import (
@@ -113,16 +115,18 @@ def test_hands_the_elements_of_every_detector_to_the_screen_model() -> None:
     assert model.given == [[TURN, TITLE, BAND]]
 
 
-def test_gives_the_screen_the_phase_and_the_turn_of_the_judgment() -> None:
+def test_gives_the_screen_and_what_the_screen_gives_in_the_judgment() -> None:
     situation = _interpreter(MockScreenModel(OVERVIEW)).interpret(FRAME, frozenset())
 
     assert situation is not None
-    assert (situation.frame_seq, situation.screen, situation.phase, situation.turn) == (
-        7,
-        Screen.PLAYER_PHASE_OVERVIEW,
-        Phase.NON_PLAYER,
-        3,
-    )
+    assert (
+        situation.frame_seq,
+        situation.screen,
+        situation.phase,
+        situation.turn,
+        situation.auto,
+        situation.unit_list,
+    ) == (7, Screen.PLAYER_PHASE_OVERVIEW, Phase.NON_PLAYER, 3, AutoMode.SEMI, UnitList.CLOSED)
 
 
 def test_gives_no_situation_and_reads_no_map_when_the_screen_model_judges_no_screen() -> None:

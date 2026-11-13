@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from ggge_ai_2.interpreter.contract import Phase, Screen, Situation
+from ggge_ai_2.interpreter.contract import AutoMode, Phase, Screen, Situation, UnitList
 from ggge_ai_2.interpreter.elements.contract import ElementDetector
 from ggge_ai_2.interpreter.seen_map import seen_map
 from ggge_ai_2.mapparser.contract import MapParser, MapScope
@@ -31,7 +31,9 @@ class ElementFirstInterpreter:
         return Situation(
             frame.seq,
             Screen(judgment.screen.value),
+            auto=None if judgment.auto is None else AutoMode(judgment.auto.value),
             phase=None if judgment.phase is None else Phase(judgment.phase.value),
+            unit_list=None if judgment.unit_list is None else UnitList(judgment.unit_list.value),
             turn=judgment.turn,
             map=None if reading is None else seen_map(reading),
         )
