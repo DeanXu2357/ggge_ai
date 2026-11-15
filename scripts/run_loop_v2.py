@@ -1,12 +1,14 @@
 """Run one stage on the phone with the ggge_ai_2 agent.
 
 usage:
-  uv run python scripts/run_loop_v2.py --stage STAGE [--resurvey] [--serial R5CRC37JBYJ]
+  uv run python scripts/run_loop_v2.py --stage STAGE [--resurvey] [--keep-frames]
+      [--serial R5CRC37JBYJ]
 
 Start on the story stage list. --stage gives the id of the stage that the run enters.
 The run does not check the id. The anthropic client reads ANTHROPIC_API_KEY from the
 environment, and the stage store reads GGGE_DATABASE_URL. Evidence:
-data/runs/<timestamp>/run.log, steps.jsonl and frames/.
+data/runs/<timestamp>/run.log, steps.jsonl and frames/. With --keep-frames, stream/ holds
+every captured frame as <seq>.png and frames.csv gives the capture time of each seq.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ import logging
 import signal
 import subprocess
 import sys
+from contextlib import ExitStack
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -45,6 +48,8 @@ from ggge_ai_2.mapparser.opencv_parser import OpenCvMapParser
 from ggge_ai_2.screenmodel.definition_model import DefinitionScreenModel
 from ggge_ai_2.stagedata.store import PostgresStageStore
 from ggge_ai_2.stream.adb import AdbScreencapStream
+from ggge_ai_2.stream.contract import Stream
+from ggge_ai_2.stream.kept import KeptStream
 from ggge_ai_2.uisim.contract import Outcome, UiScreen, UiState
 from ggge_ai_2.uisim.stage_sim import StageUiSim
 from ggge_ai_2.uisim.stages import load_stages
@@ -84,6 +89,11 @@ def parse_args() -> argparse.Namespace:
         "--trace-plans",
         action="store_true",
         help="write the input and the output of each plan step to run.log",
+    )
+    parser.add_argument(
+        "--keep-frames",
+        action="store_true",
+        help="keep every captured frame and its capture time in the stream directory of the run",
     )
     parser.add_argument(
         "--auto-checked",
@@ -192,7 +202,9 @@ def main() -> int:
             Random(),
             args.auto_checked,
         )
-        return play(args.serial, interpreter, fallback, uisim, survey, args.trace_plans)
+        return play(
+            args.serial, interpreter, fallback, uisim, survey, args.trace_plans, args.keep_frames
+        )
 
 
 def play(
@@ -202,6 +214,7 @@ def play(
     uisim: StageUiSim,
     survey: StageSurvey,
     trace_plans: bool,
+    keep_frames: bool,
 ) -> int:
     run_dir = Path("data/runs") / datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir.mkdir(parents=True)
@@ -219,34 +232,38 @@ def play(
             "resurvey": survey.resurvey,
         },
     )
-    agent = Agent(
-        stream=AdbScreencapStream(serial),
-        actuator=AdbActuator(serial),
-        interpreter=interpreter,
-        fallback=fallback,
-        uisim=uisim,
-        plan_controller=StagePlanController(UiScreen.DROP_REWARD_RESULT, uisim, SCREEN, survey),
-        belief=Belief(
-            ui=UiState(UiScreen.STORY_STAGE_LIST),
-            ui_basis=UiBasis(UiSource.ASSUMED),
-            domain=NullDomain(),
-            as_of=None,
-        ),
-        stop=stop,
-        runlog=RunLog(run_dir),
-    )
-    clear = run_phase(agent)
-    print(f"phase 1 (to {UiScreen.DROP_REWARD_RESULT}): {clear}")
-    back = None
-    if clear is RunResult.DONE:
-        agent = replace(
-            agent,
-            plan_controller=StagePlanController(UiScreen.STORY_STAGE_LIST, uisim, SCREEN),
-            belief=agent.belief,
-            stop=agent.stop,
+    stream: Stream = AdbScreencapStream(serial)
+    with ExitStack() as stack:
+        if keep_frames:
+            stream = stack.enter_context(KeptStream(stream, run_dir / "stream"))
+        agent = Agent(
+            stream=stream,
+            actuator=AdbActuator(serial),
+            interpreter=interpreter,
+            fallback=fallback,
+            uisim=uisim,
+            plan_controller=StagePlanController(UiScreen.DROP_REWARD_RESULT, uisim, SCREEN, survey),
+            belief=Belief(
+                ui=UiState(UiScreen.STORY_STAGE_LIST),
+                ui_basis=UiBasis(UiSource.ASSUMED),
+                domain=NullDomain(),
+                as_of=None,
+            ),
+            stop=stop,
+            runlog=RunLog(run_dir),
         )
-        back = run_phase(agent)
-        print(f"phase 2 (to {UiScreen.STORY_STAGE_LIST}): {back}")
+        clear = run_phase(agent)
+        print(f"phase 1 (to {UiScreen.DROP_REWARD_RESULT}): {clear}")
+        back = None
+        if clear is RunResult.DONE:
+            agent = replace(
+                agent,
+                plan_controller=StagePlanController(UiScreen.STORY_STAGE_LIST, uisim, SCREEN),
+                belief=agent.belief,
+                stop=agent.stop,
+            )
+            back = run_phase(agent)
+            print(f"phase 2 (to {UiScreen.STORY_STAGE_LIST}): {back}")
     print(f"run directory: {run_dir}")
     return 0 if clear is RunResult.DONE and back is RunResult.DONE else 1
 
