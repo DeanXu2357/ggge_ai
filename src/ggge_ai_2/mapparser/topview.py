@@ -5,8 +5,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-from ggge_ai_2.mapparser.contract import ViewCell
-from ggge_ai_2.mapparser.hud import Rect, outside
+from ggge_ai_2.mapparser.contract import Rect, ViewCell
 from ggge_ai_2.mapparser.lattice import Lattice
 
 # The top view has CELL x CELL pixels in each cell at every zoom level.
@@ -72,3 +71,13 @@ def top_view(image: np.ndarray, lattice: Lattice, rects: tuple[Rect, ...]) -> To
     shown = cv2.warpPerspective(mask, to_frame @ to_cells, size, flags=cv2.INTER_NEAREST | inverse)
     white = view.min(axis=2).astype(np.float32)
     return TopView(view, white, shown > 0, first_column, first_row)
+
+
+def outside(image: np.ndarray, rects: tuple[Rect, ...], margin: int) -> np.ndarray:
+    """Return the mask of the pixels outside the occluded rectangles grown by the margin."""
+    outside = np.ones(image.shape[:2], bool)
+    for left, top, right, bottom in rects:
+        outside[max(top - margin, 0) : bottom + margin, max(left - margin, 0) : right + margin] = (
+            False
+        )
+    return outside

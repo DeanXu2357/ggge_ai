@@ -40,6 +40,21 @@ class ModelElement(StrEnum):
     UNIT_DETAIL_BOX_PARTS = "unit_detail_box_parts"
     UNIT_DETAIL_BOX_PILOT_SKILLS = "unit_detail_box_pilot_skills"
     UNIT_DETAIL_BOX_PILOT_ABILITIES = "unit_detail_box_pilot_abilities"
+    MENU_KEY = "menu_key"
+    END_TURN_BUTTON = "end_turn_button"
+    CHANGE_DEPLOY_BUTTON = "change_deploy_button"
+    PROMPT = "prompt"
+    UNIT_CARD = "unit_card"
+    BACK_BUTTON = "back_button"
+    STANDBY_BUTTON = "standby_button"
+    SKILL_BUTTON = "skill_button"
+    SWITCH_TARGET_BUTTON = "switch_target_button"
+    SWITCH_UNIT_ARROWS = "switch_unit_arrows"
+    CHOICE_BUTTON = "choice_button"
+    PILOT_ROW = "pilot_row"
+    LEFT_UNIT_PANEL = "left_unit_panel"
+    RIGHT_UNIT_PANEL = "right_unit_panel"
+    DESCRIPTION_PANEL = "description_panel"
 
 
 class ModelPhase(StrEnum):

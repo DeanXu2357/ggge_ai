@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
 
 from ggge_ai_2.mapparser.contract import TapMarkReading, Terrain, ViewCell
-from ggge_ai_2.mapparser.hud import TEMPLATES
 from ggge_ai_2.mapparser.lattice import Lattice
 from ggge_ai_2.mapparser.region import Region
 
-TERRAIN_TEMPLATES = TEMPLATES / "terrain"
+TERRAIN_TEMPLATES = (
+    Path(__file__).resolve().parents[3] / "assets" / "templates" / "mapparser" / "terrain"
+)
 
 # The terrain box and its triangle are screen UI of a fixed size. All positions are in
 # frame pixels from the tip of the triangle. The values come from the ruled frames

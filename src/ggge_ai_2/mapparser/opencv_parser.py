@@ -13,7 +13,6 @@ from ggge_ai_2.mapparser.contract import (
     Marker,
     ViewCell,
 )
-from ggge_ai_2.mapparser.hud import Rect, hud_rects
 from ggge_ai_2.mapparser.lattice import Lattice, read_lattice
 from ggge_ai_2.mapparser.markers import enemy_move_range, read_markers
 from ggge_ai_2.mapparser.region import Region, read_region
@@ -30,8 +29,8 @@ class OpenCvMapParser:
         read = _read(frame.image, scope)
         if read is None:
             return None
-        lattice, rects, view, border, region = read
-        units, cells = read_units(frame.image, lattice, rects, view)
+        lattice, view, border, region = read
+        units, cells = read_units(frame.image, lattice, scope.occluded, view, scope.chevrons)
         markers = read_markers(frame.image, view, sorted(region.lattice_cells))
         enemy = next((unit for unit in units if unit.enemy_selected), None)
         if enemy is not None:
@@ -40,8 +39,6 @@ class OpenCvMapParser:
             occupied = {cell for cell, value in cells.items() if value is CellReading.OCCUPIED}
             for cell in enemy_move_range(view, region.lattice_cells) - occupied:
                 markers[cell] = markers[cell] | {Marker.ENEMY_MOVE_RANGE}
-        if not scope.chevrons:
-            units = tuple(replace(unit, controllable=None) for unit in units)
         return MapReading(
             cells={region.to_view(cell): cells[cell] for cell in region.lattice_cells},
             borders=border.edges(),
@@ -61,18 +58,13 @@ class OpenCvMapParser:
         )
 
 
-def _read(
-    image: np.ndarray, scope: MapScope
-) -> tuple[Lattice, tuple[Rect, ...], TopView, Border, Region] | None:
+def _read(image: np.ndarray, scope: MapScope) -> tuple[Lattice, TopView, Border, Region] | None:
     lattice = read_lattice(image)
     if lattice is None:
         return None
-    # Warning: 'hud_rects' is a bridge until the element detectors cover the HUD (task B2
-    # of roadmap section 8.14). Delete it then and use only 'scope.occluded'.
-    rects = hud_rects(image) + scope.occluded
-    view = top_view(image, lattice, rects)
+    view = top_view(image, lattice, scope.occluded)
     border = read_border(view)
-    return lattice, rects, view, border, read_region(lattice, rects, border)
+    return lattice, view, border, read_region(lattice, scope.occluded, border)
 
 
 def _place(lattice: Lattice, cell: ViewCell) -> CellPlace:

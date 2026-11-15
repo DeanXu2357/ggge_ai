@@ -3,13 +3,25 @@ from __future__ import annotations
 import functools
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
 
-from ggge_ai_2.mapparser.contract import Marker, ViewCell
-from ggge_ai_2.mapparser.hud import BACK, PREP_LIST, SWITCH_UNIT, template_match
+from ggge_ai_2.mapparser.contract import Marker, Rect, ViewCell
 from ggge_ai_2.mapparser.topview import CELL, TopView
+
+TEMPLATES = Path(__file__).resolve().parents[3] / "assets" / "templates" / "mapparser"
+# The buttons tell the screens with markers apart. A button shows when its template
+# matches within BUTTON_MARGIN of its place.
+BUTTON_MARGIN = 16
+BACK: Rect = (1765, 930, 1845, 1015)
+PREP_LIST: Rect = (440, 898, 760, 948)
+SWITCH_UNIT: Rect = (200, 895, 260, 965)
+BUTTON_SCORE = 0.7
+# The arrows are thin lines over the map, so the match score stays lower than for the
+# other buttons.
+SWITCH_UNIT_SCORE = 0.5
 
 SIDE_SPAN = (0.3, 0.7)
 SIDE_DEPTH = 0.38
@@ -70,16 +82,15 @@ def read_markers(
     cells = tuple(cells)
     found: dict[ViewCell, frozenset[Marker]] = dict.fromkeys(cells, frozenset())
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    shown = {
-        panel
-        for panel in (BACK, PREP_LIST, SWITCH_UNIT)
-        if template_match(gray, panel)[0] >= panel.threshold
-    }
-    if BACK not in shown or PREP_LIST in shown or not cells:
+    if (
+        not _shown(gray, "back", BACK, BUTTON_SCORE)
+        or _shown(gray, "prep_list", PREP_LIST, BUTTON_SCORE)
+        or not cells
+    ):
         return found
     # The enemy range on the overview has the same red tint as the weapon range.
     # Only the weapon screens show the back button without the switching-unit arrows.
-    weapon_screen = SWITCH_UNIT not in shown
+    weapon_screen = not _shown(gray, "switch_unit", SWITCH_UNIT, SWITCH_UNIT_SCORE)
     for cell in cells:
         tile, white, visible = view.cell(cell)
         markers: set[Marker] = set()
@@ -91,6 +102,24 @@ def read_markers(
             markers.add(Marker.WEAPON_RANGE)
         found[cell] = frozenset(markers)
     return found
+
+
+def _shown(gray: np.ndarray, name: str, place: Rect, threshold: float) -> bool:
+    left, top, right, bottom = place
+    window = gray[
+        top - BUTTON_MARGIN : bottom + BUTTON_MARGIN, left - BUTTON_MARGIN : right + BUTTON_MARGIN
+    ]
+    _, best, _, _ = cv2.minMaxLoc(cv2.matchTemplate(window, _button(name), cv2.TM_CCOEFF_NORMED))
+    return best >= threshold
+
+
+@functools.cache
+def _button(name: str) -> np.ndarray:
+    path = TEMPLATES / f"{name}.png"
+    template = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    if template is None:
+        raise FileNotFoundError(path)
+    return np.asarray(template)
 
 
 @functools.cache
