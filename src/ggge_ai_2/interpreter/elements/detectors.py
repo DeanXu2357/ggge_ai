@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ggge_ai_2.interpreter.elements.attack_banner import attack_banner
 from ggge_ai_2.interpreter.elements.auto_key import AUTO_RECT, auto_mode
 from ggge_ai_2.interpreter.elements.battle_hud import (
     BACK_BOX,
@@ -231,6 +230,5 @@ DETECTORS: tuple[ElementDetector, ...] = (
     PlaceDetector(ModelElement.PILOT_ROW, pilot_row),
     PlaceDetector(ModelElement.LEFT_UNIT_PANEL, left_unit_panel),
     PlaceDetector(ModelElement.RIGHT_UNIT_PANEL, right_unit_panel),
-    PlaceDetector(ModelElement.ATTACK_BANNER, attack_banner),
     PlaceDetector(ModelElement.DESCRIPTION_PANEL, description_panel),
 )

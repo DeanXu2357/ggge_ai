@@ -54,7 +54,6 @@ class ModelElement(StrEnum):
     PILOT_ROW = "pilot_row"
     LEFT_UNIT_PANEL = "left_unit_panel"
     RIGHT_UNIT_PANEL = "right_unit_panel"
-    ATTACK_BANNER = "attack_banner"
     DESCRIPTION_PANEL = "description_panel"
 
 

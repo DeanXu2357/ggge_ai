@@ -23,7 +23,6 @@ BACK = (1805, 970)
 ACTION = (2060, 918)
 SWITCH_UNIT = (230, 930)
 INFO_PANEL = (1870, 410)
-PREP_BANNER = (1170, 170)
 PREP_PILOTS = (960, 950)
 # The card row closes, so the prompt and the unit list button move down by 235 px.
 CLOSED_PROMPT = (400, 1005)
@@ -39,16 +38,16 @@ SHOWN: dict[str, tuple[ScreenPoint, ...]] = {
     "battle_prep_response_attack": (ACTION, PREP_PILOTS),
 }
 HIDDEN: dict[str, tuple[ScreenPoint, ...]] = {
-    "player_phase_overview": (ACTION, INFO_PANEL, PREP_BANNER),
-    "select_action_in_battle": (END_TURN, SECOND_CARD, INFO_PANEL, PREP_BANNER),
-    "select_skill_in_battle": (SECOND_CARD, PREP_BANNER),
-    "select_weapon_in_battle": (SECOND_CARD, PREP_BANNER),
-    "select_weapon_in_battle_response": (SECOND_CARD, PREP_BANNER),
+    "player_phase_overview": (ACTION, INFO_PANEL),
+    "select_action_in_battle": (END_TURN, SECOND_CARD, INFO_PANEL),
+    "select_skill_in_battle": (SECOND_CARD,),
+    "select_weapon_in_battle": (SECOND_CARD,),
+    "select_weapon_in_battle_response": (SECOND_CARD,),
     "battle_prep_attack": (SECOND_CARD,),
     "battle_prep_response_attack": (SECOND_CARD,),
 }
 CLOSED_SHOWN = (END_TURN, CLOSED_PROMPT, CLOSED_UNIT_LIST)
-CLOSED_HIDDEN = (PROMPT, UNIT_LIST, SECOND_CARD, ACTION, INFO_PANEL, PREP_BANNER)
+CLOSED_HIDDEN = (PROMPT, UNIT_LIST, SECOND_CARD, ACTION, INFO_PANEL)
 # Only a card row of 11 cards reaches ACTION (roadmap section 8.10). These frames show
 # 11 cards.
 ELEVEN_CARDS = frozenset(f"map20261112-{index}" for index in range(26, 31))
@@ -88,23 +87,19 @@ def test_covers_the_panels_of_the_labeled_screen(case: Case) -> None:
         assert not covered(point, rects), point
 
 
-# On the battle prep screens, the attack banner shows between the unit panels. While the
-# player chooses a support action, the banner is gone and the description panel shows.
-PREP_PANELS = {
-    "rec20261014-648": ((PREP_BANNER,), (INFO_PANEL,)),
-    "rec20261014-882": ((PREP_BANNER,), (INFO_PANEL,)),
-    "rec20261014-1079": ((INFO_PANEL,), (PREP_BANNER,)),
+# On the battle prep screens, the description panel shows only while the player chooses a
+# support action.
+PREP_DESCRIPTION_PANEL = {
+    "rec20261014-648": False,
+    "rec20261014-882": False,
+    "rec20261014-1079": True,
 }
-PREP_CASES = [case for case in cases() if case.id in PREP_PANELS]
+PREP_CASES = [case for case in cases() if case.id in PREP_DESCRIPTION_PANEL]
 
 
 @pytest.mark.parametrize("case", PREP_CASES, ids=[case.id for case in PREP_CASES])
-def test_covers_the_banner_or_the_description_panel_on_battle_prep(case: Case) -> None:
-    rects = _occlusion(case)
-    shown, hidden = PREP_PANELS[case.id]
-
-    assert all(covered(point, rects) for point in shown)
-    assert not any(covered(point, rects) for point in hidden)
+def test_covers_the_description_panel_on_battle_prep(case: Case) -> None:
+    assert covered(INFO_PANEL, _occlusion(case)) is PREP_DESCRIPTION_PANEL[case.id]
 
 
 BATTLE_HUD = frozenset(
@@ -123,7 +118,6 @@ BATTLE_HUD = frozenset(
         ModelElement.PILOT_ROW,
         ModelElement.LEFT_UNIT_PANEL,
         ModelElement.RIGHT_UNIT_PANEL,
-        ModelElement.ATTACK_BANNER,
         ModelElement.DESCRIPTION_PANEL,
     }
 )
