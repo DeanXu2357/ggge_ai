@@ -7,7 +7,7 @@ from typing import ClassVar
 
 from ggge_ai_2.actuator.contract import Rect, ScreenPoint, Swipe
 from ggge_ai_2.agent.belief import Belief
-from ggge_ai_2.agent.contract import Evidence, MapTap, Step
+from ggge_ai_2.agent.contract import Evidence, MapReadingRecord, MapTap, Step
 from ggge_ai_2.agent.trace import traced
 from ggge_ai_2.agent.ui_steps import danger_rects, first_move, operation_step
 from ggge_ai_2.mapgeom.contract import (
@@ -87,7 +87,7 @@ class MapSyncPlanner:
         # The evidence only grows, so its length names it. The loop asks 'still_valid' and
         # 'next' on one evidence in each cycle, and a judgment joins every view again.
         if self._judged is None or self._judged[0] != len(records):
-            views = [view_of(record.reading, self.stage) for record in records]
+            views = [view_of(record, self.stage) for record in records]
             self._judged = (len(records), self.geometry.judge(views))
         return self._judged[1]
 
@@ -248,7 +248,8 @@ def _targets(judgment: MapJudgment, centre: MapCell) -> list[MapCell]:
     return unknown_briefs + unknown_control + open_sides + uncertain
 
 
-def view_of(reading: MapReading, stage: str) -> View:
+def view_of(record: MapReadingRecord, stage: str) -> View:
+    reading = record.reading
     units: list[ViewUnit] = []
     # mapgeom joins whole units only. A cut unit shows whole in a view from another place.
     for unit in (unit for unit in reading.units if not unit.cropped):
@@ -268,8 +269,8 @@ def view_of(reading: MapReading, stage: str) -> View:
         )
     return View(
         stage=stage,
-        turn=reading.turn,
-        phase=None if reading.phase is None else ViewPhase(reading.phase.value),
+        turn=record.turn,
+        phase=None if record.phase is None else ViewPhase(record.phase.value),
         cells={cell: CellSeen(seen.value) for cell, seen in reading.cells.items()},
         borders=frozenset(Side(edge.value) for edge in reading.borders),
         units=tuple(units),

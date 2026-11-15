@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-
-import numpy as np
-
-from ggge_ai_2.interpreter.contract import Screen
-from ggge_ai_2.interpreter.screens import (
+from ggge_ai_2.screenmodel.definition import ScreenDefinition
+from ggge_ai_2.screenmodel.screens import (
     battle_info_preview,
     battle_prep_attack,
     battle_prep_response_attack,
@@ -17,10 +13,8 @@ from ggge_ai_2.interpreter.screens import (
     unit_detail_summary,
 )
 
-type QuickCheck = Callable[[np.ndarray], bool]
-
-QUICK_CHECKS: Mapping[Screen, QuickCheck] = {
-    module.SCREEN: module.quick_check
+DEFINITIONS: tuple[ScreenDefinition, ...] = tuple(
+    module.DEFINITION
     for module in (
         player_phase_overview,
         select_action_in_battle,
@@ -32,4 +26,4 @@ QUICK_CHECKS: Mapping[Screen, QuickCheck] = {
         battle_info_preview,
         unit_detail_summary,
     )
-}
+)

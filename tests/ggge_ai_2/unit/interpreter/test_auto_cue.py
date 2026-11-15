@@ -2,9 +2,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from ggge_ai_2.interpreter.auto_cue import (
-    AUTO_SCREENS,
-    AutoCueInterpreter,
+from ggge_ai_2.interpreter.auto_cue import AUTO_SCREENS, AutoCueInterpreter
+from ggge_ai_2.interpreter.elements.auto_key import (
     auto_blue_fraction,
     auto_mode,
     auto_red_fraction,

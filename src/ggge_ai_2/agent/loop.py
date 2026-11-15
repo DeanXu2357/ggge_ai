@@ -12,7 +12,8 @@ from ggge_ai_2.agent.contract import Evidence, MapTap, Plan, PlanController, Ste
 from ggge_ai_2.agent.map_reading_history import MapReadingHistory
 from ggge_ai_2.agent.runlog import RunLog, StepRecord, thumbnail_name
 from ggge_ai_2.interpreter.contract import AutoMode, Interpreter, Screen, Situation
-from ggge_ai_2.mapparser.contract import MapParser
+from ggge_ai_2.agent.map_reading import map_reading
+from ggge_ai_2.mapparser.contract import MapReading
 from ggge_ai_2.stream.contract import Frame, StillWindow, Stream
 from ggge_ai_2.uisim.contract import (
     Observed,
@@ -64,7 +65,7 @@ class Agent[P: Plan]:
     stream: Stream
     actuator: Actuator
     interpreter: Interpreter
-    mapparser: MapParser
+    fallback: Interpreter
     uisim: UiSim
     plan_controller: PlanController[P]
     belief: Belief
@@ -74,6 +75,7 @@ class Agent[P: Plan]:
     _after: Instant = field(default=0.0, init=False)
     _frame: Frame | None = field(default=None, init=False)
     _situation: Situation | None = field(default=None, init=False)
+    _reading: MapReading | None = field(default=None, init=False)
     _outside_candidates: bool = field(default=False, init=False)
 
     def run(self) -> RunResult:
@@ -86,7 +88,7 @@ class Agent[P: Plan]:
             if sensed is None:
                 break
             if sensed.reading is not None:
-                self.map_readings.insert(sensed.still, sensed.reading)
+                self.map_readings.insert(sensed.still, sensed.reading, sensed.phase, sensed.turn)
             evidence = Evidence(self.map_readings.records)
             self.belief = self.belief.update(sensed, self.uisim)
 
@@ -142,11 +144,15 @@ class Agent[P: Plan]:
         candidates = self.candidates(self.belief)
         first = self._capture()
         first_situation = self.interpreter.interpret(first, candidates)
+        if first_situation is None:
+            first_situation = self.fallback.interpret(first, candidates)
         while True:
             if self.stop.is_set():
                 return None
             second = self._capture()
             situation = self.interpreter.interpret(second, candidates)
+            if situation is None:
+                situation = self.fallback.interpret(second, candidates)
             if _reading(situation) == _reading(first_situation):
                 break
             log.info(
@@ -176,7 +182,8 @@ class Agent[P: Plan]:
         passing = None if situation is None else PASSING_SCREENS.get(situation.screen)
         readable = screen_lock is None and passing is None
         observed = _situation_to_observed(situation) if readable else None
-        reading = self.mapparser.parse(second, None if situation is None else situation.screen)
+        reading = None if situation is None or situation.map is None else map_reading(situation.map)
+        self._reading = reading
         log.info(
             "sense",
             extra={
@@ -187,7 +194,15 @@ class Agent[P: Plan]:
                 "recognized": situation is not None,
             },
         )
-        return Sensed(still, observed, reading, screen_lock, passing)
+        return Sensed(
+            still,
+            observed,
+            reading,
+            screen_lock,
+            passing,
+            None if situation is None else situation.phase,
+            None if situation is None else situation.turn,
+        )
 
     def candidates(self, belief: Belief) -> frozenset[Screen]:
         if belief.ui_basis.source is not UiSource.SEEN:
@@ -238,12 +253,11 @@ class Agent[P: Plan]:
             log.info("wait", extra={"step": name})
             return Dispatch(at, at)
         if isinstance(gesture, MapTap):
-            assert self._frame is not None, "a cycle acts only after sense returns a frame"
-            point = self.mapparser.locate(self._frame, gesture.cell)
-            if point is None:
+            place = None if self._reading is None else self._reading.places.get(gesture.cell)
+            if place is None:
                 log.info("cell not tappable", extra={"step": name, "cell": gesture.cell})
                 return None
-            gesture = Tap(point)
+            gesture = Tap(place.center)
         try:
             dispatch = self.actuator.dispatch(gesture, step.band)
         except GestureBlocked:

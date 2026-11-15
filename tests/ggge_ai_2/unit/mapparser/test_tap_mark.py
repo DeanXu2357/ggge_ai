@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 
-from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.mapparser.border import read_border
 from ggge_ai_2.mapparser.contract import ViewCell
 from ggge_ai_2.mapparser.hud import hud_rects
@@ -10,6 +9,7 @@ from ggge_ai_2.mapparser.opencv_parser import OpenCvMapParser
 from ggge_ai_2.mapparser.region import read_region
 from ggge_ai_2.mapparser.topview import top_view
 from ggge_ai_2.stream.contract import Frame
+from tests.ggge_ai_2.unit.mapparser.scope import scope_of
 from tests.ggge_ai_2.dataset import Case, cases, load_image
 
 PARSER = OpenCvMapParser()
@@ -28,7 +28,7 @@ def _ruled_cell(image: np.ndarray, point: tuple[int, int]) -> ViewCell | None:
 @pytest.mark.parametrize("case", RULED, ids=[case.id for case in RULED])
 def test_reads_the_tap_mark_that_the_user_ruled(case: Case) -> None:
     image = load_image(case)
-    reading = PARSER.parse(Frame(image, 0.0, 0), Screen(case.screen))
+    reading = PARSER.parse(Frame(image, 0.0, 0), scope_of(case))
     label = case.tap_mark
     cell = None if label is None else _ruled_cell(image, label.point)
 

@@ -38,8 +38,8 @@ def belief() -> Belief:
 
 
 def evidence() -> Evidence:
-    reading = MapReading(None, 1, None, {}, frozenset(), (), {}, None, None)
-    return Evidence((MapReadingRecord(StillWindow(1.0, 2.0, 7), reading),))
+    reading = MapReading({}, frozenset(), (), {}, {}, None, None)
+    return Evidence((MapReadingRecord(StillWindow(1.0, 2.0, 7), reading, None, None),))
 
 
 def test_the_trace_logs_the_input_and_the_output_of_next(caplog: pytest.LogCaptureFixture):

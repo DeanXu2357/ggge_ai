@@ -7,12 +7,13 @@ from typing import Protocol
 
 import numpy as np
 
-from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.stream.contract import Frame
 
+# A rectangle is (left, top, right, bottom) in frame pixels. Right and bottom are excluded.
+Rect = tuple[int, int, int, int]
 ScreenPoint = tuple[int, int]
-# A cell is (column, row) of a map cell that the frame shows whole and the HUD does not
-# cover. (0, 0) is the top-left corner of the box around these cells.
+# A cell is (column, row) of a map cell that the frame shows whole and that no occluded
+# rectangle covers. (0, 0) is the top-left corner of the box around these cells.
 ViewCell = tuple[int, int]
 
 
@@ -29,11 +30,6 @@ class Edge(StrEnum):
     RIGHT = "right"
 
 
-class MapPhase(StrEnum):
-    PLAYER = "player"
-    NON_PLAYER = "non_player"
-
-
 class Marker(StrEnum):
     MOVE_RANGE = "move_range"
     THREAT = "threat"
@@ -48,12 +44,13 @@ class UnitReading:
     # outside the frame.
     pos: ViewCell
     size: tuple[int, int]
-    # None when the frame does not show the place of the chevron above the unit.
+    # None when the scope does not ask for the chevrons, or the frame does not show the
+    # place of the chevron above the unit.
     controllable: bool | None
     selected: bool
     enemy_selected: bool
-    # True when a cell of the footprint is not a readable cell: the HUD or the frame edge
-    # cuts the unit. Its readable cells are occupied, but the frame does not show the
+    # True when a cell of the footprint is not a readable cell: an occluded rectangle or the
+    # frame edge cuts the unit. Its readable cells are occupied, but the frame does not show the
     # whole unit.
     cropped: bool = False
 
@@ -125,15 +122,21 @@ class TapMarkReading:
 
 
 @dataclass(frozen=True)
+class CellPlace:
+    center: ScreenPoint
+    # Top left, top right, bottom right, bottom left. The camera tilts down, so a cell is a
+    # trapezoid on the screen.
+    corners: tuple[ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint]
+
+
+@dataclass(frozen=True)
 class MapReading:
-    # Each of 'stage', 'turn' and 'phase' is None when the frame does not show it.
-    stage: str | None
-    turn: int | None
-    phase: MapPhase | None
     cells: Mapping[ViewCell, CellReading]
     borders: frozenset[Edge]
     units: tuple[UnitReading, ...]
     markers: Mapping[ViewCell, frozenset[Marker]]
+    # The place on the screen of each readable cell in this frame.
+    places: Mapping[ViewCell, CellPlace]
     # The panel of the selected unit at the top right.
     panel: UnitPanel | None
     # The panel of the selected enemy at the top left.
@@ -142,15 +145,13 @@ class MapReading:
     tap_mark: TapMarkReading | None = None
 
 
+@dataclass(frozen=True)
+class MapScope:
+    occluded: tuple[Rect, ...]
+    chevrons: bool
+
+
 class MapParser(Protocol):
-    def parse(self, frame: Frame, screen: Screen | None) -> MapReading | None:
-        """Return None when the parser reads no map on the screen, or the frame has no
-        readable grid.
-
-        'screen' is the screen that the interpreter recognized, or None.
-        """
-        ...
-
-    def locate(self, frame: Frame, cell: ViewCell) -> ScreenPoint | None:
-        """Return None when the cell is not in the tappable part of this frame."""
+    def parse(self, frame: Frame, scope: MapScope) -> MapReading | None:
+        """Return None when the frame has no readable grid."""
         ...

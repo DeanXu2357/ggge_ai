@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Protocol, Self
 
+from ggge_ai_2.interpreter.contract import Phase
 from ggge_ai_2.mapparser.contract import MapReading
 from ggge_ai_2.stream.contract import StillWindow
 from ggge_ai_2.uisim.contract import Observed, Outcome, UiSim, UiState
@@ -42,6 +43,8 @@ class Sensed:
     reading: MapReading | None
     screen_lock: ScreenLock | None = None
     passing: Passing | None = None
+    phase: Phase | None = None
+    turn: int | None = None
 
 
 @dataclass(frozen=True)

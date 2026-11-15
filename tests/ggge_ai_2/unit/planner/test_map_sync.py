@@ -11,6 +11,7 @@ import pytest
 from ggge_ai_2.actuator.contract import Swipe
 from ggge_ai_2.agent.belief import Belief, UiBasis, UiSource
 from ggge_ai_2.agent.contract import Evidence, MapReadingRecord, MapTap, Step
+from ggge_ai_2.interpreter.contract import Phase
 from ggge_ai_2.mapgeom.contract import (
     CellSeen,
     Faction,
@@ -24,7 +25,6 @@ from ggge_ai_2.mapgeom.stitch import StitchMapGeometry
 from ggge_ai_2.mapparser.contract import (
     CellReading,
     Edge,
-    MapPhase,
     MapReading,
     MechPanel,
     NameTemplate,
@@ -69,6 +69,10 @@ def unit(
     return UnitReading(pos, (1, 1), controllable, selected, enemy_selected, cropped)
 
 
+def record(item: MapReading) -> MapReadingRecord:
+    return MapReadingRecord(still(1.0), item, None, None)
+
+
 def reading(
     units: tuple[UnitReading, ...] = (),
     panel_right: UnitPanel | None = None,
@@ -80,20 +84,12 @@ def reading(
         cells[item.pos] = CellReading.OCCUPIED
     cells[(3, 2)] = CellReading.UNREADABLE
     return MapReading(
-        None,
-        1,
-        MapPhase.PLAYER,
-        cells,
-        frozenset({Edge.LEFT, Edge.TOP}),
-        units,
-        {},
-        panel_right,
-        panel_left,
+        cells, frozenset({Edge.LEFT, Edge.TOP}), units, {}, {}, panel_right, panel_left
     )
 
 
-def test_a_view_keeps_the_cells_the_borders_and_the_phase_of_the_reading():
-    view = view_of(reading(), STAGE)
+def test_a_view_keeps_the_cells_the_borders_the_phase_and_the_turn_of_the_record():
+    view = view_of(MapReadingRecord(still(1.0), reading(), Phase.PLAYER, 1), STAGE)
 
     assert (view.stage, view.turn, view.phase) == (STAGE, 1, ViewPhase.PLAYER)
     assert view.borders == frozenset({Side.LEFT, Side.TOP})
@@ -105,7 +101,9 @@ def test_a_view_keeps_the_cells_the_borders_and_the_phase_of_the_reading():
 
 def test_the_left_panel_goes_to_the_enemy_selected_unit_as_an_enemy_brief():
     enemy = panel(1)
-    view = view_of(reading((unit((1, 1), enemy_selected=True), unit((2, 0))), None, enemy), STAGE)
+    view = view_of(
+        record(reading((unit((1, 1), enemy_selected=True), unit((2, 0))), None, enemy)), STAGE
+    )
 
     selected, other = view.units
     assert (selected.pos, selected.faction) == ((1, 1), Faction.ENEMY)
@@ -127,7 +125,9 @@ def test_the_left_panel_goes_to_the_enemy_selected_unit_as_an_enemy_brief():
 
 
 def test_the_right_panel_goes_to_the_selected_unit_without_a_faction():
-    view = view_of(reading((unit((0, 1), controllable=True, selected=True),), panel(2)), STAGE)
+    view = view_of(
+        record(reading((unit((0, 1), controllable=True, selected=True),), panel(2))), STAGE
+    )
 
     [selected] = view.units
     assert selected.faction is None
@@ -135,13 +135,13 @@ def test_the_right_panel_goes_to_the_selected_unit_without_a_faction():
 
 
 def test_a_view_leaves_out_a_unit_that_the_frame_cuts():
-    view = view_of(reading((unit((2, 0)), unit((0, 1), cropped=True))), STAGE)
+    view = view_of(record(reading((unit((2, 0)), unit((0, 1), cropped=True)))), STAGE)
 
     assert view.units == (ViewUnit((2, 0), (1, 1), False, None, None),)
 
 
 def test_a_panel_without_its_unit_on_the_map_is_dropped():
-    view = view_of(reading((unit((2, 0)),), None, panel(3)), STAGE)
+    view = view_of(record(reading((unit((2, 0)),), None, panel(3))), STAGE)
 
     assert view.units == (ViewUnit((2, 0), (1, 1), False, None, None),)
 
@@ -155,7 +155,7 @@ def on(screen: UiScreen, at: float) -> Belief:
 
 
 def evidence(*readings: tuple[float, MapReading]) -> Evidence:
-    return Evidence(tuple(MapReadingRecord(still(at), item) for at, item in readings))
+    return Evidence(tuple(MapReadingRecord(still(at), item, None, None) for at, item in readings))
 
 
 class MockRandom(Random):
@@ -184,7 +184,7 @@ def board(
         cells[item.pos] = CellReading.OCCUPIED
     for cell in unreadable:
         cells[cell] = CellReading.UNREADABLE
-    return MapReading(None, 1, MapPhase.PLAYER, cells, borders, units, {}, None, enemy_panel)
+    return MapReading(cells, borders, units, {}, {}, None, enemy_panel)
 
 
 def swipe_of(step: Step) -> tuple[int, int]:
@@ -198,7 +198,7 @@ def full_map(units: tuple[UnitReading, ...], enemy_panel: UnitPanel | None) -> M
     for item in units:
         cells[item.pos] = CellReading.OCCUPIED
     borders = frozenset(Edge)
-    return MapReading(None, 1, MapPhase.PLAYER, cells, borders, units, {}, None, enemy_panel)
+    return MapReading(cells, borders, units, {}, {}, None, enemy_panel)
 
 
 def test_on_another_screen_the_planner_goes_back_to_the_overview():
