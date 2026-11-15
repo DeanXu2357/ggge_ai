@@ -87,10 +87,18 @@ CIRCLE_ON = 0.5
 RED_GLOW_HUES = ((0, 10), (165, 179))
 RED_GLOW_SATURATION = 25
 RED_GLOW_VALUE = 240
-# The circle is dashed and the sprite hides part of it, so a side shows glow in at most
-# about 0.8 of the angles. On the frames that the agent reads, a circle around a selected
-# enemy gives at least 0.36, and a cell without one gives at most 0.27.
-RED_CIRCLE_ON = 0.32
+# The circle is dashed and the sprite hides part of it, so a circle is fitted to the glow
+# around each cell. Bounds in cells, from 24 frames with a selected enemy of one cell and
+# 3556 other cells (ruled frames and run 20261115-213514): the circle of a selected enemy
+# has a radius of 0.626 to 0.636, a center within 0.09 of the expected center, and glow in
+# at least 5 of the 6 sectors on each side. Another cell with a radius in the bounds shows
+# glow in at most 3 sectors on a side.
+RED_RING_WINDOW = (0.45, 0.80)
+RED_RING_INLIER = 3.0
+RED_RING_CENTER_OFF = 0.1
+RED_RING_RADIUS = (0.615, 0.65)
+RED_RING_SECTOR = 30
+RED_RING_SECTORS = 5
 # The sprite of a wide unit can hide most of the red circle (map20261112-1, -4). The move
 # range of the selected enemy lies around its cell, so a weaker circle counts in a cell
 # near the center of the range. The value lies between the best circle share of a
@@ -302,7 +310,7 @@ def _enemy_selected(view: TopView, cells: frozenset[ViewCell]) -> _Footprint | N
     for low, high in RED_GLOW_HUES:
         red |= (hue >= low) & (hue <= high)
     glow = red & (saturation >= RED_GLOW_SATURATION) & (value >= RED_GLOW_VALUE)
-    circle = _red_circle(view, glow, cells, RED_CIRCLE_ON)
+    circle = _fitted_red_circle(view, glow & view.visible, cells)
     if circle is not None:
         return circle
     tinted = enemy_move_range(view, cells)
@@ -316,6 +324,69 @@ def _enemy_selected(view: TopView, cells: frozenset[ViewCell]) -> _Footprint | N
         if math.hypot(cell[0] - center_x, cell[1] - center_y) <= RANGE_CENTER_REACH
     )
     return _red_circle(view, glow, near, RED_CIRCLE_AT_CENTER)
+
+
+def _fitted_red_circle(
+    view: TopView, glow: np.ndarray, cells: frozenset[ViewCell]
+) -> _Footprint | None:
+    """Return the one-cell footprint whose surrounding glow fits the red circle, or None."""
+    inner, outer = (bound * CELL for bound in RED_RING_WINDOW)
+    reach = math.ceil(outer)
+    height, width = glow.shape
+    best: tuple[tuple[int, int], _Footprint | None] = ((0, 0), None)
+    for cell in sorted(cells):
+        left, top = view.origin(cell)
+        expected_x, expected_y = left + 0.5 * CELL, top + (1 - CIRCLE_RISE) * CELL
+        x_low, y_low = max(0, int(expected_x) - reach), max(0, int(expected_y) - reach)
+        x_high = min(width, int(expected_x) + reach + 1)
+        y_high = min(height, int(expected_y) + reach + 1)
+        if x_low >= x_high or y_low >= y_high:
+            continue
+        ys, xs = np.nonzero(glow[y_low:y_high, x_low:x_high])
+        xs = xs + x_low - expected_x
+        ys = ys + y_low - expected_y
+        distance = np.hypot(xs, ys)
+        keep = (distance >= inner) & (distance <= outer)
+        circle = _fit_circle(xs[keep], ys[keep])
+        if circle is None:
+            continue
+        center_x, center_y, radius, sectors = circle
+        if (
+            math.hypot(center_x, center_y) > RED_RING_CENTER_OFF * CELL
+            or not RED_RING_RADIUS[0] * CELL <= radius <= RED_RING_RADIUS[1] * CELL
+        ):
+            continue
+        left_sectors = sum(1 for sector in sectors if 90 <= sector * RED_RING_SECTOR < 270)
+        score = (min(left_sectors, len(sectors) - left_sectors), len(sectors))
+        if score[0] >= RED_RING_SECTORS and score > best[0]:
+            best = (score, _Footprint.square(cell, 1))
+    return best[1]
+
+
+def _fit_circle(
+    xs: np.ndarray, ys: np.ndarray
+) -> tuple[float, float, float, frozenset[int]] | None:
+    """Return the center, the radius and the sectors with inliers of the circle through the
+    points, or None for too few points. The second fit uses only the points within
+    RED_RING_INLIER pixels of the first circle."""
+    xs, ys = xs.astype(np.float64), ys.astype(np.float64)
+    if len(xs) < 20:
+        return None
+    center_x, center_y, radius = _least_squares_circle(xs, ys)
+    near = np.abs(np.hypot(xs - center_x, ys - center_y) - radius) <= RED_RING_INLIER
+    if near.sum() < 20:
+        return None
+    center_x, center_y, radius = _least_squares_circle(xs[near], ys[near])
+    near = np.abs(np.hypot(xs - center_x, ys - center_y) - radius) <= RED_RING_INLIER
+    angles = np.degrees(np.arctan2(ys[near] - center_y, xs[near] - center_x)) % 360
+    return center_x, center_y, radius, frozenset((angles // RED_RING_SECTOR).astype(int).tolist())
+
+
+def _least_squares_circle(xs: np.ndarray, ys: np.ndarray) -> tuple[float, float, float]:
+    system = np.column_stack([xs, ys, np.ones_like(xs)])
+    (a, b, c), *_ = np.linalg.lstsq(system, xs**2 + ys**2, rcond=None)
+    center_x, center_y = float(a) / 2, float(b) / 2
+    return center_x, center_y, math.sqrt(max(float(c) + center_x**2 + center_y**2, 0.0))
 
 
 def _red_circle(
