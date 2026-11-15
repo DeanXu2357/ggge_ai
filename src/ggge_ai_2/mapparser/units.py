@@ -72,7 +72,9 @@ CHEVRON_RISE = (0.3, 0.8)
 # The selection circle lies on the ground around the selected unit. In footprint widths,
 # its center is this far above the bottom edge, and the radii cover its glow. The angles
 # keep to the two sides, because the sprite hides the top and the ring lies at the bottom.
-CIRCLE_RISE = 0.7
+# The rise comes from the brightest ring on 17 frames with a selected enemy: the ring
+# centers 0.46 cells below the top edge of the cell (run 20261115-213514).
+CIRCLE_RISE = 0.54
 CIRCLE_RADII = (0.55, 0.62, 0.69)
 CIRCLE_ANGLES = np.radians(np.linspace(-60.0, 40.0, 11))
 GLOW_HUE = (95, 118)
@@ -85,7 +87,10 @@ CIRCLE_ON = 0.5
 RED_GLOW_HUES = ((0, 10), (165, 179))
 RED_GLOW_SATURATION = 25
 RED_GLOW_VALUE = 240
-RED_CIRCLE_ON = 0.7
+# The circle is dashed and the sprite hides part of it, so a side shows glow in at most
+# about 0.8 of the angles. On the frames that the agent reads, a circle around a selected
+# enemy gives at least 0.36, and a cell without one gives at most 0.27.
+RED_CIRCLE_ON = 0.32
 # The sprite of a wide unit can hide most of the red circle (map20261112-1, -4). The move
 # range of the selected enemy lies around its cell, so a weaker circle counts in a cell
 # near the center of the range. The value lies between the best circle share of a
