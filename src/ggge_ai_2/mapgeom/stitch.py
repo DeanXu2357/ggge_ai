@@ -16,7 +16,6 @@ from ggge_ai_2.mapgeom.contract import (
     MapUnit,
     NameMask,
     Side,
-    UnitBrief,
     UnitId,
     View,
     ViewUnit,
@@ -43,8 +42,9 @@ class _Group:
 
 
 class StitchMapGeometry:
-    """Join views by a shared tap mark, a common map border on both axes, a shared unit, or
-    the shape of the occupied cells, in this order.
+    """Join views by a shared tap mark, a common map border on both axes, or the shape of the
+    occupied cells, in this order. The brief of a unit is not join evidence: generic enemies
+    share every value of the brief.
 
     The lattice of one view is either all right or all wrong, so a view is trusted inside
     itself. Only the shift between two views needs evidence, and the map borders limit
@@ -115,16 +115,6 @@ def _join(
         pair = (border_shift[0] - old_x + new_x, border_shift[1] - old_y + new_y)
         if fits(pair, JOIN_AGREEMENT):
             return border_shift
-
-    unit_pairs = {
-        (a.pos[0] - b.pos[0], a.pos[1] - b.pos[1])
-        for a in old_view.units
-        for b in new_view.units
-        if _same_unit(a, b)
-    }
-    unit_fits = [pair for pair in unit_pairs if fits(pair, JOIN_AGREEMENT)]
-    if len(unit_fits) == 1:
-        return group_shift(unit_fits[0])
 
     shape_fits = [
         pair for pair in _shape_candidates(old_view, new_view) if fits(pair, SHAPE_AGREEMENT)
@@ -252,25 +242,6 @@ def _borders_hold(placed: Iterable[tuple[View, Shift]]) -> bool:
 def _extent(cells: Iterable[tuple[int, int]]) -> tuple[int, int, int, int]:
     xs, ys = zip(*cells, strict=True)
     return min(xs), min(ys), max(xs), max(ys)
-
-
-def _same_unit(a: ViewUnit, b: ViewUnit) -> bool:
-    if a.brief is None or b.brief is None or a.faction != b.faction:
-        return False
-    return _same_brief(a.brief, b.brief)
-
-
-def _same_brief(a: UnitBrief, b: UnitBrief) -> bool:
-    if (a.mech_role, a.hp, a.en, a.pilot_role, a.mp, a.mp_max) != (
-        b.mech_role,
-        b.hp,
-        b.en,
-        b.pilot_role,
-        b.mp,
-        b.mp_max,
-    ):
-        return False
-    return same_name(a.mech_name, b.mech_name) and same_name(a.pilot_name, b.pilot_name)
 
 
 def same_name(a: NameMask | None, b: NameMask | None) -> bool:

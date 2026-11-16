@@ -190,24 +190,12 @@ def test_a_border_on_one_axis_breaks_a_tie_of_two_shapes():
     assert judgment.current == frozenset((x, y) for x in range(9) for y in range(2))
 
 
-def test_a_shared_unit_joins_sparse_views():
-    shared = brief(1)
+def test_units_with_the_same_brief_do_not_join_sparse_views():
+    # Generic enemies share the mech, the pilot and every value of the brief.
+    same = brief(1)
     views = [
-        cut(SPARSE, 0, 0, 12, 6, units=(ViewUnit((10, 2), (1, 1), None, Faction.ENEMY, shared),)),
-        cut(SPARSE, 8, 0, 12, 6, units=(ViewUnit((2, 2), (1, 1), None, Faction.ENEMY, shared),)),
-    ]
-
-    judgment = StitchMapGeometry().judge(views)
-
-    assert judgment is not None
-    assert judgment.cells == occupancy(SPARSE)
-    assert judgment.columns.size() == 20
-
-
-def test_two_different_units_do_not_join_sparse_views():
-    views = [
-        cut(SPARSE, 0, 0, 12, 6, units=(ViewUnit((10, 2), (1, 1), None, Faction.ENEMY, brief(1)),)),
-        cut(SPARSE, 8, 0, 12, 6, units=(ViewUnit((2, 2), (1, 1), None, Faction.ENEMY, brief(2)),)),
+        cut(SPARSE, 0, 0, 12, 6, units=(ViewUnit((10, 2), (1, 1), None, Faction.ENEMY, same),)),
+        cut(SPARSE, 8, 0, 12, 6, units=(ViewUnit((2, 2), (1, 1), None, Faction.ENEMY, same),)),
     ]
 
     judgment = StitchMapGeometry().judge(views)
