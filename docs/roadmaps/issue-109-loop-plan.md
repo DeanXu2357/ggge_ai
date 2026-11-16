@@ -1038,3 +1038,7 @@ agent.sense：PowerSaveCue(確定性 interpreter) → 回傳 None 時 → AutoCu
   9 張。點擊敵機後的過渡 frame 會把敵機那格讀成標記（frame 45、59、125、137、139、141）；之後的
   靜止 frame 都讀成 None，judgment 沒有用到。
 - 待做：planner 在視窗內的不確定格之間來回（#186 之後 `targets[0]` 就是視窗中心）。
+- ［確認］使用者裁定：復盤分析是 sidecar，不寫進 loop，也不預設執行。呼叫者在開了 `--trace-plans`
+  的 run 之後，自己用管線或 run 目錄啟動 `scripts/analyze_run.py`；用法記在
+  `docs/how-to/run-analysis.md`。plan trace 的讀值改存 JSON（`trace_json.py`），run 的 stage 行
+  記 planner 的種子，`code_version` 有未提交的改動時加 `-dirty`。
