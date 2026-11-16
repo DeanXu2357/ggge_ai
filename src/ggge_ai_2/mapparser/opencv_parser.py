@@ -54,7 +54,13 @@ class OpenCvMapParser:
             places={region.to_view(cell): _place(lattice, cell) for cell in region.lattice_cells},
             panel=read_panel(frame.image, SELECTED),
             enemy_panel=read_panel(frame.image, ENEMY),
-            tap_mark=read_tap_mark(frame.image, lattice, region),
+            tap_mark=read_tap_mark(
+                frame.image,
+                lattice,
+                region,
+                view,
+                frozenset(cell for cell, value in cells.items() if value is CellReading.EMPTY),
+            ),
         )
 
 

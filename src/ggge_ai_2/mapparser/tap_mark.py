@@ -10,10 +10,26 @@ import numpy as np
 from ggge_ai_2.mapparser.contract import TapMarkReading, Terrain, ViewCell
 from ggge_ai_2.mapparser.lattice import Lattice
 from ggge_ai_2.mapparser.region import Region
+from ggge_ai_2.mapparser.topview import CELL, TopView
 
 TERRAIN_TEMPLATES = (
     Path(__file__).resolve().parents[3] / "assets" / "templates" / "mapparser" / "terrain"
 )
+
+# The fill of the tapped cell is a translucent overlay: inside = share * FILL_COLOR +
+# (1 - share) * outside. Each side of the cell compares a strip inside with a strip outside,
+# in top view pixels from the side. FILL_COLOR is fitted to the ruled frames map20261112-5
+# to -34 and the frames of run 20261116-134032; a fitted channel can be above 255.
+FILL_COLOR = np.array([285.0, 211.0, 23.0])
+FILL_STRIP = (10, 20)
+FILL_SIDES_MIN = 3
+FILL_VISIBLE = 0.8
+# A strong fill counts alone. A weak fill counts only with the triangle above the cell: on
+# grass, a gray cell inside a red move range fits the overlay as well as a faint fill.
+FILL_SHARE_MIN = 0.18
+FILL_RESIDUAL_MAX = 0.6
+STRONG_SHARE_MIN = 0.3
+STRONG_RESIDUAL_MAX = 0.35
 
 # The terrain box and its triangle are screen UI of a fixed size. All positions are in
 # frame pixels from the tip of the triangle. The values come from the ruled frames
@@ -21,7 +37,8 @@ TERRAIN_TEMPLATES = (
 TRIANGLE = (33.0, 26.0)
 # The tip is this far above the middle of the top edge of the marked cell.
 TIP_ABOVE = 4.0
-TIP_SEARCH = 4
+# In run 20261116-134032 the tip was up to 6 px off the projected top edge, in x and in y.
+TIP_SEARCH = 8
 BOX_GAP = 11.0
 BOX_BOTTOM_HALF = 36.0
 BOX_SIDE_SPAN = (-88.0, -44.0)
@@ -89,26 +106,95 @@ BOX_BOTTOM_Y = -TRIANGLE[1] - BOX_GAP
 BOX_BOTTOM = _segment((-BOX_BOTTOM_HALF, BOX_BOTTOM_Y), (BOX_BOTTOM_HALF, BOX_BOTTOM_Y), 24, (0, 1))
 
 
-def read_tap_mark(image: np.ndarray, lattice: Lattice, region: Region) -> TapMarkReading | None:
+def read_tap_mark(
+    image: np.ndarray,
+    lattice: Lattice,
+    region: Region,
+    view: TopView,
+    empty: frozenset[ViewCell],
+) -> TapMarkReading | None:
+    """Return the tapped cell by its fill, and its terrain by the box above it.
+
+    'empty' holds the lattice cells without a unit; only an empty cell takes the mark.
+    """
     edges = _edges(image)
-    found = _find(edges, lattice, region)
-    if found is None:
+    marked: list[tuple[ViewCell, np.ndarray | None]] = []
+    for cell in sorted(region.lattice_cells & empty):
+        fill = _fill(view, cell)
+        if fill is None:
+            continue
+        share, residual = fill
+        if share < FILL_SHARE_MIN or residual > FILL_RESIDUAL_MAX:
+            continue
+        tip = _tip(edges, lattice, cell)
+        if tip is not None or (share >= STRONG_SHARE_MIN and residual <= STRONG_RESIDUAL_MAX):
+            marked.append((cell, tip))
+    if len(marked) != 1:
         return None
-    cell, tip = found
-    return TapMarkReading(region.to_view(cell), _terrain(image, edges, tip))
+    cell, tip = marked[0]
+    return TapMarkReading(
+        region.to_view(cell), None if tip is None else _terrain(image, edges, tip)
+    )
 
 
 def find_tip(image: np.ndarray, lattice: Lattice, region: Region) -> np.ndarray | None:
     """Return the tip of the triangle of the tap mark in frame pixels."""
-    found = _find(_edges(image), lattice, region)
-    return None if found is None else found[1]
+    edges = _edges(image)
+    tips = [
+        tip
+        for cell in sorted(region.lattice_cells)
+        if (tip := _tip(edges, lattice, cell)) is not None
+    ]
+    return tips[0] if len(tips) == 1 else None
 
 
-def _find(edges: _Edges, lattice: Lattice, region: Region) -> tuple[ViewCell, np.ndarray] | None:
-    if not region.lattice_cells:
+def _fill(view: TopView, cell: ViewCell) -> tuple[float, float] | None:
+    """Return the overlay share of the fill and the residual of the fit over the rise, or
+    None when fewer than FILL_SIDES_MIN sides show."""
+    left, top = view.origin(cell)
+    height, width = view.visible.shape
+    near, far = FILL_STRIP
+    along_x = slice(left + far, left + CELL - far)
+    along_y = slice(top + far, top + CELL - far)
+    spans = (
+        ((slice(top + near, top + far), along_x), (slice(top - far, top - near), along_x)),
+        (
+            (slice(top + CELL - far, top + CELL - near), along_x),
+            (slice(top + CELL + near, top + CELL + far), along_x),
+        ),
+        ((along_y, slice(left + near, left + far)), (along_y, slice(left - far, left - near))),
+        (
+            (along_y, slice(left + CELL - far, left + CELL - near)),
+            (along_y, slice(left + CELL + near, left + CELL + far)),
+        ),
+    )
+    rises: list[np.ndarray] = []
+    toward: list[np.ndarray] = []
+    for inner, outer in spans:
+        if min(span.start for span in (*inner, *outer)) < 0:
+            continue
+        if max(inner[0].stop, outer[0].stop) > height or max(inner[1].stop, outer[1].stop) > width:
+            continue
+        shown_in, shown_out = view.visible[inner], view.visible[outer]
+        if shown_in.mean() < FILL_VISIBLE or shown_out.mean() < FILL_VISIBLE:
+            continue
+        inside = view.image[inner][shown_in].astype(np.float32).mean(axis=0)
+        outside = view.image[outer][shown_out].astype(np.float32).mean(axis=0)
+        rises.append(inside - outside)
+        toward.append(FILL_COLOR - outside)
+    if len(rises) < FILL_SIDES_MIN:
         return None
-    cells = sorted(region.lattice_cells)
-    tops = np.array([lattice.project(column + 0.5, row) for column, row in cells])
+    rise: np.ndarray = np.array(rises)
+    base: np.ndarray = np.array(toward)
+    share = float((rise * base).sum()) / max(float((base * base).sum()), 1e-6)
+    left_over = float(np.sqrt(((rise - share * base) ** 2).sum()))
+    residual = left_over / max(float(np.sqrt((rise * rise).sum())), 1e-6)
+    return share, residual
+
+
+def _tip(edges: _Edges, lattice: Lattice, cell: ViewCell) -> np.ndarray | None:
+    """Return the tip of the triangle above the cell, or None."""
+    top = np.array(lattice.project(cell[0] + 0.5, cell[1]))
     shifts = np.array(
         [
             (dx, dy)
@@ -117,20 +203,20 @@ def _find(edges: _Edges, lattice: Lattice, region: Region) -> tuple[ViewCell, np
         ],
         float,
     )
-    candidates = tops[:, None] + np.array([0.0, -TIP_ABOVE]) + shifts[None]
+    candidates = (top + np.array([0.0, -TIP_ABOVE]) + shifts)[None]
     # The three sides share one shift along the normals and one sign of the gradient:
     # edges of a busy background match the slant of a side, but not one outline.
     scores = np.min(np.stack([_support(edges, candidates, side, SIDE_REACH) for side in SIDES]), 0)
-    triangle = scores.reshape(*scores.shape[:2], -1).max(axis=2)
-    best = triangle.argmax(axis=1)
-    tips = candidates[np.arange(len(cells)), best]
-    triangle = triangle[np.arange(len(cells)), best]
-    marked = [
-        index for index, tip in enumerate(tips) if _counts(edges, tip, float(triangle[index]))
-    ]
-    if len(marked) != 1:
-        return None
-    return cells[marked[0]], tips[marked[0]]
+    triangle = scores.reshape(len(shifts), -1).max(axis=1)
+    # A grid line next to the triangle can score higher at a shift without the box, so
+    # each shift is tried from the best down.
+    for index in np.argsort(-triangle, kind="stable"):
+        score = float(triangle[index])
+        if score < TRIANGLE_WITH_BOX:
+            return None
+        if _counts(edges, candidates[0, index], score):
+            return candidates[0, index]
+    return None
 
 
 def _counts(edges: _Edges, tip: np.ndarray, triangle: float) -> bool:
