@@ -17,6 +17,7 @@ from ggge_ai_2.mapgeom.contract import (
     Faction,
     PilotState,
     Side,
+    TapMark,
     UnitRole,
     ViewPhase,
     ViewUnit,
@@ -31,6 +32,7 @@ from ggge_ai_2.mapparser.contract import (
     NameTemplate,
     PanelIcon,
     PilotPanel,
+    TapMarkReading,
     UnitPanel,
     UnitReading,
 )
@@ -194,6 +196,17 @@ def swipe_of(step: Step) -> tuple[int, int]:
     return end_x - start_x, end_y - start_y
 
 
+def survey_swipe(plan: MapSyncPlanner, *readings: tuple[float, MapReading]) -> Step:
+    """Return the swipe of the planner. A tap on an empty cell before it gets its mark."""
+    at = readings[-1][0]
+    step = plan.next(on(OVERVIEW, at), evidence(*readings))
+    if step.name != "map_sync_tap_empty":
+        return step
+    assert isinstance(step.gesture, MapTap)
+    marked = replace(readings[-1][1], tap_mark=TapMarkReading(step.gesture.cell, None))
+    return plan.next(on(OVERVIEW, at + 1), evidence(*readings, (at + 1, marked)))
+
+
 def full_map(units: tuple[UnitReading, ...], enemy_panel: UnitPanel | None) -> MapReading:
     cells = {(x, y): CellReading.EMPTY for x in range(4) for y in range(3)}
     for item in units:
@@ -246,14 +259,14 @@ def test_the_planner_does_not_tap_a_unit_that_it_controls():
     ally = unit((1, 1), controllable=True)
     step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, reading((ally,)))))
 
-    assert not isinstance(step.gesture, MapTap)
+    assert step.name != "map_sync_tap_enemy"
 
 
 def test_the_planner_does_not_tap_a_unit_that_the_frame_cuts():
     cut = unit((1, 1), cropped=True)
     step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, reading((cut,)))))
 
-    assert not isinstance(step.gesture, MapTap)
+    assert step.name != "map_sync_tap_enemy"
 
 
 def test_the_planner_taps_the_enemy_again_while_its_panel_has_not_shown():
@@ -271,7 +284,7 @@ def test_the_planner_taps_the_enemy_again_while_its_panel_has_not_shown():
 def test_with_every_visible_enemy_known_the_planner_swipes_toward_an_open_side():
     known = reading((unit((1, 1), enemy_selected=True),), None, panel(4))
 
-    step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, known)))
+    step = survey_swipe(planner(), (1.0, known))
 
     assert isinstance(step.gesture, Swipe)
     (start_x, start_y), (end_x, end_y) = step.gesture.start, step.gesture.end
@@ -329,7 +342,7 @@ def test_the_planner_does_not_tap_the_selected_enemy_again():
 
     step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, selected)))
 
-    assert not isinstance(step.gesture, MapTap)
+    assert step.name != "map_sync_tap_enemy"
 
 
 def test_the_planner_swipes_toward_a_known_enemy_out_of_view():
@@ -338,7 +351,7 @@ def test_the_planner_swipes_toward_a_known_enemy_out_of_view():
     left = board(7, 4, (unit((0, 1)), *allies), side | {Edge.LEFT})
     right = board(7, 4, (unit((1, 0), True), unit((2, 3), True)), side | {Edge.RIGHT})
 
-    step = planner().next(on(OVERVIEW, 2.0), evidence((1.0, left), (2.0, right)))
+    step = survey_swipe(planner(), (1.0, left), (2.0, right))
 
     move_x, move_y = swipe_of(step)
     assert move_x > 0
@@ -348,7 +361,7 @@ def test_the_planner_swipes_toward_a_known_enemy_out_of_view():
 def test_with_both_axes_closed_the_planner_swipes_toward_an_uncertain_cell():
     hidden = board(4, 3, (unit((0, 0), True),), frozenset(Edge), unreadable=((3, 2),))
 
-    step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, hidden)))
+    step = survey_swipe(planner(), (1.0, hidden))
 
     move_x, move_y = swipe_of(step)
     assert move_x < 0
@@ -358,7 +371,7 @@ def test_with_both_axes_closed_the_planner_swipes_toward_an_uncertain_cell():
 def test_a_long_swipe_stays_inside_the_swipe_area():
     wide = board(30, 3, (unit((0, 0), True), unit((1, 2), True)), frozenset({Edge.LEFT}))
 
-    step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, wide)))
+    step = survey_swipe(planner(), (1.0, wide))
 
     assert isinstance(step.gesture, Swipe)
     assert step.gesture.end[0] == MapSyncPlanner.SWIPE_AREA.left
@@ -370,10 +383,11 @@ def test_after_a_view_that_joins_nothing_the_planner_swipes_back_within_the_jitt
 ):
     plan = planner(rng=MockRandom(pick))
     start = board(6, 3, (unit((0, 0), True), unit((2, 2), True)), frozenset({Edge.LEFT}))
-    first = plan.next(on(OVERVIEW, 1.0), evidence((1.0, start)))
+    first = survey_swipe(plan, (1.0, start))
+    marked = replace(start, tap_mark=TapMarkReading((5, 2), None))
     lost = board(6, 3, (unit((5, 1), True),))
 
-    back = plan.next(on(OVERVIEW, 2.0), evidence((1.0, start), (2.0, lost)))
+    back = plan.next(on(OVERVIEW, 3.0), evidence((1.0, start), (2.0, marked), (3.0, lost)))
 
     jitter = pick(-MapSyncPlanner.SWIPE_JITTER, MapSyncPlanner.SWIPE_JITTER)
     assert swipe_of(back) == (-swipe_of(first)[0] + jitter, -swipe_of(first)[1] + jitter)
@@ -386,6 +400,34 @@ def test_a_view_that_joins_nothing_before_any_swipe_makes_the_planner_wait():
     step = planner().next(on(OVERVIEW, 2.0), evidence((1.0, start), (2.0, lost)))
 
     assert step.name == "map_sync_wait"
+
+
+def test_before_a_swipe_the_planner_taps_an_empty_cell_that_stays_in_view():
+    start = board(6, 3, (unit((0, 0), True), unit((2, 2), True)), frozenset({Edge.LEFT}))
+
+    step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, start)))
+
+    assert step.name == "map_sync_tap_empty"
+    assert isinstance(step.gesture, MapTap)
+    assert start.cells[step.gesture.cell] is CellReading.EMPTY
+    assert step.expected[0].ui.screen is OVERVIEW
+
+
+def test_a_view_without_units_joins_by_the_mark_of_the_numbered_tap():
+    plan = planner()
+    start = board(6, 3, (unit((0, 0), True), unit((2, 2), True)), frozenset({Edge.LEFT}))
+    tap = plan.next(on(OVERVIEW, 1.0), evidence((1.0, start)))
+    assert isinstance(tap.gesture, MapTap)
+    marked = replace(start, tap_mark=TapMarkReading(tap.gesture.cell, None))
+    moved = board(6, 3)
+    moved = replace(moved, tap_mark=TapMarkReading((0, 1), None))
+
+    swipe = plan.next(on(OVERVIEW, 2.0), evidence((1.0, start), (2.0, marked)))
+    judgment = plan.judgment(evidence((1.0, start), (2.0, marked), (3.0, moved)))
+
+    assert isinstance(swipe.gesture, Swipe)
+    assert judgment is not None and judgment.current is not None
+    assert view_of(record(marked), STAGE, 1).tap_mark == TapMark(tap.gesture.cell, 1)
 
 
 def test_a_swipe_starts_on_the_empty_cell_nearest_the_centre():
@@ -404,7 +446,7 @@ def test_a_swipe_starts_on_the_empty_cell_nearest_the_centre():
         places=places,
     )
 
-    step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, occupied_centre)))
+    step = survey_swipe(planner(), (1.0, occupied_centre))
 
     assert isinstance(step.gesture, Swipe)
     # (2, 1) holds a unit and (2, 2) another; the empty cells next to the centre are nearest.

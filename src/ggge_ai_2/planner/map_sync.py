@@ -19,6 +19,7 @@ from ggge_ai_2.mapgeom.contract import (
     NameMask,
     PilotState,
     Side,
+    TapMark,
     UnitBrief,
     UnitRole,
     View,
@@ -83,6 +84,14 @@ class MapSyncPlanner:
     rng: Random
     _last_drag: tuple[int, int] | None = field(default=None, init=False)
     _judged: tuple[int, MapJudgment | None] | None = field(default=None, init=False)
+    # The planner numbers each tap on an empty cell. The reading after the tap must show the
+    # mark on the tapped cell; then each later reading that shows a mark carries the number
+    # until the next tap moves the mark or a tap on an enemy removes it.
+    _taps: int = field(default=0, init=False)
+    _pending_tap: tuple[tuple[int, int], int] | None = field(default=None, init=False)
+    _live_tap: int | None = field(default=None, init=False)
+    _record_taps: list[int | None] = field(default_factory=lambda: list[int | None](), init=False)
+    _tapped_before_swipe: bool = field(default=False, init=False)
 
     def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return not self.finished(evidence)
@@ -94,8 +103,18 @@ class MapSyncPlanner:
         records = evidence.map_readings[self.start :]
         # The evidence only grows, so its length names it. The loop asks 'still_valid' and
         # 'next' on one evidence in each cycle, and a judgment joins every view again.
+        while len(self._record_taps) < len(records):
+            mark = records[len(self._record_taps)].reading.tap_mark
+            if self._pending_tap is not None:
+                cell, tap = self._pending_tap
+                self._pending_tap = None
+                self._live_tap = tap if mark is not None and mark.cell == cell else None
+            self._record_taps.append(None if mark is None else self._live_tap)
         if self._judged is None or self._judged[0] != len(records):
-            views = [view_of(record, self.stage) for record in records]
+            views = [
+                view_of(record, self.stage, tap)
+                for record, tap in zip(records, self._record_taps, strict=True)
+            ]
             self._judged = (len(records), self.geometry.judge(views))
         return self._judged[1]
 
@@ -134,11 +153,30 @@ class MapSyncPlanner:
             return self._swipe(belief, latest, back)
         target = _tap_target(judgment, latest, _shift(judgment.current, latest.cells))
         if target is not None:
+            # A tap on an enemy removes the tap mark.
+            self._pending_tap, self._live_tap = None, None
             band = danger_rects(self.uisim, belief, self.screen)
             return Step("map_sync_tap_enemy", MapTap(target), band, self.TAP_DEADLINE, (belief,))
         move = _move(judgment, judgment.current)
         if move is None:
             return WAIT
+        # The views of an empty area hold no units to join by. A tap mark that stays in view
+        # across the swipe joins the next view to this one.
+        mark = latest.tap_mark
+        mark_stays = (
+            mark is not None
+            and self._record_taps[-1] is not None
+            and _readable(latest, (mark.cell[0] - move[0], mark.cell[1] - move[1]))
+        )
+        if not mark_stays and not self._tapped_before_swipe:
+            cell = _mark_cell(latest, move)
+            if cell is not None:
+                self._taps += 1
+                self._pending_tap = (cell, self._taps)
+                self._tapped_before_swipe = True
+                band = danger_rects(self.uisim, belief, self.screen)
+                return Step("map_sync_tap_empty", MapTap(cell), band, self.TAP_DEADLINE, (belief,))
+        self._tapped_before_swipe = False
         drag = (-move[0] * self.CELL_PIXELS, -move[1] * self.CELL_PIXELS)
         return self._swipe(belief, latest, drag)
 
@@ -226,6 +264,33 @@ def _tap_target(judgment: MapJudgment, latest: MapReading, shift: Move) -> tuple
     return None
 
 
+def _readable(reading: MapReading, cell: tuple[int, int]) -> bool:
+    return reading.cells.get(cell, CellReading.UNREADABLE) is not CellReading.UNREADABLE
+
+
+def _mark_cell(latest: MapReading, move: Move) -> tuple[int, int] | None:
+    """Return the empty cell to tap so that its mark stays readable after the move, nearest
+    to the middle of the view after the move, or None."""
+    readable = [cell for cell in latest.cells if _readable(latest, cell)]
+    if not readable:
+        return None
+    middle_x = (min(x for x, _ in readable) + max(x for x, _ in readable)) / 2
+    middle_y = (min(y for _, y in readable) + max(y for _, y in readable)) / 2
+    candidates = [
+        cell
+        for cell, seen in latest.cells.items()
+        if seen is CellReading.EMPTY and _readable(latest, (cell[0] - move[0], cell[1] - move[1]))
+    ]
+    return min(
+        candidates,
+        key=lambda cell: (
+            abs(cell[0] - move[0] - middle_x) + abs(cell[1] - move[1] - middle_y),
+            cell,
+        ),
+        default=None,
+    )
+
+
 def _move(judgment: MapJudgment, current: frozenset[MapCell]) -> Move | None:
     left, right = min(x for x, _ in current), max(x for x, _ in current)
     top, bottom = min(y for _, y in current), max(y for _, y in current)
@@ -271,7 +336,9 @@ def _targets(judgment: MapJudgment, centre: MapCell) -> list[MapCell]:
     return unknown_briefs + unknown_control + open_sides + uncertain
 
 
-def view_of(record: MapReadingRecord, stage: str) -> View:
+def view_of(record: MapReadingRecord, stage: str, tap: int | None = None) -> View:
+    """Return the view of the record. 'tap' is the number of the tap that put the mark of
+    the reading, or None when the mark is not from a numbered tap."""
     reading = record.reading
     units: list[ViewUnit] = []
     # mapgeom joins whole units only. A cut unit shows whole in a view from another place.
@@ -297,7 +364,9 @@ def view_of(record: MapReadingRecord, stage: str) -> View:
         cells={cell: CellSeen(seen.value) for cell, seen in reading.cells.items()},
         borders=frozenset(Side(edge.value) for edge in reading.borders),
         units=tuple(units),
-        tap_mark=None,
+        tap_mark=None
+        if tap is None or reading.tap_mark is None
+        else TapMark(reading.tap_mark.cell, tap),
     )
 
 
