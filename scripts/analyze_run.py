@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -110,9 +111,17 @@ def pass_through() -> Path | None:
     # Ctrl-C stops the run before it; this end of the pipe reads on until the run closes it.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     found = None
+    echo = True
     for line in sys.stdin:
-        sys.stdout.write(line)
-        sys.stdout.flush()
+        if echo:
+            try:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+            except BrokenPipeError:
+                # Ctrl-C also stops a reader after this one, such as 'tee'. The analysis
+                # still needs the run directory, so it reads on without the echo.
+                echo = False
+                sys.stdout = open(os.devnull, "w")  # noqa: SIM115
         if line.startswith("run directory: "):
             found = Path(line.removeprefix("run directory: ").strip())
     return found
