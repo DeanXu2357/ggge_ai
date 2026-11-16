@@ -124,14 +124,19 @@ def app_version(serial: str) -> str:
 
 
 def code_version() -> str:
-    result = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+    """Return the short commit hash, with '-dirty' when tracked files have changes."""
+    here = Path(__file__).resolve().parent
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, cwd=here
+    ).stdout.strip()[:8]
+    changes = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
         capture_output=True,
         text=True,
         check=True,
-        cwd=Path(__file__).resolve().parent,
-    )
-    return result.stdout.strip()[:8]
+        cwd=here,
+    ).stdout.strip()
+    return f"{head}-dirty" if changes else head
 
 
 def on_terminal(record: logging.LogRecord) -> bool:
@@ -192,6 +197,8 @@ def main() -> int:
     )
 
     versions = app_version(args.serial), code_version()
+    # The run log keeps the seed, so that a replay of the survey takes the same swipes.
+    seed = Random().getrandbits(32)
     with PostgresStageStore() as store:
         survey = StageSurvey(
             store,
@@ -199,11 +206,18 @@ def main() -> int:
             *versions,
             args.resurvey,
             StitchMapGeometry(),
-            Random(),
+            Random(seed),
             args.auto_checked,
         )
         return play(
-            args.serial, interpreter, fallback, uisim, survey, args.trace_plans, args.keep_frames
+            args.serial,
+            interpreter,
+            fallback,
+            uisim,
+            survey,
+            seed,
+            args.trace_plans,
+            args.keep_frames,
         )
 
 
@@ -213,6 +227,7 @@ def play(
     fallback: Interpreter,
     uisim: StageUiSim,
     survey: StageSurvey,
+    seed: int,
     trace_plans: bool,
     keep_frames: bool,
 ) -> int:
@@ -230,6 +245,7 @@ def play(
             "app_version": survey.app_version,
             "code_version": survey.code_version,
             "resurvey": survey.resurvey,
+            "seed": seed,
         },
     )
     stream: Stream = AdbScreencapStream(serial)
