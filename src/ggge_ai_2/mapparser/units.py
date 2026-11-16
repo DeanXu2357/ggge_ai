@@ -12,6 +12,9 @@ from ggge_ai_2.mapparser.contract import CellReading, Rect, ScreenPoint, UnitRea
 from ggge_ai_2.mapparser.lattice import Lattice, ridge
 from ggge_ai_2.mapparser.markers import enemy_move_range
 from ggge_ai_2.mapparser.rings import (
+    HIDDEN_SOLID_GAUGE_ON,
+    SOLID_GAUGE_ON,
+    solid_gauge,
     RING_DEPTH,
     Ring,
     RingImage,
@@ -170,6 +173,8 @@ def read_units(
         ring
         for ring in find_rings(rings, lattice, frame_cells)
         if not _middle_shown(lattice, lines, visible, ring)
+        and (solid_gauge(rings.drawn, rings.visible, lattice, ring) or 1.0)
+        >= (HIDDEN_SOLID_GAUGE_ON if ring.hidden_middle else SOLID_GAUGE_ON)
     ]
     taken = {cell for ring in found for cell in ring.cells()}
     footprints = [_body(view, ring, taken) for ring in found]

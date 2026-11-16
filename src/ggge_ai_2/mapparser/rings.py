@@ -64,6 +64,19 @@ BAND_SAMPLES = 60
 BAND_END_PART = 0.3
 BAND_ENDS_ON = 0.4
 HIDDEN_BAND_ENDS_ON = 0.25
+# A gauge is one solid arc of ring color. The background can give ring colors in specks that
+# pass the point samples (run 20261115-235743, frame 66). In ring widths across the arc, the
+# band runs from GAUGE_TOP to GAUGE_BOTTOM. A component smaller than GAUGE_SPECK of the band
+# is a speck, and a segment is solid when kept components fill GAUGE_FILL of it.
+GAUGE_TOP, GAUGE_BOTTOM = 0.06, -0.16
+GAUGE_SEGMENTS = 20
+GAUGE_SPECK = 0.03
+GAUGE_FILL = 0.3
+GAUGE_END_PART = 0.15
+SOLID_GAUGE_ON = 0.6
+# A tall object shows only the tips of its gauge beside it (map20261026-40, the tower): its
+# ends give 0.5. Specks around a hidden middle give at most 0.33.
+HIDDEN_SOLID_GAUGE_ON = 0.5
 
 
 @dataclass(frozen=True)
@@ -333,3 +346,51 @@ def _values(channel: np.ndarray, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:
 def _shares(hits: np.ndarray, shown: np.ndarray) -> np.ndarray:
     """Return the share of the shown points that are hits, for each row."""
     return hits.sum(axis=1) / np.maximum(shown.sum(axis=1), 1)
+
+
+def solid_gauge(
+    mask: np.ndarray, visible: np.ndarray, lattice: Lattice, ring: Ring
+) -> float | None:
+    """Return the share of the shown segments along the gauge band that the large components
+    of the mask fill, or None when too little of the band shows to judge. For a ring whose
+    middle a body hides, only the end segments count."""
+    height, width = mask.shape
+    across = np.linspace(RING_SPAN[0], RING_SPAN[1], GAUGE_SEGMENTS + 1)
+    arc = _arc(
+        lattice, visible, np.array([ring.pos[0]]), np.array([ring.pos[1]]), ring.width, across
+    )
+    top = np.stack(arc.points(GAUGE_TOP), axis=-1)[0]
+    bottom = np.stack(arc.points(GAUGE_BOTTOM), axis=-1)[0]
+    corners = np.concatenate([top, bottom])
+    x0 = int(max(0, corners[:, 0].min() - 2))
+    x1 = int(min(width, corners[:, 0].max() + 3))
+    y0 = int(max(0, corners[:, 1].min() - 2))
+    y1 = int(min(height, corners[:, 1].max() + 3))
+    if x0 >= x1 or y0 >= y1:
+        return 0.0
+    segments = np.zeros((y1 - y0, x1 - x0), np.int32)
+    for index in range(GAUGE_SEGMENTS):
+        quad = np.array([top[index], top[index + 1], bottom[index + 1], bottom[index]]) - (x0, y0)
+        cv2.fillPoly(segments, [quad.astype(np.int32)], index + 1)
+    band = segments > 0
+    inside = mask[y0:y1, x0:x1] & band
+    count, found, stats, _ = cv2.connectedComponentsWithStats(
+        inside.astype(np.uint8), connectivity=8
+    )
+    labels = np.asarray(found, np.int32)
+    large = np.zeros(count, bool)
+    large[1:] = np.asarray(stats)[1:, cv2.CC_STAT_AREA] >= GAUGE_SPECK * band.sum()
+    kept = np.take(large, labels)
+    seen = visible[y0:y1, x0:x1]
+    counted = range(1, GAUGE_SEGMENTS + 1)
+    if ring.hidden_middle:
+        ends = round(GAUGE_SEGMENTS * GAUGE_END_PART)
+        counted = [*range(1, ends + 1), *range(GAUGE_SEGMENTS - ends + 1, GAUGE_SEGMENTS + 1)]
+    solid = shown = 0
+    for index in counted:
+        area = segments == index
+        if (area & seen).sum() < 0.5 * area.sum():
+            continue
+        shown += 1
+        solid += int((kept & area).sum() >= GAUGE_FILL * area.sum())
+    return solid / shown if shown >= len(counted) / 2 else None
