@@ -23,6 +23,7 @@ from ggge_ai_2.mapgeom.contract import (
 )
 from ggge_ai_2.mapgeom.stitch import StitchMapGeometry
 from ggge_ai_2.mapparser.contract import (
+    CellPlace,
     CellReading,
     Edge,
     MapReading,
@@ -385,3 +386,30 @@ def test_a_view_that_joins_nothing_before_any_swipe_makes_the_planner_wait():
     step = planner().next(on(OVERVIEW, 2.0), evidence((1.0, start), (2.0, lost)))
 
     assert step.name == "map_sync_wait"
+
+
+def test_a_swipe_starts_on_the_empty_cell_nearest_the_centre():
+    start = board(6, 3, (unit((0, 0), True), unit((2, 2), True)), frozenset({Edge.LEFT}))
+    places = {
+        cell: CellPlace(
+            (1170 + 125 * (cell[0] - 2), 450 + 125 * (cell[1] - 1)),
+            ((0, 0), (0, 0), (0, 0), (0, 0)),
+        )
+        for cell in start.cells
+    }
+    occupied_centre = replace(
+        start,
+        units=(*start.units, unit((2, 1), True)),
+        cells={**start.cells, (2, 1): CellReading.OCCUPIED},
+        places=places,
+    )
+
+    step = planner().next(on(OVERVIEW, 1.0), evidence((1.0, occupied_centre)))
+
+    assert isinstance(step.gesture, Swipe)
+    # (2, 1) holds a unit and (2, 2) another; the empty cells next to the centre are nearest.
+    assert step.gesture.start in {
+        places[(1, 1)].center,
+        places[(3, 1)].center,
+        places[(2, 0)].center,
+    }

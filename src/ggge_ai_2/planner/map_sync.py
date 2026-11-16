@@ -25,7 +25,13 @@ from ggge_ai_2.mapgeom.contract import (
     ViewPhase,
     ViewUnit,
 )
-from ggge_ai_2.mapparser.contract import MapReading, NameTemplate, PanelIcon, UnitPanel
+from ggge_ai_2.mapparser.contract import (
+    CellReading,
+    MapReading,
+    NameTemplate,
+    PanelIcon,
+    UnitPanel,
+)
 from ggge_ai_2.uisim.contract import (
     DangerBand,
     Observed,
@@ -60,7 +66,9 @@ class MapSyncPlanner:
     CELL_PIXELS: ClassVar[int] = 125
     SWIPE_CENTRE: ClassVar[ScreenPoint] = (1170, 450)
     SWIPE_AREA: ClassVar[Rect] = Rect(150, 150, 2190, 720)
-    SWIPE_DURATION: ClassVar[float] = 1.0
+    # A slow start of a 1.0 s drag on a unit counted as a long press and opened the unit
+    # detail (run 20261115-235349). A shorter drag lowers the chance.
+    SWIPE_DURATION: ClassVar[float] = 0.5
     SWIPE_DEADLINE: ClassVar[float] = 1.5
     # The jitter moves a swipe back off the exact reverse of the last swipe. Then the
     # next swipe starts from a new view and does not repeat a view that joins nothing.
@@ -114,6 +122,7 @@ class MapSyncPlanner:
         judgment = self.judgment(evidence)
         if judgment is None:
             return WAIT
+        latest = records[-1].reading
         if judgment.current is None:
             if self._last_drag is None:
                 return WAIT
@@ -122,8 +131,7 @@ class MapSyncPlanner:
                 -self._last_drag[0] + self.rng.randint(-jitter, jitter),
                 -self._last_drag[1] + self.rng.randint(-jitter, jitter),
             )
-            return self._swipe(belief, back)
-        latest = records[-1].reading
+            return self._swipe(belief, latest, back)
         target = _tap_target(judgment, latest, _shift(judgment.current, latest.cells))
         if target is not None:
             band = danger_rects(self.uisim, belief, self.screen)
@@ -131,17 +139,32 @@ class MapSyncPlanner:
         move = _move(judgment, judgment.current)
         if move is None:
             return WAIT
-        return self._swipe(belief, (-move[0] * self.CELL_PIXELS, -move[1] * self.CELL_PIXELS))
+        drag = (-move[0] * self.CELL_PIXELS, -move[1] * self.CELL_PIXELS)
+        return self._swipe(belief, latest, drag)
 
-    def _swipe(self, belief: Belief, drag: tuple[int, int]) -> Step:
+    def _swipe(self, belief: Belief, latest: MapReading, drag: tuple[int, int]) -> Step:
         area = self.SWIPE_AREA
-        start_x, start_y = self.SWIPE_CENTRE
+        # A swipe that starts on a unit opens the unit detail as a long press
+        # (run 20261115-235349), so the swipe starts on the empty cell nearest the centre.
+        starts = [
+            place.center
+            for cell, place in latest.places.items()
+            if latest.cells.get(cell) is CellReading.EMPTY
+            and area.left <= place.center[0] <= area.right
+            and area.top <= place.center[1] <= area.bottom
+        ]
+        centre_x, centre_y = self.SWIPE_CENTRE
+        start_x, start_y = min(
+            starts,
+            key=lambda point: (point[0] - centre_x) ** 2 + (point[1] - centre_y) ** 2,
+            default=self.SWIPE_CENTRE,
+        )
         end = (
             min(max(start_x + drag[0], area.left), area.right),
             min(max(start_y + drag[1], area.top), area.bottom),
         )
         self._last_drag = (end[0] - start_x, end[1] - start_y)
-        swipe = Swipe(self.SWIPE_CENTRE, end, self.SWIPE_DURATION)
+        swipe = Swipe((start_x, start_y), end, self.SWIPE_DURATION)
         band = danger_rects(self.uisim, belief, self.screen)
         return Step("map_sync_swipe", swipe, band, self.SWIPE_DEADLINE, (belief,))
 
