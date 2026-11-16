@@ -72,3 +72,29 @@ The analysis does not read such a run.
 
 The analysis replays every survey step and joins all views again at each
 step. A run of 100 survey steps takes about four minutes.
+
+## Draw the saved stage map
+
+When a survey saves stage data, draw the saved map over the frames that
+the survey saw:
+
+```sh
+uv run --python 3.12 python scripts/render_stage_map.py data/runs/<timestamp>
+```
+
+The run needs `--trace-plans` and `--keep-frames`, and the stage store
+must run. The script writes these files in the run directory:
+
+- `stage_map.html`: the saved map size and fields, the map image, and a
+  table of the saved units with their name masks.
+- `stage_map.png`: a mosaic of the top view of each cell, from the
+  newest view that showed the cell. Red boxes are the saved units, green
+  boxes are the units that the player controls, and orange diagonals are
+  uncertain cells. A black cell is a cell that no view showed.
+- `stage_map_plain.png`: the same mosaic without marks.
+
+The page tells whether the replayed survey gives the same map size and
+units as the store. The survey ends on a reading that the plan trace
+does not hold, so the script reads that last frame again from
+`stream/`. Add `--views` to print the shift and the units of each view
+on the map.

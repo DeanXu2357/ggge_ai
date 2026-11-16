@@ -52,37 +52,58 @@ class StitchMapGeometry:
     """
 
     def judge(self, views: Sequence[View]) -> MapJudgment | None:
-        if not views:
+        group = _output_group(views)
+        if group is None:
             return None
-        owner = list(range(len(views)))
-        groups = {index: _Group({index: (0, 0)}) for index in range(len(views))}
-        for new in range(1, len(views)):
-            if not views[new].cells:
-                continue
-            for old in range(new - 1, -1, -1):
-                if owner[old] == owner[new] or not views[old].cells:
-                    continue
-                shift = _join(views, groups[owner[old]], old, groups[owner[new]], new)
-                if shift is None:
-                    continue
-                absorbed = groups.pop(owner[new])
-                kept = groups[owner[old]]
-                for member, (x, y) in absorbed.members.items():
-                    kept.members[member] = (x + shift[0], y + shift[1])
-                    owner[member] = owner[old]
+        return _judgment(views, group, len(views) - 1)
 
-        last = len(views) - 1
-        # The rules below pick the group to output. The contract leaves the choice open.
-        # - Output the group of the last view when other views joined it.
-        # - When the last view joined no other view, output the group of the newest
-        #   earlier view, and mark the range of the current view as unknown.
-        # - When there is only one view, output that view alone.
-        group = groups[owner[last]]
-        if len(group.members) == 1 and last > 0:
-            group = groups[owner[last - 1]]
-        if not any(views[member].cells for member in group.members):
-            return None
-        return _judgment(views, group, last)
+    def placement(self, views: Sequence[View]) -> dict[int, Shift]:
+        """Return the shift from view cells to map cells of each view in the group that
+        'judge' outputs, by the index of the view."""
+        group = _output_group(views)
+        if group is None:
+            return {}
+        reach = {
+            (x + dx, y + dy)
+            for member, (dx, dy) in group.members.items()
+            for x, y in views[member].cells
+        }
+        left, top, _right, _bottom = _extent(reach)
+        return {member: (dx - left, dy - top) for member, (dx, dy) in group.members.items()}
+
+
+def _output_group(views: Sequence[View]) -> _Group | None:
+    if not views:
+        return None
+    owner = list(range(len(views)))
+    groups = {index: _Group({index: (0, 0)}) for index in range(len(views))}
+    for new in range(1, len(views)):
+        if not views[new].cells:
+            continue
+        for old in range(new - 1, -1, -1):
+            if owner[old] == owner[new] or not views[old].cells:
+                continue
+            shift = _join(views, groups[owner[old]], old, groups[owner[new]], new)
+            if shift is None:
+                continue
+            absorbed = groups.pop(owner[new])
+            kept = groups[owner[old]]
+            for member, (x, y) in absorbed.members.items():
+                kept.members[member] = (x + shift[0], y + shift[1])
+                owner[member] = owner[old]
+
+    last = len(views) - 1
+    # The rules below pick the group to output. The contract leaves the choice open.
+    # - Output the group of the last view when other views joined it.
+    # - When the last view joined no other view, output the group of the newest
+    #   earlier view, and mark the range of the current view as unknown.
+    # - When there is only one view, output that view alone.
+    group = groups[owner[last]]
+    if len(group.members) == 1 and last > 0:
+        group = groups[owner[last - 1]]
+    if not any(views[member].cells for member in group.members):
+        return None
+    return group
 
 
 def _join(
