@@ -130,14 +130,4 @@ Rules:
 
 ## Common commands
 
-- Screenshot: `uv run python scripts/capture.py` (output in
-  assets/screenshots/, gitignored)
-- Unlock (system lock plus the game's power-save touch lock):
-  `uv run python scripts/ensure_unlocked.py`
-- Read-only device probe (screen name / AUTO / grid / sightings):
-  `uv run python scripts/probe_live_channel.py`
-- Full scan cycle (entry, sweep, abandon battle):
-  `uv run python scripts/sweep_scan.py` (stage stops: --stop-after ...)
-- Panel parse check: `uv run python scripts/parse_panel.py <png> [--no-llm]`
 - Run logs: `data/runs/<timestamp>/` (gitignored)
-- Template check: `scripts/verify_match.py`; crop: `scripts/crop.py`

@@ -29,6 +29,8 @@ TABLE_PATHS = {
     "weapon": "/ggetapi/en/weapon",
     "stage": "/ggetapi/en/stage",
     "character": "/ggetapi/en/character",
+    "supporter": "/ggetapi/en/supporter",
+    "supporter_growth": "/ggetapi/en/supporter/growth",
 }
 USER_AGENT = "ggge_ai-datamine-crawler/1 (+https://github.com/DeanXu2357/ggge_ai)"
 

@@ -4,7 +4,8 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Protocol, Self
 
-from ggge_ai_2.mapgeom.contract import Alignment, KnownMap, LocalBoard, MapGeometry
+from ggge_ai_2.interpreter.contract import Phase
+from ggge_ai_2.mapparser.contract import MapReading
 from ggge_ai_2.stream.contract import StillWindow
 from ggge_ai_2.uisim.contract import Observed, Outcome, UiSim, UiState
 
@@ -16,6 +17,11 @@ class DomainState(Protocol):
 class ScreenLock(StrEnum):
     ICON = "icon"
     DIM = "dim"
+
+
+class Passing(StrEnum):
+    WAIT = "wait"
+    TAP_TO_CONTINUE = "tap_to_continue"
 
 
 class UiSource(StrEnum):
@@ -34,23 +40,27 @@ class UiBasis:
 class Sensed:
     still: StillWindow
     observed: Observed | None
-    board: LocalBoard | None
+    reading: MapReading | None
     screen_lock: ScreenLock | None = None
+    passing: Passing | None = None
+    phase: Phase | None = None
+    turn: int | None = None
 
 
 @dataclass(frozen=True)
 class Belief:
     ui: UiState
     ui_basis: UiBasis
-    camera: Alignment | None
-    known_map: KnownMap
     domain: DomainState
     as_of: StillWindow | None
     screen_lock: ScreenLock | None = None
+    passing: Passing | None = None
 
-    def update(self, sensed: Sensed, uisim: UiSim, mapgeom: MapGeometry) -> Belief:
+    def update(self, sensed: Sensed, uisim: UiSim) -> Belief:
         if sensed.screen_lock is not None:
-            return replace(self, screen_lock=sensed.screen_lock, as_of=sensed.still)
+            return replace(self, screen_lock=sensed.screen_lock, passing=None, as_of=sensed.still)
+        if sensed.passing is not None:
+            return replace(self, passing=sensed.passing, as_of=sensed.still)
 
         ui, ui_basis = self.ui, self.ui_basis
         if sensed.observed is not None:
@@ -59,19 +69,11 @@ class Belief:
         elif self.ui_basis.source is not UiSource.LOST:
             ui_basis = UiBasis(UiSource.LOST, sensed.still.frame_seq)
 
-        camera, known_map = self.camera, self.known_map
-        if sensed.board is not None:
-            alignment = mapgeom.align(sensed.board, self.known_map, self.camera)
-            if alignment is not None:
-                camera = alignment
-                known_map = mapgeom.merge(self.known_map, sensed.board, alignment)
-
         return replace(
             self,
             ui=ui,
             ui_basis=ui_basis,
-            camera=camera,
-            known_map=known_map,
             as_of=sensed.still,
             screen_lock=None,
+            passing=None,
         )

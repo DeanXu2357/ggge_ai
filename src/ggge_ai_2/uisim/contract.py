@@ -22,53 +22,86 @@ class DangerBand:
 
 
 class UiScreen(StrEnum):
-    LOGIN_BONUS = "login_bonus"
-    NOTICE = "notice"
-    DATE_CHANGED = "date_changed"
-    SERIES_SELECT = "series_select"
-    SERIES_CONFIRM = "series_confirm"
-    STAGE_TYPE_SELECT = "stage_type_select"
-    STAGE_LIST = "stage_list"
-    STAGE_INFO = "stage_info"
+    STAGE_CHOSEN = "stage_chosen"
+    SERIES_LIST = "series_list"
+    SERIES_STAGE_INFO = "series_stage_info"
+    STORY_STAGE_LIST = "story_stage_list"
+    ETERNAL_STAGE_LIST = "eternal_stage_list"
+    EVENT_STAGE_LIST = "event_stage_list"
+    SKIP_STAGE_OVERLAY = "skip_stage_overlay"
+    SKIP_RESULT_LIST = "skip_result_list"
     SORTIE_PREP = "sortie_prep"
-    BATTLE_PREP = "battle_prep"
-    BATTLE_PREP_REACTION = "battle_prep_reaction"
-    BATTLE_MAP = "battle_map"
-    BATTLE_MAP_ENEMY = "battle_map_enemy"
-    BATTLE_MENU = "battle_menu"
-    BATTLE_SKILL = "battle_skill"
-    BATTLE_SETTINGS = "battle_settings"
-    TROOP_INFO = "troop_info"
-    UNIT_DETAIL = "unit_detail"
-    END_TURN_DIALOG = "end_turn_dialog"
-    BATTLE_RESULT = "battle_result"
-    BATTLE_DEFEAT = "battle_defeat"
+    ROSTER_ALL_EDIT = "roster_all_edit"
+    TRAINING_STAGE_LIST = "training_stage_list"
+    BATCH_SKIP_OVERLAY = "batch_skip_overlay"
+    AP_RECOVERY_OVERLAY = "ap_recovery_overlay"
+    AP_RECOVERY_ITEM_CHECK = "ap_recovery_item_check"
+    STAGE_ALLOW_LIST = "stage_allow_list"
+    DROP_REWARD_RESULT = "drop_reward_result"
+    REWARD_DETAIL = "reward_detail"
+    PLAYER_PHASE_OVERVIEW = "player_phase_overview"
+    SELECT_ACTION_IN_BATTLE = "select_action_in_battle"
+    SELECT_SKILL_IN_BATTLE = "select_skill_in_battle"
+    SELECT_WEAPON_IN_BATTLE = "select_weapon_in_battle"
+    BATTLE_PREP_ATTACK = "battle_prep_attack"
+    NON_PLAYER_PHASE_BATTLE_VIEW = "non_player_phase_battle_view"
+    BATTLE_PREP_RESPONSE_ATTACK = "battle_prep_response_attack"
+    SELECT_WEAPON_IN_BATTLE_RESPONSE = "select_weapon_in_battle_response"
+    SELECT_WEAPON_IN_ATTACK_PREPARE = "select_weapon_in_attack_prepare"
+    SELECT_SKILL_IN_ATTACK_PREPARE = "select_skill_in_attack_prepare"
+    BATTLE_MAIN_SETTING = "battle_main_setting"
+    BATTLE_SETTINGS_IN_BATTLE = "battle_settings_in_battle"
+    BATTLE_PREP_DETAIL = "battle_prep_detail"
+    BATTLE_INFO_PREVIEW = "battle_info_preview"
+    CHALLENGE_BATTLE_CHECK = "challenge_battle_check"
+    EXP_REWARD_RESULT = "exp_reward_result"
+    BATTLE_SCORE_RESULT = "battle_score_result"
+    WIN_CONDITION_OVERLAY = "win_condition_overlay"
+    ROSTER_LIST_ALLY = "roster_list_ally"
+    ROSTER_LIST_ENEMY = "roster_list_enemy"
+    UNIT_DETAIL_STATE = "unit_detail_state"
+    UNIT_DETAIL_ACTION = "unit_detail_action"
+    UNIT_DETAIL_ABILITY = "unit_detail_ability"
+    UNIT_DETAIL_SUMMARY = "unit_detail_summary"
+    UNIT_DETAIL_STATE_ROSTER = "unit_detail_state_roster"
+    UNIT_DETAIL_ACTION_ROSTER = "unit_detail_action_roster"
+    UNIT_DETAIL_ABILITY_ROSTER = "unit_detail_ability_roster"
+    UNIT_DETAIL_SUMMARY_ROSTER = "unit_detail_summary_roster"
+    MECH_NORMAL_INFO = "mech_normal_info"
+    PILOT_NORMAL_INFO = "pilot_normal_info"
+    WEAPON_INFO = "weapon_info"
 
 
-class UiOverlay(StrEnum):
-    CARD_STRIP = "card_strip"
-    CARD = "card"
-    DIALOG = "dialog"
+class UiAutoMode(StrEnum):
+    FULL = "full"
+    SEMI = "semi"
+    MANUAL = "manual"
 
 
-class UiMapMode(StrEnum):
-    HUB = "hub"
-    SELECTED = "selected"
-    WEAPON_SELECT = "weapon_select"
+class UiUnitList(StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+@dataclass(frozen=True)
+class OpenGroup:
+    group: str
+    caller: UiScreen | None
 
 
 @dataclass(frozen=True)
 class UiState:
     screen: UiScreen
-    overlays: frozenset[UiOverlay] = frozenset()
-    map_mode: UiMapMode | None = None
+    stack: tuple[OpenGroup, ...] = ()
+    auto: UiAutoMode | None = None
+    unit_list: UiUnitList | None = None
 
 
 @dataclass(frozen=True)
 class Observed:
     screen: UiScreen
-    overlays: frozenset[UiOverlay] = frozenset()
-    map_mode: UiMapMode | None = None
+    auto: UiAutoMode | None = None
+    unit_list: UiUnitList | None = None
 
 
 @dataclass(frozen=True)
@@ -101,7 +134,7 @@ class Outcome:
 class Operation:
     name: str
     precondition: UiState
-    gesture: UiGesture
+    gesture: UiGesture | None
     outcomes: tuple[Outcome, ...]
     deadline: float
     cost: float
@@ -109,8 +142,6 @@ class Operation:
 
 class UiSim(Protocol):
     def successors(self, state: UiState) -> Sequence[Operation]: ...
-
-    def predecessors(self, state: UiState) -> Sequence[tuple[UiState, Operation]]: ...
 
     def advance(self, state: UiState, outcome: Outcome) -> UiState: ...
 

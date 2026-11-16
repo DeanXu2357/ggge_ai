@@ -13,7 +13,8 @@ node_modules/
 *.log
 assets/screenshots/
 assets/run-shots/
-data/
+data/*
+!data/labeled/
 .claude/*
 !.claude/settings.json
 !.claude/agents/

@@ -1,69 +1,83 @@
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from threading import Event
 
 import numpy as np
 import pytest
 
 from ggge_ai_2.actuator.contract import Dispatch, Gesture, GestureBlocked, Rect, Tap
-from ggge_ai_2.agent.belief import Belief, ScreenLock, UiBasis, UiSource
-from ggge_ai_2.agent.contract import Plan, Step
+from ggge_ai_2.agent.belief import Belief, Passing, ScreenLock, UiBasis, UiSource
+from ggge_ai_2.agent.contract import Evidence, MapTap, Plan, Step
 from ggge_ai_2.agent.loop import MISMATCH_LIMIT, Agent, Predicted, RunResult
-from ggge_ai_2.interpreter.contract import Screen, Situation
-from ggge_ai_2.mapgeom.contract import Alignment, KnownMap
-from ggge_ai_2.mapparser.contract import MapReading, ViewCell
-from ggge_ai_2.stream.contract import NO_DISPLACEMENT, Frame, Observation, StillWindow
-from ggge_ai_2.uisim.contract import UiScreen, UiState
+from ggge_ai_2.agent.runlog import RunLog
+from ggge_ai_2.interpreter.contract import (
+    AutoMode,
+    Phase,
+    Screen,
+    SeenCell,
+    SeenCellPlace,
+    SeenMap,
+    Situation,
+)
+from ggge_ai_2.mapparser.contract import CellReading, MapReading
+from ggge_ai_2.stream.contract import Frame, Observation, StillWindow
+from ggge_ai_2.agent.ui_steps import operation_step
+from ggge_ai_2.uisim.contract import (
+    OpenGroup,
+    Operation,
+    Outcome,
+    RatioRect,
+    UiAutoMode,
+    UiScreen,
+    UiState,
+)
+from ggge_ai_2.uisim.stage_sim import StageUiSim
+from ggge_ai_2.uisim.stages import ButtonDef, CallerGroup, ScreenDef, Stages
 from tests.ggge_ai_2.fakes.domain import FakeDomain
-from tests.ggge_ai_2.fakes.mapgeom import NoMapGeometry
 from tests.ggge_ai_2.fakes.uisim import FakeUiSim
 
-LIST = UiState(UiScreen.STAGE_LIST)
-INFO = UiState(UiScreen.STAGE_INFO)
+LIST = UiState(UiScreen.STORY_STAGE_LIST)
+INFO = UiState(UiScreen.SORTIE_PREP)
 DEADLINE = 3.0
 BAND = (Rect(0, 0, 50, 50),)
 TAP = Tap((100, 100))
 DISPATCHED = Dispatch(10.0, 10.1)
 
 
-def frame(seq: int, at: float) -> Frame:
-    return Frame(np.zeros((1, 1, 3), np.uint8), at, seq)
+def frame(seq: int, at: float, shade: int = 0) -> Frame:
+    return Frame(np.full((1, 1, 3), shade, np.uint8), at, seq)
 
 
-Settle = tuple[Frame, StillWindow | None]
+def window(seq: int, at: float) -> StillWindow:
+    return StillWindow(at - 0.5, at, seq)
 
 
-def still(seq: int, at: float) -> Settle:
-    return frame(seq, at), StillWindow(at - 0.5, at, seq)
+def still(seq: int, at: float) -> list[Frame]:
+    return [frame(seq, at - 0.5), frame(seq, at)]
 
 
-def moving(seq: int, at: float) -> Settle:
-    return frame(seq, at), None
-
-
-def expected(ui: UiState, camera: Alignment | None = None) -> Belief:
-    return Belief(ui, UiBasis(UiSource.ASSUMED), camera, KnownMap({}), FakeDomain(), None)
+def expected(ui: UiState) -> Belief:
+    return Belief(ui, UiBasis(UiSource.ASSUMED), FakeDomain(), None)
 
 
 def step(then: UiState = INFO, name: str = "open_info") -> Step:
-    return Step(name, TAP, BAND, DEADLINE, expected(then))
+    return Step(name, TAP, BAND, DEADLINE, (expected(then),))
 
 
 @dataclass
 class FakeStream:
-    settles: list[Settle]
-    calls: list[tuple[float, float]] = field(default_factory=list)
+    frames: list[Frame]
 
     def latest(self) -> Frame:
-        raise AssertionError("the loop reads the world only through settled frames")
+        return self.frames.pop(0)
 
     def settled(self, after: float, deadline: float) -> Observation:
-        self.calls.append((after, deadline))
-        shown, window = self.settles.pop(0)
-        return Observation(shown, after, window, 0.5, NO_DISPLACEMENT)
+        raise AssertionError("the loop settles on the interpretation, not on pixel stillness")
 
 
 @dataclass
@@ -79,31 +93,61 @@ class FakeActuator:
 
 
 @dataclass
+class StoppingStream(FakeStream):
+    stop: Event
+
+    def latest(self) -> Frame:
+        shot = super().latest()
+        if not self.frames:
+            self.stop.set()
+        return shot
+
+
+@dataclass
 class FakeInterpreter:
     shows: dict[int, Screen]
+    autos: dict[int, AutoMode] = field(default_factory=dict[int, AutoMode])
+    maps: dict[int, SeenMap] = field(default_factory=dict[int, SeenMap])
+    phases: dict[int, Phase] = field(default_factory=dict[int, Phase])
+    turns: dict[int, int] = field(default_factory=dict[int, int])
 
-    def interpret(self, frame: Frame) -> Situation | None:
+    def interpret(self, frame: Frame, candidates: frozenset[Screen]) -> Situation | None:
+        seq = frame.seq
+        screen = self.shows.get(seq)
+        if screen is None:
+            return None
+        return Situation(
+            seq,
+            screen,
+            self.autos.get(seq),
+            phase=self.phases.get(seq),
+            turn=self.turns.get(seq),
+            map=self.maps.get(seq),
+        )
+
+
+@dataclass
+class MockInterpreter:
+    shows: dict[int, Screen]
+    asked: list[int] = field(default_factory=list[int])
+
+    def interpret(self, frame: Frame, candidates: frozenset[Screen]) -> Situation | None:
+        self.asked.append(frame.seq)
         screen = self.shows.get(frame.seq)
         return None if screen is None else Situation(frame.seq, screen)
-
-
-class NoMapParser:
-    def parse(self, frame: Frame) -> MapReading | None:
-        raise AssertionError("no map on these screens")
-
-    def locate(self, frame: Frame, cell: ViewCell) -> tuple[int, int] | None:
-        raise AssertionError("no map on these screens")
 
 
 @dataclass
 class ScriptedPlan:
     steps: list[Step]
     valid: list[bool] = field(default_factory=list)
+    given: list[Evidence] = field(default_factory=list[Evidence])
 
-    def still_valid(self, belief: Belief) -> bool:
+    def still_valid(self, belief: Belief, evidence: Evidence) -> bool:
         return self.valid.pop(0) if self.valid else True
 
-    def next(self, belief: Belief) -> Step:
+    def next(self, belief: Belief, evidence: Evidence) -> Step:
+        self.given.append(evidence)
         return self.steps.pop(0)
 
 
@@ -113,14 +157,16 @@ class ScriptedController:
     goals: list[bool]
     checked: list[Belief] = field(default_factory=list)
     thought: list[tuple[Belief, tuple[object, ...]]] = field(default_factory=list)
+    given: list[Evidence] = field(default_factory=list[Evidence])
     reviewed: list[Plan] = field(default_factory=list)
 
     def goal_reached(self, belief: Belief) -> bool:
         self.checked.append(belief)
         return self.goals.pop(0)
 
-    def think(self, belief: Belief, history: Sequence[object]) -> Plan | None:
+    def think(self, belief: Belief, evidence: Evidence, history: Sequence[object]) -> Plan | None:
         self.thought.append((belief, tuple(history)))
+        self.given.append(evidence)
         return self.plans.pop(0)
 
     def review(self, plan: Plan, belief: Belief) -> object:
@@ -129,7 +175,7 @@ class ScriptedController:
 
 
 def start() -> Belief:
-    return Belief(LIST, UiBasis(UiSource.ASSUMED), None, KnownMap({}), FakeDomain(), None)
+    return Belief(LIST, UiBasis(UiSource.ASSUMED), FakeDomain(), None)
 
 
 def make_agent(
@@ -138,18 +184,20 @@ def make_agent(
     controller: ScriptedController,
     actuator: FakeActuator | None = None,
     stop: Event | None = None,
+    runlog: RunLog | None = None,
+    interpreter: FakeInterpreter | None = None,
+    fallback: FakeInterpreter | MockInterpreter | None = None,
 ) -> Agent:
     return Agent(
         stream=stream,
         actuator=actuator or FakeActuator(),
-        interpreter=FakeInterpreter(shows),
-        mapparser=NoMapParser(),
-        mapgeom=NoMapGeometry(),
+        interpreter=interpreter or FakeInterpreter(shows),
+        fallback=fallback or FakeInterpreter({}),
         uisim=FakeUiSim(),
         plan_controller=controller,
         belief=start(),
-        idle_deadline=2.0,
         stop=stop or Event(),
+        runlog=runlog,
     )
 
 
@@ -157,30 +205,231 @@ def logged(caplog: pytest.LogCaptureFixture, message: str) -> list[logging.LogRe
     return [record for record in caplog.records if record.getMessage() == message]
 
 
-def test_sense_hands_only_the_still_frame_to_the_belief():
-    stream = FakeStream([moving(1, 1.0), still(2, 1.5)])
+def test_animated_screen_settles_on_two_frames_with_the_same_interpretation():
+    stream = FakeStream([frame(1, 1.0, shade=0), frame(2, 1.4, shade=200)])
     controller = ScriptedController([], goals=[True])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.STORY_STAGE_LIST}
 
-    assert make_agent(stream, {2: Screen.STAGE_LIST}, controller).run() is RunResult.DONE
-    assert [after for after, _ in stream.calls] == [0.0, 1.0]
+    assert make_agent(stream, shows, controller).run() is RunResult.DONE
     assert controller.checked[0].ui == LIST
-    assert controller.checked[0].as_of == StillWindow(1.0, 1.5, 2)
+    assert controller.checked[0].as_of == StillWindow(1.0, 1.4, 2)
+
+
+SEEN = SeenMap({(0, 0): SeenCell.EMPTY}, frozenset(), (), {}, {}, None, None, None)
+READING = MapReading({(0, 0): CellReading.EMPTY}, frozenset(), (), {}, {}, None, None)
+
+
+def test_every_map_of_a_situation_goes_into_the_history_with_its_phase_and_turn():
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
+    shows = {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.PLAYER_PHASE_OVERVIEW}
+    interpreter = FakeInterpreter(shows, maps={2: SEEN}, phases={2: Phase.PLAYER}, turns={2: 3})
+    controller = ScriptedController([ScriptedPlan([step()])], goals=[False, True])
+    agent = make_agent(stream, shows, controller, interpreter=interpreter)
+
+    assert agent.run() is RunResult.DONE
+    assert [
+        (record.still, record.reading, record.phase, record.turn)
+        for record in agent.map_readings.records
+    ] == [(window(2, 11.0), READING, Phase.PLAYER, 3)]
+
+
+def readings(evidence: Evidence) -> list[tuple[StillWindow, MapReading]]:
+    return [(record.still, record.reading) for record in evidence.map_readings]
+
+
+def test_the_plan_gets_the_map_readings_up_to_this_cycle_as_evidence():
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0), *still(3, 21.0)])
+    shows = dict.fromkeys(range(1, 4), Screen.PLAYER_PHASE_OVERVIEW)
+    plan = ScriptedPlan([step(), step()])
+    controller = ScriptedController([plan], goals=[False, False, True])
+    interpreter = FakeInterpreter(shows, maps={2: SEEN})
+    agent = make_agent(stream, shows, controller, interpreter=interpreter)
+
+    assert agent.run() is RunResult.DONE
+    assert [readings(evidence) for evidence in plan.given] == [[], [(window(2, 11.0), READING)]]
+
+
+def test_think_gets_the_map_readings_up_to_this_cycle_as_evidence():
+    plan = ScriptedPlan([step()], valid=[False])
+    controller = ScriptedController([plan, None], goals=[False, False])
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
+    shows = {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.PLAYER_PHASE_OVERVIEW}
+    interpreter = FakeInterpreter(shows, maps={2: SEEN})
+    agent = make_agent(stream, shows, controller, interpreter=interpreter)
+
+    assert agent.run() is RunResult.HALTED
+    assert [readings(evidence) for evidence in controller.given] == [
+        [],
+        [(window(2, 11.0), READING)],
+    ]
+
+
+def test_sense_asks_the_fallback_when_the_interpreter_recognizes_no_screen():
+    stream = FakeStream([frame(1, 1.0), frame(2, 1.4)])
+    fallback = FakeInterpreter({1: Screen.SORTIE_PREP, 2: Screen.SORTIE_PREP})
+
+    sensed = make_agent(stream, {}, ScriptedController([], goals=[]), fallback=fallback).sense()
+
+    assert sensed is not None
+    assert sensed.observed is not None and sensed.observed.screen is UiScreen.SORTIE_PREP
+
+
+def test_sense_does_not_ask_the_fallback_when_the_interpreter_recognizes_the_screen():
+    stream = FakeStream([frame(1, 1.0), frame(2, 1.4)])
+    shows = {1: Screen.SORTIE_PREP, 2: Screen.SORTIE_PREP}
+    fallback = MockInterpreter({})
+
+    make_agent(stream, shows, ScriptedController([], goals=[]), fallback=fallback).sense()
+
+    assert fallback.asked == []
+
+
+def test_sense_settles_on_the_second_of_two_equal_interpretations(
+    caplog: pytest.LogCaptureFixture,
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    stream = FakeStream([frame(1, 1.0), frame(2, 1.4), frame(3, 1.8)])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP, 3: Screen.SORTIE_PREP}
+
+    sensed = make_agent(stream, shows, ScriptedController([], goals=[])).sense()
+
+    assert sensed is not None
+    assert sensed.still == StillWindow(1.4, 1.8, 3)
+    assert sensed.observed is not None and sensed.observed.screen is UiScreen.SORTIE_PREP
+    [unsettled] = logged(caplog, "sense unsettled")
+    assert unsettled.__dict__["frame_seq"] == 2
+    assert unsettled.__dict__["first"] == (Screen.STORY_STAGE_LIST, None)
+    assert unsettled.__dict__["second"] == (Screen.SORTIE_PREP, None)
+
+
+def test_different_auto_values_do_not_settle():
+    stream = FakeStream([frame(1, 1.0), frame(2, 1.4), frame(3, 1.8)])
+    shows = dict.fromkeys(range(1, 4), Screen.SORTIE_PREP)
+    agent = make_agent(stream, shows, ScriptedController([], goals=[]))
+    agent.interpreter = FakeInterpreter(
+        shows, {1: AutoMode.MANUAL, 2: AutoMode.SEMI, 3: AutoMode.SEMI}
+    )
+
+    sensed = agent.sense()
+
+    assert sensed is not None
+    assert sensed.still == StillWindow(1.4, 1.8, 3)
+    assert sensed.observed is not None and sensed.observed.auto is UiAutoMode.SEMI
+
+
+def test_stop_request_during_unsettled_frames_ends_the_loop():
+    stop = Event()
+    stream = StoppingStream([frame(1, 1.0), frame(2, 1.4), frame(3, 1.8)], stop)
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP, 3: Screen.STORY_STAGE_LIST}
+    controller = ScriptedController([], goals=[])
+
+    assert make_agent(stream, shows, controller, stop=stop).run() is RunResult.STOPPED
+    assert controller.checked == []
+
+
+def test_frame_captured_before_the_gesture_fails_the_cutoff():
+    controller = ScriptedController([ScriptedPlan([step()])], goals=[False])
+    stream = FakeStream([*still(1, 1.0), *still(2, DISPATCHED.t0)])
+    agent = make_agent(stream, {1: Screen.STORY_STAGE_LIST}, controller)
+
+    with pytest.raises(AssertionError, match="older than the cutoff"):
+        agent.run()
 
 
 def test_lock_screen_reaches_the_belief_as_a_screen_lock():
     controller = ScriptedController([], goals=[True])
-    agent = make_agent(FakeStream([still(1, 1.0)]), {1: Screen.POWER_SAVE_LOCK}, controller)
+    agent = make_agent(FakeStream(still(1, 1.0)), {1: Screen.POWER_SAVE_LOCK}, controller)
 
     assert agent.run() is RunResult.DONE
     assert controller.checked[0] == replace(
-        start(), screen_lock=ScreenLock.ICON, as_of=still(1, 1.0)[1]
+        start(), screen_lock=ScreenLock.ICON, as_of=window(1, 1.0)
+    )
+
+
+def test_sense_reports_a_pass_through_frame_as_passing_and_not_as_a_screen():
+    stream = FakeStream([*still(1, 1.0), *still(2, 2.0)])
+    shows = {1: Screen.BATTLE_CLEAR_VIEW, 2: Screen.LOADING}
+    agent = make_agent(stream, shows, ScriptedController([], goals=[]))
+
+    clear, loading = agent.sense(), agent.sense()
+
+    assert clear is not None and loading is not None
+    assert (clear.passing, clear.observed) == (Passing.TAP_TO_CONTINUE, None)
+    assert (loading.passing, loading.observed) == (Passing.WAIT, None)
+
+
+def test_passing_cycle_keeps_the_earlier_prediction_for_the_next_screen(
+    caplog: pytest.LogCaptureFixture,
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    plan = ScriptedPlan([step(), step(LIST, "tap_to_continue"), step()])
+    controller = ScriptedController([plan], goals=[False, False, False, True])
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0), *still(3, 12.0), *still(4, 13.0)])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.BATTLE_CLEAR_VIEW, 3: Screen.SORTIE_PREP}
+    actuator = FakeActuator()
+
+    assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
+    assert len(actuator.sent) == 3
+    [compared] = logged(caplog, "matches")
+    assert compared.__dict__["frame_seq"] == 3
+    assert compared.__dict__["same"]
+    assert compared.__dict__["in_time"]
+
+
+def open_sortie_prep() -> Operation:
+    outcomes = (
+        Outcome("opened", INFO),
+        Outcome("refused", UiState(UiScreen.AP_RECOVERY_OVERLAY)),
+    )
+    return Operation("open", LIST, None, outcomes, DEADLINE, 1.0)
+
+
+def test_seen_belief_offers_the_successor_screens_and_the_anytime_screens():
+    agent = make_agent(FakeStream([]), {}, ScriptedController([], goals=[]))
+    agent.uisim = FakeUiSim(operations={UiScreen.STORY_STAGE_LIST: (open_sortie_prep(),)})
+
+    assert agent.candidates(seen(LIST, 1.0)) == {
+        Screen.STORY_STAGE_LIST,
+        Screen.SORTIE_PREP,
+        Screen.POWER_SAVE_LOCK,
+        Screen.POWER_SAVE_DIM,
+        Screen.LOADING,
+        Screen.SIMPLIFY_WEAPON_ANIME,
+        Screen.EX_WEAPON_ANIME,
+        Screen.BATTLE_CLEAR_VIEW,
+        Screen.MAP_PASSING,
+    }
+
+
+def test_lost_belief_offers_every_screen():
+    agent = make_agent(FakeStream([]), {}, ScriptedController([], goals=[]))
+    lost = replace(seen(LIST, 1.0), ui_basis=UiBasis(UiSource.LOST, 1))
+
+    assert agent.candidates(lost) == frozenset(Screen)
+
+
+def test_sense_logs_a_screen_outside_the_candidates(caplog: pytest.LogCaptureFixture):
+    caplog.set_level(logging.WARNING, logger="ggge_ai_2.agent.loop")
+    shows = {1: Screen.BATTLE_SCORE_RESULT}
+    agent = make_agent(FakeStream(still(1, 1.0)), shows, ScriptedController([], goals=[]))
+    agent.belief = seen(LIST, 1.0)
+
+    agent.sense()
+
+    [record] = logged(caplog, "outside candidates")
+    assert record.__dict__["frame_seq"] == 1
+    assert record.__dict__["screen"] is Screen.BATTLE_SCORE_RESULT
+    assert record.__dict__["candidates"] == sorted(
+        screen.value for screen in agent.candidates(agent.belief)
     )
 
 
 def test_controller_without_a_plan_halts_the_loop():
     controller = ScriptedController([None], goals=[False])
     actuator = FakeActuator()
-    agent = make_agent(FakeStream([still(1, 1.0)]), {1: Screen.STAGE_LIST}, controller, actuator)
+    agent = make_agent(
+        FakeStream(still(1, 1.0)), {1: Screen.STORY_STAGE_LIST}, controller, actuator
+    )
 
     assert agent.run() is RunResult.HALTED
     assert controller.thought == [(controller.checked[0], ())]
@@ -190,13 +439,12 @@ def test_controller_without_a_plan_halts_the_loop():
 def test_step_that_passes_the_guard_sends_its_gesture_and_band():
     plan = ScriptedPlan([step()])
     controller = ScriptedController([plan], goals=[False, True])
-    stream = FakeStream([still(1, 1.0), still(2, 11.0)])
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
     actuator = FakeActuator()
-    shows = {1: Screen.STAGE_LIST, 2: Screen.STAGE_INFO}
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP}
 
     assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
     assert actuator.sent == [(TAP, BAND)]
-    assert stream.calls[1][0] == DISPATCHED.t0
     assert controller.reviewed == [plan]
 
 
@@ -206,7 +454,7 @@ def test_guard_on_an_unreadable_screen_halts_and_logs_the_evidence(
     caplog.set_level(logging.ERROR, logger="ggge_ai_2.agent.loop")
     controller = ScriptedController([ScriptedPlan([step()])], goals=[False])
     actuator = FakeActuator()
-    agent = make_agent(FakeStream([still(4, 1.0)]), {}, controller, actuator)
+    agent = make_agent(FakeStream(still(4, 1.0)), {}, controller, actuator)
 
     assert agent.run() is RunResult.HALTED
     assert actuator.sent == []
@@ -214,12 +462,56 @@ def test_guard_on_an_unreadable_screen_halts_and_logs_the_evidence(
     assert record.__dict__["unreadable_since_frame_seq"] == 4
 
 
+def test_map_tap_taps_the_center_of_the_cell_in_the_map_of_this_cycle(
+    caplog: pytest.LogCaptureFixture,
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    tap = Step("tap_enemy", MapTap((2, 3)), BAND, DEADLINE, (expected(INFO),))
+    controller = ScriptedController([ScriptedPlan([tap])], goals=[False, True])
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
+    shows = {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.PLAYER_PHASE_OVERVIEW}
+    place = SeenCellPlace((700, 400), ((660, 370), (742, 370), (746, 432), (655, 432)))
+    seen = SeenMap(
+        {(2, 3): SeenCell.OCCUPIED}, frozenset(), (), {}, {(2, 3): place}, None, None, None
+    )
+    interpreter = FakeInterpreter(shows, maps={1: seen})
+    actuator = FakeActuator()
+
+    agent = make_agent(stream, shows, controller, actuator, interpreter=interpreter)
+
+    assert agent.run() is RunResult.DONE
+    assert actuator.sent == [(Tap((700, 400)), BAND)]
+    [acted] = logged(caplog, "act")
+    assert acted.__dict__["gesture"] == Tap((700, 400))
+
+
+def test_map_tap_on_a_cell_that_the_frame_cannot_tap_sends_nothing_and_predicts_nothing(
+    caplog: pytest.LogCaptureFixture,
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    tap = Step("tap_enemy", MapTap((9, 9)), BAND, DEADLINE, (expected(INFO),))
+    controller = ScriptedController([ScriptedPlan([tap, step()])], goals=[False, False, True])
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0), *still(3, 21.0)])
+    shows = dict.fromkeys(range(1, 4), Screen.PLAYER_PHASE_OVERVIEW)
+    actuator = FakeActuator()
+
+    agent = make_agent(stream, shows, controller, actuator)
+
+    assert agent.run() is RunResult.DONE
+    assert actuator.sent == [(TAP, BAND)]
+    [untappable] = logged(caplog, "cell not tappable")
+    assert untappable.__dict__["cell"] == (9, 9)
+    assert logged(caplog, "matches") == []
+    first_cycle = next(record for record in caplog.records if record.name.endswith(".cycle"))
+    assert first_cycle.getMessage().endswith("step=tap_enemy map_tap 9,9")
+
+
 def test_mismatches_up_to_the_limit_end_the_plan():
     plan = ScriptedPlan([step()] * MISMATCH_LIMIT)
     controller = ScriptedController([plan, None], goals=[False] * (MISMATCH_LIMIT + 1))
-    unchanged = [still(n, 10.0 + n) for n in range(1, MISMATCH_LIMIT + 2)]
+    unchanged = [shot for n in range(1, MISMATCH_LIMIT + 2) for shot in still(n, 10.0 + n)]
     actuator = FakeActuator()
-    shows = dict.fromkeys(range(1, MISMATCH_LIMIT + 2), Screen.STAGE_LIST)
+    shows = dict.fromkeys(range(1, MISMATCH_LIMIT + 2), Screen.STORY_STAGE_LIST)
 
     agent = make_agent(FakeStream(unchanged), shows, controller, actuator)
 
@@ -234,8 +526,8 @@ def test_new_plan_restarts_the_count():
     second = ScriptedPlan([step()] * 2)
     cycles = MISMATCH_LIMIT + 3
     controller = ScriptedController([first, second, None], goals=[False] * (cycles - 1) + [True])
-    frames = [still(n, 10.0 + n * 0.5) for n in range(1, cycles + 1)]
-    shows = dict.fromkeys(range(1, cycles + 1), Screen.STAGE_LIST)
+    frames = [shot for n in range(1, cycles + 1) for shot in still(n, 10.0 + n * 0.5)]
+    shows = dict.fromkeys(range(1, cycles + 1), Screen.STORY_STAGE_LIST)
 
     assert make_agent(FakeStream(frames), shows, controller).run() is RunResult.DONE
     assert len(controller.thought) == 2
@@ -246,20 +538,68 @@ def test_match_between_mismatches_restarts_the_count():
     plan = ScriptedPlan([*opens, step(LIST, "close_info"), step(LIST, "close_info")])
     cycles = MISMATCH_LIMIT + 3
     controller = ScriptedController([plan, None], goals=[False] * (cycles - 1) + [True])
-    frames = [still(n, 10.0 + n * 0.5) for n in range(1, cycles + 1)]
-    shows = dict.fromkeys(range(1, MISMATCH_LIMIT + 1), Screen.STAGE_LIST)
-    shows[MISMATCH_LIMIT + 1] = Screen.STAGE_INFO
-    shows[MISMATCH_LIMIT + 2] = Screen.STAGE_INFO
+    frames = [shot for n in range(1, cycles + 1) for shot in still(n, 10.0 + n * 0.5)]
+    shows = dict.fromkeys(range(1, MISMATCH_LIMIT + 1), Screen.STORY_STAGE_LIST)
+    shows[MISMATCH_LIMIT + 1] = Screen.SORTIE_PREP
+    shows[MISMATCH_LIMIT + 2] = Screen.SORTIE_PREP
 
     assert make_agent(FakeStream(frames), shows, controller).run() is RunResult.DONE
     assert len(controller.thought) == 1
 
 
+def test_belief_equal_to_the_second_expected_belief_is_no_mismatch():
+    either = Step("start_battle", TAP, BAND, DEADLINE, (expected(INFO), expected(LIST)))
+    plan = ScriptedPlan([either] * MISMATCH_LIMIT)
+    cycles = MISMATCH_LIMIT + 1
+    controller = ScriptedController([plan, None], goals=[False] * (cycles - 1) + [True])
+    frames = [shot for n in range(1, cycles + 1) for shot in still(n, 10.0 + n * 0.5)]
+    shows = dict.fromkeys(range(1, cycles + 1), Screen.STORY_STAGE_LIST)
+
+    assert make_agent(FakeStream(frames), shows, controller).run() is RunResult.DONE
+    assert len(controller.thought) == 1
+
+
+def test_step_without_expected_beliefs_builds_no_prediction(caplog: pytest.LogCaptureFixture):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    blind = Step("auto_toggle", TAP, BAND, DEADLINE, ())
+    plan = ScriptedPlan([blind] * (MISMATCH_LIMIT + 1))
+    cycles = MISMATCH_LIMIT + 2
+    controller = ScriptedController([plan, None], goals=[False] * (cycles - 1) + [True])
+    frames = [shot for n in range(1, cycles + 1) for shot in still(n, 10.0 + n * 0.5)]
+    shows = dict.fromkeys(range(1, cycles + 1), Screen.STORY_STAGE_LIST)
+    actuator = FakeActuator()
+
+    assert make_agent(FakeStream(frames), shows, controller, actuator).run() is RunResult.DONE
+    assert len(actuator.sent) == MISMATCH_LIMIT + 1
+    assert logged(caplog, "matches") == []
+    assert len(controller.thought) == 1
+
+
+def test_wait_step_sends_no_gesture_and_is_compared_on_the_next_cycle(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    monkeypatch.setattr("ggge_ai_2.agent.loop.now", lambda: 5.0)
+    wait = Step("enemy_turn", None, (), DEADLINE, (expected(INFO),))
+    plan = ScriptedPlan([wait, wait])
+    controller = ScriptedController([plan], goals=[False, False, True])
+    stream = FakeStream([*still(1, 1.0), *still(2, 6.0), *still(3, 7.0)])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP, 3: Screen.SORTIE_PREP}
+    actuator = FakeActuator()
+
+    assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
+    assert actuator.sent == []
+    [first] = logged(caplog, "matches")
+    assert first.__dict__["same"]
+    assert first.__dict__["in_time"]
+    assert len(logged(caplog, "wait")) == 2
+
+
 def test_invalid_plan_is_reviewed_and_replaced():
     plan = ScriptedPlan([step()], valid=[False])
     controller = ScriptedController([plan, None], goals=[False, False])
-    stream = FakeStream([still(1, 1.0), still(2, 11.0)])
-    shows = {1: Screen.STAGE_LIST, 2: Screen.STAGE_INFO}
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0)])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP}
 
     assert make_agent(stream, shows, controller).run() is RunResult.HALTED
     assert controller.reviewed == [plan]
@@ -270,13 +610,12 @@ def test_blocked_gesture_leaves_nothing_to_compare(caplog: pytest.LogCaptureFixt
     caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
     plan = ScriptedPlan([step(), step(LIST, "close_info"), step(LIST, "close_info")])
     controller = ScriptedController([plan], goals=[False, False, False, True])
-    stream = FakeStream([still(1, 1.0), still(2, 11.0), still(3, 12.0), still(4, 13.0)])
-    shows = {1: Screen.STAGE_LIST, 2: Screen.STAGE_INFO, 3: Screen.STAGE_INFO}
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0), *still(3, 12.0), *still(4, 13.0)])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP, 3: Screen.SORTIE_PREP}
     actuator = FakeActuator(blocks=[False, True, True])
 
     assert make_agent(stream, shows, controller, actuator).run() is RunResult.DONE
     assert len(logged(caplog, "matches")) == 1
-    assert stream.calls[2][0] == 11.0
 
 
 def test_stop_request_ends_the_loop_between_cycles():
@@ -287,14 +626,154 @@ def test_stop_request_ends_the_loop_between_cycles():
     assert agent.run() is RunResult.STOPPED
 
 
-def seen(ui: UiState, at: float, camera: Alignment | None = None) -> Belief:
-    return Belief(
-        ui, UiBasis(UiSource.SEEN, 1), camera, KnownMap({}), FakeDomain(), still(1, at)[1]
+def test_run_log_records_one_line_per_cycle_and_saves_only_the_mismatching_frame(
+    tmp_path: Path,
+):
+    plan = ScriptedPlan([step(), step(LIST, "close_info"), step()])
+    controller = ScriptedController([plan], goals=[False, False, False, True])
+    stream = FakeStream([*still(1, 1.0), *still(2, 11.0), *still(3, 12.0), *still(4, 13.0)])
+    shows = {
+        1: Screen.STORY_STAGE_LIST,
+        2: Screen.SORTIE_PREP,
+        3: Screen.SORTIE_PREP,
+        4: Screen.SORTIE_PREP,
+    }
+    run_dir = tmp_path / "run"
+
+    agent = make_agent(stream, shows, controller, runlog=RunLog(run_dir))
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in lines]
+    assert [
+        (r["frame_seq"], r["interpreted"], r["expected"], r["matched"], r["step"]) for r in records
+    ] == [
+        (1, "story_stage_list", [], None, "open_info"),
+        (2, "sortie_prep", ["sortie_prep"], True, "close_info"),
+        (3, "sortie_prep", ["story_stage_list"], False, "open_info"),
+        (4, "sortie_prep", ["sortie_prep"], None, None),
+    ]
+    assert [r["frame"] for r in records] == ["000001.jpg", "000002.jpg", "000003.jpg", "000004.jpg"]
+    assert [r["time"] for r in records] == [1.0, 11.0, 12.0, 13.0]
+    assert sorted(path.name for path in (run_dir / "frames").glob("*.png")) == ["000003.png"]
+
+
+def test_run_log_records_the_auto_mode_value(tmp_path: Path):
+    stream = FakeStream(still(1, 1.0))
+    shows = {1: Screen.BATTLE_INFO_PREVIEW}
+    run_dir = tmp_path / "run"
+    agent = make_agent(stream, shows, ScriptedController([], goals=[True]), runlog=RunLog(run_dir))
+    agent.interpreter = FakeInterpreter(shows, {1: AutoMode.SEMI})
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["auto"] for line in lines] == ["semi"]
+
+
+def test_run_log_records_the_stack_with_and_without_a_caller(tmp_path: Path):
+    stack = (
+        OpenGroup("battle_menu", UiScreen.PLAYER_PHASE_OVERVIEW),
+        OpenGroup("unit_detail", None),
+    )
+    run_dir = tmp_path / "run"
+    agent = make_agent(
+        FakeStream(still(1, 1.0)),
+        {1: Screen.STORY_STAGE_LIST},
+        ScriptedController([], goals=[True]),
+        runlog=RunLog(run_dir),
+    )
+    agent.belief = replace(agent.belief, ui=UiState(UiScreen.STORY_STAGE_LIST, stack))
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["stack"] for line in lines] == [
+        ["battle_menu@player_phase_overview", "unit_detail"]
+    ]
+
+
+def _menu_stages() -> Stages:
+    def screen(name: str, *buttons: ButtonDef) -> ScreenDef:
+        return ScreenDef(name, "page", "player", buttons, ())
+
+    def button(name: str, to: str) -> ButtonDef:
+        return ButtonDef(name, (to,), RatioRect(0.4, 0.4, 0.6, 0.6), None, False, False, DEADLINE)
+
+    return Stages(
+        screens={
+            "player_phase_overview": screen(
+                "player_phase_overview", button("menu", "battle_main_setting")
+            ),
+            "battle_main_setting": screen("battle_main_setting"),
+        },
+        groups={"battle_menu": CallerGroup("battle_menu", ("battle_main_setting",), ())},
     )
 
 
-def predicted(camera: Alignment | None = None) -> Predicted:
-    return Predicted(expected(INFO, camera), DISPATCHED.t1 + DEADLINE)
+def test_opening_a_group_matches_the_expected_stack(tmp_path: Path):
+    uisim = StageUiSim(_menu_stages())
+    overview = replace(start(), ui=UiState(UiScreen.PLAYER_PHASE_OVERVIEW))
+    (menu,) = uisim.successors(overview.ui)
+    plan = ScriptedPlan([operation_step(menu, overview, uisim, (1, 1)), step()])
+    run_dir = tmp_path / "run"
+    agent = make_agent(
+        FakeStream([*still(1, 1.0), *still(2, 11.0), *still(3, 12.0)]),
+        {1: Screen.PLAYER_PHASE_OVERVIEW, 2: Screen.BATTLE_MAIN_SETTING},
+        ScriptedController([plan], goals=[False, False, True]),
+        runlog=RunLog(run_dir),
+    )
+    agent.uisim = uisim
+    agent.belief = overview
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in lines]
+    assert [(r["stack"], r["matched"]) for r in records[:2]] == [
+        ([], None),
+        (["battle_menu@player_phase_overview"], True),
+    ]
+
+
+def screen_sized(seq: int, at: float) -> list[Frame]:
+    image = np.zeros((1080, 2340, 3), np.uint8)
+    return [Frame(image, at - 0.5, seq), Frame(image, at, seq)]
+
+
+def test_run_log_records_the_gesture_of_a_tap_step_and_none_for_a_wait_step(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+):
+    caplog.set_level(logging.INFO, logger="ggge_ai_2.agent.loop")
+    monkeypatch.setattr("ggge_ai_2.agent.loop.now", lambda: 11.2)
+    tap = Step("open_info", Tap((1011, 544)), BAND, DEADLINE, (expected(INFO),))
+    wait = Step("enemy_turn", None, (), DEADLINE, (expected(INFO),))
+    controller = ScriptedController([ScriptedPlan([tap, wait])], goals=[False, False, True])
+    stream = FakeStream([*screen_sized(1, 1.0), *screen_sized(2, 11.0), *screen_sized(3, 12.0)])
+    shows = {1: Screen.STORY_STAGE_LIST, 2: Screen.SORTIE_PREP, 3: Screen.SORTIE_PREP}
+    run_dir = tmp_path / "run"
+
+    agent = make_agent(stream, shows, controller, runlog=RunLog(run_dir))
+
+    assert agent.run() is RunResult.DONE
+    lines = (run_dir / "steps.jsonl").read_text(encoding="utf-8").splitlines()
+    records = [json.loads(line) for line in lines]
+    assert [(r["step"], r["gesture"]) for r in records] == [
+        ("open_info", "tap 0.432,0.504"),
+        ("enemy_turn", None),
+        (None, None),
+    ]
+    assert [record.getMessage() for record in caplog.records if record.name.endswith(".cycle")] == [
+        "#1 seen=story_stage_list believed=story_stage_list exp=[] ok=None"
+        " step=open_info tap 0.432,0.504",
+        "#2 seen=sortie_prep believed=sortie_prep exp=[sortie_prep] ok=True step=enemy_turn",
+        "#3 seen=sortie_prep believed=sortie_prep exp=[sortie_prep] ok=None step=None",
+    ]
+
+
+def seen(ui: UiState, at: float) -> Belief:
+    return Belief(ui, UiBasis(UiSource.SEEN, 1), FakeDomain(), window(1, at))
+
+
+def predicted() -> Predicted:
+    return Predicted((expected(INFO),), DISPATCHED.t1 + DEADLINE)
 
 
 def compare(belief: Belief, predicted: Predicted) -> bool:
@@ -310,7 +789,7 @@ def test_prediction_takes_the_expected_belief_and_the_deadline_from_the_step():
     assert agent.predict(sent, DISPATCHED) == Predicted(sent.expected, DISPATCHED.t1 + DEADLINE)
 
 
-def test_belief_with_the_expected_ui_and_camera_in_time_matches():
+def test_belief_with_the_expected_ui_in_time_matches():
     assert compare(seen(INFO, 11.0), predicted())
 
 
@@ -322,12 +801,6 @@ def test_belief_still_only_after_the_deadline_does_not_match():
 
 def test_belief_with_another_ui_does_not_match():
     assert not compare(seen(LIST, 11.0), predicted())
-
-
-def test_belief_with_another_camera_does_not_match():
-    moved = seen(INFO, 11.0, Alignment((3, 0)))
-
-    assert not compare(moved, predicted(Alignment((0, 0))))
 
 
 def test_belief_still_locked_after_an_unlock_does_not_match():

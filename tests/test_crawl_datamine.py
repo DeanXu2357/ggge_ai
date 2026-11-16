@@ -1,6 +1,6 @@
 """The datamine crawler gives the same bytes for the same upstream (issue #74).
 
-The fixture in tests/fixtures/datamine/ is a recorded slice of the five sources,
+The fixture in tests/fixtures/datamine/ is a recorded slice of the seven sources,
 so the suite needs no network.
 """
 
@@ -26,9 +26,11 @@ RECORDED = {
     TABLE_PATHS["weapon"]: "weapon.json",
     TABLE_PATHS["stage"]: "stage.json",
     TABLE_PATHS["character"]: "character.json",
+    TABLE_PATHS["supporter"]: "supporter.json",
+    TABLE_PATHS["supporter_growth"]: "supporter_growth.json",
     FORMULA_PATH: "formula.html",
 }
-VERSION = "202608161248"
+VERSION = "202609010310"
 SOURCE = "https://example.invalid"
 
 
@@ -64,6 +66,8 @@ def test_the_dump_lands_under_the_version_stamp_of_the_source(tmp_path):
         "formula.json",
         "manifest.json",
         "stage.json",
+        "supporter.json",
+        "supporter_growth.json",
         "unit.json",
         "weapon.json",
     ]
@@ -72,10 +76,12 @@ def test_the_dump_lands_under_the_version_stamp_of_the_source(tmp_path):
 def test_the_manifest_counts_the_rows_of_every_container(tmp_path):
     files = _manifest(crawl(_fetch, tmp_path, SOURCE))["files"]
 
-    assert files["unit.json"]["rows"] == {"unit": 2}
-    assert files["weapon.json"]["rows"] == {"weapons": 3, "units": 1}
+    assert files["unit.json"]["rows"] == {"unit": 4}
+    assert files["weapon.json"]["rows"] == {"weapons": 16, "units": 4}
     assert files["stage.json"]["rows"] == {"stage": 3}
     assert files["character.json"]["rows"] == {"character": 3}
+    assert files["supporter.json"]["rows"] == {"supporter": 1}
+    assert files["supporter_growth.json"]["rows"] == {"supporter_growth": 400}
     assert files["formula.json"]["rows"] == {"lines": 17, "notes": 3}
 
 
@@ -99,6 +105,17 @@ def test_the_pilot_dump_keeps_the_value_group_of_every_row(tmp_path):
     assert [row["id"] for row in rows] == [1001000100, 1001000101, 1001000200]
     stats = next(row["stats"] for row in rows if row["id"] == 1001000100)
     assert {"ranged", "melee", "defense", "reaction", "awaken"} <= set(stats)
+
+
+def test_the_support_crew_dump_keeps_the_growth_rows(tmp_path):
+    out_dir = crawl(_fetch, tmp_path, SOURCE)
+    crews = json.loads((out_dir / "supporter.json").read_text(encoding="utf-8"))
+    growth = json.loads((out_dir / "supporter_growth.json").read_text(encoding="utf-8"))
+
+    assert [crew["id"] for crew in crews] == [1001000150]
+    assert {"max_hp_addition_value", "max_attack_addition_value", "lb_skills"} <= set(crews[0])
+    assert growth[0] == {"level": 1, "limit_break": 0, "correction_rate": 2000}
+    assert growth[-1] == {"level": 100, "limit_break": 3, "correction_rate": 14000}
 
 
 @pytest.mark.parametrize("version", ["../escape", "2026/08/16", "/absolute", "", "."])

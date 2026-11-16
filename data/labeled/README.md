@@ -1,0 +1,161 @@
+# Labeled frames
+
+This directory is the dataset of screen labels that the user ruled. The
+OpenCV interpreter tests read these cases.
+
+This directory is the authoritative copy. No script makes it again. To
+change the dataset, edit the files here: add or remove a frame in
+`frames/` and its row in `cases.jsonl`.
+
+## Contents
+
+- Only cases that the user ruled are in the dataset.
+- The dataset keeps no duplicate cases. A second case of the same screen
+  stays only when it is different from the first case.
+- A case with `transition` true is on an animation screen (kind
+  `animation` or `loading` in `assets/ui_stages/stages.json`).
+
+## Source
+
+The first version (2026-10-26) comes from the frames of the recording
+`data/ui_recordings/20261014-234132` that the user reviewed. Later cases
+come from device runs in `data/runs/` and from device screenshots in
+`data/map_samples/`. The sources are not in git.
+`source`, `index` and `sha256` in each row point back to the source frame.
+
+## Files
+
+- `frames/`: the full frames, 2340x1080. Recording frames are JPG with the
+  recording file name. Run frames are PNG, named `run<run>_<index>.png`. Screenshots are PNG,
+  named `map<day>_<index>.png`.
+- `cases.jsonl`: one row for each frame, sorted by `source`, then `index`.
+
+## Fields of `cases.jsonl`
+
+- `id`: the case ID, `rec20261014-<index>` or `run<run>-<index>`.
+- `source`: the recording directory or the run directory.
+- `index`: the frame index in the recording, or the frame sequence number
+  of the run.
+- `file`: the frame file name.
+- `t`: the frame time in seconds from the start of the recording. `null`
+  for a run frame.
+- `sha256`: the SHA-256 of the frame file.
+- `screen`: the screen name, as in `assets/ui_stages/stages.json`.
+- `transition`: `true` when the frame shows a transition.
+- `auto`: the AUTO mode: `full` (blue), `semi` (red) or `manual` (white).
+  `null` when the screen has no AUTO button.
+- `power_save`: `lock` (the power-save lock icon) or `dim` (the dimmed
+  screen). `null` when the frame is not in power save. `screen` is the
+  screen under the power-save overlay.
+- `phase`: the faction of the phase, from the color of the title band at the
+  top left: `player` (blue) or `non_player` (red or purple). `null` on a
+  screen without that band.
+- `map`: what the frame shows of the battle map. `null` when the user has
+  not ruled the frame. A map cell counts when the frame shows the whole
+  cell and the HUD does not cover it. A cell is (column, row); (0, 0) is
+  the top-left corner of the box around the counted cells. Fields:
+  - `cells`: the counted cells.
+  - `borders`: the map edges that show in the frame (`top`, `bottom`,
+    `left`, `right`).
+  - `units`: one entry for each unit: `pos`, the cell of its footprint with the
+    least column and the least row, and `size`, its width and height in cells.
+    `pos` and `size` give the cells that the unit covers in the frame. A unit
+    whose cells are not a rectangle lists the cells outside the rectangle in
+    `extra`. The cells that select a unit are not in the dataset: one frame
+    does not show them.
+  - `cropped`: the units that the HUD or the frame edge cuts, with `pos` and
+    `size` as in `units`. `pos` can be outside the counted cells. Only a unit
+    with at least one counted cell is in the list. The counted cells of a cut
+    unit are occupied, but the unit is not in `units`. The key is missing on a
+    frame where the user has not ruled the cut units.
+  - `controllable`: the `pos` of the units that show the chevron (the
+    units the player can still move).
+  - `selected`: the `pos` of the unit with the blue selection circle, or
+    `null`.
+  - `enemy_selected`: the `pos` of the enemy unit with the red selection
+    circle, or `null`. The red circle shows when the player taps an enemy
+    unit while no unit of the player is selected. The key is missing on a
+    frame that the user ruled before the key existed.
+  - `markers`: the cells of each marker: `move_range` (the double-line
+    cells of the move range), `threat` (the exclamation mark) and
+    `weapon_range` (the red cells of the weapon range), and
+    `enemy_move_range` (the red cells around the enemy unit with the red
+    selection circle: its move range). A cell that a unit occupies is not
+    in the move range, also the cell of the selected enemy and a cell of a
+    unit that is not in `units`.
+- `elements`: the interpreter elements that the user ruled on the frame,
+  one key for each element. A missing key means that the user has not
+  ruled that element on the frame. A `null` value means that the user
+  cannot rule it, for example because an effect covers the element.
+  - `turn_box`: `present` or `absent`: the white TURN box at the top
+    left.
+  - `menu_key`: the ≡ menu key at the top right: `lit` (the player can
+    tap it), `dark` (the key shows but it is dimmed) or `absent`.
+  - `round_button`: the large round button at the bottom right, named by
+    its text: `select_weapon` (選擇武裝), `attack` (攻擊),
+    `attack_out_of_range` (攻擊 grayed under the 射程外 message),
+    `select_action` (行動選擇), `activate` (發動), `start_battle`
+    (開始戰鬥), or `absent`.
+  - `top_left_title`: the battle title at the top left, the white text
+    line above the TURN box: `player_phase` (我軍回合), `unit_move`
+    (單位移動), `select_weapon` (選擇武裝), `battle_prep_attack`
+    (戰鬥準備 -攻擊-), `battle_prep_response` (戰鬥準備 -應戰-),
+    `enemy_phase` (敵軍回合), `skill` (技能), `other` (a readable title
+    in the same font that is not a battle title, for example on the
+    enhance lists), or `absent`.
+  - `fast_forward`: the ▶▶ fast-forward key at the top right: `x2`, `x1`,
+    `off`, or `absent`. The labeled frames show only `x2`.
+  - `tap_to_next`: the "- TAP TO NEXT -" indicator at the bottom center:
+    `present` or `absent`. It is not a button: while it shows, a tap
+    anywhere on the screen skips ahead.
+  - `enemy_panel`: the panel of an enemy unit at the top left, with a
+    pilot block and a mech block: `present` or `absent`. The panel shows
+    the enemy with the red selection circle, and also the target of an
+    attack on the battle screens. A panel whose left block shows mech art
+    instead of the pilot block is `absent`.
+  - `unit_panel`: the panel of the selected unit at the top right, with a
+    mech block and a pilot block: `present` or `absent`. A panel whose
+    right block shows mech art instead of the pilot block is `absent`: it is
+    not the same UI element.
+  - `unit_list`: the "單位列表" button at the bottom right, which opens and
+    closes the row of unit cards: `open` (the button shows ▽ above the
+    card row), `closed` (the button shows ▲ at the bottom edge, and the
+    card row is gone) or `absent`.
+
+  An element counts only when the player can use it on the current
+  screen. An element under an overlay or a blur is `absent`, also when
+  its shape and color still show (rec20261014-776). `null` is only for a
+  frame where the user cannot tell whether the element is there.
+
+- `unit_panel`: what the panel of the selected unit shows, when
+  `elements.unit_panel` is `present`, or `null` when it is `absent`.
+  The key is missing when the user has not ruled the frame. A field is `null`
+  when the panel does not show it. Names are as the panel shows them,
+  with the cut mark '…'.
+  - `mech`: `icon` (the color of the icon before the name: `red`, `blue`
+    or `yellow`), `name`, `hp`, `en`, `hp_change` and `en_change` (the
+    preview numbers over the bars, for example -12067), and `overlay`
+    (other text over the block, for example `KILL` or `MP +0`).
+  - `pilot`: `icon`, `name`, `mp` and `mp_max`, `state` (the word after
+    MP, for example 一般 or 超一擊), `damage` (the percent of
+    'DAMAGE +x%') and `chance_step` (the count of 'CHANCE STEP ×n').
+- `enemy_panel`: what the panel of the enemy unit shows, when
+  `elements.enemy_panel` is `present`, or `null` when it is `absent`. The
+  key is missing when the user has not ruled the frame. The panel is at
+  the top left, with the pilot block on the left and the mech block on the
+  right. It has the fields of `unit_panel`; its icons are `gray` (⊖).
+- `tap_mark`: the mark that a tap on an empty map cell leaves: the cell
+  fills with blue, and a terrain box with a down-pointing triangle shows
+  above the cell. `null` when the frame shows no mark. The key is missing
+  when the user has not ruled the frame. Fields:
+  - `point`: a screen point (in frame pixels) in the marked cell. The
+    point gives the cell through the grid of the frame, because a frame
+    without a ruled `map` has no ruled cell origin.
+  - `terrain`: the terrain icons in the box, from left to right: `air`
+    (cloud), `ground` (mountain), `space` (planet), `surface` (waves) and
+    `underwater` (water). `null` when the box is outside the frame.
+
+## Later work
+
+Cases with cropped images of the recognition target come in a later
+version.
