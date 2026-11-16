@@ -1,19 +1,19 @@
 """A probe on 'Plan.next' that logs its input and its output at the DEBUG level.
 
 The judgment of mapgeom is a function of the evidence, so the log is enough to replay
-it offline. The evidence only grows, so each input keeps only the newest map reading.
+it offline. The evidence only grows, so each input keeps only the newest map reading. The
+values are in the JSON form of 'trace_json'.
 """
 
 from __future__ import annotations
 
-import base64
 import functools
 import logging
-import pickle
 from collections.abc import Callable
 
 from ggge_ai_2.agent.belief import Belief
 from ggge_ai_2.agent.contract import Evidence, Step
+from ggge_ai_2.agent.trace_json import encode_belief, encode_gesture, encode_record
 
 log = logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ def traced[P](
             "plan input",
             extra={
                 "plan": name,
-                "belief": belief,
+                "belief": encode_belief(belief),
                 "readings": len(records),
-                "newest": base64.b64encode(pickle.dumps(records[-1])).decode() if records else None,
+                "newest": encode_record(records[-1]) if records else None,
             },
         )
         step = next_step(plan, belief, evidence)
@@ -42,7 +42,7 @@ def traced[P](
             extra={
                 "plan": name,
                 "step": step.name,
-                "gesture": step.gesture,
+                "gesture": encode_gesture(step.gesture),
                 "expected": [expected.ui.screen.value for expected in step.expected],
             },
         )

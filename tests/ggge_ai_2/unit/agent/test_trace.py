@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import base64
+import json
 import logging
-import pickle
 from dataclasses import dataclass
 
 import pytest
@@ -10,6 +9,7 @@ import pytest
 from ggge_ai_2.agent.belief import Belief, UiBasis, UiSource
 from ggge_ai_2.agent.contract import Evidence, MapReadingRecord, Step
 from ggge_ai_2.agent.trace import traced
+from ggge_ai_2.agent.trace_json import decode_record, decode_ui
 from ggge_ai_2.mapparser.contract import MapReading
 from ggge_ai_2.stream.contract import StillWindow
 from ggge_ai_2.uisim.contract import UiScreen, UiState
@@ -50,7 +50,9 @@ def test_the_trace_logs_the_input_and_the_output_of_next(caplog: pytest.LogCaptu
     (given,) = [record for record in caplog.records if record.getMessage() == "plan input"]
     (gave,) = [record for record in caplog.records if record.getMessage() == "plan output"]
     assert (vars(given)["plan"], vars(given)["readings"]) == ("ProbePlan", 1)
-    assert pickle.loads(base64.b64decode(vars(given)["newest"])) == evidence().map_readings[-1]
+    newest = json.loads(json.dumps(vars(given)["newest"]))
+    assert decode_record(newest) == evidence().map_readings[-1]
+    assert decode_ui(vars(given)["belief"]) == (belief().ui, belief().as_of)
     assert (vars(gave)["plan"], vars(gave)["step"], vars(gave)["gesture"]) == (
         "ProbePlan",
         "probe_wait",
