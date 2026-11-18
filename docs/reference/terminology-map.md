@@ -57,6 +57,14 @@ term at its first use in each document, then use the short form.
 | weapon accuracy | 武裝命中值 | A fixed value of one weapon, the same against every target; the datamine names it 'hit_rate' |
 | unit role | 類型 | The enum 'role' of a unit row and of a pilot row of the datamine: 1 攻擊型, 2 耐久型, 3 支援型; the filter '類型' of the game |
 | weapon category | 武裝類別 | One of 射擊, 格鬥, 覺醒 of a weapon. Not a tag, not an attack attribute, not the datamine 'type' (normal, Ex, map) and not the damage attribute 'weapon_attr' (物理, 光束, 特殊) |
+| mech_sp | 機體 SP 化 | The upgrade of a mech below UR that raises its level cap to 100 and switches its stats to the 'sp_' group of the datamine. Not the bare word "SP", which stays the skill-point pool of the pilot |
+| mech_ssp | 機體 SSP 化 | The upgrade after 'mech_sp', in one stage: it adds the 'ssp_max_' value of each stat and applies the releases. Not a progress value |
+| holding | 持有 | One mech as the account holds it: its level, its limit break, its two upgrade flags, its pilot and its support crew. Not the definition of the mech, which is the data of the game |
+| air | 空中 | The terrain of a cell that air units can use. The terrain box shows it as a cloud icon |
+| ground | 陸地 | The terrain of a cell that ground units can use. The terrain box shows it as a mountain icon |
+| space | 宇宙 | The terrain of a cell in space. The terrain box shows it as a planet icon |
+| surface | 水面 | The terrain of a cell on the water surface. The terrain box shows it as a waves icon |
+| underwater | 海中 | The terrain of a cell under the water. The terrain box shows it as a water icon |
 
 ## Legacy Chinese corpus key
 

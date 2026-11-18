@@ -12,9 +12,9 @@ import functools
 import pytest
 
 from ggge_ai_2.mapparser.contract import CellReading, MapReading, Marker
-from ggge_ai_2.interpreter.contract import Screen
 from ggge_ai_2.mapparser.opencv_parser import OpenCvMapParser
 from ggge_ai_2.stream.contract import Frame
+from tests.ggge_ai_2.unit.mapparser.scope import scope_of
 from tests.ggge_ai_2.dataset import cases, load_image
 from tests.ggge_ai_2.unit.mapparser.tolerance import Tally, check_against_baseline
 
@@ -26,7 +26,7 @@ MAP_CASES = [case for case in cases() if case.map is not None]
 @functools.cache
 def _reading(case_id: str) -> MapReading:
     case = next(case for case in MAP_CASES if case.id == case_id)
-    reading = PARSER.parse(Frame(load_image(case), 0.0, 0), Screen(case.screen))
+    reading = PARSER.parse(Frame(load_image(case), 0.0, 0), scope_of(case))
     assert reading is not None
     return reading
 
@@ -37,7 +37,7 @@ def test_reads_units_no_worse_than_the_baseline(pytestconfig: pytest.Config) -> 
         reading = _reading(case.id)
         label = case.map
         assert label is not None
-        read = {(unit.pos, unit.size) for unit in reading.units}
+        read = {(unit.pos, unit.size) for unit in reading.units if not unit.cropped}
         tally.add(case.id, read=read, ruled=label.units)
 
     check_against_baseline(pytestconfig, "units", tally)
@@ -65,6 +65,6 @@ def test_reads_marker_cells_no_worse_than_the_baseline(
         label = case.map
         assert label is not None
         read = {cell for cell, markers in reading.markers.items() if marker in markers}
-        tally.add(case.id, read=read, ruled=label.markers[marker.value])
+        tally.add(case.id, read=read, ruled=label.markers.get(marker.value, frozenset()))
 
     check_against_baseline(pytestconfig, marker.value, tally)

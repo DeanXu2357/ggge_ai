@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -106,7 +107,7 @@ func wireBoard() *battle.BattleState {
 
 func decodeFixtureState(t *testing.T) *Board {
 	t.Helper()
-	raw, err := os.ReadFile("../../../tests/fixtures/engine/debuff_ammo_board.json")
+	raw, err := os.ReadFile(filepath.Join("testdata", "debuff_ammo_board.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

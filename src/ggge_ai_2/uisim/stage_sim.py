@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ggge_ai_2.uisim.contract import (
     DangerBand,
@@ -17,6 +17,7 @@ from ggge_ai_2.uisim.contract import (
     UiState,
     UiSwipe,
     UiTap,
+    UiUnitList,
 )
 from ggge_ai_2.uisim.stages import ButtonDef, ScreenDef, Stages
 
@@ -24,6 +25,7 @@ LONG_PRESS_SECONDS = 1.0
 SWIPE_SECONDS = 0.4
 WAIT_SECONDS = 60.0
 AUTO_SUFFIX = "__auto"
+UNIT_LIST_SUFFIX = "__unit_list"
 PASS_THROUGH_KINDS = frozenset({"animation", "loading"})
 _SCREEN_VALUES = frozenset(screen.value for screen in UiScreen)
 Target = tuple[UiScreen, str | None]
@@ -32,6 +34,7 @@ NEXT_AUTO_MODE = {
     UiAutoMode.SEMI: UiAutoMode.MANUAL,
     UiAutoMode.MANUAL: UiAutoMode.FULL,
 }
+OTHER_UNIT_LIST = {UiUnitList.OPEN: UiUnitList.CLOSED, UiUnitList.CLOSED: UiUnitList.OPEN}
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,10 @@ class StageUiSim:
         for button in screen.buttons:
             if _is_auto(button) and button.rect is not None and state.auto is not None:
                 operations.append(self._auto_toggle(state, state.auto, button, button.rect))
+            if _is_unit_list(button) and state.unit_list is not None:
+                operation = self._unit_list_toggle(state, state.unit_list, button)
+                if operation is not None:
+                    operations.append(operation)
         wait = self._wait_operation(state, screen)
         if wait is not None:
             operations.append(wait)
@@ -60,7 +67,7 @@ class StageUiSim:
 
     def sync(self, state: UiState, observed: Observed) -> UiState:
         if observed.screen == state.screen:
-            return UiState(observed.screen, state.stack, observed.auto)
+            return UiState(observed.screen, state.stack, observed.auto, observed.unit_list)
         stack = next(
             (
                 outcome.then.stack
@@ -72,7 +79,7 @@ class StageUiSim:
         )
         if stack is None:
             stack = self._restack(state, observed.screen, None)
-        return UiState(observed.screen, stack, observed.auto)
+        return UiState(observed.screen, stack, observed.auto, observed.unit_list)
 
     def danger_band(self, state: UiState) -> DangerBand:
         screen = self.stages.screens.get(state.screen.value)
@@ -108,7 +115,17 @@ class StageUiSim:
         self, state: UiState, mode: UiAutoMode, button: ButtonDef, rect: RatioRect
     ) -> Operation:
         then = NEXT_AUTO_MODE[mode]
-        outcome = Outcome(f"auto_{then.value}", UiState(state.screen, state.stack, then))
+        outcome = Outcome(f"auto_{then.value}", replace(state, auto=then))
+        return Operation(button.name, state, UiTap(_centre(rect)), (outcome,), button.deadline, 1.0)
+
+    def _unit_list_toggle(
+        self, state: UiState, unit_list: UiUnitList, button: ButtonDef
+    ) -> Operation | None:
+        rect = button.rect if unit_list is UiUnitList.OPEN else button.closed_rect
+        if rect is None:
+            return None
+        then = OTHER_UNIT_LIST[unit_list]
+        outcome = Outcome(f"unit_list_{then.value}", replace(state, unit_list=then))
         return Operation(button.name, state, UiTap(_centre(rect)), (outcome,), button.deadline, 1.0)
 
     def _wait_operation(self, state: UiState, screen: ScreenDef) -> Operation | None:
@@ -122,7 +139,10 @@ class StageUiSim:
 
     def _outcome(self, state: UiState, target: UiScreen, group: str | None) -> Outcome:
         then = UiState(
-            target, self._restack(state, target, group), self._carried_auto(state, target)
+            target,
+            self._restack(state, target, group),
+            self._carried_auto(state, target),
+            state.unit_list if target == state.screen else None,
         )
         return Outcome(target.value, then)
 
@@ -196,6 +216,10 @@ class StageUiSim:
 
 def _is_auto(button: ButtonDef) -> bool:
     return button.name.endswith(AUTO_SUFFIX)
+
+
+def _is_unit_list(button: ButtonDef) -> bool:
+    return button.name.endswith(UNIT_LIST_SUFFIX)
 
 
 def _centre(rect: RatioRect) -> RatioPoint:

@@ -37,12 +37,22 @@ def operation_step(
             gesture = Key(code)
         case None:
             gesture = None
-    band = tuple(
-        Rect(*touch((region.left, region.top)), *touch((region.right, region.bottom)))
+    expected = tuple(replace(belief, ui=uisim.advance(belief.ui, o)) for o in operation.outcomes)
+    band = danger_rects(uisim, belief, screen)
+    return Step(operation.name, gesture, band, operation.deadline, expected)
+
+
+def danger_rects(uisim: UiSim, belief: Belief, screen: tuple[int, int]) -> tuple[Rect, ...]:
+    width, height = screen
+    return tuple(
+        Rect(
+            round(region.left * width),
+            round(region.top * height),
+            round(region.right * width),
+            round(region.bottom * height),
+        )
         for region in uisim.danger_band(belief.ui).regions
     )
-    expected = tuple(replace(belief, ui=uisim.advance(belief.ui, o)) for o in operation.outcomes)
-    return Step(operation.name, gesture, band, operation.deadline, expected)
 
 
 def first_move(uisim: UiSim, state: UiState, goal: UiScreen) -> tuple[Operation, Outcome] | None:

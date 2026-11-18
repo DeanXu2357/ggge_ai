@@ -25,6 +25,7 @@ SIM = ChartUiSim(CHART)
 ACTION = UiScreen.SELECT_ACTION_IN_BATTLE
 WEAPON = UiScreen.SELECT_WEAPON_IN_BATTLE
 MENU = UiScreen.BATTLE_MAIN_SETTING
+OVERVIEW = UiScreen.PLAYER_PHASE_OVERVIEW
 ALLY = UiScreen.ROSTER_LIST_ALLY
 STATE_ROSTER = UiScreen.UNIT_DETAIL_STATE_ROSTER
 MENU_FROM_ACTION = OpenGroup("battle_menu", ACTION)
@@ -76,6 +77,20 @@ def test_unit_detail_close_returns_only_to_the_caller() -> None:
     assert _operation(state, "unit_detail_action__close").outcomes == (
         Outcome("select_action_in_battle", UiState(ACTION)),
     )
+
+
+def test_unit_detail_close_returns_to_the_overview_that_opened_the_page() -> None:
+    state = UiState(UiScreen.UNIT_DETAIL_SUMMARY, (OpenGroup("unit_detail", OVERVIEW),))
+
+    assert _operation(state, "unit_detail_summary__close").outcomes == (
+        Outcome("player_phase_overview", UiState(OVERVIEW)),
+    )
+
+
+def test_unit_detail_seen_from_the_overview_has_the_overview_as_the_caller() -> None:
+    synced = SIM.sync(UiState(OVERVIEW), Observed(UiScreen.UNIT_DETAIL_SUMMARY))
+
+    assert synced == UiState(UiScreen.UNIT_DETAIL_SUMMARY, (OpenGroup("unit_detail", OVERVIEW),))
 
 
 def test_close_with_an_unknown_caller_gives_every_target_and_pops_the_group() -> None:

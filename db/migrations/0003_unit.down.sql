@@ -1,0 +1,10 @@
+DROP TABLE unit_ssp_release;
+DROP TABLE unit_ssp_core;
+DROP TABLE unit_ssp_stat;
+DROP TABLE unit_ability;
+DROP TABLE unit_terrain;
+DROP TABLE unit_stat;
+DROP TABLE unit_series;
+DROP TABLE unit_tag;
+DROP TABLE unit;
+DROP TABLE tag;

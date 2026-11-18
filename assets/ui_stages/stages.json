@@ -1421,11 +1421,22 @@
           "deadline": 4.6
         },
         {
+          "name": "player_phase_overview__map_enemy_unit",
+          "zh": "地圖上的敵方單位",
+          "description": "鏡頭範圍內看得到的敵方單位，點下去用紅圈選定那台單位，左上角顯示它的簡略資訊，周圍的紅色格子是它的移動範圍；畫面名不變",
+          "to": [
+            "player_phase_overview"
+          ],
+          "dynamic": true,
+          "deadline": 4.6
+        },
+        {
           "name": "player_phase_overview__unit_list",
           "zh": "單位列表",
-          "description": "右側「單位列表」",
+          "description": "右側「單位列表」，展開或收起下方的單位卡片列。展開時是「▽ 單位列表」，在卡片列上方；收起時是「▲ 單位列表」，移到右下角。開闔只改變遮住地圖的範圍，畫面不變",
           "to": [],
           "rect": [0.769, 0.677, 0.925, 0.739],
+          "closed_rect": [0.769, 0.896, 0.925, 0.956],
           "deadline": 15.0
         },
         {
@@ -3563,7 +3574,9 @@
             "battle_prep_attack",
             "battle_prep_response_attack",
             "select_action_in_battle",
-            "select_weapon_in_battle"
+            "select_weapon_in_battle",
+            "select_skill_in_battle",
+            "player_phase_overview"
           ],
           "rect": [0.429, 0.867, 0.58, 0.97],
           "deadline": 15.0
@@ -3670,7 +3683,9 @@
             "battle_prep_attack",
             "battle_prep_response_attack",
             "select_action_in_battle",
-            "select_weapon_in_battle"
+            "select_weapon_in_battle",
+            "select_skill_in_battle",
+            "player_phase_overview"
           ],
           "rect": [0.429, 0.867, 0.58, 0.972],
           "deadline": 15.0
@@ -3777,7 +3792,9 @@
             "battle_prep_attack",
             "battle_prep_response_attack",
             "select_action_in_battle",
-            "select_weapon_in_battle"
+            "select_weapon_in_battle",
+            "select_skill_in_battle",
+            "player_phase_overview"
           ],
           "rect": [0.429, 0.867, 0.58, 0.97],
           "deadline": 15.0
@@ -3876,7 +3893,9 @@
             "battle_prep_attack",
             "battle_prep_response_attack",
             "select_action_in_battle",
-            "select_weapon_in_battle"
+            "select_weapon_in_battle",
+            "select_skill_in_battle",
+            "player_phase_overview"
           ],
           "rect": [0.429, 0.867, 0.58, 0.97],
           "deadline": 15.0

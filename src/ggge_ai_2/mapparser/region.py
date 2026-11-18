@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ggge_ai_2.mapparser.border import Border
-from ggge_ai_2.mapparser.contract import ViewCell
-from ggge_ai_2.mapparser.hud import Rect
+from ggge_ai_2.mapparser.contract import Rect, ViewCell
 from ggge_ai_2.mapparser.lattice import Lattice
 
 # The HUD rectangles are a few pixels larger than the panels. An overlap thinner than

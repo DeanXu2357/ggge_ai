@@ -3,22 +3,32 @@ from __future__ import annotations
 import functools
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
 
-from ggge_ai_2.mapparser.contract import CellReading, UnitReading, ViewCell
-from ggge_ai_2.mapparser.hud import PROMPT, TEMPLATES, Rect, covered, outside, template_match
+from ggge_ai_2.mapparser.contract import CellReading, Rect, ScreenPoint, UnitReading, ViewCell
 from ggge_ai_2.mapparser.lattice import Lattice, ridge
+from ggge_ai_2.mapparser.markers import enemy_move_range
 from ggge_ai_2.mapparser.rings import (
+    HIDDEN_SOLID_GAUGE_ON,
+    SOLID_GAUGE_ON,
+    solid_gauge,
     RING_DEPTH,
     Ring,
+    RingImage,
+    band_share,
+    clear_red,
     find_rings,
     ring_image,
     sample,
 )
-from ggge_ai_2.mapparser.topview import CELL, TopView
+from ggge_ai_2.mapparser.topview import CELL, TopView, outside
 
+CHEVRON_TEMPLATE = (
+    Path(__file__).resolve().parents[3] / "assets" / "templates" / "mapparser" / "chevron.png"
+)
 HUD_MARGIN = 8
 
 # In cells of the top view. The walk goes up from the middle of a hidden ring through
@@ -42,6 +52,15 @@ TOP_HIDDEN = 0.5
 TOP_ARC = 0.5
 SIDE_SHOWN = 0.4
 SIDE_CLEAR = 0.7
+# A unit that hides the grid lines also shows a part of its ring, for example beside an
+# attack preview (map20261026-40). A building hides the grid lines and shows no ring
+# (map20261112-3).
+HIDDEN_RING_ON = 0.25
+# A body in front hides the middle of a wide ring, and with it the grid line between the
+# columns of the ring. When that line shows, the two ring ends are two other objects, for
+# example grass and the head of a unit (map20261112-1, map20261112-3).
+MIDDLE_SPAN = np.linspace(-0.25, -0.02, 9)
+MIDDLE_LINE_OFF = 0.5
 
 CHEVRON_PITCH = 114.0
 CHEVRON_SCALES = (0.8, 0.9, 1.0, 1.12, 1.25)
@@ -56,7 +75,9 @@ CHEVRON_RISE = (0.3, 0.8)
 # The selection circle lies on the ground around the selected unit. In footprint widths,
 # its center is this far above the bottom edge, and the radii cover its glow. The angles
 # keep to the two sides, because the sprite hides the top and the ring lies at the bottom.
-CIRCLE_RISE = 0.7
+# The rise comes from the brightest ring on 17 frames with a selected enemy: the ring
+# centers 0.46 cells below the top edge of the cell (run 20261115-213514).
+CIRCLE_RISE = 0.54
 CIRCLE_RADII = (0.55, 0.62, 0.69)
 CIRCLE_ANGLES = np.radians(np.linspace(-60.0, 40.0, 11))
 GLOW_HUE = (95, 118)
@@ -64,6 +85,29 @@ GLOW_SATURATION = 25
 GLOW_VALUE = 225
 CIRCLE_SIDE = 0.4
 CIRCLE_ON = 0.5
+# A tap on an enemy unit while no unit of the player is selected draws a red circle around
+# the enemy. The red tint of the enemy's move range is darker than the glow of the circle.
+RED_GLOW_HUES = ((0, 10), (165, 179))
+RED_GLOW_SATURATION = 25
+RED_GLOW_VALUE = 240
+# The circle is dashed and the sprite hides part of it, so a circle is fitted to the glow
+# around each cell. Bounds in cells, from 24 frames with a selected enemy of one cell and
+# 3556 other cells (ruled frames and run 20261115-213514): the circle of a selected enemy
+# has a radius of 0.626 to 0.636, a center within 0.09 of the expected center, and glow in
+# at least 5 of the 6 sectors on each side. Another cell with a radius in the bounds shows
+# glow in at most 3 sectors on a side.
+RED_RING_WINDOW = (0.45, 0.80)
+RED_RING_INLIER = 3.0
+RED_RING_CENTER_OFF = 0.1
+RED_RING_RADIUS = (0.615, 0.65)
+RED_RING_SECTOR = 30
+RED_RING_SECTORS = 5
+# The sprite of a wide unit can hide most of the red circle (map20261112-1, -4). The move
+# range of the selected enemy lies around its cell, so a weaker circle counts in a cell
+# near the center of the range. The value lies between the best circle share of a
+# frame without a selected enemy (0.09) and of a hidden circle (0.27).
+RANGE_CENTER_REACH = 1.0
+RED_CIRCLE_AT_CENTER = 0.18
 
 
 @dataclass(frozen=True)
@@ -106,38 +150,62 @@ class GridLines:
 
 
 def read_units(
-    image: np.ndarray, lattice: Lattice, rects: tuple[Rect, ...], view: TopView
+    image: np.ndarray, lattice: Lattice, rects: tuple[Rect, ...], view: TopView, chevrons: bool
 ) -> tuple[tuple[UnitReading, ...], dict[ViewCell, CellReading]]:
+    """Return the units and the reading of each frame cell.
+
+    The controllable state of every unit is None when 'chevrons' is False.
+    """
     visible = outside(image, rects, 0)
     frame_cells = lattice.cells()
     hud = frozenset(cell for cell in frame_cells if covered(lattice.center(cell), rects))
     # The panels have soft colored edges a few pixels past their rectangles.
     rings = ring_image(image, outside(image, rects, HUD_MARGIN))
-    found = find_rings(rings, lattice, frame_cells)
+    enemy = _enemy_selected(view, frame_cells - hud)
+    if enemy is not None:
+        # The move range of the selected enemy has the colors of the red rings, so a red
+        # ring inside it cannot be told from the tint.
+        # Warning: other enemy units inside the range are not found by their rings.
+        tint = _cells_region(image.shape[:2], lattice, enemy_move_range(view, frame_cells))
+        rings = clear_red(rings, tint)
+    lines = grid_lines(image)
+    found = [
+        ring
+        for ring in find_rings(rings, lattice, frame_cells)
+        if not _middle_shown(lattice, lines, visible, ring)
+        and (solid_gauge(rings.drawn, rings.visible, lattice, ring) or 1.0)
+        >= (HIDDEN_SOLID_GAUGE_ON if ring.hidden_middle else SOLID_GAUGE_ON)
+    ]
     taken = {cell for ring in found for cell in ring.cells()}
     footprints = [_body(view, ring, taken) for ring in found]
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    chevrons = (
-        _chevrons(image, lattice, visible)
-        if template_match(gray, PROMPT)[0] >= PROMPT.threshold
-        else None
-    )
-    if chevrons is not None:
-        footprints.extend(_chevron_units(chevrons, footprints))
-    hidden = _hidden(
-        lattice, grid_lines(image), rings.any_color, visible, frame_cells - hud, footprints
-    )
+    if enemy is not None:
+        # The sprite of a wide unit can make its ring body wider than its cell
+        # (map20261112-1). The red circle marks the cell of the unit.
+        footprints = [footprint for footprint in footprints if enemy.pos not in footprint.cells()]
+        footprints.append(enemy)
+    white = (image.min(axis=2) > CHEVRON_WHITE).astype(np.float32)
+    middle_row = lattice.row_coordinate(image.shape[0] / 2)
+    pitch = lattice.project(1.0, middle_row)[0] - lattice.project(0.0, middle_row)[0]
+    kernels = tuple(_chevron(round(factor * pitch / CHEVRON_PITCH, 2)) for factor in CHEVRON_SCALES)
+    if chevrons:
+        # Warning: this search finds the units that show only their chevron. Roadmap
+        # section 8.14 rules to delete it. Without it, the parser loses 4 ruled units
+        # (map20261112-4, map20261026-51, rec20261014-639). The user decides at the review
+        # of task B2.
+        marks = _chevrons(white, kernels, pitch, lattice, visible)
+        footprints.extend(_chevron_units(marks, footprints))
+    hidden = _hidden(lattice, lines, rings, visible, frame_cells - hud, footprints)
     footprints.extend(hidden.units)
-    # The overview screen draws the same glow around each unit that can act.
-    selected = None if chevrons is not None else _selected(view, footprints)
+    selected = _selected(view, footprints)
     units = tuple(
         UnitReading(
             pos=footprint.pos,
             size=(footprint.width, footprint.height),
-            controllable=None
-            if chevrons is None
-            else _controllable(lattice, visible, chevrons, footprint),
+            controllable=_controllable(white, kernels, lattice, visible, footprint)
+            if chevrons
+            else None,
             selected=footprint == selected,
+            enemy_selected=footprint == enemy,
         )
         for footprint in sorted(footprints, key=lambda footprint: footprint.pos[::-1])
     )
@@ -151,6 +219,11 @@ def read_units(
         else:
             cells[cell] = CellReading.EMPTY
     return units, cells
+
+
+def covered(point: ScreenPoint, rects: tuple[Rect, ...]) -> bool:
+    x, y = point
+    return any(left <= x < right and top <= y < bottom for left, top, right, bottom in rects)
 
 
 def _body(view: TopView, ring: Ring, taken: set[ViewCell]) -> _Footprint:
@@ -223,32 +296,151 @@ def _selected(view: TopView, footprints: list[_Footprint]) -> _Footprint | None:
         & (saturation >= GLOW_SATURATION)
         & (value >= GLOW_VALUE)
     )
-    x0, y0 = view.origin((0, 0))
     best: tuple[float, _Footprint | None] = (CIRCLE_ON, None)
     for footprint in footprints:
-        column, row = footprint.pos
-        width = footprint.width
-        center_x = column + width / 2
-        center_y = row + footprint.height - CIRCLE_RISE * width
-        sides: list[float] = []
-        for sign in (-1.0, 1.0):
-            hits = np.zeros(len(CIRCLE_ANGLES), bool)
-            shown = np.zeros(len(CIRCLE_ANGLES), bool)
-            for radius in CIRCLE_RADII:
-                xs = x0 + (center_x + sign * radius * width * np.cos(CIRCLE_ANGLES)) * CELL
-                ys = y0 + (center_y + radius * width * np.sin(CIRCLE_ANGLES)) * CELL
-                hit, seen = sample(glow, view.visible, xs, ys)
-                hits |= hit
-                shown |= seen
-            if shown.sum() < len(CIRCLE_ANGLES) / 2:
-                break
-            sides.append(float(hits.sum()) / float(shown.sum()))
+        sides = _circle_sides(view, glow, footprint)
         if len(sides) < 2 or min(sides) < CIRCLE_SIDE:
             continue
         score = sum(sides) / 2
         if score >= best[0]:
             best = (score, footprint)
     return best[1]
+
+
+def _enemy_selected(view: TopView, cells: frozenset[ViewCell]) -> _Footprint | None:
+    """Return the one-cell footprint in the red selection circle, or None."""
+    hsv = cv2.cvtColor(view.image, cv2.COLOR_BGR2HSV)
+    hue, saturation, value = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    red = np.zeros(hue.shape, bool)
+    for low, high in RED_GLOW_HUES:
+        red |= (hue >= low) & (hue <= high)
+    glow = red & (saturation >= RED_GLOW_SATURATION) & (value >= RED_GLOW_VALUE)
+    circle = _fitted_red_circle(view, glow & view.visible, cells)
+    if circle is not None:
+        return circle
+    tinted = enemy_move_range(view, cells)
+    if not tinted:
+        return None
+    center_x = sum(column for column, _ in tinted) / len(tinted)
+    center_y = sum(row for _, row in tinted) / len(tinted)
+    near = frozenset(
+        cell
+        for cell in cells - tinted
+        if math.hypot(cell[0] - center_x, cell[1] - center_y) <= RANGE_CENTER_REACH
+    )
+    return _red_circle(view, glow, near, RED_CIRCLE_AT_CENTER)
+
+
+def _fitted_red_circle(
+    view: TopView, glow: np.ndarray, cells: frozenset[ViewCell]
+) -> _Footprint | None:
+    """Return the one-cell footprint whose surrounding glow fits the red circle, or None."""
+    inner, outer = (bound * CELL for bound in RED_RING_WINDOW)
+    reach = math.ceil(outer)
+    height, width = glow.shape
+    best: tuple[tuple[int, int], _Footprint | None] = ((0, 0), None)
+    for cell in sorted(cells):
+        left, top = view.origin(cell)
+        expected_x, expected_y = left + 0.5 * CELL, top + (1 - CIRCLE_RISE) * CELL
+        x_low, y_low = max(0, int(expected_x) - reach), max(0, int(expected_y) - reach)
+        x_high = min(width, int(expected_x) + reach + 1)
+        y_high = min(height, int(expected_y) + reach + 1)
+        if x_low >= x_high or y_low >= y_high:
+            continue
+        ys, xs = np.nonzero(glow[y_low:y_high, x_low:x_high])
+        xs = xs + x_low - expected_x
+        ys = ys + y_low - expected_y
+        distance = np.hypot(xs, ys)
+        keep = (distance >= inner) & (distance <= outer)
+        circle = _fit_circle(xs[keep], ys[keep])
+        if circle is None:
+            continue
+        center_x, center_y, radius, sectors = circle
+        if (
+            math.hypot(center_x, center_y) > RED_RING_CENTER_OFF * CELL
+            or not RED_RING_RADIUS[0] * CELL <= radius <= RED_RING_RADIUS[1] * CELL
+        ):
+            continue
+        left_sectors = sum(1 for sector in sectors if 90 <= sector * RED_RING_SECTOR < 270)
+        score = (min(left_sectors, len(sectors) - left_sectors), len(sectors))
+        if score[0] >= RED_RING_SECTORS and score > best[0]:
+            best = (score, _Footprint.square(cell, 1))
+    return best[1]
+
+
+def _fit_circle(
+    xs: np.ndarray, ys: np.ndarray
+) -> tuple[float, float, float, frozenset[int]] | None:
+    """Return the center, the radius and the sectors with inliers of the circle through the
+    points, or None for too few points. The second fit uses only the points within
+    RED_RING_INLIER pixels of the first circle."""
+    xs, ys = xs.astype(np.float64), ys.astype(np.float64)
+    if len(xs) < 20:
+        return None
+    center_x, center_y, radius = _least_squares_circle(xs, ys)
+    near = np.abs(np.hypot(xs - center_x, ys - center_y) - radius) <= RED_RING_INLIER
+    if near.sum() < 20:
+        return None
+    center_x, center_y, radius = _least_squares_circle(xs[near], ys[near])
+    near = np.abs(np.hypot(xs - center_x, ys - center_y) - radius) <= RED_RING_INLIER
+    angles = np.degrees(np.arctan2(ys[near] - center_y, xs[near] - center_x)) % 360
+    return center_x, center_y, radius, frozenset((angles // RED_RING_SECTOR).astype(int).tolist())
+
+
+def _least_squares_circle(xs: np.ndarray, ys: np.ndarray) -> tuple[float, float, float]:
+    system = np.column_stack([xs, ys, np.ones_like(xs)])
+    (a, b, c), *_ = np.linalg.lstsq(system, xs**2 + ys**2, rcond=None)
+    center_x, center_y = float(a) / 2, float(b) / 2
+    return center_x, center_y, math.sqrt(max(float(c) + center_x**2 + center_y**2, 0.0))
+
+
+def _red_circle(
+    view: TopView, glow: np.ndarray, cells: frozenset[ViewCell], least: float
+) -> _Footprint | None:
+    best: tuple[float, _Footprint | None] = (least, None)
+    for cell in sorted(cells):
+        footprint = _Footprint.square(cell, 1)
+        sides = _circle_sides(view, glow, footprint)
+        if len(sides) == 2 and min(sides) >= best[0]:
+            best = (min(sides), footprint)
+    return best[1]
+
+
+def _circle_sides(view: TopView, glow: np.ndarray, footprint: _Footprint) -> list[float]:
+    """Return the share of glow on the left and the right side of the selection circle
+    around the footprint. The list is shorter when too little of a side shows."""
+    x0, y0 = view.origin((0, 0))
+    column, row = footprint.pos
+    width = footprint.width
+    center_x = column + width / 2
+    center_y = row + footprint.height - CIRCLE_RISE * width
+    sides: list[float] = []
+    for sign in (-1.0, 1.0):
+        hits = np.zeros(len(CIRCLE_ANGLES), bool)
+        shown = np.zeros(len(CIRCLE_ANGLES), bool)
+        for radius in CIRCLE_RADII:
+            xs = x0 + (center_x + sign * radius * width * np.cos(CIRCLE_ANGLES)) * CELL
+            ys = y0 + (center_y + radius * width * np.sin(CIRCLE_ANGLES)) * CELL
+            hit, seen = sample(glow, view.visible, xs, ys)
+            hits |= hit
+            shown |= seen
+        if shown.sum() < len(CIRCLE_ANGLES) / 2:
+            break
+        sides.append(float(hits.sum()) / float(shown.sum()))
+    return sides
+
+
+def _cells_region(
+    shape: tuple[int, int], lattice: Lattice, cells: frozenset[ViewCell]
+) -> np.ndarray:
+    """Return the screen pixels inside the cells."""
+    region = np.zeros(shape, np.uint8)
+    for column, row in cells:
+        corners = [
+            lattice.project(column + dx, row + dy) for dx, dy in ((0, 0), (1, 0), (1, 1), (0, 1))
+        ]
+        cv2.fillConvexPoly(region, np.round(np.array(corners)).astype(np.int32), 1)
+    return region.astype(bool)
 
 
 def _visible(visible: np.ndarray, x: float, y: float) -> bool:
@@ -262,6 +454,19 @@ def grid_lines(image: np.ndarray) -> GridLines:
     rows = cv2.dilate(ridge(white, axis=0), np.ones((LINE_NEAR, 1), np.uint8)) > LINE_RIDGE
     columns = cv2.dilate(ridge(white, axis=1), np.ones((1, LINE_NEAR), np.uint8)) > LINE_RIDGE
     return GridLines(rows, columns)
+
+
+def _middle_shown(lattice: Lattice, lines: GridLines, visible: np.ndarray, ring: Ring) -> bool:
+    """Return True when a wide ring with a hidden middle shows the grid line in the middle."""
+    if not ring.hidden_middle or ring.width < 2:
+        return False
+    rows = ring.pos[1] + ring.width + MIDDLE_SPAN
+    for step in range(1, ring.width):
+        column = np.full(len(MIDDLE_SPAN), float(ring.pos[0] + step))
+        share = _line_share(lines.columns, visible, lattice, column, rows)
+        if share is not None and share >= MIDDLE_LINE_OFF:
+            return True
+    return False
 
 
 def _line_share(
@@ -285,7 +490,7 @@ class _Hidden:
 def _hidden(
     lattice: Lattice,
     lines: GridLines,
-    arcs: np.ndarray,
+    rings: RingImage,
     visible: np.ndarray,
     readable: frozenset[ViewCell],
     footprints: list[_Footprint],
@@ -306,10 +511,12 @@ def _hidden(
         # The ring and the glow of a unit cover the edge below it, so that edge is no cue.
         if (column, row) in taken or (column, row - 1) in taken:
             continue
-        if not _top_hidden(lattice, lines, arcs, visible, (column, row)):
+        if not _top_hidden(lattice, lines, rings.any_color, visible, (column, row)):
             continue
         if (column, row) in near:
             unreadable.add((column, row))
+            continue
+        if band_share(rings, lattice, (column, row), 1) < HIDDEN_RING_ON:
             continue
         unit = _Footprint.square((column, row), 1)
         units.append(unit)
@@ -357,26 +564,25 @@ def _chevron(scale: float) -> np.ndarray:
     The template marks the white arms of the upper chevron (255) and the darker pixels
     next to them (0). The role icon changes, so the template leaves it out (128).
     """
-    path = TEMPLATES / "chevron.png"
-    template = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    template = cv2.imread(str(CHEVRON_TEMPLATE), cv2.IMREAD_GRAYSCALE)
     if template is None:
-        raise FileNotFoundError(path)
+        raise FileNotFoundError(CHEVRON_TEMPLATE)
     resized = cv2.resize(template, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
     arms = (resized == 255).astype(np.float32)
     gaps = (resized == 0).astype(np.float32)
     return arms / arms.sum() - gaps / gaps.sum()
 
 
-def _chevrons(image: np.ndarray, lattice: Lattice, visible: np.ndarray) -> np.ndarray:
+def _chevrons(
+    white: np.ndarray,
+    kernels: tuple[np.ndarray, ...],
+    pitch: float,
+    lattice: Lattice,
+    visible: np.ndarray,
+) -> np.ndarray:
     """Return the (column, row) lattice coordinates of the center of each chevron."""
-    white = (image.min(axis=2) > CHEVRON_WHITE).astype(np.float32)
-    height = white.shape[0]
-    left, _ = lattice.project(0.0, lattice.row_coordinate(height / 2))
-    right, _ = lattice.project(1.0, lattice.row_coordinate(height / 2))
-    pitch = right - left
     response = np.full(white.shape, -1.0, np.float32)
-    for factor in CHEVRON_SCALES:
-        kernel = _chevron(round(factor * pitch / CHEVRON_PITCH, 2))
+    for kernel in kernels:
         np.maximum(
             response, cv2.filter2D(white, -1, kernel, borderType=cv2.BORDER_CONSTANT), out=response
         )
@@ -419,10 +625,14 @@ def _chevron_units(chevrons: np.ndarray, footprints: list[_Footprint]) -> list[_
 
 
 def _controllable(
-    lattice: Lattice, visible: np.ndarray, chevrons: np.ndarray, footprint: _Footprint
+    white: np.ndarray,
+    kernels: tuple[np.ndarray, ...],
+    lattice: Lattice,
+    visible: np.ndarray,
+    footprint: _Footprint,
 ) -> bool | None:
-    if any(_owns(footprint, chevron) for chevron in chevrons):
-        return True
+    """Return True when the chevron of a unit that can act shows above the footprint, False when
+    the frame shows the place of the chevron without it, and None otherwise."""
     column, row = footprint.pos
     middle = column + footprint.width / 2
     low, high = CHEVRON_RISE
@@ -431,6 +641,30 @@ def _controllable(
         for across in (-CHEVRON_ACROSS, CHEVRON_ACROSS)
         for rise in (low, high)
     ]
+    reach = max(max(kernel.shape) for kernel in kernels)
+    height, width = white.shape
+    left = max(0, math.floor(min(x for x, _ in corners)) - reach)
+    right = min(width, math.ceil(max(x for x, _ in corners)) + reach + 1)
+    top = max(0, math.floor(min(y for _, y in corners)) - reach)
+    bottom = min(height, math.ceil(max(y for _, y in corners)) + reach + 1)
+    if left < right and top < bottom:
+        window = white[top:bottom, left:right]
+        response = np.full(window.shape, -1.0, np.float32)
+        for kernel in kernels:
+            np.maximum(
+                response,
+                cv2.filter2D(window, -1, kernel, borderType=cv2.BORDER_CONSTANT),
+                out=response,
+            )
+        response[~visible[top:bottom, left:right]] = -1.0
+        ys, xs = np.nonzero(response >= CHEVRON_SCORE)
+        ys = ys.astype(np.float64) + top
+        columns = (
+            (xs + left - lattice.apex) / (ys - lattice.horizon) - lattice.column_origin
+        ) / lattice.column_step
+        rises = row - (1.0 / (ys - lattice.horizon) - lattice.row_origin) / lattice.row_step
+        if ((np.abs(columns - middle) <= CHEVRON_ACROSS) & (rises >= low) & (rises <= high)).any():
+            return True
     if all(_visible(visible, x, y) for x, y in corners):
         return False
     return None

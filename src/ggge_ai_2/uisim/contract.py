@@ -78,6 +78,11 @@ class UiAutoMode(StrEnum):
     MANUAL = "manual"
 
 
+class UiUnitList(StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+
+
 @dataclass(frozen=True)
 class OpenGroup:
     group: str
@@ -89,12 +94,14 @@ class UiState:
     screen: UiScreen
     stack: tuple[OpenGroup, ...] = ()
     auto: UiAutoMode | None = None
+    unit_list: UiUnitList | None = None
 
 
 @dataclass(frozen=True)
 class Observed:
     screen: UiScreen
     auto: UiAutoMode | None = None
+    unit_list: UiUnitList | None = None
 
 
 @dataclass(frozen=True)

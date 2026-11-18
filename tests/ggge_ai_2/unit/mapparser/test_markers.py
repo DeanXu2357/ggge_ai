@@ -3,11 +3,12 @@ import functools
 import pytest
 
 from ggge_ai_2.mapparser.contract import Marker, ViewCell
-from ggge_ai_2.mapparser.hud import hud_cells, hud_rects
-from ggge_ai_2.mapparser.lattice import read_lattice
+from ggge_ai_2.mapparser.lattice import Lattice, read_lattice
 from ggge_ai_2.mapparser.markers import read_markers
 from ggge_ai_2.mapparser.topview import top_view
+from ggge_ai_2.mapparser.units import covered
 from tests.ggge_ai_2.dataset import Case, load_image
+from tests.ggge_ai_2.unit.mapparser.scope import scope_of
 from tests.ggge_ai_2.unit.mapparser.test_lattice import GRID_CASES
 
 # The game draws the move range after the player selects a unit to move.
@@ -41,12 +42,18 @@ def _read(case: Case) -> dict[ViewCell, frozenset[Marker]]:
 # Keyed by the case ID because a Case holds a dict and does not hash.
 @functools.cache
 def _read_by_id(case_id: str) -> dict[ViewCell, frozenset[Marker]]:
-    image = load_image(CASES_BY_ID[case_id])
+    case = CASES_BY_ID[case_id]
+    image = load_image(case)
     lattice = read_lattice(image)
     assert lattice is not None
-    rects = hud_rects(image)
-    cells = lattice.cells() - hud_cells(image, lattice)
-    return read_markers(image, top_view(image, lattice, rects), cells)
+    return read_markers(
+        image, top_view(image, lattice, scope_of(case).occluded), _given(case, lattice)
+    )
+
+
+def _given(case: Case, lattice: Lattice) -> frozenset[ViewCell]:
+    rects = scope_of(case).occluded
+    return frozenset(cell for cell in lattice.cells() if not covered(lattice.center(cell), rects))
 
 
 def _marked(case: Case, marker: Marker) -> set[ViewCell]:
@@ -55,11 +62,10 @@ def _marked(case: Case, marker: Marker) -> set[ViewCell]:
 
 @pytest.mark.parametrize("case", GRID_CASES, ids=[case.id for case in GRID_CASES])
 def test_reads_each_given_cell(case: Case) -> None:
-    image = load_image(case)
-    lattice = read_lattice(image)
+    lattice = read_lattice(load_image(case))
     assert lattice is not None
 
-    assert set(_read(case)) == lattice.cells() - hud_cells(image, lattice)
+    assert set(_read(case)) == _given(case, lattice)
 
 
 @pytest.mark.parametrize("case", MOVE_CASES, ids=[case.id for case in MOVE_CASES])

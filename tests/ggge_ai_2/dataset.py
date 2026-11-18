@@ -21,10 +21,20 @@ class MapLabel:
     cells: frozenset[tuple[int, int]]
     borders: frozenset[str]
     units: frozenset[tuple[tuple[int, int], tuple[int, int]]]
+    # None when the user has not ruled the cut units of the frame.
+    cropped: frozenset[tuple[tuple[int, int], tuple[int, int]]] | None
     controllable: frozenset[tuple[int, int]]
     occupied: frozenset[tuple[int, int]]
     selected: tuple[int, int] | None
+    enemy_selected: tuple[int, int] | None
     markers: dict[str, frozenset[tuple[int, int]]]
+
+
+@dataclass(frozen=True)
+class TapMarkLabel:
+    point: tuple[int, int]
+    # None when the terrain box is outside the frame.
+    terrain: tuple[str, ...] | None
 
 
 @dataclass(frozen=True)
@@ -42,6 +52,11 @@ class Case:
     phase: str | None
     map: MapLabel | None
     elements: dict[str, str | None]
+    unit_panel: dict[str, dict[str, object]] | None
+    enemy_panel: dict[str, dict[str, object]] | None
+    # None also when the user has not ruled the mark; 'tap_mark_ruled' tells the two apart.
+    tap_mark: TapMarkLabel | None
+    tap_mark_ruled: bool
 
 
 @functools.cache
@@ -69,6 +84,20 @@ def _case(row: dict[str, object]) -> Case:
             str(name): None if value is None else str(value)
             for name, value in cast(dict[str, object], row["elements"]).items()
         },
+        unit_panel=cast(dict[str, dict[str, object]] | None, row.get("unit_panel")),
+        enemy_panel=cast(dict[str, dict[str, object]] | None, row.get("enemy_panel")),
+        tap_mark=_tap_mark(cast(dict[str, Any] | None, row.get("tap_mark"))),
+        tap_mark_ruled="tap_mark" in row,
+    )
+
+
+def _tap_mark(label: dict[str, Any] | None) -> TapMarkLabel | None:
+    if label is None:
+        return None
+    terrain = label["terrain"]
+    return TapMarkLabel(
+        point=(int(label["point"][0]), int(label["point"][1])),
+        terrain=None if terrain is None else tuple(str(name) for name in terrain),
     )
 
 
@@ -79,24 +108,33 @@ def _map_label(label: dict[str, Any]) -> MapLabel:
     return MapLabel(
         cells=cells("cells"),
         borders=frozenset(str(edge) for edge in label["borders"]),
-        units=frozenset(
-            (
-                (int(unit["pos"][0]), int(unit["pos"][1])),
-                (int(unit["size"][0]), int(unit["size"][1])),
-            )
-            for unit in label["units"]
-        ),
+        units=frozenset(_unit(unit) for unit in label["units"]),
+        cropped=None
+        if "cropped" not in label
+        else frozenset(_unit(unit) for unit in label["cropped"]),
         controllable=cells("controllable"),
         occupied=frozenset(
-            cell for unit in label["units"] for cell in _footprint(unit) + _extra(unit)
+            cell
+            for unit in label["units"] + label.get("cropped", [])
+            for cell in _footprint(unit) + _extra(unit)
         ),
         selected=None
         if label["selected"] is None
         else (int(label["selected"][0]), int(label["selected"][1])),
+        enemy_selected=None
+        if label.get("enemy_selected") is None
+        else (int(label["enemy_selected"][0]), int(label["enemy_selected"][1])),
         markers={
             name: frozenset((int(x), int(y)) for x, y in marked)
             for name, marked in label["markers"].items()
         },
+    )
+
+
+def _unit(unit: dict[str, Any]) -> tuple[tuple[int, int], tuple[int, int]]:
+    return (
+        (int(unit["pos"][0]), int(unit["pos"][1])),
+        (int(unit["size"][0]), int(unit["size"][1])),
     )
 
 
